@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <iterator>
 
 namespace helix::led {
 
@@ -77,6 +78,33 @@ std::vector<std::string> union_light_targets(const std::vector<std::string>& key
         }
     }
     return out;
+}
+
+SelectionMigration plan_selection_migration(const std::vector<std::string>& selected,
+                                            const std::vector<std::string>& switchable) {
+    SelectionMigration m;
+    m.auto_state_strips = selected;
+    if (selected.size() == 1) {
+        m.light_button = selected.front();
+        return m;
+    }
+    const bool every =
+        !selected.empty() && !switchable.empty() &&
+        std::all_of(switchable.begin(), switchable.end(),
+                    [&selected](const std::string& id) { return contains(selected, id); });
+    if (every) {
+        m.light_button = LIGHT_BUTTON_ALL;
+    }
+    return m;
+}
+
+std::vector<uint32_t> migrate_color_presets(const std::vector<uint32_t>& saved) {
+    const std::vector<uint32_t> pre(std::begin(PRE_1_1_DEFAULT_COLOR_PRESETS),
+                                    std::end(PRE_1_1_DEFAULT_COLOR_PRESETS));
+    if (saved.empty() || saved == pre) {
+        return {std::begin(DEFAULT_COLOR_PRESETS), std::end(DEFAULT_COLOR_PRESETS)};
+    }
+    return saved;
 }
 
 bool next_power_on(const std::vector<PowerState>& states, bool last_sent_on) {

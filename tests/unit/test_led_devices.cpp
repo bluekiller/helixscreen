@@ -109,3 +109,48 @@ TEST_CASE("next_power_on: unreadable state alternates on what was last sent", "[
     CHECK_FALSE(next_power_on({PowerState::Unknown, PowerState::Unknown}, true));
     CHECK(next_power_on({}, false));
 }
+
+TEST_CASE("plan_selection_migration: one device", "[led][migration]") {
+    const auto m = plan_selection_migration({"neopixel a"}, {"neopixel a", "neopixel b"});
+    CHECK(m.light_button == "neopixel a");
+    CHECK(m.auto_state_strips == std::vector<std::string>{"neopixel a"});
+}
+
+TEST_CASE("plan_selection_migration: every switchable device", "[led][migration]") {
+    const auto m =
+        plan_selection_migration({"neopixel b", "neopixel a"}, {"neopixel a", "neopixel b"});
+    CHECK(m.light_button == LIGHT_BUTTON_ALL);
+    CHECK(m.auto_state_strips == std::vector<std::string>{"neopixel b", "neopixel a"});
+}
+
+TEST_CASE("plan_selection_migration: an undiscovered extra id still means every device",
+          "[led][migration]") {
+    const auto m = plan_selection_migration({"neopixel a", "printer_led"}, {"neopixel a"});
+    CHECK(m.light_button == LIGHT_BUTTON_ALL);
+}
+
+TEST_CASE("plan_selection_migration: anything else goes to auto-state only", "[led][migration]") {
+    const auto m = plan_selection_migration({"neopixel a", "neopixel b"},
+                                            {"neopixel a", "neopixel b", "neopixel c"});
+    CHECK(m.light_button.empty());
+    CHECK(m.auto_state_strips == std::vector<std::string>{"neopixel a", "neopixel b"});
+}
+
+TEST_CASE("plan_selection_migration: nothing selected", "[led][migration]") {
+    CHECK(plan_selection_migration({}, {"neopixel a"}) == SelectionMigration{});
+}
+
+TEST_CASE("migrate_color_presets", "[led][migration]") {
+    const std::vector<uint32_t> fresh(std::begin(DEFAULT_COLOR_PRESETS),
+                                      std::end(DEFAULT_COLOR_PRESETS));
+    const std::vector<uint32_t> old(std::begin(PRE_1_1_DEFAULT_COLOR_PRESETS),
+                                    std::end(PRE_1_1_DEFAULT_COLOR_PRESETS));
+    CHECK(migrate_color_presets({}) == fresh);
+    CHECK(migrate_color_presets(old) == fresh);
+    auto reordered = old;
+    std::swap(reordered[0], reordered[1]);
+    CHECK(migrate_color_presets(reordered) == reordered);
+    CHECK(migrate_color_presets({0x123456}) == std::vector<uint32_t>{0x123456});
+    CHECK(fresh == std::vector<uint32_t>{0xFF4444, 0xFF6B35, 0x66BB6A, 0x00BCD4, 0x2962FF, 0x9C27B0,
+                                         0xFF4081});
+}

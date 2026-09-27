@@ -666,6 +666,44 @@ TEST_CASE_METHOD(HardwareValidatorConfigFixture,
     }
 }
 
+// leds/auto_state/strips names devices the user chose, so it counts as configuring
+// an LED on its own.
+TEST_CASE_METHOD(HardwareValidatorConfigFixture,
+                 "HardwareValidator - LED held only in leds/auto_state/strips is configured",
+                 "[hardware][validator]") {
+    setup_printer_data({{"moonraker_host", "127.0.0.1"},
+                        {"moonraker_port", 7125},
+                        {"leds", {{"auto_state", {{"strips", {"neopixel chamber_light"}}}}}},
+                        {"hardware",
+                         {{"optional", json::array()},
+                          {"expected", json::array()},
+                          {"last_snapshot", json::object()}}}});
+
+    SECTION("present: not suggested as new") {
+        MoonrakerClientMock client;
+        client.set_leds({"neopixel chamber_light"});
+        auto result = HardwareValidator{}.validate(&config, client.hardware());
+        for (const auto& issue : result.newly_discovered) {
+            INFO("unexpected new LED: " << issue.hardware_name);
+            REQUIRE(issue.hardware_type != HardwareType::LED);
+        }
+    }
+
+    SECTION("absent: reported missing") {
+        MoonrakerClientMock client;
+        client.set_leds({"neopixel something_else"});
+        auto result = HardwareValidator{}.validate(&config, client.hardware());
+        bool reported = false;
+        for (const auto& issue : result.expected_missing) {
+            if (issue.hardware_type == HardwareType::LED &&
+                issue.hardware_name == "neopixel chamber_light") {
+                reported = true;
+            }
+        }
+        REQUIRE(reported);
+    }
+}
+
 TEST_CASE_METHOD(HardwareValidatorConfigFixture,
                  "HardwareValidator - is_hardware_optional with empty config",
                  "[hardware][validator][config]") {

@@ -12,6 +12,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+
 namespace helix::led {
 
 LedAutoState& LedAutoState::instance() {
@@ -45,6 +47,7 @@ void LedAutoState::deinit() {
     enabled_ = false;
     last_applied_key_.clear();
     mappings_.clear();
+    strips_.clear();
 
     spdlog::info("[LedAutoState] Deinitialized");
 }
@@ -159,24 +162,41 @@ std::string LedAutoState::compute_state_key() const {
     return "idle";
 }
 
+std::vector<std::string> LedAutoState::targets() const {
+    auto& ctrl = LedController::instance();
+    const auto switchable = ctrl.switchable_ids();
+    std::vector<std::string> out;
+    for (const auto& id : strips_) {
+        if (std::find(switchable.begin(), switchable.end(), id) != switchable.end()) {
+            out.push_back(id);
+        }
+    }
+    return out.empty() ? ctrl.light_targets("") : out;
+}
+
 void LedAutoState::apply_action(const LedStateAction& action) {
     auto& ctrl = LedController::instance();
 
     if (action.action_type == "off") {
-        ctrl.turn_off_all();
+        ctrl.set_power(targets(), false);
+        ctrl.sync_light_state(false);
     } else if (action.action_type == "color") {
         double r = 0.0, g = 0.0, b = 0.0;
         unpack_rgb(action.color, r, g, b);
         double scale = action.brightness / 100.0;
-        ctrl.set_color_all(r * scale, g * scale, b * scale, 0.0);
+        ctrl.set_color(targets(), r * scale, g * scale, b * scale, 0.0);
+        ctrl.sync_light_state(scale > 0.0 && action.color != 0);
     } else if (action.action_type == "brightness") {
-        ctrl.set_brightness_all(action.brightness);
+        ctrl.set_brightness(targets(), action.brightness);
+        ctrl.sync_light_state(action.brightness > 0);
     } else if (action.action_type == "effect") {
         ctrl.effects().activate_effect(action.effect_name);
         ctrl.sync_light_state(true);
     } else if (action.action_type == "wled_preset") {
-        for (const auto& strip : ctrl.wled().strips()) {
-            ctrl.wled().set_preset(strip.name, action.wled_preset);
+        for (const auto& id : targets()) {
+            if (ctrl.backend_for_strip(id) == LedBackendType::WLED) {
+                ctrl.wled().set_preset(id, action.wled_preset);
+            }
         }
         ctrl.sync_light_state(true);
     } else if (action.action_type == "macro") {
@@ -255,6 +275,7 @@ void LedAutoState::load_config() {
 
     // Enabled flag
     enabled_ = cfg->get<bool>(cfg->df() + "leds/auto_state/enabled", false);
+    strips_ = cfg->get_string_array(cfg->df() + AUTO_STATE_STRIPS_PATH);
 
     // Mappings
     mappings_.clear();
@@ -322,8 +343,33 @@ void LedAutoState::save_config() {
     }
     cfg->set(cfg->df() + "leds/auto_state/mappings", mappings_json);
 
+    // An absent key already means the chamber light, and an array there marks the
+    // legacy selection as migrated, so an empty list is only written over an array.
+    const nlohmann::json* saved_strips = cfg->try_get_json(cfg->df() + AUTO_STATE_STRIPS_PATH);
+    if (!strips_.empty() || (saved_strips != nullptr && saved_strips->is_array())) {
+        cfg->set(cfg->df() + AUTO_STATE_STRIPS_PATH, nlohmann::json(strips_));
+    }
+
     cfg->save();
     spdlog::debug("[LedAutoState] Saved config");
+}
+
+void stage_light_selection(const SelectionMigration& m) {
+    auto* cfg = Config::get_instance();
+    if (cfg == nullptr) {
+        return;
+    }
+    // Written directly: LedAutoState::save_config() on an uninitialised instance
+    // would save empty mappings over the user's.
+    cfg->set(cfg->df() + AUTO_STATE_STRIPS_PATH, nlohmann::json(m.auto_state_strips));
+    if (!m.light_button.empty()) {
+        cfg->set(cfg->df() + LIGHT_BUTTON_PENDING_PATH, m.light_button);
+    }
+    auto& auto_state = LedAutoState::instance();
+    if (auto_state.is_initialized()) {
+        auto_state.set_strips(m.auto_state_strips);
+    }
+    cfg->save();
 }
 
 } // namespace helix::led

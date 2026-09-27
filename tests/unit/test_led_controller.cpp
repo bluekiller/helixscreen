@@ -32,6 +32,12 @@ using namespace helix;
 struct LedControllerFixture : public HelixTestFixture {
     ~LedControllerFixture() override {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        // A discovery over a saved selection stages the light selection; later
+        // tests must see a config that has not migrated yet.
+        if (auto* cfg = Config::get_instance()) {
+            cfg->set(cfg->df() + "leds/auto_state/strips", nlohmann::json());
+            cfg->set(cfg->df() + "leds/light_button_pending", nlohmann::json());
+        }
     }
 };
 
@@ -504,7 +510,7 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.set_led_on_at_start(false);
 
     // Should not crash - just a no-op
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
 
     ctrl.deinit();
 }
@@ -524,10 +530,9 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(true);
-    REQUIRE(ctrl.selected_strips().empty());
 
     // Should not crash even though enabled
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference({});
 
     ctrl.deinit();
 }
@@ -1122,7 +1127,7 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.set_led_on_at_start(true);
     REQUIRE(!ctrl.light_is_on());
 
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     REQUIRE(ctrl.light_is_on());
 
     ctrl.deinit();
@@ -1225,10 +1230,10 @@ TEST_CASE_METHOD(LedControllerFixture, "LedController: stale selected strips pru
     discovery.parse_objects(objects);
     ctrl.discover_from_hardware(discovery);
 
-    // The stale "led chamber_light" should be pruned, and auto-select
-    // should have picked "led chamber_LED" from discovered hardware
-    REQUIRE(ctrl.selected_strips().size() == 1);
-    REQUIRE(ctrl.selected_strips()[0] == "led chamber_LED");
+    // The stale "led chamber_light" is pruned and nothing replaces it; the light
+    // falls to the discovered chamber light.
+    REQUIRE(ctrl.selected_strips().empty());
+    REQUIRE(ctrl.chamber_light() == "led chamber_LED");
 
     ctrl.deinit();
 }
@@ -1279,7 +1284,7 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.deinit();
 }
 
-TEST_CASE_METHOD(LedControllerFixture, "LedController: all strips stale triggers auto-select",
+TEST_CASE_METHOD(LedControllerFixture, "LedController: all strips stale leaves the selection empty",
                  "[led][controller]") {
     auto& ctrl = helix::led::LedController::instance();
     ctrl.deinit();
@@ -1290,24 +1295,21 @@ TEST_CASE_METHOD(LedControllerFixture, "LedController: all strips stale triggers
 
     helix::PrinterDiscovery discovery;
     nlohmann::json objects =
-        nlohmann::json::array({"neopixel actual_led_1", "led actual_led_2", "extruder"});
+        nlohmann::json::array({"neopixel actual_led_1", "led chamber_LED", "extruder"});
     discovery.parse_objects(objects);
     ctrl.discover_from_hardware(discovery);
 
-    // All stale → pruned → empty → auto-select picks all native strips
-    REQUIRE(ctrl.selected_strips().size() == 2);
-    REQUIRE(ctrl.selected_strips()[0] == "neopixel actual_led_1");
-    REQUIRE(ctrl.selected_strips()[1] == "led actual_led_2");
+    REQUIRE(ctrl.selected_strips().empty());
+    REQUIRE(ctrl.chamber_light() == "led chamber_LED");
 
     ctrl.deinit();
 }
 
 TEST_CASE_METHOD(LedControllerFixture,
-                 "LedController: auto-select picks output_pin LED when no native present",
+                 "LedController: an output_pin-only printer's light targets that pin",
                  "[led][controller]") {
-    // Regression for K2 Plus / K1C: their only LED is `[output_pin LED]`. Auto-select
-    // used to only fire for native strips, leaving the print-status light toggle to
-    // bail out with "No light configured". Auto-select must also cover output_pin.
+    // K2 Plus / K1C: the only LED is `[output_pin LED]`, and with nothing selected
+    // the light still has to reach it.
     auto* cfg = Config::get_instance();
     if (cfg) {
         cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array());
@@ -1323,50 +1325,15 @@ TEST_CASE_METHOD(LedControllerFixture,
     discovery.parse_objects(objects);
     ctrl.discover_from_hardware(discovery);
 
-    REQUIRE(ctrl.selected_strips().size() == 1);
-    REQUIRE(ctrl.selected_strips()[0] == "output_pin LED");
+    REQUIRE(ctrl.selected_strips().empty());
+    REQUIRE(ctrl.light_targets("") == std::vector<std::string>{"output_pin LED"});
+    REQUIRE(lv_subject_get_int(ctrl.get_led_controllable_subject()) == 1);
 
     ctrl.deinit();
 }
 
 TEST_CASE_METHOD(LedControllerFixture,
-                 "LedController: auto-select picks all selectable strips across backends",
-                 "[led][controller]") {
-    auto* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array());
-        cfg->save();
-    }
-
-    auto& ctrl = helix::led::LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    helix::PrinterDiscovery discovery;
-    nlohmann::json objects =
-        nlohmann::json::array({"neopixel chamber_light", "output_pin case_light", "extruder"});
-    discovery.parse_objects(objects);
-    ctrl.discover_from_hardware(discovery);
-
-    // Both backends should be represented in the auto-selection
-    auto& selected = ctrl.selected_strips();
-    REQUIRE(selected.size() == 2);
-    bool has_neopixel = false;
-    bool has_output_pin = false;
-    for (const auto& id : selected) {
-        if (id == "neopixel chamber_light")
-            has_neopixel = true;
-        if (id == "output_pin case_light")
-            has_output_pin = true;
-    }
-    REQUIRE(has_neopixel);
-    REQUIRE(has_output_pin);
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LedControllerFixture,
-                 "LedController: led_controllable subject reflects selected_strips emptiness",
+                 "LedController: led_controllable reflects whether any switchable device exists",
                  "[led][controller][led_controllable]") {
     auto* cfg = Config::get_instance();
     if (cfg) {
@@ -1381,26 +1348,29 @@ TEST_CASE_METHOD(LedControllerFixture,
     auto* subj = ctrl.get_led_controllable_subject();
     REQUIRE(subj != nullptr);
 
-    // Fresh init with cleared config: nothing selected → 0
-    REQUIRE(ctrl.selected_strips().empty());
+    // No devices at all → 0
     REQUIRE(lv_subject_get_int(subj) == 0);
 
-    // Manually populating selected_strips flips the subject to 1
+    // A selection naming no existing device is not something to control
     ctrl.set_selected_strips({"neopixel chamber_light"});
-    REQUIRE(lv_subject_get_int(subj) == 1);
-
-    // Clearing flips it back to 0
-    ctrl.set_selected_strips({});
     REQUIRE(lv_subject_get_int(subj) == 0);
 
-    // Auto-select via discovery also flips it to 1 (regression for K2 Plus / K1C:
-    // output_pin-only printers must show the light toggle as controllable)
+    // A switchable macro device flips it to 1; removing it flips it back
+    helix::led::LedMacroInfo lamp;
+    lamp.display_name = "Lamp";
+    lamp.type = helix::led::MacroLedType::TOGGLE;
+    lamp.toggle_macro = "LAMP_TOGGLE";
+    ctrl.set_configured_macros({lamp});
+    REQUIRE(lv_subject_get_int(subj) == 1);
+    ctrl.set_configured_macros({});
+    REQUIRE(lv_subject_get_int(subj) == 0);
+
+    // Discovery of an output_pin-only printer (K2 Plus / K1C) flips it to 1
     helix::PrinterDiscovery discovery;
     nlohmann::json objects = nlohmann::json::array({"output_pin LED", "extruder"});
     discovery.parse_objects(objects);
     ctrl.discover_from_hardware(discovery);
 
-    REQUIRE_FALSE(ctrl.selected_strips().empty());
     REQUIRE(lv_subject_get_int(subj) == 1);
 
     ctrl.deinit();
@@ -1586,7 +1556,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     ctrl.set_last_color(0xFF6B35); // Orange
     ctrl.set_startup_brightness(80);
 
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     REQUIRE(ctrl.light_is_on());
 
     auto color = ctrl.native().get_strip_color("neopixel chamber");
@@ -1647,7 +1617,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
 
     // --- First discovery completes: the preference applies, lights come up. ---
     mock_client.clear_gcode_script_history();
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     REQUIRE(ctrl.light_is_on());
@@ -1674,7 +1644,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     make_led_dispatch_real(state);
 
     // ...and the connected callback calls apply_startup_preference() again.
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     // The user's OFF has to survive the restart: startup already happened.
@@ -1702,7 +1672,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
 
     // First discovery: nothing selected yet — no-op, and no shot spent.
     REQUIRE(ctrl.selected_strips().empty());
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
     REQUIRE_FALSE(ctrl.light_is_on());
 
@@ -1716,7 +1686,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     ctrl.set_selected_strips({"neopixel chamber"});
 
     mock_client.clear_gcode_script_history();
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     CHECK(ctrl.light_is_on());
@@ -1736,7 +1706,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     ctrl.set_led_on_at_start(true);
     ctrl.set_last_color(0xFFFFFF);
     ctrl.set_startup_brightness(80);
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
     REQUIRE(ctrl.light_is_on());
 
@@ -1752,7 +1722,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     make_led_dispatch_real(state);
 
     mock_client.clear_gcode_script_history();
-    ctrl.apply_startup_preference();
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     CHECK(ctrl.light_is_on());

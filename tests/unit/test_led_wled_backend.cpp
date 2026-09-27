@@ -523,3 +523,18 @@ TEST_CASE_METHOD(WledMockFixture, "LedController: WLED discovery uses real strip
     REQUIRE(ids[0] == "enclosure_led");
     REQUIRE(ids[1] == "printer_led");
 }
+
+TEST_CASE_METHOD(WledMockFixture,
+                 "LedController: a WLED-only printer becomes controllable when its strips arrive",
+                 "[led][wled][discovery]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    REQUIRE(ctrl.all_devices().empty());
+    REQUIRE(lv_subject_get_int(ctrl.get_led_controllable_subject()) == 0);
+
+    ctrl.discover_wled_strips();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    CHECK(lv_subject_get_int(ctrl.get_led_controllable_subject()) == 1);
+}

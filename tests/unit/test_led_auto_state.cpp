@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "../helix_test_fixture.h"
+#include "../lvgl_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "config.h"
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
+#include "moonraker_api_mock.h"
+#include "moonraker_client_mock.h"
 #include "printer_state.h"
 
 #include "../catch_amalgamated.hpp"
@@ -554,4 +557,83 @@ TEST_CASE_METHOD(LedAutoStateFixture, "LedAutoState observer fires after init an
     lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
     teardown_auto_state();
     clear_persisted_auto_state();
+}
+
+namespace helix::led {
+class LedAutoStateTestAccess {
+  public:
+    static void apply(const LedStateAction& a) {
+        LedAutoState::instance().apply_action(a);
+    }
+};
+} // namespace helix::led
+
+namespace {
+struct AutoStateTargetFixture : public LVGLTestFixture {
+    MoonrakerClientMock client{MoonrakerClientMock::PrinterType::VORON_24};
+    helix::PrinterState state;
+    std::unique_ptr<MoonrakerAPIMock> api;
+
+    AutoStateTargetFixture() {
+        state.init_subjects(false);
+        state.set_klippy_state_sync(helix::KlippyState::READY);
+        api = std::make_unique<MoonrakerAPIMock>(client, state);
+        auto& ctrl = helix::led::LedController::instance();
+        ctrl.deinit();
+        ctrl.init(api.get(), &client);
+        for (const char* id : {"neopixel chamber_light", "neopixel sb_leds"}) {
+            helix::led::LedStripInfo s;
+            s.id = id;
+            s.name = id;
+            s.backend = helix::led::LedBackendType::NATIVE;
+            s.supports_color = true;
+            s.supports_white = true;
+            ctrl.native().add_strip(s);
+        }
+    }
+    ~AutoStateTargetFixture() override {
+        helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        helix::led::LedAutoState::instance().set_strips({});
+        if (auto* cfg = helix::Config::get_instance()) {
+            cfg->set(cfg->df() + "leds/auto_state/strips", nlohmann::json());
+        }
+        clear_persisted_auto_state();
+        helix::led::LedController::instance().deinit();
+    }
+};
+} // namespace
+
+TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: targets fall back to the chamber light",
+                 "[led][auto_state]") {
+    auto& as = helix::led::LedAutoState::instance();
+    as.set_strips({});
+    CHECK(as.targets() == std::vector<std::string>{"neopixel chamber_light"});
+    as.set_strips({"neopixel gone"});
+    CHECK(as.targets() == std::vector<std::string>{"neopixel chamber_light"});
+    as.set_strips({"neopixel sb_leds"});
+    CHECK(as.targets() == std::vector<std::string>{"neopixel sb_leds"});
+}
+
+TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: strips round-trip through config",
+                 "[led][auto_state]") {
+    auto& as = helix::led::LedAutoState::instance();
+    as.set_strips({"neopixel sb_leds"});
+    as.save_config();
+    as.set_strips({});
+    as.load_config();
+    CHECK(as.strips() == std::vector<std::string>{"neopixel sb_leds"});
+}
+
+TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: a color action reaches only its targets",
+                 "[led][auto_state]") {
+    auto& ctrl = helix::led::LedController::instance();
+    helix::led::LedAutoState::instance().set_strips({"neopixel sb_leds"});
+    helix::led::LedStateAction a;
+    a.action_type = "color";
+    a.color = 0xFF0000;
+    a.brightness = 100;
+    helix::led::LedAutoStateTestAccess::apply(a);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(ctrl.native().has_strip_color("neopixel sb_leds"));
+    CHECK_FALSE(ctrl.native().has_strip_color("neopixel chamber_light"));
 }

@@ -11,6 +11,7 @@
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
+#include "led/led_auto_state.h"
 #include "led/led_color_utils.h"
 #include "led_wled_json.h"
 #include "moonraker_error.h"
@@ -362,14 +363,15 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
                      macro_.macros().size());
     }
 
+    // Before the prune below: the migration reads the selection as saved.
+    migrate_legacy_selection();
+
     // Prune selected strips that don't match any discovered hardware.
     // Presets (e.g. AD5M) may specify LED names that don't exist on community
     // firmware variants (Zmod names it "chamber_LED" vs stock "chamber_light").
-    // After pruning, the auto-select below kicks in and picks the real hardware.
     // NOTE: Do NOT persist the pruned list here. If all strips get pruned
     // (e.g., firmware name mismatch, incomplete discovery), persisting the
-    // empty list makes the loss permanent across restarts (#373). Let
-    // auto-select below save if it picks new strips instead.
+    // empty list makes the loss permanent across restarts (#373).
     if (!selected_strips_.empty()) {
         auto all_strips = all_selectable_strips();
         auto it = std::remove_if(
@@ -386,22 +388,6 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
         }
     }
 
-    // Auto-select all discoverable strips if nothing is selected yet.
-    // Covers native (neopixel/dotstar/led), WLED, output_pin, and macro backends so
-    // printers whose only LED is e.g. `[output_pin LED]` (K2 Plus, K1C) get a working
-    // light toggle out-of-the-box without forcing the user into Settings.
-    if (selected_strips_.empty()) {
-        auto picks = all_selectable_strips();
-        if (!picks.empty()) {
-            for (const auto& strip : picks) {
-                selected_strips_.push_back(strip.id);
-            }
-            save_config();
-            spdlog::info("[LedController] Auto-selected {} strip(s) (first run)",
-                         selected_strips_.size());
-        }
-    }
-
     // Bump version to notify UI widgets to rebind
     if (version_subject_initialized_) {
         lv_subject_set_int(&led_config_version_, lv_subject_get_int(&led_config_version_) + 1);
@@ -409,6 +395,22 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
                       lv_subject_get_int(&led_config_version_));
     }
     publish_controllable_state();
+}
+
+void LedController::migrate_legacy_selection() {
+    auto* cfg = Config::get_instance();
+    if (cfg == nullptr || selected_strips_.empty()) {
+        return;
+    }
+    const nlohmann::json* existing = cfg->try_get_json(cfg->df() + AUTO_STATE_STRIPS_PATH);
+    if (existing != nullptr && existing->is_array()) {
+        return;
+    }
+    const auto plan = plan_selection_migration(selected_strips_, switchable_ids());
+    spdlog::info("[LedController] Legacy LED selection ({} strip(s)) -> light button '{}', "
+                 "auto-state {} strip(s)",
+                 selected_strips_.size(), plan.light_button, plan.auto_state_strips.size());
+    stage_light_selection(plan);
 }
 
 void LedController::discover_wled_strips() {
@@ -501,6 +503,7 @@ void LedController::discover_wled_strips() {
                 for (auto& strip : discovered) {
                     wled_.add_strip(strip);
                 }
+                publish_controllable_state();
 
                 // Fetch server config to get WLED device addresses
                 this->api_->rest().get_server_config(
@@ -1728,9 +1731,7 @@ void OutputPinBackend::set_pin_pwm(const std::string& pin_id, bool is_pwm) {
 void LedController::load_config() {
     auto* cfg = Config::get_instance();
     if (!cfg) {
-        // No config available — apply defaults
-        color_presets_.assign(DEFAULT_COLOR_PRESETS,
-                              DEFAULT_COLOR_PRESETS + DEFAULT_COLOR_PRESETS_COUNT);
+        color_presets_ = migrate_color_presets({});
         return;
     }
 
@@ -1790,10 +1791,7 @@ void LedController::load_config() {
             }
         }
     }
-    if (color_presets_.empty()) {
-        color_presets_.assign(DEFAULT_COLOR_PRESETS,
-                              DEFAULT_COLOR_PRESETS + DEFAULT_COLOR_PRESETS_COUNT);
-    }
+    color_presets_ = migrate_color_presets(color_presets_);
 
     // Configured macros
     configured_macros_.clear();
@@ -2023,10 +2021,6 @@ LedController::ScaledColor LedController::compute_scaled_last_color(int brightne
     double r = 0.0, g = 0.0, b = 0.0;
     unpack_rgb(last_color_.rgb, r, g, b);
     return {r * scale, g * scale, b * scale, last_color_.white * scale};
-}
-
-void LedController::toggle_all(bool on) {
-    set_power(selected_strips_, on);
 }
 
 void LedController::set_power(const std::vector<std::string>& ids, bool on) {
@@ -2406,7 +2400,7 @@ bool LedController::light_state_trackable() const {
 void LedController::light_set(bool on) {
     spdlog::info("[LedController] light_set({})", on);
     light_on_ = on;
-    toggle_all(on);
+    set_power(selected_strips_.empty() ? light_targets("") : selected_strips_, on);
 }
 
 void LedController::query_led_state() {
@@ -2515,17 +2509,17 @@ void LedController::set_startup_brightness(int brightness_pct) {
     last_brightness_ = startup_brightness_;
 }
 
-void LedController::apply_startup_preference() {
+void LedController::apply_startup_preference(const std::vector<std::string>& targets) {
     if (startup_preference_applied_) {
         spdlog::debug("[LedController] Startup preference already applied this session - skipping");
         return;
     }
 
-    if (selected_strips_.empty()) {
+    if (targets.empty()) {
         // Not our shot yet. WLED strips are discovered asynchronously, so an early
         // discovery can legitimately have nothing to act on — leave the latch clear
         // so a later discovery still gets its one chance.
-        spdlog::debug("[LedController] No strips selected - startup preference deferred");
+        spdlog::debug("[LedController] No light targets - startup preference deferred");
         return;
     }
 
@@ -2544,7 +2538,8 @@ void LedController::apply_startup_preference() {
     spdlog::info("[LedController] Applying startup preference: brightness={}%, turning LEDs on",
                  startup_brightness_);
     last_brightness_ = startup_brightness_;
-    light_set(true);
+    light_on_ = true;
+    set_power(targets, true);
 }
 
 void LedController::set_selected_strips(const std::vector<std::string>& strips) {
@@ -2561,11 +2556,10 @@ void LedController::publish_controllable_state() {
     if (!version_subject_initialized_) {
         return;
     }
-    int desired = selected_strips_.empty() ? 0 : 1;
+    int desired = all_selectable_strips().empty() ? 0 : 1;
     if (lv_subject_get_int(&led_controllable_) != desired) {
         lv_subject_set_int(&led_controllable_, desired);
-        spdlog::debug("[LedController] led_controllable={} ({} strip(s) selected)", desired,
-                      selected_strips_.size());
+        spdlog::debug("[LedController] led_controllable={}", desired);
     }
 }
 
@@ -2635,6 +2629,7 @@ void LedController::set_configured_macros(const std::vector<LedMacroInfo>& macro
     // backend, the strip list, the persisted config -- filters it out instead.
     configured_macros_ = macros;
     // Keep MacroBackend in lockstep so no caller can leave the two out of sync.
+    // rebuild_macro_backend() republishes led_controllable.
     rebuild_macro_backend();
 }
 
@@ -2739,6 +2734,7 @@ void LedController::rebuild_macro_backend() {
         }
         macro_.add_macro(m);
     }
+    publish_controllable_state();
 }
 
 } // namespace helix::led

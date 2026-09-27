@@ -69,8 +69,12 @@ std::vector<std::string> configured_led_strips(Config* config) {
         v.erase(std::remove_if(v.begin(), v.end(), [](const std::string& n) { return n.empty(); }),
                 v.end());
     };
-    strips = config->get_string_array(config->df() + helix::wizard::LED_SELECTED_STRIPS);
+    strips = config->get_string_array(config->df() + helix::wizard::LED_AUTO_STATE_STRIPS);
     prune_empty(strips);
+    if (strips.empty()) {
+        strips = config->get_string_array(config->df() + helix::wizard::LED_SELECTED_STRIPS);
+        prune_empty(strips);
+    }
     if (strips.empty()) {
         strips = config->get_string_array(config->df() + helix::wizard::LED_SELECTED);
         prune_empty(strips);

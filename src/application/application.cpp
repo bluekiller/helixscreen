@@ -3703,7 +3703,8 @@ void Application::setup_discovery_callbacks() {
             }
 
             // Apply LED startup preference (turn on LED if user preference is enabled)
-            helix::led::LedController::instance().apply_startup_preference();
+            helix::led::LedController::instance().apply_startup_preference(
+                helix::led::LedController::instance().light_targets(""));
 
             // Start automatic update checks (15s initial delay, then every 24h)
             UpdateChecker::instance().start_auto_check();

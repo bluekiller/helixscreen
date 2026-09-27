@@ -522,10 +522,11 @@ class LedController {
     [[nodiscard]] int get_startup_brightness() const;
     void set_startup_brightness(int brightness_pct);
 
-    /// Apply the "LED on at start" preference. Called from the discovery-complete
-    /// handler, which re-runs on every Klippy restart — this applies at most once
-    /// per printer session (see startup_preference_applied_).
-    void apply_startup_preference();
+    /// Apply the "LED on at start" preference to @p targets. Called from the
+    /// discovery-complete handler, which re-runs on every Klippy restart — this
+    /// applies at most once per printer session (see startup_preference_applied_).
+    /// No targets defers to a later call without spending the one shot.
+    void apply_startup_preference(const std::vector<std::string>& targets);
 
     // Config accessors
     [[nodiscard]] const std::vector<std::string>& selected_strips() const {
@@ -647,9 +648,6 @@ class LedController {
     /// case that really is a fresh start.
     bool startup_preference_applied_ = false;
 
-    /// Dispatch on/off to all selected strips (low-level — callers should use light_set())
-    void toggle_all(bool on);
-
     /// RGBW (0.0-1.0) values computed from saved last_color_/last_white for a
     /// "turn on at given brightness" operation. Applies a safety floor: if
     /// saved state has no color at all (RGB==0 && white==0), returns full
@@ -661,7 +659,7 @@ class LedController {
     [[nodiscard]] ScaledColor compute_scaled_last_color(int brightness_pct) const;
 
     lv_subject_t led_config_version_{};    // Bumped on discover/config changes
-    lv_subject_t led_controllable_{};      // 0/1 mirror of !selected_strips_.empty()
+    lv_subject_t led_controllable_{};      // 0/1: at least one switchable device exists
     lv_subject_t led_command_in_flight_{}; // 0/1: a light toggle is awaiting its gcode ACK
     lv_subject_t led_state_version_{};     // Bumped when device state may have changed
     int in_flight_count_ = 0;              // outstanding toggle commands awaiting ACK
@@ -676,7 +674,7 @@ class LedController {
     /// deinit_all(), the death signal expires before they are freed.
     SubjectManager subjects_;
 
-    /// Push the current selected_strips_ emptiness into led_controllable_.
+    /// Push whether any switchable device exists into led_controllable_.
     /// Cheap no-op if the value is unchanged. Safe before subject init (skips).
     void publish_controllable_state();
     void update_in_flight_subject();
@@ -693,10 +691,9 @@ class LedController {
     /// Macro devices have no readable state; toggle_power() alternates on this.
     std::unordered_map<std::string, bool> macro_last_sent_on_;
 
-    // Default color presets
-    static constexpr uint32_t DEFAULT_COLOR_PRESETS[] = {0xFFFFFF, 0xFFD700, 0xFF6B35, 0x4FC3F7,
-                                                         0xFF4444, 0x66BB6A, 0x9C27B0, 0x00BCD4};
-    static constexpr size_t DEFAULT_COLOR_PRESETS_COUNT = 8;
+    /// Stage a saved leds/selected_strips once, the first discovery with no
+    /// leds/auto_state/strips saved (see plan_selection_migration()).
+    void migrate_legacy_selection();
 };
 
 } // namespace helix::led
