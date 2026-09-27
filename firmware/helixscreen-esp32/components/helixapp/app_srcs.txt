@@ -293,6 +293,7 @@ src/ui/job_queue_state.cpp
 src/ui/job_queue_start.cpp
 src/ui/keyboard_layout_provider.cpp
 src/ui/layout_port.cpp
+src/ui/light_button_config.cpp
 src/ui/locale_formats.cpp
 src/ui/modals/buffer_status_modal.cpp
 src/ui/modals/camera_config_modal.cpp
