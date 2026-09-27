@@ -228,6 +228,7 @@ translations:
   App startup encountered an error. Some features may be unavailable.: App startup
     encountered an error. Some features may be unavailable.
   Appearance: Appearance
+  Applies to: Applies to
   Apply: Apply
   Apply Changes: Apply Changes
   Applying Changes: Applying Changes
@@ -1667,6 +1668,7 @@ translations:
   Light: Light
   Light will switch when the current operation finishes: Light will switch when the
     current operation finishes
+  Lights that follow the printer's state: Lights that follow the printer's state
   Line the nozzle up with the purge chute so purged filament drops straight in.: Line the nozzle up with the purge chute so purged filament drops straight in.
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.
   Listen to all theme sounds: Listen to all theme sounds
@@ -3346,6 +3348,7 @@ translations:
   Turn endless spool on, then set the backup gate: Turn endless spool on, then set the backup gate
   Turn off detection: Turn off detection
   Turn on LEDs when printer starts: Turn on LEDs when printer starts
+  Turn on the lights your light buttons control: Turn on the lights your light buttons control
   Turn the extruder heater off after a load or unload finishes: Turn the extruder heater off after a load or unload finishes
   Turn the picture to match how the screen is mounted. Applies after restart.: Turn the picture to match how the screen is mounted. Applies after restart.
   Turn the printer's lights on or off: Turn the printer's lights on or off

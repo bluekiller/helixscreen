@@ -63,6 +63,18 @@ std::vector<std::string> resolve_light_targets(const std::string& key,
     return {chamber};
 }
 
+std::vector<std::string> toggle_target(const std::vector<std::string>& current,
+                                       const std::string& id) {
+    std::vector<std::string> out = current;
+    const auto it = std::find(out.begin(), out.end(), id);
+    if (it == out.end()) {
+        out.push_back(id);
+    } else if (out.size() > 1) {
+        out.erase(it);
+    }
+    return out;
+}
+
 std::vector<std::string> union_light_targets(const std::vector<std::string>& keys,
                                              const std::vector<std::string>& switchable,
                                              const std::string& chamber) {

@@ -214,6 +214,7 @@
   <translation tag="App Background" zh="应用背景"/>
   <translation tag="App startup encountered an error. Some features may be unavailable." zh="应用程序启动时遇到错误。某些功能可能不可用。"/>
   <translation tag="Appearance" zh="外观"/>
+  <translation tag="Applies to" zh="适用于"/>
   <translation tag="Apply" zh="应用"/>
   <translation tag="Apply Changes" zh="应用更改"/>
   <translation tag="Applying Changes" zh="正在应用更改"/>
@@ -1539,6 +1540,7 @@
   <translation tag="Lifetime Print Stats" zh="累计打印统计"/>
   <translation tag="Light" zh="浅色"/>
   <translation tag="Light will switch when the current operation finishes" zh="灯光将在当前操作完成后切换"/>
+  <translation tag="Lights that follow the printer&apos;s state" zh="跟随打印机状态变化的灯光"/>
   <translation tag="Line the nozzle up with the purge chute so purged filament drops straight in." zh="将喷嘴对准排料口上方，使排出的料丝垂直落入。"/>
   <translation tag="Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer." zh="第 {} 行调用 {}，此打印机将其视为紧急停止。请使用为此打印机制作的配置重新切片该文件。"/>
   <translation tag="Listen to all theme sounds" zh="试听所有主题声音"/>
@@ -3055,6 +3057,7 @@
   <translation tag="Turn endless spool on, then set the backup gate" zh="请先开启无限料盘，再设置备用通道"/>
   <translation tag="Turn off detection" zh="关闭检测"/>
   <translation tag="Turn on LEDs when printer starts" zh="打印机启动时开启 LED"/>
+  <translation tag="Turn on the lights your light buttons control" zh="开启灯光按钮所控制的灯光"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" zh="加载或卸载完成后关闭挤出机加热器"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." zh="旋转画面以匹配屏幕的安装方向。重启后生效。"/>
   <translation tag="Turn the printer&apos;s lights on or off" zh="开启或关闭打印机灯光"/>

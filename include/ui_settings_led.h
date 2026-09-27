@@ -24,7 +24,6 @@
 #include "overlay_base.h"
 #include "subject_managed_panel.h"
 
-#include <set>
 #include <string>
 #include <vector>
 
@@ -42,6 +41,9 @@ namespace helix::settings {
  * @endcode
  */
 class LedSettingsOverlay : public OverlayBase {
+    // Test access for exercising private handlers (macro deletion, chip clicks).
+    friend class LedSettingsOverlayTestAccess;
+
   public:
     LedSettingsOverlay();
     ~LedSettingsOverlay() override;
@@ -112,10 +114,6 @@ class LedSettingsOverlay : public OverlayBase {
     void handle_wled_preset_selected(const std::string& state_key, int preset_id);
     void handle_macro_selected(const std::string& state_key, const std::string& gcode);
     void save_and_evaluate(const std::string& state_key);
-
-    // LED chip selection state
-    std::vector<std::string> discovered_leds_;
-    std::set<std::string> selected_leds_;
 
     // Auto-state editor state
     SubjectManager subjects_;

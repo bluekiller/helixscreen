@@ -56,6 +56,12 @@ std::vector<std::string> resolve_light_targets(const std::string& key,
                                                const std::vector<std::string>& switchable,
                                                const std::string& chamber);
 
+/// Toggles @p id in @p current: removed if present, unless it is the only entry
+/// (the "Applies to" chip row never lets the last chip be deselected); appended
+/// otherwise.
+std::vector<std::string> toggle_target(const std::vector<std::string>& current,
+                                       const std::string& id);
+
 /// resolve_light_targets() over every key, deduplicated in first-seen order. No
 /// keys at all means the chamber light.
 std::vector<std::string> union_light_targets(const std::vector<std::string>& keys,

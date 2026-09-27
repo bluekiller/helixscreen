@@ -237,6 +237,7 @@ translations:
   App startup encountered an error. Some features may be unavailable.: Si è verificato
     un errore all'avvio dell'app. Alcune funzioni potrebbero non essere disponibili.
   Appearance: Aspetto
+  Applies to: Si applica a
   Apply: Applica
   Apply Changes: Applica modifiche
   Applying Changes: Applicazione modifiche in corso
@@ -1725,6 +1726,7 @@ translations:
   Light: Chiaro
   Light will switch when the current operation finishes: La luce si attiverà al termine
     dell'operazione in corso
+  Lights that follow the printer's state: Luci che seguono lo stato della stampante
   Line the nozzle up with the purge chute so purged filament drops straight in.: Allinea l'ugello sopra il condotto di spurgo in modo che il filamento di spurgo cada dritto dentro.
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'La riga {} chiama {}, che questa stampante tratta come un arresto di emergenza. Sezionare di nuovo il file con un profilo creato per questa stampante.'
@@ -3458,6 +3460,7 @@ translations:
   Turn endless spool on, then set the backup gate: 'Attiva la bobina infinita, poi imposta il Gate di riserva'
   Turn off detection: Disattiva rilevamento
   Turn on LEDs when printer starts: Accendi LED all'avvio della stampante
+  Turn on the lights your light buttons control: Accende le luci controllate dai pulsanti luce
   Turn the extruder heater off after a load or unload finishes: Spegni il riscaldatore dell'estrusore al termine di un caricamento o scaricamento
   Turn the picture to match how the screen is mounted. Applies after restart.: Ruota l'immagine in base a come è montato lo schermo. Ha effetto dopo il riavvio.
   Turn the printer's lights on or off: Accendi o spegni le luci

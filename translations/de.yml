@@ -240,6 +240,7 @@ translations:
     der App ist ein Fehler aufgetreten. Einige Funktionen sind möglicherweise nicht
     verfügbar.
   Appearance: Darstellung
+  Applies to: Gilt für
   Apply: Anwenden
   Apply Changes: Änderungen anwenden
   Applying Changes: Änderungen werden angewendet
@@ -1735,6 +1736,7 @@ translations:
   Light: Hell
   Light will switch when the current operation finishes: Das Licht schaltet sich,
     sobald der aktuelle Vorgang abgeschlossen ist.
+  Lights that follow the printer's state: Leuchten, die sich nach dem Druckerstatus richten
   Line the nozzle up with the purge chute so purged filament drops straight in.: Richten Sie die Düse über der Entlüftungsrinne aus, damit das entlüftete Filament direkt hineinfällt.
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'Zeile {} ruft {} auf, das dieser Drucker als Notaus behandelt. Slicen Sie die Datei mit einem Profil für diesen Drucker neu.'
@@ -3466,6 +3468,7 @@ translations:
   Turn endless spool on, then set the backup gate: 'Aktivieren Sie die Endlosspule und legen Sie dann das Backup-Gate fest'
   Turn off detection: Erkennung ausschalten
   Turn on LEDs when printer starts: LEDs beim Druckerstart einschalten
+  Turn on the lights your light buttons control: Schaltet die Lichter ein, die Ihre Lichttasten steuern
   Turn the extruder heater off after a load or unload finishes: Extruder-Heizung nach Laden oder Entladen ausschalten
   Turn the picture to match how the screen is mounted. Applies after restart.: Dreht das Bild passend zur Einbaulage des Bildschirms. Wird nach einem Neustart wirksam.
   Turn the printer's lights on or off: Druckerlicht ein- oder ausschalten

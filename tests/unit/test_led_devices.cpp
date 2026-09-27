@@ -140,6 +140,13 @@ TEST_CASE("plan_selection_migration: nothing selected", "[led][migration]") {
     CHECK(plan_selection_migration({}, {"neopixel a"}) == SelectionMigration{});
 }
 
+TEST_CASE("toggle_target: add, remove, and the last one stays", "[led][settings]") {
+    CHECK(toggle_target({"a"}, "b") == std::vector<std::string>{"a", "b"});
+    CHECK(toggle_target({"a", "b"}, "a") == std::vector<std::string>{"b"});
+    CHECK(toggle_target({"a"}, "a") == std::vector<std::string>{"a"});
+    CHECK(toggle_target({}, "a") == std::vector<std::string>{"a"});
+}
+
 TEST_CASE("migrate_color_presets", "[led][migration]") {
     const std::vector<uint32_t> fresh(std::begin(DEFAULT_COLOR_PRESETS),
                                       std::end(DEFAULT_COLOR_PRESETS));
