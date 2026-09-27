@@ -79,4 +79,15 @@ std::vector<std::string> union_light_targets(const std::vector<std::string>& key
     return out;
 }
 
+bool next_power_on(const std::vector<PowerState>& states, bool last_sent_on) {
+    bool any_off = false;
+    for (auto s : states) {
+        if (s == PowerState::On) {
+            return false;
+        }
+        any_off = any_off || s == PowerState::Off;
+    }
+    return any_off ? true : !last_sent_on;
+}
+
 } // namespace helix::led

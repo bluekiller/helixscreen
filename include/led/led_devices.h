@@ -3,6 +3,7 @@
 
 #include "led/led_backend.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -30,5 +31,19 @@ std::vector<std::string> resolve_light_targets(const std::string& key,
 std::vector<std::string> union_light_targets(const std::vector<std::string>& keys,
                                              const std::vector<std::string>& switchable,
                                              const std::string& chamber);
+
+enum class PowerState : int { Off = 0, On = 1, Unknown = 2 };
+
+/// What the UI can say about one device right now.
+struct DeviceState {
+    PowerState power = PowerState::Unknown;
+    int brightness = 0;      ///< 0-100
+    uint32_t rgb = 0xFFFFFF; ///< full-brightness hue; meaningful only when has_rgb
+    bool has_rgb = false;    ///< false: draw the theme's light color instead
+};
+
+/// What a light button sends when tapped: off while any target is on, on while
+/// any is off, and with nothing readable the opposite of what it last sent.
+bool next_power_on(const std::vector<PowerState>& states, bool last_sent_on);
 
 } // namespace helix::led

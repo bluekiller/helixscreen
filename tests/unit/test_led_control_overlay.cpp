@@ -334,7 +334,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "LedControlOverlay: tapping an unselected chip
         REQUIRE(std::find(sel.begin(), sel.end(), std::string(id)) != sel.end());
     }
     // The tapped strip owns the front slot: selected_strips()[0] is what drives
-    // the header, the effects/WLED sections and query_tracked_led_state().
+    // the header and the effects/WLED sections.
     REQUIRE(sel.front() == "neopixel d");
 
     ctrl.deinit();

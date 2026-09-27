@@ -93,3 +93,19 @@ TEST_CASE("union_light_targets: union in first-seen order, chamber when no butto
     CHECK(union_light_targets({"", LIGHT_BUTTON_ALL}, sw, "neopixel b") ==
           std::vector<std::string>{"neopixel b", "neopixel a", "neopixel c"});
 }
+
+TEST_CASE("next_power_on: any on turns everything off", "[led][devices]") {
+    CHECK_FALSE(next_power_on({PowerState::Off, PowerState::On}, false));
+    CHECK_FALSE(next_power_on({PowerState::Unknown, PowerState::On}, false));
+}
+
+TEST_CASE("next_power_on: known off with none on turns on", "[led][devices]") {
+    CHECK(next_power_on({PowerState::Off, PowerState::Unknown}, true));
+    CHECK(next_power_on({PowerState::Off}, true));
+}
+
+TEST_CASE("next_power_on: unreadable state alternates on what was last sent", "[led][devices]") {
+    CHECK(next_power_on({PowerState::Unknown}, false));
+    CHECK_FALSE(next_power_on({PowerState::Unknown, PowerState::Unknown}, true));
+    CHECK(next_power_on({}, false));
+}

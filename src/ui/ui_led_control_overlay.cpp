@@ -1012,8 +1012,6 @@ void LedControlOverlay::handle_strip_selected(const std::string& strip_id) {
     // The strip the overlay focuses on lands at the front: selected_strips()[0]
     // drives the header name, the effects/WLED sections, populate_macros() and
     // first_available_strip(), so the front must be what the user tapped.
-    // (query_tracked_led_state() no longer reads the front — it asks
-    // status_tracked_strip() for a strip Klipper actually reports.)
     auto selected = controller.selected_strips();
     auto it = std::find(selected.begin(), selected.end(), strip_id);
     std::string focus_id = strip_id;

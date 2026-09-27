@@ -43,6 +43,16 @@ uint32_t parse_json_color(const nlohmann::json& j, uint32_t default_val) {
     return default_val;
 }
 
+helix::led::LedStripInfo macro_device_info(const helix::led::LedMacroInfo& macro) {
+    helix::led::LedStripInfo info;
+    info.name = macro.display_name;
+    info.id = helix::led::MACRO_STRIP_PREFIX + macro.display_name;
+    info.backend = helix::led::LedBackendType::MACRO;
+    info.supports_color = false;
+    info.supports_white = false;
+    return info;
+}
+
 } // anonymous namespace
 
 namespace helix::led {
@@ -73,12 +83,15 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
         lv_subject_init_int(&led_config_version_, 0);
         lv_subject_init_int(&led_controllable_, 0);
         lv_subject_init_int(&led_command_in_flight_, 0);
+        lv_subject_init_int(&led_state_version_, 0);
         helix::xml::register_subject_in_current_scope("led_controllable", &led_controllable_);
         helix::xml::register_subject_in_current_scope("led_command_in_flight",
                                                       &led_command_in_flight_);
+        helix::xml::register_subject_in_current_scope("led_state_version", &led_state_version_);
         subjects_.register_subject(&led_config_version_);
         subjects_.register_subject(&led_controllable_, "led_controllable");
         subjects_.register_subject(&led_command_in_flight_, "led_command_in_flight");
+        subjects_.register_subject(&led_state_version_, "led_state_version");
         version_subject_initialized_ = true;
         StaticSubjectRegistry::instance().register_deinit("LedController", [this]() {
             subjects_.deinit_all();
@@ -161,6 +174,8 @@ void LedController::deinit() {
     led_on_at_start_ = false;
     startup_brightness_ = 80;
     light_on_ = false;
+    macro_last_sent_on_.clear();
+    pending_query_ids_.clear();
     // Re-arm the startup preference. deinit() only runs from
     // Application::tear_down_printer_state() (printer switch, add-printer wizard)
     // and shutdown — a rediscovery re-runs init() alone and must NOT re-arm it.
@@ -713,6 +728,7 @@ void NativeBackend::add_strip(const LedStripInfo& strip) {
 
 void NativeBackend::clear() {
     strips_.clear();
+    strip_colors_.clear();
 }
 
 void NativeBackend::set_color(const std::string& strip_id, double r, double g, double b, double w,
@@ -864,7 +880,8 @@ void NativeBackend::StripColor::decompose(uint32_t& base_color, int& brightness_
     }
 }
 
-void NativeBackend::update_from_status(const nlohmann::json& status) {
+bool NativeBackend::update_from_status(const nlohmann::json& status) {
+    bool carried = false;
     // Non-const iteration: the RGBW capability fix-up below patches the very
     // strip the loop is holding (it used to re-scan strips_ to find it again).
     for (auto& strip : strips_) {
@@ -881,6 +898,7 @@ void NativeBackend::update_from_status(const nlohmann::json& status) {
         color.b = parsed.b;
         color.w = parsed.w;
         strip_colors_[strip.id] = color;
+        carried = true;
 
         // Detect RGBW capability from actual color_data size (overrides prefix guess)
         const bool has_white = (parsed.channels >= 4);
@@ -894,6 +912,7 @@ void NativeBackend::update_from_status(const nlohmann::json& status) {
             color_change_cb_(strip.id, color);
         }
     }
+    return carried;
 }
 
 NativeBackend::StripColor NativeBackend::get_strip_color(const std::string& strip_id) const {
@@ -933,7 +952,8 @@ void LedEffectBackend::set_effect_targets(const std::string& effect_name,
     spdlog::debug("[LedEffectBackend] Effect '{}' not found for target assignment", effect_name);
 }
 
-void LedEffectBackend::update_from_status(const nlohmann::json& status) {
+bool LedEffectBackend::update_from_status(const nlohmann::json& status) {
+    bool carried = false;
     for (auto& effect : effects_) {
         if (!status.contains(effect.name))
             continue;
@@ -943,12 +963,14 @@ void LedEffectBackend::update_from_status(const nlohmann::json& status) {
             continue;
 
         const bool new_enabled = helix::json_util::as_bool(effect_data["enabled"], effect.enabled);
+        carried = true;
         if (new_enabled != effect.enabled) {
             spdlog::debug("[LedEffectBackend] Effect '{}' enabled: {} -> {}", effect.name,
                           effect.enabled, new_enabled);
             effect.enabled = new_enabled;
         }
     }
+    return carried;
 }
 
 bool LedEffectBackend::is_effect_enabled(const std::string& effect_name) const {
@@ -1322,6 +1344,10 @@ WledStripState WledBackend::get_strip_state(const std::string& strip_id) const {
     return WledStripState{};
 }
 
+bool WledBackend::has_strip_state(const std::string& strip_id) const {
+    return strip_states_.count(strip_id) > 0;
+}
+
 void WledBackend::poll_status(std::function<void()> on_complete) {
     if (!api_) {
         spdlog::debug("[WledBackend] poll_status: no API available");
@@ -1649,15 +1675,22 @@ void OutputPinBackend::set_brightness(const std::string& pin_id, int brightness_
 }
 
 // Called from UI thread (via UpdateQueue dispatch in printer_state.cpp)
-void OutputPinBackend::update_from_status(const nlohmann::json& status) {
+bool OutputPinBackend::update_from_status(const nlohmann::json& status) {
+    bool carried = false;
     for (const auto& pin : pins_) {
         if (!status.contains(pin.id))
             continue;
         const auto& pin_status = status[pin.id];
         if (pin_status.contains("value") && pin_status["value"].is_number()) {
             pin_values_[pin.id] = pin_status["value"].get<double>();
+            carried = true;
         }
     }
+    return carried;
+}
+
+bool OutputPinBackend::has_value(const std::string& pin_id) const {
+    return pin_values_.count(pin_id) > 0;
 }
 
 double OutputPinBackend::get_value(const std::string& pin_id) const {
@@ -1985,12 +2018,16 @@ LedController::ScaledColor LedController::compute_scaled_last_color(int brightne
 }
 
 void LedController::toggle_all(bool on) {
-    if (selected_strips_.empty()) {
-        spdlog::debug("[LedController] toggle_all({}) - no strips selected", on);
+    set_power(selected_strips_, on);
+}
+
+void LedController::set_power(const std::vector<std::string>& ids, bool on) {
+    if (ids.empty()) {
+        spdlog::debug("[LedController] set_power({}) - no devices", on);
         return;
     }
 
-    spdlog::info("[LedController] toggle_all({}) for {} strip(s)", on, selected_strips_.size());
+    spdlog::info("[LedController] set_power({}) for {} device(s)", on, ids.size());
 
     // When turning off, stop active LED effects on selected strips.  LED effects
     // continuously write their own color values to the neopixels, so a bare
@@ -1999,7 +2036,7 @@ void LedController::toggle_all(bool on) {
     // which would affect deselected strips too (issue #329).
     if (!on && effects_.is_available()) {
         std::set<std::string> stopped;
-        for (const auto& strip_id : selected_strips_) {
+        for (const auto& strip_id : ids) {
             for (const auto& effect : effects_.effects_for_strip(strip_id)) {
                 if (stopped.insert(effect.name).second) {
                     effects_.stop_effect(effect.name);
@@ -2050,8 +2087,11 @@ void LedController::toggle_all(bool on) {
         return Settle{on_done, on_fail, on_queued};
     };
 
-    for (const auto& strip_id : selected_strips_) {
+    for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
+        if (backend_type == LedBackendType::NATIVE || backend_type == LedBackendType::OUTPUT_PIN) {
+            pending_query_ids_.insert(strip_id);
+        }
 
         switch (backend_type) {
         case LedBackendType::NATIVE:
@@ -2078,8 +2118,9 @@ void LedController::toggle_all(bool on) {
         }
 
         case LedBackendType::MACRO: {
+            macro_last_sent_on_[strip_id] = on;
             if (strip_macro_name(strip_id).empty()) {
-                spdlog::warn("[LedController] toggle_all: skipping macro strip with empty name");
+                spdlog::warn("[LedController] set_power: skipping macro strip with empty name");
                 break;
             }
             const auto* macro = find_macro(configured_macros_, strip_id);
@@ -2131,6 +2172,113 @@ void LedController::toggle_all(bool on) {
             break;
         }
     }
+
+    if (in_flight_count_ == 0) {
+        // Nothing awaits a gcode ACK (WLED, macros, or no dispatch at all): read back now.
+        // Otherwise note_command_settled() reads back once the last ACK lands.
+        query_led_state();
+    }
+}
+
+bool LedController::toggle_power(const std::vector<std::string>& ids) {
+    std::vector<PowerState> states;
+    bool last_sent_on = false;
+    for (const auto& id : ids) {
+        states.push_back(device_state(id).power);
+        const auto it = macro_last_sent_on_.find(id);
+        last_sent_on = last_sent_on || (it != macro_last_sent_on_.end() && it->second);
+    }
+    const bool on = next_power_on(states, last_sent_on);
+    set_power(ids, on);
+    return on;
+}
+
+DeviceState LedController::device_state(const std::string& id) const {
+    DeviceState s;
+    switch (backend_for_strip(id)) {
+    case LedBackendType::NATIVE: {
+        if (!native_.has_strip_color(id)) {
+            return s;
+        }
+        uint32_t base = 0;
+        int pct = 0;
+        double white = 0.0;
+        native_.get_strip_color(id).decompose(base, pct, white);
+        s.power = pct > 0 ? PowerState::On : PowerState::Off;
+        s.brightness = pct;
+        const auto* info = find_strip(native_.strips(), id);
+        s.has_rgb = info != nullptr && info->supports_color;
+        s.rgb = (base == 0 && white > 0.0) ? 0xFFFFFFu : base;
+        return s;
+    }
+    case LedBackendType::OUTPUT_PIN:
+        if (!output_pin_.has_value(id)) {
+            return s;
+        }
+        s.power = output_pin_.get_value(id) > 0.0 ? PowerState::On : PowerState::Off;
+        s.brightness = output_pin_.brightness_pct(id);
+        return s;
+    case LedBackendType::WLED: {
+        if (!wled_.has_strip_state(id)) {
+            return s;
+        }
+        const auto w = wled_.get_strip_state(id);
+        s.power = w.is_on ? PowerState::On : PowerState::Off;
+        s.brightness = std::clamp(w.brightness * 100 / 255, 0, 100);
+        return s;
+    }
+    case LedBackendType::MACRO:
+    case LedBackendType::LED_EFFECT:
+        return s;
+    }
+    return s;
+}
+
+void LedController::update_from_status(const nlohmann::json& status) {
+    const bool native = native_.update_from_status(status);
+    const bool effects = effects_.update_from_status(status);
+    const bool pins = output_pin_.update_from_status(status);
+    if (native || effects || pins) {
+        bump_state_version();
+    }
+}
+
+void LedController::refresh_wled_state(std::function<void()> on_done) {
+    auto tok = lifetime_.token();
+    wled_.poll_status([this, tok, on_done]() {
+        tok.defer("LedController::wled_state", [this, on_done]() {
+            bump_state_version();
+            if (on_done) {
+                on_done();
+            }
+        });
+    });
+}
+
+std::vector<LedStripInfo> LedController::all_devices() const {
+    auto devices = all_selectable_strips();
+    for (const auto& macro : configured_macros_) {
+        if (macro.type == MacroLedType::PRESET && !macro.display_name.empty()) {
+            devices.push_back(macro_device_info(macro));
+        }
+    }
+    return devices;
+}
+
+std::vector<std::string> LedController::switchable_ids() const {
+    std::vector<std::string> ids;
+    for (const auto& strip : all_selectable_strips()) {
+        ids.push_back(strip.id);
+    }
+    return ids;
+}
+
+std::string LedController::chamber_light() const {
+    return resolve_chamber_light(all_selectable_strips(), first_available_strip());
+}
+
+std::vector<std::string> LedController::light_targets(const std::string& key) const {
+    return resolve_light_targets(key, switchable_ids(), chamber_light());
 }
 
 LedBackendType LedController::backend_for_strip(const std::string& strip_id) const {
@@ -2181,13 +2329,7 @@ std::vector<LedStripInfo> LedController::all_selectable_strips() const {
     for (const auto& macro : configured_macros_) {
         if (macro.type == MacroLedType::PRESET || macro.display_name.empty())
             continue;
-        LedStripInfo info;
-        info.name = macro.display_name;
-        info.id = MACRO_STRIP_PREFIX + macro.display_name;
-        info.backend = LedBackendType::MACRO;
-        info.supports_color = false;
-        info.supports_white = false;
-        result.push_back(info);
+        result.push_back(macro_device_info(macro));
     }
 
     // Output pin strips
@@ -2255,50 +2397,32 @@ void LedController::light_set(bool on) {
     spdlog::info("[LedController] light_set({})", on);
     light_on_ = on;
     toggle_all(on);
-    if (in_flight_count_ == 0) {
-        // No async gcode dispatched (instant/REST backend) — refresh state now.
-        query_tracked_led_state();
-    }
-    // Otherwise query_tracked_led_state() fires from note_command_settled()
-    // once every dispatched command's ACK has landed.
 }
 
-void LedController::query_tracked_led_state() {
-    if (!client_ || selected_strips_.empty()) {
-        return;
-    }
-
-    // After toggling LEDs, explicitly query the tracked LED's state.
-    // Moonraker subscriptions only send diffs.  STOP_LED_EFFECTS may not
-    // trigger a neopixel status update, and SET_LED is a no-op if Klipper
-    // already had that value.  An explicit query guarantees the subject
-    // reflects the actual hardware state.
-    //
-    // Only a strip Klipper reports can answer. Querying the front strip
-    // outright asked printer.objects for "macro:<name>" on every press of a
-    // light bound to a macro device, and logged a warning for the empty reply.
-    std::string tracked = status_tracked_strip();
-    if (tracked.empty()) {
+void LedController::query_led_state() {
+    // Moonraker subscriptions only send diffs: STOP_LED_EFFECTS may not trigger a
+    // neopixel update, and SET_LED is a no-op when Klipper already had that value.
+    // An explicit query guarantees the state reflects the hardware.
+    if (pending_query_ids_.empty()) {
         return;
     }
     nlohmann::json query_objects = nlohmann::json::object();
-    query_objects[tracked] = nullptr;
+    for (const auto& id : pending_query_ids_) {
+        query_objects[id] = nullptr;
+    }
+    pending_query_ids_.clear();
+    if (!client_) {
+        return;
+    }
     client_->send_jsonrpc(
-        "printer.objects.query", {{"objects", query_objects}}, [tracked](nlohmann::json response) {
+        "printer.objects.query", {{"objects", query_objects}}, [](nlohmann::json response) {
             if (!response.contains("result") || !response["result"].contains("status")) {
-                spdlog::warn(
-                    "[LedController] query_tracked_led_state: no result/status in response");
+                spdlog::warn("[LedController] query_led_state: no result/status in response");
                 return;
             }
             const auto& status = response["result"]["status"];
-            if (!status.contains(tracked)) {
-                spdlog::warn(
-                    "[LedController] query_tracked_led_state: '{}' not in response (keys: {})",
-                    tracked, helix::json_util::safe_dump(status).substr(0, 200));
-                return;
-            }
-            spdlog::debug("[LedController] query_tracked_led_state: got {} = {}", tracked,
-                          helix::json_util::safe_dump(status[tracked]).substr(0, 200));
+            spdlog::debug("[LedController] query_led_state: got {}",
+                          helix::json_util::safe_dump(status).substr(0, 200));
             helix::ui::queue_update([status]() { get_printer_state().update_from_status(status); });
         });
 }
@@ -2309,9 +2433,14 @@ void LedController::turn_off_all() {
 
 void LedController::set_color_all(double r, double g, double b, double w) {
     light_on_ = (r > 0.0 || g > 0.0 || b > 0.0 || w > 0.0);
+    set_color(selected_strips_, r, g, b, w);
+}
+
+void LedController::set_color(const std::vector<std::string>& ids, double r, double g, double b,
+                              double w) {
     // Cache the white channel for toggle restore
     last_color_.white = w;
-    for (const auto& strip_id : selected_strips_) {
+    for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
         if (backend_type == LedBackendType::NATIVE) {
             native_.set_color(strip_id, r, g, b, w);
@@ -2325,10 +2454,14 @@ void LedController::set_color_all(double r, double g, double b, double w) {
 
 void LedController::set_brightness_all(int brightness_pct) {
     light_on_ = (brightness_pct > 0);
+    set_brightness(selected_strips_, brightness_pct);
+}
+
+void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct) {
     // Use shared helper so slider drags honor the same safety floor and
-    // RGBW white-channel preservation as toggle_all(true).
+    // RGBW white-channel preservation as set_power(ids, true).
     auto c = compute_scaled_last_color(brightness_pct);
-    for (const auto& strip_id : selected_strips_) {
+    for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
         if (backend_type == LedBackendType::NATIVE) {
             native_.set_color(strip_id, c.r, c.g, c.b, c.w);
@@ -2449,7 +2582,13 @@ void LedController::note_command_settled() {
     }
     update_in_flight_subject();
     if (in_flight_count_ == 0) {
-        query_tracked_led_state();
+        query_led_state();
+    }
+}
+
+void LedController::bump_state_version() {
+    if (version_subject_initialized_) {
+        lv_subject_set_int(&led_state_version_, lv_subject_get_int(&led_state_version_) + 1);
     }
 }
 
