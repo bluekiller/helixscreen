@@ -8,7 +8,10 @@
 #include "led/led_devices.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
+#include "printer_discovery.h"
 #include "printer_state.h"
+
+#include <set>
 
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
@@ -28,8 +31,28 @@ LedStripInfo strip(const std::string& id, LedBackendType b, bool color = true, b
     return s;
 }
 
+/// Records the object names of every printer.objects.query it is sent.
+struct QueryRecordingClient : public MoonrakerClientMock {
+    using MoonrakerClientMock::MoonrakerClientMock;
+    using MoonrakerClientMock::send_jsonrpc;
+
+    std::vector<std::set<std::string>> queries;
+
+    helix::RequestId send_jsonrpc(const std::string& method, const json& params,
+                                  std::function<void(const json&)> cb) override {
+        if (method == "printer.objects.query" && params.contains("objects")) {
+            std::set<std::string> names;
+            for (auto it = params["objects"].begin(); it != params["objects"].end(); ++it) {
+                names.insert(it.key());
+            }
+            queries.push_back(std::move(names));
+        }
+        return MoonrakerClientMock::send_jsonrpc(method, params, std::move(cb));
+    }
+};
+
 struct DeviceStateFixture : public LVGLTestFixture {
-    MoonrakerClientMock client{MoonrakerClientMock::PrinterType::VORON_24};
+    QueryRecordingClient client{MoonrakerClientMock::PrinterType::VORON_24};
     PrinterState state;
     std::unique_ptr<MoonrakerAPIMock> api;
 
@@ -92,6 +115,19 @@ TEST_CASE_METHOD(DeviceStateFixture, "device_state: a printer switch forgets the
     CHECK(ctrl.device_state("output_pin enc").power == PowerState::Unknown);
 }
 
+TEST_CASE_METHOD(DeviceStateFixture, "device_state: a re-discovery keeps the known state",
+                 "[led][state]") {
+    auto& ctrl = LedController::instance();
+    PrinterDiscovery discovery;
+    discovery.parse_objects(nlohmann::json::array({"neopixel a", "output_pin case_lamp"}));
+    ctrl.discover_from_hardware(discovery);
+    ctrl.update_from_status({{"neopixel a", {{"color_data", {{1.0, 0.0, 0.0, 0.0}}}}}});
+    ctrl.update_from_status({{"output_pin case_lamp", {{"value", 0.3}}}});
+    ctrl.discover_from_hardware(discovery);
+    CHECK(ctrl.device_state("neopixel a").power == PowerState::On);
+    CHECK(ctrl.device_state("output_pin case_lamp").power == PowerState::On);
+}
+
 TEST_CASE_METHOD(DeviceStateFixture, "device_state: a white-only strip has no hue",
                  "[led][state]") {
     auto& ctrl = LedController::instance();
@@ -133,6 +169,16 @@ TEST_CASE_METHOD(DeviceStateFixture, "set_power reaches only the ids it is given
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     CHECK(ctrl.native().has_strip_color("neopixel a"));
     CHECK_FALSE(ctrl.native().has_strip_color("neopixel b"));
+}
+
+TEST_CASE_METHOD(DeviceStateFixture, "set_power reads back exactly the Klipper devices it touched",
+                 "[led][state]") {
+    auto& ctrl = LedController::instance();
+    client.queries.clear();
+    ctrl.set_power({"neopixel a", "output_pin enc", "macro:Lamp", "printer_led"}, true);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(client.queries.size() == 1);
+    CHECK(client.queries[0] == std::set<std::string>{"neopixel a", "output_pin enc"});
 }
 
 TEST_CASE_METHOD(DeviceStateFixture, "toggle_power turns off a strip that is on", "[led][state]") {

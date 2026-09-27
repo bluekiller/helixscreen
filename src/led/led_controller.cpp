@@ -148,10 +148,12 @@ void LedController::deinit() {
     force_clear_in_flight();
 
     native_.clear();
+    native_.forget_state();
     effects_.clear();
     wled_.clear();
     macro_.clear();
     output_pin_.clear();
+    output_pin_.forget_state();
 
     native_.set_api(nullptr);
     effects_.set_api(nullptr);
@@ -728,6 +730,9 @@ void NativeBackend::add_strip(const LedStripInfo& strip) {
 
 void NativeBackend::clear() {
     strips_.clear();
+}
+
+void NativeBackend::forget_state() {
     strip_colors_.clear();
 }
 
@@ -1610,6 +1615,9 @@ void OutputPinBackend::add_pin(const LedStripInfo& pin) {
 
 void OutputPinBackend::clear() {
     pins_.clear();
+}
+
+void OutputPinBackend::forget_state() {
     pin_values_.clear();
 }
 
@@ -2118,7 +2126,6 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
         }
 
         case LedBackendType::MACRO: {
-            macro_last_sent_on_[strip_id] = on;
             if (strip_macro_name(strip_id).empty()) {
                 spdlog::warn("[LedController] set_power: skipping macro strip with empty name");
                 break;
@@ -2127,6 +2134,7 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
             if (macro == nullptr) {
                 break;
             }
+            macro_last_sent_on_[strip_id] = on;
             switch (macro->type) {
             case MacroLedType::ON_OFF: {
                 auto cbs = make_settle();
@@ -2239,6 +2247,8 @@ void LedController::update_from_status(const nlohmann::json& status) {
     const bool effects = effects_.update_from_status(status);
     const bool pins = output_pin_.update_from_status(status);
     if (native || effects || pins) {
+        // Runs inside PrinterState::update_from_status, under its state_mutex_: a
+        // led_state_version observer must not call back into PrinterState synchronously.
         bump_state_version();
     }
 }

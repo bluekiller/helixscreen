@@ -62,7 +62,10 @@ class NativeBackend {
     }
 
     void add_strip(const LedStripInfo& strip);
+    /// Drops the strip list only; the color cache survives a re-discovery.
     void clear();
+    /// Drops the color cache (printer switch or teardown).
+    void forget_state();
 
     /// Update channel capabilities from configfile config (called during discovery).
     /// Sets has_red_pin, has_green_pin, etc. for strips with configfile data.
@@ -317,7 +320,10 @@ class OutputPinBackend {
     }
 
     void add_pin(const LedStripInfo& pin);
+    /// Drops the pin list only; the pin values survive a re-discovery.
     void clear();
+    /// Drops the pin values (printer switch or teardown).
+    void forget_state();
 
     // Control methods. `on_queued` mirrors NativeBackend: when the emitted G-code is
     // discretionary and an external blocking op holds Klipper's gcode lock, the
@@ -456,7 +462,9 @@ class LedController {
     void set_brightness(const std::vector<std::string>& ids, int brightness_pct);
 
     /// Route a Moonraker status frame to the backends; bumps led_state_version
-    /// when it carried an LED object. Main thread only.
+    /// when it carried an LED object. Main thread only, and called under
+    /// PrinterState's state_mutex_, so led_state_version observers must not call
+    /// back into PrinterState synchronously.
     void update_from_status(const nlohmann::json& status);
 
     /// Poll WLED state over Moonraker, then bump led_state_version on the main
