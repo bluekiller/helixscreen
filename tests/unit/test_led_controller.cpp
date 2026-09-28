@@ -2098,3 +2098,102 @@ TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_power sends nothing to a
     CHECK_FALSE(ctrl.native().has_strip_color("neopixel not_discovered"));
     CHECK(ctrl.device_state("neopixel not_discovered").power == helix::led::PowerState::Unknown);
 }
+
+// ============================================================================
+// Brightness 0 means off, on every backend
+// ============================================================================
+
+namespace {
+bool history_mentions(const std::vector<std::string>& history, const std::string& needle) {
+    for (const auto& script : history) {
+        if (script.find(needle) != std::string::npos)
+            return true;
+    }
+    return false;
+}
+} // namespace
+
+TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_brightness 0 turns a native strip off",
+                 "[led][controller][brightness_zero]") {
+    setup_controller_with_strip();
+    auto& ctrl = helix::led::LedController::instance();
+    make_led_dispatch_real(state);
+    ctrl.set_last_color(0xFF0000);
+    ctrl.set_power({kChamber}, true);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    REQUIRE(chamber_on());
+
+    ctrl.set_brightness({kChamber}, 0);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    CHECK(ctrl.device_state(kChamber).power == helix::led::PowerState::Off);
+    const auto c = ctrl.native().get_strip_color(kChamber);
+    CHECK(c.r == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.w == Catch::Approx(0.0).margin(0.001));
+}
+
+TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_brightness 0 turns an output_pin off",
+                 "[led][controller][brightness_zero]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    helix::led::LedStripInfo pin;
+    pin.name = "Case Light";
+    pin.id = "output_pin case_light";
+    pin.backend = helix::led::LedBackendType::OUTPUT_PIN;
+    pin.is_pwm = true;
+    ctrl.output_pin().add_pin(pin);
+    make_led_dispatch_real(state);
+    mock_client.clear_gcode_script_history();
+
+    ctrl.set_brightness({"output_pin case_light"}, 0);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    const auto& history = mock_client.gcode_script_history();
+    REQUIRE(history.size() == 1);
+    CHECK(history_mentions(history, "PIN=case_light"));
+    CHECK(history_mentions(history, "VALUE=0"));
+}
+
+TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_brightness 0 turns a WLED strip off",
+                 "[led][controller][brightness_zero]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    helix::led::LedStripInfo wled_strip;
+    wled_strip.name = "Printer LED";
+    wled_strip.id = "wled_printer_led";
+    wled_strip.backend = helix::led::LedBackendType::WLED;
+    ctrl.wled().add_strip(wled_strip);
+    ctrl.set_power({"wled_printer_led"}, true);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    REQUIRE(ctrl.device_state("wled_printer_led").power == helix::led::PowerState::On);
+
+    ctrl.set_brightness({"wled_printer_led"}, 0);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    CHECK(ctrl.device_state("wled_printer_led").power == helix::led::PowerState::Off);
+}
+
+TEST_CASE_METHOD(LedMockApiFixture,
+                 "LedController: set_brightness 0 runs a macro device's off macro",
+                 "[led][controller][brightness_zero]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    helix::led::LedMacroInfo cabinet;
+    cabinet.display_name = "Cabinet";
+    cabinet.type = helix::led::MacroLedType::ON_OFF;
+    cabinet.on_macro = "CABINET_ON";
+    cabinet.off_macro = "CABINET_OFF";
+    ctrl.set_configured_macros({cabinet});
+    make_led_dispatch_real(state);
+    mock_client.clear_gcode_script_history();
+
+    ctrl.set_brightness({"macro:Cabinet"}, 0);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    CHECK(history_mentions(mock_client.gcode_script_history(), "CABINET_OFF"));
+    // What was last sent is off, so the next toggle turns it on.
+    CHECK(ctrl.toggle_power({"macro:Cabinet"}));
+}

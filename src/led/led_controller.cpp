@@ -2366,6 +2366,12 @@ void LedController::set_color(const std::vector<std::string>& ids, double r, dou
 }
 
 void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct) {
+    // Brightness 0 is off on every backend. compute_scaled_last_color() reads 0
+    // as "restore at 100%", which is right for power-on and wrong here.
+    if (brightness_pct <= 0) {
+        set_power(ids, false);
+        return;
+    }
     // Use shared helper so slider drags honor the same safety floor and
     // RGBW white-channel preservation as set_power(ids, true).
     auto c = compute_scaled_last_color(brightness_pct);

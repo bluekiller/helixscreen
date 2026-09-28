@@ -455,7 +455,7 @@ class LedController {
     void set_color(const std::vector<std::string>& ids, double r, double g, double b, double w);
 
     /// Set brightness on the native and output_pin devices among @p ids, keeping the
-    /// last color.
+    /// last color. 0 switches every device in @p ids off, as set_power(ids, false).
     void set_brightness(const std::vector<std::string>& ids, int brightness_pct);
 
     /// Route a Moonraker status frame to the backends; bumps led_state_version
