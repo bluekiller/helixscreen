@@ -93,6 +93,12 @@ inline uint8_t scale_channel_to_full(uint8_t c, uint8_t max_c) {
     return static_cast<uint8_t>(std::min(255, c * 255 / max_c));
 }
 
+/// Pack 0.0-1.0 channel levels into 0x00RRGGBB.
+inline uint32_t pack_rgb(double r, double g, double b) {
+    return (static_cast<uint32_t>(to_channel_byte(r)) << 16) |
+           (static_cast<uint32_t>(to_channel_byte(g)) << 8) | to_channel_byte(b);
+}
+
 /// Unpack a packed 0x00RRGGBB color into 0.0-1.0 channel levels.
 inline void unpack_rgb(uint32_t rgb, double& r, double& g, double& b) {
     r = static_cast<double>((rgb >> 16) & 0xFF) / 255.0;

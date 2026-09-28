@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../helix_test_fixture.h"
 #include "led/led_devices.h"
 
 #include "../catch_amalgamated.hpp"
@@ -185,4 +186,28 @@ TEST_CASE("device_display_name: Klipper object name prettified, macros as config
     CHECK(device_display_name(dev("printer_led", LedBackendType::WLED)) == "Printer LED");
     CHECK(device_display_name(dev("macro:lights", LedBackendType::MACRO)) == "lights");
     CHECK(device_display_name(dev("macro:Party Mode", LedBackendType::MACRO)) == "Party Mode");
+}
+
+TEST_CASE_METHOD(HelixTestFixture, "macro_device_note: what each macro type runs",
+                 "[led][devices]") {
+    LedMacroInfo m;
+    m.type = MacroLedType::ON_OFF;
+    m.on_macro = "LIGHTS_ON";
+    m.off_macro = "LIGHTS_OFF";
+    CHECK(macro_device_note(m) == "ON: LIGHTS_ON | OFF: LIGHTS_OFF");
+    m.off_macro.clear();
+    CHECK(macro_device_note(m) == "ON: LIGHTS_ON | OFF: —");
+
+    m.type = MacroLedType::TOGGLE;
+    m.toggle_macro = "LIGHT_TOGGLE";
+    CHECK(macro_device_note(m) == "TOGGLE: LIGHT_TOGGLE");
+    m.toggle_macro.clear();
+    CHECK(macro_device_note(m) == "TOGGLE: —");
+
+    m.type = MacroLedType::PRESET;
+    CHECK(macro_device_note(m) == "No presets configured");
+    m.presets = {"LED_PARTY"};
+    CHECK(macro_device_note(m) == "1 preset");
+    m.presets = {"LED_PARTY", "LED_RAINBOW"};
+    CHECK(macro_device_note(m) == "2 presets");
 }

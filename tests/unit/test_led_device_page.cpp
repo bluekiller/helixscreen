@@ -113,3 +113,35 @@ TEST_CASE("white_tone: cool is bluer than warm", "[led][page]") {
     }
     CHECK(white_tone(WhiteTone::Cool, WhiteMode::None) == Rgbw{});
 }
+
+TEST_CASE("fit_look: a no-color strip gets brightness only, never an RGB fraction", "[led][page]") {
+    // White-only (W channel): all of it on W.
+    CHECK(fit_look(0xFF4444, 0.0, native(false, true)) == Look{0, 1.0});
+    CHECK(fit_look(0, 1.0, native(false, true)) == Look{0, 1.0});
+    // Single channel, no W: full on every RGB pin, so whichever one exists lights.
+    CHECK(fit_look(0xFF4444, 0.0, native(false, false)) == Look{0xFFFFFF, 0.0});
+    CHECK(fit_look(0, 1.0, native(false, false)) == Look{0xFFFFFF, 0.0});
+}
+
+TEST_CASE("fit_look: an RGB-only strip shows W as RGB white", "[led][page]") {
+    CHECK(fit_look(0, 1.0, native(true, false)) == Look{0xFFFFFF, 0.0});
+    // A tinted W folds into its tint.
+    const Look warm = fit_look(0x593100, 1.0, native(true, false));
+    CHECK(warm.w == 0.0);
+    CHECK(warm.rgb == output_rgb(0x59 / 255.0, 0x31 / 255.0, 0.0, 1.0));
+    CHECK(fit_look(0xFF4444, 0.0, native(true, false)) == Look{0xFF4444, 0.0});
+}
+
+TEST_CASE("fit_look: an RGBW strip keeps the look; black becomes white", "[led][page]") {
+    CHECK(fit_look(0xFF4444, 0.0, native(true, true)) == Look{0xFF4444, 0.0});
+    CHECK(fit_look(0x000040, 1.0, native(true, true)) == Look{0x000040, 1.0});
+    CHECK(fit_look(0, 0.0, native(true, true)) == Look{0xFFFFFF, 0.0});
+}
+
+TEST_CASE("output_rgb: W adds to every channel, scaled to full", "[led][page]") {
+    CHECK(output_rgb(0.0, 0.0, 0.0, 1.0) == 0xFFFFFFu);
+    CHECK(output_rgb(1.0, 0.0, 0.0, 0.0) == 0xFF0000u);
+    CHECK(output_rgb(0.5, 0.0, 0.0, 0.0) == 0xFF0000u);
+    CHECK(output_rgb(0.0, 0.0, 0.0, 0.0) == 0xFFFFFFu);
+    CHECK(output_rgb(0.0, 0.0, 0.25, 1.0) == 0xCCCCFFu);
+}

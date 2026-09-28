@@ -85,6 +85,15 @@ class LedControlOverlayTestAccess {
     void tap_level(int pct) {
         overlay_.handle_brightness(pct);
     }
+    void tap_macro_on() {
+        overlay_.handle_macro_on();
+    }
+    void tap_macro_off() {
+        overlay_.handle_macro_off();
+    }
+    void tap_macro_toggle() {
+        overlay_.handle_macro_toggle();
+    }
     void tap_effects_none() {
         overlay_.handle_effects_none();
     }
@@ -517,12 +526,12 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the None chip stops the focused
     REQUIRE(access.int_subject("led_active_chip") == 1);
 
     access.tap_effects_none();
+    CHECK(access.int_subject("led_active_chip") == -1);
     drain();
 
     CHECK(wire_mentions("EFFECT=fire STOP=1"));
     CHECK_FALSE(wire_mentions("EFFECT=sparkle"));
     CHECK_FALSE(wire_mentions("EFFECT=breathe"));
-    CHECK(access.int_subject("led_active_chip") == -1);
 }
 
 TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an effect chip activates that effect",
@@ -537,11 +546,11 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an effect chip activates that e
     REQUIRE(access.int_subject("led_active_chip") == -1);
 
     access.tap_list_chip(1);
+    CHECK(access.int_subject("led_active_chip") == 1);
     drain();
 
     CHECK(wire_mentions("EFFECT=fire"));
     CHECK_FALSE(wire_mentions("EFFECT=breathe"));
-    CHECK(access.int_subject("led_active_chip") == 1);
 }
 
 TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a macro preset chip runs that macro",
@@ -556,4 +565,122 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a macro preset chip runs that m
 
     CHECK(wire_mentions("LED_RAINBOW"));
     CHECK_FALSE(wire_mentions("LED_PARTY"));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: an off white-only strip after a red look puts it all on W",
+                 "[led][overlay]") {
+    add_native("led case_light", false, false);
+    auto& ctrl = LedController::instance();
+    ctrl.set_last_color(0xFF4444);
+    ctrl.set_last_white(0.0);
+    ctrl.set_last_brightness(60);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("led case_light");
+    REQUIRE_FALSE(ctrl.native().has_strip_color("led case_light"));
+    access.tap_level(100);
+
+    auto c = sent("led case_light");
+    CHECK(c.w == Catch::Approx(1.0).margin(0.001));
+    CHECK(c.r == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.g == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.b == Catch::Approx(0.0).margin(0.001));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: an off RGB-only strip after a W-only look lights RGB white",
+                 "[led][overlay]") {
+    add_native("neopixel rgb", true, false);
+    auto& ctrl = LedController::instance();
+    ctrl.set_last_color(0);
+    ctrl.set_last_white(1.0);
+    ctrl.set_last_brightness(80);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel rgb");
+    REQUIRE(access.int_subject("led_page_brightness") == 80);
+    access.drag_brightness(50);
+
+    auto c = sent("neopixel rgb");
+    CHECK(c.r == Catch::Approx(0.5).margin(0.005));
+    CHECK(c.g == Catch::Approx(0.5).margin(0.005));
+    CHECK(c.b == Catch::Approx(0.5).margin(0.005));
+    CHECK(c.w == Catch::Approx(0.0).margin(0.001));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an output pin's slider sets that pin",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    LedStripInfo pin;
+    pin.name = "Enclosure";
+    pin.id = "output_pin enclosure";
+    pin.backend = LedBackendType::OUTPUT_PIN;
+    pin.supports_color = false;
+    pin.supports_white = false;
+    pin.is_pwm = true;
+    LedController::instance().output_pin().add_pin(pin);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("output_pin enclosure");
+    access.drag_brightness(40);
+    drain();
+
+    CHECK(wire_mentions("SET_PIN PIN=enclosure VALUE=0.4000"));
+    CHECK_FALSE(wire_mentions("SET_LED"));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: macro buttons run the focused device's macros",
+                 "[led][overlay]") {
+    LedMacroInfo toggle;
+    toggle.display_name = "Toggle";
+    toggle.type = MacroLedType::TOGGLE;
+    toggle.toggle_macro = "LIGHT_TOGGLE";
+    set_macros({lamp_macro(), toggle});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("macro:Lamp");
+    CHECK(access.str_subject("led_page_note") == "ON: LIGHTS_ON | OFF: LIGHTS_OFF");
+
+    access.tap_macro_on();
+    drain();
+    CHECK(wire_mentions("LIGHTS_ON"));
+    CHECK_FALSE(wire_mentions("LIGHTS_OFF"));
+
+    mock_client.clear_gcode_script_history();
+    access.tap_macro_off();
+    drain();
+    CHECK(wire_mentions("LIGHTS_OFF"));
+    CHECK_FALSE(wire_mentions("LIGHTS_ON"));
+
+    access.activate("macro:Toggle");
+    CHECK(access.str_subject("led_page_note") == "TOGGLE: LIGHT_TOGGLE");
+    mock_client.clear_gcode_script_history();
+    access.tap_macro_toggle();
+    drain();
+    CHECK(wire_mentions("LIGHT_TOGGLE"));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the active effect chip follows status",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_effect("led_effect breathe", "neopixel strip_a", false);
+    add_effect("led_effect fire", "neopixel strip_a", false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel strip_a");
+    REQUIRE(access.int_subject("led_active_chip") == -1);
+
+    LedController::instance().update_from_status({{"led_effect fire", {{"enabled", true}}}});
+    drain();
+    CHECK(access.int_subject("led_active_chip") == 1);
+
+    LedController::instance().update_from_status({{"led_effect fire", {{"enabled", false}}}});
+    drain();
+    CHECK(access.int_subject("led_active_chip") == -1);
 }

@@ -94,6 +94,8 @@ class LedControlOverlay : public OverlayBase {
     [[nodiscard]] int white_selection() const;
     /// Index into color_presets(), -2 for a custom color, -1 for none.
     [[nodiscard]] int swatch_selection() const;
+    /// The focused strip's running effect among its list chips, or -1.
+    [[nodiscard]] int active_effect_index() const;
 
     void handle_tab_clicked(int index);
     void handle_power();
@@ -110,6 +112,8 @@ class LedControlOverlay : public OverlayBase {
     /// A full-brightness @p rgb with no white, at the current brightness (full
     /// when the light is off).
     void apply_swatch_color(uint32_t rgb);
+    /// Makes @p rgb and @p w the current look and sends it.
+    void apply_look(uint32_t rgb, double w);
     /// Sends current color, W and brightness to the focused NATIVE device,
     /// stopping its effects first.
     void apply_current_color();
@@ -184,6 +188,8 @@ class LedControlOverlay : public OverlayBase {
     int current_brightness_ = 100;
     uint32_t current_color_ = 0xFFFFFF; ///< full-brightness RGB
     double current_white_ = 0.0;        ///< full-brightness W, 0.0-1.0
+    /// Bumped by every control; a poll landing after a bump leaves the page alone.
+    unsigned page_gen_ = 0;
 };
 
 } // namespace helix::led

@@ -3,6 +3,9 @@
 #include "led/led_devices.h"
 
 #include "device_display_name.h"
+#include "lvgl/src/others/translation/lv_translation.h"
+
+#include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
 #include <cctype>
@@ -137,6 +140,24 @@ std::string device_display_name(const LedStripInfo& device) {
         return strip_macro_name(device.id);
     }
     return helix::prettify_name(object_name(device.id));
+}
+
+std::string macro_device_note(const LedMacroInfo& macro) {
+    auto or_dash = [](const std::string& s) { return s.empty() ? std::string("—") : s; };
+    switch (macro.type) {
+    case MacroLedType::ON_OFF:
+        return fmt::format(fmt::runtime(lv_tr("ON: {} | OFF: {}")), or_dash(macro.on_macro),
+                           or_dash(macro.off_macro));
+    case MacroLedType::TOGGLE:
+        return fmt::format(fmt::runtime(lv_tr("TOGGLE: {}")), or_dash(macro.toggle_macro));
+    case MacroLedType::PRESET:
+        if (macro.presets.empty()) {
+            return lv_tr("No presets configured");
+        }
+        return fmt::format(fmt::runtime(lv_tr("{} preset{}")), macro.presets.size(),
+                           macro.presets.size() == 1 ? "" : "s");
+    }
+    return {};
 }
 
 bool next_power_on(const std::vector<PowerState>& states, bool last_sent_on) {

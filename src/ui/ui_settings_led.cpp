@@ -392,26 +392,7 @@ void LedSettingsOverlay::populate_macro_devices_impl() {
 
         // --- Macro summary line (shown when NOT editing) ---
         if (!is_editing) {
-            std::string summary;
-            switch (macro.type) {
-            case helix::led::MacroLedType::ON_OFF:
-                summary = fmt::format(lv_tr("ON: {} | OFF: {}"),
-                                      macro.on_macro.empty() ? "—" : macro.on_macro,
-                                      macro.off_macro.empty() ? "—" : macro.off_macro);
-                break;
-            case helix::led::MacroLedType::TOGGLE:
-                summary = fmt::format(lv_tr("TOGGLE: {}"),
-                                      macro.toggle_macro.empty() ? "—" : macro.toggle_macro);
-                break;
-            case helix::led::MacroLedType::PRESET:
-                if (macro.presets.empty()) {
-                    summary = lv_tr("No presets configured");
-                } else {
-                    summary = fmt::format(lv_tr("{} preset{}"), macro.presets.size(),
-                                          macro.presets.size() == 1 ? "" : "s");
-                }
-                break;
-            }
+            const std::string summary = helix::led::macro_device_note(macro);
 
             auto* summary_label = lv_label_create(card);
             lv_label_set_text(summary_label, summary.c_str());

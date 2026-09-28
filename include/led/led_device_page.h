@@ -3,6 +3,8 @@
 
 #include "led/led_backend.h"
 
+#include <cstdint>
+
 namespace helix::led {
 
 /// What the left (lamp) column of an LED device page holds.
@@ -54,5 +56,25 @@ struct Rgbw {
 Rgbw white_tone(WhiteTone tone, WhiteMode mode);
 
 constexpr int LEVEL_CHIPS[] = {10, 25, 50, 75, 100};
+
+/// A full-brightness look: an RGB tint (0xRRGGBB) plus a W level 0.0-1.0.
+struct Look {
+    uint32_t rgb = 0xFFFFFF;
+    double w = 0.0;
+
+    bool operator==(const Look& o) const {
+        return rgb == o.rgb && w == o.w;
+    }
+};
+
+/// @p rgb and @p w as @p device can show them. No color: brightness only, all
+/// on W when the strip has one, else full on every RGB pin. Color without W:
+/// W folds into RGB. Nothing lit at all: white.
+Look fit_look(uint32_t rgb, double w, const LedStripInfo& device);
+
+/// What an RGB(W) output looks like at full brightness: W adds to every
+/// channel, then the result scales so its brightest channel is full. White
+/// when nothing is lit.
+uint32_t output_rgb(double r, double g, double b, double w);
 
 } // namespace helix::led

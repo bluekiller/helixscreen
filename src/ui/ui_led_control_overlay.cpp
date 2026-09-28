@@ -18,11 +18,11 @@
 #include "text_io.h"
 #include "theme_manager.h"
 
+#include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdlib>
-#include <fmt/format.h>
 
 using namespace helix;
 using namespace helix::led;
@@ -51,35 +51,21 @@ lv_obj_t* open_led_control_overlay(lv_obj_t* parent_screen, const std::string& d
         panel = overlay.create(parent_screen);
         if (!panel) {
             spdlog::error("[LedControlOverlay] Failed to create LED control overlay");
-            return nullptr;
         }
     }
-    if (panel) {
-        // Registered before every push: a NavigationManager shutdown drops the
-        // registrations, and registering is idempotent.
-        NavigationManager::instance().register_overlay_instance(panel, &overlay);
-        NavigationManager::instance().push_overlay(panel);
+    if (!panel) {
+        overlay.request_focus("");
+        return nullptr;
     }
+    // Registered before every push: a NavigationManager shutdown drops the
+    // registrations, and registering is idempotent.
+    NavigationManager::instance().register_overlay_instance(panel, &overlay);
+    NavigationManager::instance().push_overlay(panel);
     return panel;
 }
 } // namespace helix
 
 namespace {
-
-uint32_t pack_rgb(double r, double g, double b) {
-    return (static_cast<uint32_t>(to_channel_byte(r)) << 16) |
-           (static_cast<uint32_t>(to_channel_byte(g)) << 8) | to_channel_byte(b);
-}
-
-/// What an RGB(W) output looks like at full brightness: W adds to every
-/// channel, then the result is scaled so its brightest channel is full.
-uint32_t output_rgb(double r, double g, double b, double w) {
-    const double m = std::max({r + w, g + w, b + w});
-    if (m <= 0.0) {
-        return 0xFFFFFF;
-    }
-    return pack_rgb((r + w) / m, (g + w) / m, (b + w) / m);
-}
 
 /// Channel-wise equality within the rounding a status round-trip introduces.
 bool rgb_near(uint32_t a, uint32_t b) {
@@ -340,9 +326,12 @@ void LedControlOverlay::load_page_state() {
         current_color_ = ctrl.last_color();
         current_white_ = ctrl.last_white();
     }
-    if (current_color_ == 0 && current_white_ <= 0.0) {
-        current_color_ = 0xFFFFFF;
-    }
+    // The saved look is controller-wide, and status can refine a strip's
+    // channels after the tabs were built, so fit against the live strip.
+    const auto* live = find_strip(ctrl.native().strips(), focused_strip_);
+    const Look look = fit_look(current_color_, current_white_, live ? *live : *info);
+    current_color_ = look.rgb;
+    current_white_ = look.w;
 }
 
 // ============================================================================
@@ -374,16 +363,12 @@ void LedControlOverlay::publish_page() {
     publish_color_state();
     publish_list();
 
+    // A PRESET device's chips already say what it runs.
     std::string note;
     if (info != nullptr && info->backend == LedBackendType::MACRO) {
-        if (const auto* m = find_macro(ctrl.configured_macros(), focused_strip_)) {
-            auto or_dash = [](const std::string& s) { return s.empty() ? std::string("—") : s; };
-            if (m->type == MacroLedType::ON_OFF) {
-                note = fmt::format(fmt::runtime(lv_tr("ON: {} | OFF: {}")), or_dash(m->on_macro),
-                                   or_dash(m->off_macro));
-            } else if (m->type == MacroLedType::TOGGLE) {
-                note = fmt::format(fmt::runtime(lv_tr("TOGGLE: {}")), or_dash(m->toggle_macro));
-            }
+        const auto* m = find_macro(ctrl.configured_macros(), focused_strip_);
+        if (m != nullptr && m->type != MacroLedType::PRESET) {
+            note = macro_device_note(*m);
         }
     }
     lv_subject_copy_string(&page_note_, note.c_str());
@@ -449,11 +434,8 @@ void LedControlOverlay::publish_list() {
 
     if (page_.list == ListKind::Effects) {
         title = lv_tr("Effects");
-        active = -1;
+        active = active_effect_index();
         for (const auto& eff : ctrl.effects().effects_for_strip(focused_strip_)) {
-            if (eff.enabled && active < 0) {
-                active = static_cast<int>(labels.size());
-            }
             labels.push_back(eff.display_name);
             list_values_.push_back(eff.name);
         }
@@ -493,6 +475,16 @@ void LedControlOverlay::publish_list() {
     lv_subject_copy_string(&page_list_title_, title);
 }
 
+int LedControlOverlay::active_effect_index() const {
+    const auto effects = LedController::instance().effects().effects_for_strip(focused_strip_);
+    for (size_t i = 0; i < effects.size(); ++i) {
+        if (effects[i].enabled) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
 void LedControlOverlay::on_led_state_changed() {
     auto& ctrl = LedController::instance();
     publish_tab_dots();
@@ -502,6 +494,9 @@ void LedControlOverlay::on_led_state_changed() {
         return;
     }
     lv_subject_set_int(&page_on_, static_cast<int>(ctrl.device_state(focused_strip_).power));
+    if (page_.list == ListKind::Effects) {
+        lv_subject_set_int(&active_chip_, active_effect_index());
+    }
 
     if (info->backend == LedBackendType::NATIVE && info->supports_color &&
         ctrl.native().has_strip_color(focused_strip_)) {
@@ -532,18 +527,18 @@ void LedControlOverlay::refresh_wled_page() {
         return;
     }
     // A WLED strip's state arrives by poll, so its page is read again when the
-    // poll lands, provided the strip is still focused.
+    // poll lands, unless the user has moved focus or touched a control since.
+    // on_done runs on the main thread.
     auto tok = lifetime_.token();
     const std::string id = focused_strip_;
-    LedController::instance().refresh_wled_state([this, tok, id]() {
-        tok.defer("LedControlOverlay::wled_page", [this, id]() {
-            if (focused_strip_ != id) {
-                return;
-            }
-            load_page_state();
-            publish_color_state();
-            publish_list();
-        });
+    const unsigned gen = page_gen_;
+    LedController::instance().refresh_wled_state([this, tok, id, gen]() {
+        if (tok.expired() || focused_strip_ != id || page_gen_ != gen) {
+            return;
+        }
+        load_page_state();
+        publish_color_state();
+        publish_list();
     });
 }
 
@@ -560,6 +555,7 @@ void LedControlOverlay::handle_brightness(int pct) {
     if (info == nullptr) {
         return;
     }
+    ++page_gen_;
     current_brightness_ = std::clamp(pct, 0, 100);
     auto& ctrl = LedController::instance();
     switch (info->backend) {
@@ -586,13 +582,10 @@ void LedControlOverlay::handle_white(int tone) {
         return;
     }
     const Rgbw c = white_tone(static_cast<WhiteTone>(tone), page_.white);
-    current_color_ = pack_rgb(c.r, c.g, c.b);
-    current_white_ = c.w;
     if (current_brightness_ <= 0) {
         current_brightness_ = 100;
     }
-    apply_current_color();
-    publish_color_state();
+    apply_look(pack_rgb(c.r, c.g, c.b), c.w);
 }
 
 void LedControlOverlay::handle_swatch(int index) {
@@ -608,12 +601,17 @@ void LedControlOverlay::apply_swatch_color(uint32_t rgb) {
     if (info == nullptr || info->backend != LedBackendType::NATIVE) {
         return;
     }
-    current_color_ = rgb;
-    current_white_ = 0.0;
     if (current_brightness_ <= 0 ||
         LedController::instance().device_state(focused_strip_).power != PowerState::On) {
         current_brightness_ = 100;
     }
+    apply_look(rgb, 0.0);
+}
+
+void LedControlOverlay::apply_look(uint32_t rgb, double w) {
+    ++page_gen_;
+    current_color_ = rgb;
+    current_white_ = w;
     apply_current_color();
     publish_color_state();
 }
@@ -633,8 +631,12 @@ void LedControlOverlay::handle_custom_color() {
         int brightness = 0;
         double white = 0.0;
         picked.decompose(base, brightness, white);
+        const auto* info = focused_info();
+        if (info == nullptr || info->backend != LedBackendType::NATIVE) {
+            return;
+        }
         current_brightness_ = std::max(brightness, 1);
-        apply_swatch_color(base);
+        apply_look(base, 0.0);
     });
     color_picker.show_with_color(lv_obj_get_parent(overlay_root_), current_color_);
 }
@@ -646,6 +648,7 @@ void LedControlOverlay::handle_list_chip(int index) {
     auto& ctrl = LedController::instance();
     const std::string& value = list_values_[index];
     const auto* info = focused_info();
+    ++page_gen_;
 
     if (page_.list == ListKind::Effects) {
         ctrl.effects().activate_effect(

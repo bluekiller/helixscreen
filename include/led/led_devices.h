@@ -79,6 +79,10 @@ std::string pick_overlay_focus(const std::string& requested, const std::string& 
 /// ("neopixel chamber_light" -> "Chamber Light").
 std::string device_display_name(const LedStripInfo& device);
 
+/// The one-line summary of what a macro device runs, as Settings and the LEDs
+/// overlay show it.
+std::string macro_device_note(const LedMacroInfo& macro);
+
 enum class PowerState : int { Off = 0, On = 1, Unknown = 2 };
 
 /// What the UI can say about one device right now.
