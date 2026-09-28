@@ -825,7 +825,7 @@ TEST_CASE_METHOD(LedControllerFixture, "LedController: version observer fires on
     helix::PrinterDiscovery discovery;
     ctrl.discover_from_hardware(discovery);
     REQUIRE(user_data[0] >= 2);
-    REQUIRE(user_data[1] == before + 1);
+    REQUIRE(user_data[1] > before);
 
     lv_observer_remove(obs);
     ctrl.deinit();

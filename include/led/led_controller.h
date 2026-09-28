@@ -615,6 +615,10 @@ class LedController {
     [[nodiscard]] ScaledColor compute_scaled_last_color(int brightness_pct,
                                                         const LedStripInfo& device) const;
 
+    /// Tells light buttons the set of devices changed: discovery, WLED
+    /// strips arriving, a macro device added, edited or deleted.
+    void bump_config_version();
+
     lv_subject_t led_config_version_{};    // Bumped on discover/config changes
     lv_subject_t led_controllable_{};      // 0/1: at least one switchable device exists
     lv_subject_t led_command_in_flight_{}; // 0/1: a light toggle is awaiting its gcode ACK

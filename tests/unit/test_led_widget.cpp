@@ -248,6 +248,49 @@ TEST_CASE_METHOD(LedWidgetFixture,
     second.detach();
 }
 
+TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: the name follows a change in the set of devices",
+                 "[led][light_button]") {
+    auto& ctrl = LedController::instance();
+    const auto name_for = [&](const std::string& id) {
+        for (const auto& d : ctrl.all_selectable_strips()) {
+            if (d.id == id) {
+                return device_display_name(d);
+            }
+        }
+        return std::string();
+    };
+
+    // Bound to a WLED strip before WLED discovery has answered.
+    LedWidget wled("led", ps, api.get());
+    wled.set_config({{"led", "printer_led"}});
+    wled.attach(lv_obj_create(test_screen()), test_screen());
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(name_of("led") == "Chamber Light");
+    ctrl.discover_wled_strips();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE_FALSE(name_for("printer_led").empty());
+    CHECK(name_of("led") == name_for("printer_led"));
+    wled.detach();
+
+    // Bound to a macro device that is then deleted in Settings.
+    LedWidget macro("led:1", ps, api.get());
+    macro.set_config({{"led", "macro:Lamp"}});
+    macro.attach(lv_obj_create(test_screen()), test_screen());
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(name_of("led:1") == "Lamp");
+    std::vector<LedMacroInfo> kept;
+    for (const auto& m : ctrl.configured_macros()) {
+        if (m.display_name != "Lamp") {
+            kept.push_back(m);
+        }
+    }
+    ctrl.set_configured_macros(kept);
+    ctrl.rebuild_macro_backend();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(name_of("led:1") == "Chamber Light");
+    macro.detach();
+}
+
 TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_button]") {
     DeviceState off{PowerState::Off, 0, 0xFF0000, true};
     DeviceState unknown;

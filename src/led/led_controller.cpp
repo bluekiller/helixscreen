@@ -367,13 +367,16 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
 
     migrate_legacy_selection();
 
-    // Bump version to notify UI widgets to rebind
+    bump_config_version();
+    publish_controllable_state();
+}
+
+void LedController::bump_config_version() {
     if (version_subject_initialized_) {
         lv_subject_set_int(&led_config_version_, lv_subject_get_int(&led_config_version_) + 1);
         spdlog::debug("[LedController] LED config version bumped to {}",
                       lv_subject_get_int(&led_config_version_));
     }
-    publish_controllable_state();
 }
 
 void LedController::migrate_legacy_selection() {
@@ -482,6 +485,7 @@ void LedController::discover_wled_strips() {
                 for (auto& strip : discovered) {
                     wled_.add_strip(strip);
                 }
+                bump_config_version();
                 publish_controllable_state();
 
                 // Fetch server config to get WLED device addresses
@@ -2669,6 +2673,7 @@ void LedController::rebuild_macro_backend() {
         }
         macro_.add_macro(m);
     }
+    bump_config_version();
     publish_controllable_state();
 }
 
