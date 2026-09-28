@@ -645,3 +645,19 @@ TEST_CASE_METHOD(BedDryingFixture, "the start modal's chamber row names what hea
     CHECK(lv_subject_get_int(assist) == static_cast<int>(ChamberAssist::Dryer));
     tc.set_chamber_dryer(nullptr);
 }
+
+TEST_CASE_METHOD(BedDryingFixture, "Stop while placing sends no chamber off",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    bool ready = false;
+    ctrl->prepare(kMaterials[0], true, [&] { ready = true; }, nullptr);
+    drain();
+    REQUIRE(ready);
+    REQUIRE(ctrl->state() == BedDryingController::State::Placing);
+    client.clear_gcode_script_history();
+
+    ctrl->stop();
+    drain();
+
+    CHECK_FALSE(sent("HEATER=chamber"));
+}

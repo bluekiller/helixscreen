@@ -877,6 +877,9 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
                                     discovery_.chamber_filter_fan_pin(),
                                     backend ? backend->conservative_max_temp() : 0.0);
             tc->set_chamber_dryer(backend, discovery_.has_heater_bed());
+            // Read the ceiling now, after set_chamber_actions() stored the
+            // backend's fallback, so a label built from it on first open is right.
+            tc->ensure_limits(HeaterType::Chamber);
         } else {
             tc->set_chamber_actions(std::string(), std::string(), 0.0);
             tc->set_chamber_dryer(nullptr);
