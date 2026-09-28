@@ -15,6 +15,7 @@
 #include "led/led_color_utils.h"
 #include "led/led_device_page.h"
 #include "led_wled_json.h"
+#include "light_button_config.h"
 #include "moonraker_error.h"
 #include "observer_factory.h"
 #include "printer_discovery.h"
@@ -487,6 +488,9 @@ void LedController::discover_wled_strips() {
                 }
                 bump_config_version();
                 publish_controllable_state();
+                // On a WLED-only printer discovery-complete found nothing to light;
+                // this is LED on at Start's first chance. The latch keeps it to one.
+                helix::settle_light_buttons();
 
                 // Fetch server config to get WLED device addresses
                 this->api_->rest().get_server_config(

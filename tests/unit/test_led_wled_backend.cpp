@@ -5,6 +5,7 @@
 #include "../helix_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "led/led_controller.h"
+#include "light_button_config.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
@@ -537,4 +538,34 @@ TEST_CASE_METHOD(WledMockFixture,
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 
     CHECK(lv_subject_get_int(ctrl.get_led_controllable_subject()) == 1);
+}
+
+TEST_CASE_METHOD(WledMockFixture,
+                 "LedController: LED on at Start lights a WLED-only printer once, when its "
+                 "strips arrive",
+                 "[led][wled][startup]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    ctrl.set_led_on_at_start(true);
+
+    // Discovery completes before WLED answers: nothing to light yet.
+    helix::settle_light_buttons();
+    REQUIRE(ctrl.chamber_light().empty());
+
+    ctrl.discover_wled_strips();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    const std::string light = ctrl.chamber_light();
+    REQUIRE_FALSE(light.empty());
+    CHECK(ctrl.device_state(light).power == helix::led::PowerState::On);
+
+    // The user switches it off; a later discovery (a Klipper restart) leaves it off.
+    ctrl.set_power({light}, false);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(ctrl.device_state(light).power == helix::led::PowerState::Off);
+    ctrl.discover_wled_strips();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    helix::settle_light_buttons();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(ctrl.device_state(light).power == helix::led::PowerState::Off);
 }
