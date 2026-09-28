@@ -853,7 +853,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
         // During chunked VBO upload, renderer returns early without drawing.
         // After the first real GPU render, force one extra frame so the
         // cached-buffer path (no GL context switch) blits cleanly.
-        if (st->renderer_->is_uploading() || st->needs_3d_refresh_) {
+        if (st->renderer_->is_uploading() || st->renderer_->is_refining() ||
+            st->needs_3d_refresh_) {
             if (!st->renderer_->is_uploading()) {
                 st->needs_3d_refresh_ = false;
             }

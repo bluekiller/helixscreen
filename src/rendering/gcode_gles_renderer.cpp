@@ -9,6 +9,7 @@
 #include "data_root_resolver.h"
 #include "gcode_gl_fallback.h"
 #include "gcode_projection.h"
+#include "gcode_render_schedule.h"
 #include "gcode_selection_style.h"
 #include "lv_draw_buf_guard.h"
 #include "runtime_config.h"
@@ -1083,6 +1084,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
                           "— disabling GPU rendering, falling back to 2D",
                           renderer ? renderer : "(null)");
             gl_render_failed_ = true;
+            cancel_job();
             return;
         }
     }
@@ -1105,6 +1107,10 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
             geometry_uploaded_ = true;
             upload_next_layer_ = 0;
             upload_total_layers_ = 0;
+            uploaded_triangles_ = 0;
+            for (const auto& vbo : layer_vbos_) {
+                uploaded_triangles_ += vbo.vertex_count / 3;
+            }
             // Free pre-computed interleaved buffers — all data is now in GPU VBOs.
             // The CPU fallback path (for tool color re-upload) re-expands from
             // the compact vertices/strips directly, so these aren't needed.
@@ -1142,57 +1148,58 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
         render_defer_frames_ = 0;
     }
     // Build current render state for frame-skip check
-    CachedRenderState current_state;
-    current_state.azimuth = camera.get_azimuth();
-    current_state.elevation = camera.get_elevation();
-    current_state.distance = camera.get_distance();
-    current_state.zoom_level = camera.get_zoom_level();
-    current_state.target = camera.get_target();
-    current_state.progress_layer = progress_layer_;
-    current_state.layer_start = layer_start_;
-    current_state.layer_end = layer_end_;
-    current_state.highlight_count = selection_.highlighted().size();
-    current_state.highlight_set_hash = selection_.highlighted_hash();
-    current_state.exclude_count = selection_.excluded().size();
-    current_state.filament_color = filament_color_;
-    current_state.ghost_opacity = ghost_opacity_;
+    const CachedRenderState current_state = snapshot_state(camera);
+    render_schedule::JobInputs in;
+    in.scene_changed = frame_dirty_ || !current_state.same_scene(job_scene_);
+    in.have_complete_image = have_complete_image_ && draw_buf_;
+    in.job_running = job_.active;
+    in.job_incremental = job_.incremental;
+    in.selection_active = selection_.any_highlighted();
+    in.job_progress = job_.progress_layer;
+    in.new_progress = progress_layer_;
+    switch (render_schedule::decide_job(in)) {
+    case render_schedule::JobAction::None:
+        break;
+    case render_schedule::JobAction::Restart:
+        start_job(false, current_state);
+        break;
+    case render_schedule::JobAction::Incremental:
+        start_job(true, current_state);
+        break;
+    case render_schedule::JobAction::Extend:
+        job_.solid_end = std::min(progress_layer_, job_.solid_end_limit);
+        job_.progress_layer = progress_layer_;
+        job_.phase = JobPhase::Solid;
+        break;
+    }
+    frame_dirty_ = false;
+    cached_state_ = current_state;
 
-    // Skip GPU render if state unchanged and we have a valid cached framebuffer.
-    // draw_cached_to_lvgl skips glReadPixels — just blits the existing draw_buf_.
-    if (!frame_dirty_ && current_state == cached_state_ && draw_buf_) {
+    if (!job_.active) {
+        // draw_cached_to_lvgl skips glReadPixels — just blits the existing draw_buf_.
         draw_cached_to_lvgl(layer, widget_coords);
         return;
     }
 
-    cached_state_ = current_state;
-    frame_dirty_ = false;
-
-    auto t0 = std::chrono::high_resolution_clock::now();
-
     // Layer 2 — crash-loop breaker. Arm the guard file immediately before the
-    // real GPU draw; if the driver hard-faults inside render_to_fbo the process
+    // real GPU draw; if the driver hard-faults inside run_slice the process
     // dies with the file still present and the next startup promotes it to a
     // persistent block. Cleared right after the first successful blit.
     arm_gpu_guard();
 
-    // Render to FBO
-    render_to_fbo(gcode, camera);
-
-    auto t1 = std::chrono::high_resolution_clock::now();
-
-    // Read pixels from FBO and blit to LVGL
-    blit_to_lvgl(layer, widget_coords);
-
+    const bool done = run_slice(gcode, camera);
+    if (done) {
+        // Read pixels from FBO and blit to LVGL
+        blit_to_lvgl(layer, widget_coords);
+        have_complete_image_ = true;
+    } else {
+        // Mid-refinement: keep showing the last finished image rather than a
+        // partially drawn one.
+        draw_cached_to_lvgl(layer, widget_coords);
+    }
     clear_gpu_guard();
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-
     // guard destructor restores LVGL's GL context
-
-    auto gpu_ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
-    auto blit_ms = std::chrono::duration<float, std::milli>(t2 - t1).count();
-    spdlog::trace("[GCode GLES] gpu={:.1f}ms, blit={:.1f}ms, triangles={}", gpu_ms, blit_ms,
-                  triangles_rendered_);
 }
 
 // ============================================================
@@ -1234,25 +1241,36 @@ void GCodeGLESRenderer::clear_gpu_guard() {
 // FBO Rendering
 // ============================================================
 
-void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
-    int render_w = viewport_width_;
-    int render_h = viewport_height_;
-    if (render_w < 1)
-        render_w = 1;
-    if (render_h < 1)
-        render_h = 1;
+/// Layer ranges for the solid and ghost passes. ghosting is true when
+/// 0 <= progress_layer_ < max_layer.
+void GCodeGLESRenderer::pass_ranges(int& draw_start, int& draw_end, int& solid_end,
+                                    int& ghost_start, bool& ghosting) const {
+    const int max_layer = static_cast<int>(layer_vbos_.size()) - 1;
+    draw_start = (layer_start_ >= 0) ? layer_start_ : 0;
+    draw_end = (layer_end_ >= 0) ? std::min(layer_end_, max_layer) : max_layer;
+    ghosting = progress_layer_ >= 0 && progress_layer_ < max_layer;
+    solid_end = ghosting ? std::min(progress_layer_, draw_end) : draw_end;
+    ghost_start = ghosting ? std::max(progress_layer_ + 1, draw_start) : draw_end + 1;
+}
+
+bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool clear,
+                                    glm::mat4& mvp, glm::mat4& mvp_dequant) {
+    int render_w = std::max(1, static_cast<int>(viewport_width_ * scale));
+    int render_h = std::max(1, static_cast<int>(viewport_height_ * scale));
 
     // Create/resize FBO
     if (!create_fbo(render_w, render_h)) {
-        return;
+        return false;
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_.id);
     glViewport(0, 0, render_w, render_h);
 
-    // Neutral gray background — light and dark filaments both contrast well
-    glClearColor(BACKGROUND_GRAY, BACKGROUND_GRAY, BACKGROUND_GRAY_BLUE, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (clear) {
+        // Neutral gray background — light and dark filaments both contrast well
+        glClearColor(BACKGROUND_GRAY, BACKGROUND_GRAY, BACKGROUND_GRAY_BLUE, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
     glEnable(GL_DEPTH_TEST);
 
     // Alpha is not part of the picture: readback converts RGBA to RGB and throws
@@ -1264,18 +1282,17 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
     // Select active geometry
-    auto* active_vbos = &layer_vbos_;
     active_geometry_ = geometry_.get();
 
-    if (!active_geometry_ || active_vbos->empty()) {
+    if (!active_geometry_ || layer_vbos_.empty()) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        return;
+        return false;
     }
 
     // Use shader program
     glUseProgram(program_);
 
-    glm::mat4 mvp = build_mvp(camera);
+    mvp = build_mvp(camera);
 
     // Normal matrix (inverse transpose of upper-left 3x3 of model-view).
     glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 0, 1));
@@ -1293,7 +1310,7 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     const glm::mat4 dequant = dequant_matrix(active_geometry_->quantization);
 
     // Set uniforms
-    glm::mat4 mvp_dequant = mvp * dequant;
+    mvp_dequant = mvp * dequant;
     glUniformMatrix4fv(u_mvp_, 1, GL_FALSE, glm::value_ptr(mvp_dequant));
     glUniformMatrix3fv(u_normal_matrix_, 1, GL_FALSE, glm::value_ptr(normal_mat));
 
@@ -1332,38 +1349,43 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     bool has_palette = active_geometry_ && !active_geometry_->color_palette.empty();
     bool has_vertex_colors = has_palette && !palette_.has_override;
     glUniform1f(u_use_vertex_color_, has_vertex_colors ? 1.0f : 0.0f);
+    return true;
+}
 
-    // Determine layer range
-    int max_layer = static_cast<int>(active_vbos->size()) - 1;
-    int draw_start = (layer_start_ >= 0) ? layer_start_ : 0;
-    int draw_end = (layer_end_ >= 0) ? std::min(layer_end_, max_layer) : max_layer;
+void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
+    glm::mat4 mvp, mvp_dequant;
+    if (!setup_frame(camera, 1.0f, true, mvp, mvp_dequant)) {
+        return;
+    }
+
+    int draw_start, draw_end, solid_end, ghost_start;
+    bool ghosting;
+    pass_ranges(draw_start, draw_end, solid_end, ghost_start, ghosting);
 
     triangles_rendered_ = 0;
 
     // Ghost / print progress rendering
-    if (progress_layer_ >= 0 && progress_layer_ < max_layer) {
+    if (ghosting) {
         // Pass 1: Solid layers (0 to progress_layer_)
-        int solid_end = std::min(progress_layer_, draw_end);
         if (draw_start <= solid_end) {
-            draw_layers(*active_vbos, draw_start, solid_end, 1.0f, 1.0f);
+            draw_layers(layer_vbos_, draw_start, solid_end, 1.0f, 1.0f);
         }
 
         // Pass 2: Ghost layers (progress_layer_+1 to end) with alpha blending
         // Use elevated color_scale to lighten ghost colors (washes toward white)
-        int ghost_start = std::max(progress_layer_ + 1, draw_start);
         if (ghost_start <= draw_end) {
             float alpha = ghost_opacity_ / 255.0f;
             constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE); // Don't write ghost depth (prevents z-fighting)
-            draw_layers(*active_vbos, ghost_start, draw_end, GHOST_LIGHTEN_SCALE, alpha);
+            draw_layers(layer_vbos_, ghost_start, draw_end, GHOST_LIGHTEN_SCALE, alpha);
             glDepthMask(GL_TRUE);
             glDisable(GL_BLEND);
         }
     } else {
         // Normal: all layers solid
-        draw_layers(*active_vbos, draw_start, draw_end, 1.0f, 1.0f);
+        draw_layers(layer_vbos_, draw_start, draw_end, 1.0f, 1.0f);
     }
 
     glUseProgram(0);
@@ -1373,11 +1395,9 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     // the ghost pass is faded context, and a full-strength rim there would read as
     // a solid object. The rim itself is drawn on the CPU after readback.
     {
-        int tag_end = draw_end;
-        if (progress_layer_ >= 0 && progress_layer_ < max_layer) {
-            tag_end = std::min(progress_layer_, draw_end);
-        }
-        render_selection_tag(gcode, mvp_dequant, draw_start, tag_end);
+        // pass_ranges already folds the ghosting decision: solid_end is the
+        // progress layer while ghosting, the last drawn layer otherwise.
+        render_selection_tag(gcode, mvp_dequant, draw_start, solid_end);
     }
 
     // Selection brackets on top, using the same MVP as the geometry pass so
@@ -1390,8 +1410,9 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
-                                    int layer_end, float color_scale, float alpha) {
+int GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
+                                   int layer_end, float color_scale, float alpha, int stride,
+                                   size_t max_triangles) {
     // Set uniforms for this draw batch
     glUniform4fv(u_base_color_, 1, glm::value_ptr(filament_color_));
     glUniform1f(u_color_scale_, color_scale);
@@ -1407,7 +1428,9 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
         glEnableVertexAttribArray(static_cast<GLuint>(a_color_));
     }
 
-    for (int layer = layer_start; layer <= layer_end; ++layer) {
+    size_t submitted = 0;
+    int layer = layer_start;
+    for (; layer <= layer_end; layer += stride) {
         if (layer < 0 || layer >= static_cast<int>(vbos.size()))
             continue;
         const auto& lv = vbos[static_cast<size_t>(layer)];
@@ -1436,6 +1459,11 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
 
         glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(lv.vertex_count));
         triangles_rendered_ += lv.vertex_count / 3;
+        submitted += lv.vertex_count / 3;
+        if (submitted >= max_triangles) {
+            layer += stride;
+            break;
+        }
     }
 
     glDisableVertexAttribArray(static_cast<GLuint>(a_position_));
@@ -1457,7 +1485,117 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
                       "rendering, falling back to 2D",
                       draw_err);
         gl_render_failed_ = true;
+        cancel_job();
     }
+    return layer;
+}
+
+// ============================================================
+// Time-sliced refinement
+// ============================================================
+
+void GCodeGLESRenderer::start_job(bool incremental, const CachedRenderState& scene) {
+    const int previous_progress = job_.progress_layer;
+    int draw_start, draw_end, solid_end, ghost_start;
+    bool ghosting;
+    pass_ranges(draw_start, draw_end, solid_end, ghost_start, ghosting);
+    job_ = RefineJob{};
+    job_.active = true;
+    job_.incremental = incremental;
+    job_.phase = JobPhase::Solid;
+    job_.solid_end_limit = draw_end;
+    job_.progress_layer = progress_layer_;
+    job_.started = std::chrono::steady_clock::now();
+    if (incremental) {
+        job_.first_slice = false;
+        job_.solid_start = std::max(previous_progress + 1, draw_start);
+        job_.solid_end = solid_end;
+        job_.ghost_start = 0;
+        job_.ghost_end = -1;
+    } else {
+        job_.solid_start = draw_start;
+        job_.solid_end = ghosting ? solid_end : draw_end;
+        job_.ghost_start = ghost_start;
+        job_.ghost_end = ghosting ? draw_end : -1;
+        have_complete_image_ = false;
+    }
+    job_.next_layer = job_.solid_start;
+    job_scene_ = scene;
+}
+
+bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
+    glm::mat4 mvp, mvp_dequant;
+    if (!setup_frame(camera, 1.0f, job_.first_slice, mvp, mvp_dequant)) {
+        cancel_job();
+        return false;
+    }
+    job_.first_slice = false;
+    const size_t quota = render_schedule::slice_quota(gpu_rate_tris_per_ms_);
+    const size_t before = triangles_rendered_;
+    const auto t0 = std::chrono::steady_clock::now();
+    while (job_.phase != JobPhase::Done && triangles_rendered_ - before < quota) {
+        const size_t left = quota - (triangles_rendered_ - before);
+        if (job_.phase == JobPhase::Solid) {
+            if (job_.next_layer > job_.solid_end) {
+                job_.phase =
+                    job_.ghost_start <= job_.ghost_end ? JobPhase::Ghost : JobPhase::Overlays;
+                job_.next_layer = job_.ghost_start;
+                continue;
+            }
+            job_.next_layer =
+                draw_layers(layer_vbos_, job_.next_layer, job_.solid_end, 1.0f, 1.0f, 1, left);
+        } else if (job_.phase == JobPhase::Ghost) {
+            if (job_.next_layer > job_.ghost_end) {
+                job_.phase = JobPhase::Overlays;
+                continue;
+            }
+            constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+            job_.next_layer = draw_layers(layer_vbos_, job_.next_layer, job_.ghost_end,
+                                          GHOST_LIGHTEN_SCALE, ghost_opacity_ / 255.0f, 1, left);
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+        } else { // Overlays: the same selection tag and brackets render_to_fbo draws
+            glUseProgram(0);
+            // The tag covers exactly the solid layers, as in render_to_fbo
+            // (solid_end is the progress layer while ghosting, the last drawn
+            // layer otherwise). An incremental job drew onto a finished image
+            // that already carries its tag.
+            if (!job_.incremental) {
+                render_selection_tag(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
+            }
+            render_brackets_3d(gcode, mvp);
+            job_.phase = JobPhase::Done;
+        }
+    }
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glFinish();
+    const float ms =
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    gpu_rate_tris_per_ms_ =
+        render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
+    job_.slices++;
+    job_.max_slice_ms = std::max(job_.max_slice_ms, ms);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (job_.phase != JobPhase::Done) {
+        return false;
+    }
+    job_.active = false;
+    spdlog::debug(
+        "[GCode GLES] Refine done: {} slices, max slice {:.1f}ms, {:.0f}ms wall, "
+        "rate {:.0f} tris/ms{}",
+        job_.slices, job_.max_slice_ms,
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - job_.started)
+            .count(),
+        gpu_rate_tris_per_ms_, job_.incremental ? " (incremental)" : "");
+    return true;
+}
+
+void GCodeGLESRenderer::cancel_job() {
+    job_ = RefineJob{};
+    have_complete_image_ = false;
 }
 
 // ============================================================
@@ -1587,18 +1725,45 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
 // CachedRenderState
 // ============================================================
 
-bool GCodeGLESRenderer::CachedRenderState::operator==(const CachedRenderState& o) const {
+bool GCodeGLESRenderer::CachedRenderState::same_scene(const CachedRenderState& o) const {
     // Epsilon comparisons: tighter for angles, looser for zoom/distance
     auto near_angle = [](float a, float b) { return std::abs(a - b) < ANGLE_EPSILON; };
     auto near_zoom = [](float a, float b) { return std::abs(a - b) < ZOOM_EPSILON; };
     return near_angle(azimuth, o.azimuth) && near_angle(elevation, o.elevation) &&
            near_zoom(distance, o.distance) && near_zoom(zoom_level, o.zoom_level) &&
            near_angle(target.x, o.target.x) && near_angle(target.y, o.target.y) &&
-           near_angle(target.z, o.target.z) && progress_layer == o.progress_layer &&
-           layer_start == o.layer_start && layer_end == o.layer_end &&
-           highlight_count == o.highlight_count && highlight_set_hash == o.highlight_set_hash &&
-           exclude_count == o.exclude_count && filament_color == o.filament_color &&
-           ghost_opacity == o.ghost_opacity;
+           near_angle(target.z, o.target.z) && layer_start == o.layer_start &&
+           layer_end == o.layer_end && highlight_count == o.highlight_count &&
+           highlight_set_hash == o.highlight_set_hash && exclude_count == o.exclude_count &&
+           filament_color == o.filament_color && ghost_opacity == o.ghost_opacity &&
+           content_offset_y == o.content_offset_y && viewport_width == o.viewport_width &&
+           viewport_height == o.viewport_height;
+}
+
+bool GCodeGLESRenderer::CachedRenderState::operator==(const CachedRenderState& o) const {
+    return same_scene(o) && progress_layer == o.progress_layer;
+}
+
+GCodeGLESRenderer::CachedRenderState
+GCodeGLESRenderer::snapshot_state(const GCodeCamera& camera) const {
+    CachedRenderState s;
+    s.azimuth = camera.get_azimuth();
+    s.elevation = camera.get_elevation();
+    s.distance = camera.get_distance();
+    s.zoom_level = camera.get_zoom_level();
+    s.target = camera.get_target();
+    s.progress_layer = progress_layer_;
+    s.layer_start = layer_start_;
+    s.layer_end = layer_end_;
+    s.highlight_count = selection_.highlighted().size();
+    s.highlight_set_hash = selection_.highlighted_hash();
+    s.exclude_count = selection_.excluded().size();
+    s.filament_color = filament_color_;
+    s.ghost_opacity = ghost_opacity_;
+    s.content_offset_y = content_offset_y_percent_;
+    s.viewport_width = viewport_width_;
+    s.viewport_height = viewport_height_;
+    return s;
 }
 
 // ============================================================
@@ -1617,7 +1782,6 @@ void GCodeGLESRenderer::set_interaction_mode(bool interacting) {
     if (interaction_mode_ == interacting)
         return;
     interaction_mode_ = interacting;
-    frame_dirty_ = true;
 }
 
 void GCodeGLESRenderer::set_filament_color(const std::string& hex_color) {
@@ -1833,10 +1997,9 @@ RenderingOptions GCodeGLESRenderer::get_options() const {
 // ============================================================
 
 void GCodeGLESRenderer::set_print_progress_layer(int current_layer) {
-    if (progress_layer_ != current_layer) {
-        progress_layer_ = current_layer;
-        frame_dirty_ = true;
-    }
+    // No frame_dirty_: print progress goes through render_schedule::decide_job,
+    // which decides between extending, an incremental pass, or a restart.
+    progress_layer_ = current_layer;
 }
 
 void GCodeGLESRenderer::set_ghost_opacity(lv_opa_t opacity) {
@@ -1845,7 +2008,11 @@ void GCodeGLESRenderer::set_ghost_opacity(lv_opa_t opacity) {
 }
 
 void GCodeGLESRenderer::set_content_offset_y(float offset_percent) {
-    content_offset_y_percent_ = std::clamp(offset_percent, -1.0f, 1.0f);
+    const float clamped = std::clamp(offset_percent, -1.0f, 1.0f);
+    if (std::abs(clamped - content_offset_y_percent_) < 1e-4f) {
+        return;
+    }
+    content_offset_y_percent_ = clamped;
     frame_dirty_ = true;
 }
 
@@ -1865,6 +2032,7 @@ int GCodeGLESRenderer::get_max_layer_index() const {
 // ============================================================
 
 void GCodeGLESRenderer::release_geometry() {
+    cancel_job();
     size_t freed = geometry_ ? geometry_->memory_usage() : 0;
 
     // Free GPU VBOs (requires GL context)
@@ -1908,6 +2076,7 @@ void GCodeGLESRenderer::release_geometry() {
 
 void GCodeGLESRenderer::set_prebuilt_geometry(std::unique_ptr<RibbonGeometry> geometry,
                                               const std::string& filename) {
+    cancel_job();
     geometry_ = std::move(geometry);
     {
         // The snapshot describes the palette of the geometry just replaced.
@@ -2335,6 +2504,7 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
                       "GPU rendering, falling back to 2D",
                       tag_err);
         gl_render_failed_ = true;
+        cancel_job();
         return;
     }
 
