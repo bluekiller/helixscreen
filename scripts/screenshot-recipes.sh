@@ -71,23 +71,28 @@ pid                navigate advanced; click row_pid_tuning
 ams                demo ams
 
 # Settings overlays (settings panel groups leaves under category rows).
-# A -2 token scrolls its page's last row into view, for the half a
-# 480-tall screen cannot show.
+# A -2/-3 token shows the part of a long page a 480-tall screen cannot. The
+# wait_idle lets the queued overlay push finish first, since activating the
+# page resets its scroll position. ctl scroll moves only the target's direct
+# scroll parent and leaves a group taller than the viewport where it is, so
+# most of these scroll overlay_content by a distance measured at 800x480;
+# appearance-2 brings its short last group into view instead.
 settings-printer   navigate settings; scroll group_printer
 settings-helixscreen navigate settings; scroll group_helixscreen
 display            navigate settings; click row_display
-display-2          navigate settings; click row_display; scroll row_sleep_while_printing
+display-2          navigate settings; click row_display; wait_idle; scroll overlay_content 0 -274
 appearance         navigate settings; click row_appearance
-appearance-2       navigate settings; click row_appearance; scroll row_bed_mesh_mode
+appearance-2       navigate settings; click row_appearance; wait_idle; scroll group_printer_visuals
 theme              navigate settings; click row_appearance; click row_theme_settings
 touch-input        navigate settings; click row_touch_input
-touch-input-2      navigate settings; click row_touch_input; scroll row_page_scroll_buttons
+touch-input-2      navigate settings; click row_touch_input; wait_idle; scroll overlay_content 0 -333
 sound              navigate settings; click row_sound
-sound-2            navigate settings; click row_sound; scroll row_test_tracker
+sound-2            navigate settings; click row_sound; wait_idle; scroll overlay_content 0 -190
 printing           navigate settings; click row_printing
-printing-2         navigate settings; click row_printing; scroll row_macro_buttons
+printing-2         navigate settings; click row_printing; wait_idle; scroll overlay_content 0 -406
+printing-3         navigate settings; click row_printing; wait_idle; scroll overlay_content 0 -577
 devices            navigate settings; click row_devices
-devices-2          navigate settings; click row_devices; scroll row_spoolman_settings
+devices-2          navigate settings; click row_devices; wait_idle; scroll overlay_content 0 -294
 sensors            navigate settings; click row_devices; click row_filament_sensors
 hardware-health    navigate settings; click row_devices; click row_hardware_health
 fan-settings       navigate settings; click row_devices; click row_fan_settings
@@ -99,7 +104,7 @@ network            navigate settings; click row_connection; click row_network
 printers           navigate settings; click row_connection; click row_printers
 language-time      navigate settings; click row_language_time
 system             navigate settings; click row_system
-system-2           navigate settings; click row_system; scroll row_factory_reset
+system-2           navigate settings; click row_system; wait_idle; scroll overlay_content 0 -124
 security           navigate settings; click row_system; click row_security
 updates            navigate settings; click row_updates
 help-about         navigate settings; click row_help
