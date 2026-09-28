@@ -102,7 +102,7 @@ Check how `HELIX_SPIKE_AUTOSPIN` is enabled in `include/spike_3dperf.h`. If a va
   - `float update_rate(float prev_rate, size_t triangles, float elapsed_ms)`
   - `size_t slice_quota(float rate)`
   - `struct MovingPlan { int stride = 1; bool half_resolution = false; }; MovingPlan plan_moving(size_t total_triangles, float rate)`
-  - `enum class JobAction { None, Restart, Extend, Incremental };`
+  - `enum class JobAction { Keep, Restart, Extend, Incremental };`
   - `struct JobInputs { bool scene_changed; bool have_complete_image; bool job_running; bool job_incremental; bool selection_active; int job_progress; int new_progress; }; JobAction decide_job(const JobInputs&)`
 
 - [ ] **Step 1: Write the failing tests** in `tests/unit/test_gcode_render_schedule.cpp`:
@@ -166,14 +166,14 @@ static JobInputs idle_complete(int progress) {
 }
 
 TEST_CASE("nothing changed means no work", "[gcode][render_schedule]") {
-    REQUIRE(decide_job(idle_complete(10)) == JobAction::None);
+    REQUIRE(decide_job(idle_complete(10)) == JobAction::Keep);
 }
 
 TEST_CASE("a running job is left alone when nothing changed", "[gcode][render_schedule]") {
     JobInputs in = idle_complete(10);
     in.have_complete_image = false;
     in.job_running = true;
-    REQUIRE(decide_job(in) == JobAction::None);
+    REQUIRE(decide_job(in) == JobAction::Keep);
 }
 
 TEST_CASE("no complete image restarts", "[gcode][render_schedule]") {
@@ -306,7 +306,7 @@ inline MovingPlan plan_moving(size_t total_triangles, float rate) {
 
 /// What the renderer does with its time-sliced job after a state change.
 enum class JobAction {
-    None,        ///< keep going (or keep showing the cached image)
+    Keep,        ///< keep going (or keep showing the cached image)
     Restart,     ///< start a full still job from layer 0
     Extend,      ///< the running incremental job grows to the new progress layer
     Incremental, ///< draw only the newly finished layers onto the retained buffers
@@ -327,7 +327,7 @@ inline JobAction decide_job(const JobInputs& in) {
         return JobAction::Restart;
     }
     if (in.new_progress == in.job_progress) {
-        return (in.job_running || in.have_complete_image) ? JobAction::None : JobAction::Restart;
+        return (in.job_running || in.have_complete_image) ? JobAction::Keep : JobAction::Restart;
     }
     const bool advanced = in.job_progress >= 0 && in.new_progress > in.job_progress;
     if (!advanced || in.selection_active) {
@@ -571,7 +571,7 @@ bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamer
     in.job_progress = job_.progress_layer;
     in.new_progress = progress_layer_;
     switch (render_schedule::decide_job(in)) {
-    case render_schedule::JobAction::None:
+    case render_schedule::JobAction::Keep:
         break;
     case render_schedule::JobAction::Restart:
         start_job(false, current_state);
