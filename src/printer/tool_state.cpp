@@ -992,8 +992,17 @@ void ToolState::save_spool_json() const {
     // The installer links this file out to printer_data; rename onto the target.
     path = helix::paths::write_target(path);
 
+    // Every connect reloads the assignments from Moonraker and saves them back,
+    // almost always unchanged. Skip the write then: on the ESP32 a flash write
+    // stalls the display's scan-out, and elsewhere it is SD-card wear for nothing.
+    const std::string text = helix::json_util::safe_dump(json_data, 2);
+    if (auto existing = helix::text_io::read_file(path); existing && *existing == text) {
+        spdlog::trace("[ToolState] Spool assignments unchanged, not rewriting {}", path);
+        return;
+    }
+
     // Atomic save: write to temp file, then rename to avoid partial writes on crash/power loss
-    if (!helix::text_io::write_file_atomic(path, helix::json_util::safe_dump(json_data, 2))) {
+    if (!helix::text_io::write_file_atomic(path, text)) {
         spdlog::error("[ToolState] Failed to write spool JSON to {}: {}", path, strerror(errno));
         return;
     }
