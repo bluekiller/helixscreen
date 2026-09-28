@@ -309,6 +309,13 @@ what gets saved.
   clean removal, a removal that left a config file needing a manual look, and an outright
   failure.
 
+- **The 3D G-code preview works on slow boards** - on a Raspberry Pi 3-class screen the
+  preview stays responsive: while your finger is on it you see a simplified model that
+  follows the drag smoothly, and the sharp image returns within about a second of letting
+  go. During a print, each finished layer appears on its own instead of forcing a full
+  redraw, and small files now get the 3D preview during the print on low-memory boards
+  (where they previously always fell back to the 2D view).
+
 ### Fixed
 
 - **The screen crashed and restarted during print start on the K2** - matching the printer's

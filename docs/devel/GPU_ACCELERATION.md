@@ -316,6 +316,57 @@ and flip passes finish before the cap engages, so the rungs are comparable with 
 gate's own sampling window does not, so the gate settled on level 0 while measuring itself on a
 downclocked core. Treat absolute figures from this board accordingly.
 
+## The 3D G-code preview on vc4 (2026-09-28)
+
+What a VideoCore IV is worth to the GLES gcode renderer, measured on a Pi 3B
+(856 MB, 368x390 viewer, 3DBenchy). Raw whole-scene draw cost first — these are
+the numbers that decide whether a frame may submit the whole scene at all:
+
+| Drawn triangles | Draw | Frame |
+|---|---|---|
+| 115k (4 tube sides, every 8th layer) | 27.6 ms | 39 ms |
+| 271k (8 sides, every 8th layer) | 53 ms | 65 ms |
+| 923k (4 sides, every layer) | 233 ms | 245 ms |
+| 4.66M (tier 1, 168 MB of VBOs) | 2.1-4.0 s | GPU hang check trips |
+
+Throughput is about 4M triangles/s up to ~1M triangles and roughly 3x slower at
+168 MB of VBOs; readback is a fixed ~11 ms; a `glFinish` between slices (the
+tiled GPU stores and reloads its tiles) costs ~1.3 ms. Multi-second submissions
+trip the kernel's GPU hang check, and the GPU then resets about once a second
+until a reboot. That constraint, not elegance, is why the renderer time-slices
+still frames into ~12 ms submissions and never draws a whole scene on a board
+this slow (`docs/devel/architecture/16-gcode-pipeline.md` § "The GLES 3D render
+path").
+
+What the shipped renderer achieves on the same board:
+
+| Workload | Cost |
+|---|---|
+| Benchy tier 3, 762k tris, release to sharp image | 550-660 ms |
+| Moving frame (finger down, moving mesh) | ~22 ms |
+| Incremental print layer onto the retained image | 5-8 ms median |
+| Draw rate at 2x supersampling | ~2.2-2.7k tris/ms |
+
+MSAA is unavailable (`GL_EXT_multisampled_render_to_texture` is absent on vc4),
+which is why still frames supersample 2x into a larger FBO and box-filter down
+on readback instead.
+
+**The renderer learns its rate rather than looking it up.** No GPU-name table:
+each finished slice folds its triangles-per-millisecond into a smoothed session
+rate (`include/gcode_render_schedule.h#update_rate`), seeded at 4k tris/ms — a
+VideoCore IV — so the first slice and the first moving frame stay short on the
+weakest GPU the app plans for. Slice quotas, the moving plan and the moving
+mesh's band depth all derive from that one measured number.
+
+**Why the vc4 triangle cap stays 1,000,000.** Time-slicing removes the long
+submissions, so the cap now bounds only memory and time-to-sharp, and it was
+re-measured for a raise. A 2M and a 3M build of exclude_object_test (1.31M
+triangles, sharp in ~1.0 s) pass the timing gates — but the GPU allocates from
+the 256 MB CMA pool, of which ~99 MB is free with the app idle, and the bigger
+builds left 9 MB and 3 MB of it free. Free CMA that low starves anything else
+asking the GPU for memory, so the cap stays at 1M
+(`include/gcode_gl_fallback.h#VC4_TRIANGLE_BUDGET`).
+
 ## nanovg: why it is unusable
 
 Three independent defects, all upstream in LVGL 9.5. The first alone is
