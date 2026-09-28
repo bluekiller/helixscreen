@@ -20,6 +20,7 @@
 #include "wifi_manager.h"
 
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -191,42 +192,88 @@ TEST_CASE_METHOD(RootFixture,
     CHECK(status_text(root_, "row_connection") == "Ethernet");
 }
 
-TEST_CASE_METHOD(RootFixture, "settings root: connection status reads Wi-Fi fresh at apply time",
-                 "[settings][settings_root]") {
-    // Prime ethernet_manager_ (created lazily on first use) and settle its
-    // default-true probe before arranging the state this test needs.
+namespace {
+
+struct LinkMocks {
+    EthernetBackendMock* eth;
+    WifiBackendMock* wifi;
+};
+
+/// Settles a first refresh (ethernet_manager_ is created lazily) and returns
+/// both mocks, with Ethernet down so the row reports the Wi-Fi state.
+LinkMocks settle_with_ethernet_down(RootFixture& f) {
+    auto wifi_mgr = helix::get_wifi_manager();
+    auto* wifi = dynamic_cast<WifiBackendMock*>(helix::WiFiManagerTestAccess::backend(*wifi_mgr));
+    REQUIRE(wifi != nullptr);
+    wifi->clear_status_callers();
     get_global_settings_panel().refresh_status_lines();
-    REQUIRE(wait_until([&]() { return status_text(root_, "row_connection") == "Ethernet"; }));
+    REQUIRE(f.wait_until([&]() {
+        return status_text(f.root_, "row_connection") == "Ethernet" &&
+               !wifi->status_callers().empty();
+    }));
 
     auto* eth_mgr = SettingsPanelTestAccess::ethernet_manager(get_global_settings_panel());
     REQUIRE(eth_mgr != nullptr);
-    auto* eth_mock =
-        dynamic_cast<EthernetBackendMock*>(EthernetManagerTestAccess::backend(*eth_mgr));
-    REQUIRE(eth_mock != nullptr);
-    // Ethernet down: connection() prefers Ethernet, which would otherwise
-    // mask the Wi-Fi state this test is about.
-    eth_mock->set_connected_state(false);
+    auto* eth = dynamic_cast<EthernetBackendMock*>(EthernetManagerTestAccess::backend(*eth_mgr));
+    REQUIRE(eth != nullptr);
+    eth->set_connected_state(false);
+    return {eth, wifi};
+}
 
-    auto wifi = helix::get_wifi_manager();
-    auto* wifi_mock = dynamic_cast<WifiBackendMock*>(helix::WiFiManagerTestAccess::backend(*wifi));
-    REQUIRE(wifi_mock != nullptr);
-    wifi_mock->set_connected_state(false);
+/// Restores the shared mock state for later tests in this process, and never
+/// leaves an HttpExecutor worker parked in a held status read.
+struct RestoreLinks {
+    RootFixture& f;
+    LinkMocks m;
+    ~RestoreLinks() {
+        m.wifi->release_held_status();
+        m.eth->set_connected_state(true);
+        m.wifi->set_connected_state(false);
+        get_global_settings_panel().refresh_status_lines();
+        f.wait_until([&]() { return status_text(f.root_, "row_connection") == "Ethernet"; });
+    }
+};
 
-    // The one call under test: launches a probe that will resolve ethernet_up=false.
+} // namespace
+
+TEST_CASE_METHOD(RootFixture, "settings root: the Wi-Fi status is read off the UI thread",
+                 "[settings][settings_root]") {
+    // On wpa_supplicant a status read is a control-socket round trip that can
+    // wait 10s, so the panel's own thread must never make one.
+    const LinkMocks m = settle_with_ethernet_down(*this);
+    RestoreLinks restore{*this, m};
+    m.wifi->set_connected_state(true, "TestSSID", "192.168.1.100", 75);
+    m.wifi->clear_status_callers();
+
     get_global_settings_panel().refresh_status_lines();
-
-    // Flip Wi-Fi state after the call returns but before the async Ethernet
-    // probe lands. A snapshot captured at call time would freeze the row on
-    // "Not connected"; reading Wi-Fi fresh at apply time picks this up.
-    wifi_mock->set_connected_state(true, "TestSSID", "192.168.1.100", 75);
-
     REQUIRE(wait_until([&]() { return status_text(root_, "row_connection") == "Wi-Fi TestSSID"; }));
 
-    // Restore shared mock/manager state for later tests in this process.
-    eth_mock->set_connected_state(true);
-    wifi_mock->set_connected_state(false);
+    const auto callers = m.wifi->status_callers();
+    REQUIRE_FALSE(callers.empty());
+    for (const auto& id : callers) {
+        CHECK(id != std::this_thread::get_id());
+    }
+}
+
+TEST_CASE_METHOD(RootFixture, "settings root: a superseded refresh's Wi-Fi probe is dropped",
+                 "[settings][settings_root]") {
+    const LinkMocks m = settle_with_ethernet_down(*this);
+    RestoreLinks restore{*this, m};
+
+    // The first refresh's probe answers "Stale", then parks until released.
+    m.wifi->set_connected_state(true, "Stale", "192.168.1.100", 75);
+    m.wifi->clear_status_callers();
+    m.wifi->hold_next_status();
     get_global_settings_panel().refresh_status_lines();
-    REQUIRE(wait_until([&]() { return status_text(root_, "row_connection") == "Ethernet"; }));
+    REQUIRE(wait_until([&]() { return !m.wifi->status_callers().empty(); }));
+
+    m.wifi->set_connected_state(true, "Fresh", "192.168.1.100", 75);
+    get_global_settings_panel().refresh_status_lines();
+    REQUIRE(wait_until([&]() { return status_text(root_, "row_connection") == "Wi-Fi Fresh"; }));
+
+    m.wifi->release_held_status();
+    CHECK_FALSE(
+        wait_until([&]() { return status_text(root_, "row_connection") == "Wi-Fi Stale"; }, 500));
 }
 
 TEST_CASE_METHOD(RootFixture, "settings root: Android shows the printer host as its connection",

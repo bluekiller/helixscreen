@@ -391,6 +391,8 @@ void WifiBackendMock::connect_thread_func() {
 
 WifiBackend::ConnectionStatus WifiBackendMock::get_status() {
     ConnectionStatus status = {};
+    std::unique_lock<std::mutex> lock(status_mutex_);
+    status_callers_.push_back(std::this_thread::get_id());
     status.connected = connected_;
     status.ssid = connected_ssid_;
     status.ip_address = connected_ip_;
@@ -402,11 +404,39 @@ WifiBackend::ConnectionStatus WifiBackendMock::get_status() {
         status.bssid = "aa:bb:cc:dd:ee:ff";
     }
 
+    if (hold_next_status_) {
+        hold_next_status_ = false;
+        status_held_ = true;
+        status_cv_.wait(lock, [this] { return !status_held_; });
+    }
     return status;
+}
+
+std::vector<std::thread::id> WifiBackendMock::status_callers() {
+    std::lock_guard<std::mutex> lock(status_mutex_);
+    return status_callers_;
+}
+
+void WifiBackendMock::clear_status_callers() {
+    std::lock_guard<std::mutex> lock(status_mutex_);
+    status_callers_.clear();
+}
+
+void WifiBackendMock::hold_next_status() {
+    std::lock_guard<std::mutex> lock(status_mutex_);
+    hold_next_status_ = true;
+}
+
+void WifiBackendMock::release_held_status() {
+    std::lock_guard<std::mutex> lock(status_mutex_);
+    hold_next_status_ = false;
+    status_held_ = false;
+    status_cv_.notify_all();
 }
 
 void WifiBackendMock::set_connected_state(bool connected, const std::string& ssid,
                                           const std::string& ip, int signal) {
+    std::lock_guard<std::mutex> lock(status_mutex_);
     connected_ = connected;
     connected_ssid_ = ssid;
     connected_ip_ = ip;
