@@ -3,7 +3,9 @@
 
 #include "app_boot.h"
 #include "board_display.h"
+#include "esp_async_memcpy.h"
 #include "esp_attr.h"
+#include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_rgb.h"
 #include "esp_log.h"
@@ -80,6 +82,12 @@ static void (*s_ui_tick)(void);
 
 static uint8_t* s_shadow; // full-frame PSRAM shadow (LVGL chunks land here)
 static uint8_t* s_band;   // internal-DRAM two-hop staging band (NULL => direct blit)
+// GDMA copy of shadow bands straight into the scan-out FB. A CPU copy between two
+// PSRAM buffers thrashes the shared cache and runs slower than the scan; the DMA
+// path bypasses the cache. NULL => the two-hop CPU copy below.
+static async_memcpy_handle_t s_dma;
+static uint8_t* s_fb;
+static SemaphoreHandle_t s_dma_done;
 static SemaphoreHandle_t s_shadow_lock;
 // The UI thread, suspended by the presenter for the length of each copy: a panel
 // build's PSRAM traffic otherwise slows the copy enough for the next frame's
@@ -299,6 +307,32 @@ static int64_t scan_read_us(int64_t vsync_us, int32_t y, int32_t frame, int32_t 
                100;
 }
 
+static bool dma_done_cb(async_memcpy_handle_t mcp, async_memcpy_event_t* event, void* arg) {
+    (void)mcp;
+    (void)event;
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR((SemaphoreHandle_t)arg, &woken);
+    return woken == pdTRUE;
+}
+
+// Copy shadow rows [by, by+bh) into the FB by DMA. The shadow is written through
+// the cache by flush_cb, so its lines are written back first; the bounce ISR
+// reads the FB through the cache, so the rows just written are invalidated after.
+static bool dma_copy_band(int32_t by, int32_t bh) {
+    uint8_t* src = s_shadow + (size_t)by * FB_STRIDE;
+    uint8_t* dst = s_fb + (size_t)by * FB_STRIDE;
+    size_t n = (size_t)bh * FB_STRIDE;
+    esp_cache_msync(src, n, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    if (esp_async_memcpy(s_dma, dst, src, n, dma_done_cb, s_dma_done) != ESP_OK) {
+        return false;
+    }
+    if (xSemaphoreTake(s_dma_done, pdMS_TO_TICKS(50)) != pdTRUE) {
+        return false;
+    }
+    esp_cache_msync(dst, n, ESP_CACHE_MSYNC_FLAG_DIR_M2C | ESP_CACHE_MSYNC_FLAG_INVALIDATE);
+    return true;
+}
+
 // Blit shadow rows [y1, y2] (full width) to the FB. Two-hop through the internal
 // band buffer when available (see the s_band comment); direct otherwise.
 static void present_blit(int32_t y1, int32_t y2) {
@@ -328,10 +362,12 @@ static void present_blit(int32_t y1, int32_t y2) {
             }
             while (esp_timer_get_time() < start_after) {
             }
-            // hop 1: shadow(PSRAM) -> internal band (sequential read)
-            memcpy(s_band, s_shadow + (size_t)by * FB_STRIDE, (size_t)bh * FB_STRIDE);
-            // hop 2: internal band -> FB(PSRAM) (cache-buffered write)
-            esp_lcd_panel_draw_bitmap(s_panel, 0, by, BOARD_LCD_H_RES, by + bh, s_band);
+            if (!s_dma || !dma_copy_band(by, bh)) {
+                // hop 1: shadow(PSRAM) -> internal band (sequential read)
+                memcpy(s_band, s_shadow + (size_t)by * FB_STRIDE, (size_t)bh * FB_STRIDE);
+                // hop 2: internal band -> FB(PSRAM) (cache-buffered write)
+                esp_lcd_panel_draw_bitmap(s_panel, 0, by, BOARD_LCD_H_RES, by + bh, s_band);
+            }
             const int64_t over =
                 esp_timer_get_time() - scan_read_us(vsync_us, by, 1, READ_LEAD_MAX);
             if (over > late_us) {
@@ -454,6 +490,20 @@ static void* ui_thread_main(void* arg) {
     if (!s_band) {
         ESP_LOGW(TAG, "no internal for %uB band; direct blit (largest=%u)", (unsigned)UI_BAND_BYTES,
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    }
+
+    void* fb = NULL;
+    if (esp_lcd_rgb_panel_get_frame_buffer(s_panel, 1, &fb) == ESP_OK && fb) {
+        async_memcpy_config_t mcfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
+        mcfg.backlog = 2;
+        mcfg.dma_burst_size = 64;
+        s_dma_done = xSemaphoreCreateBinary();
+        if (s_dma_done && esp_async_memcpy_install_gdma_ahb(&mcfg, &s_dma) == ESP_OK) {
+            s_fb = (uint8_t*)fb;
+        } else {
+            s_dma = NULL;
+            ESP_LOGW(TAG, "async memcpy unavailable; CPU blit");
+        }
     }
 
     lv_display_t* disp = lv_display_create(BOARD_LCD_H_RES, BOARD_LCD_V_RES);

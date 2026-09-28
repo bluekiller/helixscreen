@@ -19,6 +19,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <sys/stat.h>
 
 #include "../catch_amalgamated.hpp"
 
@@ -1288,6 +1289,41 @@ TEST_CASE_METHOD(ToolStateFixture, "ToolState: save/load JSON round-trip",
     REQUIRE(ts.tools()[2].spoolman_id == 99);
     REQUIRE(ts.tools()[2].spool_name == "Blue PETG");
     REQUIRE(ts.tools()[1].spoolman_id == 0); // still unassigned
+
+    ts.deinit_subjects();
+}
+
+TEST_CASE_METHOD(ToolStateFixture, "ToolState: an unchanged spool save leaves the file alone",
+                 "[tool][tool-state][spool]") {
+    lv_init_safe();
+    auto& ts = ToolState::instance();
+    ts.deinit_subjects();
+    ts.init_subjects(false);
+
+    TempDir tmp;
+    ts.set_config_dir(tmp.str());
+    PrinterDiscovery hw;
+    hw.parse_objects(nlohmann::json::array({"extruder", "extruder1", "heater_bed"}));
+    ts.init_tools(hw);
+    ts.assign_spool(0, 42, "Red PLA", 750.0f, 1000.0f);
+
+    // The save goes through an atomic rename, so a real write always lands on a
+    // new inode; a skipped one keeps the old.
+    const auto json_path = std::filesystem::path(tmp.str()) / "tool_spools.json";
+    auto inode = [&] {
+        struct stat st {};
+        REQUIRE(::stat(json_path.c_str(), &st) == 0);
+        return st.st_ino;
+    };
+    ts.save_spool_assignments(nullptr);
+    const auto first = inode();
+
+    ts.save_spool_assignments(nullptr);
+    CHECK(inode() == first);
+
+    ts.assign_spool(1, 99, "Blue PETG", 200.0f, 500.0f);
+    ts.save_spool_assignments(nullptr);
+    CHECK(inode() != first);
 
     ts.deinit_subjects();
 }

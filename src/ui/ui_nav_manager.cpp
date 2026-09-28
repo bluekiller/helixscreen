@@ -45,49 +45,27 @@ using helix::ui::observe_int_sync;
 
 #if defined(HELIX_PLATFORM_ESP32)
 namespace {
-// Full-screen loading scrim on the TOP layer (above the panels AND the navbar),
-// painted before a (possibly multi-second) panel transition. STATIC "Loading..."
-// label, NOT a spinner: the transition blocks the LVGL thread, so no animation
-// timer can run — a spinner would freeze and read as a hang. Default-CLICKABLE,
-// so it absorbs every tap (incl. navbar hammering) for the whole transition.
+// "Loading..." pill on the TOP layer, painted before a (possibly multi-second)
+// first build of a panel. STATIC label, NOT a spinner: the build blocks the LVGL
+// thread, so no animation timer can run and a spinner would freeze and read as a
+// hang. Small on purpose: painting or lifting a full-screen scrim re-renders the
+// whole screen, which costs ~600ms on the ESP32; the pill costs a few dozen. Taps
+// need no absorbing: touch is polled on the thread the build blocks.
 lv_obj_t* make_loading_scrim() {
-    lv_obj_t* scrim = lv_obj_create(lv_layer_top());
-    lv_obj_remove_style_all(scrim);
-    lv_obj_set_size(scrim, lv_pct(100), lv_pct(100));
-    lv_obj_set_style_bg_color(scrim, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(scrim, LV_OPA_60, LV_PART_MAIN);
-    lv_obj_remove_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t* lbl = lv_label_create(scrim);
+    lv_obj_t* pill = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(pill);
+    lv_obj_set_size(pill, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_color(pill, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(pill, LV_OPA_80, LV_PART_MAIN);
+    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(pill, 24, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(pill, 12, LV_PART_MAIN);
+    lv_obj_remove_flag(pill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t* lbl = lv_label_create(pill);
     lv_label_set_text(lbl, "Loading...");
     lv_obj_set_style_text_color(lbl, lv_color_white(), LV_PART_MAIN);
-    lv_obj_center(lbl);
-    return scrim;
-}
-
-// Settle-heal: one full-screen repaint scheduled a beat after a panel
-// transition completes. Tears the unpaced blit leaves on STATIC content (the
-// navbar, which never repaints on its own) stick on screen; a single
-// invalidate in the quiet window after the transition forces a clean present
-// that heals them. Debounced through one shared one-shot timer so a burst of
-// tap-through navigations collapses to a single heal after the last settles.
-// The heal present could itself tear, but it runs at post-transition idle load
-// where the blit wins the beam race, and it re-arms nothing. Stage B's
-// pointer-swap makes tears impossible — this is the Stage A mitigation.
-lv_timer_t* g_settle_heal_timer = nullptr;
-
-void schedule_settle_heal(uint32_t delay_ms) {
-    if (g_settle_heal_timer != nullptr) {
-        lv_timer_set_period(g_settle_heal_timer, delay_ms);
-        lv_timer_reset(g_settle_heal_timer); // restart the countdown (debounce)
-        return;
-    }
-    g_settle_heal_timer = lv_timer_create(
-        [](lv_timer_t*) {
-            lv_obj_invalidate(lv_screen_active());
-            g_settle_heal_timer = nullptr; // repeat_count=1 auto-deletes after this cb
-        },
-        delay_ms, nullptr);
-    lv_timer_set_repeat_count(g_settle_heal_timer, 1);
+    lv_obj_center(pill);
+    return pill;
 }
 
 // RAII busy indicator wrapping a panel transition (the deferred first-build now
@@ -104,7 +82,10 @@ void schedule_settle_heal(uint32_t delay_ms) {
 // the active_panel subject, and we must not nest two.
 class NavTransitionScrim {
   public:
-    explicit NavTransitionScrim(bool& active) : active_(active), owns_(!active) {
+    // `needed`: the transition has a panel to build. Switching between built
+    // panels only flips visibility, so a scrim would add two forced full renders
+    // for nothing.
+    NavTransitionScrim(bool& active, bool needed) : active_(active), owns_(!active && needed) {
         if (owns_) {
             active_ = true;
             scrim_ = make_loading_scrim();
@@ -116,7 +97,6 @@ class NavTransitionScrim {
             lv_refr_now(lv_display_get_default());
             helix::ui::safe_delete_deferred(scrim_);
             active_ = false;
-            schedule_settle_heal(500);
         }
     }
     NavTransitionScrim(const NavTransitionScrim&) = delete;
@@ -768,7 +748,7 @@ void NavigationManager::handle_active_panel_change(int32_t new_active_panel) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Busy scrim + input block for the whole transition (ESP32-only; no-op on the
     // nested inner change if switch_to_panel_impl cascaded here).
-    NavTransitionScrim scrim_guard(nav_scrim_active_);
+    NavTransitionScrim scrim_guard(nav_scrim_active_, needs_build(new_active_panel));
 #endif
     // Deferred bring-up: catches navigation paths that set active_panel directly
     // (set_active from connection/klippy handlers, etc.) without going through
@@ -1013,7 +993,7 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Busy scrim + input block for the whole transition (ESP32-only). Outermost
     // owner; a cascade into handle_active_panel_change won't create a second one.
-    NavTransitionScrim scrim_guard(nav_scrim_active_);
+    NavTransitionScrim scrim_guard(nav_scrim_active_, needs_build(panel_id));
 #endif
     auto switch_start = std::chrono::steady_clock::now();
     spdlog::trace("[NavigationManager] switch_to_panel_impl executing for panel {}", panel_id);
@@ -1523,13 +1503,14 @@ void NavigationManager::set_deferred_panel_builder(std::function<void(int)> buil
     deferred_panel_builder_ = std::move(builder);
 }
 
+bool NavigationManager::needs_build(int panel_id) const {
+    return panel_id >= 0 && panel_id < UI_PANEL_COUNT && !panel_widgets_[panel_id] &&
+           deferred_panel_builder_;
+}
+
 void NavigationManager::ensure_panel_built(int panel_id) {
-    if (panel_id < 0 || panel_id >= UI_PANEL_COUNT)
-        return;
-    if (panel_widgets_[panel_id])
-        return; // already built
-    if (!deferred_panel_builder_)
-        return; // desktop / all-resident model — nothing to defer
+    if (!needs_build(panel_id))
+        return; // out of range, already built, or desktop (all-resident, nothing deferred)
     if (building_deferred_panel_)
         return; // re-entrancy guard (nav runs single-threaded; belt-and-suspenders)
     building_deferred_panel_ = true;
