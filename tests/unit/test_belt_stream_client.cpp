@@ -7,6 +7,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
+#include <cstdlib>
 #include <fcntl.h>
 #include <memory>
 #include <mutex>
@@ -231,6 +232,31 @@ TEST_CASE("socket_reachable rejects an oversized path rather than truncating",
     // sun_path is 108 bytes. A silently truncated path would connect to the
     // wrong socket, which is worse than failing.
     CHECK_FALSE(BeltStreamClient::socket_reachable("/tmp/" + std::string(200, 'a')));
+}
+
+TEST_CASE("expand_home resolves a leading ~/ in the klippy socket path", "[belt][stream][slow]") {
+    CHECK(BeltStreamClient::expand_home("~/printer_data/comms/klippy.sock", "/home/pi") ==
+          "/home/pi/printer_data/comms/klippy.sock");
+    CHECK(BeltStreamClient::expand_home("/tmp/klippy.sock", "/home/pi") == "/tmp/klippy.sock");
+    CHECK(BeltStreamClient::expand_home("~other/klippy.sock", "/home/pi") == "~other/klippy.sock");
+    CHECK(BeltStreamClient::expand_home("~/klippy.sock", "") == "~/klippy.sock");
+}
+
+TEST_CASE("socket_reachable follows a ~/ path to the listener under $HOME",
+          "[belt][stream][slow]") {
+    const std::string path = temp_sock_path("home");
+    FakeKlippySocket fake(path);
+
+    const char* saved = std::getenv("HOME");
+    const std::string saved_home = saved ? saved : "";
+    ::setenv("HOME", "/tmp", 1);
+    const bool reachable =
+        BeltStreamClient::socket_reachable("~/" + path.substr(std::string("/tmp/").size()));
+    if (saved)
+        ::setenv("HOME", saved_home.c_str(), 1);
+    else
+        ::unsetenv("HOME");
+    CHECK(reachable);
 }
 
 TEST_CASE("endpoint and sensor key are derived from the config section name",
