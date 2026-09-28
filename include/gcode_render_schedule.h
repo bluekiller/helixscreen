@@ -86,23 +86,17 @@ inline JobAction decide_job(const JobInputs& in) {
     if (in.new_progress == in.job_progress) {
         return (in.job_running || in.have_complete_image) ? JobAction::Keep : JobAction::Restart;
     }
-    if (in.selection_active || in.new_progress < 0) {
+    // Anything but an advance restarts: a same-file reprint begins at layer 1
+    // against the finished image with no scene change of its own, and layers
+    // cannot be un-drawn off a retained image.
+    const bool advanced = in.job_progress >= 0 && in.new_progress > in.job_progress;
+    if (!advanced || in.selection_active) {
         return JobAction::Restart;
     }
-    if (in.job_progress >= 0) {
-        if (in.new_progress > in.job_progress) {
-            if (in.job_running) {
-                return in.job_incremental ? JobAction::Extend : JobAction::Restart;
-            }
-            return in.have_complete_image ? JobAction::Incremental : JobAction::Restart;
-        }
-        // The ghost went backwards: the layer sources race (a gcode response
-        // lands before print_stats catches up), so the drawn image can be one
-        // step ahead. Layers cannot be un-drawn, so keep the more-advanced
-        // image; incremental work resumes once progress passes it again.
-        return (in.job_running || in.have_complete_image) ? JobAction::Keep : JobAction::Restart;
+    if (in.job_running) {
+        return in.job_incremental ? JobAction::Extend : JobAction::Restart;
     }
-    return JobAction::Restart;
+    return in.have_complete_image ? JobAction::Incremental : JobAction::Restart;
 }
 
 } // namespace helix::gcode::render_schedule
