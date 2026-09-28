@@ -411,15 +411,11 @@ class LedController {
     void discover_from_hardware(const helix::PrinterDiscovery& hardware);
     void discover_wled_strips(); ///< Async WLED discovery via Moonraker HTTP bridge
 
-    // Update effect target LEDs from configfile config section
-    void update_effect_targets(const nlohmann::json& configfile_config);
-
-    // Update output_pin PWM config from configfile config section
-    void update_output_pin_config(const nlohmann::json& configfile_config);
-
-    // Update LED channel capabilities from configfile config section
-    // (detects red_pin, green_pin, blue_pin, white_pin for generic [led] sections)
-    void update_led_pin_config(const nlohmann::json& configfile_config);
+    /// Apply configfile.config: led_effect targets, output_pin PWM, and generic
+    /// [led] channel pins. Kept and re-applied by every discover_from_hardware(),
+    /// which rebuilds the lists these land on, so the order the two arrive in
+    /// does not matter.
+    void apply_configfile(const nlohmann::json& configfile_config);
 
     // Queries
     [[nodiscard]] bool has_any_backend() const;
@@ -648,6 +644,14 @@ class LedController {
     /// state is read back even when the command changed nothing Klipper publishes.
     void query_led_state();
     std::set<std::string> pending_query_ids_;
+
+    /// The LED sections of the last configfile.config applied; deinit() drops it.
+    nlohmann::json configfile_config_;
+    void apply_stored_configfile();
+    void update_effect_targets(const nlohmann::json& configfile_config);
+    void update_output_pin_config(const nlohmann::json& configfile_config);
+    // Detects red_pin, green_pin, blue_pin, white_pin for generic [led] sections.
+    void update_led_pin_config(const nlohmann::json& configfile_config);
 
     /// Macro devices have no readable state; toggle_power() alternates on this.
     std::unordered_map<std::string, bool> macro_last_sent_on_;

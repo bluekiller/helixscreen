@@ -179,6 +179,7 @@ void LedController::deinit() {
     startup_brightness_ = 80;
     macro_last_sent_on_.clear();
     pending_query_ids_.clear();
+    configfile_config_ = nlohmann::json();
     // Re-arm the startup preference. deinit() only runs from
     // Application::tear_down_printer_state() (printer switch, add-printer wizard)
     // and shutdown — a rediscovery re-runs init() alone and must NOT re-arm it.
@@ -361,6 +362,9 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
         spdlog::info("[LedController] Loaded {} configured macro device(s)",
                      macro_.macros().size());
     }
+
+    // The clear() calls above dropped every capability the configfile set.
+    apply_stored_configfile();
 
     migrate_legacy_selection();
 
@@ -564,6 +568,34 @@ void LedController::discover_wled_strips() {
             // WLED not configured is expected on most printers
             spdlog::debug("[LedController] WLED discovery unavailable: {}", err.message);
         });
+}
+
+void LedController::apply_configfile(const nlohmann::json& configfile_config) {
+    // Keep only the sections the LED backends read: the whole printer config
+    // would otherwise stay resident for the session.
+    configfile_config_ = nlohmann::json::object();
+    if (configfile_config.is_object()) {
+        for (auto it = configfile_config.begin(); it != configfile_config.end(); ++it) {
+            const std::string& key = it.key();
+            for (const char* prefix :
+                 {"led ", "led_effect ", "neopixel", "dotstar", "output_pin "}) {
+                if (key.rfind(prefix, 0) == 0) {
+                    configfile_config_[key] = it.value();
+                    break;
+                }
+            }
+        }
+    }
+    apply_stored_configfile();
+}
+
+void LedController::apply_stored_configfile() {
+    if (configfile_config_.empty()) {
+        return;
+    }
+    update_effect_targets(configfile_config_);
+    update_output_pin_config(configfile_config_);
+    update_led_pin_config(configfile_config_);
 }
 
 void LedController::update_effect_targets(const nlohmann::json& configfile_config) {

@@ -187,7 +187,7 @@ TEST_CASE_METHOD(LedControllerFixture,
     nlohmann::json cfg = {
         {"led rgb_strip", {{"red_pin", "PA1"}, {"green_pin", "PA2"}, {"blue_pin", "PA3"}}},
         {"led white_strip", {{"white_pin", "PB0"}}}};
-    ctrl.update_led_pin_config(cfg);
+    ctrl.apply_configfile(cfg);
 
     auto find = [&](const std::string& id) -> const helix::led::LedStripInfo& {
         for (const auto& s : ctrl.native().strips()) {
@@ -2196,4 +2196,66 @@ TEST_CASE_METHOD(LedMockApiFixture,
     CHECK(history_mentions(mock_client.gcode_script_history(), "CABINET_OFF"));
     // What was last sent is off, so the next toggle turns it on.
     CHECK(ctrl.toggle_power({"macro:Cabinet"}));
+}
+
+// ============================================================================
+// Configfile capabilities survive discovery, in the order production runs them
+// ============================================================================
+
+TEST_CASE_METHOD(LedControllerFixture,
+                 "LedController: configfile capabilities applied before discovery survive it",
+                 "[led][controller][configfile]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(nullptr, nullptr);
+
+    // The discovery sequence's configfile query lands before discover_from_hardware.
+    const nlohmann::json cfg = {
+        {"neopixel chamber", {{"pin", "PA1"}, {"color_order", "GRBW"}}},
+        {"led caselight", {{"white_pin", "PB1"}}},
+        {"led status", {{"red_pin", "PC1"}, {"green_pin", "PC2"}, {"blue_pin", "PC3"}}},
+        {"led_effect breathe", {{"leds", "neopixel:chamber"}}},
+        {"output_pin LED", {{"pwm", false}}}};
+    ctrl.apply_configfile(cfg);
+
+    helix::PrinterDiscovery discovery;
+    discovery.parse_objects(
+        nlohmann::json::array({"neopixel chamber", "led caselight", "led status",
+                               "led_effect breathe", "output_pin LED", "extruder"}));
+    ctrl.discover_from_hardware(discovery);
+
+    const auto& strips = ctrl.native().strips();
+    const auto* chamber = helix::led::find_strip(strips, "neopixel chamber");
+    const auto* caselight = helix::led::find_strip(strips, "led caselight");
+    const auto* status = helix::led::find_strip(strips, "led status");
+    REQUIRE(chamber != nullptr);
+    REQUIRE(caselight != nullptr);
+    REQUIRE(status != nullptr);
+
+    CHECK(chamber->supports_color);
+    CHECK(chamber->supports_white);
+    CHECK_FALSE(caselight->supports_color);
+    CHECK(caselight->supports_white);
+    CHECK(status->supports_color);
+    CHECK_FALSE(status->supports_white);
+
+    // An effect with no targets would show on every strip.
+    REQUIRE(ctrl.effects().effects().size() == 1);
+    CHECK(ctrl.effects().effects()[0].target_leds == std::vector<std::string>{"neopixel chamber"});
+    CHECK_FALSE(ctrl.effects().effects_for_strip("neopixel chamber").empty());
+    CHECK(ctrl.effects().effects_for_strip("led status").empty());
+
+    REQUIRE_FALSE(ctrl.output_pin().pins().empty());
+    CHECK_FALSE(ctrl.output_pin().is_pwm("output_pin LED"));
+
+    // A printer switch starts from nothing: the last printer's configfile does not
+    // carry over to the next discovery.
+    ctrl.deinit();
+    ctrl.init(nullptr, nullptr);
+    ctrl.discover_from_hardware(discovery);
+    REQUIRE(ctrl.effects().effects().size() == 1);
+    CHECK(ctrl.effects().effects()[0].target_leds.empty());
+    CHECK_FALSE(helix::led::find_strip(ctrl.native().strips(), "led status")->supports_color);
+
+    ctrl.deinit();
 }
