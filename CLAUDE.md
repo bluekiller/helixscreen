@@ -88,7 +88,9 @@ make remote-native                   # build the app there
 
 scripts/zeus-run.sh mutate --tests '[tag]'   # mutation gate on zeus
 scripts/zeus-run.sh asan '[tag]'            # AddressSanitizer on zeus
-scripts/zeus-run.sh sweep                   # make unit-sweep on zeus (`full` adds bats)
+scripts/zeus-run.sh sweep                   # make unit-sweep on zeus
+#   bats stays on thelio (`make test-shell`): the container runs as root with no
+#   shellcheck, so about 190 shell tests fail there on the environment alone.
 #   All three are expensive and non-interactive, so they belong on the idle
 #   72-core box. `zeus-run.sh test` with no tag runs the suite in ONE process,
 #   where cross-test contamination fails cases no branch touched: not a gate.

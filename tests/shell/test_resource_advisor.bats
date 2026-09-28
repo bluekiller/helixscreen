@@ -99,24 +99,23 @@ zeus_modes() {
     export HELIX_ADVISOR_ZEUS_RUN="$TEST_DIR/zeus-run.sh"
 }
 
-@test "with both modes, unit-sweep gets sweep and full-test-run gets full" {
-    zeus_modes sweep full
+@test "unit-sweep goes to zeus's sweep and says nothing about bats" {
+    zeus_modes sweep
     advise "make unit-sweep"
     contains "zeus-run.sh sweep" "$(context)"
-    lacks "zeus-run.sh full" "$(context)"
-    advise "make -j full-test-run"
-    contains "zeus-run.sh full" "$(context)"
-    lacks "zeus-run.sh sweep" "$(context)"
+    lacks "make test-shell" "$(context)"
 }
 
-@test "unit-sweep falls back to full when zeus-run has only full" {
-    zeus_modes full
-    advise "make unit-sweep"
-    contains "zeus-run.sh full" "$(context)"
+@test "full-test-run sends the C++ half to zeus and keeps bats on thelio" {
+    zeus_modes sweep
+    advise "make -j full-test-run"
+    contains "zeus-run.sh sweep" "$(context)"
+    contains "make test-shell" "$(context)"
+    lacks "zeus-run.sh full" "$(context)"
 }
 
 @test "a sweep suggestion points at helix-claim resources" {
-    zeus_modes sweep full
+    zeus_modes sweep
     advise "make unit-sweep"
     contains "scripts/helix-claim resources" "$(context)"
 }
