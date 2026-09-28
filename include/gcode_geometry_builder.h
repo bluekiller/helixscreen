@@ -322,6 +322,12 @@ struct RibbonGeometry {
     QuantizationParams quantization; ///< Quantization params for dequantization
     float layer_height_mm{0.2f};     ///< Layer height for Z-offset calculations during LOD
 
+    /// The weak-GPU moving mesh: the same file rebanded to every n-th layer,
+    /// exterior features only, each band n layers tall. Null when the main
+    /// build alone fits the moving budget, or when the mesh build was
+    /// cancelled or failed (the renderer falls back to layer striding).
+    std::unique_ptr<RibbonGeometry> moving_mesh;
+
     /**
      * @brief The object runs recorded for one layer.
      *
@@ -372,6 +378,9 @@ struct RibbonGeometry {
         // thread), so this term only affects post-build reporting, not the budget check.
         for (const auto& pb : prepared_buffers) {
             total += pb.data.capacity();
+        }
+        if (moving_mesh) {
+            total += moving_mesh->memory_usage();
         }
         return total;
     }
@@ -573,6 +582,19 @@ class GeometryBuilder {
     }
 
     /**
+     * @brief Band the build into every n-th layer (moving mesh mode)
+     * @param n Band depth in layers; 1 (default) = off
+     *
+     * n > 1 collects only layers whose index divides by n and only exterior
+     * features (extrusions whose ;TYPE: names an outside-visible region, or
+     * any extrusion when the file names none), and draws each tube n layer
+     * heights tall so consecutive bands touch with no gaps.
+     */
+    void set_band_layers(int n) {
+        band_layers_ = n < 1 ? 1 : n;
+    }
+
+    /**
      * @brief Enable/disable per-face debug coloring
      * @param enable true to assign distinct colors to each face for debugging
      *
@@ -678,6 +700,7 @@ class GeometryBuilder {
     bool debug_face_colors_ = false;                ///< Enable per-face debug coloring
     std::vector<std::string> tool_color_palette_;   ///< Hex colors per tool (multi-color prints)
     int tube_sides_ = 16;                           ///< Tube cross-section sides (valid: 4, 8, 16)
+    int band_layers_ = 1;                           ///< Moving-mesh band depth (1 = off)
 
     int budget_tube_sides_ = 0;     ///< Override tube_sides from budget (0 = use config)
     size_t budget_limit_bytes_ = 0; ///< Memory ceiling (0 = unlimited)

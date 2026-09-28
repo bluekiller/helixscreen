@@ -491,10 +491,14 @@ class GCodeGLESRenderer {
     // ====== Geometry ======
 
     std::unique_ptr<RibbonGeometry> geometry_;
-    RibbonGeometry* active_geometry_ = nullptr;
+    const RibbonGeometry* active_geometry_ = nullptr;
     std::string current_filename_;
 
     std::vector<LayerVBO> layer_vbos_;
+    /// geometry_->moving_mesh uploaded whole once the main upload finishes.
+    /// Indexed by the same layer numbers as layer_vbos_ (the mesh keeps the
+    /// original layer indices), so pass_ranges addresses both identically.
+    std::vector<LayerVBO> moving_vbos_;
     bool geometry_uploaded_ = false;
     size_t upload_next_layer_ = 0;   ///< Next layer to upload (incremental)
     size_t upload_total_layers_ = 0; ///< Total layers needing upload
@@ -509,6 +513,13 @@ class GCodeGLESRenderer {
     /// whenever the geometry is replaced or released - it describes that
     /// palette and no other. Guarded by palette_mutex_.
     std::vector<uint32_t> baked_color_palette_;
+
+    /// moving_mesh->color_palette as the builder produced it, under the same
+    /// lifecycle as baked_color_palette_. The mesh's palette is its own (only
+    /// exterior features built it), so the slicer colors sit at different
+    /// indices than the main geometry's and it cannot share the snapshot.
+    /// Guarded by palette_mutex_.
+    std::vector<uint32_t> mesh_baked_palette_;
 
     /// Selection colors from ui_xml/gcode_tokens.xml, refreshed in reset_colors().
     /// The defaults cover a frame drawn before that first refresh, and the
@@ -565,10 +576,14 @@ class GCodeGLESRenderer {
     bool have_complete_image_ = false;  ///< draw_buf_ holds a finished still image of job_scene_
     float gpu_rate_tris_per_ms_ = 0.0f; ///< smoothed measured throughput; 0 = unmeasured
     size_t uploaded_triangles_ = 0;     ///< sum of layer_vbos_ triangles
+    size_t mesh_triangles_ = 0;         ///< sum of moving_vbos_ triangles; 0 = no mesh
 
     CachedRenderState snapshot_state(const GCodeCamera& camera) const;
     bool setup_frame(const GCodeCamera& camera, float scale, bool clear, glm::mat4& mvp,
-                     glm::mat4& mvp_dequant);
+                     glm::mat4& mvp_dequant, const RibbonGeometry& geom);
+    /// Upload geometry_->moving_mesh into moving_vbos_ and free its CPU
+    /// buffers. No-op when no mesh was built.
+    void upload_moving_mesh();
     void pass_ranges(int& draw_start, int& draw_end, int& solid_end, int& ghost_start,
                      bool& ghosting) const;
     void start_job(bool incremental, const CachedRenderState& scene);

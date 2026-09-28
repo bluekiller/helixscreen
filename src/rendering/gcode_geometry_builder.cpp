@@ -154,7 +154,7 @@ RibbonGeometry::RibbonGeometry(RibbonGeometry&& other) noexcept
       prepared_buffers(std::move(other.prepared_buffers)),
       extrusion_triangle_count(other.extrusion_triangle_count),
       travel_triangle_count(other.travel_triangle_count), quantization(other.quantization),
-      layer_height_mm(other.layer_height_mm) {}
+      layer_height_mm(other.layer_height_mm), moving_mesh(std::move(other.moving_mesh)) {}
 
 RibbonGeometry& RibbonGeometry::operator=(RibbonGeometry&& other) noexcept {
     if (this != &other) {
@@ -177,6 +177,7 @@ RibbonGeometry& RibbonGeometry::operator=(RibbonGeometry&& other) noexcept {
         travel_triangle_count = other.travel_triangle_count;
         quantization = other.quantization;
         layer_height_mm = other.layer_height_mm;
+        moving_mesh = std::move(other.moving_mesh);
     }
     return *this;
 }
@@ -341,6 +342,7 @@ void RibbonGeometry::clear() {
 
     extrusion_triangle_count = 0;
     travel_triangle_count = 0;
+    moving_mesh.reset();
 }
 
 // ============================================================================
@@ -586,8 +588,20 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
             spdlog::info("[GCode::Builder] Build cancelled during collection");
             return {};
         }
+        // Moving-mesh banding: only every n-th layer feeds the build.
+        if (band_layers_ > 1 && li % static_cast<size_t>(band_layers_) != 0) {
+            continue;
+        }
         for (const auto& seg : gcode.layers[li].segments) {
             if (is_auxiliary_geometry(seg.feature_type)) {
+                continue;
+            }
+            // A band carries only the shell the eye reads: no travels, no
+            // interior mass. Unknown means the file never named a feature,
+            // and losing every such segment would drop the whole mesh.
+            if (band_layers_ > 1 &&
+                (!seg.is_extrusion || (seg.feature_type != FeatureType::Unknown &&
+                                       !is_exterior_feature(seg.feature_type)))) {
                 continue;
             }
             all_segments.push_back(seg);
@@ -1128,7 +1142,8 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     width = width * 1.1f; // 10% safety margin
 
     const float half_width = width * 0.5f;
-    const float half_height = layer_height_mm_ * 0.5f;
+    // A band tube is band_layers_ layer heights tall; a normal tube one.
+    const float half_height = layer_height_mm_ * 0.5f * static_cast<float>(band_layers_);
 
     // Calculate direction and perpendicular vectors
     const glm::vec3 dir = glm::normalize(segment.end - segment.start);
@@ -1182,9 +1197,13 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     }
 
     // OrcaSlicer approach: Apply vertical offset to BOTH prev and curr positions
-    // This makes the TOP edge sit at the path Z-coordinate
-    const glm::vec3 prev_pos = segment.start - half_height * perp_up;
-    const glm::vec3 curr_pos = segment.end - half_height * perp_up;
+    // This makes the TOP edge sit at the path Z-coordinate. The offset is
+    // -lh/2 for a single-layer tube (top edge at path Z, bottom one layer
+    // down); a band tube rises a further (n-1)*lh/2 so band k spans layers
+    // k..k+n-1 and consecutive bands touch with no gap between them.
+    const float centre_offset = layer_height_mm_ * 0.5f * (static_cast<float>(band_layers_) - 2.0f);
+    const glm::vec3 prev_pos = segment.start + centre_offset * perp_up;
+    const glm::vec3 curr_pos = segment.end + centre_offset * perp_up;
 
     // Generate N vertex offsets for tube cross-section
     std::vector<glm::vec3> vertex_offsets(static_cast<size_t>(N));

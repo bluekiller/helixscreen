@@ -219,6 +219,21 @@ constexpr bool is_auxiliary_geometry(FeatureType t) {
     return t == FeatureType::Custom || t == FeatureType::WipeTower;
 }
 
+/**
+ * @brief Is this feature type visible on the outside of the print?
+ *
+ * The moving mesh keeps only these: what the eye reads as the model's shape.
+ * False for interior mass (InnerWall, infill of any density) and for Unknown,
+ * which means the file carried no ;TYPE: comments at all - a file that never
+ * names features keeps every extrusion rather than losing the whole mesh.
+ */
+constexpr bool is_exterior_feature(FeatureType t) {
+    return t == FeatureType::OuterWall || t == FeatureType::OverhangWall ||
+           t == FeatureType::TopSurface || t == FeatureType::BottomSurface ||
+           t == FeatureType::Bridge || t == FeatureType::Skirt || t == FeatureType::Brim ||
+           t == FeatureType::Support;
+}
+
 struct ToolpathSegment {
     glm::vec3 start{0.0f, 0.0f, 0.0f}; ///< Start point (X, Y, Z) — 12 bytes
     glm::vec3 end{0.0f, 0.0f, 0.0f};   ///< End point (X, Y, Z) — 12 bytes

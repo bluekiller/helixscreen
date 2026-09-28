@@ -6,6 +6,9 @@
 #include "gcode_selection_style.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <limits>
+#include <set>
+#include <utility>
 
 #include "../catch_amalgamated.hpp"
 
@@ -1353,12 +1356,18 @@ TEST_CASE("Geometry Builder: moving RibbonGeometry preserves every member",
                          0x666666, 0x777777, 0x888888, 0x999999, 0xAAAAAA};
     src.object_runs = {ObjectRun{0, 12, 3}, ObjectRun{12, 6, 5}};
     src.layer_object_run_ranges = {{0, 1}, {1, 1}};
+    src.moving_mesh = std::make_unique<RibbonGeometry>();
+    src.moving_mesh->max_layer_index = 4;
 
     SECTION("move construction") {
         RibbonGeometry dst(std::move(src));
         CHECK(dst.layer_height_mm == Approx(0.32f));
         CHECK(dst.max_layer_index == 7);
         CHECK(dst.quantization.scale_factor == Approx(123.5f));
+        // Dropping moving_mesh on a move would silently disable the weak-GPU
+        // moving view even though the mesh was built.
+        REQUIRE(dst.moving_mesh != nullptr);
+        CHECK(dst.moving_mesh->max_layer_index == 4);
         REQUIRE(dst.prepared_buffers.size() == 3);
         CHECK(dst.prepared_buffers[1].vertex_count == 42);
         CHECK(dst.prepared_buffers[1].data.size() == 42 * PackedVertex::stride());
@@ -1383,6 +1392,8 @@ TEST_CASE("Geometry Builder: moving RibbonGeometry preserves every member",
         CHECK(dst.layer_height_mm == Approx(0.32f));
         CHECK(dst.max_layer_index == 7);
         CHECK(dst.quantization.scale_factor == Approx(123.5f));
+        REQUIRE(dst.moving_mesh != nullptr);
+        CHECK(dst.moving_mesh->max_layer_index == 4);
         REQUIRE(dst.prepared_buffers.size() == 3);
         CHECK(dst.prepared_buffers[1].vertex_count == 42);
         REQUIRE(dst.strip_color_index.size() == dst.strips.size());
@@ -1743,4 +1754,132 @@ TEST_CASE("Geometry Builder: a cancelled build emits no geometry", "[gcode][geom
     GeometryBuilder cancelled_builder;
     RibbonGeometry cancelled = cancelled_builder.build(make_gcode(), options, [] { return true; });
     REQUIRE(cancelled.vertices.empty());
+}
+
+// ============================================================================
+// Moving mesh band layers
+// ============================================================================
+//
+// The weak-GPU moving mesh is this builder run with set_band_layers(n): only
+// every n-th layer is kept, only exterior features are kept, and each kept
+// tube is n layer-heights tall so consecutive bands touch with no gaps.
+
+namespace {
+
+/// 9 layers of one outer wall plus one sparse-infill extrusion each, 0.2 mm layers.
+ParsedGCodeFile make_banded_gcode(int layer_count) {
+    ParsedGCodeFile gcode;
+    gcode.global_bounding_box.min = glm::vec3(0, 0, 0);
+    gcode.global_bounding_box.max = glm::vec3(100, 100, 4);
+    for (int li = 0; li < layer_count; ++li) {
+        Layer layer;
+        layer.z_height = 0.2f * static_cast<float>(li + 1);
+
+        ToolpathSegment wall;
+        wall.start = glm::vec3(10, 10, layer.z_height);
+        wall.end = glm::vec3(60, 10, layer.z_height);
+        wall.is_extrusion = true;
+        wall.extrusion_amount = 1.0f;
+        wall.width = 0.4f;
+        wall.feature_type = FeatureType::OuterWall;
+        layer.segments.push_back(wall);
+
+        ToolpathSegment infill;
+        infill.start = glm::vec3(10, 20, layer.z_height);
+        infill.end = glm::vec3(60, 20, layer.z_height);
+        infill.is_extrusion = true;
+        infill.extrusion_amount = 1.0f;
+        infill.width = 0.4f;
+        infill.feature_type = FeatureType::SparseInfill;
+        layer.segments.push_back(infill);
+
+        gcode.layers.push_back(layer);
+        gcode.total_segments += 2;
+    }
+    return gcode;
+}
+
+SimplificationOptions band_options() {
+    SimplificationOptions opts;
+    opts.enable_merging = false;
+    return opts;
+}
+
+} // namespace
+
+TEST_CASE("Geometry Builder: band layers keep only exterior features of every n-th layer",
+          "[gcode][geometry][bands]") {
+    GeometryBuilder builder;
+    builder.set_band_layers(3);
+    RibbonGeometry geometry = builder.build(make_banded_gcode(9), band_options());
+
+    // Layers 0, 3 and 6 survive, and only their outer walls: infill is never
+    // collected, so one segment per band reaches the builder.
+    REQUIRE(builder.last_stats().input_segments == 3);
+    std::set<uint16_t> layers(geometry.strip_layer_index.begin(), geometry.strip_layer_index.end());
+    REQUIRE(layers == std::set<uint16_t>{0, 3, 6});
+
+    // The original layer index survives: the renderer's solid/ghost split by
+    // progress layer reads strip_layer_index, not position in the mesh.
+    REQUIRE(geometry.layer_strip_ranges.size() == 9);
+    REQUIRE(geometry.layer_strip_ranges[3].second > 0);
+    REQUIRE(geometry.layer_strip_ranges[1].second == 0);
+}
+
+TEST_CASE("Geometry Builder: a band is n layer heights tall and bands touch",
+          "[gcode][geometry][bands]") {
+    GeometryBuilder builder;
+    builder.set_band_layers(3);
+    RibbonGeometry geometry = builder.build(make_banded_gcode(9), band_options());
+    REQUIRE_FALSE(geometry.strips.empty());
+
+    // Dequantized Z extent of one band's strips. A tube's top edge sits at the
+    // layer's Z, so layer 0's band spans 0.0 to 0.6 mm and layer 3's starts
+    // exactly where it ends.
+    auto band_z_extent = [&geometry](uint16_t layer) {
+        float lo = std::numeric_limits<float>::max();
+        float hi = std::numeric_limits<float>::lowest();
+        for (size_t s = 0; s < geometry.strips.size(); ++s) {
+            if (geometry.strip_layer_index[s] != layer) {
+                continue;
+            }
+            for (uint32_t vi : geometry.strips[s]) {
+                const float z =
+                    geometry.quantization.dequantize_vec3(geometry.vertices[vi].position).z;
+                lo = std::min(lo, z);
+                hi = std::max(hi, z);
+            }
+        }
+        return std::pair{lo, hi};
+    };
+
+    const auto [lo0, hi0] = band_z_extent(0);
+    const auto [lo3, hi3] = band_z_extent(3);
+    REQUIRE(hi0 - lo0 == Approx(0.6f).margin(0.02f)); // 3 * 0.2 mm
+    REQUIRE(lo0 == Approx(0.0f).margin(0.02f));
+    REQUIRE(lo3 == Approx(hi0).margin(0.02f));
+}
+
+TEST_CASE("Geometry Builder: bands keep every extrusion when the file names no feature types",
+          "[gcode][geometry][bands]") {
+    ParsedGCodeFile gcode = make_banded_gcode(4);
+    for (auto& layer : gcode.layers) {
+        for (auto& seg : layer.segments) {
+            seg.feature_type = FeatureType::Unknown; // no ;TYPE: comments in the file
+        }
+    }
+
+    GeometryBuilder builder;
+    builder.set_band_layers(2);
+    RibbonGeometry geometry = builder.build(gcode, band_options());
+
+    // Layers 0 and 2, both segments each: Unknown is not "known interior".
+    REQUIRE(builder.last_stats().input_segments == 4);
+    REQUIRE(geometry.strip_layer_index.size() == geometry.strips.size());
+}
+
+TEST_CASE("Geometry Builder: band layers default to off", "[gcode][geometry][bands]") {
+    GeometryBuilder builder;
+    RibbonGeometry geometry = builder.build(make_banded_gcode(3), band_options());
+    REQUIRE(builder.last_stats().input_segments == 6); // every layer, every feature
 }

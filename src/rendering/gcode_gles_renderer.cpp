@@ -57,6 +57,26 @@ glm::mat4 dequant_matrix(const QuantizationParams& q) {
            glm::scale(glm::mat4(1.0f), glm::vec3(inv));
 }
 
+/// Rewrite a geometry's palette entries for the tools it drew. The main
+/// geometry and the moving mesh each own a palette and a tool->palette map,
+/// so the same AMS colors land at different indices in each.
+bool apply_tool_palette(RibbonGeometry& geom, const std::vector<uint32_t>& ams_colors) {
+    bool changed = false;
+    for (size_t tool = 0; tool < ams_colors.size(); ++tool) {
+        auto it = geom.tool_palette_map.find(static_cast<uint8_t>(tool));
+        if (it == geom.tool_palette_map.end()) {
+            continue;
+        }
+        const uint8_t palette_idx = it->second;
+        if (palette_idx < geom.color_palette.size() &&
+            geom.color_palette[palette_idx] != ams_colors[tool]) {
+            geom.color_palette[palette_idx] = ams_colors[tool];
+            changed = true;
+        }
+    }
+    return changed;
+}
+
 } // namespace
 
 // ============================================================
@@ -939,6 +959,23 @@ void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<
                   geom.strips.size());
 }
 
+void GCodeGLESRenderer::upload_moving_mesh() {
+    if (!geometry_ || !geometry_->moving_mesh) {
+        return;
+    }
+    upload_geometry(*geometry_->moving_mesh, moving_vbos_);
+    mesh_triangles_ = 0;
+    for (const auto& vbo : moving_vbos_) {
+        mesh_triangles_ += vbo.vertex_count / 3;
+    }
+    // Same contract as the main path: everything is on the GPU now, and the
+    // CPU fallback expand re-reads the (live, possibly overridden) palette.
+    geometry_->moving_mesh->prepared_buffers.clear();
+    geometry_->moving_mesh->prepared_buffers.shrink_to_fit();
+    spdlog::debug("[GCode GLES] Moving mesh uploaded: {} layers, {} triangles", moving_vbos_.size(),
+                  mesh_triangles_);
+}
+
 bool GCodeGLESRenderer::upload_geometry_chunk(const RibbonGeometry& geom,
                                               std::vector<LayerVBO>& vbos, size_t& next_layer,
                                               size_t total_layers) {
@@ -1099,6 +1136,8 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
         // Initialize incremental upload on first frame
         if (upload_total_layers_ == 0) {
             free_vbos(layer_vbos_); // Free old VBOs inside GL context
+            free_vbos(moving_vbos_);
+            mesh_triangles_ = 0; // stale if the geometry was replaced
             size_t num_layers =
                 geometry_->layer_strip_ranges.empty() ? 1 : geometry_->layer_strip_ranges.size();
             layer_vbos_.resize(num_layers);
@@ -1131,6 +1170,11 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
                 spdlog::info("[GCode GLES] Freed {} MB of upload buffers after VBO upload",
                              freed / (1024 * 1024));
             }
+            // The moving mesh rides along here rather than in set_prebuilt_
+            // geometry: a tool-color override rewinds geometry_uploaded_ and
+            // re-enters this branch, so the mesh re-uploads with whatever the
+            // palette says by then.
+            upload_moving_mesh();
             // Defer first GPU render by a few frames to avoid blocking panel animations
             render_defer_frames_ = 3;
         } else {
@@ -1269,7 +1313,8 @@ void GCodeGLESRenderer::pass_ranges(int& draw_start, int& draw_end, int& solid_e
 }
 
 bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool clear,
-                                    glm::mat4& mvp, glm::mat4& mvp_dequant) {
+                                    glm::mat4& mvp, glm::mat4& mvp_dequant,
+                                    const RibbonGeometry& geom) {
     int render_w = std::max(1, static_cast<int>(viewport_width_ * scale));
     int render_h = std::max(1, static_cast<int>(viewport_height_ * scale));
 
@@ -1295,8 +1340,10 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     // remains writable only by render_selection_tag(), and a 254 in the readback
     // still means exactly "visible pixel of a selected object".
 
-    // Select active geometry
-    active_geometry_ = geometry_.get();
+    // Select active geometry. Callers pass the geometry they are about to
+    // draw: the main one everywhere except the moving mesh, whose own bounds
+    // quantized its vertices.
+    active_geometry_ = &geom;
 
     if (!active_geometry_ || layer_vbos_.empty()) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1370,9 +1417,19 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
                                       const GCodeCamera& camera, const lv_area_t* widget_coords) {
     cancel_job();
     const render_schedule::MovingPlan plan =
-        render_schedule::plan_moving(uploaded_triangles_, gpu_rate_tris_per_ms_);
+        render_schedule::plan_moving(uploaded_triangles_, mesh_triangles_, gpu_rate_tris_per_ms_);
+    // The mesh has its own bounds and its own quantization, so it must be the
+    // geometry setup_frame dequantizes with, and it replaces the layer VBOs
+    // the draw reads. Stride stays 1: the mesh is already banded.
+    const std::vector<LayerVBO>* draw_vbos = &layer_vbos_;
+    const RibbonGeometry* draw_geom = geometry_.get();
+    if (plan.use_mesh && geometry_ && geometry_->moving_mesh && !moving_vbos_.empty()) {
+        draw_vbos = &moving_vbos_;
+        draw_geom = geometry_->moving_mesh.get();
+    }
     glm::mat4 mvp, mvp_dequant;
-    if (!setup_frame(camera, plan.half_resolution ? 0.5f : 1.0f, true, mvp, mvp_dequant)) {
+    if (!setup_frame(camera, plan.half_resolution ? 0.5f : 1.0f, true, mvp, mvp_dequant,
+                     *draw_geom)) {
         return;
     }
 
@@ -1385,20 +1442,20 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
 
     if (ghosting) {
         if (draw_start <= solid_end) {
-            draw_layers(layer_vbos_, draw_start, solid_end, 1.0f, 1.0f, plan.stride);
+            draw_layers(*draw_vbos, draw_start, solid_end, 1.0f, 1.0f, plan.stride);
         }
         if (ghost_start <= draw_end) {
             constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE);
-            draw_layers(layer_vbos_, ghost_start, draw_end, GHOST_LIGHTEN_SCALE,
+            draw_layers(*draw_vbos, ghost_start, draw_end, GHOST_LIGHTEN_SCALE,
                         ghost_opacity_ / 255.0f, plan.stride);
             glDepthMask(GL_TRUE);
             glDisable(GL_BLEND);
         }
     } else {
-        draw_layers(layer_vbos_, draw_start, draw_end, 1.0f, 1.0f, plan.stride);
+        draw_layers(*draw_vbos, draw_start, draw_end, 1.0f, 1.0f, plan.stride);
     }
 
     glUseProgram(0);
@@ -1411,7 +1468,8 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
         render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     blit_to_lvgl(layer, widget_coords);
-    spdlog::trace("[GCode GLES] Moving frame: stride {}, {} res, {:.1f}ms", plan.stride,
+    spdlog::trace("[GCode GLES] Moving frame: {}stride {}, {} res, {:.1f}ms",
+                  plan.use_mesh && draw_vbos == &moving_vbos_ ? "mesh " : "", plan.stride,
                   plan.half_resolution ? "half" : "full", ms);
 }
 
@@ -1530,7 +1588,11 @@ void GCodeGLESRenderer::start_job(bool incremental, const CachedRenderState& sce
 
 bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
     glm::mat4 mvp, mvp_dequant;
-    if (!setup_frame(camera, kStillSupersample, job_.first_slice, mvp, mvp_dequant)) {
+    if (!geometry_) {
+        cancel_job();
+        return false;
+    }
+    if (!setup_frame(camera, kStillSupersample, job_.first_slice, mvp, mvp_dequant, *geometry_)) {
         cancel_job();
         return false;
     }
@@ -1898,20 +1960,14 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
     if (baked_color_palette_.empty()) {
         baked_color_palette_ = geometry_->color_palette;
     }
+    if (geometry_->moving_mesh && mesh_baked_palette_.empty()) {
+        mesh_baked_palette_ = geometry_->moving_mesh->color_palette;
+    }
 
     // Replace palette entries using tool→palette mapping from geometry build
-    bool changed = false;
-    for (size_t tool = 0; tool < ams_colors.size(); ++tool) {
-        auto it = geometry_->tool_palette_map.find(static_cast<uint8_t>(tool));
-        if (it == geometry_->tool_palette_map.end()) {
-            continue;
-        }
-        uint8_t palette_idx = it->second;
-        if (palette_idx < geometry_->color_palette.size() &&
-            geometry_->color_palette[palette_idx] != ams_colors[tool]) {
-            geometry_->color_palette[palette_idx] = ams_colors[tool];
-            changed = true;
-        }
+    bool changed = apply_tool_palette(*geometry_, ams_colors);
+    if (geometry_->moving_mesh) {
+        changed = apply_tool_palette(*geometry_->moving_mesh, ams_colors) || changed;
     }
 
     if (changed) {
@@ -1922,8 +1978,11 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
         // discarding the ~100MB pack the background thread just produced and
         // re-expanding it on the foreground thread — only the RGBA8 lanes
         // need to change.
-        if (geometry_) {
-            geometry_->patch_prepared_buffer_colors();
+        geometry_->patch_prepared_buffer_colors();
+        if (geometry_->moving_mesh) {
+            // No-op once the mesh's prepared buffers were freed after upload;
+            // the re-upload then expands from the live palette instead.
+            geometry_->moving_mesh->patch_prepared_buffer_colors();
         }
         // Force VBO re-upload to push the new colors to the GPU
         // (old VBOs freed inside render() where GL context is active)
@@ -1956,7 +2015,16 @@ void GCodeGLESRenderer::clear_tool_color_overrides() {
     geometry_->color_palette = baked_color_palette_;
     baked_color_palette_.clear();
 
-    if (!changed) {
+    // The mesh restores from its own snapshot before any early return: a
+    // snapshot left behind would be restored onto the next geometry's palette.
+    bool mesh_changed = false;
+    if (geometry_->moving_mesh && !mesh_baked_palette_.empty()) {
+        mesh_changed = geometry_->moving_mesh->color_palette != mesh_baked_palette_;
+        geometry_->moving_mesh->color_palette = mesh_baked_palette_;
+    }
+    mesh_baked_palette_.clear();
+
+    if (!changed && !mesh_changed) {
         return;
     }
 
@@ -1964,6 +2032,9 @@ void GCodeGLESRenderer::clear_tool_color_overrides() {
     // the prepared buffers rather than re-expanding the whole pack, then force
     // the VBOs back up so the GPU sees the restored colors.
     geometry_->patch_prepared_buffer_colors();
+    if (geometry_->moving_mesh) {
+        geometry_->moving_mesh->patch_prepared_buffer_colors();
+    }
     cancel_job();
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
@@ -2114,6 +2185,7 @@ void GCodeGLESRenderer::release_geometry() {
 #endif
         if (guard.ok()) {
             free_vbos(layer_vbos_);
+            free_vbos(moving_vbos_);
         }
     }
 
@@ -2123,12 +2195,14 @@ void GCodeGLESRenderer::release_geometry() {
         // Nothing left to restore the baked palette onto.
         std::lock_guard<std::mutex> lock(palette_mutex_);
         baked_color_palette_.clear();
+        mesh_baked_palette_.clear();
     }
     active_geometry_ = nullptr;
     current_filename_.clear();
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
+    mesh_triangles_ = 0;
 
     // Free readback buffer
     freed += readback_buf_.capacity();
@@ -2153,11 +2227,13 @@ void GCodeGLESRenderer::set_prebuilt_geometry(std::unique_ptr<RibbonGeometry> ge
         // Kept, it would be restored onto a different file's palette.
         std::lock_guard<std::mutex> lock(palette_mutex_);
         baked_color_palette_.clear();
+        mesh_baked_palette_.clear();
     }
     current_filename_ = filename;
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
+    mesh_triangles_ = 0;
     frame_dirty_ = true;
     spdlog::debug("[GCode GLES] Geometry set: {} strips, {} vertices",
                   geometry_ ? geometry_->strips.size() : 0,

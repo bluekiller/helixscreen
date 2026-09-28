@@ -27,24 +27,53 @@ TEST_CASE("slice quotas aim at the target slice time", "[gcode][render_schedule]
 
 TEST_CASE("the moving plan keeps fast GPUs at full detail", "[gcode][render_schedule]") {
     // Pi 5 class: 40k tris/ms, budget 1M; a 600k model fits.
-    MovingPlan p = plan_moving(600000, 40000.0f);
+    MovingPlan p = plan_moving(600000, 0, 40000.0f);
+    REQUIRE_FALSE(p.use_mesh);
     REQUIRE(p.stride == 1);
     REQUIRE_FALSE(p.half_resolution);
 }
 
 TEST_CASE("the moving plan strides and halves resolution on a Pi 3B", "[gcode][render_schedule]") {
-    // 4000 tris/ms * 25 ms = 100k budget; Benchy tier 3 is 523k triangles.
-    MovingPlan p = plan_moving(523000, 4000.0f);
+    // 4000 tris/ms * 25 ms = 100k budget; Benchy tier 3 is 523k triangles, no mesh built.
+    MovingPlan p = plan_moving(523000, 0, 4000.0f);
+    REQUIRE_FALSE(p.use_mesh);
     REQUIRE(p.stride == 6);
     REQUIRE(p.half_resolution);
 }
 
 TEST_CASE("an unmeasured rate never submits a huge model in one moving frame",
           "[gcode][render_schedule]") {
-    MovingPlan p = plan_moving(4660000, 0.0f);
+    MovingPlan p = plan_moving(4660000, 0, 0.0f);
     REQUIRE(p.stride == 47); // ceil(4.66M / 100k)
     REQUIRE(p.half_resolution);
-    REQUIRE(plan_moving(0, 0.0f).stride == 1);
+    REQUIRE(plan_moving(0, 0, 0.0f).stride == 1);
+}
+
+TEST_CASE("the moving plan draws a mesh that fits the budget at full resolution",
+          "[gcode][render_schedule]") {
+    // 100k moving budget: a 90k-triangle mesh fits it whole, so it draws at
+    // full resolution rather than halving.
+    MovingPlan p = plan_moving(523000, 90000, 4000.0f);
+    REQUIRE(p.use_mesh);
+    REQUIRE(p.stride == 1);
+    REQUIRE_FALSE(p.half_resolution);
+}
+
+TEST_CASE("the moving plan halves resolution when the mesh itself overflows the budget",
+          "[gcode][render_schedule]") {
+    MovingPlan p = plan_moving(523000, 150000, 4000.0f);
+    REQUIRE(p.use_mesh);
+    REQUIRE(p.stride == 1);
+    REQUIRE(p.half_resolution);
+}
+
+TEST_CASE("band_layers_for sizes bands to the moving budget", "[gcode][render_schedule]") {
+    // 11 triangles per N=4 segment: 36k exterior segments project to 396k
+    // triangles, which a 100k budget needs 4-layer bands to cover.
+    REQUIRE(band_layers_for(36000, 100000) == 4);
+    // A small exterior never goes below the 2-layer floor.
+    REQUIRE(band_layers_for(100, 100000) == 2);
+    REQUIRE(band_layers_for(0, 100000) == 2);
 }
 
 static JobInputs idle_complete(int progress) {

@@ -20,6 +20,7 @@
 #include "gcode_parser.h"
 #include "gcode_pause_scan.h"
 #include "gcode_render_mode_policy.h"
+#include "gcode_render_schedule.h"
 #include "gcode_ssao_policy.h"
 #include "gcode_streaming_config.h"
 #include "gcode_streaming_controller.h"
@@ -525,15 +526,20 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     }
 
     helix::gcode::GeometryBuilder builder;
-    if (!file.tool_color_palette.empty()) {
-        builder.set_tool_color_palette(file.tool_color_palette);
-    }
-    if (file.perimeter_extrusion_width_mm > 0.0f) {
-        builder.set_extrusion_width(file.perimeter_extrusion_width_mm);
-    } else if (file.extrusion_width_mm > 0.0f) {
-        builder.set_extrusion_width(file.extrusion_width_mm);
-    }
-    builder.set_layer_height(file.layer_height_mm);
+    // Palette, width and layer height describe the file, so the moving mesh
+    // builds with the same values as the main geometry.
+    auto configure = [&file](helix::gcode::GeometryBuilder& b) {
+        if (!file.tool_color_palette.empty()) {
+            b.set_tool_color_palette(file.tool_color_palette);
+        }
+        if (file.perimeter_extrusion_width_mm > 0.0f) {
+            b.set_extrusion_width(file.perimeter_extrusion_width_mm);
+        } else if (file.extrusion_width_mm > 0.0f) {
+            b.set_extrusion_width(file.extrusion_width_mm);
+        }
+        b.set_layer_height(file.layer_height_mm);
+    };
+    configure(builder);
     builder.set_budget_tube_sides(budget_config.tube_sides);
     builder.set_budget_limit(budget_config.budget_bytes);
 
@@ -561,6 +567,53 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
                  context_tag, geometry->vertices.size(),
                  geometry->extrusion_triangle_count + geometry->travel_triangle_count,
                  budget_config.tier);
+
+    // Moving mesh: what a finger-down frame draws on a GPU too slow for the
+    // strided view to read as the model. The gate is the seed-rate budget —
+    // the weakest GPU class the app plans for — so a fast desktop builds it
+    // too and simply never draws it.
+    const size_t moving_budget =
+        static_cast<size_t>(helix::gcode::render_schedule::kSeedRateTrisPerMs *
+                            helix::gcode::render_schedule::kMovingBudgetMs);
+    const size_t main_triangles =
+        geometry->extrusion_triangle_count + geometry->travel_triangle_count;
+    if (main_triangles > moving_budget) {
+        size_t exterior_segments = 0;
+        for (const auto& layer : file.layers) {
+            for (const auto& seg : layer.segments) {
+                if (seg.is_extrusion && helix::gcode::is_exterior_feature(seg.feature_type)) {
+                    ++exterior_segments;
+                }
+            }
+        }
+        if (exterior_segments > 0) {
+            const int band_layers =
+                helix::gcode::render_schedule::band_layers_for(exterior_segments, moving_budget);
+            helix::gcode::GeometryBuilder mesh_builder;
+            configure(mesh_builder);
+            mesh_builder.set_band_layers(band_layers);
+            mesh_builder.set_budget_tube_sides(4);
+            helix::gcode::SimplificationOptions mesh_opts{.tolerance_mm = 0.05f,
+                                                          .min_segment_length_mm = 0.05f,
+                                                          .max_direction_change_deg = 30.0f};
+            auto mesh = std::make_unique<helix::gcode::RibbonGeometry>(
+                mesh_builder.build(file, mesh_opts, should_cancel));
+            const size_t mesh_triangles =
+                mesh->extrusion_triangle_count + mesh->travel_triangle_count;
+            if (should_cancel && should_cancel()) {
+                spdlog::info("[GCode Viewer] {}: moving mesh cancelled", context_tag);
+            } else if (mesh->strips.empty() || mesh_triangles == 0) {
+                spdlog::info("[GCode Viewer] {}: moving mesh built empty — keeping stride fallback",
+                             context_tag);
+            } else {
+                mesh->prepare_interleaved_buffers();
+                geometry->moving_mesh = std::move(mesh);
+                spdlog::info("[GCode Viewer] Moving mesh: {}-layer bands, {} triangles",
+                             band_layers, mesh_triangles);
+            }
+        }
+    }
+
     geometry->prepare_interleaved_buffers();
     return geometry;
 }

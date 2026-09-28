@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "geometry_budget_manager.h"
+
 #include <cstddef>
 
 namespace helix::gcode::render_schedule {
@@ -41,15 +43,19 @@ inline size_t slice_quota(float rate) {
     return quota < kMinSliceTriangles ? kMinSliceTriangles : quota;
 }
 
-/// How a moving frame is drawn: every `stride`-th layer, optionally at half resolution.
+/// How a moving frame is drawn: the prebuilt exterior `mesh` when one exists,
+/// otherwise every `stride`-th layer; optionally at half resolution.
 struct MovingPlan {
+    bool use_mesh = false;
     int stride = 1;
     bool half_resolution = false;
 };
 
-/// Full detail when the whole model fits the moving budget at the planning rate; otherwise
-/// the smallest layer stride that fits, drawn at half resolution.
-inline MovingPlan plan_moving(size_t total_triangles, float rate) {
+/// Full detail when the whole model fits the moving budget at the planning rate.
+/// Otherwise a prebuilt moving mesh takes over if one was built (drawn whole
+/// when it fits, at half resolution when even it overflows); with no mesh the
+/// smallest layer stride that fits, at half resolution.
+inline MovingPlan plan_moving(size_t total_triangles, size_t mesh_triangles, float rate) {
     auto budget = static_cast<size_t>(effective_rate(rate) * kMovingBudgetMs);
     if (budget == 0) {
         budget = 1;
@@ -57,7 +63,26 @@ inline MovingPlan plan_moving(size_t total_triangles, float rate) {
     if (total_triangles <= budget) {
         return {};
     }
-    return {static_cast<int>((total_triangles + budget - 1) / budget), true};
+    if (mesh_triangles > 0) {
+        return {true, 1, mesh_triangles > budget};
+    }
+    return {false, static_cast<int>((total_triangles + budget - 1) / budget), true};
+}
+
+/// Band depth for the moving mesh: how many layers one exterior band covers so
+/// the banded exterior projects to about the moving budget. The mesh draws at
+/// 4 tube sides, so its triangles per exterior segment are TRIS_PER_SEG_N4.
+/// The floor of 2 keeps bands from degenerating into the full-resolution build
+/// a tiny exterior would otherwise ask for. 0 budget (no planning rate at all)
+/// means no mesh, so the answer is the off value.
+inline int band_layers_for(size_t exterior_segments, size_t budget_triangles) {
+    if (budget_triangles == 0) {
+        return 1;
+    }
+    const size_t projected = exterior_segments * GeometryBudgetManager::TRIS_PER_SEG_N4;
+    const size_t layers = (projected + budget_triangles - 1) / budget_triangles; // ceil divide
+    const size_t floored = layers < 2 ? 2 : layers;
+    return static_cast<int>(floored);
 }
 
 /// What the renderer does with its time-sliced job after a state change.
