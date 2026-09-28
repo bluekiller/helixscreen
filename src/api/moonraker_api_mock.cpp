@@ -1175,7 +1175,21 @@ MoonrakerRestAPIMock::MoonrakerRestAPIMock(MoonrakerClient& client,
                                            const std::string& http_base_url)
     : MoonrakerRestAPI(client, http_base_url) {}
 
-void MoonrakerRestAPIMock::wled_get_strips(RestCallback on_success, ErrorCallback /*on_error*/) {
+void MoonrakerRestAPIMock::mock_release_wled_strips() {
+    hold_wled_strips_ = false;
+    auto held = std::move(held_wled_strips_);
+    held_wled_strips_.clear();
+    for (auto& answer : held) {
+        answer();
+    }
+}
+
+void MoonrakerRestAPIMock::wled_get_strips(RestCallback on_success, ErrorCallback on_error) {
+    if (hold_wled_strips_) {
+        held_wled_strips_.push_back(
+            [this, on_success, on_error]() { wled_get_strips(on_success, on_error); });
+        return;
+    }
     spdlog::info("[MoonrakerAPIMock] WLED get_strips (returning mock strips from tracked state)");
 
     // Initialize defaults if not already set (same pattern as wled_get_status)

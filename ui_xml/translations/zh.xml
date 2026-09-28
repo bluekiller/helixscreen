@@ -141,6 +141,7 @@
   <translation tag="Abort already in progress" zh="中止操作正在进行中"/>
   <translation tag="Abort failed" zh="中止失败"/>
   <translation tag="Aborting AFC operation..." zh="正在中止AFC操作..."/>
+  <translation tag="Aborting..." zh="正在中止..."/>
   <translation tag="About" zh="关于"/>
   <translation tag="Accel to Decel" zh="加速到减速"/>
   <translation tag="Acceleration to deceleration limit (mm/s²)" zh="加速到减速限制 (mm/s²)"/>
@@ -185,6 +186,7 @@
   <translation tag="All axes homed" zh="所有轴已归位"/>
   <translation tag="All fields are required" zh="所有字段均为必填项"/>
   <translation tag="All healthy" zh="一切正常"/>
+  <translation tag="All lights" zh="全部灯光"/>
   <translation tag="Allow" zh="允许"/>
   <translation tag="Allow Home Screen Editing" zh="允许编辑主屏幕"/>
   <translation tag="Allow cold load/unload" zh="允许冷态加载/卸载"/>
@@ -217,6 +219,7 @@
   <translation tag="App Background" zh="应用背景"/>
   <translation tag="App startup encountered an error. Some features may be unavailable." zh="应用程序启动时遇到错误。某些功能可能不可用。"/>
   <translation tag="Appearance" zh="外观"/>
+  <translation tag="Applies to" zh="适用于"/>
   <translation tag="Apply" zh="应用"/>
   <translation tag="Apply Changes" zh="应用更改"/>
   <translation tag="Applying Changes" zh="正在应用更改"/>
@@ -666,6 +669,7 @@
   <translation tag="Controlled by hardware sensor" zh="由硬件传感器控制"/>
   <translation tag="Controller" zh="控制器"/>
   <translation tag="Controls" zh="控制"/>
+  <translation tag="Cool" zh="冷色"/>
   <translation tag="Cool Down" zh="冷却"/>
   <translation tag="Cool nozzle after filament ops" zh="耗材操作后冷却喷嘴"/>
   <translation tag="Cooling" zh="冷却中"/>
@@ -1503,13 +1507,11 @@
   <translation tag="LED Controls" zh="LED 控制"/>
   <translation tag="LED Light" zh="LED 灯"/>
   <translation tag="LED Mode" zh="LED 模式"/>
-  <translation tag="LED SELECTION" zh="LED 选择"/>
   <translation tag="LED Settings" zh="LED 设置"/>
   <translation tag="LED Strip" zh="LED 灯带"/>
   <translation tag="LED on at Start" zh="启动时开启 LED"/>
   <translation tag="LED strip available for lighting control" zh="LED 灯带可用于照明控制"/>
   <translation tag="LEDs" zh="LED"/>
-  <translation tag="LEDs controlled by the light button" zh="由灯光按钮控制的 LED"/>
   <translation tag="LOAD CELLS" zh="称重传感器"/>
   <translation tag="LOADED" zh="已加载"/>
   <translation tag="LOCKED" zh="已锁定"/>
@@ -1544,12 +1546,14 @@
   <translation tag="Length of the cooling tube section" zh="冷却管段的长度"/>
   <translation tag="Length:" zh="长度："/>
   <translation tag="Let&apos;s take a quick tour so you can find things fast." zh="让我们快速浏览一下，帮助您快速找到所需内容。"/>
+  <translation tag="Level" zh="级别"/>
   <translation tag="Leveling Gantry..." zh="正在调平龙门..."/>
   <translation tag="Library" zh="库"/>
   <translation tag="Lifetime Print Stats" zh="累计打印统计"/>
   <translation tag="Light" zh="浅色"/>
   <translation tag="Light Mode" zh="浅色模式"/>
   <translation tag="Light will switch when the current operation finishes" zh="灯光将在当前操作完成后切换"/>
+  <translation tag="Lights that follow the printer&apos;s state" zh="跟随打印机状态变化的灯光"/>
   <translation tag="Line the nozzle up with the purge chute so purged filament drops straight in." zh="将喷嘴对准排料口上方，使排出的料丝垂直落入。"/>
   <translation tag="Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer." zh="第 {} 行调用 {}，此打印机将其视为紧急停止。请使用为此打印机制作的配置重新切片该文件。"/>
   <translation tag="Listen to all theme sounds" zh="试听所有主题声音"/>
@@ -1782,6 +1786,7 @@
   <translation tag="Network forgotten" zh="已忘记网络"/>
   <translation tag="Network name cannot be empty" zh="网络名称不能为空"/>
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." zh="网络、显示、声音、打印机设置等。您可以随时从“帮助与关于”中重播此漫游。"/>
+  <translation tag="Neutral" zh="中性"/>
   <translation tag="Never" zh="从不"/>
   <translation tag="Never sleeps" zh="从不休眠"/>
   <translation tag="New Spool" zh="新料盘"/>
@@ -1805,6 +1810,7 @@
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." zh="未在打印机上检测到 LED 宏。请先添加用于 LED 控制的 Klipper 宏。"/>
   <translation tag="No LED macros detected. Type a macro name below." zh="未检测到 LED 宏。请在下方输入宏名称。"/>
   <translation tag="No LED strips detected" zh="未检测到 LED 灯带"/>
+  <translation tag="No LEDs found" zh="未找到 LED"/>
   <translation tag="No Macros Found" zh="未找到宏"/>
   <translation tag="No Multi-Filament System connected" zh="未连接多耗材系统"/>
   <translation tag="No Multi-Filament System connected." zh="未连接多耗材系统。"/>
@@ -2100,6 +2106,7 @@
   <translation tag="Preset" zh="预设"/>
   <translation tag="Preset ID: {}" zh="预设 ID: {}"/>
   <translation tag="Presets" zh="预设"/>
+  <translation tag="Presets come from the WLED device. Edit them in the WLED app." zh="预设来自 WLED 设备。请在 WLED 应用中编辑。"/>
   <translation tag="Press Abort to stop" zh="按中止以停止"/>
   <translation tag="Press Scan to search" zh="按扫描搜索"/>
   <translation tag="Pressure Adv." zh="压力提前"/>
@@ -2312,6 +2319,7 @@
   <translation tag="Recover MMU state?" zh="恢复 MMU 状态？"/>
   <translation tag="Recover State" zh="恢复状态"/>
   <translation tag="Recovering AFC system..." zh="AFC系统恢复中..."/>
+  <translation tag="Recovering..." zh="恢复中..."/>
   <translation tag="Recovery failed" zh="恢复失败"/>
   <translation tag="Recovery failed: " zh="恢复失败: "/>
   <translation tag="Recovery failed: {}" zh="恢复失败: {}"/>
@@ -2958,6 +2966,7 @@
   <translation tag="This AFC system does not support bypass mode" zh="此 AFC 系统不支持旁通模式"/>
   <translation tag="This CFS firmware exposes no external spool slot" zh="此 CFS 固件没有外部料盘槽位"/>
   <translation tag="This Happy Hare system does not support bypass mode" zh="此 Happy Hare 系统不支持旁通模式"/>
+  <translation tag="This button controls" zh="此按钮控制"/>
   <translation tag="This calibration uses the paper friction method to set your Z-offset." zh="此校准使用纸张摩擦法设置 Z 偏移。"/>
   <translation tag="This cannot be undone." zh="此操作无法撤销。"/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." zh="此通道提供 v{}，早于已安装的 v{}。此后新增的内容都将被移除。"/>
@@ -3090,7 +3099,7 @@
   <translation tag="Turn On LEDs" zh="打开 LED"/>
   <translation tag="Turn endless spool on, then set the backup gate" zh="请先开启无限料盘，再设置备用通道"/>
   <translation tag="Turn off detection" zh="关闭检测"/>
-  <translation tag="Turn on LEDs when printer starts" zh="打印机启动时开启 LED"/>
+  <translation tag="Turn on the lights your light buttons control" zh="开启灯光按钮所控制的灯光"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" zh="加载或卸载完成后关闭挤出机加热器"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." zh="旋转画面以匹配屏幕的安装方向。重启后生效。"/>
   <translation tag="Turn the printer&apos;s lights on or off" zh="开启或关闭打印机灯光"/>
@@ -3219,7 +3228,6 @@
   <translation tag="Volume of filament used during ramming" zh="填充过程中使用的耗材体积"/>
   <translation tag="Volume {}%" zh="音量 {}%"/>
   <translation tag="WIDTH SENSORS" zh="宽度传感器"/>
-  <translation tag="WLED" zh="WLED"/>
   <translation tag="WLED Preset" zh="WLED 预设"/>
   <translation tag="WPA/WPA2" zh="WPA/WPA2"/>
   <translation tag="WPA3" zh="WPA3"/>
@@ -3234,6 +3242,7 @@
   <translation tag="Waiting for another box to finish." zh="正在等待另一个料盒完成。"/>
   <translation tag="Waiting for bed to reach temperature for accurate calibration." zh="等待热床达到温度以进行精确校准。"/>
   <translation tag="Waiting for the filament system to report its state" zh="正在等待耗材系统报告状态"/>
+  <translation tag="Warm" zh="暖色"/>
   <translation tag="Warm Bed" zh="预热热床"/>
   <translation tag="Warm up for a material in one tap" zh="一键为材料预热"/>
   <translation tag="Warming Bed..." zh="正在预热热床..."/>

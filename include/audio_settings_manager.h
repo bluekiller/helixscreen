@@ -3,15 +3,13 @@
 
 #pragma once
 
+#include "completion_alert_mode.h"
 #include "lvgl/lvgl.h"
 #include "subject_managed_panel.h"
 
 #include <string>
 
 namespace helix {
-
-/** @brief Print completion notification mode (Off=0, Notification=1, Alert=2) */
-enum class CompletionAlertMode { OFF = 0, NOTIFICATION = 1, ALERT = 2 };
 
 /**
  * @brief Domain-specific manager for audio/sound settings

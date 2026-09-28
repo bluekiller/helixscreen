@@ -138,8 +138,17 @@ void PrinterLedState::set_tracked_led(const std::string& led_name) {
     tracked_led_name_ = led_name;
     if (!led_name.empty()) {
         spdlog::debug("[PrinterLedState] Tracking LED: {}", led_name);
-    } else {
-        spdlog::debug("[PrinterLedState] LED tracking disabled");
+        return;
+    }
+    spdlog::debug("[PrinterLedState] LED tracking disabled");
+    if (!subjects_initialized_) {
+        return;
+    }
+    // No status frame reports an untracked LED, so none of the last one's state may stay.
+    for (lv_subject_t* subj : {&led_state_, &led_r_, &led_g_, &led_b_, &led_w_, &led_brightness_}) {
+        if (lv_subject_get_int(subj) != 0) {
+            lv_subject_set_int(subj, 0);
+        }
     }
 }
 

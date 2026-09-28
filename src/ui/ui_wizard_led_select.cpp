@@ -11,6 +11,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "i_moonraker_api.h"
+#include "led/led_auto_state.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_client.h"
@@ -141,8 +142,8 @@ lv_obj_t* WizardLedSelectStep::create(lv_obj_t* parent) {
 void WizardLedSelectStep::cleanup() {
     spdlog::debug("[{}] Cleaning up resources", get_name());
 
-    // Save LED selection to leds/selected_strips (array — canonical path for
-    // LedController) and leds/strip (string — used by wizard dropdown restore)
+    // Stage the pick as the light button's device and the auto-state strip, and
+    // keep leds/strip (string) for the wizard dropdown restore.
     Config* config = Config::get_instance();
     if (config) {
         int index = lv_subject_get_int(&led_strip_selected_);
@@ -150,17 +151,14 @@ void WizardLedSelectStep::cleanup() {
             const std::string& item = led_strip_items_[static_cast<size_t>(index)];
             const std::string save_value = (item == "None") ? "" : item;
 
-            // Canonical: array for LedController
-            nlohmann::json strips = nlohmann::json::array();
             if (!save_value.empty()) {
-                strips.push_back(save_value);
+                helix::led::stage_light_selection({save_value, {save_value}});
             }
-            config->set(config->df() + "leds/selected_strips", strips);
 
             // String for wizard dropdown restore
             config->set(config->df() + "leds/strip", save_value);
 
-            spdlog::debug("[Wizard LED] Saved LED selection: {}", strips.dump());
+            spdlog::debug("[Wizard LED] Saved LED selection: '{}'", save_value);
         }
         if (!config->save()) {
             NOTIFY_ERROR(lv_tr("Failed to save LED configuration"));

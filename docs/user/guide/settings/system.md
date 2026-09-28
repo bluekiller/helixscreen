@@ -4,6 +4,8 @@
 
 ![System settings, top of the page](../../../images/user/settings-system.png)
 
+![System settings, scrolled to the bottom](../../../images/user/settings-system-2.png)
+
 ---
 
 ## Security
