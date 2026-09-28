@@ -411,6 +411,12 @@ class LedController {
     void discover_from_hardware(const helix::PrinterDiscovery& hardware);
     void discover_wled_strips(); ///< Async WLED discovery via Moonraker HTTP bridge
 
+    /// Called on the main thread when a WLED discovery settles, so the app can
+    /// re-run whatever waited for the full device set. Survives deinit().
+    void set_on_wled_settled(std::function<void()> cb) {
+        on_wled_settled_ = std::move(cb);
+    }
+
     /// Apply configfile.config: led_effect targets, output_pin PWM, and generic
     /// [led] channel pins. Kept and re-applied by every discover_from_hardware(),
     /// which rebuilds the lists these land on, so the order the two arrive in
@@ -580,6 +586,7 @@ class LedController {
     IMoonrakerAPI* api_ = nullptr;
     IMoonrakerClient* client_ = nullptr;
     helix::AsyncLifetimeGuard lifetime_;
+    std::function<void()> on_wled_settled_;
 
     NativeBackend native_;
     LedEffectBackend effects_;

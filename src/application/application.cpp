@@ -2965,6 +2965,10 @@ void Application::setup_discovery_callbacks() {
 
     Application* app = this;
 
+    // On a WLED-only printer discovery-complete finds nothing to light; WLED's
+    // answer is LED on at Start's next chance, and the latch keeps it to one.
+    helix::led::LedController::instance().set_on_wled_settled(helix::settle_light_buttons);
+
     client->set_on_hardware_discovered([api, client, app](const helix::PrinterDiscovery& hardware) {
         // Copy hardware into a mutable snapshot on the BG thread so the
         // queued main-thread callback owns a stable, non-aliased copy. Previous
