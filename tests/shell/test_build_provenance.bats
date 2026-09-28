@@ -176,6 +176,14 @@ PY
 # rig you cannot drive reads as "ctl is broken", and a release that ships the
 # server exposes a socket that can drive the whole UI on a customer's printer.
 
+@test "a container build leaves the tree's compile_commands.json alone" {
+    # Its fragments name /src, a path the host's syntax check cannot open.
+    run make -n mips-docker
+    [ "$status" -eq 0 ]
+    contains 'toolchain-mips' "$output"
+    contains '-e SKIP_COMPILE_COMMANDS=1' "$output"
+}
+
 @test "a developer cross build gets the remote-control server" {
     run make -n k2-docker
     [ "$status" -eq 0 ]

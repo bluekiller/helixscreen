@@ -105,6 +105,23 @@ TEST_CASE("the rim is thinner on small panels", "[gcode_selection_style]") {
             selection::kOutlinePx);
 }
 
+// outline_width_px_scaled(): the GLES renderer strokes the rim on its readback,
+// which supersampled stills render at 2x and moving frames at half resolution.
+// The widget decides the width; the ratio only converts it into readback px.
+TEST_CASE("the scaled rim converts the widget rim at any readback ratio",
+          "[gcode_selection_style]") {
+    // A 2x supersampled still strokes 2 readback px per screen px of rim.
+    REQUIRE(selection::outline_width_px_scaled(368, 736) == 2 * selection::outline_width_px(368));
+    // A widget-sized readback is the plain widget rim.
+    REQUIRE(selection::outline_width_px_scaled(390, 390) == selection::outline_width_px(390));
+}
+
+TEST_CASE("a half-resolution readback never rounds the rim away", "[gcode_selection_style]") {
+    // An odd small-panel widget at half res: the 1px rim times 159/319 is 0.498,
+    // which rounds to 0, and stroke_selection_rim ignores a rim below 1px.
+    REQUIRE(selection::outline_width_px_scaled(319, 159) >= 1);
+}
+
 // ---------------------------------------------------------------------------
 // halo_width(): the draw-API fallback for TOP_DOWN / ISOMETRIC, which paint
 // straight into the LVGL layer and so have no pixel buffer for the rim scan to

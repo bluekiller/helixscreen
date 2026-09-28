@@ -667,9 +667,9 @@ std::vector<std::string> ui_gcode_viewer_get_tool_palette(lv_obj_t* obj);
  * full-load reads ParsedGCodeFile::tools_used_indices, streaming reads the
  * used-tool set the layer index accumulates during its scan. Callers that went
  * straight to the parsed file got an empty answer on every streamed file — and
- * a tool changer (Snapmaker U1, 961MB RAM) is forced to stream by
- * MemoryInfo::should_force_streaming(), so on that printer it was empty 100% of
- * the time and the whole model rendered in one tool's colour.
+ * a tool changer (Snapmaker U1, 961MB RAM) streams everything above a few MB,
+ * so on that printer it was empty on every large print and the whole model
+ * rendered in one tool's colour.
  *
  * Both halves answer identically, including ParsedGCodeFile's single-extruder
  * convention: a file with a colour palette but no `Tn` at all reports {0}.

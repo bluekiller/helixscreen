@@ -1718,6 +1718,8 @@ TEST_CASE("GCodeParser - FeatureType normalization across slicer dialects",
                 FeatureType::SparseInfill);
         REQUIRE(GCodeParser::parse_feature_type_value("Solid infill") == FeatureType::SolidInfill);
         REQUIRE(GCodeParser::parse_feature_type_value("Top surface") == FeatureType::TopSurface);
+        REQUIRE(GCodeParser::parse_feature_type_value("Top solid infill") ==
+                FeatureType::TopSurface);
         REQUIRE(GCodeParser::parse_feature_type_value("Bottom surface") ==
                 FeatureType::BottomSurface);
         REQUIRE(GCodeParser::parse_feature_type_value("Bridge") == FeatureType::Bridge);

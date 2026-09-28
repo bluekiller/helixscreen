@@ -20,6 +20,7 @@
 #include "gcode_parser.h"
 #include "gcode_pause_scan.h"
 #include "gcode_render_mode_policy.h"
+#include "gcode_render_schedule.h"
 #include "gcode_ssao_policy.h"
 #include "gcode_streaming_config.h"
 #include "gcode_streaming_controller.h"
@@ -493,6 +494,35 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
 }
 
 #ifdef ENABLE_3D_RENDERER
+/// Segments a banded build keeps: shells are strided by the band depth;
+/// surfaces (skins, and the whole first layer so the model keeps its bottom)
+/// are kept on every layer when they fit. Counted the way GeometryBuilder
+/// selects them, so plan_bands() sizes the band the builder will make.
+namespace helix {
+struct BandSegmentCounts {
+    size_t shell = 0;
+    size_t surface = 0;
+};
+} // namespace helix
+
+static BandSegmentCounts count_band_segments(const helix::gcode::ParsedGCodeFile& file) {
+    BandSegmentCounts counts;
+    const size_t first_layer = helix::gcode::first_print_layer(file);
+    for (size_t li = first_layer; li < file.layers.size(); ++li) {
+        for (const auto& seg : file.layers[li].segments) {
+            if (!seg.is_extrusion || helix::gcode::is_auxiliary_geometry(seg.feature_type)) {
+                continue;
+            }
+            if (helix::gcode::is_band_shell_feature(seg.feature_type)) {
+                ++counts.shell;
+            } else if (li == first_layer || helix::gcode::is_surface_feature(seg.feature_type)) {
+                ++counts.surface;
+            }
+        }
+    }
+    return counts;
+}
+
 /// Build a 3D RibbonGeometry from a parsed gcode file using the memory budget
 /// system. Returns nullptr if the budget tier forces 2D or the build exceeds
 /// the budget. Shared between the initial async-load path and the on-demand
@@ -518,6 +548,26 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
         context_tag, available_kb / 1024, budget / (1024 * 1024), render_driver, max_tris,
         file.drawable_segments, file.total_segments, budget_config.tier);
 
+    // A file the triangle cap alone pushed to 2D gets a banded still instead:
+    // shells on every n-th layer, n layers tall, skins and the first layer whole.
+    helix::gcode::render_schedule::BandPlan still_bands{1, true};
+    if (budget_config.tier == 4 && budget_config.triangle_capped) {
+        const BandSegmentCounts counts = count_band_segments(file);
+        still_bands =
+            helix::gcode::render_schedule::plan_still_bands(counts.shell, counts.surface, max_tris);
+        if (still_bands.band_layers > 1) {
+            budget_config = {.tier = 3,
+                             .tube_sides = 4,
+                             .simplification_tolerance = 0.01f,
+                             .include_travels = false,
+                             .budget_bytes = budget_config.budget_bytes,
+                             .triangle_capped = true};
+            spdlog::info("[GCode Viewer] {}: over the triangle cap, banded still with {}-layer "
+                         "bands",
+                         context_tag, still_bands.band_layers);
+        }
+    }
+
     if (budget_config.tier > 3) {
         spdlog::info("[GCode Viewer] {}: tier {} — skipping 3D geometry build", context_tag,
                      budget_config.tier);
@@ -525,24 +575,31 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     }
 
     helix::gcode::GeometryBuilder builder;
-    if (!file.tool_color_palette.empty()) {
-        builder.set_tool_color_palette(file.tool_color_palette);
-    }
-    if (file.perimeter_extrusion_width_mm > 0.0f) {
-        builder.set_extrusion_width(file.perimeter_extrusion_width_mm);
-    } else if (file.extrusion_width_mm > 0.0f) {
-        builder.set_extrusion_width(file.extrusion_width_mm);
-    }
-    builder.set_layer_height(file.layer_height_mm);
+    // Palette, width and layer height describe the file, so the moving mesh
+    // builds with the same values as the main geometry.
+    auto configure = [&file](helix::gcode::GeometryBuilder& b) {
+        if (!file.tool_color_palette.empty()) {
+            b.set_tool_color_palette(file.tool_color_palette);
+        }
+        if (file.perimeter_extrusion_width_mm > 0.0f) {
+            b.set_extrusion_width(file.perimeter_extrusion_width_mm);
+        } else if (file.extrusion_width_mm > 0.0f) {
+            b.set_extrusion_width(file.extrusion_width_mm);
+        }
+        b.set_layer_height(file.layer_height_mm);
+    };
+    configure(builder);
     builder.set_budget_tube_sides(budget_config.tube_sides);
     builder.set_budget_limit(budget_config.budget_bytes);
+    builder.set_band_layers(still_bands.band_layers, still_bands.surfaces_every_layer);
 
     helix::gcode::SimplificationOptions opts{.tolerance_mm = budget_config.simplification_tolerance,
                                              .min_segment_length_mm = 0.05f,
                                              .max_direction_change_deg =
-                                                 budget_config.tier >= 3   ? 45.0f
-                                                 : budget_config.tier == 2 ? 30.0f
-                                                                           : 15.0f};
+                                                 budget_config.triangle_capped ? 15.0f
+                                                 : budget_config.tier >= 3     ? 45.0f
+                                                 : budget_config.tier == 2     ? 30.0f
+                                                                               : 15.0f};
 
     auto geometry =
         std::make_unique<helix::gcode::RibbonGeometry>(builder.build(file, opts, should_cancel));
@@ -560,6 +617,49 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
                  context_tag, geometry->vertices.size(),
                  geometry->extrusion_triangle_count + geometry->travel_triangle_count,
                  budget_config.tier);
+
+    // Moving mesh: what a finger-down frame draws on a GPU too slow for the
+    // strided view to read as the model. The gate is the seed-rate budget of
+    // the weakest GPU class the app plans for, so a fast desktop builds it
+    // too and simply never draws it.
+    const size_t moving_budget =
+        static_cast<size_t>(helix::gcode::render_schedule::kSeedRateTrisPerMs *
+                            helix::gcode::render_schedule::kMovingBudgetMs);
+    const size_t main_triangles =
+        geometry->extrusion_triangle_count + geometry->travel_triangle_count;
+    if (main_triangles > moving_budget) {
+        const BandSegmentCounts counts = count_band_segments(file);
+        if (counts.shell + counts.surface > 0) {
+            const auto bands = helix::gcode::render_schedule::plan_bands(
+                counts.shell, counts.surface, moving_budget);
+            const int band_layers = bands.band_layers;
+            helix::gcode::GeometryBuilder mesh_builder;
+            configure(mesh_builder);
+            mesh_builder.set_band_layers(band_layers, bands.surfaces_every_layer);
+            mesh_builder.set_budget_tube_sides(4);
+            helix::gcode::SimplificationOptions mesh_opts{.tolerance_mm = 0.05f,
+                                                          .min_segment_length_mm = 0.05f,
+                                                          .max_direction_change_deg = 30.0f};
+            auto mesh = std::make_unique<helix::gcode::RibbonGeometry>(
+                mesh_builder.build(file, mesh_opts, should_cancel));
+            const size_t mesh_triangles =
+                mesh->extrusion_triangle_count + mesh->travel_triangle_count;
+            if (should_cancel && should_cancel()) {
+                spdlog::info("[GCode Viewer] {}: moving mesh cancelled", context_tag);
+            } else if (mesh->strips.empty() || mesh_triangles == 0) {
+                spdlog::info("[GCode Viewer] {}: moving mesh built empty, keeping stride fallback",
+                             context_tag);
+            } else {
+                mesh->prepare_interleaved_buffers();
+                geometry->moving_mesh = std::move(mesh);
+                spdlog::info("[GCode Viewer] Moving mesh: {}-layer bands, skins on {} layer, {} "
+                             "triangles",
+                             band_layers, bands.surfaces_every_layer ? "every" : "band",
+                             mesh_triangles);
+            }
+        }
+    }
+
     geometry->prepare_interleaved_buffers();
     return geometry;
 }
@@ -853,7 +953,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
         // During chunked VBO upload, renderer returns early without drawing.
         // After the first real GPU render, force one extra frame so the
         // cached-buffer path (no GL context switch) blits cleanly.
-        if (st->renderer_->is_uploading() || st->needs_3d_refresh_) {
+        if (st->renderer_->is_uploading() || st->renderer_->is_refining() ||
+            st->needs_3d_refresh_) {
             if (!st->renderer_->is_uploading()) {
                 st->needs_3d_refresh_ = false;
             }
@@ -2255,7 +2356,7 @@ void ui_gcode_viewer_force_redraw(lv_obj_t* obj) {
 
         // 3D path: the renderer's cached-blit fast path skips re-rendering when
         // state is unchanged and draw_buf_ exists. Drop the draw_buf so the next
-        // DRAW_POST takes the full render path (render_to_fbo -> blit_to_lvgl).
+        // DRAW_POST takes the full render path (run_slice -> blit_to_lvgl).
 #ifdef ENABLE_3D_RENDERER
     if (st->renderer_) {
         st->renderer_->clear_cached_frame();

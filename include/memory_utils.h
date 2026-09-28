@@ -71,8 +71,8 @@ struct MemoryInfo {
         256 * 1024; ///< < 256MB usable = constrained (AD5M, K1C)
     static constexpr size_t TIER_NORMAL_KB =
         448 * 1024; ///< 256-448MB usable = normal; >=448MB (512MB-class, e.g. AD5X) = good
-    static constexpr size_t TIER_FORCE_STREAMING_KB =
-        2ULL * 1024 * 1024; ///< <= 2GB = force streaming
+    static constexpr size_t TIER_LOW_RAM_KB =
+        2ULL * 1024 * 1024; ///< <= 2GB = low-RAM tier (usually co-hosts Klipper)
 
     /// Check if available memory is low (< 64MB available right now)
     bool is_low_memory() const {
@@ -94,9 +94,10 @@ struct MemoryInfo {
         return total_kb >= TIER_NORMAL_KB;
     }
 
-    /// Should force G-code streaming mode (total RAM <= 2GB)
-    bool should_force_streaming() const {
-        return total_kb > 0 && total_kb <= TIER_FORCE_STREAMING_KB;
+    /// Low-RAM tier (total RAM <= 2GB): these boards usually co-host Klipper
+    /// and Moonraker, so memory decisions take a smaller share of what is left.
+    bool is_low_ram_device() const {
+        return total_kb > 0 && total_kb <= TIER_LOW_RAM_KB;
     }
 
     /// Get total memory in MB

@@ -1440,6 +1440,7 @@ translations:
     der Kalibrierung heizen für genauen Offset mit Wärmeausdehnung.
   Heat nozzle: Düse aufheizen
   Heat the bed to {}°C: Bett auf {}°C heizen
+  Heat the chamber too: Kammer ebenfalls heizen
   Heat the extruder to at least {}°C before loading filament: Erhitzen Sie den Extruder vor dem Laden von Filament auf mindestens {}°C
   Heat to at least %d°C for filament operations: Für Filamentvorgänge auf mindestens
     %d°C aufheizen

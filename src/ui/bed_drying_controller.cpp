@@ -67,6 +67,9 @@ void BedDryingController::init_subjects() {
     UI_MANAGED_SUBJECT_INT(bed_drying_state_, 0, "bed_drying_state", subjects_);
     UI_MANAGED_SUBJECT_STRING(bed_drying_text_, text_buf_, "", "bed_drying_text", subjects_);
     UI_MANAGED_SUBJECT_INT(bed_drying_ack_, 0, "bed_drying_ack", subjects_);
+    UI_MANAGED_SUBJECT_INT(bed_drying_chamber_assist_, 0, "bed_drying_chamber_assist", subjects_);
+    UI_MANAGED_SUBJECT_STRING(bed_drying_chamber_text_, chamber_text_buf_, "",
+                              "bed_drying_chamber_text", subjects_);
     subjects_initialized_ = true;
 }
 
@@ -175,6 +178,31 @@ int BedDryingController::bed_temp_for(const Material& material) const {
     return bed_temp_c(material, bed_max);
 }
 
+// A temperature_fan chamber only cools: a target of 0 on it runs the fan flat out.
+ChamberAssist BedDryingController::chamber_assist_available() const {
+    if (!tc_) {
+        return ChamberAssist::None;
+    }
+    const std::string heater = tc_->resolved_name(HeaterType::Chamber);
+    return chamber_assist(tc_->chamber_dryer().supported,
+                          !heater.empty() && heater.rfind("temperature_fan ", 0) != 0);
+}
+
+int BedDryingController::chamber_temp_for(const Material& material) const {
+    return chamber_temp_c(
+        material, tc_ ? static_cast<int>(tc_->effective_keypad_max(HeaterType::Chamber, 0.0f)) : 0);
+}
+
+void BedDryingController::describe_chamber(const Material& material) {
+    if (!subjects_initialized_) {
+        return;
+    }
+    lv_subject_set_int(&bed_drying_chamber_assist_, static_cast<int>(chamber_assist_available()));
+    const std::string text =
+        fmt::format("{} ({}°C)", lv_tr("Heat the chamber too"), chamber_temp_for(material));
+    lv_subject_copy_string(&bed_drying_chamber_text_, text.c_str());
+}
+
 BedDryingController::State BedDryingController::state() const {
     if (!record_.latched) {
         switch (pre_run_) {
@@ -238,6 +266,11 @@ void BedDryingController::prepare(const Material& material, bool with_appliance,
     }
     pending_material_ = material;
     pending_appliance_ = with_appliance;
+    if (tc_) {
+        // The chamber cap comes from the configfile; ask now, so it is known by
+        // the time the spools are on and the target goes out.
+        tc_->ensure_limits(HeaterType::Chamber);
+    }
     set_pre_run(PreRun::Preparing);
     const unsigned gen = prep_gen_;
 
@@ -363,7 +396,10 @@ bool BedDryingController::confirm_placed() {
     run.start_s = start;
     run.end_s = start + static_cast<long long>(m.hours) * 3600;
     run.bed_c = bed_temp_for(m);
-    run.appliance = pending_appliance_ && tc_ && tc_->chamber_dryer().supported;
+    const ChamberAssist assist =
+        pending_appliance_ ? chamber_assist_available() : ChamberAssist::None;
+    run.appliance = assist == ChamberAssist::Dryer;
+    run.chamber_c = assist == ChamberAssist::Heater ? chamber_temp_for(m) : 0;
 
     // The run reaches disk before any heat is sent.
     if (!SettingsManager::instance().set_bed_drying_record(run)) {
@@ -373,14 +409,18 @@ bool BedDryingController::confirm_placed() {
     set_latch(true);
     bed_target_seen_ = false;
     removal_prompted_ = false;
-    spdlog::info("[BedDrying] Spools on the bed: {} at {}C for {}h{}", m.name, record_.bed_c,
-                 m.hours, record_.appliance ? ", chamber dryer alongside" : "");
+    spdlog::info("[BedDrying] Spools on the bed: {} at {}C for {}h{}{}", m.name, record_.bed_c,
+                 m.hours, record_.appliance ? ", chamber dryer alongside" : "",
+                 record_.chamber_c > 0 ? fmt::format(", chamber at {}C", record_.chamber_c) : "");
 
     if (tc_) {
         tc_->set_target(HeaterType::Bed, record_.bed_c);
         if (record_.appliance) {
             // The appliance heats the air around the spools, far below the bed.
             tc_->start_chamber_drying(static_cast<float>(m.air_c), m.hours * 60, false, false);
+        }
+        if (record_.chamber_c > 0) {
+            tc_->set_target(HeaterType::Chamber, record_.chamber_c, {.toast = false});
         }
     }
     // Held to the planned end plus the dead-man margin: if HelixScreen can no
@@ -415,9 +455,9 @@ void BedDryingController::stop() {
     }
 }
 
-// The bed goes off only while it is still ours: a target someone set by hand
-// since owns it now. A target reading 0 is ours too; an off sent to a cold bed
-// costs nothing.
+// The bed and a chamber heater go off only while still ours: a target someone
+// set by hand since owns it now. A target reading 0 is ours too; an off sent to
+// a cold heater costs nothing.
 void BedDryingController::end_run(const char* why) {
     spdlog::info("[BedDrying] Run ended ({})", why);
     record_.ended = true;
@@ -427,6 +467,13 @@ void BedDryingController::end_run(const char* why) {
         const int target_deci = target ? lv_subject_get_int(target) : 0;
         if (target_deci == 0 || target_deci == record_.bed_c * 10) {
             tc_->set_target(HeaterType::Bed, 0);
+        }
+        if (record_.chamber_c > 0) {
+            lv_subject_t* chamber = state_.get_chamber_target_subject();
+            const int chamber_deci = chamber ? lv_subject_get_int(chamber) : 0;
+            if (chamber_deci == 0 || chamber_deci == record_.chamber_c * 10) {
+                tc_->set_target(HeaterType::Chamber, 0, {.toast = false});
+            }
         }
         if (record_.appliance) {
             tc_->stop_chamber_drying();

@@ -15,6 +15,7 @@
 #include "chamber_heater_backend.h"
 #include "config.h"
 #include "moonraker_api.h"
+#include "printer_discovery.h"
 #include "printer_state.h"
 #include "settings_manager.h"
 #include "temperature_controller.h"
@@ -93,6 +94,30 @@ struct BedDryingFixture : public LVGLTestFixture {
         return std::any_of(h.begin(), h.end(), [&](const std::string& l) {
             return l.find(needle) != std::string::npos;
         });
+    }
+
+    /// A plain chamber heater, no dryer, whose config caps it at 60 C.
+    void discover_chamber_heater() {
+        SettingsManager::instance().set_chamber_heater_assignment("auto");
+        client.config_sections["heater_generic chamber"] = {{"max_temp", "60"}};
+        PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json{"heater_generic chamber", "extruder", "heater_bed"});
+        state.set_hardware(hw);
+        REQUIRE(tc.resolved_name(HeaterType::Chamber) == "heater_generic chamber");
+    }
+
+    void chamber_target(double target) {
+        frame({{"heater_generic chamber", {{"target", target}, {"temperature", 30.0}}}});
+    }
+
+    /// Prepare and place a run of @p m with the chamber option on.
+    void start_with_chamber(const Material& m) {
+        bool ready = false;
+        ctrl->prepare(m, true, [&] { ready = true; }, nullptr);
+        drain();
+        REQUIRE(ready);
+        REQUIRE(ctrl->confirm_placed());
+        drain();
     }
 
     /// Prepare and place a PLA run.
@@ -494,4 +519,145 @@ TEST_CASE_METHOD(BedDryingFixture, "a second start while the plate moves is refu
     CHECK(std::count_if(h.begin(), h.end(), [](const std::string& l) {
               return l.find("G1 Z220.0") != std::string::npos;
           }) == 1);
+}
+
+TEST_CASE_METHOD(BedDryingFixture,
+                 "a plain chamber heater holds the air temperature, capped at its max_temp",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    SECTION("PLA's 50 C is under the cap") {
+        start_with_chamber(kMaterials[0]);
+        CHECK(sent("SET_HEATER_TEMPERATURE HEATER=chamber TARGET=50"));
+        CHECK(SettingsManager::instance().get_bed_drying_record().chamber_c == 50);
+    }
+    SECTION("ABS's 80 C is held to the heater's 60") {
+        start_with_chamber(kMaterials[4]);
+        CHECK(sent("SET_HEATER_TEMPERATURE HEATER=chamber TARGET=60"));
+        CHECK_FALSE(sent("HEATER=chamber TARGET=80"));
+        CHECK(SettingsManager::instance().get_bed_drying_record().chamber_c == 60);
+    }
+    CHECK(sent("heater_bed"));
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "the chamber heater stays off when the option is off",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    start_pla();
+    CHECK_FALSE(sent("HEATER=chamber"));
+    CHECK(SettingsManager::instance().get_bed_drying_record().chamber_c == 0);
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "Stop turns the chamber heater off while it is still ours",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    start_with_chamber(kMaterials[0]);
+    bed(70, 70);
+    chamber_target(50);
+    client.clear_gcode_script_history();
+
+    ctrl->stop();
+    drain();
+
+    // Sent while the spool latch is still set, so the latch lets it through.
+    REQUIRE(state.spool_latch_active());
+    CHECK(sent("SET_HEATER_TEMPERATURE HEATER=chamber TARGET=0"));
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "a chamber target changed by hand is left alone at the end",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    start_with_chamber(kMaterials[0]);
+    bed(70, 70);
+    chamber_target(45);
+    client.clear_gcode_script_history();
+
+    ctrl->stop();
+    drain();
+
+    CHECK_FALSE(sent("HEATER=chamber TARGET=0"));
+}
+
+TEST_CASE_METHOD(BedDryingFixture,
+                 "a restart mid-run still turns the chamber heater off at the end",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    start_with_chamber(kMaterials[0]);
+    ctrl.reset();
+    state.set_spool_latch(false);
+
+    ctrl = make_controller();
+    ctrl->restore();
+    bed(70, 70);
+    chamber_target(50);
+    client.clear_gcode_script_history();
+
+    ctrl->tick(kStart + kHours12);
+    drain();
+
+    CHECK(ctrl->state() == BedDryingController::State::Cooling);
+    CHECK(sent("SET_HEATER_TEMPERATURE HEATER=chamber TARGET=0"));
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "a chamber dryer wins over the plain heater",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    tc.set_chamber_dryer(chamber::backend_by_id("panda_breath"), true);
+    start_with_chamber(kMaterials[0]);
+    CHECK(sent("PANDA_BREATH_DRY_START TEMP=50"));
+    CHECK_FALSE(sent("HEATER=chamber"));
+    CHECK(SettingsManager::instance().get_bed_drying_record().chamber_c == 0);
+    tc.set_chamber_dryer(nullptr);
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "a temperature_fan chamber is not driven as a heater",
+                 "[bed_drying][chamber_heater]") {
+    SettingsManager::instance().set_chamber_heater_assignment("auto");
+    PrinterDiscovery hw;
+    hw.parse_objects(nlohmann::json{"temperature_fan chamber", "extruder", "heater_bed"});
+    state.set_hardware(hw);
+    REQUIRE(tc.resolved_name(HeaterType::Chamber) == "temperature_fan chamber");
+
+    CHECK(ctrl->chamber_assist_available() == ChamberAssist::None);
+    start_with_chamber(kMaterials[0]);
+    CHECK_FALSE(sent("TEMPERATURE_FAN=chamber"));
+    CHECK(SettingsManager::instance().get_bed_drying_record().chamber_c == 0);
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "the start modal's chamber row names what heats and to what",
+                 "[bed_drying][chamber_heater]") {
+    lv_subject_t* assist = ctrl->get_chamber_assist_subject();
+    lv_subject_t* text = ctrl->get_chamber_text_subject();
+
+    ctrl->describe_chamber(kMaterials[4]);
+    CHECK(lv_subject_get_int(assist) == static_cast<int>(ChamberAssist::None));
+
+    discover_chamber_heater();
+    ctrl->prepare(kMaterials[4], false, nullptr, nullptr); // reads the 60 C cap
+    drain();
+    ctrl->describe_chamber(kMaterials[4]);
+    CHECK(lv_subject_get_int(assist) == static_cast<int>(ChamberAssist::Heater));
+    CHECK(std::string(lv_subject_get_string(text)) == "Heat the chamber too (60°C)");
+    ctrl->describe_chamber(kMaterials[0]);
+    CHECK(std::string(lv_subject_get_string(text)) == "Heat the chamber too (50°C)");
+
+    tc.set_chamber_dryer(chamber::backend_by_id("panda_breath"), true);
+    ctrl->describe_chamber(kMaterials[0]);
+    CHECK(lv_subject_get_int(assist) == static_cast<int>(ChamberAssist::Dryer));
+    tc.set_chamber_dryer(nullptr);
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "Stop while placing sends no chamber off",
+                 "[bed_drying][chamber_heater]") {
+    discover_chamber_heater();
+    bool ready = false;
+    ctrl->prepare(kMaterials[0], true, [&] { ready = true; }, nullptr);
+    drain();
+    REQUIRE(ready);
+    REQUIRE(ctrl->state() == BedDryingController::State::Placing);
+    client.clear_gcode_script_history();
+
+    ctrl->stop();
+    drain();
+
+    CHECK_FALSE(sent("HEATER=chamber"));
 }

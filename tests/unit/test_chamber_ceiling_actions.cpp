@@ -346,6 +346,30 @@ TEST_CASE("set_hardware wires backend actions into the controller", "[chamber][a
     helix::SettingsManager::instance().set_chamber_heater_assignment("auto");
 }
 
+TEST_CASE("set_hardware reads the chamber ceiling before any input surface asks",
+          "[chamber][ceiling]") {
+    ChamberFixture f;
+    f.client.config_sections = {{"heater_generic chamber", {{"max_temp", "60"}}}};
+    helix::PanelWidgetManager::instance().register_shared_resource<helix::TemperatureController>(
+        &f.controller);
+    struct Unregister {
+        ~Unregister() {
+            helix::PanelWidgetManager::instance()
+                .register_shared_resource<helix::TemperatureController>(
+                    std::shared_ptr<helix::TemperatureController>{});
+        }
+    } unregister;
+
+    helix::PrinterDiscovery hardware;
+    hardware.parse_objects(nlohmann::json{"heater_generic chamber", "extruder", "heater_bed"});
+    f.state.set_hardware(hardware);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    // A label built from keypad_range() on first open shows the real cap.
+    CHECK(f.controller.configured_max(helix::HeaterType::Chamber) == 60);
+    CHECK(f.controller.keypad_range(helix::HeaterType::Chamber).max == 60.0f);
+}
+
 namespace {
 
 void drain() {

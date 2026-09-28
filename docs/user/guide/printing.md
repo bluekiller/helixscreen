@@ -61,7 +61,7 @@ Once connected, OrcaSlicer's **Print** button uploads the sliced file and (optio
 
 Tap a file to see the preview panel:
 
-- **3D G-code preview**: Rotatable with touch, showing the toolpath
+- **3D G-code preview**: Rotatable with touch, showing the toolpath. On slower boards, the preview shows a simplified model while you drag and sharpens a moment after you let go.
 - **Metadata**: Estimated time, filament weight, layer count, material, and layer height
 - **Pre-print steps**: Shows which calibration steps will run before printing (e.g., bed mesh)
 - **Timelapse toggle**: Enable recording if you have the timelapse plugin installed

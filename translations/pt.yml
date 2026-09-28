@@ -1430,6 +1430,7 @@ translations:
     a mesa antes de calibrar para um offset preciso com expansão térmica.
   Heat nozzle: Aquecer bico
   Heat the bed to {}°C: Aquecer a mesa a {}°C
+  Heat the chamber too: Aquecer também a câmara
   Heat the extruder to at least {}°C before loading filament: Aqueça o extrusor a pelo menos {}°C antes de carregar filamento
   Heat to at least %d°C for filament operations: Aqueça até pelo menos %d°C para operações
     de filamento

@@ -1288,6 +1288,7 @@
   <translation tag="Heat bed before calibrating for accurate offset with thermal expansion." zh="校准前加热热床，以获得考虑热膨胀的精确偏移。"/>
   <translation tag="Heat nozzle" zh="加热喷嘴"/>
   <translation tag="Heat the bed to {}°C" zh="将热床加热到 {}°C"/>
+  <translation tag="Heat the chamber too" zh="同时加热腔体"/>
   <translation tag="Heat the extruder to at least {}°C before loading filament" zh="装载耗材前请将挤出机加热至至少 {}°C"/>
   <translation tag="Heat to at least %d°C for filament operations" zh="请加热至至少 %d°C 以进行耗材操作"/>
   <translation tag="Heatbed Temperature" zh="热床温度"/>

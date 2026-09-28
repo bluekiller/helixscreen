@@ -171,17 +171,11 @@ static void register_color_picker_component_constants(const char* component_name
 
     lv_xml_component_scope_t* scope = lv_xml_component_get_scope(component_name);
     if (scope) {
-        // swatch_size ONLY where the component declares a fallback <px> for it.
-        // register_const is first-write-wins, and <consts> are parsed during
-        // register_xml(), so the declaration in color_picker.xml already owns
-        // the name by the time we get here — the responsive 24/28/32 ladder was
-        // silently discarded and every screen got the declared 32. update_const
-        // overwrites.
-        // Scopes without the declaration are skipped: update_const would log a
-        // "not found for update" warning on every boot for a name they never use.
-        if (lv_xml_get_const_silent(scope, "swatch_size") != nullptr) {
-            lv_xml_update_const(scope, "swatch_size", swatch_size);
-        }
+        // set, not register: register_const is first-write-wins, and <consts>
+        // are parsed during register_xml(), so the fallback <px> in
+        // color_picker.xml already owns the name by the time we get here and
+        // would pin every screen to 32 instead of the responsive 24/28/32.
+        lv_xml_set_const(scope, "swatch_size", swatch_size);
         // Never declared in XML anywhere, so register is silent and correct.
         lv_xml_register_const(scope, "sv_size", sv_buf);
         lv_xml_register_const(scope, "hue_height", hue_buf);
