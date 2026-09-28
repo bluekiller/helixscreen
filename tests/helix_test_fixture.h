@@ -55,7 +55,7 @@ class HelixTestFixture {
     HelixTestFixture(HelixTestFixture&&) = delete;
     HelixTestFixture& operator=(HelixTestFixture&&) = delete;
 
-  protected:
-    // List expands reactively. Keep small; don't over-reset.
+    // List expands reactively. Keep small; don't over-reset. Public because the
+    // test runner's listener also calls it before every case (tests/test_main.cpp).
     static void reset_all();
 };
