@@ -128,9 +128,38 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: unset means the chamber light",
 
 TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: a vanished device resolves to the chamber light",
                  "[led][light_button]") {
+    // A strip renamed in printer.cfg, or a macro device deleted in Settings.
+    const std::string saved = GENERATE(std::string("neopixel gone"), std::string("macro:Gone"));
+    INFO("saved key: " << saved);
+    auto& ctrl = LedController::instance();
+    const auto switchable = ctrl.switchable_ids();
+    REQUIRE(std::find(switchable.begin(), switchable.end(), saved) == switchable.end());
+
+    std::string chamber_name;
+    for (const auto& d : ctrl.all_selectable_strips()) {
+        if (d.id == "neopixel chamber_light") {
+            chamber_name = device_display_name(d);
+        }
+    }
+    REQUIRE_FALSE(chamber_name.empty());
+
     LedWidget w("led", ps, api.get());
-    w.set_config({{"led", "neopixel gone"}});
+    w.set_config({{"led", saved}});
+    lv_obj_t* root = lv_obj_create(test_screen());
+    lv_obj_t* button = lv_obj_create(root);
+    lv_obj_add_event_cb(button, LedWidget::light_toggle_cb, LV_EVENT_CLICKED, nullptr);
+    w.attach(root, test_screen());
+
+    CHECK(w.light_key() == saved);
+    CHECK(name_of("led") == chamber_name);
     CHECK(w.targets() == std::vector<std::string>{"neopixel chamber_light"});
+    CHECK(w.overlay_device() == "neopixel chamber_light");
+
+    client.clear_gcode_script_history();
+    lv_obj_send_event(button, LV_EVENT_CLICKED, nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(scripts_naming(client, "chamber_light") > 0);
+    w.detach();
 }
 
 TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: All lights toggles every switchable device",
