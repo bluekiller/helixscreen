@@ -297,17 +297,25 @@ void LedWidget::handle_light_toggle() {
     }
 }
 
-void LedWidget::update_light_icon() {
-    if (!light_icon_) {
-        return;
-    }
-
+LightIconLook LedWidget::icon_look() const {
     auto& led_ctrl = led::LedController::instance();
     std::vector<led::DeviceState> states;
     for (const auto& id : targets()) {
         states.push_back(led_ctrl.device_state(id));
     }
-    const LightIconLook look = light_icon_look(states);
+    LightIconLook look = light_icon_look(states);
+    if (led_key_ == led::LIGHT_BUTTON_ALL) {
+        look.has_rgb = false;
+    }
+    return look;
+}
+
+void LedWidget::update_light_icon() {
+    if (!light_icon_) {
+        return;
+    }
+
+    const LightIconLook look = icon_look();
 
     const char* icon_name = ui_brightness_to_lightbulb_icon(look.brightness);
     helix::ui::icon::set_source(light_icon_, icon_name);
@@ -396,7 +404,7 @@ void LedWidget::LedPicker::on_created(lv_obj_t* menu_obj) {
     // DECLARATIVE_OK: measured cap. A share of the screen, so a printer with a
     // dozen lights scrolls the list instead of growing the card past the panel.
     if (lv_obj_t* list = lv_obj_find_by_name(menu_obj, "led_picker_list")) {
-        lv_obj_set_style_max_height(list, screen_height_pct(50), 0);
+        lv_obj_set_style_max_height(list, screen_height_pct(66), 0);
     }
 }
 

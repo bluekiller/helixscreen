@@ -92,6 +92,10 @@ class LedWidget : public PanelWidget {
         return led_key_;
     }
 
+    /// The bulb for this button's targets. All lights has no one device to take
+    /// a hue from, so it lights in the theme's lamp color.
+    LightIconLook icon_look() const;
+
     // XML event callbacks (public for early registration in register_led_widget)
     static void light_toggle_cb(lv_event_t* e);
     static void light_more_cb(lv_event_t* e);

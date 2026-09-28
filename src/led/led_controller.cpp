@@ -582,7 +582,7 @@ void LedController::discover_wled_strips() {
                     });
 
                 // Poll initial status
-                wled_.poll_status();
+                refresh_wled_state();
             });
         },
         [](const MoonrakerError& err) {
@@ -2090,6 +2090,7 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
         return Settle{on_done, on_fail, on_queued};
     };
 
+    bool wled_changed = false;
     for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
         if (backend_type == LedBackendType::NATIVE || backend_type == LedBackendType::OUTPUT_PIN) {
@@ -2117,6 +2118,7 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
             } else {
                 wled_.set_off(strip_id, cbs.done, cbs.fail);
             }
+            wled_changed = true;
             break;
         }
 
@@ -2174,6 +2176,12 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
             // Effects are controlled separately via activate/stop
             break;
         }
+    }
+
+    // WLED state is recorded optimistically and no status frame follows it, so
+    // this is the only signal its light buttons get.
+    if (wled_changed) {
+        bump_state_version();
     }
 
     if (in_flight_count_ == 0) {

@@ -222,3 +222,17 @@ TEST_CASE_METHOD(DeviceStateFixture, "device_state: a lit W channel counts towar
     ctrl.update_from_status({{"neopixel a", {{"color_data", {{0.0, 0.0, 0.0, 0.4}}}}}});
     CHECK(ctrl.device_state("neopixel a").rgb == 0xFFFFFFu);
 }
+
+TEST_CASE_METHOD(DeviceStateFixture, "set_power on a WLED strip bumps the state version",
+                 "[led][state]") {
+    auto& ctrl = LedController::instance();
+    int before = version();
+    ctrl.set_power({"printer_led"}, true);
+    CHECK(version() > before);
+    CHECK(ctrl.device_state("printer_led").power == PowerState::On);
+
+    before = version();
+    ctrl.set_power({"printer_led"}, false);
+    CHECK(version() > before);
+    CHECK(ctrl.device_state("printer_led").power == PowerState::Off);
+}
