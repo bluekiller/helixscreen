@@ -51,6 +51,26 @@
     <px name="swatch_grid_width_small" value="208"/>
     <px name="swatch_grid_width_medium" value="232"/>
     <px name="swatch_grid_width_large" value="232"/>
+    <!-- The grids' ring: 2px wide with a 1px gap, a reach of 3. -->
+    <px name="swatch_grid_ring_width_small" value="2"/>
+    <px name="swatch_grid_ring_width_medium" value="2"/>
+    <px name="swatch_grid_ring_width_large" value="2"/>
+    <px name="swatch_grid_ring_reach_small" value="3"/>
+    <px name="swatch_grid_ring_reach_medium" value="3"/>
+    <px name="swatch_grid_ring_reach_large" value="3"/>
+    <!-- The tabbed picker (micro, tiny) gives its presets the whole tab: larger
+         swatches, and the column count follows from the tab's width. Only those
+         two tiers ever show the tab; the core tiers mirror them. -->
+    <px name="picker_tab_swatch_size_micro" value="40"/>
+    <px name="picker_tab_swatch_size_small" value="40"/>
+    <px name="picker_tab_swatch_size_medium" value="40"/>
+    <px name="picker_tab_swatch_size_large" value="40"/>
+    <px name="picker_tab_swatch_gap_small" value="6"/>
+    <px name="picker_tab_swatch_gap_medium" value="6"/>
+    <px name="picker_tab_swatch_gap_large" value="6"/>
+    <px name="picker_tab_swatch_gap_half_small" value="3"/>
+    <px name="picker_tab_swatch_gap_half_medium" value="3"/>
+    <px name="picker_tab_swatch_gap_half_large" value="3"/>
     <px name="border_radius_sm" value="4"/>
 
     <!-- Unified Responsive Spacing System (space_*)                         -->

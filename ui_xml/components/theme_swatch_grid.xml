@@ -26,17 +26,22 @@
     <prop name="swatch_callback" type="string"/>
     <!-- Int subject naming the ringed swatch; empty for a grid with no selection. -->
     <prop name="selected_subject" type="string" default=""/>
+    <!-- Sizing tokens: a host with room of its own (the tabbed picker) passes larger
+         ones; the columns follow from the grid's width. -->
+    <prop name="swatch_size" type="string" default="#swatch_grid_size"/>
+    <prop name="gap" type="string" default="#swatch_grid_gap"/>
+    <prop name="gap_half" type="string" default="#swatch_grid_gap_half"/>
   </api>
   <view name="theme_swatch_grid"
         extends="lv_obj" width="#swatch_grid_width" height="content" style_pad_all="0" flex_flow="row_wrap"
-        style_pad_gap="#swatch_grid_gap" style_flex_main_place="center" scrollable="false">
+        style_pad_gap="$gap" style_flex_main_place="center" scrollable="false">
     <!-- Colors come from ColorPicker's theme palette table (swatch_palette()),
          published as theme_swatch_color_<i>; the fixed count matches it. -->
     <repeat count="30">
       <color_swatch index="${i}"
                     color_subject="theme_swatch_color_${i}" edge_subject="theme_swatch_edge_${i}"
-                    selected_subject="$selected_subject" callback="$swatch_callback" size="#swatch_grid_size"
-                    hit="#swatch_grid_gap_half"/>
+                    selected_subject="$selected_subject" callback="$swatch_callback" size="$swatch_size" hit="$gap_half"
+                    reach="#swatch_grid_ring_reach" ring="styles.grid_swatch_ring"/>
     </repeat>
   </view>
 </component>

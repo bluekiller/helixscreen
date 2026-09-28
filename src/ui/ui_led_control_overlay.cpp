@@ -367,7 +367,7 @@ void LedControlOverlay::publish_page() {
     swatch_edge_pool_.ensure_size(presets.size());
     for (size_t i = 0; i < presets.size(); ++i) {
         swatch_color_pool_.set_color(i, presets[i]);
-        swatch_edge_pool_.set_int(i, helix::ui::swatch_needs_light_edge(presets[i]) ? 1 : 0);
+        swatch_edge_pool_.set_int(i, helix::ui::swatch_needs_edge_here(presets[i]) ? 1 : 0);
     }
     lv_subject_set_int(&swatch_count_, static_cast<int>(presets.size()));
 

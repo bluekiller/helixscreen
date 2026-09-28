@@ -85,13 +85,21 @@ helix::xml::IndexedSubjectPool s_theme_colors{"theme_swatch_color",
 helix::xml::IndexedSubjectPool s_theme_edges{"theme_swatch_edge",
                                              helix::xml::IndexedSubjectPool::Type::Int};
 
+/// Below this WCAG contrast ratio a swatch blends into its surface: black on a
+/// dark navy panel sits near 1.6, a mid gray on a dark dialog near 1.9.
+constexpr double EDGE_CONTRAST_RATIO = 1.75;
+
+uint32_t rgb_of(lv_color_t c) {
+    return lv_color_to_u32(c) & 0xFFFFFF;
+}
+
 void fill_palette(helix::xml::IndexedSubjectPool& colors, helix::xml::IndexedSubjectPool& edges,
                   const std::vector<uint32_t>& palette) {
     colors.ensure_size(palette.size());
     edges.ensure_size(palette.size());
     for (size_t i = 0; i < palette.size(); ++i) {
         colors.set_color(i, palette[i]);
-        edges.set_int(i, swatch_needs_light_edge(palette[i]) ? 1 : 0);
+        edges.set_int(i, swatch_needs_edge_here(palette[i]) ? 1 : 0);
     }
 }
 
@@ -123,14 +131,22 @@ const std::vector<uint32_t>& swatch_palette(ColorPicker::Palette palette) {
     return palette == ColorPicker::Palette::Theme ? theme : general;
 }
 
-bool swatch_needs_light_edge(uint32_t rgb) {
-    const double r = ((rgb >> 16) & 0xFF) / 255.0;
-    const double g = ((rgb >> 8) & 0xFF) / 255.0;
-    const double b = (rgb & 0xFF) / 255.0;
-    const double hi = std::max({r, g, b});
-    const double lo = std::min({r, g, b});
-    const double luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    return luminance >= 0.7 && hi > 0.0 && lo / hi >= 0.75;
+bool swatch_needs_edge(uint32_t rgb, uint32_t surface) {
+    return helix::contrast_ratio(lv_color_hex(rgb), lv_color_hex(surface)) < EDGE_CONTRAST_RATIO;
+}
+
+bool swatch_needs_edge_here(uint32_t rgb) {
+    // Swatches sit on panels (screen_bg) and in dialogs (elevated_bg).
+    return swatch_needs_edge(rgb, rgb_of(theme_manager_get_color("screen_bg"))) ||
+           swatch_needs_edge(rgb, rgb_of(theme_manager_get_color("elevated_bg")));
+}
+
+void refresh_swatch_edges() {
+    if (!s_swatch_subjects_ready) {
+        return;
+    }
+    fill_palette(s_general_colors, s_general_edges, swatch_palette(ColorPicker::Palette::General));
+    fill_palette(s_theme_colors, s_theme_edges, swatch_palette(ColorPicker::Palette::Theme));
 }
 
 void ensure_swatch_grid_subjects() {
@@ -201,6 +217,7 @@ bool ColorPicker::show_with_color(lv_obj_t* parent, uint32_t initial_color) {
     // in color_picker.xml reads this subject as it constructs the view.
     ensure_palette_subject();
     ensure_swatch_grid_subjects();
+    refresh_swatch_edges();
     lv_subject_set_int(&s_palette_subject, static_cast<int>(palette_));
 
     // Show the modal via Modal

@@ -13,10 +13,12 @@
      Props:
        index             the swatch's position; the callback's user_data
        color_subject     color subject for the fill
-       edge_subject      int subject, 1 where the fill is near-white (light-theme hairline)
+       edge_subject      int subject, 1 where the fill blends into the current theme's surface
        selected_subject  int subject naming the ringed index; empty for no ring
        callback          click handler
-       size, hit         touch size and hit reach tokens -->
+       size, hit         touch size and hit reach tokens
+       reach, ring       the ring's reach (the disc's inset) and its style; the
+                         dense grids pass a thinner pair so their discs stay large -->
 <component>
   <api>
     <prop name="index" type="string" default="0"/>
@@ -26,21 +28,24 @@
     <prop name="callback" type="string"/>
     <prop name="size" type="string" default="#led_swatch_size"/>
     <prop name="hit" type="string" default="#led_swatch_gap_half"/>
+    <prop name="reach" type="string" default="#led_ring_reach"/>
+    <prop name="ring" type="string" default="styles.led_swatch_ring"/>
   </api>
   <styles>
     <style name="disc_plain" border_width="0"/>
   </styles>
-  <view extends="lv_obj" width="$size" height="$size" clickable="true" scrollable="false" ext_click_area="$hit">
+  <view extends="lv_obj"
+        width="$size" height="$size" clickable="true" scrollable="false" ext_click_area="$hit" style_pad_all="$reach">
     <style name="styles.led_ring_holder"/>
     <bind_style_prop prop="bg_color" subject="$color_subject"/>
-    <bind_style_if_eq name="styles.led_swatch_ring" subject="$selected_subject" ref_value="$index"/>
+    <bind_style_if_eq name="$ring" subject="$selected_subject" ref_value="$index"/>
     <lv_obj name="color_swatch_disc"
             width="100%" height="100%" style_radius="9999" style_bg_opa="255" clickable="false" event_bubble="true"
             scrollable="false">
       <!-- No inline border: it would outrank the light-theme edge bound after it. -->
       <style name="disc_plain"/>
       <bind_style_prop prop="bg_color" subject="$color_subject"/>
-      <bind_style_if name="styles.light_edge" cond="settings_dark_mode eq 0 and ${edge_subject} eq 1"/>
+      <bind_style_if_eq name="styles.contrast_edge" subject="$edge_subject" ref_value="1"/>
     </lv_obj>
     <event_cb trigger="clicked" callback="$callback" user_data="$index"/>
   </view>

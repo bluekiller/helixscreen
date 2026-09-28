@@ -5,6 +5,7 @@
 
 #include "ui_button.h"
 #include "ui_callback_helpers.h"
+#include "ui_color_picker.h"
 #include "ui_error_reporting.h"
 #include "ui_hsv_picker.h"
 #include "ui_nav_manager.h"
@@ -109,6 +110,8 @@ lv_obj_t* AmsEditOverlay::find_widget(const char* name) const {
 bool AmsEditOverlay::show_for_slot(lv_obj_t* parent, int slot_index, const SlotInfo& initial_info,
                                    IMoonrakerAPI* api, CompletionCallback on_complete,
                                    bool open_on_picker) {
+    // Its preset grids draw edges by contrast with the current theme's surfaces.
+    refresh_swatch_edges();
     // A previous widget tree may have died with its screen (display rebuild,
     // test teardown) without the destroy-on-close path running — drop the
     // stale cache so lazy_create_and_push_overlay rebuilds from XML.

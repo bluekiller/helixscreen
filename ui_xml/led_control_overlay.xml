@@ -91,7 +91,7 @@
             <bind_style_if_eq name="power_on" subject="led_page_on" ref_value="1"/>
             <bind_style_if_not_eq name="power_off" subject="led_page_on" ref_value="1"/>
             <bind_style_prop prop="bg_color" subject="led_page_color"/>
-            <bind_style_if name="styles.light_edge" cond="settings_dark_mode eq 0 and led_page_on eq 1"/>
+            <bind_style_if name="styles.contrast_edge" cond="settings_dark_mode eq 0 and led_page_on eq 1"/>
             <icon name="led_power_icon_on" src="power" size="md" align="center" clickable="false" event_bubble="true">
               <bind_style_prop prop="text_color" subject="led_page_fill_text"/>
               <bind_flag_if_not_eq subject="led_page_on" flag="hidden" ref_value="1"/>
@@ -107,7 +107,7 @@
             <style name="pill_track"/>
             <style name="pill_fill" selector="indicator"/>
             <style name="pill_knob" selector="knob"/>
-            <bind_style_if name="styles.light_edge_outline" cond="settings_dark_mode eq 0"/>
+            <bind_style_if name="styles.contrast_edge_outline" cond="settings_dark_mode eq 0"/>
             <bind_flag_if_not_eq subject="led_page_lamp" flag="hidden" ref_value="0"/>
             <bind_style_prop prop="bg_color" selector="indicator" subject="led_page_color"/>
             <!-- The percentage sits near the top of the pill: in the theme's text

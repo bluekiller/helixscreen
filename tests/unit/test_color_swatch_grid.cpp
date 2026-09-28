@@ -49,12 +49,24 @@ TEST_CASE_METHOD(LVGLUITestFixture, "color_swatch_grid: a tap reports the tapped
     }
 }
 
-TEST_CASE("swatch_needs_light_edge: bright, unsaturated fills only", "[color_swatch]") {
-    CHECK(helix::ui::swatch_needs_light_edge(0xFFFFFF));
-    CHECK(helix::ui::swatch_needs_light_edge(0xE8E8E8));
-    CHECK(helix::ui::swatch_needs_light_edge(0xE0D5C7));
-    CHECK(helix::ui::swatch_needs_light_edge(0xEAF2FF));
-    CHECK_FALSE(helix::ui::swatch_needs_light_edge(0xFFEB3B)); // yellow: bright but saturated
-    CHECK_FALSE(helix::ui::swatch_needs_light_edge(0x808080)); // mid gray
-    CHECK_FALSE(helix::ui::swatch_needs_light_edge(0x1A1A1A));
+TEST_CASE("swatch_needs_edge: a swatch too close to its surface gets an edge, in either theme",
+          "[color_swatch]") {
+    constexpr uint32_t DARK_SCREEN = 0x2E3440;
+    constexpr uint32_t DARK_DIALOG = 0x4C566A;
+    constexpr uint32_t LIGHT_SCREEN = 0xECEFF4;
+    constexpr uint32_t LIGHT_DIALOG = 0xEDEFF6;
+    // Dark-on-dark.
+    CHECK(helix::ui::swatch_needs_edge(0x000000, DARK_SCREEN));
+    CHECK(helix::ui::swatch_needs_edge(0x1A1A1A, DARK_SCREEN));
+    CHECK(helix::ui::swatch_needs_edge(0x4A4A4A, DARK_SCREEN));
+    CHECK(helix::ui::swatch_needs_edge(0x4A4A4A, DARK_DIALOG));
+    // Light-on-light.
+    CHECK(helix::ui::swatch_needs_edge(0xFFFFFF, LIGHT_SCREEN));
+    CHECK(helix::ui::swatch_needs_edge(0xE8E8E8, LIGHT_DIALOG));
+    CHECK(helix::ui::swatch_needs_edge(0xE0D5C7, LIGHT_SCREEN));
+    // Plenty of contrast: no edge.
+    CHECK_FALSE(helix::ui::swatch_needs_edge(0xFFFFFF, DARK_SCREEN));
+    CHECK_FALSE(helix::ui::swatch_needs_edge(0x808080, DARK_SCREEN));
+    CHECK_FALSE(helix::ui::swatch_needs_edge(0x1A1A1A, LIGHT_SCREEN));
+    CHECK_FALSE(helix::ui::swatch_needs_edge(0xE53935, LIGHT_DIALOG));
 }

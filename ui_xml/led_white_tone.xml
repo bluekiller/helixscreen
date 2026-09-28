@@ -27,7 +27,7 @@
               clickable="false" event_bubble="true" scrollable="false">
         <!-- No inline border: it would outrank the light-theme edge bound after it. -->
         <style name="disc_plain"/>
-        <bind_style_if name="styles.light_edge" cond="settings_dark_mode eq 0"/>
+        <bind_style_if name="styles.contrast_edge" cond="settings_dark_mode eq 0"/>
       </lv_obj>
     </lv_obj>
     <text_small name="tone_caption"

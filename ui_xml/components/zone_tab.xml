@@ -96,7 +96,7 @@
                 hidden="true">
           <style name="zone_tab_dot_plain"/>
           <bind_style_prop prop="bg_color" subject="$light_color_subject"/>
-          <bind_style_if name="styles.light_edge" cond="settings_dark_mode eq 0"/>
+          <bind_style_if name="styles.contrast_edge" cond="settings_dark_mode eq 0"/>
           <bind_flag_if_not_eq subject="$light_subject" flag="hidden" ref_value="1"/>
         </lv_obj>
         <lv_obj width="#tab_dot_size"
