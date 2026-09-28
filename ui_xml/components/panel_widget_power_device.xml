@@ -35,7 +35,7 @@
     <!-- Device name -->
     <text_tiny name="power_device_name"
                width="100%" text="Configure" translation_tag="Configure" style_text_align="center"
-               style_text_color="#text" long_mode="wrap" clickable="false" event_bubble="true"/>
+               style_text_color="#text" long_mode="dots" clickable="false" event_bubble="true"/>
 
     <!-- ON/OFF/LOCKED status -->
     <text_tiny name="power_device_status"
