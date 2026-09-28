@@ -388,7 +388,8 @@ void SettingsManager::set_led_enabled(bool enabled) {
     auto old_val = std::to_string(lv_subject_get_int(&led_enabled_subject_));
 
     // 1. Delegate to LedController for actual hardware control
-    helix::led::LedController::instance().light_set(enabled);
+    auto& leds = helix::led::LedController::instance();
+    leds.set_power(leds.light_targets(""), enabled);
 
     // 2. Update subject (UI reacts)
     lv_subject_set_int(&led_enabled_subject_, enabled ? 1 : 0);

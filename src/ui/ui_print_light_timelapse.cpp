@@ -114,14 +114,12 @@ void PrintLightTimelapseControls::handle_light_button() {
             ToastSeverity::INFO, lv_tr("Light will switch when the current operation finishes"));
         return;
     }
-    // Button is gated by `led_controllable` in XML, so it can't be clicked unless
-    // LedController has at least one selected strip — no defensive bail-out needed.
-    spdlog::info("[PrintLightTimelapseControls] Light button clicked (subject: {})",
-                 led_on_ ? "ON" : "OFF");
-
-    // Send the opposite of what Moonraker reports.  Icon updates when
-    // Moonraker status arrives via update_led_state().
-    helix::led::LedController::instance().light_set(!led_on_);
+    auto& ctrl = helix::led::LedController::instance();
+    // Toggles the chamber light alone. The icon updates when Moonraker status
+    // arrives via update_led_state().
+    const bool on = ctrl.toggle_power({ctrl.chamber_light()});
+    spdlog::info("[PrintLightTimelapseControls] Light button clicked, chamber light -> {}",
+                 on ? "ON" : "OFF");
 }
 
 void PrintLightTimelapseControls::handle_timelapse_button() {
