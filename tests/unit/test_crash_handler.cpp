@@ -12,6 +12,7 @@
  * Written TDD-style - tests WILL FAIL if crash_handler is removed.
  */
 
+#include "../test_helpers/breadcrumb_capture.h"
 #include "config.h"
 #include "system/crash_error_log_sink.h"
 #include "system/crash_handler.h"
@@ -1255,38 +1256,6 @@ TEST_CASE_METHOD(CrashTestFixture, "Crash: TelemetryManager crash event includes
 // (breadcrumbs, event_target / event_original_target / event_code, and the
 // heap_* / lv_heap_* snapshot fields).
 
-namespace {
-
-/// Call breadcrumb::dump_to_fd into a pipe and return every line emitted.
-/// The dump uses write() directly (signal-safe), so a pipe is the simplest
-/// readable sink from a normal test context.
-std::vector<std::string> capture_breadcrumb_dump() {
-    int pipe_fds[2];
-    REQUIRE(::pipe(pipe_fds) == 0);
-    crash_handler::breadcrumb::dump_to_fd(pipe_fds[1]);
-    ::close(pipe_fds[1]);
-
-    std::string buf;
-    char chunk[256];
-    ssize_t n;
-    while ((n = ::read(pipe_fds[0], chunk, sizeof(chunk))) > 0) {
-        buf.append(chunk, static_cast<size_t>(n));
-    }
-    ::close(pipe_fds[0]);
-
-    std::vector<std::string> lines;
-    size_t start = 0;
-    for (size_t i = 0; i < buf.size(); ++i) {
-        if (buf[i] == '\n') {
-            lines.emplace_back(buf.substr(start, i - start));
-            start = i + 1;
-        }
-    }
-    return lines;
-}
-
-} // namespace
-
 TEST_CASE("Crash: breadcrumb ring keeps the newest 256 entries on wraparound",
           "[telemetry][crash]") {
     // Drain the ring first — static state leaks across test cases. Writing
@@ -1303,7 +1272,7 @@ TEST_CASE("Crash: breadcrumb ring keeps the newest 256 entries on wraparound",
         crash_handler::breadcrumb::note("t", "entry", i);
     }
 
-    auto lines = capture_breadcrumb_dump();
+    auto lines = helix::capture_breadcrumb_lines();
     REQUIRE(lines.size() == 256);
 
     auto extract_index = [](const std::string& line) -> int {
@@ -1337,7 +1306,7 @@ TEST_CASE("Crash: breadcrumb category/subject are truncated with null terminator
     const std::string long_subject(200, 'S');
     crash_handler::breadcrumb::note(long_category.c_str(), long_subject.c_str());
 
-    auto lines = capture_breadcrumb_dump();
+    auto lines = helix::capture_breadcrumb_lines();
     REQUIRE_FALSE(lines.empty());
     const std::string& last = lines.back();
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/breadcrumb_capture.h"
 #include "../ui_test_utils.h"
 #include "gcode_layer_renderer.h"
 #include "gcode_parser.h"
@@ -450,31 +451,6 @@ TEST_CASE("set_highlighted_objects with no gcode does not crash", "[layer_render
 // Crash-diagnostics breadcrumb
 // =============================================================================
 
-namespace {
-// Capture crash_handler breadcrumb ring as newline-split lines, mirroring the
-// pipe+dump_to_fd helper in test_crash_handler.cpp.
-std::vector<std::string> capture_breadcrumb_lines() {
-    int fds[2];
-    REQUIRE(::pipe(fds) == 0);
-    crash_handler::breadcrumb::dump_to_fd(fds[1]);
-    ::close(fds[1]);
-    std::string all;
-    char chunk[4096];
-    ssize_t n;
-    while ((n = ::read(fds[0], chunk, sizeof(chunk))) > 0) {
-        all.append(chunk, static_cast<size_t>(n));
-    }
-    ::close(fds[0]);
-    std::vector<std::string> lines;
-    size_t pos = 0, nl;
-    while ((nl = all.find('\n', pos)) != std::string::npos) {
-        lines.push_back(all.substr(pos, nl - pos));
-        pos = nl + 1;
-    }
-    return lines;
-}
-} // namespace
-
 // Verifies the breadcrumb added to GCodeLayerRenderer::render_layers_to_cache
 // actually fires on the real render path. A SIGBUS was seen inside that path on
 // AD5X (bundle YZQ47HQ6); the crumb gives the crash handler the gcode subsystem
@@ -509,7 +485,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "render_layers_to_cache emits gcode breadcrumb
         lv_canvas_finish_layer(canvas, &layer);
     }
 
-    auto crumbs = capture_breadcrumb_lines();
+    auto crumbs = helix::capture_breadcrumb_lines();
     bool found = false;
     for (const auto& line : crumbs) {
         if (line.find("gcode render_cache") != std::string::npos) {
