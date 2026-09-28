@@ -11,6 +11,7 @@
 #include "subject_managed_panel.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -96,6 +97,15 @@ class LedControlOverlay : public OverlayBase {
     [[nodiscard]] int swatch_selection() const;
     /// The focused strip's running effect among its list chips, or -1.
     [[nodiscard]] int active_effect_index() const;
+    [[nodiscard]] std::vector<bool> focused_effects_enabled() const;
+    /// Shows @p chip (-1 the None chip) until a frame changes the focused
+    /// strip's effect state or PENDING_EFFECT_TIMEOUT_MS passes.
+    void set_pending_effect_chip(int chip);
+    /// A status frame: a pending chip holds until the effect state moves, then
+    /// the tapped chip stays if it is running, else the running one wins.
+    void resolve_effect_chip();
+    /// The bounded wait for pending chip @p gen ran out: show the real state.
+    void end_pending_effect(unsigned gen);
 
     void handle_tab_clicked(int index);
     void handle_power();
@@ -190,6 +200,11 @@ class LedControlOverlay : public OverlayBase {
     double current_white_ = 0.0;        ///< full-brightness W, 0.0-1.0
     /// Bumped by every control; a poll landing after a bump leaves the page alone.
     unsigned page_gen_ = 0;
+
+    static constexpr uint32_t PENDING_EFFECT_TIMEOUT_MS = 4000;
+    std::optional<int> pending_effect_chip_;
+    std::vector<bool> pending_effects_snapshot_;
+    unsigned pending_effect_gen_ = 0;
 };
 
 } // namespace helix::led

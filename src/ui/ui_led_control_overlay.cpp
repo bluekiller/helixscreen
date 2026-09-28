@@ -274,6 +274,7 @@ void LedControlOverlay::publish_tab_dots() {
 
 void LedControlOverlay::focus_device(const std::string& id) {
     focused_strip_ = id;
+    pending_effect_chip_.reset();
     if (!id.empty()) {
         last_focused_ = id;
     }
@@ -485,6 +486,66 @@ int LedControlOverlay::active_effect_index() const {
     return -1;
 }
 
+std::vector<bool> LedControlOverlay::focused_effects_enabled() const {
+    std::vector<bool> enabled;
+    for (const auto& eff : LedController::instance().effects().effects_for_strip(focused_strip_)) {
+        enabled.push_back(eff.enabled);
+    }
+    return enabled;
+}
+
+void LedControlOverlay::set_pending_effect_chip(int chip) {
+    pending_effect_chip_ = chip;
+    pending_effects_snapshot_ = focused_effects_enabled();
+    const unsigned gen = ++pending_effect_gen_;
+    lv_subject_set_int(&active_chip_, chip);
+
+    // A command Klipper drops never produces a frame, so the tapped chip gives
+    // way to the real state after a bounded wait.
+    struct Timeout {
+        LifetimeToken tok;
+        LedControlOverlay* self;
+        unsigned gen;
+    };
+    auto* t = lv_timer_create(
+        [](lv_timer_t* timer) {
+            auto* data = static_cast<Timeout*>(lv_timer_get_user_data(timer));
+            data->tok.defer(
+                "LedControlOverlay::effect_timeout",
+                [self = data->self, gen = data->gen]() { self->end_pending_effect(gen); });
+            delete data;
+        },
+        PENDING_EFFECT_TIMEOUT_MS,
+        new Timeout{lifetime_.token(), this, gen}); // TIMER_DTOR_OK: LifetimeToken-guarded one-shot
+    lv_timer_set_repeat_count(t, 1);
+}
+
+void LedControlOverlay::end_pending_effect(unsigned gen) {
+    if (!pending_effect_chip_ || pending_effect_gen_ != gen) {
+        return;
+    }
+    pending_effect_chip_.reset();
+    if (page_.list == ListKind::Effects) {
+        lv_subject_set_int(&active_chip_, active_effect_index());
+    }
+}
+
+void LedControlOverlay::resolve_effect_chip() {
+    if (!pending_effect_chip_) {
+        lv_subject_set_int(&active_chip_, active_effect_index());
+        return;
+    }
+    const auto enabled = focused_effects_enabled();
+    if (enabled == pending_effects_snapshot_) {
+        return; // this frame carried nothing about the focused strip's effects
+    }
+    const int pending = *pending_effect_chip_;
+    pending_effect_chip_.reset();
+    const bool confirmed = pending >= 0 && static_cast<size_t>(pending) < enabled.size() &&
+                           enabled[static_cast<size_t>(pending)];
+    lv_subject_set_int(&active_chip_, confirmed ? pending : active_effect_index());
+}
+
 void LedControlOverlay::on_led_state_changed() {
     auto& ctrl = LedController::instance();
     publish_tab_dots();
@@ -495,7 +556,7 @@ void LedControlOverlay::on_led_state_changed() {
     }
     lv_subject_set_int(&page_on_, static_cast<int>(ctrl.device_state(focused_strip_).power));
     if (page_.list == ListKind::Effects) {
-        lv_subject_set_int(&active_chip_, active_effect_index());
+        resolve_effect_chip();
     }
 
     if (info->backend == LedBackendType::NATIVE && info->supports_color &&
@@ -672,7 +733,11 @@ void LedControlOverlay::handle_list_chip(int index) {
     } else {
         return;
     }
-    lv_subject_set_int(&active_chip_, index);
+    if (page_.list == ListKind::Effects) {
+        set_pending_effect_chip(index);
+    } else {
+        lv_subject_set_int(&active_chip_, index);
+    }
 }
 
 void LedControlOverlay::stop_focused_effects() {
@@ -689,7 +754,7 @@ void LedControlOverlay::handle_effects_none() {
         return;
     }
     stop_focused_effects();
-    lv_subject_set_int(&active_chip_, -1);
+    set_pending_effect_chip(-1);
 }
 
 void LedControlOverlay::handle_macro_on() {
@@ -715,7 +780,7 @@ void LedControlOverlay::apply_current_color() {
     // led_effect keeps writing its own frames over a manual color.
     stop_focused_effects();
     if (page_.list == ListKind::Effects) {
-        lv_subject_set_int(&active_chip_, -1);
+        set_pending_effect_chip(-1);
     }
 
     const double bf = static_cast<double>(current_brightness_) / 100.0;

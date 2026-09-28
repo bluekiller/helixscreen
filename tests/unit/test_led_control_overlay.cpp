@@ -684,3 +684,79 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the active effect chip follows 
     drain();
     CHECK(access.int_subject("led_active_chip") == -1);
 }
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an unrelated frame keeps a tapped effect chip",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_native("neopixel strip_b", true, false);
+    add_effect("led_effect breathe", "neopixel strip_a", false);
+    add_effect("led_effect fire", "neopixel strip_a", false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel strip_a");
+    access.tap_list_chip(1);
+
+    LedController::instance().update_from_status(
+        {{"neopixel strip_b", {{"color_data", {{1.0, 0.0, 0.0}}}}}});
+    drain();
+
+    CHECK(access.int_subject("led_active_chip") == 1);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: a frame naming another running effect replaces the tapped chip",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_effect("led_effect breathe", "neopixel strip_a", false);
+    add_effect("led_effect fire", "neopixel strip_a", false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel strip_a");
+    access.tap_list_chip(1);
+
+    LedController::instance().update_from_status({{"led_effect breathe", {{"enabled", true}}}});
+    drain();
+
+    CHECK(access.int_subject("led_active_chip") == 0);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: a confirming frame ends the pending chip; later frames follow status",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_effect("led_effect breathe", "neopixel strip_a", false);
+    add_effect("led_effect fire", "neopixel strip_a", false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel strip_a");
+    access.tap_list_chip(1);
+
+    auto& ctrl = LedController::instance();
+    ctrl.update_from_status({{"led_effect fire", {{"enabled", true}}}});
+    drain();
+    REQUIRE(access.int_subject("led_active_chip") == 1);
+
+    ctrl.update_from_status({{"led_effect fire", {{"enabled", false}}}});
+    drain();
+    CHECK(access.int_subject("led_active_chip") == -1);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tapped effect chip no frame answers times out",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_effect("led_effect fire", "neopixel strip_a", false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel strip_a");
+    access.tap_list_chip(0);
+    process_lvgl(1000);
+    REQUIRE(access.int_subject("led_active_chip") == 0);
+
+    process_lvgl(4000);
+    drain();
+    CHECK(access.int_subject("led_active_chip") == -1);
+}
