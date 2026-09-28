@@ -1080,7 +1080,9 @@ DOCKER_SCREENSAVER = $(if $(filter command line,$(origin ENABLE_SCREENSAVER)),EN
 CROSS_DIAG_UPLOADS_DEFAULT = $(if $(filter 1,$(HELIX_PACKAGING)),yes,no)
 DOCKER_DIAG_UPLOADS = ENABLE_DIAGNOSTIC_UPLOADS=$(if $(filter-out default file undefined,$(origin ENABLE_DIAGNOSTIC_UPLOADS)),$(ENABLE_DIAGNOSTIC_UPLOADS),$(CROSS_DIAG_UPLOADS_DEFAULT))
 
-DOCKER_HOST_CONTEXT = $(DOCKER_WORKTREE_MOUNT) $(DOCKER_GIT_HASH_ENV)
+# SKIP_COMPILE_COMMANDS: the container's fragments name /src, so a merge there
+# writes a tree-root compile_commands.json the host's syntax check cannot use.
+DOCKER_HOST_CONTEXT = $(DOCKER_WORKTREE_MOUNT) $(DOCKER_GIT_HASH_ENV) -e SKIP_COMPILE_COMMANDS=1
 
 # Direct cross-compilation (requires toolchain installed)
 pi:
