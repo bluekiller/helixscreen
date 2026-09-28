@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "belt_stream_client.h"
+#include "test_helpers/scoped_env.h"
 
 #include <algorithm>
 #include <atomic>
@@ -247,15 +248,12 @@ TEST_CASE("socket_reachable follows a ~/ path to the listener under $HOME",
     const std::string path = temp_sock_path("home");
     FakeKlippySocket fake(path);
 
-    const char* saved = std::getenv("HOME");
-    const std::string saved_home = saved ? saved : "";
-    ::setenv("HOME", "/tmp", 1);
-    const bool reachable =
-        BeltStreamClient::socket_reachable("~/" + path.substr(std::string("/tmp/").size()));
-    if (saved)
-        ::setenv("HOME", saved_home.c_str(), 1);
-    else
-        ::unsetenv("HOME");
+    bool reachable = false;
+    {
+        helix::ScopedEnv home("HOME", "/tmp");
+        reachable =
+            BeltStreamClient::socket_reachable("~/" + path.substr(std::string("/tmp/").size()));
+    }
     CHECK(reachable);
 }
 
