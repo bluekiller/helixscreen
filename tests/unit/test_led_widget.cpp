@@ -9,6 +9,7 @@
 #include "grid_layout.h"
 #include "led/led_controller.h"
 #include "led/led_devices.h"
+#include "light_button_config.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "panel_widget_manager.h"
@@ -81,19 +82,26 @@ class ScopedHomeLayout {
         cfg->set<nlohmann::json>(key, {{"main_page_index", 0},
                                        {"next_page_id", 1},
                                        {"pages", {{{"id", "main"}, {"widgets", widgets}}}}});
-        PanelWidgetManager::instance().clear_panel_config("home");
+        reload();
     }
     ~ScopedHomeLayout() {
         auto* cfg = Config::get_instance();
         const std::string key = cfg->df() + "panel_widgets/home";
         cfg->set<nlohmann::json>(key, had_prior_ ? prior_ : nlohmann::json::object());
         cfg->set(cfg->df() + LIGHT_BUTTON_PENDING_PATH, nlohmann::json());
-        PanelWidgetManager::instance().clear_panel_config("home");
+        reload();
     }
     ScopedHomeLayout(const ScopedHomeLayout&) = delete;
     ScopedHomeLayout& operator=(const ScopedHomeLayout&) = delete;
 
   private:
+    /// The manager caches a loaded layout; the next reader must see this one.
+    static void reload() {
+        auto& mgr = PanelWidgetManager::instance();
+        mgr.clear_panel_config("home");
+        mgr.get_widget_config("home").mark_dirty();
+    }
+
     bool had_prior_ = false;
     nlohmann::json prior_;
 };
@@ -289,6 +297,28 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: the name follows a change in the 
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     CHECK(name_of("led:1") == "Chamber Light");
     macro.detach();
+}
+
+TEST_CASE_METHOD(LedWidgetFixture,
+                 "settle_light_buttons: a staged selection with no light button on home is "
+                 "dropped",
+                 "[led][light_button]") {
+    ScopedHomeLayout layout(nlohmann::json::array());
+    auto* cfg = Config::get_instance();
+    cfg->set(cfg->df() + LIGHT_BUTTON_PENDING_PATH, std::string("neopixel sb_leds"));
+
+    settle_light_buttons();
+    CHECK(cfg->try_get_json(cfg->df() + LIGHT_BUTTON_PENDING_PATH)->is_null());
+
+    // A light button added to home later defaults to the chamber light.
+    ScopedHomeLayout later(nlohmann::json::array({placed_light("led", 0)}));
+    LedWidget added("led", ps, api.get());
+    added.set_panel_id("home");
+    added.set_config(nlohmann::json::object());
+    added.attach(lv_obj_create(test_screen()), test_screen());
+    CHECK(added.light_key().empty());
+    CHECK(added.targets() == std::vector<std::string>{"neopixel chamber_light"});
+    added.detach();
 }
 
 TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_button]") {

@@ -80,4 +80,11 @@ std::vector<std::string> home_light_button_targets() {
     return led::union_light_targets(keys, ctrl.switchable_ids(), ctrl.chamber_light());
 }
 
+void settle_light_buttons() {
+    if (auto* cfg = Config::get_instance()) {
+        adopt_pending_light_button(*cfg, PanelWidgetManager::instance().get_widget_config("home"));
+    }
+    led::LedController::instance().apply_startup_preference(home_light_button_targets());
+}
+
 } // namespace helix

@@ -22,4 +22,9 @@ bool adopt_pending_light_button(Config& cfg, PanelWidgetConfig& home);
 /// or the chamber light when there are none.
 std::vector<std::string> home_light_button_targets();
 
+/// Resolve leds/light_button_pending against the home layout, clearing it even
+/// when no light button is placed, then offer LED on at Start the targets the
+/// home light buttons drive. Runs at discovery-complete.
+void settle_light_buttons();
+
 } // namespace helix

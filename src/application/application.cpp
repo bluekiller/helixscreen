@@ -3707,9 +3707,7 @@ void Application::setup_discovery_callbacks() {
                 app->m_plugin_manager->on_moonraker_connected();
             }
 
-            // Apply LED startup preference (turn on LED if user preference is enabled)
-            helix::led::LedController::instance().apply_startup_preference(
-                helix::home_light_button_targets());
+            helix::settle_light_buttons();
 
             // Start automatic update checks (15s initial delay, then every 24h)
             UpdateChecker::instance().start_auto_check();
