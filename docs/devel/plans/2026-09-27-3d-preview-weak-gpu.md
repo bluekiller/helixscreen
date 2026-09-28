@@ -728,6 +728,97 @@ Replace the three range lines and the ghost condition at the top of this functio
 
 ---
 
+### Task 4a: Still-image quality (wall normals, fine simplification, 2x supersampling)
+
+Preston judged the Pi 3B A/B screenshots (spike `58fd502f0`, `.superpowers/sdd/.../quality-spike-report.md`): walls shaded as continuous surfaces plus 2x supersampling on still images looked best. Multisampling is unavailable on vc4 (`GL_EXT_multisampled_render_to_texture` absent).
+
+**Files:**
+- Modify: `src/rendering/gcode_gles_renderer.cpp` (vertex shader, `setup_frame` caller scale, `blit_to_lvgl` repack), `include/gcode_gles_renderer.h`
+- Modify: `src/rendering/geometry_budget_manager.cpp#GeometryBudgetManager::select_tier` and `src/ui/ui_gcode_viewer.cpp#build_3d_geometry_in_budget` (tolerance and merge angle on triangle-capped tiers)
+- Test: `tests/unit/test_geometry_budget.cpp`
+
+**Interfaces:**
+- Consumes: `setup_frame(camera, scale, clear, ...)`, `start_job`, `run_slice`, `render_moving` (Tasks 2-3).
+- Produces: `constexpr float kStillSupersample = 2.0f;` in `include/gcode_gles_renderer.h`; `BudgetConfig` gains `bool triangle_capped`.
+
+- [ ] **Step 1: Wall normals, always on.** In `VERTEX_SHADER_MAIN`, right after `vec3 normal = oct_decode(a_normal);`, add (model space, before `u_normal_matrix`):
+
+```glsl
+        // Stacked 0.2 mm layers are sub-pixel at preview sizes: a tube's bright top and dark
+        // side alias into a moire, so walls shade as one continuous surface per direction.
+        if (abs(normal.z) < 0.9) {
+            normal = normalize(vec3(normal.x, normal.y, 0.0));
+        }
+```
+
+No uniform: it applies to every lit draw.
+
+- [ ] **Step 2: Fine simplification on triangle-capped tiers.** Tier tolerances 0.2 mm (tier 2) and 1.0/2.0 mm (tier 3) exist to save memory; the triangle estimates (`TRIS_PER_SEG_*`) were calibrated at 0.01 mm. In `select_tier`, set `triangle_capped = true` on the returned config when `max_triangles != 0` and the byte estimate alone would have allowed a finer tier than the one chosen. In that case return `simplification_tolerance = 0.01f`. In `build_3d_geometry_in_budget`, use `max_direction_change_deg = 15.0f` when `triangle_capped`. Test first in `tests/unit/test_geometry_budget.cpp`: with cap 1'000'000 and a large byte budget, 88096 segments returns tier 3, tube_sides 4, tolerance 0.01, triangle_capped true; with cap 0, the existing cases are unchanged and triangle_capped is false; a byte-limited tier 3 (small budget, cap 0) keeps tolerance 1.0.
+
+- [ ] **Step 3: 2x supersampling for still and incremental jobs.** `run_slice` calls `setup_frame(camera, kStillSupersample, ...)`. `render_moving` keeps its plan scale (1.0 or 0.5). `blit_to_lvgl` already handles an FBO bigger than the widget with nearest sampling; replace that path with a box filter when the FBO is exactly 2x the widget in both axes (average the 2x2 RGBA block per output pixel; keep the existing BGR byte order and Y flip). Keep nearest sampling for any other ratio (the 0.5 moving FBO). The selection rim pass runs on the readback before the downsample, as now; `selection::outline_width_px(fbo_width_)` already scales with FBO width. Incremental jobs draw into the same 2x FBO, so a moving frame (which recreates the FBO at 1.0 or 0.5) always ends in a full restart, which Task 3 already guarantees.
+
+- [ ] **Step 4: Build and test.** `make -C .worktrees/3d-weak-gpu t F='[gcode],[budget],[render_schedule]'`, `make -C .worktrees/3d-weak-gpu -j`, and `make -C .worktrees/3d-weak-gpu pi-docker` (exit 0; the Pi build has X11 macros). Desktop check with the pinned-socket recipe under `xvfb-run -a`: a still Benchy shows `Refine done` and a screenshot of the viewer rect; drag and confirm moving frames still trace at stride 1, full res.
+
+- [ ] **Step 5: Commit.** `git -C .worktrees/3d-weak-gpu commit -m "feat(gcode): shade 3D walls as continuous surfaces, keep fine simplification under the GPU cap, and supersample still frames 2x" -- <paths>`
+
+- [ ] **Step 6: Hardware gate (controller), Pi 3B.** Benchy in stock Auto mode: tier 3 with tolerance 0.01 in the log; `Refine done` wall ≤ 1.5 s; the completing frame (readback + downsample) under 50 ms; screenshot at default view and after a pinch visually matches the spike's `wssaa` tiles; zero GPU resets.
+
+### Task 4b: One background under 2D and 3D
+
+The 2D renderer paints no background: the gray behind it is `preview_stack`'s `ui_gradient_canvas` diagonal gradient. The 3D image is opaque and clears to `BACKGROUND_GRAY`. Make the 3D image transparent where nothing was drawn, so both sit on the same gradient.
+
+**Files:**
+- Modify: `src/rendering/gcode_gles_renderer.cpp` (clear color alpha, color mask, `blit_to_lvgl` format), `include/gcode_gles_renderer.h`
+
+- [ ] **Step 1: Carry coverage in alpha.** Clear with alpha 0. Let the lit passes write alpha (drop the `glColorMask(..., GL_FALSE)` for the solid pass; the fragment shader outputs alpha 1.0 for solid geometry). The selection-tag pass keeps writing `kSelectedAlpha` over selected objects, so the rim scan still finds them; after the rim pass, map any nonzero alpha to 255 before the repack. Ghost fragments blend with `SRC_ALPHA`, so over the background they stay nearly transparent, which is right for a 2% ghost.
+
+- [ ] **Step 2: Transparent draw buffer.** `draw_buf_` becomes `LV_COLOR_FORMAT_ARGB8888`; the repack writes B, G, R, A. `draw_cached_to_lvgl` is unchanged (LVGL blends ARGB over the gradient).
+
+- [ ] **Step 3: Build, test, desktop screenshot.** Same commands as Task 4a Step 4. Take a desktop screenshot of the same file in 3D and in 2D (`HELIX_GCODE_MODE=2D`): the background pixels at the viewer's four corners must match between the two within 2 levels per channel. Confirm a highlighted object still shows its rim (select an object in `exclude_object_test.gcode`).
+
+- [ ] **Step 4: Commit.** `feat(gcode): draw the 3D preview over the same background as the 2D preview`
+
+- [ ] **Step 5: Hardware gate (controller), Pi 3B.** Same corner-pixel comparison on the 3B; the completing frame still under 50 ms (ARGB blend cost).
+
+### Task 4c: The moving mesh (thick bands)
+
+Preston's eye check: the strided moving view reads as "newspaper dither". Replace it with a small mesh built once at load: every Nth layer, each band N layers tall, exterior features only.
+
+**Files:**
+- Modify: `include/gcode_parser.h` (next to `is_auxiliary_geometry`), `include/gcode_geometry_builder.h`, `src/rendering/gcode_geometry_builder.cpp`
+- Modify: `include/gcode_render_schedule.h` (moving plan with a mesh; band count)
+- Modify: `src/ui/ui_gcode_viewer.cpp#build_3d_geometry_in_budget`, `src/rendering/gcode_gles_renderer.cpp`, `include/gcode_gles_renderer.h`
+- Test: `tests/unit/test_gcode_render_schedule.cpp`, `tests/unit/test_gcode_geometry_builder.cpp`
+
+**Interfaces:**
+- Produces: `constexpr bool is_exterior_feature(FeatureType t)` (true for OuterWall, OverhangWall, TopSurface, BottomSurface, Bridge, Skirt, Brim, Support); `void GeometryBuilder::set_band_layers(int n)` (1 = off); `int render_schedule::band_layers_for(size_t exterior_segments, size_t budget_triangles)`; `MovingPlan { bool use_mesh; int stride; bool half_resolution; } plan_moving(size_t total_triangles, size_t mesh_triangles, float rate)`; `std::unique_ptr<RibbonGeometry> RibbonGeometry::moving_mesh` (owned by the main geometry, so no new plumbing through the viewer).
+
+- [ ] **Step 1: Policy, test first.** In `gcode_render_schedule.h`: `band_layers_for` returns `max(2, ceil(exterior_segments * 11 / budget_triangles))` (11 = `TRIS_PER_SEG_N4`; use the constant from `geometry_budget_manager.h` if it is includable there, else a local named constant with a comment pointing at it). `plan_moving(total, mesh, rate)`: full detail when total fits the budget; else if `mesh > 0`, `use_mesh = true` and `half_resolution = mesh > budget`; else the existing stride rule. Update the Task 1 tests to the new signature (mesh = 0 keeps every existing expectation) and add: mesh 90k at 4000 tris/ms uses the mesh at full resolution; mesh 150k at 4000 tris/ms uses it at half resolution; a fast GPU never uses the mesh.
+
+- [ ] **Step 2: Builder bands, test first.** `set_band_layers(n)`: in the segment-collection loop in `GeometryBuilder::build`, when `n > 1`, skip layers with `li % n != 0`, skip travels, and skip segments whose `feature_type` is known and not `is_exterior_feature` (a file with no `;TYPE:` comments keeps every extrusion). In tube generation, use `half_height = layer_height_mm_ * n * 0.5f` and raise the tube centre by `layer_height_mm_ * (n - 1) * 0.5f`, so band k spans layers k through k+n-1. Keep `layer_index` as the original layer, so the renderer's solid/ghost split by progress layer still works. Test in `tests/unit/test_gcode_geometry_builder.cpp` with a synthetic 9-layer file (one outer-wall and one sparse-infill segment per layer, 0.2 mm layers): band 3 produces strips only for layers 0, 3 and 6, none from infill, and the vertical extent of a band is 0.6 mm.
+
+- [ ] **Step 3: Build it at load.** In `build_3d_geometry_in_budget`, after the main build succeeds and when the main triangle count exceeds `kSeedRateTrisPerMs * kMovingBudgetMs`, count exterior segments, pick `n = band_layers_for(...)`, and build a second geometry with the same palette, width and layer height, `set_band_layers(n)`, 4 tube sides, tolerance 0.05 mm, merge 30 degrees. Call `prepare_interleaved_buffers()` on it and store it in `geometry->moving_mesh`. Log `[GCode Viewer] Moving mesh: N-layer bands, T triangles`. If the build is cancelled or fails, leave `moving_mesh` null (the stride path remains the fallback).
+
+- [ ] **Step 4: Upload and draw it.** After the main incremental upload completes, upload `moving_mesh` into `moving_vbos_` in one call to the existing `upload_geometry` (it is small), then free its CPU buffers as the main path does. `setup_frame` takes the geometry whose quantization it dequantizes with (the mesh has its own bounds): add a `const RibbonGeometry& geom` parameter, pass `*geometry_` everywhere except the mesh draw. `render_moving` calls `plan_moving(uploaded_triangles_, mesh_triangles_, rate)`; when `use_mesh`, draw `moving_vbos_` with stride 1 through the same solid/ghost pass ranges. `release_geometry` and `set_prebuilt_geometry` free `moving_vbos_`.
+
+- [ ] **Step 5: Build, test, desktop check, commit.** Same commands as Task 4a Step 4. On desktop the mesh is never used (fast GPU), so force the check by temporarily lowering nothing: instead assert from the log that the mesh was built for Benchy (`Moving mesh: ...`) and that moving frames still trace full detail. Commit `feat(gcode): draw a thick-band exterior mesh while a finger is down on a slow GPU`.
+
+- [ ] **Step 6: Hardware gate (controller), Pi 3B, plus Preston's eye.** Moving frames trace `mesh`, the viewer render time during a drag is ≤ 50 ms, zero GPU resets. Leave Benchy on the 3B panel and ask Preston whether the moving view now reads as the model.
+
+### Task 4d: Live 3D during a print on low-RAM boards
+
+`src/rendering/gcode_streaming_config.cpp#should_use_gcode_streaming` forces streaming on every board with 2 GB or less, so the print-status preview is always 2D there and Task 4's incremental layers never run on a Pi 3B. Replace the blanket rule with a fit check.
+
+**Files:**
+- Modify: `src/rendering/gcode_streaming_config.cpp`, its header, and the `MemoryInfo::should_force_streaming` user(s) the change touches
+- Test: the existing streaming-config tests (find them with `grep -rln should_use_gcode_streaming tests/unit`)
+
+- [ ] **Step 1: Test first.** On a 856 MB board with 600 MB available: a 2.9 MB file (Benchy) does not stream; a 45 MB file streams. The existing percentage threshold (`calculate_streaming_threshold`, default 40%, times `GCodeMemoryLimits::EXPANSION_FACTOR`) already expresses "fits"; the low-RAM rule becomes a lower percentage on boards at or under 2 GB rather than a blanket force. Pick the percentage so Benchy fits on the 3B and the 45 MB file does not, and name it as a constant with a comment on why low-RAM boards get less.
+
+- [ ] **Step 2: Implement, run the streaming tests and `[gcode]`, pi-docker exit 0, commit.** `feat(gcode): full-parse small files during a print on low-RAM boards so the 3D preview can follow it`
+
+- [ ] **Step 3: Hardware gate (controller), Pi 3B — this is also Task 4's incremental gate.** `HELIX_MOCK_AUTO_PRINT=1 --sim-speed 6 --skip-wizard --select-file 3DBenchy.gcode`, stock Auto: the print-status viewer loads 3D (no `forcing streaming`), `Refine done ... (incremental)` lines appear with wall ≤ 30 ms, full restarts after the first are only the viewport resize and the known print-start layer bounce, zero GPU resets, and the app's RSS stays under the MemoryMonitor warn threshold. Repeat at `--sim-speed 50`: the preview keeps advancing.
+
 ### Task 5: Re-tune the vc4 triangle cap
 
 Slicing removes the long submissions behind the GPU wedge. The cap now only bounds memory and time-to-sharp, so it may rise.
