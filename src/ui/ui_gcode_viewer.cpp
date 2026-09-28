@@ -540,9 +540,10 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     helix::gcode::SimplificationOptions opts{.tolerance_mm = budget_config.simplification_tolerance,
                                              .min_segment_length_mm = 0.05f,
                                              .max_direction_change_deg =
-                                                 budget_config.tier >= 3   ? 45.0f
-                                                 : budget_config.tier == 2 ? 30.0f
-                                                                           : 15.0f};
+                                                 budget_config.triangle_capped ? 15.0f
+                                                 : budget_config.tier >= 3     ? 45.0f
+                                                 : budget_config.tier == 2     ? 30.0f
+                                                                               : 15.0f};
 
     auto geometry =
         std::make_unique<helix::gcode::RibbonGeometry>(builder.build(file, opts, should_cancel));

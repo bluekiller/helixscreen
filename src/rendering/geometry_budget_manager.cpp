@@ -97,7 +97,14 @@ GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t se
 
     // A tier qualifies only when both the byte estimate and (when a GPU
     // triangle budget is set) the triangle estimate fit; a tier the triangle
-    // cap excluded is noted once in the tier that ends up chosen.
+    // cap excluded is noted once in the tier that ends up chosen. The flag is
+    // only ever set by a tier FINER than the one chosen (coarser tiers are
+    // never tested past the chosen one, and a tier failing its own triangle
+    // test is not chosen), so at a return site it means exactly "bytes alone
+    // would have allowed a finer tier" — and the coarse tolerances, which
+    // exist to save bytes, are spending detail the cap did not need to save.
+    // The triangle estimates were calibrated at 0.01 mm, so that is the
+    // tolerance a capped build uses.
     bool tris_excluded_a_tier = false;
     auto tris_fit = [&](size_t est_tris) {
         if (max_triangles == 0 || est_tris <= max_triangles) {
@@ -127,18 +134,20 @@ GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t se
                      est_n8 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n8));
         return {.tier = 2,
                 .tube_sides = 8,
-                .simplification_tolerance = 0.2f,
+                .simplification_tolerance = tris_excluded_a_tier ? 0.01f : 0.2f,
                 .include_travels = true,
-                .budget_bytes = budget_bytes};
+                .budget_bytes = budget_bytes,
+                .triangle_capped = tris_excluded_a_tier};
     }
     if (est_n4 < budget_bytes && tris_fit(tris_n4)) {
         spdlog::info("[GeometryBudget] Tier 3 (low): est {}MB / {}MB budget{}",
                      est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n4));
         return {.tier = 3,
                 .tube_sides = 4,
-                .simplification_tolerance = 1.0f,
+                .simplification_tolerance = tris_excluded_a_tier ? 0.01f : 1.0f,
                 .include_travels = false,
-                .budget_bytes = budget_bytes};
+                .budget_bytes = budget_bytes,
+                .triangle_capped = tris_excluded_a_tier};
     }
     if (est_n4 < budget_bytes * 2 && tris_fit(tris_n4)) {
         spdlog::info("[GeometryBudget] Tier 3 (aggressive): est {}MB / {}MB budget{}",

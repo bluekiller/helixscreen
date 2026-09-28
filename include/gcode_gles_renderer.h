@@ -52,6 +52,11 @@ constexpr float AMBIENT_INTENSITY = 0.25f;
 constexpr float BACKGROUND_GRAY = 0.45f;
 constexpr float BACKGROUND_GRAY_BLUE = 0.47f;
 
+// Still and incremental frames render into an FBO this many times the widget
+// size and come back down through a 2x2 box filter (blit_to_lvgl); moving
+// frames keep their own plan resolution.
+constexpr float kStillSupersample = 2.0f;
+
 // Default filament color (#26A69A teal)
 constexpr glm::vec4 DEFAULT_FILAMENT_COLOR{0.15f, 0.65f, 0.60f, 1.0f};
 

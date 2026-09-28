@@ -257,6 +257,11 @@ static const char* VERTEX_SHADER_MAIN = R"(
     void main() {
         gl_Position = u_mvp * vec4(a_position, 1.0);
         vec3 normal = oct_decode(a_normal);
+        // Stacked 0.2 mm layers are sub-pixel at preview sizes: a tube's bright top and dark
+        // side alias into a moire, so walls shade as one continuous surface per direction.
+        if (abs(normal.z) < 0.9) {
+            normal = normalize(vec3(normal.x, normal.y, 0.0));
+        }
         v_normal = normalize(u_normal_matrix * normal);
         v_position = (u_model_view * vec4(a_position, 1.0)).xyz;
         v_base_color = mix(u_base_color.rgb, a_color.rgb, u_use_vertex_color) * u_color_scale;
@@ -1526,7 +1531,7 @@ void GCodeGLESRenderer::start_job(bool incremental, const CachedRenderState& sce
 
 bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
     glm::mat4 mvp, mvp_dequant;
-    if (!setup_frame(camera, 1.0f, job_.first_slice, mvp, mvp_dequant)) {
+    if (!setup_frame(camera, kStillSupersample, job_.first_slice, mvp, mvp_dequant)) {
         cancel_job();
         return false;
     }
@@ -1684,6 +1689,38 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
     bool needs_scale = (fbo_width_ != widget_w || fbo_height_ != widget_h);
     // Use actual draw buffer stride (aligned to LV_DRAW_BUF_STRIDE_ALIGN)
     uint32_t dst_stride = draw_buf_->header.stride;
+
+    // A 2x supersampled frame comes down through a 2x2 box filter: the extra
+    // samples are the whole point of rendering big, and nearest sampling would
+    // throw three of every four away. Any other size ratio (the half-res
+    // moving FBO upscaled, or a same-size frame) takes the paths below.
+    if (fbo_width_ == widget_w * 2 && fbo_height_ == widget_h * 2) {
+        const auto avg4 = [](unsigned a, unsigned b, unsigned c, unsigned d) {
+            return static_cast<uint8_t>((a + b + c + d + 2) / 4);
+        };
+        for (int dy = 0; dy < widget_h; ++dy) {
+            // Y-flip on the source, same as the loops below.
+            const uint8_t* row_a =
+                src + static_cast<size_t>(fbo_height_ - 1 - (dy * 2)) * fbo_width_ * 4;
+            const uint8_t* row_b =
+                src + static_cast<size_t>(fbo_height_ - 1 - (dy * 2 + 1)) * fbo_width_ * 4;
+            auto* dst_row = dest + static_cast<size_t>(dy) * dst_stride;
+            for (int dx = 0; dx < widget_w; ++dx) {
+                const size_t s0 = static_cast<size_t>(dx * 2) * 4;
+                const size_t s1 = s0 + 4;
+                const size_t di = static_cast<size_t>(dx) * 3;
+                dst_row[di + 0] = avg4(row_a[s0 + 2], row_a[s1 + 2], row_b[s0 + 2], row_b[s1 + 2]);
+                dst_row[di + 1] = avg4(row_a[s0 + 1], row_a[s1 + 1], row_b[s0 + 1], row_b[s1 + 1]);
+                dst_row[di + 2] = avg4(row_a[s0 + 0], row_a[s1 + 0], row_b[s0 + 0], row_b[s1 + 0]);
+            }
+        }
+        lv_draw_image_dsc_t ssaa_dsc;
+        lv_draw_image_dsc_init(&ssaa_dsc);
+        ssaa_dsc.src = draw_buf_;
+        lv_area_t ssaa_area = *widget_coords;
+        lv_draw_image(layer, &ssaa_dsc, &ssaa_area);
+        return;
+    }
 
     // Row-based conversion: RGBA→BGR with Y-flip
     for (int dy = 0; dy < widget_h; ++dy) {
