@@ -8,9 +8,9 @@
     <prop name="index" type="string" default="0"/>
     <prop name="label_subject" type="string" default=""/>
   </api>
-  <view name="led_list_chip"
-        extends="ui_button" height="#led_chip_height" variant="ghost" style_radius="#led_chip_height"
-        style_min_width="#led_chip_min_width" style_pad_left="#space_md" style_pad_right="#space_md">
+  <view extends="ui_button"
+        height="#led_chip_height" variant="ghost" style_radius="#led_chip_height" style_min_width="#led_chip_min_width"
+        style_pad_left="#space_md" style_pad_right="#space_md">
     <!-- Idle first, active after: the later style wins while it is enabled. -->
     <style name="styles.led_chip_idle"/>
     <bind_style_if_eq name="styles.led_chip_active" subject="led_active_chip" ref_value="$index"/>

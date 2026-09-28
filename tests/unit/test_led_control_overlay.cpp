@@ -24,6 +24,7 @@
 #include "led/led_controller.h"
 #include "led/led_device_page.h"
 #include "led/ui_led_control_overlay.h"
+#include "lvgl/src/widgets/label/lv_label_private.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
@@ -860,4 +861,33 @@ TEST_CASE_METHOD(OverlayXmlFixture,
     CHECK(lv_obj_has_flag(find("led_level_row"), LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(find("led_macro_on"), LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(find("led_empty_state"), LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the brightness fill is flat-topped inside a pill",
+                 "[led][overlay][xml]") {
+    lv_obj_t* slider = find("led_brightness_slider");
+    REQUIRE(slider != nullptr);
+    // lv_bar clips an indicator whose radius is below the track's to the track's
+    // rounded shape, so a square fill reads flat on top and round at the bottom.
+    CHECK(lv_obj_get_style_radius(slider, LV_PART_INDICATOR) == 0);
+    CHECK(lv_obj_get_style_radius(slider, LV_PART_MAIN) > 0);
+    lv_obj_t* pct = find("led_brightness_pct");
+    REQUIRE(pct != nullptr);
+    CHECK(lv_obj_get_style_align(pct, LV_PART_MAIN) == LV_ALIGN_TOP_MID);
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture,
+                 "overlay XML: the LEDs title keeps its case; other headers do not",
+                 "[led][overlay][xml]") {
+    lv_obj_t* title = find("header_title");
+    REQUIRE(title != nullptr);
+    CHECK(std::string(lv_label_get_text(title)) == "LEDs");
+    CHECK(reinterpret_cast<lv_label_t*>(title)->text_transform_upper == 0);
+
+    const char* attrs[] = {"title", "Other", nullptr};
+    auto* other = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "header_bar", attrs));
+    REQUIRE(other != nullptr);
+    lv_obj_t* other_title = lv_obj_find_by_name(other, "header_title");
+    REQUIRE(other_title != nullptr);
+    CHECK(reinterpret_cast<lv_label_t*>(other_title)->text_transform_upper == 1);
 }

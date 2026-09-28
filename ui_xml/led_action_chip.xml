@@ -11,8 +11,8 @@
     <prop name="active_subject" type="string" default=""/>
     <prop name="active_value" type="string" default="0"/>
   </api>
-  <view name="led_action_chip"
-        extends="ui_button" height="#led_chip_height" variant="ghost" text="$label" translation_tag="$label_tag"
+  <view extends="ui_button"
+        height="#led_chip_height" variant="ghost" text="$label" translation_tag="$label_tag"
         style_radius="#led_chip_height" style_min_width="#led_chip_min_width" style_pad_left="#space_md"
         style_pad_right="#space_md">
     <!-- Idle first, active after: the later style wins while it is enabled. -->

@@ -23,16 +23,19 @@
   <styles>
     <!-- Power: filled with the light's color when on, an outline otherwise. -->
     <style name="power_on" bg_opa="255" border_width="0"/>
-    <style name="power_off" bg_opa="0" border_width="2" border_color="#text_muted"/>
+    <style name="power_off" bg_opa="0" border_width="#led_ring_width" border_color="#text_muted"/>
     <!-- One PowerOnly lamp (a non-PWM pin) spans the page, so its button centers. -->
     <style name="lamp_wide" flex_grow="1"/>
-    <!-- The brightness pill: a track, a fill in the light's color, no knob. -->
+    <!-- The brightness pill: a rounded track, a square-cornered fill that the
+         track's radius clips (lv_bar masks an indicator whose radius is smaller
+         than the track's), so the fill's top edge stays flat. No knob. -->
     <style name="pill_track" bg_color="#card_bg" bg_opa="255" radius="9999" border_width="0" pad_all="0"/>
-    <style name="pill_fill" radius="9999" bg_opa="255"/>
+    <style name="pill_fill" radius="0" bg_opa="255"/>
     <style name="pill_knob" bg_opa="0" border_width="0" shadow_width="0" outline_width="0" pad_all="0"/>
     <style name="section_label" text_color="#text_muted"/>
   </styles>
-  <view name="led_control_overlay" extends="overlay_panel" title="LEDs" title_tag="LEDs" bg_color="#screen_bg">
+  <view name="led_control_overlay"
+        extends="overlay_panel" title="LEDs" title_tag="LEDs" title_transform="none" bg_color="#screen_bg">
     <lv_obj name="content_area"
             width="100%" flex_grow="1" flex_flow="column" scrollable="false" style_pad_all="#space_md" style_pad_top="0"
             style_pad_gap="#space_sm">
@@ -49,9 +52,12 @@
           <event_cb trigger="size_changed" callback="led_tabs_scrolled_cb"/>
           <event_cb trigger="layout_changed" callback="led_tabs_scrolled_cb"/>
           <repeat count="led_tab_count">
-            <led_device_tab name="led_tab_${i}"
-                            index="${i}" label_subject="led_tab_name_${i}" dot_subject="led_tab_dot_${i}"
-                            dot_color_subject="led_tab_dot_color_${i}"/>
+            <zone_tab name="led_tab_${i}"
+                      label_subject="led_tab_name_${i}" active_subject="led_focused_tab" active_value="${i}"
+                      tab_index="${i}" cross_place="center" callback="led_tab_clicked_cb"
+                      selected_style="zone_tab_underline_selected" idle_style="zone_tab_underline_idle"
+                      label_idle_style="zone_tab_label_muted" radius="0" light_subject="led_tab_dot_${i}"
+                      light_color_subject="led_tab_dot_color_${i}"/>
           </repeat>
         </lv_obj>
         <lv_obj name="led_tab_fade"
@@ -98,10 +104,19 @@
             <style name="pill_knob" selector="knob"/>
             <bind_flag_if_not_eq subject="led_page_lamp" flag="hidden" ref_value="0"/>
             <bind_style_prop prop="bg_color" selector="indicator" subject="led_page_color"/>
+            <!-- The percentage sits near the top of the pill: in the theme's text
+                 color over the empty track, in the fill's contrast color once the
+                 fill reaches it. -->
             <text_small name="led_brightness_pct"
-                        bind_text="led_page_brightness_text" align="bottom_mid" style_translate_y="-6" clickable="false"
-                        event_bubble="true">
+                        bind_text="led_page_brightness_text" align="top_mid" style_translate_y="#space_md"
+                        clickable="false" event_bubble="true">
+              <bind_flag_if_ge subject="led_page_brightness" flag="hidden" ref_value="88"/>
+            </text_small>
+            <text_small name="led_brightness_pct_on_fill"
+                        bind_text="led_page_brightness_text" align="top_mid" style_translate_y="#space_md"
+                        clickable="false" event_bubble="true">
               <bind_style_prop prop="text_color" subject="led_page_fill_text"/>
+              <bind_flag_if_lt subject="led_page_brightness" flag="hidden" ref_value="88"/>
             </text_small>
             <event_cb trigger="value_changed" callback="led_brightness_changed_cb"/>
           </lv_slider>

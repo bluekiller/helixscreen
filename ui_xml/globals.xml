@@ -19,6 +19,18 @@
     <!-- border_radius is now resolved from BorderRadiusSizes table per breakpoint in C++ -->
     <!-- Fixed small radius for swatches/badges that always want 4px regardless of theme -->
     <px name="border_radius_small" value="4"/>
+    <!-- Underline under a selected zone_tab (the LEDs overlay's device tabs). -->
+    <px name="tab_underline_width_small" value="2"/>
+    <px name="tab_underline_width_medium" value="3"/>
+    <px name="tab_underline_width_large" value="3"/>
+    <!-- A zone_tab's light dot (lit, hollow). -->
+    <px name="tab_dot_size_micro" value="8"/>
+    <px name="tab_dot_size_small" value="10"/>
+    <px name="tab_dot_size_medium" value="10"/>
+    <px name="tab_dot_size_large" value="12"/>
+    <px name="tab_dot_ring_width_small" value="2"/>
+    <px name="tab_dot_ring_width_medium" value="2"/>
+    <px name="tab_dot_ring_width_large" value="2"/>
     <px name="border_radius_sm" value="4"/>
 
     <!-- Unified Responsive Spacing System (space_*)                         -->

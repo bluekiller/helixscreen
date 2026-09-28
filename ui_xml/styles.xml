@@ -84,9 +84,10 @@
 
     <!-- LEDs overlay: the running effect/preset or the chosen level fills its
          chip, and the chosen swatch or white tone wears a ring. -->
-    <style name="led_chip_idle" bg_color="#card_bg" bg_opa="255" border_width="1" border_color="#border"/>
+    <style name="led_chip_idle" bg_color="#card_bg" bg_opa="255" border_width="#border_width" border_color="#border"/>
     <style name="led_chip_active" bg_color="#primary" border_color="#primary"/>
-    <style name="led_swatch_ring" outline_width="2" outline_pad="2" outline_color="#text" outline_opa="255"/>
+    <style name="led_swatch_ring"
+           outline_width="#led_ring_width" outline_pad="#led_ring_width" outline_color="#text" outline_opa="255"/>
   </styles>
   <!-- Registration requires a <view>; nothing ever instantiates this
        component, so an empty lv_obj keeps it harmless. -->
