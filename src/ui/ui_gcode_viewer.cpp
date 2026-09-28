@@ -494,6 +494,35 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
 }
 
 #ifdef ENABLE_3D_RENDERER
+/// Segments a banded build keeps: shells are strided by the band depth;
+/// surfaces (skins, and the whole first layer so the model keeps its bottom)
+/// are kept on every layer when they fit. Counted the way GeometryBuilder
+/// selects them, so plan_bands() sizes the band the builder will make.
+namespace helix {
+struct BandSegmentCounts {
+    size_t shell = 0;
+    size_t surface = 0;
+};
+} // namespace helix
+
+static BandSegmentCounts count_band_segments(const helix::gcode::ParsedGCodeFile& file) {
+    BandSegmentCounts counts;
+    const size_t first_layer = helix::gcode::first_print_layer(file);
+    for (size_t li = first_layer; li < file.layers.size(); ++li) {
+        for (const auto& seg : file.layers[li].segments) {
+            if (!seg.is_extrusion || helix::gcode::is_auxiliary_geometry(seg.feature_type)) {
+                continue;
+            }
+            if (helix::gcode::is_band_shell_feature(seg.feature_type)) {
+                ++counts.shell;
+            } else if (li == first_layer || helix::gcode::is_surface_feature(seg.feature_type)) {
+                ++counts.surface;
+            }
+        }
+    }
+    return counts;
+}
+
 /// Build a 3D RibbonGeometry from a parsed gcode file using the memory budget
 /// system. Returns nullptr if the budget tier forces 2D or the build exceeds
 /// the budget. Shared between the initial async-load path and the on-demand
@@ -519,6 +548,26 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
         context_tag, available_kb / 1024, budget / (1024 * 1024), render_driver, max_tris,
         file.drawable_segments, file.total_segments, budget_config.tier);
 
+    // A file the triangle cap alone pushed to 2D gets a banded still instead:
+    // shells on every n-th layer, n layers tall, skins and the first layer whole.
+    helix::gcode::render_schedule::BandPlan still_bands{1, true};
+    if (budget_config.tier == 4 && budget_config.triangle_capped) {
+        const BandSegmentCounts counts = count_band_segments(file);
+        still_bands =
+            helix::gcode::render_schedule::plan_still_bands(counts.shell, counts.surface, max_tris);
+        if (still_bands.band_layers > 1) {
+            budget_config = {.tier = 3,
+                             .tube_sides = 4,
+                             .simplification_tolerance = 0.01f,
+                             .include_travels = false,
+                             .budget_bytes = budget_config.budget_bytes,
+                             .triangle_capped = true};
+            spdlog::info("[GCode Viewer] {}: over the triangle cap, banded still with {}-layer "
+                         "bands",
+                         context_tag, still_bands.band_layers);
+        }
+    }
+
     if (budget_config.tier > 3) {
         spdlog::info("[GCode Viewer] {}: tier {} — skipping 3D geometry build", context_tag,
                      budget_config.tier);
@@ -542,6 +591,7 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     configure(builder);
     builder.set_budget_tube_sides(budget_config.tube_sides);
     builder.set_budget_limit(budget_config.budget_bytes);
+    builder.set_band_layers(still_bands.band_layers, still_bands.surfaces_every_layer);
 
     helix::gcode::SimplificationOptions opts{.tolerance_mm = budget_config.simplification_tolerance,
                                              .min_segment_length_mm = 0.05f,
@@ -578,27 +628,10 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     const size_t main_triangles =
         geometry->extrusion_triangle_count + geometry->travel_triangle_count;
     if (main_triangles > moving_budget) {
-        // Shells are strided by the band depth; surfaces (skins, and the whole first
-        // layer so the model keeps its bottom) are kept on every layer if they fit.
-        const size_t first_layer = helix::gcode::first_print_layer(file);
-        size_t shell_segments = 0;
-        size_t surface_segments = 0;
-        for (size_t li = first_layer; li < file.layers.size(); ++li) {
-            for (const auto& seg : file.layers[li].segments) {
-                if (!seg.is_extrusion || helix::gcode::is_auxiliary_geometry(seg.feature_type)) {
-                    continue;
-                }
-                if (helix::gcode::is_band_shell_feature(seg.feature_type)) {
-                    ++shell_segments;
-                } else if (li == first_layer ||
-                           helix::gcode::is_surface_feature(seg.feature_type)) {
-                    ++surface_segments;
-                }
-            }
-        }
-        if (shell_segments + surface_segments > 0) {
+        const BandSegmentCounts counts = count_band_segments(file);
+        if (counts.shell + counts.surface > 0) {
             const auto bands = helix::gcode::render_schedule::plan_bands(
-                shell_segments, surface_segments, moving_budget);
+                counts.shell, counts.surface, moving_budget);
             const int band_layers = bands.band_layers;
             helix::gcode::GeometryBuilder mesh_builder;
             configure(mesh_builder);

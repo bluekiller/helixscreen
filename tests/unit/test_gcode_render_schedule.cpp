@@ -107,6 +107,21 @@ TEST_CASE("plan_bands with no budget is off", "[gcode][render_schedule]") {
     REQUIRE_FALSE(p.surfaces_every_layer);
 }
 
+TEST_CASE("plan_still_bands fits an over-cap still or gives up past 4-layer bands",
+          "[gcode][render_schedule]") {
+    // Eiffel on vc4: 129k shell and 9k surface segments against a 1M cap.
+    BandPlan p = plan_still_bands(129000, 9000, 1000000);
+    REQUIRE(p.band_layers == 2);
+    REQUIRE(p.surfaces_every_layer);
+
+    // 4-layer bands are the deepest a still may use.
+    REQUIRE(plan_still_bands(340000, 0, 1000000).band_layers == 4);
+    // Past that the still stays 2D.
+    p = plan_still_bands(500000, 0, 1000000);
+    REQUIRE(p.band_layers == 1);
+    REQUIRE_FALSE(p.surfaces_every_layer);
+}
+
 static JobInputs idle_complete(int progress) {
     JobInputs in{};
     in.have_complete_image = true;

@@ -161,11 +161,14 @@ GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t se
 
     spdlog::info("[GeometryBudget] Tier 4 (2D fallback): est {}MB exceeds {}MB budget{}",
                  est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n4));
+    // Capped here means the bytes fit tier 3 and only the triangle cap refused
+    // it, so a coarser 3D build (a banded still) is still affordable.
     return {.tier = 4,
             .tube_sides = 0,
             .simplification_tolerance = 0.0f,
             .include_travels = false,
-            .budget_bytes = budget_bytes};
+            .budget_bytes = budget_bytes,
+            .triangle_capped = tris_excluded_a_tier && est_n4 < budget_bytes};
 }
 
 GeometryBudgetManager::BudgetAction GeometryBudgetManager::check_budget(size_t current_usage_bytes,

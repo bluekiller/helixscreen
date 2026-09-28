@@ -100,6 +100,22 @@ inline BandPlan plan_bands(size_t shell_segments, size_t surface_segments,
     return {layers_for((shell_segments + surface_segments) * kTris, budget_triangles), false};
 }
 
+/// Deepest band a still image may use. Past this the steps read at fit zoom
+/// and the 2D view is the better picture.
+constexpr int kMaxStillBandLayers = 4;
+
+/// Band plan for a still that the GPU triangle cap refused at full layer
+/// resolution: the same banding as the moving mesh, sized to the cap. A
+/// band_layers of 1 means no 3D still fits and the viewer stays 2D.
+inline BandPlan plan_still_bands(size_t shell_segments, size_t surface_segments,
+                                 size_t max_triangles) {
+    const BandPlan p = plan_bands(shell_segments, surface_segments, max_triangles);
+    if (p.band_layers > kMaxStillBandLayers) {
+        return {1, false};
+    }
+    return p;
+}
+
 /// What the renderer does with its time-sliced job after a state change.
 enum class JobAction {
     Keep,        ///< keep going (or keep showing the cached image)

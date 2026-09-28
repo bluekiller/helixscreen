@@ -367,6 +367,15 @@ builds left 9 MB and 3 MB of it free. Free CMA that low starves anything else
 asking the GPU for memory, so the cap stays at 1M
 (`include/gcode_gl_fallback.h#VC4_TRIANGLE_BUDGET`).
 
+A file the cap alone refuses (its bytes fit tier 3) still gets 3D: a banded
+still, the moving mesh's banding sized to the cap
+(`include/gcode_render_schedule.h#plan_still_bands`). Walls are drawn from every
+n-th layer, each band n layers tall so bands touch with no gaps; the first layer
+and every top, bottom and bridge skin stay one layer tall. Slopes become steps n
+layers high, under a pixel at fit zoom for n = 2 (the Eiffel Tower test print).
+Past 4-layer bands (`kMaxStillBandLayers`) the steps read at fit zoom and the
+viewer stays 2D.
+
 ## nanovg: why it is unusable
 
 Three independent defects, all upstream in LVGL 9.5. The first alone is
