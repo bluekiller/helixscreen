@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/log_capture.h"
 #include "../test_helpers/scoped_env.h"
 #include "hv/hlog.h"
 #include "logging_init.h"
@@ -155,6 +156,34 @@ TEST_CASE("set_runtime_level keeps libhv at WARN", "[logging][config]") {
 
     hlog_set_handler(nullptr);
     set_runtime_level(spdlog::level::info);
+}
+
+TEST_CASE("libhv log lines reach spdlog tagged [libhv]", "[logging][config][libhv]") {
+    route_libhv_to_spdlog();
+    hlog_set_level(LOG_LEVEL_WARN);
+
+    SECTION("text arrives without libhv's prefix or trailing newline") {
+        TextLogCapture capture;
+        hlogw("libhv probe %d", 42);
+        const std::string text = capture.get_captured();
+        CHECK(text.rfind("[libhv] libhv probe 42 [", 0) == 0);
+        CHECK(text.find("\n") == text.size() - 1);
+    }
+
+    SECTION("libhv levels map onto spdlog levels") {
+        ExclusiveLogCapture capture;
+        hlogw("libhv warn probe");
+        hloge("libhv error probe");
+        hlogf("libhv fatal probe");
+        CHECK(capture.levels_for("libhv warn probe") ==
+              std::vector<spdlog::level::level_enum>{spdlog::level::warn});
+        CHECK(capture.levels_for("libhv error probe") ==
+              std::vector<spdlog::level::level_enum>{spdlog::level::err});
+        CHECK(capture.levels_for("libhv fatal probe") ==
+              std::vector<spdlog::level::level_enum>{spdlog::level::critical});
+    }
+
+    hlog_set_handler(nullptr);
 }
 
 // ============================================================================
