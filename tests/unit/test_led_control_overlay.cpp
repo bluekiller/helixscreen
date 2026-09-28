@@ -1091,3 +1091,50 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab dot shows exactly its de
     drain();
     CHECK(visible_dots("led_tab_1") == std::vector<int>{1});
 }
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a swatch row has no dead gaps and no overlap",
+                 "[led][overlay][xml]") {
+    lv_obj_t* list = find("led_swatch_list");
+    lv_obj_t* swatch = find("led_swatch_0");
+    REQUIRE(list != nullptr);
+    REQUIRE(swatch != nullptr);
+    const int32_t gap = lv_obj_get_style_pad_column(list, LV_PART_MAIN);
+    REQUIRE(gap > 0);
+    auto reach = [](lv_obj_t* obj) {
+        lv_area_t click;
+        lv_obj_get_click_area(obj, &click);
+        lv_area_t coords;
+        lv_obj_get_coords(obj, &coords);
+        return coords.x1 - click.x1;
+    };
+    // Each swatch reaches half the gap to each side: together they cover it exactly.
+    CHECK(reach(swatch) * 2 == gap);
+    CHECK(reach(find("led_custom_swatch")) * 2 == gap);
+    CHECK(reach(find("led_white_cool")) * 2 == gap);
+
+    // Chips do the same across their own gap.
+    const int32_t chip_gap = lv_obj_get_style_pad_column(find("led_chip_scroller"), LV_PART_MAIN);
+    REQUIRE(chip_gap > 0);
+    CHECK(reach(find("led_chip_none")) * 2 == chip_gap);
+    CHECK(reach(find("led_chip_0")) * 2 == chip_gap);
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the selection ring draws inside its swatch",
+                 "[led][overlay][xml]") {
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "led_selected_swatch"), -2);
+    lv_obj_t* custom = find("led_custom_swatch");
+    REQUIRE(custom != nullptr);
+    // A border, not an outline: nothing past the swatch's own bounds, so no row clips it.
+    CHECK(lv_obj_get_style_border_width(custom, LV_PART_MAIN) > 0);
+    CHECK(lv_obj_get_style_outline_width(custom, LV_PART_MAIN) == 0);
+    CHECK(lv_obj_get_style_pad_top(custom, LV_PART_MAIN) >=
+          lv_obj_get_style_border_width(custom, LV_PART_MAIN));
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the modes sit a step further from the look",
+                 "[led][overlay][xml]") {
+    const int32_t look_gap = lv_obj_get_style_margin_top(find("led_color_section"), LV_PART_MAIN);
+    const int32_t modes_gap = lv_obj_get_style_margin_top(find("led_list_section"), LV_PART_MAIN);
+    CHECK(look_gap > 0);
+    CHECK(modes_gap > look_gap);
+}

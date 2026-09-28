@@ -92,8 +92,11 @@
            outline_width="#border_width" outline_color="#border" outline_opa="255" outline_pad="0"/>
     <style name="led_chip_idle" bg_color="#card_bg" bg_opa="255" border_width="#border_width" border_color="#border"/>
     <style name="led_chip_active" bg_color="#primary" bg_opa="28%" border_color="#primary"/>
-    <style name="led_swatch_ring"
-           outline_width="#led_ring_width" outline_pad="#led_ring_width" outline_color="#text" outline_opa="255"/>
+    <!-- A swatch is its whole touch target: a transparent circle whose padding
+         is the ring's reach, holding the colored disc. The selection ring is its
+         border, so it draws inside the swatch and no container can clip it. -->
+    <style name="led_ring_holder" radius="9999" bg_opa="0" border_width="0" pad_all="#led_ring_reach"/>
+    <style name="led_swatch_ring" border_width="#led_ring_width" border_color="#text" border_opa="255"/>
   </styles>
   <!-- Registration requires a <view>; nothing ever instantiates this
        component, so an empty lv_obj keeps it harmless. -->

@@ -1,18 +1,24 @@
 <?xml version="1.0"?>
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- One round color swatch on the LEDs overlay: fill from color_subject, a ring
-     while led_selected_swatch equals index, a tap sends led_swatch_cb(index). -->
+<!-- One color swatch on the LEDs overlay: a disc filled from color_subject inside a
+     ring holder, ringed while led_selected_swatch equals index; a tap anywhere in
+     the swatch or half the gap around it sends led_swatch_cb(index). -->
 <component>
   <api>
     <prop name="index" type="string" default="0"/>
     <prop name="color_subject" type="string" default=""/>
   </api>
   <view extends="lv_obj"
-        width="#led_swatch_size" height="#led_swatch_size" style_radius="9999" style_bg_opa="255" style_border_width="0"
-        style_pad_all="0" clickable="true" scrollable="false">
-    <bind_style_prop prop="bg_color" subject="$color_subject"/>
+        width="#led_swatch_size" height="#led_swatch_size" clickable="true" scrollable="false"
+        ext_click_area="#led_swatch_gap_half">
+    <style name="styles.led_ring_holder"/>
     <bind_style_if_eq name="styles.led_swatch_ring" subject="led_selected_swatch" ref_value="$index"/>
+    <lv_obj name="disc"
+            width="100%" height="100%" style_radius="9999" style_bg_opa="255" style_border_width="0" clickable="false"
+            event_bubble="true" scrollable="false">
+      <bind_style_prop prop="bg_color" subject="$color_subject"/>
+    </lv_obj>
     <event_cb trigger="clicked" callback="led_swatch_cb" user_data="$index"/>
   </view>
 </component>
