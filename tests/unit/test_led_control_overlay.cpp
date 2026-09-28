@@ -9,9 +9,12 @@
  * @see ui_led_control_overlay.h
  */
 
+#include "ui_nav_manager.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "app_globals.h"
 #include "config.h"
@@ -26,6 +29,7 @@
 #include "printer_state.h"
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -759,4 +763,101 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tapped effect chip no frame a
     process_lvgl(4000);
     drain();
     CHECK(access.int_subject("led_active_chip") == -1);
+}
+
+// ============================================================================
+// The XML view over the model
+// ============================================================================
+
+namespace {
+
+/// The overlay built from its real XML, opened on an RGBW strip with one effect.
+struct OverlayXmlFixture : public LVGLUITestFixture {
+    lv_obj_t* root = nullptr;
+
+    OverlayXmlFixture() {
+        auto& ctrl = LedController::instance();
+        ctrl.deinit();
+        ctrl.init(nullptr, nullptr);
+        ctrl.native().add_strip(make_native_strip("neopixel chamber_light", true, true));
+        ctrl.native().add_strip(make_native_strip("neopixel sb_leds", true, false));
+        LedEffectInfo glow;
+        glow.name = "led_effect glow";
+        glow.display_name = "Glow";
+        glow.target_leds = {"neopixel chamber_light"};
+        ctrl.effects().add_effect(glow);
+
+        helix::ui::destroy_static_panels();
+        drain();
+        std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
+        for (auto& p : panels) {
+            p = lv_obj_create(test_screen());
+        }
+        NavigationManager::instance().set_panels(panels.data());
+        init_led_control_overlay(get_printer_state());
+        root = helix::open_led_control_overlay(test_screen(), "neopixel chamber_light");
+        drain();
+        REQUIRE(root != nullptr);
+    }
+
+    ~OverlayXmlFixture() override {
+        drain();
+        NavigationManager::instance().shutdown();
+        helix::ui::destroy_static_panels();
+        drain();
+        LedController::instance().deinit();
+    }
+
+    lv_obj_t* find(const char* name) const {
+        return lv_obj_find_by_name(root, name);
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: every named control exists",
+                 "[led][overlay][xml]") {
+    for (const char* name : {"led_tab_row",         "led_tab_0",         "led_tab_1",
+                             "led_tab_fade",        "led_power_btn",     "led_brightness_slider",
+                             "led_white_cool",      "led_white_neutral", "led_white_warm",
+                             "led_swatch_list",     "led_swatch_0",      "led_custom_swatch",
+                             "led_chip_row",        "led_chip_none",     "led_chip_0",
+                             "led_level_10",        "led_level_50",      "led_level_100",
+                             "led_macro_on",        "led_macro_off",     "led_macro_toggle",
+                             "led_page_note_label", "led_empty_state"}) {
+        INFO(name);
+        CHECK(find(name) != nullptr);
+    }
+    CHECK(find("strip_selector_section") == nullptr);
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the slider fill takes the page color",
+                 "[led][overlay][xml]") {
+    lv_obj_t* slider = find("led_brightness_slider");
+    REQUIRE(slider != nullptr);
+    lv_subject_set_color(lv_xml_get_subject(nullptr, "led_page_color"), lv_color_hex(0xFF4444));
+    CHECK(lv_color_to_u32(lv_obj_get_style_bg_color(slider, LV_PART_INDICATOR)) ==
+          lv_color_to_u32(lv_color_hex(0xFF4444)));
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab click focuses that tab's device",
+                 "[led][overlay][xml]") {
+    lv_obj_t* tab = find("led_tab_1");
+    REQUIRE(tab != nullptr);
+    lv_obj_send_event(tab, LV_EVENT_CLICKED, nullptr);
+    CHECK(get_led_control_overlay().focused_device() == "neopixel sb_leds");
+    CHECK(LedControlOverlayTestAccess::int_subject("led_focused_tab") == 1);
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture,
+                 "overlay XML: the page shows only the focused device's sections",
+                 "[led][overlay][xml]") {
+    // RGBW with an effect: lamp, White, Color and the Effects row; no levels, no macro buttons.
+    CHECK_FALSE(lv_obj_has_flag(find("led_power_btn"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(find("led_white_section"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(find("led_color_section"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(find("led_chip_none"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(find("led_level_row"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(find("led_macro_on"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(find("led_empty_state"), LV_OBJ_FLAG_HIDDEN));
 }

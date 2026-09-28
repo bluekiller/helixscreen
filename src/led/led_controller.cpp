@@ -13,6 +13,7 @@
 #include "json_utils.h"
 #include "led/led_auto_state.h"
 #include "led/led_color_utils.h"
+#include "led/led_device_page.h"
 #include "led_wled_json.h"
 #include "moonraker_error.h"
 #include "observer_factory.h"
@@ -2205,12 +2206,13 @@ DeviceState LedController::device_state(const std::string& id) const {
         uint32_t base = 0;
         int pct = 0;
         double white = 0.0;
-        native_.get_strip_color(id).decompose(base, pct, white);
+        const auto c = native_.get_strip_color(id);
+        c.decompose(base, pct, white);
         s.power = pct > 0 ? PowerState::On : PowerState::Off;
         s.brightness = pct;
         const auto* info = find_strip(native_.strips(), id);
         s.has_rgb = info != nullptr && info->supports_color;
-        s.rgb = (base == 0 && white > 0.0) ? 0xFFFFFFu : base;
+        s.rgb = output_rgb(c.r, c.g, c.b, c.w);
         return s;
     }
     case LedBackendType::OUTPUT_PIN:

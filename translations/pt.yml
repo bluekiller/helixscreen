@@ -747,6 +747,7 @@ translations:
   Controlled by hardware sensor: Controlado por sensor de hardware
   Controller: Controlador
   Controls: Controles
+  Cool: Frio
   Cool Down: Resfriar
   Cool nozzle after filament ops: Resfriar bico após operações de filamento
   Cooling: Resfriamento
@@ -1723,6 +1724,7 @@ translations:
   Length of the cooling tube section: 'Comprimento da seção do tubo de resfriamento'
   'Length:': 'Comprimento:'
   Let's take a quick tour so you can find things fast.: Vamos fazer um tour rápido para você encontrar as coisas com facilidade.
+  Level: Nível
   Leveling Gantry...: Nivelando pórtico...
   Library: Biblioteca
   Lifetime Print Stats: Estatísticas de Impressão Totais
@@ -1974,6 +1976,7 @@ translations:
   Network forgotten: Rede esquecida
   Network name cannot be empty: O nome da rede não pode estar vazio
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Rede, tela, som, configuração da impressora e muito mais. Você pode repetir este tour a qualquer momento em Ajuda e sobre.'
+  Neutral: Neutro
   Never: Nunca
   New Spool: Novo carretel
   'New Spool: Step 1 of 3': 'Nova Bobina: Etapa 1 de 3'
@@ -1999,6 +2002,7 @@ translations:
     de LED primeiro.
   No LED macros detected. Type a macro name below.: Nenhuma macro LED detectada. Digite um nome de macro abaixo.
   No LED strips detected: 'Nenhuma fita LED detectada'
+  No LEDs found: Nenhum LED encontrado
   No Macros Found: Nenhuma Macro Encontrada
   No Multi-Filament System connected: Nenhum sistema multi-filamento conectado
   No Multi-Filament System connected.: Nenhum sistema multi-filamento conectado.
@@ -3612,6 +3616,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Aguardando a mesa
     atingir a temperatura para calibração precisa.
   Waiting for the filament system to report its state: Aguardando o sistema de filamento informar seu estado
+  Warm: Quente
   Warm Bed: Aquecer Mesa
   Warm up for a material in one tap: Pré-aquecer para um material em um toque
   Warming Bed...: Aquecendo Mesa...

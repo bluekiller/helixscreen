@@ -662,6 +662,7 @@
   <translation tag="Controlled by hardware sensor" de="Durch Hardware-Sensor gesteuert"/>
   <translation tag="Controller" de="Controller"/>
   <translation tag="Controls" de="Steuerung"/>
+  <translation tag="Cool" de="Kalt"/>
   <translation tag="Cool Down" de="Abkühlen"/>
   <translation tag="Cool nozzle after filament ops" de="Düse nach Filamentvorgängen abkühlen"/>
   <translation tag="Cooling" de="Kühlung"/>
@@ -1535,6 +1536,7 @@
   <translation tag="Length of the cooling tube section" de="Länge des Kühlrohrabschnitts"/>
   <translation tag="Length:" de="Länge:"/>
   <translation tag="Let&apos;s take a quick tour so you can find things fast." de="Machen wir einen kurzen Rundgang, damit Sie sich schnell zurechtfinden."/>
+  <translation tag="Level" de="Stufe"/>
   <translation tag="Leveling Gantry..." de="Gantry nivellieren..."/>
   <translation tag="Library" de="Bibliothek"/>
   <translation tag="Lifetime Print Stats" de="Gesamte Druckstatistik"/>
@@ -1768,6 +1770,7 @@
   <translation tag="Network forgotten" de="Netzwerk vergessen"/>
   <translation tag="Network name cannot be empty" de="Netzwerkname darf nicht leer sein"/>
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." de="Netzwerk, Display, Sound, Druckereinrichtung und mehr. Sie können diesen Rundgang jederzeit unter Hilfe &amp; Über erneut abspielen."/>
+  <translation tag="Neutral" de="Neutral"/>
   <translation tag="Never" de="Nie"/>
   <translation tag="New Spool" de="Neue Spule"/>
   <translation tag="New Spool: Step 1 of 3" de="Neue Spule: Schritt 1 von 3"/>
@@ -1790,6 +1793,7 @@
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." de="Keine LED-Makros auf Ihrem Drucker erkannt. Fügen Sie zuerst Klipper-Makros zur LED-Steuerung hinzu."/>
   <translation tag="No LED macros detected. Type a macro name below." de="Keine LED-Makros erkannt. Geben Sie unten einen Makronamen ein."/>
   <translation tag="No LED strips detected" de="Keine LED-Streifen erkannt"/>
+  <translation tag="No LEDs found" de="Keine LEDs gefunden"/>
   <translation tag="No Macros Found" de="Keine Makros gefunden"/>
   <translation tag="No Multi-Filament System connected" de="Kein Multi-Filament-System verbunden"/>
   <translation tag="No Multi-Filament System connected." de="Kein Multi-Filament-System verbunden."/>
@@ -3194,6 +3198,7 @@
   <translation tag="Waiting for another box to finish." de="Warte, bis eine andere Box fertig ist."/>
   <translation tag="Waiting for bed to reach temperature for accurate calibration." de="Warte auf Bett-Temperatur für genaue Kalibrierung."/>
   <translation tag="Waiting for the filament system to report its state" de="Warte auf Statusmeldung des Filamentsystems"/>
+  <translation tag="Warm" de="Warm"/>
   <translation tag="Warm Bed" de="Bett vorheizen"/>
   <translation tag="Warm up for a material in one tap" de="Material mit einem Tipp vorheizen"/>
   <translation tag="Warming Bed..." de="Bett wird vorgeheizt..."/>

@@ -735,6 +735,7 @@ translations:
   Controlled by hardware sensor: Управляется аппаратным датчиком
   Controller: Контроллер
   Controls: Управление
+  Cool: Холодный
   Cool Down: Охладить
   Cool nozzle after filament ops: Остужать сопло после операций с филаментом
   Cooling: Охлаждение
@@ -1702,6 +1703,7 @@ translations:
   Length of the cooling tube section: 'Длина участка трубки охлаждения'
   'Length:': 'Длина:'
   Let's take a quick tour so you can find things fast.: 'Давайте устроим краткий тур, чтобы вы могли быстро находить всё нужное.'
+  Level: Уровень
   Leveling Gantry...: Выравнивание портала...
   Library: Библиотека
   Lifetime Print Stats: Статистика за всё время
@@ -1951,6 +1953,7 @@ translations:
   Network forgotten: Сеть забыта
   Network name cannot be empty: Имя сети не может быть пустым
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Сеть, дисплей, звук, настройка принтера и многое другое. Этот тур можно повторить в любой момент из раздела «Справка и о программе».'
+  Neutral: Нейтральный
   Never: Никогда
   New Spool: Новая катушка
   'New Spool: Step 1 of 3': 'Новая катушка: Шаг 1 из 3'
@@ -1976,6 +1979,7 @@ translations:
     управления LED.
   No LED macros detected. Type a macro name below.: LED-макросы не обнаружены. Введите название макроса ниже.
   No LED strips detected: 'LED-ленты не обнаружены'
+  No LEDs found: Светодиоды не найдены
   No Macros Found: Макросы не найдены
   No Multi-Filament System connected: Мультифиламентная система не подключена
   No Multi-Filament System connected.: Мультифиламентная система не подключена.
@@ -3565,6 +3569,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Ожидание нагрева
     стола для точной калибровки.
   Waiting for the filament system to report its state: Ожидание состояния системы филамента
+  Warm: Тёплый
   Warm Bed: Прогреть стол
   Warm up for a material in one tap: Преднагрев под материал одним нажатием
   Warming Bed...: Прогрев стола...

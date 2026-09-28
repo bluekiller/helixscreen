@@ -649,7 +649,10 @@ void register_xml_components() {
     register_xml("fan_status_card.xml");
     register_xml("fan_control_overlay.xml");
     register_xml("led_action_chip.xml");
+    register_xml("led_list_chip.xml");
     register_xml("led_color_swatch.xml");
+    register_xml("led_white_tone.xml");
+    register_xml("components/led_device_tab.xml");
     register_xml("led_control_overlay.xml");
     register_xml("ams_current_tool.xml");
     register_xml("components/exclude_object_map.xml");

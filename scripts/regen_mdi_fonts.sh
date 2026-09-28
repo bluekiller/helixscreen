@@ -91,6 +91,7 @@ MDI_ICONS+=",0xF01A4"    # crosshairs-gps (probe)
 MDI_ICONS+=",0xF01B4"    # delete (trash)
 MDI_ICONS+=",0xF01B7"    # debug-step-over (skip objects)
 MDI_ICONS+=",0xF01BC"    # database
+MDI_ICONS+=",0xF1978"    # dots-circle (LED tab: state unknown)
 MDI_ICONS+=",0xF01D9"    # dots-vertical (advanced)
 MDI_ICONS+=",0xF01DA"    # download
 MDI_ICONS+=",0xF01EA"    # eject (lane eject)

@@ -100,6 +100,7 @@ print-tune         demo print-tune
 preflight-check    demo preflight-check
 color-mismatch     demo color-mismatch
 runout-modal       demo runout-modal
+leds               demo leds
 camera             demo camera
 "
 

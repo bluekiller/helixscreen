@@ -80,6 +80,7 @@ class LedControlOverlay : public OverlayBase {
     void rebuild_tabs();
     void publish_tab_dots();
     void focus_device(const std::string& id);
+    void scroll_tab_into_view(int index);
     /// Reads the focused device's brightness, color and white level.
     void load_page_state();
     void publish_page();

@@ -2534,6 +2534,10 @@ bool show_demo_overlay(const std::string& name) {
         return true;
     }
 
+    if (name == "leds") {
+        return helix::open_led_control_overlay(screen) != nullptr;
+    }
+
     if (name == "runout-modal") {
         auto* modal = new RunoutGuidanceModal();
         modal->set_autofeed_capable(false);

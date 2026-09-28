@@ -719,6 +719,7 @@ translations:
   Controlled by hardware sensor: Controlled by hardware sensor
   Controller: Controller
   Controls: Controls
+  Cool: Cool
   Cool Down: Cool Down
   Cool nozzle after filament ops: Cool nozzle after filament ops
   Cooling: Cooling
@@ -1662,6 +1663,7 @@ translations:
   Length of the cooling tube section: Length of the cooling tube section
   'Length:': 'Length:'
   Let's take a quick tour so you can find things fast.: Let's take a quick tour so you can find things fast.
+  Level: Level
   Leveling Gantry...: Leveling Gantry...
   Library: Library
   Lifetime Print Stats: Lifetime Print Stats
@@ -1909,6 +1911,7 @@ translations:
   Network forgotten: Network forgotten
   Network name cannot be empty: Network name cannot be empty
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.'
+  Neutral: Neutral
   Never: Never
   New Spool: New Spool
   'New Spool: Step 1 of 3': 'New Spool: Step 1 of 3'
@@ -1933,6 +1936,7 @@ translations:
     LED macros detected on your printer. Add Klipper macros for LED control first.
   No LED macros detected. Type a macro name below.: No LED macros detected. Type a macro name below.
   No LED strips detected: No LED strips detected
+  No LEDs found: No LEDs found
   No Macros Found: No Macros Found
   No Multi-Filament System connected: No Multi-Filament System connected
   No Multi-Filament System connected.: No Multi-Filament System connected.
@@ -3492,6 +3496,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Waiting for bed
     to reach temperature for accurate calibration.
   Waiting for the filament system to report its state: Waiting for the filament system to report its state
+  Warm: Warm
   Warm Bed: Warm Bed
   Warm up for a material in one tap: Warm up for a material in one tap
   Warming Bed...: Warming Bed...

@@ -5,6 +5,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "led/led_controller.h"
+#include "led/led_device_page.h"
 #include "led/led_devices.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
@@ -209,4 +210,15 @@ TEST_CASE_METHOD(DeviceStateFixture, "all_devices appends PRESET macros after th
     CHECK(devices.back().id == "macro:Party");
     const auto sw = ctrl.switchable_ids();
     CHECK(std::find(sw.begin(), sw.end(), "macro:Party") == sw.end());
+}
+
+TEST_CASE_METHOD(DeviceStateFixture, "device_state: a lit W channel counts toward the hue",
+                 "[led][state]") {
+    auto& ctrl = LedController::instance();
+    // Warm white on RGBW: a small tint under a full W reads as a pale warm white,
+    // not as the tint alone.
+    ctrl.update_from_status({{"neopixel a", {{"color_data", {{0.35, 0.12, 0.0, 1.0}}}}}});
+    CHECK(ctrl.device_state("neopixel a").rgb == output_rgb(0.35, 0.12, 0.0, 1.0));
+    ctrl.update_from_status({{"neopixel a", {{"color_data", {{0.0, 0.0, 0.0, 0.4}}}}}});
+    CHECK(ctrl.device_state("neopixel a").rgb == 0xFFFFFFu);
 }

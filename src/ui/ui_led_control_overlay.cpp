@@ -287,9 +287,23 @@ void LedControlOverlay::focus_device(const std::string& id) {
         }
     }
     lv_subject_set_int(&focused_tab_, index);
+    scroll_tab_into_view(index);
 
     load_page_state();
     publish_page();
+}
+
+void LedControlOverlay::scroll_tab_into_view(int index) {
+    lv_obj_t* row = overlay_root_ ? lv_obj_find_by_name(overlay_root_, "led_tab_row") : nullptr;
+    lv_obj_t* tab =
+        row ? lv_obj_find_by_name(row, fmt::format("led_tab_{}", index).c_str()) : nullptr;
+    if (tab == nullptr) {
+        return;
+    }
+    // DECLARATIVE_OK: scrolling has no XML form; an overlay opened on a device
+    // past the edge of the tab row must bring that tab into sight.
+    lv_obj_update_layout(row);
+    lv_obj_scroll_to_view(tab, LV_ANIM_ON);
 }
 
 const LedStripInfo* LedControlOverlay::focused_info() const {

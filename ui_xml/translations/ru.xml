@@ -662,6 +662,7 @@
   <translation tag="Controlled by hardware sensor" ru="Управляется аппаратным датчиком"/>
   <translation tag="Controller" ru="Контроллер"/>
   <translation tag="Controls" ru="Управление"/>
+  <translation tag="Cool" ru="Холодный"/>
   <translation tag="Cool Down" ru="Охладить"/>
   <translation tag="Cool nozzle after filament ops" ru="Остужать сопло после операций с филаментом"/>
   <translation tag="Cooling" ru="Охлаждение"/>
@@ -1535,6 +1536,7 @@
   <translation tag="Length of the cooling tube section" ru="Длина участка трубки охлаждения"/>
   <translation tag="Length:" ru="Длина:"/>
   <translation tag="Let&apos;s take a quick tour so you can find things fast." ru="Давайте устроим краткий тур, чтобы вы могли быстро находить всё нужное."/>
+  <translation tag="Level" ru="Уровень"/>
   <translation tag="Leveling Gantry..." ru="Выравнивание портала..."/>
   <translation tag="Library" ru="Библиотека"/>
   <translation tag="Lifetime Print Stats" ru="Статистика за всё время"/>
@@ -1768,6 +1770,7 @@
   <translation tag="Network forgotten" ru="Сеть забыта"/>
   <translation tag="Network name cannot be empty" ru="Имя сети не может быть пустым"/>
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." ru="Сеть, дисплей, звук, настройка принтера и многое другое. Этот тур можно повторить в любой момент из раздела «Справка и о программе»."/>
+  <translation tag="Neutral" ru="Нейтральный"/>
   <translation tag="Never" ru="Никогда"/>
   <translation tag="New Spool" ru="Новая катушка"/>
   <translation tag="New Spool: Step 1 of 3" ru="Новая катушка: Шаг 1 из 3"/>
@@ -1790,6 +1793,7 @@
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." ru="На вашем принтере не обнаружены LED-макросы. Сначала добавьте макросы Klipper для управления LED."/>
   <translation tag="No LED macros detected. Type a macro name below." ru="LED-макросы не обнаружены. Введите название макроса ниже."/>
   <translation tag="No LED strips detected" ru="LED-ленты не обнаружены"/>
+  <translation tag="No LEDs found" ru="Светодиоды не найдены"/>
   <translation tag="No Macros Found" ru="Макросы не найдены"/>
   <translation tag="No Multi-Filament System connected" ru="Мультифиламентная система не подключена"/>
   <translation tag="No Multi-Filament System connected." ru="Мультифиламентная система не подключена."/>
@@ -3194,6 +3198,7 @@
   <translation tag="Waiting for another box to finish." ru="Ожидание завершения другой коробки."/>
   <translation tag="Waiting for bed to reach temperature for accurate calibration." ru="Ожидание нагрева стола для точной калибровки."/>
   <translation tag="Waiting for the filament system to report its state" ru="Ожидание состояния системы филамента"/>
+  <translation tag="Warm" ru="Тёплый"/>
   <translation tag="Warm Bed" ru="Прогреть стол"/>
   <translation tag="Warm up for a material in one tap" ru="Преднагрев под материал одним нажатием"/>
   <translation tag="Warming Bed..." ru="Прогрев стола..."/>

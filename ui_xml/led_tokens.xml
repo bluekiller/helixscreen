@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<!-- Copyright (C) 2025-2026 356C LLC -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  LEDs overlay tokens. theme_manager scans ui_xml/*.xml for suffixed <px> ladders
+  and <color> elements and registers the base names globally, so the overlay and
+  its components under ui_xml/components/ resolve these the same way.
+
+  The white-tone colors are static previews of what Cool, Neutral and Warm look
+  like on the strip; they describe the light, not the UI theme.
+-->
+<component>
+  <consts>
+    <px name="led_tab_height_micro" value="26"/>
+    <px name="led_tab_height_small" value="32"/>
+    <px name="led_tab_height_medium" value="40"/>
+    <px name="led_tab_height_large" value="48"/>
+
+    <px name="led_dot_size_micro" value="8"/>
+    <px name="led_dot_size_small" value="10"/>
+    <px name="led_dot_size_medium" value="10"/>
+    <px name="led_dot_size_large" value="12"/>
+
+    <px name="led_swatch_size_micro" value="26"/>
+    <px name="led_swatch_size_small" value="32"/>
+    <px name="led_swatch_size_medium" value="42"/>
+    <px name="led_swatch_size_large" value="50"/>
+
+    <px name="led_power_size_micro" value="34"/>
+    <px name="led_power_size_small" value="44"/>
+    <px name="led_power_size_medium" value="56"/>
+    <px name="led_power_size_large" value="64"/>
+
+    <px name="led_lamp_width_micro" value="60"/>
+    <px name="led_lamp_width_small" value="76"/>
+    <px name="led_lamp_width_medium" value="100"/>
+    <px name="led_lamp_width_large" value="116"/>
+
+    <px name="led_chip_height_micro" value="26"/>
+    <px name="led_chip_height_small" value="32"/>
+    <px name="led_chip_height_medium" value="36"/>
+    <px name="led_chip_height_large" value="44"/>
+
+    <px name="led_chip_min_width_micro" value="40"/>
+    <px name="led_chip_min_width_small" value="48"/>
+    <px name="led_chip_min_width_medium" value="56"/>
+    <px name="led_chip_min_width_large" value="64"/>
+
+    <px name="led_fade_width_micro" value="28"/>
+    <px name="led_fade_width_small" value="36"/>
+    <px name="led_fade_width_medium" value="48"/>
+    <px name="led_fade_width_large" value="56"/>
+
+    <color name="led_white_cool" value="#EAF2FF"/>
+    <color name="led_white_neutral" value="#FFF3DE"/>
+    <color name="led_white_warm" value="#FFD9A0"/>
+  </consts>
+  <view extends="lv_obj"/>
+</component>

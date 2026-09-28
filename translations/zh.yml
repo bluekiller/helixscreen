@@ -676,6 +676,7 @@ translations:
   Controlled by hardware sensor: 由硬件传感器控制
   Controller: 控制器
   Controls: 控制
+  Cool: 冷色
   Cool Down: 冷却
   Cool nozzle after filament ops: 耗材操作后冷却喷嘴
   Cooling: 冷却中
@@ -1593,6 +1594,7 @@ translations:
   Length of the cooling tube section: '冷却管段的长度'
   'Length:': 长度：
   Let's take a quick tour so you can find things fast.: 让我们快速浏览一下，帮助您快速找到所需内容。
+  Level: 级别
   Leveling Gantry...: 正在调平龙门...
   Library: 库
   Lifetime Print Stats: 累计打印统计
@@ -1832,6 +1834,7 @@ translations:
   Network forgotten: 已忘记网络
   Network name cannot be empty: 网络名称不能为空
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 网络、显示、声音、打印机设置等。您可以随时从“帮助与关于”中重播此漫游。
+  Neutral: 中性
   Never: 从不
   New Spool: 新料盘
   'New Spool: Step 1 of 3': 新料盘：步骤 1 / 3
@@ -1855,6 +1858,7 @@ translations:
     LED 宏。请先添加用于 LED 控制的 Klipper 宏。
   No LED macros detected. Type a macro name below.: 未检测到 LED 宏。请在下方输入宏名称。
   No LED strips detected: '未检测到 LED 灯带'
+  No LEDs found: 未找到 LED
   No Macros Found: 未找到宏
   No Multi-Filament System connected: 未连接多耗材系统
   No Multi-Filament System connected.: 未连接多耗材系统。
@@ -3343,6 +3347,7 @@ translations:
   Waiting for another box to finish.: 正在等待另一个料盒完成。
   Waiting for bed to reach temperature for accurate calibration.: 等待热床达到温度以进行精确校准。
   Waiting for the filament system to report its state: 正在等待耗材系统报告状态
+  Warm: 暖色
   Warm Bed: 预热热床
   Warm up for a material in one tap: 一键为材料预热
   Warming Bed...: 正在预热热床...

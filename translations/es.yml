@@ -747,6 +747,7 @@ translations:
   Controlled by hardware sensor: Controlado por sensor de hardware
   Controller: Controlador
   Controls: Controles
+  Cool: Frío
   Cool Down: Enfriar
   Cool nozzle after filament ops: Enfriar boquilla tras cargar/descargar
   Cooling: Enfriamiento
@@ -1719,6 +1720,7 @@ translations:
   Length of the cooling tube section: 'Longitud de la sección del tubo de enfriamiento'
   'Length:': 'Longitud:'
   Let's take a quick tour so you can find things fast.: Hagamos un recorrido rápido para que encuentres las cosas fácilmente.
+  Level: Nivel
   Leveling Gantry...: Nivelando pórtico...
   Library: Biblioteca
   Lifetime Print Stats: Estadísticas de impresión totales
@@ -1971,6 +1973,7 @@ translations:
   Network forgotten: Red olvidada
   Network name cannot be empty: El nombre de red no puede estar vacío
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Red, pantalla, sonido, configuración de impresora y más. Puedes repetir este tour en cualquier momento desde Ayuda y Acerca de.'
+  Neutral: Neutro
   Never: Nunca
   New Spool: Bobina nueva
   'New Spool: Step 1 of 3': 'Nueva Bobina: Paso 1 de 3'
@@ -1996,6 +1999,7 @@ translations:
     para el control de LED.
   No LED macros detected. Type a macro name below.: No se detectaron macros de LED. Escriba un nombre de macro abajo.
   No LED strips detected: 'No se detectaron tiras LED'
+  No LEDs found: No se encontraron LED
   No Macros Found: No se Encontraron Macros
   No Multi-Filament System connected: Ningún sistema multi-filamento conectado
   No Multi-Filament System connected.: No hay sistema multi-filamento conectado.
@@ -3608,6 +3612,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Esperando que la
     cama alcance la temperatura para una calibración precisa.
   Waiting for the filament system to report its state: Esperando que el sistema de filamento informe su estado
+  Warm: Cálido
   Warm Bed: Calentar cama
   Warm up for a material in one tap: Precalentar para un material en un toque
   Warming Bed...: Calentando cama...

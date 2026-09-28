@@ -750,6 +750,7 @@ translations:
   Controlled by hardware sensor: Durch Hardware-Sensor gesteuert
   Controller: Controller
   Controls: Steuerung
+  Cool: Kalt
   Cool Down: Abkühlen
   Cool nozzle after filament ops: Düse nach Filamentvorgängen abkühlen
   Cooling: Kühlung
@@ -1730,6 +1731,7 @@ translations:
   Length of the cooling tube section: 'Länge des Kühlrohrabschnitts'
   'Length:': 'Länge:'
   Let's take a quick tour so you can find things fast.: 'Machen wir einen kurzen Rundgang, damit Sie sich schnell zurechtfinden.'
+  Level: Stufe
   Leveling Gantry...: Gantry nivellieren...
   Library: Bibliothek
   Lifetime Print Stats: Gesamte Druckstatistik
@@ -1980,6 +1982,7 @@ translations:
   Network forgotten: Netzwerk vergessen
   Network name cannot be empty: Netzwerkname darf nicht leer sein
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Netzwerk, Display, Sound, Druckereinrichtung und mehr. Sie können diesen Rundgang jederzeit unter Hilfe & Über erneut abspielen.'
+  Neutral: Neutral
   Never: Nie
   New Spool: Neue Spule
   'New Spool: Step 1 of 3': 'Neue Spule: Schritt 1 von 3'
@@ -2005,6 +2008,7 @@ translations:
     hinzu.
   No LED macros detected. Type a macro name below.: Keine LED-Makros erkannt. Geben Sie unten einen Makronamen ein.
   No LED strips detected: 'Keine LED-Streifen erkannt'
+  No LEDs found: Keine LEDs gefunden
   No Macros Found: Keine Makros gefunden
   No Multi-Filament System connected: Kein Multi-Filament-System verbunden
   No Multi-Filament System connected.: Kein Multi-Filament-System verbunden.
@@ -3613,6 +3617,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Warte auf Bett-Temperatur
     für genaue Kalibrierung.
   Waiting for the filament system to report its state: Warte auf Statusmeldung des Filamentsystems
+  Warm: Warm
   Warm Bed: Bett vorheizen
   Warm up for a material in one tap: Material mit einem Tipp vorheizen
   Warming Bed...: Bett wird vorgeheizt...

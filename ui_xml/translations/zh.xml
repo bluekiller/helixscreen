@@ -662,6 +662,7 @@
   <translation tag="Controlled by hardware sensor" zh="由硬件传感器控制"/>
   <translation tag="Controller" zh="控制器"/>
   <translation tag="Controls" zh="控制"/>
+  <translation tag="Cool" zh="冷色"/>
   <translation tag="Cool Down" zh="冷却"/>
   <translation tag="Cool nozzle after filament ops" zh="耗材操作后冷却喷嘴"/>
   <translation tag="Cooling" zh="冷却中"/>
@@ -1535,6 +1536,7 @@
   <translation tag="Length of the cooling tube section" zh="冷却管段的长度"/>
   <translation tag="Length:" zh="长度："/>
   <translation tag="Let&apos;s take a quick tour so you can find things fast." zh="让我们快速浏览一下，帮助您快速找到所需内容。"/>
+  <translation tag="Level" zh="级别"/>
   <translation tag="Leveling Gantry..." zh="正在调平龙门..."/>
   <translation tag="Library" zh="库"/>
   <translation tag="Lifetime Print Stats" zh="累计打印统计"/>
@@ -1768,6 +1770,7 @@
   <translation tag="Network forgotten" zh="已忘记网络"/>
   <translation tag="Network name cannot be empty" zh="网络名称不能为空"/>
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." zh="网络、显示、声音、打印机设置等。您可以随时从“帮助与关于”中重播此漫游。"/>
+  <translation tag="Neutral" zh="中性"/>
   <translation tag="Never" zh="从不"/>
   <translation tag="New Spool" zh="新料盘"/>
   <translation tag="New Spool: Step 1 of 3" zh="新料盘：步骤 1 / 3"/>
@@ -1790,6 +1793,7 @@
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." zh="未在打印机上检测到 LED 宏。请先添加用于 LED 控制的 Klipper 宏。"/>
   <translation tag="No LED macros detected. Type a macro name below." zh="未检测到 LED 宏。请在下方输入宏名称。"/>
   <translation tag="No LED strips detected" zh="未检测到 LED 灯带"/>
+  <translation tag="No LEDs found" zh="未找到 LED"/>
   <translation tag="No Macros Found" zh="未找到宏"/>
   <translation tag="No Multi-Filament System connected" zh="未连接多耗材系统"/>
   <translation tag="No Multi-Filament System connected." zh="未连接多耗材系统。"/>
@@ -3194,6 +3198,7 @@
   <translation tag="Waiting for another box to finish." zh="正在等待另一个料盒完成。"/>
   <translation tag="Waiting for bed to reach temperature for accurate calibration." zh="等待热床达到温度以进行精确校准。"/>
   <translation tag="Waiting for the filament system to report its state" zh="正在等待耗材系统报告状态"/>
+  <translation tag="Warm" zh="暖色"/>
   <translation tag="Warm Bed" zh="预热热床"/>
   <translation tag="Warm up for a material in one tap" zh="一键为材料预热"/>
   <translation tag="Warming Bed..." zh="正在预热热床..."/>

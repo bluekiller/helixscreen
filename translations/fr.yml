@@ -753,6 +753,7 @@ translations:
   Controlled by hardware sensor: Contrôlé par capteur matériel
   Controller: Contrôleur
   Controls: Commandes
+  Cool: Froid
   Cool Down: Refroidir
   Cool nozzle after filament ops: Refroidir la buse après opérations filament
   Cooling: Refroidissement
@@ -1734,6 +1735,7 @@ translations:
   Length of the cooling tube section: 'Longueur de la section du tube de refroidissement'
   'Length:': 'Longueur :'
   Let's take a quick tour so you can find things fast.: Faisons une visite rapide pour que vous puissiez trouver vos marques rapidement.
+  Level: Niveau
   Leveling Gantry...: Nivellement du portique...
   Library: Bibliothèque
   Lifetime Print Stats: Statistiques d'impression totales
@@ -1986,6 +1988,7 @@ translations:
   Network forgotten: Réseau oublié
   Network name cannot be empty: Le nom du réseau ne peut pas être vide
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Réseau, affichage, son, configuration de l''imprimante, et plus. Vous pouvez rejouer cette visite à tout moment depuis Aide et à propos.'
+  Neutral: Neutre
   Never: Jamais
   New Spool: Nouvelle bobine
   'New Spool: Step 1 of 3': 'Nouvelle bobine : Étape 1 sur 3'
@@ -2011,6 +2014,7 @@ translations:
     le contrôle des LEDs.
   No LED macros detected. Type a macro name below.: Aucune macro LED détectée. Saisissez un nom de macro ci-dessous.
   No LED strips detected: 'Aucun ruban LED détecté'
+  No LEDs found: Aucune LED trouvée
   No Macros Found: Aucune macro trouvée
   No Multi-Filament System connected: Aucun système multi-filament connecté
   No Multi-Filament System connected.: Aucun système multi-filament connecté.
@@ -3638,6 +3642,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: En attente que le
     plateau atteigne la température pour une calibration précise.
   Waiting for the filament system to report its state: En attente de l'état du système de filament
+  Warm: Chaud
   Warm Bed: Préchauffer le plateau
   Warm up for a material in one tap: Préchauffer pour un matériau en un appui
   Warming Bed...: Préchauffage du plateau...

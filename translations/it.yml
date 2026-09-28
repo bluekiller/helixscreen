@@ -742,6 +742,7 @@ translations:
   Controlled by hardware sensor: Controllato da sensore hardware
   Controller: Controller
   Controls: Controlli
+  Cool: Freddo
   Cool Down: Raffredda
   Cool nozzle after filament ops: Raffredda ugello dopo operazioni filamento
   Cooling: Raffreddamento
@@ -1720,6 +1721,7 @@ translations:
   Length of the cooling tube section: 'Lunghezza della sezione del tubo di raffreddamento'
   'Length:': 'Lunghezza:'
   Let's take a quick tour so you can find things fast.: Facciamo un rapido tour così potrai trovare tutto velocemente.
+  Level: Livello
   Leveling Gantry...: Livellamento gantry...
   Library: Libreria
   Lifetime Print Stats: Statistiche stampe totali
@@ -1971,6 +1973,7 @@ translations:
   Network forgotten: Rete dimenticata
   Network name cannot be empty: Il nome della rete non può essere vuoto
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Rete, schermo, suono, configurazione stampante e altro. Puoi rivedere questo tour in qualsiasi momento da Aiuto e informazioni.'
+  Neutral: Neutro
   Never: Mai
   New Spool: Nuova bobina
   'New Spool: Step 1 of 3': 'Nuova bobina: Passo 1 di 3'
@@ -1996,6 +1999,7 @@ translations:
     dei LED.
   No LED macros detected. Type a macro name below.: Nessuna macro LED rilevata. Digita un nome di macro qui sotto.
   No LED strips detected: 'Nessuna striscia LED rilevata'
+  No LEDs found: Nessun LED trovato
   No Macros Found: Nessuna macro trovata
   No Multi-Filament System connected: Nessun sistema multi-filamento connesso
   No Multi-Filament System connected.: Nessun sistema multi-filamento connesso.
@@ -3606,6 +3610,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: In attesa che il
     piano raggiunga la temperatura per una calibrazione precisa.
   Waiting for the filament system to report its state: In attesa dello stato del sistema filamento
+  Warm: Caldo
   Warm Bed: Preriscalda piano
   Warm up for a material in one tap: Preriscalda un materiale con un tocco
   Warming Bed...: Preriscaldamento piano...

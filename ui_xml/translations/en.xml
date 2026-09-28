@@ -662,6 +662,7 @@
   <translation tag="Controlled by hardware sensor" en="Controlled by hardware sensor"/>
   <translation tag="Controller" en="Controller"/>
   <translation tag="Controls" en="Controls"/>
+  <translation tag="Cool" en="Cool"/>
   <translation tag="Cool Down" en="Cool Down"/>
   <translation tag="Cool nozzle after filament ops" en="Cool nozzle after filament ops"/>
   <translation tag="Cooling" en="Cooling"/>
@@ -1535,6 +1536,7 @@
   <translation tag="Length of the cooling tube section" en="Length of the cooling tube section"/>
   <translation tag="Length:" en="Length:"/>
   <translation tag="Let&apos;s take a quick tour so you can find things fast." en="Let&apos;s take a quick tour so you can find things fast."/>
+  <translation tag="Level" en="Level"/>
   <translation tag="Leveling Gantry..." en="Leveling Gantry..."/>
   <translation tag="Library" en="Library"/>
   <translation tag="Lifetime Print Stats" en="Lifetime Print Stats"/>
@@ -1768,6 +1770,7 @@
   <translation tag="Network forgotten" en="Network forgotten"/>
   <translation tag="Network name cannot be empty" en="Network name cannot be empty"/>
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." en="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About."/>
+  <translation tag="Neutral" en="Neutral"/>
   <translation tag="Never" en="Never"/>
   <translation tag="New Spool" en="New Spool"/>
   <translation tag="New Spool: Step 1 of 3" en="New Spool: Step 1 of 3"/>
@@ -1790,6 +1793,7 @@
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." en="No LED macros detected on your printer. Add Klipper macros for LED control first."/>
   <translation tag="No LED macros detected. Type a macro name below." en="No LED macros detected. Type a macro name below."/>
   <translation tag="No LED strips detected" en="No LED strips detected"/>
+  <translation tag="No LEDs found" en="No LEDs found"/>
   <translation tag="No Macros Found" en="No Macros Found"/>
   <translation tag="No Multi-Filament System connected" en="No Multi-Filament System connected"/>
   <translation tag="No Multi-Filament System connected." en="No Multi-Filament System connected."/>
@@ -3194,6 +3198,7 @@
   <translation tag="Waiting for another box to finish." en="Waiting for another box to finish."/>
   <translation tag="Waiting for bed to reach temperature for accurate calibration." en="Waiting for bed to reach temperature for accurate calibration."/>
   <translation tag="Waiting for the filament system to report its state" en="Waiting for the filament system to report its state"/>
+  <translation tag="Warm" en="Warm"/>
   <translation tag="Warm Bed" en="Warm Bed"/>
   <translation tag="Warm up for a material in one tap" en="Warm up for a material in one tap"/>
   <translation tag="Warming Bed..." en="Warming Bed..."/>
