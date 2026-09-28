@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_context_menu.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_fixtures.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "app_globals.h"
 #include "config.h"
@@ -319,6 +321,56 @@ TEST_CASE_METHOD(LedWidgetFixture,
     CHECK(added.light_key().empty());
     CHECK(added.targets() == std::vector<std::string>{"neopixel chamber_light"});
     added.detach();
+}
+
+namespace helix {
+void register_led_widget();
+} // namespace helix
+
+namespace {
+struct LedPickerFixture : public XMLTestFixture {
+    LedPickerFixture() {
+        helix::ui::ContextMenu::register_shared_callbacks();
+        register_led_widget();
+        REQUIRE(register_component("led_picker"));
+        auto& ctrl = LedController::instance();
+        ctrl.deinit();
+        ctrl.init(&api(), &client());
+        add_strips({"neopixel chamber_light", "neopixel sb_leds"});
+    }
+    ~LedPickerFixture() override {
+        helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        LedController::instance().deinit();
+    }
+    static void add_strips(const std::vector<std::string>& ids) {
+        for (const auto& id : ids) {
+            LedStripInfo s;
+            s.id = id;
+            s.name = id;
+            s.backend = LedBackendType::NATIVE;
+            LedController::instance().native().add_strip(s);
+        }
+    }
+};
+} // namespace
+
+TEST_CASE_METHOD(LedPickerFixture, "LedWidget: a picker tap picks the row the user saw",
+                 "[led][light_button]") {
+    LedWidget w("led", state(), &api());
+    w.set_config(nlohmann::json::object());
+    w.attach(lv_obj_create(test_screen()), test_screen());
+    w.on_edit_configure();
+    lv_obj_t* row = lv_obj_find_by_name(test_screen(), "led_picker_row_1");
+    REQUIRE(row != nullptr);
+
+    // The device list reorders while the picker is open.
+    LedController::instance().native().clear();
+    add_strips({"neopixel sb_leds", "neopixel chamber_light"});
+    lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+    process_lvgl(50);
+
+    CHECK(w.light_key() == "neopixel sb_leds");
+    w.detach();
 }
 
 TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_button]") {

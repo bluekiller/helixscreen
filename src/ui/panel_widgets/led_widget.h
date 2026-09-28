@@ -111,6 +111,9 @@ class LedWidget : public PanelWidget {
         LedWidget& owner() {
             return owner_;
         }
+        /// The device behind each row as the picker drew it, so a tap picks
+        /// what the user saw even if the device list changed since.
+        std::vector<std::string> row_ids;
 
       protected:
         const char* xml_component_name() const override {

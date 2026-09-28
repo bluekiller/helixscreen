@@ -387,7 +387,9 @@ void LedWidget::show_led_picker() {
     subs.names.ensure_size(devices.size());
     int selected = -1;
     const auto t = targets();
+    picker_.row_ids.clear();
     for (size_t i = 0; i < devices.size(); ++i) {
+        picker_.row_ids.push_back(devices[i].id);
         subs.names.set_string(i, led::device_display_name(devices[i]));
         if (led_key_ != led::LIGHT_BUTTON_ALL && !t.empty() && devices[i].id == t.front()) {
             selected = static_cast<int>(i);
@@ -434,10 +436,9 @@ void LedWidget::led_picker_row_cb(lv_event_t* e) {
         return;
     }
     const int index = helix::text_io::parse_leading<int>(ud).value_or(-1);
-    const auto devices = light_picker_devices();
     std::string key = led::LIGHT_BUTTON_ALL;
-    if (index >= 0 && static_cast<size_t>(index) < devices.size()) {
-        key = devices[static_cast<size_t>(index)].id;
+    if (index >= 0 && static_cast<size_t>(index) < picker->row_ids.size()) {
+        key = picker->row_ids[static_cast<size_t>(index)];
     }
     LedWidget& owner = picker->owner();
     picker->hide();
