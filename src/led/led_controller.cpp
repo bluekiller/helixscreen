@@ -169,7 +169,7 @@ void LedController::deinit() {
     initialized_ = false;
 
     // Reset config state to defaults
-    selected_strips_.clear();
+    legacy_selection_.clear();
     last_color_ = LastColor{};
     last_brightness_ = 100;
     color_presets_.clear();
@@ -177,7 +177,6 @@ void LedController::deinit() {
     discovered_led_macros_.clear();
     led_on_at_start_ = false;
     startup_brightness_ = 80;
-    light_on_ = false;
     macro_last_sent_on_.clear();
     pending_query_ids_.clear();
     // Re-arm the startup preference. deinit() only runs from
@@ -364,30 +363,7 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
                      macro_.macros().size());
     }
 
-    // Before the prune below: the migration reads the selection as saved.
     migrate_legacy_selection();
-
-    // Prune selected strips that don't match any discovered hardware.
-    // Presets (e.g. AD5M) may specify LED names that don't exist on community
-    // firmware variants (Zmod names it "chamber_LED" vs stock "chamber_light").
-    // NOTE: Do NOT persist the pruned list here. If all strips get pruned
-    // (e.g., firmware name mismatch, incomplete discovery), persisting the
-    // empty list makes the loss permanent across restarts (#373).
-    if (!selected_strips_.empty()) {
-        auto all_strips = all_selectable_strips();
-        auto it = std::remove_if(
-            selected_strips_.begin(), selected_strips_.end(),
-            [&all_strips](const std::string& id) { return find_strip(all_strips, id) == nullptr; });
-        if (it != selected_strips_.end()) {
-            std::vector<std::string> pruned(it, selected_strips_.end());
-            selected_strips_.erase(it, selected_strips_.end());
-            for (const auto& p : pruned) {
-                spdlog::info("[LedController] Pruned stale LED strip '{}' (not found in "
-                             "discovered hardware)",
-                             p);
-            }
-        }
-    }
 
     // Bump version to notify UI widgets to rebind
     if (version_subject_initialized_) {
@@ -400,17 +376,17 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
 
 void LedController::migrate_legacy_selection() {
     auto* cfg = Config::get_instance();
-    if (cfg == nullptr || selected_strips_.empty()) {
+    if (cfg == nullptr || legacy_selection_.empty()) {
         return;
     }
     const nlohmann::json* existing = cfg->try_get_json(cfg->df() + AUTO_STATE_STRIPS_PATH);
     if (existing != nullptr && existing->is_array()) {
         return;
     }
-    const auto plan = plan_selection_migration(selected_strips_, switchable_ids());
+    const auto plan = plan_selection_migration(legacy_selection_, switchable_ids());
     spdlog::info("[LedController] Legacy LED selection ({} strip(s)) -> light button '{}', "
                  "auto-state {} strip(s)",
-                 selected_strips_.size(), plan.light_button, plan.auto_state_strips.size());
+                 legacy_selection_.size(), plan.light_button, plan.auto_state_strips.size());
     stage_light_selection(plan);
 }
 
@@ -757,21 +733,10 @@ void NativeBackend::set_color(const std::string& strip_id, double r, double g, d
     b = std::clamp(b, 0.0, 1.0);
     w = std::clamp(w, 0.0, 1.0);
 
-    // Determine if this strip is white-only based on actual pin configuration
-    // (from configfile) or fall back to prefix-based detection.
-    bool is_white_only = false;
-    if (const auto* s = find_strip(strips_, strip_id)) {
-        if (s->pin_config_known) {
-            // White-only if only white_pin is defined (no RGB pins)
-            is_white_only =
-                s->has_white_pin && !s->has_red_pin && !s->has_green_pin && !s->has_blue_pin;
-        } else {
-            // Fall back: generic "led " prefix = white-only, neopixel/dotstar = RGB(W)
-            is_white_only = (strip_id.rfind("led ", 0) == 0);
-        }
-    }
-
-    if (is_white_only) {
+    // A W channel with no color pins shows everything on W: the capability rule
+    // fit_look() applies, so what is sent matches what the overlay shows.
+    const auto* strip = find_strip(strips_, strip_id);
+    if (strip != nullptr && !strip->supports_color && strip->supports_white) {
         // Convert RGB to luminance for the white channel
         double luminance = 0.299 * r + 0.587 * g + 0.114 * b;
         w = std::max(luminance, w);
@@ -1741,31 +1706,25 @@ void LedController::load_config() {
     // It used to run here on every load_config(), and its get_json() probes
     // re-created the /led orphan on every boot (#1129).
 
-    // Selected strips
-    selected_strips_ = cfg->get_string_array(cfg->df() + "leds/selected_strips");
+    // The legacy selection, newest key first. Read for migrate_legacy_selection()
+    // and never written back: the keys stay on disk as they were.
+    legacy_selection_ = cfg->get_string_array(cfg->df() + "leds/selected_strips");
 
-    // Legacy migration: leds/selected (JSON array from old SettingsManager)
-    if (selected_strips_.empty()) {
+    if (legacy_selection_.empty()) {
         for (auto& s : cfg->get_string_array(cfg->df() + "leds/selected")) {
             if (!s.empty()) {
-                selected_strips_.push_back(std::move(s));
+                legacy_selection_.push_back(std::move(s));
             }
-        }
-        if (!selected_strips_.empty()) {
-            spdlog::info("[LedController] Migrated {} strip(s) from leds/selected",
-                         selected_strips_.size());
         }
     }
 
-    // Legacy migration: leds/strip (single string, oldest format)
-    if (selected_strips_.empty()) {
+    if (legacy_selection_.empty()) {
         const nlohmann::json* legacy_strip_json = cfg->try_get_json(cfg->df() + "leds/strip");
         std::string legacy_strip = (legacy_strip_json != nullptr && legacy_strip_json->is_string())
                                        ? legacy_strip_json->get<std::string>()
                                        : "";
         if (!legacy_strip.empty()) {
-            selected_strips_.push_back(legacy_strip);
-            spdlog::info("[LedController] Migrated legacy single strip: {}", legacy_strip);
+            legacy_selection_.push_back(legacy_strip);
         }
     }
 
@@ -1873,46 +1832,19 @@ void LedController::load_config() {
     // a button whose execute_toggle() found nothing and silently no-opped.
     rebuild_macro_backend();
 
-    // Config migration: ensure macro strips have "macro:" prefix
-    bool needs_resave = false;
-    for (auto& s : selected_strips_) {
-        // Check if this matches a configured macro display_name but lacks the prefix
+    // Name macro devices the way switchable_ids() does, so the migration can
+    // match them: an unprefixed macro name gains "macro:", a deleted macro drops.
+    for (auto& s : legacy_selection_) {
         if (!is_macro_strip_id(s) && find_macro(configured_macros_, s) != nullptr) {
-            spdlog::info("[LedController] Migrating unprefixed macro strip '{}' -> 'macro:{}'", s,
-                         s);
             s = MACRO_STRIP_PREFIX + s;
-            needs_resave = true;
         }
     }
-
-    // Clean up stale macro strip entries that no longer have matching macros
-    auto before_size = selected_strips_.size();
-    selected_strips_.erase(
-        std::remove_if(selected_strips_.begin(), selected_strips_.end(),
-                       [this](const std::string& s) {
-                           if (!is_macro_strip_id(s))
-                               return false;
-                           if (find_macro(configured_macros_, s) != nullptr)
-                               return false;
-                           spdlog::info("[LedController] Removing stale macro strip '{}'", s);
-                           return true;
-                       }),
-        selected_strips_.end());
-    if (selected_strips_.size() != before_size) {
-        needs_resave = true;
-    }
-
-    if (needs_resave) {
-        // Save just the strips (can't call save_config() since we haven't finished loading)
-        auto* cfg2 = Config::get_instance();
-        if (cfg2) {
-            nlohmann::json arr = nlohmann::json::array();
-            for (const auto& s2 : selected_strips_)
-                arr.push_back(s2);
-            cfg2->set(cfg2->df() + "leds/selected_strips", arr);
-            cfg2->save();
-        }
-    }
+    legacy_selection_.erase(std::remove_if(legacy_selection_.begin(), legacy_selection_.end(),
+                                           [this](const std::string& s) {
+                                               return is_macro_strip_id(s) &&
+                                                      find_macro(configured_macros_, s) == nullptr;
+                                           }),
+                            legacy_selection_.end());
 
     // LED on at start preference
     const nlohmann::json* on_at_start_json = cfg->try_get_json(cfg->df() + "leds/led_on_at_start");
@@ -1926,8 +1858,8 @@ void LedController::load_config() {
             ? std::clamp(startup_brightness_json->get<int>(), 0, 100)
             : 80;
 
-    spdlog::debug("[LedController] Loaded config: {} strips, {} presets, {} macros",
-                  selected_strips_.size(), color_presets_.size(), configured_macros_.size());
+    spdlog::debug("[LedController] Loaded config: {} legacy strips, {} presets, {} macros",
+                  legacy_selection_.size(), color_presets_.size(), configured_macros_.size());
 }
 
 void LedController::save_config() {
@@ -1935,13 +1867,6 @@ void LedController::save_config() {
     if (!cfg) {
         return;
     }
-
-    // Selected strips
-    nlohmann::json strips_arr = nlohmann::json::array();
-    for (const auto& s : selected_strips_) {
-        strips_arr.push_back(s);
-    }
-    cfg->set(cfg->df() + "leds/selected_strips", strips_arr);
 
     // Last color & brightness (saved as #RRGGBB hex strings)
     cfg->set(cfg->df() + "leds/last_color", helix::color_to_hex_string(last_color_.rgb));
@@ -2032,11 +1957,11 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
 
     spdlog::info("[LedController] set_power({}) for {} device(s)", on, ids.size());
 
-    // When turning off, stop active LED effects on selected strips.  LED effects
+    // When turning off, stop active LED effects on these devices.  LED effects
     // continuously write their own color values to the neopixels, so a bare
     // SET_LED RED=0 will be immediately overridden if effects are still running.
-    // Only stop effects that target selected strips — not a blanket STOP_LED_EFFECTS
-    // which would affect deselected strips too (issue #329).
+    // Only stop effects that target these devices — not a blanket STOP_LED_EFFECTS
+    // which would affect every other strip too (issue #329).
     if (!on && effects_.is_available()) {
         std::set<std::string> stopped;
         for (const auto& strip_id : ids) {
@@ -2092,12 +2017,17 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
 
     bool wled_changed = false;
     for (const auto& strip_id : ids) {
-        auto backend_type = backend_for_strip(strip_id);
-        if (backend_type == LedBackendType::NATIVE || backend_type == LedBackendType::OUTPUT_PIN) {
+        const auto backend_type = backend_for_strip(strip_id);
+        if (!backend_type) {
+            spdlog::debug("[LedController] set_power: '{}' is not a discovered device", strip_id);
+            continue;
+        }
+        if (*backend_type == LedBackendType::NATIVE ||
+            *backend_type == LedBackendType::OUTPUT_PIN) {
             pending_query_ids_.insert(strip_id);
         }
 
-        switch (backend_type) {
+        switch (*backend_type) {
         case LedBackendType::NATIVE:
             if (on) {
                 // Shared helper handles the no-saved-color safety floor and the
@@ -2206,7 +2136,11 @@ bool LedController::toggle_power(const std::vector<std::string>& ids) {
 
 DeviceState LedController::device_state(const std::string& id) const {
     DeviceState s;
-    switch (backend_for_strip(id)) {
+    const auto backend = backend_for_strip(id);
+    if (!backend) {
+        return s;
+    }
+    switch (*backend) {
     case LedBackendType::NATIVE: {
         if (!native_.has_strip_color(id)) {
             return s;
@@ -2303,7 +2237,7 @@ std::vector<std::string> LedController::light_targets(const std::string& key) co
     return resolve_light_targets(key, switchable_ids(), chamber_light());
 }
 
-LedBackendType LedController::backend_for_strip(const std::string& strip_id) const {
+std::optional<LedBackendType> LedController::backend_for_strip(const std::string& strip_id) const {
     if (find_strip(native_.strips(), strip_id) != nullptr) {
         return LedBackendType::NATIVE;
     }
@@ -2329,8 +2263,7 @@ LedBackendType LedController::backend_for_strip(const std::string& strip_id) con
         return LedBackendType::MACRO;
     }
 
-    // Default to native (for backward compat with old configs)
-    return LedBackendType::NATIVE;
+    return std::nullopt;
 }
 
 std::vector<LedStripInfo> LedController::all_selectable_strips() const {
@@ -2362,12 +2295,7 @@ std::vector<LedStripInfo> LedController::all_selectable_strips() const {
 }
 
 std::string LedController::first_available_strip() const {
-    // Prefer selected strips
-    if (!selected_strips_.empty()) {
-        return selected_strips_[0];
-    }
-
-    // Fall back to first native
+    // First native
     if (!native_.strips().empty()) {
         return native_.strips()[0].id;
     }
@@ -2391,34 +2319,6 @@ std::string LedController::first_available_strip() const {
     }
 
     return "";
-}
-
-std::string LedController::status_tracked_strip() const {
-    for (const auto& strip_id : selected_strips_) {
-        const auto backend = backend_for_strip(strip_id);
-        if (backend == LedBackendType::NATIVE || backend == LedBackendType::OUTPUT_PIN) {
-            return strip_id;
-        }
-    }
-    return "";
-}
-
-bool LedController::light_state_trackable() const {
-    for (const auto& strip_id : selected_strips_) {
-        if (backend_for_strip(strip_id) == LedBackendType::MACRO) {
-            std::string raw_name = strip_macro_name(strip_id);
-            if (!macro_.has_known_state(raw_name)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-void LedController::light_set(bool on) {
-    spdlog::info("[LedController] light_set({})", on);
-    light_on_ = on;
-    set_power(selected_strips_.empty() ? light_targets("") : selected_strips_, on);
 }
 
 void LedController::query_led_state() {
@@ -2449,15 +2349,6 @@ void LedController::query_led_state() {
         });
 }
 
-void LedController::turn_off_all() {
-    light_set(false);
-}
-
-void LedController::set_color_all(double r, double g, double b, double w) {
-    light_on_ = (r > 0.0 || g > 0.0 || b > 0.0 || w > 0.0);
-    set_color(selected_strips_, r, g, b, w);
-}
-
 void LedController::set_color(const std::vector<std::string>& ids, double r, double g, double b,
                               double w) {
     // Cache the white channel for toggle restore
@@ -2474,11 +2365,6 @@ void LedController::set_color(const std::vector<std::string>& ids, double r, dou
     }
 }
 
-void LedController::set_brightness_all(int brightness_pct) {
-    light_on_ = (brightness_pct > 0);
-    set_brightness(selected_strips_, brightness_pct);
-}
-
 void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct) {
     // Use shared helper so slider drags honor the same safety floor and
     // RGBW white-channel preservation as set_power(ids, true).
@@ -2490,22 +2376,6 @@ void LedController::set_brightness(const std::vector<std::string>& ids, int brig
         } else if (backend_type == LedBackendType::OUTPUT_PIN) {
             output_pin_.set_brightness(strip_id, brightness_pct);
         }
-    }
-}
-
-void LedController::light_toggle() {
-    light_set(!light_on_);
-}
-
-bool LedController::light_is_on() const {
-    return light_on_;
-}
-
-void LedController::sync_light_state(bool is_on) {
-    if (light_on_ != is_on) {
-        spdlog::debug("[LedController] Syncing light state: {} -> {}", light_on_ ? "ON" : "OFF",
-                      is_on ? "ON" : "OFF");
-        light_on_ = is_on;
     }
 }
 
@@ -2556,25 +2426,14 @@ void LedController::apply_startup_preference(const std::vector<std::string>& tar
     spdlog::info("[LedController] Applying startup preference: brightness={}%, turning LEDs on",
                  startup_brightness_);
     last_brightness_ = startup_brightness_;
-    light_on_ = true;
     set_power(targets, true);
-}
-
-void LedController::set_selected_strips(const std::vector<std::string>& strips) {
-    selected_strips_ = strips;
-
-    // Bump version to notify UI widgets to rebind
-    if (version_subject_initialized_) {
-        lv_subject_set_int(&led_config_version_, lv_subject_get_int(&led_config_version_) + 1);
-    }
-    publish_controllable_state();
 }
 
 void LedController::publish_controllable_state() {
     if (!version_subject_initialized_) {
         return;
     }
-    int desired = all_selectable_strips().empty() ? 0 : 1;
+    int desired = chamber_light().empty() ? 0 : 1;
     if (lv_subject_get_int(&led_controllable_) != desired) {
         lv_subject_set_int(&led_controllable_, desired);
         spdlog::debug("[LedController] led_controllable={}", desired);

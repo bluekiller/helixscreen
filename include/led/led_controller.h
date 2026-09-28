@@ -12,6 +12,7 @@
 #include <functional>
 #include <lvgl.h>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -428,10 +429,6 @@ class LedController {
     void load_config();
     void save_config();
 
-    /// Set light state and dispatch to all selected backends.
-    /// This is the primary API for turning lights on/off — always updates light_on_.
-    void light_set(bool on);
-
     /// Every device the LEDs overlay lists: all_selectable_strips(), then each
     /// named PRESET macro as "macro:<name>".
     [[nodiscard]] std::vector<LedStripInfo> all_devices() const;
@@ -471,49 +468,18 @@ class LedController {
     /// thread and run @p on_done there.
     void refresh_wled_state(std::function<void()> on_done = nullptr);
 
-    /// Convenience: turn off all selected strips.
-    void turn_off_all();
-
-    /// Set color on all selected native/output_pin strips. Sets light_on_ = true.
-    void set_color_all(double r, double g, double b, double w = 0.0);
-
-    /// Set brightness on all selected native/output_pin strips. Sets light_on_ = (pct > 0).
-    void set_brightness_all(int brightness_pct);
-
-    // Determine which backend a given strip belongs to
-    [[nodiscard]] LedBackendType backend_for_strip(const std::string& strip_id) const;
+    /// The backend that owns @p strip_id; nullopt for an id no backend has
+    /// discovered, so nothing is ever sent to a device that is not there.
+    [[nodiscard]] std::optional<LedBackendType>
+    backend_for_strip(const std::string& strip_id) const;
 
     /// Get all selectable strips across all backends (native + WLED + non-PRESET macros)
     /// Macro entries use "macro:" prefixed IDs.
     [[nodiscard]] std::vector<LedStripInfo> all_selectable_strips() const;
 
-    /// Get the first available strip to use as default selection.
-    /// Priority: first selected > first native > first WLED > first non-PRESET macro.
-    /// Returns empty string if nothing available.
+    /// The chamber light's fallback: first native > first WLED > first non-PRESET
+    /// macro > first output_pin. Empty string if nothing available.
     [[nodiscard]] std::string first_available_strip() const;
-
-    /// The selected strip whose live on/off state Klipper publishes under
-    /// printer.objects. Macro devices are synthetic "macro:" IDs and WLED
-    /// strips live behind Moonraker's HTTP proxy, so neither ever appears in a
-    /// status payload — tracking one leaves the PrinterLedState subjects frozen
-    /// at their defaults, and a light button that reads them computes its next
-    /// command from a value that can never move. Empty when the selection holds
-    /// no such strip; callers must then fall back to light_is_on().
-    [[nodiscard]] std::string status_tracked_strip() const;
-
-    /// Whether the current selection's state can be reliably tracked.
-    /// Returns false if ANY selected strip is a TOGGLE macro (state unknown).
-    [[nodiscard]] bool light_state_trackable() const;
-
-    /// Toggle light state and dispatch to all selected backends.
-    void light_toggle();
-
-    /// Get composite on/off state across all selected backends.
-    [[nodiscard]] bool light_is_on() const;
-
-    /// Sync internal light state from actual hardware (e.g., from PrinterLedState subjects).
-    /// Call this when the real LED state is known so that light_toggle() sends the correct command.
-    void sync_light_state(bool is_on);
 
     // LED on at start preference
     [[nodiscard]] bool get_led_on_at_start() const;
@@ -528,13 +494,7 @@ class LedController {
     /// No targets defers to a later call without spending the one shot.
     void apply_startup_preference(const std::vector<std::string>& targets);
 
-    // Config accessors
-    [[nodiscard]] const std::vector<std::string>& selected_strips() const {
-        return selected_strips_;
-    }
-    void set_selected_strips(const std::vector<std::string>& strips);
-
-    /// Version subject bumped on discover_from_hardware() and set_selected_strips().
+    /// Version subject bumped on discover_from_hardware().
     /// UI widgets observe this to rebind when LED config changes.
     lv_subject_t* get_led_config_version_subject() {
         return &led_config_version_;
@@ -552,8 +512,8 @@ class LedController {
         return subjects_.get_subjects_lifetime();
     }
 
-    /// Boolean subject (0/1) reflecting whether at least one strip is selected and
-    /// therefore controllable. Drives visibility of action-style UI (Print Status
+    /// Boolean subject (0/1): a chamber light resolves, so a light button has
+    /// something to drive. Drives visibility of action-style UI (Print Status
     /// light toggle, Home LED widgets). Registered globally as "led_controllable"
     /// for direct XML binding.
     lv_subject_t* get_led_controllable_subject() {
@@ -631,7 +591,9 @@ class LedController {
     OutputPinBackend output_pin_;
 
     // Config state
-    std::vector<std::string> selected_strips_;
+    /// The pre-1.1 leds/selected_strips (or older leds/selected, leds/strip) as
+    /// loaded: migrate_legacy_selection()'s input. Read only, never saved.
+    std::vector<std::string> legacy_selection_;
     LastColor last_color_;
     int last_brightness_ = 100;
     std::vector<uint32_t> color_presets_;
@@ -639,7 +601,6 @@ class LedController {
     std::vector<std::string> discovered_led_macros_; // Raw macro names from hardware
     bool led_on_at_start_ = false;
     int startup_brightness_ = 80;
-    bool light_on_ = false; // Internal light state for abstract API
 
     /// One-shot latch for apply_startup_preference(). Deliberately NOT reset by
     /// init(): printer_discovery re-runs init() on every discovery, and a Klippy
@@ -674,7 +635,7 @@ class LedController {
     /// deinit_all(), the death signal expires before they are freed.
     SubjectManager subjects_;
 
-    /// Push whether any switchable device exists into led_controllable_.
+    /// Push whether a chamber light resolves into led_controllable_.
     /// Cheap no-op if the value is unchanged. Safe before subject init (skips).
     void publish_controllable_state();
     void update_in_flight_subject();

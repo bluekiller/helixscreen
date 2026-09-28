@@ -95,7 +95,6 @@ TEST_CASE_METHOD(EntryFixture, "the LED controls tile opens on the last focused 
 TEST_CASE_METHOD(EntryFixture, "the print-status light toggles only the chamber light",
                  "[led][entry]") {
     auto& ctrl = LedController::instance();
-    ctrl.set_selected_strips({"neopixel sb_leds"}); // the legacy selection is not consulted
     PrintLightTimelapseControls controls;
     controls.handle_light_button();
     drain();
@@ -129,4 +128,32 @@ TEST_CASE_METHOD(EntryFixture,
     helix::track_chamber_light(ps, nullptr);
     CHECK(ps.get_tracked_led().empty());
     CHECK(lv_subject_get_int(ps.get_led_state_subject()) == 0);
+}
+
+TEST_CASE_METHOD(EntryFixture, "the print-status light button shows the chamber light's state",
+                 "[led][entry]") {
+    constexpr const char* BULB_OFF = "\xF3\xB0\x8C\xB6";
+    constexpr const char* BULB_ON = "\xF3\xB0\x9B\xA8";
+    auto& ctrl = LedController::instance();
+    PrintLightTimelapseControls controls;
+    controls.init_subjects();
+    lv_subject_t* icon = lv_xml_get_subject(nullptr, "light_button_icon");
+    REQUIRE(icon != nullptr);
+    drain();
+    REQUIRE(std::string(lv_subject_get_string(icon)) == BULB_OFF);
+
+    // Another light coming on is not the chamber light.
+    ctrl.update_from_status({{"neopixel sb_leds", {{"color_data", {{1.0, 1.0, 1.0, 0.0}}}}}});
+    drain();
+    CHECK(std::string(lv_subject_get_string(icon)) == BULB_OFF);
+
+    ctrl.update_from_status({{"neopixel chamber_light", {{"color_data", {{1.0, 1.0, 1.0, 0.0}}}}}});
+    drain();
+    CHECK(std::string(lv_subject_get_string(icon)) == BULB_ON);
+
+    ctrl.update_from_status({{"neopixel chamber_light", {{"color_data", {{0.0, 0.0, 0.0, 0.0}}}}}});
+    drain();
+    CHECK(std::string(lv_subject_get_string(icon)) == BULB_OFF);
+
+    controls.deinit_subjects();
 }

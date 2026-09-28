@@ -292,132 +292,6 @@ TEST_CASE_METHOD(LedAutoStateFixture, "setup_default_mappings includes all 6 sta
 }
 
 // ============================================================================
-// apply_action integration: verify light_on_ state side effects
-// ============================================================================
-
-/// Helper: set up LedController with a native strip selected, init LedAutoState
-static void setup_auto_state_with_strip() {
-    // Deinit LedAutoState first to ensure clean state (no stale enabled_ or
-    // deferred observer callbacks from a previous test)
-    LedAutoState::instance().deinit();
-
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    LedStripInfo strip;
-    strip.name = "Chamber Light";
-    strip.id = "neopixel chamber_light";
-    strip.backend = LedBackendType::NATIVE;
-    strip.supports_color = true;
-    strip.supports_white = true;
-    ctrl.native().add_strip(strip);
-    ctrl.set_selected_strips({"neopixel chamber_light"});
-}
-
-static void teardown_auto_state() {
-    LedAutoState::instance().deinit();
-    LedController::instance().deinit();
-}
-
-TEST_CASE_METHOD(LedAutoStateFixture, "LedAutoState apply_action 'off' sets light_is_on false",
-                 "[led][autostate]") {
-    lv_init_safe();
-    setup_auto_state_with_strip();
-    auto& ctrl = LedController::instance();
-    auto& state = LedAutoState::instance();
-
-    // Start with light on
-    ctrl.light_set(true);
-    REQUIRE(ctrl.light_is_on());
-
-    // init() first (loads config, resets enabled), then configure and enable.
-    // Map ALL possible states to "off" since shared PrinterState singleton
-    // may retain subject values from earlier tests in the same shard.
-    state.init(get_printer_state());
-    LedStateAction off_action{"off", 0xFFFFFF, 100, "", 0, ""};
-    state.set_mapping("idle", off_action);
-    state.set_mapping("printing", off_action);
-    state.set_mapping("paused", off_action);
-    state.set_mapping("heating", off_action);
-    state.set_mapping("error", off_action);
-    state.set_mapping("complete", off_action);
-    state.set_enabled(true);
-
-    state.evaluate();
-    // Drain deferred observer callbacks from subscribe_observers() so they
-    // cannot re-apply a stale mapping after we check the assertion
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    REQUIRE_FALSE(ctrl.light_is_on());
-
-    teardown_auto_state();
-}
-
-TEST_CASE_METHOD(LedAutoStateFixture, "LedAutoState apply_action 'color' sets light_is_on true",
-                 "[led][autostate]") {
-    lv_init_safe();
-    setup_auto_state_with_strip();
-    auto& ctrl = LedController::instance();
-    auto& state = LedAutoState::instance();
-
-    REQUIRE_FALSE(ctrl.light_is_on());
-
-    state.init(get_printer_state());
-    state.set_mapping("idle", {"color", 0xFF0000, 100, "", 0, ""});
-    state.set_enabled(true);
-
-    state.evaluate();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    REQUIRE(ctrl.light_is_on());
-
-    teardown_auto_state();
-}
-
-TEST_CASE_METHOD(LedAutoStateFixture,
-                 "LedAutoState apply_action 'brightness' sets light_is_on based on value",
-                 "[led][autostate]") {
-    lv_init_safe();
-    setup_auto_state_with_strip();
-    auto& ctrl = LedController::instance();
-    auto& state = LedAutoState::instance();
-
-    // brightness > 0 → on
-    state.init(get_printer_state());
-    state.set_mapping("idle", {"brightness", 0xFFFFFF, 50, "", 0, ""});
-    state.set_enabled(true);
-
-    state.evaluate();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    REQUIRE(ctrl.light_is_on());
-
-    teardown_auto_state();
-
-    // brightness == 0 → off
-    setup_auto_state_with_strip();
-    auto& ctrl2 = LedController::instance();
-    auto& state2 = LedAutoState::instance();
-
-    ctrl2.light_set(true);
-    state2.init(get_printer_state());
-    // Map ALL possible states to brightness=0 since shared PrinterState singleton
-    // may retain subject values from earlier tests in the same shard.
-    LedStateAction zero_brightness{"brightness", 0xFFFFFF, 0, "", 0, ""};
-    state2.set_mapping("idle", zero_brightness);
-    state2.set_mapping("printing", zero_brightness);
-    state2.set_mapping("paused", zero_brightness);
-    state2.set_mapping("heating", zero_brightness);
-    state2.set_mapping("error", zero_brightness);
-    state2.set_mapping("complete", zero_brightness);
-    state2.set_enabled(true);
-
-    state2.evaluate();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    REQUIRE_FALSE(ctrl2.light_is_on());
-
-    teardown_auto_state();
-}
-
-// ============================================================================
 // Lifecycle wiring guarantees: these lock in the behavior that the production
 // wiring (printer_discovery init / application teardown deinit) depends on.
 // ============================================================================
@@ -497,68 +371,6 @@ TEST_CASE_METHOD(LedAutoStateFixture,
 // After init() subscribes observers, a change to an observed PrinterState
 // subject must drive LedController via apply_action (the end-to-end auto-state
 // path that production now activates).
-TEST_CASE_METHOD(LedAutoStateFixture, "LedAutoState observer fires after init and applies action",
-                 "[led][autostate]") {
-    lv_init_safe();
-    setup_auto_state_with_strip();
-    auto& ctrl = LedController::instance();
-    auto& state = LedAutoState::instance();
-
-    REQUIRE_FALSE(ctrl.light_is_on());
-
-    auto& ps = get_printer_state();
-    // The PrinterState subjects observed by LedAutoState (print state enum,
-    // klippy state, extruder target) are plain lv_subject_t that only become
-    // settable after init_subjects(); lv_subject_set_int() is a no-op on an
-    // uninitialized subject. register_xml=false keeps these out of the global
-    // XML scope so they don't collide with other tests in the shard.
-    ps.init_subjects(false);
-
-    // Establish a known non-printing baseline BEFORE init so the later flip to
-    // PRINTING is a genuine state transition (the dedup in on_state_changed()
-    // skips re-applying an unchanged key). Clearing klippy ERROR and zeroing the
-    // extruder target keeps compute_state_key() at "idle" for the baseline.
-    auto* print_subj = ps.get_print_state_enum_subject();
-    REQUIRE(print_subj != nullptr);
-    lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
-    if (auto* klippy_subj = ps.get_klippy_state_subject()) {
-        lv_subject_set_int(klippy_subj, static_cast<int>(helix::KlippyState::READY));
-    }
-    if (auto* ext_target = ps.get_active_extruder_target_subject()) {
-        lv_subject_set_int(ext_target, 0);
-    }
-
-    state.init(ps);
-    // Map every state to "off" except the one we will drive to, so whatever
-    // value the shared PrinterState subjects currently hold cannot turn the
-    // light on before our targeted change.
-    LedStateAction off_action{"off", 0xFFFFFF, 100, "", 0, ""};
-    for (const char* k : {"idle", "heating", "printing", "paused", "error", "complete"}) {
-        state.set_mapping(k, off_action);
-    }
-    state.set_mapping("printing", {"color", 0x00FF00, 100, "", 0, ""});
-    state.set_enabled(true);
-
-    // Drain the immediate evaluate() from set_enabled() so we start from a known
-    // ("idle" → off) baseline, then change the observed subject.
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    REQUIRE_FALSE(ctrl.light_is_on());
-
-    // Drive the print-state subject to PRINTING — this is an observed subject,
-    // so on_state_changed() should fire and apply the "color" action.
-    lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::PRINTING));
-
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-
-    REQUIRE(ctrl.light_is_on());
-
-    // Restore subject state so a STANDBY/idle baseline doesn't leak into other
-    // tests sharing the PrinterState singleton.
-    lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
-    teardown_auto_state();
-    clear_persisted_auto_state();
-}
-
 namespace helix::led {
 class LedAutoStateTestAccess {
   public:
@@ -636,4 +448,102 @@ TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: a color action reaches o
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     CHECK(ctrl.native().has_strip_color("neopixel sb_leds"));
     CHECK_FALSE(ctrl.native().has_strip_color("neopixel chamber_light"));
+}
+
+namespace {
+PowerState chamber_power() {
+    return LedController::instance().device_state("neopixel chamber_light").power;
+}
+void drain() {
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+}
+} // namespace
+
+TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: an 'off' action turns its targets off",
+                 "[led][autostate]") {
+    LedController::instance().set_power({"neopixel chamber_light"}, true);
+    drain();
+    REQUIRE(chamber_power() == PowerState::On);
+
+    LedAutoStateTestAccess::apply({"off", 0xFFFFFF, 100, "", 0, ""});
+    drain();
+    CHECK(chamber_power() == PowerState::Off);
+}
+
+TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: a 'color' action lights its targets",
+                 "[led][autostate]") {
+    REQUIRE(chamber_power() == PowerState::Unknown);
+    LedAutoStateTestAccess::apply({"color", 0xFF0000, 100, "", 0, ""});
+    drain();
+    const auto s = LedController::instance().device_state("neopixel chamber_light");
+    CHECK(s.power == PowerState::On);
+    CHECK(s.rgb == 0xFF0000);
+}
+
+TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: a 'brightness' action sets that level",
+                 "[led][autostate]") {
+    LedAutoStateTestAccess::apply({"brightness", 0xFFFFFF, 50, "", 0, ""});
+    drain();
+    const auto s = LedController::instance().device_state("neopixel chamber_light");
+    CHECK(s.power == PowerState::On);
+    CHECK(s.brightness == 50);
+}
+
+// After init() subscribes observers, a change to an observed PrinterState
+// subject must drive LedController via apply_action (the end-to-end auto-state
+// path that production activates).
+TEST_CASE_METHOD(AutoStateTargetFixture,
+                 "LedAutoState observer fires after init and applies action", "[led][autostate]") {
+    auto& auto_state = LedAutoState::instance();
+    auto_state.deinit();
+
+    auto& ps = get_printer_state();
+    // The PrinterState subjects observed by LedAutoState (print state enum,
+    // klippy state, extruder target) are plain lv_subject_t that only become
+    // settable after init_subjects(); lv_subject_set_int() is a no-op on an
+    // uninitialized subject. register_xml=false keeps these out of the global
+    // XML scope so they don't collide with other tests in the shard.
+    ps.init_subjects(false);
+
+    // Establish a known non-printing baseline BEFORE init so the later flip to
+    // PRINTING is a genuine state transition (the dedup in on_state_changed()
+    // skips re-applying an unchanged key). Clearing klippy ERROR and zeroing the
+    // extruder target keeps compute_state_key() at "idle" for the baseline.
+    auto* print_subj = ps.get_print_state_enum_subject();
+    REQUIRE(print_subj != nullptr);
+    lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
+    if (auto* klippy_subj = ps.get_klippy_state_subject()) {
+        lv_subject_set_int(klippy_subj, static_cast<int>(helix::KlippyState::READY));
+    }
+    if (auto* ext_target = ps.get_active_extruder_target_subject()) {
+        lv_subject_set_int(ext_target, 0);
+    }
+
+    auto_state.init(ps);
+    // Map every state to "off" except the one we will drive to, so whatever
+    // value the shared PrinterState subjects currently hold cannot turn the
+    // light on before our targeted change.
+    LedStateAction off_action{"off", 0xFFFFFF, 100, "", 0, ""};
+    for (const char* k : {"idle", "heating", "printing", "paused", "error", "complete"}) {
+        auto_state.set_mapping(k, off_action);
+    }
+    auto_state.set_mapping("printing", {"color", 0x00FF00, 100, "", 0, ""});
+    auto_state.set_enabled(true);
+
+    // Drain the immediate evaluate() from set_enabled() so we start from a known
+    // ("idle" -> off) baseline, then change the observed subject.
+    drain();
+    REQUIRE(chamber_power() == PowerState::Off);
+
+    // Drive the print-state subject to PRINTING — this is an observed subject,
+    // so on_state_changed() should fire and apply the "color" action.
+    lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::PRINTING));
+    drain();
+
+    CHECK(chamber_power() == PowerState::On);
+
+    // Restore subject state so a STANDBY/idle baseline doesn't leak into other
+    // tests sharing the PrinterState singleton.
+    lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
+    auto_state.deinit();
 }

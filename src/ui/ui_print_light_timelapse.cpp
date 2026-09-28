@@ -11,6 +11,7 @@
 #include "i_moonraker_api.h"
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observer_factory.h"
 
 #include <spdlog/spdlog.h>
 
@@ -85,6 +86,12 @@ void PrintLightTimelapseControls::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(light_button_subject_, light_button_buf_, "\xF3\xB0\x8C\xB6",
                               "light_button_icon", subjects_);
 
+    auto& leds = helix::led::LedController::instance();
+    led_state_observer_ = helix::ui::observe_int_sync<PrintLightTimelapseControls>(
+        leds.get_led_state_version_subject(), this,
+        [](PrintLightTimelapseControls* self, int /*version*/) { self->refresh_light_state(); },
+        leds.get_subjects_lifetime());
+
     // Register XML event callbacks
     lv_xml_register_event_cb(nullptr, "on_print_status_light", on_print_status_light_cb);
     lv_xml_register_event_cb(nullptr, "on_print_status_timelapse", on_print_status_timelapse_cb);
@@ -98,6 +105,7 @@ void PrintLightTimelapseControls::deinit_subjects() {
         return;
     }
 
+    led_state_observer_.reset();
     subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[PrintLightTimelapseControls] Subjects deinitialized");
@@ -115,8 +123,8 @@ void PrintLightTimelapseControls::handle_light_button() {
         return;
     }
     auto& ctrl = helix::led::LedController::instance();
-    // Toggles the chamber light alone. The icon updates when Moonraker status
-    // arrives via update_led_state().
+    // Toggles the chamber light alone. The icon updates when its state does,
+    // via refresh_light_state().
     const bool on = ctrl.toggle_power({ctrl.chamber_light()});
     spdlog::info("[PrintLightTimelapseControls] Light button clicked, chamber light -> {}",
                  on ? "ON" : "OFF");
@@ -188,21 +196,19 @@ void PrintLightTimelapseControls::handle_timelapse_button() {
 // STATE UPDATES
 // ============================================================================
 
-void PrintLightTimelapseControls::update_led_state(bool on) {
-    led_on_ = on;
-
-    // Guard: subjects may not be initialized if called from constructor's observer setup
+void PrintLightTimelapseControls::refresh_light_state() {
     if (!subjects_initialized_) {
         return;
     }
+    const bool on = helix::led::chamber_light_on();
 
     // Update light button icon: lightbulb_on (F06E8) or lightbulb_outline (F0336)
-    if (led_on_) {
+    if (on) {
         std::snprintf(light_button_buf_, sizeof(light_button_buf_), "\xF3\xB0\x9B\xA8");
     } else {
         std::snprintf(light_button_buf_, sizeof(light_button_buf_), "\xF3\xB0\x8C\xB6");
     }
     lv_subject_copy_string(&light_button_subject_, light_button_buf_);
 
-    spdlog::debug("[PrintLightTimelapseControls] LED state changed: {}", led_on_ ? "ON" : "OFF");
+    spdlog::debug("[PrintLightTimelapseControls] Chamber light: {}", on ? "ON" : "OFF");
 }

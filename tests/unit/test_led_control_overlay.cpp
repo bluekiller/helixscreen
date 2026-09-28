@@ -234,7 +234,6 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tab tap changes focus and not
     // that wrote it would show.
     LedAutoState::instance().set_strips({"neopixel chamber_light"});
     const nlohmann::json before = leds_config();
-    const auto selection_before = LedController::instance().selected_strips(); // removed in Task 11
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
@@ -246,7 +245,6 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tab tap changes focus and not
     CHECK(access.int_subject("led_focused_tab") == 1);
     CHECK(LedAutoState::instance().strips() == std::vector<std::string>{"neopixel chamber_light"});
     CHECK(leds_config() == before);
-    CHECK(LedController::instance().selected_strips() == selection_before); // removed in Task 11
 }
 
 TEST_CASE_METHOD(LedApplyColorFixture, "overlay: opens on the requested device", "[led][overlay]") {
@@ -576,7 +574,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a macro preset chip runs that m
 TEST_CASE_METHOD(LedApplyColorFixture,
                  "overlay: an off white-only strip after a red look puts it all on W",
                  "[led][overlay]") {
-    add_native("led case_light", false, false);
+    add_native("led case_light", /*color=*/false, /*white=*/true);
     auto& ctrl = LedController::instance();
     ctrl.set_last_color(0xFF4444);
     ctrl.set_last_white(0.0);

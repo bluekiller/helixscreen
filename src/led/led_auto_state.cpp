@@ -179,28 +179,22 @@ void LedAutoState::apply_action(const LedStateAction& action) {
 
     if (action.action_type == "off") {
         ctrl.set_power(targets(), false);
-        ctrl.sync_light_state(false);
     } else if (action.action_type == "color") {
         double r = 0.0, g = 0.0, b = 0.0;
         unpack_rgb(action.color, r, g, b);
         double scale = action.brightness / 100.0;
         ctrl.set_color(targets(), r * scale, g * scale, b * scale, 0.0);
-        ctrl.sync_light_state(scale > 0.0 && action.color != 0);
     } else if (action.action_type == "brightness") {
         ctrl.set_brightness(targets(), action.brightness);
-        ctrl.sync_light_state(action.brightness > 0);
     } else if (action.action_type == "effect") {
         ctrl.effects().activate_effect(action.effect_name);
-        ctrl.sync_light_state(true);
     } else if (action.action_type == "wled_preset") {
         for (const auto& id : targets()) {
             if (ctrl.backend_for_strip(id) == LedBackendType::WLED) {
                 ctrl.wled().set_preset(id, action.wled_preset);
             }
         }
-        ctrl.sync_light_state(true);
     } else if (action.action_type == "macro") {
-        // Custom G-code — resulting light state is unknowable, skip sync
         ctrl.macro().execute_custom_action(action.macro_gcode);
     } else {
         spdlog::warn("[LedAutoState] Unknown action type: '{}'", action.action_type);

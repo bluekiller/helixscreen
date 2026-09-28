@@ -276,7 +276,6 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: binding a light button leaves the
     const std::string prior = global.get_tracked_led();
     global.set_tracked_led("neopixel chamber_light");
     ps.set_tracked_led("neopixel chamber_light");
-    LedController::instance().set_selected_strips({"neopixel sb_leds"});
 
     LedWidget w("led", ps, api.get());
     w.set_panel_id("home");
