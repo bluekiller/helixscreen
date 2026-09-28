@@ -93,7 +93,10 @@
 #include "print_lifecycle_state.h"
 #include "printer_state.h"
 #include "src/ui/panel_widgets/print_status_widget.h"
+#include "theme_manager.h"
 #include "tool_state.h"
+
+#include <memory>
 
 #include "../catch_amalgamated.hpp"
 
@@ -494,6 +497,140 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         h.resize(8, 4, w_normal() - 1, 142);
         force_active();
         check(3);
+    }
+    PrintStatusWidget::destroy_formatter_for_test();
+}
+
+// --- Phase 3 pin: tiny landscape stacks the action grid -----------------------
+//
+// The full-screen print_status_panel (not the home widget above) grows its two
+// action rows into the grid's leftover column height at ui_breakpoint < 2 and
+// stacks each button icon over label. Pinned at 480x320, the cramped target
+// that motivated the phase: every visible action button's label must be inside
+// the button's content box (the old row layout clipped them) and the grid must
+// fill the column bottom (it used to leave a dead band above row 1).
+
+namespace {
+
+/// lv_display_set_resolution + theme_manager_refresh_layout_constants, undone
+/// on scope exit: theme_manager writes into a SHARED XML scope, so a stale
+/// tier would decide layout for every later test in this binary (same shape as
+/// test_chamber_panel_diagnostics.cpp's ScopedGeometry).
+class ScopedTinyLandscape {
+  public:
+    explicit ScopedTinyLandscape(int32_t w, int32_t h)
+        : disp_(lv_display_get_default()), w0_(lv_display_get_horizontal_resolution(disp_)),
+          h0_(lv_display_get_vertical_resolution(disp_)) {
+        lv_display_set_resolution(disp_, w, h);
+        theme_manager_refresh_layout_constants(disp_);
+    }
+
+    ~ScopedTinyLandscape() {
+        lv_display_set_resolution(disp_, w0_, h0_);
+        theme_manager_refresh_layout_constants(disp_);
+    }
+
+    ScopedTinyLandscape(const ScopedTinyLandscape&) = delete;
+    ScopedTinyLandscape& operator=(const ScopedTinyLandscape&) = delete;
+
+  private:
+    lv_display_t* disp_;
+    int32_t w0_;
+    int32_t h0_;
+};
+
+/// Last lv_label child of a button: ui_button's text label. The icon glyph is
+/// an lv_label too and precedes the text once stacked, so "first label" would
+/// measure the icon instead.
+lv_obj_t* button_label(lv_obj_t* btn) {
+    lv_obj_t* found = nullptr;
+    uint32_t count = lv_obj_get_child_count(btn);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* child = lv_obj_get_child(btn, i);
+        if (lv_obj_check_type(child, &lv_label_class)) {
+            found = child;
+        }
+    }
+    return found;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "print_status action grid stacks and fills the column at 480x320",
+                 "[widget_size][print_status][small_screen]") {
+    PrintStatusWidget::destroy_formatter_for_test();
+    PrinterStateTestAccess::reset(get_printer_state());
+    get_printer_state().init_subjects(false);
+    ToolState::instance().init_subjects(false);
+    heal_global_print_status_panel_subjects();
+
+    {
+        ScopedTinyLandscape tiny(480, 320);
+        // Pause/Resume's icon+label subjects belong to PrintControlButtons; its
+        // subjects must be live before the panel parses, or bind_icon is
+        // dropped and the button never stacks.
+        helix::ui::PrintControlButtons::instance().init_subjects();
+        auto panel = std::make_unique<PrintStatusPanel>(get_printer_state(), nullptr);
+        panel->init_subjects();
+        lv_obj_t* root = panel->create(test_screen());
+
+        // Timelapse is hidden while printer_has_timelapse is 0; an active
+        // print (print_outcome 0) keeps Pause and Cancel visible. Either
+        // subject may be absent here (they belong to the capabilities and
+        // print-state subsystems, not the panel): an absent subject means the
+        // bind was dropped at parse, leaving the button's inline default
+        // (visible), so the assertions below still see four buttons.
+        if (lv_subject_t* timelapse = lv_xml_get_subject(nullptr, "printer_has_timelapse")) {
+            lv_subject_set_int(timelapse, 1);
+        }
+        if (lv_subject_t* outcome = lv_xml_get_subject(nullptr, "print_outcome")) {
+            lv_subject_set_int(outcome, 0);
+        }
+        process_lvgl(30);
+
+        lv_obj_t* grid = lv_obj_find_by_name(root, "button_grid");
+        REQUIRE(grid != nullptr);
+        lv_obj_update_layout(grid);
+
+        // Rows grown: the two rows tile the grid's content height exactly,
+        // where the old content-height rows clustered at the bottom leaving a
+        // dead band above.
+        REQUIRE(lv_obj_get_child_count(grid) == 2);
+        lv_obj_t* row1 = lv_obj_get_child(grid, 0);
+        lv_obj_t* row2 = lv_obj_get_child(grid, 1);
+        CHECK(lv_obj_get_y(row1) == 0);
+        CHECK(lv_obj_get_style_flex_grow(row1, LV_PART_MAIN) == 1);
+        CHECK(lv_obj_get_y(row2) + lv_obj_get_height(row2) == lv_obj_get_height(grid));
+
+        // Every visible action button stacks icon over label, and the label
+        // fits inside the button's content box.
+        const char* action_buttons[] = {"btn_light", "btn_timelapse", "btn_pause", "btn_tune",
+                                        "btn_cancel"};
+        int visible = 0;
+        for (const char* name : action_buttons) {
+            lv_obj_t* btn = lv_obj_find_by_name(root, name);
+            REQUIRE(btn != nullptr);
+            if (lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN)) {
+                continue;
+            }
+            visible++;
+            CAPTURE(name);
+            lv_obj_update_layout(btn);
+            CHECK(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+            CHECK(lv_obj_get_height(btn) == lv_obj_get_height(lv_obj_get_parent(btn)));
+            lv_obj_t* label = button_label(btn);
+            REQUIRE(label != nullptr);
+            CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+            const int32_t content_h = lv_obj_get_height(btn) -
+                                      lv_obj_get_style_pad_top(btn, LV_PART_MAIN) -
+                                      lv_obj_get_style_pad_bottom(btn, LV_PART_MAIN);
+            CHECK(lv_obj_get_y(label) + lv_obj_get_height(label) <= content_h);
+        }
+        CHECK(visible >= 4); // all five except an optional one
+
+        lv_obj_delete(root);
+        UpdateQueue::instance().drain();
     }
     PrintStatusWidget::destroy_formatter_for_test();
 }

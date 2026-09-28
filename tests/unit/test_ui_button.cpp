@@ -13,6 +13,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
+#include "../test_helpers/scoped_breakpoint.h"
 #include "../test_helpers/scoped_theme_mode.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
@@ -643,4 +644,63 @@ TEST_CASE_METHOD(UiButtonTestFixture,
 
     REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
     REQUIRE(icon_idx > label_idx);
+}
+
+// stacked_if_bp_lte: at ui_breakpoint <= N the button restacks icon-over-label
+// and fills its parent's height; above N it keeps the row layout it declared at
+// create time. Pinned by the print status action grid at 480x320, where the
+// row layout clips the labels.
+/// Last lv_label child of a button: ui_button's text label. The icon glyph is
+/// an lv_label too, so "first label" is the icon whenever it precedes the text
+/// (stacked layout, icon_position="left").
+lv_obj_t* last_button_label(lv_obj_t* btn) {
+    lv_obj_t* found = nullptr;
+    uint32_t count = lv_obj_get_child_count(btn);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* child = lv_obj_get_child(btn, i);
+        if (lv_obj_check_type(child, &lv_label_class)) {
+            found = child;
+        }
+    }
+    return found;
+}
+
+TEST_CASE_METHOD(UiButtonTestFixture,
+                 "ui_button stacked_if_bp_lte restacks at or below threshold and restores above",
+                 "[ui_button][xml][quick]") {
+    const char* attrs[] = {"icon", "tune", "text", "Tune", "stacked_if_bp_lte", "1", nullptr};
+
+    // Created while tiny: stacked from the first layout pass. The text label
+    // is the LAST lv_label child: the icon glyph is an lv_label too and sits
+    // first once stacked.
+    {
+        helix::test::ScopedBreakpoint tiny(UiBreakpoint::Tiny);
+        lv_obj_t* btn = create_button(attrs);
+        REQUIRE(btn != nullptr);
+        lv_obj_t* label = last_button_label(btn);
+        REQUIRE(label != nullptr);
+
+        REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+        REQUIRE(lv_obj_get_index(label) == 1); // icon first, label under it
+        REQUIRE(lv_obj_get_style_height(btn, LV_PART_MAIN) == lv_pct(100));
+
+        // Crossing the threshold live restacks and restores the same button.
+        {
+            helix::test::ScopedBreakpoint medium(UiBreakpoint::Medium);
+            REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
+            REQUIRE(lv_obj_get_style_height(btn, LV_PART_MAIN) ==
+                    theme_manager_get_spacing("button_height"));
+        }
+        REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+    }
+
+    // Created while medium: the row layout it declared at create time.
+    {
+        helix::test::ScopedBreakpoint medium(UiBreakpoint::Medium);
+        lv_obj_t* btn = create_button(attrs);
+        REQUIRE(btn != nullptr);
+        REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
+        REQUIRE(lv_obj_get_style_height(btn, LV_PART_MAIN) ==
+                theme_manager_get_spacing("button_height"));
+    }
 }

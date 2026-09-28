@@ -1536,6 +1536,9 @@
         },
         "label_hidden_if_bp_eq": {
           "type": "int"
+        },
+        "stacked_if_bp_lte": {
+          "type": "int"
         }
       },
       "inherits": "lv_obj"
