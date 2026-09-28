@@ -67,13 +67,44 @@ TEST_CASE("the moving plan halves resolution when the mesh itself overflows the 
     REQUIRE(p.half_resolution);
 }
 
-TEST_CASE("band_layers_for sizes bands to the moving budget", "[gcode][render_schedule]") {
-    // 11 triangles per N=4 segment: 36k exterior segments project to 396k
+TEST_CASE("plan_bands sizes shell bands to the budget left after surfaces",
+          "[gcode][render_schedule]") {
+    // 11 triangles per N=4 segment: 36k shell segments project to 396k
     // triangles, which a 100k budget needs 4-layer bands to cover.
-    REQUIRE(band_layers_for(36000, 100000) == 4);
-    // A small exterior never goes below the 2-layer floor.
-    REQUIRE(band_layers_for(100, 100000) == 2);
-    REQUIRE(band_layers_for(0, 100000) == 2);
+    BandPlan p = plan_bands(36000, 0, 100000);
+    REQUIRE(p.band_layers == 4);
+    REQUIRE(p.surfaces_every_layer);
+
+    // 2k surface segments (22k triangles) come off the top: 330k shell
+    // triangles over the remaining 78k need 5-layer bands.
+    p = plan_bands(30000, 2000, 100000);
+    REQUIRE(p.band_layers == 5);
+    REQUIRE(p.surfaces_every_layer);
+
+    // Exactly half the budget still fits.
+    REQUIRE(plan_bands(0, 100000 / 2 / 11, 100000).surfaces_every_layer);
+
+    // A small shell never goes below the 2-layer floor.
+    REQUIRE(plan_bands(100, 0, 100000).band_layers == 2);
+    REQUIRE(plan_bands(0, 0, 100000).band_layers == 2);
+}
+
+TEST_CASE("plan_bands strides surfaces with the shell past half the budget",
+          "[gcode][render_schedule]") {
+    // 5k surface segments are 55k triangles, over half of 100k.
+    BandPlan p = plan_bands(1000, 5000, 100000);
+    REQUIRE_FALSE(p.surfaces_every_layer);
+    REQUIRE(p.band_layers == 2); // 66k over 100k, floored at 2
+
+    p = plan_bands(30000, 20000, 100000);
+    REQUIRE_FALSE(p.surfaces_every_layer);
+    REQUIRE(p.band_layers == 6); // 550k over 100k
+}
+
+TEST_CASE("plan_bands with no budget is off", "[gcode][render_schedule]") {
+    BandPlan p = plan_bands(36000, 2000, 0);
+    REQUIRE(p.band_layers == 1);
+    REQUIRE_FALSE(p.surfaces_every_layer);
 }
 
 static JobInputs idle_complete(int progress) {

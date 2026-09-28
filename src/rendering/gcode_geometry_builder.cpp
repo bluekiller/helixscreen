@@ -526,6 +526,35 @@ uint8_t GeometryBuilder::add_to_color_palette(RibbonGeometry& geometry, uint32_t
     return index;
 }
 
+size_t first_print_layer(const ParsedGCodeFile& gcode) {
+    for (size_t li = 0; li < gcode.layers.size(); ++li) {
+        for (const auto& seg : gcode.layers[li].segments) {
+            if (seg.is_extrusion && !is_auxiliary_geometry(seg.feature_type)) {
+                return li;
+            }
+        }
+    }
+    return 0;
+}
+
+int GeometryBuilder::band_height_layers(const ToolpathSegment& seg) const {
+    const size_t li = seg.layer_index;
+    if (!seg.is_extrusion || li < band_first_layer_) {
+        return 0;
+    }
+    const bool band_layer = (li - band_first_layer_) % static_cast<size_t>(band_layers_) == 0;
+    if (band_layer && is_band_shell_feature(seg.feature_type)) {
+        return band_layers_;
+    }
+    if (li == band_first_layer_) {
+        return 1;
+    }
+    if (is_surface_feature(seg.feature_type) && (band_layer || band_surfaces_every_layer_)) {
+        return 1;
+    }
+    return 0;
+}
+
 RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
                                       const SimplificationOptions& options,
                                       const std::function<bool()>& should_cancel) {
@@ -583,29 +612,22 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
     // counter existed (drawable_segments defaults to 0).
     all_segments.reserve(gcode.drawable_segments > 0 ? gcode.drawable_segments
                                                      : gcode.total_segments);
+    band_first_layer_ = band_layers_ > 1 ? first_print_layer(gcode) : 0;
     for (size_t li = 0; li < gcode.layers.size(); ++li) {
         if (li % 64 == 0 && cancelled()) {
             spdlog::info("[GCode::Builder] Build cancelled during collection");
             return {};
         }
-        // Moving-mesh banding: only every n-th layer feeds the build.
-        if (band_layers_ > 1 && li % static_cast<size_t>(band_layers_) != 0) {
-            continue;
-        }
         for (const auto& seg : gcode.layers[li].segments) {
             if (is_auxiliary_geometry(seg.feature_type)) {
                 continue;
             }
-            // A band carries only the shell the eye reads: no travels, no
-            // interior mass. Unknown means the file never named a feature,
-            // and losing every such segment would drop the whole mesh.
-            if (band_layers_ > 1 &&
-                (!seg.is_extrusion || (seg.feature_type != FeatureType::Unknown &&
-                                       !is_exterior_feature(seg.feature_type)))) {
+            ToolpathSegment stamped = seg;
+            stamped.layer_index = static_cast<uint16_t>(li);
+            if (band_layers_ > 1 && band_height_layers(stamped) == 0) {
                 continue;
             }
-            all_segments.push_back(seg);
-            all_segments.back().layer_index = static_cast<uint16_t>(li);
+            all_segments.push_back(stamped);
         }
     }
 
@@ -1046,8 +1068,12 @@ GeometryBuilder::simplify_segments(const std::vector<ToolpathSegment>& segments,
         bool endpoints_connect = glm::distance2(current.end, next.start) < 0.0001f;
         bool same_object = (current.object_name_index == next.object_name_index);
         bool same_width = (std::abs(current.width - next.width) < 0.001f);
+        // A band-tall shell and a one-layer skin must not become one tube.
+        bool same_height =
+            band_layers_ <= 1 || band_height_layers(current) == band_height_layers(next);
 
-        if (same_type && same_layer && endpoints_connect && same_object && same_width) {
+        if (same_type && same_layer && endpoints_connect && same_object && same_width &&
+            same_height) {
             // Direction check: prevent merging segments with significantly different directions.
             // This preserves zigzag fill patterns where perpendicular distance is small but
             // the direction changes sharply (e.g., 90-degree turns in solid infill).
@@ -1142,8 +1168,9 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     width = width * 1.1f; // 10% safety margin
 
     const float half_width = width * 0.5f;
-    // A band tube is band_layers_ layer heights tall; a normal tube one.
-    const float half_height = layer_height_mm_ * 0.5f * static_cast<float>(band_layers_);
+    // A band tube is band_layers_ layer heights tall; every other tube one.
+    const int height_layers = band_layers_ > 1 ? band_height_layers(segment) : 1;
+    const float half_height = layer_height_mm_ * 0.5f * static_cast<float>(height_layers);
 
     // Calculate direction and perpendicular vectors
     const glm::vec3 dir = glm::normalize(segment.end - segment.start);
@@ -1201,7 +1228,8 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     // -lh/2 for a single-layer tube (top edge at path Z, bottom one layer
     // down); a band tube rises a further (n-1)*lh/2 so band k spans layers
     // k..k+n-1 and consecutive bands touch with no gap between them.
-    const float centre_offset = layer_height_mm_ * 0.5f * (static_cast<float>(band_layers_) - 2.0f);
+    const float centre_offset =
+        layer_height_mm_ * 0.5f * (static_cast<float>(height_layers) - 2.0f);
     const glm::vec3 prev_pos = segment.start + centre_offset * perp_up;
     const glm::vec3 curr_pos = segment.end + centre_offset * perp_up;
 

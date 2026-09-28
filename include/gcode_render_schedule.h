@@ -69,20 +69,35 @@ inline MovingPlan plan_moving(size_t total_triangles, size_t mesh_triangles, flo
     return {false, static_cast<int>((total_triangles + budget - 1) / budget), true};
 }
 
-/// Band depth for the moving mesh: how many layers one exterior band covers so
-/// the banded exterior projects to about the moving budget. The mesh draws at
-/// 4 tube sides, so its triangles per exterior segment are TRIS_PER_SEG_N4.
-/// The floor of 2 keeps bands from degenerating into the full-resolution build
-/// a tiny exterior would otherwise ask for. 0 budget (no planning rate at all)
-/// means no mesh, so the answer is the off value.
-inline int band_layers_for(size_t exterior_segments, size_t budget_triangles) {
+/// How the moving mesh is banded.
+struct BandPlan {
+    int band_layers;           ///< layers one shell band covers (1 = off)
+    bool surfaces_every_layer; ///< keep top/bottom/bridge skins on every layer, not every n-th
+};
+
+/// Plan the moving mesh. `shell_segments` are band-tall exterior extrusions (walls), which
+/// the mesh keeps on every n-th layer. `surface_segments` are extrusions kept one layer tall
+/// regardless of the stride: horizontal skins plus the whole first layer. Surfaces are what
+/// keep the model from reading as hollow, so they get their share of the budget first, as
+/// long as that share is at most half; past that they are strided with the shell. The mesh
+/// draws at 4 tube sides, so its triangles per segment are TRIS_PER_SEG_N4. The floor of 2
+/// keeps bands from degenerating into the full-resolution build. 0 budget (no planning rate
+/// at all) means no mesh, so the answer is the off value.
+inline BandPlan plan_bands(size_t shell_segments, size_t surface_segments,
+                           size_t budget_triangles) {
     if (budget_triangles == 0) {
-        return 1;
+        return {1, false};
     }
-    const size_t projected = exterior_segments * GeometryBudgetManager::TRIS_PER_SEG_N4;
-    const size_t layers = (projected + budget_triangles - 1) / budget_triangles; // ceil divide
-    const size_t floored = layers < 2 ? 2 : layers;
-    return static_cast<int>(floored);
+    constexpr size_t kTris = GeometryBudgetManager::TRIS_PER_SEG_N4;
+    auto layers_for = [](size_t triangles, size_t budget) {
+        const size_t layers = (triangles + budget - 1) / budget; // ceil divide
+        return static_cast<int>(layers < 2 ? 2 : layers);
+    };
+    const size_t surface_triangles = surface_segments * kTris;
+    if (surface_triangles * 2 <= budget_triangles) {
+        return {layers_for(shell_segments * kTris, budget_triangles - surface_triangles), true};
+    }
+    return {layers_for((shell_segments + surface_segments) * kTris, budget_triangles), false};
 }
 
 /// What the renderer does with its time-sliced job after a state change.

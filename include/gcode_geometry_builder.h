@@ -493,6 +493,14 @@ struct SimplificationOptions {
 // ============================================================================
 
 /**
+ * @brief Index of the first layer holding a printed (non-auxiliary) extrusion
+ *
+ * Start-gcode purge lines can occupy a layer of their own below the model, so the moving
+ * mesh counts its band stride from here, not from layer 0. 0 when nothing is printed.
+ */
+size_t first_print_layer(const ParsedGCodeFile& gcode);
+
+/**
  * @brief Converts G-code toolpath segments into optimized 3D ribbon geometry
  *
  * Pipeline:
@@ -582,16 +590,21 @@ class GeometryBuilder {
     }
 
     /**
-     * @brief Band the build into every n-th layer (moving mesh mode)
+     * @brief Band the build for the moving mesh
      * @param n Band depth in layers; 1 (default) = off
+     * @param surfaces_every_layer Keep skins on every layer, not only on band layers
      *
-     * n > 1 collects only layers whose index divides by n and only exterior
-     * features (extrusions whose ;TYPE: names an outside-visible region, or
-     * any extrusion when the file names none), and draws each tube n layer
-     * heights tall so consecutive bands touch with no gaps.
+     * n > 1 keeps, counting layers from first_print_layer():
+     * - on every n-th layer, band shells (is_band_shell_feature), drawn n layer heights tall
+     *   so consecutive bands touch with no gaps;
+     * - the whole first print layer, so the model always has its bottom;
+     * - horizontal skins (is_surface_feature) on band layers, or on every layer when
+     *   surfaces_every_layer is set, so tops and bottoms do not read as holes.
+     * Everything that is not a band shell is drawn one layer tall.
      */
-    void set_band_layers(int n) {
+    void set_band_layers(int n, bool surfaces_every_layer = true) {
         band_layers_ = n < 1 ? 1 : n;
+        band_surfaces_every_layer_ = surfaces_every_layer;
     }
 
     /**
@@ -701,6 +714,11 @@ class GeometryBuilder {
     std::vector<std::string> tool_color_palette_;   ///< Hex colors per tool (multi-color prints)
     int tube_sides_ = 16;                           ///< Tube cross-section sides (valid: 4, 8, 16)
     int band_layers_ = 1;                           ///< Moving-mesh band depth (1 = off)
+    bool band_surfaces_every_layer_ = true;         ///< Skins survive the band stride
+    size_t band_first_layer_ = 0;                   ///< first_print_layer() of the file being built
+
+    /// Kept by the moving mesh, and how tall: 0 = dropped, 1 = one layer, n = a band.
+    int band_height_layers(const ToolpathSegment& seg) const;
 
     int budget_tube_sides_ = 0;     ///< Override tube_sides from budget (0 = use config)
     size_t budget_limit_bytes_ = 0; ///< Memory ceiling (0 = unlimited)

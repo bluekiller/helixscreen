@@ -234,6 +234,27 @@ constexpr bool is_exterior_feature(FeatureType t) {
            t == FeatureType::Support;
 }
 
+/**
+ * @brief Is this feature a horizontal skin seen from outside (a top, a bottom, a bridge)?
+ *
+ * A skin exists on one layer, so a mesh that keeps every n-th layer loses most of them and
+ * the model reads as hollow. The moving mesh keeps these on every layer, one layer tall.
+ */
+constexpr bool is_surface_feature(FeatureType t) {
+    return t == FeatureType::TopSurface || t == FeatureType::BottomSurface ||
+           t == FeatureType::Bridge;
+}
+
+/**
+ * @brief Does the moving mesh draw this feature as a band-tall shell?
+ *
+ * Exterior features other than skins, plus Unknown: a file with no ;TYPE: comments keeps
+ * every extrusion rather than losing the whole mesh.
+ */
+constexpr bool is_band_shell_feature(FeatureType t) {
+    return (t == FeatureType::Unknown || is_exterior_feature(t)) && !is_surface_feature(t);
+}
+
 struct ToolpathSegment {
     glm::vec3 start{0.0f, 0.0f, 0.0f}; ///< Start point (X, Y, Z) — 12 bytes
     glm::vec3 end{0.0f, 0.0f, 0.0f};   ///< End point (X, Y, Z) — 12 bytes

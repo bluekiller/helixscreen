@@ -1770,9 +1770,10 @@ TEST_CASE("Geometry Builder: a cancelled build emits no geometry", "[gcode][geom
 // Moving mesh band layers
 // ============================================================================
 //
-// The weak-GPU moving mesh is this builder run with set_band_layers(n): only
-// every n-th layer is kept, only exterior features are kept, and each kept
-// tube is n layer-heights tall so consecutive bands touch with no gaps.
+// The weak-GPU moving mesh is this builder run with set_band_layers(n): exterior
+// shells are kept on every n-th layer, counted from the first printed layer, and
+// drawn n layer-heights tall so consecutive bands touch with no gaps. The first
+// printed layer and the horizontal skins are kept one layer tall.
 
 namespace {
 
@@ -1815,6 +1816,34 @@ SimplificationOptions band_options() {
     return opts;
 }
 
+ToolpathSegment band_extrusion(float y, float z, FeatureType type) {
+    ToolpathSegment seg;
+    seg.start = glm::vec3(10, y, z);
+    seg.end = glm::vec3(60, y, z);
+    seg.is_extrusion = true;
+    seg.extrusion_amount = 1.0f;
+    seg.width = 0.4f;
+    seg.feature_type = type;
+    return seg;
+}
+
+/// Dequantized Z extent of the strips built from one source layer.
+std::pair<float, float> layer_z_extent(const RibbonGeometry& geometry, uint16_t layer) {
+    float lo = std::numeric_limits<float>::max();
+    float hi = std::numeric_limits<float>::lowest();
+    for (size_t s = 0; s < geometry.strips.size(); ++s) {
+        if (geometry.strip_layer_index[s] != layer) {
+            continue;
+        }
+        for (uint32_t vi : geometry.strips[s]) {
+            const float z = geometry.quantization.dequantize_vec3(geometry.vertices[vi].position).z;
+            lo = std::min(lo, z);
+            hi = std::max(hi, z);
+        }
+    }
+    return {lo, hi};
+}
+
 } // namespace
 
 TEST_CASE("Geometry Builder: band layers keep only exterior features of every n-th layer",
@@ -1823,9 +1852,9 @@ TEST_CASE("Geometry Builder: band layers keep only exterior features of every n-
     builder.set_band_layers(3);
     RibbonGeometry geometry = builder.build(make_banded_gcode(9), band_options());
 
-    // Layers 0, 3 and 6 survive, and only their outer walls: infill is never
-    // collected, so one segment per band reaches the builder.
-    REQUIRE(builder.last_stats().input_segments == 3);
+    // Layers 0, 3 and 6 survive with their outer walls. Infill is collected
+    // only on the first printed layer, which the mesh keeps whole.
+    REQUIRE(builder.last_stats().input_segments == 4);
     std::set<uint16_t> layers(geometry.strip_layer_index.begin(), geometry.strip_layer_index.end());
     REQUIRE(layers == std::set<uint16_t>{0, 3, 6});
 
@@ -1843,28 +1872,10 @@ TEST_CASE("Geometry Builder: a band is n layer heights tall and bands touch",
     RibbonGeometry geometry = builder.build(make_banded_gcode(9), band_options());
     REQUIRE_FALSE(geometry.strips.empty());
 
-    // Dequantized Z extent of one band's strips. A tube's top edge sits at the
-    // layer's Z, so layer 0's band spans 0.0 to 0.6 mm and layer 3's starts
-    // exactly where it ends.
-    auto band_z_extent = [&geometry](uint16_t layer) {
-        float lo = std::numeric_limits<float>::max();
-        float hi = std::numeric_limits<float>::lowest();
-        for (size_t s = 0; s < geometry.strips.size(); ++s) {
-            if (geometry.strip_layer_index[s] != layer) {
-                continue;
-            }
-            for (uint32_t vi : geometry.strips[s]) {
-                const float z =
-                    geometry.quantization.dequantize_vec3(geometry.vertices[vi].position).z;
-                lo = std::min(lo, z);
-                hi = std::max(hi, z);
-            }
-        }
-        return std::pair{lo, hi};
-    };
-
-    const auto [lo0, hi0] = band_z_extent(0);
-    const auto [lo3, hi3] = band_z_extent(3);
+    // A tube's top edge sits at the layer's Z, so layer 0's band spans 0.0 to
+    // 0.6 mm and layer 3's starts exactly where it ends.
+    const auto [lo0, hi0] = layer_z_extent(geometry, 0);
+    const auto [lo3, hi3] = layer_z_extent(geometry, 3);
     REQUIRE(hi0 - lo0 == Approx(0.6f).margin(0.02f)); // 3 * 0.2 mm
     REQUIRE(lo0 == Approx(0.0f).margin(0.02f));
     REQUIRE(lo3 == Approx(hi0).margin(0.02f));
@@ -1886,6 +1897,88 @@ TEST_CASE("Geometry Builder: bands keep every extrusion when the file names no f
     // Layers 0 and 2, both segments each: Unknown is not "known interior".
     REQUIRE(builder.last_stats().input_segments == 4);
     REQUIRE(geometry.strip_layer_index.size() == geometry.strips.size());
+}
+
+TEST_CASE("Geometry Builder: bands count from the first printed layer, not a purge layer",
+          "[gcode][geometry][bands]") {
+    // Start-gcode purge alone on layer 0, the model on layers 1..9.
+    ParsedGCodeFile gcode = make_banded_gcode(10);
+    gcode.layers[0].segments = {band_extrusion(5, 0.2f, FeatureType::Custom)};
+
+    GeometryBuilder builder;
+    builder.set_band_layers(3);
+    RibbonGeometry geometry = builder.build(gcode, band_options());
+
+    std::set<uint16_t> layers(geometry.strip_layer_index.begin(), geometry.strip_layer_index.end());
+    REQUIRE(layers == std::set<uint16_t>{1, 4, 7});
+    // Layer 1's wall and infill, then the walls of 4 and 7.
+    REQUIRE(builder.last_stats().input_segments == 4);
+}
+
+TEST_CASE("Geometry Builder: skins survive the band stride, one layer tall",
+          "[gcode][geometry][bands]") {
+    // A top surface on layer 4 (not a band layer at n=3) and a bottom surface
+    // on layer 6 (a band layer).
+    ParsedGCodeFile gcode = make_banded_gcode(9);
+    gcode.layers[4].segments.push_back(
+        band_extrusion(30, gcode.layers[4].z_height, FeatureType::TopSurface));
+    gcode.layers[6].segments.push_back(
+        band_extrusion(30, gcode.layers[6].z_height, FeatureType::BottomSurface));
+
+    SECTION("every layer") {
+        GeometryBuilder builder;
+        builder.set_band_layers(3);
+        RibbonGeometry geometry = builder.build(gcode, band_options());
+        REQUIRE(geometry.layer_strip_ranges[4].second > 0);
+
+        // One layer tall, top edge at the layer's Z: 0.8 to 1.0 mm.
+        const auto [lo, hi] = layer_z_extent(geometry, 4);
+        REQUIRE(hi - lo == Approx(0.2f).margin(0.02f));
+        REQUIRE(hi == Approx(gcode.layers[4].z_height).margin(0.02f));
+    }
+
+    SECTION("band layers only") {
+        GeometryBuilder builder;
+        builder.set_band_layers(3, false);
+        RibbonGeometry geometry = builder.build(gcode, band_options());
+        REQUIRE(geometry.layer_strip_ranges[4].second == 0);
+        REQUIRE(geometry.layer_strip_ranges[6].second > 0); // on a band layer it stays
+    }
+}
+
+TEST_CASE("Geometry Builder: a band shell and a skin never merge into one tube",
+          "[gcode][geometry][bands]") {
+    // On band layer 3, a wall runs straight on into a top surface: the same
+    // line, width and layer, so plain merging would fuse them.
+    ParsedGCodeFile gcode = make_banded_gcode(6);
+    const float z = gcode.layers[3].z_height;
+    ToolpathSegment skin = band_extrusion(10, z, FeatureType::TopSurface);
+    skin.start = glm::vec3(60, 10, z);
+    skin.end = glm::vec3(90, 10, z);
+    gcode.layers[3].segments.insert(gcode.layers[3].segments.begin() + 1, skin);
+
+    SimplificationOptions merging;
+    merging.enable_merging = true;
+    GeometryBuilder builder;
+    builder.set_band_layers(3);
+    RibbonGeometry geometry = builder.build(gcode, merging);
+
+    // The wall's band rises two layers above its path; the skin's top edge is
+    // the path itself. Fused, the skin's span would rise with the band.
+    float skin_hi = std::numeric_limits<float>::lowest();
+    for (size_t s = 0; s < geometry.strips.size(); ++s) {
+        if (geometry.strip_layer_index[s] != 3) {
+            continue;
+        }
+        for (uint32_t vi : geometry.strips[s]) {
+            const glm::vec3 p =
+                geometry.quantization.dequantize_vec3(geometry.vertices[vi].position);
+            if (p.x > 70.0f) {
+                skin_hi = std::max(skin_hi, p.z);
+            }
+        }
+    }
+    REQUIRE(skin_hi == Approx(z).margin(0.03f));
 }
 
 TEST_CASE("Geometry Builder: band layers default to off", "[gcode][geometry][bands]") {

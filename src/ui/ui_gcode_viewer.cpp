@@ -578,20 +578,31 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     const size_t main_triangles =
         geometry->extrusion_triangle_count + geometry->travel_triangle_count;
     if (main_triangles > moving_budget) {
-        size_t exterior_segments = 0;
-        for (const auto& layer : file.layers) {
-            for (const auto& seg : layer.segments) {
-                if (seg.is_extrusion && helix::gcode::is_exterior_feature(seg.feature_type)) {
-                    ++exterior_segments;
+        // Shells are strided by the band depth; surfaces (skins, and the whole first
+        // layer so the model keeps its bottom) are kept on every layer if they fit.
+        const size_t first_layer = helix::gcode::first_print_layer(file);
+        size_t shell_segments = 0;
+        size_t surface_segments = 0;
+        for (size_t li = first_layer; li < file.layers.size(); ++li) {
+            for (const auto& seg : file.layers[li].segments) {
+                if (!seg.is_extrusion || helix::gcode::is_auxiliary_geometry(seg.feature_type)) {
+                    continue;
+                }
+                if (helix::gcode::is_band_shell_feature(seg.feature_type)) {
+                    ++shell_segments;
+                } else if (li == first_layer ||
+                           helix::gcode::is_surface_feature(seg.feature_type)) {
+                    ++surface_segments;
                 }
             }
         }
-        if (exterior_segments > 0) {
-            const int band_layers =
-                helix::gcode::render_schedule::band_layers_for(exterior_segments, moving_budget);
+        if (shell_segments + surface_segments > 0) {
+            const auto bands = helix::gcode::render_schedule::plan_bands(
+                shell_segments, surface_segments, moving_budget);
+            const int band_layers = bands.band_layers;
             helix::gcode::GeometryBuilder mesh_builder;
             configure(mesh_builder);
-            mesh_builder.set_band_layers(band_layers);
+            mesh_builder.set_band_layers(band_layers, bands.surfaces_every_layer);
             mesh_builder.set_budget_tube_sides(4);
             helix::gcode::SimplificationOptions mesh_opts{.tolerance_mm = 0.05f,
                                                           .min_segment_length_mm = 0.05f,
@@ -608,8 +619,10 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
             } else {
                 mesh->prepare_interleaved_buffers();
                 geometry->moving_mesh = std::move(mesh);
-                spdlog::info("[GCode Viewer] Moving mesh: {}-layer bands, {} triangles",
-                             band_layers, mesh_triangles);
+                spdlog::info("[GCode Viewer] Moving mesh: {}-layer bands, skins on {} layer, {} "
+                             "triangles",
+                             band_layers, bands.surfaces_every_layer ? "every" : "band",
+                             mesh_triangles);
             }
         }
     }
