@@ -64,30 +64,21 @@
                          hint_name="detail_rotate_hint" thumbnail_src="selected_detail_thumbnail"
                          thumbnail_offset_y="#preview_offset_y" viewer_hidden="detail_viewer_hidden eq 1"
                          thumbnail_hidden="detail_viewer_first_frame eq 1" hint_hidden="detail_gcode_viewer_mode ne 1"/>
-          <!-- Loading overlay - shown while G-code is downloading/indexing.
-               Determinate whenever the streaming indexer can report: a large
-               file spends the whole wait in the index scan (a 133MB print took
-               69s on a K2 Plus), and a bare spinner for that long reads as a
-               hung app. detail_gcode_progress is 0 when there is no honest
-               figure - the full-load path has no checkpoint to report - and the
-               spinner covers that case, mirroring wizard_input_shaper's
-               determinate/indeterminate pair. -->
+          <!-- Loading pill - shown while G-code is downloading/indexing. It sits in
+               the preview's top-left corner so the thumbnail stays readable, toasts
+               (top-right) never cover it, and the metadata strip stays clear; the
+               strip's own background keeps the text legible in either theme. The
+               label carries the percentage whenever the streaming indexer can
+               report one (a 133MB print spends over a minute in the index scan,
+               and a bare spinner for that long reads as a hung app). -->
           <lv_obj name="detail_loading_overlay"
-                  width="100%" height="100%" align="center" style_bg_opa="120" style_bg_color="0x000000"
-                  scrollable="false">
+                  width="content" height="content" align="top_left" x="#space_sm" y="#space_sm" flex_flow="row"
+                  style_flex_cross_place="center" style_pad_top="#space_xs" style_pad_bottom="#space_xs"
+                  style_border_width="0" scrollable="false">
+            <style name="styles.metadata_strip"/>
             <bind_flag_if_eq subject="detail_gcode_loading" flag="hidden" ref_value="0"/>
-            <lv_obj width="80%"
-                    height="content" align="center" flex_flow="column" style_pad_all="0" style_pad_gap="#space_sm"
-                    style_flex_cross_place="center" style_bg_opa="0" style_border_width="0" scrollable="false">
-              <spinner size="lg">
-                <bind_flag_if cond="detail_gcode_progress gt 0" flag="hidden"/>
-              </spinner>
-              <progress_bar name="detail_loading_progress" width="100%" bind_value="detail_gcode_progress">
-                <bind_flag_if cond="detail_gcode_progress eq 0" flag="hidden"/>
-              </progress_bar>
-              <text_small name="detail_loading_label"
-                          bind_text="detail_gcode_progress_text" style_text_align="center" style_text_color="#text"/>
-            </lv_obj>
+            <spinner size="xs"/>
+            <text_small name="detail_loading_label" bind_text="detail_gcode_progress_text"/>
           </lv_obj>
           <!-- No-thumbnail placeholder - responsive hero-size glyph shown when file has no real thumbnail.
              Uses icon_font_hero so the cube scales with the breakpoint (96px micro → 128px large+). -->
