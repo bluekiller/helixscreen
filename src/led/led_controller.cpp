@@ -275,10 +275,9 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
             strip.supports_white = true; // Dotstar supports RGBW
         } else if (led_id.rfind("led ", 0) == 0) {
             raw_name = led_id.substr(4);
-            // Generic [led]: treat as white-only until the configfile parse proves
-            // RGB pins exist (update_pin_config upgrades supports_color when red/
-            // green/blue_pin are present). Leaves supports_color at the false default.
-            strip.supports_white = false;
+            // Generic [led]: white-only until the configfile parse proves RGB pins
+            // exist (update_pin_config sets both flags from the pins present).
+            strip.supports_white = true;
         } else {
             raw_name = led_id;
             strip.supports_white = false;

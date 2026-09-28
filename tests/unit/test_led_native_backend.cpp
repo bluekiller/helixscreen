@@ -769,3 +769,29 @@ TEST_CASE_METHOD(LedPinConfigFixture,
         REQUIRE(native_brightness == printer_brightness);
     }
 }
+
+TEST_CASE_METHOD(LedPinConfigFixture,
+                 "LedController: a discovered white-only [led] starts on W before any status",
+                 "[led][controller][white_only]") {
+    // "LED on at start" fires from discovery-complete, before the first status
+    // frame and with no pin config applied: discovery's flags alone must light it.
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    helix::PrinterDiscovery discovery;
+    discovery.parse_objects(nlohmann::json::array({"led caselight", "extruder"}));
+    ctrl.discover_from_hardware(discovery);
+    REQUIRE_FALSE(ctrl.native().has_strip_color("led caselight"));
+
+    ctrl.set_last_color(0xFFFFFF);
+    ctrl.set_last_white(0.0);
+    ctrl.set_led_on_at_start(true);
+    ctrl.set_startup_brightness(80);
+    ctrl.apply_startup_preference(ctrl.light_targets(""));
+
+    const auto c = ctrl.native().get_strip_color("led caselight");
+    CHECK(c.w == Catch::Approx(0.8).margin(0.001));
+    CHECK(c.r == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.g == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.b == Catch::Approx(0.0).margin(0.001));
+}

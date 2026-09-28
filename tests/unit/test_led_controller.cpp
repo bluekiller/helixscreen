@@ -106,7 +106,7 @@ TEST_CASE_METHOD(LedControllerFixture,
     // Generic [led] is fail-closed to white-only at discovery (no color picker)
     // until the configfile parse proves RGB pins exist.
     REQUIRE(strips[2].supports_color == false);
-    REQUIRE(strips[2].supports_white == false);
+    REQUIRE(strips[2].supports_white == true);
 
     // Other backends should be empty
     REQUIRE(!ctrl.effects().is_available());
@@ -150,7 +150,7 @@ TEST_CASE_METHOD(LedControllerFixture,
 
     // Generic [led]: white-only default, no color until configfile proves RGB pins.
     REQUIRE(find("led chamber_light").supports_color == false);
-    REQUIRE(find("led chamber_light").supports_white == false);
+    REQUIRE(find("led chamber_light").supports_white == true);
 
     // Addressable strips: color stays true at discovery (regression guard — their
     // configfile sections have no red/green/blue_pin, so update_pin_config skips them).
