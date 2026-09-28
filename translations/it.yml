@@ -148,6 +148,7 @@ translations:
   Abort already in progress: Interruzione già in corso
   Abort failed: Interruzione fallita
   Aborting AFC operation...: Interruzione operazione AFC...
+  Aborting...: Interruzione...
   About: Info
   Accel to Decel: Accel. a Decel.
   Acceleration to deceleration limit (mm/s²): Limite accelerazione a decelerazione
@@ -2567,6 +2568,7 @@ translations:
   Recover MMU state?: Ripristinare lo stato dell'MMU?
   Recover State: 'Recupera stato'
   Recovering AFC system...: Recupero sistema AFC...
+  Recovering...: Recupero...
   Recovery failed: Recupero fallito
   'Recovery failed: ': 'Recupero fallito: '
   'Recovery failed: {}': 'Recupero fallito: {}'
