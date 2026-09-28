@@ -665,22 +665,25 @@ void LedController::update_output_pin_config(const nlohmann::json& configfile_co
     }
 
     for (const auto& pin : output_pin_.pins()) {
-        if (configfile_config.contains(pin.id)) {
-            const auto& pin_cfg = configfile_config[pin.id];
-            if (pin_cfg.contains("pwm")) {
-                const auto& pwm_val = pin_cfg["pwm"];
-                bool is_pwm = false;
-                if (pwm_val.is_boolean()) {
-                    is_pwm = pwm_val.get<bool>();
-                } else if (pwm_val.is_string()) {
-                    std::string s = pwm_val.get<std::string>();
-                    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-                    is_pwm = (s == "true" || s == "1" || s == "yes");
-                }
-                output_pin_.set_pin_pwm(pin.id, is_pwm);
-                spdlog::debug("[LedController] Output pin {} PWM: {}", pin.id, is_pwm);
+        if (!configfile_config.contains(pin.id)) {
+            continue;
+        }
+        // Klipper's output_pin reads `pwm` as getboolean('pwm', False): a section
+        // with no pwm line is a digital pin.
+        const auto& pin_cfg = configfile_config[pin.id];
+        bool is_pwm = false;
+        if (pin_cfg.is_object() && pin_cfg.contains("pwm")) {
+            const auto& pwm_val = pin_cfg["pwm"];
+            if (pwm_val.is_boolean()) {
+                is_pwm = pwm_val.get<bool>();
+            } else if (pwm_val.is_string()) {
+                std::string s = pwm_val.get<std::string>();
+                std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+                is_pwm = (s == "true" || s == "1" || s == "yes" || s == "on");
             }
         }
+        output_pin_.set_pin_pwm(pin.id, is_pwm);
+        spdlog::debug("[LedController] Output pin {} PWM: {}", pin.id, is_pwm);
     }
 }
 
@@ -1635,6 +1638,10 @@ void OutputPinBackend::set_value(const std::string& pin_id, double value,
     }
 
     value = std::clamp(value, 0.0, 1.0);
+    // Klipper rejects anything but 0 or 1 for a digital pin.
+    if (!is_pwm(pin_id)) {
+        value = (value > 0.0) ? 1.0 : 0.0;
+    }
 
     // Extract pin name from "output_pin <name>" format
     std::string pin_name = pin_id;
@@ -1675,11 +1682,7 @@ void OutputPinBackend::set_brightness(const std::string& pin_id, int brightness_
                                       NativeBackend::SuccessCallback on_success,
                                       NativeBackend::ErrorCallback on_error,
                                       NativeBackend::SuccessCallback on_queued) {
-    double value = std::clamp(brightness_pct, 0, 100) / 100.0;
-    // Non-PWM pins only accept 0 or 1 — clamp to avoid Klipper errors
-    if (!is_pwm(pin_id)) {
-        value = (value > 0.0) ? 1.0 : 0.0;
-    }
+    const double value = std::clamp(brightness_pct, 0, 100) / 100.0;
     set_value(pin_id, value, std::move(on_success), std::move(on_error), std::move(on_queued));
 }
 

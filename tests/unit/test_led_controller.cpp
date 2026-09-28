@@ -10,11 +10,14 @@
 #include "app_globals.h"
 #include "config.h"
 #include "led/led_controller.h"
+#include "led/led_device_page.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "static_subject_registry.h"
+
+#include <algorithm>
 
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
@@ -2311,4 +2314,41 @@ TEST_CASE_METHOD(LedMockApiFixture,
     CHECK(count_set_led(mock_client.gcode_script_history()) == 1);
     CHECK(chamber_on());
     CHECK(ctrl.device_state("wled_printer_led").power == helix::led::PowerState::On);
+}
+
+TEST_CASE_METHOD(LedMockApiFixture, "LedController: an output_pin with no pwm line is on/off only",
+                 "[led][controller][configfile][output_pin]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(mock_api.get(), &mock_client);
+    // Klipper's output_pin reads `pwm` with a default of False.
+    ctrl.apply_configfile({{"output_pin caselight", {{"pin", "PA1"}}}});
+    helix::PrinterDiscovery discovery;
+    discovery.parse_objects(nlohmann::json::array({"output_pin caselight", "extruder"}));
+    ctrl.discover_from_hardware(discovery);
+
+    const auto* pin = helix::led::find_strip(ctrl.output_pin().pins(), "output_pin caselight");
+    REQUIRE(pin != nullptr);
+    CHECK_FALSE(pin->is_pwm);
+    const auto page =
+        helix::led::classify_device_page(*pin, helix::led::MacroLedType::ON_OFF, false);
+    CHECK(page.lamp == helix::led::LampControl::PowerOnly);
+    CHECK(page.list == helix::led::ListKind::None);
+
+    // Nothing sends a fractional value to it, whichever path asks.
+    make_led_dispatch_real(state);
+    mock_client.clear_gcode_script_history();
+    ctrl.set_color({"output_pin caselight"}, 0.3, 0.3, 0.3, 0.0);
+    ctrl.set_brightness({"output_pin caselight"}, 40);
+    ctrl.output_pin().set_value("output_pin caselight", 0.5);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    const auto& history = mock_client.gcode_script_history();
+    CHECK(std::count_if(history.begin(), history.end(), [](const std::string& s) {
+              return s.find("SET_PIN PIN=caselight VALUE=1.0000") != std::string::npos;
+          }) == 3);
+
+    // An explicit `pwm: True` keeps the pin dimmable.
+    ctrl.apply_configfile({{"output_pin caselight", {{"pin", "PA1"}, {"pwm", "True"}}}});
+    CHECK(ctrl.output_pin().is_pwm("output_pin caselight"));
+    ctrl.deinit();
 }
