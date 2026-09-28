@@ -48,10 +48,6 @@ constexpr float CAMERA_LIGHT_INTENSITY = 0.6f;
 constexpr float FILL_LIGHT_INTENSITY = 0.2f;
 constexpr float AMBIENT_INTENSITY = 0.25f;
 
-// Background color (neutral gray for contrast with light and dark filaments)
-constexpr float BACKGROUND_GRAY = 0.45f;
-constexpr float BACKGROUND_GRAY_BLUE = 0.47f;
-
 // Still and incremental frames render into an FBO this many times the widget
 // size and come back down through a 2x2 box filter (blit_to_lvgl); moving
 // frames keep their own plan resolution.

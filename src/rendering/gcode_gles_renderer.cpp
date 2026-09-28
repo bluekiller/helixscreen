@@ -1282,19 +1282,18 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     glViewport(0, 0, render_w, render_h);
 
     if (clear) {
-        // Neutral gray background - light and dark filaments both contrast well
-        glClearColor(BACKGROUND_GRAY, BACKGROUND_GRAY, BACKGROUND_GRAY_BLUE, 1.0f);
+        // Transparent clear: the image composites over the same gradient canvas
+        // as the 2D preview, so a pixel nothing drew must carry alpha 0.
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
     glEnable(GL_DEPTH_TEST);
 
-    // Alpha is not part of the picture: readback converts RGBA to RGB and throws
-    // the alpha byte away. So it is reserved as the selection tag channel, and
-    // masking it off here is what guarantees the tag means only one thing. Ghost
-    // layers blend with GL_ONE_MINUS_SRC_ALPHA, which would otherwise leave
-    // arbitrary alpha behind and put stray rim pixels on unselected geometry.
-    // Everything stays at the cleared 255 until render_selection_tag() unmasks.
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+    // Alpha is coverage. The solid pass outputs u_base_alpha = 1.0 and the ghost
+    // blend (SRC_ALPHA, ONE_MINUS_SRC_ALPHA) tops out around 1 - a + a*a, which
+    // stays below kSelectedAlpha at the 2% ghost opacity, so the tag value
+    // remains writable only by render_selection_tag(), and a 254 in the readback
+    // still means exactly "visible pixel of a selected object".
 
     // Select active geometry
     active_geometry_ = geometry_.get();
@@ -1630,8 +1629,9 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
     if (!draw_buf_ || draw_buf_width_ != widget_w || draw_buf_height_ != widget_h) {
         // May still be in flight to the parallel render thread (#929 cluster).
         helix::safe_draw_buf_destroy(draw_buf_, "gles_draw_buf");
-        draw_buf_ = lv_draw_buf_create(static_cast<uint32_t>(widget_w),
-                                       static_cast<uint32_t>(widget_h), LV_COLOR_FORMAT_RGB888, 0);
+        draw_buf_ =
+            lv_draw_buf_create(static_cast<uint32_t>(widget_w), static_cast<uint32_t>(widget_h),
+                               LV_COLOR_FORMAT_ARGB8888, 0);
         if (!draw_buf_) {
             spdlog::error("[GCode GLES] Failed to create draw buffer");
             return;
@@ -1683,7 +1683,10 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    // Convert GL RGBA → LVGL RGB888 (BGR byte order), flip Y, and scale if needed
+    // Convert GL RGBA → LVGL ARGB8888 (BGR byte order + coverage alpha), flip Y,
+    // and scale if needed. The rim pass above has already consumed the tag, so
+    // from here on alpha means opacity: any nonzero readback alpha (the 254 tag
+    // included) becomes fully opaque, and only never-drawn pixels stay clear.
     if (!draw_buf_->data) {
         spdlog::error("[GCode GLES] draw_buf_ data is null");
         return;
@@ -1702,6 +1705,12 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
         const auto avg4 = [](unsigned a, unsigned b, unsigned c, unsigned d) {
             return static_cast<uint8_t>((a + b + c + d + 2) / 4);
         };
+        // A partially covered block averages to partial alpha, and its averaged
+        // RGB is coverage-scaled (empty samples cleared to black). LVGL wants
+        // straight alpha, so divide the darkness back out.
+        const auto unpremul = [](uint8_t v, uint8_t a) {
+            return static_cast<uint8_t>(std::min<unsigned>(255, v * 255u / a));
+        };
         for (int dy = 0; dy < widget_h; ++dy) {
             // Y-flip on the source, same as the loops below.
             const uint8_t* row_a =
@@ -1712,10 +1721,25 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
             for (int dx = 0; dx < widget_w; ++dx) {
                 const size_t s0 = static_cast<size_t>(dx * 2) * 4;
                 const size_t s1 = s0 + 4;
-                const size_t di = static_cast<size_t>(dx) * 3;
-                dst_row[di + 0] = avg4(row_a[s0 + 2], row_a[s1 + 2], row_b[s0 + 2], row_b[s1 + 2]);
-                dst_row[di + 1] = avg4(row_a[s0 + 1], row_a[s1 + 1], row_b[s0 + 1], row_b[s1 + 1]);
-                dst_row[di + 2] = avg4(row_a[s0 + 0], row_a[s1 + 0], row_b[s0 + 0], row_b[s1 + 0]);
+                const size_t di = static_cast<size_t>(dx) * 4;
+                const uint8_t a = avg4(row_a[s0 + 3] ? 255u : 0u, row_a[s1 + 3] ? 255u : 0u,
+                                       row_b[s0 + 3] ? 255u : 0u, row_b[s1 + 3] ? 255u : 0u);
+                if (a == 0) {
+                    dst_row[di + 0] = dst_row[di + 1] = dst_row[di + 2] = dst_row[di + 3] = 0;
+                    continue;
+                }
+                uint8_t r = avg4(row_a[s0 + 0], row_a[s1 + 0], row_b[s0 + 0], row_b[s1 + 0]);
+                uint8_t g = avg4(row_a[s0 + 1], row_a[s1 + 1], row_b[s0 + 1], row_b[s1 + 1]);
+                uint8_t b = avg4(row_a[s0 + 2], row_a[s1 + 2], row_b[s0 + 2], row_b[s1 + 2]);
+                if (a != 255) {
+                    r = unpremul(r, a);
+                    g = unpremul(g, a);
+                    b = unpremul(b, a);
+                }
+                dst_row[di + 0] = b;
+                dst_row[di + 1] = g;
+                dst_row[di + 2] = r;
+                dst_row[di + 3] = a;
             }
         }
         lv_draw_image_dsc_t ssaa_dsc;
@@ -1726,7 +1750,7 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
         return;
     }
 
-    // Row-based conversion: RGBA→BGR with Y-flip
+    // Row-based conversion: RGBA→BGRA with Y-flip
     for (int dy = 0; dy < widget_h; ++dy) {
         int sy = needs_scale ? (dy * fbo_height_ / widget_h) : dy;
         int gl_row = fbo_height_ - 1 - sy;
@@ -1737,19 +1761,21 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
             for (int dx = 0; dx < widget_w; ++dx) {
                 int sx = dx * fbo_width_ / widget_w;
                 size_t si = static_cast<size_t>(sx) * 4;
-                size_t di = static_cast<size_t>(dx) * 3;
-                dst_row[di + 0] = src_row[si + 2]; // B
-                dst_row[di + 1] = src_row[si + 1]; // G
-                dst_row[di + 2] = src_row[si + 0]; // R
+                size_t di = static_cast<size_t>(dx) * 4;
+                dst_row[di + 0] = src_row[si + 2];           // B
+                dst_row[di + 1] = src_row[si + 1];           // G
+                dst_row[di + 2] = src_row[si + 0];           // R
+                dst_row[di + 3] = src_row[si + 3] ? 255 : 0; // A
             }
         } else {
-            // No scaling: convert entire row RGBA→BGR
+            // No scaling: convert entire row RGBA→BGRA
             for (int dx = 0; dx < widget_w; ++dx) {
                 size_t si = static_cast<size_t>(dx) * 4;
-                size_t di = static_cast<size_t>(dx) * 3;
-                dst_row[di + 0] = src_row[si + 2]; // B
-                dst_row[di + 1] = src_row[si + 1]; // G
-                dst_row[di + 2] = src_row[si + 0]; // R
+                size_t di = static_cast<size_t>(dx) * 4;
+                dst_row[di + 0] = src_row[si + 2];           // B
+                dst_row[di + 1] = src_row[si + 1];           // G
+                dst_row[di + 2] = src_row[si + 0];           // R
+                dst_row[di + 3] = src_row[si + 3] ? 255 : 0; // A
             }
         }
     }
@@ -2163,10 +2189,10 @@ helix::gcode::RenderMemoryReport GCodeGLESRenderer::memory_report() const {
     }
     r.add("geometry", geometry);
 
-    // RGB888, no alpha: blit_to_lvgl drops the alpha byte on the way in, which
-    // is what freed it up to carry the selection tag.
+    // ARGB8888: the alpha byte is coverage, thresholded to 0/255 during the
+    // repack once the rim pass has consumed the selection tag.
     r.add("draw_buf", draw_buf_ ? static_cast<size_t>(draw_buf_width_) *
-                                      static_cast<size_t>(draw_buf_height_) * 3
+                                      static_cast<size_t>(draw_buf_height_) * 4
                                 : 0);
 
     // Was missing from the old accounting entirely. It is a full RGBA copy of
@@ -2470,8 +2496,8 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
     glGetIntegerv(GL_DEPTH_FUNC, &prev_depth_func);
 
     // Alpha only. The color channels already hold the lit image and must survive
-    // untouched; the rest of the frame runs with alpha writes masked off (see
-    // setup_frame) so nothing but this pass can put kSelectedAlpha anywhere.
+    // untouched; overwriting alpha with the flat tag value is what separates
+    // "visible selected pixel" (kSelectedAlpha) from plain coverage (255).
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 
     // Depth test stays enabled, but the function MUST be relaxed to LEQUAL. The
@@ -2532,12 +2558,11 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
 
     glDisableVertexAttribArray(static_cast<GLuint>(shell_a_position_));
 
-    // Restore, in the reverse order of the saves. Alpha writes go back to masked
-    // off, which is how the rest of the frame runs.
+    // Restore, in the reverse order of the saves.
     glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(prev_buffer));
     glDepthMask(prev_depth_mask);
     glDepthFunc(static_cast<GLenum>(prev_depth_func));
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glUseProgram(static_cast<GLuint>(prev_program));
 
     // One error check for the whole pass, matching draw_layers. A fault here is
