@@ -33,8 +33,11 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
+#include <optional>
 #include <queue>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -220,6 +223,214 @@ void PanelWidgetManager::notify_config_changed(const std::string& panel_id) {
     }
 }
 
+namespace {
+// Widget builds that stall the UI thread, split into XML creation and the rest
+// (placement, gating, attach). Silent below the threshold, so only a slow
+// device or a pathological widget ever logs.
+void log_if_slow_build(const char* what, std::chrono::steady_clock::time_point t0,
+                       std::chrono::steady_clock::time_point t_split) {
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+    constexpr long SLOW_BUILD_MS = 100;
+    const auto now = std::chrono::steady_clock::now();
+    const long total = static_cast<long>(duration_cast<milliseconds>(now - t0).count());
+    if (total < SLOW_BUILD_MS)
+        return;
+    spdlog::info("[PanelWidgetManager] slow build '{}': {}ms (xml {}ms, rest {}ms)", what, total,
+                 static_cast<long>(duration_cast<milliseconds>(t_split - t0).count()),
+                 static_cast<long>(duration_cast<milliseconds>(now - t_split).count()));
+}
+
+// Resolved widget slot: holds the widget ID, resolved XML component name,
+// per-widget config, and optionally a pre-created PanelWidget instance.
+struct WidgetSlot {
+    std::string widget_id;
+    std::string component_name;
+    nlohmann::json config;
+    std::unique_ptr<PanelWidget> instance; // nullptr for pure-XML widgets
+    bool hardware_gated = false;           // Gate subject is 0
+    const char* gate_hint = nullptr;       // Human-readable hint
+};
+
+// The gate subject named by @p def reads 0: the widget is placed, dimmed and
+// badged, with no PanelWidget attached. Gates are checked here instead of via
+// XML bind_flag_if_eq to avoid orphaned dividers.
+const char* gate_hint_if_gated(const PanelWidgetDef* def, bool& gated) {
+    gated = false;
+    if (def && def->hardware_gate_subject) {
+        lv_subject_t* gate = lv_xml_get_subject(nullptr, def->hardware_gate_subject);
+        if (gate && lv_subject_get_int(gate) == 0) {
+            gated = true;
+            return def->hardware_gate_hint;
+        }
+    }
+    return nullptr;
+}
+
+std::string visible_id(const std::string& widget_id, bool gated) {
+    return gated ? widget_id + GATED_ID_SUFFIX : widget_id;
+}
+
+// Resolve one enabled config entry: its gate state, and its PanelWidget (taken
+// from @p reuse or made by the factory) configured for @p panel_id. A malformed
+// per-widget config or a throwing factory skips only this widget (nullopt).
+std::optional<WidgetSlot> resolve_slot(const std::string& panel_id, const PanelWidgetEntry& entry,
+                                       WidgetReuseMap& reuse) {
+    const auto* def = find_widget_def(entry.id);
+    WidgetSlot slot;
+    slot.widget_id = entry.id;
+    slot.config = entry.config;
+    slot.gate_hint = gate_hint_if_gated(def, slot.hardware_gated);
+#if defined(__cpp_exceptions)
+    try {
+#else
+    {
+#endif
+        auto reuse_it = reuse.find(entry.id);
+        if (reuse_it != reuse.end()) {
+            slot.instance = std::move(reuse_it->second);
+            reuse.erase(reuse_it);
+            spdlog::debug("[PanelWidgetManager] Reusing widget instance '{}'", entry.id);
+        } else if (def && def->factory) {
+            slot.instance = def->factory(entry.id);
+        }
+
+        if (slot.instance) {
+            slot.instance->set_panel_id(panel_id);
+            slot.instance->set_config(entry.config);
+            slot.component_name = slot.instance->get_component_name();
+        } else {
+            slot.component_name = "panel_widget_" + entry.id;
+        }
+#if defined(__cpp_exceptions)
+    } catch (const std::exception& e) {
+        spdlog::error("[PanelWidgetManager] Widget '{}' configuration failed: {}", entry.id,
+                      e.what());
+        return std::nullopt;
+    }
+#else
+    }
+#endif
+    return slot;
+}
+
+struct TileCell {
+    int col, row, colspan, rowspan;
+};
+
+// Create one tile in its grid cell: the XML component, its name and tile flag,
+// the gated treatment or the attached PanelWidget (moved into @p result), and
+// the size notification. Returns the tile root, or nullptr if creation failed.
+lv_obj_t* create_tile(lv_obj_t* container, WidgetSlot& slot, const TileCell& cell,
+                      const CellMetrics& metrics,
+                      std::vector<std::unique_ptr<PanelWidget>>& result) {
+    const auto t_create = std::chrono::steady_clock::now();
+
+    // Create XML component
+    auto* widget =
+        static_cast<lv_obj_t*>(lv_xml_create(container, slot.component_name.c_str(),
+                                             slot.instance ? slot.instance->xml_attrs() : nullptr));
+    if (!widget) {
+        spdlog::warn("[PanelWidgetManager] Failed to create widget: {} (component: {})",
+                     slot.widget_id, slot.component_name);
+        return nullptr;
+    }
+
+    const auto t_attach = std::chrono::steady_clock::now();
+
+    // Place in grid cell
+    lv_obj_set_grid_cell(widget, LV_GRID_ALIGN_STRETCH, cell.col, cell.colspan,
+                         LV_GRID_ALIGN_STRETCH, cell.row, cell.rowspan);
+
+    // Tag widget with its config ID so GridEditMode can identify it
+    lv_obj_set_name(widget, slot.widget_id.c_str());
+
+    // Mark the tile root so tree walks that only make sense at page
+    // level stop here. See PANEL_WIDGET_TILE_FLAG in panel_widget.h.
+    lv_obj_add_flag(widget, PANEL_WIDGET_TILE_FLAG);
+
+    spdlog::debug("[PanelWidgetManager] Placed widget '{}' at ({},{} {}x{})", slot.widget_id,
+                  cell.col, cell.row, cell.colspan, cell.rowspan);
+
+    // Apply gated visual treatment — widget is placed but hardware not detected.
+    // Stack the widget's own type icon underneath a slash-circle badge, both
+    // centered, so the user can tell *which* widget is disabled (filament,
+    // AMS, etc.) and that it's currently inactive. Both icons are FLOATING
+    // so they sit on top of any existing widget content.
+    if (slot.hardware_gated) {
+        lv_obj_set_style_opa(widget, LV_OPA_40, 0);
+        lv_obj_add_state(widget, LV_STATE_DISABLED);
+        // LV_STATE_DISABLED alone is not enough. A tile's tap handler is
+        // usually declared as an <event_cb> on its XML component root, so
+        // it is bound when the tile is PLACED - independent of gating -
+        // and a gated tile could still open a panel describing hardware
+        // that is not there. Clearing CLICKABLE takes it out of the
+        // indev hit test entirely, so the press walks up to the parent
+        // instead. Safe without a restore path: an un-gate rebuilds the
+        // tile from scratch (see the gate observers' rebuild).
+        lv_obj_remove_flag(widget, LV_OBJ_FLAG_CLICKABLE);
+
+        const auto* gated_def = find_widget_def(slot.widget_id);
+        const char* type_icon = (gated_def && gated_def->icon) ? gated_def->icon : "cancel";
+
+        // One step down from the badge (lg 48px vs xl 64px). Both glyphs
+        // are round, so at equal size they coincide almost exactly and
+        // the pair reads as one muddy shape rather than "this widget,
+        // unavailable" - the badge has to ring the type icon, not sit on
+        // top of it.
+        const char* type_icon_attrs[] = {
+            "src",    type_icon,   "size",  "lg",           "variant", "muted", "align",
+            "center", "clickable", "false", "event_bubble", "true",    nullptr};
+        if (auto* type_overlay =
+                static_cast<lv_obj_t*>(lv_xml_create(widget, "icon", type_icon_attrs))) {
+            lv_obj_add_flag(type_overlay, LV_OBJ_FLAG_FLOATING);
+            lv_obj_set_style_opa(type_overlay, LV_OPA_COVER, 0);
+        }
+
+        const char* badge_attrs[] = {"src",          "cancel", "size",   "xl",        "variant",
+                                     "muted",        "align",  "center", "clickable", "false",
+                                     "event_bubble", "true",   nullptr};
+        if (auto* badge = static_cast<lv_obj_t*>(lv_xml_create(widget, "icon", badge_attrs))) {
+            lv_obj_add_flag(badge, LV_OBJ_FLAG_FLOATING);
+            lv_obj_set_style_opa(badge, LV_OPA_COVER, 0);
+        }
+
+        spdlog::debug("[PanelWidgetManager] Widget '{}' gated: {}", slot.widget_id,
+                      slot.gate_hint ? slot.gate_hint : "hardware not detected");
+    }
+
+    // Attach the pre-created PanelWidget instance if present and NOT gated
+    if (slot.instance && !slot.hardware_gated) {
+        if (auto* sizing = slot.instance->tile_sizing()) {
+            sizing->set_content_root(widget);
+        }
+        slot.instance->attach(widget, lv_scr_act());
+
+        // Notify widget of its grid allocation and approximate pixel size.
+        // notify_size_changed() records it first, so a widget that rebuilds
+        // its contents later can lay them out against the same cell.
+        slot.instance->notify_size_changed(
+            cell.colspan, cell.rowspan,
+            static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan)),
+            static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, cell.rowspan)));
+
+        result.push_back(std::move(slot.instance));
+    }
+    log_if_slow_build(slot.widget_id.c_str(), t_create, t_attach);
+
+    // Propagate width to AMS mini status (pure XML widget, no PanelWidget)
+    if (slot.widget_id == "ams") {
+        lv_obj_t* ams_child = lv_obj_get_child(widget, 0);
+        if (ams_child && ui_ams_mini_status_is_valid(ams_child)) {
+            ui_ams_mini_status_set_width(
+                ams_child,
+                static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan)));
+        }
+    }
+    return widget;
+}
+} // namespace
+
 std::vector<std::unique_ptr<PanelWidget>>
 PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* container,
                                      int page_index, WidgetReuseMap reuse) {
@@ -238,82 +449,15 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
 
     auto& widget_config = get_widget_config(panel_id);
 
-    // Resolved widget slot: holds the widget ID, resolved XML component name,
-    // per-widget config, and optionally a pre-created PanelWidget instance.
-    struct WidgetSlot {
-        std::string widget_id;
-        std::string component_name;
-        nlohmann::json config;
-        std::unique_ptr<PanelWidget> instance; // nullptr for pure-XML widgets
-        bool hardware_gated = false;           // Gate subject is 0
-        const char* gate_hint = nullptr;       // Human-readable hint
-    };
-
     // Collect enabled + hardware-available widgets
     std::vector<WidgetSlot> enabled_widgets;
     for (const auto& entry : widget_config.page_entries(page_index)) {
         if (!entry.enabled) {
             continue;
         }
-
-        // Check hardware gate — flag widgets whose hardware isn't present.
-        // Gates are defined in PanelWidgetDef::hardware_gate_subject and checked
-        // here instead of XML bind_flag_if_eq to avoid orphaned dividers.
-        const auto* def = find_widget_def(entry.id);
-        bool gated = false;
-        const char* hint = nullptr;
-        if (def && def->hardware_gate_subject) {
-            lv_subject_t* gate = lv_xml_get_subject(nullptr, def->hardware_gate_subject);
-            if (gate && lv_subject_get_int(gate) == 0) {
-                gated = true;
-                hint = def->hardware_gate_hint;
-            }
+        if (auto slot = resolve_slot(panel_id, entry, reuse)) {
+            enabled_widgets.push_back(std::move(*slot));
         }
-
-        WidgetSlot slot;
-        slot.widget_id = entry.id;
-        slot.config = entry.config;
-
-        // Build + configure the widget defensively: a malformed per-widget config
-        // (or a throwing factory/set_config) must skip only THIS widget, not abort
-        // the whole dashboard rebuild. Guard per-iteration so one bad entry never
-        // takes the page down with it.
-#if defined(__cpp_exceptions)
-        try {
-#else
-        {
-#endif
-            // Acquire instance: reuse existing or create via factory
-            auto reuse_it = reuse.find(entry.id);
-            if (reuse_it != reuse.end()) {
-                slot.instance = std::move(reuse_it->second);
-                reuse.erase(reuse_it);
-                spdlog::debug("[PanelWidgetManager] Reusing widget instance '{}'", entry.id);
-            } else if (def && def->factory) {
-                slot.instance = def->factory(entry.id);
-            }
-
-            if (slot.instance) {
-                slot.instance->set_panel_id(panel_id);
-                slot.instance->set_config(entry.config);
-                slot.component_name = slot.instance->get_component_name();
-            } else {
-                slot.component_name = "panel_widget_" + entry.id;
-            }
-#if defined(__cpp_exceptions)
-        } catch (const std::exception& e) {
-            spdlog::error("[PanelWidgetManager] Widget '{}' configuration failed: {}", entry.id,
-                          e.what());
-            continue;
-        }
-#else
-        }
-#endif
-
-        slot.hardware_gated = gated;
-        slot.gate_hint = hint;
-
-        enabled_widgets.push_back(std::move(slot));
     }
 
     // Check if widget list is unchanged — skip teardown+rebuild if nothing changed.
@@ -324,7 +468,7 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
         std::vector<std::string> new_ids;
         new_ids.reserve(enabled_widgets.size());
         for (const auto& slot : enabled_widgets) {
-            new_ids.push_back(slot.hardware_gated ? slot.widget_id + "~gated" : slot.widget_id);
+            new_ids.push_back(visible_id(slot.widget_id, slot.hardware_gated));
         }
 
         auto cache_key = make_cache_key(panel_id, page_index);
@@ -1173,107 +1317,8 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
 #else
         {
 #endif
-            auto& slot = enabled_widgets[p.slot_index];
-
-            // Create XML component
-            auto* widget = static_cast<lv_obj_t*>(
-                lv_xml_create(container, slot.component_name.c_str(),
-                              slot.instance ? slot.instance->xml_attrs() : nullptr));
-            if (!widget) {
-                spdlog::warn("[PanelWidgetManager] Failed to create widget: {} (component: {})",
-                             slot.widget_id, slot.component_name);
-                continue;
-            }
-
-            // Place in grid cell
-            lv_obj_set_grid_cell(widget, LV_GRID_ALIGN_STRETCH, p.col, p.colspan,
-                                 LV_GRID_ALIGN_STRETCH, p.row, p.rowspan);
-
-            // Tag widget with its config ID so GridEditMode can identify it
-            lv_obj_set_name(widget, slot.widget_id.c_str());
-
-            // Mark the tile root so tree walks that only make sense at page
-            // level stop here. See PANEL_WIDGET_TILE_FLAG in panel_widget.h.
-            lv_obj_add_flag(widget, PANEL_WIDGET_TILE_FLAG);
-
-            spdlog::debug("[PanelWidgetManager] Placed widget '{}' at ({},{} {}x{})",
-                          slot.widget_id, p.col, p.row, p.colspan, p.rowspan);
-
-            // Apply gated visual treatment — widget is placed but hardware not detected.
-            // Stack the widget's own type icon underneath a slash-circle badge, both
-            // centered, so the user can tell *which* widget is disabled (filament,
-            // AMS, etc.) and that it's currently inactive. Both icons are FLOATING
-            // so they sit on top of any existing widget content.
-            if (slot.hardware_gated) {
-                lv_obj_set_style_opa(widget, LV_OPA_40, 0);
-                lv_obj_add_state(widget, LV_STATE_DISABLED);
-                // LV_STATE_DISABLED alone is not enough. A tile's tap handler is
-                // usually declared as an <event_cb> on its XML component root, so
-                // it is bound when the tile is PLACED - independent of gating -
-                // and a gated tile could still open a panel describing hardware
-                // that is not there. Clearing CLICKABLE takes it out of the
-                // indev hit test entirely, so the press walks up to the parent
-                // instead. Safe without a restore path: an un-gate rebuilds the
-                // tile from scratch (see the gate observers' rebuild).
-                lv_obj_remove_flag(widget, LV_OBJ_FLAG_CLICKABLE);
-
-                const auto* gated_def = find_widget_def(slot.widget_id);
-                const char* type_icon = (gated_def && gated_def->icon) ? gated_def->icon : "cancel";
-
-                // One step down from the badge (lg 48px vs xl 64px). Both glyphs
-                // are round, so at equal size they coincide almost exactly and
-                // the pair reads as one muddy shape rather than "this widget,
-                // unavailable" - the badge has to ring the type icon, not sit on
-                // top of it.
-                const char* type_icon_attrs[] = {
-                    "src",    type_icon,   "size",  "lg",           "variant", "muted", "align",
-                    "center", "clickable", "false", "event_bubble", "true",    nullptr};
-                if (auto* type_overlay =
-                        static_cast<lv_obj_t*>(lv_xml_create(widget, "icon", type_icon_attrs))) {
-                    lv_obj_add_flag(type_overlay, LV_OBJ_FLAG_FLOATING);
-                    lv_obj_set_style_opa(type_overlay, LV_OPA_COVER, 0);
-                }
-
-                const char* badge_attrs[] = {
-                    "src",    "cancel",    "size",  "xl",           "variant", "muted", "align",
-                    "center", "clickable", "false", "event_bubble", "true",    nullptr};
-                if (auto* badge =
-                        static_cast<lv_obj_t*>(lv_xml_create(widget, "icon", badge_attrs))) {
-                    lv_obj_add_flag(badge, LV_OBJ_FLAG_FLOATING);
-                    lv_obj_set_style_opa(badge, LV_OPA_COVER, 0);
-                }
-
-                spdlog::debug("[PanelWidgetManager] Widget '{}' gated: {}", slot.widget_id,
-                              slot.gate_hint ? slot.gate_hint : "hardware not detected");
-            }
-
-            // Attach the pre-created PanelWidget instance if present and NOT gated
-            if (slot.instance && !slot.hardware_gated) {
-                if (auto* sizing = slot.instance->tile_sizing()) {
-                    sizing->set_content_root(widget);
-                }
-                slot.instance->attach(widget, lv_scr_act());
-
-                // Notify widget of its grid allocation and approximate pixel size.
-                // notify_size_changed() records it first, so a widget that rebuilds
-                // its contents later can lay them out against the same cell.
-                slot.instance->notify_size_changed(
-                    p.colspan, p.rowspan,
-                    static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, p.colspan)),
-                    static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, p.rowspan)));
-
-                result.push_back(std::move(slot.instance));
-            }
-
-            // Propagate width to AMS mini status (pure XML widget, no PanelWidget)
-            if (slot.widget_id == "ams") {
-                lv_obj_t* ams_child = lv_obj_get_child(widget, 0);
-                if (ams_child && ui_ams_mini_status_is_valid(ams_child)) {
-                    ui_ams_mini_status_set_width(
-                        ams_child, static_cast<int>(grid_track_extent(metrics.cell_w,
-                                                                      metrics.gutter, p.colspan)));
-                }
-            }
+            create_tile(container, enabled_widgets[p.slot_index],
+                        TileCell{p.col, p.row, p.colspan, p.rowspan}, metrics, result);
 #if defined(__cpp_exceptions)
         } catch (const std::exception& e) {
             spdlog::error("[PanelWidgetManager] Widget '{}' creation failed: {}",
@@ -1300,10 +1345,154 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
     // size.
     install_grid_descriptors(container, std::move(dsc));
     lv_obj_set_layout(container, LV_LAYOUT_GRID);
+    const auto t_layout = std::chrono::steady_clock::now();
     lv_obj_update_layout(container);
+    log_if_slow_build("(grid layout)", t_layout, t_layout);
 
     populating_ = false;
     return result;
+}
+
+std::optional<std::vector<PanelWidgetManager::GateFlip>>
+PanelWidgetManager::gate_flips_only(const std::vector<std::string>& before,
+                                    const std::vector<std::string>& after) {
+    if (before.size() != after.size()) {
+        return std::nullopt;
+    }
+    const std::string_view suffix = GATED_ID_SUFFIX;
+    auto split = [suffix](std::string_view id) {
+        const bool gated =
+            id.size() >= suffix.size() && id.substr(id.size() - suffix.size()) == suffix;
+        if (gated) {
+            id.remove_suffix(suffix.size());
+        }
+        return std::make_pair(id, gated);
+    };
+    std::vector<GateFlip> flips;
+    for (size_t i = 0; i < before.size(); ++i) {
+        const auto b = split(before[i]);
+        const auto a = split(after[i]);
+        if (b.first != a.first) {
+            return std::nullopt;
+        }
+        if (b.second != a.second) {
+            flips.push_back({i, a.second});
+        }
+    }
+    return flips;
+}
+
+std::optional<std::vector<PanelWidget*>>
+PanelWidgetManager::swap_gated_tiles(const std::string& panel_id, lv_obj_t* container,
+                                     int page_index, const std::vector<std::string>& visible_ids,
+                                     const std::vector<GateFlip>& flips,
+                                     std::vector<std::unique_ptr<PanelWidget>>& widgets) {
+    if (!container || populating_) {
+        return std::nullopt;
+    }
+    const int cols =
+        grid_count_tracks(lv_obj_get_style_grid_column_dsc_array(container, LV_PART_MAIN));
+    const int rows =
+        grid_count_tracks(lv_obj_get_style_grid_row_dsc_array(container, LV_PART_MAIN));
+    if (cols <= 0 || rows <= 0) {
+        return std::nullopt;
+    }
+
+    // Locate every flipped tile before touching any, so a miss changes nothing.
+    struct Target {
+        const PanelWidgetEntry* entry;
+        lv_obj_t* tile;
+        TileCell cell;
+        uint32_t index;
+    };
+    std::vector<Target> targets;
+    const auto& entries = get_widget_config(panel_id).page_entries(page_index);
+    for (const auto& flip : flips) {
+        if (flip.index >= visible_ids.size()) {
+            return std::nullopt;
+        }
+        std::string id = visible_ids[flip.index];
+        if (flip.now_gated) {
+            id.resize(id.size() - std::strlen(GATED_ID_SUFFIX));
+        }
+        auto entry = std::find_if(entries.begin(), entries.end(),
+                                  [&id](const auto& e) { return e.enabled && e.id == id; });
+        if (entry == entries.end()) {
+            return std::nullopt;
+        }
+        lv_obj_t* tile = nullptr;
+        const uint32_t count = lv_obj_get_child_count(container);
+        for (uint32_t i = 0; i < count && !tile; ++i) {
+            lv_obj_t* child = lv_obj_get_child(container, static_cast<int32_t>(i));
+            const char* name = lv_obj_get_name(child);
+            if (lv_obj_has_flag(child, PANEL_WIDGET_TILE_FLAG) && name && id == name) {
+                tile = child;
+            }
+        }
+        if (!tile) {
+            return std::nullopt;
+        }
+        targets.push_back({&*entry, tile,
+                           TileCell{lv_obj_get_style_grid_cell_column_pos(tile, LV_PART_MAIN),
+                                    lv_obj_get_style_grid_cell_row_pos(tile, LV_PART_MAIN),
+                                    lv_obj_get_style_grid_cell_column_span(tile, LV_PART_MAIN),
+                                    lv_obj_get_style_grid_cell_row_span(tile, LV_PART_MAIN)},
+                           static_cast<uint32_t>(lv_obj_get_index(tile))});
+    }
+
+    const CellMetrics metrics =
+        grid_cell_metrics(lv_obj_get_content_width(container), lv_obj_get_content_height(container),
+                          cols, rows, GridLayout::gutter_px());
+    populating_ = true;
+    std::vector<std::unique_ptr<PanelWidget>> attached;
+    for (auto& t : targets) {
+        auto inst = std::find_if(widgets.begin(), widgets.end(),
+                                 [&t](const auto& w) { return w && t.entry->id == w->id(); });
+        if (inst != widgets.end()) {
+            (*inst)->detach();
+            widgets.erase(inst);
+        }
+        helix::ui::safe_delete_deferred(t.tile);
+
+        WidgetReuseMap no_reuse;
+        auto slot = resolve_slot(panel_id, *t.entry, no_reuse);
+        if (!slot) {
+            continue;
+        }
+        if (slot->instance) {
+            if (TileSizing* sizing = slot->instance->tile_sizing()) {
+                sizing->set_cell_metrics(metrics);
+            }
+        }
+#if defined(__cpp_exceptions)
+        try {
+#else
+        {
+#endif
+            if (lv_obj_t* tile = create_tile(container, *slot, t.cell, metrics, attached)) {
+                lv_obj_move_to_index(tile, static_cast<int32_t>(t.index));
+            }
+#if defined(__cpp_exceptions)
+        } catch (const std::exception& e) {
+            spdlog::error("[PanelWidgetManager] Widget '{}' creation failed: {}", t.entry->id,
+                          e.what());
+        }
+#else
+        }
+#endif
+    }
+    active_configs_[make_cache_key(panel_id, page_index)] = ActiveWidgetConfig{visible_ids};
+    lv_obj_update_layout(container);
+    populating_ = false;
+
+    std::vector<PanelWidget*> fresh;
+    for (auto& w : attached) {
+        fresh.push_back(w.get());
+        widgets.push_back(std::move(w));
+    }
+    spdlog::debug("[PanelWidgetManager] Swapped {} gate-flipped tile(s) in place for '{}:{}'",
+                  targets.size(), panel_id, page_index);
+    return fresh;
 }
 
 std::vector<std::string> PanelWidgetManager::compute_visible_widget_ids(const std::string& panel_id,
@@ -1316,15 +1505,9 @@ std::vector<std::string> PanelWidgetManager::compute_visible_widget_ids(const st
             continue;
         }
         // Include gate status in the ID so rebuild detects gated→ungated transitions
-        const auto* def = find_widget_def(entry.id);
         bool gated = false;
-        if (def && def->hardware_gate_subject) {
-            lv_subject_t* gate = lv_xml_get_subject(nullptr, def->hardware_gate_subject);
-            if (gate && lv_subject_get_int(gate) == 0) {
-                gated = true;
-            }
-        }
-        ids.push_back(gated ? entry.id + "~gated" : entry.id);
+        gate_hint_if_gated(find_widget_def(entry.id), gated);
+        ids.push_back(visible_id(entry.id, gated));
     }
 
     return ids;

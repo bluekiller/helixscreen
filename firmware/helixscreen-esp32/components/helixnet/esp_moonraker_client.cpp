@@ -3,6 +3,7 @@
 
 #include "esp_moonraker_client.h"
 
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -369,6 +370,7 @@ void EspMoonrakerClient::on_ws_connected() {
     pongs_this_connection_ = 0;
     last_pong_us_ = 0;
     connected_us_ = esp_timer_get_time();
+    last_rx_us_.store(connected_us_);
     // Reset exponential backoff for the next disconnect.
     next_reconnect_delay_ms_ = reconnect_min_delay_ms_;
     // shrink the reassembly buffer back down after a session's peak.
@@ -464,6 +466,7 @@ void EspMoonrakerClient::on_ws_data(const esp_websocket_event_data_t* d) {
     if (!d) {
         return;
     }
+    last_rx_us_.store(esp_timer_get_time());
     if (d->op_code == OP_PONG) {
         ++pongs_this_connection_;
         last_pong_us_ = esp_timer_get_time();
@@ -656,6 +659,9 @@ void EspMoonrakerClient::process_timeouts() {
     };
     std::vector<TimedOut> timed_out;
     const int64_t now = now_us();
+    size_t pending_n = 0;
+    int64_t oldest_age_us = 0;
+    std::string oldest_method;
     {
         std::lock_guard<std::mutex> lock(requests_mutex_);
         // Defense in depth: bail under the lock if teardown began after the
@@ -663,8 +669,13 @@ void EspMoonrakerClient::process_timeouts() {
         if (!alive_.load()) {
             return;
         }
+        pending_n = pending_.size();
         for (auto it = pending_.begin(); it != pending_.end();) {
             const int64_t age_us = now - it->second.sent_us;
+            if (age_us > oldest_age_us) {
+                oldest_age_us = age_us;
+                oldest_method = it->second.method;
+            }
             if (age_us > static_cast<int64_t>(it->second.timeout_ms) * 1000) {
                 TimedOut t;
                 t.method = it->second.method;
@@ -677,6 +688,21 @@ void EspMoonrakerClient::process_timeouts() {
                 ++it;
             }
         }
+    }
+    // Rx-stall tripwire: a request is waiting and nothing at all (not even a
+    // PONG) has arrived for RX_STALL_LOG_US. Heap is logged beside it because a
+    // WiFi/lwIP buffer shortage and a dead path look identical from here.
+    const int64_t last_rx = last_rx_us_.load();
+    if (pending_n > 0 && last_rx > 0 && now - last_rx > RX_STALL_LOG_US &&
+        now - last_stall_log_us_ > RX_STALL_LOG_US) {
+        last_stall_log_us_ = now;
+        ESP_LOGW(TAG,
+                 "rx stall: %llds since last frame, %u pending (oldest '%s' %llds), internal "
+                 "free %u largest %u",
+                 (long long)((now - last_rx) / 1000000), (unsigned)pending_n, oldest_method.c_str(),
+                 (long long)(oldest_age_us / 1000000),
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     }
     for (auto& t : timed_out) {
         if (!t.silent) {

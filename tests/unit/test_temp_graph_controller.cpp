@@ -515,3 +515,18 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
 
     REQUIRE(controller == nullptr);
 }
+
+TEST_CASE("sample_due puts every series on the same wall-clock slots", "[temp_graph_controller]") {
+    constexpr int64_t slot = UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
+    constexpr int64_t base = 1'000'000 * slot;
+
+    CHECK(TempGraphController::sample_due(0, base + 5));
+
+    // Late in one slot, then just past its boundary: due, though far less than
+    // an interval has elapsed.
+    CHECK(TempGraphController::sample_due(base + slot - 100, base + slot + 100));
+
+    // Early in a slot, then late in the same one: not due, though nearly an
+    // interval has elapsed.
+    CHECK_FALSE(TempGraphController::sample_due(base + 100, base + slot - 100));
+}

@@ -61,9 +61,11 @@ static void (*s_ui_tick)(void);
 // the dirty band. Band-sized (UI_BAND_LINES) to keep the internal buffer small.
 //
 // num_fbs stays 1 (double-FB + bounce desyncs scan-out — see board_display.c
-// DO-NOT-RETRY). Shadow is 768KB PSRAM. Writer/presenter may touch overlapping
-// shadow rows (benign: a one-frame blend of two near-identical consecutive
-// renders — NOT scan-out garbage).
+// DO-NOT-RETRY). Shadow is 768KB PSRAM, and s_shadow_lock gives it one owner at
+// a time: flush_cb holds it from the first chunk of a refresh cycle to the last,
+// the presenter from before its vsync wait to the end of its blit. Without it a
+// blit can copy a band that is half the previous cycle and half the next, which
+// shows as a torn widget on every animation and page change.
 #define FB_BPP ((size_t)sizeof(lv_color16_t))
 #define FB_STRIDE ((size_t)BOARD_LCD_H_RES * FB_BPP)
 #define SHADOW_BYTES ((size_t)BOARD_LCD_V_RES * FB_STRIDE)
@@ -78,6 +80,16 @@ static void (*s_ui_tick)(void);
 
 static uint8_t* s_shadow; // full-frame PSRAM shadow (LVGL chunks land here)
 static uint8_t* s_band;   // internal-DRAM two-hop staging band (NULL => direct blit)
+static SemaphoreHandle_t s_shadow_lock;
+static bool s_writer_holds;
+
+// Waits bounded so a wedged side can never freeze the other; a timeout proceeds
+// unlocked and is counted as a tear.
+#define SHADOW_LOCK_WAIT_MS 250
+static volatile uint32_t s_writer_waits;
+static volatile uint32_t s_writer_wait_ms;
+static volatile uint32_t s_tears;
+static volatile uint32_t s_presents;
 
 // vsync semaphore: given by the on_vsync ISR every frame, taken by the presenter
 // to align each blit to a fresh frame top.
@@ -180,6 +192,19 @@ static void flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map)
     // LVGL is free to reuse px_map immediately.
     int32_t w = area->x2 - area->x1 + 1;
     int32_t h = area->y2 - area->y1 + 1;
+    if (!s_cur_valid) {
+        int64_t w0 = esp_timer_get_time();
+        if (xSemaphoreTake(s_shadow_lock, 0) == pdTRUE) {
+            s_writer_holds = true;
+        } else {
+            s_writer_holds =
+                xSemaphoreTake(s_shadow_lock, pdMS_TO_TICKS(SHADOW_LOCK_WAIT_MS)) == pdTRUE;
+            s_writer_waits++;
+            s_writer_wait_ms += (uint32_t)((esp_timer_get_time() - w0) / 1000);
+            if (!s_writer_holds)
+                s_tears++;
+        }
+    }
     if (s_cyc_chunks == 0) {
         s_cyc_t0_us = esp_timer_get_time();
     }
@@ -221,6 +246,10 @@ static void flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map)
         }
         portEXIT_CRITICAL(&s_present_mux);
         s_cur_valid = false;
+        if (s_writer_holds) {
+            s_writer_holds = false;
+            xSemaphoreGive(s_shadow_lock);
+        }
 
         int64_t cyc_ms = (esp_timer_get_time() - s_cyc_t0_us) / 1000;
         if (cyc_ms >= CYCLE_LOG_MS) {
@@ -270,6 +299,12 @@ static void present_task(void* arg) {
             continue;
         }
 
+        // Take the shadow before the vsync wait, so the blit still starts at
+        // frame top; this also holds off a half-staged next cycle.
+        bool locked = xSemaphoreTake(s_shadow_lock, pdMS_TO_TICKS(SHADOW_LOCK_WAIT_MS)) == pdTRUE;
+        if (!locked)
+            s_tears++;
+
         // Align the blit to a FRESH frame top: drop any stale token, then wait
         // the next vsync (bounded so a stalled panel can't wedge the presenter).
         xSemaphoreTake(s_vsync_sem, 0);
@@ -289,7 +324,10 @@ static void present_task(void* arg) {
             y2 = BOARD_LCD_V_RES - 1;
         if (y2 >= y1) {
             present_blit(y1, y2);
+            s_presents++;
         }
+        if (locked)
+            xSemaphoreGive(s_shadow_lock);
     }
 }
 
@@ -332,6 +370,7 @@ static void* ui_thread_main(void* arg) {
         abort();
     }
     memset(s_shadow, 0, SHADOW_BYTES);
+    s_shadow_lock = xSemaphoreCreateMutex();
 
     // Two-hop blit staging band (INTERNAL DRAM). Allocated HERE — after the boot
     // heap gates (48KB UI stack, 32KB bounce) have already passed — so it cannot
@@ -387,6 +426,17 @@ static void* ui_thread_main(void* arg) {
                          (long)(drift - underrun_prev_drift));
             }
             underrun_prev_drift = drift;
+
+            // Present-side cost of the shadow lock: frames shown, how often and
+            // how long the UI thread waited for a blit, and unlocked timeouts.
+            uint32_t waits = s_writer_waits, wait_ms = s_writer_wait_ms, tears = s_tears;
+            uint32_t presents = s_presents;
+            s_writer_waits = s_writer_wait_ms = s_tears = s_presents = 0;
+            if (waits || tears) {
+                ESP_LOGI(TAG, "[present] %lu frames, ui waited %lux / %lums, tears=%lu (10s)",
+                         (unsigned long)presents, (unsigned long)waits, (unsigned long)wait_ms,
+                         (unsigned long)tears);
+            }
         }
         // Cycle-time tripwire: a long lv_timer_handler starves the polled touch
         // indev — taps during the window are silently dropped. Pairs with the

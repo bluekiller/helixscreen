@@ -188,11 +188,25 @@ void TempGraphController::set_features(uint32_t features) {
 
 void TempGraphController::pause() {
     paused_ = true;
+    forget_latest_readings();
+}
+
+void TempGraphController::forget_latest_readings() {
+    // A reading observed before a pause or reattach may no longer be current;
+    // a series only rejoins the slot-batched pushes once it reports again.
+    for (auto& s : series_) {
+        s.latest_deci = 0;
+    }
 }
 
 void TempGraphController::resume() {
     paused_ = false;
     refresh_from_history();
+}
+
+bool TempGraphController::sample_due(int64_t last_ms, int64_t now_ms) {
+    constexpr int64_t slot_ms = UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
+    return last_ms == 0 || now_ms / slot_ms != last_ms / slot_ms;
 }
 
 void TempGraphController::refresh_from_history() {
@@ -331,6 +345,7 @@ void TempGraphController::reattach_observers() {
     // after every attach-time fire has been dropped and before any sample that
     // arrives on a later tick.
     suppress_attach_fire_ = true;
+    forget_latest_readings();
     setup_observers();
     lifetime_.defer("TempGraphController::clear_attach_suppression",
                     [this]() { suppress_attach_fire_ = false; });
@@ -604,30 +619,39 @@ bool TempGraphController::attach_series_observers(size_t i) {
                     // the next real reading. Upper bound rejects obviously-bogus spikes
                     // (deci-degrees: 4000 = 400°C covers any nozzle).
                     constexpr int MAX_VALID_TEMP_DECI = 4000;
-                    if (temp_deci <= 0 || temp_deci > MAX_VALID_TEMP_DECI)
+                    if (temp_deci <= 0 || temp_deci > MAX_VALID_TEMP_DECI) {
+                        si.latest_deci = 0;
                         return;
+                    }
+                    si.latest_deci = temp_deci;
 
                     // Throttle chart updates to one sample per SAMPLE_INTERVAL_SEC
                     // per series — Klipper pushes status at ~4Hz, and the chart
                     // only holds one point per interval, so faster pushes just
-                    // burn LVGL redraws (the K2 Plus freeze, #979).
-                    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                      std::chrono::system_clock::now().time_since_epoch())
-                                      .count();
-                    if (now_ms - si.last_update_ms < UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000)
+                    // burn LVGL redraws (the K2 Plus freeze, #979). The first
+                    // reading of a slot pushes every series that has a current
+                    // value, so the chart repaints once per slot however the
+                    // readings are spread across notifies, and all series keep
+                    // the same number of points.
+                    const int64_t now_ms = self->now_ms_fn_();
+                    if (!sample_due(si.last_update_ms, now_ms))
                         return;
-                    si.last_update_ms = now_ms;
 
-                    float temp_deg = deci_to_degrees_f(temp_deci);
-                    // trace, not debug: one line per series per sample interval with
-                    // no decision content — the value is already in the subject and on
-                    // the chart. The bundle's ring buffer captures DEBUG by default
-                    // (ring_captures_debug()), so at debug this single line evicts
-                    // every other line: bundle ED2YC336 was 2000/2000 of these.
-                    spdlog::trace("[TempGraphController] live push series_id={} '{}' {:.1f}°C",
-                                  si.series_id, si.klipper_name, temp_deg);
-                    ui_temp_graph_update_series_with_time(self->graph_, si.series_id, temp_deg,
-                                                          now_ms);
+                    for (auto& sj : self->series_) {
+                        if (sj.series_id < 0 || sj.latest_deci == 0 ||
+                            !sample_due(sj.last_update_ms, now_ms))
+                            continue;
+                        sj.last_update_ms = now_ms;
+                        float temp_deg = deci_to_degrees_f(sj.latest_deci);
+                        // trace, not debug: one line per series per sample interval
+                        // with no decision content. The bundle's ring buffer captures
+                        // DEBUG by default (ring_captures_debug()), so at debug this
+                        // line evicts every other line: bundle ED2YC336 was 2000/2000.
+                        spdlog::trace("[TempGraphController] live push series_id={} '{}' {:.1f}°C",
+                                      sj.series_id, sj.klipper_name, temp_deg);
+                        ui_temp_graph_update_series_with_time(self->graph_, sj.series_id, temp_deg,
+                                                              now_ms);
+                    }
                     self->apply_auto_range();
                 },
                 s.lifetime);

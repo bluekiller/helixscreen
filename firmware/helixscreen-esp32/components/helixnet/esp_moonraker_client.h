@@ -191,6 +191,11 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     unsigned pongs_this_connection_ = 0;
     int64_t last_pong_us_ = 0;
     int64_t connected_us_ = 0;
+    // Any frame received (websocket task writes, timer task reads) and the last
+    // stall report, for the rx-stall tripwire in process_timeouts().
+    std::atomic<int64_t> last_rx_us_{0};
+    int64_t last_stall_log_us_ = 0;
+    static constexpr int64_t RX_STALL_LOG_US = 5 * 1000 * 1000;
     static_assert(PING_PONG_TIMEOUT_SEC * 1000u < DEFAULT_REQUEST_TIMEOUT_MS,
                   "ping/pong must detect a dead link before the per-request timeout fires — "
                   "otherwise silent connection death stalls requests for the full request "

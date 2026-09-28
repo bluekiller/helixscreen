@@ -23,7 +23,9 @@
 
 #include "async_lifetime_guard.h"
 
+#include <chrono>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -182,6 +184,12 @@ class TempGraphController {
      */
     static void seed_from_moonraker(IMoonrakerClient& client);
 
+    /// True when a live reading at now_ms should reach the chart, given the
+    /// series last pushed at last_ms (0 = never). All series share the same
+    /// SAMPLE_INTERVAL_SEC wall-clock slots, so one status notify carrying the
+    /// nozzle and bed readings costs one chart repaint, not two.
+    static bool sample_due(int64_t last_ms, int64_t now_ms);
+
     /**
      * @brief Tear down and recreate the graph from scratch
      *
@@ -231,6 +239,8 @@ class TempGraphController {
     int series_id_for(const std::string& klipper_name) const;
 
   private:
+    friend class TempGraphControllerTestAccess;
+
     /// Per-series runtime state (extends the spec with observer handles)
     struct SeriesState {
         std::string klipper_name;
@@ -240,10 +250,17 @@ class TempGraphController {
         /// Bound to a stand-in subject because the real one is not discovered
         /// yet; must be re-resolved once discovery publishes the real one.
         bool provisional = false;
-        int64_t last_update_ms = 0; ///< Throttle graph updates to 1Hz per series
+        int64_t last_update_ms = 0; ///< Last push; one per sample slot per series
+        int latest_deci = 0;        ///< Latest valid reading, 0 when it has none
         ObserverGuard temp_obs;
         ObserverGuard target_obs;
         SubjectLifetime lifetime;
+    };
+
+    std::function<int64_t()> now_ms_fn_ = [] {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::system_clock::now().time_since_epoch())
+            .count();
     };
 
     void create_graph();
@@ -252,6 +269,7 @@ class TempGraphController {
     void setup_connection_observer();
     void backfill_history();
     void apply_auto_range();
+    void forget_latest_readings();
 
     /**
      * @brief Attach temp/target observers for one series

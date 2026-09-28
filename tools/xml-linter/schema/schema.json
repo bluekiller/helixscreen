@@ -2497,6 +2497,12 @@
     "bg_grad_stop": {
       "type": "int"
     },
+    "bg_main_opa": {
+      "type": "opa"
+    },
+    "bg_grad_opa": {
+      "type": "opa"
+    },
     "bg_grad": {
       "type": "gradient"
     },

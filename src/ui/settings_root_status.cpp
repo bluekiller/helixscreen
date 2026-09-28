@@ -3,7 +3,7 @@
 
 #include "lvgl/src/others/translation/lv_translation.h"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 namespace helix::settings::status {
 
