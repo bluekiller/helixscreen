@@ -37,6 +37,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -866,40 +867,36 @@ void WiFiManager::set_enabled_async(bool enabled, helix::LifetimeToken token,
     // less than it should: taken on the main thread, where `this` is valid.
     auto mgr_token = async_lifetime_.token();
 
-    begin_radio_op();
-
     // Route through HttpExecutor::fast() (bounded 4-worker pool) rather than a
     // detached std::thread — per-call spawns fail with pthread EAGAIN under
     // thread exhaustion on memory-constrained ARM devices (#724).
-    helix::http::HttpExecutor::fast().submit(
-        [this, enabled, token, mgr_token, cb = std::move(on_complete)]() mutable {
-            // `this` is valid for the whole body: ~WiFiManager blocks on
-            // radio_op_cv_ until radio_ops_inflight_ drains, before it touches a
-            // single member.
-            WiFiError result = apply_radio_enabled(enabled);
-            const bool success = result.success();
-            const bool actual = backend_->is_running() && backend_->is_radio_enabled();
+    helix::http::HttpExecutor::fast().submit([this, op = radio_op_scope(), enabled, token,
+                                              mgr_token, cb = std::move(on_complete)]() mutable {
+        // `this` is valid for the whole body: ~WiFiManager blocks on
+        // radio_op_cv_ until radio_ops_inflight_ drains, before it touches a
+        // single member.
+        WiFiError result = apply_radio_enabled(enabled);
+        const bool success = result.success();
+        const bool actual = backend_->is_running() && backend_->is_radio_enabled();
 
-            // Neither deferred body dereferences `this`: report_radio_result is
-            // static, and the caller's lambda carries its own captures. That keeps
-            // both safe even if the manager is destroyed between here and the next
-            // UpdateQueue tick.
-            const bool wired_fallback = has_non_wifi_fallback();
-            mgr_token.defer("WiFiManager::report_radio_result",
-                            [enabled, result, wired_fallback, success, actual]() {
-                                report_radio_result(enabled, result, wired_fallback);
-                                // Queued ahead of the caller's callback below, so a
-                                // caller that saves in that callback flushes this
-                                // write with it rather than costing a second save.
-                                persist_radio_expectation(enabled, success, actual);
-                            });
-            if (cb) {
-                token.defer("WiFiManager::set_enabled_async",
-                            [cb = std::move(cb), success, actual]() { cb(success, actual); });
-            }
-
-            end_radio_op();
-        });
+        // Neither deferred body dereferences `this`: report_radio_result is
+        // static, and the caller's lambda carries its own captures. That keeps
+        // both safe even if the manager is destroyed between here and the next
+        // UpdateQueue tick.
+        const bool wired_fallback = has_non_wifi_fallback();
+        mgr_token.defer("WiFiManager::report_radio_result",
+                        [enabled, result, wired_fallback, success, actual]() {
+                            report_radio_result(enabled, result, wired_fallback);
+                            // Queued ahead of the caller's callback below, so a
+                            // caller that saves in that callback flushes this
+                            // write with it rather than costing a second save.
+                            persist_radio_expectation(enabled, success, actual);
+                        });
+        if (cb) {
+            token.defer("WiFiManager::set_enabled_async",
+                        [cb = std::move(cb), success, actual]() { cb(success, actual); });
+        }
+    });
 }
 
 void WiFiManager::get_status_async(
@@ -907,16 +904,59 @@ void WiFiManager::get_status_async(
     if (!on_done) {
         return;
     }
-    helix::http::HttpExecutor::fast().start();
-    begin_radio_op();
-    helix::http::HttpExecutor::fast().submit([this, token, cb = std::move(on_done)]() mutable {
-        // `this` is valid for the whole body: see radio_op_mutex_.
-        WifiBackend::ConnectionStatus status =
-            backend_ ? backend_->get_status() : WifiBackend::ConnectionStatus{};
-        token.defer("WiFiManager::get_status_async",
-                    [cb = std::move(cb), status = std::move(status)]() { cb(status); });
-        end_radio_op();
+    if (!helix::http::HttpExecutor::fast().running()) {
+        on_done(backend_ ? backend_->get_status() : WifiBackend::ConnectionStatus{});
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(status_waiters_mutex_);
+        status_waiters_.push_back({std::move(token), std::move(on_done)});
+        if (status_read_inflight_) {
+            return;
+        }
+        status_read_inflight_ = true;
+    }
+    // A task dropped unrun clears the in-flight mark, so the next caller
+    // starts a read that also answers everyone still waiting.
+    auto ran = std::shared_ptr<std::atomic<bool>>(
+        new std::atomic<bool>(false), [this](std::atomic<bool>* r) {
+            if (!r->load()) {
+                std::lock_guard<std::mutex> lock(status_waiters_mutex_);
+                status_read_inflight_ = false;
+            }
+            delete r;
+        });
+    helix::http::HttpExecutor::fast().submit([this, op = radio_op_scope(), ran = std::move(ran)]() {
+        ran->store(true);
+        run_status_reads();
     });
+}
+
+void WiFiManager::run_status_reads() {
+    // `this` is valid for the whole body: see radio_op_mutex_.
+    for (;;) {
+        std::vector<StatusWaiter> batch;
+        {
+            std::lock_guard<std::mutex> lock(status_waiters_mutex_);
+            if (status_waiters_.empty()) {
+                status_read_inflight_ = false;
+                return;
+            }
+            batch.swap(status_waiters_);
+        }
+        // Every waiter in the batch asked before this read began.
+        const WifiBackend::ConnectionStatus status =
+            backend_ ? backend_->get_status() : WifiBackend::ConnectionStatus{};
+        for (auto& w : batch) {
+            w.token.defer("WiFiManager::get_status_async",
+                          [cb = std::move(w.on_done), status]() { cb(status); });
+        }
+    }
+}
+
+std::shared_ptr<void> WiFiManager::radio_op_scope() {
+    begin_radio_op();
+    return std::shared_ptr<void>(nullptr, [this](void*) { end_radio_op(); });
 }
 
 void WiFiManager::begin_radio_op() {

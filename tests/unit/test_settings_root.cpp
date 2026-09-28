@@ -260,7 +260,20 @@ TEST_CASE_METHOD(RootFixture, "settings root: a superseded refresh's Wi-Fi probe
     const LinkMocks m = settle_with_ethernet_down(*this);
     RestoreLinks restore{*this, m};
 
-    // The first refresh's probe answers "Stale", then parks until released.
+    // Every value the row takes, so a stale answer that is overwritten a
+    // moment later still shows up.
+    lv_subject_t* row = lv_xml_get_subject(nullptr, "settings_status_connection");
+    REQUIRE(row != nullptr);
+    std::vector<std::string> shown;
+    lv_observer_t* recorder = lv_subject_add_observer(
+        row,
+        [](lv_observer_t* o, lv_subject_t* s) {
+            static_cast<std::vector<std::string>*>(lv_observer_get_user_data(o))
+                ->push_back(lv_subject_get_string(s));
+        },
+        &shown);
+
+    // The first refresh's read answers "Stale", then parks until released.
     m.wifi->set_connected_state(true, "Stale", "192.168.1.100", 75);
     m.wifi->clear_status_callers();
     m.wifi->hold_next_status();
@@ -269,11 +282,14 @@ TEST_CASE_METHOD(RootFixture, "settings root: a superseded refresh's Wi-Fi probe
 
     m.wifi->set_connected_state(true, "Fresh", "192.168.1.100", 75);
     get_global_settings_panel().refresh_status_lines();
-    REQUIRE(wait_until([&]() { return status_text(root_, "row_connection") == "Wi-Fi Fresh"; }));
-
     m.wifi->release_held_status();
-    CHECK_FALSE(
-        wait_until([&]() { return status_text(root_, "row_connection") == "Wi-Fi Stale"; }, 500));
+    REQUIRE(wait_until([&]() { return status_text(root_, "row_connection") == "Wi-Fi Fresh"; }));
+    process_lvgl(50);
+
+    lv_observer_remove(recorder);
+    for (const auto& text : shown) {
+        CHECK(text != "Wi-Fi Stale");
+    }
 }
 
 TEST_CASE_METHOD(RootFixture, "settings root: Android shows the printer host as its connection",
