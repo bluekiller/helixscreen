@@ -20,8 +20,9 @@
          hidden, LV_OBJ_FLAG_HIDDEN also removes it from flex layout so the
          badge re-centers in the cell. -->
     <text_tiny name="fav_macro_name"
-               width="100%" text="Configure" translation_tag="Configure" style_text_align="center"
-               style_text_color="#text_muted" long_mode="dots" clickable="false" event_bubble="true">
+               width="100%" height="#font_xs_line_h" text="Configure" translation_tag="Configure"
+               style_text_align="center" style_text_color="#text_muted" long_mode="dots" clickable="false"
+               event_bubble="true">
       <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>
     </text_tiny>
   </view>

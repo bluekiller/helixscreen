@@ -304,6 +304,18 @@
     <px name="meter_track_h_xlarge" value="16"/>
     <px name="meter_track_h_xxlarge" value="20"/>
 
+    <!-- font_xs_line_h: ONE line of font_xs, so a long_mode="dots" text_tiny
+         label ellipsizes instead of wrapping to a second line (dots only engage
+         when the label's height is bounded). Tracks font_xs:
+         10/10/10/12/14/16/20 px + ~40% leading. -->
+    <px name="font_xs_line_h_micro" value="14"/>
+    <px name="font_xs_line_h_tiny" value="14"/>
+    <px name="font_xs_line_h_small" value="14"/>
+    <px name="font_xs_line_h_medium" value="17"/>
+    <px name="font_xs_line_h_large" value="20"/>
+    <px name="font_xs_line_h_xlarge" value="23"/>
+    <px name="font_xs_line_h_xxlarge" value="28"/>
+
     <!-- Spinner arc widths - proportional to size -->
     <px name="spinner_arc_lg_small" value="3"/>
     <px name="spinner_arc_lg_medium" value="4"/>
