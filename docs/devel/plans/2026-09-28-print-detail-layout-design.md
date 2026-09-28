@@ -141,9 +141,9 @@ so it gets that census row instead.
   `#primary` check tab in the top-right corner. Tokens only, no literal colors.
 - **Behaviour:** the whole tile is the tap target. It is a checkable object: a tap toggles
   `LV_STATE_CHECKED` and fires `value_changed`, the event `compact_toggle_row`'s switch fires
-  today. Checked-state styles draw the outline and tint. The check tab is a child, and LVGL
-  styles a child by its own state, not its parent's, so the renderer binds the tab's `hidden`
-  flag to the option subject next to the checked-state binding it installs on the tile.
+  today. The tile sets `state_trickle="true"`, so its checked state reaches its children, and
+  each child styles itself with `:checked` state styles (outline, icon tint, the check tab's
+  opacity), the `filament_material_group.xml` pattern. No C++ binding per child.
 - **Wiring:** `PrePrintOptionsRenderer` (`src/ui/ui_pre_print_options_renderer.cpp`) creates
   `option_tile` where it creates `compact_toggle_row` now, keeps every per-option subject,
   observer, visibility binding and callback, and finds the tile itself instead of a `toggle`
