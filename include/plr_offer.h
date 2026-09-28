@@ -15,7 +15,7 @@ namespace helix {
 ///     no separate backend/printer-type gate is needed, which is what lets the
 ///     offer fire on an AFC-modded U1 whose AMS backend is not the Snapmaker
 ///     backend.
-///   - Qidi (passive): discovery saw the RESUME_INTERRUPTED macro AND
+///   - Qidi (passive): discovery saw Qidi's recovery macros AND
 ///     `save_variables.variables.was_interrupted` is a JSON boolean true. The
 ///     stock macros leave it true during every normal print too, so
 ///     `printer_idle` is what scopes the offer to a boot after power loss.

@@ -75,7 +75,7 @@ PlrBackendType plr_select_backend(const PlrCapabilitySignals& caps) {
 }
 
 bool plr_resume_macro_present(const PrinterDiscovery& hw) {
-    return hw.has_macro(QIDI_RESUME_GCODE);
+    return hw.has_macro(QIDI_DETECT_MACRO) || hw.has_macro(QIDI_RESUME_GCODE);
 }
 
 std::vector<std::string> plr_required_status_objects(const PrinterDiscovery& hw) {

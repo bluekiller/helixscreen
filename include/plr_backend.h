@@ -38,8 +38,8 @@ struct PlrCapabilitySignals {
     /// unpopulated field with an explicit null, so "present and numeric" is what
     /// distinguishes the fork from everything else.
     bool creality_power_loss_field = false;
-    /// Discovery found the RESUME_INTERRUPTED macro. That macro is what
-    /// identifies Qidi's stock firmware; without it a was_interrupted
+    /// Discovery found Qidi's recovery macros (plr_resume_macro_present()).
+    /// They identify Qidi's stock firmware; without them a was_interrupted
     /// save_variable is just a user-writable name any Klipper could carry.
     bool qidi_resume_macro = false;
     /// save_variables.variables.was_interrupted arrived as a JSON boolean AND
@@ -159,10 +159,16 @@ inline constexpr const char* CREALITY_SIDECAR_REL_PATH =
 /// before homing X/Y, then prints it.
 inline constexpr const char* QIDI_RESUME_GCODE = "RESUME_INTERRUPTED";
 inline constexpr const char* QIDI_DISCARD_GCODE = "CLEAR_LAST_FILE";
+/// The boot-time check the stock screen sends. Newer Qidi firmware (Q2
+/// 01.01.02.03 at least) registers RESUME_INTERRUPTED and CLEAR_LAST_FILE as Python commands, which
+/// never appear as gcode_macro objects, so this macro is the one that marks
+/// every Qidi firmware generation.
+inline constexpr const char* QIDI_DETECT_MACRO = "DETECT_INTERRUPTION";
 
-/// Whether the connected printer runs a firmware whose resume macro is one the
-/// PLR module knows (currently Qidi's stock RESUME_INTERRUPTED - the macro is
-/// the firmware discriminator, because the was_interrupted save_variable it
+/// Whether the connected printer runs a firmware whose resume command is one
+/// the PLR module knows (currently Qidi's stock RESUME_INTERRUPTED, recognised
+/// by DETECT_INTERRUPTION or a RESUME_INTERRUPTED macro - the macro is the
+/// firmware discriminator, because the was_interrupted save_variable it
 /// maintains is user-writable on ANY Klipper). Capability-named on purpose:
 /// generic modules (PrinterState, the subscription builder) call this without
 /// learning the vendor. Out-of-line to keep this header free of the

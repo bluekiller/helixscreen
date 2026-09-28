@@ -60,16 +60,18 @@ That is the whole signal - nothing is probed and nothing is asked.
 
 Two halves gate the backend, because the variable name alone proves nothing:
 
-* **Capability**: discovery found the `RESUME_INTERRUPTED` macro
-  (`plr_resume_macro_present()`, `PrinterDiscovery::has_macro`). That macro identifies
-  Qidi's stock firmware; `was_interrupted` is a user-writable name on ANY
+* **Capability**: discovery found the `DETECT_INTERRUPTION` or `RESUME_INTERRUPTED`
+  macro (`plr_resume_macro_present()`, `PrinterDiscovery::has_macro`). Newer
+  firmware (Q2 01.01.02.03 at least) registers `RESUME_INTERRUPTED` and `CLEAR_LAST_FILE` as Python
+  commands, invisible to discovery, so `DETECT_INTERRUPTION` is the macro every
+  generation carries. Either identifies Qidi's stock firmware; `was_interrupted` is a user-writable name on ANY
   Klipper, so the variable alone must never select the backend.
 * **Availability**: `save_variables.variables.was_interrupted` arrived as a JSON
   boolean and is true.
 
 | | |
 |---|---|
-| Capability | `RESUME_INTERRUPTED` macro present (discovery) |
+| Capability | `DETECT_INTERRUPTION` or `RESUME_INTERRUPTED` macro present (discovery) |
 | Availability | `save_variables.variables.was_interrupted` is JSON boolean `true` |
 | Recovery filename | `virtual_sdcard.file_path` when non-empty; the prompt falls back to its generic body when empty (no filesystem scan) |
 | Resume | gcode `RESUME_INTERRUPTED` (rebuilds the resume gcode from the `.temp/` backup, lifts Z clear of the part before homing X/Y, then prints it) |
@@ -229,7 +231,7 @@ re-arm / wizard logic is reused unchanged:
 
 ```
 Snapmaker:  pl_env_valid subject ──────────────────────┐
-Qidi:       RESUME_INTERRUPTED macro + was_interrupted ─┤──> recovery_available ──> plr_should_offer()
+Qidi:       DETECT_INTERRUPTION macro + was_interrupted ┤──> recovery_available ──> plr_should_offer()
 Creality:   power_loss key ──> one-shot probe ──> both ─┘
                                (standby only)    states
 ```

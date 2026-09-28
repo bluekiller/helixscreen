@@ -414,6 +414,17 @@ TEST_CASE("plr_resume_macro_present: keyed on the RESUME_INTERRUPTED macro",
     REQUIRE_FALSE(helix::plr_resume_macro_present(other));
 }
 
+TEST_CASE("plr_resume_macro_present: DETECT_INTERRUPTION alone marks Python-command firmware",
+          "[plr][backend][qidi]") {
+    // Q2 firmware 01.01.02.03: RESUME_INTERRUPTED / CLEAR_LAST_FILE are Python
+    // commands, so the only Qidi recovery object discovery sees is the macro.
+    helix::PrinterDiscovery q2;
+    q2.parse_objects(json::array({"gcode_macro DETECT_INTERRUPTION", "gcode_macro PRINT_START",
+                                  "save_variables", "print_stats_manager"}));
+    REQUIRE(helix::plr_resume_macro_present(q2));
+    REQUIRE(helix::plr_required_status_objects(q2) == std::vector<std::string>{"save_variables"});
+}
+
 TEST_CASE("plr_build_plan: NONE backend yields no actions at all", "[plr][backend]") {
     PlrRecoveryPlan plan =
         helix::plr_build_plan(PlrBackendType::NONE, "benchy.gcode", confirmed_detect());

@@ -679,7 +679,7 @@ TEST_CASE("Subscription: Qidi PLR subscribes save_variables when the recovery ma
     // unnoticed. The not-subscribed-by-default half is pinned by the ZMOD
     // case above.
     DiscoveryFixture fx;
-    fx.add("gcode_macro RESUME_INTERRUPTED", {});
+    fx.add("gcode_macro DETECT_INTERRUPTION", {});
     json subs = fx.build();
 
     REQUIRE(subs.contains("save_variables"));
