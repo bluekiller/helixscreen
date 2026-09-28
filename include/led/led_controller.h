@@ -411,10 +411,20 @@ class LedController {
     void discover_from_hardware(const helix::PrinterDiscovery& hardware);
     void discover_wled_strips(); ///< Async WLED discovery via Moonraker HTTP bridge
 
-    /// Called on the main thread when a WLED discovery settles, so the app can
-    /// re-run whatever waited for the full device set. Survives deinit().
+    /// Called on the main thread when a WLED discovery settles (see
+    /// wled_discovery_pending()), so the app can re-run whatever waited for the
+    /// full device set. Survives deinit().
     void set_on_wled_settled(std::function<void()> cb) {
         on_wled_settled_ = std::move(cb);
+    }
+
+    /// How long a WLED discovery may go unanswered before it counts as settled.
+    static constexpr uint32_t WLED_DISCOVERY_TIMEOUT_MS = 5000;
+
+    /// True from discover_wled_strips() until that discovery settles: strips
+    /// arrive, none are configured, it fails, or WLED_DISCOVERY_TIMEOUT_MS passes.
+    [[nodiscard]] bool wled_discovery_pending() const {
+        return wled_discovery_pending_;
     }
 
     /// Apply configfile.config: led_effect targets, output_pin PWM, and generic
@@ -587,6 +597,9 @@ class LedController {
     IMoonrakerClient* client_ = nullptr;
     helix::AsyncLifetimeGuard lifetime_;
     std::function<void()> on_wled_settled_;
+    bool wled_discovery_pending_ = false;
+    unsigned wled_discovery_gen_ = 0; ///< A late answer or timeout settles only its own discovery
+    void settle_wled_discovery(unsigned gen);
 
     NativeBackend native_;
     LedEffectBackend effects_;

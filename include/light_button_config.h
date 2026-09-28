@@ -24,8 +24,9 @@ std::vector<std::string> home_light_button_targets();
 
 /// Resolve leds/light_button_pending against the home layout, clearing it even
 /// when no light button is placed, then offer LED on at Start the targets the
-/// home light buttons drive. Runs at discovery-complete and when WLED strips
-/// arrive; LED on at Start applies at most once per printer session.
+/// home light buttons drive. Runs at discovery-complete and when a WLED
+/// discovery settles, and waits while one is in flight; LED on at Start applies
+/// at most once per printer session.
 void settle_light_buttons();
 
 } // namespace helix

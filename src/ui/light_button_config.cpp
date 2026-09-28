@@ -10,6 +10,8 @@
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
 
+#include <spdlog/spdlog.h>
+
 #include <cstring>
 
 namespace helix {
@@ -84,7 +86,15 @@ void settle_light_buttons() {
     if (auto* cfg = Config::get_instance()) {
         adopt_pending_light_button(*cfg, PanelWidgetManager::instance().get_widget_config("home"));
     }
-    led::LedController::instance().apply_startup_preference(home_light_button_targets());
+    auto& ctrl = led::LedController::instance();
+    // A button may name a WLED strip that has not arrived yet, and falling back
+    // to the chamber light would spend the startup attempt on the wrong light.
+    // The discovery settling runs this again.
+    if (ctrl.wled_discovery_pending()) {
+        spdlog::debug("[LightButtons] WLED discovery in flight - startup preference waits");
+        return;
+    }
+    ctrl.apply_startup_preference(home_light_button_targets());
 }
 
 } // namespace helix

@@ -184,6 +184,7 @@ void LedController::deinit() {
     // Application::tear_down_printer_state() (printer switch, add-printer wizard)
     // and shutdown — a rediscovery re-runs init() alone and must NOT re-arm it.
     startup_preference_applied_ = false;
+    wled_discovery_pending_ = false;
 
     spdlog::info("[LedController] Deinitialized");
 }
@@ -403,13 +404,35 @@ void LedController::discover_wled_strips() {
 
     spdlog::debug("[LedController] Starting WLED strip discovery via Moonraker");
 
+    const unsigned gen = ++wled_discovery_gen_;
+    wled_discovery_pending_ = true;
+    // A request that never completes still settles, so nothing waits on it forever.
+    struct Timeout {
+        LifetimeToken tok;
+        LedController* self;
+        unsigned gen;
+    };
+    auto* timer = lv_timer_create(
+        [](lv_timer_t* t) {
+            auto* data = static_cast<Timeout*>(lv_timer_get_user_data(t));
+            data->tok.defer(
+                "LedController::wled_discovery_timeout",
+                [self = data->self, gen = data->gen]() { self->settle_wled_discovery(gen); });
+            delete data;
+        },
+        WLED_DISCOVERY_TIMEOUT_MS,
+        new Timeout{lifetime_.token(), this, gen}); // TIMER_DTOR_OK: LifetimeToken-guarded one-shot
+    lv_timer_set_repeat_count(timer, 1);
+
     auto token = lifetime_.token();
     api_->rest().wled_get_strips(
-        [this, token](const RestResponse& resp) {
+        [this, token, gen](const RestResponse& resp) {
             // === BG THREAD: parse, validate, build local strip list ===
             // Response format: {"result": {"strips": {strip_name: {details...}, ...}}}
             if (!resp.data.is_object()) {
                 spdlog::warn("[LedController] WLED strips response is not a JSON object");
+                token.defer("LedController::wled_settled",
+                            [this, gen]() { settle_wled_discovery(gen); });
                 return;
             }
 
@@ -474,11 +497,13 @@ void LedController::discover_wled_strips() {
 
             if (discovered.empty()) {
                 spdlog::debug("[LedController] No WLED strips found");
+                token.defer("LedController::wled_settled",
+                            [this, gen]() { settle_wled_discovery(gen); });
                 return;
             }
 
             // === MAIN THREAD: apply discovered strips, then chain server config fetch ===
-            token.defer("LedController::wled_strips_apply", [this, token,
+            token.defer("LedController::wled_strips_apply", [this, token, gen,
                                                              discovered =
                                                                  std::move(discovered)]() mutable {
                 spdlog::info("[LedController] Discovered {} WLED strip(s)", discovered.size());
@@ -487,9 +512,7 @@ void LedController::discover_wled_strips() {
                 }
                 bump_config_version();
                 publish_controllable_state();
-                if (on_wled_settled_) {
-                    on_wled_settled_();
-                }
+                settle_wled_discovery(gen);
 
                 // Fetch server config to get WLED device addresses
                 this->api_->rest().get_server_config(
@@ -570,10 +593,22 @@ void LedController::discover_wled_strips() {
                 refresh_wled_state();
             });
         },
-        [](const MoonrakerError& err) {
+        [this, token, gen](const MoonrakerError& err) {
             // WLED not configured is expected on most printers
             spdlog::debug("[LedController] WLED discovery unavailable: {}", err.message);
+            token.defer("LedController::wled_settled",
+                        [this, gen]() { settle_wled_discovery(gen); });
         });
+}
+
+void LedController::settle_wled_discovery(unsigned gen) {
+    if (!wled_discovery_pending_ || gen != wled_discovery_gen_) {
+        return;
+    }
+    wled_discovery_pending_ = false;
+    if (on_wled_settled_) {
+        on_wled_settled_();
+    }
 }
 
 void LedController::apply_configfile(const nlohmann::json& configfile_config) {

@@ -61,6 +61,7 @@ struct LedWidgetFixture : public LVGLTestFixture {
     }
     ~LedWidgetFixture() override {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        LedController::instance().set_on_wled_settled(nullptr);
         LedController::instance().deinit();
     }
 
@@ -371,6 +372,77 @@ TEST_CASE_METHOD(LedPickerFixture, "LedWidget: a picker tap picks the row the us
 
     CHECK(w.light_key() == "neopixel sb_leds");
     w.detach();
+}
+
+namespace {
+/// A home light button bound to the WLED strip the mock reports as off.
+nlohmann::json wled_bound_light() {
+    nlohmann::json e = placed_light("led", 0);
+    e["config"] = {{"led", "enclosure_led"}};
+    return e;
+}
+
+void drain_queue() {
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+}
+} // namespace
+
+TEST_CASE_METHOD(LedWidgetFixture,
+                 "LED on at Start waits for WLED when discovery-complete lands first",
+                 "[led][light_button][startup]") {
+    ScopedHomeLayout layout(nlohmann::json::array({wled_bound_light()}));
+    auto& ctrl = LedController::instance();
+    ctrl.set_on_wled_settled(settle_light_buttons); // as Application wires it
+    ctrl.set_led_on_at_start(true);
+    api->rest_mock().mock_hold_wled_strips();
+    ctrl.discover_wled_strips();
+    client.clear_gcode_script_history();
+
+    settle_light_buttons(); // discovery-complete, WLED still unanswered
+    drain_queue();
+    CHECK(scripts_naming(client, "chamber_light") == 0);
+
+    api->rest_mock().mock_release_wled_strips();
+    drain_queue();
+    CHECK(ctrl.device_state("enclosure_led").power == PowerState::On);
+    CHECK(scripts_naming(client, "chamber_light") == 0);
+}
+
+TEST_CASE_METHOD(LedWidgetFixture, "LED on at Start when WLED answers before discovery-complete",
+                 "[led][light_button][startup]") {
+    ScopedHomeLayout layout(nlohmann::json::array({wled_bound_light()}));
+    auto& ctrl = LedController::instance();
+    ctrl.set_on_wled_settled(settle_light_buttons);
+    ctrl.set_led_on_at_start(true);
+    client.clear_gcode_script_history();
+
+    ctrl.discover_wled_strips();
+    drain_queue();
+    CHECK(ctrl.device_state("enclosure_led").power == PowerState::On);
+
+    settle_light_buttons(); // discovery-complete: the attempt is spent
+    drain_queue();
+    CHECK(scripts_naming(client, "chamber_light") == 0);
+}
+
+TEST_CASE_METHOD(LedWidgetFixture,
+                 "LED on at Start falls back to the chamber light when WLED never answers",
+                 "[led][light_button][startup]") {
+    ScopedHomeLayout layout(nlohmann::json::array({wled_bound_light()}));
+    auto& ctrl = LedController::instance();
+    ctrl.set_on_wled_settled(settle_light_buttons);
+    ctrl.set_led_on_at_start(true);
+    api->rest_mock().mock_hold_wled_strips();
+    ctrl.discover_wled_strips();
+    client.clear_gcode_script_history();
+
+    settle_light_buttons();
+    drain_queue();
+    REQUIRE(scripts_naming(client, "chamber_light") == 0);
+
+    process_lvgl(LedController::WLED_DISCOVERY_TIMEOUT_MS + 100);
+    drain_queue();
+    CHECK(scripts_naming(client, "chamber_light") > 0);
 }
 
 TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_button]") {
