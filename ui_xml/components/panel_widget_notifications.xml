@@ -39,6 +39,13 @@
         <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
         <bind_style name="badge_warning" subject="notification_severity" ref_value="1"/>
         <bind_style name="badge_error" subject="notification_severity" ref_value="2"/>
+        <!-- The badge rides the same rung as the bell above it, so it stays
+             2/5 of the glyph instead of covering it on the small rungs. -->
+        <bind_style_if_eq name="styles.tile_badge_xs" subject="$tile_icon_subject" ref_value="0"/>
+        <bind_style_if_eq name="styles.tile_badge_sm" subject="$tile_icon_subject" ref_value="1"/>
+        <bind_style_if_eq name="styles.tile_badge_md" subject="$tile_icon_subject" ref_value="2"/>
+        <bind_style_if_eq name="styles.tile_badge_lg" subject="$tile_icon_subject" ref_value="3"/>
+        <bind_style_if_eq name="styles.tile_badge_xl" subject="$tile_icon_subject" ref_value="4"/>
         <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
       </notification_badge>
     </lv_obj>
