@@ -177,14 +177,24 @@ TEST_CASE("Layer tracking: set_print_layer_current setter", "[layer_tracking][se
     }
 
     SECTION("setter and print_stats.info both update same subject") {
+        // Print running: the layer only climbs while a print is active.
+        state.update_from_status({{"print_stats", {{"state", "printing"}}}});
+        REQUIRE(lv_subject_get_int(state.get_print_active_subject()) == 1);
+
         // Simulate gcode fallback setting layer
         state.set_print_layer_current(10);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
         REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 10);
 
-        // Then print_stats.info comes in with a different value (takes precedence naturally)
-        json status = {{"print_stats", {{"info", {{"current_layer", 12}}}}}};
-        state.update_from_status(status);
+        // print_stats.info comes in with a HIGHER value - still accepted
+        json higher = {{"print_stats", {{"info", {{"current_layer", 12}}}}}};
+        state.update_from_status(higher);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 12);
+
+        // A stale frame still carrying an OLDER info value must not drag the
+        // layer back down mid-print
+        json stale = {{"print_stats", {{"info", {{"current_layer", 8}}}}}};
+        state.update_from_status(stale);
         REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 12);
     }
 
@@ -195,6 +205,108 @@ TEST_CASE("Layer tracking: set_print_layer_current setter", "[layer_tracking][se
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
         REQUIRE(state.has_real_layer_data());
     }
+}
+
+// ============================================================================
+// Monotonic layer within a print: real sources (slicer gcode, print_stats.info,
+// virtual_sdcard.layer) all report the same climbing value, but a status frame
+// generated before the latest gcode response can still carry an older value.
+// At print start that shows up as the layer bouncing 1 -> 0 -> 1: the gcode
+// fallback reports layer 1, then a Moonraker status update with a stale
+// print_stats.info.current_layer=0 drags it back. A regression also restarts
+// the 3D G-code viewer's whole sliced render (gcode_render_schedule decide_job).
+// ============================================================================
+
+TEST_CASE("Layer tracking: layer never bounces back mid-print", "[layer_tracking][bounce]") {
+    lv_init_safe();
+
+    PrinterState& state = get_printer_state();
+    PrinterStateTestAccess::reset(state);
+    state.init_subjects(false);
+
+    // Print start: Moonraker reports state=printing, then the slicer's
+    // SET_PRINT_STATS_INFO / ;LAYER responses arrive over the gcode path.
+    state.update_from_status({{"print_stats", {{"state", "printing"}}}});
+    REQUIRE(lv_subject_get_int(state.get_print_active_subject()) == 1);
+
+    SECTION("stale print_stats.info does not lower a gcode-reported layer") {
+        state.set_print_layer_current(5);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+        // Precondition: the guard is armed (real data latched, value 5 landed)
+        REQUIRE(state.has_real_layer_data());
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 5);
+
+        // The print-start bounce: a status frame still carrying the pre-print
+        // info.current_layer=0 after gcode already reported layer 5
+        json stale_zero = {{"print_stats", {{"info", {{"current_layer", 0}}}}}};
+        state.update_from_status(stale_zero);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 5);
+
+        // Any older nonzero value is equally refused
+        json stale_three = {{"print_stats", {{"info", {{"current_layer", 3}}}}}};
+        state.update_from_status(stale_three);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 5);
+    }
+
+    SECTION("a higher print_stats.info value still raises the layer") {
+        state.set_print_layer_current(5);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+        json higher = {{"print_stats", {{"info", {{"current_layer", 7}}}}}};
+        state.update_from_status(higher);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 7);
+    }
+
+    SECTION("stale virtual_sdcard.layer does not lower a gcode-reported layer") {
+        state.set_print_layer_current(5);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+        json stale_vsd = {{"virtual_sdcard", {{"progress", 0.5}, {"layer", 2}}}};
+        state.update_from_status(stale_vsd);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 5);
+    }
+}
+
+// ============================================================================
+// Reprint: reset_for_new_print() is the one legitimate path to a lower layer.
+// Every new-print flow runs it before the new job's first layer data can arrive
+// (begin_preparing synchronously, or the collector's IDLE -> INITIALIZING
+// phase for a print started outside the app), so the monotonic guard never
+// pins a stale high value across prints.
+// ============================================================================
+
+TEST_CASE("Layer tracking: reprint restarts the layer climb from zero",
+          "[layer_tracking][reprint]") {
+    lv_init_safe();
+
+    PrinterState& state = get_printer_state();
+    PrinterStateTestAccess::reset(state);
+    state.init_subjects(false);
+
+    // A finished print left the layer high with real data latched
+    state.update_from_status({{"print_stats", {{"state", "printing"}}}});
+    state.set_print_layer_current(40);
+    UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 40);
+
+    state.update_from_status({{"print_stats", {{"state", "complete"}}}});
+
+    // New print: the IDLE -> preparing transition resets the per-print state
+    state.reset_print_start_state();
+    UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    state.set_print_start_state(PrintStartPhase::INITIALIZING, "Preparing Print...", 0);
+    UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 0);
+    REQUIRE_FALSE(state.has_real_layer_data());
+
+    // The new print's layers land: 0 holds, then 1 climbs
+    state.update_from_status(
+        {{"print_stats", {{"state", "printing"}, {"info", {{"current_layer", 0}}}}}});
+    REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 0);
+
+    state.update_from_status({{"print_stats", {{"info", {{"current_layer", 1}}}}}});
+    REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 1);
 }
 
 // ============================================================================

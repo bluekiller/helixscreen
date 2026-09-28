@@ -313,6 +313,7 @@ void PrinterPrintState::reset_for_new_print() {
     }
     lv_subject_set_int(&print_layer_current_, 0);
     has_real_layer_data_ = false;
+    layer_from_real_source_ = false;
     // Commanded Z belongs to the print run, not the file — clear it. Do NOT
     // clear layer_height_/first_layer_height_: like print_layer_total_ and
     // estimated_print_time_ they belong to the file and must survive a same-file
@@ -336,6 +337,25 @@ void PrinterPrintState::reset_for_new_print() {
     eta_estimator_.reset();
     spdlog::trace("[PrinterPrintState] Reset print progress for new print (slicer_est={}s)",
                   estimated_print_time_);
+}
+
+void PrinterPrintState::apply_layer_current(int layer, const char* source) {
+    const int current = lv_subject_get_int(&print_layer_current_);
+    // The guard judges the value IN the subject, so it reads the provenance of
+    // the previous write, not of this call (real sources latch
+    // has_real_layer_data_ before calling, which would arm the guard against
+    // the very estimate this real value must be allowed to correct downward).
+    if (layer < current && lv_subject_get_int(&print_active_) != 0 && layer_from_real_source_) {
+        spdlog::debug("[LayerTracker] Refusing layer decrease {} -> {} (from {})", current, layer,
+                      source);
+        return;
+    }
+    if (layer != current) {
+        lv_subject_set_int(&print_layer_current_, layer);
+    }
+    // Provenance now traces to whichever source addressed the subject last,
+    // including on an equal write.
+    layer_from_real_source_ = has_real_layer_data_.load();
 }
 
 bool PrinterPrintState::status_indicates_active_print(const nlohmann::json& status) {
@@ -623,8 +643,8 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                 if (current_layer != lv_subject_get_int(&print_layer_current_)) {
                     spdlog::debug("[LayerTracker] current_layer={} (from print_stats.info)",
                                   current_layer);
-                    lv_subject_set_int(&print_layer_current_, current_layer);
                 }
+                apply_layer_current(current_layer, "print_stats.info");
                 current_layer_from_info = true;
             }
 
@@ -848,8 +868,8 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                 if (vsd_layer != lv_subject_get_int(&print_layer_current_)) {
                     spdlog::debug("[LayerTracker] current_layer={} (from virtual_sdcard)",
                                   vsd_layer);
-                    lv_subject_set_int(&print_layer_current_, vsd_layer);
                 }
+                apply_layer_current(vsd_layer, "virtual_sdcard");
             }
             if (!total_layer_from_info && sdcard.contains("layer_count") &&
                 sdcard["layer_count"].is_number_integer()) {
@@ -912,7 +932,7 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                         if (estimated != current) {
                             spdlog::debug("[LayerTracker] Estimated layer {}/{} from progress {}%",
                                           estimated, total, file_progress_pct);
-                            lv_subject_set_int(&print_layer_current_, estimated);
+                            apply_layer_current(estimated, "progress estimate");
                         }
                     }
                 }
@@ -980,7 +1000,7 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[LayerTracker] Derived layer {}/{} from Z={:.3f}mm "
                               "(first={:.3f}, height={:.3f})",
                               derived, total, last_gcode_z_mm_, first_layer_height_, layer_height_);
-                lv_subject_set_int(&print_layer_current_, derived);
+                apply_layer_current(derived, "z-height derivation");
             }
         }
     }
@@ -1143,9 +1163,7 @@ void PrinterPrintState::set_print_layer_current(int layer) {
             has_real_layer_data_ = true;
         }
         printer_reports_layers_ = true; // sticky printer capability
-        if (lv_subject_get_int(&print_layer_current_) != layer) {
-            lv_subject_set_int(&print_layer_current_, layer);
-        }
+        apply_layer_current(layer, "gcode response");
     });
 }
 
