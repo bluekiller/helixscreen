@@ -34,8 +34,7 @@ When beta features are enabled, the following appear in the UI with an orange "B
 | Feature | Location | Description | Status |
 |---------|----------|-------------|--------|
 | **Configure PRINT_START** | Advanced panel | Make bed mesh and QGL skippable in your print start macro | Functional; writes your Klipper config directly via Moonraker, no plugin required |
-| **Dev Update Channel** | Settings > Help & About > About | Adds **Dev** to the Update Channel selector, which otherwise offers Stable and Beta to everyone | Functional; needs `dev_url` set in `/var/lib/helixscreen/update_urls.json` (root-owned) |
-| **Belt Tension** | Advanced panel | Pluck each belt by hand; the tool listens and reports its frequency, for CoreXY | **Early beta - not yet validated on real hardware.** Requires an accelerometer and HelixScreen running on the printer itself |
+| **Dev Update Channel** | Settings > Updates | Adds **Dev** to the Update Channel selector, which otherwise offers Stable and Beta to everyone | Functional; needs `dev_url` set in `/var/lib/helixscreen/update_urls.json` (root-owned) |
 | **Tool Offsets** | Advanced panel, Controls panel | Automatically measure every tool's X/Y/Z position in one run, on a tool-changer printer | Functional; requires a tool changer with automatic offset calibration support |
 
 > **Graduated from beta:** the **Sound System**, PID Calibration, Input Shaper, the **Spool Wizard**, the **G-code Console**, **Probe Management**, **Z-Offset Calibration**, **Timelapse**, the **Macro Browser**, and **MPC Calibration** are now available to all users without enabling beta features. The **HelixPrint plugin** install/uninstall rows, the **Z Calibration** button, and **Multi-Printer Management** are likewise available to everyone.
@@ -54,7 +53,12 @@ What works today:
 - Live printer status and bed mesh over WiFi through Moonraker
 - WiFi setup on first boot: the panel broadcasts its own setup hotspot — join it from your phone to configure the network
 - Over-the-air updates, with a fallback slot to recover a bad flash
-- All nine languages and the printer image set, packed to fit the panel's storage
+- Seven languages (English, German, French, Spanish, Russian, Portuguese, Italian); Chinese and Japanese need a font the panel has no room for
+- Printer pictures for the DIY and Klipper-converted machines an add-on panel usually drives (Voron, RatRig, Sovol SV08, Zero G and others); other printers show a generic picture
+- Notification history: tap the bell to see past alerts
+- Temperature graphs that start from the printer's recent history
+
+A panel flashed with an earlier alpha build needs one reflash over USB: this build changes the flash layout, and a layout change cannot arrive over the air. WiFi and settings are kept.
 
 Not yet available on this target: the camera feed and QR features, the 2D G-code view, and the 3D bed mesh view.
 

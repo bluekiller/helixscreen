@@ -7,6 +7,7 @@
 #if HELIX_HAS_SNAPMAKER
 #include "ams_backend_snapmaker.h"
 #endif
+#include "ams_backend_happy_hare.h"
 #include "ams_bypass_policy.h"
 #include "display_numbering.h"
 #include "filament_database.h"
@@ -690,7 +691,7 @@ AmsError AmsBackendMock::load_filament(int slot_index) {
     return AmsErrorHelper::success();
 }
 
-AmsError AmsBackendMock::unload_filament(int /*slot_index*/) {
+AmsError AmsBackendMock::unload_filament(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -707,6 +708,7 @@ AmsError AmsBackendMock::unload_filament(int /*slot_index*/) {
         }
 
         // Start unloading
+        last_unload_slot_ = slot_index;
         system_info_.action = AmsAction::UNLOADING;
         system_info_.operation_detail = lv_tr("Unloading filament");
         filament_segment_ = PathSegment::NOZZLE; // Start at nozzle (working backwards)
@@ -1061,6 +1063,26 @@ AmsError AmsBackendMock::move_selector(int delta) {
 
     return simulate_transient_action(AmsAction::SELECTING,
                                      "Selecting slot " + std::to_string(target + 1));
+}
+
+AmsError AmsBackendMock::recover_with_state(const RecoverStateRequest& request) {
+    spdlog::info("[AMS Mock] Executing G-code: {}",
+                 AmsBackendHappyHare::build_recover_command(request));
+    return recover();
+}
+
+AmsError AmsBackendMock::preload_lane(int slot_index) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (!slots_.is_valid_index(slot_index)) {
+            return AmsErrorHelper::invalid_slot(lane_noun_locked(), slot_index,
+                                                slots_.slot_count() - 1);
+        }
+
+        spdlog::info("[AMS Mock] Executing G-code: MMU_PRELOAD GATE={}", slot_index);
+    }
+    return AmsErrorHelper::success();
 }
 
 AmsError AmsBackendMock::check_gate(int slot_index) {
@@ -3924,6 +3946,11 @@ void AmsBackendMock::set_device_actions(std::vector<helix::printer::DeviceAction
 std::pair<std::string, std::any> AmsBackendMock::get_last_executed_action() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return {last_action_id_, last_action_value_};
+}
+
+std::optional<int> AmsBackendMock::last_unload_slot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return last_unload_slot_;
 }
 
 void AmsBackendMock::clear_last_executed_action() {

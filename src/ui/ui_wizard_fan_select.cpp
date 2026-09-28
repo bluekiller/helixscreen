@@ -211,7 +211,8 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
 
     // Build dropdown options string with "None" option and friendly display names
     std::string hotend_options_str = helix::ui::wizard::build_dropdown_options(
-        hotend_fan_items_, nullptr, true, helix::DeviceType::FAN);
+        hotend_fan_items_, nullptr, true,
+        helix::ui::wizard::display_name_for(helix::DeviceType::FAN));
 
     // Add "None" FIRST in items vector to match dropdown order
     hotend_fan_items_.insert(hotend_fan_items_.begin(), "None");
@@ -231,7 +232,8 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
 
     // Build dropdown options string with "None" option and friendly display names
     std::string part_options_str = helix::ui::wizard::build_dropdown_options(
-        part_fan_items_, nullptr, true, helix::DeviceType::FAN);
+        part_fan_items_, nullptr, true,
+        helix::ui::wizard::display_name_for(helix::DeviceType::FAN));
 
     // Add "None" FIRST in items vector to match dropdown order
     part_fan_items_.insert(part_fan_items_.begin(), "None");
@@ -286,7 +288,8 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
 
         // Build dropdown options string with "None" option and friendly display names
         std::string chamber_options_str = helix::ui::wizard::build_dropdown_options(
-            chamber_fan_items_, nullptr, true, helix::DeviceType::FAN);
+            chamber_fan_items_, nullptr, true,
+            helix::ui::wizard::display_name_for(helix::DeviceType::FAN));
 
         // Add "None" FIRST in items vector to match dropdown order
         chamber_fan_items_.insert(chamber_fan_items_.begin(), "None");
@@ -302,7 +305,8 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
 
         // Build dropdown options string with "None" option and friendly display names
         std::string exhaust_options_str = helix::ui::wizard::build_dropdown_options(
-            exhaust_fan_items_, nullptr, true, helix::DeviceType::FAN);
+            exhaust_fan_items_, nullptr, true,
+            helix::ui::wizard::display_name_for(helix::DeviceType::FAN));
 
         // Add "None" FIRST in items vector to match dropdown order
         exhaust_fan_items_.insert(exhaust_fan_items_.begin(), "None");

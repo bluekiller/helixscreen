@@ -251,6 +251,35 @@ TEST_CASE_METHOD(SnapmakerFixture, "AmsBackendSnapmaker construction", "[ams][sn
 }
 
 // ============================================================================
+// The U1's own sequence homes and heats
+//
+// FEED_AUTO walks load_homing -> load_feeding -> load_heating -> ... and
+// unload_homing -> unload_picking -> unload_heating -> ..., setting its own
+// nozzle target from the lane's material. A UI preheat or G28 in front of it
+// is a second wait the firmware repeats anyway.
+// ============================================================================
+
+TEST_CASE_METHOD(SnapmakerFixture, "The U1 homes and heats for its own loads",
+                 "[ams][snapmaker][homing][preheat]") {
+    helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
+    AmsBackendSnapmaker& backend = *backend_reg;
+
+    helix::ui::FilamentOpPlan load;
+    load.tier = helix::ui::FilamentTier::AmsBackend;
+    load.ams_call = helix::ui::AmsCall::Load;
+    load.ams_arg = 1;
+    CHECK(helix::ui::preheat_skip_reason(load, StandardMacroSlot::LoadFilament, &backend) ==
+          helix::ui::PreheatSkip::BackendSelfHeats);
+    CHECK_FALSE(helix::ui::needs_prerequisite_home(load, StandardMacroSlot::LoadFilament, &backend,
+                                                   /*toolhead_homed=*/false));
+
+    helix::ui::FilamentOpPlan unload = load;
+    unload.ams_call = helix::ui::AmsCall::Unload;
+    CHECK_FALSE(helix::ui::needs_prerequisite_home(unload, StandardMacroSlot::UnloadFilament,
+                                                   &backend, /*toolhead_homed=*/false));
+}
+
+// ============================================================================
 // Feeder / Toolhead noun tests
 //
 // The U1's own firmware UI binary spells filament entry "Feeder 1".."Feeder 4"
@@ -309,30 +338,31 @@ TEST_CASE_METHOD(SnapmakerFixture,
 
     SECTION("LOAD is a 5-step model ending in Purge with a live-temp Heat step") {
         auto model = backend.get_operation_step_model(StepOperationType::LOAD_FRESH);
-        REQUIRE(model.steps.size() == 5);
+        // filament_feed.py sets load_homing, load_picking, load_feeding,
+        // load_heating, load_extruding, load_flushing in that order.
+        REQUIRE(model.steps.size() == 6);
         CHECK(std::string(model.steps[0].label) == "Home");
         CHECK(std::string(model.steps[1].label) == "Select");
-        CHECK(std::string(model.steps[2].label) == "Heat nozzle");
-        CHECK(std::string(model.steps[3].label) == "Feed filament");
-        CHECK(std::string(model.steps[4].label) == "Purge");
+        CHECK(std::string(model.steps[2].label) == "Feed filament");
+        CHECK(std::string(model.steps[3].label) == "Heat nozzle");
+        CHECK(std::string(model.steps[4].label) == "Extrude");
+        CHECK(std::string(model.steps[5].label) == "Purge");
         // phase_id mirrors the firmware operation_phase index the classifier emits.
-        CHECK(model.steps[0].phase_id == 0);
-        CHECK(model.steps[1].phase_id == 1);
-        CHECK(model.steps[2].phase_id == 2);
-        CHECK(model.steps[3].phase_id == 3);
-        CHECK(model.steps[4].phase_id == 4);
+        for (int i = 0; i < 6; ++i) {
+            CHECK(model.steps[static_cast<size_t>(i)].phase_id == i);
+        }
         // Only the Heat step shows a live nozzle temperature.
-        CHECK(model.steps[2].live_temp);
+        CHECK(model.steps[3].live_temp);
         CHECK_FALSE(model.steps[0].live_temp);
-        CHECK_FALSE(model.steps[3].live_temp);
+        CHECK_FALSE(model.steps[2].live_temp);
         CHECK_FALSE(model.steps[4].live_temp);
     }
 
     SECTION("LOAD_SWAP also produces the 5-step load-direction model") {
         auto model = backend.get_operation_step_model(StepOperationType::LOAD_SWAP);
-        REQUIRE(model.steps.size() == 5);
-        CHECK(std::string(model.steps[3].label) == "Feed filament");
-        CHECK(std::string(model.steps[4].label) == "Purge");
+        REQUIRE(model.steps.size() == 6);
+        CHECK(std::string(model.steps[2].label) == "Feed filament");
+        CHECK(std::string(model.steps[5].label) == "Purge");
     }
 
     SECTION("UNLOAD is a 4-step model ending in Retract") {
@@ -689,10 +719,13 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker channel_error on the ACTIVE lane D
 TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker granular unload sub-states drive UNLOADING action",
                  "[ams][snapmaker][unload]") {
     // The U1 firmware NEVER sends a flat "unloading" — it emits granular
-    // sub-states unload_homing/picking/heating/doing. Each must set action to
-    // UNLOADING so the on-screen step bar stays visible during the unload.
-    for (const char* state :
-         {"unload_homing", "unload_picking", "unload_heating", "unload_doing"}) {
+    // sub-states unload_homing/picking/heating/doing. Each reads as its step's
+    // action, which keeps the on-screen step bar visible during the unload.
+    const std::pair<const char*, AmsAction> steps[] = {{"unload_homing", AmsAction::UNLOADING},
+                                                       {"unload_picking", AmsAction::UNLOADING},
+                                                       {"unload_heating", AmsAction::HEATING},
+                                                       {"unload_doing", AmsAction::UNLOADING}};
+    for (const auto& [state, expected] : steps) {
         helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
         AmsBackendSnapmaker& backend = *backend_reg;
         json status =
@@ -701,15 +734,20 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker granular unload sub-states drive U
                                                                 {"channel_error", "ok"}}}}}};
         SnapmakerTestAccess::handle_status(backend, status);
         INFO("state=" << state);
-        CHECK(backend.get_system_info().action == AmsAction::UNLOADING);
+        CHECK(backend.get_system_info().action == expected);
     }
 }
 
-TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker granular load sub-states drive LOADING action",
+TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker granular load sub-states drive the load's action",
                  "[ams][snapmaker][load]") {
-    // Symmetric to the unload case: every granular load sub-state → LOADING.
-    for (const char* state : {"load_prepare", "load_homing", "load_picking", "load_heating",
-                              "load_feeding", "load_extruding", "load_flushing"}) {
+    // Symmetric to the unload case: each granular load sub-state reads as its
+    // step's action.
+    const std::pair<const char*, AmsAction> steps[] = {
+        {"load_prepare", AmsAction::LOADING}, {"load_homing", AmsAction::LOADING},
+        {"load_picking", AmsAction::LOADING}, {"load_heating", AmsAction::HEATING},
+        {"load_feeding", AmsAction::LOADING}, {"load_extruding", AmsAction::LOADING},
+        {"load_flushing", AmsAction::PURGING}};
+    for (const auto& [state, expected] : steps) {
         helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
         AmsBackendSnapmaker& backend = *backend_reg;
         json status =
@@ -718,24 +756,24 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker granular load sub-states drive LOA
                                                                 {"channel_error", "ok"}}}}}};
         SnapmakerTestAccess::handle_status(backend, status);
         INFO("state=" << state);
-        CHECK(backend.get_system_info().action == AmsAction::LOADING);
+        CHECK(backend.get_system_info().action == expected);
     }
 }
 
 TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker channel_state maps to granular operation_phase",
                  "[ams][snapmaker][phase]") {
-    // The U1 firmware emits four sequential sub-phases per direction
-    // (<load|unload>_<homing|picking|heating|doing>), each many seconds long.
-    // operation_phase mirrors these into a 0..3 index that drives the sidebar's
-    // 4-step bar (0=Home, 1=Select, 2=Heat, 3=Move). All non-active states
-    // (finish/idle/preload_finish) collapse to -1 = "no active step".
+    // The U1 firmware emits sequential sub-phases per direction, each many
+    // seconds long. operation_phase is the step index into that direction's
+    // model (load: Home, Select, Feed, Heat, Extrude, Purge; unload: Home,
+    // Select, Heat, Retract). All non-active states (finish/idle/preload_finish)
+    // collapse to -1 = "no active step".
     struct Case {
         const char* channel_state;
         int expected_phase;
     };
     const Case cases[] = {
         {"unload_homing", 0},  {"unload_picking", 1}, {"unload_heating", 2},  {"unload_doing", 3},
-        {"load_homing", 0},    {"load_picking", 1},   {"load_heating", 2},    {"load_feeding", 3},
+        {"load_homing", 0},    {"load_picking", 1},   {"load_feeding", 2},    {"load_heating", 3},
         {"unload_finish", -1}, {"load_finish", -1},   {"preload_finish", -1}, {"inited", -1},
     };
 
@@ -751,6 +789,67 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker channel_state maps to granular ope
         SnapmakerTestAccess::handle_status(backend, status);
         INFO("channel_state=" << c.channel_state);
         CHECK(backend.get_system_info().operation_phase == c.expected_phase);
+    }
+}
+
+TEST_CASE_METHOD(SnapmakerFixture,
+                 "Snapmaker steps project Heat and Purge by kind, positioning by direction",
+                 "[ams][snapmaker][coarse]") {
+    helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
+    AmsBackendSnapmaker& backend = *backend_reg;
+
+    const auto load = backend.get_operation_step_model(StepOperationType::LOAD_FRESH);
+    CHECK(load.action_at(0) == AmsAction::LOADING);
+    CHECK(load.action_at(1) == AmsAction::LOADING);
+    CHECK(load.action_at(2) == AmsAction::LOADING);
+    CHECK(load.action_at(3) == AmsAction::HEATING);
+    CHECK(load.action_at(4) == AmsAction::LOADING);
+    CHECK(load.action_at(5) == AmsAction::PURGING);
+    CHECK_FALSE(load.action_at(-1).has_value());
+    CHECK_FALSE(load.action_at(6).has_value());
+
+    const auto unload = backend.get_operation_step_model(StepOperationType::UNLOAD);
+    CHECK(unload.action_at(0) == AmsAction::UNLOADING);
+    CHECK(unload.action_at(1) == AmsAction::UNLOADING);
+    CHECK(unload.action_at(2) == AmsAction::HEATING);
+    CHECK(unload.action_at(3) == AmsAction::UNLOADING);
+}
+
+TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker publishes the action its current step projects",
+                 "[ams][snapmaker][coarse]") {
+    helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
+    AmsBackendSnapmaker& backend = *backend_reg;
+    auto frame = [&](const char* state) {
+        SnapmakerTestAccess::handle_status(
+            backend,
+            json{{"filament_feed left", json{{"extruder2", json{{"filament_detected", true},
+                                                                {"channel_state", state},
+                                                                {"channel_error", "ok"}}}}}});
+        return backend.get_system_info();
+    };
+
+    SECTION("load") {
+        CHECK(frame("load_homing").action == AmsAction::LOADING);
+        CHECK(frame("load_feeding").action == AmsAction::LOADING);
+        CHECK(frame("load_heating").action == AmsAction::HEATING);
+        CHECK(frame("load_extruding").action == AmsAction::LOADING);
+        CHECK(frame("load_flushing").action == AmsAction::PURGING);
+        CHECK(frame("load_finish").action == AmsAction::IDLE);
+    }
+    SECTION("unload") {
+        CHECK(frame("unload_picking").action == AmsAction::UNLOADING);
+        CHECK(frame("unload_heating").action == AmsAction::HEATING);
+        CHECK(frame("unload_doing").action == AmsAction::UNLOADING);
+        CHECK(frame("unload_finish").action == AmsAction::IDLE);
+    }
+    SECTION("a fault on the Heat step reads ERROR") {
+        REQUIRE(frame("load_heating").action == AmsAction::HEATING);
+        SnapmakerTestAccess::handle_status(
+            backend, json{{"filament_feed left",
+                           json{{"extruder2", json{{"filament_detected", true},
+                                                   {"channel_state", "load_heating"},
+                                                   {"channel_error", "heat_timeout"}}}}}});
+        CHECK(backend.get_system_info().action == AmsAction::ERROR);
     }
 }
 
@@ -788,7 +887,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // Start mid-unload so there is an action to (incorrectly) clobber.
     json doing =
         json{{"filament_feed left", json{{"extruder2", json{{"filament_detected", true},
-                                                            {"channel_state", "unload_heating"},
+                                                            {"channel_state", "unload_doing"},
                                                             {"channel_error", "ok"}}}}}};
     SnapmakerTestAccess::handle_status(backend, doing);
     REQUIRE(backend.get_system_info().action == AmsAction::UNLOADING);
@@ -1005,7 +1104,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     CHECK_FALSE(AmsState::instance().was_slot_recently_unloaded(3));
 
     // A new unload starts; this frame omits the unchanged channel_action_state.
-    SnapmakerTestAccess::handle_status(backend, make_feed_status(3, "unload_heating"));
+    SnapmakerTestAccess::handle_status(backend, make_feed_status(3, "unload_doing"));
     REQUIRE(backend.get_system_info().action == AmsAction::UNLOADING);
 
     SECTION("a delta omitting channel_action_state") {
@@ -1368,11 +1467,40 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker fail channel_state does NOT flip t
     CHECK(SnapmakerTestAccess::loaded_at_toolhead(backend, 2));
 }
 
+TEST_CASE_METHOD(SnapmakerFixture,
+                 "Snapmaker step bar never runs backwards through a real operation",
+                 "[ams][snapmaker][channel_state][phase]") {
+    // Sequences recorded on a U1 (filament_feed channel_state, one entry per
+    // change). A load whose head is already picked skips load_picking.
+    const std::vector<std::vector<const char*>> sequences = {
+        {"load_homing", "load_feeding", "load_heating", "load_extruding", "load_flushing"},
+        {"load_homing", "load_picking", "load_feeding", "load_heating", "load_extruding",
+         "load_flushing"},
+        {"unload_homing", "unload_picking", "unload_heating", "unload_doing"},
+        {"manual_sta_prepare", "manual_sta_homing", "manual_sta_picking",
+         "manual_sta_prepare_finish", "manual_sta_heating", "manual_sta_extruding",
+         "manual_sta_extrude_finish", "manual_sta_flushing", "manual_sta_flush_finish"},
+        {"preload_prepare", "preload_feeding"},
+    };
+    for (const auto& seq : sequences) {
+        helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
+        AmsBackendSnapmaker& backend = *backend_reg;
+        int prev = -1;
+        for (const char* state : seq) {
+            SnapmakerTestAccess::handle_status(backend, make_feed_status(2, state));
+            const int phase = backend.get_system_info().operation_phase;
+            INFO("state=" << state << " phase=" << phase << " prev=" << prev);
+            CHECK(phase >= prev);
+            prev = phase;
+        }
+    }
+}
+
 // ============================================================================
 // Full 39-state channel_state coverage (action + operation_phase)
 // ============================================================================
 // Every firmware channel_state (filament_feed.py:34-72, firmware 20260608) maps
-// to the correct AmsAction and 4-phase step index. Driven off the single
+// to the correct AmsAction and step index. Driven off the single
 // classify_channel_state() table in the backend.
 
 TEST_CASE_METHOD(SnapmakerFixture,
@@ -1391,25 +1519,25 @@ TEST_CASE_METHOD(SnapmakerFixture,
         {"test", AmsAction::IDLE, -1},
         // preload
         {"preload_prepare", AmsAction::LOADING, 0},
-        {"preload_feeding", AmsAction::LOADING, 3},
+        {"preload_feeding", AmsAction::LOADING, 2},
         {"preload_finish", AmsAction::IDLE, -1},
         {"preload_fail", AmsAction::ERROR, -1},
         // load
         {"load_prepare", AmsAction::LOADING, 0},
         {"load_homing", AmsAction::LOADING, 0},
         {"load_picking", AmsAction::LOADING, 1},
-        {"load_heating", AmsAction::LOADING, 2},
-        {"load_feeding", AmsAction::LOADING, 3},
-        {"load_extruding", AmsAction::LOADING, 3},
-        {"load_flushing", AmsAction::LOADING, 4},
+        {"load_feeding", AmsAction::LOADING, 2},
+        {"load_heating", AmsAction::HEATING, 3},
+        {"load_extruding", AmsAction::LOADING, 4},
+        {"load_flushing", AmsAction::PURGING, 5},
         {"load_finish", AmsAction::IDLE, -1},
         {"load_fail", AmsAction::ERROR, -1},
         // unload
         {"unload_prepare", AmsAction::UNLOADING, 0},
         {"unload_homing", AmsAction::UNLOADING, 0},
         {"unload_picking", AmsAction::UNLOADING, 1},
-        {"unload_heating", AmsAction::UNLOADING, 2},
-        {"unload_heat_finish", AmsAction::UNLOADING, 2},
+        {"unload_heating", AmsAction::HEATING, 2},
+        {"unload_heat_finish", AmsAction::HEATING, 2},
         {"unload_doing", AmsAction::UNLOADING, 3},
         {"unload_finish", AmsAction::IDLE, -1},
         {"unload_fail", AmsAction::ERROR, -1},
@@ -1419,12 +1547,12 @@ TEST_CASE_METHOD(SnapmakerFixture,
         {"manual_sta_picking", AmsAction::LOADING, 1},
         {"manual_sta_prepare_finish", AmsAction::LOADING, 1},
         {"manual_sta_prepare_fail", AmsAction::ERROR, -1},
-        {"manual_sta_heating", AmsAction::LOADING, 2},
-        {"manual_sta_extruding", AmsAction::LOADING, 3},
-        {"manual_sta_extrude_finish", AmsAction::LOADING, 3},
+        {"manual_sta_heating", AmsAction::HEATING, 3},
+        {"manual_sta_extruding", AmsAction::LOADING, 4},
+        {"manual_sta_extrude_finish", AmsAction::LOADING, 4},
         {"manual_sta_extrude_fail", AmsAction::ERROR, -1},
-        {"manual_sta_flushing", AmsAction::LOADING, 4},
-        {"manual_sta_flush_finish", AmsAction::LOADING, 4},
+        {"manual_sta_flushing", AmsAction::PURGING, 5},
+        {"manual_sta_flush_finish", AmsAction::PURGING, 5},
         {"manual_sta_flush_fail", AmsAction::ERROR, -1},
         {"manual_sta_finish", AmsAction::IDLE, -1},
         {"manual_sta_fail", AmsAction::ERROR, -1},
@@ -1481,9 +1609,9 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker full load progression walks the ph
     };
     const Step seq[] = {
         {"load_prepare", AmsAction::LOADING, 0},  {"load_homing", AmsAction::LOADING, 0},
-        {"load_picking", AmsAction::LOADING, 1},  {"load_heating", AmsAction::LOADING, 2},
-        {"load_feeding", AmsAction::LOADING, 3},  {"load_extruding", AmsAction::LOADING, 3},
-        {"load_flushing", AmsAction::LOADING, 4}, {"load_finish", AmsAction::IDLE, -1},
+        {"load_picking", AmsAction::LOADING, 1},  {"load_feeding", AmsAction::LOADING, 2},
+        {"load_heating", AmsAction::HEATING, 3},  {"load_extruding", AmsAction::LOADING, 4},
+        {"load_flushing", AmsAction::PURGING, 5}, {"load_finish", AmsAction::IDLE, -1},
     };
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -1500,14 +1628,17 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker full manual-feed progression is vi
                  "[ams][snapmaker][channel_state]") {
     // Before the fix the entire manual_sta_* family was unhandled, so manual
     // feed left the action at IDLE and the step bar dead. Now each phase shows.
-    const char* seq[] = {"manual_sta_prepare", "manual_sta_homing", "manual_sta_picking",
-                         "manual_sta_heating", "manual_sta_extruding"};
+    const std::pair<const char*, AmsAction> seq[] = {{"manual_sta_prepare", AmsAction::LOADING},
+                                                     {"manual_sta_homing", AmsAction::LOADING},
+                                                     {"manual_sta_picking", AmsAction::LOADING},
+                                                     {"manual_sta_heating", AmsAction::HEATING},
+                                                     {"manual_sta_extruding", AmsAction::LOADING}};
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
-    for (const char* state : seq) {
+    for (const auto& [state, expected] : seq) {
         SnapmakerTestAccess::handle_status(backend, make_feed_status(2, state));
         INFO("state=" << state);
-        CHECK(backend.get_system_info().action == AmsAction::LOADING);
+        CHECK(backend.get_system_info().action == expected);
     }
     SnapmakerTestAccess::handle_status(backend, make_feed_status(2, "manual_sta_finish"));
     CHECK(backend.get_system_info().action == AmsAction::IDLE);

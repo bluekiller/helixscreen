@@ -1093,7 +1093,7 @@ Both live under `input` in `settings.json` (path varies by platform - see [Confi
 
 > **Stop the service before editing `settings.json`** — the daemon rewrites the file periodically and your edits can be clobbered. Stop, edit, start.
 >
-> **Want to try a value before committing it?** `scroll_limit` is a slider under **Settings > System > Touch & Input** on the printer itself (Scroll Engage Distance), so you can feel the change immediately and keep it only if it helps; it takes effect after the restart the panel prompts for. `scroll_throw` has no on-screen control, so set it in `settings.json` directly.
+> **Want to try a value before committing it?** `scroll_limit` is a slider under **Settings > Touch & Input** on the printer itself (Scroll Engage Distance), so you can feel the change immediately and keep it only if it helps; it takes effect after the restart the panel prompts for. `scroll_throw` has no on-screen control, so set it in `settings.json` directly.
 
 ---
 
@@ -1116,7 +1116,7 @@ Both live under `input` in `settings.json` (path varies by platform - see [Confi
 }
 ```
 
-Or set it from the printer itself: **Settings → System → Touch & Input → Scroll Engage Distance**.
+Or set it from the printer itself: **Settings → Touch & Input → Scroll Engage Distance**.
 
 Raising it too far makes real scrolls feel unresponsive, so move in steps of a few pixels.
 
@@ -1194,7 +1194,7 @@ If taps are landing in the wrong place on screen:
    ```bash
    helix-screen --debug-touches
    ```
-2. **Recalibrate from the UI:** Go to **Settings > System > Touch Calibration**.
+2. **Recalibrate from the UI:** Go to **Settings > Touch & Input > Touch Calibration**.
 3. **If the option isn't visible:** Your screen may not normally need calibration. SSH in, **stop the service**, then run:
    ```bash
    sudo systemctl stop helixscreen
@@ -1276,7 +1276,7 @@ This is common on devices where the touch controller is mounted at a different o
 
 HelixScreen automatically detects swapped touch axes during calibration and corrects them. Just recalibrate:
 ```bash
-# Settings > System > Touch & Input > Touch Calibration
+# Settings > Touch & Input > Touch Calibration
 ```
 
 **2. Manual axis swap (fallback):**
@@ -1704,11 +1704,11 @@ ps aux | grep helix-screen
 | Cause | Fix |
 |-------|-----|
 | Debug mode in production | Remove `-vv`/`-vvv` from service, don't use `--test` |
-| Animations on slow hardware | Settings → Display & Sound → disable Animations |
+| Animations on slow hardware | Settings → Appearance → disable Animations |
 | Too many G-code files | Large directories with thumbnails use more RAM |
 | Other processes hogging CPU | Check `top` for culprits |
 | Swapping to SD card | Reduce memory usage or add swap to USB |
-| Hardware issues | Settings → Hardware & Devices → Hardware Issues - check for problems |
+| Hardware issues | Settings → Devices → Hardware Health - check for problems |
 
 **To disable verbose logging:**
 

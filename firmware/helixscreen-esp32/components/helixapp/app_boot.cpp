@@ -43,6 +43,7 @@
 #include "ui_icon.h"
 #include "ui_keyboard_manager.h"
 #include "ui_nav_manager.h"
+#include "ui_notification_history.h"
 #include "ui_notification_manager.h"
 #include "ui_panel_home.h"
 #include "ui_severity_card.h"
@@ -84,6 +85,8 @@
 #include "setting_group.h"
 #include "src/xml/lv_xml.h"
 #include "subject_initializer.h"
+#include "system/afc_message_dedup.h"
+#include "temp_graph_controller.h"
 #include "temperature_sensor_manager.h"
 #include "text_io.h"
 #include "theme_manager.h"
@@ -467,6 +470,10 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 }
                 helix::ToolState::instance().init_tools(*snapshot);
                 helix::ToolState::instance().load_spool_assignments(api);
+                if (c) {
+                    // Graphs start from Moonraker's cached history, as on desktop.
+                    helix::TempGraphController::seed_from_moonraker(*c);
+                }
 
                 // Dispatch the initial subscription status LAST, after the
                 // fan/sensor/extruder/AMS subjects exist. dispatch_status_update
@@ -694,6 +701,19 @@ extern "C" void app_boot_set_touch_available(bool available) {
     s_touch_available = available;
 }
 
+extern "C" void app_boot_print_notifications(void) {
+    static const char* const kSeverity[] = {"INFO", "SUCCESS", "WARNING", "ERROR"};
+    const auto entries = NotificationHistory::instance().get_all();
+    printf("\n=====HELIX-NOTES %u\n", static_cast<unsigned>(entries.size()));
+    for (const auto& e : entries) {
+        const auto sev = static_cast<unsigned>(e.severity);
+        printf("NOTE: %s t=%llums %s%s%s\n", sev < 4 ? kSeverity[sev] : "?",
+               static_cast<unsigned long long>(e.timestamp_ms), e.title, e.title[0] ? ": " : "",
+               e.message);
+    }
+    printf("=====HELIX-NOTES-END\n");
+}
+
 extern "C" void app_boot_ui(void) {
     log_heap_milestone("boot-ui-start");
 
@@ -713,12 +733,15 @@ extern "C" void app_boot_ui(void) {
     helix::Config* config = helix::Config::get_instance();
     config->set_storage(helix::make_file_config_storage("/config/settings.json"));
     config->init("/config/settings.json");
+    // Remembers which AFC message each printer has already shown, so one AFC
+    // latched hours ago toasts once rather than at every boot.
+    helix::AfcMessageDedup::instance().init("/config");
 
     // Task 12 R2: first-boot-only Moonraker host/port seed. If settings.json
     // already has a value (any boot after the user has edited Host in Settings,
     // or a prior first-boot seed), leave it untouched — the Kconfig value must
     // never override a user-set value. Seeding here (before any UI/subject
-    // reads Config) means the Settings > System > Host row and the real
+    // reads Config) means the Settings > Connection > Host row and the real
     // connect path (app_net_start(), below) both see a consistent value from
     // their very first read.
     // The Kconfig URL is empty in the committed tree (a bench address is
@@ -782,13 +805,9 @@ extern "C" void app_boot_ui(void) {
     helix::register_xml_components();
     log_heap_milestone("xml-registered");
 
-    // Notification badge click: the real handler opens the NotificationHistory
-    // panel, which is excluded from the v1 ESP cut (its accessor isn't linked —
-    // notification_register_callbacks() would drag in the excluded panel). The
-    // badge still exists on the home widget, so register a no-op for its event
-    // (BEFORE app_layout XML is created in build_shell) to silence the
-    // "callback not found" warning; opening history is a later stage.
-    lv_xml_register_event_cb(nullptr, "status_notification_history_clicked", [](lv_event_t*) {});
+    // The bell opens the notification history panel. Registered BEFORE
+    // app_layout XML is created in build_shell(), as desktop does.
+    helix::ui::notification_register_callbacks();
 
     // Phase 8: core subjects (PrinterState / AmsState).
     static SubjectInitializer subjects;

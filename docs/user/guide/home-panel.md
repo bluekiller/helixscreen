@@ -99,7 +99,7 @@ While in Edit Mode, any page other than the main page shows a **red trash button
 
 Edit Mode is how you customize your dashboard layout. While in Edit Mode, all normal widget interactions (tapping to open overlays, etc.) are disabled so you can freely rearrange things.
 
-> **Edit Mode is on by default.** If it triggers accidentally when a finger rests on the screen (common on a tablet lying flat), you have two options: turn it off entirely with **Allow Home Screen Editing** under **Settings → System → Touch & Input**, or raise the **Long Press Time** slider in the same page so a longer hold is required. Both take effect immediately.
+> **Edit Mode is on by default.** If it triggers accidentally when a finger rests on the screen (common on a tablet lying flat), you have two options: turn it off entirely with **Allow Home Screen Editing** under **Settings → Touch & Input**, or raise the **Long Press Time** slider in the same page so a longer hold is required. Both take effect immediately.
 
 **Page swiping in Edit Mode:** Swiping between pages works in Edit Mode just as it does outside it: between your pages, plus the Add page tile past your last one, and never further. Swiping pauses from the moment your finger lands on the selected widget until you lift it, while you drag or resize a widget, and while the Widget Catalog is open. To take a widget to another page, or to a new page before your first or past your last one, drag it across the page border - see [Moving a Widget to Another Page](#moving-a-widget-to-another-page).
 
@@ -217,7 +217,7 @@ The **Reset** button in the catalog header resets your whole dashboard — see [
 2. A **trash icon** appears at the widget's upper-right corner - tap it
 3. The widget is removed from your grid
 
-Removing a widget you can add only once keeps its settings, so adding it back from the Widget Catalog brings them back. A widget you can add more than once, like Fan or Macro Button, is added as a new copy each time, and removing a copy you added deletes that copy along with its settings.
+Removing a widget you can add only once keeps its settings, so adding it back from the Widget Catalog brings them back. A widget you can add more than once, like Fan, Macro Button, or LED Light, is added as a new copy each time, and removing a copy you added deletes that copy along with its settings.
 
 ![Widget selected with trash icon in upper-right corner](../../images/user/home-widget-trash.png)
 
@@ -282,7 +282,7 @@ These are the same 5 groups the Widget Catalog uses on the device.
 
 | Widget | Description | Default | Min | Max | Resizable | Hardware Required |
 |--------|-------------|---------|-----|-----|-----------|-------------------|
-| **Printer Image** | Your printer's photo. Tap to open the Printer Manager overlay where you can change the name, image, and see hardware info. | 2x2 | 1x1 | 4x3 | Yes | — |
+| **Printer Image** | Your printer's photo, with live chips for the heaters, part fan and light while they are in use (see [Status Chips on the Printer Image](#status-chips-on-the-printer-image)). Tap a chip for that part's controls, or the picture itself to open the Printer Manager overlay where you can change the name, image, and see hardware info. | 2x2 | 1x1 | 4x3 | Yes | — |
 | **Print Status** | Tracks the print job in all three of its states - idle (pick a file), preparing (pre-print steps with a progress bar), and printing (filename, percentage, ETA, elapsed time). Pauses scheduled in the G-code (M600, PAUSE and friends) show as ticks on the progress bar and arc, so you can see a filament change coming. Tap opens the full Print Status overlay whenever a job is preparing or printing, or the file browser when idle. | 2x2 | 2x1 | Full width x3 | Yes | — |
 | **Print Controls** | Pause, resume, and stop buttons for the running print, right on the dashboard. | 2x1 | 2x1 | 2x1 | No | — |
 | **Print Stats** | Print history statistics — total prints, success rate, and total print time. Tap to open the full print history overlay. | 2x2 | 2x1 | 3x2 | Yes | — |
@@ -328,8 +328,8 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **Motion** | One-tap shortcut to open the [Motion](motion.md) panel for jogging the toolhead and homing. | 1x1 | 0.5x1 | Full grid | Yes | — |
 | **Tool Switcher** | Quick tool switching for multi-tool printers (IDEX, toolchangers, multi-head). Shows the available tools and lets you switch the active tool with one tap. See [Tool Switcher Widget](#tool-switcher-widget) below. | 1x1 | 1x1 | 2x2 | Yes | Multi-tool printer |
 | **Power** | Toggle a Moonraker power device (PSU, lights, etc.) with one tap. You can add multiple instances, each bound to a different device. Shows the device name, state, and a customizable icon. | 1x1 | 1x1 | Full grid | Yes | Power devices |
-| **LED Light** | Quick on/off toggle for your printer's LEDs. Tapping it switches the lights on or off - nothing else. For color, brightness, and effects, use the **LED Controls** widget below. | 1x1 | 0.5x1 | Full grid | Yes | LEDs configured |
-| **LED Controls** | One-tap shortcut to open the LED color and brightness controls overlay directly. | 1x1 | 0.5x1 | Full grid | Yes | LEDs configured |
+| **LED Light** | Turns one light on or off — pick which one, or **All lights**, from the gear icon in Edit Mode; defaults to the chamber light. At 2x1 or wider, an arrow next to the bulb opens full color, brightness, and effects for it in the LEDs overlay. You can add more than one, each controlling a different light. | 1x1 | 0.5x1 | Full grid | Yes | A light HelixScreen can switch |
+| **LED Controls** | One-tap shortcut to open the LEDs overlay directly, on whichever light you last looked at (or the chamber light). | 1x1 | 0.5x1 | Full grid | Yes | Any LED device |
 
 ### System
 
@@ -341,11 +341,11 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **Tips** | Rotating helpful tips about 3D printing and HelixScreen features. Tap any tip to see the full article. Tips rotate automatically. | 4x2 | 2x1 | Full width x2 | Horizontal only | — |
 | **Shutdown/Reboot** | Shutdown or reboot your printer's host system. Shows a confirmation dialog before acting. | 1x1 | 0.5x1 | Full grid | Yes | — |
 | **Firmware Restart** | Restart the Klipper firmware. Useful when Klipper enters SHUTDOWN state. This widget automatically appears during firmware errors even if disabled. | 1x1 | 0.5x1 | Full grid | Yes | — |
-| **Lock Screen** | Locks the screen immediately. Set a PIN in Settings > Security first, otherwise there is nothing to unlock with. | 1x1 | 0.5x1 | Full grid | Yes | — |
+| **Lock Screen** | Locks the screen immediately. Set a PIN in Settings > System > Security first, otherwise there is nothing to unlock with. | 1x1 | 0.5x1 | Full grid | Yes | — |
 
 #### Shutdown/Reboot Widget
 
-The Shutdown/Reboot widget puts one-tap host shutdown/reboot on your home panel — a faster alternative to the **Settings > Advanced** shutdown entry. A confirmation dialog always appears first, so there's no risk of an accidental shutdown. For switching a PSU or smart plug instead, see the **Power** widget above.
+The Shutdown/Reboot widget puts one-tap host shutdown/reboot on your home panel — a faster alternative to the **Shutdown** and **Reboot** entries on the **Advanced** panel. A confirmation dialog always appears first, so there's no risk of an accidental shutdown. For switching a PSU or smart plug instead, see the **Power** widget above.
 
 
 ### Hardware-Gated Widgets
@@ -363,7 +363,8 @@ Some widgets depend on specific hardware being detected by Klipper. If the hardw
 | AMS Status | AMS, AFC (Box Turtle), Happy Hare, ACE (Anycubic ACE Pro), or compatible MMU system |
 | Bypass | A filament system with a bypass — Creality CFS, FlashForge AD5X IFS, AFC (Box Turtle), or Happy Hare with `has_bypass` enabled |
 | Clog Detection | AMS, AFC, Happy Hare, or compatible MMU with clog/flow detection |
-| LED Light / LED Controls | Any LED strip configured in Klipper (neopixel, dotstar, output_pin) |
+| LED Light | A light HelixScreen can switch: a Klipper LED (neopixel, dotstar, led), a light `[output_pin]`, a WLED strip, or an On/Off or Toggle macro device |
+| LED Controls | Any of those, or a preset-only macro device |
 | Power | Moonraker power devices (PSU control, smart plugs) |
 | Filament Sensor | `[filament_switch_sensor]` or `[filament_motion_sensor]` in Klipper |
 | Humidity | `[temperature_sensor]` with humidity capability |
@@ -403,7 +404,7 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 
 | Widget | Tap Action |
 |--------|------------|
-| Printer Image | Opens Printer Manager overlay |
+| Printer Image | Opens Printer Manager overlay; a status chip opens that part's controls |
 | Print Status | Opens Print Status overlay (preparing or printing) or File Browser (idle) |
 | Print Controls | Pauses, resumes, or stops the print — one button each |
 | Print Stats | Opens print history overlay |
@@ -429,8 +430,8 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 | Filament Sensor | Opens a load/unload/purge dialog (idle or paused), a status-only dialog (printing), or the sensor's settings (sensor turned off) |
 | Width Sensor | — (display only) |
 | Clog Detection | Opens the Buffer Status detail modal |
-| LED Light | Toggles the printer lights on or off |
-| LED Controls | Opens LED Control Overlay |
+| LED Light | Toggles its light on or off; on a 2x1 or wider tile, the arrow opens the LEDs overlay for it |
+| LED Controls | Opens the LEDs overlay |
 | Macro Button | Runs the configured macro — asking for parameters or confirmation first, unless you turned that off ([details](#macro-button-confirmation)) |
 | Macros | Opens the Macros panel overlay |
 | G-code Console | Opens the G-code Console overlay |
@@ -447,7 +448,7 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 
 By default, tapping a Macro Button asks you something before it runs anything. If
 the macro takes parameters, you get a form to fill in. If it takes none, you get a
-"Run MACRO?" dialog — the one controlled by **Settings > Safety > Confirm before
+"Run MACRO?" dialog — the one controlled by **Settings > Safety & Alerts > Confirm before
 running macros**.
 
 That is the right default for a button sitting on the home screen, but it gets in
@@ -737,62 +738,50 @@ On printers with more than one extruder (IDEX, toolchangers, multi-head systems)
 
 ## Emergency Stop
 
-The red **Emergency Stop** button in the top bar halts all printer motion immediately. By default, a confirmation dialog appears before executing. You can disable the confirmation in **Settings > Safety & Notifications > E-Stop Confirmation**.
+The red **Emergency Stop** button in the top bar halts all printer motion immediately. By default, a confirmation dialog appears before executing. You can disable the confirmation in **Settings > Safety & Alerts > E-Stop Confirmation**.
 
 ---
 
 ## LED Controls
 
-Tap the **LED Controls** widget to open the LED Control Overlay — a full control panel for all your printer's lighting. What you see depends on your hardware. (The **LED Light** widget is a plain on/off toggle and does not open this overlay.)
+Tap the **LED Controls** widget, or the arrow on a wider **LED Light** button, to open the **LEDs** overlay — one tab per light, each showing only the controls that light actually supports.
 
-### Strip Selector
+### Tabs
 
-If you have more than one LED strip configured, a row of chips at the top lets you pick which strip to control. The overlay heading updates to show the selected strip name.
+A tab per light runs along the top in a row that scrolls sideways once you have more than fit. Each tab carries a small dot: filled in that light's current color while it's on, hollow while it's off, or a dimmed ring for a light whose on/off state HelixScreen can't read (a macro-driven light). Tapping a tab only changes which light you're looking at — it never changes what a Home Panel Light button or Automatic LED Control targets.
 
-### Color & Brightness (Klipper Native LEDs)
+![LEDs overlay — tabs across the top, power and brightness, white tones, color swatches](../../images/user/home-led-control.png)
 
-For neopixel, dotstar, and other Klipper-native strips:
+### Power & Brightness
 
-- **Color presets**: 8 preset swatches — White, Warm White, Orange, Blue, Red, Green, Purple, Cyan
-- **Custom color**: Tap the custom color button to open an HSV color picker. Pick any color — HelixScreen automatically separates it into a base color and brightness level
-- **Brightness slider**: Adjust from 0-100%, independent of color selection
-- **Color swatch**: Shows the actual output color (base color adjusted by current brightness)
-- **Turn Off**: Stops any active effects and turns off the selected strip
+Most lights show a round power button above a tall brightness slider:
 
-![LED Control — strip selector, color presets, brightness slider, effects](../../images/user/home-led-control.png)
+- **Power button** — fills with the light's current color while on, an outline while off. Tap to toggle. Turning a light off this way also stops any effect running on it.
+- **Brightness slider** — drag to set 0-100%; 0% turns the light off. The fill matches the light's current color, with the percentage shown inside it.
 
-### Output Pin Lights
+A light with no brightness control (a plain on/off `[output_pin]`, or a macro Toggle device) shows just a centered button in that spot.
 
-For `[output_pin]` lights (auto-detected by naming convention):
+### White (Color-Capable Klipper LEDs)
 
-- **PWM pins**: Brightness slider from 0-100%
-- **Non-PWM pins**: Simple on/off toggle
-- Color controls are hidden since output pins don't support color
+RGBW and RGB lights show three fixed white swatches — **Cool**, **Neutral**, **Warm**. Tap one to set that white level: on an RGBW light it drives the dedicated white channel, on RGB it's mixed from the color channels. A neopixel counts as RGBW when its `color_order` includes a `W`. A ring shows which one (if any) matches the light's current look.
 
-### LED Effects
+### Color
 
-If you have the [klipper-led_effect](https://github.com/julianschill/klipper-led_effect) plugin installed:
+Color-capable lights also show a row of preset color swatches, plus a rainbow **Custom** swatch at the end that opens the full color picker. A ring shows which preset matches the light's current color.
 
-- Effect cards appear for each available effect, filtered to the currently selected strip
-- The active effect is highlighted with an accent border
-- **Stop All Effects** button kills all running effects at once
-- Tap any effect card to activate it
+### Effects & Presets
 
-### WLED Controls
+- **Klipper LED effects** ([klipper-led_effect](https://github.com/julianschill/klipper-led_effect)): the effects defined for that light appear as chips, plus a **None** chip that stops whichever one is running. Tap a chip to activate its effect.
+- **WLED presets**: the presets you've configured on that WLED device appear as chips — tap to activate. WLED lights get power and brightness here, but no color controls.
+- **Non-color Klipper lights and PWM output pins**: quick level chips (10/25/50/75/100%) appear instead, since there's nothing else to show.
 
-For WLED network-connected strips:
+### Macro-Driven Lights
 
-- **On/Off toggle** to control the strip power
-- **Brightness slider** from 0-100%
-- **Preset buttons** for each WLED preset — fetched directly from your WLED device, with the active preset highlighted
+A light backed by a Klipper macro can't show a power dot or button, because HelixScreen has no way to read whether it's actually on:
 
-### Macro Device Controls
-
-Custom macro devices you've configured in [LED Settings](settings/led-settings.md) appear with controls matching their type:
-
-- **On/Off devices**: Separate "Turn On" and "Turn Off" buttons
-- **Toggle devices**: A single "Toggle" button
-- **Preset devices**: Named buttons for each preset action
+- **On/Off devices** (configured in [LED Settings](settings/led-settings.md#macro-devices)): separate **On** and **Off** buttons take the place of the slider
+- **Toggle devices**: a single **Toggle** button
+- **Preset devices**: named preset buttons fill the whole page
 
 ---
 
@@ -902,6 +891,29 @@ The list is filtered to your printer's motion type, the same way the setup wizar
 
 ![Printer image picker — scrollable list on left, live preview on right](../../images/user/home-image-picker.png)
 
+### Status Chips on the Printer Image
+
+While the printer is working, small chips on the printer image show what each part is doing:
+
+- **Nozzle, bed and chamber** - a temperature chip appears while the heater has a target, and stays, greyed, until a heater you turned off has cooled below 50°C. The chamber chip appears only on printers with a chamber heater.
+- **Part fan** - shows its speed while it is running.
+- **Light** - shows while your chamber light is on.
+
+Tap a heater chip for its temperature graph, the fan chip for the fan controls, or the light chip for the chamber light's page in the LEDs overlay.
+
+On the most common printers the shipped pictures know where each part is, so each chip points at its part: beside the picture with a line to it on a wide tile, or on top of it on a small one. On other pictures, including your own photos, the chips sit along the edge of the picture until you tag its parts.
+
+### Tagging the Printer's Parts
+
+To place the chips on a picture that does not know its parts yet, or to correct a shipped picture you disagree with:
+
+1. Open the Image Picker (see [Changing the Printer Image](#changing-the-printer-image)) and select the picture
+2. Tap **Tag parts** under the preview
+3. Tap each part as you are asked: the nozzle tip, the part cooling fan, the bed's front-left corner, the bed's front-right corner, an empty spot inside the enclosure, and the light. The fan, enclosure and light can be skipped with **Skip** if your printer does not have them; **Undo** steps back one tap
+4. Check where the chips will sit, then tap **Save**
+
+Your tags are kept for that picture, as long as its size does not change: replace a custom image with a file of different dimensions and you will need to tag it again. **Reset tags**, which appears once a picture has your own tags, puts the picture back to its shipped positions (or to chips along the edge, for a picture that has none).
+
 ### Using Custom Printer Images
 
 You can use your own printer photo or rendering:
@@ -956,7 +968,7 @@ A row of chips shows detected hardware capabilities: Probe, Bed Mesh, Heated Bed
 
 > Requires [beta features](beta-features.md) to be enabled and at least two printers configured.
 
-When you have multiple printers configured, the Printer Manager overlay shows a **Manage Printers** button at the bottom. Tap it to open the printer management screen (same as Settings > Printers).
+When you have multiple printers configured, the Printer Manager overlay shows a **Manage Printers** button at the bottom. Tap it to open the printer management screen (same as Settings > Connection > Printers).
 
 You can also switch printers directly from the **navigation bar**. When multiple printers are configured, a badge with your printer's name appears in the nav bar. Tap it to see a quick-switch menu listing all your printers — tap any printer to switch instantly.
 

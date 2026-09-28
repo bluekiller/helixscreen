@@ -3059,7 +3059,7 @@ void AmsState::recompute_action_detail() {
         auto print_state = get_printer_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
-            new_detail = lv_tr("Printing");
+            new_detail = lv_tr("Printing now");
             break;
         case PrintJobState::PAUSED:
             new_detail = lv_tr("Paused");

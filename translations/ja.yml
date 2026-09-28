@@ -66,6 +66,7 @@ translations:
   1. Printer will home and probe each screw: 1. プリンターがホーミングして各ネジをプローブします
   10 minutes: 10分
   12 Hour: 12時間
+  12-hour: 12時間制
   120 seconds: 120秒
   15 seconds: 15秒
   170-300 °C: '170-300 °C'
@@ -79,6 +80,7 @@ translations:
   2. Results show how much to turn each screw: 2. 各ネジをどれだけ回すか結果が表示されます
   20 minutes: 20分
   24 Hour: 24時間
+  24-hour: 24時間制
   270°: 270°
   270° Clockwise: 270° 時計回り
   2D Heatmap: 2Dヒートマップ
@@ -140,6 +142,7 @@ translations:
   Abort already in progress: 中止がすでに進行中です
   Abort failed: 中止に失敗
   Aborting AFC operation...: AFC操作を中止中...
+  Aborting...: 中止中...
   About: バージョン情報
   Accel to Decel: 加速から減速
   Acceleration to deceleration limit (mm/s²): 加速から減速の制限値 (mm/s²)
@@ -151,7 +154,6 @@ translations:
   'Accepted Z Position: {:.3f}': '確定したZ位置: {:.3f}'
   Accessories: 'アクセサリー'
   Accuracy: 精度
-  'Act:': '実測:'
   Action Required: 対応が必要です
   Actions: アクション
   Active: アクティブ
@@ -184,6 +186,8 @@ translations:
   All Devices: すべてのデバイス
   All axes homed: すべての軸がホーミング済み
   All fields are required: すべての項目が必須です
+  All healthy: すべて正常
+  All lights: すべてのライト
   Allow: '許可'
   Allow Home Screen Editing: 'ホーム画面の編集を許可'
   Allow cold load/unload: コールド時の装填/取り出しを許可
@@ -203,8 +207,8 @@ translations:
   An error occurred while loading filament.: フィラメントの装填中にエラーが発生しました。
   # Source: probe_accuracy_modal.xml:90
   An error occurred.: 'エラーが発生しました。'
-  An internal error occurred. The app continues running — please send a debug bundle from Settings > About if it repeats.: 内部エラーが発生しました。アプリは引き続き動作します。問題が繰り返される場合は、設定
-    > バージョン情報 からデバッグバンドルを送信してください。
+  ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
+  : 内部エラーが発生しました。アプリは引き続き動作します。問題が繰り返される場合は、設定 > ヘルプと情報 からデバッグバンドルを送信してください。
   An unexpected printer error occurred.: 予期しないプリンターエラーが発生しました。
   An update is available: 更新があります
   Analyzing data...: データを解析中...
@@ -218,6 +222,7 @@ translations:
   App Background: アプリ背景
   App startup encountered an error. Some features may be unavailable.: アプリの起動中にエラーが発生しました。一部の機能が利用できない場合があります。
   Appearance: 外観
+  Applies to: 適用対象
   Apply: 適用
   Apply Changes: 変更を適用
   Applying Changes: 変更を適用中
@@ -405,7 +410,6 @@ translations:
   Calibrate X: X軸をキャリブレート
   Calibrate Y: Y軸をキャリブレート
   Calibrate all tools: すべてのツールをキャリブレート
-  Calibrate and tune scroll feel: "キャリブレーションとスクロール感度の調整"
   Calibrate input shaping to reduce ringing artifacts in prints: 入力シェーピングをキャリブレートして印刷のリンギングを軽減します
   Calibrate tool offsets?: ツールオフセットをキャリブレートしますか？
   Calibrate your touchscreen for accurate input: タッチスクリーンの入力精度をキャリブレートします
@@ -503,6 +507,7 @@ translations:
   Check Again: 再確認
   Check Klipper console for details: 詳細は Klipper コンソールを確認してください
   Check extruder temperature and try again. Manual removal may be required.: エクストルーダーの温度を確認してもう一度お試しください。手動での取り出しが必要な場合があります。
+  Check failed: 確認に失敗しました
   Check filament: フィラメントを確認
   Check for Updates: 更新を確認
   Check slot: スロットを確認
@@ -534,6 +539,7 @@ translations:
   Checking timelapse plugin...: タイムラプスプラグインを確認中...
   Checking webcam: ウェブカメラを確認中
   Checking...: 確認中...
+  Checking…: 確認中…
   Choose 12-hour or 24-hour time display: 12時間表示または24時間表示を選択
   Choose Filament: フィラメントを選択
   Choose Model: モデルを選択
@@ -679,6 +685,7 @@ translations:
   Controlled by hardware sensor: ハードウェアセンサーで制御
   Controller: コントローラー
   Controls: コントロール
+  Cool: クール
   Cool Down: 冷却
   Cool nozzle after filament ops: フィラメント操作後にノズルを冷却
   Cooling: 冷却中
@@ -803,6 +810,7 @@ translations:
   Deploy: 展開
   Describe the issue (optional): 問題の詳細（任意）
   Detailed: 詳細
+  Detect automatically: '自動検出'
   'Detect filament tangles': 'フィラメントの絡みを検出'
   Detecting plate...: プレートを検出中...
   Detecting printer type...: プリンタータイプを検出中...
@@ -818,6 +826,7 @@ translations:
   Device name: デバイス名
   Device name is required: デバイス名は必須です
   'Device: ': 'デバイス: '
+  Devices: デバイス
   Different filament?: 別のフィラメント？
   Digital Clock: 'デジタル時計'
   Disable: 無効化
@@ -833,7 +842,7 @@ translations:
   Discord Community: Discordコミュニティ
   Discovered Printers: 検出されたプリンター
   Dismiss: 閉じる
-  Display & Sound: ディスプレイとサウンド
+  Display: ディスプレイ
   Display Mode: 表示モード
   Display Sleep: ディスプレイスリープ
   ? Display resolution is very high (%dx%d). Text may appear small. Reduce framebuffer
@@ -887,6 +896,7 @@ translations:
   EEPROM error on CFS unit: CFS ユニットの EEPROM エラー
   EMERGENCY STOP: 緊急停止
   EMPTY: 空
+  EXTRAS: その他
   Each fan can only be selected once: 各ファンは一度のみ選択できます
   Edit: 編集
   Edit Filament: フィラメントを編集
@@ -909,7 +919,6 @@ translations:
   Emergency Stop: 緊急停止
   Emergency Stop?: 緊急停止しますか？
   Emergency stop activated: 緊急停止が作動しました
-  Emergency stop and print alerts: 緊急停止と印刷アラート
   'Emergency stop failed: not connected': '緊急停止に失敗: 未接続'
   Empty: 空
   Empty slots disable the associated functionality: 空のスロットは関連機能を無効にします
@@ -968,7 +977,6 @@ translations:
   Error: エラー
   Error at chunk {} (code={}): チャンク {} でエラー (code={})
   Error loading file: ファイルの読み込みエラー
-  Error loading printing tips: 印刷ヒントの読み込みエラー
   'Error saving printer settings: {}': 'プリンター設定の保存エラー: {}'
   Error state: エラー状態
   'Error: %s': 'エラー: %s'
@@ -1035,6 +1043,7 @@ translations:
   Extruder too cold: エクストルーダーが冷えています
   Extruding prime line...: プライムラインを押し出し中...
   FAILED: 失敗
+  FILAMENT: フィラメント
   FILAMENTS: フィラメント
   FILTERS: フィルター
   Factory Reset: 工場出荷時リセット
@@ -1299,6 +1308,7 @@ translations:
   Guide the toolhead to the chute's extrude position: ツールヘッドをシュートの押出し位置へ誘導します
   Guides and reference: ガイドとリファレンス
   H: H
+  HELIXSCREEN: HELIXSCREEN
   HOST: ホスト
   HTTP Code: HTTP コード
   'HTTP error: {} {}': 'HTTP エラー: {} {}'
@@ -1308,7 +1318,6 @@ translations:
   Hang on, we'll be right back!: しばらくお待ちください。すぐに戻ります！
   Happy Hare MMU: Happy Hare MMU
   Hardware: ハードウェア
-  Hardware & Devices: ハードウェアとデバイス
   Hardware Health: ハードウェア状態
   Hardware Name: ハードウェア名
   Hardware Profile: ハードウェアプロファイル
@@ -1392,6 +1401,7 @@ translations:
   Homing Y...: Y軸をホーミング中...
   Homing Z...: Z軸をホーミング中...
   Homing all axes...: 全軸をホーミング中...
+  Homing and moving the plate...: 'ホーミングしてベッドを移動中...'
   Homing axes...: 軸をホーミング中...
   Homing complete: ホーミング完了
   'Homing failed: ': 'ホーミングに失敗: '
@@ -1559,13 +1569,11 @@ translations:
   LED Controls: 'LEDコントロール'
   LED Light: 'LEDライト'
   LED Mode: 'LEDモード'
-  LED SELECTION: LED選択
   LED Settings: LED設定
   LED Strip: LEDストリップ
   LED on at Start: 起動時LED点灯
   LED strip available for lighting control: 照明制御用の LED ストリップが利用可能です
   LEDs: LED
-  LEDs controlled by the light button: ライトボタンで制御される LED
   LOAD CELLS: 'ロードセル'
   LOADED: 装填済み
   LOCKED: ロック中
@@ -1580,7 +1588,7 @@ translations:
   Lane tests and motor resets: 'レーンテストとモーターリセット'
   Lanes: レーン
   Language: 言語
-  Language, theme, brightness, and sound: 言語、テーマ、明るさ、サウンド
+  Language & Time: 言語と時刻
   Last: 最後
   # Source: history_dashboard_panel.xml:114
   Last 7 days: '過去7日間'
@@ -1602,11 +1610,14 @@ translations:
   Length of the cooling tube section: '冷却チューブ区間の長さ'
   'Length:': '長さ:'
   Let's take a quick tour so you can find things fast.: 機能をすぐに見つけられるよう、簡単なツアーを始めましょう。
+  Level: レベル
   Leveling Gantry...: ガントリーレベリング中...
   Library: ライブラリ
   Lifetime Print Stats: 累計印刷統計
   Light: ライト
+  Light Mode: ライトモード
   Light will switch when the current operation finishes: 現在の操作が完了したらライトを切り替えます
+  Lights that follow the printer's state: プリンターの状態に応じて変わるライト
   Line the nozzle up with the purge chute so purged filament drops straight in.: パージシュートにノズルを合わせ、パージされたフィラメントがまっすぐ落ちるようにします。
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: '{} 行目で {} を実行します。このプリンターでは緊急停止とみなされます。このプリンター用のプロファイルでファイルを再スライスしてください。'
@@ -1616,6 +1627,7 @@ translations:
   Load: 装填
   Load Cell: 'ロードセル'
   Load Cells: 'ロードセル'
+  Load Extruder: 'エクストルーダーに装填'
   Load Failed: '装填に失敗しました'
   Load Filament: フィラメントを装填
   Load a filament first before trying to unload: 排出する前にまずフィラメントを装填してください
@@ -1666,6 +1678,7 @@ translations:
   Lowest notification level that interrupts with a toast: 'トースト通知で割り込む最も低い通知レベル'
   M to toggle: M で切り替え
   'MAC:': 'MAC:'
+  MACHINE: マシン
   MACRO DEVICES: マクロデバイス
   MAIN POWER BUTTON: メイン電源ボタン
   MANUAL: 手動
@@ -1718,6 +1731,7 @@ translations:
   Manage: 管理
   Manage Printers: プリンター管理
   Manage configured printers: 設定済みプリンターを管理
+  Managed by firmware: ファームウェア管理
   Managed by your firmware: ファームウェアによって管理されています
   Manual: 手動
   Manual Bed Leveling: 手動ベッドレベリング
@@ -1793,7 +1807,6 @@ translations:
   Motors Off: モーターオフ
   'Motors disable failed: {}': 'モーターの無効化に失敗しました: {}'
   Motors disabled: モーターを無効化しました
-  Motors off: ''
   Motors stay on while a print is active: 印刷中はモーターを停止できません
   Mount: 装着
   Move: 移動
@@ -1819,6 +1832,7 @@ translations:
   Multi-Filament System not available: マルチフィラメントシステムが利用できません
   Multi-filament system not ready: マルチフィラメントシステムの準備ができていません
   Must home axes first: 先にホーミングしてください
+  Muted: ミュート
   My Custom Theme: マイカスタムテーマ
   My Panel: マイパネル
   My Printer: マイプリンター
@@ -1830,6 +1844,7 @@ translations:
   'Name:': '名前:'
   Named actions in the LED Controls widget. Not shown under LED selection.: LEDコントロールウィジェットの名前付きアクションです。LED選択には表示されません。
   Needs adjustment: 調整が必要
+  Needs attention: 対応が必要
   Needs the {} package to switch spools: 'スプール切り替えには {} プラグインが必要です'
   Net Weight (g): 正味重量（g）
   Network: ネットワーク
@@ -1841,7 +1856,9 @@ translations:
   Network forgotten: ネットワークを登録解除しました
   Network name cannot be empty: ネットワーク名は空にできません
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': ネットワーク、ディスプレイ、サウンド、プリンター設定など。このツアーは「ヘルプと情報」からいつでも再生できます。
+  Neutral: ニュートラル
   Never: なし
+  Never sleeps: スリープしない
   New Spool: 新規スプール
   'New Spool: Step 1 of 3': '新しいスプール: ステップ 1 / 3'
   'New Spool: Step {} of {}': '新規スプール: ステップ {} / {}'
@@ -1865,6 +1882,7 @@ translations:
     LED マクロが検出されませんでした。先に LED 制御用の Klipper マクロを追加してください。
   No LED macros detected. Type a macro name below.: LED マクロが検出されませんでした。下にマクロ名を入力してください。
   No LED strips detected: 'LEDストリップが検出されません'
+  No LEDs found: LEDが見つかりません
   No Macros Found: マクロが見つかりません
   No Multi-Filament System connected: マルチフィラメントシステムが接続されていません
   No Multi-Filament System connected.: マルチフィラメントシステムが接続されていません。
@@ -2061,6 +2079,8 @@ translations:
   PLA - Black: PLA - ブラック
   POWER: 電源
   PRINT OPTIONS: 印刷オプション
+  PRINTER: プリンター
+  PRINTER VISUALS: プリンター表示
   PRINTERS: プリンター
   PRINT_START has {} skippable operation: PRINT_START にはスキップ可能な操作が {} 個あります
   PRINT_START has {} skippable operations: PRINT_START にはスキップ可能な操作が {} 個あります
@@ -2159,6 +2179,7 @@ translations:
   Preheat cancelled: 予熱がキャンセルされました
   'Preheat: all {} tools + bed set': '予熱: 全 {} ツール + ベッド設定済み'
   'Preheat: {} + bed set': '予熱: {} + ベッド設定済み'
+  Preload: '事前装填'
   Preload failed: 事前装填に失敗しました
   Prepared: 準備済み
   Preparing: 準備中
@@ -2170,6 +2191,7 @@ translations:
   Preset: プリセット
   'Preset ID: {}': 'プリセット ID: {}'
   Presets: プリセット
+  Presets come from the WLED device. Edit them in the WLED app.: プリセットはWLEDデバイスから取得されます。WLEDアプリで編集してください。
   Press Abort to stop: 中止するには「中止」を押してください
   Press Scan to search: スキャンを押して検索
   'Pressure:': '圧力:'
@@ -2267,9 +2289,9 @@ translations:
   'Printer: ': 'プリンター: '
   PrinterIdentify: プリンターを識別
   Printers: プリンター
-  Printers, Multi-Filament System, fans, sensors, and LEDs: プリンター、マルチフィラメントシステム、ファン、センサー、LED
-  Printing: 印刷中
+  Printing: 印刷
   Printing label...: ラベル印刷中...
+  Printing now: 印刷中
   Printing test label...: テストラベル印刷中...
   Printing with the wrong material can cause clogs, poor adhesion, or failed prints.: 誤った素材で印刷すると、詰まり、密着不良、または印刷失敗の原因となる可能性があります。
   'Printing: start after this job': '印刷中：このジョブ後に開始'
@@ -2292,6 +2314,7 @@ translations:
   Checking Bed Mesh...: ベッドメッシュを確認中...
   Probing point {} of {}: 'プローブ点 {} / {}'
   Probing... ({} points): 'プローブ中... ({} 点)'
+  Problem found: 問題が見つかりました
   Proceed: 続行
   # Source: abort_progress_modal.xml:20
   Processing...: '処理中...'
@@ -2386,7 +2409,9 @@ translations:
   Recording Mode: 録画モード
   Recover: 回復
   Recover MMU state?: MMU の状態を復旧しますか？
+  Recover State: '状態を回復'
   Recovering AFC system...: AFCシステムを復旧中...
+  Recovering...: 復旧中...
   Recovery failed: 復旧失敗
   'Recovery failed: ': '復旧に失敗しました: '
   'Recovery failed: {}': '復旧に失敗しました: {}'
@@ -2399,6 +2424,7 @@ translations:
   Refresh Interval: 更新間隔
   Refresh RFID: 'RFIDを再読み込み'
   Relative vibration: 相対振動
+  Refresh Spoolman: 'Spoolmanを再読み込み'
   Reheating...: 再加熱中...
   Release all stepper motors. Position will be lost.: すべてのステッピングモーターを解放します。位置情報は失われます。
   Release filament: フィラメントを解放
@@ -2561,10 +2587,10 @@ translations:
   'SAVE_CONFIG failed: {}. Tool offsets were applied but not saved. Run SAVE_CONFIG manually or they will be lost on restart.': 'SAVE_CONFIG に失敗しました: {}。ツールオフセットは適用されましたが保存されていません。SAVE_CONFIG を手動で実行しないと、再起動時に失われます。'
   ? 'SAVE_CONFIG failed: {}. Z-offset was applied but not saved. Run SAVE_CONFIG manually or the offset will be lost on restart.'
   : 'SAVE_CONFIG に失敗しました: {}。Zオフセットは適用されましたが保存されていません。SAVE_CONFIG を手動で実行しないと、再起動時にオフセットが失われます。'
+  SCREEN: 画面
   SETTINGS: 設定
   SHIPPED IMAGES: 付属画像
   SOFTWARE: ソフトウェア
-  SOUND: サウンド
   STANDARD MACROS: 標準マクロ
   STARTUP: 起動
   STOP: 停止
@@ -2573,7 +2599,7 @@ translations:
   ? Safe Mode active. The printer connection is disabled because the app kept crashing
     on startup. Open Settings to fix the issue, then reboot.
   : セーフモードが有効です。起動時にアプリがクラッシュし続けたため、プリンター接続は無効になっています。設定を開いて問題を解決してから再起動してください。
-  Safety & Notifications: 安全と通知
+  Safety & Alerts: 安全とアラート
   Same spool in {}? Tap Clear if it is a new one.: '{} は同じスプールですか？新しいスプールならクリアをタップしてください。'
   Sample: サンプル
   Sample %d/%d: サンプル %d/%d
@@ -2647,7 +2673,6 @@ translations:
   Secondary: セカンダリ
   Section Detail: セクション詳細
   Security: セキュリティ
-  Security, network, host, and administration: セキュリティ、ネットワーク、ホスト、管理
   See exactly what data will be sent: 送信されるデータを正確に確認
   See the log: 'ログを確認してください'
   See the quick tour of HelixScreen again: HelixScreen のクイックツアーをもう一度見る
@@ -2720,6 +2745,7 @@ translations:
   : このスロットのフィラメントの種類と色を手動で設定してください。タグが読み取れるはずの場合は、ボックスが停止しているときにラベルをリーダー側に向けてスプールを入れ直してください
   Set up: セットアップ
   Set up your label printer in Settings: 設定でラベルプリンターをセットアップしてください
+  Set what is really selected and loaded. Nothing moves.: '実際に選択・装填されている状態を設定します。何も動きません。'
   Settings: 設定
   Settings Snapshot: 設定スナップショット
   Settings reset to defaults. Restarting...: 設定をデフォルトにリセットしました。再起動中...
@@ -2763,6 +2789,7 @@ translations:
   Skipped: 'スキップ'
   Sleep While Printing: 印刷中のスリープ
   Sleep adjusted to match dim timeout: スリープタイムアウトを調整しました
+  Sleep {} min: '{}分でスリープ'
   Sliced colors: スライスした色
   Slicer: スライサー
   Slot: スロット
@@ -2782,6 +2809,7 @@ translations:
   Some filaments don't match the slicer's intent.: 一部のフィラメントがスライサーの意図と一致しません。
   'Some mapped slots are short on filament:': '一部の割り当て済みスロットのフィラメントが不足しています:'
   Some settings will take effect after restart.: 一部の設定は再起動後に有効になります。
+  Sound: サウンド
   Sound Theme: サウンドテーマ
   Sounds: サウンド
   Source: ソース
@@ -2790,7 +2818,6 @@ translations:
   Spaghetti Detection: スパゲッティ検出
   Spaghetti detected: スパゲッティを検出しました
   Spaghetti detected (%d%%): スパゲッティを検出しました（%d%%）
-  Spaghetti detected — print paused: スパゲッティを検出しました — 印刷を一時停止しました
   Speaker: スピーカー
   Speed: 速度
   Speed Settings: '速度設定'
@@ -2892,7 +2919,6 @@ translations:
   Success Rate: 成功率
   Success!: 成功！
   Summary: 概要
-  Support, documentation, and version info: サポート、ドキュメント、バージョン情報
   Suppress periodic 'T:.../B:...' status lines: 定期的な 'T:.../B:...' ステータス行を抑制
   Suppress periodic temperature status lines: 定期的な温度ステータス行を抑制
   Suppress raw debug output from printer firmware modules: プリンターファームウェアモジュールからの生のデバッグ出力を抑制
@@ -3027,6 +3053,7 @@ translations:
   The nozzle extrudes a few short test moves in a corner, away from the print area, and repeats until it agrees with itself.: 'ノズルは印刷領域から離れた隅で短いテスト移動を数回行い、結果が一致するまで繰り返します。'
   The plate and the spools are still hot. Use gloves.: ベッドとスプールはまだ熱いです。手袋を使ってください。
 
+  The plate finishes its current move, but drying will not start.: 'ベッドは現在の移動を完了しますが、乾燥は開始しません。'
   ? The print is paused. Changing tools now moves the toolhead and swaps the filament at the nozzle. Resume the print once the change finishes.
   : 印刷は一時停止中です。ここでツールを交換すると、ツールヘッドが移動してノズルのフィラメントが入れ替わります。交換が完了したら印刷を再開してください。
   The printer applied this value and keeps it for this tool.: 'プリンターはこの値を適用し、このツールに保存しました。'
@@ -3061,6 +3088,8 @@ translations:
   The unit is already running another operation. Wait for it to finish, or reset the CFS if it stays stuck: ユニットは既に別の処理を実行中です。完了を待つか、固まったままの場合は CFS をリセットしてください
   The unit reported a fault with no further detail. Restart the printer if it repeats: ユニットが詳細不明の障害を報告しました。繰り返す場合はプリンターを再起動してください
   The unit's onboard storage has failed. The CFS mainboard needs replacing: ユニットの内蔵ストレージが故障しました。CFS のメインボードの交換が必要です
+  'The unload did not start: unload by hand, then start again': '排出が始まりませんでした: 手で排出してから、もう一度始めてください'
+  The unload finishes on its own, but the plate will not move.: '排出はそのまま完了しますが、ベッドは移動しません。'
   Theme: テーマ
   Theme Colors: テーマカラー
   Theme Preset: テーマプリセット
@@ -3074,6 +3103,7 @@ translations:
   This AFC system does not support bypass mode: 'この AFC システムはバイパスモードに対応していません'
   This CFS firmware exposes no external spool slot: 'この CFS ファームウェアには外部スプール用スロットがありません'
   This Happy Hare system does not support bypass mode: 'この Happy Hare システムはバイパスモードに対応していません'
+  This button controls: このボタンの制御対象
   This calibration uses the paper friction method to set your Z-offset.: このキャリブレーションは紙の摩擦方式を使用して
     Z-offset を設定します。
   This cannot be undone.: この操作は元に戻せません。
@@ -3192,7 +3222,6 @@ translations:
   Toolhead Y: ツールヘッド Y
   Toolhead jam: ツールヘッドの詰まり
   Toolhead position unknown: ツールヘッドの位置が不明です
-  Toolhead, G-code, limits, and materials: ツールヘッド、Gコード、制限、材料
   Toolheads: ツールヘッド
   Tools: ツール
   Tools Used: 使用したツール
@@ -3227,7 +3256,7 @@ translations:
   Turn On LEDs: 'LEDを点灯'
   Turn endless spool on, then set the backup gate: 'エンドレススプールを有効にしてから、バックアップゲートを設定してください'
   Turn off detection: 検出をオフにする
-  Turn on LEDs when printer starts: プリンター起動時に LED を点灯
+  Turn on the lights your light buttons control: ライトボタンが操作するライトを点灯します
   Turn the extruder heater off after a load or unload finishes: 装填または排出の完了後にエクストルーダーヒーターをオフにします
   Turn the picture to match how the screen is mounted. Applies after restart.: 画面の取り付け向きに合わせて表示を回転します。再起動後に適用されます。
   Turn the printer's lights on or off: プリンターのライトをオン/オフ
@@ -3267,6 +3296,7 @@ translations:
   Unknown error: 不明なエラー
   Unload: 排出
   Unload Distance: 'アンロード距離'
+  Unload Extruder: 'エクストルーダーから排出'
   Unload Failed: '取り出しに失敗しました'
   Unload Filament: フィラメントを排出
   'Unload at end': '終了時に排出'
@@ -3278,10 +3308,12 @@ translations:
   Unload macro not configured: アンロードマクロが未設定です
   Unload the CFS filament before enabling bypass: 'バイパスを有効にする前に CFS のフィラメントを取り出してください'
   Unload...: 排出...
+  Unloaded: '排出済み'
   Unloading: アンロード中
   Unloading Start Speed: 'アンロード開始速度'
   Unloading before bypass...: バイパス前にアンロード中...
   Unloading filament: 'フィラメントを取り出しています'
+  Unloading filament before drying...: '乾燥前にフィラメントを排出中...'
   Unloading filament...: フィラメントを排出中...
   Unloads After Print: 印刷後にアンロード
   Unlock: ロック解除
@@ -3304,6 +3336,7 @@ translations:
   Update from a Terminal: ターミナルから更新
   Update installed!: アップデートをインストールしました！
   Update your security PIN: セキュリティ PIN を更新
+  Updates: 更新
   Updating Configuration...: 設定を更新中...
   Upgrade to AFC 1.2.0 or newer for multi-color spools. It also adds filament names, which otherwise need Spoolman.: マルチカラースプールにはAFC 1.2.0以降へのアップグレードが必要です。フィラメント名にも対応し、これまではSpoolmanが別途必要でした。
   Upload: アップロード
@@ -3334,7 +3367,8 @@ translations:
   Verifying timelapse plugin...: タイムラプスプラグインを確認中...
   Verifying...: 検証中...
   Version: バージョン
-  Version, updates, and printer info: バージョン、アップデート、プリンター情報
+  Version and printer info: バージョンとプリンター情報
+  Version {}: バージョン {}
   Vertical: 垂直
   Vibration: 振動
   Vibration compensation active: 振動補正が有効です
@@ -3351,8 +3385,8 @@ translations:
   'Visits: ': '表示回数: '
   Volume: 音量
   Volume of filament used during ramming: 'ラミング時に使用するフィラメント量'
+  Volume {}%: 音量 {}%
   WIDTH SENSORS: 幅センサー
-  WLED: WLED
   WLED Preset: WLED プリセット
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3367,6 +3401,7 @@ translations:
   Waiting for another box to finish.: 別のボックスの完了を待っています。
   Waiting for bed to reach temperature for accurate calibration.: 正確なキャリブレーションのためにベッド温度到達を待機中。
   Waiting for the filament system to report its state: フィラメントシステムの状態報告を待機中
+  Warm: ウォーム
   Warm Bed: ベッドを予熱
   Warm up for a material in one tap: 素材に合わせてワンタップで予熱
   Warming Bed...: ベッド予熱中...
@@ -3394,7 +3429,9 @@ translations:
   Which macro the Close feeder button sends: 「フィーダーを閉じる」ボタンが送信するマクロ
   Which macro the Open feeder button sends: 「フィーダーを開く」ボタンが送信するマクロ
   White: ホワイト
+  Wi-Fi: WiFi
   Wi-Fi or ethernet connection status: WiFi またはイーサネットの接続状態
+  Wi-Fi {}: WiFi {}
   WiFi: WiFi
   WiFi Disabled: WiFi 無効
   WiFi Enabled: WiFi 有効
@@ -3522,6 +3559,7 @@ translations:
   locked: 'ロック中'
   mm before clog: 詰まりまでの距離 (mm)
   needs: 必要
+  never sleeps: スリープしない
   not detected: 未検出
   not loaded: '未装填'
   nozzle: ノズル
@@ -3541,6 +3579,7 @@ translations:
   remaining: 残り
   remaining before clog detection triggers: 残りで詰まり検出が作動します
   rendering: レンダリング中
+  sleep {} min: '{}分でスリープ'
   slots): スロット)
   started: 開始
   steppers: ステッパー
@@ -3554,6 +3593,7 @@ translations:
   you have: 現在は
   '{} LED strips available': '{} 個の LED ストリップが利用可能です'
   '{} and {} are both mapped here': '{} と {} の両方がここに割り当てられています'
+  '{} available': '{} が利用可能'
   '{} axis homed': '{} 軸がホーミング済み'
   '{} command timed out': '{} コマンドがタイムアウトしました'
   '{} complete': '{} 完了'

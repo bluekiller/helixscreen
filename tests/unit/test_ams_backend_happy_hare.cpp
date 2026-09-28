@@ -4,16 +4,19 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "action_prompt_manager.h"
 #include "ams_backend_happy_hare.h"
 #include "ams_state.h"
 #include "ams_types.h"
 #include "hh_defaults.h"
 #include "lane_source_store.h"
 #include "lane_translation.h"
+#include "lvgl_ui_test_fixture.h"
 #include "moonraker_api.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
+#include "recovery_modal_presenter.h"
 #include "spoolman_types.h"
 #include "test_helpers/backend_user_edit.h"
 #include "test_helpers/happy_hare_test_access.h"
@@ -284,6 +287,14 @@ class AmsBackendHappyHareTestHelper : public AmsBackendHappyHare {
 
     void set_current_slot(int slot) {
         system_info_.current_slot = slot;
+    }
+
+    void set_supports_bypass(bool state) {
+        system_info_.supports_bypass = state;
+    }
+
+    void set_spoolman_mode(SpoolmanMode mode) {
+        system_info_.spoolman_mode = mode;
     }
 
     void set_selector_type(const std::string& type) {
@@ -1255,6 +1266,153 @@ TEST_CASE("Happy Hare clear_fault fails when not running", "[ams][happy_hare][re
     auto result = helper.clear_fault(0);
 
     REQUIRE_FALSE(result.success());
+}
+
+// ============================================================================
+// recover_with_state() Tests
+// ============================================================================
+
+namespace {
+helix::RecoverStateRequest recover_req(int slot, bool bypass, std::optional<bool> loaded) {
+    helix::RecoverStateRequest r;
+    r.slot = slot;
+    r.bypass = bypass;
+    r.loaded = loaded;
+    return r;
+}
+} // namespace
+
+TEST_CASE("Happy Hare recover command names only what the user asserted",
+          "[ams][happy_hare][recovery]") {
+    struct Row {
+        int slot;
+        bool bypass;
+        std::optional<bool> loaded;
+        const char* expected;
+    };
+    // clang-format off
+    const Row rows[] = {
+        {-1, false, std::nullopt, "MMU_RECOVER"},
+        {-1, false, false,        "MMU_RECOVER LOADED=0"},
+        {-1, false, true,         "MMU_RECOVER LOADED=1"},
+        { 1, false, std::nullopt, "MMU_RECOVER GATE=1"},
+        { 1, false, false,        "MMU_RECOVER GATE=1 LOADED=0"},
+        { 1, false, true,         "MMU_RECOVER GATE=1 LOADED=1"},
+        { 0, false, std::nullopt, "MMU_RECOVER GATE=0"},
+        // Bypass replaces the gate: HH forces tool and gate to bypass itself.
+        {-1, true,  std::nullopt, "MMU_RECOVER BYPASS=1"},
+        { 1, true,  false,        "MMU_RECOVER BYPASS=1 LOADED=0"},
+        { 1, true,  true,         "MMU_RECOVER BYPASS=1 LOADED=1"},
+    };
+    // clang-format on
+    for (const auto& row : rows) {
+        INFO("slot=" << row.slot << " bypass=" << row.bypass);
+        CHECK(helix::AmsBackendHappyHare::build_recover_command(
+                  recover_req(row.slot, row.bypass, row.loaded)) == row.expected);
+    }
+}
+
+TEST_CASE("Happy Hare recover_with_state sends the built command", "[ams][happy_hare][recovery]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+    helper.set_running(true);
+    helper.set_supports_bypass(true);
+
+    CHECK(helper.supports_recover_with_state());
+
+    REQUIRE(helper.recover_with_state(recover_req(2, false, true)).success());
+    REQUIRE(helper.recover_with_state(recover_req(-1, true, std::nullopt)).success());
+    CHECK(helper.captured_gcodes ==
+          std::vector<std::string>{"MMU_RECOVER GATE=2 LOADED=1", "MMU_RECOVER BYPASS=1"});
+}
+
+TEST_CASE("Happy Hare recover_with_state refuses what the MMU cannot be in",
+          "[ams][happy_hare][recovery]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+
+    SECTION("not running") {
+        CHECK_FALSE(helper.recover_with_state(recover_req(0, false, true)).success());
+    }
+    SECTION("gate out of range") {
+        helper.set_running(true);
+        CHECK(helper.recover_with_state(recover_req(4, false, std::nullopt)).result ==
+              AmsResult::INVALID_SLOT);
+    }
+    SECTION("bypass on an MMU without one") {
+        helper.set_running(true);
+        helper.set_supports_bypass(false);
+        CHECK_FALSE(helper.recover_with_state(recover_req(-1, true, std::nullopt)).success());
+    }
+    CHECK(helper.captured_gcodes.empty());
+}
+
+TEST_CASE("Happy Hare error-popup Recover lets HH detect the filament position",
+          "[ams][happy_hare][recovery]") {
+    // Our loaded flag reads false for every position HH calls Unknown, so
+    // echoing it as LOADED=0 would tell HH "unloaded" about filament stuck
+    // mid-bowden. Bare MMU_RECOVER has HH read its own sensors.
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+    struct Pos {
+        int filament_pos;
+        const char* filament;
+    };
+    const Pos pos = GENERATE(Pos{8, "Loaded"}, Pos{0, "Unloaded"}, Pos{3, "Unknown"});
+    nlohmann::json mmu;
+    mmu["action"] = "Idle";
+    mmu["print_state"] = "pause_locked";
+    mmu["filament_pos"] = pos.filament_pos;
+    mmu["filament"] = pos.filament;
+    mmu["reason_for_pause"] = "Clog detected";
+    hh.test_parse_mmu_state(mmu);
+
+    helix::ClassifyContext ctx;
+    ctx.is_paused = true;
+    auto ev = hh.classify_error("!! Clog detected", ctx);
+    REQUIRE(ev.has_value());
+    std::string recover_gcode;
+    for (const auto& a : ev->recovery_actions)
+        if (a.log_tag == "hh::recover")
+            recover_gcode = a.gcode;
+    INFO(pos.filament);
+    CHECK(recover_gcode == "MMU_RECOVER");
+}
+
+// ============================================================================
+// preload_lane() Tests
+// ============================================================================
+
+TEST_CASE("Happy Hare preload_lane sends MMU_PRELOAD for the gate", "[ams][happy_hare][preload]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+    helper.set_running(true);
+
+    CHECK(helper.supports_lane_preload());
+    REQUIRE(helper.preload_lane(2).success());
+    CHECK(helper.captured_gcodes == std::vector<std::string>{"MMU_PRELOAD GATE=2"});
+
+    helper.clear_captured_gcodes();
+    CHECK(helper.preload_lane(4).result == AmsResult::INVALID_SLOT);
+    CHECK(helper.captured_gcodes.empty());
+}
+
+TEST_CASE("Happy Hare preload_lane is refused while printing", "[ams][happy_hare][preload]") {
+    // Happy Hare's MMU_PRELOAD opens with check_if_printing().
+    PrintLifecycleFixture fx;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(fx.api.get(),
+                                                                             &fx.mock_client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+    helper.set_running(true);
+    helix::test::set_wire_state(fx.state, helix::PrintJobState::PRINTING);
+
+    CHECK(helper.preload_lane(1).result == AmsResult::WRONG_STATE);
+    CHECK(helper.captured_gcodes.empty());
 }
 
 // ============================================================================
@@ -3686,25 +3844,6 @@ TEST_CASE("execute_device_action sends test_move G-code", "[ams][happy_hare][dev
     REQUIRE(helper.has_gcode("MMU_TEST_MOVE"));
 }
 
-TEST_CASE("execute_device_action motors_toggle uses MMU_HOME for enable",
-          "[ams][happy_hare][device_actions]") {
-    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
-    AmsBackendHappyHareTestHelper& helper = *helper_reg;
-    helper.initialize_test_gates(4);
-
-    SECTION("enable motors sends MMU_HOME") {
-        auto result = helper.execute_device_action("motors_toggle", std::any(true));
-        REQUIRE(result.success());
-        REQUIRE(helper.has_gcode("MMU_HOME"));
-    }
-
-    SECTION("disable motors sends MMU_MOTORS_OFF") {
-        auto result = helper.execute_device_action("motors_toggle", std::any(false));
-        REQUIRE(result.success());
-        REQUIRE(helper.has_gcode("MMU_MOTORS_OFF"));
-    }
-}
-
 TEST_CASE("execute_device_action servo_buzz uses MMU_SERVO without args",
           "[ams][happy_hare][device_actions]") {
     helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
@@ -4093,9 +4232,12 @@ TEST_CASE("Happy Hare classify_error: runout pause is CRITICAL with recovery",
     AmsBackendHappyHareTestHelper& hh = *hh_reg;
     hh.initialize_test_gates(4);
 
-    // Firmware reports a runout pause via reason_for_pause + action ERROR.
+    // Happy Hare's real fault shape: print_state "pause_locked" and a
+    // reason_for_pause, with action still naming the last operation. HH's
+    // action string has no "Error" value, so the reason is what has to carry it.
     nlohmann::json mmu;
-    mmu["action"] = "Error";
+    mmu["action"] = "Idle";
+    mmu["print_state"] = "pause_locked";
     mmu["filament_pos"] = 8; // loaded at toolhead
     mmu["reason_for_pause"] =
         "Runout detected on gate 0  EndlessSpool mode is off - manual intervention is required";
@@ -4113,29 +4255,6 @@ TEST_CASE("Happy Hare classify_error: runout pause is CRITICAL with recovery",
     CHECK(ev->recovery_actions.front().gcode == "RESUME");
     // Detail carries the descriptive reason, not the bare !! line.
     CHECK(ev->detail.find("Runout detected on gate 0") != std::string::npos);
-}
-
-TEST_CASE("Happy Hare classify_error: recover gcode reflects loaded state",
-          "[ams][happy_hare][error-center]") {
-    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
-    AmsBackendHappyHareTestHelper& hh = *hh_reg;
-    hh.initialize_test_gates(4);
-    nlohmann::json mmu;
-    mmu["action"] = "Error";
-    mmu["filament_pos"] = 8;
-    mmu["filament"] = "Loaded"; // pos=8 means at toolhead; make loaded flag match
-    mmu["reason_for_pause"] = "Clog detected";
-    hh.test_parse_mmu_state(mmu);
-
-    helix::ClassifyContext ctx;
-    ctx.is_paused = true;
-    auto ev = hh.classify_error("!! Clog detected", ctx);
-    REQUIRE(ev.has_value());
-    bool has_recover_loaded = false;
-    for (const auto& a : ev->recovery_actions)
-        if (a.gcode == "MMU_RECOVER LOADED=1")
-            has_recover_loaded = true;
-    CHECK(has_recover_loaded);
 }
 
 TEST_CASE("Happy Hare classify_error: non-!! line and non-paused defer to generic",
@@ -4159,9 +4278,11 @@ TEST_CASE("Happy Hare classify_error: stale reason_for_pause does not fire when 
     AmsBackendHappyHareTestHelper& hh = *hh_reg;
     hh.initialize_test_gates(4);
 
-    // Populate reason_for_pause_ with a recognized keyword and put HH in ERROR.
+    // Populate reason_for_pause_ with a recognized keyword, in HH's real
+    // pause_locked shape.
     nlohmann::json mmu;
-    mmu["action"] = "Error";
+    mmu["action"] = "Idle";
+    mmu["print_state"] = "pause_locked";
     mmu["reason_for_pause"] = "Clog detected on gate 0";
     hh.test_parse_mmu_state(mmu);
 
@@ -4887,4 +5008,334 @@ TEST_CASE("Happy Hare marks a persisted edit as the user's own",
     REQUIRE(overrides.at(0).color_rgb == 0x1188FFu);
     CHECK(helix::ams::declares_color(overrides.at(0)));
     CHECK(helix::ams::declares_material(overrides.at(0)));
+}
+
+// ============================================================================
+// Maintenance / accessories device actions
+// ============================================================================
+
+namespace {
+const helix::printer::DeviceAction*
+find_action(const std::vector<helix::printer::DeviceAction>& all, const std::string& id) {
+    for (const auto& a : all) {
+        if (a.id == id) {
+            return &a;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+TEST_CASE("Happy Hare motors toggle turns motors on and off without homing",
+          "[ams][happy_hare][device_actions]") {
+    AmsBackendHappyHareTestHelper helper;
+
+    REQUIRE(helper.execute_device_action("motors_toggle", std::any(true)).success());
+    REQUIRE(helper.execute_device_action("motors_toggle", std::any(false)).success());
+    CHECK(helper.captured_gcodes == std::vector<std::string>{"MMU_MOTORS_ON", "MMU_MOTORS_OFF"});
+}
+
+TEST_CASE("Happy Hare extruder-only load and unload send EXTRUDER_ONLY=1",
+          "[ams][happy_hare][device_actions]") {
+    AmsBackendHappyHareTestHelper helper;
+    helper.set_running(true);
+    const auto actions = helper.get_device_actions();
+
+    for (const char* id : {"load_extruder", "unload_extruder"}) {
+        INFO(id);
+        const auto* a = find_action(actions, id);
+        REQUIRE(a != nullptr);
+        CHECK(a->section == "maintenance");
+        CHECK(a->type == helix::printer::ActionType::BUTTON);
+    }
+
+    REQUIRE(helper.execute_device_action("load_extruder").success());
+    REQUIRE(helper.execute_device_action("unload_extruder").success());
+    CHECK(helper.captured_gcodes ==
+          std::vector<std::string>{"MMU_LOAD EXTRUDER_ONLY=1", "MMU_UNLOAD EXTRUDER_ONLY=1"});
+}
+
+TEST_CASE("Happy Hare Refresh Spoolman follows HH's spoolman_support",
+          "[ams][happy_hare][device_actions]") {
+    AmsBackendHappyHareTestHelper helper;
+
+    SECTION("spoolman off: offered disabled, and refused if sent anyway") {
+        helper.set_spoolman_mode(SpoolmanMode::OFF);
+        const auto actions = helper.get_device_actions();
+        const auto* a = find_action(actions, "spoolman_refresh");
+        REQUIRE(a != nullptr);
+        CHECK(a->section == "accessories");
+        CHECK_FALSE(a->enabled);
+        CHECK_FALSE(a->disable_reason.empty());
+        CHECK_FALSE(helper.execute_device_action("spoolman_refresh").success());
+        CHECK(helper.captured_gcodes.empty());
+    }
+    SECTION("spoolman on") {
+        helper.set_spoolman_mode(SpoolmanMode::PULL);
+        const auto actions = helper.get_device_actions();
+        const auto* a = find_action(actions, "spoolman_refresh");
+        REQUIRE(a != nullptr);
+        CHECK(a->enabled);
+        REQUIRE(helper.execute_device_action("spoolman_refresh").success());
+        CHECK(helper.captured_gcodes == std::vector<std::string>{"MMU_SPOOLMAN REFRESH=1"});
+    }
+}
+
+TEST_CASE("Happy Hare extruder-only load and unload are refused mid-print",
+          "[ams][happy_hare][device_actions]") {
+    // HH puts no print check on MMU_LOAD/MMU_UNLOAD, and an EXTRUDER_ONLY
+    // unload forms a tip and retracts over the part.
+    PrintLifecycleFixture fx;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(fx.api.get(),
+                                                                             &fx.mock_client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+    helper.set_running(true);
+    helix::test::set_wire_state(fx.state, helix::PrintJobState::PRINTING);
+
+    CHECK(helper.execute_device_action("load_extruder").result == AmsResult::WRONG_STATE);
+    CHECK(helper.execute_device_action("unload_extruder").result == AmsResult::WRONG_STATE);
+    CHECK(helper.captured_gcodes.empty());
+}
+
+// ============================================================================
+// Real Happy Hare fault shapes (#1323). HH publishes no Error action: a fault
+// in a print is print_state pause_locked plus reason_for_pause, announced by
+// `!! MMU issue detected. ...\nReason: <reason>`; outside a print nothing
+// pauses and the only signal is `!! MMU issue: <reason>`.
+// ============================================================================
+
+namespace {
+bool has_recovery(const helix::ErrorEvent& ev, const std::string& tag) {
+    for (const auto& a : ev.recovery_actions)
+        if (a.log_tag == tag)
+            return true;
+    return false;
+}
+} // namespace
+
+TEST_CASE("Happy Hare classify_error: a standalone MMU issue gets the HH popup",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    helix::ClassifyContext ctx; // not paused: HH only pauses inside a print
+    auto ev = hh.classify_error("!! MMU issue: Gate 2 is empty!", ctx);
+    REQUIRE(ev.has_value());
+    CHECK(ev->detail == "Gate 2 is empty!");
+    CHECK(ev->title == "Filament System Error");
+    CHECK(has_recovery(*ev, "hh::recover"));
+    CHECK(has_recovery(*ev, "hh::unlock"));
+}
+
+TEST_CASE("Happy Hare classify_error: a paused fault with any reason gets the HH popup",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    const std::string reason =
+        GENERATE(std::string("Gate 2 is empty!"), std::string("Failed to home the selector"));
+    nlohmann::json mmu;
+    mmu["action"] = "Idle";
+    mmu["print_state"] = "pause_locked";
+    mmu["reason_for_pause"] = reason;
+    mmu["filament_pos"] = 8;
+    mmu["filament"] = "Loaded";
+    hh.test_parse_mmu_state(mmu);
+
+    helix::ClassifyContext ctx;
+    ctx.is_paused = true;
+    auto ev =
+        hh.classify_error("!! MMU issue detected. Print will be paused\nReason: " + reason, ctx);
+    REQUIRE(ev.has_value());
+    CHECK(ev->detail == reason);
+    CHECK(has_recovery(*ev, "hh::recover"));
+    CHECK(has_recovery(*ev, "hh::unload"));
+    CHECK(has_recovery(*ev, "hh::unlock"));
+}
+
+TEST_CASE("Happy Hare classify_error: a second fault while paused shows its own reason",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    // HH keeps the FIRST reason in reason_for_pause; a later error names its own.
+    nlohmann::json mmu;
+    mmu["print_state"] = "pause_locked";
+    mmu["reason_for_pause"] = "Gate 2 is empty!";
+    hh.test_parse_mmu_state(mmu);
+
+    helix::ClassifyContext ctx;
+    ctx.is_paused = true;
+    auto ev = hh.classify_error(
+        "!! MMU issue detected whilst printer is paused\nReason: Encoder not detecting", ctx);
+    REQUIRE(ev.has_value());
+    CHECK(ev->detail == "Encoder not detecting");
+}
+
+TEST_CASE("Happy Hare classify_error: a multi-line reason reads as one sentence",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    nlohmann::json mmu;
+    mmu["print_state"] = "pause_locked";
+    mmu["reason_for_pause"] = "Runout on gate 0\nEndlessSpool is off";
+    hh.test_parse_mmu_state(mmu);
+
+    helix::ClassifyContext ctx;
+    ctx.is_paused = true;
+    auto ev = hh.classify_error("!! MMU issue detected. Print will be paused\nReason: Runout on "
+                                "gate 0\nEndlessSpool is off",
+                                ctx);
+    REQUIRE(ev.has_value());
+    CHECK(ev->detail == "Runout on gate 0. EndlessSpool is off");
+    CHECK(ev->title == "Filament runout");
+}
+
+TEST_CASE("Happy Hare classify_error: an unrelated error line is not claimed",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+    helix::ClassifyContext ctx;
+    CHECK_FALSE(hh.classify_error("!! Move out of range: 0.000 400.000 10.000", ctx).has_value());
+}
+
+TEST_CASE("Happy Hare pause_locked marks the slot and path, and cancel clears them",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    nlohmann::json fault;
+    fault["action"] = "Idle";
+    fault["gate"] = 2;
+    fault["filament_pos"] = 3;
+    fault["print_state"] = "pause_locked";
+    fault["reason_for_pause"] = "Gate 2 is empty!";
+    hh.test_parse_mmu_state(fault);
+
+    auto slot = hh.get_slot_info(2);
+    REQUIRE(slot.error.has_value());
+    CHECK(slot.error->message == "Gate 2 is empty!");
+    CHECK(hh.infer_error_segment() == path_segment_from_happy_hare_pos(3));
+
+    // MMU_UNLOCK: still paused, HH keeps publishing the same reason (unchanged, so
+    // a delta frame omits it).
+    nlohmann::json unlocked;
+    unlocked["print_state"] = "paused";
+    hh.test_parse_mmu_state(unlocked);
+    CHECK(hh.get_slot_info(2).error.has_value());
+
+    // Cancel leaves the paused states; the published reason goes empty.
+    nlohmann::json cancelled;
+    cancelled["print_state"] = "cancelled";
+    cancelled["reason_for_pause"] = "";
+    hh.test_parse_mmu_state(cancelled);
+    CHECK_FALSE(hh.get_slot_info(2).error.has_value());
+    CHECK(hh.infer_error_segment() == PathSegment::NONE);
+}
+
+TEST_CASE("Happy Hare claims its own error notice prompt as a duplicate of the fault",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    CHECK(hh.duplicates_firmware_prompt("Happy Hare Error Notice"));
+    CHECK_FALSE(hh.duplicates_firmware_prompt("Filament Change"));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "Happy Hare's own error notice closes when the HH recovery popup shows",
+                 "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    helix::ActionPromptManager prompts;
+    helix::ActionPromptManager::set_instance(&prompts);
+    // _MMU_ERROR_DIALOG runs ahead of the `!!` line, so its prompt is up first.
+    prompts.process_line("// action:prompt_begin Happy Hare Error Notice");
+    prompts.process_line("// action:prompt_text Reason: Gate 2 is empty!");
+    prompts.process_line("// action:prompt_show");
+    REQUIRE(helix::ActionPromptManager::is_showing());
+
+    helix::ClassifyContext ctx;
+    auto ev = hh.classify_error("!! MMU issue: Gate 2 is empty!", ctx);
+    REQUIRE(ev.has_value());
+    helix::ui::RecoveryModalPresenter presenter(nullptr);
+    presenter.present(*ev);
+    process_lvgl(20);
+
+    CHECK(presenter.is_visible());
+    CHECK_FALSE(helix::ActionPromptManager::is_showing());
+
+    presenter.dismiss();
+    process_lvgl(20);
+    helix::ActionPromptManager::set_instance(nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "An unrelated firmware prompt survives the HH recovery popup",
+                 "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    helix::ActionPromptManager prompts;
+    helix::ActionPromptManager::set_instance(&prompts);
+    prompts.process_line("// action:prompt_begin Filament Change");
+    prompts.process_line("// action:prompt_show");
+
+    helix::ClassifyContext ctx;
+    auto ev = hh.classify_error("!! MMU issue: Gate 2 is empty!", ctx);
+    REQUIRE(ev.has_value());
+    helix::ui::RecoveryModalPresenter presenter(nullptr);
+    presenter.present(*ev);
+    process_lvgl(20);
+
+    CHECK(helix::ActionPromptManager::is_showing());
+
+    presenter.dismiss();
+    process_lvgl(20);
+    helix::ActionPromptManager::set_instance(nullptr);
+}
+
+TEST_CASE("Happy Hare recovery: a standalone fault offers no Resume and leads with Recover",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    helix::ClassifyContext ctx; // a failed MMU_LOAD / MMU_HOME outside a print
+    auto ev = hh.classify_error("!! MMU issue: Gate 2 is empty!", ctx);
+    REQUIRE(ev.has_value());
+    REQUIRE_FALSE(ev->recovery_actions.empty());
+    CHECK_FALSE(has_recovery(*ev, "hh::resume"));
+    CHECK(ev->recovery_actions.front().log_tag == "hh::recover");
+    CHECK(ev->recovery_actions.front().style == "primary");
+}
+
+TEST_CASE("Happy Hare recovery: a paused fault still leads with Resume",
+          "[ams][happy_hare][error-center][1323]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> hh_reg;
+    AmsBackendHappyHareTestHelper& hh = *hh_reg;
+    hh.initialize_test_gates(4);
+
+    hh.test_parse_mmu_state(
+        {{"print_state", "pause_locked"}, {"reason_for_pause", "Gate 2 is empty!"}});
+    helix::ClassifyContext ctx;
+    ctx.is_paused = true;
+    auto ev = hh.classify_error(
+        "!! MMU issue detected. Print will be paused\nReason: Gate 2 is empty!", ctx);
+    REQUIRE(ev.has_value());
+    REQUIRE_FALSE(ev->recovery_actions.empty());
+    CHECK(ev->recovery_actions.front().log_tag == "hh::resume");
+    CHECK(ev->recovery_actions.front().style == "primary");
+    for (const auto& a : ev->recovery_actions)
+        if (a.log_tag == "hh::recover")
+            CHECK(a.style.empty());
 }

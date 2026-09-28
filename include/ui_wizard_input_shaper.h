@@ -24,7 +24,7 @@
  * ## Skip Logic:
  *
  * - No accelerometer detected: Skip entirely (input shaper can be configured later
- *   in Settings → Advanced → Input Shaper)
+ *   in Advanced → Input Shaping)
  * - Accelerometer detected: Show wizard step for calibration
  * - Footer shows "Skip" button (via wizard_show_skip subject) to allow skipping
  * - After successful calibration, footer changes to "Next"

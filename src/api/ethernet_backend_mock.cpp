@@ -51,11 +51,11 @@ bool EthernetBackendMock::has_interface() {
 EthernetInfo EthernetBackendMock::get_info() {
     // Return mock data with real MAC for realistic demo
     EthernetInfo info;
-    info.connected = true;
+    info.connected = connected_;
     info.interface = "en0";
-    info.ip_address = "192.168.1.150";
+    info.ip_address = connected_ ? "192.168.1.150" : "";
     info.mac_address = real_mac_;
-    info.status = "Connected";
+    info.status = connected_ ? "Connected" : "No cable";
 
     spdlog::trace("[EthernetMock] get_info() → {} ({})", info.ip_address, info.status);
     return info;

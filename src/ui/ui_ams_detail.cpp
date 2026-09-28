@@ -725,6 +725,7 @@ bool ams_dispatch_backend_action(AmsContextMenu::MenuAction action, int slot,
     case MenuAction::RECOVER_POSITION:
     case MenuAction::SELECT_GATE:
     case MenuAction::CHECK_GATE:
+    case MenuAction::PRELOAD:
     case MenuAction::CLEAR_SPOOL:
         break;
     default:
@@ -775,6 +776,14 @@ bool ams_dispatch_backend_action(AmsContextMenu::MenuAction action, int slot,
         AmsError error = backend->check_gate(slot);
         if (error.result != AmsResult::SUCCESS) {
             notify_ams_error(error, lv_tr("Check slot failed"));
+        }
+        break;
+    }
+
+    case MenuAction::PRELOAD: {
+        AmsError error = backend->preload_lane(slot);
+        if (error.result != AmsResult::SUCCESS) {
+            notify_ams_error(error, lv_tr("Preload failed"));
         }
         break;
     }

@@ -23,7 +23,7 @@ The Bed Mesh panel has two parts: a 3D visualization of your bed surface on the 
 
 **Probe a new mesh:** tap **Probe** in the panel header. HelixScreen first asks which profile to store the new mesh in. The name starts as `default`, the profile Klipper loads at startup; type another name to keep the new mesh separate. Tap **Start** to probe. When probing finishes, HelixScreen asks whether to save the printer configuration so the mesh survives a restart.
 
-The visualization mode (3D, 2D, or Auto) can be changed in **Settings > Display**.
+The visualization mode (3D, 2D, or Auto) can be changed in **Settings > Appearance > Bed Mesh Render**.
 
 ### Profile Management
 
@@ -203,81 +203,13 @@ Tapping **Stop** during a run performs an emergency stop, since the calibration 
 
 ---
 
-## Belt Tension *(Beta)*
+## Belt Tension
 
-Uneven belt tension is one of the most common causes of print quality issues on CoreXY printers. Loose or mismatched belts produce visible artifacts like layer shifts, vertical fine artifacts (VFAs), and ringing/ghosting. HelixScreen's Belt Tension tool listens to each belt while **you pluck it by hand** and reports the frequency, so you can bring the two sides into agreement.
-
-### How It Works
-
-Every belt has a natural resonant frequency set by its free span, mass, and tension - just like a guitar string. Tighter belts ring higher. On a CoreXY printer the two front belts should ring at very nearly the same frequency, which means their tension is balanced.
-
-The tool parks the gantry so both belts have the same free span, then streams your accelerometer live and watches for plucks. Each firm pluck is analysed on its own; the number you act on is the **median of five accepted plucks**, not a single reading. A guitar string's loudest overtone is often the octave above its fundamental, and belts are no different, so the tool identifies the fundamental from the whole harmonic series rather than from the tallest peak in the spectrum.
-
-You measure one belt, then the other, then compare.
-
-### Requirements
-
-All of these are checked before the **Start Check** button becomes active. If it is greyed out, the reason is shown right above it:
-
-| Message | What to do |
-|---|---|
-| *Not connected to the printer* | Wait for the connection to come back |
-| *No accelerometer found in your Klipper config* | Add an `adxl345`, `lis2dw` or `mpu` section to `printer.cfg`. There is no accelerometer-free mode |
-| *Belt tuning is only available on CoreXY printers* | The A/B belt-path model does not apply to bed slingers or other Cartesian machines |
-| *This needs HelixScreen running on the printer itself* | The tool reads the accelerometer stream directly from Klipper's local socket. It cannot do that from a desktop or a separate tablet |
-| *This display is not fast enough to analyse belt frequencies live* | Your display hardware cannot keep up with the real-time analysis. Nothing to fix - the tool is not available on that device |
-| *Wait until the print finishes* | The toolhead has to be stationary. Measuring during a print would read the print, not the belt |
-
-### Running a Belt Tension Check
-
-1. Navigate to **Advanced > Belt Tension** (requires [beta features](beta-features.md) enabled)
-2. Review the **hardware summary** card showing detected kinematics and accelerometer status. If your printer model has a measured belt-span geometry, a **Target Frequency** is shown too; if it does not, no target is shown and the tool compares the two belts against each other instead of against an absolute number
-3. Tap **Start Check**. The printer homes if needed, then parks the gantry so the free span is the one the target is quoted for. If it cannot park (no bounds known, or no geometry for your model) it asks you to position the gantry yourself
-4. Tap **Start Listening**
-5. Hold still for a second while it learns the room's noise floor - the on-screen hint says *Hold still*
-6. **Pluck the front belt on the right** (belt A) with a fingernail, near the middle of the free span, and let it ring. The live readout shows the frequency of each accepted pluck and a running median underneath
-7. Repeat until the counter reads **5 / 5**. The **Next belt** button unlocks then, and not before
-8. Tap **Next belt**, then do the same for **the front belt on the left** (belt B)
-9. Tap **Compare**
-
-If a pluck is not accepted, the hint tells you why:
-
-- *Too soft - pluck harder* - the strike did not stand out enough from the background
-- *That did not sound like a pluck - try again* - something rang, but it did not have the shape or the harmonic structure of a plucked string. A fan spinning up and a knock on the frame both land here
-
-### Reading the Results
-
-**Belt A and Belt B cards:**
-- **Measured frequency** in Hz - the median of your five plucks, in whole Hz. The tool resolves about 2 Hz, so a decimal would claim precision it does not have
-- **Status indicator** - Good, Needs adjustment, or Out of range. Only shown when there is a target frequency for your model; without one, an absolute verdict would be an invention
-
-**Comparison section:**
-- **Frequency Delta** - the difference between the two belts. Anything under about 2 Hz reads as *Within measurement resolution*, because that is the floor of what the instrument can tell apart
-- **Match** - how closely belt B matches belt A, as a percentage. 100% is identical
-
-**Recommendation card:**
-- A specific instruction, e.g. *Belt A (front right) is tighter by 6 Hz. Tighten belt B, on the front left, or loosen belt A.* When a target frequency is known, the recommendation is written against the target rather than against matching alone - two belts can match each other perfectly and both be far too loose
-
-### Interpreting Frequencies
-
-The **target frequency** is a property of the *free span*, not of the printer: a 150 mm span at correct tension rings at 110 Hz on a Voron 2.4, and a shorter span rings higher. That is why the tool parks the gantry before measuring, and why it shows no target at all on a model whose span geometry has not been measured.
-
-| Result | Meaning |
-|-----------|---------|
-| **Both belts match, near target** | Belt tension is balanced and correct |
-| **Both belts match, but low** | Balanced but too loose - tighten both equally |
-| **Both belts match, but high** | Balanced but overtightened - loosen both equally |
-| **Belts differ significantly** | Unbalanced - tighten the lower-frequency belt |
-
-### Tips
-
-- **Run the check after any belt adjustment** to verify your changes had the desired effect
-- **Tap "Start over"** during listening to go back and re-measure belt A once the flow has moved on to B
-- **Belt A is the front belt on the right; belt B is the front belt on the left.** Check your printer's documentation for which tensioner adjusts which
-- **Pluck in the same place on both belts.** The frequency depends on the free span, so plucking one belt near an idler and the other mid-span compares two different things
-- **Turn off part-cooling and chamber fans if you can.** A fan is a steady tone in exactly the range the tool listens to; it will usually be rejected as "not a pluck", but it also raises the noise floor and makes gentle plucks harder to detect
-- **Z belts cannot be measured this way.** A toolhead-mounted accelerometer is too far from them to hear anything useful
-- **Temperature matters** - belt tension changes slightly with temperature. Run the check at your typical operating temperature for the most accurate results
+Belt Tension is not available yet. The pluck tuner that was in the 1.1 beta gave readings too
+inconsistent to adjust a belt by on real printers, so it has been withdrawn. Its replacement
+drives each belt path with the motors using Klipper's `TEST_RESONANCES` and compares the two
+responses, which gives the same excitation every run. Progress is tracked in
+[#1721](https://github.com/prestonbrown/helixscreen/issues/1721).
 
 ---
 

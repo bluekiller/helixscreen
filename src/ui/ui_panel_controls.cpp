@@ -360,12 +360,14 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // A Quick Actions slot can hold the light toggle. Each slot's light cell
     // reuses LedWidget, the class behind the home light tile, so the bulb shows
-    // on/off, brightness and colour, and a tap toggles; attach() finds
-    // light_button/light_icon inside the cell by name.
+    // on/off, brightness and colour, and a tap toggles the chamber light; the
+    // XML wires the click, and attach() finds light_icon inside the cell by name.
     for (size_t i = 0; i < led_widgets_.size(); ++i) {
-        const std::string cell = "macro_" + std::to_string(i + 1) + "_light_cell";
+        const std::string slot = "macro_" + std::to_string(i + 1);
+        const std::string cell = slot + "_light_cell";
         if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, cell.c_str())) {
-            led_widgets_[i] = std::make_unique<helix::LedWidget>(printer_state_, api_);
+            led_widgets_[i] =
+                std::make_unique<helix::LedWidget>("controls_" + slot, printer_state_, api_);
             led_widgets_[i]->attach(led_cell, parent_screen);
         }
     }

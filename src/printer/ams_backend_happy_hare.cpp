@@ -43,6 +43,15 @@ namespace {
 constexpr int HAPPY_HARE_POS_UNKNOWN = -1;
 constexpr int HAPPY_HARE_POS_UNLOADED = 0;
 
+/// HH's reasons carry raw newlines (it swaps them for ". " only in its own
+/// dialog); one-line UI text needs the same.
+std::string display_reason(std::string reason) {
+    for (auto at = reason.find('\n'); at != std::string::npos; at = reason.find('\n', at)) {
+        reason.replace(at, 1, ". ");
+    }
+    return reason;
+}
+
 /// The object carrying [mmu_machine] machine-level fields (selector_type,
 /// filament_heater, environment_sensor, and their per-gate list forms).
 ///
@@ -456,7 +465,10 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         spdlog::trace("[AMS HappyHare] Filament loaded: {}", system_info_.filament_loaded);
     }
 
-    // Parse reason_for_pause: descriptive error message from Happy Hare
+    // Parse reason_for_pause: descriptive error message from Happy Hare. HH
+    // publishes it only while print_state is pause_locked or paused and "" once
+    // the pause ends (resume or cancel), so its emptiness is the fault state.
+    const bool was_faulted = !reason_for_pause_.empty();
     if (mmu_data.contains("reason_for_pause") && mmu_data["reason_for_pause"].is_string()) {
         reason_for_pause_ = mmu_data["reason_for_pause"].get<std::string>();
         spdlog::trace("[AMS HappyHare] Reason for pause: {}", reason_for_pause_);
@@ -466,49 +478,10 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
     // Values: "Idle", "Loading", "Unloading", "Forming Tip", "Heating", "Checking", etc.
     if (mmu_data.contains("action") && mmu_data["action"].is_string()) {
         std::string action_str = mmu_data["action"].get<std::string>();
-        AmsAction prev_action = system_info_.action;
         system_info_.action = ams_action_from_string(action_str);
         system_info_.operation_detail = action_str;
         spdlog::trace("[AMS HappyHare] Action: {} ({})", ams_action_to_string(system_info_.action),
                       action_str);
-
-        // Clear error segment when recovering to idle
-        if (prev_action == AmsAction::ERROR && system_info_.action == AmsAction::IDLE) {
-            error_segment_ = PathSegment::NONE;
-            reason_for_pause_.clear();
-
-            // Clear slot errors on all slots
-            for (int i = 0; i < slots_.slot_count(); ++i) {
-                auto* entry = slots_.get_mut(i);
-                if (entry && entry->info.error.has_value()) {
-                    entry->info.error.reset();
-                    spdlog::debug("[AMS HappyHare] Cleared error on slot {}", i);
-                }
-            }
-        }
-
-        // Set slot error when entering error state
-        if (system_info_.action == AmsAction::ERROR && prev_action != AmsAction::ERROR) {
-            error_segment_ = path_segment_from_happy_hare_pos(filament_pos_);
-
-            // Set error on current slot (if valid)
-            if (system_info_.current_slot >= 0) {
-                auto* entry = slots_.get_mut(system_info_.current_slot);
-                if (entry) {
-                    SlotError err;
-                    // Use reason_for_pause if available; fall back to operation_detail
-                    if (!reason_for_pause_.empty()) {
-                        err.message = reason_for_pause_;
-                    } else {
-                        err.message = action_str;
-                    }
-                    err.severity = SlotError::ERROR;
-                    entry->info.error = err;
-                    spdlog::debug("[AMS HappyHare] Error on slot {}: {}", system_info_.current_slot,
-                                  err.message);
-                }
-            }
-        }
 
         // Drive the toolchange step bar from the action transition (HH has no
         // // narration). Deferred to main thread inside the helper.
@@ -1336,6 +1309,24 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
     // gate/filament pair this frame may have moved. Unconditional, and last, so
     // no ordering between the three keys can leave a stale stamp behind.
     refresh_gate_statuses_locked();
+
+    // After gate and filament_pos, so the marks land where this frame says.
+    const bool faulted = !reason_for_pause_.empty();
+    if (faulted && !was_faulted) {
+        error_segment_ = path_segment_from_happy_hare_pos(filament_pos_);
+        if (auto* entry = slots_.get_mut(system_info_.current_slot)) {
+            entry->info.error = SlotError{display_reason(reason_for_pause_), SlotError::ERROR};
+            spdlog::debug("[AMS HappyHare] Error on slot {}: {}", system_info_.current_slot,
+                          reason_for_pause_);
+        }
+    } else if (!faulted && was_faulted) {
+        error_segment_ = PathSegment::NONE;
+        for (int i = 0; i < slots_.slot_count(); ++i) {
+            if (auto* entry = slots_.get_mut(i)) {
+                entry->info.error.reset();
+            }
+        }
+    }
 }
 
 void AmsBackendHappyHare::retire_departed_identity_locked(int gate) {
@@ -1387,20 +1378,29 @@ void AmsBackendHappyHare::refresh_gate_statuses_locked() {
 // ============================================================================
 
 std::vector<helix::RecoveryAction> AmsBackendHappyHare::build_recovery_actions() const {
+    return recovery_actions_locked(/*print_paused=*/true);
+}
+
+std::vector<helix::RecoveryAction>
+AmsBackendHappyHare::recovery_actions_locked(bool print_paused) const {
     // Caller holds mutex_.
     std::vector<helix::RecoveryAction> actions;
 
-    // Resume after the user clears the fault (always offered, primary). Resuming
-    // a paused print extrudes on the next move, so it needs the hotend up.
-    actions.push_back({lv_tr("Resume"), "RESUME", "hh::resume", "primary",
-                       /*needs_hot_nozzle=*/true});
+    // Resume after the user clears the fault, primary while a print is paused.
+    // A fault outside a print (a failed load or home) has nothing to resume, so
+    // Recover leads there. Resuming extrudes on the next move: needs the hotend.
+    if (print_paused) {
+        actions.push_back({lv_tr("Resume"), "RESUME", "hh::resume", "primary",
+                           /*needs_hot_nozzle=*/true});
+    }
 
-    // MMU_RECOVER re-syncs HH's filament state; the LOADED/UNLOADED arg must match
-    // reality (HH issue #729). Derive from the live loaded flag. State-only — it
-    // moves nothing, so it stays available on a cold nozzle.
+    // Bare MMU_RECOVER: HH detects the filament position with its own
+    // sensors. Our loaded flag reads false for every position HH reports as
+    // Unknown, so asserting it would tell HH "unloaded" about filament stuck
+    // mid-bowden. State-only, so it stays available on a cold nozzle.
     const bool loaded = system_info_.filament_loaded;
-    actions.push_back({lv_tr("Recover"), loaded ? "MMU_RECOVER LOADED=1" : "MMU_RECOVER UNLOADED=1",
-                       "hh::recover", ""});
+    actions.push_back(
+        {lv_tr("Recover"), "MMU_RECOVER", "hh::recover", print_paused ? "" : "primary"});
 
     // If filament is at the toolhead, offer an explicit unload. Pulls filament
     // back out through the melt zone, so it needs heat.
@@ -1424,29 +1424,37 @@ AmsBackendHappyHare::classify_error(const std::string& raw_line,
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Happy Hare reports the descriptive cause in reason_for_pause_; prefer it
-    // over the terse !! line for the modal detail.
-    std::string bare = helix::strip_bang_prefix(raw_line);
-    std::string detail = !reason_for_pause_.empty() ? reason_for_pause_ : bare;
-
-    // A recognized MMU fault: a descriptive reason is present, OR the print is
-    // paused while HH is in its ERROR action. Mirrors AFC's error_state_ gate.
-    const bool hh_error_state = (system_info_.action == AmsAction::ERROR);
-    const bool recognized =
-        helix::contains_ci(detail, "runout") || helix::contains_ci(detail, "clog") ||
-        helix::contains_ci(detail, "encoder") || helix::contains_ci(detail, "jam") ||
-        helix::contains_ci(detail, "manual intervention");
-
-    if (ctx.is_paused && (hh_error_state || (recognized && !reason_for_pause_.empty()))) {
-        return helix::make_ams_fault_event(helix::ErrorSource::HAPPY_HARE,
-                                           helix::contains_ci(detail, "runout")
-                                               ? lv_tr("Filament runout")
-                                               : lv_tr("Filament System Error"),
-                                           detail, build_recovery_actions());
+    // Every HH fault goes through its log_error as `!! MMU issue...`: in a print
+    // "MMU issue detected. <msg>\nReason: <reason>", outside one (a load or home
+    // the user asked for) "MMU issue: <reason>" with no pause at all. A line
+    // naming no reason while HH holds a pause is still HH's while it is paused.
+    const std::string bare = helix::strip_bang_prefix(raw_line);
+    std::string reason;
+    if (bare.rfind("MMU issue", 0) == 0) {
+        if (const auto at = bare.find("\nReason: "); at != std::string::npos) {
+            reason = bare.substr(at + 9);
+        } else if (bare.rfind("MMU issue: ", 0) == 0) {
+            reason = bare.substr(11);
+        } else {
+            reason = !reason_for_pause_.empty() ? reason_for_pause_ : bare;
+        }
+    } else if (ctx.is_paused && !reason_for_pause_.empty()) {
+        reason = reason_for_pause_;
+    } else {
+        return std::nullopt;
     }
 
-    // Not an HH-owned fault — let the generic classifier handle it.
-    return std::nullopt;
+    const std::string detail = display_reason(reason);
+    return helix::make_ams_fault_event(helix::ErrorSource::HAPPY_HARE,
+                                       helix::contains_ci(detail, "runout")
+                                           ? lv_tr("Filament runout")
+                                           : lv_tr("Filament System Error"),
+                                       detail, recovery_actions_locked(ctx.is_paused));
+}
+
+bool AmsBackendHappyHare::duplicates_firmware_prompt(const std::string& title) const {
+    // HH's _MMU_ERROR_DIALOG, shown for the same pause the recovery popup covers.
+    return title == "Happy Hare Error Notice";
 }
 
 std::vector<AmsBackend::ToolchangePhase>
@@ -2543,6 +2551,65 @@ AmsError AmsBackendHappyHare::clear_fault(int slot_index) {
     return execute_gcode("MMU_RECOVER GATE=" + std::to_string(slot_index));
 }
 
+std::string AmsBackendHappyHare::build_recover_command(const RecoverStateRequest& request) {
+    std::string cmd = "MMU_RECOVER";
+    if (request.bypass) {
+        cmd += " BYPASS=1";
+    } else if (request.slot >= 0) {
+        cmd += " GATE=" + std::to_string(request.slot);
+    }
+    if (request.loaded.has_value()) {
+        cmd += *request.loaded ? " LOADED=1" : " LOADED=0";
+    }
+    return cmd;
+}
+
+// State-only like clear_fault(): MMU_RECOVER moves nothing, so it is allowed
+// while busy or printing, which is when a confused MMU needs correcting.
+AmsError AmsBackendHappyHare::recover_with_state(const RecoverStateRequest& request) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (!running_) {
+            return AmsErrorHelper::not_connected("Happy Hare backend not started");
+        }
+        if (request.bypass) {
+            if (!system_info_.supports_bypass) {
+                return AmsErrorHelper::not_supported("Bypass");
+            }
+        } else if (request.slot >= 0) {
+            AmsError slot_err = validate_slot_index_locked(request.slot);
+            if (!slot_err) {
+                return slot_err;
+            }
+        }
+    }
+
+    const std::string cmd = build_recover_command(request);
+    spdlog::info("[AMS HappyHare] Recovering with asserted state: {}", cmd);
+    return execute_gcode(cmd);
+}
+
+AmsError AmsBackendHappyHare::preload_lane(int slot_index) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        // Happy Hare's MMU_PRELOAD refuses while printing, so ours does too.
+        AmsError precondition = check_preconditions(/*requires_toolhead_motion=*/true);
+        if (!precondition) {
+            return precondition;
+        }
+
+        AmsError slot_err = validate_slot_index_locked(slot_index);
+        if (!slot_err) {
+            return slot_err;
+        }
+    }
+
+    spdlog::info("[AMS HappyHare] Preloading gate {}", slot_index);
+    return execute_gcode("MMU_PRELOAD GATE=" + std::to_string(slot_index));
+}
+
 AmsError AmsBackendHappyHare::eject_lane(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -3555,6 +3622,16 @@ std::vector<helix::printer::DeviceAction> AmsBackendHappyHare::get_device_action
     using namespace helix::printer;
     auto actions = hh_default_actions();
 
+    // Status-backed, so it applies before the configfile has loaded.
+    if (system_info_.spoolman_mode == SpoolmanMode::OFF) {
+        for (auto& a : actions) {
+            if (a.id == "spoolman_refresh") {
+                a.enabled = false;
+                a.disable_reason = "Spoolman support is off in Happy Hare";
+            }
+        }
+    }
+
     // If config hasn't loaded yet, disable all non-button actions
     if (!config_defaults_.loaded) {
         for (auto& a : actions) {
@@ -3746,6 +3823,29 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
         }
     }
 
+    // Extruder-only moves drive the toolhead extruder, and HH puts no print
+    // check on MMU_LOAD/MMU_UNLOAD; an EXTRUDER_ONLY unload forms a tip and
+    // retracts over the part. HH heats the nozzle itself.
+    if (action_id == "load_extruder" || action_id == "unload_extruder") {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            AmsError precondition = check_preconditions(/*requires_toolhead_motion=*/true);
+            if (!precondition) {
+                return precondition;
+            }
+        }
+        return execute_gcode(action_id == "load_extruder" ? "MMU_LOAD EXTRUDER_ONLY=1"
+                                                          : "MMU_UNLOAD EXTRUDER_ONLY=1");
+    }
+
+    // HH refuses MMU_SPOOLMAN outright while its spoolman_support is off.
+    if (action_id == "spoolman_refresh") {
+        if (!manages_active_spool()) {
+            return AmsErrorHelper::not_supported("Spoolman support is off in Happy Hare");
+        }
+        return execute_gcode("MMU_SPOOLMAN REFRESH=1");
+    }
+
     // --- LED mode dropdown ---
     if (action_id == "led_mode") {
         auto [mode, err] = require_string("LED mode");
@@ -3855,7 +3955,7 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
         auto [enable, err] = require_bool("motor state");
         if (!err)
             return err;
-        return execute_gcode(enable ? "MMU_HOME" : "MMU_MOTORS_OFF");
+        return execute_gcode(enable ? "MMU_MOTORS_ON" : "MMU_MOTORS_OFF");
     }
 
     return AmsErrorHelper::not_supported("Unknown action: " + action_id);

@@ -25,7 +25,6 @@
 #include "printer_state.h"
 #include "test_helpers/ad5x_ifs_test_access.h"
 #include "test_helpers/registered_backend.h"
-#include "test_helpers/scoped_home_confirm_prompter.h"
 #include "test_helpers/seeded_override.h"
 
 #include <algorithm>
@@ -7614,27 +7613,15 @@ TEST_CASE("AD5X IFS unload_filament dispatches the firmware _IFS_REMOVE_CURRENT_
 
 TEST_CASE("AD5X IFS unhomed load sends exactly one G28 then the load macro (#1248)",
           "[ams][ad5x_ifs][homing][1248]") {
-    // #1248 read INSERT_PRUTOK_IFS's leading _G28 as an unconditional home and
-    // proposed ensure_homed_then(..., skip_homing=true) to stop a double home.
-    // There is no double home to stop: _G28's whole body is
+    // INSERT_PRUTOK_IFS's leading _G28 is conditional, not a second home: its
+    // whole body is
     //   {% if "xyz" not in printer.toolhead.homed_axes %} _HOME {% endif %}
     // (ZMOD 1.7.1 mod/_mod/translate/*/base.cfg:88), so it no-ops once our G28
-    // has homed. What the load path DOES owe the user is the "Home printer
-    // first?" prompt before a loadcell-Z probing home, and that only happens
-    // while skip_homing stays false.
-    //
-    // The existing coverage for homed=false only exercised the DECLINE branch
-    // (see "declining the pre-load home confirmation..." below), so nothing
-    // pinned what actually goes out on confirm. This does.
+    // has homed.
     TestableAd5xIfsBackend backend;
     Ad5xIfsTestAccess::set_running(backend, true);
     Ad5xIfsTestAccess::set_zcolor_supported(backend, false);
     backend.homed = false;
-
-    // Empty prompter -> request_home_confirmation() runs on_confirm inline,
-    // which is the branch under test. Installed explicitly rather than relying
-    // on the slot already being clear, so shard order can't change the branch.
-    ScopedHomeConfirmPrompter no_prompter{helix::ui::HomeConfirmPrompter{}};
 
     REQUIRE(backend.load_filament(2).success());
 
@@ -7698,8 +7685,6 @@ TEST_CASE("AD5X IFS unhomed change_tool sends G28 before A_CHANGE_FILAMENT (#124
     REQUIRE(backend.set_tool_mapping(1, 1).success()); // tool 1 -> port 2
     backend.captured_gcodes.clear(); // only the change_tool dispatch is under test
     backend.homed = false;
-
-    ScopedHomeConfirmPrompter no_prompter{helix::ui::HomeConfirmPrompter{}};
 
     REQUIRE(backend.change_tool(1).success());
 
@@ -7806,79 +7791,6 @@ TEST_CASE("AD5X IFS load finalizes to IDLE on the macro completion ack (raza616 
     Ad5xIfsTestAccess::finalize_op_after_macro(backend, /*is_unload=*/true); // wrong direction
     REQUIRE(Ad5xIfsTestAccess::phase_active(backend));                       // still in flight
     REQUIRE(backend.get_system_info().action != AmsAction::IDLE);
-}
-
-TEST_CASE("AD5X IFS declining the pre-load home confirmation unwinds the phase tracker, not "
-          "just the action (final-review C1)",
-          "[ams][ad5x_ifs][homing][confirm]") {
-    // load_filament() arms HEATING + begin_phase_tracking_locked() BEFORE
-    // calling ensure_homed_then() (see the block right above the
-    // ensure_homed_then() call in AmsBackendAd5xIfs::load_filament()). Before
-    // the C1 fix, AmsSubscriptionBackend's generic cancel-branch handler reset
-    // system_info_.action to IDLE but never touched phase_tracker_.active --
-    // and apply_phase_action_locked() has no `!= IDLE` guard, so the very
-    // next extruder-temp frame (on_extruder_temp_locked -> apply_phase_action_
-    // locked) flipped the action straight back to HEATING with a fresh
-    // action_start_time_. Left alone, check_action_timeout() would latch
-    // ERROR 300s later ("Filament operation timed out") on an op the user
-    // explicitly declined, and check_preconditions() refuses every AMS
-    // command for the whole window.
-    TestableAd5xIfsBackend backend;
-    Ad5xIfsTestAccess::set_running(backend, true);
-    Ad5xIfsTestAccess::set_zcolor_supported(backend, false);
-    backend.homed = false;
-
-    // The stub prompter below resolves synchronously (declines inline, before
-    // load_filament() ever returns), so operation_detail has already been
-    // cleared by the time we get control back. Capture it from inside the
-    // cancel callback -- i.e. the arming that load_filament() did right
-    // before calling ensure_homed_then() -- to prove there was something to
-    // clear, not that the field was already empty.
-    std::string detail_while_pending;
-    ScopedHomeConfirmPrompter guard([&](std::function<void()>, std::function<void()> cancel) {
-        detail_while_pending = Ad5xIfsTestAccess::operation_detail(backend);
-        cancel();
-    });
-
-    REQUIRE(backend.load_filament(0).success());
-    // load_filament() arms operation_detail (e.g. "Heating nozzle")
-    // via apply_phase_action_locked() in the same locked block that begins
-    // phase tracking -- assert it actually got set so the post-decline check
-    // below proves something was cleared, not that it was already empty.
-    REQUIRE_FALSE(detail_while_pending.empty());
-
-    // Declined before any gcode went out, and the phase tracker + action are
-    // both fully unwound -- not just the action. operation_detail must also
-    // be cleared: AmsState::recompute_action_detail() gives last_operation_
-    // detail_ priority over the IDLE fallback, so a stale detail string
-    // would keep showing under an IDLE action until the next op overwrites
-    // it (mirrors the cancel() precedent a few hundred lines above).
-    // TEST_MIRROR_OK: "mirrors" here points at an earlier TEST CASE in this file
-    //                 as precedent for the assertion, not at a copy of cancel().
-    //                 Every line below drives the shipped backend —
-    //                 load_filament(), the real prompter hook, and a real status
-    //                 frame through handle_status().
-    CHECK(backend.captured_gcodes.empty());
-    CHECK(backend.get_system_info().action == AmsAction::IDLE);
-    CHECK_FALSE(Ad5xIfsTestAccess::phase_active(backend));
-    CHECK(Ad5xIfsTestAccess::operation_detail(backend).empty());
-
-    // The whole point: prove it STAYS unwound. Feed the exact status frame
-    // apply_phase_action_locked()'s caller (on_extruder_temp_locked) would
-    // have used to drive the phase machine while the op was really in
-    // flight. With the tracker inactive this must be a no-op; before the fix
-    // this single frame flipped the action right back to HEATING.
-    Ad5xIfsTestAccess::handle_status(backend, make_extruder(/*temperature=*/25.0, /*target=*/0.0));
-    CHECK(backend.get_system_info().action == AmsAction::IDLE);
-    CHECK_FALSE(Ad5xIfsTestAccess::phase_active(backend));
-
-    // Not wedged: a subsequent load still dispatches normally. homed=true
-    // means ensure_homed_then() never consults the prompter at all, so the
-    // still-installed decline lambda from `guard` above is never invoked.
-    backend.homed = true;
-    REQUIRE(backend.load_filament(1).success());
-    REQUIRE(Ad5xIfsTestAccess::phase_active(backend));
-    CHECK(backend.has_gcode("INSERT_PRUTOK_IFS PRUTOK=2"));
 }
 
 TEST_CASE("AD5X IFS load_filament sets swap_expected when another lane is seated (#1065)",
@@ -9428,6 +9340,24 @@ TEST_CASE("AD5X IFS get_operation_step_model LOAD is the 3-phase synth sequence"
         CHECK(model.steps[0].live_temp);
         CHECK_FALSE(model.steps[1].live_temp);
         CHECK_FALSE(model.steps[2].live_temp);
+    }
+}
+
+TEST_CASE("AD5X IFS steps project the action its phase machine assigns",
+          "[ams][ad5x_ifs][coarse]") {
+    helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(nullptr, nullptr);
+    AmsBackendAd5xIfs& backend = *backend_reg;
+
+    const auto unload = backend.get_operation_step_model(StepOperationType::UNLOAD);
+    CHECK(unload.action_at(0) == AmsAction::HEATING);
+    CHECK(unload.action_at(1) == AmsAction::CUTTING);
+    CHECK(unload.action_at(2) == AmsAction::UNLOADING);
+
+    for (auto op : {StepOperationType::LOAD_FRESH, StepOperationType::LOAD_SWAP}) {
+        const auto load = backend.get_operation_step_model(op);
+        CHECK(load.action_at(0) == AmsAction::HEATING);
+        CHECK(load.action_at(1) == AmsAction::LOADING);
+        CHECK(load.action_at(2) == AmsAction::PURGING);
     }
 }
 

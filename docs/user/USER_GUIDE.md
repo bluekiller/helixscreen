@@ -39,7 +39,7 @@ Navigation basics, touch gestures, connection status, first-time setup wizard, W
 Which printers get deep, model-specific integration — and exactly what works on each. Covers the FlashForge Adventurer 5M/5X (IFS), Creality K1/K2 (CFS), QIDI Box, Snapmaker U1, Anycubic ACE, and how every other Klipper printer is auto-detected.
 
 ### [Home Panel](guide/home-panel.md)
-Your printer dashboard: status area, configurable home widgets (temperature, network, LED, AMS, power, notifications, and more), active tool badge for toolchanger printers, emergency stop, and the Printer Manager with custom images. Long-press the widget grid to enter Edit Mode, where you can add, move, resize, and configure widgets across up to 8 pages; the Add page tile one swipe past your last page gives you a new one with a tap, or drag a widget past either edge of your pages. Add the LED Controls widget and tap it for full LED controls with color, brightness, effects, and WLED presets; the lightbulb widget is a plain on/off toggle.
+Your printer dashboard: status area, configurable home widgets (temperature, network, LED, AMS, power, notifications, and more), active tool badge for toolchanger printers, emergency stop, and the Printer Manager with custom images. Long-press the widget grid to enter Edit Mode, where you can add, move, resize, and configure widgets across up to 8 pages; the Add page tile one swipe past your last page gives you a new one with a tap, or drag a widget past either edge of your pages. Each Light button picks its own light, or All lights, from the gear icon in Edit Mode; tap to toggle, or use its arrow (or the separate LED Controls widget) for full color, brightness, and effects in the LEDs overlay.
 
 ### [Printing](guide/printing.md)
 The full printing workflow — file selection, preview, pre-print options, monitoring active prints, tune overlay, Z-offset baby steps, pressure advance, exclude object, and post-print summary.
@@ -83,7 +83,7 @@ Bed mesh visualization, screws tilt adjust, input shaper resonance testing, Z-of
 Fix taps that land in the wrong spot — run the calibration wizard from Settings, force it on any touchscreen, or recalibrate from the command line.
 
 ### [Settings](guide/settings.md)
-Display, theme, sound, LED, network, sensors, touch calibration, hardware issues, safety, machine limits, factory reset, help & support (debug bundles, Discord, docs), and About sub-overlay (version info, updates, branding, contributors).
+Twelve pages in three groups. Screen: display, appearance and themes, touch & input, sound. Printer: printing, devices, safety & alerts, connection. HelixScreen: language & time, system, updates, help & about.
 
 ![Settings](../images/screenshot-settings-panel.png)
 

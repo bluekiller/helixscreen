@@ -1980,7 +1980,8 @@ class PrinterDiscovery {
 class IMoonrakerAPI;
 namespace helix {
 class IMoonrakerClient;
-}
+class PrinterState;
+} // namespace helix
 
 namespace helix {
 

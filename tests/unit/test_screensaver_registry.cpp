@@ -109,7 +109,7 @@ TEST_CASE("HELIX_SCREENSAVER_NOW falls back to the configured saver, then flying
 
 TEST_CASE("the settings dropdown lists Off then every registered screensaver in type order",
           "[screensaver][screensaver_registry]") {
-    std::ifstream file("ui_xml/settings_display_sound_overlay.xml");
+    std::ifstream file("ui_xml/settings_display_overlay.xml");
     REQUIRE(file.is_open()); // helix-tests runs from the repo root
     std::stringstream buffer;
     buffer << file.rdbuf();

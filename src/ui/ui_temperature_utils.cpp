@@ -3,10 +3,14 @@
 
 #include "ui_temperature_utils.h"
 
+#include "app_globals.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_types.h"
+#include "printer_state.h"
+#include "safety_settings_manager.h"
 #include "spdlog/spdlog.h"
 #include "theme_manager.h"
+#include "tool_state.h"
 
 #include <algorithm>
 #include <cmath>
@@ -37,6 +41,17 @@ bool validate_and_clamp_pair(int& current, int& target, int min_temp, int max_te
 
 bool is_extrusion_safe(int current_temp, int min_extrusion_temp) {
     return current_temp >= min_extrusion_temp;
+}
+
+bool active_nozzle_ready_for_extrusion(const SafetyLimits& limits) {
+    // Users whose macros heat the nozzle themselves, or who are deliberately
+    // cold-pulling, opt out of this gate everywhere at once.
+    if (helix::SafetySettingsManager::instance().get_allow_cold_extrude()) {
+        return true;
+    }
+    auto* subj = get_printer_state().get_active_extruder_temp_subject();
+    const int current = subj ? deci_to_degrees(lv_subject_get_int(subj)) : 0;
+    return is_extrusion_safe(current, extrusion_floor_c(limits));
 }
 
 int extrusion_floor_c(const SafetyLimits& limits, const std::string& extruder) {
@@ -318,6 +333,18 @@ HeaterStatus classify_heater_status(int current_deci, int target_deci, int power
         status.duty = std::to_string(power_pct) + "%";
     }
     return status;
+}
+
+std::string heater_keypad_title(HeaterType type) {
+    switch (type) {
+    case HeaterType::Nozzle:
+        return ToolState::instance().nozzle_label();
+    case HeaterType::Bed:
+        return lv_tr("Bed");
+    case HeaterType::Chamber:
+        return lv_tr("Chamber");
+    }
+    return {};
 }
 
 } // namespace temperature

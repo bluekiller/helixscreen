@@ -30,17 +30,17 @@ namespace helix::snapmaker {
         add("test", {IDLE, -1, false, false, false, false, /*ignore=*/true});
         // --- preload (stage insert -> gear, NOT to nozzle) ---
         add("preload_prepare", {LOAD, 0, false, false, false, false, false});
-        add("preload_feeding", {LOAD, 3, false, false, false, false, false});
+        add("preload_feeding", {LOAD, 2, false, false, false, false, false});
         add("preload_finish", {IDLE, -1, false, false, false, /*clear=*/true, false});
         add("preload_fail", {ERR, -1, false, /*fail=*/true, false, false, false});
         // --- load (feed to nozzle) ---
         add("load_prepare", {LOAD, 0, false, false, false, false, false});
         add("load_homing", {LOAD, 0, false, false, false, false, false});
         add("load_picking", {LOAD, 1, false, false, false, false, false});
-        add("load_heating", {LOAD, 2, false, false, false, false, false});
-        add("load_feeding", {LOAD, 3, false, false, false, false, false});
-        add("load_extruding", {LOAD, 3, false, false, false, false, false});
-        add("load_flushing", {LOAD, 4, false, false, false, false, false});
+        add("load_feeding", {LOAD, 2, false, false, false, false, false});
+        add("load_heating", {LOAD, 3, false, false, false, false, false});
+        add("load_extruding", {LOAD, 4, false, false, false, false, false});
+        add("load_flushing", {LOAD, 5, false, false, false, false, false});
         add("load_finish", {IDLE, -1, /*terminal=*/true, false, /*set=*/true, false, false});
         add("load_fail", {ERR, -1, false, /*fail=*/true, false, false, false});
         // --- unload (retract from nozzle) ---
@@ -58,12 +58,12 @@ namespace helix::snapmaker {
         add("manual_sta_picking", {LOAD, 1, false, false, false, false, false});
         add("manual_sta_prepare_finish", {LOAD, 1, false, false, false, false, false});
         add("manual_sta_prepare_fail", {ERR, -1, false, /*fail=*/true, false, false, false});
-        add("manual_sta_heating", {LOAD, 2, false, false, false, false, false});
-        add("manual_sta_extruding", {LOAD, 3, false, false, false, false, false});
-        add("manual_sta_extrude_finish", {LOAD, 3, false, false, false, false, false});
+        add("manual_sta_heating", {LOAD, 3, false, false, false, false, false});
+        add("manual_sta_extruding", {LOAD, 4, false, false, false, false, false});
+        add("manual_sta_extrude_finish", {LOAD, 4, false, false, false, false, false});
         add("manual_sta_extrude_fail", {ERR, -1, false, /*fail=*/true, false, false, false});
-        add("manual_sta_flushing", {LOAD, 4, false, false, false, false, false});
-        add("manual_sta_flush_finish", {LOAD, 4, false, false, false, false, false});
+        add("manual_sta_flushing", {LOAD, 5, false, false, false, false, false});
+        add("manual_sta_flush_finish", {LOAD, 5, false, false, false, false, false});
         add("manual_sta_flush_fail", {ERR, -1, false, /*fail=*/true, false, false, false});
         // manual_sta_finish is a completed manual EXTRUDE, not a load; it ends
         // the op (IDLE) but does NOT set the loaded latch.
@@ -103,19 +103,23 @@ namespace helix::snapmaker {
         info.action = AmsAction::IDLE;
     }
     if (info.action == AmsAction::LOADING || info.action == AmsAction::UNLOADING) {
-        // Mirrors the per-direction step models: load/manual/preload reach Feed(3)
-        // then Purge(4); unload has no Purge step so its Move phase is Retract(3).
+        // Mirrors the per-direction step models. Load, manual and preload:
+        // Home 0, Select 1, Feed 2, Heat 3, Extrude 4, Purge 5. Unload: Home 0,
+        // Select 1, Heat 2, Retract 3.
         if (ends_with("_homing") || ends_with("_prepare"))
             info.phase = 0;
         else if (ends_with("_picking"))
             info.phase = 1;
-        else if (ends_with("_heating"))
+        else if (is_unload)
+            info.phase = ends_with("_heating") ? 2 : 3;
+        else if (ends_with("_feeding"))
             info.phase = 2;
-        else if (ends_with("_flushing") && !is_unload)
-            info.phase = 4;
-        else if (ends_with("_doing") || ends_with("_feeding") || ends_with("_extruding") ||
-                 ends_with("_flushing"))
+        else if (ends_with("_heating"))
             info.phase = 3;
+        else if (ends_with("_extruding"))
+            info.phase = 4;
+        else if (ends_with("_flushing"))
+            info.phase = 5;
     }
     spdlog::debug("[AmsBackendSnapmaker] unrecognized channel_state '{}' -> fallback action={} "
                   "phase={}",

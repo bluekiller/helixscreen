@@ -82,14 +82,15 @@ class AmsOperationSidebar {
      * @brief Start an operation with known type and target slot
      *
      * Called BEFORE backend operation to set up step progress and pulse animation.
-     * Sets action to HEATING and shows step progress immediately.
+     * Sets the action of the operation's first step and shows step progress
+     * immediately.
      */
     void start_operation(StepOperationType op_type, int target_slot);
 
     /**
      * @brief Revert a start_operation() whose backend dispatch failed
      *
-     * start_operation() optimistically sets the AmsState action to HEATING and
+     * start_operation() optimistically sets the AmsState action busy and
      * arms the pulse animation before the backend call. If that call returns an
      * error, the backend never left IDLE — surface the error and resync the UI
      * from the backend so the sidebar doesn't freeze in a phantom "Heating"

@@ -54,9 +54,9 @@ void SystemSettingsOverlay::init_subjects() {
         return;
     }
 
-    // All subjects used by the system overlay XML are already registered
-    // by SettingsPanel (show_network_settings, show_touch_calibration,
-    // hardware_has_issues, settings_telemetry_enabled, etc.)
+    // All subjects used by the system overlay XML are registered at startup
+    // (perf_available by PerformanceState, settings_telemetry_enabled by
+    // SystemSettingsManager).
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
 }
@@ -124,8 +124,6 @@ void SystemSettingsOverlay::on_activate() {
     OverlayBase::on_activate();
 
     init_telemetry_toggle();
-    init_touch_cal_description();
-    init_host_description();
     init_log_level_dropdown();
 }
 
@@ -148,31 +146,6 @@ void SystemSettingsOverlay::init_telemetry_toggle() {
             }
             spdlog::trace("[{}] Telemetry toggle initialized", get_name());
         }
-    }
-}
-
-void SystemSettingsOverlay::init_touch_cal_description() {
-    if (!overlay_root_)
-        return;
-
-    // Touch calibration row description is already bound to the
-    // touch_cal_status subject via SettingsPanel's setup_action_handlers().
-    // For the system overlay, we bind it here if the row exists.
-    lv_obj_t* touch_cal_row = lv_obj_find_by_name(overlay_root_, "row_touch_calibration");
-    if (touch_cal_row) {
-        spdlog::trace("[{}] Touch calibration row present", get_name());
-    }
-}
-
-void SystemSettingsOverlay::init_host_description() {
-    if (!overlay_root_)
-        return;
-
-    // Host row description is already bound to printer_host_value subject
-    // via SettingsPanel's populate_info_rows(). The subject updates reactively.
-    lv_obj_t* host_row = lv_obj_find_by_name(overlay_root_, "row_printer_host");
-    if (host_row) {
-        spdlog::trace("[{}] Host row present", get_name());
     }
 }
 

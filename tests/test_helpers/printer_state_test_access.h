@@ -124,13 +124,6 @@ class PrinterMotionStateTestAccess {
     }
 };
 
-class PrinterLedStateTestAccess {
-  public:
-    static void clear_data(PrinterLedState& s) {
-        s.tracked_led_name_.clear();
-    }
-};
-
 class PrinterCapabilitiesStateTestAccess {
   public:
     static void clear_data(PrinterCapabilitiesState& s) {
@@ -203,7 +196,7 @@ class PrinterStateTestAccess {
     /// WHY THIS EXISTS, and why it is called from the fixture base rather than
     /// from individual tests:
     ///
-    /// PrinterState's thirteen domain components each pair an init_subjects()
+    /// PrinterState's twelve domain components each pair an init_subjects()
     /// with a deinit_subjects(), and those manage the SUBJECTS only. The plain
     /// members alongside them — the excluded/defined object sets, the discovery
     /// result, the capability override map, the cached status JSON — have no
@@ -244,7 +237,6 @@ class PrinterStateTestAccess {
         // --- Domains with pure data ------------------------------------------
         PrinterExcludedObjectsStateTestAccess::clear_data(*ps.get_excluded_objects_state());
         PrinterMotionStateTestAccess::clear_data(ps.motion_state_);
-        PrinterLedStateTestAccess::clear_data(ps.led_state_component_);
         PrinterCapabilitiesStateTestAccess::clear_data(ps.capabilities_state_);
         PrinterCalibrationStateTestAccess::clear_data(ps.calibration_state_);
         PrinterHardwareValidationStateTestAccess::clear_data(ps.hardware_validation_state_);

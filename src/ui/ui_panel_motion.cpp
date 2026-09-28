@@ -34,6 +34,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -43,6 +44,11 @@
 #include "hv/json.hpp"
 
 using namespace helix;
+
+namespace {
+/// How far Park lifts the nozzle away from the plate before moving over it.
+constexpr double PARK_Z_LIFT_MM = 10.0;
+} // namespace
 
 /// Trim trailing zeros so 0.1 reads "0.1" and 10.0 reads "10"; the default
 /// distances must render as 0.1, 1, 10 and 50.
@@ -1283,12 +1289,19 @@ void MotionPanel::handle_park() {
         return;
     }
     const auto info = StandardMacros::instance().get(StandardMacroSlot::ParkToolhead);
+    // Both paths may lift Z, so they need every axis homed.
     if (info.is_empty()) {
-        // No macro configured: the front-centre preset is what parking means.
-        handle_preset(helix::MotionPreset::Front);
+        // The commanded Z the panel holds predates a G28 that runs first, so a
+        // lift computed from it could be a descent; homing already leaves Z at
+        // a safe height, so the lift only applies to a machine already homed.
+        const bool lift_z = helix::toolhead_is_homed(get_printer_state());
+        helix::ensure_homed_then(
+            api, lifetime_, [this, lift_z]() { park_over_plate(lift_z); },
+            lifetime_.bg_cb("MotionPanel::park_home_failed", [](const MoonrakerError& err) {
+                NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+            }));
         return;
     }
-    // A park macro commonly lifts Z too, so it needs every axis homed.
     const std::string name = info.translated_name();
     helix::ensure_homed_then(
         api, lifetime_,
@@ -1307,6 +1320,26 @@ void MotionPanel::handle_park() {
         lifetime_.bg_cb("MotionPanel::park_home_failed", [](const MoonrakerError& err) {
             NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
         }));
+}
+
+void MotionPanel::park_over_plate(bool lift_z) {
+    IMoonrakerAPI* api = get_moonraker_api();
+    if (!api) {
+        return;
+    }
+    const auto& ps = get_printer_state();
+    const AxisBounds gcode = ps.get_gcode_axis_bounds();
+    auto target = helix::plate_rear_park(
+        helix::preset_area(ps.get_axis_bounds(), gcode, api->hardware().build_volume()));
+    if (!target) {
+        NOTIFY_INFO(lv_tr("Axis limits unknown"));
+        return;
+    }
+    if (lift_z && gcode.has_z) {
+        target->z = std::min(static_cast<double>(current_z_) + PARK_Z_LIFT_MM,
+                             static_cast<double>(gcode.z_max));
+    }
+    dispatch_target(*target);
 }
 
 void MotionPanel::handle_motors_off() {

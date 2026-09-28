@@ -1,12 +1,11 @@
 <?xml version="1.0"?>
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- Safety & Notifications Settings Overlay Panel -->
+<!-- Safety & Alerts Settings Overlay Panel -->
 <!-- E-Stop confirmation, cancel escalation, escalation timeout, print completion alert -->
 <component>
   <view name="settings_safety_overlay"
-        extends="overlay_panel" title="Safety &amp; Notifications" title_tag="Safety &amp; Notifications"
-        bg_color="#screen_bg">
+        extends="overlay_panel" title="Safety &amp; Alerts" title_tag="Safety &amp; Alerts" bg_color="#screen_bg">
     <!-- Content Area - no padding, rows handle their own -->
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_top="0" style_pad_left="0" style_pad_right="0"
@@ -52,22 +51,6 @@
                             icon="script_text" description="Show a confirmation dialog when tapping a macro"
                             description_tag="Show a confirmation dialog when tapping a macro"
                             subject="settings_macro_confirm" callback="on_macro_confirm_changed"/>
-        <!-- ================================================================== -->
-        <!-- ALLOW COLD EXTRUDE -->
-        <!-- ================================================================== -->
-        <setting_toggle_row name="row_allow_cold_extrude"
-                            label="Allow cold load/unload" label_tag="Allow cold load/unload" icon="cooldown"
-                            description="Run filament load/unload even when the nozzle is cold (for macros that heat the nozzle themselves)"
-                            description_tag="Run filament load/unload even when the nozzle is cold (for macros that heat the nozzle themselves)"
-                            subject="settings_allow_cold_extrude" callback="on_allow_cold_extrude_changed"/>
-        <!-- ================================================================== -->
-        <!-- POST-OP NOZZLE COOLDOWN -->
-        <!-- ================================================================== -->
-        <setting_toggle_row name="row_filament_auto_cooldown"
-                            label="Cool nozzle after filament ops" label_tag="Cool nozzle after filament ops"
-                            icon="cooldown" description="Turn the extruder heater off after a load or unload finishes"
-                            description_tag="Turn the extruder heater off after a load or unload finishes"
-                            subject="filament_auto_cooldown" callback="on_filament_auto_cooldown_changed"/>
         <!-- ================================================================== -->
         <!-- SPAGHETTI DETECTION (only when a detection source is capable) -->
         <!-- ================================================================== -->

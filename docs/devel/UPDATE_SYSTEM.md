@@ -163,7 +163,7 @@ Three channels are available. The channel is stored in config at `/update/channe
 
 ### Channel Selection in UI
 
-The About Settings overlay (`about_settings_overlay.xml`) carries **two** Update
+The Updates settings overlay (`settings_updates_overlay.xml`) carries **two** Update
 Channel rows with complementary conditions, because a dropdown's `options` is a
 static string and the entries on offer differ per install:
 
@@ -183,7 +183,7 @@ deliver identical builds, so a third entry would offer a stable-line user a
 duplicate of its neighbour.
 
 Neither row binds its selection to a subject; `lv_dropdown` has no such binding in
-the XML engine. `AboutSettingsOverlay::sync_update_channel_rows()` seeds both from
+the XML engine. `UpdatesSettingsOverlay::sync_update_channel_rows()` seeds both from
 `UpdateChecker::get_channel()` on activate and whenever the 7-tap toggles beta.
 
 ### Switching Channels (and moving backward)
@@ -192,7 +192,7 @@ Changing the dropdown calls `UpdateChecker::on_channel_changed()`, which drops t
 cached result, re-snapshots the config for the debug bundle's off-thread reader,
 **clears the rate-limit clock**, and starts a fresh check. The rate-limit reset is
 load-bearing: the limiter predates user-switchable channels, so without it the
-check returns the previous channel's verdict and the About row keeps advertising a
+check returns the previous channel's verdict and the Check for Updates row keeps advertising a
 version the newly selected channel does not serve.
 
 The check is a three-way comparison (`compare_channel_version()`), not the old
@@ -213,7 +213,7 @@ A downgrade is deliberately quieter than an update:
 
 - The auto-check **never** raises it unprompted (a transient bad manifest would
   otherwise push a "go back" prompt to the whole fleet at once).
-- The About row reads *"Switch to vX"*, not *"vX available"*.
+- The Check for Updates row reads *"Switch to vX"*, not *"vX available"*.
 - Tapping install shows a confirmation naming both versions before anything
   downloads.
 
@@ -538,13 +538,18 @@ Moonraker integration is configured on **all platforms except AD5M** (which typi
 
 ## User-Facing UI
 
-### About Settings Overlay (`about_settings_overlay.xml`)
+### Updates Settings Overlay (`settings_updates_overlay.xml`)
 
-Located under Settings (tap the "About" action row), the About Settings overlay contains:
-- **Current Version** row (7-tap to enable beta features)
+Opened from the **Updates** row in the HELIXSCREEN group of the Settings root (`row_updates`), and from the upgrade banner's Update button. `UpdatesSettingsOverlay` (`src/ui/ui_settings_updates.cpp`) owns it:
+- **Update Channel** dropdown - Stable/Beta on any install, Stable/Beta/Dev with beta features enabled (see [Channel Selection in UI](#channel-selection-in-ui))
 - **Check for Updates** row (triggers manual check, description bound to `update_version_text` subject)
-- **Install Update** row (visible only when `update_status == UpdateAvailable`)
-- **Update Channel** dropdown — Stable/Beta on any install, Stable/Beta/Dev with beta features enabled
+- **Install Update** row (visible only when `show_update_settings == 1`, `updates_unavailable == 0` and `update_status == UpdateAvailable`, in one `bind_flag_if` expression)
+- **Software Updates** notice "Managed by your firmware" (visible when `updates_firmware_managed == 1`; the channel, check and install rows hide)
+- **Software Updates** action row "Not available here. Update from a terminal." (visible when `updates_unavailable == 1`; opens an info QR modal pointing at the docs)
+
+The root row's status line (`settings_status_updates`) summarizes the same state: up to date, `X available`, checking, check failed, the installed version, or managed by firmware. The root row hides only when `show_update_settings`, `updates_firmware_managed` and `updates_unavailable` are all 0.
+
+The **Current Version** row (7-tap to toggle beta features) stays in the About overlay (`about_settings_overlay.xml`, under Help & About). Toggling beta there re-runs `UpdatesSettingsOverlay::sync_update_channel_rows()` so the Updates page shows the right channel row.
 
 ### Update Notification Modal (`update_notify_modal.xml`)
 
@@ -617,7 +622,7 @@ Run the program with `--test` mode and verbose logging:
 ./build/bin/helix-screen --test -vv
 ```
 
-Navigate to Settings -> About -> Check for Updates. The log output shows the full check flow including R2 fetch, GitHub fallback, and version comparison.
+Navigate to Settings -> Updates -> Check for Updates. The log output shows the full check flow including R2 fetch, GitHub fallback, and version comparison.
 
 ### Testing with a Custom Dev Server
 
@@ -677,7 +682,7 @@ export HELIX_TEST_USERNAME=pi                  # SSH username
 
 | Path | Command | When to use |
 |------|---------|-------------|
-| Via update checker | Trigger from Settings → About → Check for Updates | Tests the full self-update flow |
+| Via update checker | Trigger from Settings → Updates → Check for Updates | Tests the full self-update flow |
 | Direct local install | `ssh USER@PRINTER 'sh /tmp/install.sh --local /tmp/helixscreen-update.zip'` | Tests install.sh in isolation, bypasses update checker |
 
 `--configure-remote` copies `install.sh` to `/tmp/` on the device automatically, enabling the direct path without an extra transfer step.
@@ -702,7 +707,7 @@ it does the new binary take over.
 # Serve the build (--no-build reuses the last archive for fast iteration)
 ./scripts/serve-local-update.sh --no-build
 
-# On device: trigger update from Settings → About → Check for Updates
+# On device: trigger update from Settings → Updates → Check for Updates
 # → install completes, helix-screen restarts (1st install done, new binary running)
 
 # Trigger update again from the UI  ← this is the one that exercises your change
@@ -832,11 +837,13 @@ Or for deployed installations, set `HELIX_LOG_LEVEL=debug` in `~/helixscreen/con
 | `include/system/update_checker.h` | UpdateChecker class declaration |
 | `src/system/update_checker.cpp` | Full implementation (check, download, install, auto-check) |
 | `src/system/settings_manager.cpp` | Channel subject and persistence |
-| `src/ui/ui_panel_settings.cpp` | Download modal callbacks, channel change handler |
-| `src/ui/ui_settings_about.cpp` | AboutSettingsOverlay — version info, updates, branding, easter eggs |
+| `src/ui/ui_panel_settings.cpp` | Settings root: the Updates row and its status line |
+| `src/ui/ui_settings_updates.cpp` | UpdatesSettingsOverlay - channel rows, check/install, download modal callbacks, firmware-managed and unavailable notices |
+| `src/ui/ui_settings_about.cpp` | AboutSettingsOverlay - version info, branding, easter eggs, the beta 7-tap |
 | `ui_xml/update_notify_modal.xml` | Auto-check notification modal |
 | `ui_xml/update_download_modal.xml` | Multi-state download/install modal |
-| `ui_xml/about_settings_overlay.xml` | About Settings overlay with update controls, branding, contributors |
+| `ui_xml/settings_updates_overlay.xml` | Updates settings overlay: channel, check, install, notices |
+| `ui_xml/about_settings_overlay.xml` | About overlay: version, branding, contributors |
 | `scripts/generate-manifest.sh` | Manifest generator for CI and dev |
 | `scripts/install.sh` | Bundled installer (used for `--update` mode) |
 | `scripts/lib/installer/moonraker.sh` | Moonraker update_manager configuration |

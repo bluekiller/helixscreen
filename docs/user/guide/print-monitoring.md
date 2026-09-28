@@ -102,7 +102,7 @@ The dialogs above compare what the *file* needs against what your slots hold. Th
 | Button | Action |
 |--------|--------|
 | **Start Anyway** | Starts the print with the stray filament left in the toolhead. Reasonable when you know what it is and it matches the file — the tail of the spool you just printed with, for example. |
-| **Cancel** | Backs out. Pull the filament out by hand (or load it properly from a lane), then start the print again. |
+| **Cancel** | Backs out. Tap **Unload** in the filament sidebar, pull the filament out by hand, or load it properly from a lane, then start the print again. |
 
 ![The Filament In The Toolhead dialog](../../images/screenshot-unaccounted-dialog.png)
 
@@ -167,7 +167,7 @@ On other printers the detection settings stay hidden.
 
 ### Settings
 
-Under **Settings > Safety & Notifications**:
+Under **Settings > Safety & Alerts**:
 
 - **Spaghetti Detection** switches detection on or off. It's on by default. On a K2, the first time HelixScreen runs it copies the printer's own AI detection setting, so detection stays off if you had it off in Creality's settings. After that, HelixScreen's switch is the one that counts.
 - **Pause on Detection** decides whether a detection pauses the print or only warns you. It's hidden on the U1, which always pauses by itself.

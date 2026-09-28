@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Downscale + palette-quantize assets/images/printers/*.png for the ESP32
-packed asset container (Plan 4 Task 3).
+Downscale + palette-quantize a curated subset of assets/images/printers/*.png
+for the ESP32 packed asset container.
 
-Rendition width matches what PrinterImageWidget actually requests at runtime:
-get_printer_image_size(screen_width) in src/system/prerendered_images.cpp
-returns 300px for screen_width >= 600 (the K-Touch panel is 800px wide), so
-every printer image is re-rendered at width=300 (aspect-preserved height).
+The storage partition cannot hold every printer's picture (80 renditions came
+to 1.2MB against ~0.7MB free), so the firmware ships ESP32_PRINTERS: the
+machines an add-on panel like the K-Touch drives, which are the DIY and
+Klipper-converted printers without a stock screen, ranked by hardware_profile
+telemetry. A printer not in the set shows generic-corexy, the widget's fallback.
+Renditions are 200px wide: the home widget draws the picture about 175px wide
+on the 800x480 panel, and the firmware decodes the PNG and scales it at draw
+time, so a larger rendition costs flash and decode time and shows nothing more.
 
 Quality is favored over squeeze (headroom is ample post-container): each
 image is palette-quantized to up to 256 colors via Pillow's FASTOCTREE
@@ -22,8 +26,8 @@ Usage:
     pip install Pillow
     python3 scripts/esp32_printer_images.py [--out DIR]
 
-All source images ship — never silently dropped. If any image fails to
-process, this script exits non-zero rather than shipping a partial set.
+If an image in the set is missing or fails to process, this script exits
+non-zero rather than shipping a partial set.
 """
 
 import argparse
@@ -43,12 +47,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIR = REPO_ROOT / "assets" / "images" / "printers"
 DEFAULT_OUT = REPO_ROOT / "build" / "esp32_printer_images"
 
-# Matches get_printer_image_size(800) in src/system/prerendered_images.cpp
-# (screen_width >= 600 -> 300px). The K-Touch panel is 800px wide.
-TARGET_WIDTH = 300
+TARGET_WIDTH = 200
 
-# Excluded from the image set (documentation, not an image).
-EXCLUDED_FILES = ("README.md",)
+# generic-corexy first: it is the fallback every other printer resolves to.
+ESP32_PRINTERS = (
+    "generic-corexy",
+    "voron-v2", "voron-trident", "voron-v0", "voron-switchwire", "voron-legacy",
+    "sovol-sv08", "sovol-sv08-max", "sovol-zero",
+    "ratrig-vcore3", "ratrig-vcore4", "ratrig-vminion",
+    "zerog-hydra-255", "zerog-hydra-370", "zerog-nebula", "zerog-nebula-370",
+    "vzbot", "doron_velta", "pfa-micron", "pfa-stealthfork",
+    "creality-ender-3", "creality-ender-5", "creality-cr10", "prusa-mk4",
+)
 
 
 def format_bytes(n: int) -> str:
@@ -103,11 +113,11 @@ def main() -> int:
     out_dir: Path = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    sources = sorted(
-        p for p in SOURCE_DIR.glob("*.png") if p.name not in EXCLUDED_FILES
-    )
-    if not sources:
-        print(f"FAIL: no PNG files found in {SOURCE_DIR}", file=sys.stderr)
+    sources = [SOURCE_DIR / f"{name}.png" for name in ESP32_PRINTERS]
+    missing = [p.name for p in sources if not p.exists()]
+    if missing:
+        print(f"FAIL: ESP32_PRINTERS names images not in {SOURCE_DIR}: {', '.join(missing)}",
+              file=sys.stderr)
         return 1
 
     rows = []
@@ -127,7 +137,7 @@ def main() -> int:
         total_out += out_bytes
 
     print(f"ESP32 printer image pipeline: {SOURCE_DIR} -> {out_dir}")
-    print(f"  Target width: {TARGET_WIDTH}px (matches get_printer_image_size(800))")
+    print(f"  Target width: {TARGET_WIDTH}px, {len(ESP32_PRINTERS)} printers")
     print()
     print(f"  {'file':<38} {'orig':>14} {'packed':>14} {'ratio':>8}")
     for name, orig_bytes, out_bytes in rows:

@@ -172,6 +172,15 @@ class DisplayManagerTestAccess {
         dm.m_refresh_timing = timing;
     }
 
+    static void set_display_sleeping(DisplayManager& dm, bool sleeping) {
+        dm.m_display_sleeping = sleeping;
+    }
+
+    // Set by sleep_aware_read_cb when a press arrives while asleep or dimmed.
+    static bool wake_requested(DisplayManager& dm) {
+        return dm.m_wake_requested;
+    }
+
     // Deletes the pointer device a test-driven input rebuild created.
     static void delete_pointer_input(DisplayManager& dm) {
         if (dm.m_pointer) {

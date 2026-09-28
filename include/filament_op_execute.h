@@ -92,7 +92,7 @@ struct OpNozzle {
 [[nodiscard]] FilamentOpPlan plan_live_unload(const BackendCaps& caps, int target_slot,
                                               bool target_is_loaded);
 
-/// unload_target_is_loaded() with the four per-lane answers read off a live
+/// unload_target_is_loaded() with the per-lane answers read off a live
 /// backend. False when @p backend is null: with no backend there is no lane to
 /// ask about, and plan_unload() gates its tier 1 on the backend anyway.
 [[nodiscard]] bool read_unload_target_loaded(AmsBackend* backend, const AmsSystemInfo& info,
@@ -141,12 +141,13 @@ enum class PreheatSkip {
 // ============================================================================
 
 /**
- * @brief Must the user be asked to home before this op is dispatched?
+ * @brief Must the toolhead be homed before this op is dispatched?
  *
- * Same shape as preheat_skip_reason(), for the other thing a surface would
- * otherwise do redundantly. Two ways the question is already answered:
- * AmsBackend::delegates_homing_to_printer() on tier 1, and a macro carrying its
- * own conditional home on tier 2.
+ * A surface that gets a yes homes first, with no confirmation: asking for the op
+ * is consent to the home it requires. Same shape as preheat_skip_reason(), for
+ * the other thing a surface would otherwise do redundantly. Two ways the question is already
+ * answered: AmsBackend::delegates_homing_to_printer() on tier 1, and a macro carrying its own
+ * conditional home on tier 2.
  *
  * Both are read against the TIER, which is what makes them safe. A backend's
  * claim is about the gcode that backend emits, so it says nothing once bypass
@@ -154,15 +155,15 @@ enum class PreheatSkip {
  * run alone, so it says nothing about a backend that merely composes it with
  * unguarded moves of its own.
  *
- * The false answer is the safe one in both directions: an unneeded prompt is
- * friction, while a skipped one moves a toolhead with no reference.
+ * When unsure the answer is yes: an unneeded G28 costs time, while a skipped
+ * one moves a toolhead with no reference.
  *
  * @param plan           The plan about to be dispatched.
  * @param slot           Which StandardMacros slot @p plan resolves against.
  * @param backend        May be null.
- * @param toolhead_homed helix::toolhead_is_homed() — already homed asks nobody.
+ * @param toolhead_homed helix::toolhead_is_homed() — already homed needs nothing.
  */
-[[nodiscard]] bool needs_home_confirmation(const FilamentOpPlan& plan, StandardMacroSlot slot,
+[[nodiscard]] bool needs_prerequisite_home(const FilamentOpPlan& plan, StandardMacroSlot slot,
                                            AmsBackend* backend, bool toolhead_homed);
 
 // ============================================================================

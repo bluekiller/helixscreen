@@ -19,7 +19,7 @@
 #include "ui_modal.h"
 #include "ui_notification.h"
 #include "ui_panel_settings.h"
-#include "ui_settings_about.h"
+#include "ui_settings_updates.h"
 #include "ui_timer_guard.h"
 #include "ui_update_queue.h"
 
@@ -786,8 +786,13 @@ void UpdateChecker::init_subjects() {
 
     UI_MANAGED_SUBJECT_INT(status_subject_, static_cast<int>(Status::Idle), "update_status",
                            subjects_);
-    UI_MANAGED_SUBJECT_STRING(version_text_subject_, version_text_buf_, "", "update_version_text",
-                              subjects_);
+    // The Check for Updates row binds its status line straight to this subject, so an
+    // empty default renders as a blank second line until the first check completes.
+    // Seed it with the same "Version {}" idle text the settings root shows, reusing
+    // that key rather than a printf-style duplicate.
+    UI_MANAGED_SUBJECT_STRING(version_text_subject_, version_text_buf_,
+                              fmt::format(lv_tr("Version {}"), HELIX_VERSION).c_str(),
+                              "update_version_text", subjects_);
     UI_MANAGED_SUBJECT_STRING(new_version_subject_, new_version_buf_, "", "update_new_version",
                               subjects_);
 
@@ -1301,7 +1306,7 @@ void UpdateChecker::start_download() {
     //
     // The status enum checked above cannot answer "is a worker alive":
     // cancel_download() only sets a flag the worker reads AFTER downloadFile()
-    // returns, while AboutSettingsOverlay::hide_update_download_modal() resets
+    // returns, while UpdatesSettingsOverlay::hide_update_download_modal() resets
     // the status to Idle the instant the user taps Cancel. Install -> Cancel ->
     // Install walked straight past that guard and into the join.
     if (download_worker_active_.load()) {
@@ -2797,7 +2802,7 @@ UpdateChecker::UpdateChannel UpdateChecker::get_channel() const {
     int channel = config->get<int>("/update/channel", 0);
 
     // /update/channel persists independently of /beta_features. Stable and Beta
-    // are both offered on a stock install (about_settings_overlay.xml), so only
+    // are both offered on a stock install (settings_updates_overlay.xml), so only
     // Dev is gated here: it fetches from the arbitrary dev_url in the
     // root-owned update_urls.json rather than a published channel, and its
     // picker appears only with beta unlocked.
@@ -3113,7 +3118,7 @@ static void on_update_notify_install(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[UpdateChecker] on_update_notify_install");
     spdlog::info("[UpdateChecker] User chose to install update");
     UpdateChecker::instance().hide_update_notification();
-    helix::settings::get_about_settings_overlay().show_update_download_modal(
+    helix::settings::get_updates_settings_overlay().show_update_download_modal(
         /*start_immediately=*/true);
     LVGL_SAFE_EVENT_CB_END();
 }

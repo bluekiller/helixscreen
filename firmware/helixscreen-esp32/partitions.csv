@@ -1,15 +1,17 @@
-# 16MB flash. OTA A/B: 2x 6.75MB app slots + a 2.25MB packed frogfs asset
+# 16MB flash. OTA A/B: 2x 6.5MB app slots + a 2.75MB packed frogfs asset
 # container (`storage`) + NVS. `cfg` is a separate 128KB LittleFS partition
-# for mutable settings - asset reflashes (storage) never wipe it. Storage holds
-# the XML, images and every font face except LVGL's built-in montserrat_14,
-# and packs to about 1.5MB, so the slots take the rest. The table ends exactly
-# at 0x1000000. Changing any offset requires erase_flash + a full reflash over
-# USB: a partition table cannot change over OTA.
+# for mutable settings - asset reflashes (storage) never wipe it. The app
+# builds without exceptions at about 5.4MB; storage holds the XML, translation
+# packs, printer pictures and every font face except LVGL's built-in
+# montserrat_14, and packs to about 1.8MB. The table ends exactly at 0x1000000.
+# A partition table cannot change over OTA: changing an offset takes a full USB
+# reflash (idf.py flash writes the table, otadata and both images). nvs and cfg
+# keep their offsets, so WiFi credentials and settings survive it.
 # Name,   Type, SubType, Offset,   Size,     Flags
 nvs,      data, nvs,     0x9000,   0x6000,
 otadata,  data, ota,     0xf000,   0x2000,
 phy_init, data, phy,     0x11000,  0x1000,
-ota_0,    app,  ota_0,   0x20000,  0x6c0000,
-ota_1,    app,  ota_1,   0x6e0000, 0x6c0000,
-storage,  data, spiffs,  0xda0000, 0x240000,
+ota_0,    app,  ota_0,   0x20000,  0x680000,
+ota_1,    app,  ota_1,   0x6a0000, 0x680000,
+storage,  data, spiffs,  0xd20000, 0x2c0000,
 cfg,      data, spiffs,  0xfe0000, 0x20000,

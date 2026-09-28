@@ -1181,22 +1181,34 @@ CXXFLAGS += -DHELIX_HAS_LABEL_PRINTER=$(HELIX_HAS_LABEL_PRINTER) \
             -DHELIX_BACKLIGHT_FLOOR_PERCENT=$(HELIX_BACKLIGHT_FLOOR_PERCENT)
 
 # Parallel build control
-# Auto-parallelizes builds: plain 'make' automatically uses -j$(NPROC).
-#
-# Detection method (see mk/rules.mk):
-#   - 'make':     No jobserver → auto-add -j$(NPROC)
-#   - 'make -j':  No jobserver → auto-fix to -j$(NPROC) with warning
-#   - 'make -j8': Has jobserver → pass through unchanged
+# A make that picks its own -j (plain `make`, or unlimited `make -j`) takes
+# JOBS: this session's fair share of the box from `scripts/helix-claim jobs`,
+# which splits the cores between the trees building now. An explicit -jN passes
+# through unchanged. The two-phase re-invoke that applies it lives in
+# mk/rules.mk `all:` and mk/tests.mk `$(TEST_BIN)`.
 #
 # MAKEFLAGS format:
 #   - 'make' or 'make -j': No 'jobserver' in MAKEFLAGS
 #   - 'make -jN': MAKEFLAGS contains '--jobserver-fds=X,Y' or '--jobserver-auth'
+#
+# Asked once, and only when read, so a make under a bounded -jN never pays for it.
+JOBS ?= $(eval JOBS := $(shell scripts/helix-claim jobs 2>/dev/null || echo $(NPROC)))$(JOBS)
 
-JOBS ?= $(NPROC)
-
-# Output synchronization for parallel builds (requires make 4.0+, ignored on 3.81)
-ifneq ($(JOBS),1)
+# Output synchronization for parallel builds (requires make 4.0+, ignored on 3.81).
+# Only a JOBS=1 the caller set means serial; reading the default here would ask
+# helix-claim on every parse.
+ifneq ($(if $(filter file,$(origin JOBS)),default,$(JOBS)),1)
     MAKEFLAGS += --output-sync=target
+endif
+
+# Builds run niced, so the compositor and editor stay responsive while every
+# core is busy. The desktop's own scheduler (system76-scheduler on thelio)
+# drops a make to nice 19 only when it happens to notice it, and never lists
+# helix-tests, so without this a sweep's shards can run at nice 0. Nested makes
+# inherit it and see no need to go lower. HELIX_NICE=0 opts out.
+HELIX_NICE ?= 10
+ifneq ($(HELIX_NICE),0)
+    $(shell [ "$$(nice)" -lt $(HELIX_NICE) ] 2>/dev/null && renice -n $(HELIX_NICE) -p $$PPID >/dev/null 2>&1)
 endif
 
 # Binaries

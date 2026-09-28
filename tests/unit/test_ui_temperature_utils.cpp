@@ -718,3 +718,11 @@ TEST_CASE("Temperature Utils: floor and ceiling for a named extruder", "[temp_ut
               static_cast<int>(limits.max_temperature_celsius));
     }
 }
+
+TEST_CASE("Temperature Utils: keypad titles are the heater's short name", "[temp_utils][keypad]") {
+    using helix::HeaterType;
+    using helix::ui::temperature::heater_keypad_title;
+    CHECK(heater_keypad_title(HeaterType::Nozzle) == "Nozzle");
+    CHECK(heater_keypad_title(HeaterType::Bed) == "Bed");
+    CHECK(heater_keypad_title(HeaterType::Chamber) == "Chamber");
+}

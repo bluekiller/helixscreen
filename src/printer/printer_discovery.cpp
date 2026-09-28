@@ -184,38 +184,6 @@ void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerA
     helix::led::LedAutoState::instance().init(printer_state);
     led_ctrl.discover_wled_strips();
 
-    // Set tracked LED early so the subscription response populates subjects correctly.
-    // LedWidget::bind_led() will also call this (idempotent) when it attaches later.
-    // Only a strip Klipper reports can be tracked — a "macro:" ID or a WLED strip
-    // never appears in a status payload, so tracking one leaves every LED subject
-    // frozen at its default and asks printer.objects for an object that does not exist.
-    const std::string tracked = led_ctrl.status_tracked_strip();
-    if (!tracked.empty()) {
-        printer_state.set_tracked_led(tracked);
-
-        // Query the tracked LED's current state explicitly.
-        // The subscription response may return empty data for LEDs whose state was
-        // set before we subscribed (e.g., LED effects enabled by Klipper macros at
-        // startup).  A direct query always returns the current values.
-        nlohmann::json query_objects = nlohmann::json::object();
-        query_objects[tracked] = nullptr;
-        client->send_jsonrpc("printer.objects.query", {{"objects", query_objects}},
-                             [tracked](nlohmann::json response) {
-                                 if (!response.contains("result") ||
-                                     !response["result"].contains("status")) {
-                                     return;
-                                 }
-                                 const auto& status = response["result"]["status"];
-                                 if (!status.contains(tracked)) {
-                                     return;
-                                 }
-                                 // Feed into PrinterState on the UI thread
-                                 helix::ui::queue_update([status]() {
-                                     get_printer_state().update_from_status(status);
-                                 });
-                             });
-    }
-
     spdlog::info("[PrinterDiscovery] Subsystem initialization complete");
 }
 

@@ -67,6 +67,7 @@ translations:
     parafuso
   10 minutes: 10 minutos
   12 Hour: 12 horas
+  12-hour: 12 horas
   120 seconds: 120 segundos
   15 seconds: 15 segundos
   170-300 °C: '170-300 °C'
@@ -81,6 +82,7 @@ translations:
     cada parafuso
   20 minutes: 20 minutos
   24 Hour: 24 horas
+  24-hour: 24 horas
   270°: 270°
   270° Clockwise: 270° no sentido horário
   2D Heatmap: Mapa de calor 2D
@@ -146,6 +148,7 @@ translations:
   Abort already in progress: Cancelamento já em andamento
   Abort failed: Falha ao abortar
   Aborting AFC operation...: Abortando operação AFC...
+  Aborting...: Abortando...
   About: Sobre
   Accel to Decel: Aceleração para Desaceleração
   Acceleration to deceleration limit (mm/s²): Limite de aceleração para desaceleração
@@ -159,7 +162,6 @@ translations:
   'Accepted Z Position: {:.3f}': 'Posição Z aceita: {:.3f}'
   Accessories: 'Acessórios'
   Accuracy: Precisão
-  'Act:': 'Real:'
   Action Required: Ação Necessária
   Actions: Ações
   Active: Ativo
@@ -195,6 +197,8 @@ translations:
   All Devices: Todos os Dispositivos
   All axes homed: Todos os eixos referenciados
   All fields are required: Todos os campos são obrigatórios
+  All healthy: Tudo em ordem
+  All lights: Todas as luzes
   Allow: 'Permitir'
   Allow Home Screen Editing: 'Permitir a edição da tela inicial'
   Allow cold load/unload: Permitir carregar/descarregar a frio
@@ -219,9 +223,8 @@ translations:
   An error occurred while loading filament.: Ocorreu um erro ao carregar o filamento.
   # Source: probe_accuracy_modal.xml:90
   An error occurred.: 'Ocorreu um erro.'
-  An internal error occurred. The app continues running — please send a debug bundle from Settings > About if it repeats.: Ocorreu
-    um erro interno. O aplicativo continua em execução — envie um pacote de depuração
-    em Configurações > Sobre se isso se repetir.
+  ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
+  : Ocorreu um erro interno. O aplicativo continua em execução. Envie um pacote de depuração em Configurações > Ajuda e sobre se isso se repetir.
   An unexpected printer error occurred.: Ocorreu um erro inesperado na impressora.
   An update is available: Uma atualização está disponível
   Analyzing data...: Analisando dados...
@@ -237,6 +240,7 @@ translations:
   App startup encountered an error. Some features may be unavailable.: A inicialização
     do aplicativo encontrou um erro. Alguns recursos podem estar indisponíveis.
   Appearance: Aparência
+  Applies to: Aplica-se a
   Apply: Aplicar
   Apply Changes: Aplicar Alterações
   Applying Changes: Aplicando Alterações
@@ -433,7 +437,6 @@ translations:
   Calibrate X: Calibrar X
   Calibrate Y: Calibrar Y
   Calibrate all tools: Calibrar todas as ferramentas
-  Calibrate and tune scroll feel: "Calibrar e ajustar a sensação de rolagem"
   Calibrate input shaping to reduce ringing artifacts in prints: Calibrar input shaping
     para reduzir artefatos de ringing nas impressões
   Calibrate tool offsets?: Calibrar os offsets de ferramenta?
@@ -552,6 +555,7 @@ translations:
   Check Again: Verificar Novamente
   Check Klipper console for details: Verifique o console do Klipper para detalhes
   Check extruder temperature and try again. Manual removal may be required.: Verifique a temperatura do extrusor e tente novamente. A remoção manual pode ser necessária.
+  Check failed: Falha na verificação
   Check filament: Verificar filamento
   Check for Updates: Verificar Atualizações
   Check slot: Verificar slot
@@ -585,6 +589,7 @@ translations:
   Checking timelapse plugin...: Verificando plugin de timelapse...
   Checking webcam: Verificando webcam
   Checking...: Verificando...
+  Checking…: Verificando…
   Choose 12-hour or 24-hour time display: Escolha exibição de hora em 12 ou 24 horas
   Choose Filament: Escolher Filamento
   Choose Model: Escolher Modelo
@@ -748,6 +753,7 @@ translations:
   Controlled by hardware sensor: Controlado por sensor de hardware
   Controller: Controlador
   Controls: Controles
+  Cool: Frio
   Cool Down: Resfriar
   Cool nozzle after filament ops: Resfriar bico após operações de filamento
   Cooling: Resfriamento
@@ -874,6 +880,7 @@ translations:
   Deploy: Implantar
   Describe the issue (optional): Descreva o problema (opcional)
   Detailed: Detalhado
+  Detect automatically: 'Detectar automaticamente'
   'Detect filament tangles': 'Detectar emaranhados de filamento'
   Detecting plate...: Detectando placa...
   Detecting printer type...: Detectando tipo de impressora...
@@ -889,6 +896,7 @@ translations:
   Device name: Nome do dispositivo
   Device name is required: Nome do dispositivo é obrigatório
   'Device: ': 'Dispositivo: '
+  Devices: Dispositivos
   Different filament?: Filamento diferente?
   Digital Clock: 'Relógio digital'
   Disable: Desabilitar
@@ -904,7 +912,7 @@ translations:
   Discord Community: Comunidade Discord
   Discovered Printers: Impressoras Descobertas
   Dismiss: Dispensar
-  Display & Sound: Tela e som
+  Display: Tela
   Display Mode: Modo de Exibição
   Display Sleep: Suspensão da Tela
   ? Display resolution is very high (%dx%d). Text may appear small. Reduce framebuffer
@@ -959,6 +967,7 @@ translations:
   EEPROM error on CFS unit: Erro de EEPROM na unidade CFS
   EMERGENCY STOP: PARADA DE EMERGÊNCIA
   EMPTY: VAZIO
+  EXTRAS: EXTRAS
   Each fan can only be selected once: Cada ventoinha só pode ser selecionada uma vez
   Edit: Editar
   Edit Filament: Editar Filamento
@@ -981,7 +990,6 @@ translations:
   Emergency Stop: Parada de Emergência
   Emergency Stop?: Parada de Emergência?
   Emergency stop activated: Parada de emergência ativada
-  Emergency stop and print alerts: Parada de emergência e alertas de impressão
   'Emergency stop failed: not connected': 'Parada de emergência falhou: não conectado'
   Empty: Vazio
   Empty slots disable the associated functionality: Slots vazios desabilitam a funcionalidade
@@ -1042,7 +1050,6 @@ translations:
   Error: Erro
   Error at chunk {} (code={}): Erro no fragmento {} (code={})
   Error loading file: Erro ao carregar arquivo
-  Error loading printing tips: Erro ao carregar dicas de impressão
   'Error saving printer settings: {}': 'Erro ao salvar configurações da impressora:
     {}'
   Error state: Estado de erro
@@ -1116,6 +1123,7 @@ translations:
   Extruder too cold: Extrusor frio demais
   Extruding prime line...: Extrudando linha de preparação...
   FAILED: FALHOU
+  FILAMENT: FILAMENTO
   FILAMENTS: FILAMENTOS
   FILTERS: FILTROS
   Factory Reset: Restauração de Fábrica
@@ -1390,6 +1398,7 @@ translations:
   Guide the toolhead to the chute's extrude position: Leve o cabeçote até a posição de extrusão da calha
   Guides and reference: Guias e referência
   H: H
+  HELIXSCREEN: HELIXSCREEN
   HOST: Host
   HTTP Code: Código HTTP
   'HTTP error: {} {}': 'Erro HTTP: {} {}'
@@ -1399,7 +1408,6 @@ translations:
   Hang on, we'll be right back!: Aguarde, já voltamos!
   Happy Hare MMU: Happy Hare MMU
   Hardware: Hardware
-  Hardware & Devices: Hardware e dispositivos
   Hardware Health: Saúde do Hardware
   Hardware Name: Nome do Hardware
   Hardware Profile: Perfil de Hardware
@@ -1492,6 +1500,7 @@ translations:
   Homing Y...: Posicionando Y...
   Homing Z...: Posicionando Z...
   Homing all axes...: Posicionando todos os eixos...
+  Homing and moving the plate...: 'Posicionando e movendo a mesa...'
   Homing axes...: Posicionando eixos...
   Homing complete: Homing concluído
   'Homing failed: ': 'Falha ao referenciar: '
@@ -1681,14 +1690,12 @@ translations:
   LED Controls: 'Controles LED'
   LED Light: 'Luz LED'
   LED Mode: 'Modo LED'
-  LED SELECTION: SELEÇÃO DE LED
   LED Settings: Configurações de LED
   LED Strip: Fita de LED
   LED on at Start: LED Ligado ao Iniciar
   LED strip available for lighting control: Fita de LED disponível para controle de
     iluminação
   LEDs: LEDs
-  LEDs controlled by the light button: LEDs controlados pelo botão de luz
   LOAD CELLS: 'CÉLULAS DE CARGA'
   LOADED: CARREGADO
   LOCKED: BLOQUEADO
@@ -1703,7 +1710,7 @@ translations:
   Lane tests and motor resets: 'Testes de lane e reinícios de motor'
   Lanes: Lanes
   Language: Idioma
-  Language, theme, brightness, and sound: Idioma, tema, brilho e som
+  Language & Time: Idioma e hora
   Last: Última
   # Source: history_dashboard_panel.xml:114
   Last 7 days: 'Últimos 7 dias'
@@ -1726,12 +1733,15 @@ translations:
   Length of the cooling tube section: 'Comprimento da seção do tubo de resfriamento'
   'Length:': 'Comprimento:'
   Let's take a quick tour so you can find things fast.: Vamos fazer um tour rápido para você encontrar as coisas com facilidade.
+  Level: Nível
   Leveling Gantry...: Nivelando pórtico...
   Library: Biblioteca
   Lifetime Print Stats: Estatísticas de Impressão Totais
   Light: Claro
+  Light Mode: Modo Claro
   Light will switch when the current operation finishes: A luz será alternada quando
     a operação atual terminar
+  Lights that follow the printer's state: Luzes que seguem o estado da impressora
   Line the nozzle up with the purge chute so purged filament drops straight in.: Alinhe o bocal sobre a calha de purga para que o filamento purgado caia direto dentro.
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'A linha {} chama {}, que esta impressora trata como uma parada de emergência. Fatie o arquivo novamente com um perfil feito para esta impressora.'
@@ -1741,6 +1751,7 @@ translations:
   Load: Carregar
   Load Cell: 'Célula de carga'
   Load Cells: 'Células de carga'
+  Load Extruder: 'Carregar extrusor'
   Load Failed: 'Falha ao carregar'
   Load Filament: Carregar Filamento
   Load a filament first before trying to unload: Carregue primeiro filamento antes de tentar descarregar
@@ -1793,6 +1804,7 @@ translations:
   Lowest notification level that interrupts with a toast: 'Nível de notificação mais baixo que interrompe com um aviso flutuante'
   M to toggle: M para alternar
   'MAC:': 'MAC:'
+  MACHINE: MÁQUINA
   MACRO DEVICES: DISPOSITIVOS DE MACRO
   MAIN POWER BUTTON: BOTÃO DE ENERGIA PRINCIPAL
   MANUAL: MANUAL
@@ -1848,6 +1860,7 @@ translations:
   Manage: Gerenciar
   Manage Printers: Gerenciar Impressoras
   Manage configured printers: Gerenciar impressoras configuradas
+  Managed by firmware: Gerenciado pelo firmware
   Managed by your firmware: Gerenciado pelo seu firmware
   Manual: Manual
   Manual Bed Leveling: Nivelamento Manual da Mesa
@@ -1926,7 +1939,6 @@ translations:
   Motors Off: Desligar Motores
   'Motors disable failed: {}': 'Falha ao desativar motores: {}'
   Motors disabled: Motores desativados
-  Motors off: ''
   Motors stay on while a print is active: Os motores permanecem ativos durante uma impressão
   Mount: Montar
   Move: Mover
@@ -1955,6 +1967,7 @@ translations:
   Multi-Filament System not available: Sistema multi-filamento não disponível
   Multi-filament system not ready: Sistema multifilamento não está pronto
   Must home axes first: Deve referenciar os eixos primeiro
+  Muted: Sem som
   My Custom Theme: Meu Tema Personalizado
   My Panel: Meu Painel
   My Printer: Minha Impressora
@@ -1966,6 +1979,7 @@ translations:
   'Name:': 'Nome:'
   Named actions in the LED Controls widget. Not shown under LED selection.: Ações nomeadas no widget Controles LED. Não aparecem na seleção de LED.
   Needs adjustment: Precisa de ajuste
+  Needs attention: Requer atenção
   Needs the {} package to switch spools: 'Precisa do plugin {} para trocar de carretel'
   Net Weight (g): Peso Líquido (g)
   Network: Rede
@@ -1977,7 +1991,9 @@ translations:
   Network forgotten: Rede esquecida
   Network name cannot be empty: O nome da rede não pode estar vazio
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Rede, tela, som, configuração da impressora e muito mais. Você pode repetir este tour a qualquer momento em Ajuda e sobre.'
+  Neutral: Neutro
   Never: Nunca
+  Never sleeps: Nunca dorme
   New Spool: Novo carretel
   'New Spool: Step 1 of 3': 'Nova Bobina: Etapa 1 de 3'
   'New Spool: Step {} of {}': 'Nova Bobina: Passo {} de {}'
@@ -2002,6 +2018,7 @@ translations:
     de LED primeiro.
   No LED macros detected. Type a macro name below.: Nenhuma macro LED detectada. Digite um nome de macro abaixo.
   No LED strips detected: 'Nenhuma fita LED detectada'
+  No LEDs found: Nenhum LED encontrado
   No Macros Found: Nenhuma Macro Encontrada
   No Multi-Filament System connected: Nenhum sistema multi-filamento conectado
   No Multi-Filament System connected.: Nenhum sistema multi-filamento conectado.
@@ -2205,6 +2222,8 @@ translations:
   PLA - Black: PLA - Preto
   POWER: ENERGIA
   PRINT OPTIONS: OPÇÕES DE IMPRESSÃO
+  PRINTER: IMPRESSORA
+  PRINTER VISUALS: VISUAIS DA IMPRESSORA
   PRINTERS: IMPRESSORAS
   PRINT_START has {} skippable operation: PRINT_START tem {} operação opcional
   PRINT_START has {} skippable operations: PRINT_START tem {} operações opcionais
@@ -2308,6 +2327,7 @@ translations:
   'Preheat: all {} tools + bed set': 'Pré-aquecer: todas as {} ferramentas + mesa
     configurada'
   'Preheat: {} + bed set': 'Pré-aquecer: {} + mesa configurada'
+  Preload: 'Pré-carregar'
   Preload failed: Falha ao pré-carregar
   Prepared: Preparado
   Preparing: Preparando
@@ -2319,6 +2339,7 @@ translations:
   Preset: Predefinição
   'Preset ID: {}': 'ID da predefinição: {}'
   Presets: Predefinições
+  Presets come from the WLED device. Edit them in the WLED app.: As predefinições vêm do dispositivo WLED. Edite-as no app WLED.
   Press Abort to stop: Pressione Abortar para parar
   Press Scan to search: Pressione Escanear para buscar
   'Pressure:': 'Pressão:'
@@ -2423,10 +2444,9 @@ translations:
   'Printer: ': 'Impressora: '
   PrinterIdentify: Identificar Impressora
   Printers: Impressoras
-  Printers, Multi-Filament System, fans, sensors, and LEDs: Impressoras, sistema multi-filamento,
-    ventoinhas, sensores e LEDs
-  Printing: Imprimindo
+  Printing: Impressão
   Printing label...: Imprimindo etiqueta...
+  Printing now: Imprimindo
   Printing test label...: Imprimindo etiqueta de teste...
   Printing with the wrong material can cause clogs, poor adhesion, or failed prints.: Imprimir
     com o material errado pode causar entupimentos, má aderência ou falhas de impressão.
@@ -2451,6 +2471,7 @@ translations:
   Checking Bed Mesh...: Verificando Malha da Mesa...
   Probing point {} of {}: 'Ponto de sondagem {} de {}'
   Probing... ({} points): 'Sondando... ({} pontos)'
+  Problem found: Problema detectado
   Proceed: Prosseguir
   # Source: abort_progress_modal.xml:20
   Processing...: 'Processando...'
@@ -2550,7 +2571,9 @@ translations:
   Recording Mode: Modo de Gravação
   Recover: Recuperar
   Recover MMU state?: Recuperar estado do MMU?
+  Recover State: 'Recuperar estado'
   Recovering AFC system...: Recuperando sistema AFC...
+  Recovering...: Recuperando...
   Recovery failed: Recuperação falhou
   'Recovery failed: ': 'A recuperação falhou: '
   'Recovery failed: {}': 'A recuperação falhou: {}'
@@ -2565,6 +2588,7 @@ translations:
   Refresh Interval: Intervalo de Atualização
   Refresh RFID: 'Atualizar RFID'
   Relative vibration: Vibração relativa
+  Refresh Spoolman: 'Atualizar Spoolman'
   Reheating...: Reaquecendo...
   Release all stepper motors. Position will be lost.: Liberar todos os motores de
     passo. A posição será perdida.
@@ -2736,10 +2760,10 @@ translations:
   'SAVE_CONFIG failed: {}. Tool offsets were applied but not saved. Run SAVE_CONFIG manually or they will be lost on restart.': 'SAVE_CONFIG falhou: {}. Os offsets de ferramenta foram aplicados mas não salvos. Execute SAVE_CONFIG manualmente ou serão perdidos ao reiniciar.'
   ? 'SAVE_CONFIG failed: {}. Z-offset was applied but not saved. Run SAVE_CONFIG manually or the offset will be lost on restart.'
   : 'SAVE_CONFIG falhou: {}. O Z-offset foi aplicado mas não salvo. Execute SAVE_CONFIG manualmente ou o offset será perdido ao reiniciar.'
+  SCREEN: TELA
   SETTINGS: CONFIGURAÇÕES
   SHIPPED IMAGES: IMAGENS INCLUÍDAS
   SOFTWARE: SOFTWARE
-  SOUND: SOM
   STANDARD MACROS: MACROS PADRÃO
   STARTUP: INICIALIZAÇÃO
   STOP: PARAR
@@ -2750,7 +2774,7 @@ translations:
   : Modo Seguro ativo. A conexão com a impressora está desativada porque o aplicativo
     continuou travando na inicialização. Abra as Configurações para corrigir o problema
     e reinicie.
-  Safety & Notifications: Segurança e notificações
+  Safety & Alerts: Segurança e alertas
   Same spool in {}? Tap Clear if it is a new one.: 'Mesmo carretel em {}? Toque em Limpar se for um novo.'
   Sample: Amostra
   Sample %d/%d: Amostra %d/%d
@@ -2832,7 +2856,6 @@ translations:
   Secondary: Secundário
   Section Detail: Detalhe da Seção
   Security: Segurança
-  Security, network, host, and administration: Segurança, rede, host e administração
   See exactly what data will be sent: Veja exatamente quais dados serão enviados
   See the log: 'Verifique o registro'
   See the quick tour of HelixScreen again: Veja novamente o tour rápido do HelixScreen
@@ -2914,6 +2937,7 @@ translations:
   Set up: Configurar
   Set up your label printer in Settings: Configure sua impressora de etiquetas em
     Configurações
+  Set what is really selected and loaded. Nothing moves.: 'Defina o que está realmente selecionado e carregado. Nada se move.'
   Settings: Configurações
   Settings Snapshot: Captura de Configurações
   Settings reset to defaults. Restarting...: Configurações restauradas para os padrões.
@@ -2965,6 +2989,7 @@ translations:
   Skipped: 'Ignorado'
   Sleep While Printing: Suspender Durante Impressão
   Sleep adjusted to match dim timeout: Tempo de suspensão ajustado
+  Sleep {} min: Suspender em {} min
   Sliced colors: Cores fatiadas
   Slicer: Fatiador
   Slot: Slot
@@ -2987,6 +3012,7 @@ translations:
   'Some mapped slots are short on filament:': 'Alguns slots mapeados estão com pouco filamento:'
   Some settings will take effect after restart.: Algumas configurações terão efeito
     após reiniciar.
+  Sound: Som
   Sound Theme: Tema de Som
   Sounds: Sons
   Source: Fonte
@@ -2995,7 +3021,6 @@ translations:
   Spaghetti Detection: Detecção de espaguete
   Spaghetti detected: Espaguete detectado
   Spaghetti detected (%d%%): Espaguete detectado (%d%%)
-  Spaghetti detected — print paused: Espaguete detectado — impressão pausada
   Speaker: Alto-falante
   Speed: Velocidade
   Speed Settings: 'Configurações de velocidade'
@@ -3103,8 +3128,6 @@ translations:
   Success Rate: Taxa de Sucesso
   Success!: Sucesso!
   Summary: Resumo
-  Support, documentation, and version info: Suporte, documentação e informações de
-    versão
   Suppress periodic 'T:.../B:...' status lines: Suprimir linhas de status periódicas
     'T:.../B:...'
   Suppress periodic temperature status lines: Suprimir linhas de status periódicas de temperatura
@@ -3249,6 +3272,7 @@ translations:
   The nozzle extrudes a few short test moves in a corner, away from the print area, and repeats until it agrees with itself.: 'O bico faz alguns movimentos curtos de teste num canto, longe da área de impressão, e repete até os valores convergirem.'
   The plate and the spools are still hot. Use gloves.: A mesa e os carretéis ainda estão quentes. Use luvas.
 
+  The plate finishes its current move, but drying will not start.: 'A mesa termina o movimento atual, mas a secagem não vai começar.'
   ? The print is paused. Changing tools now moves the toolhead and swaps the filament at the nozzle. Resume the print once the change finishes.
   : A impressão está pausada. Trocar a ferramenta agora move o cabeçote e troca o
     filamento no bico. Retome a impressão assim que a troca terminar.
@@ -3294,6 +3318,8 @@ translations:
   The unit is already running another operation. Wait for it to finish, or reset the CFS if it stays stuck: A unidade já está executando outra operação. Aguarde a conclusão, ou reinicie o CFS se ele continuar travado
   The unit reported a fault with no further detail. Restart the printer if it repeats: A unidade relatou uma falha sem mais detalhes. Reinicie a impressora se repetir
   The unit's onboard storage has failed. The CFS mainboard needs replacing: O armazenamento interno da unidade falhou. A placa-mãe do CFS precisa ser substituída
+  'The unload did not start: unload by hand, then start again': 'A descarga não começou: descarregue à mão e comece de novo'
+  The unload finishes on its own, but the plate will not move.: 'A descarga termina sozinha, mas a mesa não vai se mover.'
   Theme: Tema
   Theme Colors: Cores do Tema
   Theme Preset: Predefinição de Tema
@@ -3309,6 +3335,7 @@ translations:
   This AFC system does not support bypass mode: 'Este sistema AFC não oferece suporte ao modo bypass'
   This CFS firmware exposes no external spool slot: 'Este firmware do CFS não expõe um slot para carretel externo'
   This Happy Hare system does not support bypass mode: 'Este sistema Happy Hare não oferece suporte ao modo bypass'
+  This button controls: Este botão controla
   This calibration uses the paper friction method to set your Z-offset.: Esta calibração
     usa o método de fricção de papel para definir seu Z-offset.
   This cannot be undone.: Isso não pode ser desfeito.
@@ -3443,7 +3470,6 @@ translations:
   Toolhead Y: Cabeçote Y
   Toolhead jam: Atolamento do cabeçote
   Toolhead position unknown: Posição do cabeçote desconhecida
-  Toolhead, G-code, limits, and materials: Cabeçote, G-code, limites e materiais
   Toolheads: Cabeçotes
   Tools: Ferramentas
   Tools Used: Ferramentas Usadas
@@ -3479,7 +3505,7 @@ translations:
   Turn On LEDs: 'Ligar os LEDs'
   Turn endless spool on, then set the backup gate: 'Ative o carretel infinito e depois defina o Gate de reserva'
   Turn off detection: Desligar detecção
-  Turn on LEDs when printer starts: Ligar LEDs quando a impressora iniciar
+  Turn on the lights your light buttons control: Liga as luzes que os botões de luz controlam
   Turn the extruder heater off after a load or unload finishes: Desliga o aquecedor do extrusor ao concluir um carregamento ou descarregamento
   Turn the picture to match how the screen is mounted. Applies after restart.: Gira a imagem para corresponder à montagem da tela. Aplicado após reiniciar.
   Turn the printer's lights on or off: Ligar ou desligar as luzes
@@ -3522,6 +3548,7 @@ translations:
   Unknown error: Erro desconhecido
   Unload: Descarregar
   Unload Distance: 'Distância de descarregamento'
+  Unload Extruder: 'Descarregar extrusor'
   Unload Failed: 'Falha ao descarregar'
   Unload Filament: Descarregar Filamento
   'Unload at end': 'Descarregar ao terminar'
@@ -3533,10 +3560,12 @@ translations:
   Unload macro not configured: Macro de descarga não configurado
   Unload the CFS filament before enabling bypass: 'Descarregue o filamento do CFS antes de ativar o bypass'
   Unload...: Descarregar...
+  Unloaded: 'Descarregado'
   Unloading: Descarregando
   Unloading Start Speed: 'Velocidade inicial de descarregamento'
   Unloading before bypass...: Descarregando antes do bypass...
   Unloading filament: 'Descarregando filamento'
+  Unloading filament before drying...: 'Descarregando filamento antes da secagem...'
   Unloading filament...: Descarregando filamento...
   Unloads After Print: Descarrega após a impressão
   Unlock: Desbloquear
@@ -3560,6 +3589,7 @@ translations:
   Update installed!: Atualização instalada!
   Update your security PIN: Atualize seu PIN de segurança
     nesta instalação.
+  Updates: Atualizações
   Updating Configuration...: Atualizando Configuração...
   Upgrade to AFC 1.2.0 or newer for multi-color spools. It also adds filament names, which otherwise need Spoolman.: Atualize para o AFC 1.2.0 ou mais recente para ter carretéis multicolor. Ele também adiciona nomes de filamento, que sem isso precisam do Spoolman.
   Upload: Enviar
@@ -3591,7 +3621,8 @@ translations:
   Verifying timelapse plugin...: Verificando plugin de timelapse...
   Verifying...: Verificando...
   Version: Versão
-  Version, updates, and printer info: Versão, atualizações e informações da impressora
+  Version and printer info: Versão e informações da impressora
+  Version {}: Versão {}
   Vertical: Vertical
   Vibration: Vibração
   Vibration compensation active: Compensação de vibração ativa
@@ -3609,8 +3640,8 @@ translations:
   'Visits: ': 'Visitas: '
   Volume: Volume
   Volume of filament used during ramming: 'Volume de filamento usado durante a compactação'
+  Volume {}%: Volume {}%
   WIDTH SENSORS: SENSORES DE LARGURA
-  WLED: WLED
   WLED Preset: Predefinição WLED
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3626,6 +3657,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Aguardando a mesa
     atingir a temperatura para calibração precisa.
   Waiting for the filament system to report its state: Aguardando o sistema de filamento informar seu estado
+  Warm: Quente
   Warm Bed: Aquecer Mesa
   Warm up for a material in one tap: Pré-aquecer para um material em um toque
   Warming Bed...: Aquecendo Mesa...
@@ -3658,7 +3690,9 @@ translations:
   Which macro the Close feeder button sends: Qual macro o botão Fechar alimentador envia
   Which macro the Open feeder button sends: Qual macro o botão Abrir alimentador envia
   White: Branco
+  Wi-Fi: WiFi
   Wi-Fi or ethernet connection status: Status da conexão Wi-Fi ou ethernet
+  Wi-Fi {}: WiFi {}
   WiFi: WiFi
   WiFi Disabled: WiFi Desativado
   WiFi Enabled: WiFi Ativado
@@ -3792,6 +3826,7 @@ translations:
   locked: 'bloqueado'
   mm before clog: mm antes da obstrução
   needs: precisa
+  never sleeps: nunca dorme
   not detected: não detectado
   not loaded: 'não carregado'
   nozzle: bico
@@ -3812,6 +3847,7 @@ translations:
   remaining before clog detection triggers: restante antes da detecção de obstrução
     ser acionada
   rendering: renderizando
+  sleep {} min: suspender em {} min
   slots): slots)
   started: iniciado
   steppers: motores de passo
@@ -3825,6 +3861,7 @@ translations:
   you have: você tem
   '{} LED strips available': '{} fitas de LED disponíveis'
   '{} and {} are both mapped here': '{} e {} estão ambos atribuídos aqui'
+  '{} available': '{} disponível'
   '{} axis homed': Eixo {} referenciado
   '{} command timed out': Comando {} expirou
   '{} complete': '{} concluído'

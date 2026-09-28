@@ -2,10 +2,10 @@
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <component>
-  <!-- Spools on the bed (prestonbrown/helixscreen#1730): shown above every panel
-       from the moment the user confirms the spools are on the plate until they
-       confirm them off, across restarts. Tapping it offers Stop while the run
-       is going, and the removal once it is over. -->
+  <!-- Bed drying (prestonbrown/helixscreen#1730): shown above every panel from
+       the unload before a run, through the plate move and the run, until the
+       spools are confirmed off, across restarts. Tapping it offers Stop while
+       the flow or the run is going, and the removal once it is over. -->
   <view name="bed_drying_banner"
         width="100%" height="content" flex_flow="row" style_pad_all="#space_xs" style_pad_gap="#space_sm"
         style_bg_opa="40" style_bg_color="#warning" style_flex_cross_place="center" scrollable="false" clickable="true"

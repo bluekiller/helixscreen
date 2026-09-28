@@ -111,7 +111,7 @@ config modal. It governs both prompts a run can raise:
 
 | `require_confirmation` | Tapping the widget |
 |------------------------|--------------------|
-| `true` (default) | `KNOWN_PARAMS` / `UNKNOWN` → `MacroParamModal` (prefilled with the saved defaults when a record exists). `KNOWN_NO_PARAMS` → the Settings → Safety "Confirm before running macros" dialog, when that setting is on. |
+| `true` (default) | `KNOWN_PARAMS` / `UNKNOWN` → `MacroParamModal` (prefilled with the saved defaults when a record exists). `KNOWN_NO_PARAMS` → the Settings → Safety & Alerts "Confirm before running macros" dialog, when that setting is on. |
 | `false` | `execute_macro_gcode()` with no dialog. The saved defaults' values ride along; with no record the macro runs bare, as before. |
 
 The two prompts collapse into one switch because they answer the same question:

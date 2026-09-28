@@ -106,7 +106,7 @@ Some printers (for example the Creality K1 or the FlashForge Adventurer 5M) ship
 
 ### Adding Another Printer
 
-You can add a second printer later. Open **Settings > Hardware & Devices > Printers** (or tap the printer icon in the navigation bar, which **Show Printer Switcher** in the same Printers screen turns on) and tap **Add Printer**. This re-runs the wizard for the new printer, but skips the WiFi and Language steps (those are device-wide and already configured). On the first step, the button reads **Cancel** instead of **Back**: tapping it discards the new printer and returns you to the one you were using.
+You can add a second printer later. Open **Settings > Connection > Printers** (or tap the printer icon in the navigation bar, which **Show Printer Switcher** in the same Printers screen turns on) and tap **Add Printer**. This re-runs the wizard for the new printer, but skips the WiFi and Language steps (those are device-wide and already configured). On the first step, the button reads **Cancel** instead of **Back**: tapping it discards the new printer and returns you to the one you were using.
 
 > **Tip:** You can always go back to previous steps using the **Back** button. The connection test in step 2 must pass before you can proceed.
 
@@ -133,7 +133,7 @@ Each network in the list can carry a small **band badge** — `2.4G` or `5G`, or
 
 ### Managing WiFi After Setup
 
-Later WiFi changes happen in **Settings > System > Network** (see [System Settings](settings/system.md#network-settings)) — pick a different network, add a hidden one, or switch the WiFi radio off entirely.
+Later WiFi changes happen in **Settings > Connection > Network Settings** (see [Connection Settings](settings/connection.md#network-settings)) — pick a different network, add a hidden one, or switch the WiFi radio off entirely.
 
 **Forgetting a network:** next to the connected network's name is a **trash icon**. Tapping it asks for confirmation, then removes the network *and its password* from this device — you'll need the password again to reconnect. Use this before passing a panel on, or when a network's password changed and reconnection keeps failing.
 
@@ -153,7 +153,7 @@ If Moonraker is running locally — or your screen is attached directly to the p
 
 **Tap Test Connection** is the answer to any connection doubt during setup. Until you finish the wizard, HelixScreen has no address to try except its default of "this machine", so on a separate display it will not reach Moonraker yet — that is expected, not a fault, and the wizard will not interrupt you with a connection error while you are still setting up. **Test Connection** reports the result for the address you actually entered, right on this step.
 
-> **Changing the host later:** You can point HelixScreen at a different Moonraker host anytime from **Settings > System > Host** — see [System Settings](settings/system.md).
+> **Changing the host later:** You can point HelixScreen at a different Moonraker host anytime from **Settings > Connection > Host** — see [Connection Settings](settings/connection.md#host).
 
 ---
 

@@ -11,7 +11,7 @@
  * silently rewires the next explorer.
  */
 
-#include "ui_settings_display_sound.h"
+#include "ui_settings_appearance.h"
 #include "ui_theme_editor_overlay.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -22,7 +22,7 @@
 TEST_CASE_METHOD(LVGLUITestFixture,
                  "ThemeExplorer: opening the editor does not rewire the preset dropdown",
                  "[theme][ui]") {
-    helix::settings::get_display_sound_settings_overlay().register_callbacks();
+    helix::settings::get_appearance_settings_overlay().register_callbacks();
     lv_event_cb_t explorer_cb = lv_xml_get_event_cb(nullptr, "on_theme_preset_changed");
     REQUIRE(explorer_cb != nullptr);
 

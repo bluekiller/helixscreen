@@ -12,6 +12,7 @@
 #include "ams_state.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "static_panel_registry.h"
+#include "theme_manager.h"
 
 #include <algorithm>
 #include <memory>
@@ -163,6 +164,40 @@ TEST_CASE_METHOD(XMLTestFixture, "Clicking a tab selects that zone", "[ams][zone
     lv_obj_send_event(lv_obj_get_child(strip, 1), LV_EVENT_CLICKED, nullptr);
 
     CHECK(overlay.selected_zone_index() == 1);
+
+    reset_overlay_singleton();
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "Zone tabs keep the card-on-flat look", "[ams][zones][overlay]") {
+    reset_overlay_singleton();
+    auto zones = capped_rig_zones();
+    auto& overlay = get_ams_environment_overlay();
+    overlay.show_zone(lv_screen_active(), zones, 0, true);
+    helix::ui::UpdateQueue::instance().drain();
+
+    lv_obj_t* strip = lv_obj_find_by_name(lv_screen_active(), "zone_tab_strip");
+    REQUIRE(strip != nullptr);
+    REQUIRE(lv_obj_get_child_count(strip) == 2);
+    lv_obj_t* selected = lv_obj_get_child(strip, 0);
+    lv_obj_t* idle = lv_obj_get_child(strip, 1);
+
+    // The selected tab is a card; the other is flat. Neither has a border or an
+    // underline, and both labels keep the theme's text color.
+    CHECK(lv_obj_get_style_bg_opa(selected, LV_PART_MAIN) == LV_OPA_COVER);
+    CHECK(lv_color_to_u32(lv_obj_get_style_bg_color(selected, LV_PART_MAIN)) ==
+          lv_color_to_u32(theme_manager_get_color("card_bg")));
+    CHECK(lv_obj_get_style_bg_opa(idle, LV_PART_MAIN) == LV_OPA_TRANSP);
+    CHECK(lv_obj_get_style_border_width(selected, LV_PART_MAIN) == 0);
+    CHECK(lv_obj_get_style_border_width(idle, LV_PART_MAIN) == 0);
+    CHECK(lv_obj_get_style_radius(selected, LV_PART_MAIN) > 0);
+    for (lv_obj_t* tab : {selected, idle}) {
+        lv_obj_t* label = lv_obj_find_by_name(tab, "tab_label");
+        REQUIRE(label != nullptr);
+        CHECK(lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN)) ==
+              lv_color_to_u32(theme_manager_get_color("text")));
+        lv_obj_t* light = lv_obj_find_by_name(tab, "light_dot");
+        CHECK((light == nullptr || lv_obj_has_flag(light, LV_OBJ_FLAG_HIDDEN)));
+    }
 
     reset_overlay_singleton();
 }

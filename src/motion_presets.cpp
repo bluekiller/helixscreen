@@ -108,4 +108,17 @@ std::optional<AxisTarget> motion_preset_target(MotionPreset preset, const AxisBo
     return target;
 }
 
+std::optional<AxisTarget> plate_rear_park(const AxisBounds& area) {
+    const auto center_x = calibration::axis_center(area.has_x, area.x_min, area.x_max);
+    const auto center_y = calibration::axis_center(area.has_y, area.y_min, area.y_max);
+    if (!center_x || !center_y) {
+        return std::nullopt;
+    }
+    AxisTarget target;
+    target.x = *center_x;
+    target.y = std::max(static_cast<double>(*center_y),
+                        static_cast<double>(area.y_max) - PARK_REAR_MARGIN_MM);
+    return target;
+}
+
 } // namespace helix

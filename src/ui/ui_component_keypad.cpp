@@ -210,7 +210,7 @@ void ui_keypad_show(const ui_keypad_config_t* config) {
     }
 
     // Register with nullptr lifecycle — keypad is function-based, not class-based
-    // The panel authors its own width (#keypad_width, 180-400px by breakpoint): a pad of
+    // The panel authors its own width (#keypad_width, 320-400px by breakpoint): a pad of
     // three digit columns, not a screen. Neither navigation width class applies, so opt
     // out of push-time width management or the push stretches it to overlay width.
     NavigationManager::instance().set_overlay_width_unmanaged(keypad_widget);

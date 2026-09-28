@@ -2,7 +2,7 @@
 
 How the sound system works internally, how to extend it with new themes/backends/sounds, and full reference for the JSON theme schema and C++ API.
 
-**User-facing doc**: [Sound Settings](../user/guide/settings/display-sound.md#sound) (enabling/disabling, choosing themes, troubleshooting)
+**User-facing doc**: [Sound Settings](../user/guide/settings/sound.md) (enabling/disabling, choosing themes, troubleshooting)
 
 ---
 
@@ -544,20 +544,27 @@ Three settings control sound behavior. All are persisted across restarts.
 
 ### Settings Panel XML
 
-The sound settings live in the Sound section of `settings_display_sound_overlay.xml` (the Display & Sound sub-panel):
+The sound settings are their own page, `settings_sound_overlay.xml` (`SoundSettingsOverlay`), opened from the **Sound** row (`row_sound`) in the SCREEN group of the Settings root. The root row hides when `printer_has_speaker` is 0, and so does the page's `group_sound`.
 
 ```
-SOUND section
-  +-- row_sounds              (master toggle, bound to settings_sounds_enabled)
-  +-- container_ui_sounds     (hidden when master off)
-  |     +-- row_ui_sounds     (UI toggle, bound to settings_ui_sounds_enabled)
-  +-- container_sound_theme   (hidden when master off)
-  |     +-- row_sound_theme   (dropdown, populated from get_available_themes())
-  +-- container_preview_sounds (hidden when master off)
-  |     +-- row_preview_sounds (opens SoundPreviewOverlay with buttons for each sound)
+group_sound                      (hidden when printer_has_speaker is 0)
+  +-- container_sounds
+  |     +-- row_sounds           (master toggle, bound to settings_sounds_enabled)
+  +-- container_volume           (hidden when master off)
+  |     +-- row_volume           (slider)
+  +-- container_ui_sounds        (hidden when master off)
+  |     +-- row_ui_sounds        (UI toggle, bound to settings_ui_sounds_enabled)
+  +-- container_sound_theme      (hidden when master off)
+  |     +-- row_sound_theme      (dropdown, populated from get_available_themes())
+  +-- container_audio_device     (hidden when master off or no ALSA device list)
+  |     +-- row_audio_device     (output device dropdown)
+  +-- container_preview_sounds   (hidden when master off)
+  |     +-- row_preview_sounds   (opens SoundPreviewOverlay with buttons for each sound)
+  +-- container_test_tracker     (hidden when master off)
+        +-- row_test_tracker
 ```
 
-The `container_ui_sounds`, `container_sound_theme`, and test beep button all use `bind_flag_if_eq` to hide when `settings_sounds_enabled` is 0.
+Every container below `container_sounds` uses `bind_flag_if_eq` (or one `bind_flag_if` expression) to hide when `settings_sounds_enabled` is 0.
 
 ### SettingsManager API
 

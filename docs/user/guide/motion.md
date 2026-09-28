@@ -89,7 +89,7 @@ The right column has four Z buttons (two large steps and two small steps, up and
 
 The **Move** tab replaces the jog pad with a 3x3 grid of named bed positions, laid out like the bed seen from above: the **Rear** row is at the top, the **Front** row at the bottom, and the columns are **Left**, **Center**, and **Right**. The positions cover the print plate, taken from the probing area in your `[bed_mesh]` config, not the full axis travel: many printers can travel past the plate to reach a purge bucket, a wiper or parked tools, and a named position never sends the head there. The center position is the middle of the plate; the other eight sit about 10% in from its edges. Printers with no `[bed_mesh]` section use the axis travel instead. On delta printers the eight outer positions are spread around a circle instead of a rectangle, matching the round bed.
 
-Tap any position and the toolhead moves there in X and Y only - Z is never changed from this grid. If X or Y isn't homed yet, the printer homes first and then makes the move.
+Tap any position and the toolhead moves there in X and Y only - Z is never changed from this grid. If X or Y isn't homed yet, the printer homes first and then makes the move. The positions and **Park** grey out while the toolhead is moving and come back once it stops, so a second tap can't land mid-move; the Z buttons stay live.
 
 Below the grid are two buttons:
 
@@ -105,7 +105,7 @@ Everything on the Move tab is disabled while a print is running or paused, and w
 **Park** moves the toolhead out of the way to a safe spot.
 
 - If your printer has a parking macro (named `PARK`, `PARK_TOOLHEAD`, or `TOOLHEAD_PARK`), HelixScreen runs it - including any park height and retract it defines.
-- If no macro is found, the toolhead is sent to the front-center of the bed.
+- If no macro is found, the nozzle lifts 10mm (on a printer whose bed moves in Z, the bed drops 10mm), then the toolhead moves over the rear of the plate, centered side to side and 10mm inside its back edge. It never goes past the plate.
 - Any axes that aren't homed yet are homed first.
 
 You can point the button at a different macro in **Settings > Printing > Macro Buttons** (the **Park** row) - see [Macro Buttons](settings/printing.md#macro-buttons).
@@ -172,7 +172,7 @@ Tapping it asks for confirmation ("Release all stepper motors. Position will be 
 
 ## Emergency Stop
 
-The E-Stop button (top-right of the Motion screen header, and on the Controls panel) halts all printer motion immediately, including during a print. You can optionally require a confirmation tap to prevent accidental presses - see **Settings > Safety > E-Stop Confirmation**.
+The E-Stop button (top-right of the Motion screen header, and on the Controls panel) halts all printer motion immediately, including during a print. By default it asks you to confirm first, so a stray tap can't stop a print. To make it fire on the first tap, turn off **Settings > Safety & Alerts > E-Stop Confirmation**.
 
 ---
 

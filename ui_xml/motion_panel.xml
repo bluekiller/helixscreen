@@ -337,6 +337,7 @@
                      text="Park" translation_tag="Park" variant="outline" flex_grow="1" moves_machine="true">
             <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="1"/>
             <bind_state_if_eq subject="nav_buttons_enabled" state="disabled" ref_value="0"/>
+            <bind_state_if_eq subject="idle_timeout_printing" state="disabled" ref_value="1"/>
             <event_cb trigger="clicked" callback="on_motion_park_clicked"/>
           </ui_button>
           <ui_button name="move_motors_off"

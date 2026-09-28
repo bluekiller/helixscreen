@@ -467,14 +467,6 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
 
     spdlog::debug("[{}] Subscribed to PrinterState subjects", get_name());
 
-    // LED configuration is read lazily by PrintLightTimelapseControls::handle_light_button()
-    // At construction time, hardware discovery may not have completed yet.
-    // LED state observer is set up on first on_activate() when strips are available.
-    led_state_observer_ = observe_int_sync<PrintStatusPanel>(
-        printer_state_.get_led_state_subject(), this,
-        [](PrintStatusPanel* self, int state) { self->on_led_state_changed(state); }, ps_subjects);
-    spdlog::debug("[{}] LED state observer registered (strips read lazily)", get_name());
-
     // Subscribe to G-code render mode changes from settings panel
     // This allows real-time updates to the viewer when the user changes the setting
     gcode_render_mode_observer_ = observe_int_sync<PrintStatusPanel>(
@@ -3365,11 +3357,6 @@ void PrintStatusPanel::on_gcode_z_offset_changed(int /* microns */) {
     // base.
     get_print_tune_overlay().update_z_offset_display(
         helix::zoffset::displayed_z_offset_microns(printer_state_));
-}
-
-void PrintStatusPanel::on_led_state_changed(int state) {
-    // Delegate to light/timelapse controls (extracted Phase 2)
-    light_timelapse_controls_.update_led_state(state != 0);
 }
 
 void PrintStatusPanel::on_print_layer_changed(int current_layer) {

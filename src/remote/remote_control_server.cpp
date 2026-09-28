@@ -1217,7 +1217,7 @@ static std::string topmost_layer() {
     return {};
 }
 
-// "settings > display_sound_overlay > theme_preview_overlay" — the breadcrumb
+// "settings > appearance_overlay > theme_preview_overlay" — the breadcrumb
 // of what is on screen right now. Echoed in mutating responses so a caller can
 // tell at a glance that it is driving the screen it thinks it is (a first-run
 // wizard swallows every navigate/click otherwise, and every response still

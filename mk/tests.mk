@@ -52,6 +52,12 @@ SLOW_SHARDS ?= 16
 # shard's diagnostics print the exact command, order flags included.
 SLOW_ORDER ?= --order rand --rng-seed 1
 
+# How many shards RUN at once; the shard count itself never changes, because a
+# different count regroups the tests and surfaces cross-test contamination. An
+# idle box gets 3 per core, the same as NPROCS; a box other trees are building on
+# gets 3 per core of this tree's fair share. Asked once, when a sweep starts.
+SHARD_CONCURRENCY ?= $(eval SHARD_CONCURRENCY := $(shell j=$$(scripts/helix-claim jobs 2>/dev/null) && echo $$((j * 3)) || echo $(NPROCS)))$(SHARD_CONCURRENCY)
+
 # Run tests in parallel using Catch2 sharding
 # Args: $(1) = test filter (e.g., "~[.] ~[slow]"), $(2) = shard count (default NPROCS),
 #       $(3) = Catch2 order flags (default: declaration order)
@@ -61,10 +67,13 @@ SLOW_ORDER ?= --order rand --rng-seed 1
 # are attributable to a shard/host instead of re-litigated each run.
 # Output is prefixed with [shard N] for clarity
 define run_tests_parallel
-	echo "$(CYAN)Running $(or $(2),$(NPROCS)) test shards in parallel (timeout=$(SHARD_TIMEOUT)s)...$(RESET)"; \
+	echo "$(CYAN)Running $(or $(2),$(NPROCS)) test shards, at most $(SHARD_CONCURRENCY) at once (timeout=$(SHARD_TIMEOUT)s)...$(RESET)"; \
 	shard_dir=$$(mktemp -d "$(SHARD_ARTIFACT_ROOT)/helix-shards-XXXXXX"); \
 	pids=""; \
 	for i in $$(seq 0 $$(($(or $(2),$(NPROCS))-1))); do \
+		while [ $$(jobs -rp | wc -l) -ge $(SHARD_CONCURRENCY) ]; do \
+			wait -n 2>/dev/null || sleep 0.2; \
+		done; \
 		(echo "=== shard $$i/$(or $(2),$(NPROCS)) host=$$(hostname) nproc=$$(nproc 2>/dev/null || echo '?') git=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) ts=$$(date -Iseconds) order=$(or $(3),decl seed=0)"; $(if $(TIMEOUT_CMD),$(TIMEOUT_CMD) $(SHARD_TIMEOUT)) $(TEST_BIN) $(1) $(3) --shard-count $(or $(2),$(NPROCS)) --shard-index $$i 2>&1; echo $$? > "$$shard_dir/$$i.exit") | \
 			tee "$$shard_dir/$$i.log" | sed "s/^/[shard $$i] /" & \
 		pids="$$pids $$!"; \
@@ -1001,7 +1010,7 @@ test-assets: test-build
 # A bounded -jN puts a --jobserver-auth entry in MAKEFLAGS. `exec` replaces the
 # process image but KEEPS open file descriptors, so the jobserver FDs survive and
 # re-invoking without -j inherits the caller's limit instead of overriding it.
-# An explicit -j$(NPROC) is only correct for the other two cases: unlimited `-j`
+# An explicit -j$(JOBS) is only correct for the other two cases: unlimited `-j`
 # (a 'j' in MAKEFLAGS with no jobserver), and no -j at all — the latter because
 # exec'ing with neither would leave Phase 2 at -j1, building hundreds of files
 # serially.
@@ -1015,10 +1024,10 @@ $(TEST_BIN): FORCE
 	else \
 		if echo "$(MAKEFLAGS)" | grep -q 'j'; then \
 			echo ""; \
-			printf '\033[1;33m⚠️  make -j (unlimited) detected - auto-fixing to -j%s\033[0m\n' "$(NPROC)"; \
+			printf '\033[1;33m⚠️  make -j (unlimited) detected - auto-fixing to -j%s\033[0m\n' "$(JOBS)"; \
 			echo ""; \
 		fi; \
-		exec $(MAKE) _PARALLEL_GUARD=1 --no-print-directory -j$(NPROC) $@; \
+		exec $(MAKE) _PARALLEL_GUARD=1 --no-print-directory -j$(JOBS) $@; \
 	fi
 else
 # $(LIBHV_LIB) and $(LIBHV_JSON_HEADER) are prerequisites for the same reason

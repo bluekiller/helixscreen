@@ -1207,3 +1207,194 @@ TEST_CASE_METHOD(XMLTestFixture,
     helix::register_widget_factory("clock", original_clock_factory);
     mgr.clear_panel_config(panel_id);
 }
+
+TEST_CASE("gate_flips_only accepts only hardware-gate flips",
+          "[panel_widget][manager][gate_swap]") {
+    using Ids = std::vector<std::string>;
+    const std::string g = GATED_ID_SUFFIX;
+
+    SECTION("identical lists flip nothing") {
+        auto flips =
+            PanelWidgetManager::gate_flips_only({"clock", "led" + g}, {"clock", "led" + g});
+        REQUIRE(flips.has_value());
+        CHECK(flips->empty());
+    }
+    SECTION("un-gating and gating are reported with their direction") {
+        auto flips = PanelWidgetManager::gate_flips_only(Ids{"clock", "led" + g, "fan" + g},
+                                                         Ids{"clock", "led", "fan" + g});
+        REQUIRE(flips.has_value());
+        REQUIRE(flips->size() == 1);
+        CHECK((*flips)[0].index == 1);
+        CHECK_FALSE((*flips)[0].now_gated);
+
+        flips = PanelWidgetManager::gate_flips_only(Ids{"led"}, Ids{"led" + g});
+        REQUIRE(flips.has_value());
+        REQUIRE(flips->size() == 1);
+        CHECK((*flips)[0].now_gated);
+    }
+    SECTION("anything else is not a flip") {
+        CHECK_FALSE(PanelWidgetManager::gate_flips_only(Ids{"clock", "led"}, Ids{"led", "clock"}));
+        CHECK_FALSE(PanelWidgetManager::gate_flips_only(Ids{"clock"}, Ids{"clock", "led" + g}));
+        CHECK_FALSE(
+            PanelWidgetManager::gate_flips_only(Ids{"clock", "led" + g}, Ids{"clock", "fan"}));
+    }
+}
+
+namespace {
+
+// Records attach/detach per widget id, on a dependency-free component.
+struct GateSwapSpyWidget : helix::PanelWidget {
+    explicit GateSwapSpyWidget(std::string id) : id_(std::move(id)) {}
+    static inline std::unordered_map<std::string, int> s_attached;
+    static inline std::unordered_map<std::string, int> s_detached;
+
+    void attach(lv_obj_t*, lv_obj_t*) override {
+        ++s_attached[id_];
+    }
+    void detach() override {
+        ++s_detached[id_];
+    }
+    const char* id() const override {
+        return id_.c_str();
+    }
+    std::string get_component_name() const override {
+        return "test_gate_swap_widget";
+    }
+
+  private:
+    std::string id_;
+};
+
+lv_obj_t* find_tile(lv_obj_t* container, const char* id) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(container); ++i) {
+        lv_obj_t* child = lv_obj_get_child(container, static_cast<int32_t>(i));
+        const char* name = lv_obj_get_name(child);
+        if (name && std::strcmp(name, id) == 0) {
+            return child;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "A hardware gate flip re-creates only the flipped tile, in its own cell",
+                 "[panel_widget][manager][gate_swap]") {
+    helix::init_widget_registrations();
+    lv_xml_register_component_from_data(
+        "test_gate_swap_widget",
+        "<component><view extends=\"lv_obj\" width=\"100%\" height=\"100%\"/></component>");
+
+    lv_subject_t* gate = lv_xml_get_subject(nullptr, "led_controllable");
+    static lv_subject_t s_fallback_gate;
+    if (!gate) {
+        lv_subject_init_int(&s_fallback_gate, 0);
+        lv_xml_register_subject(nullptr, "led_controllable", &s_fallback_gate);
+        gate = &s_fallback_gate;
+    }
+    const int gate_before = lv_subject_get_int(gate);
+
+    const WidgetFactory orig_clock = helix::find_widget_def("clock")->factory;
+    const WidgetFactory orig_led = helix::find_widget_def("led")->factory;
+    for (const char* id : {"clock", "led"}) {
+        helix::register_widget_factory(id,
+                                       [](const std::string& wid) -> std::unique_ptr<PanelWidget> {
+                                           return std::make_unique<GateSwapSpyWidget>(wid);
+                                       });
+    }
+    GateSwapSpyWidget::s_attached.clear();
+    GateSwapSpyWidget::s_detached.clear();
+
+    const std::string panel_id = "test_gate_swap";
+    auto* cfg = Config::get_instance();
+    nlohmann::json widget_cfg = {{"main_page_index", 0},
+                                 {"next_page_id", 2},
+                                 {"pages",
+                                  {{{"id", "main"}, {"widgets", nlohmann::json::array()}},
+                                   {{"id", "swap"},
+                                    {"widgets",
+                                     {{{"id", "clock"},
+                                       {"enabled", true},
+                                       {"col", 0},
+                                       {"row", 0},
+                                       {"colspan", 1},
+                                       {"rowspan", 1}},
+                                      {{"id", "led"},
+                                       {"enabled", true},
+                                       {"col", 2},
+                                       {"row", 0},
+                                       {"colspan", 2},
+                                       {"rowspan", 2}}}}}}}};
+    cfg->set<nlohmann::json>(cfg->df() + "panel_widgets/" + panel_id, widget_cfg);
+    auto& mgr = PanelWidgetManager::instance();
+    mgr.get_widget_config(panel_id).mark_dirty();
+    mgr.clear_panel_config(panel_id);
+
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_set_size(container, 800, 480);
+    process_lvgl(10);
+
+    lv_subject_set_int(gate, 0);
+    const auto gated_ids = mgr.compute_visible_widget_ids(panel_id, 1);
+    auto widgets = mgr.populate_widgets(panel_id, container, 1);
+    lv_obj_t* clock_tile = find_tile(container, "clock");
+    lv_obj_t* gated_led = find_tile(container, "led");
+    REQUIRE(clock_tile != nullptr);
+    REQUIRE(gated_led != nullptr);
+    REQUIRE(widgets.size() == 1); // the gated led has no instance
+    PanelWidget* clock_instance = widgets[0].get();
+    const int led_col = lv_obj_get_style_grid_cell_column_pos(gated_led, LV_PART_MAIN);
+    const int led_colspan = lv_obj_get_style_grid_cell_column_span(gated_led, LV_PART_MAIN);
+    const int led_row = lv_obj_get_style_grid_cell_row_pos(gated_led, LV_PART_MAIN);
+    const int led_rowspan = lv_obj_get_style_grid_cell_row_span(gated_led, LV_PART_MAIN);
+
+    // Un-gate: only the led tile is replaced, in the cell it held.
+    lv_subject_set_int(gate, 1);
+    const auto live_ids = mgr.compute_visible_widget_ids(panel_id, 1);
+    auto flips = PanelWidgetManager::gate_flips_only(gated_ids, live_ids);
+    REQUIRE(flips.has_value());
+    REQUIRE(flips->size() == 1);
+    auto fresh = mgr.swap_gated_tiles(panel_id, container, 1, live_ids, *flips, widgets);
+    REQUIRE(fresh.has_value());
+    REQUIRE(fresh->size() == 1);
+    CHECK(std::string((*fresh)[0]->id()) == "led");
+    CHECK(GateSwapSpyWidget::s_attached["led"] == 1);
+    CHECK(GateSwapSpyWidget::s_attached["clock"] == 1);
+    CHECK(find_tile(container, "clock") == clock_tile);
+    CHECK(widgets.size() == 2);
+    CHECK(widgets[0].get() == clock_instance);
+    lv_obj_t* live_led = find_tile(container, "led");
+    REQUIRE(live_led != nullptr);
+    CHECK(live_led != gated_led);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(live_led, LV_PART_MAIN) == led_col);
+    CHECK(lv_obj_get_style_grid_cell_column_span(live_led, LV_PART_MAIN) == led_colspan);
+    CHECK(lv_obj_get_style_grid_cell_row_pos(live_led, LV_PART_MAIN) == led_row);
+    CHECK(lv_obj_get_style_grid_cell_row_span(live_led, LV_PART_MAIN) == led_rowspan);
+
+    // The manager's cache names the swapped state, so the same list is a no-op.
+    CHECK(mgr.populate_widgets(panel_id, container, 1).empty());
+    CHECK(find_tile(container, "clock") == clock_tile);
+
+    // Gate again: the led instance is detached and dropped, the clock stays.
+    lv_subject_set_int(gate, 0);
+    flips =
+        PanelWidgetManager::gate_flips_only(live_ids, mgr.compute_visible_widget_ids(panel_id, 1));
+    REQUIRE(flips.has_value());
+    fresh = mgr.swap_gated_tiles(panel_id, container, 1, gated_ids, *flips, widgets);
+    REQUIRE(fresh.has_value());
+    CHECK(fresh->empty());
+    CHECK(GateSwapSpyWidget::s_detached["led"] == 1);
+    CHECK(GateSwapSpyWidget::s_detached["clock"] == 0);
+    REQUIRE(widgets.size() == 1);
+    CHECK(widgets[0].get() == clock_instance);
+    CHECK(find_tile(container, "clock") == clock_tile);
+
+    process_async_calls();
+    widgets.clear();
+    lv_obj_delete(container);
+    lv_subject_set_int(gate, gate_before);
+    helix::register_widget_factory("clock", orig_clock);
+    helix::register_widget_factory("led", orig_led);
+    mgr.clear_panel_config(panel_id);
+}

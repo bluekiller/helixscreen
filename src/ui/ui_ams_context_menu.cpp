@@ -41,6 +41,7 @@ lv_subject_t AmsContextMenu::slot_can_clear_subject_;
 lv_subject_t AmsContextMenu::slot_clear_hint_subject_;
 lv_subject_t AmsContextMenu::slot_clear_hint_visible_subject_;
 char AmsContextMenu::slot_clear_hint_buf_[192];
+lv_subject_t AmsContextMenu::slot_preload_subject_;
 
 // ============================================================================
 // Construction / Destruction
@@ -61,6 +62,7 @@ void AmsContextMenu::init_subjects() {
     lv_subject_init_int(&slot_clear_hint_visible_subject_, 0);
     lv_subject_init_string(&slot_clear_hint_subject_, slot_clear_hint_buf_, nullptr,
                            sizeof(slot_clear_hint_buf_), "");
+    lv_subject_init_int(&slot_preload_subject_, 0);
 
     lv_xml_register_subject(nullptr, "ams_slot_is_loaded", &slot_is_loaded_subject_);
     lv_xml_register_subject(nullptr, "ams_slot_can_load", &slot_can_load_subject_);
@@ -73,6 +75,7 @@ void AmsContextMenu::init_subjects() {
     lv_xml_register_subject(nullptr, "ams_slot_clear_hint", &slot_clear_hint_subject_);
     lv_xml_register_subject(nullptr, "ams_slot_clear_hint_visible",
                             &slot_clear_hint_visible_subject_);
+    lv_xml_register_subject(nullptr, "ams_slot_preload", &slot_preload_subject_);
 
     subjects_initialized_ = true;
 }
@@ -189,6 +192,10 @@ bool AmsContextMenu::show_for_external_spool(lv_obj_t* parent, lv_obj_t* anchor_
 
 void AmsContextMenu::on_created(lv_obj_t* menu_obj) {
     int slot_index = get_item_index();
+
+    // Hidden until the lane path below says otherwise; the external spool
+    // has no gate to preload.
+    lv_subject_set_int(&slot_preload_subject_, 0);
 
     // External spool mode: the lane dropdowns do not apply, but Load and Unload
     // do — EXTERNAL_SPOOL_SLOT is a target plan_load()/plan_unload() both
@@ -318,7 +325,8 @@ void AmsContextMenu::on_created(lv_obj_t* menu_obj) {
     }
 
     const SlotOpDecision ops =
-        decide_slot_ops(backend_, slot_index, pending_is_loaded_, system_busy, print_blocks_op);
+        decide_slot_ops(backend_, slot_index, pending_is_loaded_, system_busy, print_blocks_op,
+                        backend_ && backend_->toolhead_filament_unaccounted().value_or(false));
     // The dispatched action, not just the label: handle_unload() reads this.
     unload_mode_ = ops.unload_mode;
     lv_subject_set_int(&slot_is_loaded_subject_, ops.unload_enabled ? 1 : 0);
@@ -409,6 +417,15 @@ void AmsContextMenu::on_created(lv_obj_t* menu_obj) {
                 lv_obj_add_state(btn_gate_check, LV_STATE_DISABLED);
             }
         }
+    }
+
+    // Preload moves filament only between spool and gate, but the firmware
+    // refuses it mid-print and while any filament is loaded, and reports that
+    // refusal only to its console.
+    if (backend_ && backend_->supports_lane_preload()) {
+        const bool preload_blocked =
+            system_busy || print_blocks_op || backend_->is_filament_loaded();
+        lv_subject_set_int(&slot_preload_subject_, preload_blocked ? 1 : 2);
     }
 
     // Show Clear Spool whenever the slot carries an assignment, present or not
@@ -534,6 +551,11 @@ void AmsContextMenu::handle_gate_check() {
     dispatch_ams_action(MenuAction::CHECK_GATE);
 }
 
+void AmsContextMenu::handle_preload() {
+    spdlog::info("[AmsContextMenu] Preload requested for slot {}", get_item_index());
+    dispatch_ams_action(MenuAction::PRELOAD);
+}
+
 void AmsContextMenu::handle_edit() {
     spdlog::info("[AmsContextMenu] Edit requested for slot {}", get_item_index());
     dispatch_ams_action(MenuAction::EDIT);
@@ -579,7 +601,7 @@ AmsContextMenu::decide_unload_mode(bool toolhead_unload, bool can_recover, bool 
 
 AmsContextMenu::SlotOpDecision
 AmsContextMenu::decide_slot_ops(const AmsBackend* backend, int slot_index, bool pending_is_loaded,
-                                bool system_busy, bool print_blocks_op) {
+                                bool system_busy, bool print_blocks_op, bool toolhead_unaccounted) {
     SlotOpDecision d;
 
     if (backend) {
@@ -623,6 +645,15 @@ AmsContextMenu::decide_slot_ops(const AmsBackend* backend, int slot_index, bool 
     d.unload_enabled =
         decide_unload_enabled(system_busy, d.unload_mode, print_blocks_op,
                               backend && backend->cold_lane_ops_refused_during_print());
+
+    // Filament at the toolhead that no lane claims: the lane this menu names
+    // may not be the seated one, so its Unload is a guess and a cold Eject of
+    // the lane that IS seated grinds un-cut filament. Withdraw the button
+    // without touching the mode - the sidebar's active-head Unload covers the
+    // state, letting the firmware resolve the real channel.
+    if (toolhead_unaccounted) {
+        d.unload_enabled = false;
+    }
 
     // Load gates on the NARROWED signal (toolhead_unload), never the broadened
     // is_loaded: is_loaded folds in the open-time snapshot, which reads true for
@@ -692,6 +723,7 @@ void AmsContextMenu::register_callbacks() {
         {"ams_context_unload_cb", on_unload_cb},
         {"ams_context_gate_select_cb", on_gate_select_cb},
         {"ams_context_gate_check_cb", on_gate_check_cb},
+        {"ams_context_preload_cb", on_preload_cb},
         {"ams_context_edit_cb", on_edit_cb},
         {"ams_context_clear_spool_cb", on_clear_spool_cb},
         {"ams_context_spoolman_cb", on_spoolman_cb},
@@ -743,6 +775,13 @@ void AmsContextMenu::on_gate_check_cb(lv_event_t* /*e*/) {
     auto* self = get_active_instance();
     if (self) {
         self->handle_gate_check();
+    }
+}
+
+void AmsContextMenu::on_preload_cb(lv_event_t* /*e*/) {
+    auto* self = get_active_instance();
+    if (self) {
+        self->handle_preload();
     }
 }
 

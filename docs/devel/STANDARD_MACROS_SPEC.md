@@ -49,9 +49,9 @@ The Standard Macros system provides a unified registry that maps semantic operat
 > **Park fallback note:** `HELIX_PARK_TOOLHEAD` is a reserved name with no
 > definition in `assets/config/helix_macros.cfg`, so the fallback tier never
 > resolves for this slot - an undetected, unconfigured `park_toolhead` answers
-> **Empty**. The Motion screen's Park button then falls back to its own
-> front-center move (`src/ui/ui_panel_motion.cpp#handle_park`), homing first when
-> needed. Detection is exact-name like every other slot, so underscore-prefixed
+> **Empty**. The Motion screen's Park button then falls back to its own move:
+> Z up 10mm, then over the rear of the plate (`src/ui/ui_panel_motion.cpp#MotionPanel::park_over_plate`,
+> `helix::plate_rear_park()`), homing first when needed. Detection is exact-name like every other slot, so underscore-prefixed
 > or suffixed variants (`_PARK`, `PARK_2`, ...) never match; a printer wanting
 > detection must expose one of the three names verbatim. Config key:
 > `standard_macros/park_toolhead` (per-printer prefix applies); the settings row
@@ -319,7 +319,7 @@ void FilamentPanel::execute_load() {
   - Access via `MoonrakerAPI::hardware_discovery()`
 - `src/printer/macro_manager.cpp` - HELIX_* macro definitions
 - `include/config.h` - `MacroConfig` struct, `get_macro()` method
-- `ui_xml/settings_display_sound_overlay.xml` - Reference overlay pattern
+- `ui_xml/settings_display_overlay.xml` - Reference overlay pattern
 
 ### Files Created (historical planning list; paths updated to as-built locations)
 - `include/standard_macros.h`

@@ -67,6 +67,7 @@ translations:
     винт
   10 minutes: 10 минут
   12 Hour: 12 часов
+  12-hour: 12-часовой
   120 seconds: 120 секунд
   15 seconds: 15 секунд
   170-300 °C: '170-300 °C'
@@ -81,6 +82,7 @@ translations:
     каждый винт
   20 minutes: 20 минут
   24 Hour: 24 часа
+  24-hour: 24-часовой
   270°: 270°
   270° Clockwise: 270° по часовой стрелке
   2D Heatmap: 2D тепловая карта
@@ -144,6 +146,7 @@ translations:
   Abort already in progress: Прерывание уже выполняется
   Abort failed: Ошибка прерывания
   Aborting AFC operation...: Прерывание операции AFC...
+  Aborting...: Прерывание...
   About: О программе
   Accel to Decel: Ускорение к торможению
   Acceleration to deceleration limit (mm/s²): Предел ускорения к торможению (мм/с²)
@@ -156,7 +159,6 @@ translations:
   'Accepted Z Position: {:.3f}': 'Принятая позиция Z: {:.3f}'
   Accessories: 'Аксессуары'
   Accuracy: Точность
-  'Act:': 'Факт:'
   Action Required: Требуется действие
   Actions: Действия
   Active: Активно
@@ -192,6 +194,8 @@ translations:
   All Devices: Все устройства
   All axes homed: Все оси запаркованы
   All fields are required: Все поля обязательны для заполнения
+  All healthy: Всё в порядке
+  All lights: Вся подсветка
   Allow: 'Разрешить'
   Allow Home Screen Editing: 'Разрешить редактирование главного экрана'
   Allow cold load/unload: Разрешить загрузку/выгрузку без нагрева
@@ -215,9 +219,8 @@ translations:
     ошибка.
   # Source: probe_accuracy_modal.xml:90
   An error occurred.: 'Произошла ошибка.'
-  An internal error occurred. The app continues running — please send a debug bundle from Settings > About if it repeats.: Произошла
-    внутренняя ошибка. Приложение продолжает работать — отправьте отладочный пакет
-    из «Настройки > О программе», если она повторится.
+  ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
+  : Произошла внутренняя ошибка. Приложение продолжает работать. Отправьте отладочный пакет из «Настройки > Помощь и о программе», если она повторится.
   An unexpected printer error occurred.: Произошла непредвиденная ошибка принтера.
   An update is available: Доступно обновление
   Analyzing data...: Анализ данных...
@@ -233,6 +236,7 @@ translations:
   App startup encountered an error. Some features may be unavailable.: При запуске
     приложения произошла ошибка. Некоторые функции могут быть недоступны.
   Appearance: Внешний вид
+  Applies to: Применяется к
   Apply: Применить
   Apply Changes: Применить изменения
   Applying Changes: Применение изменений
@@ -428,7 +432,6 @@ translations:
   Calibrate X: Калибровать X
   Calibrate Y: Калибровать Y
   Calibrate all tools: Калибровать все инструменты
-  Calibrate and tune scroll feel: "Калибровка и настройка прокрутки"
   Calibrate input shaping to reduce ringing artifacts in prints: Калибровка компенсации
     вибраций для уменьшения артефактов звона
   Calibrate tool offsets?: Калибровать смещения инструментов?
@@ -545,6 +548,7 @@ translations:
   Check Again: Проверить снова
   Check Klipper console for details: Подробности смотрите в консоли Klipper
   Check extruder temperature and try again. Manual removal may be required.: Проверьте температуру экструдера и повторите попытку. Может потребоваться удалить филамент вручную.
+  Check failed: Ошибка проверки
   Check filament: Проверьте филамент
   Check for Updates: Проверить обновления
   Check slot: Проверить слот
@@ -577,6 +581,7 @@ translations:
   Checking timelapse plugin...: Проверка плагина таймлапса...
   Checking webcam: Проверка веб-камеры
   Checking...: Проверка...
+  Checking…: Проверка…
   Choose 12-hour or 24-hour time display: Выберите 12-часовой или 24-часовой формат
     времени
   Choose Filament: Выбрать филамент
@@ -736,6 +741,7 @@ translations:
   Controlled by hardware sensor: Управляется аппаратным датчиком
   Controller: Контроллер
   Controls: Управление
+  Cool: Холодный
   Cool Down: Охладить
   Cool nozzle after filament ops: Остужать сопло после операций с филаментом
   Cooling: Охлаждение
@@ -861,6 +867,7 @@ translations:
   Deploy: Развернуть
   Describe the issue (optional): Опишите проблему (необязательно)
   Detailed: Подробно
+  Detect automatically: 'Определить автоматически'
   'Detect filament tangles': 'Обнаруживать спутывание филамента'
   Detecting plate...: Обнаружение пластины...
   Detecting printer type...: Определение типа принтера...
@@ -876,6 +883,7 @@ translations:
   Device name: Имя устройства
   Device name is required: Требуется название устройства
   'Device: ': 'Устройство: '
+  Devices: Устройства
   Different filament?: Другой филамент?
   Digital Clock: 'Цифровые часы'
   Disable: Отключить
@@ -891,7 +899,7 @@ translations:
   Discord Community: Сообщество Discord
   Discovered Printers: Обнаруженные принтеры
   Dismiss: Отклонить
-  Display & Sound: Дисплей и звук
+  Display: Дисплей
   Display Mode: Режим отображения
   Display Sleep: Спящий режим экрана
   ? Display resolution is very high (%dx%d). Text may appear small. Reduce framebuffer
@@ -946,6 +954,7 @@ translations:
   EEPROM error on CFS unit: Ошибка EEPROM в блоке CFS
   EMERGENCY STOP: АВАРИЙНАЯ ОСТАНОВКА
   EMPTY: ПУСТО
+  EXTRAS: ДОПОЛНИТЕЛЬНО
   Each fan can only be selected once: Каждый вентилятор можно выбрать только один
     раз
   Edit: Редактировать
@@ -969,7 +978,6 @@ translations:
   Emergency Stop: Аварийная остановка
   Emergency Stop?: Аварийная остановка?
   Emergency stop activated: Аварийная остановка активирована
-  Emergency stop and print alerts: Аварийная остановка и оповещения печати
   'Emergency stop failed: not connected': 'Аварийная остановка не удалась: нет подключения'
   Empty: Пусто
   Empty slots disable the associated functionality: Пустые слоты отключают связанный
@@ -1030,7 +1038,6 @@ translations:
   Error: Ошибка
   Error at chunk {} (code={}): Ошибка в блоке {} (код={})
   Error loading file: Ошибка загрузки файла
-  Error loading printing tips: Ошибка загрузки советов по печати
   'Error saving printer settings: {}': 'Ошибка сохранения настроек принтера: {}'
   Error state: Состояние ошибки
   'Error: %s': 'Ошибка: %s'
@@ -1102,6 +1109,7 @@ translations:
   Extruder too cold: Экструдер слишком холодный
   Extruding prime line...: Экструзия линии подготовки...
   FAILED: ОШИБКА
+  FILAMENT: ФИЛАМЕНТ
   FILAMENTS: ФИЛАМЕНТЫ
   FILTERS: ФИЛЬТРЫ
   Factory Reset: Сброс к заводским настройкам
@@ -1374,6 +1382,7 @@ translations:
   Guide the toolhead to the chute's extrude position: Подведите печатающую головку к позиции экструзии жёлоба
   Guides and reference: Руководства и справка
   H: Х
+  HELIXSCREEN: HELIXSCREEN
   HOST: Хост
   HTTP Code: Код HTTP
   'HTTP error: {} {}': 'Ошибка HTTP: {} {}'
@@ -1383,7 +1392,6 @@ translations:
   Hang on, we'll be right back!: Подождите, мы скоро вернёмся!
   Happy Hare MMU: Happy Hare MMU
   Hardware: Оборудование
-  Hardware & Devices: Оборудование и устройства
   Hardware Health: Состояние оборудования
   Hardware Name: Название оборудования
   Hardware Profile: Профиль оборудования
@@ -1472,6 +1480,7 @@ translations:
   Homing Y...: Парковка Y...
   Homing Z...: Парковка Z...
   Homing all axes...: Парковка всех осей...
+  Homing and moving the plate...: 'Парковка и перемещение стола...'
   Homing axes...: Парковка осей...
   Homing complete: Парковка завершена
   'Homing failed: ': 'Парковка не удалась: '
@@ -1659,14 +1668,12 @@ translations:
   LED Controls: 'Управление LED'
   LED Light: 'LED-подсветка'
   LED Mode: 'Режим LED'
-  LED SELECTION: ВЫБОР LED
   LED Settings: Настройки LED
   LED Strip: LED-лента
   LED on at Start: Включать LED при старте
   LED strip available for lighting control: Светодиодная лента доступна для управления
     освещением
   LEDs: LED
-  LEDs controlled by the light button: LED, управляемые кнопкой света
   LOAD CELLS: 'ТЕНЗОДАТЧИКИ'
   LOADED: ЗАГРУЖЕН
   LOCKED: ЗАБЛОКИРОВАНО
@@ -1681,7 +1688,7 @@ translations:
   Lane tests and motor resets: 'Тесты каналов и сброс моторов'
   Lanes: Каналы
   Language: Язык
-  Language, theme, brightness, and sound: Язык, тема, яркость и звук
+  Language & Time: Язык и время
   Last: Последняя
   # Source: history_dashboard_panel.xml:114
   Last 7 days: 'Последние 7 дней'
@@ -1705,12 +1712,15 @@ translations:
   Length of the cooling tube section: 'Длина участка трубки охлаждения'
   'Length:': 'Длина:'
   Let's take a quick tour so you can find things fast.: 'Давайте устроим краткий тур, чтобы вы могли быстро находить всё нужное.'
+  Level: Уровень
   Leveling Gantry...: Выравнивание портала...
   Library: Библиотека
   Lifetime Print Stats: Статистика за всё время
   Light: Подсветка
+  Light Mode: Светлый режим
   Light will switch when the current operation finishes: Подсветка переключится после
     завершения текущей операции
+  Lights that follow the printer's state: Подсветка, которая меняется в зависимости от состояния принтера
   Line the nozzle up with the purge chute so purged filament drops straight in.: Выровняйте сопло над жёлобом продувки, чтобы продутый филамент падал прямо внутрь.
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'Строка {} вызывает {}, что этот принтер считает аварийной остановкой. Нарежьте файл заново с профилем для этого принтера.'
@@ -1720,6 +1730,7 @@ translations:
   Load: Загрузить
   Load Cell: 'Тензодатчик'
   Load Cells: 'Тензодатчики'
+  Load Extruder: 'Загрузить экструдер'
   Load Failed: 'Не удалось загрузить'
   Load Filament: Загрузить филамент
   Load a filament first before trying to unload: Сначала загрузите филамент, прежде чем пытаться его выгрузить
@@ -1772,6 +1783,7 @@ translations:
   Lowest notification level that interrupts with a toast: 'Минимальный уровень уведомления, прерывающий всплывающим сообщением'
   M to toggle: M для переключения
   'MAC:': 'MAC:'
+  MACHINE: МАШИНА
   MACRO DEVICES: МАКРО-УСТРОЙСТВА
   MAIN POWER BUTTON: ГЛАВНАЯ КНОПКА ПИТАНИЯ
   MANUAL: ВРУЧНУЮ
@@ -1827,6 +1839,7 @@ translations:
   Manage: Управление
   Manage Printers: Управление принтерами
   Manage configured printers: Управление настроенными принтерами
+  Managed by firmware: Управляется прошивкой
   Managed by your firmware: Управляется прошивкой
   Manual: Вручную
   Manual Bed Leveling: Ручное выравнивание стола
@@ -1903,7 +1916,6 @@ translations:
   Motors Off: Отключить моторы
   'Motors disable failed: {}': 'Ошибка отключения моторов: {}'
   Motors disabled: Моторы отключены
-  Motors off: ''
   Motors stay on while a print is active: Моторы остаются включены во время печати
   Mount: Установить
   Move: Двигать
@@ -1932,6 +1944,7 @@ translations:
   Multi-Filament System not available: Мультифиламентная система недоступна
   Multi-filament system not ready: Мультифиламентная система не готова
   Must home axes first: Сначала необходимо запарковать оси
+  Muted: Без звука
   My Custom Theme: Моя тема
   My Panel: Моя панель
   My Printer: Мой принтер
@@ -1943,6 +1956,7 @@ translations:
   'Name:': 'Имя:'
   Named actions in the LED Controls widget. Not shown under LED selection.: Именованные действия в виджете «Управление LED». Не отображаются в разделе «Выбор LED».
   Needs adjustment: Требуется регулировка
+  Needs attention: Требует внимания
   Needs the {} package to switch spools: 'Для смены катушки нужен плагин {}'
   Net Weight (g): Вес нетто (г)
   Network: Сеть
@@ -1954,7 +1968,9 @@ translations:
   Network forgotten: Сеть забыта
   Network name cannot be empty: Имя сети не может быть пустым
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Сеть, дисплей, звук, настройка принтера и многое другое. Этот тур можно повторить в любой момент из раздела «Справка и о программе».'
+  Neutral: Нейтральный
   Never: Никогда
+  Never sleeps: Никогда не спит
   New Spool: Новая катушка
   'New Spool: Step 1 of 3': 'Новая катушка: Шаг 1 из 3'
   'New Spool: Step {} of {}': 'Новая катушка: шаг {} из {}'
@@ -1979,6 +1995,7 @@ translations:
     управления LED.
   No LED macros detected. Type a macro name below.: LED-макросы не обнаружены. Введите название макроса ниже.
   No LED strips detected: 'LED-ленты не обнаружены'
+  No LEDs found: Светодиоды не найдены
   No Macros Found: Макросы не найдены
   No Multi-Filament System connected: Мультифиламентная система не подключена
   No Multi-Filament System connected.: Мультифиламентная система не подключена.
@@ -2180,6 +2197,8 @@ translations:
   PLA - Black: PLA - Чёрный
   POWER: ПИТАНИЕ
   PRINT OPTIONS: ПАРАМЕТРЫ ПЕЧАТИ
+  PRINTER: ПРИНТЕР
+  PRINTER VISUALS: ВНЕШНИЙ ВИД ПРИНТЕРА
   PRINTERS: ПРИНТЕРЫ
   PRINT_START has {} skippable operation: В PRINT_START есть {} пропускаемая операция
   PRINT_START has {} skippable operations: В PRINT_START есть {} пропускаемых операций
@@ -2282,6 +2301,7 @@ translations:
   Preheat cancelled: Предварительный нагрев отменён
   'Preheat: all {} tools + bed set': 'Преднагрев: все {} инструменты + стол заданы'
   'Preheat: {} + bed set': 'Преднагрев: {} + стол заданы'
+  Preload: 'Предзагрузка'
   Preload failed: Ошибка предварительной загрузки
   Prepared: Готово
   Preparing: Подготовка
@@ -2293,6 +2313,7 @@ translations:
   Preset: Пресет
   'Preset ID: {}': 'ID пресета: {}'
   Presets: Пресеты
+  Presets come from the WLED device. Edit them in the WLED app.: Пресеты берутся с устройства WLED. Изменяйте их в приложении WLED.
   Press Abort to stop: Нажмите «Прервать», чтобы остановить
   Press Scan to search: Нажмите «Поиск» для сканирования
   'Pressure:': 'Давление:'
@@ -2395,10 +2416,9 @@ translations:
   'Printer: ': 'Принтер: '
   PrinterIdentify: Определить принтер
   Printers: Принтеры
-  Printers, Multi-Filament System, fans, sensors, and LEDs: Принтеры, мультифиламентная
-    система, вентиляторы, датчики и светодиоды
   Printing: Печать
   Printing label...: Печать этикетки...
+  Printing now: Печать
   Printing test label...: Печать тестовой этикетки...
   Printing with the wrong material can cause clogs, poor adhesion, or failed prints.: Печать
     неподходящим материалом может привести к засорам, плохой адгезии или неудачным
@@ -2424,6 +2444,7 @@ translations:
   Checking Bed Mesh...: Проверка сетки стола...
   Probing point {} of {}: 'Точка замера {} из {}'
   Probing... ({} points): 'Замер... ({} точек)'
+  Problem found: Обнаружена проблема
   Proceed: Продолжить
   # Source: abort_progress_modal.xml:20
   Processing...: 'Обработка...'
@@ -2522,7 +2543,9 @@ translations:
   Recording Mode: Режим записи
   Recover: Восстановить
   Recover MMU state?: Восстановить состояние MMU?
+  Recover State: 'Восстановить состояние'
   Recovering AFC system...: Восстановление системы AFC...
+  Recovering...: Восстановление...
   Recovery failed: Восстановление не удалось
   'Recovery failed: ': 'Восстановление не удалось: '
   'Recovery failed: {}': 'Восстановление не удалось: {}'
@@ -2537,6 +2560,7 @@ translations:
   Refresh Interval: Интервал обновления
   Refresh RFID: 'Обновить RFID'
   Relative vibration: Относительная вибрация
+  Refresh Spoolman: 'Обновить Spoolman'
   Reheating...: Разогрев...
   Release all stepper motors. Position will be lost.: Отпустить все шаговые моторы.
     Позиция будет потеряна.
@@ -2707,10 +2731,10 @@ translations:
   'SAVE_CONFIG failed: {}. Tool offsets were applied but not saved. Run SAVE_CONFIG manually or they will be lost on restart.': 'Ошибка SAVE_CONFIG: {}. Смещения инструментов применены, но не сохранены. Выполните SAVE_CONFIG вручную, иначе они будут потеряны при перезапуске.'
   ? 'SAVE_CONFIG failed: {}. Z-offset was applied but not saved. Run SAVE_CONFIG manually or the offset will be lost on restart.'
   : 'Ошибка SAVE_CONFIG: {}. Z-смещение применено, но не сохранено. Выполните SAVE_CONFIG вручную, иначе смещение будет потеряно при перезапуске.'
+  SCREEN: ЭКРАН
   SETTINGS: НАСТРОЙКИ
   SHIPPED IMAGES: ВСТРОЕННЫЕ ИЗОБРАЖЕНИЯ
   SOFTWARE: ПО
-  SOUND: ЗВУК
   STANDARD MACROS: СТАНДАРТНЫЕ МАКРОСЫ
   STARTUP: ЗАПУСК
   STOP: СТОП
@@ -2721,7 +2745,7 @@ translations:
   : Активен безопасный режим. Подключение к принтеру отключено, так как приложение
     постоянно аварийно завершалось при запуске. Откройте настройки, чтобы устранить
     проблему, затем перезагрузите.
-  Safety & Notifications: Безопасность и уведомления
+  Safety & Alerts: Безопасность и оповещения
   Same spool in {}? Tap Clear if it is a new one.: 'Та же катушка в {}? Нажмите «Очистить», если это новая.'
   Sample: Образец
   Sample %d/%d: Образец %d/%d
@@ -2801,7 +2825,6 @@ translations:
   Secondary: Вторичный
   Section Detail: Детали раздела
   Security: Безопасность
-  Security, network, host, and administration: Безопасность, сеть, хост и администрирование
   See exactly what data will be sent: Посмотрите, какие именно данные будут отправлены
   See the log: 'Подробности в журнале'
   See the quick tour of HelixScreen again: Посмотреть краткий тур по HelixScreen снова
@@ -2881,6 +2904,7 @@ translations:
   : Задайте тип и цвет филамента для этого слота вручную. Если метка должна читаться, переустановите катушку этикеткой к считывателю, когда блок простаивает
   Set up: Настроить
   Set up your label printer in Settings: Настройте принтер этикеток в Настройках
+  Set what is really selected and loaded. Nothing moves.: 'Укажите, что на самом деле выбрано и загружено. Ничего не двигается.'
   Settings: Настройки
   Settings Snapshot: Снимок настроек
   Settings reset to defaults. Restarting...: Настройки сброшены к значениям по умолчанию.
@@ -2931,6 +2955,7 @@ translations:
   Skipped: 'Пропущено'
   Sleep While Printing: Спящий режим при печати
   Sleep adjusted to match dim timeout: Таймаут сна изменён
+  Sleep {} min: Сон через {} мин
   Sliced colors: Цвета из слайсера
   Slicer: Слайсер
   Slot: Слот
@@ -2953,6 +2978,7 @@ translations:
   'Some mapped slots are short on filament:': 'В некоторых назначенных слотах мало филамента:'
   Some settings will take effect after restart.: Некоторые настройки вступят в силу
     после перезапуска.
+  Sound: Звук
   Sound Theme: Звуковая тема
   Sounds: Звуки
   Source: Источник
@@ -2961,7 +2987,6 @@ translations:
   Spaghetti Detection: Обнаружение «спагетти»
   Spaghetti detected: Обнаружены «спагетти»
   Spaghetti detected (%d%%): Обнаружены «спагетти» (%d%%)
-  Spaghetti detected — print paused: Обнаружены «спагетти» — печать приостановлена
   Speaker: Динамик
   Speed: Скорость
   Speed Settings: 'Настройки скорости'
@@ -3066,8 +3091,6 @@ translations:
   Success Rate: Процент успеха
   Success!: Успешно!
   Summary: Сводка
-  Support, documentation, and version info: Поддержка, документация и информация о
-    версии
   Suppress periodic 'T:.../B:...' status lines: Скрывать периодические строки статуса
     'T:.../B:...'
   Suppress periodic temperature status lines: Скрывать периодические строки статуса температуры
@@ -3212,6 +3235,7 @@ translations:
   The nozzle extrudes a few short test moves in a corner, away from the print area, and repeats until it agrees with itself.: 'Сопло делает несколько коротких тестовых перемещений в углу, в стороне от зоны печати, и повторяет их до сходимости.'
   The plate and the spools are still hot. Use gloves.: Стол и катушки ещё горячие. Используйте перчатки.
 
+  The plate finishes its current move, but drying will not start.: 'Стол завершит текущее перемещение, но сушка не начнётся.'
   ? The print is paused. Changing tools now moves the toolhead and swaps the filament at the nozzle. Resume the print once the change finishes.
   : Печать на паузе. Смена инструмента сейчас переместит печатающую головку и заменит филамент в сопле. Возобновите печать после завершения смены.
   The printer applied this value and keeps it for this tool.: 'Принтер применил это значение и сохранил его для этого инструмента.'
@@ -3253,6 +3277,8 @@ translations:
   The unit is already running another operation. Wait for it to finish, or reset the CFS if it stays stuck: Блок уже выполняет другую операцию. Дождитесь её завершения или сбросьте CFS, если он завис
   The unit reported a fault with no further detail. Restart the printer if it repeats: Блок сообщил о неисправности без подробностей. Если повторится, перезапустите принтер
   The unit's onboard storage has failed. The CFS mainboard needs replacing: Встроенная память блока вышла из строя. Требуется замена материнской платы CFS
+  'The unload did not start: unload by hand, then start again': 'Выгрузка не началась: выгрузите вручную и начните заново'
+  The unload finishes on its own, but the plate will not move.: 'Выгрузка завершится сама, но стол не будет перемещаться.'
   Theme: Тема
   Theme Colors: Цвета темы
   Theme Preset: Пресет темы
@@ -3268,6 +3294,7 @@ translations:
   This AFC system does not support bypass mode: 'Эта система AFC не поддерживает режим обхода'
   This CFS firmware exposes no external spool slot: 'Эта прошивка CFS не предоставляет слот для внешней катушки'
   This Happy Hare system does not support bypass mode: 'Эта система Happy Hare не поддерживает режим обхода'
+  This button controls: Эта кнопка управляет
   This calibration uses the paper friction method to set your Z-offset.: Эта калибровка
     использует метод трения бумаги об сопло для установки Z-смещения.
   This cannot be undone.: Это действие нельзя отменить.
@@ -3398,7 +3425,6 @@ translations:
   Toolhead Y: Печатающая головка Y
   Toolhead jam: Замятие в печатающей головке
   Toolhead position unknown: Положение печатающей головки неизвестно
-  Toolhead, G-code, limits, and materials: Печатающая головка, G-code, лимиты и материалы
   Toolheads: Печатающие головки
   Tools: Инструменты
   Tools Used: Использовано инструментов
@@ -3434,7 +3460,7 @@ translations:
   Turn On LEDs: 'Включить LED'
   Turn endless spool on, then set the backup gate: 'Включите бесконечную катушку, затем задайте резервный шлюз'
   Turn off detection: Отключить обнаружение
-  Turn on LEDs when printer starts: Включать LED при запуске принтера
+  Turn on the lights your light buttons control: Включает свет, которым управляют кнопки света
   Turn the extruder heater off after a load or unload finishes: Выключать нагреватель экструдера после загрузки или выгрузки
   Turn the picture to match how the screen is mounted. Applies after restart.: Поворачивает изображение в соответствии с положением экрана. Применяется после перезапуска.
   Turn the printer's lights on or off: Включить или выключить подсветку
@@ -3477,6 +3503,7 @@ translations:
   Unknown error: Неизвестная ошибка
   Unload: Выгрузить
   Unload Distance: 'Расстояние выгрузки'
+  Unload Extruder: 'Выгрузить экструдер'
   Unload Failed: 'Не удалось выгрузить'
   Unload Filament: Выгрузить филамент
   'Unload at end': 'Выгружать в конце'
@@ -3488,10 +3515,12 @@ translations:
   Unload macro not configured: Макрос выгрузки не настроен
   Unload the CFS filament before enabling bypass: 'Выгрузите филамент CFS перед включением обхода'
   Unload...: Выгрузить...
+  Unloaded: 'Выгружен'
   Unloading: Выгрузка
   Unloading Start Speed: 'Начальная скорость выгрузки'
   Unloading before bypass...: Выгрузка перед байпасом...
   Unloading filament: 'Выгрузка филамента'
+  Unloading filament before drying...: 'Выгрузка филамента перед сушкой...'
   Unloading filament...: Выгрузка филамента...
   Unloads After Print: Выгрузка после печати
   Unlock: Разблокировать
@@ -3514,6 +3543,7 @@ translations:
   Update from a Terminal: Обновление через терминал
   Update installed!: Обновление установлено!
   Update your security PIN: Обновите ваш PIN-код
+  Updates: Обновления
   Updating Configuration...: Обновление конфигурации...
   Upgrade to AFC 1.2.0 or newer for multi-color spools. It also adds filament names, which otherwise need Spoolman.: Обновите AFC до 1.2.0 или новее для многоцветных катушек. Также добавляются названия филаментов, для которых иначе требуется Spoolman.
   Upload: Отправить
@@ -3545,7 +3575,8 @@ translations:
   Verifying timelapse plugin...: Проверка плагина таймлапса...
   Verifying...: Проверка...
   Version: Версия
-  Version, updates, and printer info: Версия, обновления и сведения о принтере
+  Version and printer info: Версия и сведения о принтере
+  Version {}: Версия {}
   Vertical: Вертикально
   Vibration: Вибрация
   Vibration compensation active: Компенсация вибраций активна
@@ -3562,8 +3593,8 @@ translations:
   'Visits: ': 'Посещений: '
   Volume: Громкость
   Volume of filament used during ramming: 'Объём филамента, расходуемый при рэмминге'
+  Volume {}%: Громкость {}%
   WIDTH SENSORS: ДАТЧИКИ ШИРИНЫ
-  WLED: WLED
   WLED Preset: Пресет WLED
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3579,6 +3610,7 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Ожидание нагрева
     стола для точной калибровки.
   Waiting for the filament system to report its state: Ожидание состояния системы филамента
+  Warm: Тёплый
   Warm Bed: Прогреть стол
   Warm up for a material in one tap: Преднагрев под материал одним нажатием
   Warming Bed...: Прогрев стола...
@@ -3610,7 +3642,9 @@ translations:
   Which macro the Close feeder button sends: Какой макрос отправляет кнопка «Закрыть фидер»
   Which macro the Open feeder button sends: Какой макрос отправляет кнопка «Открыть фидер»
   White: Белый
+  Wi-Fi: WiFi
   Wi-Fi or ethernet connection status: Статус подключения Wi-Fi или Ethernet
+  Wi-Fi {}: WiFi {}
   WiFi: WiFi
   WiFi Disabled: WiFi отключён
   WiFi Enabled: WiFi включён
@@ -3743,6 +3777,7 @@ translations:
   locked: 'заблокировано'
   mm before clog: мм до засора
   needs: требуется
+  never sleeps: никогда не спит
   not detected: не обнаружено
   not loaded: 'не загружен'
   nozzle: сопло
@@ -3762,6 +3797,7 @@ translations:
   remaining: осталось
   remaining before clog detection triggers: осталось до срабатывания обнаружения засора
   rendering: рендеринг
+  sleep {} min: сон через {} мин
   slots): слотов)
   started: запущено
   steppers: шаговые двигатели
@@ -3775,6 +3811,7 @@ translations:
   you have: у вас
   '{} LED strips available': 'Доступно светодиодных лент: {}'
   '{} and {} are both mapped here': '{} и {} оба назначены сюда'
+  '{} available': Доступна версия {}
   '{} axis homed': Ось {} запаркована
   '{} command timed out': Время команды {} истекло
   '{} complete': '{} завершено'

@@ -65,6 +65,7 @@ translations:
   1. Printer will home and probe each screw: 1. 打印机将归位并探测每个螺丝位置
   10 minutes: 10 分钟
   12 Hour: 12 小时
+  12-hour: 12小时制
   120 seconds: 120 秒
   15 seconds: 15 秒
   170-300 °C: '170-300 °C'
@@ -78,6 +79,7 @@ translations:
   2. Results show how much to turn each screw: 2. 结果显示每个螺丝需要旋转多少
   20 minutes: 20分钟
   24 Hour: 24 小时
+  24-hour: 24小时制
   270°: 270°
   270° Clockwise: 顺时针 270°
   2D Heatmap: 2D 热图
@@ -139,6 +141,7 @@ translations:
   Abort already in progress: 中止操作正在进行中
   Abort failed: 中止失败
   Aborting AFC operation...: 正在中止AFC操作...
+  Aborting...: 正在中止...
   About: 关于
   Accel to Decel: 加速到减速
   Acceleration to deceleration limit (mm/s²): 加速到减速限制 (mm/s²)
@@ -150,7 +153,6 @@ translations:
   'Accepted Z Position: {:.3f}': '已确认 Z 位置：{:.3f}'
   Accessories: '配件'
   Accuracy: 精度
-  'Act:': 实际：
   Action Required: 需要操作
   Actions: 操作
   Active: 活动
@@ -183,6 +185,8 @@ translations:
   All Devices: 所有设备
   All axes homed: 所有轴已归位
   All fields are required: 所有字段均为必填项
+  All healthy: 一切正常
+  All lights: 全部灯光
   Allow: '允许'
   Allow Home Screen Editing: '允许编辑主屏幕'
   Allow cold load/unload: 允许冷态加载/卸载
@@ -202,8 +206,8 @@ translations:
   An error occurred while loading filament.: 加载耗材时发生错误。
   # Source: probe_accuracy_modal.xml:90
   An error occurred.: '发生错误。'
-  An internal error occurred. The app continues running — please send a debug bundle from Settings > About if it repeats.: 发生了内部错误。应用程序继续运行
-    — 如果反复出现，请从设置 > 关于发送调试捆绑包。
+  ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
+  : 发生了内部错误。应用程序继续运行。如果反复出现，请从设置 > 帮助与关于发送调试捆绑包。
   An unexpected printer error occurred.: 发生了意外的打印机错误。
   An update is available: 有可用更新
   Analyzing data...: 正在分析数据...
@@ -217,6 +221,7 @@ translations:
   App Background: 应用背景
   App startup encountered an error. Some features may be unavailable.: 应用程序启动时遇到错误。某些功能可能不可用。
   Appearance: 外观
+  Applies to: 适用于
   Apply: 应用
   Apply Changes: 应用更改
   Applying Changes: 正在应用更改
@@ -404,7 +409,6 @@ translations:
   Calibrate X: 校准 X 轴
   Calibrate Y: 校准 Y 轴
   Calibrate all tools: 校准所有工具
-  Calibrate and tune scroll feel: "校准并调整滚动手感"
   Calibrate input shaping to reduce ringing artifacts in prints: 校准输入整形以减少打印中的振纹
   Calibrate tool offsets?: 校准工具偏移？
   Calibrate your touchscreen for accurate input: 校准触摸屏以确保输入准确
@@ -502,6 +506,7 @@ translations:
   Check Again: 重新检查
   Check Klipper console for details: 详情请查看 Klipper 控制台
   Check extruder temperature and try again. Manual removal may be required.: 请检查挤出机温度后重试。可能需要手动取出。
+  Check failed: 检查失败
   Check filament: 检查耗材
   Check for Updates: 检查更新
   Check slot: 检查槽位
@@ -533,6 +538,7 @@ translations:
   Checking timelapse plugin...: 正在检查延时摄影插件...
   Checking webcam: 正在检查摄像头
   Checking...: 检查中...
+  Checking…: 检查中…
   Choose 12-hour or 24-hour time display: 选择 12 小时制或 24 小时制
   Choose Filament: 选择耗材
   Choose Model: 选择型号
@@ -677,6 +683,7 @@ translations:
   Controlled by hardware sensor: 由硬件传感器控制
   Controller: 控制器
   Controls: 控制
+  Cool: 冷色
   Cool Down: 冷却
   Cool nozzle after filament ops: 耗材操作后冷却喷嘴
   Cooling: 冷却中
@@ -801,6 +808,7 @@ translations:
   Deploy: 部署
   Describe the issue (optional): 描述问题（可选）
   Detailed: 详细
+  Detect automatically: '自动检测'
   'Detect filament tangles': '检测耗材打结'
   Detecting plate...: 正在检测热床板...
   Detecting printer type...: 正在检测打印机类型...
@@ -816,6 +824,7 @@ translations:
   Device name: 设备名称
   Device name is required: 设备名称为必填项
   'Device: ': '设备: '
+  Devices: 设备
   Different filament?: 耗材不同？
   Digital Clock: '数字时钟'
   Disable: 禁用
@@ -831,7 +840,7 @@ translations:
   Discord Community: Discord 社区
   Discovered Printers: 已发现的打印机
   Dismiss: 忽略
-  Display & Sound: 显示与声音
+  Display: 显示
   Display Mode: 显示模式
   Display Sleep: 显示休眠
   ? Display resolution is very high (%dx%d). Text may appear small. Reduce framebuffer
@@ -884,6 +893,7 @@ translations:
   EEPROM error on CFS unit: CFS 单元 EEPROM 错误
   EMERGENCY STOP: 紧急停止
   EMPTY: 空
+  EXTRAS: 其他
   Each fan can only be selected once: 每个风扇只能选择一次
   Edit: 编辑
   Edit Filament: 编辑耗材
@@ -905,7 +915,6 @@ translations:
   Emergency Stop: 紧急停止
   Emergency Stop?: 紧急停止？
   Emergency stop activated: 紧急停止已激活
-  Emergency stop and print alerts: 紧急停止和打印警报
   'Emergency stop failed: not connected': '紧急停止失败: 未连接'
   Empty: 空
   Empty slots disable the associated functionality: 空槽位将禁用相关功能
@@ -964,7 +973,6 @@ translations:
   Error: 错误
   Error at chunk {} (code={}): 区块 {} 出错 (code={})
   Error loading file: 加载文件出错
-  Error loading printing tips: 加载打印提示出错
   'Error saving printer settings: {}': '保存打印机设置出错: {}'
   Error state: 错误状态
   'Error: %s': '错误: %s'
@@ -1031,6 +1039,7 @@ translations:
   Extruder too cold: 挤出机温度过低
   Extruding prime line...: 正在挤出引导线...
   FAILED: 失败
+  FILAMENT: 耗材
   FILAMENTS: 耗材
   FILTERS: 筛选
   Factory Reset: 恢复出厂设置
@@ -1295,6 +1304,7 @@ translations:
   Guide the toolhead to the chute's extrude position: 引导工具头到排料口的挤出位置
   Guides and reference: 指南与参考
   H: 头
+  HELIXSCREEN: HELIXSCREEN
   HOST: 主机
   HTTP Code: HTTP 代码
   'HTTP error: {} {}': 'HTTP 错误: {} {}'
@@ -1304,7 +1314,6 @@ translations:
   Hang on, we'll be right back!: 请稍候，马上回来！
   Happy Hare MMU: Happy Hare MMU
   Hardware: 硬件
-  Hardware & Devices: 硬件与设备
   Hardware Health: 硬件状态
   Hardware Name: 硬件名称
   Hardware Profile: 硬件配置
@@ -1388,6 +1397,7 @@ translations:
   Homing Y...: 正在归位 Y...
   Homing Z...: 正在归位 Z...
   Homing all axes...: 正在归位所有轴...
+  Homing and moving the plate...: '正在归位并移动热床...'
   Homing axes...: 正在归位各轴...
   Homing complete: 归位完成
   'Homing failed: ': '回零失败: '
@@ -1554,13 +1564,11 @@ translations:
   LED Controls: 'LED 控制'
   LED Light: 'LED 灯'
   LED Mode: 'LED 模式'
-  LED SELECTION: LED 选择
   LED Settings: LED 设置
   LED Strip: LED 灯带
   LED on at Start: 启动时开启 LED
   LED strip available for lighting control: LED 灯带可用于照明控制
   LEDs: LED
-  LEDs controlled by the light button: 由灯光按钮控制的 LED
   LOAD CELLS: '称重传感器'
   LOADED: 已加载
   LOCKED: 已锁定
@@ -1575,7 +1583,7 @@ translations:
   Lane tests and motor resets: '耗材通道测试与电机重置'
   Lanes: 耗材通道
   Language: 语言
-  Language, theme, brightness, and sound: 语言、主题、亮度和声音
+  Language & Time: 语言与时间
   Last: 最近
   # Source: history_dashboard_panel.xml:114
   Last 7 days: '最近 7 天'
@@ -1596,11 +1604,14 @@ translations:
   Length of the cooling tube section: '冷却管段的长度'
   'Length:': 长度：
   Let's take a quick tour so you can find things fast.: 让我们快速浏览一下，帮助您快速找到所需内容。
+  Level: 级别
   Leveling Gantry...: 正在调平龙门...
   Library: 库
   Lifetime Print Stats: 累计打印统计
   Light: 浅色
+  Light Mode: 浅色模式
   Light will switch when the current operation finishes: 灯光将在当前操作完成后切换
+  Lights that follow the printer's state: 跟随打印机状态变化的灯光
   Line the nozzle up with the purge chute so purged filament drops straight in.: 将喷嘴对准排料口上方，使排出的料丝垂直落入。
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: '第 {} 行调用 {}，此打印机将其视为紧急停止。请使用为此打印机制作的配置重新切片该文件。'
@@ -1610,6 +1621,7 @@ translations:
   Load: 加载
   Load Cell: '称重传感器'
   Load Cells: '称重传感器'
+  Load Extruder: '加载挤出机'
   Load Failed: '装载失败'
   Load Filament: 加载耗材
   Load a filament first before trying to unload: 请先装载耗材，再尝试卸载
@@ -1660,6 +1672,7 @@ translations:
   Lowest notification level that interrupts with a toast: '以浮层提醒打断的最低通知级别'
   M to toggle: 按 M 切换
   'MAC:': MAC：
+  MACHINE: 机器
   MACRO DEVICES: 宏设备
   MAIN POWER BUTTON: 主电源按钮
   MANUAL: 手动
@@ -1712,6 +1725,7 @@ translations:
   Manage: 管理
   Manage Printers: 管理打印机
   Manage configured printers: 管理已配置的打印机
+  Managed by firmware: 由固件管理
   Managed by your firmware: 由固件管理
   Manual: 手动
   Manual Bed Leveling: 手动热床调平
@@ -1787,7 +1801,6 @@ translations:
   Motors Off: 关闭电机
   'Motors disable failed: {}': '禁用电机失败: {}'
   Motors disabled: 电机已禁用
-  Motors off: ''
   Motors stay on while a print is active: 打印期间电机保持开启
   Mount: 装上
   Move: 移动
@@ -1813,6 +1826,7 @@ translations:
   Multi-Filament System not available: 多耗材系统不可用
   Multi-filament system not ready: 多耗材系统未就绪
   Must home axes first: 请先归位
+  Muted: 静音
   My Custom Theme: 我的自定义主题
   My Panel: 我的面板
   My Printer: 我的打印机
@@ -1824,6 +1838,7 @@ translations:
   'Name:': '名称:'
   Named actions in the LED Controls widget. Not shown under LED selection.: 在 LED 控制小组件中显示为命名操作。不会出现在 LED 选择中。
   Needs adjustment: 需要调整
+  Needs attention: 需要处理
   Needs the {} package to switch spools: '切换料盘需要 {} 插件'
   Net Weight (g): 净重（克）
   Network: 网络
@@ -1835,7 +1850,9 @@ translations:
   Network forgotten: 已忘记网络
   Network name cannot be empty: 网络名称不能为空
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 网络、显示、声音、打印机设置等。您可以随时从“帮助与关于”中重播此漫游。
+  Neutral: 中性
   Never: 从不
+  Never sleeps: 从不休眠
   New Spool: 新料盘
   'New Spool: Step 1 of 3': 新料盘：步骤 1 / 3
   'New Spool: Step {} of {}': '新线轴: 第 {} 步,共 {} 步'
@@ -1858,6 +1875,7 @@ translations:
     LED 宏。请先添加用于 LED 控制的 Klipper 宏。
   No LED macros detected. Type a macro name below.: 未检测到 LED 宏。请在下方输入宏名称。
   No LED strips detected: '未检测到 LED 灯带'
+  No LEDs found: 未找到 LED
   No Macros Found: 未找到宏
   No Multi-Filament System connected: 未连接多耗材系统
   No Multi-Filament System connected.: 未连接多耗材系统。
@@ -2054,6 +2072,8 @@ translations:
   PLA - Black: PLA - 黑色
   POWER: 电源
   PRINT OPTIONS: 打印选项
+  PRINTER: 打印机
+  PRINTER VISUALS: 打印机外观
   PRINTERS: 打印机
   PRINT_START has {} skippable operation: PRINT_START 有 {} 项可跳过的操作
   PRINT_START has {} skippable operations: PRINT_START 有 {} 项可跳过的操作
@@ -2151,6 +2171,7 @@ translations:
   Preheat cancelled: 预热已取消
   'Preheat: all {} tools + bed set': '预热: 全部 {} 工具 + 热床已设置'
   'Preheat: {} + bed set': '预热: {} + 热床已设置'
+  Preload: '预装载'
   Preload failed: 预装载失败
   Prepared: 已就绪
   Preparing: 准备中
@@ -2162,6 +2183,7 @@ translations:
   Preset: 预设
   'Preset ID: {}': '预设 ID: {}'
   Presets: 预设
+  Presets come from the WLED device. Edit them in the WLED app.: 预设来自 WLED 设备。请在 WLED 应用中编辑。
   Press Abort to stop: 按中止以停止
   Press Scan to search: 按扫描搜索
   'Pressure:': '压力:'
@@ -2258,9 +2280,9 @@ translations:
   'Printer: ': '打印机: '
   PrinterIdentify: 识别打印机
   Printers: 打印机
-  Printers, Multi-Filament System, fans, sensors, and LEDs: 打印机、多耗材系统、风扇、传感器和LED
-  Printing: 正在打印
+  Printing: 打印
   Printing label...: 正在打印标签...
+  Printing now: 正在打印
   Printing test label...: 正在打印测试标签...
   Printing with the wrong material can cause clogs, poor adhesion, or failed prints.: 使用错误的耗材打印可能导致堵塞、附着力差或打印失败。
   'Printing: start after this job': '打印中：本次打印完成后开始'
@@ -2283,6 +2305,7 @@ translations:
   Checking Bed Mesh...: 正在检查热床网格...
   Probing point {} of {}: '探测点 {} / {}'
   Probing... ({} points): '探测中...（{} 个点）'
+  Problem found: 发现问题
   Proceed: 继续
   # Source: abort_progress_modal.xml:20
   Processing...: '处理中...'
@@ -2377,7 +2400,9 @@ translations:
   Recording Mode: 录制模式
   Recover: 恢复
   Recover MMU state?: 恢复 MMU 状态？
+  Recover State: '恢复状态'
   Recovering AFC system...: AFC系统恢复中...
+  Recovering...: 恢复中...
   Recovery failed: 恢复失败
   'Recovery failed: ': '恢复失败: '
   'Recovery failed: {}': '恢复失败: {}'
@@ -2390,6 +2415,7 @@ translations:
   Refresh Interval: 刷新间隔
   Refresh RFID: '刷新 RFID'
   Relative vibration: 相对振动
+  Refresh Spoolman: '刷新 Spoolman'
   Reheating...: 正在重新加热...
   Release all stepper motors. Position will be lost.: 释放所有步进电机。位置信息将丢失。
   Release filament: 松开耗材
@@ -2552,10 +2578,10 @@ translations:
   'SAVE_CONFIG failed: {}. Tool offsets were applied but not saved. Run SAVE_CONFIG manually or they will be lost on restart.': SAVE_CONFIG 失败：{}。工具偏移已应用但未保存。请手动执行 SAVE_CONFIG，否则重启后将丢失。
   ? 'SAVE_CONFIG failed: {}. Z-offset was applied but not saved. Run SAVE_CONFIG manually or the offset will be lost on restart.'
   : 'SAVE_CONFIG 失败：{}。Z 偏移已应用但未保存。请手动执行 SAVE_CONFIG，否则重启后偏移将丢失。'
+  SCREEN: 屏幕
   SETTINGS: 设置
   SHIPPED IMAGES: 内置图片
   SOFTWARE: 软件
-  SOUND: 声音
   STANDARD MACROS: 标准宏
   STARTUP: 启动
   STOP: 停止
@@ -2564,7 +2590,7 @@ translations:
   ? Safe Mode active. The printer connection is disabled because the app kept crashing
     on startup. Open Settings to fix the issue, then reboot.
   : 安全模式已激活。由于应用程序在启动时反复崩溃，打印机连接已被禁用。请打开设置以解决问题，然后重启。
-  Safety & Notifications: 安全与通知
+  Safety & Alerts: 安全与警报
   Same spool in {}? Tap Clear if it is a new one.: '{} 是同一个料盘吗？如果是新料盘，请点击清除。'
   Sample: 样本
   Sample %d/%d: 样本 %d/%d
@@ -2638,7 +2664,6 @@ translations:
   Secondary: 次要
   Section Detail: 区域详情
   Security: 安全
-  Security, network, host, and administration: 安全、网络、主机和管理
   See exactly what data will be sent: 查看将发送的确切数据
   See the log: '请查看日志'
   See the quick tour of HelixScreen again: 再次查看 HelixScreen 的快速漫游
@@ -2711,6 +2736,7 @@ translations:
   : 请手动设置该槽位的耗材类型和颜色。若标签本应可读，请在料盒空闲时将料盘取出并使标签朝向读取器重新装入
   Set up: 设置
   Set up your label printer in Settings: 在设置中配置标签打印机
+  Set what is really selected and loaded. Nothing moves.: '设置实际选择和加载的状态。不会移动任何部件。'
   Settings: 设置
   Settings Snapshot: 设置快照
   Settings reset to defaults. Restarting...: 设置已重置为默认值。正在重启...
@@ -2754,6 +2780,7 @@ translations:
   Skipped: '已跳过'
   Sleep While Printing: 打印时休眠
   Sleep adjusted to match dim timeout: 休眠超时已调整
+  Sleep {} min: '{} 分钟后休眠'
   Sliced colors: 切片颜色
   Slicer: 切片软件
   Slot: 槽位
@@ -2773,6 +2800,7 @@ translations:
   Some filaments don't match the slicer's intent.: 部分耗材与切片软件的意图不符。
   'Some mapped slots are short on filament:': '部分已映射槽位耗材不足：'
   Some settings will take effect after restart.: 某些设置将在重启后生效。
+  Sound: 声音
   Sound Theme: 声音主题
   Sounds: 声音
   Source: 来源
@@ -2781,7 +2809,6 @@ translations:
   Spaghetti Detection: 拉丝故障检测
   Spaghetti detected: 检测到拉丝故障
   Spaghetti detected (%d%%): 检测到拉丝故障（%d%%）
-  Spaghetti detected — print paused: 检测到拉丝故障 — 打印已暂停
   Speaker: 扬声器
   Speed: 速度
   Speed Settings: '速度设置'
@@ -2883,7 +2910,6 @@ translations:
   Success Rate: 成功率
   Success!: 成功！
   Summary: 摘要
-  Support, documentation, and version info: 支持、文档和版本信息
   Suppress periodic 'T:.../B:...' status lines: 抑制周期性 'T:.../B:...' 状态行
   Suppress periodic temperature status lines: 抑制周期性温度状态行
   Suppress raw debug output from printer firmware modules: 抑制打印机固件模块的原始调试输出
@@ -3018,6 +3044,7 @@ translations:
   The nozzle extrudes a few short test moves in a corner, away from the print area, and repeats until it agrees with itself.: '喷嘴在远离打印区域的角落进行几次短促的测试挤出，并重复直到读数一致。'
   The plate and the spools are still hot. Use gloves.: 热床和料盘仍然很烫。请戴手套。
 
+  The plate finishes its current move, but drying will not start.: '热床会完成当前移动,但烘干不会开始。'
   ? The print is paused. Changing tools now moves the toolhead and swaps the filament at the nozzle. Resume the print once the change finishes.
   : 打印已暂停。现在切换工具会移动工具头并更换喷嘴处的耗材。切换完成后请恢复打印。
   The printer applied this value and keeps it for this tool.: '打印机已应用此值，并为该工具保存。'
@@ -3052,6 +3079,8 @@ translations:
   The unit is already running another operation. Wait for it to finish, or reset the CFS if it stays stuck: 该单元正在执行其他操作。请等待其完成；若持续卡住，请重置 CFS
   The unit reported a fault with no further detail. Restart the printer if it repeats: 该单元报告了故障但无更多信息。若反复出现，请重启打印机
   The unit's onboard storage has failed. The CFS mainboard needs replacing: 该单元的板载存储已损坏。需更换 CFS 主板
+  'The unload did not start: unload by hand, then start again': 卸载未开始:请手动卸载,然后重新开始
+  The unload finishes on its own, but the plate will not move.: '卸载会自行完成,但热床不会移动。'
   Theme: 主题
   Theme Colors: 主题颜色
   Theme Preset: 主题预设
@@ -3065,6 +3094,7 @@ translations:
   This AFC system does not support bypass mode: '此 AFC 系统不支持旁通模式'
   This CFS firmware exposes no external spool slot: '此 CFS 固件没有外部料盘槽位'
   This Happy Hare system does not support bypass mode: '此 Happy Hare 系统不支持旁通模式'
+  This button controls: 此按钮控制
   This calibration uses the paper friction method to set your Z-offset.: 此校准使用纸张摩擦法设置
     Z 偏移。
   This cannot be undone.: 此操作无法撤销。
@@ -3182,7 +3212,6 @@ translations:
   Toolhead Y: 工具头 Y
   Toolhead jam: 工具头堵塞
   Toolhead position unknown: 工具头位置未知
-  Toolhead, G-code, limits, and materials: 打印头、G代码、限制和材料
   Toolheads: 工具头
   Tools: 工具
   Tools Used: 已使用工具
@@ -3217,7 +3246,7 @@ translations:
   Turn On LEDs: '打开 LED'
   Turn endless spool on, then set the backup gate: '请先开启无限料盘，再设置备用通道'
   Turn off detection: 关闭检测
-  Turn on LEDs when printer starts: 打印机启动时开启 LED
+  Turn on the lights your light buttons control: 开启灯光按钮所控制的灯光
   Turn the extruder heater off after a load or unload finishes: 加载或卸载完成后关闭挤出机加热器
   Turn the picture to match how the screen is mounted. Applies after restart.: 旋转画面以匹配屏幕的安装方向。重启后生效。
   Turn the printer's lights on or off: 开启或关闭打印机灯光
@@ -3257,6 +3286,7 @@ translations:
   Unknown error: 未知错误
   Unload: 卸载
   Unload Distance: '卸载距离'
+  Unload Extruder: '卸载挤出机'
   Unload Failed: '卸载失败'
   Unload Filament: 卸载耗材
   'Unload at end': '结束时卸载'
@@ -3268,10 +3298,12 @@ translations:
   Unload macro not configured: 卸载宏未配置
   Unload the CFS filament before enabling bypass: '启用旁通前请先卸载 CFS 耗材'
   Unload...: 卸载...
+  Unloaded: '已卸载'
   Unloading: 卸载中
   Unloading Start Speed: '卸载起始速度'
   Unloading before bypass...: 旁通前正在卸载...
   Unloading filament: '正在卸载耗材'
+  Unloading filament before drying...: '烘干前正在卸载耗材...'
   Unloading filament...: 正在卸载耗材...
   Unloads After Print: 打印后卸载
   Unlock: 解锁
@@ -3294,6 +3326,7 @@ translations:
   Update from a Terminal: 通过终端更新
   Update installed!: 更新已安装！
   Update your security PIN: 更新您的安全 PIN
+  Updates: 更新
   Updating Configuration...: 正在更新配置...
   Upgrade to AFC 1.2.0 or newer for multi-color spools. It also adds filament names, which otherwise need Spoolman.: 升级到 AFC 1.2.0 或更高版本即可使用多色料盘。它还会添加耗材名称，否则需要 Spoolman 提供。
   Upload: 上传
@@ -3324,7 +3357,8 @@ translations:
   Verifying timelapse plugin...: 正在验证延时摄影插件...
   Verifying...: 验证中...
   Version: 版本
-  Version, updates, and printer info: 版本、更新和打印机信息
+  Version and printer info: 版本和打印机信息
+  Version {}: 版本 {}
   Vertical: 垂直
   Vibration: 振动
   Vibration compensation active: 振动补偿已启用
@@ -3341,8 +3375,8 @@ translations:
   'Visits: ': '访问次数: '
   Volume: 音量
   Volume of filament used during ramming: '填充过程中使用的耗材体积'
+  Volume {}%: 音量 {}%
   WIDTH SENSORS: 宽度传感器
-  WLED: WLED
   WLED Preset: WLED 预设
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3357,6 +3391,7 @@ translations:
   Waiting for another box to finish.: 正在等待另一个料盒完成。
   Waiting for bed to reach temperature for accurate calibration.: 等待热床达到温度以进行精确校准。
   Waiting for the filament system to report its state: 正在等待耗材系统报告状态
+  Warm: 暖色
   Warm Bed: 预热热床
   Warm up for a material in one tap: 一键为材料预热
   Warming Bed...: 正在预热热床...
@@ -3384,7 +3419,9 @@ translations:
   Which macro the Close feeder button sends: “关闭送料器”按钮发送的宏
   Which macro the Open feeder button sends: “打开送料器”按钮发送的宏
   White: 白色
+  Wi-Fi: WiFi
   Wi-Fi or ethernet connection status: WiFi 或以太网连接状态
+  Wi-Fi {}: WiFi {}
   WiFi: WiFi
   WiFi Disabled: WiFi 已禁用
   WiFi Enabled: WiFi 已启用
@@ -3511,6 +3548,7 @@ translations:
   locked: '已锁定'
   mm before clog: 毫米后堵料
   needs: 需要
+  never sleeps: 从不休眠
   not detected: 未检测到
   not loaded: '未加载'
   nozzle: 喷嘴
@@ -3530,6 +3568,7 @@ translations:
   remaining: 剩余
   remaining before clog detection triggers: 剩余即触发堵料检测
   rendering: 渲染中
+  sleep {} min: '{} 分钟后休眠'
   slots): 个槽位)
   started: 已启动
   steppers: 步进电机
@@ -3543,6 +3582,7 @@ translations:
   you have: 您有
   '{} LED strips available': '{} 条 LED 灯带可用'
   '{} and {} are both mapped here': '{} 和 {} 都映射到这里'
+  '{} available': '{} 可用'
   '{} axis homed': '{} 轴已归位'
   '{} command timed out': '{} 命令超时'
   '{} complete': '{} 完成'

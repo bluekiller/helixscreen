@@ -136,6 +136,23 @@ TEST_CASE_METHOD(BlockingOpFixture, "is_external_blocking_operation_active attri
         state.app_motion_activity().note_done();
     }
 
+    SECTION("self busy: the app's long move outlasting the ack grace -> not blocked") {
+        // The episode began SETTLE ago; the move was sent just before it and
+        // acked long enough ago that only episode ownership can explain it.
+        const auto now = AppMotionActivity::clock::now();
+        state.app_motion_activity().note_sent(now - std::chrono::milliseconds(2800));
+        state.app_motion_activity().note_done(now - std::chrono::milliseconds(2600));
+        CHECK_FALSE(state.app_motion_activity().recently_active(now));
+        CHECK_FALSE(state.is_external_blocking_operation_active());
+    }
+
+    SECTION("external busy after the app's move settled -> blocked") {
+        const auto now = AppMotionActivity::clock::now();
+        state.app_motion_activity().note_sent(now - std::chrono::seconds(10));
+        state.app_motion_activity().note_done(now - std::chrono::seconds(10));
+        CHECK(state.is_external_blocking_operation_active());
+    }
+
     SECTION("manual probe blocks even during app motion") {
         set_manual_probe(1);
         state.app_motion_activity().note_sent();

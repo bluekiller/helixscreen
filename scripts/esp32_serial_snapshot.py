@@ -7,12 +7,16 @@ answers with the active screen as raw-deflated RGB565, base64 on "SNAP:" lines
 between HELIX-SNAP markers. Log lines interleave between them and are ignored.
 
     esp32_serial_snapshot.py /dev/ttyUSB0 out.png [--timeout 120] [--settle 45]
+        [--tap X,Y ...] [--tap-wait 1.5]
 
-Needs pyserial. On Linux, opening a CH340/CP210x port can pulse DTR/RTS before
-pyserial holds them low, which resets a board wired for auto-reset. The request
-is repeated until the dump starts, so a reset costs one boot, not the capture.
-Linux raises the modem lines on every open, so expect that reset: --settle waits
-before the first request, for a screen that has finished booting and connecting.
+--tap sends "tap X Y" (panel coordinates) before the screenshot, in order,
+pausing --tap-wait seconds after each so the UI settles. --notes prints every
+notification since boot (the toasts the bell counts) instead of a screenshot.
+
+Needs pyserial. A board wired for auto-reset resets while RTS and DTR differ;
+after opening, RTS is released before DTR so they never do. The request is
+repeated until the dump starts, so a reset that happens anyway costs one boot,
+not the capture, and --settle waits for a screen that has finished booting.
 """
 
 import argparse
@@ -67,24 +71,49 @@ def parse_dump(lines: list[str]) -> tuple[int, int, bytes]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("port")
-    ap.add_argument("out")
+    ap.add_argument("out", nargs="?", help="PNG to write (not needed with --notes)")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--timeout", type=float, default=120.0)
     ap.add_argument("--settle", type=float, default=0.0,
                     help="seconds to wait after opening the port before asking")
+    ap.add_argument("--tap", action="append", default=[], metavar="X,Y",
+                    help="tap at X,Y before the screenshot; repeatable")
+    ap.add_argument("--tap-wait", type=float, default=1.5)
+    ap.add_argument("--notes", action="store_true", help="print the notification history")
     args = ap.parse_args()
+    if not args.notes and not args.out:
+        ap.error("out is required unless --notes is given")
 
     import serial
 
     port = serial.Serial()
     port.port, port.baudrate, port.timeout = args.port, args.baud, 0.5
-    port.dtr = False
-    port.rts = False
+    # The CH340 board resets while RTS and DTR differ. Opening raises both (no
+    # reset); dropping RTS first keeps them from ever disagreeing. Presetting
+    # them before open() would not: pyserial applies DTR before RTS there.
     port.open()
+    port.rts = False
+    port.dtr = False
     port.reset_input_buffer()
 
-    next_ask = time.time() + args.settle
+    time.sleep(args.settle)
+    for tap in args.tap:
+        x, y = (int(v) for v in tap.split(","))
+        port.write(f"\ntap {x} {y}\n".encode())
+        time.sleep(args.tap_wait)
+    next_ask = time.time()
     lines, buf, deadline = [], b"", next_ask + args.timeout
+    if args.notes:
+        port.write(b"\nnotes\n")
+        while time.time() < deadline:
+            buf += port.read(4096)
+            *done, buf = buf.split(b"\n")
+            lines += [d.decode("utf-8", "replace").rstrip("\r") for d in done]
+            if any(l.startswith("=====HELIX-NOTES-END") for l in lines):
+                break
+        notes = [l[len("NOTE: "):] for l in lines if l.startswith("NOTE: ")]
+        print("\n".join(notes) if notes else "(no notifications)")
+        return 0
     while time.time() < deadline:
         started = any(l.startswith("=====HELIX-SNAP") for l in lines)
         if not started and time.time() >= next_ask:

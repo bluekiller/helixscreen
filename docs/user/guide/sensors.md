@@ -2,7 +2,7 @@
 
 HelixScreen discovers the sensors your printer reports to Klipper and groups them by type. Filament switch/motion sensors and filament width sensors are configurable — you assign each one a role and choose whether it's monitored. The remaining sensor types are shown as read-only information.
 
-Open the Sensor Settings overlay from **Settings > Hardware & Devices > Sensors**.
+Open the Sensor Settings overlay from **Settings > Devices > Sensors**.
 
 ![Sensor Settings](../../images/user/settings-sensors.png)
 

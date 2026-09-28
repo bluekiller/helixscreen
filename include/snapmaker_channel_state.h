@@ -29,8 +29,8 @@ namespace helix::snapmaker {
 //  - phase:         step-bar step index into get_operation_step_model(op).
 //                   Per-direction (a state is unambiguously load/unload/manual by
 //                   prefix, so indices never collide across directions):
-//                     LOAD/manual/preload model (5 steps):
-//                       0=Home 1=Select 2=Heat 3=Feed 4=Purge
+//                     LOAD/manual/preload model (6 steps, filament_feed.py's order):
+//                       0=Home 1=Select 2=Feed 3=Heat 4=Extrude 5=Purge
 //                     UNLOAD model (4 steps):
 //                       0=Home 1=Select 2=Heat 3=Retract
 //                   -1 = "no active step" (idle / *_finish / *_fail).

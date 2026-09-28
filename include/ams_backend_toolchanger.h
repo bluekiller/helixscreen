@@ -375,15 +375,9 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
         return "[AMS ToolChanger]";
     }
     SlotInfo* cached_slot_locked(int slot_index) override;
-
-    /// dispatch_operation() sets the optimistic action (begin_dispatch_locked)
-    /// BEFORE calling ensure_homed_then() -- on decline, the base class's
-    /// generic IDLE reset alone leaves pending_dispatch_action_ armed and
-    /// operation_detail stale, so route through abandon_dispatch() instead,
-    /// the same unwind dispatch_operation()'s own `if (!result)` net uses.
-    /// ToolChanger has no stuck-action watchdog at all, so this matters even
-    /// more here than on AFC.
-    void on_home_confirmation_declined() override;
+    [[nodiscard]] std::optional<AmsAction> step_action_locked() const override {
+        return step_action_;
+    }
 
   private:
     /// Feeder this machine exposes; absent unless set_feeder() said otherwise.
@@ -452,8 +446,12 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// (e.g. parse_toolchanger_state() alone, on a frame with no addon data).
     bool operation_confirmed_ = false;
 
+    /// What the step at system_info_.operation_phase projects to, written with
+    /// it. get_system_info() publishes it as the action while a swap runs.
+    std::optional<AmsAction> step_action_;
+
     /// Snapshot of feeder_state_reported_ / direction_reported_ taken the last
-    /// time get_operation_step_model() built a sequence. step_index_for_phase_locked()
+    /// time get_operation_step_model() built a sequence. resolve_step_locked()
     /// resolves its index against this SAME snapshot, not whatever the latches
     /// read right now: the model is captured once (at operation start, by the
     /// sidebar) while the index is recomputed on every frame, and Moonraker
@@ -463,7 +461,7 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// on screen. get_operation_step_model() is const, so these are mutable.
     ///
     /// step_model_captured_ stays false until the first call: nothing has
-    /// pinned a sequence yet, so step_index_for_phase_locked() falls back to
+    /// pinned a sequence yet, so resolve_step_locked() falls back to
     /// the LIVE latches rather than the (false, false) power-on default, which
     /// would otherwise build an always-empty sequence for any caller that asks
     /// for the phase without ever having asked for the model first.
@@ -495,11 +493,17 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// not be able to disagree. Caller holds mutex_.
     [[nodiscard]] bool slot_is_mounted_locked(int slot_index) const;
 
-    /// Step index for `operation` under the model this machine gets, or -1 when
-    /// the phase does not map to a step. `mid_operation` says whether a swap was
-    /// running when the frame arrived, which is the only thing separating the
-    /// closing grip of one from the resting closed gripper. Caller holds mutex_.
-    int step_index_for_phase_locked(const std::string& operation, bool mid_operation) const;
+    /// The step `operation` maps to under the model this machine gets: its index
+    /// (-1 when the phase maps to none) and the action it projects to.
+    struct ResolvedStep {
+        int index = -1;
+        std::optional<AmsAction> action;
+    };
+
+    /// `mid_operation` says whether a swap was running when the frame arrived,
+    /// which is the only thing separating the closing grip of one from the
+    /// resting closed gripper. Caller holds mutex_.
+    ResolvedStep resolve_step_locked(const std::string& operation, bool mid_operation) const;
 
     /// Layer the user's stored spool metadata over a slot. Caller holds mutex_.
     ///

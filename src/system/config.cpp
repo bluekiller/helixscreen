@@ -3,6 +3,8 @@
 
 #include "config.h"
 
+#include "completion_alert_mode.h"
+
 #if !defined(HELIX_SPLASH_ONLY) && !defined(HELIX_WATCHDOG)
 #include "system/telemetry_manager.h"
 #define CONFIG_RECORD_ERROR(...) TelemetryManager::instance().record_error(__VA_ARGS__)
@@ -1779,6 +1781,26 @@ static void migrate_v24_to_v25(json& config) {
     }
 }
 
+/// Convert the persisted completion-alert mode from a boolean to the
+/// Off/Notification/Alert int AudioSettingsManager has always read and written.
+/// A fresh install's default before this migration stored the JSON boolean
+/// `true`, and Config::get<int>() converts a JSON boolean via nlohmann's own
+/// bool-to-arithmetic rule (true -> 1, false -> 0) rather than the intended
+/// CompletionAlertMode::ALERT (2), so every install that never touched Print
+/// Completion Alert fell back to Notification. AudioSettingsManager::
+/// set_completion_alert_mode() always persists an int, so a boolean here can
+/// only be the old default, never a user's actual choice.
+static void migrate_v25_to_v26(json& config) {
+    if (!config.contains("completion_alert") || !config["completion_alert"].is_boolean()) {
+        return;
+    }
+    const bool was_true = config["completion_alert"].get<bool>();
+    config["completion_alert"] = was_true ? static_cast<int>(helix::CompletionAlertMode::ALERT)
+                                          : static_cast<int>(helix::CompletionAlertMode::OFF);
+    spdlog::info("[Config] Migration v26: completion_alert bool({}) -> int({})", was_true,
+                 config["completion_alert"].get<int>());
+}
+
 /// Run all versioned migrations in sequence from current version to CURRENT_CONFIG_VERSION
 static void run_versioned_migrations(json& config, const std::string& config_path = "") {
     int version = 0;
@@ -1872,6 +1894,8 @@ static void run_versioned_migrations(json& config, const std::string& config_pat
         migrate_v23_to_v24(config);
     if (version < 25)
         migrate_v24_to_v25(config);
+    if (version < 26)
+        migrate_v25_to_v26(config);
 
     config["config_version"] = CURRENT_CONFIG_VERSION;
 }
@@ -1921,7 +1945,7 @@ json get_default_config(const std::string& moonraker_host, bool include_user_pre
     if (include_user_prefs) {
         config["brightness"] = 80;
         config["sounds_enabled"] = false;
-        config["completion_alert"] = true;
+        config["completion_alert"] = static_cast<int>(helix::CompletionAlertMode::ALERT);
         config["wizard_completed"] = false;
         config["wifi_expected"] = false;
         config["language"] = "en";

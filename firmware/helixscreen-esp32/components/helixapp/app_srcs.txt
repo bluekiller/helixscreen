@@ -103,6 +103,8 @@ src/format_utils.cpp
 src/layout_manager.cpp
 src/led/led_auto_state.cpp
 src/led/led_controller.cpp
+src/led/led_devices.cpp
+src/led/led_device_page.cpp
 src/plugin/injection_point_manager.cpp
 src/print/active_print_media_manager.cpp
 src/print/filament_sensor_manager.cpp
@@ -182,7 +184,6 @@ src/printer/printer_excluded_objects_state.cpp
 src/printer/printer_fan_state.cpp
 src/printer/printer_hardware.cpp
 src/printer/printer_hardware_validation_state.cpp
-src/printer/printer_led_state.cpp
 src/printer/printer_motion_state.cpp
 src/printer/printer_network_state.cpp
 src/printer/printer_plugin_status_state.cpp
@@ -291,6 +292,7 @@ src/ui/job_queue_state.cpp
 src/ui/job_queue_start.cpp
 src/ui/keyboard_layout_provider.cpp
 src/ui/layout_port.cpp
+src/ui/light_button_config.cpp
 src/ui/locale_formats.cpp
 src/ui/modals/buffer_status_modal.cpp
 src/ui/modals/camera_config_modal.cpp
@@ -343,6 +345,7 @@ src/ui/print_control_buttons.cpp
 src/ui/print_control_view.cpp
 src/ui/save_config_restart.cpp
 src/ui/setting_group.cpp
+src/ui/settings_root_status.cpp
 src/ui/shared_font_style.cpp
 src/ui/text_metrics.cpp
 src/ui/style_configs.cpp
@@ -374,6 +377,7 @@ src/ui/ui_ams_lane_bar.cpp
 src/ui/ui_ams_lane_spool.cpp
 src/ui/ui_ams_loading_error_modal.cpp
 src/ui/ui_ams_mini_status.cpp
+src/ui/ui_ams_recover_state_modal.cpp
 src/ui/ui_ams_selector_menu.cpp
 src/ui/ui_afc_fault_path.cpp
 src/ui/ui_multiselect.cpp
@@ -448,6 +452,7 @@ src/ui/ui_notification.cpp
 src/ui/ui_notification_badge.cpp
 src/ui/ui_notification_history.cpp
 src/ui/ui_notification_manager.cpp
+src/ui/ui_panel_notification_history.cpp
 src/ui/ui_overlay_console_settings.cpp
 src/ui/ui_overlay_network_settings.cpp
 src/ui/ui_overlay_performance.cpp
@@ -507,11 +512,14 @@ src/ui/ui_pause_markers.cpp
 src/ui/ui_resume_dispatch.cpp
 src/ui/ui_runout_guidance_modal.cpp
 src/ui/ui_settings_about.cpp
-src/ui/ui_settings_display_sound.cpp
+src/ui/ui_settings_appearance.cpp
+src/ui/ui_settings_connection.cpp
+src/ui/ui_settings_display.cpp
 src/ui/ui_settings_fans.cpp
 src/ui/ui_settings_hardware.cpp
 src/ui/ui_settings_hardware_health.cpp
 src/ui/ui_settings_help.cpp
+src/ui/ui_settings_language_time.cpp
 src/ui/ui_settings_led.cpp
 src/ui/ui_settings_machine_limits.cpp
 src/ui/ui_settings_macro_buttons.cpp
@@ -521,9 +529,11 @@ src/ui/ui_settings_printing.cpp
 src/ui/ui_settings_safety.cpp
 src/ui/ui_settings_security.cpp
 src/ui/ui_settings_sensors.cpp
+src/ui/ui_settings_sound.cpp
 src/ui/ui_settings_system.cpp
 src/ui/ui_settings_telemetry_data.cpp
 src/ui/ui_settings_touch.cpp
+src/ui/ui_settings_updates.cpp
 src/ui/ui_severity_card.cpp
 src/ui/ui_snake_game.cpp
 src/ui/ui_sound_preview_overlay.cpp

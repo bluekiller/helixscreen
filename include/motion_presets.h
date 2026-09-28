@@ -61,4 +61,19 @@ AxisBounds preset_area(const AxisBounds& machine_travel, const AxisBounds& gcode
 std::optional<AxisTarget> motion_preset_target(MotionPreset preset, const AxisBounds& gcode_bounds,
                                                bool circular_bed);
 
+/// How far inside the rear edge of the plate a park position sits.
+inline constexpr double PARK_REAR_MARGIN_MM = 10.0;
+
+/**
+ * @brief Where the toolhead parks when nothing else says: over the rear of
+ *        the plate, centred in X, in G-code millimetres
+ *
+ * X and Y only. It never leaves the plate: PARK_REAR_MARGIN_MM inside the rear
+ * edge, or the plate's centre line on a plate shallower than twice that.
+ *
+ * @param area The plate in G-code space (preset_area()).
+ * @return nullopt when either axis's bounds are unknown or degenerate.
+ */
+std::optional<AxisTarget> plate_rear_park(const AxisBounds& area);
+
 } // namespace helix

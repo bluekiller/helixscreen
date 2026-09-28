@@ -22,7 +22,6 @@
 #include "test_helpers/afc_test_access.h"
 #include "test_helpers/backend_user_edit.h"
 #include "test_helpers/registered_backend.h"
-#include "test_helpers/scoped_home_confirm_prompter.h"
 #include "test_helpers/seeded_override.h"
 
 #include <algorithm>
@@ -7752,40 +7751,6 @@ TEST_CASE("AFC no-op load resolves on the macro ack", "[ams][afc][dispatch][1183
     // this started. The busy leg is the load-bearing half.
     REQUIRE(trace_contains(h.trace(), AmsAction::LOADING));
     REQUIRE(h.trace().back() == AmsAction::IDLE);
-}
-
-TEST_CASE("AFC declining the pre-load home confirmation fully unwinds the optimistic dispatch "
-          "(final-review I2)",
-          "[ams][afc][dispatch][homing][confirm]") {
-    // dispatch_operation() calls begin_dispatch_locked() (arming
-    // pending_dispatch_action_ + operation_detail + the optimistic action)
-    // BEFORE ensure_homed_then() ever runs. On decline,
-    // AmsBackendAfc::on_home_confirmation_declined() must route through
-    // abandon_dispatch() -- the SAME unwind dispatch_operation()'s own
-    // `if (!result) abandon_dispatch()` net uses -- not just reset the
-    // action to IDLE. A partial unwind leaves pending_dispatch_action_
-    // armed, so the next macro ack (or a newer dispatch) resolves against a
-    // generation nothing is tracking, and leaves operation_detail stale
-    // (the sidebar keeps showing "Loading" under an IDLE action).
-    AfcDispatchAckHelper h;
-    h.homed = false;
-
-    ScopedHomeConfirmPrompter guard(
-        [](std::function<void()>, std::function<void()> cancel) { cancel(); });
-
-    REQUIRE(h.load_filament(2).success());
-
-    CHECK(h.sent().empty());
-    CHECK(h.action() == AmsAction::IDLE);
-    CHECK_FALSE(h.has_pending_dispatch());
-    CHECK(h.operation_detail().empty());
-
-    // Not wedged: a subsequent load still dispatches normally.
-    h.homed = true;
-    REQUIRE(h.load_filament(1).success());
-    REQUIRE(h.sent().size() == 1);
-    CHECK(h.sent()[0] == "CHANGE_TOOL LANE=lane2");
-    CHECK(h.action() == AmsAction::LOADING);
 }
 
 TEST_CASE("AFC unload and tool change dispatch their own actions", "[ams][afc][dispatch][1183]") {

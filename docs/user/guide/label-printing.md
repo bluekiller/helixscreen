@@ -26,7 +26,7 @@ HelixScreen supports five families of label printers:
 
 ### Step 1: Open Label Printer Settings
 
-1. Go to **Settings → Hardware & Devices → Spoolman → Label Printer**
+1. Go to **Settings → Devices → Spoolman → Label Printer**
 2. Tap to open the Label Printer settings overlay
 
 ![Label Printer Settings](../../images/user/settings-label-printer.png)
@@ -106,7 +106,7 @@ This is a completely separate path from the thermal label printers above — you
 
 ### Step 1: Set the Connection Type to Network
 
-1. Go to **Settings → Hardware & Devices → Spoolman → Label Printer**
+1. Go to **Settings → Devices → Spoolman → Label Printer**
 2. Under **Connection Type**, set **Type** to **Network**
 
 ### Step 2: Pick Your Office Printer

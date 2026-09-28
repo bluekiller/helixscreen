@@ -32,9 +32,9 @@ TEST_CASE("availability needs a heated bed, an enclosure and 130 mm of Z", "[bed
     CHECK_FALSE(available(true, true, false, 0.0, 250.0));
 }
 
-TEST_CASE("the clearance move stops 10 mm short of the end of Z travel", "[bed_drying]") {
-    CHECK(clearance_z(250.0) == Catch::Approx(240.0));
-    CHECK(clearance_z(130.0) == Catch::Approx(120.0));
+TEST_CASE("the clearance move stops 20 mm short of the end of Z travel", "[bed_drying]") {
+    CHECK(clearance_z(250.0) == Catch::Approx(230.0));
+    CHECK(clearance_z(130.0) == Catch::Approx(110.0));
 }
 
 TEST_CASE("bed temperature: the material's table value, capped at 90 C and the bed max",
@@ -53,6 +53,16 @@ TEST_CASE("the unload is offered unless a sensor says the toolhead is empty", "[
     CHECK(unload_offer(false) == UnloadOffer::None);
     CHECK(unload_offer(true) == UnloadOffer::Recommended);
     CHECK(unload_offer(std::nullopt) == UnloadOffer::Offered);
+}
+
+TEST_CASE("a filament-system unload is done only once it has been busy and gone idle",
+          "[bed_drying]") {
+    CHECK(unload_progress(false, false, false) == UnloadProgress::Waiting);
+    CHECK(unload_progress(false, true, false) == UnloadProgress::Waiting);
+    CHECK(unload_progress(true, true, false) == UnloadProgress::Waiting);
+    CHECK(unload_progress(true, false, false) == UnloadProgress::Done);
+    CHECK(unload_progress(false, false, true) == UnloadProgress::Failed);
+    CHECK(unload_progress(true, false, true) == UnloadProgress::Failed);
 }
 
 TEST_CASE("toolhead loaded: only a toolhead sensor can say empty", "[bed_drying]") {

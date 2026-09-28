@@ -72,6 +72,9 @@ jobs:
             set -e
             idf.py reconfigure || true
             test -f managed_components/jkent__frogfs/tools/mkfrogfs.py
+            python3 -m venv /tmp/esp32imgs-venv
+            /tmp/esp32imgs-venv/bin/pip install --quiet Pillow
+            /tmp/esp32imgs-venv/bin/python ../../scripts/esp32_printer_images.py
             python3 ../../scripts/esp32_stage_assets.py
             python3 -m venv /tmp/esp32pack-venv
             /tmp/esp32pack-venv/bin/pip install --quiet pyyaml

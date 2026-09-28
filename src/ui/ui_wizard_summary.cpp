@@ -291,8 +291,8 @@ void WizardSummaryStep::init_subjects() {
         "## Why it matters\n"
         "With just a few hundred users reporting anonymously, we can see which "
         "printers crash most, which features nobody uses, and where to spend our "
-        "limited time. **You can view the exact data in Settings > View Telemetry "
-        "Data anytime.**";
+        "limited time. **You can view the exact data in Settings > System > View "
+        "Telemetry Data anytime.**";
     UI_SUBJECT_INIT_AND_REGISTER_STRING(telemetry_info_text_, telemetry_info_text_buffer_,
                                         telemetry_info_md, "telemetry_info_text");
 

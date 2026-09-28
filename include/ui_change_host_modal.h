@@ -47,7 +47,7 @@ void show_change_host_modal(std::function<void(bool changed)> extra_on_complete 
  *
  * Replaces an OK-only error modal for CONNECTION_FAILED: on a stale address,
  * acknowledging the error leaves the user exactly where they started, and the
- * setting itself is buried under Settings > System > Printer Host.
+ * setting itself is buried under Settings > Connection > Host.
  *
  * Safe to call from any thread — marshals itself to the main thread, which the
  * libhv event-loop thread relies on.

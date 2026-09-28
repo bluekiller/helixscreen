@@ -47,8 +47,8 @@ enum class PanelId {
  * @brief Whether overlays pushed from a nav root are destinations by default.
  *
  * Settings is the one root users navigate *within* rather than launch things
- * from: Settings > Network is a sub-screen of Settings, not a layer over it, so
- * it renders at destination width (iOS push semantics). Every other root
+ * from: Settings > Connection > Network is a sub-screen of Settings, not a layer
+ * over it, so it renders at destination width (iOS push semantics). Every other root
  * launches tools you return from, which get the gapped transient width.
  *
  * See include/overlay_class.h and prestonbrown/helixscreen#1178.
@@ -695,7 +695,7 @@ class NavigationManager {
      * Destinations render full width, transient layers render gapped. Which one
      * an overlay gets depends on how the user reached it — the same
      * fan_control_overlay is a transient layer from Controls and a drill-down
-     * from Settings > Fans — so this cannot live in XML. See
+     * from Settings > Devices > Fans — so this cannot live in XML. See
      * include/overlay_class.h and prestonbrown/helixscreen#1178.
      *
      * Must be called BEFORE the overlay is pushed onto panel_stack_, while

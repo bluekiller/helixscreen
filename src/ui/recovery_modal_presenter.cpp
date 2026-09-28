@@ -233,6 +233,22 @@ void RecoveryModalPresenter::present(const helix::ErrorEvent& e) {
         spdlog::warn("[RecoveryModal] show_prompt failed; falling back to alert");
         shown_detail_.clear();
         ui_notification_printer_fault(modal_title_for(e), e.detail.c_str());
+        return;
+    }
+
+    // A filament system's own error dialog for this fault would sit behind ours
+    // with a subset of its buttons.
+    if (helix::ActionPromptManager::is_showing()) {
+        const std::string title = helix::ActionPromptManager::current_prompt_name();
+        AmsState& ams = AmsState::instance();
+        for (int i = 0; i < ams.backend_count(); ++i) {
+            const AmsBackend* backend = ams.get_backend(i);
+            if (backend && backend->duplicates_firmware_prompt(title)) {
+                spdlog::debug("[RecoveryModal] closing duplicate firmware prompt: {}", title);
+                helix::ActionPromptManager::dismiss_active();
+                break;
+            }
+        }
     }
 }
 
@@ -287,14 +303,7 @@ void RecoveryModalPresenter::dispatch_recovery(const std::string& gcode, const s
 }
 
 bool RecoveryModalPresenter::nozzle_ready_for_extrusion() const {
-    // #978 opt-out: users whose macros heat the nozzle themselves, or who are
-    // deliberately cold-pulling, already bypass this gate on the filament panel.
-    // The recovery modal must not re-impose it.
-    if (helix::SafetySettingsManager::instance().get_allow_cold_extrude()) {
-        return true;
-    }
-    const int min_extrude = helix::ui::temperature::extrusion_floor_c(api_->get_safety_limits());
-    return helix::ui::temperature::is_extrusion_safe(nozzle_current_c(), min_extrude);
+    return helix::ui::temperature::active_nozzle_ready_for_extrusion(api_->get_safety_limits());
 }
 
 int RecoveryModalPresenter::resolve_preheat_target() const {

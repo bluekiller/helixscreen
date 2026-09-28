@@ -18,6 +18,7 @@
 #include "grid_layout.h"
 #include "helix_fs.h"
 #include "http_executor.h"
+#include "led/led_controller.h"
 #include "led/ui_led_control_overlay.h"
 #include "observer_factory.h"
 #include "panel_widget_registry.h"
@@ -657,6 +658,11 @@ void PrinterImageWidget::printer_manager_clicked_cb(lv_event_t* e) {
 }
 
 void PrinterImageWidget::route_callout_click(lv_event_t* e, CalloutKind kind) {
+    // The home panel makes every descendant bubble, so an unstopped chip tap also
+    // reaches printer_container and opens Printer Manager over the chip's control.
+    // Only CLICKED stops here; PRESSED and LONG_PRESSED still reach grid edit mode.
+    lv_event_stop_bubbling(e);
+
     // chip -> callout_layer -> printer_container, whose user_data attach() set.
     auto* chip = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
     lv_obj_t* layer = chip ? lv_obj_get_parent(chip) : nullptr;
@@ -717,7 +723,8 @@ void PrinterImageWidget::handle_callout_clicked(CalloutKind kind) {
         open_fan_control_overlay(parent_screen_);
         break;
     case CalloutKind::Light:
-        open_led_control_overlay(parent_screen_);
+        open_led_control_overlay(parent_screen_,
+                                 helix::led::LedController::instance().chamber_light());
         break;
     }
 }
@@ -745,12 +752,14 @@ void PrinterImageWidget::arm_callout_observers() {
     auto& ps = get_printer_state();
     const auto on_change = [](PrinterImageWidget* w, int) { w->update_callouts(); };
     const SubjectLifetime life = ps.get_subjects_lifetime();
-    for (lv_subject_t* s :
-         {ps.get_active_extruder_temp_subject(), ps.get_active_extruder_target_subject(),
-          ps.get_fan_speed_subject(), ps.get_led_state_subject()}) {
+    for (lv_subject_t* s : {ps.get_active_extruder_temp_subject(),
+                            ps.get_active_extruder_target_subject(), ps.get_fan_speed_subject()}) {
         callout_observers_.push_back(
             helix::ui::observe_int_sync<PrinterImageWidget>(s, this, on_change, life));
     }
+    auto& leds = helix::led::LedController::instance();
+    callout_observers_.push_back(helix::ui::observe_int_sync<PrinterImageWidget>(
+        leds.get_led_state_version_subject(), this, on_change, leds.get_subjects_lifetime()));
     // A capability joins the budget, which decides the mode, whether or not any
     // chip text changes with it.
     const auto on_capability = [](PrinterImageWidget* w, int) {
@@ -840,9 +849,7 @@ void PrinterImageWidget::update_callouts() {
     snprintf(fan_buf, sizeof(fan_buf), "%d%%", fan);
     publish(&s_callout_fan_shown, fan > 0 ? 1 : 0, &s_callout_fan_text, fan > 0 ? fan_buf : "");
     const int light_shown =
-        read_int_or_zero(printer_has_led_subject()) && read_int_or_zero(ps.get_led_state_subject())
-            ? 1
-            : 0;
+        read_int_or_zero(printer_has_led_subject()) && helix::led::chamber_light_on() ? 1 : 0;
     publish(&s_callout_light_shown, light_shown, nullptr, {});
     set_text(&s_callout_toolhead_text,
              std::string(lv_subject_get_string(&s_callout_nozzle_text)) + "  " + fan_buf);

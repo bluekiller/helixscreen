@@ -19,6 +19,8 @@
     <prop name="title_tag" type="string" default=""/>
     <!-- Forwarded to header_bar: bind a string subject to retitle the header live. -->
     <prop name="title_subject" type="string" default=""/>
+    <!-- Forwarded to header_bar: "uppercase" (default) or "none". -->
+    <prop name="title_transform" type="string" default="uppercase"/>
     <prop name="action_button_text" type="string" default=""/>
     <prop name="action_button_text_tag" type="string" default=""/>
     <prop name="action_button_callback" type="string" default=""/>
@@ -84,7 +86,7 @@
     <style name="transient_edge" selector="user_1"/>
     <!-- Header Bar -->
     <header_bar name="overlay_header"
-                title="$title" title_tag="$title_tag" title_subject="$title_subject"
+                title="$title" title_tag="$title_tag" title_subject="$title_subject" title_transform="$title_transform"
                 action_button_text="$action_button_text" action_button_text_tag="$action_button_text_tag"
                 hide_action_button="$hide_action_button" action_button_callback="$action_button_callback"
                 action_button_height="$action_button_height" action_button_pad="$action_button_pad"

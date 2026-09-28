@@ -272,7 +272,7 @@ void ExcludeObjectSideList::create_row(lv_obj_t* parent, int index, const std::s
         lv_obj_set_style_text_color(label, theme_manager_get_color("text_muted"), 0);
         lv_obj_set_style_opa(row, 150, 0);
     } else if (is_current) {
-        lv_label_set_text(status, lv_tr("Printing"));
+        lv_label_set_text(status, lv_tr("Printing now"));
         lv_obj_set_style_text_color(status, theme_manager_get_color("success"), 0);
     } else {
         lv_label_set_text(status, "");

@@ -16,6 +16,7 @@
 // costs nothing at runtime and fails in a plain build, without ASan.
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/breadcrumb_capture.h"
 #include "../wait_finish_spy.h"
 #include "lv_draw_buf_guard.h"
 #include "lvgl/lvgl.h"
@@ -37,29 +38,6 @@ namespace {
 /// "gles_draw_buf") are truncated the same way.
 constexpr const char* kDestroyTag = "tstbufA";
 constexpr const char* kNullTag = "tstbufB";
-
-/// The breadcrumb ring as lines, mirroring the pipe+dump_to_fd helper in
-/// test_crash_handler.cpp.
-std::vector<std::string> capture_breadcrumb_lines() {
-    int fds[2];
-    REQUIRE(::pipe(fds) == 0);
-    crash_handler::breadcrumb::dump_to_fd(fds[1]);
-    ::close(fds[1]);
-    std::string all;
-    char chunk[4096];
-    ssize_t n;
-    while ((n = ::read(fds[0], chunk, sizeof(chunk))) > 0) {
-        all.append(chunk, static_cast<size_t>(n));
-    }
-    ::close(fds[0]);
-    std::vector<std::string> lines;
-    size_t pos = 0, nl;
-    while ((nl = all.find('\n', pos)) != std::string::npos) {
-        lines.push_back(all.substr(pos, nl - pos));
-        pos = nl + 1;
-    }
-    return lines;
-}
 
 size_t count_lines_containing(const std::vector<std::string>& lines, const std::string& needle) {
     size_t hits = 0;
@@ -110,7 +88,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "safe_draw_buf_destroy leaves the #929 breadcr
     helix::safe_draw_buf_destroy(buf, kDestroyTag);
     REQUIRE(buf == nullptr);
 
-    const auto crumbs = capture_breadcrumb_lines();
+    const auto crumbs = helix::capture_breadcrumb_lines();
     CHECK(count_lines_containing(crumbs, std::string(kDestroyTag) + " destroy_pre") == 1);
     CHECK(count_lines_containing(crumbs, std::string(kDestroyTag) + " destroy_post") == 1);
 }
@@ -129,6 +107,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "safe_draw_buf_destroy on a null buffer does n
     CHECK(buf == nullptr);
     CHECK(spy.waits() == 0);
 
-    const auto crumbs = capture_breadcrumb_lines();
+    const auto crumbs = helix::capture_breadcrumb_lines();
     CHECK(count_lines_containing(crumbs, kNullTag) == 0);
 }

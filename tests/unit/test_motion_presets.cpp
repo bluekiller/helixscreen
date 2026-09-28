@@ -179,3 +179,21 @@ TEST_CASE("preset area falls back to travel and never exceeds it", "[motion][pre
         CHECK_FALSE(helix::preset_area(unknown, unknown, vol).has_y);
     }
 }
+
+TEST_CASE("plate_rear_park centres in X and sits inside the rear of the plate",
+          "[motion][presets]") {
+    const auto park = helix::plate_rear_park(known_bounds(0, 235, 0, 235));
+    REQUIRE(park.has_value());
+    CHECK(*park->x == Catch::Approx(117.5));
+    CHECK(*park->y == Catch::Approx(225.0));
+    CHECK_FALSE(park->z.has_value());
+
+    // Never past the plate, even when it is shallower than the margin allows.
+    const auto shallow = helix::plate_rear_park(known_bounds(0, 100, 50, 60));
+    REQUIRE(shallow.has_value());
+    CHECK(*shallow->y == Catch::Approx(55.0));
+
+    AxisBounds unknown = known_bounds(0, 235, 0, 235);
+    unknown.has_y = false;
+    CHECK_FALSE(helix::plate_rear_park(unknown).has_value());
+}

@@ -110,7 +110,7 @@ For an exact layer count and a reliable time-remaining estimate, HelixScreen nee
 | **Reactive Binding** | Built-in | Manual | Manual |
 | **3D G-code preview** | Yes | 2D layers | No |
 | **3D bed mesh** | Yes | 2D heatmap | 2D heatmap |
-| **Status** | Pre-1.0, actively developed | Mature (maintenance) | Unmaintained |
+| **Status** | Actively developed | Mature (maintenance) | Unmaintained |
 
 **HelixScreen advantages:**
 - Low memory footprint (~15MB on embedded targets vs ~50MB for KlipperScreen on the same hardware)
@@ -250,7 +250,7 @@ This enables SIMD-accelerated (hardware-optimized) JPEG decoding, which is 3-5x 
 
 **Yes.** Spoolman integration is supported:
 - **Advanced panel** → **Spoolman** to browse your spool inventory
-- **Settings** → **Hardware & Devices** → **Spoolman** for weight sync settings
+- **Settings** → **Devices** → **Spoolman** for weight sync settings
 - Assign spools to AMS slots and track filament usage
 
 ### Can I print spool labels?
@@ -301,7 +301,7 @@ See the [Shutdown/Reboot Widget](guide/home-panel.md#shutdownreboot-widget) sect
 
 **Yes!** HelixScreen includes a built-in theme editor with 18 preset themes:
 
-1. Go to **Settings** → **Display & Sound**
+1. Go to **Settings** → **Appearance**
 2. Tap **Theme Colors** to open the theme editor
 3. Choose from presets: Ayu, Catppuccin, ChatGPT, Cupertino, Dracula, Everforest, Gruvbox, Hazard, HelixScreen (default), Kanagawa, Material Design, Midnight, Nord, One Dark, Rose Pine, Solarized, Tokyo Night, or Yami
 4. Toggle dark/light mode
@@ -311,7 +311,7 @@ For layout customization, use Edit Mode on the Home panel — long-press the das
 
 ### Does it support multiple printers?
 
-**Yes!** You can configure multiple Klipper printers and switch between them from the navigation bar or Settings. You view one printer at a time, but switching is instant. Enable beta features first (**Settings** → **Help & About** → **About**, then tap the version button 7 times), then add printers via **Settings** → **Hardware & Devices** → **Printers**.
+**Yes!** You can configure multiple Klipper printers and switch between them from the navigation bar or Settings. You view one printer at a time, but switching is instant. Enable beta features first (**Settings** → **Help & About** → **About**, then tap the version button 7 times), then add printers via **Settings** → **Connection** → **Printers**.
 
 ### Can I view print history?
 
@@ -349,7 +349,7 @@ For layout customization, use Edit Mode on the Home panel — long-press the das
 
 **That's deliberate.** A load or unload heats the nozzle to material temperature, and HelixScreen turns the heater back off two minutes later so it doesn't sit hot indefinitely. The delay lets you run several operations back to back, and a running print is never interfered with.
 
-If your filament system already does its own post-operation cooldown — AFC does — turn ours off at **Settings > Safety & Notifications > Cool nozzle after filament ops** so the two aren't both driving the heater. It's a per-printer setting, so your other machines keep the built-in behavior. See [Safety settings](guide/settings/safety.md#cool-nozzle-after-filament-ops).
+If your filament system already does its own post-operation cooldown — AFC does — turn ours off at **Settings > Printing > Cool nozzle after filament ops** so the two aren't both driving the heater. It's a per-printer setting, so your other machines keep the built-in behavior. See [Printing settings](guide/settings/printing.md#cool-nozzle-after-filament-ops).
 
 ### Can I customize the printer image on the home screen?
 
@@ -367,7 +367,7 @@ Your selection is saved to the `display.printer_image` config key and persists a
 
 ### What languages are supported?
 
-HelixScreen ships with 9 languages: English, German, Spanish, French, Italian, Japanese, Portuguese, Russian, and Chinese. Change the language in **Settings** → **Display & Sound** → **Language**.
+HelixScreen ships with 9 languages: English, German, Spanish, French, Italian, Japanese, Portuguese, Russian, and Chinese. Change the language in **Settings** → **Language & Time** → **Language**.
 
 ### Does HelixScreen collect any data?
 
@@ -396,7 +396,7 @@ Note: This option only appears on touchscreen displays, not in the desktop simul
 
 ### How do I change the theme or colors?
 
-1. Go to **Settings** → **Display & Sound**
+1. Go to **Settings** → **Appearance**
 2. Tap **Theme Colors** to open the theme editor
 3. Browse available presets and see live preview
 4. Toggle dark/light mode
@@ -423,7 +423,7 @@ This option only appears if Klipper reports firmware retraction capability.
 ### How do I check why the UI is slow?
 
 1. **Check your display connection:** SPI displays are significantly slower than HDMI or DSI. If possible, use an HDMI or DSI-connected display for best performance.
-2. **Disable animations:** Go to **Settings** → **Display & Sound** → toggle **Animations** off
+2. **Disable animations:** Go to **Settings** → **Appearance** → toggle **Animations** off
 3. **Check CPU/memory via SSH:** Run `top` or `htop` to see if something else is using resources
 4. **Reduce logging:** If you added `-vv` or `-vvv` to the service, remove it
 5. **Heavy 3D interactions feel slow?** Bed mesh rotation and gcode preview lean on the CPU/GPU; a Pi 4 or Pi 5 is smoother than a Pi 3 or Zero, but everything else in HelixScreen works fine on the older Pi tier.
@@ -439,7 +439,7 @@ The wizard runs when no valid configuration exists. Causes:
 
 ### How do I change the Moonraker address?
 
-Go to **Settings > System > Host** and enter the new address. HelixScreen disconnects from the current printer and connects to the new one right away.
+Go to **Settings > Connection > Host** and enter the new address. HelixScreen disconnects from the current printer and connects to the new one right away.
 
 To re-run the whole setup wizard instead, use **Settings > System > Factory Reset** (wipes all HelixScreen settings and their backup copies), or stop the service and start the app once with the wizard flag:
 

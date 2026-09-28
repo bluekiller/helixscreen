@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-// Screenshots over the serial console: send "snap" and the active screen comes
-// back as raw-deflated RGB565, base64 on "SNAP:" lines between HELIX-SNAP
-// markers. scripts/esp32_serial_snapshot.py drives it and writes a PNG.
+// Serial console commands. "snap": the active screen comes back as raw-deflated
+// RGB565, base64 on "SNAP:" lines between HELIX-SNAP markers. "tap X Y": a touch
+// at panel coordinates. "notes": every notification since boot as "NOTE:" lines.
+// scripts/esp32_serial_snapshot.py drives snap and tap and writes a PNG.
 
 #ifdef __cplusplus
 extern "C" {

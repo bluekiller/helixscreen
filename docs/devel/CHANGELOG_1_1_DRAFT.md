@@ -158,7 +158,7 @@ what gets saved.
   the interval and threshold the printer's `ai_control` settings already hold, and never
   writes them. A confirmed detection pauses the print and opens a dialog offering Resume,
   Abort, Reduce Sensitivity or Turn off detection. The whole pipeline is vendor-neutral: any
-  detection source only reports, and two settings in Safety & Notifications decide what
+  detection source only reports, and two settings in Safety & Alerts decide what
   happens - **Spaghetti Detection** (watch at all) and **Pause on Detection** (pause, or only
   warn). On the first start both are seeded once from the printer's own stored choice
   (`switch` / `pausePrint`) and are HelixScreen's from then on. Printers whose firmware
@@ -202,11 +202,12 @@ what gets saved.
   at a purge area or tool dock past the plate; outer positions sit 10% in from the plate
   edges; on a delta the eight outer positions sit
   on a circle instead. Moves are XY only, homing first when needed, and the whole tab is
-  disabled while a print runs or is paused, or while the printer is not ready. Park and
-  Motors Off sit under the grid.
+  disabled while a print runs or is paused, or while the printer is not ready. The
+  positions and Park grey out while the toolhead is moving, so a second tap cannot land
+  mid-move. Park and Motors Off sit under the grid.
 - **Park parks the toolhead** - it runs the printer's own parking macro when one is
-  detected (`PARK`, `PARK_TOOLHEAD` or `TOOLHEAD_PARK`), otherwise sends the toolhead to
-  front-center; unhomed axes are homed first. Point it at a different macro in
+  detected (`PARK`, `PARK_TOOLHEAD` or `TOOLHEAD_PARK`), otherwise lifts the nozzle 10mm
+  and parks over the rear of the plate, never past it; unhomed axes are homed first. Point it at a different macro in
   Settings > Printing > Macro Buttons.
 - **Tap a coordinate in the header to move there** - a number pad opens for that axis, and
   a value outside the printer's range is refused with the allowed range while nothing
@@ -225,8 +226,51 @@ what gets saved.
   while its confirmation dialog is open, confirming only tells you the motors stay on and
   does nothing. E-stop remains the way to halt motion during a print.
 
+- **Happy Hare: tell the MMU what is really loaded** - Recover in the AMS Management overlay
+  opens Recover State: pick the gate that is really selected (or Bypass) and whether filament is
+  loaded, or let Happy Hare detect it. Nothing moves; Happy Hare only corrects its tracking, and
+  no tool is remapped. The slot menu gains **Preload** (spool to gate, greyed out during a print
+  or while filament is loaded), the Maintenance section gains **Load Extruder** and **Unload
+  Extruder** for filament already at the toolhead (refused during a print), and Accessories
+  gains **Refresh Spoolman**.
+- **Pinch to zoom the 3D views** - on a capacitive screen, pinching zooms the 3D G-code preview
+  and the 3D bed mesh in on the spot between your fingers, and a two-finger drag moves the zoomed
+  view. Rotate, tap and the exclude-object long-press stay off until every finger has lifted.
+  Resistive screens detect one finger and keep one-finger rotate only.
+- **The OpenAMS filament pressure sensor is on the filament path** - OpenAMS running without AFC
+  shows each unit's FPS as a box labelled FPS; tap it for the current pressure, 0% to 100%.
+- **Every light gets the same controls, and each light button picks its own light (#1130)** - the
+  LED screen, now called LEDs, has a tab per light with a dot showing whether it is on and in
+  what color. Each tab shows only what that light can do: power and brightness, white tones and
+  colors, effects or presets, or On and Off for macro lights. Home light buttons each control one
+  light or All lights, chosen from the gear in edit mode; a wide button has a › that opens that
+  light's tab. Automatic LED Control has its own "Applies to" list. If you had picked some but not
+  all of your lights for the light button, that choice now drives Automatic LED Control and your
+  light buttons start out on the chamber light; set them from the gear.
+
 ### Changed
 
+- **Settings is one list of twelve pages in three groups** (#1023) - Screen (Display, Appearance,
+  Touch & Input, Sound), Printer (Printing, Devices, Safety & Alerts, Connection) and HelixScreen
+  (Language & Time, System, Updates, Help & About). Every page is one tap from the Settings screen,
+  and Display, Appearance, Sound, Devices, Connection, Language & Time and Updates show a short
+  status line, such as your brightness and sleep time or whether an update is waiting. Nothing is
+  reset: every setting keeps its value. Where things went:
+
+  | Was | Now |
+  |-----|-----|
+  | Display & Sound | Display, Appearance, Sound, Language & Time |
+  | Printing > Toolhead Style, G-code Preview, Z Movement | Appearance > Printer Visuals |
+  | Hardware & Devices | Devices |
+  | Hardware & Devices > Printers | Connection > Printers |
+  | Safety & Notifications | Safety & Alerts |
+  | Safety & Notifications > Allow cold load/unload, Cool nozzle after filament ops | Printing |
+  | System > Network Settings, Host | Connection |
+  | System > Touch & Input | Touch & Input, on the Settings screen itself |
+  | Display & Sound > Scroll Buttons, System Keyboard, Keep Navigation Bar | Touch & Input |
+  | Help & About > About > Update Channel, Check for Updates | Updates |
+
+  The upgrade banner's Update button now opens Settings > Updates.
 - **The Controls panel fits small screens** - the Calibration & Tools card holds only
   calibration (Bed Mesh, Z Calibration, Pressure Adv., Bed Screws, and QGL, Z-Tilt or Tool
   Offsets where the printer has them) in a grid that keeps every label on one line. Motors
@@ -318,6 +362,11 @@ what gets saved.
 
 ### Fixed
 
+- **Filament stuck in the toolhead with no slot claiming it could not be unloaded** - on the
+  AD5X and the other systems that can tell, the filament sidebar's and Filament panel's
+  Unload now pulls it out of the active head, and a slot's own Unload greys
+  out in that state, since the slot it names may not be the one holding the filament
+  (prestonbrown/helixscreen#1324).
 - **The screen crashed and restarted during print start on the K2** - matching the printer's
   start-sequence messages could exhaust the small stack the K2 gives each thread, and
   HelixScreen died with no crash report. The K1, AD5X and Creator 5 Pro builds share the same
@@ -428,6 +477,42 @@ what gets saved.
   print was still preparing or running. A queued job now opens in the file view with its
   saved options and goes through the same start pipeline as any other print; it leaves the
   queue only once the print has actually started, and a busy printer says so.
+
+- **A Happy Hare fault often showed no recovery popup (#1323)** - a fault during a print, or a
+  load or home that failed outside one, now always opens the popup with Happy Hare's own reason,
+  and Happy Hare's own error notice closes behind it. Outside a print it offers no Resume and
+  leads with Recover, which now lets Happy Hare detect the filament position instead of sending a
+  state it did not recognise. The slot error marks follow Happy Hare's real pause, so resuming or
+  cancelling clears them.
+- **Turning Happy Hare's MMU motors on homed the MMU** - the Motors toggle now only powers the
+  motors.
+- **Snapmaker U1: Unload could be unavailable, or the filament system stuck on Unloading** - a
+  head fed to the nozzle by purging can now be unloaded, picking a tool no longer reads as
+  loaded, an unload or preload that settles straight into its resting state ends properly, and
+  a leftover unload state after a restart no longer opens a runout grace window or ends a load
+  running on another lane.
+- **Stock CFS: re-inserting the same tagged spool asked "Same spool?" (#1710)** - a spool whose
+  tag reads back the same values is now recognised as the same spool, and a spool inserted
+  while the box is busy is judged only after its tag has been read. On AFC, a lane record from
+  an older plugin build no longer replaces a spool edit you made.
+- **A second filament system's slots showed the first system's materials** - on a printer with
+  two filament systems, each slot now shows its own system's material and tool badge.
+- **The heat-first warning judged the wrong slot** - Load and Unload now check the material of
+  the slot you selected, and Purge, Extrude and Retract the loaded slot's, instead of the active
+  slot's. On systems that load several heads at once, the sidebar buttons read **Load...** and
+  **Unload...** because they open a picker.
+- **The MMU's selector, buffer and bypass boxes ignored taps right after the screen opened** -
+  a tap on the filament path now lands on the box you see as soon as the panel has slid in.
+- **Fan and light controls could show frozen dials** - after the fan or light controls had been
+  opened from two different places (the home widget and the Controls panel, say), going back to
+  the first could bring up a stale copy whose dials no longer moved. Every entry point now opens
+  the same live screen.
+- **A large G-code preview could freeze a Raspberry Pi 3 or older** - the 3D preview now caps
+  its detail by what the GPU can draw, and on a Pi 0 to 3 a file too big for that shows as 2D
+  instead of stalling the graphics.
+- **The number keypad was cramped on 480x320 and 480x272 screens** - it is wider there, its keys
+  fill the height, heater keypads are titled with the short heater name, and header titles
+  shorten with dots instead of wrapping.
 
 ### Internal
 

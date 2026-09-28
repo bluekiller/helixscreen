@@ -342,6 +342,8 @@ inline bool ams_action_is_busy(AmsAction action) {
  *
  * SELECTING is deliberately absent: a filament system passes through it on the
  * way to a slot, and the step bar is already tracking the load that follows.
+ * PURGING is deliberately present: a purge moves filament, so an operation that
+ * starts outside the UI with a purge shows the step bar like any other.
  */
 inline bool ams_action_is_filament_operation(AmsAction action) {
     switch (action) {
@@ -1341,6 +1343,19 @@ struct FlowguardInfo {
     float level = 0;     // -1.0 (tangle) to +1.0 (clog)
     float max_clog = 0;
     float max_tangle = 0; // negative value
+};
+
+/**
+ * @brief The state a user tells the filament system it is really in
+ *
+ * AmsBackend::recover_with_state() re-syncs the firmware's tracking to this.
+ * Anything left unset is not asserted, so the firmware keeps (or detects)
+ * its own answer for it.
+ */
+struct RecoverStateRequest {
+    int slot = -1;              ///< 0-based slot, -1 = keep the firmware's current one
+    bool bypass = false;        ///< Bypass is selected; slot is then ignored
+    std::optional<bool> loaded; ///< Filament at the extruder; nullopt = let firmware detect
 };
 
 /**

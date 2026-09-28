@@ -3,13 +3,12 @@
 
 /**
  * @file ui_settings_about.h
- * @brief About Settings overlay - version info, updates, easter eggs, contributors
+ * @brief About Settings overlay - version info, easter eggs, contributors
  *
  * This overlay displays:
  * - Branding header with logo and scrolling contributor marquee
  * - Printer name (7-tap snake easter egg)
  * - Version info (7-tap beta features toggle)
- * - Update channel selection and update controls
  * - Klipper/Moonraker/OS version info
  * - Print hours (opens history dashboard)
  *
@@ -17,7 +16,6 @@
  * @threading Main thread only
  *
  * @see SettingsPanel for parent panel
- * @see UpdateChecker for update logic
  */
 
 #pragma once
@@ -33,7 +31,7 @@ namespace helix::settings {
 
 /**
  * @class AboutSettingsOverlay
- * @brief Overlay for displaying about/version info and update controls
+ * @brief Overlay for displaying about/version info
  *
  * ## Usage:
  *
@@ -95,33 +93,6 @@ class AboutSettingsOverlay : public OverlayBase {
      */
     void populate_info_rows();
 
-    /**
-     * @brief Point both Update Channel rows at the channel the updater is using
-     *
-     * about_settings_overlay.xml carries a Stable/Beta row and a Stable/Beta/Dev
-     * row. Neither binds its selection to update_channel, because a row must show
-     * the *effective* channel rather than the stored one: Dev needs beta features,
-     * so a locked install runs on Stable while /update/channel still reads Dev,
-     * and the two-entry row has no index that renders a stored Dev at all.
-     *
-     * A row with too few options for the value is left alone rather than clamped,
-     * since LVGL would render Dev's index 2 as Beta on the two-entry row.
-     *
-     * Both the tree and the channel are parameters so this is testable without
-     * an overlay instance, a Config, or an UpdateChecker.
-     *
-     * @param root Overlay root to search, or nullptr for a no-op
-     * @param effective_channel Channel index to show (UpdateChannel's enumerators)
-     */
-    static void sync_update_channel_rows(lv_obj_t* root, int effective_channel);
-
-    // Update download modal management.
-    // When start_immediately is true, skip the Confirming state and begin the
-    // download directly — used when the user already confirmed on the "New
-    // Version Available" notification modal (#prestonbrown/helixscreen).
-    void show_update_download_modal(bool start_immediately = false);
-    void hide_update_download_modal();
-
   private:
     //
     // === Contributor Marquee ===
@@ -146,7 +117,6 @@ class AboutSettingsOverlay : public OverlayBase {
     lv_subject_t cache_dir_value_subject_{};
     lv_subject_t log_dest_value_subject_{};
     lv_subject_t host_arch_value_subject_{};
-    lv_subject_t update_current_version_subject_{};
     lv_subject_t about_copyright_subject_{};
 
     // Static buffers for string subjects
@@ -159,11 +129,7 @@ class AboutSettingsOverlay : public OverlayBase {
     char cache_dir_value_buf_[256];
     char log_dest_value_buf_[256];
     char host_arch_value_buf_[64];
-    char update_current_version_buf_[32];
     char about_copyright_buf_[48];
-
-    // Update download modal
-    lv_obj_t* update_download_modal_ = nullptr;
 
     // History dashboard overlay (lazy-created)
     lv_obj_t* history_dashboard_panel_ = nullptr;
@@ -177,14 +143,7 @@ class AboutSettingsOverlay : public OverlayBase {
 
     static void on_about_printer_name_clicked(lv_event_t* e);
     static void on_about_version_clicked(lv_event_t* e);
-    static void on_about_update_channel_changed(lv_event_t* e);
-    static void on_about_check_updates_clicked(lv_event_t* e);
-    static void on_about_install_update_clicked(lv_event_t* e);
-    static void on_about_updates_unavailable_clicked(lv_event_t* e);
     static void on_about_print_hours_clicked(lv_event_t* e);
-    static void on_about_update_download_start(lv_event_t* e);
-    static void on_about_update_download_cancel(lv_event_t* e);
-    static void on_about_update_download_dismiss(lv_event_t* e);
 
     //
     // === Private Handlers ===

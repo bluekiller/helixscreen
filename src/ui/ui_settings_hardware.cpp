@@ -8,7 +8,6 @@
 #include "ui_event_safety.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_power.h"
-#include "ui_printer_list_overlay.h"
 #include "ui_settings_fans.h"
 #include "ui_settings_led.h"
 #include "ui_settings_macro_buttons.h"
@@ -81,7 +80,6 @@ void HardwareSettingsOverlay::init_subjects() {
 
 void HardwareSettingsOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_printers_clicked", on_printers_clicked},
         {"on_camera_view_clicked", on_camera_view_clicked},
         {"on_ams_settings_clicked", on_ams_settings_clicked},
         {"on_fans_settings_clicked", on_fans_settings_clicked},
@@ -187,13 +185,6 @@ void bind_hardware_health_row(lv_obj_t* overlay_root) {
 // ============================================================================
 // STATIC CALLBACKS
 // ============================================================================
-
-void HardwareSettingsOverlay::on_printers_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[HardwareSettingsOverlay] on_printers_clicked");
-    auto& overlay = helix::ui::get_printer_list_overlay();
-    overlay.show(get_hardware_settings_overlay().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void HardwareSettingsOverlay::on_camera_view_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[HardwareSettingsOverlay] on_camera_view_clicked");

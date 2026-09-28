@@ -128,8 +128,29 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     AmsError recover() override;
     AmsError reset() override;
     AmsError clear_fault(int slot_index) override;
+    AmsError recover_with_state(const RecoverStateRequest& request) override;
+    [[nodiscard]] bool supports_recover_with_state() const override {
+        return true;
+    }
+    /**
+     * @brief The MMU_RECOVER line asserting @p request.
+     *
+     * Names only what the request knows: an unset gate is omitted, and an
+     * unset loaded flag leaves LOADED off so HH detects it with its sensors.
+     * BYPASS=1 replaces GATE; HH then forces tool and gate to bypass. Never
+     * names TOOL: HH's tool branch remaps the tool onto the gate and rewrites
+     * that gate's status, and with LOADED=0 wipes the gate's spool info.
+     */
+    [[nodiscard]] static std::string build_recover_command(const RecoverStateRequest& request);
     AmsError eject_lane(int slot_index) override;
     [[nodiscard]] bool supports_lane_eject() const override {
+        return true;
+    }
+    /**
+     * @brief Park a gate's filament ready for a later load (MMU_PRELOAD GATE=n).
+     */
+    AmsError preload_lane(int slot_index) override;
+    [[nodiscard]] bool supports_lane_preload() const override {
         return true;
     }
     /**
@@ -168,6 +189,7 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // Error-center: classify a pausing MMU fault into a recovery ErrorEvent.
     [[nodiscard]] std::optional<helix::ErrorEvent>
     classify_error(const std::string& raw_line, const helix::ClassifyContext& ctx) const override;
+    [[nodiscard]] bool duplicates_firmware_prompt(const std::string& title) const override;
 
     [[nodiscard]] std::vector<ToolchangePhase>
     toolchange_phase_template(StepOperationType op) const override;
@@ -402,6 +424,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // (the base declares that contract; mutex_ is non-recursive, so this must not
     // lock).
     [[nodiscard]] std::vector<helix::RecoveryAction> build_recovery_actions() const override;
+    /// The one HH recovery list. Resume only while a print is paused.
+    [[nodiscard]] std::vector<helix::RecoveryAction>
+    recovery_actions_locked(bool print_paused) const;
 
     // Synthesize a toolchange step index from the current AmsAction and push it
     // to AmsState's step subject (deferred to the main thread). Happy Hare emits

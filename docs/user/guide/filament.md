@@ -48,7 +48,7 @@ On a printer with more than one tool, the picker beside the lane bars chooses wh
 
 You can override any of these buttons to run a different macro:
 
-1. Go to **Settings > Printer > Macro Buttons**
+1. Go to **Settings > Printing > Macro Buttons**
 2. Scroll to the **Standard Macros** section
 3. Tap the dropdown for **Load Filament**, **Unload Filament**, or **Purge**
 4. Select **(Auto)** to use auto-detection, or pick any macro from your Klipper config
@@ -69,13 +69,13 @@ Loading or unloading normally heats the nozzle to the material's temperature bef
 
 - your filament system heats on its own when it loads,
 - your configured Load/Unload macro heats the hotend itself, or
-- **Allow cold load/unload** is on (Settings > Safety & Notifications).
+- **Allow cold load/unload** is on (Settings > Printing).
 
 ### What happens to the nozzle afterward
 
 Loading or unloading heats the nozzle to material temperature. Two minutes after the operation finishes, HelixScreen turns the extruder heater back off — the delay lets you run several operations in a row without the nozzle cooling in between, and a running print is never touched.
 
-If your filament system already handles this (AFC does), turn off **Settings > Safety & Notifications > Cool nozzle after filament ops** so only one of them is driving the heater. It's a per-printer setting. See [Safety settings](settings/safety.md#cool-nozzle-after-filament-ops).
+If your filament system already handles this (AFC does), turn off **Settings > Printing > Cool nozzle after filament ops** so only one of them is driving the heater. It's a per-printer setting. See [Printing settings](settings/printing.md#cool-nozzle-after-filament-ops).
 
 ---
 
@@ -104,12 +104,20 @@ When a slot runs into trouble, HelixScreen shows it visually so you don't have t
 
 - **Error dot** — A small colored dot appears at the corner of a slot's spool when that slot reports a problem. **Red** means an error (jam, runout, hardware fault); **amber** means a warning. With animations enabled, the dot gently pulses to draw your eye.
 - **Buffer-health tint**: On systems with a buffer between the slots and the toolhead (an AFC buffer - a TurtleNeck, or a pressure-sensor buffer such as an `FPS_PSF` - or Happy Hare with sync feedback), the hub on the filament path diagram changes color as the buffer drifts toward a fault: green when healthy, yellow when approaching the fault threshold, and red when at or past it.
+- **Filament pressure (OpenAMS)**: On OpenAMS running without AFC, each unit's filament pressure sensor appears on the filament path as a box labelled **FPS**. Tap it to see the current reading, from 0% (no pressure on the filament) to 100% (fully compressed).
 
 **To recover:**
 
-- Use **Reset** in the sidebar (it reads **Home** on Happy Hare). This clears the error message your system is holding onto and then puts the system back to a known-good state. It is the right first move for almost every jam or fault, including one reported against a single slot.
+- Use **Reset** in the sidebar (it reads **Home** on Happy Hare). This clears the error message your system is holding onto and then puts the system back to a known-good state. It is the right first move for almost every jam or fault, including one reported against a single slot. On Happy Hare it runs `MMU_RECOVER` and then `MMU_HOME`, which unloads any loaded filament before homing, so the button is greyed out while a print is running. On AFC it runs `RESET_FAILURE` and `AFC_CLEAR_MESSAGE`, then `AFC_RESET`.
 - If filament from one slot is stuck partway down the tube, tap that slot. When your system can pull it back, the slot menu's second button changes from **Unload** to **Recover**. Tap it to draw the filament back toward the slot without heating the nozzle.
-- For a system-wide problem that Reset does not shift, use **Recover** in the AMS Management overlay (Settings).
+- For a system-wide problem that Reset does not shift, use **Recover** in the AMS Management overlay (Settings). On Happy Hare this is how you run `MMU_RECOVER` from the screen, and it moves nothing - see [AMS Management](#ams-management-settings-overlay) for what it sends. When a Happy Hare error pops up on screen, its own **Recover** button sends plain `MMU_RECOVER` and lets Happy Hare work out the filament position from its sensors.
+
+**On Happy Hare**, every fault the MMU reports opens a recovery popup showing Happy Hare's own reason, whether it happened during a print or during a load or home you started yourself. Happy Hare's own error prompt closes behind it. The popup offers:
+
+- **Resume** - only when a print is paused, and first in the list there. Heats the nozzle first if it has cooled.
+- **Recover** - lets Happy Hare work out where the filament is with its own sensors. First in the list when nothing is paused. Works on a cold nozzle.
+- **Unload** - when filament is at the toolhead. Heats the nozzle first.
+- **Unlock** - a last resort that clears Happy Hare's pause lock without moving anything.
 
 ### Sidebar (Right)
 
@@ -149,7 +157,7 @@ Some steps only apply to how your machine is set up. A step your system never re
 |--------|--------|
 | **Bypass** (toggle) | Feed filament directly to the extruder, bypassing the AMS. Shown when your hardware supports bypass, or when you turn on **Enable Bypass Controls** - see [When Bypass Doesn't Appear](#when-bypass-doesnt-appear). The toggle is guarded: it can't be changed while a job holds the machine (a "Bypass cannot be changed while printing" warning appears), if a lane's filament is loaded it is unloaded first before bypass engages, and where a hardware sensor owns the bypass the toggle only reports that the sensor is in control. |
 | **Load** | Load a slot's filament into the toolhead. On the Snapmaker U1 it opens a picker instead - see below |
-| **Unload** | Retract the currently loaded filament back to its slot. On the Snapmaker U1 it opens a picker instead - see below |
+| **Unload** | Retract the currently loaded filament back to its slot. It also works when filament is stuck in the toolhead and no slot claims it, on systems that can tell. On the Snapmaker U1 it opens a picker instead - see below |
 | **Reset** | Reset the AMS system state (useful after jams or errors) |
 | **Settings** | Open the AMS Management overlay for advanced controls |
 
@@ -169,7 +177,7 @@ Some filament systems do not report a bypass position. On those, the Bypass togg
 
 The Creality CFS no longer appears here — it has a working external spool. See [CFS and the External Spool](#cfs-and-the-external-spool).
 
-To show the controls anyway, turn on **Enable Bypass Controls** in Settings > Hardware & Devices > Multi-Filament System Management. The setting appears only when your firmware reports no bypass.
+To show the controls anyway, turn on **Enable Bypass Controls** in Settings > Devices > Multi-Filament System Management. The setting appears only when your firmware reports no bypass.
 
 With it on, the external spool appears on the filament path beside your slots. Tap it to set material, color, and brand, or to link a Spoolman spool.
 
@@ -187,7 +195,7 @@ With it on, the external spool appears on the filament path beside your slots. T
 
 **Tap the external spool** on the filament path. Alongside the spool bookkeeping (Spool Info, Select Spool, Scan QR, Clear) the menu offers **Load** and **Unload**, which feed and retract the bypass spool itself.
 
-Bypass load deliberately does not go through the AMS. It runs your configured **Load Filament** macro — the same one the Filament panel's Load button uses, set in Settings > Macros — or a plain feed if you have no macro configured. That is what the reporter of this behavior expected: with bypass engaged, the normal load routine takes over. Unload does go through the AMS on backends that expose a bypass unload, because that is how the filament gets back out of the toolhead.
+Bypass load deliberately does not go through the AMS. It runs your configured **Load Filament** macro — the same one the Filament panel's Load button uses, set in Settings > Printing > Macro Buttons — or a plain feed if you have no macro configured. That is what the reporter of this behavior expected: with bypass engaged, the normal load routine takes over. Unload does go through the AMS on backends that expose a bypass unload, because that is how the filament gets back out of the toolhead.
 
 If bypass is not engaged when you tap **Load**, it is engaged first. On systems that require it, a lane's filament is unloaded before bypass engages, and the load starts once that finishes — the same sequence the Bypass toggle performs, so nothing is fed down the lane path by mistake.
 
@@ -202,9 +210,10 @@ Both entries grey out for the same reasons the Filament panel's buttons do: whil
 | Action | Description |
 |--------|-------------|
 | **Load** | Feed filament from this slot to the toolhead. Disabled if the slot is empty. |
-| **Unload** | Retract filament from this slot. Only available if this slot is currently loaded. |
+| **Unload** | Retract filament from this slot. Only available if this slot is currently loaded. Greyed out while filament sits in the toolhead that no slot claims, because the slot this menu names may not be the one holding it: use **Unload** in the filament sidebar instead. |
 | **Eject** | Push filament fully out of the lane to release the spool, when the slot has filament in its lane but **not** loaded into the toolhead. Replaces the Unload button in that state. Only on backends that support per-lane eject (AFC and Happy Hare). |
 | **Recover** | Pull filament that is stranded partway down the tube back toward its slot, without heating the nozzle. Takes the place of **Unload** when the system can tell that this slot's filament is stuck past the hub. |
+| **Preload** | Happy Hare only. Feed filament from the spool into its gate, ready for a later load. Greyed out during a print, while any filament is loaded, or while the MMU is busy. |
 | **Spool Info** | Open the filament editor to view or change material, color, vendor, and remaining weight. |
 | **Select Spool** | Assign a saved Spoolman spool to this slot. Only shown when Spoolman is configured. |
 | **Scan QR Code** | Scan a filament QR code to auto-fill spool data. Only shown when Spoolman is configured. |
@@ -308,8 +317,8 @@ Either way, your printer's filament info and OrcaSlicer stay in sync. The sync i
 
 Tap **Settings** in the sidebar to open the AMS Management overlay with advanced controls:
 
-- **Home** — Return the AMS to its home position
-- **Recover** — Attempt to recover from an error state
+- **Home** — Return the AMS to its home position. Sends `MMU_HOME` on Happy Hare (which unloads any loaded filament first) and `AFC_RESET` on AFC. Unlike the sidebar's Reset, it does not clear the error message first.
+- **Recover** — Attempt to recover from an error state. On Happy Hare this runs `MMU_RECOVER`, which tells Happy Hare what is really selected and loaded when its tracking has gone wrong; nothing moves. A dialog asks which gate is actually selected (it starts on the current one; you can also pick **Bypass**, or **Keep current** to leave the gate alone) and whether filament is loaded (**Detect automatically**, the default, lets Happy Hare check its sensors; or choose **Loaded** / **Unloaded**). HelixScreen then sends `MMU_RECOVER` with only what you set: `GATE=` or `BYPASS=1`, plus `LOADED=1` or `LOADED=0`. On AFC, Recover sends `AFC_RESET`, the same as Home.
 - **Abort** — Cancel the current operation immediately
 - **Bypass Mode** — Toggle direct-feed mode (if supported by hardware). The toggle refuses while a filament operation is running, and on systems that require it, while filament is still loaded - unload first. When a hardware sensor owns the bypass, this row becomes a read-only "Controlled by hardware sensor" indicator instead of a toggle. If your machine has no bypass according to its firmware, an **Enable Bypass Controls** toggle appears here instead - see [When Bypass Doesn't Appear](#when-bypass-doesnt-appear)
 - **Always Show Bypass Spool** — Keep the external spool visible on the filament path even while bypass is disengaged (AFC systems only)
@@ -330,6 +339,12 @@ Below the top-level controls, **device-specific settings appear as expandable se
 | **Hub & Cutter** | Cutter enable, cut distance, hub bowden length, assisted retract |
 | **Tip Forming** | Ramming volume, unloading start speed, cooling-tube length and retraction |
 | **Purge & Wipe** | Purge enable/length, brush-wipe enable |
+
+**Happy Hare** groups its controls into Setup, Speed, Toolhead, Accessories and Maintenance. A few worth knowing:
+
+- **Load Extruder** and **Unload Extruder** (Maintenance) run only the extruder part of a load or unload, for filament that is already at the toolhead. Happy Hare heats the nozzle for them. Not available during a print.
+- **Motors** (Maintenance) switches the MMU's motors on or off. Switching them on does not home the MMU.
+- **Refresh Spoolman** (Accessories) asks Happy Hare to re-read its spool details from Spoolman. Greyed out when Spoolman support is off in Happy Hare.
 
 Other backends show their own (usually smaller) set of sections, or none at all.
 
@@ -651,7 +666,7 @@ Whichever shape you have, the readouts, the Material Comfort strip and the dryin
 - [Temperature Control](temperature.md) — Preheat presets work with spool material info
 - [Bluetooth Setup](bluetooth-setup.md) — Required for Bluetooth-connected AMS and label printers
 - [Label Printing](label-printing.md) — Print physical spool labels with Spoolman data
-- [Settings: Hardware & Devices](settings/hardware.md) — AMS, Spoolman, and filament sensor configuration
+- [Settings: Devices](settings/devices.md) — AMS, Spoolman, and filament sensor configuration
 
 ---
 

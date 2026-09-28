@@ -32,15 +32,15 @@ ps -eo pid,etime,time,pcpu,comm --sort=-time | head   # abandoned spinners
 #   "(deleted)". Kill that PID by number - never by name, it is shared.
 ```
 
-- **Default to a big `-j`.** This box has 32 cores and ~120GB of RAM; the common mistake is building far too small and leaving the machine idle. Read `nproc`, the idle % in `top`, and `available` — with cores idle and tens of GB available, `-j16`-`-j24` is right even with peers building. Ramp back up the moment a peer finishes.
-- Throttle ONLY when `available` itself is genuinely low (single-digit GB). A full swap row is not a trigger and never has been: tens of GB `available` beside a 14-of-16GB swap row is a healthy box. The failure the throttle exists for is a big `-j` dying mid-link with no `oom-kill` line while load average looks healthy, and that needs `available` to be exhausted, not swap.
+- **Plain `make` (or `make -j`) picks the `-j` for you; do not hand-pick a `-jN`.** It takes this session's fair share from `scripts/helix-claim jobs`: the cores split across the trees building right now, capped by `available`. An idle box gets all 32; four trees building get about 6 each. An explicit `-jN` still passes through untouched, for the rare case you own the box.
+- The unit sweep caps how many shards run at once from the same share (`SHARD_CONCURRENCY` overrides). Every make renices itself to 10, so its compilers and test shards yield to the desktop: thelio's system76-scheduler drops `make` to nice 19 `SCHED_IDLE` only when it happens to notice it, and never lists `helix-tests`. `HELIX_NICE=0` opts out.
 - Dying at the same step twice **can** be a resource ceiling, but rule out a peer first: a second `make` in the SAME tree deletes your freshly linked binary (`prune-orphan-test-objs` in `mk/tests.mk` runs `rm -f $(TEST_BIN)` as a sibling prerequisite of the link, so `-j` gives them no order). The tell: `[LD] helix-tests`, then `✓ Unit test binary ready`, NO `✗ Test linking failed!`, then every shard reports `No such file or directory`. Nothing is wrong with your code; a starved link fails loudly and stops make.
 - **A build here goes minutes at a time printing nothing, and that is normal.** Judge liveness by the log growing, and compare its mtime against `date` in the SAME command before calling it stale - an `etime` and an mtime are not comparable by eye. A parent `make` in `do_wait` and a sub-make in `poll_schedule_timeout` are a make waiting on children and a jobserver poll, not a deadlock. Nothing short of a log that has not grown across two checks minutes apart justifies killing someone's build.
 - Who else is building, and in which tree, is a question you ask them: `ListAgents` + `SendMessage` (global CLAUDE.md § Peer Sessions), not a `pgrep` guess.
-- **The commit hook builds too.** `scripts/quality-checks.sh` verifies an incremental build of the app, at `-j${HELIX_QC_JOBS:-6}`. That is the bound that keeps N sessions committing from becoming N unbounded builds; raise `HELIX_QC_JOBS` when the box is yours. `scripts/qc_timing.py [--staged-only]` runs the gate and prints where its time went, which is how you find out whether you are waiting on that build or on a check.
+- **The commit hook builds too.** `scripts/quality-checks.sh` verifies an incremental build of the app at the `helix-claim jobs` share, so N sessions committing never become N unbounded builds; `HELIX_QC_JOBS` overrides it. `scripts/qc_timing.py [--staged-only]` runs the gate and prints where its time went, which is how you find out whether you are waiting on that build or on a check.
 
 ```bash
-make -j                              # Build ONLY the program binary (NOT tests)
+make                                 # Build ONLY the program binary (NOT tests), at a fair -j
 ./build/bin/helix-screen --test -vv  # Mock printer + DEBUG logs
 # ALWAYS use verbosity: -v=INFO, -vv=DEBUG, -vvv=TRACE (default=WARN)
 
@@ -88,14 +88,18 @@ make remote-native                   # build the app there
 
 scripts/zeus-run.sh mutate --tests '[tag]'   # mutation gate on zeus
 scripts/zeus-run.sh asan '[tag]'            # AddressSanitizer on zeus
-#   Both are expensive and non-interactive, so they belong on the idle 72-core
-#   box. ASAN especially: thelio's /etc/ld.so.preload makes ASAN's runtime load
+scripts/zeus-run.sh sweep                   # make unit-sweep on zeus
+#   bats stays on thelio (`make test-shell`): the container runs as root with no
+#   shellcheck, so about 190 shell tests fail there on the environment alone.
+#   All three are expensive and non-interactive, so they belong on the idle
+#   72-core box. `zeus-run.sh test` with no tag runs the suite in ONE process,
+#   where cross-test contamination fails cases no branch touched: not a gate.
+#   ASAN especially: thelio's /etc/ld.so.preload makes ASAN's runtime load
 #   second, so the binary produces NO test output and exits 0 - a pass that ran
 #   nothing. The container has no ld.so.preload and its image matches CI's.
 #   The commit has to be pushed; the container fetches it, it does not take your
-#   tree. zeus is memory-bound, not core-bound (ZFS ARC holds most of its 251GB,
-#   leaving ~14GB), so jobs are 12, and 8 for ASAN - a -j48 build there dies
-#   three compiles in with no error text.
+#   tree. zeus is memory-bound, not core-bound (ZFS ARC holds most of its 251GB),
+#   so the script caps the ARC for the run and sizes -j from what is then free.
 
 # Worktrees — MUST use for MAJOR work. Always in .worktrees/ (project root).
 scripts/setup-worktree.sh feature/my-branch  # Symlinks shared deps, builds fast
@@ -181,10 +185,21 @@ plan a rebase, including before you file or comment publicly on it.
 - A successful send is not a delivery and silence is not agreement. Never merge, rebase or
   delete on an unanswered message.
 
+**Settle it between sessions; bring Preston outcomes, not questions.** He runs several
+sessions at once, and every question routed back to him stalls all of them.
+
+- Coordination is yours: who builds, who holds a tree, merge order, conflicts, release
+  timing. Resolve it session-to-session, then tell him what happened.
+- Ask him only for what no session can settle: a product call nobody has made yet, or
+  judging what pixels look like.
+- Be proactive. When a peer's work affects yours, message them before they have to ask.
+  When you learn something another session needs, send it.
+
 What is shared here:
 
 - **The main working tree is live.** Other sessions commit in it. Never let git autostash
   (`-c merge.autoStash=false`), and commit your own edits promptly, with explicit pathspecs.
+  Pushing main pushes peers' commits too: read `git log origin/main..main` and push only when their gates are green.
 - **`MM` does not mean a peer is mid-commit.** It is ambiguous, and one command settles it:
   `git diff HEAD -- <path>`. Empty means the committed content is what is on disk, only the
   INDEX holds an older copy, and nothing is in flight. A `git commit -- <paths>` whose
@@ -193,7 +208,7 @@ What is shared here:
   for a peer to sweep, and it discards nothing. A non-empty `git diff HEAD` is the case worth
   waiting on; confirm with `pgrep -x git` plus each pid's cwd and `helix-claim check
   worktree:main` before concluding anything about who owns it.
-- **Do not `git add` in this tree — commit the pathspec directly.** `git add` then `git commit` is not atomic: your change sits in the *shared* index for however long your hook runs (20s for a script, minutes for a staged header), and a peer committing in that window takes it into their commit. Measured twice in twenty minutes on 2026-09-10. `git commit -- <paths>` commits those paths' current content without going through the index, so there is no window. The one exception is the stale-index case above, where the content is already in HEAD and staging it exposes nothing.
+- **Do not `git add` in this tree: commit the pathspec directly.** `git add` then `git commit` is not atomic: your change sits in the *shared* index for however long your hook runs (20s for a script, minutes for a staged header), and a peer committing in that window takes it into their commit. Measured twice in twenty minutes on 2026-09-10. `git commit -- <paths>` commits those paths' current content without going through the index, so there is no window, though it takes a peer's hunks in the same file too (check `git diff HEAD -- <path>`), and a new file needs `git add -N <path> && git commit -- <path>`, which exposes only an empty intent-to-add entry. The one exception is the stale-index case above, where the content is already in HEAD and staging it exposes nothing.
 - **A live merge and an abandoned one look identical from outside.** `MERGE_HEAD` present, zero `UU` entries, and an index mtime minutes old and not moving describe a `git commit` whose hook is *building* — the index stops the moment the hook starts, and a staged header takes the full-build path. An absent `ListAgents` row is not evidence either. The only discriminator is process state:
   ```bash
   pgrep -x git | while read p; do echo "$p $(readlink /proc/$p/cwd)"; done
@@ -202,16 +217,18 @@ What is shared here:
   Run that before concluding anything about a foreign index. Completing someone's merge is non-destructive and aborting is destructive, but both are theirs to run.
 - **`build/bin/helix-tests` and `helix-screen` can be one inode across worktrees**: whoever linked last set the bytes both trees run. Compare `stat` inodes before trusting a control run against a sibling tree.
 - **The default `ctl` socket is per-user, not per-instance.** Pin it (box above) or you drive a peer's app and it reports success.
-- **One session per physical printer at a time.** Ask who holds a device before pointing anything at it.
+- **One session per physical printer at a time.** Ask who holds a device before pointing anything at it. Claim `device:` around a deploy with an EXIT trap (box below) and never kill a deploy mid-phase; the name is a role, so put the IP in `--note`.
 - **Claim before you take a shared resource: `scripts/helix-claim`.** Plain shell, no Claude
   dependency — opencode, a human or a script can use it, and `AGENTS.md` is a symlink to this
   file so every agent reads the same rule.
 
   ```bash
   scripts/helix-claim check worktree:main        # FREE | LIVE | STALE  (exit 1 if LIVE)
-  scripts/helix-claim take device:k2plus "hw verify" --note "moves the toolhead"
+  if scripts/helix-claim take device:k2plus deploy --pid $$ --note 192.168.1.50; then  # gate on the exit code; never pipe take
+      trap 'scripts/helix-claim release-if-owned-by $$ device:k2plus' EXIT; make deploy-k2plus; fi
   scripts/helix-claim list                       # everything, with derived liveness
-  scripts/helix-claim release device:k2plus
+  scripts/helix-claim resources                  # memory, load, claims, top RSS, zeus: before heavy work
+  scripts/helix-claim run heavy:sweep -- make unit-sweep   # claimed while it runs
   make -j"$(scripts/helix-claim jobs)"           # a fair -j, not a guess
   ```
 
@@ -231,12 +248,13 @@ What is shared here:
   from your FIRST edit until the commit lands - not merely for a merge, rebase or long
   commit: uncommitted files with no claim and an old mtime are indistinguishable from
   abandoned work, and `build:<name>` reserves nothing),
-  `build:<name>`, `device:<printer>`, `gh:issues`, `socket:<path>`.
+  `build:<name>`, `device:<printer>`, `heavy:<what>`, `gh:issue:<n>` (check it first), `socket:<path>`.
 
   **Before concluding anything about someone else's work, run `check`.** A merge mid-commit
   and an abandoned one look identical in the tree — same `MERGE_HEAD`, same resolved index,
   same frozen mtime. A `git commit` here can hold the shared tree for 40 minutes while its
-  hook builds.
+  hook builds. FREE is not proof: look for a `make` whose cwd is the tree too.
+  A missing claim does not make work free: uncommitted work is someone's until they answer.
 
   **What the git hooks now do** (`core.hooksPath` is `.githooks`, tracked, so this reaches
   every worktree and every tool — opencode, plain `git`, a human — with no install step):
@@ -250,13 +268,14 @@ What is shared here:
   design; `HELIX_CLAIM_STRICT=1` makes `pre-commit` refuse instead of warn. `--no-verify`
   bypasses both, as before.
 
-  A merge here can hold the tree for **40 minutes** while the hook builds. Claim it, say so,
-  and release when done.
+  A merge here can hold the tree for **40 minutes** while the hook builds. Its owner claims it,
+  announces a long one to peers, and releases when done.
 
-- **`scripts/helix-claim jobs` beats a hardcoded `-j`.** It counts distinct trees with live
-  compilers (a raw `cc1plus` count is just one build's `-j`), folds in live `build:` claims so
-  an unclaimed builder still counts, and caps by `MemAvailable`.
-- **Never `pkill helix-screen`**, nor `pkill -x helix-screen`, nor `pkill -f`. The name is shared, so it reaps every other session's instance, not yours. The victim sees only `[Application] SIGTERM — fast exit` with no cause, so a long mock or `ctl` run dies looking like a crash. Kill the PID you captured at launch; if you lost it, resolve it from your own socket: `for p in $(pgrep -x helix-screen); do grep -qz "$HELIX_SOCK" /proc/$p/cmdline && echo $p; done`.
+- **`scripts/helix-claim jobs` is where every default `-j` comes from.** It counts distinct
+  trees with live compilers (a raw `cc1plus` count is just one build's `-j`), folds in live
+  `build:` claims so an unclaimed builder still counts, skips the makes it was called from so
+  a build never counts itself, and caps by `MemAvailable`.
+- **Never `pkill helix-screen`**, nor `pkill -x helix-screen`, nor `pkill -f`. The name is shared, so it reaps every other session's instance, not yours. The victim sees only `[Application] SIGTERM — fast exit` with no cause, so a long mock or `ctl` run dies looking like a crash. `$!` can name a parent that forked, so resolve the PID from your own socket: `for p in $(pgrep -x helix-screen); do grep -qz "$HELIX_SOCK" /proc/$p/cmdline && echo $p; done`.
 
 ---
 

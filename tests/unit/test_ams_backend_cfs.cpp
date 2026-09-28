@@ -5723,7 +5723,6 @@ TEST_CASE("CFS: a failed pre-op G28 does not send the envelope unwind", "[ams][c
     GcodeRecordingApi api{client, state};
 
     UnhomedCfsBackend backend{&api, &client};
-    backend.arm_home_preconfirmed(); // skip the "home first?" modal
 
     CfsTestAccess::dispatch_action_script(backend, "CR_BOX_LOAD TNN=0");
     // token.defer() can queue from inside a drain, so drain until quiet or the
@@ -5750,7 +5749,6 @@ TEST_CASE("CFS: a failed payload still sends the envelope unwind", "[ams][cfs][h
     api.fail_homing = false; // G28 succeeds; the body is what fails
 
     UnhomedCfsBackend backend{&api, &client};
-    backend.arm_home_preconfirmed();
 
     // The mock acks the payload, so drive the failure through the same callback
     // Klipper's rejection would reach.

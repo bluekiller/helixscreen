@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- Theme Colors Editor Overlay - Secondary panel for detailed color editing -->
-<!-- Navigation: Settings → Display → Theme → Edit Colors → (this) -->
+<!-- Navigation: Settings → Appearance → Theme Colors → Edit Colors → (this) -->
 <component>
   <view name="theme_editor_overlay"
         extends="overlay_panel" title="Edit Theme Colors" title_tag="Edit Theme Colors" bg_color="#screen_bg">

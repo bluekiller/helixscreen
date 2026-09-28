@@ -165,6 +165,17 @@ class ActionPromptManager {
         return prompt->title;
     }
 
+    /**
+     * @brief Close the prompt on screen locally, as if prompt_end had arrived
+     *
+     * For a prompt that another dialog already covers. Main thread only.
+     */
+    static void dismiss_active() {
+        if (auto* inst = s_instance.load(std::memory_order_acquire)) {
+            inst->handle_prompt_end();
+        }
+    }
+
     // Non-copyable, movable
     ActionPromptManager(const ActionPromptManager&) = delete;
     ActionPromptManager& operator=(const ActionPromptManager&) = delete;

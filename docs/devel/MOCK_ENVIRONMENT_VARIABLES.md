@@ -298,7 +298,7 @@ Override the Moonraker version the mock reports in `server.info`.
 |----------|-------|
 | Values | any version string, e.g. `v0.8.0` |
 | Default | `v0.9.3-mock` |
-| Affects | `server.info` -> `moonraker_version`, Settings -> About, and the startup too-old warning |
+| Affects | `server.info` -> `moonraker_version`, Settings -> Help & About -> About, and the startup too-old warning |
 
 The default is deliberately above `Application::MIN_MOONRAKER_VERSION` so no
 `--test` run trips the warning. Set an older version to reach the warning, which
@@ -869,7 +869,7 @@ HELIX_MOCK_OBJECTS="heater_generic dragonbreath dragonbreath output_pin dragonbr
 
 ### `HELIX_MOCK_DETECTION_CAPABLE`
 
-Force the K2 spaghetti-detection source's capability probe, so the Settings > Safety detection rows and the detection loop can be exercised in a mock run. Mock printers are never a K2 and no mock type carries `/usr/bin/detection`, so without this the source reports incapable everywhere off a real printer. Capability normally requires `PrinterDetector::is_creality_k2()` AND `/usr/bin/detection` present and executable; the U1 source is unaffected (its capability comes from the `defect_detection` object probe).
+Force the K2 spaghetti-detection source's capability probe, so the Settings > Safety & Alerts detection rows and the detection loop can be exercised in a mock run. Mock printers are never a K2 and no mock type carries `/usr/bin/detection`, so without this the source reports incapable everywhere off a real printer. Capability normally requires `PrinterDetector::is_creality_k2()` AND `/usr/bin/detection` present and executable; the U1 source is unaffected (its capability comes from the `defect_detection` object probe).
 
 | Property | Value |
 |----------|-------|

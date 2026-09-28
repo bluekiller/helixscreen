@@ -37,6 +37,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fmt/format.h>
 #include <fstream>
 #include <iterator>
 #include <mutex>
@@ -597,10 +598,10 @@ TEST_CASE("UpdateChecker subject initialization", "[update_checker][subjects]") 
                 static_cast<int>(UpdateChecker::Status::Idle));
     }
 
-    SECTION("string subjects start empty") {
+    SECTION("version text starts on the current version, not blank") {
         const char* version_text = lv_subject_get_string(checker.version_text_subject());
         REQUIRE(version_text != nullptr);
-        REQUIRE(std::string(version_text).empty());
+        REQUIRE(std::string(version_text) == fmt::format("Version {}", HELIX_VERSION));
 
         const char* new_version = lv_subject_get_string(checker.new_version_subject());
         REQUIRE(new_version != nullptr);
@@ -2456,7 +2457,7 @@ TEST_CASE_METHOD(GlobalPrintStateFixture,
 
     // Reproduce the reported trap. cancel_download() only sets a flag that the
     // worker reads after downloadFile() returns, and
-    // AboutSettingsOverlay::hide_update_download_modal() immediately resets the
+    // UpdatesSettingsOverlay::hide_update_download_modal() immediately resets the
     // status to Idle. The enum now says "nothing is happening" while the worker
     // is still inside an hour-long blocking call.
     checker.cancel_download();

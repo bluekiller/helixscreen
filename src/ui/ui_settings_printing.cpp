@@ -17,9 +17,9 @@
 #include "ui_settings_motion.h"
 
 #include "app_globals.h"
-#include "display_settings_manager.h"
-#include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_manager.h"
+#include "post_op_cooldown_manager.h"
+#include "safety_settings_manager.h"
 #include "settings_manager.h"
 #include "static_panel_registry.h"
 
@@ -71,13 +71,12 @@ void PrintingSettingsOverlay::init_subjects() {
 
 void PrintingSettingsOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_toolhead_style_changed", on_toolhead_style_changed},
-        {"on_gcode_mode_changed", on_gcode_mode_changed},
-        {"on_z_movement_style_changed", on_z_movement_style_changed},
         {"on_enclosure_style_changed", on_enclosure_style_changed},
         {"on_machine_limits_clicked", on_machine_limits_clicked},
         {"on_motion_settings_clicked", on_motion_settings_clicked},
         {"on_material_temps_clicked", on_material_temps_clicked},
+        {"on_allow_cold_extrude_changed", on_allow_cold_extrude_changed},
+        {"on_filament_auto_cooldown_changed", on_filament_auto_cooldown_changed},
         // on_retraction_row_clicked is registered by RetractionSettingsOverlay
         // on_timelapse_settings_clicked is registered by SettingsPanel
         {"on_timelapse_settings_clicked", on_timelapse_settings_clicked},
@@ -140,116 +139,11 @@ void PrintingSettingsOverlay::show(lv_obj_t* parent_screen) {
 
 void PrintingSettingsOverlay::on_activate() {
     OverlayBase::on_activate();
-
-    init_toolhead_style_dropdown();
-    init_gcode_mode_dropdown();
-    init_z_movement_dropdown();
-}
-
-// ============================================================================
-// DROPDOWN INITIALIZATION
-// ============================================================================
-
-void PrintingSettingsOverlay::init_toolhead_style_dropdown() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_toolhead_style");
-    if (!row)
-        return;
-
-    lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
-    if (dropdown) {
-        lv_dropdown_set_options(dropdown, SettingsManager::get_toolhead_style_options());
-        auto style = SettingsManager::instance().get_toolhead_style();
-        lv_dropdown_set_selected(
-            dropdown,
-            static_cast<uint32_t>(SettingsManager::toolhead_style_to_dropdown_index(style)));
-        spdlog::trace("[{}] Toolhead style dropdown initialized (style={}, dropdown_index={})",
-                      get_name(), static_cast<int>(style),
-                      SettingsManager::toolhead_style_to_dropdown_index(style));
-    }
-}
-
-void PrintingSettingsOverlay::init_gcode_mode_dropdown() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_gcode_mode");
-    if (!row)
-        return;
-
-    lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
-    if (dropdown) {
-        auto& display_settings = DisplaySettingsManager::instance();
-#ifndef ENABLE_GLES_3D
-        // Without GLES, remove "3D View" option
-        lv_dropdown_set_options(dropdown, (std::string(lv_tr("Auto")) + "\n" + lv_tr("2D Layers") +
-                                           "\n" + lv_tr("Thumbnail Only"))
-                                              .c_str());
-        int mode = display_settings.get_gcode_render_mode();
-        int index = 0; // Auto
-        if (mode == 2)
-            index = 1; // 2D Layers
-        else if (mode == 3)
-            index = 2; // Thumbnail Only
-        lv_dropdown_set_selected(dropdown, index);
-#else
-        int mode = display_settings.get_gcode_render_mode();
-        lv_dropdown_set_selected(dropdown, mode);
-#endif
-        spdlog::trace("[{}] G-code mode dropdown initialized", get_name());
-    }
-}
-
-void PrintingSettingsOverlay::init_z_movement_dropdown() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_z_movement_style");
-    if (!row)
-        return;
-
-    lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
-    if (dropdown) {
-        auto style = SettingsManager::instance().get_z_movement_style();
-        lv_dropdown_set_selected(dropdown, static_cast<uint32_t>(style));
-        spdlog::trace("[{}] Z movement style dropdown initialized (style={})", get_name(),
-                      static_cast<int>(style));
-    }
 }
 
 // ============================================================================
 // EVENT HANDLER IMPLEMENTATIONS
 // ============================================================================
-
-void PrintingSettingsOverlay::handle_toolhead_style_changed(int index) {
-    auto style = SettingsManager::dropdown_index_to_toolhead_style(index);
-    spdlog::info("[{}] Toolhead style changed: {} (dropdown index {})", get_name(),
-                 static_cast<int>(style), index);
-    SettingsManager::instance().set_toolhead_style(style);
-}
-
-void PrintingSettingsOverlay::handle_gcode_mode_changed(int index) {
-#ifndef ENABLE_GLES_3D
-    static const int INDEX_TO_MODE[] = {0, 2, 3}; // Auto, 2D Layers, Thumbnail Only
-    int mode = (index >= 0 && index <= 2) ? INDEX_TO_MODE[index] : 0;
-#else
-    int mode = index;
-#endif
-
-    static const char* MODE_NAMES[] = {"Auto", "3D", "2D Layers", "Thumbnail Only"};
-    spdlog::info("[{}] G-code render mode changed: {} ({})", get_name(), mode,
-                 (mode >= 0 && mode <= 3) ? MODE_NAMES[mode] : "Unknown");
-    DisplaySettingsManager::instance().set_gcode_render_mode(mode);
-}
-
-void PrintingSettingsOverlay::handle_z_movement_style_changed(int index) {
-    auto style = static_cast<ZMovementStyle>(index);
-    spdlog::info("[{}] Z movement style changed: {} ({})", get_name(), index,
-                 index == 0 ? "Auto" : (index == 1 ? "Bed Moves" : "Nozzle Moves"));
-    SettingsManager::instance().set_z_movement_style(style);
-}
 
 void PrintingSettingsOverlay::handle_machine_limits_clicked() {
     spdlog::debug("[{}] Machine Limits clicked", get_name());
@@ -266,33 +160,23 @@ void PrintingSettingsOverlay::handle_material_temps_clicked() {
     overlay.show(parent_screen_);
 }
 
+void PrintingSettingsOverlay::handle_allow_cold_extrude_changed(bool enabled) {
+    spdlog::info("[{}] Allow cold load/unload toggled: {}", get_name(), enabled ? "ON" : "OFF");
+    SafetySettingsManager::instance().set_allow_cold_extrude(enabled);
+}
+
+void PrintingSettingsOverlay::handle_filament_auto_cooldown_changed(bool enabled) {
+    spdlog::info("[{}] Post-op nozzle cooldown toggled: {}", get_name(), enabled ? "ON" : "OFF");
+    SettingsManager::instance().set_filament_auto_cooldown(enabled);
+    // Turning it off mid-countdown should take effect now, not in two minutes.
+    if (!enabled) {
+        PostOpCooldownManager::instance().cancel();
+    }
+}
+
 // ============================================================================
 // STATIC CALLBACKS
 // ============================================================================
-
-void PrintingSettingsOverlay::on_toolhead_style_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_toolhead_style_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_printing_settings_overlay().handle_toolhead_style_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintingSettingsOverlay::on_gcode_mode_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_gcode_mode_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_printing_settings_overlay().handle_gcode_mode_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintingSettingsOverlay::on_z_movement_style_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_z_movement_style_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_printing_settings_overlay().handle_z_movement_style_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void PrintingSettingsOverlay::on_enclosure_style_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_enclosure_style_changed");
@@ -326,6 +210,22 @@ void PrintingSettingsOverlay::on_retraction_row_clicked(lv_event_t* /*e*/) {
 void PrintingSettingsOverlay::on_material_temps_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_material_temps_clicked");
     get_printing_settings_overlay().handle_material_temps_clicked();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void PrintingSettingsOverlay::on_allow_cold_extrude_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_allow_cold_extrude_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    get_printing_settings_overlay().handle_allow_cold_extrude_changed(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void PrintingSettingsOverlay::on_filament_auto_cooldown_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[PrintingSettingsOverlay] on_filament_auto_cooldown_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    get_printing_settings_overlay().handle_filament_auto_cooldown_changed(enabled);
     LVGL_SAFE_EVENT_CB_END();
 }
 

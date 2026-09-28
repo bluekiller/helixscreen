@@ -42,6 +42,7 @@
 #include "layout_manager.h"
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
+#include "light_button_config.h"
 #include "moonraker_manager.h"
 #include "page_scroll_auto_inject.h"
 #include "panel_factory.h"
@@ -127,7 +128,6 @@
 #include "ui_runout_guidance_modal.h"
 #include "ui_settings_about.h"
 #include "ui_settings_barcode_scanner.h"
-#include "ui_settings_display_sound.h"
 #include "ui_settings_fans.h"
 #include "ui_settings_hardware_health.h"
 #include "ui_settings_label_printer.h"
@@ -2533,6 +2533,10 @@ bool show_demo_overlay(const std::string& name) {
         return true;
     }
 
+    if (name == "leds") {
+        return helix::open_led_control_overlay(screen) != nullptr;
+    }
+
     if (name == "runout-modal") {
         auto* modal = new RunoutGuidanceModal();
         modal->set_autofeed_capable(false);
@@ -2960,6 +2964,10 @@ void Application::setup_discovery_callbacks() {
 
     Application* app = this;
 
+    // On a WLED-only printer discovery-complete finds nothing to light; WLED's
+    // answer is LED on at Start's next chance, and the latch keeps it to one.
+    helix::led::LedController::instance().set_on_wled_settled(helix::settle_light_buttons);
+
     client->set_on_hardware_discovered([api, client, app](const helix::PrinterDiscovery& hardware) {
         // Copy hardware into a mutable snapshot on the BG thread so the
         // queued main-thread callback owns a stable, non-aliased copy. Previous
@@ -3131,37 +3139,9 @@ void Application::setup_discovery_callbacks() {
                 }
             }
 
-            // Seed temperature graphs from Moonraker's cached history so they are
-            // populated immediately instead of filling in live over several
-            // minutes (#944). Fired after init_fans so heater/sensor subjects
-            // exist. The RPC success callback runs on the WebSocket thread, so it
-            // marshals the parsed store to the main thread before touching the
-            // (main-thread-only) history manager. Re-runs naturally on reconnect
-            // because discovery re-runs.
-            client->get_temperature_store(
-                [](const TemperatureStore& store) {
-                    auto store_copy = std::make_shared<TemperatureStore>(store);
-                    helix::ui::queue_update("Application::seed_temperature_store", [store_copy]() {
-                        auto* mgr = get_temperature_history_manager();
-                        if (mgr == nullptr) {
-                            return;
-                        }
-                        using namespace std::chrono;
-                        int64_t now_ms =
-                            duration_cast<milliseconds>(system_clock::now().time_since_epoch())
-                                .count();
-                        mgr->seed_from_store(*store_copy, now_ms);
-                        // Persistent graphs (home dashboard widget, filament mini
-                        // graph) are built at startup before this seed arrives, so
-                        // their construction-time backfill was empty. Re-backfill
-                        // them now that history is available (#1124).
-                        helix::TempGraphController::refresh_all_from_history();
-                    });
-                },
-                [](const MoonrakerError& err) {
-                    spdlog::debug("[Application] server.temperature_store seed failed: {}",
-                                  err.message);
-                });
+            // Seed temperature graphs from Moonraker's cached history. Fired after
+            // init_fans so heater/sensor subjects exist.
+            helix::TempGraphController::seed_from_moonraker(*client);
 
             // Dispatch initial subscription status AFTER init_fans so fan/sensor subjects
             // exist when the status data is processed. The initial status is passed from the
@@ -3702,8 +3682,7 @@ void Application::setup_discovery_callbacks() {
                 app->m_plugin_manager->on_moonraker_connected();
             }
 
-            // Apply LED startup preference (turn on LED if user preference is enabled)
-            helix::led::LedController::instance().apply_startup_preference();
+            helix::settle_light_buttons();
 
             // Start automatic update checks (15s initial delay, then every 24h)
             UpdateChecker::instance().start_auto_check();
@@ -4429,8 +4408,9 @@ int Application::main_loop() {
             try {
                 ToastManager::instance().show(
                     ToastSeverity::ERROR,
-                    lv_tr("An internal error occurred. The app continues running — "
-                          "please send a debug bundle from Settings > About if it repeats."),
+                    lv_tr("An internal error occurred. The app continues running. Please "
+                          "send a debug bundle from Settings > Help & About if it "
+                          "repeats."),
                     8000);
             } catch (...) {
                 // Toast subsystem itself in trouble — keep running anyway.

@@ -50,7 +50,7 @@ struct ScreensaverInfo {
 };
 
 /// Every screensaver, in type order starting at 1: row i has type i + 1. The settings
-/// dropdown in ui_xml/settings_display_sound_overlay.xml lists "Off" and then these labels in
+/// dropdown in ui_xml/settings_display_overlay.xml lists "Off" and then these labels in
 /// this order, which a test checks.
 inline constexpr ScreensaverInfo SCREENSAVERS[] = {
     {ScreensaverType::FLYING_TOASTERS, "toasters", "Flying Toasters",

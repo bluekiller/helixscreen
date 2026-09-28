@@ -10,7 +10,7 @@
     <prop name="icon" type="string" default=""/>
     <prop name="description" type="string" default=""/>
     <prop name="description_tag" type="string" default=""/>
-    <prop name="bind_description" type="string"/>
+    <prop name="bind_description" type="string" default=""/>
     <prop name="callback" type="string" default=""/>
     <prop name="disabled" type="string" default=""/>
     <!-- Hide description when ui_breakpoint is below this value. Default 2 hides on
@@ -47,21 +47,34 @@
           <bind_style name="label_enabled" subject="$disabled" ref_value="0"/>
           <bind_style name="label_disabled" subject="$disabled" ref_value="1"/>
         </text_body>
-        <!-- Description: hidden when breakpoint below description_min_bp (default 2) -->
-        <text_small name="description"
-                    width="100%" text="$description" translation_tag="$description_tag" bind_text="$bind_description"
-                    long_mode="wrap">
-          <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="$description_min_bp"/>
-        </text_small>
+        <!-- Wrappers carry emptiness; no binding writes their HIDDEN flag. -->
+        <lv_obj name="description_wrap"
+                width="100%" height="content" style_pad_all="0" style_bg_opa="0" style_border_width="0"
+                scrollable="false" clickable="false" event_bubble="true" hidden_if_empty="$description">
+          <text_small name="description"
+                      width="100%" text="$description" translation_tag="$description_tag" long_mode="wrap">
+            <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="$description_min_bp"/>
+          </text_small>
+        </lv_obj>
+        <lv_obj name="status_wrap"
+                width="100%" height="content" style_pad_all="0" style_bg_opa="0" style_border_width="0"
+                scrollable="false" clickable="false" event_bubble="true" hidden_if_empty="$bind_description">
+          <text_small name="status" width="100%" bind_text="$bind_description" long_mode="wrap">
+            <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="$description_min_bp"/>
+          </text_small>
+        </lv_obj>
       </lv_obj>
-      <!-- Info icon: hidden if no description, hidden on medium+ -->
-      <!-- event_bubble="false" prevents info tap from triggering row action -->
-      <lv_obj name="info_btn"
-              width="content" height="content" style_pad_all="2" style_bg_opa="0" style_border_width="0"
-              clickable="true" event_bubble="false" scrollable="false" hidden_if_empty="$description">
-        <bind_flag_if_ge subject="ui_breakpoint" flag="hidden" ref_value="$description_min_bp"/>
-        <icon src="info_outline" size="sm" variant="muted" clickable="false" event_bubble="true"/>
-        <event_cb trigger="clicked" callback="on_setting_info_clicked"/>
+      <!-- Info icon explains a static description; bound values have nothing to explain. -->
+      <lv_obj name="info_wrap"
+              width="content" height="content" style_pad_all="0" style_bg_opa="0" style_border_width="0"
+              scrollable="false" clickable="false" event_bubble="false" hidden_if_empty="$description">
+        <lv_obj name="info_btn"
+                width="content" height="content" style_pad_all="2" style_bg_opa="0" style_border_width="0"
+                clickable="true" event_bubble="false" scrollable="false">
+          <bind_flag_if_ge subject="ui_breakpoint" flag="hidden" ref_value="$description_min_bp"/>
+          <icon src="info_outline" size="sm" variant="muted" clickable="false" event_bubble="true"/>
+          <event_cb trigger="clicked" callback="on_setting_info_clicked"/>
+        </lv_obj>
       </lv_obj>
       <!-- Right side: Chevron icon -->
       <icon src="chevron_right" size="sm" variant="secondary" clickable="false" event_bubble="true"/>

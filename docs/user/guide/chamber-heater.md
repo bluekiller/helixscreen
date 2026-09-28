@@ -209,7 +209,7 @@ HelixScreen picks the chamber heater by name, and gets it right for anything
 called `chamber`, `enclosure`, `cavity`, or named after the appliance. If your
 setup has more than one generic heater and it chooses badly, set it yourself:
 
-**Settings > Sensors > Temperature Sensors**, then use the **Chamber Heater**
+**Settings > Devices > Sensors > Temperature Sensors**, then use the **Chamber Heater**
 dropdown. Leaving it on **Auto** keeps the automatic pick; **None** disables the
 chamber entirely.
 
