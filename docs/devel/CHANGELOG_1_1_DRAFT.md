@@ -37,19 +37,27 @@ settings, and your extra pages all survive. The conversion happens the first tim
 the home screen is drawn after the update, so what you see on that first boot is
 what gets saved.
 
+**Print Completion Alert now uses its documented default.** A printer that never changed
+the setting showed only the short notification; it now shows the full-screen summary. A
+choice you made yourself is kept.
+
 ### Added
 
 - **Dry filament on the heated bed (#1730)** - on an enclosed printer, Dry Filament on the
   bed card (or in Advanced) offers to unload the toolhead, homes, moves the plate as far from
-  the nozzle as it goes, and asks you to lay the spools on the plate under a box. The bed
-  then holds a drying temperature for the material, capped at
-  90°C, for 12 hours, with a chamber dryer alongside when one is fitted. You are reminded to
+  the nozzle as it goes, and asks you to lay the spools on the plate under a box. A banner
+  shows the unload and the plate move as they run, and tapping it offers Stop, which ends
+  the flow before the spools go on. The bed then holds a drying temperature for the
+  material, capped at 90°C, for 12 hours, with a chamber dryer alongside when one is
+  fitted. A printer with a plain chamber heater and no dryer gets **Heat the chamber too**
+  instead: the chamber holds the material's drying air temperature, capped at the heater's
+  limit, and is turned off when the run ends unless you changed it yourself. You are reminded to
   flip the spools halfway, and asked to take them off once the bed is below 40°C. Until you
   confirm the spools are off, HelixScreen will not home, move, restart Klipper or start a
   print, and a banner says so across restarts and power cuts. Printers you enclosed yourself
   can be marked enclosed in Settings > Printing.
 
-- **Dry filament with the chamber heater (#1299)** - a Panda Breath on stock firmware can run
+- **Dry filament with a Panda Breath (#1299)** - a Panda Breath on stock firmware can run
   its filament-drying cycle from the chamber card: pick a material preset, and the card shows
   the chamber temperature against the drying target and the time left, with a Stop button. A
   chamber that levels off below the target is shown as a number rather than treated as a
@@ -95,8 +103,7 @@ what gets saved.
   pages in edit mode as it does outside it; it pauses while your finger is on the selected
   widget, while you drag or resize one, and while the widget catalog is open. Drag a widget over
   the page border, or hold it at the edge of the widget area, and the next page slides in with
-  the widget still under your finger. Drag it past your last page and an empty page slides in:
-  dropping the widget there creates the page and shows it at once. Pressing a widget that is not
+  the widget still under your finger. Pressing a widget that is not
   selected only selects it, so a swipe that starts on a widget still flips the page: press the
   selected widget again, or hold a widget, to pick it up. The long press that enters edit mode
   only selects.
@@ -283,6 +290,13 @@ what gets saved.
   printers that can measure it.
 - **Advanced hides empty sections** - a section whose rows all hide on your printer takes its
   heading with it.
+- **Filament operations on an unhomed printer home without asking** - the "Home printer
+  first?" dialog is gone: asking for a load or unload is taken as asking for the home it
+  needs. On the Snapmaker U1, which homes and heats for its own loads, HelixScreen no longer
+  sends a home or a preheat first, and the load step bar follows the printer's own order.
+- **The log records more by default** - production builds log at Info and write each line to
+  the log file as it happens, so a log taken right after a problem already holds what
+  happened. A Log Level you set in the app still wins.
 
 - **Material types and your Material Temperatures changes live in one editable file** - the
   built-in material table (PLA, PETG, ABS and the rest) now ships in the filament catalog, and your
@@ -362,11 +376,10 @@ what gets saved.
 
 ### Fixed
 
-- **Filament stuck in the toolhead with no slot claiming it could not be unloaded** - on the
-  AD5X and the other systems that can tell, the filament sidebar's and Filament panel's
+- **Filament stuck in the toolhead with no slot claiming it could not be unloaded** (#1324) - on
+  the AD5X and the other systems that can tell, the filament sidebar's and Filament panel's
   Unload now pulls it out of the active head, and a slot's own Unload greys
-  out in that state, since the slot it names may not be the one holding the filament
-  (prestonbrown/helixscreen#1324).
+  out in that state, since the slot it names may not be the one holding the filament.
 - **The screen crashed and restarted during print start on the K2** - matching the printer's
   start-sequence messages could exhaust the small stack the K2 gives each thread, and
   HelixScreen died with no crash report. The K1, AD5X and Creator 5 Pro builds share the same
@@ -474,9 +487,8 @@ what gets saved.
 - **Starting a job from the Job Queue skipped the normal print checks** - a tap removed the
   job from the queue and started the file directly, bypassing the pre-print options, the
   filament mapping and every start gate, and it did nothing without a notice whenever a
-  print was still preparing or running. A queued job now opens in the file view with its
-  saved options and goes through the same start pipeline as any other print; it leaves the
-  queue only once the print has actually started, and a busy printer says so.
+  print was still preparing or running. A queued job now goes through the same start
+  pipeline as any other print, and a busy printer says so.
 
 - **A Happy Hare fault often showed no recovery popup (#1323)** - a fault during a print, or a
   load or home that failed outside one, now always opens the popup with Happy Hare's own reason,
@@ -503,16 +515,30 @@ what gets saved.
   **Unload...** because they open a picker.
 - **The MMU's selector, buffer and bypass boxes ignored taps right after the screen opened** -
   a tap on the filament path now lands on the box you see as soon as the panel has slid in.
+- **Device operation messages said "AFC" on every filament system** - Home, Recover and Abort
+  toasted "Homing AFC system..." and the like whatever the system; they now read "Homing...",
+  "Recovering..." and "Aborting...".
+- **The Change Filament spool picker could not tell two spools of one vendor apart** - two
+  PETG spools from one brand read identically; each row now carries Spoolman's filament name.
 - **Fan and light controls could show frozen dials** - after the fan or light controls had been
   opened from two different places (the home widget and the Controls panel, say), going back to
   the first could bring up a stale copy whose dials no longer moved. Every entry point now opens
   the same live screen.
 - **A large G-code preview could freeze a Raspberry Pi 3 or older** - the 3D preview now caps
-  its detail by what the GPU can draw, and on a Pi 0 to 3 a file too big for that shows as 2D
-  instead of stalling the graphics.
+  its detail by what the GPU can draw. On a Pi 0 to 3 a file too big for that gets a 3D still
+  drawn in layer bands, and shows as 2D only when the bands would be too coarse to read.
 - **The number keypad was cramped on 480x320 and 480x272 screens** - it is wider there, its keys
   fill the height, heater keypads are titled with the short heater name, and header titles
   shorten with dots instead of wrapping.
+- **Scroll Guard had no effect** - with the post-scroll click guard turned on, a tap right after
+  a scroll still went through. It works again on the printer's touchscreen, and needs a restart
+  after changing it.
+- **The current layer could drop back at print start** - a status report lagging behind the
+  printer's own layer count lowered the layer shown; during a print it now only climbs.
+- **.gcode.3mf files lost their thumbnail and layer height in the file details** (#1713) - and
+  print history showed untranslated job states and missing thumbnails for files in subfolders.
+- **Mainsail kept showing the old version after an update** (#1727) - the first start after an
+  update asks Moonraker to refresh it.
 
 ### Internal
 
