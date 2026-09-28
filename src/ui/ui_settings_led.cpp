@@ -16,7 +16,6 @@
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
-#include "device_display_name.h"
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -1079,7 +1078,7 @@ void LedSettingsOverlay::populate_led_chips_impl() {
     for (const auto& strip : led_ctrl.all_selectable_strips()) {
         bool selected = std::find(targets.begin(), targets.end(), strip.id) != targets.end();
         selected_count += selected ? 1 : 0;
-        std::string display_name = helix::get_display_name(strip.id, helix::DeviceType::LED);
+        std::string display_name = helix::led::device_display_name(strip);
 
         helix::ui::create_led_chip(
             chip_container, strip.id, display_name, selected,

@@ -161,3 +161,28 @@ TEST_CASE("migrate_color_presets", "[led][migration]") {
     CHECK(fresh == std::vector<uint32_t>{0xFF4444, 0xFF6B35, 0x66BB6A, 0x00BCD4, 0x2962FF, 0x9C27B0,
                                          0xFF4081});
 }
+
+TEST_CASE("pick_overlay_focus: each entry point", "[led][overlay]") {
+    const std::vector<std::string> d = {"neopixel a", "neopixel chamber_light", "macro:Party"};
+    CHECK(pick_overlay_focus("macro:Party", "neopixel a", "neopixel chamber_light", d) ==
+          "macro:Party");
+    CHECK(pick_overlay_focus("", "neopixel a", "neopixel chamber_light", d) == "neopixel a");
+    CHECK(pick_overlay_focus("", "", "neopixel chamber_light", d) == "neopixel chamber_light");
+    CHECK(pick_overlay_focus("gone", "gone", "neopixel chamber_light", d) ==
+          "neopixel chamber_light");
+    CHECK(pick_overlay_focus("", "", "", d) == "neopixel a");
+    CHECK(pick_overlay_focus("x", "y", "z", {}).empty());
+}
+
+TEST_CASE("device_display_name: Klipper object name prettified, macros as configured",
+          "[led][devices]") {
+    CHECK(device_display_name(dev("neopixel chamber_light", LedBackendType::NATIVE)) ==
+          "Chamber Light");
+    CHECK(device_display_name(dev("led caselight", LedBackendType::NATIVE)) == "Caselight");
+    CHECK(device_display_name(dev("neopixel sb_leds", LedBackendType::NATIVE)) == "Sb LEDs");
+    CHECK(device_display_name(dev("output_pin Enclosure_LEDs", LedBackendType::OUTPUT_PIN)) ==
+          "Enclosure LEDs");
+    CHECK(device_display_name(dev("printer_led", LedBackendType::WLED)) == "Printer LED");
+    CHECK(device_display_name(dev("macro:lights", LedBackendType::MACRO)) == "lights");
+    CHECK(device_display_name(dev("macro:Party Mode", LedBackendType::MACRO)) == "Party Mode");
+}

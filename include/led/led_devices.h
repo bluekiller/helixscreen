@@ -68,6 +68,17 @@ std::vector<std::string> union_light_targets(const std::vector<std::string>& key
                                              const std::vector<std::string>& switchable,
                                              const std::string& chamber);
 
+/// Where the LEDs overlay opens: @p requested, else @p last_focused, else
+/// @p chamber, whichever is first among @p devices; else the first device.
+/// Empty when there are no devices.
+std::string pick_overlay_focus(const std::string& requested, const std::string& last_focused,
+                               const std::string& chamber, const std::vector<std::string>& devices);
+
+/// The one name every LED surface shows for @p device: a macro device's
+/// configured name, otherwise its Klipper or WLED object name prettified
+/// ("neopixel chamber_light" -> "Chamber Light").
+std::string device_display_name(const LedStripInfo& device);
+
 enum class PowerState : int { Off = 0, On = 1, Unknown = 2 };
 
 /// What the UI can say about one device right now.

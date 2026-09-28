@@ -2,6 +2,8 @@
 
 #include "led/led_devices.h"
 
+#include "device_display_name.h"
+
 #include <algorithm>
 #include <cctype>
 #include <iterator>
@@ -117,6 +119,24 @@ std::vector<uint32_t> migrate_color_presets(const std::vector<uint32_t>& saved) 
         return {std::begin(DEFAULT_COLOR_PRESETS), std::end(DEFAULT_COLOR_PRESETS)};
     }
     return saved;
+}
+
+std::string pick_overlay_focus(const std::string& requested, const std::string& last_focused,
+                               const std::string& chamber,
+                               const std::vector<std::string>& devices) {
+    for (const std::string* want : {&requested, &last_focused, &chamber}) {
+        if (!want->empty() && contains(devices, *want)) {
+            return *want;
+        }
+    }
+    return devices.empty() ? std::string() : devices.front();
+}
+
+std::string device_display_name(const LedStripInfo& device) {
+    if (device.backend == LedBackendType::MACRO) {
+        return strip_macro_name(device.id);
+    }
+    return helix::prettify_name(object_name(device.id));
 }
 
 bool next_power_on(const std::vector<PowerState>& states, bool last_sent_on) {

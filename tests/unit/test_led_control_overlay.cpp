@@ -3,21 +3,23 @@
 
 /**
  * @file test_led_control_overlay.cpp
- * @brief Unit tests for LedControlOverlay color-picker visibility gating.
- *
- * The quick-control overlay must only show the color swatches + custom-color
- * button when the currently selected NATIVE strip is actually RGB-capable.
- * White-only strips (e.g. Flashforge AD5M `[led chamber_light]` with only a
- * white_pin, supports_color=false) used to show the picker; picking a color
- * silently converted RGB->white luminance, which is misleading UX.
+ * @brief The LEDs overlay model: which device is focused, the subjects its page
+ * publishes, and that every control acts on the focused device alone.
  *
  * @see ui_led_control_overlay.h
- * @see LedSettingsOverlay::populate_auto_state_rows() (the mirrored capability gate)
  */
 
+#include "ui_update_queue.h"
+
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/update_queue_test_access.h"
+#include "app_globals.h"
+#include "config.h"
+#include "helix-xml/src/xml/lv_xml.h"
+#include "led/led_auto_state.h"
 #include "led/led_backend.h"
 #include "led/led_controller.h"
+#include "led/led_device_page.h"
 #include "led/ui_led_control_overlay.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
@@ -29,71 +31,62 @@
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
+#include "hv/json.hpp"
 
 using namespace helix;
 using namespace helix::led;
 
-// Test access to exercise the private color-picker visibility gate. Keeps
-// test-only entry points out of the production class (L065). Constructs an
-// overlay, drives selected_backend_type_ + update_section_visibility(), and
-// reads back the color_visible_ subject.
-//
-// Must live in namespace helix::led to match the `friend class
-// LedControlOverlayTestAccess;` declaration inside that namespace.
+// Must live in namespace helix::led to match the friend declaration.
 namespace helix::led {
 class LedControlOverlayTestAccess {
   public:
     explicit LedControlOverlayTestAccess(helix::PrinterState& ps) : overlay_(ps) {
         overlay_.init_subjects();
     }
-    // overlay_.subjects_ (SubjectManager) deinits its LVGL subjects in its own
-    // destructor — no explicit teardown needed here.
 
-    void set_backend(LedBackendType type) {
-        overlay_.selected_backend_type_ = type;
+    /// Opens the overlay on @p requested the way open_led_control_overlay() does,
+    /// without building or pushing a widget tree.
+    void activate(const std::string& requested) {
+        overlay_.request_focus(requested);
+        overlay_.on_activate();
     }
 
-    int compute_color_visible() {
-        overlay_.update_section_visibility();
-        return lv_subject_get_int(&overlay_.color_visible_);
+    void tap_tab(int i) {
+        overlay_.handle_tab_clicked(i);
     }
-
-    // Drives the chip-tap path so the selection semantics can be asserted.
-    void tap_chip(const std::string& strip_id) {
-        overlay_.handle_strip_selected(strip_id);
+    [[nodiscard]] std::string focused() const {
+        return overlay_.focused_device();
     }
-
-    [[nodiscard]] LedBackendType backend() const {
-        return overlay_.selected_backend_type_;
+    [[nodiscard]] static int int_subject(const char* name) {
+        lv_subject_t* s = lv_xml_get_subject(nullptr, name);
+        REQUIRE(s != nullptr);
+        return lv_subject_get_int(s);
     }
-
-    [[nodiscard]] std::string active_strip_name() {
-        const char* s = lv_subject_get_string(&overlay_.strip_name_subject_);
-        return s != nullptr ? std::string(s) : std::string();
+    [[nodiscard]] static std::string str_subject(const char* name) {
+        lv_subject_t* s = lv_xml_get_subject(nullptr, name);
+        REQUIRE(s != nullptr);
+        return lv_subject_get_string(s);
     }
-
-    // The backend fan-out gate: which selected strips a given backend's commands
-    // are allowed to reach.
-    [[nodiscard]] std::vector<std::string> targets_for(LedBackendType type) {
-        return overlay_.target_strips_for(type);
+    void tap_swatch(int i) {
+        overlay_.handle_swatch(i);
     }
-
-    // Seed the manual-color state the swatch and brightness handlers maintain.
-    void set_manual_state(uint32_t color, int brightness, double white) {
-        overlay_.current_color_ = color;
-        overlay_.current_brightness_ = brightness;
-        overlay_.current_white_ = white;
+    void tap_power() {
+        overlay_.handle_power();
     }
-
-    // The helper under test: turns the manual state into a strip command.
-    void apply_current_color() {
-        overlay_.apply_current_color();
+    void drag_brightness(int pct) {
+        overlay_.handle_brightness(pct);
     }
-
-    // The brightness slider's real handler, which routes into apply_current_color()
-    // for every backend except output_pin.
-    void change_brightness(int pct) {
-        overlay_.handle_brightness_change(pct);
+    void tap_white(int tone) {
+        overlay_.handle_white(tone);
+    }
+    void tap_list_chip(int i) {
+        overlay_.handle_list_chip(i);
+    }
+    void tap_level(int pct) {
+        overlay_.handle_brightness(pct);
+    }
+    void tap_effects_none() {
+        overlay_.handle_effects_none();
     }
 
   private:
@@ -105,7 +98,6 @@ using helix::led::LedControlOverlayTestAccess;
 
 namespace {
 
-// Build a native strip with the requested color capability.
 LedStripInfo make_native_strip(const std::string& id, bool supports_color, bool supports_white) {
     LedStripInfo strip;
     strip.name = id;
@@ -116,10 +108,23 @@ LedStripInfo make_native_strip(const std::string& id, bool supports_color, bool 
     return strip;
 }
 
-// A controller wired to a mock API. NativeBackend::set_color() refuses outright
-// when it has no API, so the color a command actually carries is observable only
-// with one attached — the null-API fixture the visibility tests use would make
-// every assertion below pass vacuously.
+/// Channel-wise equality within the rounding a status round-trip introduces.
+bool within_rounding(uint32_t a, uint32_t b) {
+    for (int shift : {16, 8, 0}) {
+        const int d = static_cast<int>((a >> shift) & 0xFF) - static_cast<int>((b >> shift) & 0xFF);
+        if (d < -2 || d > 2) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void drain() {
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+}
+
+// A controller wired to a mock API with a live connection, so commands reach
+// the mock wire and the native color cache.
 struct LedApplyColorFixture : public LVGLTestFixture {
     MoonrakerClientMock mock_client{MoonrakerClientMock::PrinterType::VORON_24};
     helix::PrinterState state;
@@ -127,383 +132,428 @@ struct LedApplyColorFixture : public LVGLTestFixture {
 
     LedApplyColorFixture() {
         state.init_subjects(false);
-        // execute_gcode()'s halted gate would otherwise reject every SET_LED:
-        // subjects sit at SHUTDOWN until production observes a real state update.
+        // execute_gcode()'s halted gate rejects every command while klippy reads
+        // SHUTDOWN, and the global connection state gates dispatch too.
         state.set_klippy_state_sync(helix::KlippyState::READY);
+        auto& ps = get_printer_state();
+        lv_subject_set_int(ps.get_printer_connection_state_subject(),
+                           static_cast<int>(helix::ConnectionState::CONNECTED));
+        ps.set_klippy_state_sync(helix::KlippyState::READY);
         mock_api = std::make_unique<MoonrakerAPIMock>(mock_client, state);
 
         auto& ctrl = LedController::instance();
         ctrl.deinit();
         ctrl.init(mock_api.get(), &mock_client);
+        drain();
+        mock_client.clear_gcode_script_history();
     }
 
     ~LedApplyColorFixture() override {
+        drain();
+        LedAutoState::instance().set_strips({});
         LedController::instance().deinit();
     }
 
-    void select_strip(const std::string& id, bool supports_color, bool supports_white) {
+    /// Adds a native strip and selects nothing.
+    void add_native(const std::string& id, bool color, bool white) {
+        LedController::instance().native().add_strip(make_native_strip(id, color, white));
+    }
+
+    void add_effect(const std::string& name, const std::string& target, bool enabled) {
+        LedEffectInfo e;
+        e.name = name;
+        e.display_name = LedEffectBackend::display_name_for_effect(name);
+        e.target_leds = {target};
+        e.enabled = enabled;
+        LedController::instance().effects().add_effect(e);
+    }
+
+    void set_macros(const std::vector<LedMacroInfo>& macros) {
         auto& ctrl = LedController::instance();
-        ctrl.native().add_strip(make_native_strip(id, supports_color, supports_white));
-        ctrl.set_selected_strips({id});
+        ctrl.set_configured_macros(macros);
+        ctrl.rebuild_macro_backend();
+    }
+
+    static LedMacroInfo lamp_macro() {
+        LedMacroInfo m;
+        m.display_name = "Lamp";
+        m.type = MacroLedType::ON_OFF;
+        m.on_macro = "LIGHTS_ON";
+        m.off_macro = "LIGHTS_OFF";
+        return m;
+    }
+
+    static LedMacroInfo party_macro() {
+        LedMacroInfo m;
+        m.display_name = "Party";
+        m.type = MacroLedType::PRESET;
+        m.presets = {"LED_PARTY", "LED_RAINBOW"};
+        return m;
     }
 
     [[nodiscard]] helix::led::NativeBackend::StripColor sent(const std::string& id) const {
         return LedController::instance().native().get_strip_color(id);
     }
+
+    [[nodiscard]] bool wire_mentions(const std::string& needle) const {
+        const auto h = mock_client.gcode_script_history();
+        return std::any_of(h.begin(), h.end(), [&needle](const std::string& s) {
+            return s.find(needle) != std::string::npos;
+        });
+    }
+
+    static nlohmann::json leds_config() {
+        auto* cfg = Config::get_instance();
+        const auto* node = cfg->try_get_json(cfg->df() + "leds");
+        return node != nullptr ? *node : nlohmann::json();
+    }
 };
 
 } // namespace
 
-// ============================================================================
-// apply_current_color(): the manual-color state -> what reaches the strip.
-//
-// #1129 lived here, not in NativeBackend: dimming a white-only strip sent the
-// W channel as a literal 0.0 and physically switched the user's light off.
-// ============================================================================
-
-TEST_CASE_METHOD(LedApplyColorFixture,
-                 "LedControlOverlay: dimming a white-only strip scales W instead of zeroing it",
-                 "[led][control_overlay][1129]") {
-    select_strip("led case_light", /*color=*/false, /*white=*/true);
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tab tap changes focus and nothing else",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    add_native("neopixel sb_leds", true, false);
+    // Auto-state names a different device than the tab tapped below, so a tap
+    // that wrote it would show.
+    LedAutoState::instance().set_strips({"neopixel chamber_light"});
+    const nlohmann::json before = leds_config();
+    const auto selection_before = LedController::instance().selected_strips(); // removed in Task 11
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::NATIVE);
+    access.activate("");
+    REQUIRE(access.focused() == "neopixel chamber_light");
+    access.tap_tab(1);
 
-    // Full white, dimmed to 15% — the state a user reaches by picking the white
-    // swatch and pulling the brightness slider down.
-    access.set_manual_state(0xFFFFFF, 15, 1.0);
-    access.apply_current_color();
+    CHECK(access.focused() == "neopixel sb_leds");
+    CHECK(access.int_subject("led_focused_tab") == 1);
+    CHECK(LedAutoState::instance().strips() == std::vector<std::string>{"neopixel chamber_light"});
+    CHECK(leds_config() == before);
+    CHECK(LedController::instance().selected_strips() == selection_before); // removed in Task 11
+}
 
-    auto c = sent("led case_light");
-    CHECK(c.w == Catch::Approx(0.15).margin(0.001));
-    CHECK(c.w > 0.0); // the whole point: the light stays on
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: opens on the requested device", "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    add_native("neopixel sb_leds", true, false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel sb_leds");
+
+    CHECK(access.focused() == "neopixel sb_leds");
+    CHECK(access.int_subject("led_focused_tab") == 1);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: opens on the last focused device",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    add_native("neopixel sb_leds", true, false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("");
+    access.tap_tab(1);
+    access.activate("");
+
+    CHECK(access.focused() == "neopixel sb_leds");
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: falls back to the chamber light",
+                 "[led][overlay]") {
+    add_native("neopixel sb_leds", true, false);
+    add_native("neopixel chamber_light", true, true);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel nonexistent");
+
+    CHECK(access.focused() == "neopixel chamber_light");
+    CHECK(access.int_subject("led_focused_tab") == 1);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: a vanished focused device refocuses the chamber light",
+                 "[led][overlay]") {
+    add_native("neopixel sb_leds", true, false);
+    add_native("neopixel chamber_light", true, true);
+    set_macros({lamp_macro()});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("macro:Lamp");
+    REQUIRE(access.focused() == "macro:Lamp");
+
+    set_macros({});
+    access.activate("");
+
+    CHECK(access.focused() == "neopixel chamber_light");
+    CHECK(access.int_subject("led_tab_count") == 2);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: overlay with no devices", "[led][overlay]") {
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("");
+
+    CHECK(access.int_subject("led_tab_count") == 0);
+    CHECK(access.focused().empty());
+    access.tap_power();
+    access.drag_brightness(50);
+    access.tap_swatch(0);
+    access.tap_white(1);
+    access.tap_list_chip(0);
+    access.tap_effects_none();
+    CHECK(mock_client.gcode_script_history().empty());
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: page subjects follow the classifier",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    add_effect("led_effect rainbow", "neopixel chamber_light", false);
+    set_macros({party_macro()});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+
+    CHECK(access.int_subject("led_page_lamp") == static_cast<int>(LampControl::PowerAndBrightness));
+    CHECK(access.int_subject("led_page_white") == static_cast<int>(WhiteMode::WChannel));
+    CHECK(access.int_subject("led_page_color_vis") == 1);
+    CHECK(access.int_subject("led_page_list") == static_cast<int>(ListKind::Effects));
+    CHECK(access.int_subject("led_chip_count") == 1);
+    CHECK(access.str_subject("led_chip_label_0") == "Rainbow");
+    CHECK(access.int_subject("led_swatch_count") == 7);
+
+    access.activate("macro:Party");
+
+    CHECK(access.int_subject("led_page_lamp") == static_cast<int>(LampControl::None));
+    CHECK(access.int_subject("led_page_white") == static_cast<int>(WhiteMode::None));
+    CHECK(access.int_subject("led_page_color_vis") == 0);
+    CHECK(access.int_subject("led_page_list") == static_cast<int>(ListKind::Presets));
+    CHECK(access.int_subject("led_chip_count") == 2);
+    CHECK(access.str_subject("led_chip_label_0") == "Party");
+    CHECK(access.str_subject("led_chip_label_1") == "Rainbow");
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: tabs carry each device's display name",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    set_macros({lamp_macro()});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("");
+
+    CHECK(access.int_subject("led_tab_count") == 2);
+    CHECK(access.str_subject("led_tab_name_0") == "Chamber Light");
+    CHECK(access.str_subject("led_tab_name_1") == "Lamp");
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: tab dots follow device state", "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    add_native("neopixel sb_leds", true, false);
+    set_macros({lamp_macro()});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("");
+    REQUIRE(access.int_subject("led_tab_dot_1") == static_cast<int>(PowerState::Unknown));
+
+    LedController::instance().update_from_status(
+        {{"neopixel sb_leds", {{"color_data", {{0.5, 0.5, 0.5}}}}}});
+    drain();
+
+    CHECK(access.int_subject("led_tab_dot_1") == static_cast<int>(PowerState::On));
+    CHECK(access.int_subject("led_tab_dot_2") == static_cast<int>(PowerState::Unknown));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a state bump updates dots but not the slider",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    add_native("neopixel sb_leds", true, false);
+    auto& ctrl = LedController::instance();
+    ctrl.update_from_status({{"neopixel chamber_light", {{"color_data", {{0.4, 0.4, 0.4, 0.0}}}}}});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+    REQUIRE(access.int_subject("led_page_brightness") == 40);
+
+    ctrl.update_from_status({{"neopixel chamber_light", {{"color_data", {{0.9, 0.9, 0.9, 0.0}}}}},
+                             {"neopixel sb_leds", {{"color_data", {{1.0, 1.0, 1.0}}}}}});
+    drain();
+
+    CHECK(access.int_subject("led_page_brightness") == 40);
+    CHECK(access.str_subject("led_page_brightness_text") == "40%");
+    CHECK(access.int_subject("led_tab_dot_1") == static_cast<int>(PowerState::On));
+
+    // The next control acts at the brightness the slider shows.
+    access.tap_swatch(0);
+    uint32_t base = 0;
+    int pct = 0;
+    double white = 0.0;
+    sent("neopixel chamber_light").decompose(base, pct, white);
+    CHECK(pct == 40);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: controls act on the focused device only",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_native("neopixel strip_b", true, false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel strip_a");
+    access.tap_swatch(0);
+
+    uint32_t base = 0;
+    int pct = 0;
+    double white = 0.0;
+    sent("neopixel strip_a").decompose(base, pct, white);
+    CHECK(within_rounding(base, LedController::instance().color_presets()[0]));
+    CHECK(white == Catch::Approx(0.0).margin(0.001));
+    CHECK_FALSE(LedController::instance().native().has_strip_color("neopixel strip_b"));
+    CHECK(access.int_subject("led_selected_swatch") == 0);
+
+    drain();
+    mock_client.clear_gcode_script_history();
+    access.tap_power();
+    drain();
+
+    CHECK(wire_mentions("strip_a"));
+    CHECK_FALSE(wire_mentions("strip_b"));
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a swatch keeps the brightness and clears W",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    LedController::instance().update_from_status(
+        {{"neopixel chamber_light", {{"color_data", {{0.0, 0.0, 0.0, 0.6}}}}}});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+    REQUIRE(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
+    access.tap_swatch(4);
+
+    uint32_t base = 0;
+    int pct = 0;
+    double white = 0.0;
+    sent("neopixel chamber_light").decompose(base, pct, white);
+    CHECK(within_rounding(base, LedController::instance().color_presets()[4]));
+    CHECK(pct == 60);
+    CHECK(white == Catch::Approx(0.0).margin(0.001));
+    CHECK(access.int_subject("led_page_white_sel") == -1);
+    CHECK(access.int_subject("led_selected_swatch") == 4);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the white section sets W on RGBW",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+    access.tap_white(static_cast<int>(WhiteTone::Neutral));
+
+    auto c = sent("neopixel chamber_light");
+    CHECK(c.w > 0.0);
     CHECK(c.r == Catch::Approx(0.0).margin(0.001));
     CHECK(c.g == Catch::Approx(0.0).margin(0.001));
     CHECK(c.b == Catch::Approx(0.0).margin(0.001));
-
-    // And it round-trips: what the strip reports back decomposes to the same
-    // base white at the same brightness.
-    uint32_t base_color = 0;
-    int brightness = 0;
-    double base_white = 0.0;
-    c.decompose(base_color, brightness, base_white);
-    CHECK(brightness == 15);
-    CHECK(base_white == Catch::Approx(1.0).margin(0.01));
+    CHECK(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
+    CHECK(access.int_subject("led_selected_swatch") == -1);
 }
 
-TEST_CASE_METHOD(LedApplyColorFixture,
-                 "LedControlOverlay: the brightness slider drives the same white scaling",
-                 "[led][control_overlay][1129]") {
-    select_strip("led case_light", /*color=*/false, /*white=*/true);
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a single-channel strip dims through W",
+                 "[led][overlay]") {
+    add_native("led case_light", false, false);
+    LedController::instance().update_from_status(
+        {{"led case_light", {{"color_data", {{0.0, 0.0, 0.0, 1.0}}}}}});
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::NATIVE);
-
-    // White selected at full brightness, then the slider moved to 20%. The
-    // handler must re-apply through apply_current_color(), not skip the white path.
-    access.set_manual_state(0xFFFFFF, 100, 1.0);
-    access.change_brightness(20);
+    access.activate("led case_light");
+    access.drag_brightness(15);
 
     auto c = sent("led case_light");
-    CHECK(c.w == Catch::Approx(0.20).margin(0.001));
+    CHECK(c.w == Catch::Approx(0.15).margin(0.001));
+    CHECK(c.r == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.g == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.b == Catch::Approx(0.0).margin(0.001));
+    CHECK(access.str_subject("led_page_brightness_text") == "15%");
 }
 
 TEST_CASE_METHOD(LedApplyColorFixture,
-                 "LedControlOverlay: an RGB strip gets scaled RGB and a zero W",
-                 "[led][control_overlay]") {
-    // Not the "led " prefix, so NativeBackend keeps the RGB channels distinct
-    // instead of collapsing them to luminance.
-    select_strip("neopixel chamber", /*color=*/true, /*white=*/false);
+                 "overlay: a level chip sets brightness on a white-only strip", "[led][overlay]") {
+    add_native("led case_light", false, false);
+    LedController::instance().update_from_status(
+        {{"led case_light", {{"color_data", {{0.0, 0.0, 0.0, 1.0}}}}}});
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::NATIVE);
+    access.activate("led case_light");
+    REQUIRE(access.int_subject("led_page_list") == static_cast<int>(ListKind::LevelChips));
+    REQUIRE(access.int_subject("led_page_level") == 100);
 
-    // current_white_ == 0.0 selects the RGB branch: every channel scales by
-    // brightness and W is sent as 0 so the dedicated white LED stays dark.
-    access.set_manual_state(0xFF0000, 50, 0.0);
-    access.apply_current_color();
-
-    auto c = sent("neopixel chamber");
-    CHECK(c.r == Catch::Approx(0.5).margin(0.001));
-    CHECK(c.g == Catch::Approx(0.0).margin(0.001));
-    CHECK(c.b == Catch::Approx(0.0).margin(0.001));
-    CHECK(c.w == Catch::Approx(0.0).margin(0.001));
+    access.tap_level(25);
+    CHECK(access.int_subject("led_page_level") == 25);
+    CHECK(sent("led case_light").w == Catch::Approx(0.25).margin(0.001));
 }
 
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: color picker hidden for white-only native strip",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    // White-only strip: e.g. AD5M [led chamber_light] with only white_pin.
-    ctrl.native().add_strip(make_native_strip("led chamber_light", /*color=*/false,
-                                              /*white=*/true));
-    ctrl.set_selected_strips({"led chamber_light"});
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the None chip stops the focused strip's effect",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_native("neopixel strip_b", true, false);
+    add_effect("led_effect breathe", "neopixel strip_a", false);
+    add_effect("led_effect fire", "neopixel strip_a", true);
+    add_effect("led_effect sparkle", "neopixel strip_b", true);
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::NATIVE);
+    access.activate("neopixel strip_a");
+    REQUIRE(access.int_subject("led_active_chip") == 1);
 
-    REQUIRE(access.compute_color_visible() == 0);
+    access.tap_effects_none();
+    drain();
 
-    ctrl.deinit();
+    CHECK(wire_mentions("EFFECT=fire STOP=1"));
+    CHECK_FALSE(wire_mentions("EFFECT=sparkle"));
+    CHECK_FALSE(wire_mentions("EFFECT=breathe"));
+    CHECK(access.int_subject("led_active_chip") == -1);
 }
 
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: color picker shown for RGB-capable native strip",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    // RGB strip: e.g. neopixel chamber_light.
-    ctrl.native().add_strip(make_native_strip("neopixel chamber_light", /*color=*/true,
-                                              /*white=*/true));
-    ctrl.set_selected_strips({"neopixel chamber_light"});
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an effect chip activates that effect",
+                 "[led][overlay]") {
+    add_native("neopixel strip_a", true, false);
+    add_effect("led_effect breathe", "neopixel strip_a", false);
+    add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::NATIVE);
+    access.activate("neopixel strip_a");
+    REQUIRE(access.int_subject("led_active_chip") == -1);
 
-    REQUIRE(access.compute_color_visible() == 1);
+    access.tap_list_chip(1);
+    drain();
 
-    ctrl.deinit();
+    CHECK(wire_mentions("EFFECT=fire"));
+    CHECK_FALSE(wire_mentions("EFFECT=breathe"));
+    CHECK(access.int_subject("led_active_chip") == 1);
 }
 
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: color picker hidden when both RGB and white-only selected "
-                 "resolves on any color-capable strip",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.native().add_strip(make_native_strip("led white_only", /*color=*/false, /*white=*/true));
-    ctrl.native().add_strip(make_native_strip("neopixel rgb", /*color=*/true, /*white=*/false));
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a macro preset chip runs that macro",
+                 "[led][overlay]") {
+    set_macros({party_macro()});
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::NATIVE);
+    access.activate("macro:Party");
+    access.tap_list_chip(1);
+    drain();
 
-    // Only the white-only strip selected -> hidden.
-    ctrl.set_selected_strips({"led white_only"});
-    REQUIRE(access.compute_color_visible() == 0);
-
-    // Selection includes a color-capable strip -> shown.
-    ctrl.set_selected_strips({"led white_only", "neopixel rgb"});
-    REQUIRE(access.compute_color_visible() == 1);
-
-    ctrl.deinit();
-}
-
-// ============================================================================
-// Strip-chip selection semantics
-//
-// The chip row renders every strip in the selection as "selected" (std::find
-// over the whole vector), and every consumer of selected_strips() iterates the
-// whole vector (toggle_all, set_color_all, set_brightness_all,
-// light_state_trackable, send_color_to_strips). The tap handler must therefore
-// be additive: replacing the selection silently discarded a multi-strip choice
-// made in Settings, and on_deactivate() persisted the loss to settings.json.
-// ============================================================================
-
-TEST_CASE_METHOD(LVGLTestFixture, "LedControlOverlay: tapping an unselected chip adds to selection",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    for (const char* id : {"neopixel a", "neopixel b", "neopixel c", "neopixel d"}) {
-        ctrl.native().add_strip(make_native_strip(id, /*color=*/true, /*white=*/false));
-    }
-    ctrl.set_selected_strips({"neopixel a", "neopixel b", "neopixel c"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-    access.tap_chip("neopixel d");
-
-    const auto& sel = ctrl.selected_strips();
-    REQUIRE(sel.size() == 4);
-    for (const char* id : {"neopixel a", "neopixel b", "neopixel c", "neopixel d"}) {
-        INFO("expected strip still selected: " << id);
-        REQUIRE(std::find(sel.begin(), sel.end(), std::string(id)) != sel.end());
-    }
-    // The tapped strip owns the front slot: selected_strips()[0] is what drives
-    // the header and the effects/WLED sections.
-    REQUIRE(sel.front() == "neopixel d");
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: tapping a selected chip removes only that one",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    for (const char* id : {"neopixel a", "neopixel b", "neopixel c"}) {
-        ctrl.native().add_strip(make_native_strip(id, /*color=*/true, /*white=*/false));
-    }
-    ctrl.set_selected_strips({"neopixel a", "neopixel b", "neopixel c"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-    access.tap_chip("neopixel b");
-
-    const auto& sel = ctrl.selected_strips();
-    REQUIRE(sel == std::vector<std::string>{"neopixel a", "neopixel c"});
-    // Focus falls back to the new front so the header and the visible section
-    // describe a strip that is actually still selected.
-    REQUIRE(access.active_strip_name() == "neopixel a");
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture, "LedControlOverlay: the last selected chip cannot be deselected",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.native().add_strip(make_native_strip("neopixel a", /*color=*/true, /*white=*/false));
-    ctrl.set_selected_strips({"neopixel a"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-    access.tap_chip("neopixel a");
-
-    REQUIRE(ctrl.selected_strips() == std::vector<std::string>{"neopixel a"});
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: tapped chip drives the header name and section backend",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.native().add_strip(make_native_strip("neopixel rgb", /*color=*/true, /*white=*/false));
-
-    LedStripInfo pin;
-    pin.name = "Enclosure LEDs";
-    pin.id = "output_pin enclosure";
-    pin.backend = LedBackendType::OUTPUT_PIN;
-    pin.supports_color = false;
-    pin.supports_white = false;
-    ctrl.output_pin().add_pin(pin);
-
-    ctrl.set_selected_strips({"neopixel rgb"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-    access.tap_chip("output_pin enclosure");
-
-    // Both strips stay selected, but the tapped one owns the header + sections.
-    REQUIRE(ctrl.selected_strips().size() == 2);
-    REQUIRE(ctrl.selected_strips().front() == "output_pin enclosure");
-    REQUIRE(access.backend() == LedBackendType::OUTPUT_PIN);
-    REQUIRE(access.active_strip_name() == "Enclosure LEDs");
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: a mixed selection only sends to matching-backend strips",
-                 "[led][control_overlay]") {
-    // Multi-strip selections became the normal case once tapping a chip stopped
-    // collapsing the selection, so a native strip, an output_pin and a macro
-    // device routinely sit in selected_strips() together. Fanning a backend's
-    // commands across the whole selection sends nonsense to Klipper:
-    //   SET_LED LED="enclosure"  -> "Unknown LED"
-    //   SET_LED LED="macro:Lamp" -> rejected by is_safe_identifier (the ':'),
-    //                               which toasts an error once per slider step
-    //   SET_PIN PIN=a            -> for a neopixel, from the output_pin branch
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.native().add_strip(make_native_strip("neopixel rgb", /*color=*/true, /*white=*/false));
-
-    LedStripInfo pin;
-    pin.name = "Enclosure LEDs";
-    pin.id = "output_pin enclosure";
-    pin.backend = LedBackendType::OUTPUT_PIN;
-    ctrl.output_pin().add_pin(pin);
-
-    LedMacroInfo lamp;
-    lamp.display_name = "Lamp";
-    lamp.type = MacroLedType::TOGGLE;
-    lamp.toggle_macro = "LAMP_TOGGLE";
-    ctrl.set_configured_macros({lamp});
-    ctrl.rebuild_macro_backend();
-
-    ctrl.set_selected_strips({"neopixel rgb", "output_pin enclosure", "macro:Lamp"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-
-    REQUIRE(access.targets_for(LedBackendType::NATIVE) == std::vector<std::string>{"neopixel rgb"});
-    REQUIRE(access.targets_for(LedBackendType::OUTPUT_PIN) ==
-            std::vector<std::string>{"output_pin enclosure"});
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "LedControlOverlay: a selection with no native strip still falls back",
-                 "[led][control_overlay]") {
-    // The implicit-target fallback must survive the backend filter: with only an
-    // output_pin selected, the native color path still addresses the first native
-    // strip rather than the output_pin's id.
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.native().add_strip(make_native_strip("neopixel rgb", /*color=*/true, /*white=*/false));
-
-    LedStripInfo pin;
-    pin.name = "Enclosure LEDs";
-    pin.id = "output_pin enclosure";
-    pin.backend = LedBackendType::OUTPUT_PIN;
-    ctrl.output_pin().add_pin(pin);
-
-    ctrl.set_selected_strips({"output_pin enclosure"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-
-    REQUIRE(access.targets_for(LedBackendType::NATIVE) == std::vector<std::string>{"neopixel rgb"});
-    // ...and the output_pin path never picks up the native strip.
-    REQUIRE(access.targets_for(LedBackendType::OUTPUT_PIN) ==
-            std::vector<std::string>{"output_pin enclosure"});
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture, "LedControlOverlay: color picker hidden for output_pin backend",
-                 "[led][control_overlay]") {
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    // An output_pin LED is brightness-only; the color section must stay hidden
-    // regardless of any native strips that happen to exist.
-    ctrl.native().add_strip(make_native_strip("neopixel rgb", /*color=*/true, /*white=*/false));
-    ctrl.set_selected_strips({"neopixel rgb"});
-
-    helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
-    access.set_backend(LedBackendType::OUTPUT_PIN);
-
-    REQUIRE(access.compute_color_visible() == 0);
-
-    ctrl.deinit();
+    CHECK(wire_mentions("LED_RAINBOW"));
+    CHECK_FALSE(wire_mentions("LED_PARTY"));
 }
