@@ -184,12 +184,16 @@ void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerA
     helix::led::LedAutoState::instance().init(printer_state);
     led_ctrl.discover_wled_strips();
 
-    // Set tracked LED early so the subscription response populates subjects correctly.
-    // LedWidget::bind_led() will also call this (idempotent) when it attaches later.
-    // Only a strip Klipper reports can be tracked — a "macro:" ID or a WLED strip
-    // never appears in a status payload, so tracking one leaves every LED subject
+    // Track the chamber light early so the subscription response populates subjects
+    // correctly. Only a strip Klipper reports can be tracked: a "macro:" ID or a WLED
+    // strip never appears in a status payload, so tracking one leaves every LED subject
     // frozen at its default and asks printer.objects for an object that does not exist.
-    const std::string tracked = led_ctrl.status_tracked_strip();
+    std::string tracked = led_ctrl.chamber_light();
+    if (const auto backend = led_ctrl.backend_for_strip(tracked);
+        backend != helix::led::LedBackendType::NATIVE &&
+        backend != helix::led::LedBackendType::OUTPUT_PIN) {
+        tracked.clear();
+    }
     if (!tracked.empty()) {
         printer_state.set_tracked_led(tracked);
 

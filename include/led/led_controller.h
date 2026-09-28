@@ -696,4 +696,7 @@ class LedController {
     void migrate_legacy_selection();
 };
 
+/// Whether the chamber light is known to be on.
+[[nodiscard]] bool chamber_light_on();
+
 } // namespace helix::led

@@ -2286,6 +2286,11 @@ std::string LedController::chamber_light() const {
     return resolve_chamber_light(all_selectable_strips(), first_available_strip());
 }
 
+bool chamber_light_on() {
+    const auto& ctrl = LedController::instance();
+    return ctrl.device_state(ctrl.chamber_light()).power == PowerState::On;
+}
+
 std::vector<std::string> LedController::light_targets(const std::string& key) const {
     return resolve_light_targets(key, switchable_ids(), chamber_light());
 }

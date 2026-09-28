@@ -3,6 +3,7 @@
 #include "ui_overlay_temp_graph.h"
 #include "ui_printer_manager_overlay.h"
 #include "ui_temperature_utils.h"
+#include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
@@ -13,6 +14,8 @@
 #include "config.h"
 #include "display_settings_manager.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "led/led_controller.h"
+#include "led/ui_led_control_overlay.h"
 #include "lvgl_image_writer.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
@@ -28,6 +31,7 @@
 #include "tool_state.h"
 #include "wizard_config_paths.h"
 
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <thread>
@@ -141,6 +145,37 @@ bool shown(PanelWidgetHarness<PrinterImageWidget>& h, const char* chip) {
     return !lv_obj_has_flag(h.child(chip), LV_OBJ_FLAG_HIDDEN);
 }
 
+/// Native `chamber_light` and `sb_leds` strips with no known state while the
+/// guard lives. Declare it before the harness: the widget observes the
+/// controller's state subject.
+struct ScopedLedStrips {
+    ScopedLedStrips() {
+        auto& ctrl = helix::led::LedController::instance();
+        ctrl.deinit();
+        ctrl.init(nullptr, nullptr);
+        for (const char* id : {"neopixel chamber_light", "neopixel sb_leds"}) {
+            helix::led::LedStripInfo s;
+            s.id = id;
+            s.name = id;
+            s.backend = helix::led::LedBackendType::NATIVE;
+            s.supports_color = true;
+            ctrl.native().add_strip(s);
+        }
+    }
+    ~ScopedLedStrips() {
+        helix::led::LedController::instance().deinit();
+    }
+    ScopedLedStrips(const ScopedLedStrips&) = delete;
+    ScopedLedStrips& operator=(const ScopedLedStrips&) = delete;
+
+    /// Feeds a Klipper status frame reporting @p id fully on or off.
+    static void report(const char* id, bool on) {
+        const double v = on ? 1.0 : 0.0;
+        helix::led::LedController::instance().update_from_status(
+            {{id, {{"color_data", {{v, v, v, 0.0}}}}}});
+    }
+};
+
 } // namespace
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -220,6 +255,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                  "callouts: fan on shows percent; light needs the LED capability",
                  "[printer_image][callouts]") {
     const auto regions = prepare_tagged_widget();
+    const ScopedLedStrips leds;
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
     lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
@@ -227,7 +263,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(state().get_active_extruder_target_subject(), 0);
     lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
     lv_subject_set_int(state().get_fan_speed_subject(), 80);
-    lv_subject_set_int(state().get_led_state_subject(), 1);
+    ScopedLedStrips::report("neopixel chamber_light", true);
     lv_subject_set_int(has_led, 0);
     settle();
     CHECK(shown(h, "callout_chip_fan"));
@@ -236,6 +272,28 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(has_led, 1);
     settle();
     CHECK(shown(h, "callout_chip_light"));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: the light chip follows the chamber light, not the tracked LED",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    const ScopedLedStrips leds;
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
+    REQUIRE(has_led);
+    lv_subject_set_int(has_led, 1);
+    lv_subject_set_int(state().get_led_state_subject(), 1);
+    ScopedLedStrips::report("neopixel sb_leds", true);
+    settle();
+    CHECK_FALSE(shown(h, "callout_chip_light"));
+    ScopedLedStrips::report("neopixel chamber_light", true);
+    settle();
+    CHECK(shown(h, "callout_chip_light"));
+    ScopedLedStrips::report("neopixel chamber_light", false);
+    settle();
+    CHECK_FALSE(shown(h, "callout_chip_light"));
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -468,6 +526,39 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(lv_subject_get_int(mode) == static_cast<int>(TempGraphOverlay::Mode::Bed));
     CHECK_FALSE(
         NavigationManager::instance().is_panel_in_stack(get_printer_manager_overlay().get_root()));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: tapping the light chip opens the LEDs overlay on the chamber light",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    const ScopedLedStrips leds;
+    std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
+    for (auto& p : panels) {
+        p = lv_obj_create(test_screen());
+    }
+    NavigationManager::instance().set_panels(panels.data());
+    init_led_control_overlay(state());
+
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "printer_has_led"), 1);
+    ScopedLedStrips::report("neopixel sb_leds", true);
+    ScopedLedStrips::report("neopixel chamber_light", true);
+    settle();
+    REQUIRE(shown(h, "callout_chip_light"));
+    // The overlay otherwise reopens on the last focused device.
+    REQUIRE(helix::open_led_control_overlay(test_screen(), "neopixel sb_leds") != nullptr);
+    settle();
+    NavigationManager::instance().go_back();
+    settle();
+    REQUIRE(get_led_control_overlay().focused_device() == "neopixel sb_leds");
+
+    lv_obj_send_event(h.child("callout_chip_light"), LV_EVENT_CLICKED, nullptr);
+    settle();
+    CHECK(get_led_control_overlay().focused_device() == "neopixel chamber_light");
+    NavigationManager::instance().go_back();
+    settle();
 }
 
 // ---------------------------------------------------------------------------
@@ -803,7 +894,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(has_led);
     lv_subject_set_int(has_led, 0);
     lv_subject_set_int(has_chamber, 0);
-    lv_subject_set_int(state().get_led_state_subject(), 0);
+    const ScopedLedStrips leds;
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
     settle();
