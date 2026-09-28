@@ -177,7 +177,7 @@ When a vendor branch in generic code is genuinely unavoidable, annotate it `// V
 - [`../Z_OFFSET_PERSISTENCE.md`](../Z_OFFSET_PERSISTENCE.md) — the full firmware-persisted z-offset story: why the idle reading lies, the `persisted_z_offset` subjects, the relative-vs-absolute `SET_GCODE_OFFSET` rule, and the one-row recipe for adding a firmware.
 - [`../FILAMENT_MANAGEMENT.md`](../FILAMENT_MANAGEMENT.md) — the AMS backend zoo (`AmsBackend*` implementations) chapter 07 will summarize: AFC, Happy Hare, ACE, CFS, AD5X IFS, tool changers.
 - [`04-moonraker.md`](04-moonraker.md) — the wire half of discovery: the sequence's klippy-state gate, narrowed subscriptions, reconnect behavior.
-- [`05-printer-state.md`](05-printer-state.md) — the thirteen `PrinterState` domains these capabilities land in, and the singleton census that puts `PrinterDetector` outside the `::instance()` world.
+- [`05-printer-state.md`](05-printer-state.md) — the twelve `PrinterState` domains these capabilities land in, and the singleton census that puts `PrinterDetector` outside the `::instance()` world.
 - [`02-subjects-dataflow.md`](02-subjects-dataflow.md) — the subject machinery (`SubjectManager`, dynamic subjects, observer factories) the sensor managers and capability subjects are built on.
 - Chapter 09 owns the full `PanelWidgetDef`/gate-observer mechanics previewed here.
 

@@ -491,28 +491,6 @@ TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_
     CHECK_FALSE(light_icon_look({bright_plain}).has_rgb);
 }
 
-TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: binding a light button leaves the tracked LED alone",
-                 "[led][light_button]") {
-    ScopedHomeLayout layout(nlohmann::json::array({placed_light("led", 0)}));
-    auto& global = get_printer_state();
-    const std::string prior = global.get_tracked_led();
-    global.set_tracked_led("neopixel chamber_light");
-    ps.set_tracked_led("neopixel chamber_light");
-
-    LedWidget w("led", ps, api.get());
-    w.set_panel_id("home");
-    w.set_config({{"led", "neopixel sb_leds"}});
-    w.attach(lv_obj_create(test_screen()), test_screen());
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    w.select_light(LIGHT_BUTTON_ALL);
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-
-    CHECK(global.get_tracked_led() == "neopixel chamber_light");
-    CHECK(ps.get_tracked_led() == "neopixel chamber_light");
-    w.detach();
-    global.set_tracked_led(prior);
-}
-
 TEST_CASE_METHOD(LedWidgetFixture,
                  "LedWidget: All lights lights in the theme color, not a strip's hue",
                  "[led][light_button]") {

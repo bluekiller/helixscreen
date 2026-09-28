@@ -174,7 +174,6 @@ void PrinterState::deinit_subjects() {
     // Deinit all sub-component subjects
     temperature_state_.deinit_subjects();
     motion_state_.deinit_subjects();
-    led_state_component_.deinit_subjects();
     fan_state_.deinit_subjects();
     print_domain_.deinit_subjects();
     capabilities_state_.deinit_subjects();
@@ -220,9 +219,6 @@ void PrinterState::init_subjects(bool register_xml) {
     // Initialize motion state component (position, speed/flow, z-offset)
     motion_state_.init_subjects(register_xml);
 
-    // Initialize LED state component (RGBW channels, brightness, on/off state)
-    led_state_component_.init_subjects(register_xml);
-
     // Initialize fan state component (fan speed, multi-fan tracking)
     fan_state_.init_subjects(register_xml);
 
@@ -246,8 +242,6 @@ void PrinterState::init_subjects(bool register_xml) {
 
     // Initialize network state component (connection, klippy, nav buttons)
     network_state_.init_subjects(register_xml);
-
-    // Note: LED subjects are initialized by led_state_component_.init_subjects() above
 
     // Excluded objects state component (excluded_objects_version, excluded_objects set)
     excluded_objects_state_.init_subjects(register_xml);
@@ -280,7 +274,6 @@ void PrinterState::init_subjects(bool register_xml) {
     // Note: Fan subjects are registered by fan_state_ component
     // Note: Capability subjects are managed by capabilities_state_ component
     // Note: Network subjects are registered by network_state_.init_subjects()
-    // Note: LED subjects are registered by led_state_component_.init_subjects()
     // Note: Excluded objects subjects are registered by excluded_objects_state_.init_subjects()
     // Note: Plugin status subjects are registered by plugin_status_state_.init_subjects()
     // Note: Composite visibility subjects are registered by
@@ -309,7 +302,6 @@ void PrinterState::init_subjects(bool register_xml) {
     // Note: Fan subjects are registered by fan_state_ component
     // Note: Capability subjects are registered by capabilities_state_ component
     // Note: Network subjects are registered by network_state_.init_subjects()
-    // Note: LED subjects are registered by led_state_component_.init_subjects()
     // Note: Plugin status subjects are registered by plugin_status_state_.init_subjects()
     // Note: Composite visibility subjects are registered by
     // composite_visibility_state_.init_subjects() Note: Hardware validation subjects are registered
@@ -450,9 +442,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
 
     // Delegate fan state updates to fan component
     fan_state_.update_from_status(state);
-
-    // Delegate LED state updates to LED component
-    led_state_component_.update_from_status(state);
 
     // Update LED controller per-strip color cache
     auto& led_ctrl = helix::led::LedController::instance();
@@ -775,8 +764,6 @@ void PrinterState::update_nav_buttons_enabled() {
 void PrinterState::set_print_in_progress(bool in_progress) {
     print_domain_.set_print_in_progress(in_progress);
 }
-
-// Note: set_tracked_led() is now delegated to led_state_component_ in the header
 
 void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
     // Called directly from the main LVGL thread (hardware discovery callback).

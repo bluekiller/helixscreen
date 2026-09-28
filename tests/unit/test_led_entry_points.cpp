@@ -102,34 +102,6 @@ TEST_CASE_METHOD(EntryFixture, "the print-status light toggles only the chamber 
     CHECK_FALSE(ctrl.native().has_strip_color("neopixel sb_leds"));
 }
 
-TEST_CASE_METHOD(EntryFixture,
-                 "discovery tracks a Klipper chamber light and drops it on a printer without one",
-                 "[led][entry]") {
-    helix::track_chamber_light(ps, nullptr);
-    REQUIRE(ps.get_tracked_led() == "neopixel chamber_light");
-    lv_subject_set_int(ps.get_led_state_subject(), 1);
-
-    // Re-discovery after a switch to a printer with no Klipper chamber light.
-    auto& ctrl = LedController::instance();
-    ctrl.deinit();
-    ctrl.init(api.get(), &client);
-    SECTION("its only light is a macro") {
-        LedMacroInfo lamp;
-        lamp.display_name = "Lamp";
-        lamp.type = MacroLedType::TOGGLE;
-        lamp.toggle_macro = "LIGHT_TOGGLE";
-        ctrl.set_configured_macros({lamp});
-        ctrl.rebuild_macro_backend();
-        REQUIRE_FALSE(ctrl.chamber_light().empty());
-    }
-    SECTION("it has no light") {
-        REQUIRE(ctrl.chamber_light().empty());
-    }
-    helix::track_chamber_light(ps, nullptr);
-    CHECK(ps.get_tracked_led().empty());
-    CHECK(lv_subject_get_int(ps.get_led_state_subject()) == 0);
-}
-
 TEST_CASE_METHOD(EntryFixture, "the print-status light button shows the chamber light's state",
                  "[led][entry]") {
     constexpr const char* BULB_OFF = "\xF3\xB0\x8C\xB6";

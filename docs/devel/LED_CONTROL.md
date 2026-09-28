@@ -45,13 +45,6 @@ each of the old selection's jobs lives now.
 | `src/led/led_auto_state.cpp` | Observer-based state tracking, action application, config I/O |
 | `include/light_button_config.h`, `src/ui/light_button_config.cpp` | Per-instance home light button config: `home_light_button_keys()`, `adopt_pending_light_button()`, `home_light_button_targets()` |
 
-### Domain State
-
-| File | Purpose |
-|------|---------|
-| `include/printer_led_state.h` | `PrinterLedState` — LVGL subjects for tracked LED (R/G/B/W/brightness/on-off) |
-| `src/printer/printer_led_state.cpp` | Updates from Moonraker status JSON, subject lifecycle |
-
 ### UI
 
 | File | Purpose |
@@ -96,7 +89,6 @@ each of the old selection's jobs lives now.
 | `tests/unit/test_led_effect_backend.cpp` | Effect activation, target filtering |
 | `tests/unit/test_led_wled_backend.cpp` | WLED preset, brightness, toggle, state polling |
 | `tests/unit/test_led_macro_backend.cpp` | Macro execution: on/off, toggle, custom actions |
-| `tests/unit/test_printer_led_char.cpp` | PrinterLedState subject updates |
 | `tests/unit/test_led_control_overlay.cpp` | Tab rebuild, focus, page publishing, control handlers |
 | `tests/unit/test_led_settings_overlay.cpp` | Startup, Applies-to row, macro device editor |
 
