@@ -49,6 +49,21 @@ TEST_CASE("bed temperature: the material's table value, capped at 90 C and the b
     }
 }
 
+TEST_CASE("the chamber: a dryer wins, else a plain heater, else nothing", "[bed_drying]") {
+    CHECK(chamber_assist(true, true) == ChamberAssist::Dryer);
+    CHECK(chamber_assist(true, false) == ChamberAssist::Dryer);
+    CHECK(chamber_assist(false, true) == ChamberAssist::Heater);
+    CHECK(chamber_assist(false, false) == ChamberAssist::None);
+}
+
+TEST_CASE("chamber temperature: the material's air value, capped at the heater max",
+          "[bed_drying]") {
+    CHECK(chamber_temp_c(kMaterials[0], 80) == 50); // PLA
+    CHECK(chamber_temp_c(kMaterials[4], 80) == 80); // ABS/ASA/PC/PA
+    CHECK(chamber_temp_c(kMaterials[4], 60) == 60); // a heater that tops out lower
+    CHECK(chamber_temp_c(kMaterials[2], 0) == 65);  // unknown max: no cap
+}
+
 TEST_CASE("the unload is offered unless a sensor says the toolhead is empty", "[bed_drying]") {
     CHECK(unload_offer(false) == UnloadOffer::None);
     CHECK(unload_offer(true) == UnloadOffer::Recommended);

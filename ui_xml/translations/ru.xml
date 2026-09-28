@@ -1288,6 +1288,7 @@
   <translation tag="Heat bed before calibrating for accurate offset with thermal expansion." ru="Нагрейте стол перед калибровкой для точного смещения с учётом теплового расширения."/>
   <translation tag="Heat nozzle" ru="Нагреть сопло"/>
   <translation tag="Heat the bed to {}°C" ru="Нагреть стол до {}°C"/>
+  <translation tag="Heat the chamber too" ru="Нагреть и камеру"/>
   <translation tag="Heat the extruder to at least {}°C before loading filament" ru="Перед загрузкой филамента нагрейте экструдер минимум до {}°C"/>
   <translation tag="Heat to at least %d°C for filament operations" ru="Нагрейте минимум до %d°C для операций с филаментом"/>
   <translation tag="Heatbed Temperature" ru="Температура стола"/>

@@ -1332,6 +1332,7 @@ translations:
   Heat bed before calibrating for accurate offset with thermal expansion.: 校准前加热热床，以获得考虑热膨胀的精确偏移。
   Heat nozzle: 加热喷嘴
   Heat the bed to {}°C: 将热床加热到 {}°C
+  Heat the chamber too: 同时加热腔体
   Heat the extruder to at least {}°C before loading filament: 装载耗材前请将挤出机加热至至少 {}°C
   Heat to at least %d°C for filament operations: 请加热至至少 %d°C 以进行耗材操作
   Heatbed Temperature: 热床温度

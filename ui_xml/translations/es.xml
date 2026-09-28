@@ -1288,6 +1288,7 @@
   <translation tag="Heat bed before calibrating for accurate offset with thermal expansion." es="Caliente la cama antes de calibrar para un offset preciso con expansión térmica."/>
   <translation tag="Heat nozzle" es="Calentar boquilla"/>
   <translation tag="Heat the bed to {}°C" es="Calentar la cama a {}°C"/>
+  <translation tag="Heat the chamber too" es="Calentar también la cámara"/>
   <translation tag="Heat the extruder to at least {}°C before loading filament" es="Caliente el extrusor a al menos {}°C antes de cargar filamento"/>
   <translation tag="Heat to at least %d°C for filament operations" es="Calienta a al menos %d°C para operaciones de filamento"/>
   <translation tag="Heatbed Temperature" es="Temperatura de Cama Caliente"/>

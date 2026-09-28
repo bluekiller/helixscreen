@@ -1443,6 +1443,7 @@ translations:
     le plateau avant de calibrer pour un offset précis avec la dilatation thermique.
   Heat nozzle: Chauffer la buse
   Heat the bed to {}°C: Chauffer le plateau à {}°C
+  Heat the chamber too: "Chauffer aussi l'enceinte"
   Heat the extruder to at least {}°C before loading filament: Chauffez l'extrudeur à au moins {}°C avant de charger le filament
   Heat to at least %d°C for filament operations: Chauffez à au moins %d°C pour les
     opérations sur le filament

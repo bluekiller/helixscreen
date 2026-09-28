@@ -1414,6 +1414,7 @@ translations:
     стол перед калибровкой для точного смещения с учётом теплового расширения.
   Heat nozzle: Нагреть сопло
   Heat the bed to {}°C: Нагреть стол до {}°C
+  Heat the chamber too: Нагреть и камеру
   Heat the extruder to at least {}°C before loading filament: Перед загрузкой филамента нагрейте экструдер минимум до {}°C
   Heat to at least %d°C for filament operations: Нагрейте минимум до %d°C для операций с филаментом
   Heatbed Temperature: Температура стола

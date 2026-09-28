@@ -1336,6 +1336,7 @@ translations:
   Heat bed before calibrating for accurate offset with thermal expansion.: 熱膨張を考慮した正確なオフセットのため、キャリブレーション前にベッドを加熱してください。
   Heat nozzle: ノズルを加熱
   Heat the bed to {}°C: ベッドを {}°C に加熱
+  Heat the chamber too: チャンバーも加熱
   Heat the extruder to at least {}°C before loading filament: フィラメントを装填する前に、エクストルーダーを最低 {}°C まで加熱してください
   Heat to at least %d°C for filament operations: フィラメント操作には少なくとも %d°C まで加熱してください
   Heatbed Temperature: ヒートベッド温度
