@@ -741,6 +741,14 @@ bool WiFiManager::supports_5ghz() {
     return backend_->supports_5ghz();
 }
 
+bool WiFiManager::supports_forget() {
+    return backend_ && backend_->supports_forget();
+}
+
+bool WiFiManager::supports_radio_toggle() {
+    return backend_ && backend_->supports_radio_toggle();
+}
+
 // ============================================================================
 // Hardware Detection (Legacy Compatibility)
 // ============================================================================

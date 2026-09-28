@@ -177,6 +177,8 @@ void NetworkSettingsOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_INT(wifi_only_24ghz_, 1, "wifi_only_24ghz",
                            subjects_); // Default: assume 2.4GHz only
     UI_MANAGED_SUBJECT_INT(wifi_scanning_, 0, "wifi_scanning", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_can_forget_, 0, "wifi_can_forget", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_can_toggle_radio_, 0, "wifi_can_toggle_radio", subjects_);
 
     // WiFi string subjects
     UI_MANAGED_SUBJECT_STRING(connected_ssid_, ssid_buffer_, "", "connected_ssid", subjects_);
@@ -385,12 +387,15 @@ void NetworkSettingsOverlay::on_activate() {
                                           [this]() { refresh_transport_status(); });
     }
 
-    // Update band capability indicator (show "Only 2.4GHz" if 5GHz not supported)
+    // Backend capabilities: the 2.4GHz-only indicator, and the Forget and
+    // radio-toggle controls, which are hidden where the backend cannot act.
     if (wifi_manager_) {
         bool only_24ghz = !wifi_manager_->supports_5ghz();
         lv_subject_set_int(&wifi_only_24ghz_, only_24ghz ? 1 : 0);
         spdlog::debug("[NetworkSettingsOverlay] WiFi band capability: {}",
                       only_24ghz ? "2.4GHz only" : "2.4GHz + 5GHz");
+        lv_subject_set_int(&wifi_can_forget_, wifi_manager_->supports_forget() ? 1 : 0);
+        lv_subject_set_int(&wifi_can_toggle_radio_, wifi_manager_->supports_radio_toggle() ? 1 : 0);
     }
 
     // Start scanning if WiFi enabled

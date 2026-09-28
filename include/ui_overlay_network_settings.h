@@ -195,7 +195,9 @@ class NetworkSettingsOverlay : public OverlayBase {
     lv_subject_t wifi_hardware_available_; // 0=unavailable, 1=available
     lv_subject_t wifi_enabled_;
     lv_subject_t wifi_connected_;
-    lv_subject_t wifi_only_24ghz_; // 1 if hardware only supports 2.4GHz
+    lv_subject_t wifi_only_24ghz_;       // 1 if hardware only supports 2.4GHz
+    lv_subject_t wifi_can_forget_;       // 1 if the backend can forget a saved network
+    lv_subject_t wifi_can_toggle_radio_; // 1 if the backend can move the radio
     lv_subject_t connected_ssid_;
     lv_subject_t ip_address_;
     lv_subject_t mac_address_;
