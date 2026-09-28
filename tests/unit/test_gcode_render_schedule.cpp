@@ -104,8 +104,35 @@ TEST_CASE("progress advancing during a still job restarts it", "[gcode][render_s
     REQUIRE(decide_job(in) == JobAction::Restart);
 }
 
-TEST_CASE("progress went backwards restarts", "[gcode][render_schedule]") {
+TEST_CASE("progress went backwards over a complete image keeps it", "[gcode][render_schedule]") {
+    // The two layer sources race (gcode response ahead of print_stats), so the
+    // requested ghost can briefly land below the drawn one. Layers cannot be
+    // un-drawn, so the more-advanced image stays and incremental work resumes
+    // once progress passes it again.
     JobInputs in = idle_complete(10);
+    in.new_progress = 3;
+    REQUIRE(decide_job(in) == JobAction::Keep);
+    // Recovery back to the drawn layer redraws nothing either.
+    in.new_progress = 10;
+    REQUIRE(decide_job(in) == JobAction::Keep);
+    // And the next advance is incremental again, not a full restart.
+    in.new_progress = 11;
+    REQUIRE(decide_job(in) == JobAction::Incremental);
+}
+
+TEST_CASE("progress went backwards mid incremental job leaves it running",
+          "[gcode][render_schedule]") {
+    JobInputs in = idle_complete(10);
+    in.have_complete_image = false;
+    in.job_running = true;
+    in.job_incremental = true;
+    in.new_progress = 3;
+    REQUIRE(decide_job(in) == JobAction::Keep);
+}
+
+TEST_CASE("progress went backwards with nothing to show restarts", "[gcode][render_schedule]") {
+    JobInputs in = idle_complete(10);
+    in.have_complete_image = false;
     in.new_progress = 3;
     REQUIRE(decide_job(in) == JobAction::Restart);
 }
