@@ -2256,7 +2256,7 @@ void ui_gcode_viewer_force_redraw(lv_obj_t* obj) {
 
         // 3D path: the renderer's cached-blit fast path skips re-rendering when
         // state is unchanged and draw_buf_ exists. Drop the draw_buf so the next
-        // DRAW_POST takes the full render path (render_to_fbo -> blit_to_lvgl).
+        // DRAW_POST takes the full render path (run_slice -> blit_to_lvgl).
 #ifdef ENABLE_3D_RENDERER
     if (st->renderer_) {
         st->renderer_->clear_cached_frame();

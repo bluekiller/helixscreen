@@ -312,7 +312,11 @@ class GCodeGLESRenderer {
 
     // ====== Internal Rendering ======
 
-    void render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera);
+    /// One frame while a finger is down: draw the whole visible range at the
+    /// stride and resolution plan_moving() picked for the measured GPU rate,
+    /// then blit. No selection tag (the rim is a still-frame nicety), no job.
+    void render_moving(lv_layer_t* layer, const ParsedGCodeFile& gcode, const GCodeCamera& camera,
+                       const lv_area_t* widget_coords);
     /// Draws layers [layer_start, layer_end] at `stride`, stopping once `max_triangles`
     /// have been submitted. Returns the next layer that was not drawn (layer_end + 1
     /// when finished).
@@ -332,14 +336,14 @@ class GCodeGLESRenderer {
 
     /// Build the model-view-projection matrix the GLES geometry pass applies:
     /// -90° model rotation about Z plus the optional vertical content offset.
-    /// Shared by render_to_fbo, render_brackets_3d, and pick_object so they
-    /// can't drift — drift caused #22 (clicks landing on the wrong object).
+    /// Shared by setup_frame and pick_object so they can't drift — drift
+    /// caused #22 (clicks landing on the wrong object).
     glm::mat4 build_mvp(const GCodeCamera& camera) const;
     /// Lazily compile/link the simple line shader used for selection brackets.
     bool init_line_program();
-    /// Draw 3D corner brackets around highlighted objects into the FBO. Called
-    /// at the end of render_to_fbo so brackets become part of the rendered
-    /// image that gets blitted to LVGL. Matches the deleted TinyGL impl.
+    /// Draw 3D corner brackets around highlighted objects into the FBO, at the
+    /// end of a frame, so brackets become part of the rendered image that gets
+    /// blitted to LVGL. Matches the deleted TinyGL impl.
     void render_brackets_3d(const ParsedGCodeFile& gcode, const glm::mat4& mvp);
 
     /// Lazily compile/link the tag program used by the selection silhouette.
@@ -533,7 +537,6 @@ class GCodeGLESRenderer {
 
     // ====== Frame Skip ======
 
-    CachedRenderState cached_state_;
     bool frame_dirty_ = true;
     size_t triangles_rendered_ = 0;
 

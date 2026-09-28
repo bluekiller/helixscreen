@@ -1147,6 +1147,17 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
         }
         render_defer_frames_ = 0;
     }
+    // Finger down: draw the whole frame now at whatever detail the measured GPU
+    // rate affords, instead of handing out slices. cancel_job() inside
+    // render_moving clears have_complete_image_, so the release restarts a
+    // still job even for a tap that never moved the camera.
+    if (interaction_mode_) {
+        arm_gpu_guard();
+        render_moving(layer, gcode, camera, widget_coords);
+        clear_gpu_guard();
+        return;
+    }
+
     // Build current render state for frame-skip check
     const CachedRenderState current_state = snapshot_state(camera);
     render_schedule::JobInputs in;
@@ -1173,7 +1184,6 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
         break;
     }
     frame_dirty_ = false;
-    cached_state_ = current_state;
 
     if (!job_.active) {
         // draw_cached_to_lvgl skips glReadPixels: it just blits the existing draw_buf_.
@@ -1352,9 +1362,13 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     return true;
 }
 
-void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
+void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& gcode,
+                                      const GCodeCamera& camera, const lv_area_t* widget_coords) {
+    cancel_job();
+    const render_schedule::MovingPlan plan =
+        render_schedule::plan_moving(uploaded_triangles_, gpu_rate_tris_per_ms_);
     glm::mat4 mvp, mvp_dequant;
-    if (!setup_frame(camera, 1.0f, true, mvp, mvp_dequant)) {
+    if (!setup_frame(camera, plan.half_resolution ? 0.5f : 1.0f, true, mvp, mvp_dequant)) {
         return;
     }
 
@@ -1362,52 +1376,39 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     bool ghosting;
     pass_ranges(draw_start, draw_end, solid_end, ghost_start, ghosting);
 
-    triangles_rendered_ = 0;
+    const size_t before = triangles_rendered_;
+    const auto t0 = std::chrono::steady_clock::now();
 
-    // Ghost / print progress rendering
     if (ghosting) {
-        // Pass 1: Solid layers (0 to progress_layer_)
         if (draw_start <= solid_end) {
-            draw_layers(layer_vbos_, draw_start, solid_end, 1.0f, 1.0f);
+            draw_layers(layer_vbos_, draw_start, solid_end, 1.0f, 1.0f, plan.stride);
         }
-
-        // Pass 2: Ghost layers (progress_layer_+1 to end) with alpha blending
-        // Use elevated color_scale to lighten ghost colors (washes toward white)
         if (ghost_start <= draw_end) {
-            float alpha = ghost_opacity_ / 255.0f;
             constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glDepthMask(GL_FALSE); // Don't write ghost depth (prevents z-fighting)
-            draw_layers(layer_vbos_, ghost_start, draw_end, GHOST_LIGHTEN_SCALE, alpha);
+            glDepthMask(GL_FALSE);
+            draw_layers(layer_vbos_, ghost_start, draw_end, GHOST_LIGHTEN_SCALE,
+                        ghost_opacity_ / 255.0f, plan.stride);
             glDepthMask(GL_TRUE);
             glDisable(GL_BLEND);
         }
     } else {
-        // Normal: all layers solid
-        draw_layers(layer_vbos_, draw_start, draw_end, 1.0f, 1.0f);
+        draw_layers(layer_vbos_, draw_start, draw_end, 1.0f, 1.0f, plan.stride);
     }
 
     glUseProgram(0);
-
-    // Tag the selected object's visible pixels AFTER the geometry is final, so
-    // "visible" means what actually survived depth testing. Solid layers only —
-    // the ghost pass is faded context, and a full-strength rim there would read as
-    // a solid object. The rim itself is drawn on the CPU after readback.
-    {
-        // pass_ranges already folds the ghosting decision: solid_end is the
-        // progress layer while ghosting, the last drawn layer otherwise.
-        render_selection_tag(gcode, mvp_dequant, draw_start, solid_end);
-    }
-
-    // Selection brackets on top, using the same MVP as the geometry pass so
-    // brackets stay anchored to objects under rotation/zoom. Drawn last with
-    // depth test disabled inside render_brackets_3d(). Alpha is still masked, so
-    // the brackets cannot overwrite the tag they sit on top of.
     render_brackets_3d(gcode, mvp);
-
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glFinish();
+    const float ms =
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    gpu_rate_tris_per_ms_ =
+        render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    blit_to_lvgl(layer, widget_coords);
+    spdlog::trace("[GCode GLES] Moving frame: stride {}, {} res, {:.1f}ms", plan.stride,
+                  plan.half_resolution ? "half" : "full", ms);
 }
 
 int GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
@@ -1557,12 +1558,12 @@ bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamer
                                           GHOST_LIGHTEN_SCALE, ghost_opacity_ / 255.0f, 1, left);
             glDepthMask(GL_TRUE);
             glDisable(GL_BLEND);
-        } else { // Overlays: the same selection tag and brackets render_to_fbo draws
+        } else { // Overlays: the selection tag and brackets a moving frame skips
             glUseProgram(0);
-            // The tag covers exactly the solid layers, as in render_to_fbo
-            // (solid_end is the progress layer while ghosting, the last drawn
-            // layer otherwise). An incremental job drew onto a finished image
-            // that already carries its tag.
+            // The tag covers exactly the solid layers (solid_end is the
+            // progress layer while ghosting, the last drawn layer otherwise).
+            // An incremental job drew onto a finished image that already
+            // carries its tag.
             if (!job_.incremental) {
                 render_selection_tag(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
             }
@@ -2429,7 +2430,7 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
 
     // Alpha only. The color channels already hold the lit image and must survive
     // untouched; the rest of the frame runs with alpha writes masked off (see
-    // render_to_fbo) so nothing but this pass can put kSelectedAlpha anywhere.
+    // setup_frame) so nothing but this pass can put kSelectedAlpha anywhere.
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 
     // Depth test stays enabled, but the function MUST be relaxed to LEQUAL. The
