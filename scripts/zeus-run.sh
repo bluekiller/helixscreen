@@ -227,7 +227,10 @@ while D 'pgrep -x -r R,S,D,T,t make >/dev/null'; do
 done
 
 D 'git config --global --add safe.directory "*"' >/dev/null
-D 'git fetch --quiet --all --recurse-submodules=on-demand'
+# Submodules are fetched by the update below, for $SHA's pins only. Recursing
+# here fetches the pin of every new superproject commit, and one pin to a
+# submodule commit that was rebased away before pushing fails the whole fetch.
+D 'git fetch --quiet --all --recurse-submodules=no'
 D 'git reset --hard --quiet $SHA && git submodule update --init --recursive --quiet'
 D 'git log --oneline -1'
 D '$CMD 2>&1'

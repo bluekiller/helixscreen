@@ -20,7 +20,6 @@
 #include "printer_excluded_objects_state.h"
 #include "printer_fan_state.h"
 #include "printer_hardware_validation_state.h"
-#include "printer_led_state.h"
 #include "printer_motion_state.h"
 #include "printer_network_state.h"
 #include "printer_plugin_status_state.h"
@@ -1462,28 +1461,6 @@ class PrinterState {
         return network_state_.get_moonraker_is_remote_subject();
     } // 1=connected Moonraker is not this host, 0=local/unknown
 
-    // LED state subjects - delegated to PrinterLedState component
-    lv_subject_t* get_led_state_subject() {
-        return led_state_component_.get_led_state_subject();
-    } // 0=off, 1=on (derived from LED color data)
-
-    // LED RGBW channel subjects (0-255 integer range)
-    lv_subject_t* get_led_r_subject() {
-        return led_state_component_.get_led_r_subject();
-    }
-    lv_subject_t* get_led_g_subject() {
-        return led_state_component_.get_led_g_subject();
-    }
-    lv_subject_t* get_led_b_subject() {
-        return led_state_component_.get_led_b_subject();
-    }
-    lv_subject_t* get_led_w_subject() {
-        return led_state_component_.get_led_w_subject();
-    }
-    lv_subject_t* get_led_brightness_subject() {
-        return led_state_component_.get_led_brightness_subject();
-    } // 0-100 (max of RGBW channels)
-
     /**
      * @brief Get excluded objects version subject
      *
@@ -1570,37 +1547,6 @@ class PrinterState {
      * @param objects Set of object names that are currently excluded
      */
     void set_excluded_objects(const std::unordered_set<std::string>& objects);
-
-    /**
-     * @brief Set which LED to track for state updates
-     *
-     * Call this after loading config to tell PrinterState which LED object
-     * to monitor from Moonraker notifications. The LED name should match
-     * the Klipper config (e.g., "neopixel chamber_light", "led status_led").
-     *
-     * @param led_name Full LED name including type prefix, or empty to disable
-     */
-    void set_tracked_led(const std::string& led_name) {
-        led_state_component_.set_tracked_led(led_name);
-    }
-
-    /**
-     * @brief Get the currently tracked LED name
-     *
-     * @return LED name being tracked, or empty string if none
-     */
-    std::string get_tracked_led() const {
-        return led_state_component_.get_tracked_led();
-    }
-
-    /**
-     * @brief Check if an LED is configured for tracking
-     *
-     * @return true if a LED name has been set
-     */
-    bool has_tracked_led() const {
-        return led_state_component_.has_tracked_led();
-    }
 
     /**
      * @brief Set printer connection state (Moonraker WebSocket)
@@ -2522,9 +2468,6 @@ class PrinterState {
     /// Motion state component (position, speed/flow, z-offset)
     helix::PrinterMotionState motion_state_;
 
-    /// LED state component (RGBW channels, brightness, on/off state)
-    helix::PrinterLedState led_state_component_;
-
     /// Fan state component (fan speed, multi-fan tracking)
     helix::PrinterFanState fan_state_;
 
@@ -2580,9 +2523,6 @@ class PrinterState {
     // network_status_, klippy_state_, nav_buttons_enabled_, was_ever_connected_)
     // are now managed by network_state_ component
 
-    // Note: LED subjects (led_state_, led_r_, led_g_, led_b_, led_w_, led_brightness_)
-    // are now managed by led_state_component_
-
     // Note: Excluded objects subjects (excluded_objects_version_, excluded_objects_)
     // are now managed by excluded_objects_state_ component
 
@@ -2613,8 +2553,6 @@ class PrinterState {
     // hardware_session_count_, hardware_status_title_, hardware_status_detail_,
     // hardware_issues_label_, hardware_validation_result_) are managed by the
     // hardware_validation_state_ component
-
-    // Note: tracked_led_name_ is now managed by led_state_component_
 
     // Note: String buffers are now managed by their respective component classes
     // - homed_axes_buf_ is now in motion_state_ component

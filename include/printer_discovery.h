@@ -1999,14 +1999,6 @@ void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerA
                                    IMoonrakerClient* client);
 
 /**
- * @brief Track the chamber light in @p printer_state when it is a Klipper object
- *
- * Anything else (a macro, a WLED strip, no light) clears tracking. A tracked
- * light's current state is queried through @p client when it is non-null.
- */
-void track_chamber_light(PrinterState& printer_state, IMoonrakerClient* client);
-
-/**
  * @brief Case-insensitive search of Klipper object names
  *
  * A leading '^' pins the pattern to the start of a name and a trailing '$'

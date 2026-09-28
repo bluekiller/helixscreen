@@ -279,7 +279,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
-                 "callouts: the light chip follows the chamber light, not the tracked LED",
+                 "callouts: the light chip follows the chamber light, not another strip",
                  "[printer_image][callouts]") {
     const auto regions = prepare_tagged_widget();
     const ScopedLedStrips leds;
@@ -288,7 +288,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
     REQUIRE(has_led);
     lv_subject_set_int(has_led, 1);
-    lv_subject_set_int(state().get_led_state_subject(), 1);
     ScopedLedStrips::report("neopixel sb_leds", true);
     settle();
     CHECK_FALSE(shown(h, "callout_chip_light"));

@@ -12,12 +12,9 @@
  * @file led_color_utils.h
  * @brief Shared parsing and channel-conversion helpers for Klipper LED objects.
  *
- * Both NativeBackend (led_controller.cpp) and PrinterLedState
- * (printer_led_state.cpp) consume the same Moonraker `color_data` payload and
- * convert the same 0.0-1.0 channel levels into 0-255 bytes and 0-100 percent.
- * They used to carry byte-for-byte duplicate copies of that logic with three
- * subtly different roundings, which is how the white-only brightness bug
- * (#1129) could be fixed in one parser and stay broken in the other.
+ * Converts a Moonraker `color_data` payload's 0.0-1.0 channel levels into
+ * 0-255 bytes and 0-100 percent. Every reader of `color_data` goes through
+ * these so one rounding rule decides brightness everywhere (#1129).
  */
 
 namespace helix::led {

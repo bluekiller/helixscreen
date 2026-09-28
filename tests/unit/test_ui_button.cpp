@@ -13,6 +13,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
+#include "../test_helpers/scoped_theme_mode.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 
@@ -135,26 +136,6 @@ TEST_CASE_METHOD(UiButtonTestFixture, "ui_button can be created via XML",
     REQUIRE(btn != nullptr);
     REQUIRE(lv_obj_is_valid(btn));
 }
-
-namespace {
-// Tests initialize the theme in light mode; the label flip this suite pins is
-// a dark-mode behaviour, so flip the active mode for the test and put back
-// whatever mode was active, even when a REQUIRE abandons the case.
-class ScopedThemeMode {
-  public:
-    ScopedThemeMode() : was_dark_(theme_manager_is_dark_mode()) {}
-    ~ScopedThemeMode() {
-        theme_manager_apply_theme(theme_manager_get_active_theme(), was_dark_);
-    }
-
-    void set(bool dark) {
-        theme_manager_apply_theme(theme_manager_get_active_theme(), dark);
-    }
-
-  private:
-    bool was_dark_;
-};
-} // namespace
 
 // A solid variant is an accent fill: the label starts from the palette text
 // colour and shifts toward its own pole only as far as 4:1 contrast needs. On

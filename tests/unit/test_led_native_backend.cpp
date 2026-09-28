@@ -579,46 +579,6 @@ TEST_CASE_METHOD(LedPinConfigFixture,
     REQUIRE(sent.w == Catch::Approx(0.15).margin(0.01));
 }
 
-// ============================================================================
-// The two color_data parsers (NativeBackend + PrinterLedState) must agree
-// ============================================================================
-
-TEST_CASE_METHOD(LedPinConfigFixture,
-                 "color_data parsers agree on brightness between NativeBackend and PrinterLedState",
-                 "[led][native][decompose][parser_parity]") {
-    setup_white_only_led("led parity_light", "led parity_light");
-    auto& backend = helix::led::LedController::instance().native();
-
-    state.set_tracked_led("led parity_light");
-
-    struct Payload {
-        const char* label;
-        double r, g, b, w;
-    };
-    const Payload payloads[] = {
-        {"white-only at 15%", 0.0, 0.0, 0.0, 0.15}, {"white-only at full", 0.0, 0.0, 0.0, 1.0},
-        {"mixed RGB", 0.5, 0.25, 0.75, 0.0},        {"saturated red", 1.0, 0.0, 0.0, 0.0},
-        {"all channels off", 0.0, 0.0, 0.0, 0.0},
-    };
-
-    for (const auto& p : payloads) {
-        INFO("payload: " << p.label);
-        nlohmann::json status = {{"led parity_light", {{"color_data", {{p.r, p.g, p.b, p.w}}}}}};
-
-        backend.update_from_status(status);
-        state.update_from_status(status);
-
-        uint32_t base_color = 0;
-        int native_brightness = 0;
-        double base_white = 0.0;
-        backend.get_strip_color("led parity_light")
-            .decompose(base_color, native_brightness, base_white);
-
-        int printer_brightness = lv_subject_get_int(state.get_led_brightness_subject());
-        REQUIRE(native_brightness == printer_brightness);
-    }
-}
-
 TEST_CASE_METHOD(LedPinConfigFixture,
                  "LedController: a discovered white-only [led] starts on W before any status",
                  "[led][controller][white_only]") {

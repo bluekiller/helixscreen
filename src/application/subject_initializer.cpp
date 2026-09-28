@@ -179,7 +179,7 @@ void SubjectInitializer::init_core_subjects() {
 void SubjectInitializer::init_printer_state_subjects() {
     spdlog::trace("[SubjectInitializer] Initializing PrinterState subjects");
     // PrinterState must be initialized BEFORE panels that observe its subjects
-    // (e.g., HomePanel observes led_state_, extruder_temp_, connection_state_)
+    // (e.g., HomePanel observes extruder_temp_, connection_state_)
     get_printer_state().init_subjects();
 
     // ActivePrintMediaManager observes print_filename_ and updates print_display_filename_
