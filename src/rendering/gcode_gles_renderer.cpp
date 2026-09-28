@@ -9,6 +9,7 @@
 #include "data_root_resolver.h"
 #include "gcode_gl_fallback.h"
 #include "gcode_projection.h"
+#include "gcode_render_schedule.h"
 #include "gcode_selection_style.h"
 #include "lv_draw_buf_guard.h"
 #include "runtime_config.h"
@@ -54,6 +55,26 @@ glm::mat4 dequant_matrix(const QuantizationParams& q) {
     const float inv = (q.scale_factor != 0.0f) ? (1.0f / q.scale_factor) : 1.0f;
     return glm::translate(glm::mat4(1.0f), q.min_bounds) *
            glm::scale(glm::mat4(1.0f), glm::vec3(inv));
+}
+
+/// Rewrite a geometry's palette entries for the tools it drew. The main
+/// geometry and the moving mesh each own a palette and a tool->palette map,
+/// so the same AMS colors land at different indices in each.
+bool apply_tool_palette(RibbonGeometry& geom, const std::vector<uint32_t>& ams_colors) {
+    bool changed = false;
+    for (size_t tool = 0; tool < ams_colors.size(); ++tool) {
+        auto it = geom.tool_palette_map.find(static_cast<uint8_t>(tool));
+        if (it == geom.tool_palette_map.end()) {
+            continue;
+        }
+        const uint8_t palette_idx = it->second;
+        if (palette_idx < geom.color_palette.size() &&
+            geom.color_palette[palette_idx] != ams_colors[tool]) {
+            geom.color_palette[palette_idx] = ams_colors[tool];
+            changed = true;
+        }
+    }
+    return changed;
 }
 
 } // namespace
@@ -256,6 +277,11 @@ static const char* VERTEX_SHADER_MAIN = R"(
     void main() {
         gl_Position = u_mvp * vec4(a_position, 1.0);
         vec3 normal = oct_decode(a_normal);
+        // Stacked 0.2 mm layers are sub-pixel at preview sizes: a tube's bright top and dark
+        // side alias into a moire, so walls shade as one continuous surface per direction.
+        if (abs(normal.z) < 0.9) {
+            normal = normalize(vec3(normal.x, normal.y, 0.0));
+        }
         v_normal = normalize(u_normal_matrix * normal);
         v_position = (u_model_view * vec4(a_position, 1.0)).xyz;
         v_base_color = mix(u_base_color.rgb, a_color.rgb, u_use_vertex_color) * u_color_scale;
@@ -933,6 +959,23 @@ void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<
                   geom.strips.size());
 }
 
+void GCodeGLESRenderer::upload_moving_mesh() {
+    if (!geometry_ || !geometry_->moving_mesh) {
+        return;
+    }
+    upload_geometry(*geometry_->moving_mesh, moving_vbos_);
+    mesh_triangles_ = 0;
+    for (const auto& vbo : moving_vbos_) {
+        mesh_triangles_ += vbo.vertex_count / 3;
+    }
+    // Same contract as the main path: everything is on the GPU now, and the
+    // CPU fallback expand re-reads the (live, possibly overridden) palette.
+    geometry_->moving_mesh->prepared_buffers.clear();
+    geometry_->moving_mesh->prepared_buffers.shrink_to_fit();
+    spdlog::debug("[GCode GLES] Moving mesh uploaded: {} layers, {} triangles", moving_vbos_.size(),
+                  mesh_triangles_);
+}
+
 bool GCodeGLESRenderer::upload_geometry_chunk(const RibbonGeometry& geom,
                                               std::vector<LayerVBO>& vbos, size_t& next_layer,
                                               size_t total_layers) {
@@ -1083,6 +1126,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
                           "— disabling GPU rendering, falling back to 2D",
                           renderer ? renderer : "(null)");
             gl_render_failed_ = true;
+            cancel_job();
             return;
         }
     }
@@ -1092,6 +1136,8 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
         // Initialize incremental upload on first frame
         if (upload_total_layers_ == 0) {
             free_vbos(layer_vbos_); // Free old VBOs inside GL context
+            free_vbos(moving_vbos_);
+            mesh_triangles_ = 0; // stale if the geometry was replaced
             size_t num_layers =
                 geometry_->layer_strip_ranges.empty() ? 1 : geometry_->layer_strip_ranges.size();
             layer_vbos_.resize(num_layers);
@@ -1105,6 +1151,10 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
             geometry_uploaded_ = true;
             upload_next_layer_ = 0;
             upload_total_layers_ = 0;
+            uploaded_triangles_ = 0;
+            for (const auto& vbo : layer_vbos_) {
+                uploaded_triangles_ += vbo.vertex_count / 3;
+            }
             // Free pre-computed interleaved buffers — all data is now in GPU VBOs.
             // The CPU fallback path (for tool color re-upload) re-expands from
             // the compact vertices/strips directly, so these aren't needed.
@@ -1120,6 +1170,11 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
                 spdlog::info("[GCode GLES] Freed {} MB of upload buffers after VBO upload",
                              freed / (1024 * 1024));
             }
+            // The moving mesh rides along here rather than in set_prebuilt_
+            // geometry: a tool-color override rewinds geometry_uploaded_ and
+            // re-enters this branch, so the mesh re-uploads with whatever the
+            // palette says by then.
+            upload_moving_mesh();
             // Defer first GPU render by a few frames to avoid blocking panel animations
             render_defer_frames_ = 3;
         } else {
@@ -1141,58 +1196,69 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
         }
         render_defer_frames_ = 0;
     }
-    // Build current render state for frame-skip check
-    CachedRenderState current_state;
-    current_state.azimuth = camera.get_azimuth();
-    current_state.elevation = camera.get_elevation();
-    current_state.distance = camera.get_distance();
-    current_state.zoom_level = camera.get_zoom_level();
-    current_state.target = camera.get_target();
-    current_state.progress_layer = progress_layer_;
-    current_state.layer_start = layer_start_;
-    current_state.layer_end = layer_end_;
-    current_state.highlight_count = selection_.highlighted().size();
-    current_state.highlight_set_hash = selection_.highlighted_hash();
-    current_state.exclude_count = selection_.excluded().size();
-    current_state.filament_color = filament_color_;
-    current_state.ghost_opacity = ghost_opacity_;
+    // Finger down: draw the whole frame now at whatever detail the measured GPU
+    // rate affords, instead of handing out slices. cancel_job() inside
+    // render_moving clears have_complete_image_, so the release restarts a
+    // still job even for a tap that never moved the camera.
+    if (interaction_mode_) {
+        arm_gpu_guard();
+        render_moving(layer, gcode, camera, widget_coords);
+        clear_gpu_guard();
+        return;
+    }
 
-    // Skip GPU render if state unchanged and we have a valid cached framebuffer.
-    // draw_cached_to_lvgl skips glReadPixels — just blits the existing draw_buf_.
-    if (!frame_dirty_ && current_state == cached_state_ && draw_buf_) {
+    // Build current render state for frame-skip check
+    const CachedRenderState current_state = snapshot_state(camera);
+    render_schedule::JobInputs in;
+    in.scene_changed = frame_dirty_ || !current_state.same_scene(job_scene_);
+    in.have_complete_image = have_complete_image_ && draw_buf_;
+    in.job_running = job_.active;
+    in.job_incremental = job_.incremental;
+    in.selection_active = selection_.any_highlighted();
+    in.job_progress = job_.progress_layer;
+    in.new_progress = progress_layer_;
+    switch (render_schedule::decide_job(in)) {
+    case render_schedule::JobAction::Keep:
+        break;
+    case render_schedule::JobAction::Restart:
+        start_job(false, current_state);
+        break;
+    case render_schedule::JobAction::Incremental:
+        start_job(true, current_state);
+        break;
+    case render_schedule::JobAction::Extend:
+        job_.solid_end = std::min(progress_layer_, job_.solid_end_limit);
+        job_.progress_layer = progress_layer_;
+        job_.phase = JobPhase::Solid;
+        break;
+    }
+    frame_dirty_ = false;
+
+    if (!job_.active) {
+        // draw_cached_to_lvgl skips glReadPixels: it just blits the existing draw_buf_.
         draw_cached_to_lvgl(layer, widget_coords);
         return;
     }
 
-    cached_state_ = current_state;
-    frame_dirty_ = false;
-
-    auto t0 = std::chrono::high_resolution_clock::now();
-
     // Layer 2 — crash-loop breaker. Arm the guard file immediately before the
-    // real GPU draw; if the driver hard-faults inside render_to_fbo the process
+    // real GPU draw; if the driver hard-faults inside run_slice the process
     // dies with the file still present and the next startup promotes it to a
     // persistent block. Cleared right after the first successful blit.
     arm_gpu_guard();
 
-    // Render to FBO
-    render_to_fbo(gcode, camera);
-
-    auto t1 = std::chrono::high_resolution_clock::now();
-
-    // Read pixels from FBO and blit to LVGL
-    blit_to_lvgl(layer, widget_coords);
-
+    const bool done = run_slice(gcode, camera);
+    if (done) {
+        // Read pixels from FBO and blit to LVGL
+        blit_to_lvgl(layer, widget_coords);
+        have_complete_image_ = true;
+    } else {
+        // Mid-refinement: keep showing the last finished image rather than a
+        // partially drawn one.
+        draw_cached_to_lvgl(layer, widget_coords);
+    }
     clear_gpu_guard();
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-
     // guard destructor restores LVGL's GL context
-
-    auto gpu_ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
-    auto blit_ms = std::chrono::duration<float, std::milli>(t2 - t1).count();
-    spdlog::trace("[GCode GLES] gpu={:.1f}ms, blit={:.1f}ms, triangles={}", gpu_ms, blit_ms,
-                  triangles_rendered_);
 }
 
 // ============================================================
@@ -1234,48 +1300,60 @@ void GCodeGLESRenderer::clear_gpu_guard() {
 // FBO Rendering
 // ============================================================
 
-void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
-    int render_w = viewport_width_;
-    int render_h = viewport_height_;
-    if (render_w < 1)
-        render_w = 1;
-    if (render_h < 1)
-        render_h = 1;
+/// Layer ranges for the solid and ghost passes. ghosting is true when
+/// 0 <= progress_layer_ < max_layer.
+void GCodeGLESRenderer::pass_ranges(int& draw_start, int& draw_end, int& solid_end,
+                                    int& ghost_start, bool& ghosting) const {
+    const int max_layer = static_cast<int>(layer_vbos_.size()) - 1;
+    draw_start = (layer_start_ >= 0) ? layer_start_ : 0;
+    draw_end = (layer_end_ >= 0) ? std::min(layer_end_, max_layer) : max_layer;
+    ghosting = progress_layer_ >= 0 && progress_layer_ < max_layer;
+    solid_end = ghosting ? std::min(progress_layer_, draw_end) : draw_end;
+    ghost_start = ghosting ? std::max(progress_layer_ + 1, draw_start) : draw_end + 1;
+}
+
+bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool clear,
+                                    glm::mat4& mvp, glm::mat4& mvp_dequant,
+                                    const RibbonGeometry& geom) {
+    int render_w = std::max(1, static_cast<int>(viewport_width_ * scale));
+    int render_h = std::max(1, static_cast<int>(viewport_height_ * scale));
 
     // Create/resize FBO
     if (!create_fbo(render_w, render_h)) {
-        return;
+        return false;
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_.id);
     glViewport(0, 0, render_w, render_h);
 
-    // Neutral gray background — light and dark filaments both contrast well
-    glClearColor(BACKGROUND_GRAY, BACKGROUND_GRAY, BACKGROUND_GRAY_BLUE, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (clear) {
+        // Transparent clear: the image composites over the same gradient canvas
+        // as the 2D preview, so a pixel nothing drew must carry alpha 0.
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
     glEnable(GL_DEPTH_TEST);
 
-    // Alpha is not part of the picture: readback converts RGBA to RGB and throws
-    // the alpha byte away. So it is reserved as the selection tag channel, and
-    // masking it off here is what guarantees the tag means only one thing. Ghost
-    // layers blend with GL_ONE_MINUS_SRC_ALPHA, which would otherwise leave
-    // arbitrary alpha behind and put stray rim pixels on unselected geometry.
-    // Everything stays at the cleared 255 until render_selection_tag() unmasks.
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+    // Alpha is coverage. The solid pass outputs u_base_alpha = 1.0 and the ghost
+    // blend (SRC_ALPHA, ONE_MINUS_SRC_ALPHA) tops out around 1 - a + a*a, which
+    // stays below kSelectedAlpha at the 2% ghost opacity, so the tag value
+    // remains writable only by render_selection_tag(), and a 254 in the readback
+    // still means exactly "visible pixel of a selected object".
 
-    // Select active geometry
-    auto* active_vbos = &layer_vbos_;
-    active_geometry_ = geometry_.get();
+    // Select active geometry. Callers pass the geometry they are about to
+    // draw: the main one everywhere except the moving mesh, whose own bounds
+    // quantized its vertices.
+    active_geometry_ = &geom;
 
-    if (!active_geometry_ || active_vbos->empty()) {
+    if (!active_geometry_ || layer_vbos_.empty()) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        return;
+        return false;
     }
 
     // Use shader program
     glUseProgram(program_);
 
-    glm::mat4 mvp = build_mvp(camera);
+    mvp = build_mvp(camera);
 
     // Normal matrix (inverse transpose of upper-left 3x3 of model-view).
     glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 0, 1));
@@ -1293,7 +1371,7 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     const glm::mat4 dequant = dequant_matrix(active_geometry_->quantization);
 
     // Set uniforms
-    glm::mat4 mvp_dequant = mvp * dequant;
+    mvp_dequant = mvp * dequant;
     glUniformMatrix4fv(u_mvp_, 1, GL_FALSE, glm::value_ptr(mvp_dequant));
     glUniformMatrix3fv(u_normal_matrix_, 1, GL_FALSE, glm::value_ptr(normal_mat));
 
@@ -1332,66 +1410,72 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
     bool has_palette = active_geometry_ && !active_geometry_->color_palette.empty();
     bool has_vertex_colors = has_palette && !palette_.has_override;
     glUniform1f(u_use_vertex_color_, has_vertex_colors ? 1.0f : 0.0f);
+    return true;
+}
 
-    // Determine layer range
-    int max_layer = static_cast<int>(active_vbos->size()) - 1;
-    int draw_start = (layer_start_ >= 0) ? layer_start_ : 0;
-    int draw_end = (layer_end_ >= 0) ? std::min(layer_end_, max_layer) : max_layer;
+void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& gcode,
+                                      const GCodeCamera& camera, const lv_area_t* widget_coords) {
+    cancel_job();
+    const render_schedule::MovingPlan plan =
+        render_schedule::plan_moving(uploaded_triangles_, mesh_triangles_, gpu_rate_tris_per_ms_);
+    // The mesh has its own bounds and its own quantization, so it must be the
+    // geometry setup_frame dequantizes with, and it replaces the layer VBOs
+    // the draw reads. Stride stays 1: the mesh is already banded.
+    const std::vector<LayerVBO>* draw_vbos = &layer_vbos_;
+    const RibbonGeometry* draw_geom = geometry_.get();
+    if (plan.use_mesh && geometry_ && geometry_->moving_mesh && !moving_vbos_.empty()) {
+        draw_vbos = &moving_vbos_;
+        draw_geom = geometry_->moving_mesh.get();
+    }
+    glm::mat4 mvp, mvp_dequant;
+    if (!setup_frame(camera, plan.half_resolution ? 0.5f : 1.0f, true, mvp, mvp_dequant,
+                     *draw_geom)) {
+        return;
+    }
 
-    triangles_rendered_ = 0;
+    int draw_start, draw_end, solid_end, ghost_start;
+    bool ghosting;
+    pass_ranges(draw_start, draw_end, solid_end, ghost_start, ghosting);
 
-    // Ghost / print progress rendering
-    if (progress_layer_ >= 0 && progress_layer_ < max_layer) {
-        // Pass 1: Solid layers (0 to progress_layer_)
-        int solid_end = std::min(progress_layer_, draw_end);
+    const size_t before = triangles_rendered_;
+    const auto t0 = std::chrono::steady_clock::now();
+
+    if (ghosting) {
         if (draw_start <= solid_end) {
-            draw_layers(*active_vbos, draw_start, solid_end, 1.0f, 1.0f);
+            draw_layers(*draw_vbos, draw_start, solid_end, 1.0f, 1.0f, plan.stride);
         }
-
-        // Pass 2: Ghost layers (progress_layer_+1 to end) with alpha blending
-        // Use elevated color_scale to lighten ghost colors (washes toward white)
-        int ghost_start = std::max(progress_layer_ + 1, draw_start);
         if (ghost_start <= draw_end) {
-            float alpha = ghost_opacity_ / 255.0f;
             constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glDepthMask(GL_FALSE); // Don't write ghost depth (prevents z-fighting)
-            draw_layers(*active_vbos, ghost_start, draw_end, GHOST_LIGHTEN_SCALE, alpha);
+            glDepthMask(GL_FALSE);
+            draw_layers(*draw_vbos, ghost_start, draw_end, GHOST_LIGHTEN_SCALE,
+                        ghost_opacity_ / 255.0f, plan.stride);
             glDepthMask(GL_TRUE);
             glDisable(GL_BLEND);
         }
     } else {
-        // Normal: all layers solid
-        draw_layers(*active_vbos, draw_start, draw_end, 1.0f, 1.0f);
+        draw_layers(*draw_vbos, draw_start, draw_end, 1.0f, 1.0f, plan.stride);
     }
 
     glUseProgram(0);
-
-    // Tag the selected object's visible pixels AFTER the geometry is final, so
-    // "visible" means what actually survived depth testing. Solid layers only —
-    // the ghost pass is faded context, and a full-strength rim there would read as
-    // a solid object. The rim itself is drawn on the CPU after readback.
-    {
-        int tag_end = draw_end;
-        if (progress_layer_ >= 0 && progress_layer_ < max_layer) {
-            tag_end = std::min(progress_layer_, draw_end);
-        }
-        render_selection_tag(gcode, mvp_dequant, draw_start, tag_end);
-    }
-
-    // Selection brackets on top, using the same MVP as the geometry pass so
-    // brackets stay anchored to objects under rotation/zoom. Drawn last with
-    // depth test disabled inside render_brackets_3d(). Alpha is still masked, so
-    // the brackets cannot overwrite the tag they sit on top of.
     render_brackets_3d(gcode, mvp);
-
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glFinish();
+    const float ms =
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    gpu_rate_tris_per_ms_ =
+        render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    blit_to_lvgl(layer, widget_coords);
+    spdlog::trace("[GCode GLES] Moving frame: {}stride {}, {} res, {:.1f}ms",
+                  plan.use_mesh && draw_vbos == &moving_vbos_ ? "mesh " : "", plan.stride,
+                  plan.half_resolution ? "half" : "full", ms);
 }
 
-void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
-                                    int layer_end, float color_scale, float alpha) {
+int GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
+                                   int layer_end, float color_scale, float alpha, int stride,
+                                   size_t max_triangles) {
     // Set uniforms for this draw batch
     glUniform4fv(u_base_color_, 1, glm::value_ptr(filament_color_));
     glUniform1f(u_color_scale_, color_scale);
@@ -1407,7 +1491,9 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
         glEnableVertexAttribArray(static_cast<GLuint>(a_color_));
     }
 
-    for (int layer = layer_start; layer <= layer_end; ++layer) {
+    size_t submitted = 0;
+    int layer = layer_start;
+    for (; layer <= layer_end; layer += stride) {
         if (layer < 0 || layer >= static_cast<int>(vbos.size()))
             continue;
         const auto& lv = vbos[static_cast<size_t>(layer)];
@@ -1436,6 +1522,11 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
 
         glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(lv.vertex_count));
         triangles_rendered_ += lv.vertex_count / 3;
+        submitted += lv.vertex_count / 3;
+        if (submitted >= max_triangles) {
+            layer += stride;
+            break;
+        }
     }
 
     glDisableVertexAttribArray(static_cast<GLuint>(a_position_));
@@ -1457,7 +1548,121 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
                       "rendering, falling back to 2D",
                       draw_err);
         gl_render_failed_ = true;
+        cancel_job();
     }
+    return layer;
+}
+
+// ============================================================
+// Time-sliced refinement
+// ============================================================
+
+void GCodeGLESRenderer::start_job(bool incremental, const CachedRenderState& scene) {
+    const int previous_progress = job_.progress_layer;
+    int draw_start, draw_end, solid_end, ghost_start;
+    bool ghosting;
+    pass_ranges(draw_start, draw_end, solid_end, ghost_start, ghosting);
+    job_ = RefineJob{};
+    job_.active = true;
+    job_.incremental = incremental;
+    job_.phase = JobPhase::Solid;
+    job_.solid_end_limit = draw_end;
+    job_.progress_layer = progress_layer_;
+    job_.started = std::chrono::steady_clock::now();
+    if (incremental) {
+        job_.first_slice = false;
+        job_.solid_start = std::max(previous_progress + 1, draw_start);
+        job_.solid_end = solid_end;
+        job_.ghost_start = 0;
+        job_.ghost_end = -1;
+    } else {
+        job_.solid_start = draw_start;
+        job_.solid_end = ghosting ? solid_end : draw_end;
+        job_.ghost_start = ghost_start;
+        job_.ghost_end = ghosting ? draw_end : -1;
+        have_complete_image_ = false;
+    }
+    job_.next_layer = job_.solid_start;
+    job_scene_ = scene;
+}
+
+bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamera& camera) {
+    glm::mat4 mvp, mvp_dequant;
+    if (!geometry_) {
+        cancel_job();
+        return false;
+    }
+    if (!setup_frame(camera, kStillSupersample, job_.first_slice, mvp, mvp_dequant, *geometry_)) {
+        cancel_job();
+        return false;
+    }
+    job_.first_slice = false;
+    const size_t quota = render_schedule::slice_quota(gpu_rate_tris_per_ms_);
+    const size_t before = triangles_rendered_;
+    const auto t0 = std::chrono::steady_clock::now();
+    while (job_.phase != JobPhase::Done && triangles_rendered_ - before < quota) {
+        const size_t left = quota - (triangles_rendered_ - before);
+        if (job_.phase == JobPhase::Solid) {
+            if (job_.next_layer > job_.solid_end) {
+                job_.phase =
+                    job_.ghost_start <= job_.ghost_end ? JobPhase::Ghost : JobPhase::Overlays;
+                job_.next_layer = job_.ghost_start;
+                continue;
+            }
+            job_.next_layer =
+                draw_layers(layer_vbos_, job_.next_layer, job_.solid_end, 1.0f, 1.0f, 1, left);
+        } else if (job_.phase == JobPhase::Ghost) {
+            if (job_.next_layer > job_.ghost_end) {
+                job_.phase = JobPhase::Overlays;
+                continue;
+            }
+            constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+            job_.next_layer = draw_layers(layer_vbos_, job_.next_layer, job_.ghost_end,
+                                          GHOST_LIGHTEN_SCALE, ghost_opacity_ / 255.0f, 1, left);
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+        } else { // Overlays: the selection tag and brackets a moving frame skips
+            glUseProgram(0);
+            // The tag covers exactly the solid layers (solid_end is the
+            // progress layer while ghosting, the last drawn layer otherwise).
+            // An incremental job drew onto a finished image that already
+            // carries its tag.
+            if (!job_.incremental) {
+                render_selection_tag(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
+            }
+            render_brackets_3d(gcode, mvp);
+            job_.phase = JobPhase::Done;
+        }
+    }
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glFinish();
+    const float ms =
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    gpu_rate_tris_per_ms_ =
+        render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
+    job_.slices++;
+    job_.max_slice_ms = std::max(job_.max_slice_ms, ms);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (job_.phase != JobPhase::Done) {
+        return false;
+    }
+    job_.active = false;
+    spdlog::debug(
+        "[GCode GLES] Refine done: {} slices, max slice {:.1f}ms, {:.0f}ms wall, "
+        "rate {:.0f} tris/ms{}",
+        job_.slices, job_.max_slice_ms,
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - job_.started)
+            .count(),
+        gpu_rate_tris_per_ms_, job_.incremental ? " (incremental)" : "");
+    return true;
+}
+
+void GCodeGLESRenderer::cancel_job() {
+    job_ = RefineJob{};
+    have_complete_image_ = false;
 }
 
 // ============================================================
@@ -1486,8 +1691,9 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
     if (!draw_buf_ || draw_buf_width_ != widget_w || draw_buf_height_ != widget_h) {
         // May still be in flight to the parallel render thread (#929 cluster).
         helix::safe_draw_buf_destroy(draw_buf_, "gles_draw_buf");
-        draw_buf_ = lv_draw_buf_create(static_cast<uint32_t>(widget_w),
-                                       static_cast<uint32_t>(widget_h), LV_COLOR_FORMAT_RGB888, 0);
+        draw_buf_ =
+            lv_draw_buf_create(static_cast<uint32_t>(widget_w), static_cast<uint32_t>(widget_h),
+                               LV_COLOR_FORMAT_ARGB8888, 0);
         if (!draw_buf_) {
             spdlog::error("[GCode GLES] Failed to create draw buffer");
             return;
@@ -1518,7 +1724,11 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
     // readback's channel order has to be named. glReadPixels above asked for
     // GL_RGBA, which puts red at byte 0 where an ARGB8888 buffer puts blue.
     if (selection_.any_highlighted()) {
-        const int rim = selection::outline_width_px(fbo_width_);
+        // The rim is sized for the widget the frame is displayed at, then
+        // scaled into readback pixels: a supersampled still strokes its rim at
+        // 2x so the box filter lands it back at the same on-screen width a
+        // widget-sized frame would have shown.
+        const int rim = selection::outline_width_px_scaled(widget_w, fbo_width_);
         const RasterTarget rt{readback_buf_.data(), static_cast<size_t>(fbo_width_) * 4, fbo_width_,
                               fbo_height_};
         size_t tagged = 0;
@@ -1535,7 +1745,10 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    // Convert GL RGBA → LVGL RGB888 (BGR byte order), flip Y, and scale if needed
+    // Convert GL RGBA → LVGL ARGB8888 (BGR byte order + coverage alpha), flip Y,
+    // and scale if needed. The rim pass above has already consumed the tag, so
+    // from here on alpha means opacity: any nonzero readback alpha (the 254 tag
+    // included) becomes fully opaque, and only never-drawn pixels stay clear.
     if (!draw_buf_->data) {
         spdlog::error("[GCode GLES] draw_buf_ data is null");
         return;
@@ -1546,7 +1759,60 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
     // Use actual draw buffer stride (aligned to LV_DRAW_BUF_STRIDE_ALIGN)
     uint32_t dst_stride = draw_buf_->header.stride;
 
-    // Row-based conversion: RGBA→BGR with Y-flip
+    // A 2x supersampled frame comes down through a 2x2 box filter: the extra
+    // samples are the whole point of rendering big, and nearest sampling would
+    // throw three of every four away. Any other size ratio (the half-res
+    // moving FBO upscaled, or a same-size frame) takes the paths below.
+    if (fbo_width_ == widget_w * 2 && fbo_height_ == widget_h * 2) {
+        const auto avg4 = [](unsigned a, unsigned b, unsigned c, unsigned d) {
+            return static_cast<uint8_t>((a + b + c + d + 2) / 4);
+        };
+        // A partially covered block averages to partial alpha, and its averaged
+        // RGB is coverage-scaled (empty samples cleared to black). LVGL wants
+        // straight alpha, so divide the darkness back out.
+        const auto unpremul = [](uint8_t v, uint8_t a) {
+            return static_cast<uint8_t>(std::min<unsigned>(255, v * 255u / a));
+        };
+        for (int dy = 0; dy < widget_h; ++dy) {
+            // Y-flip on the source, same as the loops below.
+            const uint8_t* row_a =
+                src + static_cast<size_t>(fbo_height_ - 1 - (dy * 2)) * fbo_width_ * 4;
+            const uint8_t* row_b =
+                src + static_cast<size_t>(fbo_height_ - 1 - (dy * 2 + 1)) * fbo_width_ * 4;
+            auto* dst_row = dest + static_cast<size_t>(dy) * dst_stride;
+            for (int dx = 0; dx < widget_w; ++dx) {
+                const size_t s0 = static_cast<size_t>(dx * 2) * 4;
+                const size_t s1 = s0 + 4;
+                const size_t di = static_cast<size_t>(dx) * 4;
+                const uint8_t a = avg4(row_a[s0 + 3] ? 255u : 0u, row_a[s1 + 3] ? 255u : 0u,
+                                       row_b[s0 + 3] ? 255u : 0u, row_b[s1 + 3] ? 255u : 0u);
+                if (a == 0) {
+                    dst_row[di + 0] = dst_row[di + 1] = dst_row[di + 2] = dst_row[di + 3] = 0;
+                    continue;
+                }
+                uint8_t r = avg4(row_a[s0 + 0], row_a[s1 + 0], row_b[s0 + 0], row_b[s1 + 0]);
+                uint8_t g = avg4(row_a[s0 + 1], row_a[s1 + 1], row_b[s0 + 1], row_b[s1 + 1]);
+                uint8_t b = avg4(row_a[s0 + 2], row_a[s1 + 2], row_b[s0 + 2], row_b[s1 + 2]);
+                if (a != 255) {
+                    r = unpremul(r, a);
+                    g = unpremul(g, a);
+                    b = unpremul(b, a);
+                }
+                dst_row[di + 0] = b;
+                dst_row[di + 1] = g;
+                dst_row[di + 2] = r;
+                dst_row[di + 3] = a;
+            }
+        }
+        lv_draw_image_dsc_t ssaa_dsc;
+        lv_draw_image_dsc_init(&ssaa_dsc);
+        ssaa_dsc.src = draw_buf_;
+        lv_area_t ssaa_area = *widget_coords;
+        lv_draw_image(layer, &ssaa_dsc, &ssaa_area);
+        return;
+    }
+
+    // Row-based conversion: RGBA→BGRA with Y-flip
     for (int dy = 0; dy < widget_h; ++dy) {
         int sy = needs_scale ? (dy * fbo_height_ / widget_h) : dy;
         int gl_row = fbo_height_ - 1 - sy;
@@ -1557,19 +1823,21 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
             for (int dx = 0; dx < widget_w; ++dx) {
                 int sx = dx * fbo_width_ / widget_w;
                 size_t si = static_cast<size_t>(sx) * 4;
-                size_t di = static_cast<size_t>(dx) * 3;
-                dst_row[di + 0] = src_row[si + 2]; // B
-                dst_row[di + 1] = src_row[si + 1]; // G
-                dst_row[di + 2] = src_row[si + 0]; // R
+                size_t di = static_cast<size_t>(dx) * 4;
+                dst_row[di + 0] = src_row[si + 2];           // B
+                dst_row[di + 1] = src_row[si + 1];           // G
+                dst_row[di + 2] = src_row[si + 0];           // R
+                dst_row[di + 3] = src_row[si + 3] ? 255 : 0; // A
             }
         } else {
-            // No scaling: convert entire row RGBA→BGR
+            // No scaling: convert entire row RGBA→BGRA
             for (int dx = 0; dx < widget_w; ++dx) {
                 size_t si = static_cast<size_t>(dx) * 4;
-                size_t di = static_cast<size_t>(dx) * 3;
-                dst_row[di + 0] = src_row[si + 2]; // B
-                dst_row[di + 1] = src_row[si + 1]; // G
-                dst_row[di + 2] = src_row[si + 0]; // R
+                size_t di = static_cast<size_t>(dx) * 4;
+                dst_row[di + 0] = src_row[si + 2];           // B
+                dst_row[di + 1] = src_row[si + 1];           // G
+                dst_row[di + 2] = src_row[si + 0];           // R
+                dst_row[di + 3] = src_row[si + 3] ? 255 : 0; // A
             }
         }
     }
@@ -1587,18 +1855,45 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
 // CachedRenderState
 // ============================================================
 
-bool GCodeGLESRenderer::CachedRenderState::operator==(const CachedRenderState& o) const {
+bool GCodeGLESRenderer::CachedRenderState::same_scene(const CachedRenderState& o) const {
     // Epsilon comparisons: tighter for angles, looser for zoom/distance
     auto near_angle = [](float a, float b) { return std::abs(a - b) < ANGLE_EPSILON; };
     auto near_zoom = [](float a, float b) { return std::abs(a - b) < ZOOM_EPSILON; };
     return near_angle(azimuth, o.azimuth) && near_angle(elevation, o.elevation) &&
            near_zoom(distance, o.distance) && near_zoom(zoom_level, o.zoom_level) &&
            near_angle(target.x, o.target.x) && near_angle(target.y, o.target.y) &&
-           near_angle(target.z, o.target.z) && progress_layer == o.progress_layer &&
-           layer_start == o.layer_start && layer_end == o.layer_end &&
-           highlight_count == o.highlight_count && highlight_set_hash == o.highlight_set_hash &&
-           exclude_count == o.exclude_count && filament_color == o.filament_color &&
-           ghost_opacity == o.ghost_opacity;
+           near_angle(target.z, o.target.z) && layer_start == o.layer_start &&
+           layer_end == o.layer_end && highlight_count == o.highlight_count &&
+           highlight_set_hash == o.highlight_set_hash && exclude_count == o.exclude_count &&
+           filament_color == o.filament_color && ghost_opacity == o.ghost_opacity &&
+           content_offset_y == o.content_offset_y && viewport_width == o.viewport_width &&
+           viewport_height == o.viewport_height;
+}
+
+bool GCodeGLESRenderer::CachedRenderState::operator==(const CachedRenderState& o) const {
+    return same_scene(o) && progress_layer == o.progress_layer;
+}
+
+GCodeGLESRenderer::CachedRenderState
+GCodeGLESRenderer::snapshot_state(const GCodeCamera& camera) const {
+    CachedRenderState s;
+    s.azimuth = camera.get_azimuth();
+    s.elevation = camera.get_elevation();
+    s.distance = camera.get_distance();
+    s.zoom_level = camera.get_zoom_level();
+    s.target = camera.get_target();
+    s.progress_layer = progress_layer_;
+    s.layer_start = layer_start_;
+    s.layer_end = layer_end_;
+    s.highlight_count = selection_.highlighted().size();
+    s.highlight_set_hash = selection_.highlighted_hash();
+    s.exclude_count = selection_.excluded().size();
+    s.filament_color = filament_color_;
+    s.ghost_opacity = ghost_opacity_;
+    s.content_offset_y = content_offset_y_percent_;
+    s.viewport_width = viewport_width_;
+    s.viewport_height = viewport_height_;
+    return s;
 }
 
 // ============================================================
@@ -1617,7 +1912,6 @@ void GCodeGLESRenderer::set_interaction_mode(bool interacting) {
     if (interaction_mode_ == interacting)
         return;
     interaction_mode_ = interacting;
-    frame_dirty_ = true;
 }
 
 void GCodeGLESRenderer::set_filament_color(const std::string& hex_color) {
@@ -1666,20 +1960,14 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
     if (baked_color_palette_.empty()) {
         baked_color_palette_ = geometry_->color_palette;
     }
+    if (geometry_->moving_mesh && mesh_baked_palette_.empty()) {
+        mesh_baked_palette_ = geometry_->moving_mesh->color_palette;
+    }
 
     // Replace palette entries using tool→palette mapping from geometry build
-    bool changed = false;
-    for (size_t tool = 0; tool < ams_colors.size(); ++tool) {
-        auto it = geometry_->tool_palette_map.find(static_cast<uint8_t>(tool));
-        if (it == geometry_->tool_palette_map.end()) {
-            continue;
-        }
-        uint8_t palette_idx = it->second;
-        if (palette_idx < geometry_->color_palette.size() &&
-            geometry_->color_palette[palette_idx] != ams_colors[tool]) {
-            geometry_->color_palette[palette_idx] = ams_colors[tool];
-            changed = true;
-        }
+    bool changed = apply_tool_palette(*geometry_, ams_colors);
+    if (geometry_->moving_mesh) {
+        changed = apply_tool_palette(*geometry_->moving_mesh, ams_colors) || changed;
     }
 
     if (changed) {
@@ -1690,11 +1978,15 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
         // discarding the ~100MB pack the background thread just produced and
         // re-expanding it on the foreground thread — only the RGBA8 lanes
         // need to change.
-        if (geometry_) {
-            geometry_->patch_prepared_buffer_colors();
+        geometry_->patch_prepared_buffer_colors();
+        if (geometry_->moving_mesh) {
+            // No-op once the mesh's prepared buffers were freed after upload;
+            // the re-upload then expands from the live palette instead.
+            geometry_->moving_mesh->patch_prepared_buffer_colors();
         }
         // Force VBO re-upload to push the new colors to the GPU
         // (old VBOs freed inside render() where GL context is active)
+        cancel_job();
         geometry_uploaded_ = false;
         upload_next_layer_ = 0;
         upload_total_layers_ = 0;
@@ -1723,7 +2015,16 @@ void GCodeGLESRenderer::clear_tool_color_overrides() {
     geometry_->color_palette = baked_color_palette_;
     baked_color_palette_.clear();
 
-    if (!changed) {
+    // The mesh restores from its own snapshot before any early return: a
+    // snapshot left behind would be restored onto the next geometry's palette.
+    bool mesh_changed = false;
+    if (geometry_->moving_mesh && !mesh_baked_palette_.empty()) {
+        mesh_changed = geometry_->moving_mesh->color_palette != mesh_baked_palette_;
+        geometry_->moving_mesh->color_palette = mesh_baked_palette_;
+    }
+    mesh_baked_palette_.clear();
+
+    if (!changed && !mesh_changed) {
         return;
     }
 
@@ -1731,6 +2032,10 @@ void GCodeGLESRenderer::clear_tool_color_overrides() {
     // the prepared buffers rather than re-expanding the whole pack, then force
     // the VBOs back up so the GPU sees the restored colors.
     geometry_->patch_prepared_buffer_colors();
+    if (geometry_->moving_mesh) {
+        geometry_->moving_mesh->patch_prepared_buffer_colors();
+    }
+    cancel_job();
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
@@ -1833,10 +2138,9 @@ RenderingOptions GCodeGLESRenderer::get_options() const {
 // ============================================================
 
 void GCodeGLESRenderer::set_print_progress_layer(int current_layer) {
-    if (progress_layer_ != current_layer) {
-        progress_layer_ = current_layer;
-        frame_dirty_ = true;
-    }
+    // No frame_dirty_: print progress goes through render_schedule::decide_job,
+    // which decides between extending, an incremental pass, or a restart.
+    progress_layer_ = current_layer;
 }
 
 void GCodeGLESRenderer::set_ghost_opacity(lv_opa_t opacity) {
@@ -1845,7 +2149,11 @@ void GCodeGLESRenderer::set_ghost_opacity(lv_opa_t opacity) {
 }
 
 void GCodeGLESRenderer::set_content_offset_y(float offset_percent) {
-    content_offset_y_percent_ = std::clamp(offset_percent, -1.0f, 1.0f);
+    const float clamped = std::clamp(offset_percent, -1.0f, 1.0f);
+    if (std::abs(clamped - content_offset_y_percent_) < 1e-4f) {
+        return;
+    }
+    content_offset_y_percent_ = clamped;
     frame_dirty_ = true;
 }
 
@@ -1865,6 +2173,7 @@ int GCodeGLESRenderer::get_max_layer_index() const {
 // ============================================================
 
 void GCodeGLESRenderer::release_geometry() {
+    cancel_job();
     size_t freed = geometry_ ? geometry_->memory_usage() : 0;
 
     // Free GPU VBOs (requires GL context)
@@ -1876,6 +2185,7 @@ void GCodeGLESRenderer::release_geometry() {
 #endif
         if (guard.ok()) {
             free_vbos(layer_vbos_);
+            free_vbos(moving_vbos_);
         }
     }
 
@@ -1885,12 +2195,14 @@ void GCodeGLESRenderer::release_geometry() {
         // Nothing left to restore the baked palette onto.
         std::lock_guard<std::mutex> lock(palette_mutex_);
         baked_color_palette_.clear();
+        mesh_baked_palette_.clear();
     }
     active_geometry_ = nullptr;
     current_filename_.clear();
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
+    mesh_triangles_ = 0;
 
     // Free readback buffer
     freed += readback_buf_.capacity();
@@ -1908,17 +2220,20 @@ void GCodeGLESRenderer::release_geometry() {
 
 void GCodeGLESRenderer::set_prebuilt_geometry(std::unique_ptr<RibbonGeometry> geometry,
                                               const std::string& filename) {
+    cancel_job();
     geometry_ = std::move(geometry);
     {
         // The snapshot describes the palette of the geometry just replaced.
         // Kept, it would be restored onto a different file's palette.
         std::lock_guard<std::mutex> lock(palette_mutex_);
         baked_color_palette_.clear();
+        mesh_baked_palette_.clear();
     }
     current_filename_ = filename;
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
+    mesh_triangles_ = 0;
     frame_dirty_ = true;
     spdlog::debug("[GCode GLES] Geometry set: {} strips, {} vertices",
                   geometry_ ? geometry_->strips.size() : 0,
@@ -1950,10 +2265,10 @@ helix::gcode::RenderMemoryReport GCodeGLESRenderer::memory_report() const {
     }
     r.add("geometry", geometry);
 
-    // RGB888, no alpha: blit_to_lvgl drops the alpha byte on the way in, which
-    // is what freed it up to carry the selection tag.
+    // ARGB8888: the alpha byte is coverage, thresholded to 0/255 during the
+    // repack once the rim pass has consumed the selection tag.
     r.add("draw_buf", draw_buf_ ? static_cast<size_t>(draw_buf_width_) *
-                                      static_cast<size_t>(draw_buf_height_) * 3
+                                      static_cast<size_t>(draw_buf_height_) * 4
                                 : 0);
 
     // Was missing from the old accounting entirely. It is a full RGBA copy of
@@ -2257,8 +2572,8 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
     glGetIntegerv(GL_DEPTH_FUNC, &prev_depth_func);
 
     // Alpha only. The color channels already hold the lit image and must survive
-    // untouched; the rest of the frame runs with alpha writes masked off (see
-    // render_to_fbo) so nothing but this pass can put kSelectedAlpha anywhere.
+    // untouched; overwriting alpha with the flat tag value is what separates
+    // "visible selected pixel" (kSelectedAlpha) from plain coverage (255).
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 
     // Depth test stays enabled, but the function MUST be relaxed to LEQUAL. The
@@ -2319,12 +2634,11 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
 
     glDisableVertexAttribArray(static_cast<GLuint>(shell_a_position_));
 
-    // Restore, in the reverse order of the saves. Alpha writes go back to masked
-    // off, which is how the rest of the frame runs.
+    // Restore, in the reverse order of the saves.
     glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(prev_buffer));
     glDepthMask(prev_depth_mask);
     glDepthFunc(static_cast<GLenum>(prev_depth_func));
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glUseProgram(static_cast<GLuint>(prev_program));
 
     // One error check for the whole pass, matching draw_layers. A fault here is
@@ -2335,6 +2649,7 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
                       "GPU rendering, falling back to 2D",
                       tag_err);
         gl_render_failed_ = true;
+        cancel_job();
         return;
     }
 

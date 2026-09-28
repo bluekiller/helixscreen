@@ -939,6 +939,7 @@ FeatureType GCodeParser::parse_feature_type_value(const std::string& value) {
         {"Solid infill", FeatureType::SolidInfill},
         {"Internal solid infill", FeatureType::SolidInfill},
         {"Top surface", FeatureType::TopSurface},
+        {"Top solid infill", FeatureType::TopSurface},
         {"Bottom surface", FeatureType::BottomSurface},
         {"Bridge", FeatureType::Bridge},
         {"Internal Bridge", FeatureType::Bridge},

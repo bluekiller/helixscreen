@@ -19,6 +19,10 @@ class GeometryBudgetManager {
         float simplification_tolerance;
         bool include_travels;
         size_t budget_bytes;
+        /// True when the GPU triangle cap (not the byte budget) is what chose
+        /// this tier: bytes alone allowed a finer one. Consumers may then spend
+        /// the memory headroom on detail (finer tolerance, tighter merge angle).
+        bool triangle_capped = false;
     };
 
     // Empirically measured bytes per raw gcode segment (includes simplification,

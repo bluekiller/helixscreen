@@ -1014,13 +1014,16 @@ HELIX_GCODE_STREAMING=auto ./build/bin/helix-screen --test -vv &
 ./build/bin/helix-screen ctl demo print-status
 ```
 
-**Auto-detection thresholds** (at 40% RAM threshold, 15x expansion factor):
+**Auto-detection thresholds** (15x expansion factor; boards at or under 2GB
+total RAM (they usually co-host Klipper and Moonraker) take a 15% share of
+available memory instead of the 40% default, so a small file still full-parses
+and the 3D preview can follow the print):
 | Available RAM | Streaming kicks in at |
 |---------------|----------------------|
-| 47 MB (AD5M)  | ~1.25 MB |
-| 256 MB        | ~6.8 MB |
-| 1 GB          | ~27 MB |
-| 4 GB          | ~107 MB |
+| 47 MB (AD5M, 15% cap) | ~0.5 MB |
+| 600 MB (Pi 3B, 15% cap) | ~6 MB |
+| 1 GB (40% default) | ~27 MB |
+| 4 GB (40% default) | ~107 MB |
 
 **Related config options:**
 - `gcode_viewer.streaming_mode`: `"auto"`, `"on"`, or `"off"`

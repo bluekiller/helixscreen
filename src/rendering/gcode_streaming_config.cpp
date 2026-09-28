@@ -14,6 +14,24 @@
 
 namespace helix {
 
+namespace {
+
+// Boards at or under 2GB total usually co-host Klipper and Moonraker, and the
+// available-KB figure read when the viewer opens keeps shrinking once the
+// print is running. They get a smaller share of it than the 40% default: on a
+// Pi 3B (856MB total, ~600MB available) that is still a ~6MB file ceiling, so
+// a Benchy full-parses and the 3D preview can follow the print, while anything
+// slice-farm sized streams. A configured percentage below this stays honoured;
+// one above it is capped.
+constexpr int kLowRamThresholdPercent = 15;
+
+int effective_threshold_percent(const MemoryInfo& mem) {
+    const int configured = get_streaming_threshold_percent();
+    return mem.is_low_ram_device() ? std::min(configured, kLowRamThresholdPercent) : configured;
+}
+
+} // namespace
+
 GCodeStreamingMode get_gcode_streaming_mode() {
     // Priority 1: Environment variable (highest)
     const char* env = std::getenv("HELIX_GCODE_STREAMING");
@@ -79,13 +97,6 @@ size_t calculate_streaming_threshold(size_t available_memory_kb, int threshold_p
 }
 
 bool should_use_gcode_streaming(size_t file_size_bytes, const MemoryInfo& mem) {
-    // Force streaming on low-RAM devices (<=2GB total)
-    if (mem.should_force_streaming()) {
-        spdlog::debug("[GCodeStreaming] Low-RAM device ({}MB) - forcing streaming",
-                      mem.total_kb / 1024);
-        return true;
-    }
-
     // If we can't read memory info, be conservative
     if (mem.available_kb == 0) {
         spdlog::warn("[GCodeStreaming] Cannot read memory info, defaulting to streaming "
@@ -93,8 +104,9 @@ bool should_use_gcode_streaming(size_t file_size_bytes, const MemoryInfo& mem) {
         return file_size_bytes > (2 * 1024 * 1024);
     }
 
-    // Calculate threshold based on available memory
-    int threshold_pct = get_streaming_threshold_percent();
+    // Calculate threshold based on available memory; low-RAM boards take a
+    // smaller share of it (kLowRamThresholdPercent)
+    int threshold_pct = effective_threshold_percent(mem);
     size_t threshold_bytes = calculate_streaming_threshold(mem.available_kb, threshold_pct);
 
     bool should_stream = file_size_bytes > threshold_bytes;
@@ -143,7 +155,7 @@ std::string get_streaming_config_description() {
         break;
     case GCodeStreamingMode::AUTO: {
         MemoryInfo mem = get_system_memory_info();
-        int threshold_pct = get_streaming_threshold_percent();
+        int threshold_pct = effective_threshold_percent(mem);
 
         if (mem.available_kb > 0) {
             size_t threshold_bytes = calculate_streaming_threshold(mem.available_kb, threshold_pct);

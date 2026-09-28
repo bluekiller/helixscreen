@@ -186,6 +186,64 @@ TEST_CASE("Budget: triangle cap demotes tiers that exceed it", "[gcode][budget]"
     REQUIRE(huge.tier == 4); // 2.2M tris even at N4: 2D fallback
 }
 
+// The coarse-tier tolerances (0.2 / 1.0 / 2.0 mm) exist to fit a byte budget.
+// When the GPU triangle cap is what demoted the tier, bytes were never the
+// binding constraint, so the coarse tolerance spends detail nothing asked it
+// to save; the TRIS_PER_SEG_* estimates were calibrated at 0.01 mm, the
+// tolerance the build then uses.
+TEST_CASE("Budget: triangle-capped tiers keep the fine simplification tolerance",
+          "[gcode][budget]") {
+    GeometryBudgetManager mgr;
+    const size_t big_bytes = 256 * 1024 * 1024; // bytes never the binding limit here
+    const size_t cap = 1'000'000;
+
+    // 3DBenchy: bytes alone allow tier 1, the cap demotes to tier 3.
+    auto benchy = mgr.select_tier(88096, big_bytes, cap);
+    REQUIRE(benchy.tier == 3);
+    REQUIRE(benchy.tube_sides == 4);
+    REQUIRE(benchy.simplification_tolerance == 0.01f);
+    REQUIRE(benchy.triangle_capped);
+
+    // The demotion can land on tier 2; same rule.
+    auto medium = mgr.select_tier(20000, big_bytes, cap);
+    REQUIRE(medium.tier == 2);
+    REQUIRE(medium.simplification_tolerance == 0.01f);
+    REQUIRE(medium.triangle_capped);
+
+    // No cap: the flag never sets and the tier's own tolerance stands.
+    auto uncapped = mgr.select_tier(88096, big_bytes, 0);
+    REQUIRE(uncapped.tier == 1);
+    REQUIRE(uncapped.simplification_tolerance == 0.01f);
+    REQUIRE_FALSE(uncapped.triangle_capped);
+
+    // Byte-limited tier 3 (small budget, no cap) keeps its coarse tolerance.
+    auto byte_limited = mgr.select_tier(300000, 100 * 1024 * 1024, 0);
+    REQUIRE(byte_limited.tier == 3);
+    REQUIRE(byte_limited.simplification_tolerance == 1.0f);
+    REQUIRE_FALSE(byte_limited.triangle_capped);
+}
+
+// Tier 4 says whether the cap alone refused 3D: the viewer can then still
+// afford a banded 3D still, which a memory-bound file cannot.
+TEST_CASE("Budget: tier 4 marks a cap-bound fallback, not a memory-bound one", "[gcode][budget]") {
+    GeometryBudgetManager mgr;
+    const size_t big_bytes = 256 * 1024 * 1024;
+    const size_t cap = 1'000'000;
+
+    // Eiffel on a Pi 3B: 325k segments are 98MB at N4 (fits), 3.58M tris (does not).
+    auto eiffel = mgr.select_tier(325589, big_bytes, cap);
+    REQUIRE(eiffel.tier == 4);
+    REQUIRE(eiffel.triangle_capped);
+
+    // 1M segments are 300MB at N4: over the byte budget too, so no 3D at all.
+    auto too_big = mgr.select_tier(1'000'000, big_bytes, cap);
+    REQUIRE(too_big.tier == 4);
+    REQUIRE_FALSE(too_big.triangle_capped);
+
+    // Memory-bound with no cap.
+    REQUIRE_FALSE(mgr.select_tier(2'000'000, big_bytes, 0).triangle_capped);
+}
+
 TEST_CASE("Budget: explicit zero triangle cap matches the two-argument form", "[gcode][budget]") {
     GeometryBudgetManager mgr;
     const size_t budget = 100 * 1024 * 1024;

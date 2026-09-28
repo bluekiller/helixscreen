@@ -1159,7 +1159,7 @@ Can be overridden via `HELIX_GCODE_STREAMING` env var.
 **Type:** integer
 **Default:** `40`
 **Range:** `1` - `90`
-**Description:** Percent of available RAM that triggers streaming mode. Lower values stream smaller files. Only used when `streaming_mode` is `"auto"`.
+**Description:** Percent of available RAM that triggers streaming mode. Lower values stream smaller files. Only used when `streaming_mode` is `"auto"`. On boards with 2GB of RAM or less this is capped at 15.
 
 ### `layers_per_frame`
 **Type:** integer

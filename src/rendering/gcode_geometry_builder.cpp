@@ -154,7 +154,7 @@ RibbonGeometry::RibbonGeometry(RibbonGeometry&& other) noexcept
       prepared_buffers(std::move(other.prepared_buffers)),
       extrusion_triangle_count(other.extrusion_triangle_count),
       travel_triangle_count(other.travel_triangle_count), quantization(other.quantization),
-      layer_height_mm(other.layer_height_mm) {}
+      layer_height_mm(other.layer_height_mm), moving_mesh(std::move(other.moving_mesh)) {}
 
 RibbonGeometry& RibbonGeometry::operator=(RibbonGeometry&& other) noexcept {
     if (this != &other) {
@@ -177,6 +177,7 @@ RibbonGeometry& RibbonGeometry::operator=(RibbonGeometry&& other) noexcept {
         travel_triangle_count = other.travel_triangle_count;
         quantization = other.quantization;
         layer_height_mm = other.layer_height_mm;
+        moving_mesh = std::move(other.moving_mesh);
     }
     return *this;
 }
@@ -341,6 +342,7 @@ void RibbonGeometry::clear() {
 
     extrusion_triangle_count = 0;
     travel_triangle_count = 0;
+    moving_mesh.reset();
 }
 
 // ============================================================================
@@ -524,6 +526,35 @@ uint8_t GeometryBuilder::add_to_color_palette(RibbonGeometry& geometry, uint32_t
     return index;
 }
 
+size_t first_print_layer(const ParsedGCodeFile& gcode) {
+    for (size_t li = 0; li < gcode.layers.size(); ++li) {
+        for (const auto& seg : gcode.layers[li].segments) {
+            if (seg.is_extrusion && !is_auxiliary_geometry(seg.feature_type)) {
+                return li;
+            }
+        }
+    }
+    return 0;
+}
+
+int GeometryBuilder::band_height_layers(const ToolpathSegment& seg) const {
+    const size_t li = seg.layer_index;
+    if (!seg.is_extrusion || li < band_first_layer_) {
+        return 0;
+    }
+    const bool band_layer = (li - band_first_layer_) % static_cast<size_t>(band_layers_) == 0;
+    if (band_layer && is_band_shell_feature(seg.feature_type)) {
+        return band_layers_;
+    }
+    if (li == band_first_layer_) {
+        return 1;
+    }
+    if (is_surface_feature(seg.feature_type) && (band_layer || band_surfaces_every_layer_)) {
+        return 1;
+    }
+    return 0;
+}
+
 RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
                                       const SimplificationOptions& options,
                                       const std::function<bool()>& should_cancel) {
@@ -581,6 +612,7 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
     // counter existed (drawable_segments defaults to 0).
     all_segments.reserve(gcode.drawable_segments > 0 ? gcode.drawable_segments
                                                      : gcode.total_segments);
+    band_first_layer_ = band_layers_ > 1 ? first_print_layer(gcode) : 0;
     for (size_t li = 0; li < gcode.layers.size(); ++li) {
         if (li % 64 == 0 && cancelled()) {
             spdlog::info("[GCode::Builder] Build cancelled during collection");
@@ -590,8 +622,12 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
             if (is_auxiliary_geometry(seg.feature_type)) {
                 continue;
             }
-            all_segments.push_back(seg);
-            all_segments.back().layer_index = static_cast<uint16_t>(li);
+            ToolpathSegment stamped = seg;
+            stamped.layer_index = static_cast<uint16_t>(li);
+            if (band_layers_ > 1 && band_height_layers(stamped) == 0) {
+                continue;
+            }
+            all_segments.push_back(stamped);
         }
     }
 
@@ -1032,8 +1068,12 @@ GeometryBuilder::simplify_segments(const std::vector<ToolpathSegment>& segments,
         bool endpoints_connect = glm::distance2(current.end, next.start) < 0.0001f;
         bool same_object = (current.object_name_index == next.object_name_index);
         bool same_width = (std::abs(current.width - next.width) < 0.001f);
+        // A band-tall shell and a one-layer skin must not become one tube.
+        bool same_height =
+            band_layers_ <= 1 || band_height_layers(current) == band_height_layers(next);
 
-        if (same_type && same_layer && endpoints_connect && same_object && same_width) {
+        if (same_type && same_layer && endpoints_connect && same_object && same_width &&
+            same_height) {
             // Direction check: prevent merging segments with significantly different directions.
             // This preserves zigzag fill patterns where perpendicular distance is small but
             // the direction changes sharply (e.g., 90-degree turns in solid infill).
@@ -1128,7 +1168,9 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     width = width * 1.1f; // 10% safety margin
 
     const float half_width = width * 0.5f;
-    const float half_height = layer_height_mm_ * 0.5f;
+    // A band tube is band_layers_ layer heights tall; every other tube one.
+    const int height_layers = band_layers_ > 1 ? band_height_layers(segment) : 1;
+    const float half_height = layer_height_mm_ * 0.5f * static_cast<float>(height_layers);
 
     // Calculate direction and perpendicular vectors
     const glm::vec3 dir = glm::normalize(segment.end - segment.start);
@@ -1182,9 +1224,14 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     }
 
     // OrcaSlicer approach: Apply vertical offset to BOTH prev and curr positions
-    // This makes the TOP edge sit at the path Z-coordinate
-    const glm::vec3 prev_pos = segment.start - half_height * perp_up;
-    const glm::vec3 curr_pos = segment.end - half_height * perp_up;
+    // This makes the TOP edge sit at the path Z-coordinate. The offset is
+    // -lh/2 for a single-layer tube (top edge at path Z, bottom one layer
+    // down); a band tube rises a further (n-1)*lh/2 so band k spans layers
+    // k..k+n-1 and consecutive bands touch with no gap between them.
+    const float centre_offset =
+        layer_height_mm_ * 0.5f * (static_cast<float>(height_layers) - 2.0f);
+    const glm::vec3 prev_pos = segment.start + centre_offset * perp_up;
+    const glm::vec3 curr_pos = segment.end + centre_offset * perp_up;
 
     // Generate N vertex offsets for tube cross-section
     std::vector<glm::vec3> vertex_offsets(static_cast<size_t>(N));
