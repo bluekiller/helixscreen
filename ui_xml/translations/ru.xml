@@ -1506,13 +1506,11 @@
   <translation tag="LED Controls" ru="Управление LED"/>
   <translation tag="LED Light" ru="LED-подсветка"/>
   <translation tag="LED Mode" ru="Режим LED"/>
-  <translation tag="LED SELECTION" ru="ВЫБОР LED"/>
   <translation tag="LED Settings" ru="Настройки LED"/>
   <translation tag="LED Strip" ru="LED-лента"/>
   <translation tag="LED on at Start" ru="Включать LED при старте"/>
   <translation tag="LED strip available for lighting control" ru="Светодиодная лента доступна для управления освещением"/>
   <translation tag="LEDs" ru="LED"/>
-  <translation tag="LEDs controlled by the light button" ru="LED, управляемые кнопкой света"/>
   <translation tag="LOAD CELLS" ru="ТЕНЗОДАТЧИКИ"/>
   <translation tag="LOADED" ru="ЗАГРУЖЕН"/>
   <translation tag="LOCKED" ru="ЗАБЛОКИРОВАНО"/>
@@ -3099,7 +3097,6 @@
   <translation tag="Turn On LEDs" ru="Включить LED"/>
   <translation tag="Turn endless spool on, then set the backup gate" ru="Включите бесконечную катушку, затем задайте резервный шлюз"/>
   <translation tag="Turn off detection" ru="Отключить обнаружение"/>
-  <translation tag="Turn on LEDs when printer starts" ru="Включать LED при запуске принтера"/>
   <translation tag="Turn on the lights your light buttons control" ru="Включает свет, которым управляют кнопки света"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" ru="Выключать нагреватель экструдера после загрузки или выгрузки"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." ru="Поворачивает изображение в соответствии с положением экрана. Применяется после перезапуска."/>
@@ -3229,7 +3226,6 @@
   <translation tag="Volume of filament used during ramming" ru="Объём филамента, расходуемый при рэмминге"/>
   <translation tag="Volume {}%" ru="Громкость {}%"/>
   <translation tag="WIDTH SENSORS" ru="ДАТЧИКИ ШИРИНЫ"/>
-  <translation tag="WLED" ru="WLED"/>
   <translation tag="WLED Preset" ru="Пресет WLED"/>
   <translation tag="WPA/WPA2" ru="WPA/WPA2"/>
   <translation tag="WPA3" ru="WPA3"/>

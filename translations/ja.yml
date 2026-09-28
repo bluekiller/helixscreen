@@ -1568,13 +1568,11 @@ translations:
   LED Controls: 'LEDコントロール'
   LED Light: 'LEDライト'
   LED Mode: 'LEDモード'
-  LED SELECTION: LED選択
   LED Settings: LED設定
   LED Strip: LEDストリップ
   LED on at Start: 起動時LED点灯
   LED strip available for lighting control: 照明制御用の LED ストリップが利用可能です
   LEDs: LED
-  LEDs controlled by the light button: ライトボタンで制御される LED
   LOAD CELLS: 'ロードセル'
   LOADED: 装填済み
   LOCKED: ロック中
@@ -3256,7 +3254,6 @@ translations:
   Turn On LEDs: 'LEDを点灯'
   Turn endless spool on, then set the backup gate: 'エンドレススプールを有効にしてから、バックアップゲートを設定してください'
   Turn off detection: 検出をオフにする
-  Turn on LEDs when printer starts: プリンター起動時に LED を点灯
   Turn on the lights your light buttons control: ライトボタンが操作するライトを点灯します
   Turn the extruder heater off after a load or unload finishes: 装填または排出の完了後にエクストルーダーヒーターをオフにします
   Turn the picture to match how the screen is mounted. Applies after restart.: 画面の取り付け向きに合わせて表示を回転します。再起動後に適用されます。
@@ -3388,7 +3385,6 @@ translations:
   Volume of filament used during ramming: 'ラミング時に使用するフィラメント量'
   Volume {}%: 音量 {}%
   WIDTH SENSORS: 幅センサー
-  WLED: WLED
   WLED Preset: WLED プリセット
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'

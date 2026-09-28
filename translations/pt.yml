@@ -1689,14 +1689,12 @@ translations:
   LED Controls: 'Controles LED'
   LED Light: 'Luz LED'
   LED Mode: 'Modo LED'
-  LED SELECTION: SELEÇÃO DE LED
   LED Settings: Configurações de LED
   LED Strip: Fita de LED
   LED on at Start: LED Ligado ao Iniciar
   LED strip available for lighting control: Fita de LED disponível para controle de
     iluminação
   LEDs: LEDs
-  LEDs controlled by the light button: LEDs controlados pelo botão de luz
   LOAD CELLS: 'CÉLULAS DE CARGA'
   LOADED: CARREGADO
   LOCKED: BLOQUEADO
@@ -3505,7 +3503,6 @@ translations:
   Turn On LEDs: 'Ligar os LEDs'
   Turn endless spool on, then set the backup gate: 'Ative o carretel infinito e depois defina o Gate de reserva'
   Turn off detection: Desligar detecção
-  Turn on LEDs when printer starts: Ligar LEDs quando a impressora iniciar
   Turn on the lights your light buttons control: Liga as luzes que os botões de luz controlam
   Turn the extruder heater off after a load or unload finishes: Desliga o aquecedor do extrusor ao concluir um carregamento ou descarregamento
   Turn the picture to match how the screen is mounted. Applies after restart.: Gira a imagem para corresponder à montagem da tela. Aplicado após reiniciar.
@@ -3643,7 +3640,6 @@ translations:
   Volume of filament used during ramming: 'Volume de filamento usado durante a compactação'
   Volume {}%: Volume {}%
   WIDTH SENSORS: SENSORES DE LARGURA
-  WLED: WLED
   WLED Preset: Predefinição WLED
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'

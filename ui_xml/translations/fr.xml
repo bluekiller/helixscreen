@@ -1506,13 +1506,11 @@
   <translation tag="LED Controls" fr="Commandes LED"/>
   <translation tag="LED Light" fr="Éclairage LED"/>
   <translation tag="LED Mode" fr="Mode LED"/>
-  <translation tag="LED SELECTION" fr="SÉLECTION LED"/>
   <translation tag="LED Settings" fr="Paramètres LED"/>
   <translation tag="LED Strip" fr="Bandeau LED"/>
   <translation tag="LED on at Start" fr="LED allumée au démarrage"/>
   <translation tag="LED strip available for lighting control" fr="Bandeau LED disponible pour le contrôle de l&apos;éclairage"/>
   <translation tag="LEDs" fr="LEDs"/>
-  <translation tag="LEDs controlled by the light button" fr="LEDs contrôlées par le bouton lumière"/>
   <translation tag="LOAD CELLS" fr="CELLULES DE CHARGE"/>
   <translation tag="LOADED" fr="CHARGÉ"/>
   <translation tag="LOCKED" fr="VERROUILLÉ"/>
@@ -3099,7 +3097,6 @@
   <translation tag="Turn On LEDs" fr="Allumer les LED"/>
   <translation tag="Turn endless spool on, then set the backup gate" fr="Activez la bobine infinie, puis définissez le Gate de secours"/>
   <translation tag="Turn off detection" fr="Désactiver la détection"/>
-  <translation tag="Turn on LEDs when printer starts" fr="Allumer les LED au démarrage de l&apos;imprimante"/>
   <translation tag="Turn on the lights your light buttons control" fr="Allume les lumières que vos boutons lumière contrôlent"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" fr="Éteindre le chauffage de l&apos;extrudeur après un chargement ou un déchargement"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." fr="Fait pivoter l&apos;image selon l&apos;orientation de montage de l&apos;écran. Prend effet après redémarrage."/>
@@ -3229,7 +3226,6 @@
   <translation tag="Volume of filament used during ramming" fr="Volume de filament utilisé pendant le bourrage"/>
   <translation tag="Volume {}%" fr="Volume {}%"/>
   <translation tag="WIDTH SENSORS" fr="CAPTEURS DE LARGEUR"/>
-  <translation tag="WLED" fr="WLED"/>
   <translation tag="WLED Preset" fr="Préréglage WLED"/>
   <translation tag="WPA/WPA2" fr="WPA/WPA2"/>
   <translation tag="WPA3" fr="WPA3"/>

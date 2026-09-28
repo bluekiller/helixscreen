@@ -1506,13 +1506,11 @@
   <translation tag="LED Controls" ja="LEDコントロール"/>
   <translation tag="LED Light" ja="LEDライト"/>
   <translation tag="LED Mode" ja="LEDモード"/>
-  <translation tag="LED SELECTION" ja="LED選択"/>
   <translation tag="LED Settings" ja="LED設定"/>
   <translation tag="LED Strip" ja="LEDストリップ"/>
   <translation tag="LED on at Start" ja="起動時LED点灯"/>
   <translation tag="LED strip available for lighting control" ja="照明制御用の LED ストリップが利用可能です"/>
   <translation tag="LEDs" ja="LED"/>
-  <translation tag="LEDs controlled by the light button" ja="ライトボタンで制御される LED"/>
   <translation tag="LOAD CELLS" ja="ロードセル"/>
   <translation tag="LOADED" ja="装填済み"/>
   <translation tag="LOCKED" ja="ロック中"/>
@@ -3099,7 +3097,6 @@
   <translation tag="Turn On LEDs" ja="LEDを点灯"/>
   <translation tag="Turn endless spool on, then set the backup gate" ja="エンドレススプールを有効にしてから、バックアップゲートを設定してください"/>
   <translation tag="Turn off detection" ja="検出をオフにする"/>
-  <translation tag="Turn on LEDs when printer starts" ja="プリンター起動時に LED を点灯"/>
   <translation tag="Turn on the lights your light buttons control" ja="ライトボタンが操作するライトを点灯します"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" ja="装填または排出の完了後にエクストルーダーヒーターをオフにします"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." ja="画面の取り付け向きに合わせて表示を回転します。再起動後に適用されます。"/>
@@ -3229,7 +3226,6 @@
   <translation tag="Volume of filament used during ramming" ja="ラミング時に使用するフィラメント量"/>
   <translation tag="Volume {}%" ja="音量 {}%"/>
   <translation tag="WIDTH SENSORS" ja="幅センサー"/>
-  <translation tag="WLED" ja="WLED"/>
   <translation tag="WLED Preset" ja="WLED プリセット"/>
   <translation tag="WPA/WPA2" ja="WPA/WPA2"/>
   <translation tag="WPA3" ja="WPA3"/>

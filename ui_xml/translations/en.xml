@@ -1506,13 +1506,11 @@
   <translation tag="LED Controls" en="LED Controls"/>
   <translation tag="LED Light" en="LED Light"/>
   <translation tag="LED Mode" en="LED Mode"/>
-  <translation tag="LED SELECTION" en="LED SELECTION"/>
   <translation tag="LED Settings" en="LED Settings"/>
   <translation tag="LED Strip" en="LED Strip"/>
   <translation tag="LED on at Start" en="LED on at Start"/>
   <translation tag="LED strip available for lighting control" en="LED strip available for lighting control"/>
   <translation tag="LEDs" en="LEDs"/>
-  <translation tag="LEDs controlled by the light button" en="LEDs controlled by the light button"/>
   <translation tag="LOAD CELLS" en="LOAD CELLS"/>
   <translation tag="LOADED" en="LOADED"/>
   <translation tag="LOCKED" en="LOCKED"/>
@@ -3099,7 +3097,6 @@
   <translation tag="Turn On LEDs" en="Turn On LEDs"/>
   <translation tag="Turn endless spool on, then set the backup gate" en="Turn endless spool on, then set the backup gate"/>
   <translation tag="Turn off detection" en="Turn off detection"/>
-  <translation tag="Turn on LEDs when printer starts" en="Turn on LEDs when printer starts"/>
   <translation tag="Turn on the lights your light buttons control" en="Turn on the lights your light buttons control"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" en="Turn the extruder heater off after a load or unload finishes"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." en="Turn the picture to match how the screen is mounted. Applies after restart."/>
@@ -3229,7 +3226,6 @@
   <translation tag="Volume of filament used during ramming" en="Volume of filament used during ramming"/>
   <translation tag="Volume {}%" en="Volume {}%"/>
   <translation tag="WIDTH SENSORS" en="WIDTH SENSORS"/>
-  <translation tag="WLED" en="WLED"/>
   <translation tag="WLED Preset" en="WLED Preset"/>
   <translation tag="WPA/WPA2" en="WPA/WPA2"/>
   <translation tag="WPA3" en="WPA3"/>

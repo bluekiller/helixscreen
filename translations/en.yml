@@ -1629,13 +1629,11 @@ translations:
   LED Controls: LED Controls
   LED Light: LED Light
   LED Mode: LED Mode
-  LED SELECTION: LED SELECTION
   LED Settings: LED Settings
   LED Strip: LED Strip
   LED on at Start: LED on at Start
   LED strip available for lighting control: LED strip available for lighting control
   LEDs: LEDs
-  LEDs controlled by the light button: LEDs controlled by the light button
   LOAD CELLS: LOAD CELLS
   LOADED: LOADED
   LOCKED: LOCKED
@@ -3388,7 +3386,6 @@ translations:
   Turn On LEDs: Turn On LEDs
   Turn endless spool on, then set the backup gate: Turn endless spool on, then set the backup gate
   Turn off detection: Turn off detection
-  Turn on LEDs when printer starts: Turn on LEDs when printer starts
   Turn on the lights your light buttons control: Turn on the lights your light buttons control
   Turn the extruder heater off after a load or unload finishes: Turn the extruder heater off after a load or unload finishes
   Turn the picture to match how the screen is mounted. Applies after restart.: Turn the picture to match how the screen is mounted. Applies after restart.
@@ -3523,7 +3520,6 @@ translations:
   Volume of filament used during ramming: Volume of filament used during ramming
   Volume {}%: Volume {}%
   WIDTH SENSORS: WIDTH SENSORS
-  WLED: WLED
   WLED Preset: WLED Preset
   WPA/WPA2: WPA/WPA2
   WPA3: WPA3

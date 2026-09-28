@@ -1667,14 +1667,12 @@ translations:
   LED Controls: 'Управление LED'
   LED Light: 'LED-подсветка'
   LED Mode: 'Режим LED'
-  LED SELECTION: ВЫБОР LED
   LED Settings: Настройки LED
   LED Strip: LED-лента
   LED on at Start: Включать LED при старте
   LED strip available for lighting control: Светодиодная лента доступна для управления
     освещением
   LEDs: LED
-  LEDs controlled by the light button: LED, управляемые кнопкой света
   LOAD CELLS: 'ТЕНЗОДАТЧИКИ'
   LOADED: ЗАГРУЖЕН
   LOCKED: ЗАБЛОКИРОВАНО
@@ -3460,7 +3458,6 @@ translations:
   Turn On LEDs: 'Включить LED'
   Turn endless spool on, then set the backup gate: 'Включите бесконечную катушку, затем задайте резервный шлюз'
   Turn off detection: Отключить обнаружение
-  Turn on LEDs when printer starts: Включать LED при запуске принтера
   Turn on the lights your light buttons control: Включает свет, которым управляют кнопки света
   Turn the extruder heater off after a load or unload finishes: Выключать нагреватель экструдера после загрузки или выгрузки
   Turn the picture to match how the screen is mounted. Applies after restart.: Поворачивает изображение в соответствии с положением экрана. Применяется после перезапуска.
@@ -3596,7 +3593,6 @@ translations:
   Volume of filament used during ramming: 'Объём филамента, расходуемый при рэмминге'
   Volume {}%: Громкость {}%
   WIDTH SENSORS: ДАТЧИКИ ШИРИНЫ
-  WLED: WLED
   WLED Preset: Пресет WLED
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'

@@ -1506,13 +1506,11 @@
   <translation tag="LED Controls" pt="Controles LED"/>
   <translation tag="LED Light" pt="Luz LED"/>
   <translation tag="LED Mode" pt="Modo LED"/>
-  <translation tag="LED SELECTION" pt="SELEÇÃO DE LED"/>
   <translation tag="LED Settings" pt="Configurações de LED"/>
   <translation tag="LED Strip" pt="Fita de LED"/>
   <translation tag="LED on at Start" pt="LED Ligado ao Iniciar"/>
   <translation tag="LED strip available for lighting control" pt="Fita de LED disponível para controle de iluminação"/>
   <translation tag="LEDs" pt="LEDs"/>
-  <translation tag="LEDs controlled by the light button" pt="LEDs controlados pelo botão de luz"/>
   <translation tag="LOAD CELLS" pt="CÉLULAS DE CARGA"/>
   <translation tag="LOADED" pt="CARREGADO"/>
   <translation tag="LOCKED" pt="BLOQUEADO"/>
@@ -3099,7 +3097,6 @@
   <translation tag="Turn On LEDs" pt="Ligar os LEDs"/>
   <translation tag="Turn endless spool on, then set the backup gate" pt="Ative o carretel infinito e depois defina o Gate de reserva"/>
   <translation tag="Turn off detection" pt="Desligar detecção"/>
-  <translation tag="Turn on LEDs when printer starts" pt="Ligar LEDs quando a impressora iniciar"/>
   <translation tag="Turn on the lights your light buttons control" pt="Liga as luzes que os botões de luz controlam"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" pt="Desliga o aquecedor do extrusor ao concluir um carregamento ou descarregamento"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." pt="Gira a imagem para corresponder à montagem da tela. Aplicado após reiniciar."/>
@@ -3229,7 +3226,6 @@
   <translation tag="Volume of filament used during ramming" pt="Volume de filamento usado durante a compactação"/>
   <translation tag="Volume {}%" pt="Volume {}%"/>
   <translation tag="WIDTH SENSORS" pt="SENSORES DE LARGURA"/>
-  <translation tag="WLED" pt="WLED"/>
   <translation tag="WLED Preset" pt="Predefinição WLED"/>
   <translation tag="WPA/WPA2" pt="WPA/WPA2"/>
   <translation tag="WPA3" pt="WPA3"/>

@@ -1563,13 +1563,11 @@ translations:
   LED Controls: 'LED 控制'
   LED Light: 'LED 灯'
   LED Mode: 'LED 模式'
-  LED SELECTION: LED 选择
   LED Settings: LED 设置
   LED Strip: LED 灯带
   LED on at Start: 启动时开启 LED
   LED strip available for lighting control: LED 灯带可用于照明控制
   LEDs: LED
-  LEDs controlled by the light button: 由灯光按钮控制的 LED
   LOAD CELLS: '称重传感器'
   LOADED: 已加载
   LOCKED: 已锁定
@@ -3246,7 +3244,6 @@ translations:
   Turn On LEDs: '打开 LED'
   Turn endless spool on, then set the backup gate: '请先开启无限料盘，再设置备用通道'
   Turn off detection: 关闭检测
-  Turn on LEDs when printer starts: 打印机启动时开启 LED
   Turn on the lights your light buttons control: 开启灯光按钮所控制的灯光
   Turn the extruder heater off after a load or unload finishes: 加载或卸载完成后关闭挤出机加热器
   Turn the picture to match how the screen is mounted. Applies after restart.: 旋转画面以匹配屏幕的安装方向。重启后生效。
@@ -3378,7 +3375,6 @@ translations:
   Volume of filament used during ramming: '填充过程中使用的耗材体积'
   Volume {}%: 音量 {}%
   WIDTH SENSORS: 宽度传感器
-  WLED: WLED
   WLED Preset: WLED 预设
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'

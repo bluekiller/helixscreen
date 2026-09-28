@@ -189,7 +189,7 @@ The Controls panel's **Quick Actions** card has four quick buttons under the Hom
 | **Quick Button 4** | (Empty) |
 
 - **A standard action** runs whatever macro that action is assigned to under Standard Macros. If your printer has no macro for it, the button shows greyed out.
-- **Light** turns the button into an on/off switch for the printer lights, the same one as the home screen's LED Light widget. It hides while no light is controllable.
+- **Light** turns the button into an on/off switch for the chamber light, like a home screen LED Light widget left on its default. It hides while no light is controllable.
 - **(Empty)** hides the button.
 
 While a light is controllable and no Quick Button is set to **Light**, the first button you have never set that would otherwise be empty shows the light, and its dropdown reads **Light**. Picking **(Empty)** for that button turns the light off there and keeps it off.

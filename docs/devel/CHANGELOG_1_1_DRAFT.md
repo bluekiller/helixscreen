@@ -239,6 +239,14 @@ what gets saved.
   Resistive screens detect one finger and keep one-finger rotate only.
 - **The OpenAMS filament pressure sensor is on the filament path** - OpenAMS running without AFC
   shows each unit's FPS as a box labelled FPS; tap it for the current pressure, 0% to 100%.
+- **Every light gets the same controls, and each light button picks its own light (#1130)** - the
+  LED screen, now called LEDs, has a tab per light with a dot showing whether it is on and in
+  what color. Each tab shows only what that light can do: power and brightness, white tones and
+  colors, effects or presets, or On and Off for macro lights. Home light buttons each control one
+  light or All lights, chosen from the gear in edit mode; a wide button has a › that opens that
+  light's tab. Automatic LED Control has its own "Applies to" list. If you had picked some but not
+  all of your lights for the light button, that choice now drives Automatic LED Control and your
+  light buttons start out on the chamber light; set them from the gear.
 
 ### Changed
 
