@@ -736,6 +736,8 @@ class NavigationManager {
     // already-built panels. Guarded against re-entrancy. Called from both
     // navigation choke points (switch_to_panel_impl + handle_active_panel_change).
     void ensure_panel_built(int panel_id);
+    // Whether ensure_panel_built(panel_id) would build anything.
+    bool needs_build(int panel_id) const;
 
     // C++ overlay instances for lifecycle dispatch (on_activate/on_deactivate)
     std::unordered_map<lv_obj_t*, IPanelLifecycle*> overlay_instances_;
