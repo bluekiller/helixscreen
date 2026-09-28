@@ -28,6 +28,7 @@
 #include "gcode_raster.h" // helix::gcode::kSelectedAlpha
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <glm/glm.hpp>
 
@@ -124,6 +125,20 @@ inline constexpr int kSmallPanelWidthPx = 320;
 /// Rim width for a render target `target_width_px` pixels wide.
 inline int outline_width_px(int target_width_px) {
     return (target_width_px <= kSmallPanelWidthPx) ? kOutlineSmallPanelPx : kOutlinePx;
+}
+
+/// Rim width for a readback `fbo_width_px` wide that is displayed at a widget
+/// `widget_width_px` wide: the GLES renderer strokes its rim on the readback,
+/// which supersampled stills render at 2x and moving frames at half resolution.
+/// Scaled from the widget's rim so the displayed width comes out the same at
+/// any ratio, and never below 1: stroke_selection_rim ignores a rim smaller
+/// than one pixel, and a highlighted object with no visible rim reads as
+/// un-highlighted.
+inline int outline_width_px_scaled(int widget_width_px, int fbo_width_px) {
+    const float scale =
+        static_cast<float>(fbo_width_px) / static_cast<float>(std::max(1, widget_width_px));
+    const int scaled = static_cast<int>(std::lround(outline_width_px(widget_width_px) * scale));
+    return std::max(1, scaled);
 }
 
 /**
