@@ -1138,3 +1138,23 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the modes sit a step further f
     CHECK(look_gap > 0);
     CHECK(modes_gap > look_gap);
 }
+
+TEST_CASE_METHOD(OverlayXmlFixture,
+                 "overlay XML: the LED rows and the preset grid use the same swatch component",
+                 "[led][overlay][xml][color_swatch]") {
+    const char* attrs[] = {"swatch_callback", "led_swatch_cb", nullptr};
+    auto* grid = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "color_swatch_grid", attrs));
+    REQUIRE(grid != nullptr);
+    REQUIRE(lv_obj_get_child_count(grid) == 30);
+
+    for (lv_obj_t* swatch : {find("led_swatch_0"), lv_obj_get_child(grid, 0)}) {
+        REQUIRE(swatch != nullptr);
+        // Built by color_swatch: a transparent ring holder around the named disc.
+        lv_obj_t* disc = lv_obj_get_child(swatch, 0);
+        REQUIRE(disc != nullptr);
+        CHECK(std::string(lv_obj_get_name(disc)) == "color_swatch_disc");
+        CHECK(lv_obj_get_style_bg_opa(swatch, LV_PART_MAIN) == LV_OPA_TRANSP);
+        CHECK(lv_obj_get_style_pad_top(swatch, LV_PART_MAIN) > 0);
+        CHECK(lv_obj_get_style_radius(disc, LV_PART_MAIN) == 9999); // round, not a rounded square
+    }
+}

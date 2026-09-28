@@ -181,7 +181,9 @@
                       width="content" height="content" flex_flow="row" scrollable="false" style_pad_all="0"
                       style_pad_gap="#led_swatch_gap">
                 <repeat count="led_swatch_count">
-                  <led_color_swatch name="led_swatch_${i}" index="${i}" color_subject="led_swatch_color_${i}"/>
+                  <color_swatch name="led_swatch_${i}"
+                                index="${i}" color_subject="led_swatch_color_${i}" edge_subject="led_swatch_edge_${i}"
+                                selected_subject="led_selected_swatch" callback="led_swatch_cb"/>
                 </repeat>
               </lv_obj>
               <lv_obj name="led_custom_swatch"

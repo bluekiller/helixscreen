@@ -171,6 +171,9 @@ class LedControlOverlay : public OverlayBase {
     lv_subject_t swatch_count_{};
     helix::xml::IndexedSubjectPool swatch_color_pool_{"led_swatch_color",
                                                       helix::xml::IndexedSubjectPool::Type::Color};
+    /// 1 where a swatch's fill is near-white and needs the light-theme hairline.
+    helix::xml::IndexedSubjectPool swatch_edge_pool_{"led_swatch_edge",
+                                                     helix::xml::IndexedSubjectPool::Type::Int};
     lv_subject_t selected_swatch_{};
     lv_subject_t page_list_title_{};
     char page_list_title_buf_[64] = {0};
