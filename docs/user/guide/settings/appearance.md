@@ -6,6 +6,8 @@ On the Settings screen, the **Appearance** row shows the mode and the theme you'
 
 ![Appearance settings, top of the page](../../../images/user/settings-appearance.png)
 
+![Appearance settings, scrolled to Printer Visuals](../../../images/user/settings-appearance-2.png)
+
 ---
 
 ## Dark Mode

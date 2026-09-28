@@ -10,6 +10,10 @@ Looking for how the printer is *drawn* (toolhead picture, G-code preview, Z butt
 
 ![Printing settings, the Machine section](../../../images/user/settings-printing.png)
 
+![Printing settings, the Filament section](../../../images/user/settings-printing-2.png)
+
+![Printing settings, the Extras section](../../../images/user/settings-printing-3.png)
+
 ---
 
 ## Machine Limits

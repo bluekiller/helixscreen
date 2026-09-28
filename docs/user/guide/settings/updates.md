@@ -26,7 +26,7 @@ Changing the channel checks the new channel straight away.
 
 ## Check for Updates
 
-Looks for a newer release on your channel. Once a check has run, the row shows the result, such as the version that's available.
+Looks for a newer release on your channel. Until you check, the row shows the version you have. After a check, it shows the result, such as the version that's available.
 
 If there's a new version, a dialog walks you through installing it:
 
