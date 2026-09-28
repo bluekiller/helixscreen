@@ -2122,6 +2122,9 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
             if (macro == nullptr) {
                 break;
             }
+            const auto last_sent = macro_last_sent_on_.find(strip_id);
+            const bool already_sent =
+                last_sent != macro_last_sent_on_.end() && last_sent->second == on;
             macro_last_sent_on_[strip_id] = on;
             switch (macro->type) {
             case MacroLedType::ON_OFF: {
@@ -2134,6 +2137,10 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
                 break;
             }
             case MacroLedType::TOGGLE: {
+                // Toggling again would undo what was last sent.
+                if (already_sent) {
+                    break;
+                }
                 auto cbs = make_settle();
                 macro_.execute_toggle(macro->display_name, cbs.done, cbs.fail);
                 break;

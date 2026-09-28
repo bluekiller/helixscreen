@@ -744,21 +744,22 @@ void LedControlOverlay::handle_effects_none() {
     set_pending_effect_chip(-1);
 }
 
+// Through set_power so a light button toggles from what these buttons last sent.
 void LedControlOverlay::handle_macro_on() {
     if (focused_info() != nullptr) {
-        LedController::instance().macro().execute_on(strip_macro_name(focused_strip_));
+        LedController::instance().set_power({focused_strip_}, true);
     }
 }
 
 void LedControlOverlay::handle_macro_off() {
     if (focused_info() != nullptr) {
-        LedController::instance().macro().execute_off(strip_macro_name(focused_strip_));
+        LedController::instance().set_power({focused_strip_}, false);
     }
 }
 
 void LedControlOverlay::handle_macro_toggle() {
     if (focused_info() != nullptr) {
-        LedController::instance().macro().execute_toggle(strip_macro_name(focused_strip_));
+        LedController::instance().toggle_power({focused_strip_});
     }
 }
 

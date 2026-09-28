@@ -669,6 +669,38 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: macro buttons run the focused d
     CHECK(wire_mentions("LIGHT_TOGGLE"));
 }
 
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: a macro button press is what a light button toggles from",
+                 "[led][overlay]") {
+    LedMacroInfo toggle;
+    toggle.display_name = "Toggle";
+    toggle.type = MacroLedType::TOGGLE;
+    toggle.toggle_macro = "LIGHT_TOGGLE";
+    set_macros({lamp_macro(), toggle});
+    auto& ctrl = LedController::instance();
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("macro:Lamp");
+    access.tap_macro_on();
+    drain();
+    mock_client.clear_gcode_script_history();
+    CHECK_FALSE(ctrl.toggle_power({"macro:Lamp"}));
+    drain();
+    CHECK(wire_mentions("LIGHTS_OFF"));
+
+    // A TOGGLE lamp last sent off stays off when everything is switched off.
+    access.activate("macro:Toggle");
+    access.tap_macro_toggle();
+    drain();
+    CHECK_FALSE(ctrl.toggle_power({"macro:Toggle"}));
+    drain();
+    mock_client.clear_gcode_script_history();
+    ctrl.set_power({"macro:Toggle"}, false);
+    drain();
+    CHECK_FALSE(wire_mentions("LIGHT_TOGGLE"));
+}
+
 TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the active effect chip follows status",
                  "[led][overlay]") {
     add_native("neopixel strip_a", true, false);
