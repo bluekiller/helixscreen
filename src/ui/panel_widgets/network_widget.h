@@ -12,6 +12,7 @@
 class EthernetManager;
 
 #include "network_type.h"
+#include "wifi_backend.h"
 
 namespace helix {
 class WiFiManager;
@@ -73,6 +74,7 @@ class NetworkWidget : public PanelWidget {
     lv_subject_t* network_icon_state_ = nullptr;
 
     NetworkType current_network_ = NetworkType::Unknown;
+    int last_wifi_signal_ = 0;   // Last signal strength a status read returned
     bool backend_ready_ = false; // True after WiFi backend fires READY event
     lv_timer_t* signal_poll_timer_ = nullptr;
     std::shared_ptr<WiFiManager> wifi_manager_;
@@ -83,7 +85,10 @@ class NetworkWidget : public PanelWidget {
     helix::AsyncLifetimeGuard lifetime_;
 
     void detect_network_type(bool force = false);
-    int compute_network_icon_state();
+    void apply_wifi_status(const WifiBackend::ConnectionStatus& status);
+    void poll_wifi_signal();
+    void ensure_signal_poll_timer();
+    int compute_network_icon_state() const;
     void update_network_icon_state();
     void set_network(NetworkType type);
     void handle_network_clicked();
