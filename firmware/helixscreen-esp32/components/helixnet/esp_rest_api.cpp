@@ -22,6 +22,9 @@
 //   thumbnail bytes (root="gcodes", path=the resolved .thumbs/ path, capped
 //   at HARD_CAP_BYTES), it just isn't wired to a UI yet.
 //
+// ITransfersAPI::download_file — REAL, capped at WHOLE_FILE_CAP_BYTES and
+// erroring above it: small config files such as AFC.cfg, read into memory.
+//
 // ITransfersAPI::get_file_metadata / metascan_file are IFilesAPI (NOT this
 // file) and are already real: they're pure JSON-RPC over the WebSocket
 // transport (src/api/moonraker_file_api.cpp, kept unmodified in
@@ -47,7 +50,7 @@
 //     implies a file path, it gets an asserting stub instead" carve-out.
 //     Task 11's new PSRAM-thumbnail design calls download_file_partial
 //     directly instead of going through this file-path-shaped method.
-//   ITransfersAPI::download_file, download_file_to_path, upload_file,
+//   ITransfersAPI::download_file_to_path, upload_file,
 //     upload_file_with_name, upload_file_from_path — not reachable from the
 //     v1 print-select thumbnail/metadata surface (used elsewhere: macro
 //     editor, AD5X polling — itself real again as of Task 15 via
@@ -218,6 +221,7 @@ bool esp_is_safe_endpoint(const std::string& endpoint) {
 // of the lane's PSRAM accumulation buffer. EspHttpLane fails loud rather than
 // silently truncating an over-cap response (see esp_http_lane.cpp).
 constexpr size_t REST_GET_CAP_BYTES = 16 * 1024;
+constexpr size_t WHOLE_FILE_CAP_BYTES = 64 * 1024;
 } // namespace
 
 // ============================================================================
@@ -270,9 +274,43 @@ void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
 // file header). download_file_to_path is additionally hard-banned by R3
 // regardless of reachability: its contract IS file materialization. ---
 
-void MoonrakerFileTransferAPI::download_file(const std::string&, const std::string&, StringCallback,
-                                             ErrorCallback on_error) {
-    esp_rest_unimplemented_err("MoonrakerFileTransferAPI::download_file", on_error);
+// Whole-file reads into memory: config files (AFC.cfg and friends), which are a
+// few KB. The lane asks for a bounded prefix, so one byte past the cap is
+// requested and receiving it means the file is too big: that is an error, never
+// a truncated file handed back as the whole thing.
+void MoonrakerFileTransferAPI::download_file(const std::string& root, const std::string& path,
+                                             StringCallback on_success, ErrorCallback on_error) {
+    if (esp_reject_invalid_path(path, "download_file", on_error))
+        return;
+    if (esp_reject_invalid_file_root(root, "download_file", on_error))
+        return;
+    if (http_base_url_.empty()) {
+        esp_report_error(on_error, MoonrakerErrorType::CONNECTION_LOST, "download_file",
+                         "HTTP base URL not configured");
+        return;
+    }
+
+    std::string url = http_base_url_ + "/server/files/" + root + "/" + esp_url_escape_path(path);
+    bool queued = helix::http::EspHttpLane::instance().submit_get(
+        url, WHOLE_FILE_CAP_BYTES + 1,
+        [on_success, on_error](const uint8_t* data, size_t size) {
+            if (size > WHOLE_FILE_CAP_BYTES) {
+                esp_report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_file",
+                                 "file exceeds the " + std::to_string(WHOLE_FILE_CAP_BYTES) +
+                                     "-byte in-memory cap");
+                return;
+            }
+            if (on_success) {
+                on_success(std::string(reinterpret_cast<const char*>(data), size));
+            }
+        },
+        [on_error](const std::string& message) {
+            esp_report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_file", message);
+        });
+    if (!queued) {
+        esp_report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_file",
+                         "HTTP request could not be queued — try again");
+    }
 }
 
 // The head-range sibling above is real because EspHttpLane::submit_get() asks
