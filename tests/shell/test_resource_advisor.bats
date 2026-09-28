@@ -347,6 +347,12 @@ zeus_modes() {
 
 @test "every spelling of an oversized -j is flagged" {
     tight_share
+    # The advisor expands $(nproc) on the host, so pin it: a 4-core runner's
+    # -j$(nproc) sits under the share of 6 and would not be oversized there.
+    mkdir -p "$TEST_DIR/nproc-bin"
+    printf '#!/bin/sh\necho 32\n' > "$TEST_DIR/nproc-bin/nproc"
+    chmod +x "$TEST_DIR/nproc-bin/nproc"
+    PATH="$TEST_DIR/nproc-bin:$PATH"
     for c in 'make -j$(nproc)' 'make -j 32 test' 'make --jobs=32' 'make --jobs 32'; do
         advise "$c"
         contains "fair share, -j6" "$(context)" || fail "missed: $c"

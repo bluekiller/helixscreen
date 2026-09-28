@@ -173,6 +173,13 @@ const std::string& config_sandbox_dir() {
 void reset_config_singleton() {
     g_config_sandbox.apply();
 
+    // The rolling-backup tiers are shared by the whole process. A backup one
+    // case wrote would otherwise be what the next case's first-boot init()
+    // restores from, so every case starts with both tiers empty.
+    std::error_code backup_ec;
+    std::filesystem::remove_all(config_sandbox_dir() + "/state", backup_ec);
+    std::filesystem::remove_all(config_sandbox_dir() + "/backup", backup_ec);
+
     // ToolState persists tool_spools.json into helix::get_user_config_dir(),
     // which defaults to the RELATIVE dir "config" — i.e. the repo's own
     // config/ under the test binary's CWD. It really did write there during
