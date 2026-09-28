@@ -1254,20 +1254,37 @@ class AmsState {
     [[nodiscard]] lv_subject_t* get_slot_remaining_subject(int slot_index);
 
     /**
-     * @brief Get per-slot material-type subject (primary backend).
+     * @brief Get per-slot material-type subject (primary backend's flat array).
      *
      * Holds the last-synced material string ("PLA", "PETG", …, or "" when the
      * lane has no material). Written by the status-sync path; a delta bumps
      * slots_version so the panel's refresh_slots() re-reads the material label
      * even when the color/status did not change (#1065 — native ZMOD AD5X where
      * a type change keeps the same color and previously left the label stale).
-     * Primary backend only; secondary-backend material labels refresh via the
-     * color observer's re-read.
      *
      * @param slot_index Slot index (0 to MAX_SLOTS-1)
      * @return Subject pointer or nullptr if out of range
      */
     [[nodiscard]] lv_subject_t* get_slot_material_subject(int slot_index);
+
+    /**
+     * @brief Get per-slot material-type subject for a specific backend and slot
+     *
+     * For backend_index 0, delegates to the flat slot subjects above.
+     * For secondary backends, returns from per-backend subject storage.
+     *
+     * @param backend_index Backend index (0 = primary)
+     * @param slot_index Slot index within that backend
+     * @return Subject pointer or nullptr if out of range
+     */
+    [[nodiscard]] lv_subject_t* get_slot_material_subject(int backend_index, int slot_index);
+
+    /**
+     * @brief Token'd overload of get_slot_material_subject for observer safety.
+     * @see get_slot_color_subject(int, int, SubjectLifetime&)
+     */
+    [[nodiscard]] lv_subject_t* get_slot_material_subject(int backend_index, int slot_index,
+                                                          SubjectLifetime& lifetime);
 
     /**
      * @brief Get per-slot fill-level subject (primary backend).
@@ -1759,6 +1776,11 @@ class AmsState {
         std::vector<lv_subject_t> lane_states; // int: helix::ui::LaneState
         std::vector<lv_subject_t> has_errors;
         std::vector<lv_subject_t> severities; // int: SlotError::Severity
+        /// Material strings need storage the subject points into; same size as
+        /// slot_materials_buf_ ("PETG-CF" etc. fits comfortably).
+        static constexpr int MATERIAL_BUF_SIZE = 24;
+        std::vector<lv_subject_t> materials; // string: "PLA", "PETG", … or ""
+        std::vector<std::array<char, MATERIAL_BUF_SIZE>> material_bufs;
         int slot_count = 0;
         /// Lifetime token shared by every subject in this struct. These subjects
         /// are DYNAMIC (destroyed in deinit() on backend rediscovery), so any

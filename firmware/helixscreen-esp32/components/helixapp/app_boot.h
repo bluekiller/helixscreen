@@ -31,6 +31,10 @@ void app_boot_ui(void);
 // request timeouts on the UI thread. No-op until app_boot_ui() has run.
 void app_boot_tick(void);
 
+// Print every notification since boot (the toasts the bell counts) to the
+// console as "NOTE:" lines, newest first. UI thread only.
+void app_boot_print_notifications(void);
+
 #ifdef __cplusplus
 }
 #endif

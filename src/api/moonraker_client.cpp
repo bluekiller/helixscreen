@@ -41,7 +41,7 @@ constexpr std::chrono::milliseconds CALLBACK_DRAIN_TIMEOUT{3000};
 
 // "ws://192.168.1.171:7125/websocket" -> "192.168.1.171:7125". The bare
 // host:port is what a user can act on: compare it against the printer, or find
-// it under Settings > System > Printer Host. Falls back to the input unchanged
+// it under Settings > Connection > Host. Falls back to the input unchanged
 // if it does not look like a URL.
 std::string format_ws_endpoint(const std::string& url) {
     std::string s = url;

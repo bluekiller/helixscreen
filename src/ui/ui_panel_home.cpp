@@ -547,6 +547,34 @@ void HomePanel::populate_page(int page_index, bool force) {
             populating_widgets_ = false;
             return;
         }
+
+        // A change that only flips hardware gates re-creates just those tiles,
+        // not the page: every page build is seconds of UI thread on slow boards.
+        if (pages_[idx].visible_ids) {
+            if (auto flips = helix::PanelWidgetManager::gate_flips_only(*pages_[idx].visible_ids,
+                                                                        snapshot_ids)) {
+                {
+                    auto freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
+                    helix::ui::UpdateQueue::instance().drain();
+                }
+                auto fresh = helix::PanelWidgetManager::instance().swap_gated_tiles(
+                    "home", container, page_index, snapshot_ids, *flips, pages_[idx].widgets);
+                if (fresh) {
+                    set_event_bubble_recursive(container);
+                    if (grid_edit_mode_.is_active()) {
+                        disable_widget_clicks_recursive(container);
+                    }
+                    if (panel_active_ && page_index == active_page_index_) {
+                        for (auto* w : *fresh) {
+                            w->on_activate();
+                        }
+                    }
+                    pages_[idx].visible_ids = std::move(snapshot_ids);
+                    populating_widgets_ = false;
+                    return;
+                }
+            }
+        }
     }
 
     // Extract reusable widget instances

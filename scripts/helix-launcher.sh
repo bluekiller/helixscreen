@@ -78,8 +78,10 @@ helix_klipper_co_hosted() {
     for _hkc_f in "$HELIX_PROC_ROOT"/[0-9]*/cmdline; do
         [ -r "$_hkc_f" ] || continue
         # argv is NUL-separated; fold to spaces for substring matching. A
-        # process that exits mid-scan makes tr fail — that is not an error.
-        _hkc_cmd=$(tr '\0' ' ' < "$_hkc_f" 2>/dev/null) || _hkc_cmd=""
+        # process that exits mid-scan makes the open fail — that is not an
+        # error. The stderr redirect must precede `<`: redirections apply left
+        # to right, so the shell's own "cannot open" would otherwise leak.
+        _hkc_cmd=$(tr '\0' ' ' 2>/dev/null < "$_hkc_f") || _hkc_cmd=""
         case " ${_hkc_cmd} " in
             *klippy.py*|*moonraker.py*|*moonraker-env*|*" -m moonraker"*)
                 unset _hkc_f _hkc_cmd

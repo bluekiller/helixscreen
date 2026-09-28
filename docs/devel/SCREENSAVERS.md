@@ -83,7 +83,7 @@ build draws at its depth, otherwise the first registered saver that does, and Of
 ## Adding a saver
 
 1. Add the type to `ScreensaverType` and a row to `SCREENSAVERS` with a stable name and depths.
-2. Add the label to `row_screensaver` in `ui_xml/settings_display_sound_overlay.xml` (a test
+2. Add the label to `row_screensaver` in `ui_xml/settings_display_overlay.xml` (a test
    compares it with the registry), run `make translation-sync`, translate the new key in every
    `translations/*.yml`, then `make translations` (and `make regen-text-fonts` for new CJK text).
 3. Derive from `SaverBase` in `include/screensaver_<name>.h` and `src/ui/screensaver_<name>.cpp`;

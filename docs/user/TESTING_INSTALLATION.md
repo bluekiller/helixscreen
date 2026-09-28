@@ -631,7 +631,7 @@ Run through this checklist after installation on each platform:
 | Issue | Workaround |
 |-------|------------|
 | Wizard keeps appearing | Check settings.json exists and has valid JSON |
-| Touch offset | Use Settings → Touch Calibration |
+| Touch offset | Use Settings → Touch & Input → Touch Calibration |
 
 ### Pi-Specific
 

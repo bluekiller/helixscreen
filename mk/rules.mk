@@ -105,16 +105,16 @@ ifneq ($(YOCTO_BUILD),yes)
 		touch "$(DEPS_CHECKED_MARKER)"; \
 	fi
 endif
-	@# Auto-parallelize: add -j$(NPROC) unless bounded -jN already set
+	@# Auto-parallelize: add -j$(JOBS) unless bounded -jN already set
 	@if echo "$(MAKEFLAGS)" | grep -q 'jobserver'; then \
 		exec $(MAKE) _PARALLEL_CHECKED=1 $(MAKECMDGOALS); \
 	else \
 		if echo "$(MAKEFLAGS)" | grep -q 'j'; then \
 			echo ""; \
-			echo "$(YELLOW)$(BOLD)⚠️  'make -j' (unlimited) detected - auto-fixing to -j$(NPROC)$(RESET)"; \
+			echo "$(YELLOW)$(BOLD)⚠️  'make -j' (unlimited) detected - auto-fixing to -j$(JOBS)$(RESET)"; \
 			echo ""; \
 		fi; \
-		exec $(MAKE) _PARALLEL_CHECKED=1 -j$(NPROC) $(MAKECMDGOALS); \
+		exec $(MAKE) _PARALLEL_CHECKED=1 -j$(JOBS) $(MAKECMDGOALS); \
 	fi
 else
 # Phase 2: Actual build (only runs when _PARALLEL_CHECKED is set)

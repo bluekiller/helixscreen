@@ -53,7 +53,7 @@ The pre-print filament check that catches an empty slot before a multi-color pri
 Nozzle and bed temperature panels, multi-extruder selector for printers with multiple extruders, material presets, and live temperature graphs.
 
 ### [Motion & Positioning](guide/motion.md)
-Jog pad controls, homing, distance increments, and emergency stop.
+Jog and Move tabs, tap-to-move coordinates, bed position grid, park, homing, distance increments, and emergency stop.
 
 ![Motion Controls](../images/screenshot-motion-panel.png)
 
@@ -83,7 +83,7 @@ Bed mesh visualization, screws tilt adjust, input shaper resonance testing, Z-of
 Fix taps that land in the wrong spot — run the calibration wizard from Settings, force it on any touchscreen, or recalibrate from the command line.
 
 ### [Settings](guide/settings.md)
-Display, theme, sound, LED, network, sensors, touch calibration, hardware issues, safety, machine limits, factory reset, help & support (debug bundles, Discord, docs), and About sub-overlay (version info, updates, branding, contributors).
+Twelve pages in three groups. Screen: display, appearance and themes, touch & input, sound. Printer: printing, devices, safety & alerts, connection. HelixScreen: language & time, system, updates, help & about.
 
 ![Settings](../images/screenshot-settings-panel.png)
 

@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -28,6 +29,10 @@ class PanelWidget;
 /// Map of widget ID → reusable PanelWidget instance, passed into populate_widgets
 /// so that expensive C++ state (e.g. camera streams) survives LVGL tree rebuilds.
 using WidgetReuseMap = std::unordered_map<std::string, std::unique_ptr<PanelWidget>>;
+
+/// Appended to a widget id in compute_visible_widget_ids() while its hardware
+/// gate reads 0, so a gate flip changes the page's id list.
+inline constexpr char GATED_ID_SUFFIX[] = "~gated";
 
 /// Central manager for panel widget lifecycle, shared resources, and config change
 /// notifications. Widgets and panels interact through this singleton rather than
@@ -103,6 +108,31 @@ class PanelWidgetManager {
     /// any LVGL objects. Used to short-circuit rebuilds when the list is unchanged.
     std::vector<std::string> compute_visible_widget_ids(const std::string& panel_id,
                                                         int page_index = 0);
+
+    /// One tile whose hardware gate flipped between two visible-id snapshots.
+    struct GateFlip {
+        size_t index;   ///< Position in both snapshots
+        bool now_gated; ///< Direction of the flip
+    };
+
+    /// The gate flips that turn @p before into @p after, or nullopt when
+    /// anything else differs (an id, the order, the length). Placement never
+    /// depends on gate state, so a flip-only change leaves every tile's cell as
+    /// it is.
+    static std::optional<std::vector<GateFlip>>
+    gate_flips_only(const std::vector<std::string>& before, const std::vector<std::string>& after);
+
+    /// Re-create only the flipped tiles of a populated page, each in the grid
+    /// cell it already holds; every other tile and instance is untouched. A tile
+    /// that gates loses its instance from @p widgets; one that un-gates gains a
+    /// fresh instance there. Returns the newly attached instances for the caller
+    /// to activate, or nullopt (having changed nothing) when a flipped tile is
+    /// not on the page or the container is not a live grid.
+    std::optional<std::vector<PanelWidget*>>
+    swap_gated_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
+                     const std::vector<std::string>& visible_ids,
+                     const std::vector<GateFlip>& flips,
+                     std::vector<std::unique_ptr<PanelWidget>>& widgets);
 
     // -- Gate observers --
 

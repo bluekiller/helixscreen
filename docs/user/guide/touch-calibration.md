@@ -52,7 +52,7 @@ You may need to recalibrate if:
 
 **To recalibrate:**
 
-1. Go to **Settings > System > Touch Calibration**
+1. Go to **Settings > Touch & Input > Touch Calibration**
 2. You'll see a status indicator showing **Calibrated** or **Not calibrated**
 3. Tap the option — calibration starts immediately
 4. Complete the same 3-point crosshair flow described above
@@ -73,7 +73,7 @@ Sometimes you need to force calibration even when HelixScreen doesn't think it's
 
 If you can navigate the UI:
 
-1. Go to **Settings > System > Touch Calibration**
+1. Go to **Settings > Touch & Input > Touch Calibration**
 2. Tap to start the calibration flow
 
 ### Method 2: Environment Variable (recommended when touch is broken)

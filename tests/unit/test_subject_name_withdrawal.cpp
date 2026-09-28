@@ -14,8 +14,9 @@
  * subject was registered WITHOUT a name while still published under one.
  */
 
+#include "ui_settings_appearance.h"
 #include "ui_settings_barcode_scanner.h"
-#include "ui_settings_display_sound.h"
+#include "ui_settings_display.h"
 #include "ui_settings_label_printer.h"
 #include "ui_settings_material_temps.h"
 #include "ui_spoolman_overlay.h"
@@ -37,7 +38,8 @@
 #include "../catch_amalgamated.hpp"
 
 namespace helix::settings {
-DisplaySoundSettingsOverlay& get_display_sound_settings_overlay();
+DisplaySettingsOverlay& get_display_settings_overlay();
+AppearanceSettingsOverlay& get_appearance_settings_overlay();
 MaterialTempsOverlay& get_material_temps_overlay();
 LabelPrinterSettingsOverlay& get_label_printer_settings_overlay();
 } // namespace helix::settings
@@ -110,9 +112,12 @@ TEST_CASE_METHOD(XMLTestFixture, "Converted overlays withdraw their subject name
     StaticPanelRegistry::instance().destroy_all();
 
     const OverlayCase cases[] = {
-        {"DisplaySound",
-         []() { helix::settings::get_display_sound_settings_overlay().init_subjects(); },
-         {"brightness_value", "theme_apply_disabled"}},
+        {"Display",
+         []() { helix::settings::get_display_settings_overlay().init_subjects(); },
+         {"brightness_value"}},
+        {"Appearance",
+         []() { helix::settings::get_appearance_settings_overlay().init_subjects(); },
+         {"theme_apply_disabled"}},
         {"MaterialTemps",
          []() { helix::settings::get_material_temps_overlay().init_subjects(); },
          {"material_editing", "material_edit_name", "material_edit_defaults",

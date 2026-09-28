@@ -81,43 +81,42 @@ HelixScreen uses a backend abstraction layer to support multiple multi-filament 
 
 ### SlotRegistry (Per-Slot State)
 
-Each backend owns a `helix::printer::SlotRegistry` instance (`slots_`) that serves as the single source of truth for all per-slot indexed state. Before SlotRegistry, backends maintained parallel vectors (`lane_names_`, `lane_sensors_`, `gate_sensors_`, etc.) that had to be kept in sync manually -- a frequent source of index mismatch bugs.
+`helix::printer::SlotRegistry` (`include/slot_registry.h`) holds a backend's per-slot state in one indexed container. Four backends own one as `slots_`: Mock, AFC, AD5X IFS and Happy Hare. ACE, CFS, Qidi, Snapmaker, ToolChanger and OpenAMS keep their slots in `system_info_.units` and reach them through `AmsSystemInfo::get_slot()` / `get_slot_global()`; the backends built on `AmsSubscriptionBackend` validate a slot index through its `validate_slot_index_locked()` either way.
 
 **What SlotRegistry manages:**
-- Slot names and bidirectional name-to-index lookup
-- Per-slot sensor states (prep, load, loaded_to_hub, tool_loaded)
-- Per-slot error and buffer health
-- Per-slot filament weight tracking
-- Tool-to-slot mapping
-- Multi-unit reorganization (preserving slot data when unit topology changes)
+- Slot names and bidirectional name-to-index lookup (`index_of`, `name_of`, `find_by_name`)
+- Each slot's `SlotInfo` and endless-spool backup
+- Units and each unit's slot range
+- The tool-to-slot map, in both directions, with `firmware_mapping_generation()` advancing only on firmware-sourced writes
+- Multi-unit reorganization that keeps slot data when the unit topology changes
+
+It does not hold sensor readings: a backend parses its own sensors and keys them the way it addresses slots (AFC's `AfcLaneSensors` by lane name, Happy Hare's `HappyHareGateSensor` by gate index).
 
 **How backends use it:**
 
 ```cpp
-// Initialize (once, during startup or first data arrival)
-slots_.initialize("AFC Box Turtle", lane_names);   // AFC
-slots_.initialize("Happy Hare MMU", gate_count);    // Happy Hare
+// Initialize (once, when the slot list is known)
+slots_.initialize("IFS", slot_names);          // one unit
+slots_.initialize_units(unit_slot_names);      // several units
 
-// Read state
-int idx = slots_.index_of("lane3");         // Name -> index
-std::string name = slots_.name_of(2);       // Index -> name
-const auto* entry = slots_.get(idx);        // Read-only access
-auto info = slots_.build_slot_info(idx);    // Build SlotInfo for API
-
-// Write state (under backend mutex)
+// Read and write under the backend's mutex
+int idx = slots_.index_of("lane3");
 auto* entry = slots_.get_mut(idx);
-entry->sensors.prep = true;
 entry->info.color_rgb = 0xFF0000;
 
-// Multi-unit reorganization (AFC multi-unit topology changes)
-slots_.reorganize(unit_lane_map);           // Preserves slot data across layout changes
+// Multi-unit reorganization (AFC topology changes)
+slots_.reorganize(unit_lane_map);
+
+// Snapshot for get_system_info()
+AmsSystemInfo info = slots_.build_system_info(system_info_);
 ```
 
+**The snapshot rule.** `build_system_info(base)` starts from the backend's own `system_info_` and replaces only what the registry owns: `total_slots`, `tool_to_slot_map`, and each unit's index, slot range and slots. Every other field, unit metadata included, passes through, so a field a backend writes reaches the UI without being copied by name. A backend then applies only what it genuinely computes on top (AD5X IFS's 16-entry tool map, Happy Hare's per-unit environment, the mock's environment data). A base unit past the registry's count is dropped; a registry unit the base lacks takes the registry's name.
+
 **Key design decisions:**
-- SlotRegistry does NOT hold a mutex -- the owning backend's mutex protects all access
-- `build_slot_info()` constructs a `SlotInfo` snapshot, avoiding shared mutable state
-- `reorganize()` takes an ordered vector of unit/lane pairs — caller controls unit ordering
-- Slot names remain backend-specific ("lane1" for AFC, "Gate 0" for Happy Hare) -- SlotRegistry is agnostic
+- SlotRegistry holds no mutex; the owning backend's mutex protects every access
+- `reorganize()` takes an ordered list of units and their slot names, so the caller controls unit order
+- Slot names stay backend-specific ("lane1" for AFC, "0" for a Happy Hare gate); the registry does not interpret them
 
 ### Per-Slot Load Authority
 
@@ -286,6 +285,10 @@ struct BackendSlotSubjects {
     std::vector<lv_subject_t> colors;
     std::vector<lv_subject_t> statuses;
     std::vector<lv_subject_t> fills;  // int: fill percent 0-100, -1 = unknown
+    std::vector<lv_subject_t> lane_states; // int: helix::ui::LaneState
+    std::vector<lv_subject_t> has_errors;
+    std::vector<lv_subject_t> severities;  // int: SlotError::Severity
+    std::vector<lv_subject_t> materials;   // string: "PLA", "PETG", ... or ""
     int slot_count = 0;
     // Lifetime token shared by every subject in this struct: these subjects are
     // DYNAMIC (destroyed in deinit() on backend rediscovery), so any observer
@@ -1259,7 +1262,7 @@ A backend fault reaches the user through one of **two independent channels**. Th
 | Backend | Channel A gate | Channel B gate | Recovery actions (`build_recovery_actions()`) |
 |---------|----------------|----------------|-----------------------------------------------|
 | **AFC** | `is_bang_line()`, then a `tool_end` jam/break/runout signature, else any pausing `!!` while `error_state_` | `error_state_` set (the stuck-action latch returns `nullopt` — that fault is ours, not AFC's) | Resume (primary, hot) · Unload (hot) *or* Eject lane (cold) depending on `tool_start_sensor_` · AFC_RESET (danger) |
-| **Happy Hare** | `is_bang_line()`, then paused **and** (`AmsAction::ERROR` or a recognized cause in `reason_for_pause_`) | — | Backend-derived; title is "Filament runout" when the detail says runout |
+| **Happy Hare** | `is_bang_line()`, then an HH-authored `MMU issue` line (in a print `MMU issue detected. ...\nReason: <reason>`; outside one, where HH never pauses, `MMU issue: <reason>`), or any line while paused with a non-empty `reason_for_pause_`. The detail is the line's own reason (HH keeps only the first in `reason_for_pause`), newlines shown as ". " | — (HH publishes no Error `action`; a fault is `print_state: pause_locked` plus `reason_for_pause`, which the backend turns into the slot error and path highlight, cleared when the reason goes empty on resume or cancel) | Backend-derived; title is "Filament runout" when the detail says runout. `duplicates_firmware_prompt()` claims HH's own `Happy Hare Error Notice` prompt, which the presenter closes when the popup shows |
 | **AD5X IFS** | — | `AmsAction::ERROR`, raised by `evaluate_runout_locked()` or by an operation timeout | Runout: Resume (primary, hot) · Purge `M83`+`G1 E` (hot) · `IFS_UNLOCK` (danger, cold). Timeout: `IFS_UNLOCK` alone. **No "Load slot N"** — every IFS load path self-homes and trash-moves into the part |
 | **CFS** | **inverted** — `is_bang_line()` returns `nullopt`, so `!!` `key8xx` codes stay with the generic classifier. Claims only paused `respond_info` lines matching the auto-refill give-up wording | — (never assigns `AmsAction::ERROR`) | Resume (primary, hot) · Reset CFS = `BOX_ERROR_CLEAR` (danger, cold) |
 | **QIDI Box** | — | `AmsAction::ERROR`, raised by a negative `slot<N>` state word (blocked lane) | Lone dismiss — recovery gcode unknown, clearance is manual (#1041) |
@@ -1349,7 +1352,7 @@ each backend's doc ([Snapmaker U1](FILAMENT_BACKEND_SNAPMAKER_U1.md)).
 
 | Order | What runs | Chosen when |
 |-------|-----------|-------------|
-| 0 `FilamentTier::Macro` (**user override**) | The macro the user assigned in Settings > Macro Buttons, via `dispatch_filament_macro()` | `StandardMacroInfo::get_source() == MacroSource::CONFIGURED`. Outranks everything, on load and unload alike |
+| 0 `FilamentTier::Macro` (**user override**) | The macro the user assigned in Settings > Printing > Macro Buttons, via `dispatch_filament_macro()` | `StandardMacroInfo::get_source() == MacroSource::CONFIGURED`. Outranks everything, on load and unload alike |
 | 1 `FilamentTier::AmsBackend` | `load_filament()`, `unload_filament()`, or `change_tool()` — carried in `FilamentOpPlan::ams_call` / `ams_arg` | A backend owns the operation (see the asymmetry below) |
 | 2 `FilamentTier::Macro` (auto-detected) | The `StandardMacroSlot::LoadFilament` / `UnloadFilament` we pattern-matched, or a `HELIX_*` fallback | No tier 1, and the slot is non-empty |
 | 3 `FilamentTier::RawGcode` | `filament_load_fallback_gcode()` (fast bowden move, then a slow push into the melt zone) or `filament_unload_fallback_gcode()` (tip-shape, then a long retract) | Nothing else is configured |
@@ -1446,7 +1449,7 @@ carry a comment saying so. Read `include/filament_op_dispatch.h` before "fixing"
 | Which tier does this operation take? | `plan_load()` / `plan_unload()` |
 | Is this a fresh load or a swap? | `plan_load()` via `needs_unload_before_load()` -> `AmsCall::ChangeTool` |
 | Is the requested tool already mounted? | `plan_load()` -> `FilamentRefusal::AlreadyMounted` |
-| Is there anything at this slot to unload? | `unload_target_is_loaded()` — actively loaded, **or** filament at the toolhead, **or** it is the current slot (the runout-recovery case, #995 / #1199) |
+| Is there anything at this slot to unload? | `unload_target_is_loaded()` — actively loaded, **or** filament at the toolhead, **or** it is the current slot (the runout-recovery case, #995 / #1199). The `ACTIVE_HEAD_SLOT` sentinel (-1) counts only while the backend reports the toolhead unaccounted (#1324) |
 | Which slot do this tool's buttons act on? | `resolve_op_button_slot()` |
 | Are Load / Unload enabled right now? | `compute_op_button_gating()` — load state *and* print state |
 | How does a plan actually run? | `filament_op_execute.h` - `execute_filament_load()` / `execute_filament_unload()` / `execute_filament_purge()`, shared by `PrintStatusWidget`, `FilamentRunoutHandler`, and `FilamentSensorWidget` |
@@ -1456,7 +1459,7 @@ carry a comment saying so. Read `include/filament_op_dispatch.h` before "fixing"
 | Surface | Owns |
 |---------|------|
 | `FilamentPanel` | `begin_operation_guard()` / `operation_guard_`, the `backend_op_active_` gate on `ams_action_observer_`, the on-button spinner (`op_started` / `op_succeeded` / `op_failed`), and `navigate_to_ams_panel()` on `SelectSlot` |
-| `AmsOperationSidebar` | The step model (`start_operation(StepOperationType::LOAD_FRESH / LOAD_SWAP / UNLOAD)`) and the preheat state machine (`get_load_temp_for_slot()`, `pending_load_slot_`, `check_pending_load()`, `ui_initiated_heat_`) |
+| `AmsOperationSidebar` | The step model (`start_operation(StepOperationType::LOAD_FRESH / LOAD_SWAP / UNLOAD)`, which marks the operation busy with its first step's projected action, `HEATING` for the legacy bar) and the preheat state machine (`get_load_temp_for_slot()`, `pending_load_slot_`, `check_pending_load()`, `ui_initiated_heat_`) |
 | `FilamentRunoutHandler` | Staying put. Every outcome is a toast; navigating would tear down the dialog the user is standing in |
 | `FilamentSensorWidget` (home tile) | No navigation either - toast-only refusals, and the modal stays up for a repeated Purge tap. Also owns the tap-routing decision itself (`decide_tap_destination()` in `filament_widget_tap_policy.h`): disabled sensor vs. printing vs. everything else |
 | All of the above | Toast copy, and whether to toast at all. On a *dispatch* failure that is not purely presentational: the send's `caller_surfaces_errors` says whether this surface's `on_error` really shows the user something, and a surface that claims it silences `GcodeErrorRouter`'s `!!` report of the same rejection. A surface that only logs must pass `false` — see `RPC_ERROR_OWNERSHIP.md` |
@@ -2051,7 +2054,7 @@ The `AmsDeviceOperationsOverlay` (`ui_ams_device_operations_overlay.h`) consolid
 | Action | G-code (varies by backend) | Description |
 |--------|---------------------------|-------------|
 | Home | `MMU_HOME` / `AFC_RESET` | Reset to home position (label follows `reset_button_label()`; AFC sends `AFC_RESET`, not `AFC_HOME`) |
-| Recover | `MMU_RECOVER` / `AFC_RESET` | Attempt error recovery |
+| Recover | `MMU_RECOVER` / `AFC_RESET` | Attempt error recovery. A backend answering `supports_recover_with_state()` opens `AmsRecoverStateModal` instead, which sends the user's asserted slot and loaded state through `recover_with_state()` |
 | Abort | `cancel()` | Cancel current operation |
 | Bypass Toggle | `enable_bypass()` / `disable_bypass()` | Toggle bypass mode (if supported) |
 
@@ -2320,7 +2323,7 @@ The `AmsBackendMock` simulates any of the supported backend types for UI develop
 
 Mock mode is activated when `RuntimeConfig::should_mock_ams()` returns true (typically via the `--test` CLI flag). The factory method `AmsBackend::create()` automatically returns a mock backend in this case.
 
-Pass `--real-ams` alongside `--test` to opt back out and drive a real backend (e.g. `AmsBackendHappyHare`) against the mock Moonraker client instead of `AmsBackendMock`. This is what makes backend-specific chokepoints reachable under `--test` — for example `AmsSubscriptionBackend::ensure_homed_then()`'s "Home printer first?" confirmation, which `AmsBackendMock` never goes near since it doesn't inherit `AmsSubscriptionBackend`. The mock Moonraker client only simulates a minimal, static `mmu` status for Happy Hare (`moonraker_client_mock_objects.cpp`'s `get_mock_mmu_status()`: 4 gates, a mix of loaded/empty, no operation state machine) — it is a plumbing harness for exercising backend code paths, not a UI development tool. Use plain `--test` + `HELIX_MOCK_AMS` (below) for that.
+Pass `--real-ams` alongside `--test` to opt back out and drive a real backend (e.g. `AmsBackendHappyHare`) against the mock Moonraker client instead of `AmsBackendMock`. This is what makes backend-specific chokepoints reachable under `--test` — for example `AmsSubscriptionBackend::ensure_homed_then()`'s G28 in front of an unhomed operation, which `AmsBackendMock` never goes near since it doesn't inherit `AmsSubscriptionBackend`. The mock Moonraker client only simulates a minimal, static `mmu` status for Happy Hare (`moonraker_client_mock_objects.cpp`'s `get_mock_mmu_status()`: 4 gates, a mix of loaded/empty, no operation state machine) — it is a plumbing harness for exercising backend code paths, not a UI development tool. Use plain `--test` + `HELIX_MOCK_AMS` (below) for that.
 
 **`--real-ams` seeds Happy Hare only and does not compose with `HELIX_MOCK_AMS`.** The backend comes from mock hardware discovery, not from `HELIX_MOCK_AMS` — that variable is read inside `AmsBackend::create()`'s mock branch (`src/printer/ams_backend.cpp`), which `--real-ams` bypasses entirely. So `HELIX_MOCK_AMS=toolchanger` combined with `--real-ams` still swaps in a real `AmsBackendToolChanger`, but with zero seeded state — a silently empty panel, not a toolchanger simulation.
 

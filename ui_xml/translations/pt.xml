@@ -65,6 +65,7 @@
   <translation tag="1. Printer will home and probe each screw" pt="1. A impressora fará home e sondará cada parafuso"/>
   <translation tag="10 minutes" pt="10 minutos"/>
   <translation tag="12 Hour" pt="12 horas"/>
+  <translation tag="12-hour" pt="12 horas"/>
   <translation tag="120 seconds" pt="120 segundos"/>
   <translation tag="15 seconds" pt="15 segundos"/>
   <translation tag="170-300 °C" pt="170-300 °C"/>
@@ -77,6 +78,7 @@
   <translation tag="2. Results show how much to turn each screw" pt="2. Os resultados mostram quanto girar cada parafuso"/>
   <translation tag="20 minutes" pt="20 minutos"/>
   <translation tag="24 Hour" pt="24 horas"/>
+  <translation tag="24-hour" pt="24 horas"/>
   <translation tag="270°" pt="270°"/>
   <translation tag="270° Clockwise" pt="270° no sentido horário"/>
   <translation tag="2D Heatmap" pt="Mapa de calor 2D"/>
@@ -150,11 +152,11 @@
   <translation tag="Accepted Z Position: {:.3f}" pt="Posição Z aceita: {:.3f}"/>
   <translation tag="Accessories" pt="Acessórios"/>
   <translation tag="Accuracy" pt="Precisão"/>
-  <translation tag="Act:" pt="Real:"/>
   <translation tag="Action Required" pt="Ação Necessária"/>
   <translation tag="Actions" pt="Ações"/>
   <translation tag="Active" pt="Ativo"/>
   <translation tag="Active Spool" pt="Bobina ativa"/>
+  <translation tag="Actual" pt="Atual"/>
   <translation tag="Adaptive Bed Mesh" pt="Malha da Mesa Adaptativa"/>
   <translation tag="Add" pt="Adicionar"/>
   <translation tag="Add Filament" pt="Adicionar Filamento"/>
@@ -182,6 +184,7 @@
   <translation tag="All Devices" pt="Todos os Dispositivos"/>
   <translation tag="All axes homed" pt="Todos os eixos referenciados"/>
   <translation tag="All fields are required" pt="Todos os campos são obrigatórios"/>
+  <translation tag="All healthy" pt="Tudo em ordem"/>
   <translation tag="All lights" pt="Todas as luzes"/>
   <translation tag="Allow" pt="Permitir"/>
   <translation tag="Allow Home Screen Editing" pt="Permitir a edição da tela inicial"/>
@@ -201,7 +204,7 @@
   <translation tag="An error occurred during probing." pt="Ocorreu um erro durante a sondagem."/>
   <translation tag="An error occurred while loading filament." pt="Ocorreu um erro ao carregar o filamento."/>
   <translation tag="An error occurred." pt="Ocorreu um erro."/>
-  <translation tag="An internal error occurred. The app continues running — please send a debug bundle from Settings &gt; About if it repeats." pt="Ocorreu um erro interno. O aplicativo continua em execução — envie um pacote de depuração em Configurações &gt; Sobre se isso se repetir."/>
+  <translation tag="An internal error occurred. The app continues running. Please send a debug bundle from Settings &gt; Help &amp; About if it repeats." pt="Ocorreu um erro interno. O aplicativo continua em execução. Envie um pacote de depuração em Configurações &gt; Ajuda e sobre se isso se repetir."/>
   <translation tag="An unexpected printer error occurred." pt="Ocorreu um erro inesperado na impressora."/>
   <translation tag="An update is available" pt="Uma atualização está disponível"/>
   <translation tag="Analyzing data..." pt="Analisando dados..."/>
@@ -399,7 +402,6 @@
   <translation tag="Calibrate X" pt="Calibrar X"/>
   <translation tag="Calibrate Y" pt="Calibrar Y"/>
   <translation tag="Calibrate all tools" pt="Calibrar todas as ferramentas"/>
-  <translation tag="Calibrate and tune scroll feel" pt="Calibrar e ajustar a sensação de rolagem"/>
   <translation tag="Calibrate input shaping to reduce ringing artifacts in prints" pt="Calibrar input shaping para reduzir artefatos de ringing nas impressões"/>
   <translation tag="Calibrate tool offsets?" pt="Calibrar os offsets de ferramenta?"/>
   <translation tag="Calibrate your touchscreen for accurate input" pt="Calibrar a tela touch para entrada precisa"/>
@@ -496,6 +498,7 @@
   <translation tag="Check Again" pt="Verificar Novamente"/>
   <translation tag="Check Klipper console for details" pt="Verifique o console do Klipper para detalhes"/>
   <translation tag="Check extruder temperature and try again. Manual removal may be required." pt="Verifique a temperatura do extrusor e tente novamente. A remoção manual pode ser necessária."/>
+  <translation tag="Check failed" pt="Falha na verificação"/>
   <translation tag="Check filament" pt="Verificar filamento"/>
   <translation tag="Check for Updates" pt="Verificar Atualizações"/>
   <translation tag="Check slot" pt="Verificar slot"/>
@@ -508,6 +511,7 @@
   <translation tag="Check the PTFE tube along the drag chain for kinks, and the bend where it enters the extruder sensor" pt="Verifique se o tubo PTFE ao longo da esteira está dobrado, e a curva na entrada do sensor do extrusor"/>
   <translation tag="Check the RS-485 cable between printer and CFS" pt="Verifique o cabo RS-485 entre a impressora e o CFS"/>
   <translation tag="Check the buffer unit on the back of the printer" pt="Verifique a unidade de buffer na parte de trás da impressora"/>
+  <translation tag="Check the chips, then save" pt="Confira as etiquetas e salve"/>
   <translation tag="Check the filament path and try again." pt="Verifique o caminho do filamento e tente novamente."/>
   <translation tag="Check the path from the slot to the hub for a tangle or drag. If the slot feeds freely, the hub sensor or the feeder motor may have failed" pt="Verifique o percurso do slot até o hub quanto a emaranhados ou atrito. Se o slot alimenta livremente, o sensor do hub ou o motor de alimentação podem ter falhado"/>
   <translation tag="Check the provided value and try again" pt="Verifique o valor fornecido e tente novamente"/>
@@ -526,6 +530,7 @@
   <translation tag="Checking timelapse plugin..." pt="Verificando plugin de timelapse..."/>
   <translation tag="Checking webcam" pt="Verificando webcam"/>
   <translation tag="Checking..." pt="Verificando..."/>
+  <translation tag="Checking…" pt="Verificando…"/>
   <translation tag="Choose 12-hour or 24-hour time display" pt="Escolha exibição de hora em 12 ou 24 horas"/>
   <translation tag="Choose Filament" pt="Escolher Filamento"/>
   <translation tag="Choose Model" pt="Escolher Modelo"/>
@@ -689,11 +694,13 @@
   <translation tag="Could not reach Spoolman at" pt="Não foi possível alcançar o Spoolman em"/>
   <translation tag="Could not read the screw adjustments from the printer" pt="Não foi possível ler os ajustes dos parafusos da impressora"/>
   <translation tag="Could not remove the job from the queue" pt="Não foi possível remover o trabalho da fila"/>
+  <translation tag="Could not reset the printer image tags" pt="Falha ao resetar as marcações da imagem"/>
   <translation tag="Could not resolve printer RFCOMM channel" pt="Não foi possível resolver o canal RFCOMM da impressora"/>
   <translation tag="Could not save filament" pt="Não foi possível salvar o filamento"/>
   <translation tag="Could not save the drying state" pt="Não foi possível salvar o estado da secagem"/>
   <translation tag="Could not save the drying state: nothing was heated" pt="Não foi possível salvar o estado da secagem: nada foi aquecido"/>
   <translation tag="Could not save the mesh as &apos;{}&apos;: {}" pt="Não foi possível salvar a malha como &apos;{}&apos;: {}"/>
+  <translation tag="Could not save the printer image tags" pt="Falha ao salvar as marcações da imagem"/>
   <translation tag="Could not start Bluetooth discovery" pt="Não foi possível iniciar a descoberta Bluetooth"/>
   <translation tag="Could not update filaments" pt="Não foi possível atualizar os filamentos"/>
   <translation tag="Could not verify Spoolman status. Moonraker may still be restarting." pt="Não foi possível verificar o status do Spoolman. O Moonraker pode ainda estar reiniciando."/>
@@ -780,6 +787,7 @@
   <translation tag="Deploy" pt="Implantar"/>
   <translation tag="Describe the issue (optional)" pt="Descreva o problema (opcional)"/>
   <translation tag="Detailed" pt="Detalhado"/>
+  <translation tag="Detect automatically" pt="Detectar automaticamente"/>
   <translation tag="Detect filament tangles" pt="Detectar emaranhados de filamento"/>
   <translation tag="Detecting plate..." pt="Detectando placa..."/>
   <translation tag="Detecting printer type..." pt="Detectando tipo de impressora..."/>
@@ -795,6 +803,7 @@
   <translation tag="Device name" pt="Nome do dispositivo"/>
   <translation tag="Device name is required" pt="Nome do dispositivo é obrigatório"/>
   <translation tag="Device: " pt="Dispositivo: "/>
+  <translation tag="Devices" pt="Dispositivos"/>
   <translation tag="Different filament?" pt="Filamento diferente?"/>
   <translation tag="Digital Clock" pt="Relógio digital"/>
   <translation tag="Disable" pt="Desabilitar"/>
@@ -810,7 +819,7 @@
   <translation tag="Discord Community" pt="Comunidade Discord"/>
   <translation tag="Discovered Printers" pt="Impressoras Descobertas"/>
   <translation tag="Dismiss" pt="Dispensar"/>
-  <translation tag="Display &amp; Sound" pt="Tela e som"/>
+  <translation tag="Display" pt="Tela"/>
   <translation tag="Display Mode" pt="Modo de Exibição"/>
   <translation tag="Display Sleep" pt="Suspensão da Tela"/>
   <translation tag="Display resolution is very high (%dx%d). Text may appear small. Reduce framebuffer resolution in /boot/firmware/config.txt for best results." pt="A resolução da tela é muito alta (%dx%d). O texto pode aparecer pequeno. Reduza a resolução do framebuffer em /boot/firmware/config.txt para melhores resultados."/>
@@ -856,6 +865,7 @@
   <translation tag="EEPROM error on CFS unit" pt="Erro de EEPROM na unidade CFS"/>
   <translation tag="EMERGENCY STOP" pt="PARADA DE EMERGÊNCIA"/>
   <translation tag="EMPTY" pt="VAZIO"/>
+  <translation tag="EXTRAS" pt="EXTRAS"/>
   <translation tag="Each fan can only be selected once" pt="Cada ventoinha só pode ser selecionada uma vez"/>
   <translation tag="Edit" pt="Editar"/>
   <translation tag="Edit Filament" pt="Editar Filamento"/>
@@ -877,7 +887,6 @@
   <translation tag="Emergency Stop" pt="Parada de Emergência"/>
   <translation tag="Emergency Stop?" pt="Parada de Emergência?"/>
   <translation tag="Emergency stop activated" pt="Parada de emergência ativada"/>
-  <translation tag="Emergency stop and print alerts" pt="Parada de emergência e alertas de impressão"/>
   <translation tag="Emergency stop failed: not connected" pt="Parada de emergência falhou: não conectado"/>
   <translation tag="Empty" pt="Vazio"/>
   <translation tag="Empty slots disable the associated functionality" pt="Slots vazios desabilitam a funcionalidade associada"/>
@@ -934,7 +943,6 @@
   <translation tag="Error" pt="Erro"/>
   <translation tag="Error at chunk {} (code={})" pt="Erro no fragmento {} (code={})"/>
   <translation tag="Error loading file" pt="Erro ao carregar arquivo"/>
-  <translation tag="Error loading printing tips" pt="Erro ao carregar dicas de impressão"/>
   <translation tag="Error saving printer settings: {}" pt="Erro ao salvar configurações da impressora: {}"/>
   <translation tag="Error state" pt="Estado de erro"/>
   <translation tag="Error: %s" pt="Erro: %s"/>
@@ -1001,6 +1009,7 @@
   <translation tag="Extruder too cold" pt="Extrusor frio demais"/>
   <translation tag="Extruding prime line..." pt="Extrudando linha de preparação..."/>
   <translation tag="FAILED" pt="FALHOU"/>
+  <translation tag="FILAMENT" pt="FILAMENTO"/>
   <translation tag="FILAMENTS" pt="FILAMENTOS"/>
   <translation tag="FILTERS" pt="FILTROS"/>
   <translation tag="Factory Reset" pt="Restauração de Fábrica"/>
@@ -1254,6 +1263,7 @@
   <translation tag="Guide the toolhead to the chute&apos;s extrude position" pt="Leve o cabeçote até a posição de extrusão da calha"/>
   <translation tag="Guides and reference" pt="Guias e referência"/>
   <translation tag="H" pt="H"/>
+  <translation tag="HELIXSCREEN" pt="HELIXSCREEN"/>
   <translation tag="HOST" pt="Host"/>
   <translation tag="HTTP Code" pt="Código HTTP"/>
   <translation tag="HTTP error: {} {}" pt="Erro HTTP: {} {}"/>
@@ -1262,7 +1272,6 @@
   <translation tag="Hang on, we&apos;ll be right back!" pt="Aguarde, já voltamos!"/>
   <translation tag="Happy Hare MMU" pt="Happy Hare MMU"/>
   <translation tag="Hardware" pt="Hardware"/>
-  <translation tag="Hardware &amp; Devices" pt="Hardware e dispositivos"/>
   <translation tag="Hardware Health" pt="Saúde do Hardware"/>
   <translation tag="Hardware Name" pt="Nome do Hardware"/>
   <translation tag="Hardware Profile" pt="Perfil de Hardware"/>
@@ -1342,6 +1351,7 @@
   <translation tag="Homing Y..." pt="Posicionando Y..."/>
   <translation tag="Homing Z..." pt="Posicionando Z..."/>
   <translation tag="Homing all axes..." pt="Posicionando todos os eixos..."/>
+  <translation tag="Homing and moving the plate..." pt="Posicionando e movendo a mesa..."/>
   <translation tag="Homing axes..." pt="Posicionando eixos..."/>
   <translation tag="Homing complete" pt="Homing concluído"/>
   <translation tag="Homing failed: " pt="Falha ao referenciar: "/>
@@ -1517,7 +1527,7 @@
   <translation tag="Lane tests and motor resets" pt="Testes de lane e reinícios de motor"/>
   <translation tag="Lanes" pt="Lanes"/>
   <translation tag="Language" pt="Idioma"/>
-  <translation tag="Language, theme, brightness, and sound" pt="Idioma, tema, brilho e som"/>
+  <translation tag="Language &amp; Time" pt="Idioma e hora"/>
   <translation tag="Last" pt="Última"/>
   <translation tag="Last 7 days" pt="Últimos 7 dias"/>
   <translation tag="Last measured" pt="Última medição"/>
@@ -1542,6 +1552,7 @@
   <translation tag="Library" pt="Biblioteca"/>
   <translation tag="Lifetime Print Stats" pt="Estatísticas de Impressão Totais"/>
   <translation tag="Light" pt="Claro"/>
+  <translation tag="Light Mode" pt="Modo Claro"/>
   <translation tag="Light will switch when the current operation finishes" pt="A luz será alternada quando a operação atual terminar"/>
   <translation tag="Lights that follow the printer&apos;s state" pt="Luzes que seguem o estado da impressora"/>
   <translation tag="Line the nozzle up with the purge chute so purged filament drops straight in." pt="Alinhe o bocal sobre a calha de purga para que o filamento purgado caia direto dentro."/>
@@ -1552,6 +1563,7 @@
   <translation tag="Load" pt="Carregar"/>
   <translation tag="Load Cell" pt="Célula de carga"/>
   <translation tag="Load Cells" pt="Células de carga"/>
+  <translation tag="Load Extruder" pt="Carregar extrusor"/>
   <translation tag="Load Failed" pt="Falha ao carregar"/>
   <translation tag="Load Filament" pt="Carregar Filamento"/>
   <translation tag="Load a filament first before trying to unload" pt="Carregue primeiro filamento antes de tentar descarregar"/>
@@ -1602,6 +1614,7 @@
   <translation tag="Lowest notification level that interrupts with a toast" pt="Nível de notificação mais baixo que interrompe com um aviso flutuante"/>
   <translation tag="M to toggle" pt="M para alternar"/>
   <translation tag="MAC:" pt="MAC:"/>
+  <translation tag="MACHINE" pt="MÁQUINA"/>
   <translation tag="MACRO DEVICES" pt="DISPOSITIVOS DE MACRO"/>
   <translation tag="MAIN POWER BUTTON" pt="BOTÃO DE ENERGIA PRINCIPAL"/>
   <translation tag="MANUAL" pt="MANUAL"/>
@@ -1653,6 +1666,7 @@
   <translation tag="Manage" pt="Gerenciar"/>
   <translation tag="Manage Printers" pt="Gerenciar Impressoras"/>
   <translation tag="Manage configured printers" pt="Gerenciar impressoras configuradas"/>
+  <translation tag="Managed by firmware" pt="Gerenciado pelo firmware"/>
   <translation tag="Managed by your firmware" pt="Gerenciado pelo seu firmware"/>
   <translation tag="Manual" pt="Manual"/>
   <translation tag="Manual Bed Leveling" pt="Nivelamento Manual da Mesa"/>
@@ -1688,6 +1702,7 @@
   <translation tag="Measure and compare belt path frequencies" pt="Medir e comparar frequências dos caminhos de correia"/>
   <translation tag="Measure belt path frequencies" pt="Medir frequências dos caminhos de correia"/>
   <translation tag="Measure every tool&apos;s XYZ offset automatically" pt="Mede o offset XYZ de cada ferramenta automaticamente"/>
+  <translation tag="Measure pressure advance automatically" pt="Mede o Pressure Advance automaticamente"/>
   <translation tag="Measured (shaper off)" pt="Medido (shaper desligado)"/>
   <translation tag="Measured filament diameter" pt="Diâmetro medido do filamento"/>
   <translation tag="Measured pressure advance" pt="Pressure Advance medido"/>
@@ -1727,7 +1742,6 @@
   <translation tag="Motors Off" pt="Desligar Motores"/>
   <translation tag="Motors disable failed: {}" pt="Falha ao desativar motores: {}"/>
   <translation tag="Motors disabled" pt="Motores desativados"/>
-  <translation tag="Motors off"/>
   <translation tag="Motors stay on while a print is active" pt="Os motores permanecem ativos durante uma impressão"/>
   <translation tag="Mount" pt="Montar"/>
   <translation tag="Move" pt="Mover"/>
@@ -1750,6 +1764,7 @@
   <translation tag="Multi-Filament System not available" pt="Sistema multi-filamento não disponível"/>
   <translation tag="Multi-filament system not ready" pt="Sistema multifilamento não está pronto"/>
   <translation tag="Must home axes first" pt="Deve referenciar os eixos primeiro"/>
+  <translation tag="Muted" pt="Sem som"/>
   <translation tag="My Custom Theme" pt="Meu Tema Personalizado"/>
   <translation tag="My Panel" pt="Meu Painel"/>
   <translation tag="My Printer" pt="Minha Impressora"/>
@@ -1760,6 +1775,7 @@
   <translation tag="Name:" pt="Nome:"/>
   <translation tag="Named actions in the LED Controls widget. Not shown under LED selection." pt="Ações nomeadas no widget Controles LED. Não aparecem na seleção de LED."/>
   <translation tag="Needs adjustment" pt="Precisa de ajuste"/>
+  <translation tag="Needs attention" pt="Requer atenção"/>
   <translation tag="Needs the {} package to switch spools" pt="Precisa do plugin {} para trocar de carretel"/>
   <translation tag="Net Weight (g)" pt="Peso Líquido (g)"/>
   <translation tag="Network" pt="Rede"/>
@@ -1773,6 +1789,7 @@
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." pt="Rede, tela, som, configuração da impressora e muito mais. Você pode repetir este tour a qualquer momento em Ajuda e sobre."/>
   <translation tag="Neutral" pt="Neutro"/>
   <translation tag="Never" pt="Nunca"/>
+  <translation tag="Never sleeps" pt="Nunca dorme"/>
   <translation tag="New Spool" pt="Novo carretel"/>
   <translation tag="New Spool: Step 1 of 3" pt="Nova Bobina: Etapa 1 de 3"/>
   <translation tag="New Spool: Step {} of {}" pt="Nova Bobina: Passo {} de {}"/>
@@ -1984,6 +2001,8 @@
   <translation tag="PLA - Black" pt="PLA - Preto"/>
   <translation tag="POWER" pt="ENERGIA"/>
   <translation tag="PRINT OPTIONS" pt="OPÇÕES DE IMPRESSÃO"/>
+  <translation tag="PRINTER" pt="IMPRESSORA"/>
+  <translation tag="PRINTER VISUALS" pt="VISUAIS DA IMPRESSORA"/>
   <translation tag="PRINTERS" pt="IMPRESSORAS"/>
   <translation tag="PRINT_START has {} skippable operation" pt="PRINT_START tem {} operação opcional"/>
   <translation tag="PRINT_START has {} skippable operations" pt="PRINT_START tem {} operações opcionais"/>
@@ -2076,6 +2095,7 @@
   <translation tag="Preheat cancelled" pt="Pré-aquecimento cancelado"/>
   <translation tag="Preheat: all {} tools + bed set" pt="Pré-aquecer: todas as {} ferramentas + mesa configurada"/>
   <translation tag="Preheat: {} + bed set" pt="Pré-aquecer: {} + mesa configurada"/>
+  <translation tag="Preload" pt="Pré-carregar"/>
   <translation tag="Preload failed" pt="Falha ao pré-carregar"/>
   <translation tag="Prepared" pt="Preparado"/>
   <translation tag="Preparing" pt="Preparando"/>
@@ -2182,9 +2202,9 @@
   <translation tag="Printer: " pt="Impressora: "/>
   <translation tag="PrinterIdentify" pt="Identificar Impressora"/>
   <translation tag="Printers" pt="Impressoras"/>
-  <translation tag="Printers, Multi-Filament System, fans, sensors, and LEDs" pt="Impressoras, sistema multi-filamento, ventoinhas, sensores e LEDs"/>
-  <translation tag="Printing" pt="Imprimindo"/>
+  <translation tag="Printing" pt="Impressão"/>
   <translation tag="Printing label..." pt="Imprimindo etiqueta..."/>
+  <translation tag="Printing now" pt="Imprimindo"/>
   <translation tag="Printing test label..." pt="Imprimindo etiqueta de teste..."/>
   <translation tag="Printing with the wrong material can cause clogs, poor adhesion, or failed prints." pt="Imprimir com o material errado pode causar entupimentos, má aderência ou falhas de impressão."/>
   <translation tag="Printing: start after this job" pt="Imprimindo: inicie depois desta impressão"/>
@@ -2206,6 +2226,7 @@
   <translation tag="Probing Z..." pt="Sondando Z..."/>
   <translation tag="Probing point {} of {}" pt="Ponto de sondagem {} de {}"/>
   <translation tag="Probing... ({} points)" pt="Sondando... ({} pontos)"/>
+  <translation tag="Problem found" pt="Problema detectado"/>
   <translation tag="Proceed" pt="Prosseguir"/>
   <translation tag="Processing..." pt="Processando..."/>
   <translation tag="Profile deleted" pt="Perfil excluído"/>
@@ -2297,6 +2318,7 @@
   <translation tag="Recording Mode" pt="Modo de Gravação"/>
   <translation tag="Recover" pt="Recuperar"/>
   <translation tag="Recover MMU state?" pt="Recuperar estado do MMU?"/>
+  <translation tag="Recover State" pt="Recuperar estado"/>
   <translation tag="Recovering AFC system..." pt="Recuperando sistema AFC..."/>
   <translation tag="Recovery failed" pt="Recuperação falhou"/>
   <translation tag="Recovery failed: " pt="A recuperação falhou: "/>
@@ -2309,6 +2331,7 @@
   <translation tag="Refresh" pt="Atualizar"/>
   <translation tag="Refresh Interval" pt="Intervalo de Atualização"/>
   <translation tag="Refresh RFID" pt="Atualizar RFID"/>
+  <translation tag="Refresh Spoolman" pt="Atualizar Spoolman"/>
   <translation tag="Reheating..." pt="Reaquecendo..."/>
   <translation tag="Relative vibration" pt="Vibração relativa"/>
   <translation tag="Release all stepper motors. Position will be lost." pt="Liberar todos os motores de passo. A posição será perdida."/>
@@ -2332,6 +2355,8 @@
   <translation tag="Remove the spools" pt="Retire os carretéis"/>
   <translation tag="Remove the spools from the bed" pt="Retire os carretéis da mesa"/>
   <translation tag="Remove the spools now?" pt="Retirar os carretéis agora?"/>
+  <translation tag="Remove your tags for this image?" pt="Remover suas marcações desta imagem?"/>
+  <translation tag="Remove your tags for this image? Its chips go back to the shipped positions." pt="Remover suas marcações desta imagem? As etiquetas voltam às posições de fábrica."/>
   <translation tag="Rename" pt="Renomear"/>
   <translation tag="Rename Fan" pt="Renomear Ventoinha"/>
   <translation tag="Rename Mesh Profile" pt="Renomear Perfil de Malha"/>
@@ -2371,6 +2396,7 @@
   <translation tag="Reset endless spool failed" pt="Falha ao resetar o carretel infinito"/>
   <translation tag="Reset failed" pt="Falha ao redefinir"/>
   <translation tag="Reset motor run-time counter" pt="Resetar o contador de horas de funcionamento do motor"/>
+  <translation tag="Reset tags" pt="Resetar marcações"/>
   <translation tag="Reset to Default" pt="Restaurar Padrão"/>
   <translation tag="Reset to defaults" pt="Restaurar padrões"/>
   <translation tag="Reset to original values" pt="Restaurar valores originais"/>
@@ -2461,17 +2487,17 @@
   <translation tag="Runs the printer&apos;s tool offset calibration for every tool." pt="Executa a calibração de offsets de ferramenta da impressora para todas as ferramentas."/>
   <translation tag="SAVE_CONFIG failed: {}. Tool offsets were applied but not saved. Run SAVE_CONFIG manually or they will be lost on restart." pt="SAVE_CONFIG falhou: {}. Os offsets de ferramenta foram aplicados mas não salvos. Execute SAVE_CONFIG manualmente ou serão perdidos ao reiniciar."/>
   <translation tag="SAVE_CONFIG failed: {}. Z-offset was applied but not saved. Run SAVE_CONFIG manually or the offset will be lost on restart." pt="SAVE_CONFIG falhou: {}. O Z-offset foi aplicado mas não salvo. Execute SAVE_CONFIG manualmente ou o offset será perdido ao reiniciar."/>
+  <translation tag="SCREEN" pt="TELA"/>
   <translation tag="SETTINGS" pt="CONFIGURAÇÕES"/>
   <translation tag="SHIPPED IMAGES" pt="IMAGENS INCLUÍDAS"/>
   <translation tag="SOFTWARE" pt="SOFTWARE"/>
-  <translation tag="SOUND" pt="SOM"/>
   <translation tag="STANDARD MACROS" pt="MACROS PADRÃO"/>
   <translation tag="STARTUP" pt="INICIALIZAÇÃO"/>
   <translation tag="STOP" pt="PARAR"/>
   <translation tag="STYLE PROPERTIES" pt="PROPRIEDADES DE ESTILO"/>
   <translation tag="SWITCH SENSORS" pt="SENSORES DE CHAVE"/>
   <translation tag="Safe Mode active. The printer connection is disabled because the app kept crashing on startup. Open Settings to fix the issue, then reboot." pt="Modo Seguro ativo. A conexão com a impressora está desativada porque o aplicativo continuou travando na inicialização. Abra as Configurações para corrigir o problema e reinicie."/>
-  <translation tag="Safety &amp; Notifications" pt="Segurança e notificações"/>
+  <translation tag="Safety &amp; Alerts" pt="Segurança e alertas"/>
   <translation tag="Same spool in {}? Tap Clear if it is a new one." pt="Mesmo carretel em {}? Toque em Limpar se for um novo."/>
   <translation tag="Sample" pt="Amostra"/>
   <translation tag="Sample %d/%d" pt="Amostra %d/%d"/>
@@ -2541,7 +2567,6 @@
   <translation tag="Secondary" pt="Secundário"/>
   <translation tag="Section Detail" pt="Detalhe da Seção"/>
   <translation tag="Security" pt="Segurança"/>
-  <translation tag="Security, network, host, and administration" pt="Segurança, rede, host e administração"/>
   <translation tag="See exactly what data will be sent" pt="Veja exatamente quais dados serão enviados"/>
   <translation tag="See the log" pt="Verifique o registro"/>
   <translation tag="See the quick tour of HelixScreen again" pt="Veja novamente o tour rápido do HelixScreen"/>
@@ -2613,6 +2638,7 @@
   <translation tag="Set the filament type and colour by hand for this slot. If the tag should be readable, re-seat the spool with its label facing the reader once the box is idle" pt="Defina manualmente o tipo e a cor do filamento deste slot. Se a etiqueta deveria ser legível, reencaixe o carretel com o rótulo voltado para o leitor quando a caixa estiver ociosa"/>
   <translation tag="Set up" pt="Configurar"/>
   <translation tag="Set up your label printer in Settings" pt="Configure sua impressora de etiquetas em Configurações"/>
+  <translation tag="Set what is really selected and loaded. Nothing moves." pt="Defina o que está realmente selecionado e carregado. Nada se move."/>
   <translation tag="Settings" pt="Configurações"/>
   <translation tag="Settings Snapshot" pt="Captura de Configurações"/>
   <translation tag="Settings reset to defaults. Restarting..." pt="Configurações restauradas para os padrões. Reiniciando..."/>
@@ -2655,6 +2681,7 @@
   <translation tag="Skipped" pt="Ignorado"/>
   <translation tag="Sleep While Printing" pt="Suspender Durante Impressão"/>
   <translation tag="Sleep adjusted to match dim timeout" pt="Tempo de suspensão ajustado"/>
+  <translation tag="Sleep {} min" pt="Suspender em {} min"/>
   <translation tag="Sliced colors" pt="Cores fatiadas"/>
   <translation tag="Slicer" pt="Fatiador"/>
   <translation tag="Slot" pt="Slot"/>
@@ -2673,6 +2700,7 @@
   <translation tag="Some filaments don&apos;t match the slicer&apos;s intent." pt="Alguns filamentos não correspondem à intenção do fatiador."/>
   <translation tag="Some mapped slots are short on filament:" pt="Alguns slots mapeados estão com pouco filamento:"/>
   <translation tag="Some settings will take effect after restart." pt="Algumas configurações terão efeito após reiniciar."/>
+  <translation tag="Sound" pt="Som"/>
   <translation tag="Sound Theme" pt="Tema de Som"/>
   <translation tag="Sounds" pt="Sons"/>
   <translation tag="Source" pt="Fonte"/>
@@ -2680,7 +2708,6 @@
   <translation tag="Spaghetti Detection" pt="Detecção de espaguete"/>
   <translation tag="Spaghetti detected" pt="Espaguete detectado"/>
   <translation tag="Spaghetti detected (%d%%)" pt="Espaguete detectado (%d%%)"/>
-  <translation tag="Spaghetti detected — print paused" pt="Espaguete detectado — impressão pausada"/>
   <translation tag="Speaker" pt="Alto-falante"/>
   <translation tag="Speed" pt="Velocidade"/>
   <translation tag="Speed Settings" pt="Configurações de velocidade"/>
@@ -2776,7 +2803,6 @@
   <translation tag="Success Rate" pt="Taxa de Sucesso"/>
   <translation tag="Success!" pt="Sucesso!"/>
   <translation tag="Summary" pt="Resumo"/>
-  <translation tag="Support, documentation, and version info" pt="Suporte, documentação e informações de versão"/>
   <translation tag="Suppress periodic &apos;T:.../B:...&apos; status lines" pt="Suprimir linhas de status periódicas &apos;T:.../B:...&apos;"/>
   <translation tag="Suppress periodic temperature status lines" pt="Suprimir linhas de status periódicas de temperatura"/>
   <translation tag="Suppress raw debug output from printer firmware modules" pt="Suprimir saída bruta de depuração dos módulos de firmware da impressora"/>
@@ -2810,17 +2836,25 @@
   <translation tag="TOGGLE: {}" pt="ALTERNAR: {}"/>
   <translation tag="TOOLS" pt="FERRAMENTAS"/>
   <translation tag="TPU" pt="TPU"/>
+  <translation tag="Tag Parts" pt="Marcar Componentes"/>
+  <translation tag="Tag parts" pt="Marcar componentes"/>
   <translation tag="Takes 3-5 min. Do not interrupt." pt="Leva 3-5 min. Não interrompa."/>
   <translation tag="Tangle sensitivity" pt="Sensibilidade a emaranhados"/>
   <translation tag="Tap + to add" pt="Toque em + para adicionar"/>
   <translation tag="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge" pt="Toque em Reiniciar firmware para recuperar. Na K2 isso também reinicia a ponte MCU rpi"/>
   <translation tag="Tap again to confirm this orientation" pt="Toque novamente para confirmar esta orientação"/>
+  <translation tag="Tap an empty spot inside the enclosure" pt="Toque em um ponto vazio dentro do gabinete"/>
   <translation tag="Tap an object to exclude it | {} objects ({} excluded)" pt="Toque em um objeto para excluí-lo | {} objetos ({} excluídos)"/>
   <translation tag="Tap any tile to open its full controls or toggle its state." pt="Toque em qualquer bloco para abrir seus controles completos ou alternar seu estado."/>
   <translation tag="Tap anywhere if this text is right-side up" pt="Toque em qualquer lugar se este texto estiver correto"/>
   <translation tag="Tap anywhere to begin" pt="Toque em qualquer lugar para começar"/>
   <translation tag="Tap anywhere to begin calibration" pt="Toque em qualquer lugar para iniciar a calibração"/>
+  <translation tag="Tap the bed&apos;s front-left corner" pt="Toque no canto frontal esquerdo da mesa"/>
+  <translation tag="Tap the bed&apos;s front-right corner" pt="Toque no canto frontal direito da mesa"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" pt="Toque na mira (ponto %1$d de 3) — toque %2$d de %3$d"/>
+  <translation tag="Tap the light" pt="Toque na luz"/>
+  <translation tag="Tap the nozzle tip" pt="Toque na ponta do bico"/>
+  <translation tag="Tap the part cooling fan" pt="Toque na ventoinha de resfriamento da peça"/>
   <translation tag="Tap to assign" pt="Toque para atribuir"/>
   <translation tag="Target" pt="Alvo"/>
   <translation tag="Target Frequency" pt="Frequência alvo"/>
@@ -2888,6 +2922,7 @@
   <translation tag="The loaded spool is {}, but this file was sliced for {}. Filled filament runs at a lower flow rate and needs a hardened nozzle." pt="O carretel carregado é {}, mas este arquivo foi fatiado para {}. Filamento composto funciona com fluxo menor e precisa de um bico endurecido."/>
   <translation tag="The nozzle extrudes a few short test moves in a corner, away from the print area, and repeats until it agrees with itself." pt="O bico faz alguns movimentos curtos de teste num canto, longe da área de impressão, e repete até os valores convergirem."/>
   <translation tag="The plate and the spools are still hot. Use gloves." pt="A mesa e os carretéis ainda estão quentes. Use luvas."/>
+  <translation tag="The plate finishes its current move, but drying will not start." pt="A mesa termina o movimento atual, mas a secagem não vai começar."/>
   <translation tag="The print is paused. Changing tools now moves the toolhead and swaps the filament at the nozzle. Resume the print once the change finishes." pt="A impressão está pausada. Trocar a ferramenta agora move o cabeçote e troca o filamento no bico. Retome a impressão assim que a troca terminar."/>
   <translation tag="The printer applied this value and keeps it for this tool." pt="A impressora aplicou este valor e o mantém para esta ferramenta."/>
   <translation tag="The printer extrudes in a corner and repeats until the readings agree. You do not judge anything by eye." pt="A impressora extruda num canto e repete até as leituras coincidirem. Você não julga nada a olho."/>
@@ -2916,6 +2951,8 @@
   <translation tag="The unit is already running another operation. Wait for it to finish, or reset the CFS if it stays stuck" pt="A unidade já está executando outra operação. Aguarde a conclusão, ou reinicie o CFS se ele continuar travado"/>
   <translation tag="The unit reported a fault with no further detail. Restart the printer if it repeats" pt="A unidade relatou uma falha sem mais detalhes. Reinicie a impressora se repetir"/>
   <translation tag="The unit&apos;s onboard storage has failed. The CFS mainboard needs replacing" pt="O armazenamento interno da unidade falhou. A placa-mãe do CFS precisa ser substituída"/>
+  <translation tag="The unload did not start: unload by hand, then start again" pt="A descarga não começou: descarregue à mão e comece de novo"/>
+  <translation tag="The unload finishes on its own, but the plate will not move." pt="A descarga termina sozinha, mas a mesa não vai se mover."/>
   <translation tag="Theme" pt="Tema"/>
   <translation tag="Theme Colors" pt="Cores do Tema"/>
   <translation tag="Theme Preset" pt="Predefinição de Tema"/>
@@ -3029,7 +3066,6 @@
   <translation tag="Toolhead Y" pt="Cabeçote Y"/>
   <translation tag="Toolhead jam" pt="Atolamento do cabeçote"/>
   <translation tag="Toolhead position unknown" pt="Posição do cabeçote desconhecida"/>
-  <translation tag="Toolhead, G-code, limits, and materials" pt="Cabeçote, G-code, limites e materiais"/>
   <translation tag="Toolheads" pt="Cabeçotes"/>
   <translation tag="Tools" pt="Ferramentas"/>
   <translation tag="Tools Used" pt="Ferramentas Usadas"/>
@@ -3083,6 +3119,7 @@
   <translation tag="Unavailable" pt="Indisponível"/>
   <translation tag="Unavailable on this printer" pt="Não disponível nesta impressora"/>
   <translation tag="Understanding Results" pt="Entender resultados"/>
+  <translation tag="Undo" pt="Desfazer"/>
   <translation tag="Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.&#10;&#10;Pluck each belt by hand and this tool listens through the accelerometer to measure the belt&apos;s frequency. Matched frequencies mean balanced tension.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." pt="A tensão desigual da correia causa artefatos de impressão como deslocamentos de camada, VFAs (artefatos verticais finos) e ringing.&#10;&#10;Belisque cada correia com a mão e esta ferramenta escuta pelo acelerômetro para medir a frequência da correia. Frequências coincidentes significam tensão equilibrada.&#10;&#10;Para CoreXY, as correias A e B devem estar a poucos Hz uma da outra."/>
   <translation tag="Uninstall" pt="Desinstalar"/>
   <translation tag="Uninstall HelixPrint Plugin" pt="Desinstalar Plugin HelixPrint"/>
@@ -3102,6 +3139,7 @@
   <translation tag="Unknown error" pt="Erro desconhecido"/>
   <translation tag="Unload" pt="Descarregar"/>
   <translation tag="Unload Distance" pt="Distância de descarregamento"/>
+  <translation tag="Unload Extruder" pt="Descarregar extrusor"/>
   <translation tag="Unload Failed" pt="Falha ao descarregar"/>
   <translation tag="Unload Filament" pt="Descarregar Filamento"/>
   <translation tag="Unload at end" pt="Descarregar ao terminar"/>
@@ -3112,10 +3150,12 @@
   <translation tag="Unload macro not configured" pt="Macro de descarga não configurado"/>
   <translation tag="Unload the CFS filament before enabling bypass" pt="Descarregue o filamento do CFS antes de ativar o bypass"/>
   <translation tag="Unload..." pt="Descarregar..."/>
+  <translation tag="Unloaded" pt="Descarregado"/>
   <translation tag="Unloading" pt="Descarregando"/>
   <translation tag="Unloading Start Speed" pt="Velocidade inicial de descarregamento"/>
   <translation tag="Unloading before bypass..." pt="Descarregando antes do bypass..."/>
   <translation tag="Unloading filament" pt="Descarregando filamento"/>
+  <translation tag="Unloading filament before drying..." pt="Descarregando filamento antes da secagem..."/>
   <translation tag="Unloading filament..." pt="Descarregando filamento..."/>
   <translation tag="Unloads After Print" pt="Descarrega após a impressão"/>
   <translation tag="Unlock" pt="Desbloquear"/>
@@ -3138,6 +3178,7 @@
   <translation tag="Update from a Terminal" pt="Atualizar a partir de um terminal"/>
   <translation tag="Update installed!" pt="Atualização instalada!"/>
   <translation tag="Update your security PIN" pt="Atualize seu PIN de segurança nesta instalação."/>
+  <translation tag="Updates" pt="Atualizações"/>
   <translation tag="Updating Configuration..." pt="Atualizando Configuração..."/>
   <translation tag="Upgrade to AFC 1.2.0 or newer for multi-color spools. It also adds filament names, which otherwise need Spoolman." pt="Atualize para o AFC 1.2.0 ou mais recente para ter carretéis multicolor. Ele também adiciona nomes de filamento, que sem isso precisam do Spoolman."/>
   <translation tag="Upload" pt="Enviar"/>
@@ -3168,7 +3209,8 @@
   <translation tag="Verifying timelapse plugin..." pt="Verificando plugin de timelapse..."/>
   <translation tag="Verifying..." pt="Verificando..."/>
   <translation tag="Version" pt="Versão"/>
-  <translation tag="Version, updates, and printer info" pt="Versão, atualizações e informações da impressora"/>
+  <translation tag="Version and printer info" pt="Versão e informações da impressora"/>
+  <translation tag="Version {}" pt="Versão {}"/>
   <translation tag="Vertical" pt="Vertical"/>
   <translation tag="Vibration" pt="Vibração"/>
   <translation tag="Vibration compensation active" pt="Compensação de vibração ativa"/>
@@ -3185,6 +3227,7 @@
   <translation tag="Visits: " pt="Visitas: "/>
   <translation tag="Volume" pt="Volume"/>
   <translation tag="Volume of filament used during ramming" pt="Volume de filamento usado durante a compactação"/>
+  <translation tag="Volume {}%" pt="Volume {}%"/>
   <translation tag="WIDTH SENSORS" pt="SENSORES DE LARGURA"/>
   <translation tag="WLED" pt="WLED"/>
   <translation tag="WLED Preset" pt="Predefinição WLED"/>
@@ -3224,7 +3267,9 @@
   <translation tag="Which macro the Close feeder button sends" pt="Qual macro o botão Fechar alimentador envia"/>
   <translation tag="Which macro the Open feeder button sends" pt="Qual macro o botão Abrir alimentador envia"/>
   <translation tag="White" pt="Branco"/>
+  <translation tag="Wi-Fi" pt="WiFi"/>
   <translation tag="Wi-Fi or ethernet connection status" pt="Status da conexão Wi-Fi ou ethernet"/>
+  <translation tag="Wi-Fi {}" pt="WiFi {}"/>
   <translation tag="WiFi" pt="WiFi"/>
   <translation tag="WiFi Disabled" pt="WiFi Desativado"/>
   <translation tag="WiFi Enabled" pt="WiFi Ativado"/>
@@ -3347,6 +3392,7 @@
   <translation tag="locked" pt="bloqueado"/>
   <translation tag="mm before clog" pt="mm antes da obstrução"/>
   <translation tag="needs" pt="precisa"/>
+  <translation tag="never sleeps" pt="nunca dorme"/>
   <translation tag="not detected" pt="não detectado"/>
   <translation tag="not loaded" pt="não carregado"/>
   <translation tag="nozzle" pt="bico"/>
@@ -3361,6 +3407,7 @@
   <translation tag="remaining" pt="restante"/>
   <translation tag="remaining before clog detection triggers" pt="restante antes da detecção de obstrução ser acionada"/>
   <translation tag="rendering" pt="renderizando"/>
+  <translation tag="sleep {} min" pt="suspender em {} min"/>
   <translation tag="slots)" pt="slots)"/>
   <translation tag="started" pt="iniciado"/>
   <translation tag="steppers" pt="motores de passo"/>
@@ -3374,6 +3421,7 @@
   <translation tag="you have" pt="você tem"/>
   <translation tag="{} LED strips available" pt="{} fitas de LED disponíveis"/>
   <translation tag="{} and {} are both mapped here" pt="{} e {} estão ambos atribuídos aqui"/>
+  <translation tag="{} available" pt="{} disponível"/>
   <translation tag="{} axis homed" pt="Eixo {} referenciado"/>
   <translation tag="{} command timed out" pt="Comando {} expirou"/>
   <translation tag="{} complete" pt="{} concluído"/>

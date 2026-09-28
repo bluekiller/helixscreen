@@ -697,14 +697,14 @@ dock:
 | **Transient layer** | `screen - nav - space_lg` | a gap showing the dimmed backdrop; you'll go back |
 
 Settings is a destination, so everything you reach *inside* Settings is flush —
-Settings › Network is a sub-screen of Settings, not a layer over it. AMS and
+Settings › Connection › Network is a sub-screen of Settings, not a layer over it. AMS and
 Print Status are destinations too: people live on those screens. Console, Bed
 Mesh, Motion and the calibration panels are transient layers — tools you open
 and return from.
 
 **Which one you get is not yours to choose in XML.** It depends on how the user
 reached the overlay, and the same overlay can be reached both ways: Fan Control
-opened from Controls is a transient layer, and opened from Settings › Fans it's
+opened from Controls is a transient layer, and opened from Settings › Devices › Fans it's
 a drill-down. `NavigationManager::push_overlay()` resolves it against the live
 navigation stack on every push, so just leave `width` off:
 
@@ -825,7 +825,7 @@ Start with the panels that matter most:
 | High | `home_panel.xml` | First thing users see |
 | Medium | `controls_panel.xml` | Multiple cards that benefit from rearranging |
 | Medium | `print_status_panel.xml` | Important during active prints |
-| Medium | `settings_panel.xml` | Compact 6-row category menu; sub-panels may benefit from multi-column |
+| Medium | `settings_panel.xml` | Grouped single-column list of 12 rows; sub-panels may benefit from multi-column |
 | Low | Overlays | Usually modal dialogs that adapt reasonably well |
 
 `app_layout.xml` and `navigation_bar.xml` are not in this table: both already adapt their
@@ -910,6 +910,10 @@ through `helix::ui::SliderScale` (`include/ui_slider_scale.h`): square corner
 velocity stores tenths so it can reach 5.5, retraction distances store
 hundredths. Match the display precision to the slider's resolution, or a typed
 0.85 renders as "0.8" and reads as though it was ignored.
+
+### Settings structure
+
+The Settings root (`ui_xml/settings_panel.xml`) is one grouped list: SCREEN (Display, Appearance, Touch & Input, Sound), PRINTER (Printing, Devices, Safety & Alerts, Connection) and HELIXSCREEN (Language & Time, System, Updates, Help & About). Each page owns one concern, so a new setting goes on the page whose concern it is, never into a catch-all. A root row is a label plus an optional live status line: its `bind_description` subject is filled by `SettingsPanel::refresh_status_lines()` (`src/ui/ui_panel_settings.cpp#refresh_status_lines`) from pure formatters in `src/ui/settings_root_status.cpp`, and refreshed each time the root activates rather than observed. A row with nothing worth summarizing has no description. The user guide mirrors the tree, one page per file under `docs/user/guide/settings/`.
 
 ---
 

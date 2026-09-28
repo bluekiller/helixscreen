@@ -26,6 +26,7 @@
 #include "../../include/temp_graph_controller.h"
 #include "../../include/ui_temp_graph.h"
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/temp_graph_controller_test_access.h"
 #include "app_globals.h"
 #include "lvgl/lvgl.h"
 #include "printer_state.h"
@@ -188,6 +189,60 @@ TEST_CASE_METHOD(TempGraphReattachFixture, "Reattach keeps the graph and its ser
     REQUIRE(controller->graph() == graph_before);
     REQUIRE(controller->series_id_for("heater_bed") == bed_id);
     REQUIRE(controller->series_id_for("extruder") >= 0);
+
+    controller.reset();
+    settle();
+}
+
+TEST_CASE_METHOD(TempGraphReattachFixture,
+                 "The first reading of a sample slot pushes every series at once",
+                 "[controller][temp_graph_controller]") {
+    auto* bed = get_printer_state().get_bed_temp_subject();
+    auto* chamber = get_printer_state().get_chamber_temp_subject();
+    REQUIRE(bed != nullptr);
+    REQUIRE(chamber != nullptr);
+    lv_subject_set_int(chamber, 0);
+    settle();
+
+    TempGraphControllerConfig cfg;
+    cfg.series = {{"heater_bed", lv_color_hex(0x88C0D0), false, "Bed"},
+                  {"heater_generic chamber", lv_color_hex(0xA3BE8C), false, "Chamber"}};
+    auto controller = std::make_unique<TempGraphController>(test_screen(), cfg);
+    REQUIRE(controller->is_valid());
+    constexpr int64_t slot = UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
+    int64_t now = 1'000'000 * slot + 100;
+    TempGraphControllerTestAccess::set_clock(*controller, [&now] { return now; });
+    settle();
+    const int baseline = controller->graph()->visible_point_count;
+
+    lv_subject_set_int(bed, 600);
+    lv_subject_set_int(chamber, 300);
+    settle();
+    REQUIRE(controller->graph()->visible_point_count == baseline + 2);
+
+    // Next slot: a bed reading alone brings the chamber's latest value with it.
+    now += slot;
+    lv_subject_set_int(bed, 610);
+    settle();
+    REQUIRE(controller->graph()->visible_point_count == baseline + 4);
+
+    // The chamber's own reading in the same slot adds nothing.
+    lv_subject_set_int(chamber, 310);
+    settle();
+    REQUIRE(controller->graph()->visible_point_count == baseline + 4);
+
+    // A reading from before a pause is not current: after resume, the bed's push
+    // in a new slot leaves the chamber out until the chamber reports again.
+    controller->pause();
+    lv_subject_set_int(chamber, 400);
+    settle();
+    controller->resume();
+    settle();
+    const int after_resume = controller->graph()->visible_point_count;
+    now += slot;
+    lv_subject_set_int(bed, 620);
+    settle();
+    REQUIRE(controller->graph()->visible_point_count == after_resume + 1);
 
     controller.reset();
     settle();

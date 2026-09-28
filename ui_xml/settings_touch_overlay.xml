@@ -14,6 +14,7 @@
       <setting_group name="group_touch">
         <setting_action_row name="row_touch_calibration"
                             label="Touch Calibration" label_tag="Touch Calibration" icon="cursor_move"
+                            bind_description="touch_cal_status" description_min_bp="0"
                             callback="on_touch_calibration_clicked">
           <!-- Hide on devices that don't need calibration (e.g. factory-calibrated
              capacitive panels with a 1:1 ABS range). The click handler no-ops
@@ -48,6 +49,28 @@
                             description="Ignore the click that fires when you lift after scrolling"
                             description_tag="Ignore the click that fires when you lift after scrolling"
                             subject="settings_scroll_guard" callback="on_scroll_guard_changed"/>
+        <!-- System Keyboard (Android only — hidden on other platforms) -->
+        <setting_toggle_row name="row_system_keyboard"
+                            label="System Keyboard" label_tag="System Keyboard" icon="pencil"
+                            description="Use Android native keyboard for text input"
+                            description_tag="Use Android native keyboard for text input"
+                            subject="settings_use_system_keyboard" callback="on_system_keyboard_changed">
+          <bind_flag_if_eq subject="settings_is_android" flag="hidden" ref_value="0"/>
+        </setting_toggle_row>
+        <!-- Keep Navigation Bar (Android only — hidden on other platforms, issue #908) -->
+        <setting_toggle_row name="row_keep_navbar"
+                            label="Keep Navigation Bar" label_tag="Keep Navigation Bar" icon="eye"
+                            description="Always show Android navigation bar instead of using gestures"
+                            description_tag="Always show Android navigation bar instead of using gestures"
+                            subject="settings_keep_navbar_visible" callback="on_keep_navbar_changed">
+          <bind_flag_if_eq subject="settings_is_android" flag="hidden" ref_value="0"/>
+        </setting_toggle_row>
+        <!-- Page-scroll buttons: reserved-gutter chevrons for touch-drag-poor screens -->
+        <setting_toggle_row name="row_page_scroll_buttons"
+                            label="Scroll Buttons" label_tag="Scroll Buttons" icon="swap_vertical"
+                            description="Show up/down buttons on long lists"
+                            description_tag="Show up/down buttons on long lists" subject="settings_page_scroll_buttons"
+                            callback="on_page_scroll_buttons_changed"/>
       </setting_group>
     </lv_obj>
   </view>

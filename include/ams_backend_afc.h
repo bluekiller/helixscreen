@@ -576,13 +576,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     }
     SlotInfo* cached_slot_locked(int slot_index) override;
 
-    /// dispatch_operation() sets the optimistic action (begin_dispatch_locked)
-    /// BEFORE calling ensure_homed_then() -- on decline, the base class's
-    /// generic IDLE reset alone leaves pending_dispatch_action_ armed and
-    /// operation_detail stale, so route through abandon_dispatch() instead,
-    /// the same unwind dispatch_operation()'s own `if (!result)` net uses.
-    void on_home_confirmation_declined() override;
-
   private:
     // === User-attached slot identity (FilamentSlotOverrideStore) =============
     //

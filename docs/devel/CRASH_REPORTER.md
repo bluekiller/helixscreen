@@ -44,20 +44,32 @@ CrashReporter is **independent** of TelemetryManager. Both read crash.txt, but C
 
 ## Crash File Format
 
-Written by `crash_handler::install()` signal handler (async-signal-safe). Located at `~/helixscreen/config/crash.txt`:
+Written by the signal handler `crash_handler::install()` sets up (async-signal-safe), to crash.txt in the writable config directory (`helix::writable_path("crash.txt")`). A K2 test crash wrote:
 
 ```
 signal:11
-signal_name:SIGSEGV
-app_version:0.9.16
-timestamp:2026-02-12T22:31:58
-uptime_sec:3600
-backtrace:0x400abc
-backtrace:0x400def
-backtrace:0x401000
+name:SIGSEGV
+version:1.1.0-beta.1
+timestamp:1790526542
+uptime:0
+fault_addr:0x0
+fault_code:1
+fault_code_name:SEGV_MAPERR
+reg_pc:0x566b24
+reg_sp:0xbef9e884
+reg_lr:0x566b38
+load_base:0x0
+text_start:0x10000
+text_end:0x10ab8c0
+crumb:89205964 boot 1.1.0-beta.1
+bt:0x566b24
 ```
 
-Key-value pairs, one per line. Multiple `backtrace:` lines for the call stack. Parsed by `crash_handler::read_crash_file()`.
+Key-value pairs, one per line; the register set depends on the architecture, and there is one `bt:` line per frame. Parsed by `crash_handler::read_crash_file()`.
+
+### Stack overflows
+
+A handler that runs on the faulting stack has no room when that stack is what overflowed. `install()` gives the installing (main) thread a 64 KiB alternate signal stack and registers the fatal signals with `SA_ONSTACK`, so a main-thread overflow still writes crash.txt. `sigaltstack` is per thread: an overflow on any other thread (the Moonraker callbacks, workers) dies with no crash file. On musl builds threads get a 1 MiB stack from the link flags ([BUILD_SYSTEM.md](BUILD_SYSTEM.md#target-specifications)), which makes that much less likely. A SIGSEGV that leaves no crash.txt on a device where `HELIX_CRASH_TEST=1` does write one points at a non-main-thread stack overflow.
 
 ---
 
@@ -343,6 +355,8 @@ make unit-sweep                            # All unit tests
 ```
 
 The `--mock-crash` flag writes a synthetic crash.txt with a fake SIGSEGV before crash detection runs. Requires `--test` mode. This lets you test the full UI flow without actually crashing.
+
+On a device, `HELIX_CRASH_TEST=1` (not with `--test`, which installs no handler) crashes through a known call chain right after the handler is installed, which proves the handler writes crash.txt on that build. See [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#helix_crash_test).
 
 ### Test Coverage
 

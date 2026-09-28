@@ -135,12 +135,50 @@ blocking_sibling() {
     printf '%s' "$f"
 }
 
+# 90 -> 1m30s, 7200 -> 2h00m, 200000 -> 2d07h: two units are enough to compare.
+fmt_age() {
+    local s=${1:-0}
+    if   [ "$s" -ge 86400 ]; then printf '%dd%02dh' $((s/86400)) $((s%86400/3600))
+    elif [ "$s" -ge 3600 ];  then printf '%dh%02dm' $((s/3600)) $((s%3600/60))
+    elif [ "$s" -ge 60 ];    then printf '%dm%02ds' $((s/60)) $((s%60))
+    else printf '%ds' "$s"; fi
+}
+
+# A pid and all its descendants, one per line, the root first.
+tree_pids() {
+    ps -eo pid=,ppid= 2>/dev/null | awk -v root="$1" '
+        { kids[$2] = kids[$2] " " $1 }
+        END {
+            n = 1; q[1] = root
+            for (i = 1; i <= n; i++) {
+                print q[i]
+                m = split(kids[q[i]], k, " ")
+                for (j = 1; j <= m; j++) q[++n] = k[j]
+            }
+        }'
+}
+
+# RSS of a pid plus all its descendants, in KB. A heavy job is a make or a
+# shard runner whose own RSS is nothing next to its children's.
+tree_rss_kb() {
+    ps -o rss= -p "$(tree_pids "$1" | paste -sd,)" 2>/dev/null | awk '{ t += $1 } END { print t + 0 }'
+}
+
+# Only a LIVE heavy: claim has a job behind it worth measuring.
+heavy_rss() {
+    local f=$1 body; body=$(tr -d '\n' < "$f")
+    case "$(json_get "$body" resource)" in heavy:*) ;; *) return 1;; esac
+    [ "$(state_of "$f")" = LIVE ] || return 1
+    awk -v kb="$(tree_rss_kb "$(json_get "$body" pid)")" 'BEGIN { printf "%.1fGB", kb / 1048576 }'
+}
+
 describe() {
     local f=$1 body
     body=$(tr -d '\n' < "$f")
     printf '%-10s %-26s %s\n  owner=%s pid=%s since=%s\n' \
         "$(state_of "$f")" "$(json_get "$body" resource)" "$(json_get "$body" op)" \
         "$(json_get "$body" session)" "$(json_get "$body" pid)" "$(json_get "$body" started)"
+    local rss; rss=$(heavy_rss "$f") && printf '  rss=%s (process tree)\n' "$rss"
     local sock; sock=$(json_get "$body" socket)
     [ -n "$sock" ] && printf '  message=uds:%s\n' "$sock"
     local sid; sid=$(json_get "$body" session_id)
@@ -159,8 +197,8 @@ take)
     note=""; pid=""
     while [ $# -gt 0 ]; do
         case $1 in
-            --note) note=${2:-}; shift 2;;
-            --pid)  pid=${2:-};  shift 2;;
+            --note) [ $# -ge 2 ] || die "--note needs a value"; note=$2; shift 2;;
+            --pid)  [ $# -ge 2 ] || die "--pid needs a value";  pid=$2;  shift 2;;
             *) die "unknown option: $1";;
         esac
     done
@@ -233,7 +271,15 @@ jobs)
     # Claims undercount: a session that never claimed still burns cores. Count
     # DISTINCT trees with live compilers - that is the real number of competing
     # builds, where a raw cc1plus count would just be one build's -j.
+    # The caller's own makes are not peers: called from a Makefile's $(shell),
+    # the make asking would otherwise count itself and halve its own share.
+    self=" "; p=$$
+    while [ "$p" -gt 1 ] 2>/dev/null && read -r st < "/proc/$p/stat" 2>/dev/null; do
+        self="$self$p "
+        st=${st##*) }; st=${st#* }; p=${st%% *}   # fields after comm: state ppid ...
+    done
     trees=$(for q in $(pgrep -x cc1plus 2>/dev/null; pgrep -x make 2>/dev/null); do
+                case "$self" in *" $q "*) continue;; esac
                 readlink "/proc/$q/cwd" 2>/dev/null
             done | sed 's#\(/\.worktrees/[^/]*\).*#\1#; s#^\(/[^/]*/[^/]*/[^/]*/[^/]*\)$#\1#' \
               | sort -u | grep -c . )
@@ -253,6 +299,127 @@ jobs)
             "$ncpu" "$peers" "$running" "$mem_cap" "$j" >&2
     fi
     printf '%s\n' "$j"
+    ;;
+run)
+    # The claim's owner is the command itself: it is started stopped, claimed
+    # under its own pid, then continued. exec keeps that pid and its start time,
+    # so the claim reads LIVE exactly as long as the work runs, whatever happens
+    # to this wrapper.
+    res=${1:-}; shift 2>/dev/null || true
+    usage="usage: helix-claim run heavy:<what> [--note X] -- <cmd> [args...]"
+    case "$res" in heavy:?*) ;; *) die "$usage";; esac
+    note=""
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --note) [ $# -ge 2 ] || die "$usage"; note=$2; shift 2;;
+            --) shift; break;;
+            *) die "unknown option: $1";;
+        esac
+    done
+    [ $# -gt 0 ] || die "$usage"
+    self="${BASH_SOURCE[0]}"
+    op=$(printf '%s' "$*" | tr -d '"\\' | cut -c1-80)
+    # A background command's stdin defaults to /dev/null; hand it the caller's.
+    exec 3<&0
+    ( kill -STOP "$BASHPID"; exec "$@" <&3 3<&- ) &
+    child=$!
+    exec 3<&-
+    for _ in $(seq 500); do
+        st=$(cat "/proc/$child/stat" 2>/dev/null) || break
+        st=${st##*) }; [ "${st%% *}" = T ] && break
+        sleep 0.01
+    done
+    "$self" take "$res" "$op" --note "$note" --pid "$child" >&2
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        kill -KILL "$child" 2>/dev/null
+        [ "$rc" -eq 1 ] && exit 75 || exit "$rc"
+    fi
+    trap '"$self" release-if-owned-by "$child" "$res"' EXIT
+    # A signal reaches the whole tree: make's recipe shells die without passing
+    # it on, which would leave the shards running under a released claim.
+    # shellcheck disable=SC2046  # one pid per word
+    stop_tree() { kill "-$1" $(tree_pids "$child") 2>/dev/null; wait "$child"; exit "$2"; }
+    trap 'stop_tree TERM 143' TERM
+    trap 'stop_tree HUP 129' HUP
+    trap 'stop_tree INT 130' INT
+    kill -CONT "$child"
+    wait "$child"
+    exit $?
+    ;;
+resources)
+    # A snapshot to read before starting heavy work. Read-only.
+    zeus=1
+    [ "${1:-}" = "--no-zeus" ] && zeus=0
+    avail_kb=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
+    read -r l1 l5 l15 _ < /proc/loadavg
+    printf '%s: %.1fGB available, load %s %s %s on %s cpus, fair share -j%s\n' \
+        "$(hostname -s)" "$(awk -v kb="$avail_kb" 'BEGIN{print kb/1048576}')" \
+        "$l1" "$l5" "$l15" "$(nproc)" "$("${BASH_SOURCE[0]}" jobs)"
+    shopt -s nullglob
+    live=0
+    for f in "$CLAIM_DIR"/*.json; do
+        [ "$(state_of "$f")" = LIVE ] || continue
+        [ "$live" = 0 ] && printf 'live claims:\n'; live=$((live+1))
+        body=$(tr -d '\n' < "$f")
+        since=$(date -d "$(json_get "$body" started)" +%s 2>/dev/null) &&
+            age=$(fmt_age $(( $(date +%s) - since ))) || age='?'
+        rss=$(heavy_rss "$f") && rss=" rss=$rss" || rss=""
+        printf '  %-30s %-16s %6s%s  %s\n' "$(json_get "$body" resource)" \
+            "$(json_get "$body" session)" "$age" "$rss" "$(json_get "$body" note)"
+    done
+    [ "$live" = 0 ] && printf 'live claims: none\n'
+    # The named groups always show when present; clangd in particular grows
+    # without bound per session. The rest fill in by size.
+    printf 'memory by command (count, total RSS, largest):\n'
+    ps -eo rss=,pid=,etimes=,comm= 2>/dev/null | awk '
+        function age(s) {
+            if (s >= 86400) return sprintf("%dd%02dh", s/86400, s%86400/3600)
+            if (s >= 3600)  return sprintf("%dh%02dm", s/3600, s%3600/60)
+            return sprintf("%dm%02ds", s/60, s%60)
+        }
+        BEGIN {
+            split("clangd cc1plus/clang++ helix-tests helix-screen docker addr2line/gdb", w, " ")
+            for (i in w) named[w[i]] = 1
+        }
+        {
+            g = $4
+            if (g ~ /^clangd/) g = "clangd"   # its worker threads rename the process
+            else if (g ~ /^(cc1plus|clang\+\+|clang|g\+\+)$/) g = "cc1plus/clang++"
+            else if (g ~ /^(addr2line|eu-addr2line|llvm-symbolizer|llvm-addr2line|gdb)$/) g = "addr2line/gdb"
+            else if (g ~ /^(docker|containerd)/) g = "docker"
+            n[g]++; tot[g] += $1
+            if ($1 > big[g]) { big[g] = $1; bpid[g] = $2; bage[g] = $3 }
+        }
+        END {
+            for (g in tot)
+                printf "%d\t%d\t  %-16s x%-3d %5.1fGB  largest pid %-8s %5.1fGB up %s\n",
+                    tot[g], (g in named), g, n[g], tot[g] / 1048576,
+                    bpid[g], big[g] / 1048576, age(bage[g])
+        }' | sort -t "$(printf '\t')" -k1,1rn |
+        awk -F '\t' '$2 == 1 || others++ < 3 { print $3 }'
+    [ "$zeus" = 1 ] || exit 0
+    # zeus-run.sh names the container and the workdir lock; honour the same
+    # overrides so this reads the job that script would start.
+    zhost=${ZEUS_HOST:-zeus.local}
+    lock="${ZEUS_LOCK_DIR:-/tmp}/helix-zeus-run-$(basename "${ZEUS_WORKDIR:-/work/helixscreen}").lock"
+    # shellcheck disable=SC2016  # the script body expands on zeus
+    zline=$(timeout 8 ssh -o ConnectTimeout=3 -o BatchMode=yes "$zhost" bash -s -- \
+            "${ZEUS_CONTAINER:-helix-tsan}" "$lock" 2>/dev/null <<'ZEUS'
+read -r l1 l5 l15 _ < /proc/loadavg
+printf '%.1fGB available, load %s %s %s on %s cpus\n' \
+    "$(awk '/^MemAvailable:/{print $2/1048576}' /proc/meminfo)" "$l1" "$l5" "$l15" "$(nproc)"
+held=$(cat "$2" 2>/dev/null); pid=${held#held by pid }; pid=${pid%%:*}
+if [ -n "$held" ] && kill -0 "$pid" 2>/dev/null; then
+    printf '  zeus-run job: %s\n' "$held"
+elif sudo -n docker exec "$1" pgrep -x -r R,S,D make >/dev/null 2>&1; then
+    printf '  zeus-run job: none, but a make is running in %s\n' "$1"
+else
+    printf '  zeus-run job: none\n'
+fi
+ZEUS
+    ) && [ -n "$zline" ] || { printf 'zeus (%s): unreachable\n' "$zhost"; exit 0; }
+    printf 'zeus: %s\n' "$zline"
     ;;
 release-if-owned-by)
     # Release only when the claim names this exact pid, so a hook cannot drop a
@@ -301,11 +468,17 @@ helix-claim - advisory claims on resources shared between agent sessions
   release <resource> [--force]                drop your claim; refuses one another
                                               live session holds unless forced
   release-if-owned-by <pid> <resource>        drop it only if that pid claimed it
+  run heavy:<what> [--note X] -- <cmd...>     hold heavy:<what> while cmd runs and
+                                              exit with its status; exits 75 with
+                                              cmd unrun if the claim is held
+  resources [--no-zeus]                       memory, load, fair -j, live claims,
+                                              top memory users, and zeus
 
 worktree: and build: names are resolved (basename, branch, or bare = the tree
 you are in), so two spellings cannot claim one resource twice.
 Other resources are free-form; the useful ones are
-  worktree:<name>  build:<name>  device:<printer>  gh:issues  socket:<path>
+  worktree:<name>  build:<name>  device:<printer>  gh:issue:<n>  heavy:<what>
+  socket:<path>
 
 LIVE means the owning process still exists and is the same process that claimed
 it. A crashed owner reads STALE automatically - there is nothing to clean up.

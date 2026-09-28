@@ -4,6 +4,8 @@
 
 Access via the **More** icon in the navigation bar.
 
+The panel groups its rows into sections (Tools, Calibration, and so on). A row that does not apply to your printer is hidden, and a section with no rows left disappears along with its heading. Calibration rows, including **Pressure Advance** on printers that can measure it, are covered in [Calibration & Tuning](calibration.md); **Dry Filament** is covered in [Drying Filament on the Bed](temperature.md#drying-filament-on-the-bed).
+
 ---
 
 ## G-code Console
@@ -233,7 +235,7 @@ A **power-cycle button** appears on the home panel when power devices are config
 
 ### Full Power Panel
 
-1. Navigate to **Advanced > Power Devices**, or **Settings > System > Power Devices** (hidden when no power devices are detected)
+1. Navigate to **Advanced > Power Devices**, or **Settings > Devices > Power Devices** (hidden when no power devices are detected)
 2. Toggle individual devices on/off with switches
 
 **Main Power Button section:**

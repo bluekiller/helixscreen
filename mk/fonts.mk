@@ -172,7 +172,8 @@ endif
 		touch $@; \
 	else \
 		echo "$(YELLOW)→ Regenerating MDI icon fonts from regen_mdi_fonts.sh...$(RESET)"; \
-		./scripts/regen_mdi_fonts.sh && touch $@ && echo "$(GREEN)✓ Fonts regenerated successfully$(RESET)"; \
+		./scripts/regen_mdi_fonts.sh && ./scripts/esp32_regen_compressed_fonts.sh && touch $@ && \
+			echo "$(GREEN)✓ Fonts regenerated successfully$(RESET)"; \
 	fi
 
 # Fonts depend on stamp file to ensure they're regenerated when needed
@@ -195,12 +196,13 @@ validate-fonts:
 		echo "$(YELLOW)⚠ validate_icon_fonts.sh not found - skipping$(RESET)"; \
 	fi
 
-# Regenerate MDI icon fonts from scratch using the regen script
+# Regenerate MDI icon fonts from scratch using the regen script, and the ESP32
+# firmware's compressed twins, which read the same icon list.
 # Use this when adding new icons to include/ui_icon_codepoints.h
 regen-fonts:
 	$(ECHO) "$(CYAN)Regenerating MDI icon fonts...$(RESET)"
 	$(Q)if [ -f scripts/regen_mdi_fonts.sh ]; then \
-		./scripts/regen_mdi_fonts.sh; \
+		./scripts/regen_mdi_fonts.sh && ./scripts/esp32_regen_compressed_fonts.sh; \
 		echo "$(GREEN)✓ Fonts regenerated - rebuild required$(RESET)"; \
 	else \
 		echo "$(RED)✗ regen_mdi_fonts.sh not found$(RESET)"; \

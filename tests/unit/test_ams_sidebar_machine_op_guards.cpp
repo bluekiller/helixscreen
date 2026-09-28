@@ -264,3 +264,34 @@ TEST_CASE_METHOD(SidebarDirectionGateFixture,
         CHECK(gate_value("ams_sidebar_load_disabled") == 1);
     }
 }
+
+namespace {
+[[nodiscard]] helix::AmsAction published_action() {
+    return static_cast<helix::AmsAction>(
+        lv_subject_get_int(helix::AmsState::instance().get_ams_action_subject()));
+}
+} // namespace
+
+TEST_CASE_METHOD(SidebarDirectionGateFixture,
+                 "An operation the sidebar starts publishes its first step's action",
+                 "[ams][sidebar][coarse]") {
+    SECTION("a U1 load starts on Home, which is loading work, not heating") {
+        build(std::make_unique<FixedHeadsBackend>(std::vector<bool>{true, true, true, true}));
+        sidebar_->start_operation(helix::StepOperationType::LOAD_FRESH, 1);
+        CHECK(published_action() == helix::AmsAction::LOADING);
+    }
+
+    SECTION("a U1 unload starts on Home too") {
+        build(std::make_unique<FixedHeadsBackend>(std::vector<bool>{true, true, true, true}));
+        sidebar_->start_operation(helix::StepOperationType::UNLOAD, 1);
+        CHECK(published_action() == helix::AmsAction::UNLOADING);
+    }
+
+    SECTION("a backend with no step model keeps the legacy bar's first step, Heat") {
+        auto mock = std::make_unique<helix::AmsBackendMock>(4);
+        REQUIRE(mock->start().success());
+        build(std::move(mock));
+        sidebar_->start_operation(helix::StepOperationType::LOAD_FRESH, 1);
+        CHECK(published_action() == helix::AmsAction::HEATING);
+    }
+}

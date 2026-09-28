@@ -143,3 +143,51 @@ TEST_CASE_METHOD(SettingGroupFixture, "setting_group_header: badge visibility fo
         REQUIRE(lv_obj_has_flag(badge, LV_OBJ_FLAG_HIDDEN));
     }
 }
+
+// A section whose every row is hidden hides its header too, and shows it again
+// the moment any row returns (Advanced's sections gate rows on capabilities).
+TEST_CASE_METHOD(SettingGroupFixture, "setting_group: header follows whether any row shows",
+                 "[setting_group]") {
+    auto* group = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "setting_group", nullptr));
+    REQUIRE(group != nullptr);
+    lv_obj_t* header = lv_obj_create(group);
+    lv_obj_set_name(header, "setting_group_header");
+    lv_obj_set_height(header, 30);
+    lv_obj_t* row_a = lv_obj_create(group);
+    lv_obj_set_height(row_a, 40);
+    lv_obj_t* row_b = lv_obj_create(group);
+    lv_obj_set_height(row_b, 40);
+    lv_obj_update_layout(test_screen());
+    CHECK_FALSE(lv_obj_has_flag(header, LV_OBJ_FLAG_HIDDEN));
+
+    SECTION("one row still showing keeps the header") {
+        lv_obj_add_flag(row_a, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(test_screen());
+        CHECK_FALSE(lv_obj_has_flag(header, LV_OBJ_FLAG_HIDDEN));
+        CHECK_FALSE(lv_obj_has_state(group, LV_STATE_USER_1));
+    }
+
+    SECTION("every row hidden hides the header and collapses the card") {
+        lv_obj_add_flag(row_a, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(row_b, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(test_screen());
+        CHECK(lv_obj_has_flag(header, LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_has_state(group, LV_STATE_USER_1));
+        CHECK(lv_obj_get_style_margin_bottom(group, LV_PART_MAIN) == 0);
+
+        // A row coming back brings the header with it.
+        lv_obj_remove_flag(row_b, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(test_screen());
+        CHECK_FALSE(lv_obj_has_flag(header, LV_OBJ_FLAG_HIDDEN));
+        CHECK_FALSE(lv_obj_has_state(group, LV_STATE_USER_1));
+    }
+
+    SECTION("a visible wrapper with nothing inside counts as no row") {
+        lv_obj_add_flag(row_a, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_height(row_b, LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(row_b, 0, LV_PART_MAIN);
+        lv_obj_set_style_border_width(row_b, 0, LV_PART_MAIN);
+        lv_obj_update_layout(test_screen());
+        CHECK(lv_obj_has_flag(header, LV_OBJ_FLAG_HIDDEN));
+    }
+}

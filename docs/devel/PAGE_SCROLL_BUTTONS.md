@@ -230,4 +230,4 @@ wanted gone.
 - [LVGL9_XML_GUIDE.md](LVGL9_XML_GUIDE.md) - `lv_obj` defaults, and why
   `scrollable` is the one this project's theme does not override
 - [HELIXCTL.md](HELIXCTL.md) - `ctl geom`
-- `docs/user/guide/settings/display-sound.md` - the user-facing description
+- `docs/user/guide/settings/touch-input.md` - the user-facing description

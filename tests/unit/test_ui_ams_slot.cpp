@@ -993,3 +993,44 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_slot: a secondary backend's slot paints
     ams.set_active_backend(0);
     ams.clear_backends();
 }
+
+// An ams_slot showing a secondary backend shows that backend's material, not
+// the primary's material for the same slot index.
+TEST_CASE_METHOD(LVGLUITestFixture, "ams_slot: a secondary backend's slot shows its own material",
+                 "[ui][ams_slot][multi_backend]") {
+    ui_ams_slot_register();
+    auto& ams = AmsState::instance();
+    ams.init_subjects(true);
+    ams.set_backend(std::make_unique<AmsBackendMock>(4));
+    const int second = ams.add_backend(std::make_unique<AmsBackendMock>(4));
+    REQUIRE(second == 1);
+
+    // Primary slot 0 is PETG; secondary slot 0 is PLA. Both lanes Present so
+    // the label reads the material rather than "Empty".
+    lv_subject_copy_string(ams.get_slot_material_subject(0), "PETG");
+    lv_subject_set_int(ams.get_slot_lane_state_subject(0),
+                       static_cast<int>(helix::ui::LaneState::Present));
+    SubjectLifetime lt;
+    lv_subject_t* sec_mat = ams.get_slot_material_subject(second, 0, lt);
+    lv_subject_t* sec_state = ams.get_slot_lane_state_subject(second, 0, lt);
+    REQUIRE(sec_mat != nullptr);
+    REQUIRE(sec_state != nullptr);
+    lv_subject_copy_string(sec_mat, "PLA");
+    lv_subject_set_int(sec_state, static_cast<int>(helix::ui::LaneState::Present));
+
+    ams.set_active_backend(second);
+    lv_obj_t* slot = create_ams_slot(test_screen(), 0);
+    REQUIRE(slot != nullptr);
+    lv_obj_t* material_label = UITest::find_by_name(slot, "material_label");
+    REQUIRE(material_label != nullptr);
+    CHECK(std::string(UITest::get_text(material_label)) == "PLA");
+
+    // A material change on the secondary lane repaints through the observer.
+    lv_subject_copy_string(sec_mat, "TPU");
+    process_lvgl(50);
+    CHECK(std::string(UITest::get_text(material_label)) == "TPU");
+
+    lv_obj_delete(slot);
+    ams.set_active_backend(0);
+    ams.clear_backends();
+}

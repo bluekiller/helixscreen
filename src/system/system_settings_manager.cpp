@@ -16,6 +16,7 @@
 #include "translation_loader.h"
 
 #include <algorithm>
+#include <string_view>
 
 using namespace helix;
 
@@ -41,12 +42,21 @@ static int spdlog_level_to_index(spdlog::level::level_enum level) {
     return 0; // Default to Warn
 }
 
+#ifndef HELIX_HAS_CJK
+#define HELIX_HAS_CJK 1
+#endif
+
 // Language options - codes and display names
-// Order: en, de, fr, es, ru, pt, it, zh, ja (indices 0-8)
+// Order: en, de, fr, es, ru, pt, it, zh, ja (indices 0-8). The CJK pair comes
+// last so a build without CJK fonts (HELIX_HAS_CJK=0, the ESP32 firmware) drops
+// it by shortening the list, and every other index keeps its meaning. A saved
+// zh/ja there reads as English.
 static const char* LANGUAGE_CODES[] = {"en", "de", "fr", "es", "ru", "pt", "it", "zh", "ja"};
-static const int LANGUAGE_COUNT = sizeof(LANGUAGE_CODES) / sizeof(LANGUAGE_CODES[0]);
+static const int LANGUAGE_COUNT = HELIX_HAS_CJK ? 9 : 7;
 static const char* LANGUAGE_OPTIONS_TEXT =
-    "English\nDeutsch\nFrançais\nEspañol\nРусский\nPortuguês\nItaliano\n中文\n日本語";
+    HELIX_HAS_CJK
+        ? "English\nDeutsch\nFrançais\nEspañol\nРусский\nPortuguês\nItaliano\n中文\n日本語"
+        : "English\nDeutsch\nFrançais\nEspañol\nРусский\nPortuguês\nItaliano";
 
 SystemSettingsManager& SystemSettingsManager::instance() {
     static SystemSettingsManager instance;
@@ -184,6 +194,23 @@ int SystemSettingsManager::get_language_index() const {
 
 const char* SystemSettingsManager::get_language_options() {
     return LANGUAGE_OPTIONS_TEXT;
+}
+
+std::string SystemSettingsManager::get_language_display_name() const {
+    std::string_view options(LANGUAGE_OPTIONS_TEXT);
+    size_t pos = 0;
+    for (int i = 0; i < get_language_index() && pos != std::string_view::npos; ++i) {
+        pos = options.find('\n', pos);
+        if (pos != std::string_view::npos) {
+            ++pos;
+        }
+    }
+    if (pos == std::string_view::npos) {
+        return "";
+    }
+    size_t end = options.find('\n', pos);
+    return std::string(
+        options.substr(pos, end == std::string_view::npos ? std::string_view::npos : end - pos));
 }
 
 std::string SystemSettingsManager::language_index_to_code(int index) {

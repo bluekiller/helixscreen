@@ -326,6 +326,14 @@ IFS_F39 PRUTOK={port}                          # unclamp — filament is free to
 | 3 | Toolhead reads empty | cold eject (of the tapped slot, else the seated one, else the active one; hard error if none) | `_IFS_REMOVE_CURRENT_PRUTOK` early-returns on an empty extruder sensor, so the cut would home and do nothing (`7AC4SDEX`) |
 | 4 | otherwise | heated toolhead cut | Includes the unknown-origin recovery case (both authorities lost, head loaded) |
 
+**Row 4's unknown-origin case is the UI's only door in that state.** When both authorities are lost
+(`current_slot == -1` with the head switch present: the power-cycle state, and exactly what
+`toolhead_filament_unaccounted()` keys on), the lane context menus withdraw their Unload/Eject
+entirely: the lane a menu names may not be the seated one, and a cold eject of the seated lane
+grinds un-cut filament. The AMS sidebar's panel-level Unload and the Filament panel's Unload stay
+live instead, dispatching `unload_filament(-1)`; `do_unload_filament()` takes the row-4 heated
+cut, so the firmware resolves the real channel, not the screen.
+
 **"Empty" for row 3 is the switch pair, not `head_filament_`** (`head_empty_for_unload_routing_locked()`):
 
 ```

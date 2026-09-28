@@ -136,15 +136,15 @@ void withdraw_cleared_fields(Observation& standing, const Observation& edit);
 
 /// Whether @p wire is a lane_data document a firmware plugin wrote, as
 /// opposed to another tool's edit. A plugin that co-authors the namespace
-/// (AFC's send_lane_data) stamps its records with its own bookkeeping keys
-/// (`extruder_index`, `td`, the 0-based `lane`), which no third-party tool
-/// emits, and carries the shared identity spellings (`vendor_name`, `name`)
-/// not at all: a document shaped this way is the firmware stating what it
-/// measured, so it files as a reading, never as the lane's newest statement.
-/// Without this, a plugin record that replaced ours (no helix keys) would
-/// promote to the user's rung - outright when its scan_time is empty, and on
-/// merit of the scan clock when it is not, which is a measurement time, not
-/// an edit time (prestonbrown/helixscreen#1632).
+/// (AFC's send_lane_data) stamps its records with its own bookkeeping keys -
+/// `td` on every plugin build, `lane` and `extruder_index` on newer ones -
+/// which no third-party tool emits, and carries the shared identity spellings
+/// (`vendor_name`, `name`) not at all: a document shaped this way is the
+/// firmware stating what it measured, so it files as a reading, never as the
+/// lane's newest statement. Without this, a plugin record that replaced ours
+/// (no helix keys) would promote to the user's rung - outright when its
+/// scan_time is empty, and on merit of the scan clock when it is not, which
+/// is a measurement time, not an edit time (prestonbrown/helixscreen#1632).
 [[nodiscard]] bool wire_authored_by_firmware(const nlohmann::json& wire);
 
 /// A stamp older than this names no real moment: a device without an RTC

@@ -1,5 +1,5 @@
 {
-  "config_version": 25,
+  "config_version": 26,
   "_config_version_comment": "Config schema version. MUST be present and current: Config::init treats a missing version as 0, reads that as a tarball default, and will restore a rolling backup over this file. Pinned by tests/unit/test_settings_template_contract.cpp.",
   "dark_mode": true,
   "brightness": 80,
@@ -12,8 +12,8 @@
   "_sound_theme_comment": "Active sound theme. Loads from config/sounds/<name>.json. Options: 'default', 'minimal'. Default: 'default'.",
   "disable_sound": false,
   "_disable_sound_comment": "Disable all sound output. Prevents audio backend initialization entirely. Use on hardware where audio causes excessive CPU load (e.g., Artillery M1 Pro). Also available as --no-sound CLI flag. Default: false.",
-  "completion_alert": 1,
-  "_completion_alert_comment": "Print completion alert mode: 0=Off, 1=Notification, 2=Alert. Default: 1.",
+  "completion_alert": 2,
+  "_completion_alert_comment": "Print completion alert mode: 0=Off, 1=Notification, 2=Alert. Default: 2.",
   "wizard_completed": false,
   "_wizard_completed_comment": "Whether the setup wizard has been completed. Set automatically after first-run wizard.",
   "wifi_expected": false,

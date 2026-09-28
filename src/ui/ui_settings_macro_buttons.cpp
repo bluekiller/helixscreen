@@ -10,6 +10,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "i_moonraker_api.h"
+#include "quick_action_slots.h"
 #include "standard_macros.h"
 #include "static_panel_registry.h"
 
@@ -168,63 +169,26 @@ void MacroButtonsOverlay::populate_dropdowns() {
     for (const auto& slot : StandardMacros::instance().all()) {
         quick_button_options += "\n" + slot.display_name;
     }
+    // The light toggle comes last, after every standard macro slot
+    quick_button_options += std::string("\n") + lv_tr("Light");
 
-    // Get current quick button config
-    Config* config = Config::get_instance();
-    std::string qb1_slot =
-        config ? config->get<std::string>("/standard_macros/quick_button_1", "clean_nozzle")
-               : "clean_nozzle";
-    std::string qb2_slot =
-        config ? config->get<std::string>("/standard_macros/quick_button_2", "bed_level")
-               : "bed_level";
-    std::string qb3_slot =
-        config ? config->get<std::string>("/standard_macros/quick_button_3", "") : "";
-    std::string qb4_slot =
-        config ? config->get<std::string>("/standard_macros/quick_button_4", "") : "";
-
-    // Helper to find index for a slot name
-    auto find_slot_index = [](const std::string& slot_name) -> int {
-        if (slot_name.empty())
-            return 0; // (Empty)
-        const auto& slots = StandardMacros::instance().all();
-        for (size_t i = 0; i < slots.size(); ++i) {
-            if (slots[i].slot_name == slot_name) {
-                return static_cast<int>(i) + 1; // +1 because 0 is "(Empty)"
-            }
+    // Each dropdown shows what its slot resolves to, so a slot the light fills
+    // by default reads "Light" rather than the "(Empty)" it stores.
+    const helix::StoredQuickSlots stored = helix::read_stored_quick_slots();
+    const auto kinds = helix::resolve_current_quick_slots(stored);
+    std::vector<std::string> slot_names;
+    for (const auto& slot : StandardMacros::instance().all()) {
+        slot_names.push_back(slot.slot_name);
+    }
+    for (size_t i = 0; i < helix::kQuickButtonKeys.size(); ++i) {
+        const std::string row_name = "row_quick_button_" + std::to_string(i + 1);
+        lv_obj_t* row = lv_obj_find_by_name(overlay_root_, row_name.c_str());
+        lv_obj_t* dropdown = row ? lv_obj_find_by_name(row, "dropdown") : nullptr;
+        if (dropdown) {
+            lv_dropdown_set_options(dropdown, quick_button_options.c_str());
+            lv_dropdown_set_selected(dropdown, static_cast<uint32_t>(helix::quick_slot_picker_index(
+                                                   kinds[i], stored.value[i], slot_names)));
         }
-        return 0;
-    };
-
-    // Quick Button 1
-    lv_obj_t* qb1_row = lv_obj_find_by_name(overlay_root_, "row_quick_button_1");
-    lv_obj_t* qb1_dropdown = qb1_row ? lv_obj_find_by_name(qb1_row, "dropdown") : nullptr;
-    if (qb1_dropdown) {
-        lv_dropdown_set_options(qb1_dropdown, quick_button_options.c_str());
-        lv_dropdown_set_selected(qb1_dropdown, find_slot_index(qb1_slot));
-    }
-
-    // Quick Button 2
-    lv_obj_t* qb2_row = lv_obj_find_by_name(overlay_root_, "row_quick_button_2");
-    lv_obj_t* qb2_dropdown = qb2_row ? lv_obj_find_by_name(qb2_row, "dropdown") : nullptr;
-    if (qb2_dropdown) {
-        lv_dropdown_set_options(qb2_dropdown, quick_button_options.c_str());
-        lv_dropdown_set_selected(qb2_dropdown, find_slot_index(qb2_slot));
-    }
-
-    // Quick Button 3
-    lv_obj_t* qb3_row = lv_obj_find_by_name(overlay_root_, "row_quick_button_3");
-    lv_obj_t* qb3_dropdown = qb3_row ? lv_obj_find_by_name(qb3_row, "dropdown") : nullptr;
-    if (qb3_dropdown) {
-        lv_dropdown_set_options(qb3_dropdown, quick_button_options.c_str());
-        lv_dropdown_set_selected(qb3_dropdown, find_slot_index(qb3_slot));
-    }
-
-    // Quick Button 4
-    lv_obj_t* qb4_row = lv_obj_find_by_name(overlay_root_, "row_quick_button_4");
-    lv_obj_t* qb4_dropdown = qb4_row ? lv_obj_find_by_name(qb4_row, "dropdown") : nullptr;
-    if (qb4_dropdown) {
-        lv_dropdown_set_options(qb4_dropdown, quick_button_options.c_str());
-        lv_dropdown_set_selected(qb4_dropdown, find_slot_index(qb4_slot));
     }
 
     // === Populate Standard Macro Dropdowns ===
@@ -319,6 +283,9 @@ std::string MacroButtonsOverlay::quick_button_index_to_slot_name(int index) {
     if (index - 1 < static_cast<int>(slots.size())) {
         return slots[index - 1].slot_name;
     }
+    if (index - 1 == static_cast<int>(slots.size())) {
+        return std::string(helix::kQuickSlotLight);
+    }
     return "";
 }
 
@@ -344,7 +311,7 @@ void MacroButtonsOverlay::handle_quick_button_1_changed(int index) {
 
     Config* config = Config::get_instance();
     if (config) {
-        config->set<std::string>("/standard_macros/quick_button_1", slot_name);
+        config->set<std::string>(helix::kQuickButtonKeys[0], slot_name);
         config->save();
     }
 
@@ -357,7 +324,7 @@ void MacroButtonsOverlay::handle_quick_button_2_changed(int index) {
 
     Config* config = Config::get_instance();
     if (config) {
-        config->set<std::string>("/standard_macros/quick_button_2", slot_name);
+        config->set<std::string>(helix::kQuickButtonKeys[1], slot_name);
         config->save();
     }
 
@@ -370,7 +337,7 @@ void MacroButtonsOverlay::handle_quick_button_3_changed(int index) {
 
     Config* config = Config::get_instance();
     if (config) {
-        config->set<std::string>("/standard_macros/quick_button_3", slot_name);
+        config->set<std::string>(helix::kQuickButtonKeys[2], slot_name);
         config->save();
     }
 
@@ -383,7 +350,7 @@ void MacroButtonsOverlay::handle_quick_button_4_changed(int index) {
 
     Config* config = Config::get_instance();
     if (config) {
-        config->set<std::string>("/standard_macros/quick_button_4", slot_name);
+        config->set<std::string>(helix::kQuickButtonKeys[3], slot_name);
         config->save();
     }
 

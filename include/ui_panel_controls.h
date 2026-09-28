@@ -14,6 +14,7 @@
 #include "config.h"
 #include "i_moonraker_api.h"
 #include "operation_timeout_guard.h"
+#include "quick_action_slots.h"
 #include "save_config_restart.h"
 #include "standard_macros.h"
 #include "subject_managed_panel.h"
@@ -21,6 +22,7 @@
 #include "ui/temperature_observer_bundle.h"
 #include "ui/ui_modal_guard.h"
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -294,7 +296,7 @@ class ControlsPanel : public PanelBase {
     /// LedWidget that drives the home-dashboard light widget (stateful bulb icon
     /// reflecting on/off + brightness + LED color; tap toggles). Present only
     /// when an LED strip is controllable (cell hidden via led_controllable).
-    std::unique_ptr<helix::LedWidget> led_widget_;
+    std::array<std::unique_ptr<helix::LedWidget>, 4> led_widgets_;
 
     //
     // === Modal Dialog State ===
@@ -424,6 +426,13 @@ class ControlsPanel : public PanelBase {
     char macro_3_name_buf_[64] = {};
     char macro_4_name_buf_[64] = {};
     lv_subject_t macro_header_visible_{};
+    /// 1 while a Quick Actions slot shows the light toggle instead of a macro
+    std::array<lv_subject_t, 4> macro_light_{};
+    /// The slots as stored; a never-written slot may take the light by
+    /// default (see resolve_quick_slots).
+    helix::StoredQuickSlots stored_quick_slots_;
+    ObserverGuard led_controllable_observer_;
+    void load_quick_button_config();
 
   public:
     // === Leveling Commands (shared with MotionPanel) ===

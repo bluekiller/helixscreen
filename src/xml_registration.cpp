@@ -482,6 +482,7 @@ void register_xml_components() {
     register_xml("action_prompt_modal.xml");
     register_xml("info_qr_modal.xml");
     register_xml("chamber_dryer_modal.xml");
+    register_xml("ams_recover_state_modal.xml");
     register_xml("bed_drying_modal.xml");
     helix::ui::register_bed_drying_callbacks();
     register_xml("batch_filament_modal.xml");
@@ -716,12 +717,17 @@ void register_xml_components() {
 
     // Settings overlay panels
     register_xml("sound_preview_overlay.xml");
-    register_xml("settings_display_sound_overlay.xml");
+    register_xml("settings_display_overlay.xml");
+    register_xml("settings_appearance_overlay.xml");
+    register_xml("settings_sound_overlay.xml");
+    register_xml("settings_language_time_overlay.xml");
     register_xml("settings_printing_overlay.xml");
     register_xml("settings_hardware_overlay.xml");
     register_xml("settings_safety_overlay.xml");
     register_xml("settings_system_overlay.xml");
     register_xml("settings_touch_overlay.xml");
+    register_xml("settings_connection_overlay.xml");
+    register_xml("settings_updates_overlay.xml");
     register_xml("settings_help_overlay.xml");
     register_xml("tour_tooltip_card.xml");
     register_xml("security_settings_overlay.xml");
@@ -760,6 +766,7 @@ void register_xml_components() {
     register_xml("touch_calibration_overlay.xml");
     register_xml("printer_image_list_item.xml");
     register_xml("printer_image_overlay.xml");
+    register_xml("printer_image_tagger_overlay.xml");
     register_xml("printer_type_overlay.xml");
     register_xml("hidden_network_modal.xml");
     register_xml("network_test_modal.xml");

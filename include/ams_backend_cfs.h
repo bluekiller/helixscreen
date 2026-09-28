@@ -932,6 +932,12 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // the override was cleared. Caller must hold mutex_.
     bool note_insert_edge_locked(SlotInfo& slot, int slot_index);
 
+    /// True while this slot's insert probe is parked in deferred_probes_
+    /// waiting for an idle box (unit number and bay mask derived from the
+    /// global slot index the same way collect_insert_probes_locked keys it).
+    /// Caller must hold mutex_.
+    bool insert_probe_deferred_locked(int slot_index) const;
+
     // Applies one classified insert verdict: a different spool drops what
     // described the old one through the Clear Spool funnel, no evidence keeps
     // everything and asks the user, the same spool keeps everything silently.
@@ -970,6 +976,15 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// at vender "unknown" / material_type "unknown" indefinitely), so the edge
     /// is the only moment we get to ask for one.
     std::unordered_map<int, bool> bay_occupied_;
+
+    /// Whether the bay's RFID reader has finished with the seated spool, from
+    /// the same `vender` walk that tracks occupancy: "unknown" is a spool
+    /// seated whose tag has not been read, a real vendor name the read having
+    /// landed (it drops back to a sentinel the moment the spool is pulled).
+    /// The insert rule reads it to tell a completed read that restated the
+    /// latched values from a reader that said nothing at all. All access
+    /// under mutex_.
+    std::unordered_map<int, bool> bay_tag_resolved_;
 
     /// Insert probes blocked by the busy gate in handle_status_update
     /// (#1387): unit number -> bay bitmask, OR-merged so a bay re-inserted

@@ -23,7 +23,7 @@ The Bed Mesh panel has two parts: a 3D visualization of your bed surface on the 
 
 **Probe a new mesh:** tap **Probe** in the panel header. HelixScreen first asks which profile to store the new mesh in. The name starts as `default`, the profile Klipper loads at startup; type another name to keep the new mesh separate. Tap **Start** to probe. When probing finishes, HelixScreen asks whether to save the printer configuration so the mesh survives a restart.
 
-The visualization mode (3D, 2D, or Auto) can be changed in **Settings > Display**.
+The visualization mode (3D, 2D, or Auto) can be changed in **Settings > Appearance > Bed Mesh Render**.
 
 ### Profile Management
 
@@ -283,9 +283,9 @@ The **target frequency** is a property of the *free span*, not of the printer: a
 
 ## Pressure Advance
 
-Some printers can measure pressure advance themselves instead of printing a tuning tower you judge by eye. On those, a **Pressure Adv.** button appears on the Controls panel. Today that is the **Snapmaker U1** and the **FlashForge Creator 5 Pro**; on other printers the button stays hidden.
+Some printers can measure pressure advance themselves instead of printing a tuning tower you judge by eye. On those, a **Pressure Adv.** button appears in the Controls panel's **Calibration & Tools** card, and a **Pressure Advance** row under **Advanced > Calibration**. Today that is the **Snapmaker U1** and the **FlashForge Creator 5 Pro**; on other printers both stay hidden.
 
-1. Tap **Pressure Adv.** and pick the tool to measure. Picking a tool mounts it.
+1. Tap either entry and pick the tool to measure. Picking a tool mounts it.
 2. Set the nozzle temperature for the filament that's loaded, or tap a material preset.
 3. Tap **Start** and confirm. Filament must be loaded: the printer heats the nozzle and extrudes a series of short test moves, which takes a few minutes (about 3 on the U1, up to 5 on the Creator 5 Pro).
 4. Read the result. A value outside the usual range for the extruder is flagged so you can measure again.

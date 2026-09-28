@@ -101,6 +101,12 @@ struct BuildVolume {
     float z_max = 0.0f;          ///< Maximum Z height (if available)
     float declared_bed_x = 0.0f; ///< Bed X the firmware config declares (0 if none)
     float declared_bed_y = 0.0f; ///< Bed Y the firmware config declares (0 if none)
+    /// Rectangular plate from [bed_mesh] mesh_min/mesh_max, machine space.
+    /// All zero when the config declares none (no bed_mesh, or a round bed).
+    float plate_x_min = 0.0f;
+    float plate_x_max = 0.0f;
+    float plate_y_min = 0.0f;
+    float plate_y_max = 0.0f;
 };
 
 /**

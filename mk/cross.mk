@@ -53,6 +53,13 @@ NPROC_DOCKER_RUN ?= $(shell echo $$(($(_NPROC_HOST) > 8 ? 8 : $(_NPROC_HOST))))
 # Target Platform Definitions
 # =============================================================================
 
+# musl gives every thread 128 KiB unless the binary's PT_GNU_STACK asks for more
+# (musl >= 1.1.21; K1 ships 1.2.4, K2 1.2.5), and the Moonraker callbacks run on
+# such a thread. 1 MiB is address space, not RAM: a thread only commits the pages
+# it touches, so two dozen threads cost the K1/K2 nothing until they recurse.
+# glibc sizes thread stacks from RLIMIT_STACK and ignores this.
+MUSL_THREAD_STACK_LDFLAGS := -Wl,-z,stack-size=1048576
+
 # Note: We use PLATFORM_TARGET to avoid collision with Makefile's TARGET (binary path)
 PLATFORM_TARGET ?= native
 
@@ -466,7 +473,8 @@ else ifneq ($(filter mips k1 ad5x,$(PLATFORM_TARGET)),)
     # -Wl,-O2: Linker optimization level
     # -Wl,--as-needed: Only link libraries that are actually used
     # -flto=auto: Match compiler LTO flag, uses all CPUs
-    TARGET_LDFLAGS := -Wl,--gc-sections -Wl,-O2 -Wl,--as-needed -flto=auto -static
+    TARGET_LDFLAGS := -Wl,--gc-sections -Wl,-O2 -Wl,--as-needed -flto=auto -static \
+                      $(MUSL_THREAD_STACK_LDFLAGS)
     # SSL enabled for HTTPS/WSS support (updates, remote Moonraker)
     ENABLE_SSL := yes
     DISPLAY_BACKEND := fbdev
@@ -565,7 +573,8 @@ else ifeq ($(PLATFORM_TARGET),k2)
     # land there (#1709). Stock firmware drives the panel through /dev/disp,
     # which stays lit to raw 6 of 255; that backend ignores this floor.
     HELIX_BACKLIGHT_FLOOR_PERCENT := 20
-    TARGET_LDFLAGS := -Wl,--gc-sections -Wl,-O2 -Wl,--as-needed -flto=auto -static
+    TARGET_LDFLAGS := -Wl,--gc-sections -Wl,-O2 -Wl,--as-needed -flto=auto -static \
+                      $(MUSL_THREAD_STACK_LDFLAGS)
     # HTTPS is required for the update check, R2 self-update download, telemetry,
     # and crash/debug-bundle upload. (Local Moonraker is plain HTTP and works
     # regardless of this.) Static OpenSSL is cross-built into the K2 toolchain

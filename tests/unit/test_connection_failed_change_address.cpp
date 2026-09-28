@@ -8,8 +8,8 @@
  * Context (debug bundle XRK8KPTF, K2 Plus): the configured host was stale, so
  * the WebSocket never opened. With the initial-connect escalation in place the
  * user now gets a modal naming the address — but an OK-only modal on a wrong
- * address is still a dead end, and the address itself lives four levels deep
- * under Settings > System > Printer Host with nothing pointing there.
+ * address is still a dead end, and the address itself lives under
+ * Settings > Connection > Host with nothing pointing there.
  *
  * So the connection-failed prompt carries a "Change Address" action that opens
  * the existing ChangeHostModal directly. This test drives the real prompt, then

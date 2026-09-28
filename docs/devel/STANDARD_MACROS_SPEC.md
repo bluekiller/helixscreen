@@ -44,6 +44,18 @@ The Standard Macros system provides a unified registry that maps semantic operat
 | `bed_level` | Physical bed leveling | QUAD_GANTRY_LEVEL, QGL, Z_TILT_ADJUST | — |
 | `clean_nozzle` | Nozzle cleaning | CLEAN_NOZZLE, NOZZLE_WIPE, WIPE_NOZZLE, CLEAR_NOZZLE | HELIX_CLEAN_NOZZLE |
 | `heat_soak` | Chamber/bed soak | HEAT_SOAK, CHAMBER_SOAK, SOAK | — |
+| `park_toolhead` | Park the toolhead | PARK, PARK_TOOLHEAD, TOOLHEAD_PARK | HELIX_PARK_TOOLHEAD (not shipped) |
+
+> **Park fallback note:** `HELIX_PARK_TOOLHEAD` is a reserved name with no
+> definition in `assets/config/helix_macros.cfg`, so the fallback tier never
+> resolves for this slot - an undetected, unconfigured `park_toolhead` answers
+> **Empty**. The Motion screen's Park button then falls back to its own move:
+> Z up 10mm, then over the rear of the plate (`src/ui/ui_panel_motion.cpp#MotionPanel::park_over_plate`,
+> `helix::plate_rear_park()`), homing first when needed. Detection is exact-name like every other slot, so underscore-prefixed
+> or suffixed variants (`_PARK`, `PARK_2`, ...) never match; a printer wanting
+> detection must expose one of the three names verbatim. Config key:
+> `standard_macros/park_toolhead` (per-printer prefix applies); the settings row
+> is the **Park** row in Macro Buttons.
 
 ### Slot States
 
@@ -201,7 +213,8 @@ When executing a macro, the system checks in order:
     "bed_mesh": "",
     "bed_level": "",
     "clean_nozzle": "",
-    "heat_soak": ""
+    "heat_soak": "",
+    "park_toolhead": ""
   }
 }
 ```
@@ -306,7 +319,7 @@ void FilamentPanel::execute_load() {
   - Access via `MoonrakerAPI::hardware_discovery()`
 - `src/printer/macro_manager.cpp` - HELIX_* macro definitions
 - `include/config.h` - `MacroConfig` struct, `get_macro()` method
-- `ui_xml/settings_display_sound_overlay.xml` - Reference overlay pattern
+- `ui_xml/settings_display_overlay.xml` - Reference overlay pattern
 
 ### Files Created (historical planning list; paths updated to as-built locations)
 - `include/standard_macros.h`

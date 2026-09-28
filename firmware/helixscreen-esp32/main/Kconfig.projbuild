@@ -29,7 +29,7 @@ config HELIX_HIL_MOONRAKER_URL
         settings.json. Empty in the committed tree — a bench printer's address
         is site-local, so supply it via a git-ignored sdkconfig.local. Left
         empty, the device boots into the not-ready UI and the host is set in
-        Settings > System > Host.
+        Settings > Connection > Host.
 
 endmenu
 

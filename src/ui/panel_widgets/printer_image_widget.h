@@ -79,8 +79,9 @@ class PrinterImageWidget : public PanelWidget {
     /// What lv_image_set_src was last given, so a repeat resolve to the same file
     /// does not invalidate the widget for an identical image.
     std::string current_displayed_path_;
-    /// Natural size of an untagged source, read once per path: every relayout
-    /// needs its aspect, and a decoder info call opens the file.
+    /// Natural size of the source, read once per path: every relayout needs it
+    /// (an untagged image's aspect, a user tag's size guard), and a decoder
+    /// info call opens the file.
     std::string natural_size_path_;
     int natural_w_ = 0;
     int natural_h_ = 0;

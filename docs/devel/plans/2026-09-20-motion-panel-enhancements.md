@@ -323,6 +323,11 @@ must also be right: a delta bed is circular, and a corner tap addresses somewher
 toolhead cannot reach. When `PrinterDetector` reports delta kinematics the plate renders
 circular and taps outside the radius clamp to the edge.
 
+**Plate, not travel.** The rendered plate and the clamp are `helix::preset_area()`: the
+`[bed_mesh]` mesh_min/max area clipped to travel, falling back to travel only when no mesh
+is declared. Axis travel can run past the plate into tool docks (U1: Y travels to 335, the
+plate ends at 270), so a map drawn from travel would let a tap drive the head into them.
+
 **Interaction.**
 
 - **Tap** commits immediately.

@@ -568,6 +568,11 @@ class WifiBackendEsp : public WifiBackend {
                      sizeof(wifi_config.sta.password) - 1);
         wifi_config.sta.threshold.authmode =
             current_psk_.empty() ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+        // The driver's default fast scan joins the first AP answering for the
+        // SSID. On a multi-AP network that is often a distant one, where lost
+        // packets stall Moonraker until its 25s pong timeout drops us.
+        wifi_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+        wifi_config.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
         esp_err_t rc = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
         if (rc != ESP_OK) {
             spdlog::warn("[WifiBackend] esp32: esp_wifi_set_config failed: {}",

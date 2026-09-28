@@ -61,7 +61,7 @@ LedControlOverlay (UI)             LedSettingsOverlay (UI)             LedWidget
 | `ui_xml/led_control_overlay.xml` | Control overlay layout (sections, sliders, containers) |
 | `ui_xml/led_settings_overlay.xml` | Settings overlay layout (strip chips, toggles, editors) |
 | `ui_xml/led_action_chip.xml` | Reusable chip component for LED actions |
-| `ui_xml/led_color_swatch.xml` | Color swatch component for preset display |
+| `ui_xml/components/color_swatch.xml` | Round color swatch, shared with the filament color pickers |
 | `ui_xml/setting_led_chip_row.xml` | Strip selection chip row component |
 | `ui_xml/wizard_led_select.xml` | LED selection step in setup wizard |
 

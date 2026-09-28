@@ -20,14 +20,18 @@
 #include "ui_panel_power.h"
 #include "ui_printer_list_overlay.h"
 #include "ui_settings_about.h"
-#include "ui_settings_display_sound.h"
+#include "ui_settings_appearance.h"
+#include "ui_settings_connection.h"
+#include "ui_settings_display.h"
 #include "ui_settings_hardware.h"
 #include "ui_settings_hardware_health.h"
 #include "ui_settings_help.h"
+#include "ui_settings_language_time.h"
 #include "ui_settings_printing.h"
 #include "ui_settings_safety.h"
 #include "ui_settings_system.h"
 #include "ui_settings_touch.h"
+#include "ui_settings_updates.h"
 #if HELIX_HAS_LABEL_PRINTER
 #include "ui_settings_label_printer.h"
 #endif
@@ -38,6 +42,7 @@
 #include "ui_settings_material_temps.h"
 #include "ui_settings_security.h"
 #include "ui_settings_sensors.h"
+#include "ui_settings_sound.h"
 #include "ui_settings_telemetry_data.h"
 #include "ui_severity_card.h"
 #include "ui_snake_game.h"
@@ -54,6 +59,7 @@
 #include "device_display_name.h"
 #include "display_manager.h"
 #include "display_settings_manager.h"
+#include "ethernet_manager.h"
 #include "filament_sensor_manager.h"
 #include "format_utils.h"
 #include "hardware_validator.h"
@@ -63,12 +69,14 @@
 #include "input_settings_manager.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_manager.h"
+#include "page_scroll_auto_inject.h"
 #include "platform_info.h"
 #include "printer_hardware.h"
 #include "printer_state.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
 #include "settings_manager.h"
+#include "settings_root_status.h"
 #include "sound_manager.h"
 #include "standard_macros.h"
 #include "static_panel_registry.h"
@@ -77,6 +85,7 @@
 #include "system_settings_manager.h"
 #include "theme_manager.h"
 #include "ui/ui_lazy_panel_helper.h"
+#include "wifi_manager.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -135,83 +144,6 @@ static void on_cancel_escalation_timeout_changed(lv_event_t* e) {
     SafetySettingsManager::instance().set_cancel_escalation_timeout_seconds(seconds);
 }
 
-// Static callback for bed mesh render mode dropdown
-static void on_bed_mesh_mode_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int mode = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    spdlog::info("[SettingsPanel] Bed mesh render mode changed: {} ({})", mode,
-                 mode == 0 ? "Auto" : (mode == 1 ? "3D" : "2D"));
-    DisplaySettingsManager::instance().set_bed_mesh_render_mode(mode);
-}
-
-// Static callback for Z movement style dropdown
-static void on_z_movement_style_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    auto style = static_cast<ZMovementStyle>(index);
-    spdlog::info("[SettingsPanel] Z movement style changed: {} ({})", index,
-                 index == 0 ? "Auto" : (index == 1 ? "Bed Moves" : "Nozzle Moves"));
-    SettingsManager::instance().set_z_movement_style(style);
-}
-
-// Static callback for toolhead style dropdown
-static void on_toolhead_style_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    auto style = SettingsManager::dropdown_index_to_toolhead_style(index);
-    spdlog::info("[SettingsPanel] Toolhead style changed: {} (dropdown index {})",
-                 static_cast<int>(style), index);
-    SettingsManager::instance().set_toolhead_style(style);
-}
-
-// Static callback for G-code render mode dropdown
-static void on_gcode_mode_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-
-    // Map dropdown index to render mode value
-    // With GLES: indices match mode values directly (0=Auto, 1=3D, 2=2D, 3=Thumbnail)
-    // Without GLES: reduced set (0=Auto, 1=2D Layers, 2=Thumbnail Only)
-#ifndef ENABLE_GLES_3D
-    static const int INDEX_TO_MODE[] = {0, 2, 3}; // Auto, 2D Layers, Thumbnail Only
-    int mode = (index >= 0 && index <= 2) ? INDEX_TO_MODE[index] : 0;
-#else
-    int mode = index;
-#endif
-
-    static const char* MODE_NAMES[] = {"Auto", "3D", "2D Layers", "Thumbnail Only"};
-    spdlog::info("[SettingsPanel] G-code render mode changed: {} ({})", mode,
-                 (mode >= 0 && mode <= 3) ? MODE_NAMES[mode] : "Unknown");
-    DisplaySettingsManager::instance().set_gcode_render_mode(mode);
-}
-
-// Static callback for timezone dropdown
-static void on_timezone_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    spdlog::info("[SettingsPanel] Timezone changed to index {}", index);
-    DisplaySettingsManager::instance().set_timezone_by_index(index);
-}
-
-// Static callback for time format dropdown
-static void on_time_format_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    auto format = static_cast<TimeFormat>(index);
-    spdlog::info("[SettingsPanel] Time format changed: {} ({})", index,
-                 index == 0 ? "12 Hour" : "24 Hour");
-    DisplaySettingsManager::instance().set_time_format(format);
-}
-
-// Static callback for language dropdown
-static void on_language_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    std::string lang_code = SystemSettingsManager::language_index_to_code(index);
-    spdlog::info("[SettingsPanel] Language changed: index {} ({})", index, lang_code);
-    SystemSettingsManager::instance().set_language_by_index(index);
-}
-
 // Static callback for log level dropdown
 static void on_log_level_changed(lv_event_t* e) {
     lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -220,7 +152,7 @@ static void on_log_level_changed(lv_event_t* e) {
     SystemSettingsManager::instance().set_log_level_by_index(index);
 }
 
-// Touch & input setting callbacks (Settings → System → Touch & Input).
+// Touch & input setting callbacks (Settings → Touch & Input).
 // The slider rows nest as: row > slider_container > slider, so the row is
 // the slider's grandparent. Used by both drag-time syncs (here) and the
 // activation-time refresh in TouchSettingsOverlay::init_input_sliders.
@@ -267,6 +199,36 @@ static void on_scroll_guard_changed(lv_event_t* e) {
     get_global_settings_panel().show_restart_prompt();
 }
 
+static void on_system_keyboard_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_system_keyboard_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    spdlog::info("[SettingsPanel] System keyboard toggled: {}", enabled ? "ON" : "OFF");
+    DisplaySettingsManager::instance().set_use_system_keyboard(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+static void on_keep_navbar_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_keep_navbar_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    spdlog::info("[SettingsPanel] Keep navbar toggled: {}", enabled ? "ON" : "OFF");
+    DisplaySettingsManager::instance().set_keep_navbar_visible(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+static void on_page_scroll_buttons_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_page_scroll_buttons_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    spdlog::info("[SettingsPanel] Page scroll buttons toggled: {}", enabled ? "ON" : "OFF");
+    DisplaySettingsManager::instance().set_page_scroll_buttons(enabled);
+    // Apply immediately to the current screen — this callback is the authoritative
+    // user-toggle signal (a subject observer can't be used; see PageScrollAutoInject::init).
+    helix::ui::PageScrollAutoInject::instance().on_setting_toggled(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 // Note: Sensors overlay callbacks are now in SensorSettingsOverlay class
 // See ui_settings_sensors.cpp
 // Note: Macro Buttons overlay callbacks are now in MacroButtonsOverlay class
@@ -302,9 +264,6 @@ void SettingsPanel::init_subjects() {
     SettingsManager::instance().init_subjects();
 
     // Note: LED config loading moved to MoonrakerManager::create_api() for centralized init
-
-    // Note: brightness_value subject is now managed by DisplaySoundSettingsOverlay
-    // See ui_settings_display_sound.cpp
 
     // Initialize info row subjects that remain in SettingsPanel
     UI_MANAGED_SUBJECT_STRING(printer_host_value_subject_, printer_host_value_buf_, "\xe2\x80\x94",
@@ -371,30 +330,41 @@ void SettingsPanel::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, status_text,
                               "touch_cal_status", subjects_);
 
+    // Live status line under each stateful root row; refresh_status_lines()
+    // fills these in, first from setup() and then on every return to the root.
+    UI_MANAGED_SUBJECT_STRING(settings_status_display_subject_, settings_status_display_buf_, "",
+                              "settings_status_display", subjects_);
+    UI_MANAGED_SUBJECT_STRING(settings_status_appearance_subject_, settings_status_appearance_buf_,
+                              "", "settings_status_appearance", subjects_);
+    UI_MANAGED_SUBJECT_STRING(settings_status_sound_subject_, settings_status_sound_buf_, "",
+                              "settings_status_sound", subjects_);
+    UI_MANAGED_SUBJECT_STRING(settings_status_devices_subject_, settings_status_devices_buf_, "",
+                              "settings_status_devices", subjects_);
+    UI_MANAGED_SUBJECT_STRING(settings_status_connection_subject_, settings_status_connection_buf_,
+                              "", "settings_status_connection", subjects_);
+    UI_MANAGED_SUBJECT_STRING(settings_status_language_time_subject_,
+                              settings_status_language_time_buf_, "",
+                              "settings_status_language_time", subjects_);
+    UI_MANAGED_SUBJECT_STRING(settings_status_updates_subject_, settings_status_updates_buf_, "",
+                              "settings_status_updates", subjects_);
+
     // Register XML event callbacks for dropdowns, toggles, and action rows
     register_xml_callbacks({
         // Dropdowns
         {"on_completion_alert_changed", on_completion_alert_dropdown_changed},
-        {"on_bed_mesh_mode_changed", on_bed_mesh_mode_changed},
-        {"on_gcode_mode_changed", on_gcode_mode_changed},
-        {"on_z_movement_style_changed", on_z_movement_style_changed},
-        {"on_toolhead_style_changed", on_toolhead_style_changed},
-        {"on_timezone_changed", on_timezone_changed},
-        {"on_time_format_changed", on_time_format_changed},
-        {"on_language_changed", on_language_changed},
         {"on_log_level_changed", on_log_level_changed},
         {"on_debug_touches_changed", on_debug_touches_changed},
         {"on_scroll_limit_changed", on_scroll_limit_changed},
         {"on_long_press_time_changed", on_long_press_time_changed},
         {"on_home_edit_mode_changed", on_home_edit_mode_changed},
         {"on_scroll_guard_changed", on_scroll_guard_changed},
+        {"on_system_keyboard_changed", on_system_keyboard_changed},
+        {"on_keep_navbar_changed", on_keep_navbar_changed},
+        {"on_page_scroll_buttons_changed", on_page_scroll_buttons_changed},
 
         // Toggle switches
-        {"on_dark_mode_changed", on_dark_mode_changed},
-        {"on_animations_changed", on_animations_changed},
         {"on_led_settings_clicked", on_led_settings_clicked},
         // Note: on_retraction_row_clicked is registered by RetractionSettingsOverlay
-        {"on_sound_settings_clicked", on_sound_settings_clicked},
         {"on_security_clicked", on_security_clicked},
         {"on_estop_confirm_changed", on_estop_confirm_changed},
         {"on_cancel_escalation_changed", on_cancel_escalation_changed},
@@ -403,7 +373,6 @@ void SettingsPanel::init_subjects() {
         {"on_telemetry_view_data", SettingsPanel::on_telemetry_view_data},
 
         // Action rows
-        {"on_display_settings_clicked", on_display_settings_clicked},
         {"on_printers_clicked", on_printers_clicked},
         // Note: on_printer_image_clicked moved to PrinterManagerOverlay
         {"on_filament_sensors_clicked", on_filament_sensors_clicked},
@@ -413,23 +382,33 @@ void SettingsPanel::init_subjects() {
 
     // Category navigation callbacks (open sub-panel overlays from top-level)
     register_xml_callbacks({
-        {"on_display_sound_clicked", on_display_sound_clicked},
+        {"on_display_clicked", on_display_clicked},
+        {"on_appearance_clicked", on_appearance_clicked},
+        {"on_sound_clicked", on_sound_clicked},
+        {"on_language_time_clicked", on_language_time_clicked},
         {"on_printing_clicked", on_printing_clicked},
-        {"on_hardware_clicked", on_hardware_clicked},
+        {"on_devices_clicked", on_devices_clicked},
         {"on_safety_clicked", on_safety_clicked},
         {"on_system_clicked", on_system_clicked},
         {"on_help_clicked", on_help_clicked},
         {"on_touch_input_clicked", on_touch_input_clicked},
+        {"on_connection_clicked", on_connection_clicked},
+        {"on_updates_clicked", on_updates_clicked},
     });
 
     // Register sub-panel overlay callbacks (must happen before XML parsing)
-    helix::settings::get_display_sound_settings_overlay().register_callbacks();
+    helix::settings::get_display_settings_overlay().register_callbacks();
+    helix::settings::get_appearance_settings_overlay().register_callbacks();
+    helix::settings::get_sound_settings_overlay().register_callbacks();
+    helix::settings::get_language_time_settings_overlay().register_callbacks();
     helix::settings::get_printing_settings_overlay().register_callbacks();
     helix::settings::get_hardware_settings_overlay().register_callbacks();
     helix::settings::get_safety_settings_overlay().register_callbacks();
     helix::settings::get_system_settings_overlay().register_callbacks();
     helix::settings::get_help_settings_overlay().register_callbacks();
     helix::settings::get_touch_settings_overlay().register_callbacks();
+    helix::settings::get_connection_settings_overlay().register_callbacks();
+    helix::settings::get_updates_settings_overlay().register_callbacks();
 
     // Note: Sensors overlay callbacks are now handled by SensorSettingsOverlay
     // See ui_settings_sensors.h
@@ -437,9 +416,6 @@ void SettingsPanel::init_subjects() {
 
     // Note: Fan Settings overlay callbacks are now handled by FanSettingsOverlay
     helix::settings::get_fan_settings_overlay().register_callbacks();
-
-    // Note: Display Settings overlay callbacks are now handled by DisplaySoundSettingsOverlay
-    // See ui_settings_display_sound.h
 
     // Settings action rows and overlay navigation callbacks
     register_xml_callbacks({
@@ -477,6 +453,11 @@ void SettingsPanel::deinit_subjects() {
 
     spdlog::debug("[{}] Deinitializing subjects", get_name());
 
+    // Expire any in-flight Ethernet probe first: get_info_async()'s deferred
+    // write targets settings_status_connection_subject_ below, which
+    // subjects_.deinit_all() is about to tear down.
+    lifetime_.invalidate();
+
     // Deinit all subjects via SubjectManager (handles 7 string subjects)
     subjects_.deinit_all();
 
@@ -493,242 +474,22 @@ void SettingsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         return;
     }
 
-    // Setup all handlers and bindings
-    setup_toggle_handlers();
-    setup_action_handlers();
     populate_info_rows();
 
     spdlog::debug("[{}] Setup complete", get_name());
+}
+
+void SettingsPanel::on_activate() {
+    PanelBase::on_activate();
+    refresh_status_lines();
 }
 
 // ============================================================================
 // SETUP HELPERS
 // ============================================================================
 
-void SettingsPanel::setup_toggle_handlers() {
-    auto& display_settings = DisplaySettingsManager::instance();
-    auto& system_settings = SystemSettingsManager::instance();
-    auto& safety_settings = SafetySettingsManager::instance();
-
-    // === Dark Mode Toggle ===
-    // Event handler wired via XML <event_cb>, just set initial state here
-    lv_obj_t* dark_mode_row = lv_obj_find_by_name(panel_, "row_dark_mode");
-    if (dark_mode_row) {
-        dark_mode_switch_ = lv_obj_find_by_name(dark_mode_row, "toggle");
-        if (dark_mode_switch_) {
-            // Set initial state from DisplaySettingsManager
-            if (display_settings.get_dark_mode()) {
-                lv_obj_add_state(dark_mode_switch_, LV_STATE_CHECKED);
-            } else {
-                lv_obj_remove_state(dark_mode_switch_, LV_STATE_CHECKED);
-            }
-            spdlog::trace("[{}]   ✓ Dark mode toggle", get_name());
-        }
-    }
-
-    // === Animations Toggle ===
-    // Event handler wired via XML <event_cb>, just set initial state here
-    lv_obj_t* animations_row = lv_obj_find_by_name(panel_, "row_animations");
-    if (animations_row) {
-        animations_switch_ = lv_obj_find_by_name(animations_row, "toggle");
-        if (animations_switch_) {
-            // Set initial state from DisplaySettingsManager
-            if (display_settings.get_animations_enabled()) {
-                lv_obj_add_state(animations_switch_, LV_STATE_CHECKED);
-            } else {
-                lv_obj_remove_state(animations_switch_, LV_STATE_CHECKED);
-            }
-            spdlog::trace("[{}]   ✓ Animations toggle", get_name());
-        }
-    }
-
-    // === Telemetry Toggle ===
-    lv_obj_t* telemetry_row = lv_obj_find_by_name(panel_, "row_telemetry");
-    if (telemetry_row) {
-        telemetry_switch_ = lv_obj_find_by_name(telemetry_row, "toggle");
-        if (telemetry_switch_) {
-            if (system_settings.get_telemetry_enabled()) {
-                lv_obj_add_state(telemetry_switch_, LV_STATE_CHECKED);
-            } else {
-                lv_obj_remove_state(telemetry_switch_, LV_STATE_CHECKED);
-            }
-            spdlog::trace("[{}]   telemetry toggle", get_name());
-        }
-    }
-
-    // === Completion Alert Dropdown ===
-    // Event handler wired via XML <event_cb>, just set initial value here (options set in XML)
-    lv_obj_t* completion_row = lv_obj_find_by_name(panel_, "row_completion_alert");
-    if (completion_row) {
-        completion_alert_dropdown_ = lv_obj_find_by_name(completion_row, "dropdown");
-        if (completion_alert_dropdown_) {
-            auto mode = AudioSettingsManager::instance().get_completion_alert_mode();
-            lv_dropdown_set_selected(completion_alert_dropdown_, static_cast<uint32_t>(mode));
-            spdlog::trace("[{}]   ✓ Completion alert dropdown (mode={})", get_name(),
-                          static_cast<int>(mode));
-        }
-    }
-
-    // === Z Movement Style Dropdown ===
-    // Event handler wired via XML <event_cb>, just set initial value here (options set in XML)
-    lv_obj_t* z_movement_row = lv_obj_find_by_name(panel_, "row_z_movement_style");
-    if (z_movement_row) {
-        lv_obj_t* z_movement_dropdown = lv_obj_find_by_name(z_movement_row, "dropdown");
-        if (z_movement_dropdown) {
-            auto style = SettingsManager::instance().get_z_movement_style();
-            lv_dropdown_set_selected(z_movement_dropdown, static_cast<uint32_t>(style));
-            spdlog::trace("[{}]   ✓ Z movement style dropdown (style={})", get_name(),
-                          static_cast<int>(style));
-        }
-    }
-
-    // === Toolhead Style Dropdown ===
-    // Options set from C++ (varies between production and test mode)
-    lv_obj_t* toolhead_style_row = lv_obj_find_by_name(panel_, "row_toolhead_style");
-    if (toolhead_style_row) {
-        lv_obj_t* toolhead_dropdown = lv_obj_find_by_name(toolhead_style_row, "dropdown");
-        if (toolhead_dropdown) {
-            lv_dropdown_set_options(toolhead_dropdown,
-                                    SettingsManager::get_toolhead_style_options());
-            auto style = SettingsManager::instance().get_toolhead_style();
-            lv_dropdown_set_selected(
-                toolhead_dropdown,
-                static_cast<uint32_t>(SettingsManager::toolhead_style_to_dropdown_index(style)));
-            spdlog::trace("[{}]   ✓ Toolhead style dropdown (style={}, dropdown_index={})",
-                          get_name(), static_cast<int>(style),
-                          SettingsManager::toolhead_style_to_dropdown_index(style));
-        }
-    }
-
-    // === Language Dropdown ===
-    // Event handler wired via XML <event_cb>, options populated from SystemSettingsManager
-    lv_obj_t* language_row = lv_obj_find_by_name(panel_, "row_language");
-    if (language_row) {
-        language_dropdown_ = lv_obj_find_by_name(language_row, "dropdown");
-        if (language_dropdown_) {
-            lv_dropdown_set_options(language_dropdown_,
-                                    SystemSettingsManager::get_language_options());
-            int lang_index = system_settings.get_language_index();
-            lv_dropdown_set_selected(language_dropdown_, static_cast<uint32_t>(lang_index));
-            spdlog::trace("[{}]   ✓ Language dropdown (index={})", get_name(), lang_index);
-        }
-    }
-
-    // === Timezone Dropdown ===
-    // Options populated dynamically (not in XML) since the list is built in C++
-    lv_obj_t* tz_row = lv_obj_find_by_name(panel_, "row_timezone");
-    if (tz_row) {
-        lv_obj_t* tz_dropdown = lv_obj_find_by_name(tz_row, "dropdown");
-        if (tz_dropdown) {
-            std::string options = DisplaySettingsManager::get_timezone_options();
-            lv_dropdown_set_options(tz_dropdown, options.c_str());
-            int tz_index = display_settings.get_timezone_index();
-            lv_dropdown_set_selected(tz_dropdown, static_cast<uint32_t>(tz_index));
-            spdlog::trace("[{}]   \u2713 Timezone dropdown (index={}, tz={})", get_name(), tz_index,
-                          display_settings.get_timezone());
-        }
-    }
-
-    // === Time Format Dropdown ===
-    // Event handler wired via XML <event_cb>, just set initial value here (options set in XML)
-    lv_obj_t* time_format_row = lv_obj_find_by_name(panel_, "row_time_format");
-    if (time_format_row) {
-        lv_obj_t* time_format_dropdown = lv_obj_find_by_name(time_format_row, "dropdown");
-        if (time_format_dropdown) {
-            auto current_format = display_settings.get_time_format();
-            lv_dropdown_set_selected(time_format_dropdown, static_cast<uint32_t>(current_format));
-            spdlog::trace("[{}]   ✓ Time format dropdown (format={})", get_name(),
-                          static_cast<int>(current_format));
-        }
-    }
-
-    // === G-code Preview Dropdown ===
-    // Event handler wired via XML <event_cb>, set initial value and conditionally adjust options
-    lv_obj_t* gcode_mode_row = lv_obj_find_by_name(panel_, "row_gcode_mode");
-    if (gcode_mode_row) {
-        lv_obj_t* gcode_dropdown = lv_obj_find_by_name(gcode_mode_row, "dropdown");
-        if (gcode_dropdown) {
-#ifndef ENABLE_GLES_3D
-            // Without GLES, remove "3D View" option — use reduced set
-            // Indices: 0=Auto, 1=2D Layers, 2=Thumbnail Only
-            lv_dropdown_set_options(gcode_dropdown,
-                                    (std::string(lv_tr("Auto")) + "\n" + lv_tr("2D Layers") + "\n" +
-                                     lv_tr("Thumbnail Only"))
-                                        .c_str());
-            // Map stored render mode to reduced dropdown index
-            int mode = display_settings.get_gcode_render_mode();
-            int index = 0; // Auto
-            if (mode == 2)
-                index = 1; // 2D Layers
-            else if (mode == 3)
-                index = 2; // Thumbnail Only
-            // mode == 1 (3D) falls through to Auto on non-GLES
-            lv_dropdown_set_selected(gcode_dropdown, index);
-#else
-            // Full options: Auto(0), 3D View(1), 2D Layers(2), Thumbnail Only(3)
-            int mode = display_settings.get_gcode_render_mode();
-            lv_dropdown_set_selected(gcode_dropdown, mode);
-#endif
-            spdlog::trace("[{}]   ✓ G-code mode dropdown", get_name());
-        }
-    }
-
-    // === E-Stop Confirmation Toggle ===
-    // Event handler wired via XML <event_cb>, just set initial state here
-    lv_obj_t* estop_confirm_row = lv_obj_find_by_name(panel_, "row_estop_confirm");
-    if (estop_confirm_row) {
-        estop_confirm_switch_ = lv_obj_find_by_name(estop_confirm_row, "toggle");
-        if (estop_confirm_switch_) {
-            if (safety_settings.get_estop_require_confirmation()) {
-                lv_obj_add_state(estop_confirm_switch_, LV_STATE_CHECKED);
-            }
-            spdlog::trace("[{}]   ✓ E-Stop confirmation toggle", get_name());
-        }
-    }
-}
-
-void SettingsPanel::setup_action_handlers() {
-    // All action row event handlers are wired via XML <event_cb>
-    // Just cache the row references for potential future use
-
-    // === Display Settings Row ===
-    display_settings_row_ = lv_obj_find_by_name(panel_, "row_display_settings");
-    if (display_settings_row_) {
-        spdlog::trace("[{}]   ✓ Display settings action row", get_name());
-    }
-
-    // === Sensors Row ===
-    filament_sensors_row_ = lv_obj_find_by_name(panel_, "row_filament_sensors");
-    if (filament_sensors_row_) {
-        spdlog::trace("[{}]   ✓ Sensors action row", get_name());
-    }
-
-    // === Network Row ===
-    network_row_ = lv_obj_find_by_name(panel_, "row_network");
-    if (network_row_) {
-        spdlog::trace("[{}]   ✓ Network action row", get_name());
-    }
-
-    // === Factory Reset Row ===
-    factory_reset_row_ = lv_obj_find_by_name(panel_, "row_factory_reset");
-    if (factory_reset_row_) {
-        spdlog::trace("[{}]   ✓ Factory reset action row", get_name());
-    }
-
-    // === Touch Calibration Row (reactive description binding) ===
-    lv_obj_t* touch_cal_row = lv_obj_find_by_name(panel_, "row_touch_calibration");
-    if (touch_cal_row) {
-        lv_obj_t* description = lv_obj_find_by_name(touch_cal_row, "description");
-        if (description) {
-            // Bind to subject for "Calibrated" / "Not calibrated" status
-            lv_label_bind_text(description, &touch_cal_status_subject_, "%s");
-            spdlog::trace("[{}]   ✓ Touch calibration row with reactive description", get_name());
-        }
-    }
-}
-
 void SettingsPanel::populate_info_rows() {
-    // Printer host description: bound declaratively in settings_system_overlay.xml
+    // Printer host description: bound declaratively in settings_connection_overlay.xml
     // via bind_description="printer_host_value". Seed the subject from config so the
     // first paint shows the current host:port (otherwise it's the em-dash default
     // until ChangeHostModal fires its completion callback).
@@ -744,6 +505,100 @@ void SettingsPanel::populate_info_rows() {
     }
 }
 
+namespace {
+// A subject owned by an overlay not yet created (e.g. update_new_version,
+// registered by the Updates overlay) may not exist; the caller's fallback
+// stands in for it, matching the formatter's neutral input.
+int status_int_subject(const char* name, int fallback) {
+    lv_subject_t* s = lv_xml_get_subject(nullptr, name);
+    return s ? lv_subject_get_int(s) : fallback;
+}
+std::string status_string_subject(const char* name, const char* fallback) {
+    lv_subject_t* s = lv_xml_get_subject(nullptr, name);
+    return s ? std::string(lv_subject_get_string(s)) : std::string(fallback);
+}
+} // namespace
+
+void SettingsPanel::refresh_status_lines() {
+    using namespace helix::settings::status;
+
+    lv_subject_copy_string(&settings_status_display_subject_,
+                           display(status_int_subject("settings_brightness", 0),
+                                   status_int_subject("settings_display_sleep", 0),
+                                   status_int_subject("settings_has_dimming", 0) != 0)
+                               .c_str());
+
+    lv_subject_copy_string(&settings_status_appearance_subject_,
+                           appearance(status_int_subject("settings_dark_mode", 0) != 0,
+                                      theme_manager_get_active_theme().name)
+                               .c_str());
+
+    lv_subject_copy_string(&settings_status_sound_subject_,
+                           sound(status_int_subject("settings_sounds_enabled", 0) != 0,
+                                 status_int_subject("settings_volume", 0))
+                               .c_str());
+
+    lv_subject_copy_string(
+        &settings_status_devices_subject_,
+        devices(lv_subject_get_int(get_printer_state().get_hardware_status_level_subject()))
+            .c_str());
+
+    if (helix::is_android_platform()) {
+        // Android manages Wi-Fi and Ethernet itself — both backends compile to
+        // nullptr there (wifi_backend.cpp, ethernet_backend.cpp under
+        // __ANDROID__) — so probing either just logs errors/warnings for
+        // nothing. Show the printer host instead, the same value
+        // printer_host_value already carries.
+        lv_subject_copy_string(&settings_status_connection_subject_,
+                               lv_subject_get_string(&printer_host_value_subject_));
+    } else {
+        // Wi-Fi status is a cheap in-memory read; Ethernet's is not (sysfs scans,
+        // or a blocking netd Unix-socket round-trip on daemon-managed firmwares —
+        // see EthernetBackendNetd), so it must go through get_info_async() rather
+        // than a synchronous get_info() call on this (the LVGL) thread. Show the
+        // last resolved Ethernet state immediately so a wired-only printer does not
+        // read "Not connected" on every return to this panel, then refresh it from
+        // the deferred callback once the probe lands.
+        auto wifi = get_wifi_manager();
+        lv_subject_copy_string(
+            &settings_status_connection_subject_,
+            connection(last_ethernet_up_, wifi->is_connected(), wifi->get_connected_ssid())
+                .c_str());
+
+        if (!ethernet_manager_) {
+            ethernet_manager_ = std::make_unique<EthernetManager>();
+        }
+        auto tok = lifetime_.token();
+        // Only ethernet_up crosses the worker thread. Wi-Fi is read fresh inside
+        // the deferred (main-thread) lambda rather than snapshotted here, so a
+        // probe that lands after a later refresh's own probe still applies the
+        // CURRENT Wi-Fi state instead of overwriting it with a stale one.
+        ethernet_manager_->get_info_async([this, tok](const EthernetInfo& info) {
+            bool ethernet_up = info.connected;
+            tok.defer("SettingsPanel::apply_connection_status", [this, ethernet_up]() {
+                last_ethernet_up_ = ethernet_up;
+                auto wifi = get_wifi_manager();
+                lv_subject_copy_string(
+                    &settings_status_connection_subject_,
+                    connection(ethernet_up, wifi->is_connected(), wifi->get_connected_ssid())
+                        .c_str());
+            });
+        });
+    }
+
+    lv_subject_copy_string(
+        &settings_status_language_time_subject_,
+        language_time(SystemSettingsManager::instance().get_language_display_name(),
+                      status_int_subject("settings_time_format", 0))
+            .c_str());
+
+    lv_subject_copy_string(&settings_status_updates_subject_,
+                           updates(status_int_subject("update_status", 0),
+                                   status_string_subject("update_new_version", ""), helix_version(),
+                                   lv_subject_get_int(&updates_firmware_managed_subject_) != 0)
+                               .c_str());
+}
+
 void SettingsPanel::populate_led_chips() {
     // LED chip selection has been moved to LedSettingsOverlay.
     // This method is kept as a no-op stub for callers that haven't been updated yet.
@@ -753,19 +608,6 @@ void SettingsPanel::populate_led_chips() {
 // ============================================================================
 // EVENT HANDLERS
 // ============================================================================
-
-void SettingsPanel::handle_dark_mode_changed(bool enabled) {
-    spdlog::info("[{}] Dark mode toggled: {}", get_name(), enabled ? "ON" : "OFF");
-
-    // Save the setting and apply live
-    DisplaySettingsManager::instance().set_dark_mode(enabled);
-    theme_manager_apply_theme(theme_manager_get_active_theme(), enabled);
-}
-
-void SettingsPanel::handle_animations_changed(bool enabled) {
-    spdlog::info("[{}] Animations toggled: {}", get_name(), enabled ? "ON" : "OFF");
-    DisplaySettingsManager::instance().set_animations_enabled(enabled);
-}
 
 void SettingsPanel::handle_estop_confirm_changed(bool enabled) {
     spdlog::info("[{}] E-Stop confirmation toggled: {}", get_name(), enabled ? "ON" : "OFF");
@@ -840,14 +682,6 @@ void SettingsPanel::handle_docs_clicked() {
     });
 }
 
-void SettingsPanel::handle_sound_settings_clicked() {
-    spdlog::debug("[{}] Sound Settings clicked - delegating to DisplaySoundSettingsOverlay",
-                  get_name());
-
-    auto& overlay = helix::settings::get_display_sound_settings_overlay();
-    overlay.show(parent_screen_);
-}
-
 void SettingsPanel::handle_security_settings_clicked() {
     spdlog::debug("[{}] Security clicked - delegating to SecuritySettingsOverlay", get_name());
 
@@ -876,14 +710,6 @@ void SettingsPanel::handle_printers_clicked() {
     spdlog::debug("[{}] Printers clicked - opening Printer List", get_name());
 
     auto& overlay = helix::ui::get_printer_list_overlay();
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_display_settings_clicked() {
-    spdlog::debug("[{}] Display Settings clicked - delegating to DisplaySoundSettingsOverlay",
-                  get_name());
-
-    auto& overlay = helix::settings::get_display_sound_settings_overlay();
     overlay.show(parent_screen_);
 }
 
@@ -1126,9 +952,30 @@ void SettingsPanel::handle_hardware_health_clicked() {
 // CATEGORY NAVIGATION CALLBACKS (open sub-panel overlays)
 // ============================================================================
 
-void SettingsPanel::on_display_sound_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_display_sound_clicked");
-    auto& overlay = helix::settings::get_display_sound_settings_overlay();
+void SettingsPanel::on_display_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_display_clicked");
+    auto& overlay = helix::settings::get_display_settings_overlay();
+    overlay.show(get_global_settings_panel().parent_screen_);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_appearance_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_appearance_clicked");
+    auto& overlay = helix::settings::get_appearance_settings_overlay();
+    overlay.show(get_global_settings_panel().parent_screen_);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_sound_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_sound_clicked");
+    auto& overlay = helix::settings::get_sound_settings_overlay();
+    overlay.show(get_global_settings_panel().parent_screen_);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_language_time_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_language_time_clicked");
+    auto& overlay = helix::settings::get_language_time_settings_overlay();
     overlay.show(get_global_settings_panel().parent_screen_);
     LVGL_SAFE_EVENT_CB_END();
 }
@@ -1140,8 +987,8 @@ void SettingsPanel::on_printing_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void SettingsPanel::on_hardware_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_hardware_clicked");
+void SettingsPanel::on_devices_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_devices_clicked");
     auto& overlay = helix::settings::get_hardware_settings_overlay();
     overlay.show(get_global_settings_panel().parent_screen_);
     LVGL_SAFE_EVENT_CB_END();
@@ -1175,25 +1022,23 @@ void SettingsPanel::on_touch_input_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
+void SettingsPanel::on_connection_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_connection_clicked");
+    auto& overlay = helix::settings::get_connection_settings_overlay();
+    overlay.show(get_global_settings_panel().parent_screen_);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_updates_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_updates_clicked");
+    auto& overlay = helix::settings::get_updates_settings_overlay();
+    overlay.show(get_global_settings_panel().parent_screen_);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 // ============================================================================
 // STATIC TRAMPOLINES (XML event_cb pattern - use global singleton)
 // ============================================================================
-
-void SettingsPanel::on_dark_mode_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_dark_mode_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_global_settings_panel().handle_dark_mode_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_animations_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_animations_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_global_settings_panel().handle_animations_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void SettingsPanel::on_estop_confirm_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_estop_confirm_changed");
@@ -1243,12 +1088,6 @@ void SettingsPanel::on_telemetry_view_data(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void SettingsPanel::on_sound_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_sound_settings_clicked");
-    get_global_settings_panel().handle_sound_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void SettingsPanel::on_security_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_security_clicked");
     get_global_settings_panel().handle_security_settings_clicked();
@@ -1278,12 +1117,6 @@ void SettingsPanel::on_timelapse_settings_clicked(lv_event_t* /*e*/) {
 void SettingsPanel::on_printers_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_printers_clicked");
     get_global_settings_panel().handle_printers_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_display_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_display_settings_clicked");
-    get_global_settings_panel().handle_display_settings_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
@@ -1436,9 +1269,6 @@ void SettingsPanel::on_header_back_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-// Note: on_brightness_changed is now handled by DisplaySoundSettingsOverlay
-// See ui_settings_display_sound.cpp
-
 // ============================================================================
 // GLOBAL INSTANCE
 // ============================================================================
@@ -1460,10 +1290,8 @@ void register_settings_panel_callbacks() {
 
     register_xml_callbacks({
         // Toggle callbacks used in settings_panel.xml
-        {"on_animations_changed", SettingsPanel::on_animations_changed},
         {"on_led_settings_clicked", SettingsPanel::on_led_settings_clicked},
         {"on_timelapse_settings_clicked", SettingsPanel::on_timelapse_settings_clicked},
-        {"on_sound_settings_clicked", SettingsPanel::on_sound_settings_clicked},
         {"on_security_clicked", SettingsPanel::on_security_clicked},
 #if HELIX_HAS_LABEL_PRINTER
         {"on_label_printer_settings_clicked", SettingsPanel::on_label_printer_settings_clicked},
@@ -1481,7 +1309,6 @@ void register_settings_panel_callbacks() {
         {"on_scroll_guard_changed", on_scroll_guard_changed},
         // Action row callbacks used in settings_panel.xml
         {"on_printers_clicked", SettingsPanel::on_printers_clicked},
-        {"on_display_settings_clicked", SettingsPanel::on_display_settings_clicked},
         {"on_filament_sensors_clicked", SettingsPanel::on_filament_sensors_clicked},
         {"on_fans_settings_clicked", SettingsPanel::on_fans_settings_clicked},
         {"on_macro_buttons_clicked", SettingsPanel::on_macro_buttons_clicked},
@@ -1500,12 +1327,17 @@ void register_settings_panel_callbacks() {
         {"on_discord_clicked", SettingsPanel::on_discord_clicked},
         {"on_docs_clicked", SettingsPanel::on_docs_clicked},
         // Category navigation callbacks (open sub-panel overlays)
-        {"on_display_sound_clicked", SettingsPanel::on_display_sound_clicked},
+        {"on_display_clicked", SettingsPanel::on_display_clicked},
+        {"on_appearance_clicked", SettingsPanel::on_appearance_clicked},
+        {"on_sound_clicked", SettingsPanel::on_sound_clicked},
+        {"on_language_time_clicked", SettingsPanel::on_language_time_clicked},
         {"on_printing_clicked", SettingsPanel::on_printing_clicked},
-        {"on_hardware_clicked", SettingsPanel::on_hardware_clicked},
+        {"on_devices_clicked", SettingsPanel::on_devices_clicked},
         {"on_safety_clicked", SettingsPanel::on_safety_clicked},
         {"on_system_clicked", SettingsPanel::on_system_clicked},
         {"on_help_clicked", SettingsPanel::on_help_clicked},
         {"on_touch_input_clicked", SettingsPanel::on_touch_input_clicked},
+        {"on_connection_clicked", SettingsPanel::on_connection_clicked},
+        {"on_updates_clicked", SettingsPanel::on_updates_clicked},
     });
 }

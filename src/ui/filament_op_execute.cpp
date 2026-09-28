@@ -65,6 +65,10 @@ BackendCaps read_backend_caps(AmsBackend* backend, AmsSystemInfo& info_out, int 
     // tell "bypass is suppressing the lane tier" apart from "this backend
     // never wanted a slot", because a named lane wants opposite treatment.
     caps.bypass_active = backend->is_bypass_active();
+    // nullopt (cannot tell) and false answer alike: only a confident "filament
+    // is at the toolhead that no lane claims" makes the active-head sentinel a
+    // resolvable unload target.
+    caps.toolhead_unaccounted = backend->toolhead_filament_unaccounted().value_or(false);
     return caps;
 }
 
@@ -80,7 +84,8 @@ bool read_unload_target_loaded(AmsBackend* backend, const AmsSystemInfo& info, i
     }
     return unload_target_is_loaded(target_slot, backend->slot_is_actively_loaded(target_slot),
                                    backend->slot_has_filament_at_toolhead(target_slot),
-                                   info.current_slot == target_slot, info.filament_loaded) ||
+                                   info.current_slot == target_slot, info.filament_loaded,
+                                   backend->toolhead_filament_unaccounted().value_or(false)) ||
            backend->slot_filament_parked_in_toolhead(target_slot);
 }
 
@@ -150,7 +155,7 @@ const char* preheat_skip_name(PreheatSkip reason) {
 // Homing
 // ============================================================================
 
-bool needs_home_confirmation(const FilamentOpPlan& plan, StandardMacroSlot slot,
+bool needs_prerequisite_home(const FilamentOpPlan& plan, StandardMacroSlot slot,
                              AmsBackend* backend, bool toolhead_homed) {
     if (toolhead_homed) {
         return false;
@@ -302,11 +307,6 @@ void execute_filament_load(AmsBackend* backend, int slot, const FilamentOpSurfac
                            : backend->load_filament(plan.ams_arg);
         if (!err.success()) {
             spdlog::error("{} Load filament failed: {}", log_tag, err.technical_msg);
-            // The dispatch this home consent was armed for never ran, and the arm
-            // is consumed single-shot by whichever operation dispatches next —
-            // leaving it set would home a later one without asking. Idempotent
-            // no-op when nothing was armed.
-            backend->clear_home_preconfirmed();
             unwind_backend(surface, plan, err);
         }
         // Success is NOT reported here: a backend load is fire-and-forget and
@@ -428,11 +428,12 @@ void execute_filament_unload(AmsBackend* backend, int slot, bool target_is_loade
 void execute_filament_unload(AmsBackend* backend, int slot, bool target_is_loaded,
                              const FilamentOpSurface& surface) {
     const char* log_tag = surface.log_tag;
-    // plan_unload() reads only `present`, so the full read_backend_caps() call
-    // (whose needs_unload_before_load() is a per-lane backend query) buys
-    // nothing here.
+    // plan_unload() reads only `present` and `toolhead_unaccounted`, so the full
+    // read_backend_caps() call (whose needs_unload_before_load() is a per-lane
+    // backend query) buys nothing here.
     helix::ui::BackendCaps caps;
     caps.present = backend != nullptr;
+    caps.toolhead_unaccounted = backend && backend->toolhead_filament_unaccounted().value_or(false);
 
     const auto& unload_info = StandardMacros::instance().get(StandardMacroSlot::UnloadFilament);
     const helix::ui::FilamentOpPlan plan = plan_live_unload(caps, slot, target_is_loaded);

@@ -204,7 +204,7 @@ Installing HelixScreen stops the stock AI failure-detection loop: the launcher h
 
 The interval and threshold are the printer's own, read from `/mnt/UDISK/creality/userdata/config/user_print_refer.json` (`ai_control.pastaTime` = poll period, clamped 5-600s; `ai_control.pastaTruth` = confidence threshold). Nothing writes that file.
 
-The source only reports. Whether a detection pauses the print is decided above it, from the two settings in Settings > Safety & Notifications:
+The source only reports. Whether a detection pauses the print is decided above it, from the two settings in Settings > Safety & Alerts:
 
 - **Spaghetti Detection** (on/off)
 - **Pause on Detection** (pause the print, or only warn)

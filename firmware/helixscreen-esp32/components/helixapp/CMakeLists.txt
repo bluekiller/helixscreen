@@ -130,6 +130,9 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE
     HELIX_HAS_QIDI=1
     HELIX_HAS_SNAPMAKER=1
     HELIX_HAS_SOUND=0
+    # No CJK font fits the storage partition (~900KB for the faces the panel
+    # uses), so zh/ja are left out of the language list and the asset image.
+    HELIX_HAS_CJK=0
     HELIX_ENABLE_SCREENSAVER=0
     HELIX_RELEASE_BUILD)
 # NOTE: HELIX_ENABLE_MOCKS is intentionally NEVER defined on ESP32 — the

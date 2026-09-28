@@ -285,6 +285,38 @@
     <!-- accent_bar_width moved to home_panel.xml -->
     <!-- accent_bar_height moved to home_panel.xml -->
     <!-- accent_bar_gap moved to home_panel.xml -->
+    <!-- Controls > Calibration & Tools: a tile's share of its row. Two per row
+         up to large, so the usual four-tile set is a 2x2 grid with one-line
+         labels; three from xlarge up. Two rows fill the card. -->
+    <string name="calib_cell_width_micro" value="48%"/>
+    <string name="calib_cell_width_tiny" value="48%"/>
+    <string name="calib_cell_width_small" value="48%"/>
+    <string name="calib_cell_width_medium" value="48%"/>
+    <string name="calib_cell_width_large" value="48%"/>
+    <string name="calib_cell_width_xlarge" value="32%"/>
+    <percentage name="calib_cell_height" value="48%"/>
+    <!-- Motors Off beside Motion on the Controls position card: at least 40px
+         wide to tap, with the glyph sized to the one-button-tall row -->
+    <string name="controls_toggle_icon_size_micro" value="xs"/>
+    <string name="controls_toggle_icon_size_tiny" value="sm"/>
+    <string name="controls_toggle_icon_size_small" value="sm"/>
+    <string name="controls_toggle_icon_size_medium" value="sm"/>
+    <string name="controls_toggle_icon_size_large" value="md"/>
+    <string name="controls_toggle_icon_size_xlarge" value="md"/>
+    <px name="controls_toggle_width_micro" value="40"/>
+    <px name="controls_toggle_width_tiny" value="40"/>
+    <px name="controls_toggle_width_small" value="64"/>
+    <px name="controls_toggle_width_medium" value="80"/>
+    <px name="controls_toggle_width_large" value="96"/>
+    <px name="controls_toggle_width_xlarge" value="112"/>
+    <!-- Calibration tiles: the glyph a tile's share of the card holds above a
+         one-line label -->
+    <string name="calib_icon_size_micro" value="sm"/>
+    <string name="calib_icon_size_tiny" value="sm"/>
+    <string name="calib_icon_size_small" value="md"/>
+    <string name="calib_icon_size_medium" value="md"/>
+    <string name="calib_icon_size_large" value="lg"/>
+    <string name="calib_icon_size_xlarge" value="lg"/>
     <percentage name="card_width" value="45%"/>
     <percentage name="card_height" value="80%"/>
 

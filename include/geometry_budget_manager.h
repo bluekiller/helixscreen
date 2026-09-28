@@ -27,11 +27,31 @@ class GeometryBudgetManager {
     static constexpr size_t BYTES_PER_SEG_N8 = 600;
     static constexpr size_t BYTES_PER_SEG_N4 = 300;
 
+    // Upper-ish triangles per raw gcode segment, calibrated on a Pi 3B with a
+    // 3DBenchy (88,096 drawable segments, travels included at tier 1). Coarser
+    // tiers' simplification only lowers the real count, so these estimates
+    // safely gate the GPU triangle budget.
+    static constexpr size_t TRIS_PER_SEG_N16 = 53;
+    static constexpr size_t TRIS_PER_SEG_N8 = 25;
+    static constexpr size_t TRIS_PER_SEG_N4 = 11;
+
     static size_t parse_meminfo_available_kb(const std::string& content);
     size_t calculate_budget(size_t available_kb) const;
     size_t read_system_available_kb() const;
     bool is_system_memory_critical() const;
-    BudgetConfig select_tier(size_t segment_count, size_t budget_bytes) const;
+
+    // Kernel driver name backing the first DRM render node in @p drm_class_dir
+    // (basename of its device/driver symlink, e.g. "vc4-drm"); "" on any
+    // failure. Static so tests can point it at a scratch sysfs tree.
+    static std::string render_driver_name_at(const std::string& drm_class_dir);
+    std::string read_render_driver_name() const;
+
+    // Tier selection gates each tier's byte estimate against @p budget_bytes
+    // and, when @p max_triangles is nonzero, its triangle estimate against it
+    // too. A tier skipped for triangles falls through to the next; 0 disables
+    // the triangle check entirely.
+    BudgetConfig select_tier(size_t segment_count, size_t budget_bytes,
+                             size_t max_triangles = 0) const;
 
     enum class BudgetAction { CONTINUE, DEGRADE, ABORT };
 

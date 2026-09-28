@@ -30,7 +30,7 @@ def test_descends_a_composite_row_to_its_control(helix_app):
     # inside, so callers don't need the toggle's path from ls.
     helix_app.navigate("settings")
     helix_app.wait_idle()
-    helix_app.click("row_display_sound")
+    helix_app.click("row_appearance")
     helix_app.wait_idle()
     try:
         s = helix_app.state("row_widget_labels")
@@ -46,7 +46,7 @@ def test_checked_follows_the_bound_subject(helix_app):
     # row_widget_labels is desktop-visible and driven by show_widget_labels.
     helix_app.navigate("settings")
     helix_app.wait_idle()
-    helix_app.click("row_display_sound")
+    helix_app.click("row_appearance")
     helix_app.wait_idle()
     before = None
     toggle_path = None
@@ -76,7 +76,7 @@ def test_hidden_widget_is_still_resolvable_and_reports_the_flag(helix_app):
     # list it — resolving it by name and reading flags.hidden is the point.
     helix_app.navigate("settings")
     helix_app.wait_idle()
-    helix_app.click("row_hardware")
+    helix_app.click("row_devices")
     helix_app.wait_idle()
     helix_app.click("row_ams_settings")
     helix_app.wait_idle()

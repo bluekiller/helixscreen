@@ -150,12 +150,12 @@ When multiple printers are configured, the config file uses a versioned schema w
 
 Each printer entry contains all printer-specific settings (connection details, hardware selections, LED config, filament sensors, etc.). Device-level settings like WiFi and display preferences remain at the root level and are shared across all printers.
 
-> **Note:** You don't need to edit the config file manually — use the Settings > Hardware & Devices > Printers UI to add and manage printers. The config file is shown here for reference.
+> **Note:** You don't need to edit the config file manually — use the Settings > Connection > Printers UI to add and manage printers. The config file is shown here for reference.
 
 ---
 
 > **Looking for a walkthrough of each setting?** See the detailed guides:
-> [Display & Sound](guide/settings/display-sound.md) · [Printing](guide/settings/printing.md) · [Hardware & Devices](guide/settings/hardware.md) · [Safety & Notifications](guide/settings/safety.md) · [System](guide/settings/system.md) · [LED Settings](guide/settings/led-settings.md) · [Help & About](guide/settings/help-about.md)
+> [Display](guide/settings/display.md) · [Appearance](guide/settings/appearance.md) · [Touch & Input](guide/settings/touch-input.md) · [Sound](guide/settings/sound.md) · [Printing](guide/settings/printing.md) · [Devices](guide/settings/devices.md) · [LED Settings](guide/settings/led-settings.md) · [Safety & Alerts](guide/settings/safety.md) · [Connection](guide/settings/connection.md) · [Language & Time](guide/settings/language-time.md) · [System](guide/settings/system.md) · [Updates](guide/settings/updates.md) · [Help & About](guide/settings/help-about.md)
 
 ## General Settings
 
@@ -172,13 +172,13 @@ Each printer entry contains all printer-specific settings (connection details, h
 
 ### `sounds_enabled`
 **Type:** boolean
-**Default:** `true`
+**Default:** `false`
 **Description:** Master switch for all sound effects. When `false`, no sounds play (UI or event). This is the "mute" toggle — it silences playback but still initializes the audio backend (see `disable_sound` to prevent initialization entirely).
 
 ### `ui_sounds_enabled`
 **Type:** boolean
 **Default:** `true`
-**Description:** Enable UI interaction sounds specifically (button taps, navigation clicks). Independent of event sounds like the print-complete chime, so you can keep alerts while silencing tap feedback. Has no effect when `sounds_enabled` is `false`. Adjustable via **Settings > Display & Sound**.
+**Description:** Enable UI interaction sounds specifically (button taps, navigation clicks). Independent of event sounds like the print-complete chime, so you can keep alerts while silencing tap feedback. Has no effect when `sounds_enabled` is `false`. Adjustable via **Settings > Sound**.
 
 ### `sound_theme`
 **Type:** string
@@ -188,14 +188,14 @@ Each printer entry contains all printer-specific settings (connection details, h
 
 ### `completion_alert`
 **Type:** integer
-**Default:** `1`
+**Default:** `2`
 **Values:** `0` (Off), `1` (Notification), `2` (Alert)
 **Description:** How HelixScreen notifies you when a print completes or is cancelled (while you're on a different screen):
 - `0` — **Off**: No notification (sound still plays if sounds are enabled)
 - `1` — **Notification**: Brief toast message at the top of the screen
 - `2` — **Alert**: Full-screen modal with print stats (duration, layers, filament used) and confetti for successful prints
 
-Errors always show the full alert regardless of this setting. To change this in the UI, go to **Settings > Safety & Notifications > Print Completion Alert** and select from the dropdown.
+Errors always show the full alert regardless of this setting. To change this in the UI, go to **Settings > Safety & Alerts > Print Completion Alert** and select from the dropdown.
 
 ### `disable_sound`
 **Type:** boolean
@@ -218,7 +218,7 @@ This is different from `sounds_enabled` — that toggle mutes playback but still
 **Type:** string
 **Default:** `"en"`
 **Values:** `"en"`, `"de"`, `"es"`, `"fr"`, `"it"`, `"ja"`, `"pt"`, `"ru"`, `"zh"`
-**Description:** UI language code. Nine languages are supported (English, German, Spanish, French, Italian, Japanese, Portuguese, Russian, Chinese). Change via Settings > Display & Sound > Language.
+**Description:** UI language code. Nine languages are supported (English, German, Spanish, French, Italian, Japanese, Portuguese, Russian, Chinese). Change via Settings > Language & Time > Language.
 
 ### `beta_features`
 **Type:** boolean
@@ -243,7 +243,7 @@ Located in the `sounds` section:
 **Type:** integer
 **Default:** `80`
 **Range:** `0` - `100`
-**Description:** Master playback volume as a percentage. `0` is silent, `100` is full volume. Adjustable via **Settings > Display & Sound**. This scales the level of all sounds; the `sounds_enabled` and `ui_sounds_enabled` toggles decide *whether* sounds play at all.
+**Description:** Master playback volume as a percentage. `0` is silent, `100` is full volume. Adjustable via **Settings > Sound**. This scales the level of all sounds; the `sounds_enabled` and `ui_sounds_enabled` toggles decide *whether* sounds play at all.
 
 ---
 
@@ -287,7 +287,7 @@ Located in the `theme` section:
 | 16 | Tokyo Night |
 | 17 | Yami |
 
-> **Tip:** You can also browse and apply themes visually in **Settings > Display & Sound > Theme Colors**.
+> **Tip:** You can also browse and apply themes visually in **Settings > Appearance > Theme Colors**.
 
 ---
 
@@ -378,12 +378,12 @@ Located in the `display` section:
 **Type:** string
 **Default:** `"UTC"`
 **Example:** `"America/New_York"`, `"Europe/London"`
-**Description:** IANA timezone ID used for all displayed clocks and print time estimates. Set this so times shown on screen match your local time instead of UTC. Change via **Settings > Display & Sound > Timezone**.
+**Description:** IANA timezone ID used for all displayed clocks and print time estimates. Set this so times shown on screen match your local time instead of UTC. Change via **Settings > Language & Time > Timezone**.
 
 ### `theme`
 **Type:** string
 **Default:** `"helixscreen"`
-**Description:** Active color theme by name (e.g., `"nord"`, `"dracula"`, `"gruvbox"`). This is the string that actually determines the effective theme — the numeric `theme.preset` index is a legacy field. **Requires restart to take effect.** Easiest to change via **Settings > Display & Sound > Theme Colors**, which writes this value for you.
+**Description:** Active color theme by name (e.g., `"nord"`, `"dracula"`, `"gruvbox"`). This is the string that actually determines the effective theme — the numeric `theme.preset` index is a legacy field. **Requires restart to take effect.** Easiest to change via **Settings > Appearance > Theme Colors**, which writes this value for you.
 
 ### `layout`
 **Type:** string
@@ -397,7 +397,7 @@ Located in the `display` section:
 **Type:** integer
 **Default:** `0`
 **Values:** `0`, `90`, `180`, `270`
-**Description:** Rotate the entire display by the specified degrees. Touch coordinates are automatically adjusted to match. Change via **Settings > Display & Sound > Screen Rotation** (applies after restart).
+**Description:** Rotate the entire display by the specified degrees. Touch coordinates are automatically adjusted to match. Change via **Settings > Display > Screen Rotation** (applies after restart).
 
 **Automatic detection:** On first boot, HelixScreen checks the kernel for panel orientation (e.g., `panel_orientation=upside_down` in the kernel command line). If detected, the rotation is applied immediately and saved here — no manual configuration needed. On framebuffer displays only (e.g., AD5M — **not** Raspberry Pi), an interactive rotation wizard runs instead if no kernel hint is found.
 
@@ -420,7 +420,7 @@ Framebuffer displays (AD5M, K1, K2, CC1, AD5X) rotate by any angle with no meani
 ### `sleep_while_printing`
 **Type:** boolean
 **Default:** `true`
-**Description:** Whether the screen is allowed to dim and sleep during an active print. When `true`, the normal `dim_sec`/`sleep_sec` timers apply while printing. Set to `false` to keep the display on for the whole print so you can glance at progress without touching the screen. Adjustable via **Settings > Display & Sound**.
+**Description:** Whether the screen is allowed to dim and sleep during an active print. When `true`, the normal `dim_sec`/`sleep_sec` timers apply while printing. Set to `false` to keep the display on for the whole print so you can glance at progress without touching the screen. Adjustable via **Settings > Display**.
 
 ### `dim_sec`
 **Type:** integer
@@ -461,7 +461,7 @@ The K2 build default applies only when the backlight is a sysfs device (`/sys/cl
 **Type:** integer
 **Default:** `1`
 **Values:** `0` = Off, `1` = Flying Toasters, `2` = Starfield, `3` = 3D Pipes, `4` = Bouncing Printer, `5` = Fireworks
-**Description:** Which screensaver plays when the screen has been idle. Choose it in **Settings > Display & Sound**. It starts at the `dim_sec` mark, alongside dimming, and stops when `sleep_sec` takes the display down. On a panel with no backlight control the screensaver is the only idle indication you get. A fresh install selects Flying Toasters on every device that has screensavers. Each screensaver checks its own cost on your device and lowers its frame rate or detail, or shows a plain black screen, if it would slow the printer (see `screensaver_levels`).
+**Description:** Which screensaver plays when the screen has been idle. Choose it in **Settings > Display**. It starts at the `dim_sec` mark, alongside dimming, and stops when `sleep_sec` takes the display down. On a panel with no backlight control the screensaver is the only idle indication you get. A fresh install selects Flying Toasters on every device that has screensavers. Each screensaver checks its own cost on your device and lowers its frame rate or detail, or shows a plain black screen, if it would slow the printer (see `screensaver_levels`).
 
 ### `screensaver_levels`
 **Type:** object
@@ -516,7 +516,7 @@ The mode can be overridden per launch without touching settings. Precedence is c
 ### `page_scroll_buttons`
 **Type:** boolean
 **Default:** `false`
-**Description:** Show up/down scroll buttons on long lists throughout the app. Useful on small screens or displays where drag-to-scroll feels unresponsive. See [Display & Sound Settings](guide/settings/display-sound.md#scroll-buttons) for details.
+**Description:** Show up/down scroll buttons on long lists throughout the app. Useful on small screens or displays where drag-to-scroll feels unresponsive. See [Touch & Input Settings](guide/settings/touch-input.md#scroll-buttons) for details.
 
 ### `speed_flow_physical_units`
 **Type:** boolean
@@ -529,7 +529,7 @@ The mode can be overridden per launch without touching settings. Precedence is c
 **Values:** `0`, or `100`-`200`
 **Description:** Size of the whole interface. `0` means Automatic: HelixScreen works the scale out from the panel's physical pixel density, which leaves every supported printer at exactly `100` and only grows the UI on very high-density screens such as a phone. Any other value is an explicit percentage that overrides the measurement — useful if the interface comes out too small or too large on your display. A value outside the range is ignored and treated as Automatic.
 
-**Takes effect on the next start.** HelixScreen sizes fonts and layout once, while the screen is being set up, so changing this mid-session cannot re-scale what is already drawn. See [Display & Sound Settings](guide/settings/display-sound.md#ui-scale).
+**Takes effect on the next start.** HelixScreen sizes fonts and layout once, while the screen is being set up, so changing this mid-session cannot re-scale what is already drawn. See [Display Settings](guide/settings/display.md#ui-scale).
 
 ### `printer_image`
 **Type:** string
@@ -648,12 +648,12 @@ Matches LVGL's native default of 10.
 **Example:** `["002c:261a"]`
 **Description:** USB input devices that HelixScreen ignores entirely for keyboard and barcode-scanner input. Each entry is a `"vid:pid"` pair of lowercase 4-digit hex IDs. Use this when a USB barcode scanner enumerates as a plain HID keyboard and HelixScreen keeps claiming it — for example when an external tool like `afc-spool-scan` needs exclusive access to the scanner. A blacklisted device is skipped by both the persistent keyboard binding and the in-app scan overlay, but still appears in the Barcode Scanner settings device list so you can identify it.
 
-**Finding a device's VID:PID:** Open **Settings > Hardware & Devices > Spoolman > Barcode Scanner** — the device list shows each device's VID:PID. Alternatively, run `lsusb` over SSH and read the ID pair after `ID` (e.g. `ID 002c:261a`). See [Sharing a scanner with another tool](guide/barcode-scanner.md#sharing-a-scanner-with-another-tool-device-blacklist) for the full walkthrough.
+**Finding a device's VID:PID:** Open **Settings > Devices > Spoolman > Barcode Scanner** — the device list shows each device's VID:PID. Alternatively, run `lsusb` over SSH and read the ID pair after `ID` (e.g. `ID 002c:261a`). See [Sharing a scanner with another tool](guide/barcode-scanner.md#sharing-a-scanner-with-another-tool-device-blacklist) for the full walkthrough.
 
 ### `scroll_guard`
 **Type:** boolean
 **Default:** `false` (`true` in the AD5M and AD5X presets)
-**Description:** Has no effect in current builds. The value is stored and appears as the **Scroll Guard** toggle under **Settings > System > Touch & Input**, and the AD5M and AD5X presets still set it to `true`, but nothing reads it. Keeping the key in an existing settings file is harmless. For clicks that fire while you are still scrolling, the setting that helps is `scroll_limit` (see [Touch Feel](TROUBLESHOOTING.md#touch-feel--which-setting-do-i-tune)); there is currently no setting that suppresses a click at the instant you lift off a scroll.
+**Description:** Ignore the stray click some touch controllers send when you lift your finger at the end of a scroll: a press that starts within `scroll_guard_cooldown_ms` (default 80 ms, range 20 to 500) of a scroll does not count as a click. Shown as the **Scroll Guard** toggle under **Settings > Touch & Input**. The AD5M and AD5X presets set it to `true`. Takes effect after a restart. Applies only to built-in touchscreens (DRM/fbdev); the desktop (SDL) and Android builds ignore it. `HELIX_SCROLL_GUARD` and `HELIX_SCROLL_GUARD_COOLDOWN_MS` override the saved values. For clicks that fire while you are still scrolling, the setting that helps is `scroll_limit` (see [Touch Feel](TROUBLESHOOTING.md#touch-feel--which-setting-do-i-tune)).
 
 ### `force_calibration`
 **Type:** boolean
@@ -676,7 +676,8 @@ Located in the `motion` section. These back the jog pad; set them from the scree
     "coarse_inner": 1.0,
     "coarse_outer": 10.0,
     "turbo_inner": 10.0,
-    "turbo_outer": 50.0
+    "turbo_outer": 50.0,
+    "show_actual_position": false
   }
 }
 ```
@@ -697,6 +698,11 @@ Located in the `motion` section. These back the jog pad; set them from the scree
 **Type:** number
 **Range:** `0.01` - `200`
 **Description:** Distance in mm moved per tap, for each jog mode's inner and outer ring. Defaults: Fine 0.1/1, Coarse 1/10, Turbo 10/50. The ring labels on the jog pad show whatever you set.
+
+### `show_actual_position`
+**Type:** boolean
+**Default:** `false`
+**Description:** What the X/Y/Z coordinates on the Motion screen show when it opens: the commanded position (`false`) or the actual measured position (`true`). Tapping the Target / Actual chip next to the coordinates flips it, so this is normally set from the screen rather than by hand. Remembered per printer.
 
 ---
 
@@ -721,7 +727,7 @@ Located in the `output` section:
 
 ## Network Settings
 
-Nothing about the network connection is stored in `settings.json`. The connection type, SSID and IP address shown in **Settings > System > Network** are read live from the printer's operating system, and the setup wizard configures the actual network through the printer, not through this file.
+Nothing about the network connection is stored in `settings.json`. The connection type, SSID and IP address shown in **Settings > Connection > Network Settings** are read live from the printer's operating system, and the setup wizard configures the actual network through the printer, not through this file.
 
 ---
 
@@ -836,6 +842,12 @@ Located in the `printer` section:
 **Values:** `"auto"`, `"none"`, or a Klipper object name
 **Description:** Which temperature sensor reports the enclosure/chamber temperature. `"auto"` detects it by name heuristics, `"none"` disables chamber-temperature display, or name the Klipper object explicitly (e.g., `"temperature_sensor enclosure_bme"`). Set this if your chamber temperature reads from the wrong sensor or isn't detected.
 
+### `enclosure_style`
+**Type:** integer
+**Default:** `0`
+**Values:** `0` = Auto, `1` = Enclosed, `2` = Open frame
+**Description:** Whether the printer counts as enclosed, which decides whether drying filament on the heated bed is offered. Auto treats a printer as enclosed when its model is known to ship enclosed or a chamber heater is configured. Set it from **Settings > Printing > Enclosure**.
+
 ### `z_offset.step_index`
 **Type:** integer
 **Default:** `2`
@@ -846,7 +858,7 @@ Located in the `printer` section:
 
 ## LED Settings
 
-Located in the `printer.leds` section. Configured via **Settings > LED Settings**.
+Located in the `printer.leds` section. Configured via **Settings > Devices > LED Settings**.
 
 ### `leds.strip`
 **Type:** string
@@ -856,7 +868,7 @@ Located in the `printer.leds` section. Configured via **Settings > LED Settings*
 ### `leds.selected_strips`
 **Type:** array of strings
 **Default:** `[]`
-**Description:** Klipper LED strip IDs to control (e.g., `["neopixel caselight", "dotstar toolhead"]`). Supports neopixel, dotstar, led, and WLED strips. Configured via **Settings > LED Settings**.
+**Description:** Klipper LED strip IDs to control (e.g., `["neopixel caselight", "dotstar toolhead"]`). Supports neopixel, dotstar, led, and WLED strips. Configured via **Settings > Devices > LED Settings**.
 
 ### `leds.led_on_at_start`
 **Type:** boolean
@@ -932,7 +944,7 @@ Located in the `printer.leds` section. Configured via **Settings > LED Settings*
 - `toggle_macro` — Macro name for toggle type
 - `presets` — Array of `{"name": "...", "macro": "..."}` objects for preset type
 
-Configured via **Settings > LED Settings > Macro Devices**.
+Configured via **Settings > Devices > LED Settings > Macro Devices**.
 
 ### `extra_sensors`
 **Type:** object
@@ -948,7 +960,7 @@ Configured via **Settings > LED Settings > Macro Devices**.
 
 ### `default_macros`
 **Type:** object
-**Description:** G-code macros for quick-action buttons throughout the UI. Each macro can be a plain G-code string or an object with `label` and `gcode` fields.
+**Description:** G-code HelixScreen runs for built-in buttons. Each entry can be a plain G-code string or an object with `label` and `gcode` fields. Only `cooldown` is read today: the Filament panel's Load and Unload follow the [standard macros](#standard-macros-quick-action-buttons), and the Controls panel's quick buttons follow `quick_button_1` … `quick_button_4`. The other keys are still written with their defaults and are ignored.
 
 **Default values:**
 
@@ -967,10 +979,7 @@ Configured via **Settings > LED Settings > Macro Devices**.
 | Key | Format | Where it's used |
 |-----|--------|-----------------|
 | `cooldown` | G-code string | Preheat widget (auto-shows "Cool Down" when heaters are on), Filament panel cooldown button |
-| `load_filament` | `{ "label", "gcode" }` | Filament panel Load button |
-| `unload_filament` | `{ "label", "gcode" }` | Filament panel Unload button |
-| `macro_1` | `{ "label", "gcode" }` | Controls panel custom button 1 |
-| `macro_2` | `{ "label", "gcode" }` | Controls panel custom button 2 |
+| `load_filament`, `unload_filament`, `macro_1`, `macro_2` | `{ "label", "gcode" }` | Not read |
 
 **Customizing cooldown for enclosed printers:**
 
@@ -1073,8 +1082,10 @@ Located in the `standard_macros` section. These pick which built-in actions appe
 ### `quick_button_1` … `quick_button_4`
 **Type:** string
 **Default:** `"clean_nozzle"` (button 1), `"bed_level"` (button 2), `""` (buttons 3 and 4)
-**Values:** `"clean_nozzle"`, `"bed_level"`, `"heat_soak"`, `"purge"`, `"bed_mesh"`, or `""` (empty = hide the button)
-**Description:** Assigns a built-in action to each of the four Controls-panel quick buttons. An empty string hides that button. The action runs the matching macro on your printer (auto-detected from your Klipper config). Configured most easily via **Settings > Printing > Macro Buttons** rather than by editing JSON.
+**Values:** any standard action name (`"load_filament"`, `"unload_filament"`, `"purge"`, `"pause"`, `"resume"`, `"cancel"`, `"bed_mesh"`, `"bed_level"`, `"screws_tilt"`, `"clean_nozzle"`, `"heat_soak"`, `"park_toolhead"`), `"builtin:light"` (the printer light toggle), or `""` (empty = hide the button)
+**Description:** Assigns an action to each of the four Controls-panel quick buttons. A standard action runs the macro assigned to it (auto-detected from your Klipper config unless you override it below). `"builtin:light"` makes the button a light switch, hidden while no light is controllable. An empty string hides the button.
+
+A key that is **absent** is different from one set to `""`. While a light is controllable and no button is set to `"builtin:light"`, the first button whose key is absent and that would otherwise show nothing becomes the light switch. A button set to `""` is never filled that way. Configured most easily via **Settings > Printing > Macro Buttons** rather than by editing JSON.
 
 ### `load_filament`, `unload_filament`, `purge`, `pause`, `resume`, `cancel`, `bed_mesh`, `bed_level`, `clean_nozzle`, `heat_soak`
 **Type:** string
@@ -1199,7 +1210,7 @@ The remaining AMS settings are **per printer**, so they live under the printer's
 }
 ```
 
-All four have UI equivalents in **Settings > Hardware & Devices > Multi-Filament System Management** - edit them there rather than by hand.
+All four have UI equivalents in **Settings > Devices > Multi-Filament System Management** - edit them there rather than by hand.
 
 #### `force_bypass_controls`
 **Type:** boolean
@@ -1305,7 +1316,7 @@ Each widget object has:
 | `source` | `filament` | Which sensor role the tile follows: `"auto"` (default), `"runout"`, `"toolhead"`, or `"entry"` |
 | `material_index` | `preheat` | Which material profile the buttons preheat to |
 
-`require_confirmation` is the one worth spelling out: omitted (the default) means tapping the button prompts first - a parameter form when the macro takes parameters, otherwise the Settings > Safety confirmation dialog. `false` runs the macro on a single tap with no parameters and no dialog. Dangerous macros confirm regardless. Set it from the widget's **Options** tab; see [Macro Button confirmation](guide/home-panel.md#macro-button-confirmation).
+`require_confirmation` is the one worth spelling out: omitted (the default) means tapping the button prompts first - a parameter form when the macro takes parameters, otherwise the Settings > Safety & Alerts confirmation dialog. `false` runs the macro on a single tap with no parameters and no dialog. Dangerous macros confirm regardless. Set it from the widget's **Options** tab; see [Macro Button confirmation](guide/home-panel.md#macro-button-confirmation).
 
 > Configs written before `config_version` 23 stored the inverse of this as `skip_param_prompt`, which suppressed only the parameter form. HelixScreen rewrites it to `require_confirmation` on first launch.
 
@@ -1474,7 +1485,7 @@ Located in the `notifications` section:
 **Type:** integer
 **Default:** `0`
 **Values:** `0` (all toasts), `1` (warnings & errors), `2` (errors only)
-**Description:** The lowest notification level allowed to interrupt with a toast. Below-the-line notifications still land in the notification history; full-screen error dialogs always show. Change via **Settings > Safety & Notifications > On-screen Alerts**.
+**Description:** The lowest notification level allowed to interrupt with a toast. Below-the-line notifications still land in the notification history; full-screen error dialogs always show. Change via **Settings > Safety & Alerts > On-screen Alerts**.
 
 ---
 
@@ -1494,7 +1505,7 @@ Located in the `filament` section:
 ### `auto_cooldown`
 **Type:** boolean
 **Default:** `true`
-**UI:** Settings > Safety & Notifications > **Cool nozzle after filament ops**
+**UI:** Settings > Printing > **Cool nozzle after filament ops**
 **Description:** Whether HelixScreen turns the extruder heater off after a filament load or unload completes. Turn this off if your filament system runs its own post-operation cooldown — AFC does, in recent versions — so the two aren't both driving the same heater.
 
 ### `cooldown_delay_seconds`
@@ -1578,7 +1589,7 @@ Located in the `security` section. Controls the optional PIN lock screen:
 
 ## Label Printer Settings
 
-Located in the `label_printer` section. Configures the thermal label printer used to print filament spool labels. This is best set up through **Settings > Hardware & Devices > Spoolman > Label Printer** — scanning and selecting a printer fills these fields in for you. The keys are documented here for reference. See the [Label Printing guide](guide/label-printing.md) for the full walkthrough.
+Located in the `label_printer` section. Configures the thermal label printer used to print filament spool labels. This is best set up through **Settings > Devices > Spoolman > Label Printer** — scanning and selecting a printer fills these fields in for you. The keys are documented here for reference. See the [Label Printing guide](guide/label-printing.md) for the full walkthrough.
 
 ```json
 {

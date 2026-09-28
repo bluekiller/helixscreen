@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- Theme Explorer Overlay - Primary theme selection and preview interface -->
-<!-- Navigation: Settings → Display → Theme → (this) → Edit Colors (optional) -->
+<!-- Navigation: Settings → Appearance → Theme Colors → (this) → Edit Colors (optional) -->
 <component>
   <view name="theme_preview_overlay"
         extends="overlay_panel" title="Theme" title_tag="Theme" bg_color="#screen_bg" hide_action_button="false"

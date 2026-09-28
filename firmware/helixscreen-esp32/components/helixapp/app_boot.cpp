@@ -43,6 +43,7 @@
 #include "ui_icon.h"
 #include "ui_keyboard_manager.h"
 #include "ui_nav_manager.h"
+#include "ui_notification_history.h"
 #include "ui_notification_manager.h"
 #include "ui_panel_home.h"
 #include "ui_severity_card.h"
@@ -84,6 +85,8 @@
 #include "setting_group.h"
 #include "src/xml/lv_xml.h"
 #include "subject_initializer.h"
+#include "system/afc_message_dedup.h"
+#include "temp_graph_controller.h"
 #include "temperature_sensor_manager.h"
 #include "text_io.h"
 #include "theme_manager.h"
@@ -467,6 +470,10 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 }
                 helix::ToolState::instance().init_tools(*snapshot);
                 helix::ToolState::instance().load_spool_assignments(api);
+                if (c) {
+                    // Graphs start from Moonraker's cached history, as on desktop.
+                    helix::TempGraphController::seed_from_moonraker(*c);
+                }
 
                 // Dispatch the initial subscription status LAST, after the
                 // fan/sensor/extruder/AMS subjects exist. dispatch_status_update
@@ -570,13 +577,20 @@ void kick_moonraker_connect_once() {
 }
 
 // R4: bounded wait for the FIRST post-boot association, replacing the old
-// portMAX_DELAY park (which held this thread's 32KB stack forever against a
+// portMAX_DELAY park (which held this thread's stack forever against a
 // never-associating network — the Task 9 backlog item now due). 20s covers
 // the historical successful-assoc case with margin; the backend's own
 // assoc-timeout + bounded backoff retry (wifi_backend_esp.cpp) keep trying
 // underneath regardless of whether this wait succeeds.
 constexpr int BOOT_BOUNDED_WAIT_MS = 20000;
 constexpr int BOOT_POLL_INTERVAL_MS = 200;
+
+// The connect thread's stack, one contiguous internal-RAM block claimed after
+// the UI stack and the RGB bounce buffers. What is left of the heap's largest
+// block at that point varies by about 1KB with static DRAM, and has measured
+// 31,744 bytes, so the request must stay below that. The thread logs its
+// high-water mark on exit.
+constexpr unsigned APP_NET_STACK_BYTES = 24 * 1024;
 
 void* app_net_thread_main(void*) {
     // Opens the esp_wifi hardware bring-up gate — see wifi_backend_esp.h for
@@ -637,19 +651,21 @@ void* app_net_thread_main(void*) {
                  BOOT_BOUNDED_WAIT_MS);
     }
     // Handoff is either done above or deferred to the state observer — exit
-    // either way, freeing this thread's 32KB stack (R4: no permanent park).
+    // either way, freeing this thread's stack (R4: no permanent park).
+    ESP_LOGI(TAG, "app_net: exiting, stack never used below %u of %u bytes free",
+             (unsigned)uxTaskGetStackHighWaterMark(nullptr), (unsigned)APP_NET_STACK_BYTES);
     return nullptr;
 }
 
 // Spawn the connect thread. Called at the END of app_boot_ui() (home panel up),
-// so the pthread stack — the only >=32KB internal allocation on this path — is
+// so the pthread stack — the largest internal allocation on this path — is
 // claimed AFTER the boot's internal-DRAM gates and BEFORE esp_wifi_start()
 // (which runs inside the thread). pthread-created + detached, mirroring net_hil
 // (which documented an ENOMEM near-miss when a net thread spawned after WiFi).
 void app_net_start() {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, 32 * 1024);
+    pthread_attr_setstacksize(&attr, APP_NET_STACK_BYTES);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     pthread_t thread;
@@ -685,6 +701,19 @@ extern "C" void app_boot_set_touch_available(bool available) {
     s_touch_available = available;
 }
 
+extern "C" void app_boot_print_notifications(void) {
+    static const char* const kSeverity[] = {"INFO", "SUCCESS", "WARNING", "ERROR"};
+    const auto entries = NotificationHistory::instance().get_all();
+    printf("\n=====HELIX-NOTES %u\n", static_cast<unsigned>(entries.size()));
+    for (const auto& e : entries) {
+        const auto sev = static_cast<unsigned>(e.severity);
+        printf("NOTE: %s t=%llums %s%s%s\n", sev < 4 ? kSeverity[sev] : "?",
+               static_cast<unsigned long long>(e.timestamp_ms), e.title, e.title[0] ? ": " : "",
+               e.message);
+    }
+    printf("=====HELIX-NOTES-END\n");
+}
+
 extern "C" void app_boot_ui(void) {
     log_heap_milestone("boot-ui-start");
 
@@ -704,12 +733,15 @@ extern "C" void app_boot_ui(void) {
     helix::Config* config = helix::Config::get_instance();
     config->set_storage(helix::make_file_config_storage("/config/settings.json"));
     config->init("/config/settings.json");
+    // Remembers which AFC message each printer has already shown, so one AFC
+    // latched hours ago toasts once rather than at every boot.
+    helix::AfcMessageDedup::instance().init("/config");
 
     // Task 12 R2: first-boot-only Moonraker host/port seed. If settings.json
     // already has a value (any boot after the user has edited Host in Settings,
     // or a prior first-boot seed), leave it untouched — the Kconfig value must
     // never override a user-set value. Seeding here (before any UI/subject
-    // reads Config) means the Settings > System > Host row and the real
+    // reads Config) means the Settings > Connection > Host row and the real
     // connect path (app_net_start(), below) both see a consistent value from
     // their very first read.
     // The Kconfig URL is empty in the committed tree (a bench address is
@@ -773,13 +805,9 @@ extern "C" void app_boot_ui(void) {
     helix::register_xml_components();
     log_heap_milestone("xml-registered");
 
-    // Notification badge click: the real handler opens the NotificationHistory
-    // panel, which is excluded from the v1 ESP cut (its accessor isn't linked —
-    // notification_register_callbacks() would drag in the excluded panel). The
-    // badge still exists on the home widget, so register a no-op for its event
-    // (BEFORE app_layout XML is created in build_shell) to silence the
-    // "callback not found" warning; opening history is a later stage.
-    lv_xml_register_event_cb(nullptr, "status_notification_history_clicked", [](lv_event_t*) {});
+    // The bell opens the notification history panel. Registered BEFORE
+    // app_layout XML is created in build_shell(), as desktop does.
+    helix::ui::notification_register_callbacks();
 
     // Phase 8: core subjects (PrinterState / AmsState).
     static SubjectInitializer subjects;
@@ -953,7 +981,7 @@ extern "C" void app_boot_ui(void) {
 
 #if !CONFIG_HELIX_MOCK_PRINTER && !CONFIG_HELIX_NET_HIL
     // Bring up WiFi + connect to Moonraker, LAST — the shell is already up, so
-    // the connect thread's stack (the only >=32KB internal alloc on this path)
+    // the connect thread's stack (the largest internal alloc on this path)
     // is claimed after every boot internal-DRAM gate, and the not-ready UI is
     // already on screen while the network converges. Gated off for the NET_HIL
     // test build (net_hil.cpp owns WiFi + its own client there) and for mock

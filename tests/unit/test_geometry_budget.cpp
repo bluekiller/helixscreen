@@ -3,6 +3,13 @@
 
 #include "geometry_budget_manager.h"
 
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <string>
+#include <vector>
+
 #include "../catch_amalgamated.hpp"
 
 using namespace helix::gcode;
@@ -153,6 +160,101 @@ TEST_CASE("Budget: tier 5 for zero budget", "[gcode][budget]") {
     GeometryBudgetManager mgr;
     auto config = mgr.select_tier(100000, 0);
     REQUIRE(config.tier == 5);
+}
+
+// Triangle-cap tier selection: memory alone approves a tier that a slow GPU
+// cannot draw. VC4 (Pi 0-3) draws ~4M tris/s; a multi-second frame wedges the
+// GPU until reboot, so a triangle cap must demote the tier (or refuse 3D)
+// wherever the byte budget alone would not.
+TEST_CASE("Budget: triangle cap demotes tiers that exceed it", "[gcode][budget]") {
+    GeometryBudgetManager mgr;
+    const size_t big_bytes = 256 * 1024 * 1024; // bytes never the binding limit here
+    const size_t cap = 1'000'000;
+
+    // 3DBenchy on a Pi 3B: 88,096 segments est 4.67M/2.20M/0.97M tris per tier.
+    auto benchy = mgr.select_tier(88096, big_bytes, cap);
+    REQUIRE(benchy.tier == 3);
+    REQUIRE(benchy.tube_sides == 4);
+
+    auto small = mgr.select_tier(10000, big_bytes, cap);
+    REQUIRE(small.tier == 1); // 530k tris at N16, under the cap
+
+    auto medium = mgr.select_tier(20000, big_bytes, cap);
+    REQUIRE(medium.tier == 2); // 1.06M at N16 exceeds, 500k at N8 fits
+
+    auto huge = mgr.select_tier(200000, big_bytes, cap);
+    REQUIRE(huge.tier == 4); // 2.2M tris even at N4: 2D fallback
+}
+
+TEST_CASE("Budget: explicit zero triangle cap matches the two-argument form", "[gcode][budget]") {
+    GeometryBudgetManager mgr;
+    const size_t budget = 100 * 1024 * 1024;
+
+    REQUIRE(mgr.select_tier(150000, budget, 0).tier == mgr.select_tier(150000, budget).tier);
+    REQUIRE(mgr.select_tier(300000, budget, 0).tier == mgr.select_tier(300000, budget).tier);
+}
+
+// Render-driver resolution: the triangle cap keys off the kernel driver behind
+// the first DRM render node, resolved through the device/driver symlink.
+namespace {
+
+// RAII scratch directory under $TMPDIR (or /tmp), removed on destruction.
+class ScratchDir {
+  public:
+    ScratchDir() {
+        const char* base = std::getenv("TMPDIR");
+        std::string templ = std::string(base ? base : "/tmp") + "/gcode_budget_XXXXXX";
+        std::vector<char> buf(templ.begin(), templ.end());
+        buf.push_back('\0');
+        if (::mkdtemp(buf.data()) == nullptr) {
+            FAIL("mkdtemp failed: " << std::strerror(errno));
+        }
+        path_ = buf.data();
+    }
+    ~ScratchDir() {
+        if (!path_.empty()) {
+            std::error_code ec;
+            std::filesystem::remove_all(path_, ec);
+        }
+    }
+    const std::string& path() const {
+        return path_;
+    }
+
+  private:
+    std::string path_;
+};
+
+} // namespace
+
+TEST_CASE("Budget: render_driver_name_at resolves the render node driver symlink",
+          "[gcode][budget]") {
+    ScratchDir scratch;
+    std::error_code ec;
+
+    // Shape of /sys/class/drm on a Pi 3B: renderD128/device/driver -> .../vc4-drm.
+    std::filesystem::create_directories(scratch.path() + "/renderD128/device", ec);
+    REQUIRE_FALSE(ec);
+    std::filesystem::create_directories(scratch.path() + "/drivers/vc4-drm", ec);
+    REQUIRE_FALSE(ec);
+    std::filesystem::create_symlink(scratch.path() + "/drivers/vc4-drm",
+                                    scratch.path() + "/renderD128/device/driver", ec);
+    REQUIRE_FALSE(ec);
+
+    REQUIRE(GeometryBudgetManager::render_driver_name_at(scratch.path()) == "vc4-drm");
+}
+
+TEST_CASE("Budget: render_driver_name_at returns empty without a render node", "[gcode][budget]") {
+    ScratchDir scratch;
+    std::error_code ec;
+
+    // card0 alone has no renderD entry to resolve.
+    std::filesystem::create_directories(scratch.path() + "/card0", ec);
+    REQUIRE_FALSE(ec);
+    REQUIRE(GeometryBudgetManager::render_driver_name_at(scratch.path()) == "");
+
+    // A missing drm class dir is a query failure, not a driver name.
+    REQUIRE(GeometryBudgetManager::render_driver_name_at(scratch.path() + "/nope") == "");
 }
 
 // Progressive budget checking tests

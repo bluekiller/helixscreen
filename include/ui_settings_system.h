@@ -3,20 +3,17 @@
 
 /**
  * @file ui_settings_system.h
- * @brief System settings overlay - security, network, host, admin
+ * @brief System settings overlay - security, telemetry, logging, admin
  *
  * This overlay provides access to system administration settings:
  * - Security (PIN lock)
- * - Network settings
- * - Host configuration
- * - Touch calibration
- * - Hardware health
- * - Plugins
+ * - Performance
  * - Telemetry
+ * - Log level
  * - Restart / Factory reset
  *
  * Most callbacks are delegated to the global SettingsPanel which already
- * owns the complex logic (change host modal, factory reset dialog, etc.).
+ * owns the complex logic (factory reset dialog, etc.).
  * This overlay simply registers matching callback names and initializes
  * toggle/description state on activate.
  *
@@ -73,8 +70,6 @@ class SystemSettingsOverlay : public OverlayBase {
 
   private:
     void init_telemetry_toggle();
-    void init_touch_cal_description();
-    void init_host_description();
     void init_log_level_dropdown();
 };
 

@@ -268,11 +268,6 @@ class AmsPanel : public PanelBase {
     void on_path_hub_clicked(lv_point_t click_pt);
 
     /**
-     * @brief Dispatch a selector-menu action to the AMS backend.
-     */
-    void dispatch_selector_action(helix::ui::AmsSelectorMenu::SelectorAction a);
-
-    /**
      * @brief Handle click on bypass spool box in path canvas
      *
      * Opens the edit modal for the external spool (slot_index -2).

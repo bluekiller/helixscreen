@@ -45,9 +45,18 @@ what gets saved.
   then holds a drying temperature for the material, capped at
   90°C, for 12 hours, with a chamber dryer alongside when one is fitted. You are reminded to
   flip the spools halfway, and asked to take them off once the bed is below 40°C. Until you
-  confirm the spools are off, HelixScreen will not home, move or start a print, and a banner
-  says so across restarts and power cuts. Printers you enclosed yourself can be marked
-  enclosed in Settings > Printing.
+  confirm the spools are off, HelixScreen will not home, move, restart Klipper or start a
+  print, and a banner says so across restarts and power cuts. Printers you enclosed yourself
+  can be marked enclosed in Settings > Printing.
+
+- **Dry filament with the chamber heater (#1299)** - a Panda Breath on stock firmware can run
+  its filament-drying cycle from the chamber card: pick a material preset, and the card shows
+  the chamber temperature against the drying target and the time left, with a Stop button. A
+  chamber that levels off below the target is shown as a number rather than treated as a
+  fault. An optional bed assist heats the bed to 70°C for the run and turns it back off
+  however the run ends, and Klipper's idle timeout is held off for the run, which otherwise
+  switches the heaters off five minutes in. DragonBreath firmware has no drying control in
+  Klipper, so it is started from the unit there.
 
 - **Belt tension is measured by plucking, not by a driven sweep (#1303, #1231)** - park the
   gantry, pluck each belt by hand, and the tool listens on Klipper's live accelerometer
@@ -104,7 +113,11 @@ what gets saved.
   On the 13 most common printers (K1, K1C, K1 Max, K2 Plus, Adventurer 5M Pro, AD5X,
   Creator 5 Pro, Qidi Q2, Snapmaker U1, SV08, Voron 0, Trident and V2) each chip points at
   its part: beside the picture with a line to it on a wide tile, on top of it on a small
-  one. Other printers show the chips along the picture's edge.
+  one. Other printers show the chips along the picture's edge - until you tag them: Tag
+  parts in the printer image picker asks for six taps on the picture (nozzle tip, part fan,
+  both front corners of the bed, a spot inside the enclosure, the light), shows the chips
+  where they will sit, and saves. That works for your own photo too, and re-tags a shipped
+  picture you disagree with; Reset tags puts it back.
 - **The filament sensor tile on the home screen is tappable** - a tap now opens the tile's
   modal, and Load, Unload, Purge, Resume and Cancel Print all work from it, sharing the same
   dispatch the runout guidance dialog uses. Which sensor the tile watches is picked in edit
@@ -145,7 +158,7 @@ what gets saved.
   the interval and threshold the printer's `ai_control` settings already hold, and never
   writes them. A confirmed detection pauses the print and opens a dialog offering Resume,
   Abort, Reduce Sensitivity or Turn off detection. The whole pipeline is vendor-neutral: any
-  detection source only reports, and two settings in Safety & Notifications decide what
+  detection source only reports, and two settings in Safety & Alerts decide what
   happens - **Spaghetti Detection** (watch at all) and **Pause on Detection** (pause, or only
   warn). On the first start both are seeded once from the printer's own stored choice
   (`switch` / `pausePrint`) and are HelixScreen's from then on. Printers whose firmware
@@ -178,7 +191,90 @@ what gets saved.
   bed is clear, tap Print, and the job leaves the queue only once the print actually
   starts.
 
+- **The Motion screen is organized into Jog and Move tabs (#865)** - a labeled rail on the
+  left in landscape, icon pills in the header in portrait, and it opens on Jog every time.
+  The position readout that used to sit in a card beside the jog pad moved into the header,
+  so it stays visible on both tabs (the separate "Act:" line is gone; see the swap icon
+  below).
+- **The Move tab sends the toolhead to named bed positions** - a 3x3 grid laid out like the
+  bed seen from above (Rear at the top, Front at the bottom), placed on the print plate
+  from the `[bed_mesh]` probing area rather than the full axis travel, so no preset aims
+  at a purge area or tool dock past the plate; outer positions sit 10% in from the plate
+  edges; on a delta the eight outer positions sit
+  on a circle instead. Moves are XY only, homing first when needed, and the whole tab is
+  disabled while a print runs or is paused, or while the printer is not ready. The
+  positions and Park grey out while the toolhead is moving, so a second tap cannot land
+  mid-move. Park and Motors Off sit under the grid.
+- **Park parks the toolhead** - it runs the printer's own parking macro when one is
+  detected (`PARK`, `PARK_TOOLHEAD` or `TOOLHEAD_PARK`), otherwise lifts the nozzle 10mm
+  and parks over the rear of the plate, never past it; unhomed axes are homed first. Point it at a different macro in
+  Settings > Printing > Macro Buttons.
+- **Tap a coordinate in the header to move there** - a number pad opens for that axis, and
+  a value outside the printer's range is refused with the allowed range while nothing
+  moves; an unhomed axis is homed first, then moved. A Target / Actual chip beside the
+  coordinates names which position is shown and toggles it, lights up for Actual, and is
+  remembered per printer.
+- **Hold to repeat on the jog pad and Z buttons** - after about 0.4s the move repeats
+  roughly every 0.15s for as long as you hold; a quick tap is still exactly one move.
+- **Jog limits are quiet, and the edge is visible before you press** - holding into a limit
+  simply stops; a fresh press that cannot move at all says which axis is at its limit and
+  what the limit is; a partial move happens silently. The Z buttons grey out at their limit
+  (on printers whose bed moves in Z, that is the pair that would move the bed past it), and the
+  limits account for the printer's G-code offset.
+- **Motors Off has a second home and a print guard** - it sits on the Move tab as well as
+  the Controls panel, is disabled while a print runs or is paused, and if a print starts
+  while its confirmation dialog is open, confirming only tells you the motors stay on and
+  does nothing. E-stop remains the way to halt motion during a print.
+
+- **Happy Hare: tell the MMU what is really loaded** - Recover in the AMS Management overlay
+  opens Recover State: pick the gate that is really selected (or Bypass) and whether filament is
+  loaded, or let Happy Hare detect it. Nothing moves; Happy Hare only corrects its tracking, and
+  no tool is remapped. The slot menu gains **Preload** (spool to gate, greyed out during a print
+  or while filament is loaded), the Maintenance section gains **Load Extruder** and **Unload
+  Extruder** for filament already at the toolhead (refused during a print), and Accessories
+  gains **Refresh Spoolman**.
+- **Pinch to zoom the 3D views** - on a capacitive screen, pinching zooms the 3D G-code preview
+  and the 3D bed mesh in on the spot between your fingers, and a two-finger drag moves the zoomed
+  view. Rotate, tap and the exclude-object long-press stay off until every finger has lifted.
+  Resistive screens detect one finger and keep one-finger rotate only.
+- **The OpenAMS filament pressure sensor is on the filament path** - OpenAMS running without AFC
+  shows each unit's FPS as a box labelled FPS; tap it for the current pressure, 0% to 100%.
+
 ### Changed
+
+- **Settings is one list of twelve pages in three groups** (#1023) - Screen (Display, Appearance,
+  Touch & Input, Sound), Printer (Printing, Devices, Safety & Alerts, Connection) and HelixScreen
+  (Language & Time, System, Updates, Help & About). Every page is one tap from the Settings screen,
+  and Display, Appearance, Sound, Devices, Connection, Language & Time and Updates show a short
+  status line, such as your brightness and sleep time or whether an update is waiting. Nothing is
+  reset: every setting keeps its value. Where things went:
+
+  | Was | Now |
+  |-----|-----|
+  | Display & Sound | Display, Appearance, Sound, Language & Time |
+  | Printing > Toolhead Style, G-code Preview, Z Movement | Appearance > Printer Visuals |
+  | Hardware & Devices | Devices |
+  | Hardware & Devices > Printers | Connection > Printers |
+  | Safety & Notifications | Safety & Alerts |
+  | Safety & Notifications > Allow cold load/unload, Cool nozzle after filament ops | Printing |
+  | System > Network Settings, Host | Connection |
+  | System > Touch & Input | Touch & Input, on the Settings screen itself |
+  | Display & Sound > Scroll Buttons, System Keyboard, Keep Navigation Bar | Touch & Input |
+  | Help & About > About > Update Channel, Check for Updates | Updates |
+
+  The upgrade banner's Update button now opens Settings > Updates.
+- **The Controls panel fits small screens** - the Calibration & Tools card holds only
+  calibration (Bed Mesh, Z Calibration, Pressure Adv., Bed Screws, and QGL, Z-Tilt or Tool
+  Offsets where the printer has them) in a grid that keeps every label on one line. Motors
+  Off moves beside Motion on the Position card, sized to tap. The Light becomes a Quick
+  Actions choice: pick **Light** for any Quick Button in Settings > Printing > Macro Buttons,
+  and while an LED is controllable and you have left a slot unassigned, the first such slot
+  shows it. A slot you cleared stays empty.
+- **Pressure advance has a second entry point (#1452)** - besides the Pressure Adv. button on
+  the Controls panel, a Pressure Advance row appears under Advanced > Calibration on the
+  printers that can measure it.
+- **Advanced hides empty sections** - a section whose rows all hide on your printer takes its
+  heading with it.
 
 - **Material types and your Material Temperatures changes live in one editable file** - the
   built-in material table (PLA, PETG, ABS and the rest) now ships in the filament catalog, and your
@@ -250,6 +346,21 @@ what gets saved.
   failure.
 
 ### Fixed
+
+- **Filament stuck in the toolhead with no slot claiming it could not be unloaded** - on the
+  AD5X and the other systems that can tell, the filament sidebar's and Filament panel's
+  Unload now pulls it out of the active head, and a slot's own Unload greys
+  out in that state, since the slot it names may not be the one holding the filament
+  (prestonbrown/helixscreen#1324).
+- **The screen crashed and restarted during print start on the K2** - matching the printer's
+  start-sequence messages could exhaust the small stack the K2 gives each thread, and
+  HelixScreen died with no crash report. The K1, AD5X and Creator 5 Pro builds share the same
+  limit. The matching no longer recurses, every
+  thread gets a larger stack on these printers, and a crash from the main thread running out
+  of stack now leaves a report.
+- **AD5X IFS: the runout warning never lit (#1626)** - the filament system's snapshot dropped
+  the runout flag the backend raised, along with any other field the backend did not copy by
+  name.
 
 - **Tool-change and preheat toasts name the tool the way its button does** - picking Toolhead 4
   on a Snapmaker U1 toasted "Switched to T3", and a single-tool preheat said "Preheat: T0 + bed
@@ -352,7 +463,56 @@ what gets saved.
   saved options and goes through the same start pipeline as any other print; it leaves the
   queue only once the print has actually started, and a busy printer says so.
 
+- **A Happy Hare fault often showed no recovery popup (#1323)** - a fault during a print, or a
+  load or home that failed outside one, now always opens the popup with Happy Hare's own reason,
+  and Happy Hare's own error notice closes behind it. Outside a print it offers no Resume and
+  leads with Recover, which now lets Happy Hare detect the filament position instead of sending a
+  state it did not recognise. The slot error marks follow Happy Hare's real pause, so resuming or
+  cancelling clears them.
+- **Turning Happy Hare's MMU motors on homed the MMU** - the Motors toggle now only powers the
+  motors.
+- **Snapmaker U1: Unload could be unavailable, or the filament system stuck on Unloading** - a
+  head fed to the nozzle by purging can now be unloaded, picking a tool no longer reads as
+  loaded, an unload or preload that settles straight into its resting state ends properly, and
+  a leftover unload state after a restart no longer opens a runout grace window or ends a load
+  running on another lane.
+- **Stock CFS: re-inserting the same tagged spool asked "Same spool?" (#1710)** - a spool whose
+  tag reads back the same values is now recognised as the same spool, and a spool inserted
+  while the box is busy is judged only after its tag has been read. On AFC, a lane record from
+  an older plugin build no longer replaces a spool edit you made.
+- **A second filament system's slots showed the first system's materials** - on a printer with
+  two filament systems, each slot now shows its own system's material and tool badge.
+- **The heat-first warning judged the wrong slot** - Load and Unload now check the material of
+  the slot you selected, and Purge, Extrude and Retract the loaded slot's, instead of the active
+  slot's. On systems that load several heads at once, the sidebar buttons read **Load...** and
+  **Unload...** because they open a picker.
+- **The MMU's selector, buffer and bypass boxes ignored taps right after the screen opened** -
+  a tap on the filament path now lands on the box you see as soon as the panel has slid in.
+- **Fan and light controls could show frozen dials** - after the fan or light controls had been
+  opened from two different places (the home widget and the Controls panel, say), going back to
+  the first could bring up a stale copy whose dials no longer moved. Every entry point now opens
+  the same live screen.
+- **A large G-code preview could freeze a Raspberry Pi 3 or older** - the 3D preview now caps
+  its detail by what the GPU can draw, and on a Pi 0 to 3 a file too big for that shows as 2D
+  instead of stalling the graphics.
+- **The number keypad was cramped on 480x320 and 480x272 screens** - it is wider there, its keys
+  fill the height, heater keypads are titled with the short heater name, and header titles
+  shorten with dots instead of wrapping.
+
 ### Internal
+
+- K1, AD5X, Creator 5 Pro and K2 builds (musl) link with `-Wl,-z,stack-size=1048576`, because
+  musl gives each thread 128 KiB unless the binary asks for more. The crash handler runs on a
+  64 KiB alternate stack for the installing thread; other threads have none, so an overflow
+  there still leaves no crash file. A lint gate keeps `std::regex`, whose matcher recurses per
+  input character, out of app code (`// STD_REGEX_OK: <reason>` opts out).
+- A cached `lv_obj_t*` member is a `helix::ui::WidgetRef`, which clears itself on the widget's
+  delete, instead of a per-site `LV_EVENT_DELETE` hook (#1298). A ratchet counts the raw
+  members that remain.
+- The four `SlotRegistry` backends build their snapshot from their own system info and
+  overwrite only the slot-owned fields, instead of copying the rest by name (#1626).
+- `helix-tests` links through a response file: the inline object list passed Linux's 128 KiB
+  per-argument limit and the ASAN link failed with "Argument list too long".
 
 - The pre-v22 grid is reconstructed rather than recorded. `legacy_grid_cols()` is a frozen
   copy of the old column table, and the old row count is read back off the saved layout, which

@@ -493,8 +493,9 @@ void MemoryMonitor::fire_warning(MemoryPressureLevel level, const std::string& r
     size_t responders_threw = 0;
 
     for (const auto& [id, responder] : responders) {
+        const auto& respond = responder; // a lambda cannot capture a structured binding in C++17
         if (helix::contain_exceptions(fmt::format("[MemoryMonitor] Pressure responder {}", id),
-                                      [&] { responder(level); })) {
+                                      [&] { respond(level); })) {
             ++responders_fired;
         } else {
             ++responders_threw;

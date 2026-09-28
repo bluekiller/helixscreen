@@ -1403,6 +1403,9 @@ void draw_animation_parallel(lv_layer_t* layer, const BaseGeometry& g,
 // ============================================================================
 
 void render_overlay_content(lv_obj_t* obj, lv_layer_t* layer, FilamentPathData* data) {
+    lv_area_t coords;
+    lv_obj_get_coords(obj, &coords);
+    data->hits.origin = {coords.x1, coords.y1};
     if (data->topology == static_cast<int>(PathTopology::MIXED)) {
         render_mixed(obj, layer, data);
     } else if (data->topology == static_cast<int>(PathTopology::PARALLEL)) {

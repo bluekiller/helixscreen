@@ -1868,6 +1868,29 @@ TEST_CASE("PrinterDiscovery: build volume parsed from configfile.settings steppe
     REQUIRE(discovery.build_volume().z_max == 340.0f);
 }
 
+TEST_CASE("PrinterDiscovery: bed_mesh mesh_min/max declares the plate",
+          "[printer_discovery][build_volume]") {
+    helix::PrinterDiscovery discovery;
+    json settings = {{"stepper_x", {{"position_min", 0.0}, {"position_max", 271.0}}},
+                     {"stepper_y", {{"position_min", 0.0}, {"position_max", 335.0}}},
+                     {"bed_mesh", {{"mesh_min", {3.0, 3.0}}, {"mesh_max", {267.0, 267.0}}}}};
+    REQUIRE(discovery.parse_build_volume(settings));
+    CHECK(discovery.build_volume().y_max == 335.0f);
+    CHECK(discovery.build_volume().plate_x_min == 3.0f);
+    CHECK(discovery.build_volume().plate_x_max == 267.0f);
+    CHECK(discovery.build_volume().plate_y_min == 3.0f);
+    CHECK(discovery.build_volume().plate_y_max == 267.0f);
+
+    // A round bed's mesh is mesh_radius, and a malformed mesh_min is ignored.
+    json delta = {{"stepper_x", {{"position_min", -100.0}, {"position_max", 100.0}}},
+                  {"stepper_y", {{"position_min", -100.0}, {"position_max", 100.0}}},
+                  {"bed_mesh", {{"mesh_radius", 90.0}, {"mesh_min", "3,3"}}}};
+    helix::PrinterDiscovery round;
+    REQUIRE(round.parse_build_volume(delta));
+    CHECK(round.build_volume().plate_x_max == 0.0f);
+    CHECK(round.build_volume().plate_y_max == 0.0f);
+}
+
 TEST_CASE("PrinterDiscovery: sensor toggle command follows a SET_FILAMENT_SENSOR wrapper",
           "[printer_discovery][filament]") {
     helix::PrinterDiscovery discovery;

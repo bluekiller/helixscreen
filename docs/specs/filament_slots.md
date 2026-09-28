@@ -1,6 +1,6 @@
 # Filament Slot Metadata — `lane_data` Convention
 
-**Status**: Informational, v1.14 (2026-09). See [Changelog](#changelog).
+**Status**: Informational, v1.15 (2026-09). See [Changelog](#changelog).
 
 This document describes HelixScreen's use of the `lane_data` Moonraker database
 namespace to share per-slot filament metadata with OrcaSlicer and other tools.
@@ -337,7 +337,11 @@ a foreign replacement; stamped it wins only over a statement older than its
 statement stamped before 2020 is a device with no clock rather than a moment
 in the lane's history, and an order against it cannot be known, so the
 statement keeps the lane. Records HelixScreen wrote never promote, whatever
-their `scan_time` says, and while one of our writes is still awaiting
+their `scan_time` says, and neither do records AFC's plugin wrote: a record
+carrying `td` and no `vendor_name` is the plugin stating what it measured
+(`td` is on every plugin build; `extruder_index` only on newer ones), so it
+files as a firmware reading and its `scan_time`, a measurement time, never
+orders it against an edit. While one of our writes is still awaiting
 firmware's echo the re-read strips what matches it before judging anything,
 so our own write coming back is never misread as a newer outside edit. This
 is why §3 asks a rewriter to carry the authorship keys through unchanged: a
@@ -412,7 +416,11 @@ Two rows carry caveats the table cannot hold. Every AD5X IFS insert is No
 evidence; one its port sensor sees raises the notice, and one inferred only
 from `Adventurer5M.json` (no port sensor) raises none. Stock CFS waits up to 3
 frames for the RFID probe before judging an insert, and discounts values
-equal to a label HelixScreen itself pushed while its echo guard stands.
+equal to a label HelixScreen itself pushed while its echo guard stands. The
+wait does not count down while the box is busy and the probe is deferred; it
+restarts when the probe runs. A finished read (`vender` past `"unknown"`) that
+restates the pulled spool's material and colour is the same spool, and stays
+silent.
 
 Clearing is a `DELETE` on the slot's `lane_data` key. The first observation
 after startup establishes the baseline fingerprint and is NOT treated as a
@@ -634,6 +642,11 @@ reader can resolve.
 
 ## Changelog
 
+- **v1.15 (2026-09-27)**: §5: a record AFC's plugin wrote (`td`, no
+  `vendor_name`) is a firmware reading and never promotes, whether or not the
+  plugin build writes `extruder_index`. §6: stock CFS judges a finished read
+  that restates the pulled spool as the same spool, and holds its insert wait
+  while a busy box defers the probe (`prestonbrown/helixscreen#1710`).
 - **v1.14 (2026-09-25)**: §5 amendment: newest edit wins whoever made it
   (prestonbrown/helixscreen#1632). A shared-namespace record carrying none of
   our authorship marks (`helix_` keys, or the legacy `vendor` / `spool_name`

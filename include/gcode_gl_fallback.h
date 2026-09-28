@@ -91,6 +91,34 @@ inline bool gl_renderer_is_denylisted(const char* renderer) {
     return gl_renderer_matches(renderer, DENYLIST, sizeof(DENYLIST) / sizeof(DENYLIST[0]));
 }
 
+/// Triangle budget a GPU can draw per frame in the 3D gcode preview without
+/// tripping the kernel's GPU hang check.
+///
+/// VideoCore IV (Mesa "vc4", Pi 0-3) draws ~4M triangles/s, so a budget of
+/// VC4_TRIANGLE_BUDGET keeps a frame near 250 ms. Multi-second frames make the
+/// kernel's GPU hang check fire ("[drm] Resetting GPU") and wedge the GPU until
+/// reboot, so geometry for that driver must be capped by triangle count, not
+/// just by memory. On Pi 4/5 the render node is served by v3d (vc4 drives only
+/// the display there), so only Pi 0-3 match.
+constexpr size_t VC4_TRIANGLE_BUDGET = 1'000'000;
+
+/// Cap on per-frame triangle count a render driver imposes on the 3D gcode
+/// preview, keyed off the kernel driver name backing the DRM render node
+/// (basename of the `<renderDn>/device/driver` symlink, e.g. "vc4-drm").
+///
+/// Pure function (no filesystem access, no side effects) so the budget lookup
+/// is unit-testable without a Pi attached.
+///
+/// @param render_driver  kernel driver name, or "" / null when unknown
+/// @return max triangles per frame, 0 for no cap
+inline size_t gpu_triangle_budget(const char* render_driver) {
+    static const char* const CAPPED[] = {"vc4"};
+    if (gl_renderer_matches(render_driver, CAPPED, sizeof(CAPPED) / sizeof(CAPPED[0]))) {
+        return VC4_TRIANGLE_BUDGET;
+    }
+    return 0;
+}
+
 /// Decide whether a GL_RENDERER string names a software rasterizer rather than
 /// a GPU.
 ///

@@ -419,6 +419,58 @@ TEST_CASE("A controller that names the direction gets the four-step bar",
           std::vector<std::string>{"Release filament", "Dock tool", "Grip filament"});
 }
 
+TEST_CASE("A tool changer's steps project SELECTING, and docking projects UNLOADING",
+          "[ams][toolchanger][coarse]") {
+    ToolChangerHelper tc(4);
+    tc.set_tool_sensor(toolchanger_addon::resolve_tool_sensor(medusahc_discovery()));
+    tc.feed(
+        json{{"medusahc", {{"operation", "idle"}, {"current_tool", 0}, {"feeder_open", false}}}});
+
+    const auto swap = tc.get_operation_step_model(StepOperationType::LOAD_SWAP);
+    REQUIRE(swap.steps.size() == 4);
+    CHECK(swap.action_at(0) == AmsAction::SELECTING); // Release filament
+    CHECK(swap.action_at(1) == AmsAction::UNLOADING); // Dock tool
+    CHECK(swap.action_at(2) == AmsAction::SELECTING); // Pick up tool
+    CHECK(swap.action_at(3) == AmsAction::SELECTING); // Grip filament
+}
+
+TEST_CASE("A running swap publishes its step's action, and the closing grip reads IDLE",
+          "[ams][toolchanger][coarse]") {
+    // The unmount dispatches as UNLOADING, but its first step releases the
+    // filament, which projects SELECTING. The grip that closes the swap lands
+    // on the frame that ends it, and a finished swap reads IDLE whatever step
+    // index it left behind.
+    ToolChangerHelper tc(4);
+    tc.set_tool_sensor(toolchanger_addon::resolve_tool_sensor(medusahc_discovery()));
+    // The active operation is process-wide; later cases here expect the default.
+    struct RestoreStepOperation {
+        ~RestoreStepOperation() {
+            AmsState::instance().set_active_step_operation(StepOperationType::LOAD_SWAP);
+        }
+    } restore_step_operation;
+    AmsState::instance().set_active_step_operation(StepOperationType::UNLOAD);
+    tc.feed(
+        json{{"medusahc", {{"operation", "idle"}, {"current_tool", 0}, {"feeder_open", false}}}});
+    REQUIRE(tc.unload_filament(0).success());
+
+    tc.feed(
+        json{{"medusahc", {{"operation", "idle"}, {"current_tool", 0}, {"feeder_open", true}}}});
+    REQUIRE(tc.get_system_info().operation_phase == 0); // Release filament
+    CHECK(tc.get_system_info().action == AmsAction::SELECTING);
+    CHECK(tc.get_current_action() == AmsAction::SELECTING);
+
+    tc.feed(json{
+        {"medusahc", {{"operation", "dropping"}, {"current_tool", 0}, {"feeder_open", true}}}});
+    REQUIRE(tc.get_system_info().operation_phase == 1); // Dock tool
+    CHECK(tc.get_system_info().action == AmsAction::UNLOADING);
+
+    tc.feed(
+        json{{"medusahc", {{"operation", "idle"}, {"current_tool", -1}, {"feeder_open", false}}}});
+    REQUIRE(tc.get_system_info().operation_phase == 2); // Grip filament
+    CHECK(tc.get_system_info().action == AmsAction::IDLE);
+    CHECK(tc.get_current_action() == AmsAction::IDLE);
+}
+
 TEST_CASE("A controller with only 'changing' gets one middle step", "[ams][toolchanger][steps]") {
     ToolChangerHelper tc(4);
     tc.set_tool_sensor(toolchanger_addon::resolve_tool_sensor(standalone_medusahc_discovery(4)));
@@ -521,7 +573,7 @@ TEST_CASE("A phase-less frame leaves the step alone", "[ams][toolchanger][steps]
 
 TEST_CASE("The step index stays pinned to the model actually on screen",
           "[ams][toolchanger][steps]") {
-    // get_operation_step_model() and step_index_for_phase_locked() both derive
+    // get_operation_step_model() and resolve_step_locked() both derive
     // their sequence from tc_step_sequence(), but the model is captured once
     // (by the sidebar, at operation start) while the index is recomputed on
     // EVERY frame from whatever feeder_state_reported_/direction_reported_

@@ -131,6 +131,14 @@ bool helix::ui::hub_box_hit(lv_point_t p, int32_t cx, int32_t cy, int32_t w, int
     return (abs(p.x - cx) <= w / 2 + margin) && (abs(p.y - cy) <= h / 2 + margin);
 }
 
+bool helix::ui::recorded_box_hit(lv_point_t p, const lv_area_t& box, lv_point_t rendered_origin,
+                                 lv_point_t current_origin, int32_t margin) {
+    lv_point_t q{p.x + rendered_origin.x - current_origin.x,
+                 p.y + rendered_origin.y - current_origin.y};
+    return hub_box_hit(q, (box.x1 + box.x2) / 2, (box.y1 + box.y2) / 2, box.x2 - box.x1,
+                       box.y2 - box.y1, margin);
+}
+
 // ============================================================================
 // Event handlers
 // ============================================================================
@@ -201,14 +209,12 @@ static void filament_path_click_cb(lv_event_t* e) {
     }
 
     // Check if buffer coil was clicked. The renderer records the exact drawn
-    // box in data->hits.buffer (absolute coords); reading it avoids
+    // box in data->hits.buffer; reading it avoids
     // re-deriving the clamped box dimensions and slot-midpoint center_x.
     // buffer_valid is set only when the box was actually drawn this pass.
     if (data->buffer_present && data->buffer_callback && data->hits.buffer_valid) {
-        const lv_area_t& r = data->hits.buffer;
-        int32_t cx = (r.x1 + r.x2) / 2;
-        int32_t cy = (r.y1 + r.y2) / 2;
-        if (helix::ui::hub_box_hit(point, cx, cy, r.x2 - r.x1, r.y2 - r.y1, 4)) {
+        if (helix::ui::recorded_box_hit(point, data->hits.buffer, data->hits.origin, {x_off, y_off},
+                                        4)) {
             spdlog::debug("[FilamentPath] Buffer coil clicked");
             data->buffer_callback(data->buffer_user_data);
             return;
@@ -216,15 +222,13 @@ static void filament_path_click_cb(lv_event_t* e) {
     }
 
     // Check if the selector/hub box was clicked. The renderer records the exact
-    // drawn box in data->hits.hub (absolute coords) — the single source of
+    // drawn box in data->hits.hub — the single source of
     // truth — so we never re-derive geometry that could drift from what's on
     // screen. hub_valid is set only when a box was actually drawn this pass
     // (LINEAR selector / HUB), so PARALLEL is naturally excluded.
     if (data->hub_callback && data->hits.hub_valid) {
-        const lv_area_t& r = data->hits.hub;
-        int32_t cx = (r.x1 + r.x2) / 2;
-        int32_t cy = (r.y1 + r.y2) / 2;
-        if (helix::ui::hub_box_hit(point, cx, cy, r.x2 - r.x1, r.y2 - r.y1, 4)) {
+        if (helix::ui::recorded_box_hit(point, data->hits.hub, data->hits.origin, {x_off, y_off},
+                                        4)) {
             spdlog::debug("[FilamentPath] Selector/hub box clicked");
             data->hub_callback(point, data->hub_user_data);
             return;
@@ -232,16 +236,14 @@ static void filament_path_click_cb(lv_event_t* e) {
     }
 
     // Check if bypass spool box was clicked (right side) — check before entry area.
-    // The renderer records the exact hit region in data->hits.bypass
-    // (absolute coords); bypass_valid is set only when the bypass section was
+    // The renderer records the exact hit region in data->hits.bypass;
+    // bypass_valid is set only when the bypass section was
     // actually drawn (!hub_only && show_bypass), keeping the hit-test in lockstep
     // with visibility. The rect's half-extents already encode the original
     // full-extent bounds (sensor_r*3 / sensor_r*4), so read with margin 0.
     if (data->show_bypass && data->bypass_callback && data->hits.bypass_valid) {
-        const lv_area_t& r = data->hits.bypass;
-        int32_t cx = (r.x1 + r.x2) / 2;
-        int32_t cy = (r.y1 + r.y2) / 2;
-        if (helix::ui::hub_box_hit(point, cx, cy, r.x2 - r.x1, r.y2 - r.y1, 0)) {
+        if (helix::ui::recorded_box_hit(point, data->hits.bypass, data->hits.origin, {x_off, y_off},
+                                        0)) {
             spdlog::debug("[FilamentPath] Bypass spool box clicked");
             data->bypass_callback(data->bypass_user_data);
             return;

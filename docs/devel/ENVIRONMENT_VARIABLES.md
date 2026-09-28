@@ -342,13 +342,13 @@ HELIX_DISPLAY_ROTATION=180 ./build/bin/helix-screen
 
 ### `HELIX_SHOW_ROTATION_SETTING`
 
-Reveal the **Screen Rotation** row in Settings → Display & Sound on an SDL desktop build. The row is hidden there by default because SDL renders in DIRECT mode and ignores `/display/rotate` entirely, so the control would be inert. Only affects visibility - the setting still writes `/display/rotate` and still takes effect on the next start of an fbdev/DRM build.
+Reveal the **Screen Rotation** row in Settings → Display on an SDL desktop build. The row is hidden there by default because SDL renders in DIRECT mode and ignores `/display/rotate` entirely, so the control would be inert. Only affects visibility - the setting still writes `/display/rotate` and still takes effect on the next start of an fbdev/DRM build.
 
 | Property | Value |
 |----------|-------|
 | **Values** | `1` (show the row) |
 | **Default** | Unset (row hidden on SDL, always shown on fbdev/DRM) |
-| **Files** | `src/system/display_settings_manager.cpp`, `ui_xml/settings_display_sound_overlay.xml` |
+| **Files** | `src/system/display_settings_manager.cpp`, `ui_xml/settings_display_overlay.xml` |
 
 ```bash
 # Drive the rotation row on desktop
@@ -941,7 +941,7 @@ The `[TouchDebug]` lines are logged at WARN, so they appear at the default log l
 
 ### Scroll and touch tuning
 
-The tuning knobs for tap-vs-scroll feel are config keys, not env vars: `/input/scroll_limit` (pixels before LVGL commits to scrolling, default 10, range 1-20) and `/input/scroll_throw` (momentum decay, default 25, range 5-50), both applied by `DisplayManager::configure_scroll()` at startup and changeable from **Settings > System > Touch & Input** (`scroll_limit` only). `/input/long_press_time` is the live-applied companion. See `docs/user/CONFIGURATION.md` § Input Settings for the full list.
+The tuning knobs for tap-vs-scroll feel are config keys, not env vars: `/input/scroll_limit` (pixels before LVGL commits to scrolling, default 10, range 1-20) and `/input/scroll_throw` (momentum decay, default 25, range 5-50), both applied by `DisplayManager::configure_scroll()` at startup and changeable from **Settings > Touch & Input** (`scroll_limit` only). `/input/long_press_time` is the live-applied companion. See `docs/user/CONFIGURATION.md` § Input Settings for the full list.
 
 ---
 

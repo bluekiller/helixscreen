@@ -13,6 +13,7 @@
 // so index N names StandardMacros slot N-1.
 
 #include "../test_helpers/macro_buttons_test_access.h"
+#include "quick_action_slots.h"
 #include "standard_macros.h"
 
 #include <set>
@@ -45,11 +46,13 @@ TEST_CASE("quick_button_index_to_slot_name maps dropdown index to StandardMacros
         }
     }
 
-    SECTION("one past the end is empty, not the last slot") {
-        // Guards the `index - 1 < size` bound. An off-by-one there would return
-        // the final slot for an index the dropdown never offers.
+    SECTION("one past the table is the light toggle, and two past is empty") {
+        // The dropdown lists the light after every slot. Guards the `index - 1 <
+        // size` bound too: an off-by-one there would name the final slot here.
         REQUIRE(MacroButtonsOverlayTestAccess::quick_button_index_to_slot_name(
-                    static_cast<int>(slots.size()) + 1)
+                    static_cast<int>(slots.size()) + 1) == helix::kQuickSlotLight);
+        REQUIRE(MacroButtonsOverlayTestAccess::quick_button_index_to_slot_name(
+                    static_cast<int>(slots.size()) + 2)
                     .empty());
     }
 }

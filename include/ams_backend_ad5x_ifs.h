@@ -603,13 +603,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
         return "[AMS AD5X-IFS]";
     }
 
-    /// load_filament()/unload_filament() arm the phase tracker (HEATING +
-    /// begin_phase_tracking_locked()) BEFORE calling ensure_homed_then() --
-    /// on decline, the base class's IDLE reset alone leaves the tracker
-    /// active, and apply_phase_action_locked() has no `!= IDLE` guard, so the
-    /// very next extruder-temp frame re-arms HEATING. Unwind the tracker too.
-    void on_home_confirmation_declined() override;
-
     SlotInfo* cached_slot_locked(int slot_index) override;
 
     /// IFS firmware states colour, material, presence and the tool map, and

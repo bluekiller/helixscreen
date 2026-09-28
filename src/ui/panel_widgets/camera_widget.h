@@ -136,7 +136,7 @@ class CameraWidget : public PanelWidget {
  *
  * Creates a standalone CameraStream + camera_fullscreen overlay and pushes it
  * onto NavigationManager. Used by entry points outside the home panel (e.g.
- * Settings → Hardware & Devices → Camera). No-ops if no webcam is configured
+ * Settings → Devices → Camera). No-ops if no webcam is configured
  * or if a fullscreen view is already open.
  *
  * @param parent_screen Active screen the overlay is attached to.

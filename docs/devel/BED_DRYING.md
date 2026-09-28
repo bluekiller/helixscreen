@@ -40,9 +40,11 @@ the **Dry Filament** row in Advanced. Both carry `moves_machine="true"`.
    loaded makes it the recommended action; otherwise it is offered beside a "make sure no
    filament is loaded" line. The unload runs the `UnloadFilament` standard macro. Skippable.
 2. **Home** if any axis is unhomed, with the bed still empty.
-3. **Clearance move** to `axis_maximum.z - 10` (`bed_drying::clearance_z`), then the
-   toolhead parks at the back, then `M400`. On a bed-moving printer that puts the plate at
-   the bottom; on a gantry-moving one, the nozzle at the top. Either way a cover box fits.
+3. **Clearance move** to the G-code-space Z max minus 20 (`bed_drying::clearance_z`), then
+   the toolhead parks 10mm inside the rear of the plate (`helix::preset_area()`: the
+   `[bed_mesh]` area, else travel, so never into tool docks past the plate), then `M400`.
+   On a bed-moving printer that puts the plate 20mm above the bottom, clear of anything
+   under it; on a gantry-moving one, the nozzle near the top. Either way a cover box fits.
 4. **Latch on and persist** (`BedDryingController::begin_placement`), then the place
    prompt: clear above and below the plate, spools on the plate, cover with a box,
    close the door. Spools can land on the plate from the moment the prompt opens, so
@@ -92,7 +94,7 @@ latch gates all five:
 
 The gcode gates are an **allowlist**, not a denylist: a macro can home without saying
 `G28`, so while latched a script passes only if every line's first token is a heater,
-fan, light, read-only, `SET_IDLE_TIMEOUT`, `M112` or restart command, or one of the
+fan, light, read-only, `SET_IDLE_TIMEOUT` or `M112` command, or one of the
 dryer's own tokens (`TemperatureController::chamber_dryer_tokens`). `M84`,
 `FIRMWARE_RESTART` and `RESTART` are refused: each releases the steppers. The
 `printer.restart` / `printer.firmware_restart` RPCs, a `klipper` service restart and the

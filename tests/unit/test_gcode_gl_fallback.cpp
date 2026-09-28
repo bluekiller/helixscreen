@@ -165,6 +165,38 @@ TEST_CASE("Software refusal and the 3D draw denylist are independent",
 }
 
 // ---------------------------------------------------------------------------
+// GPU triangle budget: slow render drivers cap geometry by triangle count
+//
+// Memory is not the only ceiling on 3D geometry. VideoCore IV (Pi 0-3) draws
+// ~4M triangles/s, so a memory-approved tier whose frames take multiple
+// seconds trips the kernel's GPU hang check and wedges the GPU until reboot.
+// The budget is keyed off the kernel driver behind the DRM render node, not
+// the GL_RENDERER string, because the tier is chosen before any GL context
+// exists. These tests FAIL if the vc4 cap or its exclusions stop working.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("gpu_triangle_budget caps vc4 render drivers", "[gcode][gl_fallback]") {
+    using helix::gcode::gpu_triangle_budget;
+    using helix::gcode::VC4_TRIANGLE_BUDGET;
+
+    // "vc4-drm" is the kernel driver symlink target on a Pi 3B render node.
+    REQUIRE(gpu_triangle_budget("vc4-drm") == VC4_TRIANGLE_BUDGET);
+    REQUIRE(gpu_triangle_budget("VC4-DRM") == VC4_TRIANGLE_BUDGET);
+    REQUIRE(gpu_triangle_budget("vc4") == VC4_TRIANGLE_BUDGET);
+    REQUIRE(VC4_TRIANGLE_BUDGET == 1'000'000);
+}
+
+TEST_CASE("gpu_triangle_budget leaves every other driver uncapped", "[gcode][gl_fallback]") {
+    using helix::gcode::gpu_triangle_budget;
+
+    // v3d (Pi 4/5) and panfrost draw far faster than vc4; 0 means no cap.
+    REQUIRE(gpu_triangle_budget("v3d") == 0);
+    REQUIRE(gpu_triangle_budget("panfrost") == 0);
+    REQUIRE(gpu_triangle_budget("") == 0);
+    REQUIRE(gpu_triangle_budget(nullptr) == 0);
+}
+
+// ---------------------------------------------------------------------------
 // Init-failure fallback: "no GL at all" must reach the viewer (issue #1555)
 //
 // The denylist and fatal-draw-error layers above only fire once a GL context

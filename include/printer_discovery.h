@@ -999,6 +999,23 @@ class PrinterDiscovery {
             }
         }
 
+        // The probed area is the plate the head can safely reach; travel
+        // beyond it may hold tool docks or a purge bucket.
+        const auto mesh = settings.find("bed_mesh");
+        if (mesh != settings.end() && mesh->is_object()) {
+            const auto lo = mesh->find("mesh_min");
+            const auto hi = mesh->find("mesh_max");
+            auto is_xy = [](const nlohmann::json& v) {
+                return v.is_array() && v.size() >= 2 && v[0].is_number() && v[1].is_number();
+            };
+            if (lo != mesh->end() && hi != mesh->end() && is_xy(*lo) && is_xy(*hi)) {
+                volume.plate_x_min = (*lo)[0].get<float>();
+                volume.plate_y_min = (*lo)[1].get<float>();
+                volume.plate_x_max = (*hi)[0].get<float>();
+                volume.plate_y_max = (*hi)[1].get<float>();
+            }
+        }
+
         // An all-zero volume is worse than none: build_volume_range heuristics
         // would score it against every printer's window. Only a real extent is
         // worth storing.

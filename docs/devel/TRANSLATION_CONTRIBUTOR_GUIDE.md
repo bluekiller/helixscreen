@@ -226,7 +226,7 @@ You don't need a build setup to edit YAML. You do need a build to see your trans
 ```bash
 make -j                              # rebuild with regenerated translation packs
 ./build/bin/helix-screen --test -vv  # run with mock printer
-# Settings → Display & Sound → Language → <your language>
+# Settings → Language & Time → Language → <your language>
 ```
 
 ### If you don't want to set up the full dev environment

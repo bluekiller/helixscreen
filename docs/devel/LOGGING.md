@@ -425,7 +425,7 @@ On Klipper-based platforms (Pi, AD5M, K1, K2, Snapmaker U1, etc.), `setup_config
 
 ## Debug Bundles
 
-`DebugBundleCollector::collect()` (`src/system/debug_bundle_collector.cpp`) assembles a debug bundle on user request (Settings → About → Generate Debug Bundle, or the `helix_debug` Moonraker shell command), reading the on-disk log cascade through `src/system/log_collector.cpp`. It captures:
+`DebugBundleCollector::collect()` (`src/system/debug_bundle_collector.cpp`) assembles a debug bundle on user request (Settings → Help & About → Upload Debug Bundle, or the `helix_debug` Moonraker shell command), reading the on-disk log cascade through `src/system/log_collector.cpp`. It captures:
 
 - `log_tail` - the structured app log, read from the in-memory ring rather than from disk (`src/system/debug_bundle_collector.cpp`), so it is always the live process and always fresh. Because the ring is installed in `init_early()` it reaches back past Phase 2 config load; see "Ring-Buffer Sink Lifecycle". The companion `log_meta` field records the active sink target, the level the persistent sinks were configured at (which the ring may have been more verbose than), and whether the tail came from the live ring or the on-disk fallback
 - Last N lines from each candidate launcher-log path (`/var/log/helixscreen/launcher.log`, `${install_dir}/logs/launcher.log`, legacy `/tmp/helixscreen.log`, etc.)

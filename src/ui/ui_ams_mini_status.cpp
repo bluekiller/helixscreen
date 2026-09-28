@@ -43,7 +43,17 @@
 static constexpr int32_t MIN_BAR_WIDTH_PX = 3;
 
 /** Maximum bar width in pixels (prevents bars from becoming too wide) */
-static constexpr int32_t MAX_BAR_WIDTH_PX = 16;
+static constexpr int32_t MAX_BAR_WIDTH_PX = 24;
+
+/** Bar width cap when the caller never reported a width (non-home callers) */
+static constexpr int32_t DEFAULT_MAX_BAR_WIDTH_PX = 16;
+
+/**
+ * Cell width per unit of bar width cap. Four lanes then span about half the
+ * cell, and the cap scales with the tier instead of stepping at fixed pixel
+ * widths. More lanes shrink below the cap through calc_bar_width().
+ */
+static constexpr int32_t BAR_WIDTH_DIVISOR = 8;
 
 /**
  * Smallest spool graphic the wide view will draw (px).
@@ -221,19 +231,16 @@ static lv_obj_t* ensure_unit_row(AmsMiniStatusData* data, int unit_index) {
 /**
  * @brief Compute effective max bar width based on available width
  *
- * When squeezed into a narrow cell, bars shrink to stay proportional.
+ * Proportional to the cell, so the same lane count fills the same fraction of
+ * its box on every panel.
  */
 static int32_t effective_max_bar_width(const AmsMiniStatusData* data) {
     // width_px <= 0 is the struct's default before ui_ams_mini_status_set_width()
     // has ever run - set_slot_count()/set_slot_label() can trigger a rebuild in
-    // that state, so this is a real, reachable path, not just a >=150 fallback.
+    // that state, and callers outside the home grid never set it.
     if (data->width_px <= 0)
-        return MAX_BAR_WIDTH_PX; // Default: 16
-    if (data->width_px < 100)
-        return 8; // Tight layout: narrow bars
-    if (data->width_px < 150)
-        return 10; // Medium layout: slightly reduced
-    return MAX_BAR_WIDTH_PX;
+        return DEFAULT_MAX_BAR_WIDTH_PX;
+    return std::clamp(data->width_px / BAR_WIDTH_DIVISOR, MIN_BAR_WIDTH_PX, MAX_BAR_WIDTH_PX);
 }
 
 /**

@@ -272,6 +272,17 @@ TEST_CASE("mode comes from the budget, so the image does not move when chips cha
     CHECK(compute_callout_layout(in).image.x == full.image.x);
 }
 
+TEST_CASE("an empty budget never draws lines", "[printer_image][callout_layout]") {
+    auto in = wide();
+    in.area_w = 186 + 2 * (70 + in.gap + in.min_line); // room for both sides
+    REQUIRE(compute_callout_layout(in).mode == CalloutMode::BothSides);
+    in.budget.clear();
+    const auto l = compute_callout_layout(in);
+    CHECK(l.mode == CalloutMode::Pinned);
+    for (const auto& c : l.chips)
+        CHECK_FALSE(c.has_line);
+}
+
 TEST_CASE("leader line runs from the tagged point to the chip's inner edge",
           "[printer_image][callout_layout]") {
     auto in = wide();

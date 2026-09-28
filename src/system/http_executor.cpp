@@ -25,6 +25,9 @@ HttpExecutor::~HttpExecutor() {
 }
 
 void HttpExecutor::start() {
+#if defined(ESP_PLATFORM)
+    return;
+#endif
     if (running_) {
         return;
     }

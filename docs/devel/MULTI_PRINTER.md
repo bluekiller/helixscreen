@@ -10,7 +10,7 @@ Multi-printer management allows users to configure, switch between, add, and del
 
 Key properties:
 
-- **Opt-in via a user setting** -- the navbar printer badge is gated on the `show_printer_switcher` setting (Settings > Printers). Printer count does not gate the badge on its own: `show_printer_switcher` is the single source of truth, and a config migration defaults it off for single-printer setups.
+- **Opt-in via a user setting** -- the navbar printer badge is gated on the `show_printer_switcher` setting (Settings > Connection > Printers). Printer count does not gate the badge on its own: `show_printer_switcher` is the single source of truth, and a config migration defaults it off for single-printer setups.
 - **Config schema v4** -- per-printer data lives under `/printers/{id}/`, with `df()` routing dynamically to the active printer
 - **Soft restart** -- switching printers tears down and reinitializes the entire printer state without restarting the application or LVGL display
 
@@ -63,7 +63,7 @@ NavigationManager (callback bridge)
   |
   +-- PrinterListOverlay (settings overlay)
   |     Full overlay: switch, add, delete (with confirmation modal)
-  |     Also reachable from Settings > Printers
+  |     Also reachable from Settings > Connection > Printers
   |
   +-- PrinterManagerOverlay (Section 4)
         "Manage Printers" button → opens PrinterListOverlay
@@ -74,7 +74,7 @@ NavigationManager (callback bridge)
 | Subject | Type | Description |
 |---------|------|-------------|
 | `active_printer_name` | string | Human-readable name of the active printer, bound to navbar badge label |
-| `show_printer_switcher` | int (0/1) | User setting (Settings > Printers). Controls navbar badge visibility. |
+| `show_printer_switcher` | int (0/1) | User setting (Settings > Connection > Printers). Controls navbar badge visibility. |
 
 The navbar badge is gated on the `show_printer_switcher` setting:
 
@@ -286,7 +286,7 @@ User taps navbar printer badge
     7. Clear re-entrancy guard
 ```
 
-Alternate path: Settings > Printers > PrinterListOverlay > tap row:
+Alternate path: Settings > Connection > Printers > PrinterListOverlay > tap row:
 
 ```
 PrinterListOverlay::handle_switch_printer()
@@ -372,7 +372,7 @@ if (data["printers"].size() <= 1) {
 ## Entry-Point Visibility
 
 Visibility is driven by the `show_printer_switcher` user setting (toggled from
-Settings > Printers). Entry points:
+Settings > Connection > Printers). Entry points:
 - **Navbar printer badge** (`nav_printer_badge`) -- gated on the `show_printer_switcher` subject
 - **Printer Manager > Manage Printers** button (`pm_manage_printers_btn`) -- always present in the Printer Manager overlay
 
@@ -512,7 +512,7 @@ The printer list is populated imperatively (not XML-bound) because it is dynamic
 
 ### PrinterListOverlay (Settings Management)
 
-An `OverlayBase` subclass accessed from Settings > Printers or Printer Manager > Manage Printers.
+An `OverlayBase` subclass accessed from Settings > Connection > Printers or Printer Manager > Manage Printers.
 
 ```
 ┌──────────────────────────┐

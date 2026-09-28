@@ -70,18 +70,45 @@ pid                navigate advanced; click row_pid_tuning
 # backend, so the dedicated management panel is reached via demo)
 ams                demo ams
 
-# Settings overlays (settings panel groups leaves under category rows)
-display            navigate settings; click row_display_sound
-theme              navigate settings; click row_display_sound; click row_theme_settings
-sensors            navigate settings; click row_hardware; click row_filament_sensors
-network            navigate settings; click row_system; click row_network
-hardware-health    navigate settings; click row_hardware; click row_hardware_health
-fan-settings       navigate settings; click row_hardware; click row_fan_settings
-barcode-scanner    navigate settings; click row_hardware; click row_spoolman_settings; click row_barcode_scanner
-label-printer      navigate settings; click row_hardware; click row_spoolman_settings; click row_label_printer
-security           navigate settings; click row_system; click row_security
+# Settings overlays (settings panel groups leaves under category rows).
+# A -2/-3 token shows the part of a long page a 480-tall screen cannot. The
+# wait_idle lets the queued overlay push finish first, since activating the
+# page resets its scroll position. ctl scroll moves only the target's direct
+# scroll parent and leaves a group taller than the viewport where it is, so
+# most of these scroll overlay_content by a distance measured at 800x480;
+# appearance-2 brings its short last group into view instead.
+settings-printer   navigate settings; scroll group_printer
+settings-helixscreen navigate settings; scroll group_helixscreen
+display            navigate settings; click row_display
+display-2          navigate settings; click row_display; wait_idle; scroll overlay_content 0 -274
+appearance         navigate settings; click row_appearance
+appearance-2       navigate settings; click row_appearance; wait_idle; scroll group_printer_visuals
+theme              navigate settings; click row_appearance; click row_theme_settings
+touch-input        navigate settings; click row_touch_input
+touch-input-2      navigate settings; click row_touch_input; wait_idle; scroll overlay_content 0 -333
+sound              navigate settings; click row_sound
+sound-2            navigate settings; click row_sound; wait_idle; scroll overlay_content 0 -190
+printing           navigate settings; click row_printing
+printing-2         navigate settings; click row_printing; wait_idle; scroll overlay_content 0 -406
+printing-3         navigate settings; click row_printing; wait_idle; scroll overlay_content 0 -577
+devices            navigate settings; click row_devices
+devices-2          navigate settings; click row_devices; wait_idle; scroll overlay_content 0 -294
+sensors            navigate settings; click row_devices; click row_filament_sensors
+hardware-health    navigate settings; click row_devices; click row_hardware_health
+fan-settings       navigate settings; click row_devices; click row_fan_settings
+barcode-scanner    navigate settings; click row_devices; click row_spoolman_settings; click row_barcode_scanner
+label-printer      navigate settings; click row_devices; click row_spoolman_settings; click row_label_printer
 safety             navigate settings; click row_safety
+connection         navigate settings; click row_connection
+network            navigate settings; click row_connection; click row_network
+printers           navigate settings; click row_connection; click row_printers
+language-time      navigate settings; click row_language_time
+system             navigate settings; click row_system
+system-2           navigate settings; click row_system; wait_idle; scroll overlay_content 0 -124
+security           navigate settings; click row_system; click row_security
+updates            navigate settings; click row_updates
 help-about         navigate settings; click row_help
+about              navigate settings; click row_help; click row_about
 help-qr            navigate settings; click row_help; click row_discord; click btn_ok
 
 # Advanced overlays

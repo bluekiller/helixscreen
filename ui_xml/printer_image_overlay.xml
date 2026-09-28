@@ -75,6 +75,24 @@
         <text_body name="preview_label"
                    width="100%" bind_text="printer_image_preview_name" style_text_align="center"
                    style_pad_top="#space_xs"/>
+        <!-- Tag parts / reset for the selected image. printer_image_tag_state:
+             0 = cannot be tagged, 1 = no user tags, 2 = user tags in effect. -->
+        <lv_obj name="tag_buttons"
+                width="100%" height="content" flex_flow="row" style_pad_all="0" style_pad_top="#space_xs"
+                style_pad_gap="#space_xs" scrollable="false" style_bg_opa="0" style_border_width="0" hidden="true">
+          <bind_flag_if_eq subject="printer_image_tag_state" flag="hidden" ref_value="0"/>
+          <ui_button name="btn_tag_parts"
+                     height="#button_height_sm" flex_grow="1" variant="secondary" icon="target" text="Tag parts"
+                     translation_tag="Tag parts">
+            <event_cb trigger="clicked" callback="on_printer_image_tag_parts"/>
+          </ui_button>
+          <ui_button name="btn_reset_tags"
+                     height="#button_height_sm" flex_grow="1" variant="secondary" text="Reset tags"
+                     translation_tag="Reset tags" hidden="true">
+            <bind_flag_if cond="printer_image_tag_state ne 2" flag="hidden"/>
+            <event_cb trigger="clicked" callback="on_printer_image_reset_tags"/>
+          </ui_button>
+        </lv_obj>
       </lv_obj>
 
     </lv_obj>

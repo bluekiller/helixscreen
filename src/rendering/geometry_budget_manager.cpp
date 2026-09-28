@@ -2,9 +2,11 @@
 
 #include "geometry_budget_manager.h"
 
+#include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -46,8 +48,30 @@ bool GeometryBudgetManager::is_system_memory_critical() const {
     return read_system_available_kb() < CRITICAL_MEMORY_KB;
 }
 
+std::string GeometryBudgetManager::render_driver_name_at(const std::string& drm_class_dir) {
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(drm_class_dir, ec), end; it != end && !ec;
+         it.increment(ec)) {
+        const std::string name = it->path().filename().string();
+        if (name.rfind("renderD", 0) != 0) {
+            continue;
+        }
+        auto driver = std::filesystem::read_symlink(it->path() / "device" / "driver", ec);
+        if (ec) {
+            return "";
+        }
+        return driver.filename().string();
+    }
+    return "";
+}
+
+std::string GeometryBudgetManager::read_render_driver_name() const {
+    return render_driver_name_at("/sys/class/drm");
+}
+
 GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t segment_count,
-                                                                       size_t budget_bytes) const {
+                                                                       size_t budget_bytes,
+                                                                       size_t max_triangles) const {
     if (budget_bytes == 0) {
         spdlog::info("[GeometryBudget] Zero budget — thumbnail only (tier 5)");
         return {.tier = 5,
@@ -67,37 +91,58 @@ GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t se
     size_t est_n16 = segment_count * BYTES_PER_SEG_N16;
     size_t est_n8 = segment_count * BYTES_PER_SEG_N8;
     size_t est_n4 = segment_count * BYTES_PER_SEG_N4;
+    size_t tris_n16 = segment_count * TRIS_PER_SEG_N16;
+    size_t tris_n8 = segment_count * TRIS_PER_SEG_N8;
+    size_t tris_n4 = segment_count * TRIS_PER_SEG_N4;
 
-    if (est_n16 < budget_bytes) {
-        spdlog::info("[GeometryBudget] Tier 1 (full): est {}MB / {}MB budget",
-                     est_n16 / (1024 * 1024), budget_bytes / (1024 * 1024));
+    // A tier qualifies only when both the byte estimate and (when a GPU
+    // triangle budget is set) the triangle estimate fit; a tier the triangle
+    // cap excluded is noted once in the tier that ends up chosen.
+    bool tris_excluded_a_tier = false;
+    auto tris_fit = [&](size_t est_tris) {
+        if (max_triangles == 0 || est_tris <= max_triangles) {
+            return true;
+        }
+        tris_excluded_a_tier = true;
+        return false;
+    };
+    auto tris_note = [&](size_t est_tris) -> std::string {
+        if (!tris_excluded_a_tier) {
+            return "";
+        }
+        return fmt::format(", est {}k tris / {}k cap", est_tris / 1000, max_triangles / 1000);
+    };
+
+    if (est_n16 < budget_bytes && tris_fit(tris_n16)) {
+        spdlog::info("[GeometryBudget] Tier 1 (full): est {}MB / {}MB budget{}",
+                     est_n16 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n16));
         return {.tier = 1,
                 .tube_sides = 16,
                 .simplification_tolerance = 0.01f,
                 .include_travels = true,
                 .budget_bytes = budget_bytes};
     }
-    if (est_n8 < budget_bytes) {
-        spdlog::info("[GeometryBudget] Tier 2 (medium): est {}MB / {}MB budget",
-                     est_n8 / (1024 * 1024), budget_bytes / (1024 * 1024));
+    if (est_n8 < budget_bytes && tris_fit(tris_n8)) {
+        spdlog::info("[GeometryBudget] Tier 2 (medium): est {}MB / {}MB budget{}",
+                     est_n8 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n8));
         return {.tier = 2,
                 .tube_sides = 8,
                 .simplification_tolerance = 0.2f,
                 .include_travels = true,
                 .budget_bytes = budget_bytes};
     }
-    if (est_n4 < budget_bytes) {
-        spdlog::info("[GeometryBudget] Tier 3 (low): est {}MB / {}MB budget",
-                     est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024));
+    if (est_n4 < budget_bytes && tris_fit(tris_n4)) {
+        spdlog::info("[GeometryBudget] Tier 3 (low): est {}MB / {}MB budget{}",
+                     est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n4));
         return {.tier = 3,
                 .tube_sides = 4,
                 .simplification_tolerance = 1.0f,
                 .include_travels = false,
                 .budget_bytes = budget_bytes};
     }
-    if (est_n4 < budget_bytes * 2) {
-        spdlog::info("[GeometryBudget] Tier 3 (aggressive): est {}MB / {}MB budget",
-                     est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024));
+    if (est_n4 < budget_bytes * 2 && tris_fit(tris_n4)) {
+        spdlog::info("[GeometryBudget] Tier 3 (aggressive): est {}MB / {}MB budget{}",
+                     est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n4));
         return {.tier = 3,
                 .tube_sides = 4,
                 .simplification_tolerance = 2.0f,
@@ -105,8 +150,8 @@ GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t se
                 .budget_bytes = budget_bytes};
     }
 
-    spdlog::info("[GeometryBudget] Tier 4 (2D fallback): est {}MB exceeds {}MB budget",
-                 est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024));
+    spdlog::info("[GeometryBudget] Tier 4 (2D fallback): est {}MB exceeds {}MB budget{}",
+                 est_n4 / (1024 * 1024), budget_bytes / (1024 * 1024), tris_note(tris_n4));
     return {.tier = 4,
             .tube_sides = 0,
             .simplification_tolerance = 0.0f,

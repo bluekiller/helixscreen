@@ -28,16 +28,18 @@ On an enclosed printer with a heated bed, HelixScreen can dry filament on the bu
 What happens next:
 
 1. If filament may still be loaded at the toolhead, HelixScreen offers to unload it first, so it does not soften in the extruder. If a sensor says the toolhead is empty, this step is skipped. You can skip it either way.
-2. The printer homes, then moves the plate as far from the nozzle as it goes.
-3. Clear the area above and below the plate, lay the spools on the plate, cover them with a box (a printed lid or the filament's packaging) and close the door. Tap **Start drying**.
+2. The printer homes, then moves the plate almost as far from the nozzle as it goes, stopping 20mm short of the end so anything under a plate that moves down stays clear, and parks the toolhead over the back of the plate.
+3. Clear the area above and below the plate, lay the spools on the plate, cover them with a box (a printed lid or the filament's packaging) and close the door. Tap **Start drying**. If you change your mind before placing anything, tap **No spools placed** instead.
 4. A banner at the top of the screen shows the time left. Halfway through, HelixScreen reminds you to flip the spools over. Use gloves: the plate is hot.
 5. At the end the bed turns off. Once it has cooled below 40°C, HelixScreen asks you to take the spools off and confirm.
 
-From the moment you confirm the spools are on the bed until you confirm they are off, HelixScreen will not home, move the printer or start a print, and the banner stays up, even after a restart or a power cut. Tap the banner to stop a run early, or to confirm the spools are off before the bed has cooled.
+If a chamber heater dries alongside the bed, it runs at a drying temperature for the air around the spools, lower than the bed's (50°C for PLA, where the bed runs at 70°C). The printer's motors stay powered for the whole run and for up to 24 hours after it until you confirm the spools are off, so a gantry or bed does not sink onto them in the meantime.
+
+From the moment HelixScreen asks you to place the spools until you confirm they are off, it will not home, move the printer, restart Klipper or start a print, and the banner stays up, even after a restart or a power cut. Only **No spools placed** or confirming removal ends that. Tap the banner to stop a run early, or to confirm the spools are off before the bed has cooled.
 
 **Some spools are not heat-resistant enough and can deform.** HelixScreen cannot stop Mainsail, a macro run from elsewhere, or a print sent from a slicer while the spools are on the bed.
 
-Dry Filament appears only on printers HelixScreen knows are enclosed. If you enclosed your printer yourself, set **Settings > Printing > Enclosure** to **Enclosed**.
+Dry Filament appears only on printers with a heated bed, at least 130 mm of Z travel, and an enclosure HelixScreen knows about. If you enclosed your printer yourself, set **Settings > Printing > Enclosure** to **Enclosed** (see [Enclosure](settings/printing.md#enclosure)). Open-frame printers never offer it.
 
 ---
 
@@ -121,7 +123,7 @@ While a run is going the card shows the chamber temperature next to the drying t
 
 **Heat the bed too** (on by default when your printer has a heated bed) heats the bed to 70°C for the length of the run, which helps the chamber get warmer. Do not leave plastic spools sitting on a hot bed. HelixScreen turns the bed back off when the run ends, whether it finishes, you tap **Stop**, or the heater stops it itself. If you have set a different bed temperature in the meantime, or a print has started, the bed is left alone.
 
-You cannot start a drying run while a print is running: drying takes over the chamber heater. DragonBreath firmware has no drying control in Klipper, so on DragonBreath you start drying from the unit itself.
+Klipper's idle timeout would otherwise switch the heaters off a few minutes into a run, because nothing moves; HelixScreen holds it off for the length of the run and puts your configured value back afterwards. You cannot start a drying run while a print is running: drying takes over the chamber heater. DragonBreath firmware has no drying control in Klipper, so on DragonBreath you start drying from the unit itself.
 
 Don't have your heater showing up yet? See [Add-On Chamber Heater Setup](chamber-heater.md).
 

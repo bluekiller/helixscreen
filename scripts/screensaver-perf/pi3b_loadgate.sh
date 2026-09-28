@@ -47,7 +47,7 @@ T_START=$(date '+%Y-%m-%d %H:%M:%S')
 if [ "$TYPE" -ne 0 ]; then
     ctl navigate settings
     sleep 1
-    ctl click row_display_sound
+    ctl click row_display
     sleep 1
     ctl set_value row_screensaver "$TYPE"
     sleep 1
@@ -94,7 +94,7 @@ if [ "$TYPE" -ne 0 ]; then
     sleep 1
     ctl navigate settings
     sleep 1
-    ctl click row_display_sound
+    ctl click row_display
     sleep 1
     ctl set_value row_screensaver "$ORIG_TYPE"
     sleep 1

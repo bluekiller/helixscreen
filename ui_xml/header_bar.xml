@@ -154,7 +154,7 @@
            static title back, and the no-op subject never changes, so it never returns.
            A header that does supply a subject still retitles on every publish. -->
       <text_heading name="header_title"
-                    bind_text="$title_subject" text="$title" translation_tag="$title_tag"
+                    long_mode="dots" bind_text="$title_subject" text="$title" translation_tag="$title_tag"
                     text_transform="$title_transform" flex_grow="1" style_text_align="left" clickable="false"
                     event_bubble="true" scrollable="false"/>
       <!-- Trailing badge (image + label), see the props above. Sits after the

@@ -64,9 +64,9 @@ class AmsContextMenuTestAccess {
 
     static SlotOpDecision decide_slot_ops(const AmsBackend* backend, int slot_index,
                                           bool pending_is_loaded, bool system_busy,
-                                          bool print_blocks_op) {
+                                          bool print_blocks_op, bool toolhead_unaccounted) {
         return AmsContextMenu::decide_slot_ops(backend, slot_index, pending_is_loaded, system_busy,
-                                               print_blocks_op);
+                                               print_blocks_op, toolhead_unaccounted);
     }
 
     static bool decide_show_backup_row(const helix::printer::EndlessSpoolCapabilities& caps,
@@ -834,7 +834,7 @@ class DockSensorToolChanger : public AmsBackendToolChanger {
                                                                bool print_blocks_op = false) {
     return AmsContextMenuTestAccess::decide_slot_ops(
         &backend, slot, backend.can_unload_from_toolhead(slot), backend.get_system_info().is_busy(),
-        print_blocks_op);
+        print_blocks_op, backend.toolhead_filament_unaccounted().value_or(false));
 }
 
 } // namespace
@@ -878,6 +878,33 @@ TEST_CASE("Snapmaker lane menu offers Unload and Load for filament parked in the
         CHECK(d.unload_enabled);
         CHECK_FALSE(d.can_load);
     }
+}
+
+TEST_CASE("Lane menus withdraw Unload while the toolhead is unaccounted",
+          "[ams][context_menu][1324]") {
+    // Filament at the toolhead with no lane claiming it: the lane the menu is
+    // open on may not be the seated one, so neither the heated unload nor a
+    // cold eject is offered on any lane. The computed mode is left alone - a
+    // relabel to Eject would cold-retract the lane that is secretly seated -
+    // only the enablement withdraws, and the sidebar's active-head Unload
+    // covers the state instead.
+    using UnloadMode = AmsContextMenuTestAccess::UnloadMode;
+
+    AmsBackendMock loaded(4);
+    REQUIRE(loaded.start());
+    // Slot 0 is the mock's default loaded lane.
+    REQUIRE(loaded.can_unload_from_toolhead(0));
+    CHECK(ops_for(loaded, 0).unload_enabled);
+    loaded.stop();
+
+    AmsBackendMock unaccounted(4);
+    unaccounted.set_initial_state_scenario("unaccounted");
+    REQUIRE(unaccounted.start());
+    REQUIRE(unaccounted.toolhead_filament_unaccounted().value_or(false));
+    const auto d = ops_for(unaccounted, 0);
+    CHECK(d.unload_mode == UnloadMode::Unload);
+    CHECK_FALSE(d.unload_enabled);
+    unaccounted.stop();
 }
 
 TEST_CASE("A dock-sensor fault disables Unmount and says why", "[ams][context_menu][toolchanger]") {
@@ -1191,4 +1218,76 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_obj_t* btn_clear = lv_obj_find_by_name(test_screen(), "btn_clear_spool");
     REQUIRE(btn_clear != nullptr);
     CHECK_FALSE(lv_obj_has_state(btn_clear, LV_STATE_DISABLED));
+}
+
+// ============================================================================
+// on_created: Preload follows the backend capability and the print gate
+// ============================================================================
+
+namespace {
+/// A mock whose "filament at the toolhead" answer the test sets.
+class PreloadMock : public AmsBackendMock {
+  public:
+    using AmsBackendMock::AmsBackendMock;
+    bool loaded = false;
+    [[nodiscard]] bool is_filament_loaded() const override {
+        return loaded;
+    }
+};
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "AmsContextMenu: Preload shows for a preloading backend and greys when blocked",
+                 "[ui][ams][context_menu][preload]") {
+    auto backend = std::make_unique<PreloadMock>(4);
+    REQUIRE(backend->supports_lane_preload());
+
+    REQUIRE(lv_xml_register_component_from_file("A:ui_xml/ams_context_menu.xml") == LV_RESULT_OK);
+
+    SECTION("machine free, nothing loaded: shown and enabled") {
+        ScopedWireState idle(state(), helix::PrintJobState::STANDBY);
+        AmsContextMenu menu;
+        REQUIRE(menu.show_near_widget(test_screen(), /*slot_index=*/1, test_screen(),
+                                      /*is_loaded=*/false, backend.get()));
+        lv_obj_t* btn = lv_obj_find_by_name(test_screen(), "btn_preload");
+        REQUIRE(btn != nullptr);
+        CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+        CHECK_FALSE(lv_obj_has_state(btn, LV_STATE_DISABLED));
+    }
+
+    SECTION("filament loaded: shown but disabled") {
+        ScopedWireState idle(state(), helix::PrintJobState::STANDBY);
+        backend->loaded = true;
+        AmsContextMenu menu;
+        REQUIRE(menu.show_near_widget(test_screen(), /*slot_index=*/1, test_screen(),
+                                      /*is_loaded=*/false, backend.get()));
+        lv_obj_t* btn = lv_obj_find_by_name(test_screen(), "btn_preload");
+        REQUIRE(btn != nullptr);
+        CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_has_state(btn, LV_STATE_DISABLED));
+    }
+
+    SECTION("mid-print: shown but disabled") {
+        ScopedWireState printing(state(), helix::PrintJobState::PRINTING);
+        AmsContextMenu menu;
+        REQUIRE(menu.show_near_widget(test_screen(), /*slot_index=*/1, test_screen(),
+                                      /*is_loaded=*/false, backend.get()));
+        lv_obj_t* btn = lv_obj_find_by_name(test_screen(), "btn_preload");
+        REQUIRE(btn != nullptr);
+        CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_has_state(btn, LV_STATE_DISABLED));
+    }
+
+    SECTION("external spool: hidden, even after a lane menu showed it") {
+        {
+            AmsContextMenu lane_menu;
+            REQUIRE(lane_menu.show_near_widget(test_screen(), /*slot_index=*/1, test_screen(),
+                                               /*is_loaded=*/false, backend.get()));
+        }
+        AmsContextMenu ext_menu;
+        REQUIRE(ext_menu.show_for_external_spool(test_screen(), test_screen()));
+        lv_obj_t* btn = lv_obj_find_by_name(test_screen(), "btn_preload");
+        REQUIRE(btn != nullptr);
+        CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+    }
 }

@@ -27,8 +27,8 @@
     <style name="axis_letter_homed" text_color="#primary"/>
     <style name="axis_value_homed" text_color="#text"/>
     <style name="axis_unhomed" text_color="#text_muted"/>
-    <!-- Commanded/actual toggle glyph: accent while showing actual (live)
-         position, muted while showing commanded. -->
+    <!-- Commanded/actual toggle: accent while showing actual (live)
+         position, muted while showing the commanded target. -->
     <style name="coords_swap_actual" text_color="#primary"/>
     <style name="coords_swap_commanded" text_color="#text_muted"/>
   </styles>
@@ -47,9 +47,10 @@
                 action_button_2_callback="on_motion_header_settings_clicked">
       <!-- Header coordinates: one line, bold tinted axis letter + tabular
            mono value, no unit suffix. Each letter+value pair is one tap
-           target (opens that axis' keypad); the swap icon at the end flips
-           commanded/actual display. The value labels carry the stable
-           per-axis names (header_pos_x/_y/_z). Hidden in portrait, where the
+           target (opens that axis' keypad); the swap chip at the end
+           names the shown mode (Target / Actual) and flips it. The value
+           labels carry the stable per-axis names (header_pos_x/_y/_z).
+           Hidden in portrait, where the
            coord_row under the header carries the same three bindings under
            row_pos_* names (distinct on purpose: this group is outside any
            <if> branch, so the duplicate-name gate would flag sharing them). -->
@@ -128,14 +129,22 @@
             </lv_label>
           </lv_obj>
           <lv_obj name="header_pos_swap"
-                  width="#icon_button_size" height="#icon_button_size" clickable="true" style_pad_all="0"
-                  style_bg_opa="0" style_border_width="0" scrollable="false" flex_flow="row"
-                  style_flex_main_place="center" style_flex_cross_place="center">
+                  width="content" height="#icon_button_size" style_min_width="#icon_button_size" clickable="true"
+                  style_pad_all="0" style_pad_gap="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false"
+                  flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center">
             <event_cb trigger="clicked" callback="on_motion_swap_coords_clicked"/>
             <icon src="swap_horizontal" size="xs">
               <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
               <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
             </icon>
+            <lv_label name="header_pos_swap_target" text="Target" translation_tag="Target" style_text_font="#font_small">
+              <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
+              <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="1"/>
+            </lv_label>
+            <lv_label name="header_pos_swap_actual" text="Actual" translation_tag="Actual" style_text_font="#font_small">
+              <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
+              <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="0"/>
+            </lv_label>
           </lv_obj>
         </lv_obj>
       </header_bar-header_content>
@@ -197,14 +206,22 @@
           </lv_label>
         </lv_obj>
         <lv_obj name="row_pos_swap"
-                width="#icon_button_size" height="#icon_button_size" clickable="true" style_pad_all="0" style_bg_opa="0"
-                style_border_width="0" scrollable="false" flex_flow="row" style_flex_main_place="center"
-                style_flex_cross_place="center">
+                width="content" height="#icon_button_size" style_min_width="#icon_button_size" clickable="true"
+                style_pad_all="0" style_pad_gap="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false"
+                flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center">
           <event_cb trigger="clicked" callback="on_motion_swap_coords_clicked"/>
           <icon src="swap_horizontal" size="xs">
             <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
             <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
           </icon>
+          <lv_label name="row_pos_swap_target" text="Target" translation_tag="Target" style_text_font="#font_small">
+            <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
+            <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="1"/>
+          </lv_label>
+          <lv_label name="row_pos_swap_actual" text="Actual" translation_tag="Actual" style_text_font="#font_small">
+            <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
+            <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="0"/>
+          </lv_label>
         </lv_obj>
       </lv_obj>
       <lv_obj name="overlay_content"
@@ -320,6 +337,7 @@
                      text="Park" translation_tag="Park" variant="outline" flex_grow="1" moves_machine="true">
             <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="1"/>
             <bind_state_if_eq subject="nav_buttons_enabled" state="disabled" ref_value="0"/>
+            <bind_state_if_eq subject="idle_timeout_printing" state="disabled" ref_value="1"/>
             <event_cb trigger="clicked" callback="on_motion_park_clicked"/>
           </ui_button>
           <ui_button name="move_motors_off"

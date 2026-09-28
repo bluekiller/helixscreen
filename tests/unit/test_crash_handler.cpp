@@ -27,6 +27,8 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <sys/resource.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 
@@ -1406,4 +1408,40 @@ TEST_CASE_METHOD(CrashTestFixture,
     REQUIRE(result["breadcrumbs"][0] == "1000 boot v0.99.99");
     REQUIRE(result["breadcrumbs"][1] == "5200 nav home");
     REQUIRE(result["breadcrumbs"][2] == "5210 xml home_card");
+}
+
+namespace {
+// Each frame keeps a live buffer the compiler cannot elide, so the recursion
+// runs off the end of the stack instead of being folded into a loop.
+[[gnu::noinline]] int overflow_stack(int depth) {
+    volatile char frame[1024];
+    frame[0] = static_cast<char>(depth);
+    return overflow_stack(depth + 1) + frame[0];
+}
+} // namespace
+
+TEST_CASE_METHOD(CrashTestFixture, "Crash: a stack overflow still writes the crash file",
+                 "[telemetry][crash][subprocess]") {
+    pid_t pid = fork();
+    REQUIRE(pid >= 0);
+
+    if (pid == 0) {
+        // A small stack makes the overflow quick and deterministic.
+        struct rlimit rl {};
+        rl.rlim_cur = 256 * 1024;
+        rl.rlim_max = RLIM_INFINITY;
+        setrlimit(RLIMIT_STACK, &rl);
+        crash_handler::install(crash_path());
+        _exit(overflow_stack(0) == 0 ? 97 : 99);
+    }
+
+    int status = 0;
+    REQUIRE(waitpid(pid, &status, 0) == pid);
+    INFO("WIFEXITED=" << WIFEXITED(status) << " WEXITSTATUS=" << WEXITSTATUS(status)
+                      << " WIFSIGNALED=" << WIFSIGNALED(status)
+                      << " WTERMSIG=" << WTERMSIG(status));
+    REQUIRE(crash_handler::has_crash_file(crash_path()));
+    auto result = crash_handler::read_crash_file(crash_path());
+    REQUIRE_FALSE(result.is_null());
+    REQUIRE(result["signal"] == SIGSEGV);
 }

@@ -8,6 +8,8 @@
 #include "helix_fs.h"
 #include "lvgl_image_writer.h"
 #include "prerendered_images.h"
+#include "printer_image_regions.h"
+#include "printer_images.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
 #include "text_io.h"
@@ -92,11 +94,7 @@ void PrinterImageManager::set_active_image(const std::string& id) {
     spdlog::info("[PrinterImageManager] Active image set to: '{}'",
                  id.empty() ? "(auto-detect)" : id);
 
-    // Notify observers (e.g., home panel) that the image changed
-    if (subjects_initialized_) {
-        int ver = lv_subject_get_int(&image_changed_subject_);
-        lv_subject_set_int(&image_changed_subject_, ver + 1);
-    }
+    notify_image_changed();
 }
 
 std::string PrinterImageManager::get_active_image_path(int screen_width) {
@@ -155,6 +153,23 @@ std::string PrinterImageManager::get_active_image_path(int screen_width) {
 
     spdlog::warn("[PrinterImageManager] Unknown image ID format: '{}'", id);
     return "";
+}
+
+void PrinterImageManager::notify_image_changed() {
+    if (subjects_initialized_) {
+        int ver = lv_subject_get_int(&image_changed_subject_);
+        lv_subject_set_int(&image_changed_subject_, ver + 1);
+    }
+}
+
+std::string PrinterImageManager::get_displayed_image_path(int screen_width) {
+    std::string path = get_active_image_path(screen_width);
+    if (!path.empty())
+        return path;
+    Config* config = Config::get_instance();
+    const std::string printer_type =
+        config ? config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "") : "";
+    return PrinterImages::get_best_printer_image(printer_type);
 }
 
 // =============================================================================
@@ -526,6 +541,8 @@ PrinterImageManager::import_image(const std::string& source_path) {
     result.success = true;
     result.id = "custom:" + stem;
     spdlog::info("[PrinterImageManager] Imported '{}' as '{}'", source_path, result.id);
+    // Tags made on the old picture would pin chips to the wrong places on this one.
+    reset_user_image_regions(printer_image_region_key(path_300));
     return result;
 }
 
@@ -559,6 +576,7 @@ bool PrinterImageManager::delete_custom_image(const std::string& name) {
 
     if (any_removed) {
         spdlog::info("[PrinterImageManager] Deleted custom image: '{}'", name);
+        reset_user_image_regions(printer_image_region_key(custom_dir_ + name + "-300.bin"));
     } else {
         spdlog::warn("[PrinterImageManager] No files found to delete for: '{}'", name);
     }

@@ -47,6 +47,12 @@ struct AmsSlotData {
     int slot_index = -1;
     int total_count = 4; // Total slots being displayed (for stagger calculation)
 
+    /// Backend whose subjects the observers below are bound to (captured at
+    /// setup_slot_observers time from the active backend). Kept so later
+    /// re-reads (refresh_slot_material_label) hit the same backend the
+    /// observers are bound to, even if the active backend moved on.
+    int backend_index = 0;
+
     // Last lane classification seen from the per-slot lane_state subject. The
     // material label's text and ghost strength depend on it (an Empty lane
     // reads "Empty", a Ghosted one dims alongside its spool), and lane_state
@@ -65,15 +71,15 @@ struct AmsSlotData {
     ObserverGuard action_observer;
     ObserverGuard target_slot_observer;
 
-    // Lifetime token paired with the status observer, the one observer left
-    // here that binds a per-backend subject. Secondary-backend (index > 0)
-    // status subjects are DYNAMIC -
-    // recreated on backend rediscovery - so that observer needs a token
-    // that expires when AmsState tears the subject down (L084). For backend 0
-    // the accessor returns AmsState's subjects lifetime. MUST be reset BEFORE
-    // the matching observer (see cleanup paths, #705).
+    // Lifetime tokens paired with the observers that bind per-backend subjects
+    // (status, lane_state, material). Secondary-backend (index > 0) subjects
+    // are DYNAMIC - recreated on backend rediscovery - so those observers need
+    // tokens that expire when AmsState tears the subject down (L084). For
+    // backend 0 the accessors return AmsState's subjects lifetime. Each MUST be
+    // reset BEFORE its matching observer (see cleanup paths, #705).
     SubjectLifetime status_lifetime;
     SubjectLifetime lane_state_lifetime;
+    SubjectLifetime material_lifetime;
 
     lv_obj_t* spool_container = nullptr; // Container for the lane spool + badges
 
@@ -138,8 +144,10 @@ static void unregister_slot_data(lv_obj_t* obj) {
             // are dynamic; wrong order = remove on a freed subject, #705).
             data->status_lifetime.reset();
             data->lane_state_lifetime.reset();
+            data->material_lifetime.reset();
             data->status_observer.reset();
             data->lane_state_observer.reset();
+            data->material_observer.reset();
             data->current_slot_observer.reset();
             data->filament_loaded_observer.reset();
             data->active_loaded_observer.reset();
@@ -166,8 +174,10 @@ static void cleanup_all_slot_data() {
         // dynamic-subject lifetime first (same #705 ordering as above).
         data->status_lifetime.reset();
         data->lane_state_lifetime.reset();
+        data->material_lifetime.reset();
         data->status_observer.release();
         data->lane_state_observer.release();
+        data->material_observer.release();
         data->current_slot_observer.release();
         data->filament_loaded_observer.release();
         data->active_loaded_observer.release();
@@ -218,7 +228,7 @@ static void refresh_slot_material_label(AmsSlotData* data) {
     if (!data || !data->material_label)
         return;
     lv_subject_t* material_subject =
-        AmsState::instance().get_slot_material_subject(data->slot_index);
+        AmsState::instance().get_slot_material_subject(data->backend_index, data->slot_index);
     apply_material_label(data,
                          material_subject ? lv_subject_get_string(material_subject) : nullptr);
 }
@@ -493,12 +503,13 @@ static void setup_slot_observers(AmsSlotData* data) {
     using helix::ui::observe_int_sync;
     AmsState& state = AmsState::instance();
 
-    // Get per-slot subjects. Status goes through the token'd overload: for a
-    // secondary backend the subject is dynamic (recreated on rediscovery), so
-    // the paired SubjectLifetime member keeps the observer from firing on a
-    // freed subject. Reset the lifetime BEFORE rebinding (the accessor
-    // overwrites it).
+    // Get per-slot subjects. Status, lane_state and material go through the
+    // token'd overloads: for a secondary backend those subjects are dynamic
+    // (recreated on rediscovery), so the paired SubjectLifetime members keep
+    // the observers from firing on a freed subject. Reset each lifetime
+    // BEFORE rebinding (the accessor overwrites it).
     int backend_idx = state.active_backend_index();
+    data->backend_index = backend_idx;
     data->status_lifetime.reset();
     lv_subject_t* status_subject =
         state.get_slot_status_subject(backend_idx, data->slot_index, data->status_lifetime);
@@ -536,7 +547,8 @@ static void setup_slot_observers(AmsSlotData* data) {
     // change (type edited while color is unchanged) repaints on EVERY consumer
     // — AmsPanel, AmsOverviewPanel, AmsDetail — with no container re-reading it
     // imperatively (#1065, native ZMOD AD5X "material stuck, color updates").
-    lv_subject_t* material_subject = state.get_slot_material_subject(data->slot_index);
+    lv_subject_t* material_subject =
+        state.get_slot_material_subject(backend_idx, data->slot_index, data->material_lifetime);
     if (material_subject) {
         data->material_observer = helix::ui::observe_string<lv_obj_t>(
             material_subject, obj,
@@ -550,7 +562,7 @@ static void setup_slot_observers(AmsSlotData* data) {
                 // lane_state subject fires and the embedded ams_lane_spool
                 // ghosts (or un-ghosts) itself.
             },
-            state.get_subjects_lifetime());
+            data->material_lifetime);
     }
 
     if (current_slot_subject) {
@@ -760,6 +772,7 @@ static void ams_slot_xml_apply(lv_xml_parser_state_t* state, const char** attrs)
                 // Clear existing observers
                 data->status_lifetime.reset();
                 data->lane_state_lifetime.reset();
+                data->material_lifetime.reset();
                 data->status_observer.reset();
                 data->lane_state_observer.reset();
                 data->material_observer.reset();
@@ -842,8 +855,10 @@ void ui_ams_slot_set_index(lv_obj_t* obj, int slot_index) {
     // Clear existing observers, dynamic-subject tokens first (#705)
     data->status_lifetime.reset();
     data->lane_state_lifetime.reset();
+    data->material_lifetime.reset();
     data->status_observer.reset();
     data->lane_state_observer.reset();
+    data->material_observer.reset();
     data->current_slot_observer.reset();
     data->filament_loaded_observer.reset();
 

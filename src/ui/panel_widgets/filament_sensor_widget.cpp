@@ -342,10 +342,11 @@ void FilamentSensorWidget::dispatch_unload() {
     // exactly what it exists to prevent.
     bool loaded = false;
     if (backend) {
-        loaded = helix::ui::unload_target_is_loaded(slot, backend->slot_is_actively_loaded(slot),
-                                                    backend->slot_has_filament_at_toolhead(slot),
-                                                    /*is_current_slot=*/true,
-                                                    backend->get_system_info().filament_loaded);
+        loaded = helix::ui::unload_target_is_loaded(
+            slot, backend->slot_is_actively_loaded(slot),
+            backend->slot_has_filament_at_toolhead(slot),
+            /*is_current_slot=*/true, backend->get_system_info().filament_loaded,
+            backend->toolhead_filament_unaccounted().value_or(false));
     }
 
     helix::ui::execute_filament_unload(backend, slot, loaded, "[FilamentSensorWidget]");

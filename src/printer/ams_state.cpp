@@ -1659,6 +1659,29 @@ lv_subject_t* AmsState::get_slot_error_severity_subject(int backend_index, int s
         backend_index == 0 ? get_slot_error_severity_subject(slot_index) : nullptr);
 }
 
+lv_subject_t* AmsState::get_slot_material_subject(int backend_index, int slot_index) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (backend_index == 0) {
+        return get_slot_material_subject(slot_index);
+    }
+    int sec_idx = backend_index - 1;
+    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
+        return nullptr;
+    }
+    auto& subs = secondary_slot_subjects_[sec_idx];
+    if (slot_index < 0 || slot_index >= subs.slot_count) {
+        return nullptr;
+    }
+    return &subs.materials[slot_index];
+}
+
+lv_subject_t* AmsState::get_slot_material_subject(int backend_index, int slot_index,
+                                                  SubjectLifetime& lifetime) {
+    return backend_slot_subject(
+        backend_index, slot_index, lifetime, &BackendSlotSubjects::materials,
+        backend_index == 0 ? get_slot_material_subject(slot_index) : nullptr);
+}
+
 void AmsState::BackendSlotSubjects::init(int count) {
     slot_count = count;
     colors.resize(count);
@@ -1667,6 +1690,8 @@ void AmsState::BackendSlotSubjects::init(int count) {
     lane_states.resize(count);
     has_errors.resize(count);
     severities.resize(count);
+    material_bufs.resize(count);
+    materials.resize(count);
     for (int i = 0; i < count; ++i) {
         lv_subject_init_int(&colors[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
         lv_subject_init_int(&statuses[i], static_cast<int>(SlotStatus::UNKNOWN));
@@ -1674,6 +1699,8 @@ void AmsState::BackendSlotSubjects::init(int count) {
         lv_subject_init_int(&lane_states[i], static_cast<int>(helix::ui::LaneState::Empty));
         lv_subject_init_int(&has_errors[i], 0);
         lv_subject_init_int(&severities[i], static_cast<int>(SlotError::Severity::INFO));
+        lv_subject_init_string(&materials[i], material_bufs[i].data(), nullptr,
+                               BackendSlotSubjects::MATERIAL_BUF_SIZE, "");
     }
     // Fresh lifetime token: observers bound via the token'd accessors expire
     // when deinit() invalidates it on backend rediscovery.
@@ -1691,7 +1718,7 @@ void AmsState::BackendSlotSubjects::deinit() {
         lv_subject_deinit(&c);
     for (auto& s : statuses)
         lv_subject_deinit(&s);
-    for (auto* group : {&fills, &lane_states, &has_errors, &severities})
+    for (auto* group : {&fills, &lane_states, &has_errors, &severities, &materials})
         for (auto& subj : *group)
             lv_subject_deinit(&subj);
     colors.clear();
@@ -1700,6 +1727,8 @@ void AmsState::BackendSlotSubjects::deinit() {
     lane_states.clear();
     has_errors.clear();
     severities.clear();
+    materials.clear();
+    material_bufs.clear();
     slot_count = 0;
 }
 
@@ -1708,6 +1737,9 @@ void AmsState::BackendSlotSubjects::write(int i, const SlotInfo& slot) {
     lv_subject_set_int(&statuses[i], static_cast<int>(slot.status));
     lv_subject_set_int(&fills[i], slot.display_fill_pct());
     lv_subject_set_int(&lane_states[i], static_cast<int>(helix::ui::classify_lane(slot)));
+    // No prev buffer, so LVGL notifies on every copy; compare here instead.
+    if (strcmp(lv_subject_get_string(&materials[i]), slot.material.c_str()) != 0)
+        lv_subject_copy_string(&materials[i], slot.material.c_str());
     bool has_error = false;
     int severity = 0;
     slot_error_state(slot, has_error, severity);
@@ -2477,10 +2509,10 @@ bool AmsState::write_slot_subjects(AmsBackend& backend, int slot_index, const Sl
         lv_subject_copy_string(&slot_remaining_[slot_index], remaining.c_str());
     }
 
-    // Material type. Unlike remaining, a material delta MUST move slots_version:
-    // the panel's material label has no direct binding and is re-read only by
-    // refresh_slots(), so a type change that leaves colour and status alone would
-    // otherwise leave the label stale (#1065).
+    // Material type. The ams_slot widget binds this subject directly (its
+    // material observer repaints the label), but container-level consumers
+    // re-read material through refresh_slots() keyed on slots_version, so a
+    // material delta still bumps the version (#1065).
     if (strcmp(lv_subject_get_string(&slot_materials_[slot_index]), slot.material.c_str()) != 0) {
         lv_subject_copy_string(&slot_materials_[slot_index], slot.material.c_str());
         changed = true;
@@ -3027,7 +3059,7 @@ void AmsState::recompute_action_detail() {
         auto print_state = get_printer_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
-            new_detail = lv_tr("Printing");
+            new_detail = lv_tr("Printing now");
             break;
         case PrintJobState::PAUSED:
             new_detail = lv_tr("Paused");

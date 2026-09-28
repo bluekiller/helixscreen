@@ -11,10 +11,15 @@
 // defined in src/system/printer_image_regions.cpp.
 namespace helix {
 
-/// Replace the table and mark it loaded, so the shipped file is never read.
+/// Replace the shipped table and mark it loaded, so the shipped file is never
+/// read. The user table is loaded and empty, so no config dir's user file
+/// leaks into a test; reload_user_image_regions() reads it after all.
 void replace_image_regions(std::unordered_map<std::string, ImageRegions> regions);
 
-/// Empty the table and mark it unloaded: the next lookup reads the shipped file.
+/// Unload the user table only: the next lookup reads it from the current config dir.
+void reload_user_image_regions();
+
+/// Empty both tables and mark them unloaded: the next lookup reads both files.
 void unload_image_regions();
 
 /// Holds a replaced table for one scope, so a failing REQUIRE cannot leave a

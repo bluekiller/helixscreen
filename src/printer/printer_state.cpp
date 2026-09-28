@@ -1114,9 +1114,12 @@ bool PrinterState::is_external_blocking_operation_active() {
         return false;
     }
     // idle_timeout == "Printing" during any move, including our own jog. If the
-    // app has motion in flight (or acked within the grace window), the busy-ness
-    // is self-inflicted — let discretionary gcode through so jogs don't self-block.
-    return !app_motion_activity_.recently_active();
+    // app has motion in flight, acked within the grace window, or started this
+    // busy episode itself, the busy-ness is self-inflicted: let discretionary
+    // gcode through so jogs don't self-block.
+    return !app_motion_activity_.recently_active() &&
+           !app_motion_activity_.owns_busy_episode(
+               calibration_state_.idle_timeout_busy().printing_since());
 }
 
 bool PrinterState::can_start_new_print() const {

@@ -329,6 +329,13 @@ class AmsBackend {
         return std::nullopt;
     }
 
+    /// Whether the firmware prompt titled @p title is this backend's own dialog
+    /// for a fault the recovery popup already shows. The presenter closes such a
+    /// prompt when it raises the popup, so one fault reads as one dialog.
+    [[nodiscard]] virtual bool duplicates_firmware_prompt(const std::string& /*title*/) const {
+        return false;
+    }
+
     /// Channel B: the current actionable fault, derived from backend STATUS
     /// rather than from a console line. Consulted only by AmsErrorBridge, and
     /// only on the rising edge into AmsAction::ERROR — a backend that never
@@ -373,6 +380,16 @@ class AmsBackend {
      */
     [[nodiscard]] virtual std::vector<helix::RecoveryAction> build_recovery_actions() const {
         return {};
+    }
+
+    /// The action a phased backend publishes: while its own assignment says an
+    /// operation is running, what the current step projects to; otherwise the
+    /// assignment. IDLE, ERROR and PAUSED name no step, so a phase index a
+    /// finished operation left behind never makes the machine read busy, and a
+    /// fault always shows.
+    [[nodiscard]] static AmsAction project_action(AmsAction assigned,
+                                                  std::optional<AmsAction> projected) {
+        return projected && ams_action_is_busy(assigned) ? *projected : assigned;
     }
 
   public:
@@ -435,6 +452,12 @@ class AmsBackend {
         int phase_id = -1;      ///< backend phase index this step represents (-1 = positional)
         bool optional = false;  ///< stays greyed/Pending when never reached this op
         bool live_temp = false; ///< render a live "<label> cur/target°C" while current
+        /// What this step looks like to consumers that read the coarse AmsAction:
+        /// the kind of work (HEATING, CUTTING, PURGING), or for a step that only
+        /// positions the machine, the operation's direction. The Snapmaker, AD5X
+        /// IFS and tool changer backends publish it as the action while the step
+        /// is current (project_action()); the others still assign theirs.
+        std::optional<AmsAction> coarse;
     };
 
     /// Ordered step labels for an operation. Empty => backend has no specialized
@@ -449,6 +472,16 @@ class AmsBackend {
         /// source has nothing to say, and Heat/Feed/Purge is not a truer answer
         /// than silence.
         bool suppressed = false;
+
+        /// The coarse action the step at @p index projects to, the same positional
+        /// index the step bar highlights. nullopt when no step sits there or it
+        /// declares no projection.
+        [[nodiscard]] std::optional<AmsAction> action_at(int index) const {
+            if (index < 0 || index >= static_cast<int>(steps.size())) {
+                return std::nullopt;
+            }
+            return steps[static_cast<size_t>(index)].coarse;
+        }
     };
 
     /**
@@ -466,7 +499,7 @@ class AmsBackend {
     [[nodiscard]] virtual OperationStepModel get_operation_step_model(StepOperationType op) const {
         OperationStepModel model;
         for (const auto& p : toolchange_phase_template(op)) {
-            model.steps.push_back({p.label, -1, p.optional, false});
+            model.steps.push_back({p.label, -1, p.optional, false, std::nullopt});
         }
         return model;
     }
@@ -829,15 +862,15 @@ class AmsBackend {
 
     /**
      * @brief Does the printer-side system arrange its own homing for filament
-     *        load/unload ops, so HelixScreen should neither prompt nor send G28?
+     *        load/unload ops, so HelixScreen should not send G28 first?
      *
      * AFC answers true when [AFC] auto_home is set in AFC.cfg: its macros
-     * home-if-needed themselves, so both our confirmation prompt and the G28
-     * that ensure_homed_then() would synthesize are redundant.
+     * home-if-needed themselves, so the G28 that ensure_homed_then() would
+     * synthesize is redundant.
      *
      * False-until-config-loaded by construction: the AFC override reads
      * afc_config_, which lands asynchronously, so an early or failed load
-     * answers false — at worst one redundant prompt, never a skipped home.
+     * answers false — at worst one redundant G28, never a skipped home.
      *
      * NOT the same question as filament_ops_self_home() (which gates
      * PAUSED-print refusal); the two must stay separate.
@@ -845,33 +878,6 @@ class AmsBackend {
     [[nodiscard]] virtual bool delegates_homing_to_printer() const {
         return false;
     }
-
-    /**
-     * @brief Record that the user has already agreed to a pre-operation home for
-     *        the NEXT dispatch, so ensure_homed_then() does not ask a second
-     *        time.
-     *
-     * Armed by a UI surface that asks before starting its own preheat (moving
-     * the "home printer first?" question ahead of the preheat instead of after
-     * it, so a decline never wastes a heat cycle). Single-shot: the backend
-     * consumes it on the very next ensure_homed_then() call that finds the
-     * toolhead genuinely unhomed. Does NOT skip the G28 itself -- only the
-     * prompt. Default no-op for backends that don't route through
-     * AmsSubscriptionBackend::ensure_homed_then().
-     */
-    virtual void arm_home_preconfirmed() {}
-
-    /**
-     * @brief Clear a previously armed pre-confirmation without consuming it via
-     *        a dispatch.
-     *
-     * Call when a confirmed-but-not-yet-dispatched load is abandoned --
-     * preheat cancelled, the panel torn down, the operation aborted -- so
-     * consent does not leak forward into a later, unrelated operation on this
-     * backend. Safe to call whether or not anything is currently armed.
-     * Default no-op, mirroring arm_home_preconfirmed().
-     */
-    virtual void clear_home_preconfirmed() {}
 
     /**
      * @brief Whether the UI should redirect to the AMS panel for slot selection
@@ -1234,6 +1240,25 @@ class AmsBackend {
     }
 
     /**
+     * @brief Re-sync the firmware's tracked state to what the user says is true
+     *
+     * State-only, like clear_fault(): tells the firmware which slot is
+     * selected and whether filament is loaded, without moving anything.
+     * Fields left unset in @p request are not asserted.
+     *
+     * Default implementation returns NOT_SUPPORTED.
+     */
+    virtual AmsError recover_with_state(const RecoverStateRequest& request) {
+        (void)request;
+        return AmsErrorHelper::not_supported("Recover with state not supported");
+    }
+
+    /// @return true if recover_with_state() is implemented
+    [[nodiscard]] virtual bool supports_recover_with_state() const {
+        return false;
+    }
+
+    /**
      * @brief Retract a lane's filament back to its lane from the bowden
      *
      * A physical filament move, not a fault clear. Recovers a lane left stranded
@@ -1312,6 +1337,25 @@ class AmsBackend {
      * @return true if eject_lane() is implemented
      */
     [[nodiscard]] virtual bool supports_lane_eject() const {
+        return false;
+    }
+
+    /**
+     * @brief Feed a lane's filament up to its park position (async)
+     *
+     * Parks a freshly inserted spool ready for a later load, without loading
+     * it to the toolhead. Default implementation returns NOT_SUPPORTED.
+     *
+     * @param slot_index Lane to preload (0-based)
+     * @return AmsError indicating if operation was started
+     */
+    virtual AmsError preload_lane(int slot_index) {
+        (void)slot_index;
+        return AmsErrorHelper::not_supported("Lane preload not supported");
+    }
+
+    /// @return true if preload_lane() is implemented
+    [[nodiscard]] virtual bool supports_lane_preload() const {
         return false;
     }
 

@@ -737,7 +737,7 @@ void CameraWidget::close_fullscreen() {
 namespace {
 
 // Standalone fullscreen camera viewer — used when there's no owning
-// CameraWidget (e.g. Settings → Hardware & Devices → Camera). Owns its own
+// CameraWidget (e.g. Settings → Devices → Camera). Owns its own
 // CameraStream and is destroyed by the NavigationManager close callback.
 struct StandaloneFullscreen {
     lv_obj_t* overlay = nullptr;

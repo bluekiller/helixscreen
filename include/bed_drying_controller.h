@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ui_observer_guard.h"
+
 #include "async_lifetime_guard.h"
 #include "bed_drying.h"
 #include "i_moonraker_api.h"
@@ -37,7 +39,17 @@ class TemperatureController;
  */
 class BedDryingController {
   public:
-    enum class State { Idle = 0, Running = 1, Cooling = 2, ReadyToRemove = 3, Placing = 4 };
+    /// Unloading and Preparing come before the latch: the toolhead is being
+    /// cleared, then the plate homed and moved, and no spools are on it yet.
+    enum class State {
+        Idle = 0,
+        Running = 1,
+        Cooling = 2,
+        ReadyToRemove = 3,
+        Placing = 4,
+        Unloading = 5,
+        Preparing = 6
+    };
 
     using Clock = std::function<long long()>;
 
@@ -78,6 +90,24 @@ class BedDryingController {
     /// The spools are off the plate: clear the latch and the persisted run.
     void confirm_removed();
 
+    /// How long a filament-system unload may take to show as busy before the
+    /// flow gives up on it.
+    static constexpr uint32_t kUnloadStartWindowMs = 30000;
+
+    /// Wait for the filament system's unload before the plate moves: @p on_done
+    /// once its action has gone busy and back to idle, @p on_failed on ERROR
+    /// (started = true) or when it never goes busy within kUnloadStartWindowMs
+    /// (started = false). A second call replaces the first wait.
+    void await_unload(std::function<void()> on_done, std::function<void(bool started)> on_failed);
+
+    /// Drop the wait without running either callback.
+    void cancel_unload_wait();
+
+    /// Stop the flow before the spools go on: the unload wait is dropped and a
+    /// plate move in flight no longer leads to the place prompt. A move or an
+    /// unload the printer is already running finishes on its own.
+    void cancel_preparation();
+
     /// Advance the run to @p now_s (wall clock seconds). Driven by a 1 s timer.
     void tick(long long now_s);
 
@@ -116,6 +146,11 @@ class BedDryingController {
     void publish();
     void set_latch(bool on);
     void cancel_timer();
+    void finish_unload_wait(bool done);
+    void drop_unload_wait();
+
+    enum class PreRun { None, Unloading, Preparing };
+    void set_pre_run(PreRun p);
 
     PrinterState& state_;
     IMoonrakerAPI* api_;
@@ -127,6 +162,8 @@ class BedDryingController {
     bool pending_appliance_ = false;
     bool bed_target_seen_ = false;
     bool removal_prompted_ = false;
+    PreRun pre_run_ = PreRun::None;
+    unsigned prep_gen_ = 0; ///< bumped when a preparation is dropped
 
     SubjectManager subjects_;
     bool subjects_initialized_ = false;
@@ -137,6 +174,13 @@ class BedDryingController {
 
     lv_timer_t* timer_ = nullptr;
     std::function<void()> on_ready_to_remove_;
+
+    ObserverGuard unload_watch_;
+    lv_timer_t* unload_timer_ = nullptr;
+    bool unload_seen_busy_ = false;
+    std::function<void()> unload_done_;
+    std::function<void(bool)> unload_failed_;
+
     AsyncLifetimeGuard lifetime_;
 };
 

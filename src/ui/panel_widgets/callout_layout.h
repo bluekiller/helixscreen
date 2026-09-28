@@ -9,6 +9,7 @@
 #include "printer_image_regions.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
@@ -59,7 +60,8 @@ struct CalloutLayoutInput {
     int gap = 0;         ///< between stacked chips, and from the area edge
     int min_line = 0;    ///< shortest leader run worth drawing
     /// Worst-case chips this printer can ever show. Decides the MODE, so the
-    /// image never moves when a chip comes or goes.
+    /// image never moves when a chip comes or goes. Empty rules out the line
+    /// modes: a tagged image then draws Pinned.
     std::vector<CalloutChipIn> budget;
     /// Chips showing now. Only these get positions.
     std::vector<CalloutChipIn> active;
@@ -73,6 +75,25 @@ struct CalloutLayout {
     std::vector<CalloutChipOut> chips;
     bool toolhead_merged = false;
 };
+
+/// Where a tagged image puts `k`'s chip: its part's point, the nozzle for the
+/// toolhead chip, and the middle of the bed's near edge for the bed.
+[[nodiscard]] inline std::optional<NormPoint> region_anchor(const ImageRegions& r, CalloutKind k) {
+    switch (k) {
+    case CalloutKind::Nozzle:
+    case CalloutKind::Toolhead:
+        return r.nozzle;
+    case CalloutKind::Fan:
+        return r.part_fan;
+    case CalloutKind::Bed:
+        return NormPoint{(r.bed_left.x + r.bed_right.x) / 2, (r.bed_left.y + r.bed_right.y) / 2};
+    case CalloutKind::Chamber:
+        return r.chamber;
+    case CalloutKind::Light:
+        return r.light;
+    }
+    return std::nullopt;
+}
 
 /// Contain-fit the image into the area, centred. Zero rect when either is empty.
 [[nodiscard]] inline CalloutRect fit_image(int area_w, int area_h, int img_w, int img_h) {
@@ -89,6 +110,15 @@ struct CalloutLayout {
     r.x = (area_w - r.w) / 2;
     r.y = (area_h - r.h) / 2;
     return r;
+}
+
+/// The point of `img` (a fit_image() rect) under area pixel (x, y), or nullopt
+/// when that pixel is in the letterbox rather than on the image.
+[[nodiscard]] inline std::optional<NormPoint> image_point_at(const CalloutRect& img, int x, int y) {
+    if (img.w <= 0 || img.h <= 0 || x < img.x || y < img.y || x >= img.x + img.w ||
+        y >= img.y + img.h)
+        return std::nullopt;
+    return NormPoint{float(x - img.x) / float(img.w), float(y - img.y) / float(img.h)};
 }
 
 /// Resolve overlaps along one axis. `start` holds each item's ideal start,
@@ -423,6 +453,33 @@ inline bool try_line_modes(const CalloutLayoutInput& in, CalloutLayout& out) {
     out.mode = CalloutMode::Docked;
     place_docked(in, out.image, chips, out.chips);
     return out;
+}
+
+/// Chip widths for review_callout_layout(), indexed by CalloutKind.
+using CalloutChipWidths = std::array<int, 6>;
+
+/// The tagger's review: a chip for every tagged part of `r`, placed over an
+/// `area_w` x `area_h` view of the image the way the home widget pins them
+/// (sliding apart, the toolhead merge, the overflow dock).
+[[nodiscard]] inline CalloutLayout review_callout_layout(const ImageRegions& r, int area_w,
+                                                         int area_h, const CalloutChipWidths& w,
+                                                         int chip_h, int gap) {
+    CalloutLayoutInput in;
+    in.area_w = area_w;
+    in.area_h = area_h;
+    in.image_w = r.src_w;
+    in.image_h = r.src_h;
+    in.tagged = true;
+    in.chip_h = chip_h;
+    in.gap = gap;
+    for (const CalloutKind k : {CalloutKind::Nozzle, CalloutKind::Bed, CalloutKind::Chamber,
+                                CalloutKind::Fan, CalloutKind::Light}) {
+        if (const auto a = region_anchor(r, k))
+            in.active.push_back({k, w[size_t(k)], a});
+    }
+    const auto toolhead = size_t(CalloutKind::Toolhead);
+    in.toolhead = CalloutChipIn{CalloutKind::Toolhead, w[toolhead], r.nozzle};
+    return compute_callout_layout(in);
 }
 
 } // namespace helix

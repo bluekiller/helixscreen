@@ -490,28 +490,36 @@ TEST_CASE_METHOD(HelixTestFixture,
     // without a TD-1. Both spellings must file as readings, never as the
     // lane's statement: the empty one would win the promotion outright, and
     // the scan-time one would win it whenever a rescan landed after the
-    // user's edit, even though a scan clock is not an edit clock.
+    // user's edit, even though a scan clock is not an edit clock. Older
+    // plugin builds wrote the same record without extruder_index; `td` is
+    // the key every build stamps and no third-party tool emits, so both
+    // shapes are the firmware's.
     using helix::ams::from_lane_data_record;
     using helix::ams::sources_from_record;
 
-    const auto plugin_record = [](const char* scan_time) {
-        return nlohmann::json{{"lane", 0},           {"td", "1"},
-                              {"extruder_index", 0}, {"color", "#ED2C2C"},
-                              {"material", "PLA"},   {"bed_temp", 60},
-                              {"nozzle_temp", 210},  {"spool_id", nullptr},
-                              {"weight", 1000},      {"scan_time", scan_time}};
+    const auto plugin_record = [](const char* scan_time, bool with_extruder_index) {
+        nlohmann::json wire{{"lane", 0},           {"td", "1"},      {"color", "#ED2C2C"},
+                            {"material", "PLA"},   {"bed_temp", 60}, {"nozzle_temp", 210},
+                            {"spool_id", nullptr}, {"weight", 1000}, {"scan_time", scan_time}};
+        if (with_extruder_index) {
+            wire["extruder_index"] = 0;
+        }
+        return wire;
     };
 
-    for (const char* scan_time : {"", "2026-09-25T13:00:00Z"}) {
-        const nlohmann::json wire = plugin_record(scan_time);
-        const auto parsed = from_lane_data_record(wire);
-        REQUIRE(parsed.has_value());
+    for (const bool with_extruder_index : {true, false}) {
+        for (const char* scan_time : {"", "2026-09-25T13:00:00Z"}) {
+            const nlohmann::json wire = plugin_record(scan_time, with_extruder_index);
+            const auto parsed = from_lane_data_record(wire);
+            REQUIRE(parsed.has_value());
 
-        const auto sources = sources_from_record(parsed->second, wire, LegacyLockKeys::LaneData);
-        CHECK_FALSE(sources.local_user.has_value());
-        REQUIRE(sources.remembered.has_value());
-        CHECK(sources.remembered->color_rgb == 0xED2C2Cu);
-        CHECK(sources.remembered->material == "PLA");
+            const auto sources =
+                sources_from_record(parsed->second, wire, LegacyLockKeys::LaneData);
+            CHECK_FALSE(sources.local_user.has_value());
+            REQUIRE(sources.remembered.has_value());
+            CHECK(sources.remembered->color_rgb == 0xED2C2Cu);
+            CHECK(sources.remembered->material == "PLA");
+        }
     }
 }
 

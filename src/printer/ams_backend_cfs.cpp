@@ -4384,6 +4384,7 @@ std::map<int, int> AmsBackendCfs::collect_insert_probes_locked(const nlohmann::j
                 continue;
             const int global_idx = (n - 1) * 4 + bay;
             const bool occupied = !is_vender_sentinel(v.get<std::string>());
+            bay_tag_resolved_[global_idx] = occupied && v.get<std::string>() != "unknown";
 
             // First sighting of this bay seeds the map WITHOUT probing. Every
             // occupied bay would otherwise look like an insert on the first
@@ -4546,6 +4547,11 @@ bool AmsBackendCfs::judge_insert_locked(SlotInfo& slot, int slot_index,
     return false;
 }
 
+bool AmsBackendCfs::insert_probe_deferred_locked(int slot_index) const {
+    const auto it = deferred_probes_.find(slot_index / 4 + 1);
+    return it != deferred_probes_.end() && (it->second & (1 << (slot_index % 4))) != 0;
+}
+
 bool AmsBackendCfs::note_insert_edge_locked(SlotInfo& slot, int slot_index) {
     const auto present = slot_status_reports_filament(slot.status);
     if (!present.has_value()) {
@@ -4589,13 +4595,36 @@ bool AmsBackendCfs::note_insert_edge_locked(SlotInfo& slot, int slot_index) {
                 const PendingInsert pending = pit->second;
                 if (slot.material == pending.edge_material &&
                     stated_color(slot.color_rgb) == pending.edge_color) {
+                    if (insert_probe_deferred_locked(slot_index)) {
+                        // The probe is parked until the box is idle, so its
+                        // answer has not had its chance: the quiet count holds
+                        // at zero rather than expiring into a verdict the
+                        // deferred probe still owes, and the wait restarts
+                        // once the probe is released.
+                        pit->second.quiet_frames = 0;
+                        return false;
+                    }
                     if (++pit->second.quiet_frames < kInsertProbeWaitFrames) {
                         return false;
                     }
-                    // The probe had its wait and the reader said nothing new.
-                    // The latched values still describe the PULLED spool, so
-                    // they are judged as no statement at all.
                     pending_inserts_.erase(pit);
+                    // The probe had its wait. A vender resolved past "unknown"
+                    // is the reader having finished with this seating, and the
+                    // values it left standing are the ones it re-read, so they
+                    // are judged as the inserted spool's own reading - where a
+                    // fingerprint matching the pulled spool's is the same
+                    // spool and stays silent. An unresolved vender means the
+                    // latched values still describe the PULLED spool and the
+                    // reader said nothing about the new one at all.
+                    if (bay_tag_resolved_[slot_index]) {
+                        helix::ams::SpoolEvidence reread;
+                        if (!slot.material.empty()) {
+                            reread.material = slot.material;
+                        }
+                        reread.color_rgb = stated_color(slot.color_rgb);
+                        reread.tag_read_complete = true;
+                        return judge_insert_locked(slot, slot_index, pending.before, reread);
+                    }
                     return judge_insert_locked(slot, slot_index, pending.before,
                                                helix::ams::SpoolEvidence{});
                 }

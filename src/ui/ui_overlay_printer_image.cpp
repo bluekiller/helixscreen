@@ -15,7 +15,9 @@
 
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
+#include "ui_modal.h"
 #include "ui_nav_manager.h"
+#include "ui_overlay_printer_image_tagger.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -91,6 +93,7 @@ void PrinterImageOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(preview_name_subject_, preview_name_buf_, "",
                               "printer_image_preview_name", subjects_);
     UI_MANAGED_SUBJECT_INT(has_preview_subject_, 0, "printer_image_has_preview", subjects_);
+    UI_MANAGED_SUBJECT_INT(tag_state_subject_, 0, "printer_image_tag_state", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
@@ -100,6 +103,8 @@ void PrinterImageOverlay::register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_printer_image_auto_detect", on_auto_detect);
     lv_xml_register_event_cb(nullptr, "on_printer_image_card_clicked", on_image_card_clicked);
     lv_xml_register_event_cb(nullptr, "on_printer_image_usb_clicked", on_usb_image_clicked);
+    lv_xml_register_event_cb(nullptr, "on_printer_image_tag_parts", on_tag_parts);
+    lv_xml_register_event_cb(nullptr, "on_printer_image_reset_tags", on_reset_tags);
     spdlog::debug("[{}] Callbacks registered", get_name());
 }
 
@@ -248,6 +253,53 @@ void PrinterImageOverlay::update_preview(const std::string& /*image_id*/,
     } else {
         lv_subject_set_int(&has_preview_subject_, 0);
     }
+    update_tag_state();
+}
+
+void PrinterImageOverlay::update_tag_state() {
+    // Selecting an image makes it the displayed one, so the tag buttons act on
+    // what the home widget shows.
+    const auto target = displayed_image_tag_target();
+    int state = 0;
+    if (target) {
+        state =
+            lookup_user_image_regions(target->key, target->natural_w, target->natural_h) ? 2 : 1;
+    }
+    lv_subject_set_int(&tag_state_subject_, state);
+}
+
+void PrinterImageOverlay::handle_tag_parts() {
+    const auto target = displayed_image_tag_target();
+    if (!target) {
+        return;
+    }
+    get_printer_image_tagger_overlay().show(parent_screen_, *target);
+}
+
+void PrinterImageOverlay::handle_reset_tags() {
+    const auto target = displayed_image_tag_target();
+    if (!target) {
+        return;
+    }
+    const char* message =
+        has_shipped_image_regions(target->key)
+            ? lv_tr("Remove your tags for this image? Its chips go back to the shipped positions.")
+            : lv_tr("Remove your tags for this image?");
+    helix::ui::ConfirmOptions opts;
+    opts.owner_token = object_lifetime_.token();
+    helix::ui::modal_confirm(
+        lv_tr("Reset tags"), message, ModalSeverity::Info, lv_tr("Reset"),
+        [key = target->key]() { get_printer_image_overlay().reset_tags(key); }, opts);
+}
+
+void PrinterImageOverlay::reset_tags(const std::string& key) {
+    if (!reset_user_image_regions(key)) {
+        NOTIFY_ERROR(lv_tr("Could not reset the printer image tags"));
+        return;
+    }
+    spdlog::info("[{}] Reset tags for '{}'", get_name(), key);
+    helix::PrinterImageManager::instance().notify_image_changed();
+    update_tag_state();
 }
 
 std::string PrinterImageOverlay::get_preview_path_for_id(const std::string& image_id) {
@@ -505,6 +557,18 @@ void PrinterImageOverlay::on_image_card_clicked(lv_event_t* e) {
     if (id) {
         get_printer_image_overlay().handle_image_selected(std::string(id));
     }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void PrinterImageOverlay::on_tag_parts(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_tag_parts");
+    get_printer_image_overlay().handle_tag_parts();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void PrinterImageOverlay::on_reset_tags(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_reset_tags");
+    get_printer_image_overlay().handle_reset_tags();
     LVGL_SAFE_EVENT_CB_END();
 }
 

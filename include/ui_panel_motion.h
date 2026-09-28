@@ -161,8 +161,13 @@ class MotionPanel : public OverlayBase {
     void handle_preset(helix::MotionPreset preset);
 
     /// Move tab: run the ParkToolhead macro when the slot resolves to one,
-    /// else the bounds-derived Front preset.
+    /// else lift Z and park over the rear of the plate (plate_rear_park()).
     void handle_park();
+
+    /// Park with no macro: over the rear of the plate, after lifting Z by
+    /// PARK_Z_LIFT_MM (capped at travel) when @p lift_z. Every axis must
+    /// already be homed.
+    void park_over_plate(bool lift_z);
 
     /// Move tab: raise the shared Disable Motors confirmation.
     void handle_motors_off();

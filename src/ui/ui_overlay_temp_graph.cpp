@@ -886,11 +886,21 @@ void TempGraphOverlay::on_temp_graph_custom_clicked(lv_event_t* e) {
         }
     }
 
+    // The nozzle card may show a picked tool, not the active one: name the
+    // extruder the card displays.
+    std::string title = helix::ui::temperature::heater_keypad_title(type);
+    if (type == helix::HeaterType::Nozzle && overlay.printer_state_) {
+        const auto& extruders = overlay.printer_state_->temperature_state().extruders();
+        const auto it = extruders.find(overlay.displayed_extruder_name());
+        if (it != extruders.end() && !it->second.display_name.empty()) {
+            title = it->second.display_name;
+        }
+    }
     ui_keypad_config_t keypad_config = {
         .initial_value = static_cast<float>(helix::ui::temperature::deci_to_degrees(seed_deci)),
         .min_value = heater.config.keypad_range.min,
         .max_value = max_value,
-        .title_label = heater.config.title,
+        .title_label = title.c_str(),
         .unit_label = "°C",
         .allow_decimal = false,
         .allow_negative = false,

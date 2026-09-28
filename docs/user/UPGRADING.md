@@ -8,7 +8,7 @@ This guide helps you upgrade HelixScreen to a newer version.
 
 ## Quick Upgrade
 
-The preferred ways to update are inside the app itself (**Settings > Help & About > About > Check for Updates**) or the Mainsail/Fluidd update manager. From the command line instead, on any host with direct internet access:
+The preferred ways to update are inside the app itself (**Settings > Updates > Check for Updates**) or the Mainsail/Fluidd update manager. From the command line instead, on any host with direct internet access:
 
 ```bash
 curl -sSL https://releases.helixscreen.org/install.sh | sh -s -- --update
@@ -37,7 +37,7 @@ What to expect after the update:
 - **Display sleep turns the backlight off.** The panel stays powered and only the backlight is cut, so waking is immediate. The panel itself is powered down at sleep only on screens whose backlight cannot be controlled. The `/display/panel_power_off` setting in `settings.json` forces a full power-down if you want one.
 - **Print preparation tracking needs nothing from your config.** The screen works out the current phase (heating, homing, printing) from the printer itself, on any printer. A `PRINT_START` that already carries `HELIX:PHASE` markers from an older install keeps working, and uninstalling removes the markers and leaves a timestamped backup of each file it touches.
 - **Some installs move on disk, automatically.** On the Adventurer 5M, settings, logs and caches move to `/data/.helixscreen`, out of the printer's file list. On the K2, the install moves off the small system overlay onto the user partition (`/mnt/UDISK`). Both moves happen during the update and keep everything.
-- **Going back to 1.0 and returning is safe for your settings.** A 1.0 build reads a newer settings file without rewriting it, and 1.1 picks the file back up afterwards. The home screen arrangement is the one thing that can suffer: a 1.0 build saves tile positions in its own grid's units, so after returning to 1.1 the tiles may sit in the wrong spots, or, from some 1.0 builds, the home screen comes back with its default layout. Long-press the home screen to enter Edit Mode and arrange it again.
+- **Going back to 1.0 and returning is safe for your settings, with one exception.** A 1.0 build reads a newer settings file without rewriting it, and 1.1 picks the file back up afterwards. The exception is **Material Temperatures**: 1.1 moves your per-material temperature and preheat changes out of `settings.json` into `user_filaments.json`, which 1.0 does not read, so a 1.0 build uses its built-in values instead. Note your changes down before going back. The home screen arrangement is the one thing that can suffer: a 1.0 build saves tile positions in its own grid's units, so after returning to 1.1 the tiles may sit in the wrong spots, or, from some 1.0 builds, the home screen comes back with its default layout. Long-press the home screen to enter Edit Mode and arrange it again.
 
 ---
 

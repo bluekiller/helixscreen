@@ -1,6 +1,6 @@
 # Settings: LED Settings
 
-Tap **LED Settings** in the Hardware & Devices section to open the LED configuration overlay. This is where you choose which lights HelixScreen controls and how they behave.
+Go to **Settings > Devices** and tap **LED Settings** to open the LED configuration overlay. This is where you choose which lights HelixScreen controls and how they behave.
 
 > **Tip:** To control your LEDs during a print, add the **LED Controls** widget to the Home Panel and tap it to open the LED Control Overlay. The **LED Light** widget is a plain on/off toggle and does not open the overlay. See [Home Panel > LED Controls](../home-panel.md#led-controls) for details.
 
@@ -121,7 +121,7 @@ chain_count: 24
 color_order: GRB
 ```
 
-Restart Klipper, then open **Settings > LED Settings** — the strip appears automatically. Select it and you'll get full color and brightness control.
+Restart Klipper, then open **Settings > Devices > LED Settings** — the strip appears automatically. Select it and you'll get full color and brightness control.
 
 ### Output Pin Lights (Brightness-Only)
 
@@ -170,10 +170,10 @@ Effects show up in the LED Control Overlay and as auto-state action options. Onl
 For lights controlled via G-code macros (relay-switched enclosure lights, Klipper macros wrapping custom commands, etc.):
 
 1. Define your macros in Klipper (include "led" or "light" in the name for auto-discovery)
-2. Go to **Settings > LED Settings > Macro Devices**
+2. Go to **Settings > Devices > LED Settings > Macro Devices**
 3. Create a device and map the appropriate macros
 4. The device appears in the LED Control Overlay alongside your other strips
 
 ---
 
-[Back to Settings](../settings.md) | [Prev: Help & About](help-about.md)
+[Back to Settings](../settings.md) | [Back to Devices](devices.md)

@@ -72,6 +72,8 @@ class PrinterImageOverlay : public OverlayBase {
     static void on_auto_detect(lv_event_t* e);
     static void on_image_card_clicked(lv_event_t* e);
     static void on_usb_image_clicked(lv_event_t* e);
+    static void on_tag_parts(lv_event_t* e);
+    static void on_reset_tags(lv_event_t* e);
 
     //
     // === Internal Methods ===
@@ -88,6 +90,12 @@ class PrinterImageOverlay : public OverlayBase {
     void update_preview(const std::string& image_id, const std::string& display_name,
                         const std::string& preview_path);
     std::string get_preview_path_for_id(const std::string& image_id);
+    /// printer_image_tag_state for the displayed image.
+    void update_tag_state();
+    void handle_tag_parts();
+    void handle_reset_tags();
+    /// Delete the user's tags for `key`, after the reset is confirmed.
+    void reset_tags(const std::string& key);
 
     //
     // === Members ===
@@ -109,6 +117,7 @@ class PrinterImageOverlay : public OverlayBase {
     lv_subject_t preview_name_subject_{}; // string: display name
     char preview_name_buf_[128] = {};
     lv_subject_t has_preview_subject_{}; // int: 0=no preview, 1=has preview
+    lv_subject_t tag_state_subject_{};   // int: 0=untaggable, 1=untagged by user, 2=user tags
 };
 
 /**

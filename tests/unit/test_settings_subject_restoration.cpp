@@ -17,7 +17,7 @@
  * settings_sounds_enabled & co. for the remaining lifetime of the binary, and
  * every later attempt to rebuild them is a silent no-op.
  *
- * The damage is not a crash. settings_display_sound_overlay.xml and
+ * The damage is not a crash. settings_sound_overlay.xml and
  * settings_safety_overlay.xml still parse; their toggles just bind to nothing
  * and log "No subject was found". A test that builds either one fails on a
  * value that looks like a broken binding, dozens of test cases downstream of

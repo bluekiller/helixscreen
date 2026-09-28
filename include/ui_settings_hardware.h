@@ -30,7 +30,7 @@ class HardwareSettingsOverlay : public OverlayBase {
     void register_callbacks() override;
 
     const char* get_name() const override {
-        return "Hardware & Devices";
+        return "Devices";
     }
 
     void on_activate() override;
@@ -47,7 +47,6 @@ class HardwareSettingsOverlay : public OverlayBase {
   private:
     // === Static Callbacks ===
 
-    static void on_printers_clicked(lv_event_t* e);
     static void on_camera_view_clicked(lv_event_t* e);
     static void on_ams_settings_clicked(lv_event_t* e);
     static void on_fans_settings_clicked(lv_event_t* e);

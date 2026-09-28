@@ -1692,6 +1692,19 @@ void crash_handler::install(const std::string& crash_file_path) {
     }
 #endif
 
+    // A stack overflow leaves no room to run the handler on the faulting stack,
+    // so it runs on its own. sigaltstack is per thread: this covers the
+    // installing (main) thread only, and an overflow on any other thread still
+    // dies without a crash file.
+    static char s_alt_stack[64 * 1024];
+    stack_t ss{};
+    ss.ss_sp = s_alt_stack;
+    ss.ss_size = sizeof(s_alt_stack);
+    if (sigaltstack(&ss, nullptr) != 0) {
+        spdlog::warn(
+            "[CrashHandler] sigaltstack failed; a stack overflow will leave no crash file");
+    }
+
     // Install signal handlers via sigaction (not signal())
     struct sigaction sa;
     std::memset(&sa, 0, sizeof(sa));
@@ -1699,7 +1712,8 @@ void crash_handler::install(const std::string& crash_file_path) {
     sigemptyset(&sa.sa_mask);
     // SA_RESETHAND: restore default after first signal (prevents recursive crash handler)
     // SA_SIGINFO: pass siginfo_t and ucontext to handler for fault/register capture
-    sa.sa_flags = SA_RESETHAND | SA_SIGINFO;
+    // SA_ONSTACK: run on the alternate stack above
+    sa.sa_flags = SA_RESETHAND | SA_SIGINFO | SA_ONSTACK;
 
     sigaction(SIGSEGV, &sa, &s_old_sigsegv);
     sigaction(SIGABRT, &sa, &s_old_sigabrt);

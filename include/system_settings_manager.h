@@ -70,6 +70,9 @@ class SystemSettingsManager {
     /** @brief Get dropdown options string "English\nDeutsch\nFrancais\n..." */
     static const char* get_language_options();
 
+    /** @brief Get the current language's native display name (e.g. "Deutsch") */
+    std::string get_language_display_name() const;
+
     /** @brief Get language code for dropdown index */
     static std::string language_index_to_code(int index);
 

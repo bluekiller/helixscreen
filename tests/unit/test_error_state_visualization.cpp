@@ -1,10 +1,10 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "test_helpers/afc_test_access.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_happy_hare.h"
 #include "ams_types.h"
+#include "test_helpers/afc_test_access.h"
 #include "test_helpers/happy_hare_test_access.h"
 
 #include <algorithm>
@@ -560,21 +560,24 @@ class HappyHareErrorStateHelper : public AmsBackendHappyHare {
 };
 } // namespace helix
 
-TEST_CASE("Happy Hare error: system error sets slot.error on current_slot",
+// Happy Hare's fault shape: print_state pause_locked with reason_for_pause set,
+// and "" once the pause ends. It publishes no Error action.
+namespace {
+nlohmann::json hh_fault(const char* reason) {
+    return {{"print_state", "pause_locked"}, {"reason_for_pause", reason}};
+}
+nlohmann::json hh_pause_ended() {
+    return {{"print_state", "printing"}, {"reason_for_pause", ""}};
+}
+} // namespace
+
+TEST_CASE("Happy Hare error: a fault sets slot.error on current_slot",
           "[ams][happy_hare][error_state]") {
     helix::HappyHareErrorStateHelper helper;
     helper.initialize_test_gates(4);
 
-    // Set current slot to gate 2
-    nlohmann::json idle_state;
-    idle_state["gate"] = 2;
-    idle_state["action"] = "Idle";
-    helper.feed_mmu_state(idle_state);
-
-    // Transition to error
-    nlohmann::json error_state;
-    error_state["action"] = "Error";
-    helper.feed_mmu_state(error_state);
+    helper.feed_mmu_state({{"gate", 2}, {"action", "Idle"}});
+    helper.feed_mmu_state(hh_fault("Gate 2 is empty!"));
 
     const auto* slot = helper.get_slot(2);
     REQUIRE(slot != nullptr);
@@ -582,49 +585,16 @@ TEST_CASE("Happy Hare error: system error sets slot.error on current_slot",
     REQUIRE(slot->error->severity == SlotError::ERROR);
 }
 
-TEST_CASE("Happy Hare error: error cleared on IDLE transition", "[ams][happy_hare][error_state]") {
+TEST_CASE("Happy Hare error: error cleared when the pause ends", "[ams][happy_hare][error_state]") {
     helix::HappyHareErrorStateHelper helper;
     helper.initialize_test_gates(4);
 
-    // Set gate and enter error
-    nlohmann::json setup;
-    setup["gate"] = 1;
-    setup["action"] = "Idle";
-    helper.feed_mmu_state(setup);
-
-    nlohmann::json error_state;
-    error_state["action"] = "Error";
-    helper.feed_mmu_state(error_state);
-
+    helper.feed_mmu_state({{"gate", 1}, {"action", "Idle"}});
+    helper.feed_mmu_state(hh_fault("Gate 1 is empty!"));
     REQUIRE(helper.get_slot(1)->error.has_value());
 
-    // Recover to idle
-    nlohmann::json idle_state;
-    idle_state["action"] = "Idle";
-    helper.feed_mmu_state(idle_state);
-
+    helper.feed_mmu_state(hh_pause_ended());
     REQUIRE_FALSE(helper.get_slot(1)->error.has_value());
-}
-
-TEST_CASE("Happy Hare error: error message from operation_detail",
-          "[ams][happy_hare][error_state]") {
-    helix::HappyHareErrorStateHelper helper;
-    helper.initialize_test_gates(4);
-
-    nlohmann::json setup;
-    setup["gate"] = 0;
-    setup["action"] = "Idle";
-    helper.feed_mmu_state(setup);
-
-    nlohmann::json error_state;
-    error_state["action"] = "Error";
-    helper.feed_mmu_state(error_state);
-
-    const auto* slot = helper.get_slot(0);
-    REQUIRE(slot != nullptr);
-    REQUIRE(slot->error.has_value());
-    // The message should come from the action string (operation_detail)
-    REQUIRE_FALSE(slot->error->message.empty());
 }
 
 TEST_CASE("Happy Hare error: only current_slot gets error, not all slots",
@@ -632,41 +602,22 @@ TEST_CASE("Happy Hare error: only current_slot gets error, not all slots",
     helix::HappyHareErrorStateHelper helper;
     helper.initialize_test_gates(4);
 
-    nlohmann::json setup;
-    setup["gate"] = 2;
-    setup["action"] = "Idle";
-    helper.feed_mmu_state(setup);
+    helper.feed_mmu_state({{"gate", 2}, {"action", "Idle"}});
+    helper.feed_mmu_state(hh_fault("Gate 2 is empty!"));
 
-    nlohmann::json error_state;
-    error_state["action"] = "Error";
-    helper.feed_mmu_state(error_state);
-
-    // Only slot 2 should have error
     REQUIRE(helper.get_slot(2)->error.has_value());
     REQUIRE_FALSE(helper.get_slot(0)->error.has_value());
     REQUIRE_FALSE(helper.get_slot(1)->error.has_value());
     REQUIRE_FALSE(helper.get_slot(3)->error.has_value());
 }
 
-TEST_CASE("Happy Hare error: reason_for_pause used as error message when available",
+TEST_CASE("Happy Hare error: reason_for_pause is the slot error message",
           "[ams][happy_hare][error_state]") {
     helix::HappyHareErrorStateHelper helper;
     helper.initialize_test_gates(4);
 
-    nlohmann::json setup;
-    setup["gate"] = 0;
-    setup["action"] = "Idle";
-    setup["reason_for_pause"] = "";
-    helper.feed_mmu_state(setup);
-
-    // Feed reason_for_pause before error
-    nlohmann::json reason;
-    reason["reason_for_pause"] = "Filament not detected at extruder after load";
-    helper.feed_mmu_state(reason);
-
-    nlohmann::json error_state;
-    error_state["action"] = "Error";
-    helper.feed_mmu_state(error_state);
+    helper.feed_mmu_state({{"gate", 0}, {"action", "Idle"}, {"reason_for_pause", ""}});
+    helper.feed_mmu_state(hh_fault("Filament not detected at extruder after load"));
 
     const auto* slot = helper.get_slot(0);
     REQUIRE(slot != nullptr);
@@ -680,11 +631,8 @@ TEST_CASE("Happy Hare error: no slot error when no gate selected",
     helper.initialize_test_gates(4);
 
     // No gate set (default is -1)
-    nlohmann::json error_state;
-    error_state["action"] = "Error";
-    helper.feed_mmu_state(error_state);
+    helper.feed_mmu_state(hh_fault("Failed to home the selector"));
 
-    // No slot should have error since current_slot is -1
     for (int i = 0; i < 4; ++i) {
         REQUIRE_FALSE(helper.get_slot(i)->error.has_value());
     }

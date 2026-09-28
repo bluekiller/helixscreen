@@ -209,8 +209,9 @@ struct LayerState {
     helix::ui::CoalescedTimer refresh_timer{0};
 };
 
-// Hit rectangles recorded by the renderer (absolute display coords) so the
-// click handler tests against EXACTLY what was drawn. The LINEAR selector's Y
+// Hit rectangles recorded by the renderer (absolute display coords, with the
+// widget's origin at that render) so the click handler tests against EXACTLY
+// what was drawn, wherever the widget has moved since. The LINEAR selector's Y
 // is butted against the prep sensors and its width spans the slot row; the
 // buffer box internally clamps its size; the bypass rect tracks the visibility
 // gate (!hub_only && show_bypass). Any re-derivation in the click handler
@@ -223,6 +224,7 @@ struct HitRects {
     bool buffer_valid = false;
     lv_area_t bypass = {0, 0, 0, 0};
     bool bypass_valid = false;
+    lv_point_t origin = {0, 0}; ///< Widget's top-left when the rects were recorded
 };
 
 // LINEAR/HUB active-path cache. Populated by the state-tied renderer;

@@ -708,6 +708,9 @@ UpdateChecker::UpdateChannel UpdateChecker::get_channel() const {
     return UpdateChannel::Stable;
 }
 void UpdateChecker::on_channel_changed() {}
+// The notification history panel's "show update" action. Nothing posts an
+// update notification in this slice, so the action is never dispatched.
+void UpdateChecker::show_update_notification() {}
 void UpdateChecker::report_download_status(DownloadStatus, int, const std::string&,
                                            const std::string&) {}
 std::optional<UpdateChecker::ReleaseInfo> UpdateChecker::get_cached_update() const {

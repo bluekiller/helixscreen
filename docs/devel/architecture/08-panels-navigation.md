@@ -82,7 +82,7 @@ The same screen three states later, as the user meets the stacks (mock `--test` 
 
 <img src="../../images/screenshot-nav-stack-panel.png" alt="Settings root panel: category list with a left nav rail" width="800"/>
 
-<img src="../../images/screenshot-nav-stack-overlay.png" alt="The same screen with the Safety &amp; Notifications overlay pushed over the Settings panel — full-width toggle rows and a back affordance" width="800"/>
+<img src="../../images/screenshot-nav-stack-overlay.png" alt="The same screen with the Safety &amp; Alerts overlay pushed over the Settings panel — full-width toggle rows and a back affordance" width="800"/>
 
 <img src="../../images/screenshot-nav-stack-modal.png" alt="The same screen again with the Filament Runout modal centered on its own backdrop, dimming the safety overlay beneath it" width="800"/>
 

@@ -15,7 +15,7 @@ flowchart TB
         EV["on_backend_event(index, ...)<br/>posts only - no locks, no subjects"]
         SYNC["sync_backend(i) / update_slot_for_backend(i, s)<br/>recursive_mutex, change-gated writes"]
         B0["primary backend index 0<br/>flat slot_colors_[] / slot_statuses_[] arrays"]
-        B1["secondary backends index 1+<br/>BackendSlotSubjects: colors/statuses/fills<br/>+ SubjectLifetime token"]
+        B1["secondary backends index 1+<br/>BackendSlotSubjects: colors/statuses/fills/materials/…<br/>+ SubjectLifetime token"]
     end
 
     CONC["8 concrete backends, each one file:<br/>Happy Hare, AFC, ACE, CFS, AD5X IFS,<br/>Snapmaker, QIDI Box (stub), Tool Changer<br/>- all on the AmsSubscriptionBackend NVI base"]
@@ -129,11 +129,11 @@ Event coarsening is deliberate: `STATE_CHANGED`, op completions, errors, and att
 Subject storage is two-shaped:
 
 - **Backend 0** writes the flat arrays every single-backend XML binding already knows — `slot_colors_[i]`, `slot_statuses_[i]`, `slot_fills_[i]`, plus string and live-state families — inside `sync_from_backend()` ([`src/printer/ams_state.cpp#sync_from_backend`](../../../src/printer/ams_state.cpp#L1778)), per-slot change-gated writes in `write_slot_subjects()` (`src/printer/ams_state.cpp#write_slot_subjects`).
-- **Backends at index 1+** get a `BackendSlotSubjects` struct ([`include/ams_state.h#AmsState`](../../../include/ams_state.h#L1688)) allocated at `add_backend()` time — dynamic `colors`/`statuses`/`fills`/`lane_states`/`has_errors`/`severities` vectors sized to the backend's slot count. `clear_backends()` destroys them, on rediscovery and inside `deinit_subjects()`, and the struct's own `SubjectLifetime` token is flipped first (`src/printer/ams_state.cpp#"void AmsState::BackendSlotSubjects::deinit() {"`).
+- **Backends at index 1+** get a `BackendSlotSubjects` struct ([`include/ams_state.h#AmsState`](../../../include/ams_state.h#L1688)) allocated at `add_backend()` time — dynamic `colors`/`statuses`/`fills`/`lane_states`/`has_errors`/`severities`/`materials` vectors sized to the backend's slot count. `clear_backends()` destroys them, on rediscovery and inside `deinit_subjects()`, and the struct's own `SubjectLifetime` token is flipped first (`src/printer/ams_state.cpp#"void AmsState::BackendSlotSubjects::deinit() {"`).
 
 Every per-slot accessor with a `SubjectLifetime&` out-param hands out a live token for the subject it returns (#1700). Backend 0 and the single-slot overloads return `get_subjects_lifetime()` (`include/ams_state.h#get_subjects_lifetime`), which `deinit_subjects()` flips, because the flat arrays are registered with `subjects_`. A secondary backend returns its `BackendSlotSubjects` token, which `clear_backends()` flips. A nullptr return comes with an empty token. An observer that skips the token is chapter 03 bug #705 waiting.
 
-Both paths write change-gated — every value is compared before `lv_subject_set_*` fires, and a material-name delta additionally bumps `slots_version_` because the panel's material label has no direct binding (#1065). The fixed subject set (roughly 92 members in the header, capped at `MAX_SLOTS = 16` and `MAX_UNITS = 8`) splits into families the UI binds:
+Both paths write change-gated — every value is compared before `lv_subject_set_*` fires, and a material-name delta additionally bumps `slots_version_`: the `ams_slot` widget binds the material subject of its own backend directly, but container-level consumers re-read material through `refresh_slots()` (#1065). The fixed subject set (roughly 92 members in the header, capped at `MAX_SLOTS = 16` and `MAX_UNITS = 8`) splits into families the UI binds:
 
 | Family | Members (subject names) | Consumed by |
 |--------|--------------------------|-------------|

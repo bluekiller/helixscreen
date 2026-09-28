@@ -65,9 +65,18 @@ The current head of the ladder:
 - **v24 -> v25** re-keys the pre-print prediction history's per-phase timing from
   phase ordinals to phase names (`"4"` -> `"QGL"`), against a frozen name table,
   because inserting a phase renumbers every ordinal after it.
+- **v25 -> v26** converts `/completion_alert` from a JSON boolean to the
+  Off/Notification/Alert int `AudioSettingsManager` has always read and written.
+  A pre-migration fresh install wrote the boolean `true`, and `Config::get<int>()`
+  converts that via nlohmann's bool-to-arithmetic rule (`true` -> 1, `false` -> 0)
+  rather than the intended `CompletionAlertMode::ALERT` (2) — so every install
+  that never touched Print Completion Alert silently fell back to Notification.
+  `true` -> Alert, `false` -> Off; an explicit stored int is a real user choice
+  and is left untouched.
 
-Both have dedicated tests: `tests/unit/test_config_migration_v24.cpp` and
-`tests/unit/test_config_migration_v25.cpp`.
+All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
+`tests/unit/test_config_migration_v25.cpp`, and
+`tests/unit/test_config_migration_v26.cpp`.
 
 ### Fresh Install vs. Upgrade
 

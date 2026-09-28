@@ -93,7 +93,7 @@ produces a sentence rather than a protocol object.
 The REPL ignores `--json` — formatted output is the reason the REPL exists.
 
     helix-screen ctl --json current | jq -r .panel
-    helix-screen ctl --json resolve row_hardware | jq -r .path
+    helix-screen ctl --json resolve row_devices | jq -r .path
 
 Options are the same in both modes: `-s/--socket <path>` picks the instance,
 `-C/--cwd <path>` scopes the command (see [the working directory](#the-working-directory)).

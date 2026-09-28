@@ -167,8 +167,7 @@ class AmsSubscriptionBackend : public AmsBackend {
     ///                   every caller that has no such unwind.
     ///
     /// @warning Call from the main thread only — checks toolhead_homed(),
-    /// which (in the production override) reads an LVGL subject, and may
-    /// synchronously create a confirmation modal.
+    /// which (in the production override) reads an LVGL subject.
     AmsError
     ensure_homed_then(std::string gcode, std::function<void()> on_complete = nullptr,
                       std::function<void(const MoonrakerError&)> on_error = nullptr,
@@ -177,25 +176,24 @@ class AmsSubscriptionBackend : public AmsBackend {
                       std::optional<bool> caller_surfaces_errors = std::nullopt,
                       std::function<void(const MoonrakerError&)> on_predispatch_error = nullptr);
 
-    /// See AmsBackend::arm_home_preconfirmed(). Consumed single-shot by the
-    /// NEXT ensure_homed_then() call that finds the toolhead genuinely
-    /// unhomed -- does not skip that call's G28, only its confirmation prompt.
-    void arm_home_preconfirmed() final {
-        home_preconfirmed_ = true;
-    }
-
-    /// See AmsBackend::clear_home_preconfirmed(). Idempotent no-op if nothing
-    /// is currently armed.
-    void clear_home_preconfirmed() final {
-        home_preconfirmed_ = false;
-    }
-
     /// Repaints the SlotInfo cached_slot_locked() names from its lane, under
     /// mutex_. Call without holding mutex_.
     void repaint_slot_from_lane(int slot_index) override;
 
   protected:
     // --- Hooks for derived classes ---
+
+    /// What the current operation step projects to, for a backend whose action
+    /// follows its step model; nullopt for one that assigns its action. Both
+    /// get_current_action() and the backend's get_system_info() publish it
+    /// through project_action(). Caller holds mutex_.
+    [[nodiscard]] virtual std::optional<AmsAction> step_action_locked() const {
+        return std::nullopt;
+    }
+    /// system_info_.action as published. Caller holds mutex_.
+    [[nodiscard]] AmsAction published_action_locked() const {
+        return project_action(system_info_.action, step_action_locked());
+    }
 
     /// Whether @p slot_index names a position this backend has. Zero positions
     /// means none are discovered yet, which is not the caller's mistake, so it
@@ -241,23 +239,6 @@ class AmsSubscriptionBackend : public AmsBackend {
         (void)slot_index;
         return nullptr;
     }
-
-    /// Called when the user declines the pre-operation home prompt raised by
-    /// ensure_homed_then(). Default resets system_info_.action to IDLE (under
-    /// mutex_) and emits EVENT_STATE_CHANGED -- exactly what a plain Cancel
-    /// looked like before the confirmation prompt existed.
-    ///
-    /// Override when the backend arms additional optimistic state BEFORE
-    /// calling ensure_homed_then() (a phase tracker, a pending-dispatch
-    /// generation, ...): the default only clears system_info_.action, so any
-    /// such state is left active. A backend whose apply-loop lacks an
-    /// explicit `!= IDLE` guard (AmsBackendAd5xIfs's phase tracker did) then
-    /// gets re-armed busy by the very next status frame -- the user declines
-    /// a home and the backend wedges for a full timeout window before
-    /// latching a fabricated error. Unwind exactly what was armed before the
-    /// prompt, then call the base implementation (or replicate its IDLE
-    /// reset) to finish the cancel.
-    virtual void on_home_confirmation_declined();
 
     /// Extra checks before subscribing (e.g., ToolChanger requires tools discovered).
     /// Return error to abort start. Lock IS held.
@@ -488,11 +469,6 @@ class AmsSubscriptionBackend : public AmsBackend {
 
     EventCallback event_callback_;
     SubscriptionGuard subscription_;
-
-    /// Set by arm_home_preconfirmed(), consumed single-shot by ensure_homed_then().
-    /// Main-thread only -- both the setter (a UI-surface click handler) and the
-    /// consuming read happen on the main thread, same as toolhead_homed() itself.
-    bool home_preconfirmed_ = false;
 
     /// Send the payload gcode, honouring the 1-arg/2-arg execute_gcode split.
     /// ~20 test fixtures override ONLY the 1-arg form; calling the 2-arg form

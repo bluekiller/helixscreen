@@ -77,13 +77,6 @@ class StubBackend : public helix::AmsBackendMock {
 
     AmsSystemInfo sys_{};
     int loaded_slot_ = -1;
-    /// AFC/CFS/QIDI Box/AD5X IFS all answer true here.
-    bool auto_heats_ = false;
-
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
-        return auto_heats_;
-    }
-
     [[nodiscard]] AmsSystemInfo get_system_info() const override {
         return sys_;
     }
@@ -108,22 +101,6 @@ class StubBackend : public helix::AmsBackendMock {
     helix::AmsError unload_filament(int) override {
         return helix::AmsErrorHelper::success();
     }
-};
-
-/// Refuses every tier-1 dispatch, and counts the home consent being cleared.
-class FailingDispatchBackend : public StubBackend {
-  public:
-    helix::AmsError load_filament(int) override {
-        return helix::AmsErrorHelper::busy("dispatch refused");
-    }
-    helix::AmsError change_tool(int) override {
-        return helix::AmsErrorHelper::busy("dispatch refused");
-    }
-    void clear_home_preconfirmed() override {
-        ++clears;
-        StubBackend::clear_home_preconfirmed();
-    }
-    int clears = 0;
 };
 
 AmsSystemInfo afc_sys() {
@@ -152,12 +129,11 @@ struct TimeoutHarness {
     std::unique_ptr<FilamentPanel> panel;
     lv_obj_t* root = nullptr;
 
-    explicit TimeoutHarness(LVGLUITestFixture& f, std::unique_ptr<StubBackend> backend = nullptr)
-        : fx(f) {
+    explicit TimeoutHarness(LVGLUITestFixture& f) : fx(f) {
         ToolState::instance().init_subjects(true);
         helix::AmsState::instance().init_subjects(true);
 
-        auto owned = backend ? std::move(backend) : std::make_unique<StubBackend>();
+        auto owned = std::make_unique<StubBackend>();
         owned->sys_ = afc_sys();
         owned->loaded_slot_ = 3; // slot 0 stays free so a Load can proceed
         mock = owned.get();
@@ -459,75 +435,4 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a later operation is not eaten by a stale a
     h.publish_action(AmsAction::IDLE, 600);
 
     CHECK(TA::op_load_state(*h.panel) == 2); // done/checkmark
-}
-
-// ============================================================================
-// The home confirmation is not the preheat's passenger
-// ============================================================================
-
-TEST_CASE_METHOD(LVGLUITestFixture, "a backend that heats for us still gets the home confirmation",
-                 "[ui_integration][filament][homing][1494]") {
-    // A cold, unhomed toolhead on a backend that heats on load. "Do we preheat?"
-    // and "do we ask about homing?" are independent questions about that state,
-    // and folding the second inside the first loses it exactly when the backend
-    // removes the reason for the first.
-    //
-    // The cost of losing it is not just a missing prompt: skipping the ask also
-    // skips arm_home_preconfirmed(), so the backend raises its own confirmation
-    // later, and declining THAT drives AmsAction LOADING -> IDLE, which
-    // ams_action_observer_ reads as a completed load — green checkmark and a
-    // post-op cooldown for a load that never ran.
-    TimeoutHarness h(*this);
-    h.mock->auto_heats_ = true;
-
-    int asked = 0;
-    helix::ui::set_home_confirm_prompter(
-        [&asked](std::function<void()>, std::function<void()> on_cancel) {
-            ++asked;
-            on_cancel(); // decline, so nothing dispatches
-        });
-
-    TA::handle_load_button(*h.panel);
-    process_lvgl(20);
-
-    CHECK(asked == 1);
-
-    helix::ui::set_home_confirm_prompter({});
-}
-
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "a tier-1 dispatch that fails clears the home consent it never spent",
-                 "[ui_integration][filament][homing][preconfirm]") {
-    // The arm is consumed single-shot by whichever operation dispatches next, so
-    // consent that its own dispatch never spent would home an unrelated later one
-    // without asking.
-    auto owned = std::make_unique<FailingDispatchBackend>();
-    FailingDispatchBackend* backend = owned.get();
-    TimeoutHarness h(*this, std::move(owned));
-
-    backend->arm_home_preconfirmed();
-    backend->clears = 0;
-
-    TA::execute_load(*h.panel);
-    process_lvgl(20);
-
-    CHECK(backend->clears == 1);
-}
-
-TEST_CASE_METHOD(LVGLUITestFixture, "declining the pre-load home dispatches nothing",
-                 "[ui_integration][filament][homing][1494]") {
-    TimeoutHarness h(*this);
-    h.mock->auto_heats_ = true;
-
-    helix::ui::set_home_confirm_prompter(
-        [](std::function<void()>, std::function<void()> on_cancel) { on_cancel(); });
-
-    TA::handle_load_button(*h.panel);
-    process_lvgl(20);
-
-    // The spinner is the observable: on_begin() runs only from the executor, and
-    // a declined home never reaches it.
-    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "filament_op_load_state")) == 0);
-
-    helix::ui::set_home_confirm_prompter({});
 }

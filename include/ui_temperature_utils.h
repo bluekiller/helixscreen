@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "ui_heater_config.h"
+
 #include "lvgl/lvgl.h"
 #include "moonraker_types.h"
 #include "printer_temperature_state.h"
@@ -164,6 +166,14 @@ bool is_extrusion_safe(int current_temp, int min_extrusion_temp);
  *                 primary extruder unless named.
  */
 int extrusion_floor_c(const SafetyLimits& limits, const std::string& extruder = "extruder");
+
+/**
+ * @brief Whether the active hotend may extrude right now
+ *
+ * At or above extrusion_floor_c(), or the user opted into cold extrusion (#978).
+ * Shared by every surface that refuses or defers a needs-hot-nozzle action.
+ */
+bool active_nozzle_ready_for_extrusion(const SafetyLimits& limits);
 
 /**
  * @brief A hotend's max_temp in whole degrees
@@ -588,6 +598,16 @@ inline const char* build_heater_off_gcode(const std::string& heater_full_name, c
                                           size_t buffer_size) {
     return build_heater_gcode(heater_full_name, 0, buffer, buffer_size);
 }
+
+/**
+ * @brief Keypad header title for a heater: its short name
+ *
+ * The unit beside the value already says it is a temperature, and a
+ * "<heater> Temperature" title does not fit a small keypad header in every
+ * language. The nozzle is named the way the panels name it ("Nozzle 4" on a
+ * multi-extruder printer).
+ */
+std::string heater_keypad_title(HeaterType type);
 
 } // namespace temperature
 } // namespace ui

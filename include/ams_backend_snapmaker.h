@@ -167,6 +167,16 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
         return false;
     }
 
+    // FEED_AUTO homes and sets its own nozzle target from the lane's material:
+    // a load reports load_homing then load_heating, an unload unload_homing then
+    // unload_heating. A G28 or UI preheat in front of it is a second wait.
+    [[nodiscard]] bool delegates_homing_to_printer() const override {
+        return true;
+    }
+    [[nodiscard]] bool supports_auto_heat_on_load() const override {
+        return true;
+    }
+
     // needs_unload_before_load() is answered by the base class: every lane here
     // is PARALLEL, so slot_has_independent_path() is true for all of them and the
     // serial rule never applies. See AmsBackend for why, including the `T{n}`
@@ -493,6 +503,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
         return "[AMS Snapmaker]";
     }
     SlotInfo* cached_slot_locked(int slot_index) override;
+    [[nodiscard]] std::optional<AmsAction> step_action_locked() const override;
 
   private:
     friend class SnapmakerTestAccess;

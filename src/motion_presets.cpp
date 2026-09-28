@@ -51,6 +51,22 @@ constexpr GridPosition grid_position(MotionPreset preset) {
 
 } // namespace
 
+AxisBounds preset_area(const AxisBounds& machine_travel, const AxisBounds& gcode_travel,
+                       const BuildVolume& volume) {
+    AxisBounds area = gcode_travel;
+    if (volume.plate_x_max <= volume.plate_x_min || volume.plate_y_max <= volume.plate_y_min) {
+        return area;
+    }
+    // machine = gcode + origin, and travel carries both forms of each limit.
+    const float origin_x = machine_travel.x_min - gcode_travel.x_min;
+    const float origin_y = machine_travel.y_min - gcode_travel.y_min;
+    area.x_min = std::max(gcode_travel.x_min, volume.plate_x_min - origin_x);
+    area.x_max = std::min(gcode_travel.x_max, volume.plate_x_max - origin_x);
+    area.y_min = std::max(gcode_travel.y_min, volume.plate_y_min - origin_y);
+    area.y_max = std::min(gcode_travel.y_max, volume.plate_y_max - origin_y);
+    return area;
+}
+
 std::optional<AxisTarget> motion_preset_target(MotionPreset preset, const AxisBounds& gcode_bounds,
                                                bool circular_bed) {
     const auto center_x =
@@ -89,6 +105,19 @@ std::optional<AxisTarget> motion_preset_target(MotionPreset preset, const AxisBo
         target.x = *center_x + col * reach_x;
         target.y = *center_y + row * reach_y;
     }
+    return target;
+}
+
+std::optional<AxisTarget> plate_rear_park(const AxisBounds& area) {
+    const auto center_x = calibration::axis_center(area.has_x, area.x_min, area.x_max);
+    const auto center_y = calibration::axis_center(area.has_y, area.y_min, area.y_max);
+    if (!center_x || !center_y) {
+        return std::nullopt;
+    }
+    AxisTarget target;
+    target.x = *center_x;
+    target.y = std::max(static_cast<double>(*center_y),
+                        static_cast<double>(area.y_max) - PARK_REAR_MARGIN_MM);
     return target;
 }
 

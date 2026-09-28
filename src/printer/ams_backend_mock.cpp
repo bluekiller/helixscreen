@@ -7,6 +7,7 @@
 #if HELIX_HAS_SNAPMAKER
 #include "ams_backend_snapmaker.h"
 #endif
+#include "ams_backend_happy_hare.h"
 #include "ams_bypass_policy.h"
 #include "display_numbering.h"
 #include "filament_database.h"
@@ -690,7 +691,7 @@ AmsError AmsBackendMock::load_filament(int slot_index) {
     return AmsErrorHelper::success();
 }
 
-AmsError AmsBackendMock::unload_filament(int /*slot_index*/) {
+AmsError AmsBackendMock::unload_filament(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -707,6 +708,7 @@ AmsError AmsBackendMock::unload_filament(int /*slot_index*/) {
         }
 
         // Start unloading
+        last_unload_slot_ = slot_index;
         system_info_.action = AmsAction::UNLOADING;
         system_info_.operation_detail = lv_tr("Unloading filament");
         filament_segment_ = PathSegment::NOZZLE; // Start at nozzle (working backwards)
@@ -1061,6 +1063,26 @@ AmsError AmsBackendMock::move_selector(int delta) {
 
     return simulate_transient_action(AmsAction::SELECTING,
                                      "Selecting slot " + std::to_string(target + 1));
+}
+
+AmsError AmsBackendMock::recover_with_state(const RecoverStateRequest& request) {
+    spdlog::info("[AMS Mock] Executing G-code: {}",
+                 AmsBackendHappyHare::build_recover_command(request));
+    return recover();
+}
+
+AmsError AmsBackendMock::preload_lane(int slot_index) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (!slots_.is_valid_index(slot_index)) {
+            return AmsErrorHelper::invalid_slot(lane_noun_locked(), slot_index,
+                                                slots_.slot_count() - 1);
+        }
+
+        spdlog::info("[AMS Mock] Executing G-code: MMU_PRELOAD GATE={}", slot_index);
+    }
+    return AmsErrorHelper::success();
 }
 
 AmsError AmsBackendMock::check_gate(int slot_index) {
@@ -3403,7 +3425,7 @@ void AmsBackendMock::finalize_load_state(int slot_index) {
     system_info_.pending_target_slot = -1;
 }
 
-void AmsBackendMock::finalize_unload_state() {
+void AmsBackendMock::finalize_unload_state(AmsAction then, const std::string& then_detail) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (system_info_.current_slot >= 0) {
         auto* entry = slots_.get_mut(system_info_.current_slot);
@@ -3414,8 +3436,13 @@ void AmsBackendMock::finalize_unload_state() {
     system_info_.filament_loaded = false;
     system_info_.current_slot = -1;
     filament_segment_ = PathSegment::NONE;
-    system_info_.action = AmsAction::IDLE;
-    system_info_.operation_detail.clear();
+    // A cancel that landed mid-unload has already set IDLE; handing over to the
+    // next phase would bring the operation back to life.
+    if (system_info_.action == AmsAction::IDLE) {
+        then = AmsAction::IDLE;
+    }
+    system_info_.action = then;
+    system_info_.operation_detail = then == AmsAction::IDLE ? std::string{} : then_detail;
 }
 
 void AmsBackendMock::execute_load_operation(int slot_index,
@@ -3457,7 +3484,8 @@ void AmsBackendMock::execute_load_operation(int slot_index,
     finalize_load_state(slot_index);
 }
 
-void AmsBackendMock::execute_unload_operation(InterruptibleSleep interruptible_sleep) {
+void AmsBackendMock::execute_unload_operation(InterruptibleSleep interruptible_sleep,
+                                              AmsAction then, const std::string& then_detail) {
     if (realistic_mode_) {
         // Phase 1: HEATING (shorter - just for clean cut)
         spdlog::debug("[AmsBackendMock] Unload phase: HEATING");
@@ -3489,32 +3517,32 @@ void AmsBackendMock::execute_unload_operation(InterruptibleSleep interruptible_s
         return;
 
     // Finalize
-    finalize_unload_state();
+    finalize_unload_state(then, then_detail);
 }
 
 void AmsBackendMock::execute_tool_change_operation(int target_slot,
                                                    InterruptibleSleep interruptible_sleep) {
-    // Phase 1: Unload current filament
-    execute_unload_operation(interruptible_sleep);
+    // Phase 1: Unload current filament, handing straight over to the next
+    // phase. Realistic mode selects the slot first; simple mode goes to
+    // LOADING so UI elements (slot pulse, step progress) stay active.
+    const std::string lane = std::to_string(helix::ui::lane_number(target_slot));
+    if (realistic_mode_) {
+        execute_unload_operation(interruptible_sleep, AmsAction::SELECTING,
+                                 "Selecting slot " + lane);
+    } else {
+        execute_unload_operation(interruptible_sleep, AmsAction::LOADING, "Loading slot " + lane);
+    }
     if (shutdown_requested_ || cancel_requested_)
         return;
+    emit_event(EVENT_STATE_CHANGED);
 
     // Phase 2: SELECTING (only in realistic mode)
     if (realistic_mode_) {
         spdlog::debug("[AmsBackendMock] Tool change phase: SELECTING slot {}", target_slot);
-        set_action(AmsAction::SELECTING,
-                   "Selecting slot " + std::to_string(helix::ui::lane_number(target_slot)));
-        emit_event(EVENT_STATE_CHANGED);
         if (!interruptible_sleep(get_effective_delay_ms(SELECTING_BASE_MS, SELECTING_VARIANCE)))
             return;
         if (shutdown_requested_ || cancel_requested_)
             return;
-    } else {
-        // Non-realistic: finalize_unload_state set action to IDLE, but we need LOADING
-        // for the load phase so that UI elements (slot pulse, step progress) stay active
-        set_action(AmsAction::LOADING,
-                   "Loading slot " + std::to_string(helix::ui::lane_number(target_slot)));
-        emit_event(EVENT_STATE_CHANGED);
     }
 
     // Phase 3: Load new filament
@@ -3918,6 +3946,11 @@ void AmsBackendMock::set_device_actions(std::vector<helix::printer::DeviceAction
 std::pair<std::string, std::any> AmsBackendMock::get_last_executed_action() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return {last_action_id_, last_action_value_};
+}
+
+std::optional<int> AmsBackendMock::last_unload_slot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return last_unload_slot_;
 }
 
 void AmsBackendMock::clear_last_executed_action() {

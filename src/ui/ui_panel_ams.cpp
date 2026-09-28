@@ -1236,70 +1236,10 @@ void AmsPanel::on_path_hub_clicked(lv_point_t click_pt) {
         return; // Selector/Happy Hare backends only
     }
     selector_menu_ = std::make_unique<helix::ui::AmsSelectorMenu>();
-    selector_menu_->set_action_callback(
-        [this](helix::ui::AmsSelectorMenu::SelectorAction a) { dispatch_selector_action(a); });
+    selector_menu_->set_action_callback([](helix::ui::AmsSelectorMenu::SelectorAction a) {
+        helix::ui::ams_dispatch_selector_action(a);
+    });
     selector_menu_->show_at(parent_screen_, path_canvas_, click_pt, backend);
-}
-
-void AmsPanel::dispatch_selector_action(helix::ui::AmsSelectorMenu::SelectorAction a) {
-    using SA = helix::ui::AmsSelectorMenu::SelectorAction;
-    AmsBackend* backend = AmsState::instance().get_backend();
-    if (!backend) {
-        NOTIFY_WARNING(lv_tr("Multi-Filament System not available"));
-        return;
-    }
-    AmsError err{};
-    // Feedback for these quick selector commands flows through the AMS status
-    // display (the ams_action_detail subject) — the backend sets a transient
-    // action/operation_detail and the UI observes it, matching how real Happy
-    // Hare reports "Checking"/"Selecting"/etc. automatically. No toasts here.
-    switch (a) {
-    case SA::HOME:
-        err = backend->reset(); // reset()==MMU_HOME for HH; reads as "Homing selector"
-        break;
-    case SA::CHECK_SLOTS:
-        err = backend->check_all_gates();
-        break;
-    case SA::SERVO_UP:
-        err = backend->execute_device_action("servo_up");
-        break;
-    case SA::SERVO_MOVE:
-        err = backend->execute_device_action("servo_move");
-        break;
-    case SA::SERVO_DOWN:
-        err = backend->execute_device_action("servo_down");
-        break;
-    case SA::JOG_PREV:
-        err = backend->move_selector(-1);
-        break;
-    case SA::JOG_NEXT:
-        err = backend->move_selector(+1);
-        break;
-    case SA::GEAR_SYNC_ON:
-        err = backend->execute_device_action("gear_sync", std::any(true));
-        break;
-    case SA::GEAR_SYNC_OFF:
-        err = backend->execute_device_action("gear_sync", std::any(false));
-        break;
-    case SA::RECOVER:
-        // Re-fetch the backend inside the callback so it cannot dangle if the
-        // panel/backend changed while the dialog was open. Feedback comes from
-        // the backend action state.
-        helix::ui::modal_confirm(lv_tr("Recover MMU state?"),
-                                 lv_tr("Re-syncs Happy Hare's tracked state with the hardware."),
-                                 ModalSeverity::Warning, lv_tr("Recover"), [] {
-                                     AmsBackend* b = AmsState::instance().get_backend();
-                                     if (b) {
-                                         b->recover();
-                                     }
-                                 });
-        return;
-    case SA::CANCELLED:
-        return;
-    }
-    if (err.result != AmsResult::SUCCESS) {
-        helix::ui::notify_ams_error(err, lv_tr("MMU command failed"));
-    }
 }
 
 void AmsPanel::on_slot_clicked(lv_event_t* e) {

@@ -49,6 +49,10 @@ class PrinterImageManager {
     /// screen_width determines 300px vs 150px variant.
     std::string get_active_image_path(int screen_width);
 
+    /// The image the home printer widget shows: the active image, else the one
+    /// auto-detected from the configured printer type.
+    std::string get_displayed_image_path(int screen_width);
+
     /// Set active image ID and persist to config.
     /// Must be called from the UI thread (fires lv_subject notification).
     void set_active_image(const std::string& id);
@@ -88,7 +92,8 @@ class PrinterImageManager {
         std::string error; // Error message on failure
     };
 
-    /// Import and convert a PNG/JPEG to LVGL .bin format (synchronous)
+    /// Import and convert a PNG/JPEG to LVGL .bin format (synchronous). Clears
+    /// the image's user tags, so main thread only.
     ImportResult import_image(const std::string& source_path);
 
     /// Async version — callback on completion
@@ -97,10 +102,16 @@ class PrinterImageManager {
 
     // --- Cleanup ---
 
+    /// Removes both tiers and the image's user tags. Main thread only.
     bool delete_custom_image(const std::string& name);
     std::string get_custom_dir() const {
         return custom_dir_;
     }
+
+    /// Bump the image-changed subject, so the home widget redraws the image and
+    /// its callouts. set_active_image() calls it; so does anything that changes
+    /// how the same image is drawn, like saving its tags.
+    void notify_image_changed();
 
     /// Subject that increments each time the active image changes (observe for refresh)
     lv_subject_t* get_image_changed_subject() {

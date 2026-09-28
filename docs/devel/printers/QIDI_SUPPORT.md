@@ -154,7 +154,7 @@ ls /dev/input/event*
 
 Ensure the user running HelixScreen has read permissions on the event device. Running as root (common on QIDI printers) avoids permission issues.
 
-The Q2's digitizer needs its affine calibration (see [Known Limitations](#known-limitations)); the first-run wizard applies it, and recalibrating from Settings → Touch Calibration re-derives it. Diagnostic env vars: [`HELIX_DEBUG_TOUCH`, `HELIX_TOUCH_*`](../ENVIRONMENT_VARIABLES.md#touch-calibration).
+The Q2's digitizer needs its affine calibration (see [Known Limitations](#known-limitations)); the first-run wizard applies it, and recalibrating from Settings → Touch & Input → Touch Calibration re-derives it. Diagnostic env vars: [`HELIX_DEBUG_TOUCH`, `HELIX_TOUCH_*`](../ENVIRONMENT_VARIABLES.md#touch-calibration).
 
 ## Auto-Detection
 

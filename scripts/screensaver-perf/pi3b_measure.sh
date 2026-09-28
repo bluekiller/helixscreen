@@ -62,7 +62,7 @@ fi
 
 ctl navigate settings
 sleep 1
-ctl click row_display_sound
+ctl click row_display
 sleep 1
 ctl set_value row_screensaver "$TYPE"
 sleep 1
@@ -81,7 +81,7 @@ ctl wake
 sleep 1
 ctl navigate settings
 sleep 1
-ctl click row_display_sound
+ctl click row_display
 sleep 1
 ctl set_value row_screensaver "$ORIG_TYPE"
 sleep 1

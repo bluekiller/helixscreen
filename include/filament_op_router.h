@@ -71,33 +71,6 @@ using ParamPrompter = std::function<void(
 void set_filament_param_prompter(ParamPrompter prompter);
 
 /**
- * @brief How the "toolhead isn't homed, inject G28?" confirmation is raised.
- *
- * Sibling seam to ParamPrompter above, for the same reason: it makes the
- * confirm-before-homing branch (AmsSubscriptionBackend::ensure_homed_then())
- * reachable from a headless test binary, and lets the one real caller
- * (SubjectInitializer) present it as a modal without ensure_homed_then()
- * knowing anything about LVGL.
- */
-using HomeConfirmPrompter =
-    std::function<void(std::function<void()> on_confirm, std::function<void()> on_cancel)>;
-
-/// Install a prompter. Pass a default-constructed HomeConfirmPrompter to
-/// restore the default described on request_home_confirmation().
-void set_home_confirm_prompter(HomeConfirmPrompter prompter);
-
-/**
- * @brief Ask before ensure_homed_then() injects an unrequested G28.
- *
- * With no prompter installed -- the state of every test that doesn't call
- * set_home_confirm_prompter(), and ~4600 of them don't -- @p on_confirm fires
- * immediately and synchronously. That default is load-bearing: it is what
- * keeps every pre-existing homing test (and every un-migrated caller) seeing
- * today's "just home it" behaviour with no prompter wired up.
- */
-void request_home_confirmation(std::function<void()> on_confirm, std::function<void()> on_cancel);
-
-/**
  * @brief Tier 2: dispatch the user's configured macro.
  *
  * Resolves @p macro_name against MacroParamCache. Under ParamPolicy::Suppress

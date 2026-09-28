@@ -5723,7 +5723,6 @@ TEST_CASE("CFS: a failed pre-op G28 does not send the envelope unwind", "[ams][c
     GcodeRecordingApi api{client, state};
 
     UnhomedCfsBackend backend{&api, &client};
-    backend.arm_home_preconfirmed(); // skip the "home first?" modal
 
     CfsTestAccess::dispatch_action_script(backend, "CR_BOX_LOAD TNN=0");
     // token.defer() can queue from inside a drain, so drain until quiet or the
@@ -5750,7 +5749,6 @@ TEST_CASE("CFS: a failed payload still sends the envelope unwind", "[ams][cfs][h
     api.fail_homing = false; // G28 succeeds; the body is what fails
 
     UnhomedCfsBackend backend{&api, &client};
-    backend.arm_home_preconfirmed();
 
     // The mock acks the payload, so drive the failure through the same callback
     // Klipper's rejection would reach.
@@ -5991,9 +5989,11 @@ TEST_CASE("CFS untagged insert offers Clear (#1710)", "[ams][cfs][1710]") {
     CHECK(toasts.empty());
 
     // A spool goes in that the reader cannot name: the frame restates the
-    // latched material and colour and reports the bay occupied again.
+    // latched material and colour and reports the bay occupied again. The box
+    // is idle so the probe runs and genuinely says nothing.
     json inserted =
         make_single_unit_box({"100003", "-1", "-1", "-1"}, {"0FF5500", "-1", "-1", "-1"});
+    inserted["filament_useup"] = 0;
 
     SECTION("the edge frame is never judged, silence then asks") {
         CfsTestAccess::handle_status(backend, make_cfs_notification(inserted));
@@ -6056,6 +6056,145 @@ TEST_CASE("CFS untagged insert offers Clear (#1710)", "[ams][cfs][1710]") {
     }
 
     helix::ui::set_test_toast_hook(nullptr);
+}
+
+namespace {
+
+// Shared rig for the stock-schema insert-rule cases: a registered backend
+// with an override store, one tagged PETG spool seated and given a user
+// assignment, then pulled, so each case drives its own re-insert.
+struct CfsInsertRuleRig {
+    CfsInsertRuleRig() : client(MoonrakerClientMock::PrinterType::VORON_24), api(client, state) {
+        state.init_subjects(false);
+
+        auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "cfs");
+        FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
+        CfsTestAccess::inject_override_store(backend, std::move(store));
+
+        helix::ui::set_test_toast_hook([this](ToastSeverity severity, const std::string& msg,
+                                              uint32_t) { toasts.emplace_back(severity, msg); });
+
+        // Boot with a tagged PETG spool seated and the box idle: the first
+        // occupancy observation is the session's baseline, never an edge.
+        json seated =
+            make_single_unit_box({"100003", "-1", "-1", "-1"}, {"0FF5500", "-1", "-1", "-1"});
+        seated["filament_useup"] = 0;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(seated));
+        drain();
+        REQUIRE(toasts.empty());
+
+        // The lane carries a user assignment for the spool; that is what the
+        // notice asks about.
+        SlotInfo edit = backend.get_slot_info(0);
+        edit.color_rgb = 0x7EC8E3;
+        helix::test::edit_slot_as_user(backend, 0, edit);
+
+        // Pulling the spool is not an insert: the tag's material and colour
+        // stay latched, only the occupancy fields drop.
+        json pulled = json(seated);
+        pulled["T1"]["vender"][0] = "none";
+        pulled["T1"]["remain_len"][0] = "-1";
+        CfsTestAccess::handle_status(backend, make_cfs_notification(pulled));
+        drain();
+        REQUIRE(toasts.empty());
+
+        // The frames every insert scenario starts from: the latched PETG
+        // reading, an idle box, and the bay reporting occupied again.
+        reinserted = json(seated);
+        reinserted["filament_useup"] = 0;
+    }
+
+    ~CfsInsertRuleRig() {
+        helix::ui::set_test_toast_hook(nullptr);
+    }
+
+    void drain() {
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    CfsTmpCacheDir tmp{"cfs_insert_rule"};
+    MoonrakerClientMock client;
+    helix::PrinterState state;
+    MoonrakerAPIMock api;
+    helix::test::RegisteredBackend<AmsBackendCfs> backend_reg{&api, nullptr};
+    AmsBackendCfs& backend = *backend_reg;
+    std::vector<std::pair<ToastSeverity, std::string>> toasts;
+    json reinserted;
+};
+
+} // namespace
+
+TEST_CASE("CFS a re-read identical tag stays silent (#1710)", "[ams][cfs][1710]") {
+    // The stock arrays latch the pulled spool's colour and material, and a
+    // re-inserted tagged spool re-reads IDENTICAL values, so the probe's
+    // answer never states anything different from the latch. What separates
+    // a completed read from the latch is `vender`: "unknown" while the seated
+    // tag is unread, a real vendor name once the probe has read it. A
+    // completed read restating the before-insert evidence is the same spool:
+    // keep everything and say nothing.
+    CfsInsertRuleRig rig;
+    auto& backend = rig.backend;
+
+    // The same spool goes back in: the edge frame restates the latched values
+    // with the tag still unread.
+    CfsTestAccess::handle_status(backend, make_cfs_notification(rig.reinserted));
+    rig.drain();
+    CHECK(rig.toasts.empty());
+
+    // The probe completes on later frames: vender resolves to the tag's
+    // vendor while material and colour repeat the latched pair exactly.
+    json reread = json(rig.reinserted);
+    reread["T1"]["vender"][0] = "Creality";
+    for (int i = 0; i < 4; ++i) {
+        CfsTestAccess::handle_status(backend, make_cfs_notification(reread));
+        rig.drain();
+        CHECK(rig.toasts.empty());
+    }
+    CHECK(CfsTestAccess::get_override(backend, 0).has_value());
+}
+
+TEST_CASE("CFS a deferred probe holds the insert verdict until it runs (#1710)",
+          "[ams][cfs][1710]") {
+    // Mid-operation the box answers an RFID refresh with busy, so the insert
+    // probe parks in deferred_probes_ until an idle poll. The pending
+    // insert's quiet countdown must not expire while the probe still owes
+    // its answer: the verdict waits, and the released probe's answer decides.
+    CfsInsertRuleRig rig;
+    auto& backend = rig.backend;
+
+    // The insert lands while the box reports its runout latch: the probe is
+    // deferred on the very frame that opens the pending insert.
+    json busy = json(rig.reinserted);
+    busy["filament_useup"] = 1;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(busy));
+    rig.drain();
+    CHECK(rig.toasts.empty());
+
+    // Busy frame after busy frame restates the latched spool. The countdown
+    // holds rather than expiring into a notice the probe has not weighed in
+    // on yet.
+    for (int i = 0; i < 6; ++i) {
+        CfsTestAccess::handle_status(backend, make_cfs_notification(busy));
+        rig.drain();
+        CHECK(rig.toasts.empty());
+    }
+    REQUIRE(CfsTestAccess::get_override(backend, 0).has_value());
+
+    // The box goes idle: the deferred probe dispatches on this poll.
+    json idle = json(busy);
+    idle["filament_useup"] = 0;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(idle));
+    rig.drain();
+    CHECK(rig.toasts.empty());
+
+    // The probe's answer lands on a later frame: a different spool's PLA and
+    // white, so the held verdict clears what described the pulled one.
+    json answer = make_single_unit_box({"101001", "-1", "-1", "-1"}, {"0FFFFFF", "-1", "-1", "-1"});
+    answer["filament_useup"] = 0;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(answer));
+    rig.drain();
+    CHECK_FALSE(CfsTestAccess::get_override(backend, 0).has_value());
+    CHECK(rig.toasts.empty());
 }
 
 TEST_CASE("CFS flat insert edge verdicts (#1710)", "[ams][cfs][1710]") {

@@ -138,7 +138,7 @@ bool is_default_cooldown_gcode(const std::string& gcode);
  * ```
  */
 /// Current config schema version — bump when adding new migrations
-static constexpr int CURRENT_CONFIG_VERSION = 25;
+static constexpr int CURRENT_CONFIG_VERSION = 26;
 
 class Config {
   private:

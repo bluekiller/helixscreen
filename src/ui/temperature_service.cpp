@@ -110,7 +110,6 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     auto& nozzle = heaters_[idx(HeaterType::Nozzle)];
     nozzle.config = {.type = HeaterType::Nozzle,
                      .name = "Nozzle",
-                     .title = "Nozzle Temperature",
                      .color = helix::TEMP_GRAPH_SERIES_COLORS[0], // nozzle
                      .temp_range_max = 320.0f,
                      .y_axis_increment = 80,
@@ -125,7 +124,6 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     auto& bed = heaters_[idx(HeaterType::Bed)];
     bed.config = {.type = HeaterType::Bed,
                   .name = "Bed",
-                  .title = "Heatbed Temperature",
                   .color = helix::TEMP_GRAPH_SERIES_COLORS[1], // bed
                   .temp_range_max = 140.0f,
                   .y_axis_increment = 35,
@@ -140,7 +138,6 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     auto& chamber = heaters_[idx(HeaterType::Chamber)];
     chamber.config = {.type = HeaterType::Chamber,
                       .name = "Chamber",
-                      .title = "Chamber Temperature",
                       .color = helix::TEMP_GRAPH_SERIES_COLORS[2], // chamber
                       .temp_range_max = 80.0f,
                       .y_axis_increment = 20,
@@ -1002,11 +999,12 @@ void TemperatureService::on_heater_custom_clicked(lv_event_t* e) {
     // and applies the fallback only when no ceiling is known at all.
     const float max_value = self->custom_keypad_max(type, h.config.keypad_range.max);
 
+    const std::string title = helix::ui::temperature::heater_keypad_title(type);
     ui_keypad_config_t keypad_config = {
         .initial_value = static_cast<float>(helix::ui::temperature::deci_to_degrees(h.target)),
         .min_value = h.config.keypad_range.min,
         .max_value = max_value,
-        .title_label = h.config.title,
+        .title_label = title.c_str(),
         .unit_label = "°C",
         .allow_decimal = false,
         .allow_negative = false,
@@ -1089,11 +1087,12 @@ void TemperatureService::on_nozzle_custom_clicked(lv_event_t* e) {
     auto& h = self->heaters_[idx(HeaterType::Nozzle)];
     s_keypad_data[idx(HeaterType::Nozzle)] = {self, HeaterType::Nozzle};
 
+    const std::string title = helix::ui::temperature::heater_keypad_title(HeaterType::Nozzle);
     ui_keypad_config_t keypad_config = {
         .initial_value = static_cast<float>(helix::ui::temperature::deci_to_degrees(h.target)),
         .min_value = h.config.keypad_range.min,
         .max_value = h.config.keypad_range.max,
-        .title_label = "Nozzle Temp",
+        .title_label = title.c_str(),
         .unit_label = "°C",
         .allow_decimal = false,
         .allow_negative = false,
@@ -1111,11 +1110,12 @@ void TemperatureService::on_bed_custom_clicked(lv_event_t* e) {
     auto& h = self->heaters_[idx(HeaterType::Bed)];
     s_keypad_data[idx(HeaterType::Bed)] = {self, HeaterType::Bed};
 
+    const std::string title = helix::ui::temperature::heater_keypad_title(HeaterType::Bed);
     ui_keypad_config_t keypad_config = {
         .initial_value = static_cast<float>(helix::ui::temperature::deci_to_degrees(h.target)),
         .min_value = h.config.keypad_range.min,
         .max_value = h.config.keypad_range.max,
-        .title_label = "Heat Bed Temp",
+        .title_label = title.c_str(),
         .unit_label = "°C",
         .allow_decimal = false,
         .allow_negative = false,

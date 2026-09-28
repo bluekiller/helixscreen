@@ -31,8 +31,8 @@
                             description="Guides and reference" description_tag="Guides and reference"
                             callback="on_docs_clicked"/>
         <setting_action_row name="row_about"
-                            label="About" label_tag="About" icon="info" description="Version, updates, and printer info"
-                            description_tag="Version, updates, and printer info" callback="on_about_clicked"/>
+                            label="About" label_tag="About" icon="info" description="Version and printer info"
+                            description_tag="Version and printer info" callback="on_about_clicked"/>
       </setting_group>
     </lv_obj>
   </view>

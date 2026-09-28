@@ -34,6 +34,15 @@ class EthernetBackendMock : public EthernetBackend {
     bool has_interface() override;
     EthernetInfo get_info() override;
 
+    /// Test helper — drive connected state directly, mirroring
+    /// WifiBackendMock::set_connected_state. The interface itself stays
+    /// present (has_interface() is a hardware-presence question, not a link
+    /// one); only get_info()'s connected/status reflect this.
+    void set_connected_state(bool connected) {
+        connected_ = connected;
+    }
+
   private:
     std::string real_mac_; ///< Real MAC from system for realistic demo display
+    bool connected_ = true;
 };

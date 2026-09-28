@@ -499,10 +499,14 @@ Observation declared_from_record(const FilamentSlotOverride& record) {
 bool wire_authored_by_firmware(const nlohmann::json& wire) {
     // AFC's plugin writes each lane's record itself (AFC_lane.py
     // send_lane_data): colour, material, temps, weight, spool_id and its own
-    // bookkeeping keys - td, lane and extruder_index, which no third-party
-    // tool emits - under the shared identity spellings not at all. A document
-    // shaped this way is the firmware stating what it measured.
-    return wire.contains("extruder_index") && wire.contains("td") && !wire.contains("vendor_name");
+    // bookkeeping keys - `td` on every plugin build, `lane` and
+    // extruder_index on newer ones - under the shared identity spellings not
+    // at all. `td` is the one key no third-party tool emits on any build, so
+    // it alone carries the discrimination; vendor_name stays the hard
+    // exclusion, because a record carrying the shared spelling is a
+    // Spoolman-side writer's. A document shaped this way is the firmware
+    // stating what it measured.
+    return wire.contains("td") && !wire.contains("vendor_name");
 }
 
 bool wire_authored_by_helix(const nlohmann::json& wire, LegacyLockKeys keys) {

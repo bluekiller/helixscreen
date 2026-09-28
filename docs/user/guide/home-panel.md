@@ -99,7 +99,7 @@ While in Edit Mode, any page other than the main page shows a **red trash button
 
 Edit Mode is how you customize your dashboard layout. While in Edit Mode, all normal widget interactions (tapping to open overlays, etc.) are disabled so you can freely rearrange things.
 
-> **Edit Mode is on by default.** If it triggers accidentally when a finger rests on the screen (common on a tablet lying flat), you have two options: turn it off entirely with **Allow Home Screen Editing** under **Settings → System → Touch & Input**, or raise the **Long Press Time** slider in the same page so a longer hold is required. Both take effect immediately.
+> **Edit Mode is on by default.** If it triggers accidentally when a finger rests on the screen (common on a tablet lying flat), you have two options: turn it off entirely with **Allow Home Screen Editing** under **Settings → Touch & Input**, or raise the **Long Press Time** slider in the same page so a longer hold is required. Both take effect immediately.
 
 **Page swiping in Edit Mode:** Swiping between pages works in Edit Mode just as it does outside it: between your pages, plus the Add page tile past your last one, and never further. Swiping pauses from the moment your finger lands on the selected widget until you lift it, while you drag or resize a widget, and while the Widget Catalog is open. To take a widget to another page, or to a new page before your first or past your last one, drag it across the page border - see [Moving a Widget to Another Page](#moving-a-widget-to-another-page).
 
@@ -282,7 +282,7 @@ These are the same 5 groups the Widget Catalog uses on the device.
 
 | Widget | Description | Default | Min | Max | Resizable | Hardware Required |
 |--------|-------------|---------|-----|-----|-----------|-------------------|
-| **Printer Image** | Your printer's photo. Tap to open the Printer Manager overlay where you can change the name, image, and see hardware info. | 2x2 | 1x1 | 4x3 | Yes | — |
+| **Printer Image** | Your printer's photo, with live chips for the heaters, part fan and light while they are in use (see [Status Chips on the Printer Image](#status-chips-on-the-printer-image)). Tap a chip for that part's controls, or the picture itself to open the Printer Manager overlay where you can change the name, image, and see hardware info. | 2x2 | 1x1 | 4x3 | Yes | — |
 | **Print Status** | Tracks the print job in all three of its states - idle (pick a file), preparing (pre-print steps with a progress bar), and printing (filename, percentage, ETA, elapsed time). Pauses scheduled in the G-code (M600, PAUSE and friends) show as ticks on the progress bar and arc, so you can see a filament change coming. Tap opens the full Print Status overlay whenever a job is preparing or printing, or the file browser when idle. | 2x2 | 2x1 | Full width x3 | Yes | — |
 | **Print Controls** | Pause, resume, and stop buttons for the running print, right on the dashboard. | 2x1 | 2x1 | 2x1 | No | — |
 | **Print Stats** | Print history statistics — total prints, success rate, and total print time. Tap to open the full print history overlay. | 2x2 | 2x1 | 3x2 | Yes | — |
@@ -341,11 +341,11 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **Tips** | Rotating helpful tips about 3D printing and HelixScreen features. Tap any tip to see the full article. Tips rotate automatically. | 4x2 | 2x1 | Full width x2 | Horizontal only | — |
 | **Shutdown/Reboot** | Shutdown or reboot your printer's host system. Shows a confirmation dialog before acting. | 1x1 | 0.5x1 | Full grid | Yes | — |
 | **Firmware Restart** | Restart the Klipper firmware. Useful when Klipper enters SHUTDOWN state. This widget automatically appears during firmware errors even if disabled. | 1x1 | 0.5x1 | Full grid | Yes | — |
-| **Lock Screen** | Locks the screen immediately. Set a PIN in Settings > Security first, otherwise there is nothing to unlock with. | 1x1 | 0.5x1 | Full grid | Yes | — |
+| **Lock Screen** | Locks the screen immediately. Set a PIN in Settings > System > Security first, otherwise there is nothing to unlock with. | 1x1 | 0.5x1 | Full grid | Yes | — |
 
 #### Shutdown/Reboot Widget
 
-The Shutdown/Reboot widget puts one-tap host shutdown/reboot on your home panel — a faster alternative to the **Settings > Advanced** shutdown entry. A confirmation dialog always appears first, so there's no risk of an accidental shutdown. For switching a PSU or smart plug instead, see the **Power** widget above.
+The Shutdown/Reboot widget puts one-tap host shutdown/reboot on your home panel — a faster alternative to the **Shutdown** and **Reboot** entries on the **Advanced** panel. A confirmation dialog always appears first, so there's no risk of an accidental shutdown. For switching a PSU or smart plug instead, see the **Power** widget above.
 
 
 ### Hardware-Gated Widgets
@@ -403,7 +403,7 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 
 | Widget | Tap Action |
 |--------|------------|
-| Printer Image | Opens Printer Manager overlay |
+| Printer Image | Opens Printer Manager overlay; a status chip opens that part's controls |
 | Print Status | Opens Print Status overlay (preparing or printing) or File Browser (idle) |
 | Print Controls | Pauses, resumes, or stops the print — one button each |
 | Print Stats | Opens print history overlay |
@@ -447,7 +447,7 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 
 By default, tapping a Macro Button asks you something before it runs anything. If
 the macro takes parameters, you get a form to fill in. If it takes none, you get a
-"Run MACRO?" dialog — the one controlled by **Settings > Safety > Confirm before
+"Run MACRO?" dialog — the one controlled by **Settings > Safety & Alerts > Confirm before
 running macros**.
 
 That is the right default for a button sitting on the home screen, but it gets in
@@ -737,7 +737,7 @@ On printers with more than one extruder (IDEX, toolchangers, multi-head systems)
 
 ## Emergency Stop
 
-The red **Emergency Stop** button in the top bar halts all printer motion immediately. By default, a confirmation dialog appears before executing. You can disable the confirmation in **Settings > Safety & Notifications > E-Stop Confirmation**.
+The red **Emergency Stop** button in the top bar halts all printer motion immediately. By default, a confirmation dialog appears before executing. You can disable the confirmation in **Settings > Safety & Alerts > E-Stop Confirmation**.
 
 ---
 
@@ -902,6 +902,29 @@ The list is filtered to your printer's motion type, the same way the setup wizar
 
 ![Printer image picker — scrollable list on left, live preview on right](../../images/user/home-image-picker.png)
 
+### Status Chips on the Printer Image
+
+While the printer is working, small chips on the printer image show what each part is doing:
+
+- **Nozzle, bed and chamber** - a temperature chip appears while the heater has a target, and stays, greyed, until a heater you turned off has cooled below 50°C. The chamber chip appears only on printers with a chamber heater.
+- **Part fan** - shows its speed while it is running.
+- **Light** - shows while the light is on.
+
+Tap a heater chip for its temperature graph, the fan chip for the fan controls, or the light chip for the light controls.
+
+On the most common printers the shipped pictures know where each part is, so each chip points at its part: beside the picture with a line to it on a wide tile, or on top of it on a small one. On other pictures, including your own photos, the chips sit along the edge of the picture until you tag its parts.
+
+### Tagging the Printer's Parts
+
+To place the chips on a picture that does not know its parts yet, or to correct a shipped picture you disagree with:
+
+1. Open the Image Picker (see [Changing the Printer Image](#changing-the-printer-image)) and select the picture
+2. Tap **Tag parts** under the preview
+3. Tap each part as you are asked: the nozzle tip, the part cooling fan, the bed's front-left corner, the bed's front-right corner, an empty spot inside the enclosure, and the light. The fan, enclosure and light can be skipped with **Skip** if your printer does not have them; **Undo** steps back one tap
+4. Check where the chips will sit, then tap **Save**
+
+Your tags are kept for that picture, as long as its size does not change: replace a custom image with a file of different dimensions and you will need to tag it again. **Reset tags**, which appears once a picture has your own tags, puts the picture back to its shipped positions (or to chips along the edge, for a picture that has none).
+
 ### Using Custom Printer Images
 
 You can use your own printer photo or rendering:
@@ -956,7 +979,7 @@ A row of chips shows detected hardware capabilities: Probe, Bed Mesh, Heated Bed
 
 > Requires [beta features](beta-features.md) to be enabled and at least two printers configured.
 
-When you have multiple printers configured, the Printer Manager overlay shows a **Manage Printers** button at the bottom. Tap it to open the printer management screen (same as Settings > Printers).
+When you have multiple printers configured, the Printer Manager overlay shows a **Manage Printers** button at the bottom. Tap it to open the printer management screen (same as Settings > Connection > Printers).
 
 You can also switch printers directly from the **navigation bar**. When multiple printers are configured, a badge with your printer's name appears in the nav bar. Tap it to see a quick-switch menu listing all your printers — tap any printer to switch instantly.
 

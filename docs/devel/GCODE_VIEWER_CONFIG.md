@@ -80,6 +80,17 @@ Cross-section of the extruded tube. 4 is a diamond and the cheapest; 16 is
 circular and matches OrcaSlicer. Anything else logs a warning and falls back to
 16. The geometry budget tier can override this downward on constrained devices.
 
+The tier ladder gates on memory first, and on slow GPUs also on triangle count:
+`select_tier()` (`src/rendering/geometry_budget_manager.cpp#GeometryBudgetManager::select_tier`)
+takes a `max_triangles` cap supplied by `gpu_triangle_budget()`
+(`include/gcode_gl_fallback.h#gpu_triangle_budget`), which keys off the kernel
+driver behind the DRM render node. A tier whose estimated triangles
+(`TRIS_PER_SEG_*`, calibrated on a Pi 3B with a 3DBenchy) exceed the cap is
+skipped, so on vc4 (VideoCore IV, Pi 0-3, ~4M tris/s) a 1M-triangle budget
+demotes heavy files to coarser tubes or the 2D fallback instead of drawing
+multi-second frames that wedge the GPU until reboot. Pi 4/5 render through v3d
+and are uncapped.
+
 ## Streaming and pacing (2D)
 
 ### `streaming_mode`

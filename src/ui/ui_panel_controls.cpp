@@ -30,6 +30,7 @@
 
 #include "app_globals.h"
 #include "format_utils.h"
+#include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "macro_executor.h"
 #include "macro_param_defaults.h"
@@ -38,6 +39,7 @@
 #include "operation_timeout_guard.h"
 #include "panel_widgets/led_widget.h"
 #include "printer_state.h"
+#include "quick_action_slots.h"
 #include "safety_settings_manager.h"
 #include "standard_macros.h"
 #include "static_panel_registry.h"
@@ -84,9 +86,11 @@ ControlsPanel::ControlsPanel(PrinterState& printer_state, IMoonrakerAPI* api)
 }
 
 ControlsPanel::~ControlsPanel() {
-    // Detach the LED widget while LVGL is still valid (its dtor calls detach(),
-    // but do it explicitly first so its observers are torn down before subjects).
-    led_widget_.reset();
+    // Detach the LED widgets while LVGL is still valid (their dtor calls
+    // detach(), but do it explicitly first so observers go before subjects).
+    for (auto& w : led_widgets_) {
+        w.reset();
+    }
 
     deinit_subjects();
 
@@ -204,6 +208,10 @@ void ControlsPanel::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(macro_3_name_, macro_3_name_buf_, "", "macro_3_name", subjects_);
     UI_MANAGED_SUBJECT_STRING(macro_4_name_, macro_4_name_buf_, "", "macro_4_name", subjects_);
     UI_MANAGED_SUBJECT_INT(macro_header_visible_, 1, "macro_header_visible", subjects_);
+    UI_MANAGED_SUBJECT_INT(macro_light_[0], 0, "macro_1_light", subjects_);
+    UI_MANAGED_SUBJECT_INT(macro_light_[1], 0, "macro_2_light", subjects_);
+    UI_MANAGED_SUBJECT_INT(macro_light_[2], 0, "macro_3_light", subjects_);
+    UI_MANAGED_SUBJECT_INT(macro_light_[3], 0, "macro_4_light", subjects_);
 
     // Operation timeout guard (disables buttons while homing/QGL/Z-tilt in progress)
     operation_guard_.init_subject("controls_operation_in_progress", subjects_);
@@ -327,34 +335,7 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         return;
     }
 
-    // Load quick button slot assignments from config
-    // Config stores slot names like "clean_nozzle", "bed_level"
-    if (Config* config = Config::get_instance()) {
-        std::string slot1_name =
-            config->get<std::string>("/standard_macros/quick_button_1", "clean_nozzle");
-        std::string slot2_name =
-            config->get<std::string>("/standard_macros/quick_button_2", "bed_level");
-        std::string slot3_name = config->get<std::string>("/standard_macros/quick_button_3", "");
-        std::string slot4_name = config->get<std::string>("/standard_macros/quick_button_4", "");
-
-        macro_1_slot_ = StandardMacros::slot_from_name(slot1_name);
-        macro_2_slot_ = StandardMacros::slot_from_name(slot2_name);
-        macro_3_slot_ =
-            slot3_name.empty() ? std::nullopt : StandardMacros::slot_from_name(slot3_name);
-        macro_4_slot_ =
-            slot4_name.empty() ? std::nullopt : StandardMacros::slot_from_name(slot4_name);
-
-        spdlog::trace(
-            "[{}] Quick buttons configured: slot1='{}', slot2='{}', slot3='{}', slot4='{}'",
-            get_name(), slot1_name, slot2_name, slot3_name, slot4_name);
-    } else {
-        // Fallback: use CleanNozzle and BedLevel slots for 1 & 2, none for 3 & 4
-        macro_1_slot_ = StandardMacroSlot::CleanNozzle;
-        macro_2_slot_ = StandardMacroSlot::BedLevel;
-        macro_3_slot_ = std::nullopt;
-        macro_4_slot_ = std::nullopt;
-        spdlog::warn("[{}] Config not available, using default macro slots", get_name());
-    }
+    load_quick_button_config();
 
     // Refresh button labels and visibility based on current StandardMacros state
     refresh_macro_buttons();
@@ -377,15 +358,18 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                             this);
     }
 
-    // LED quick-toggle cell (Calibration & Tools grid). Reuses LedWidget — the
-    // same class that drives the home-dashboard light widget — so the bulb icon
-    // reflects on/off + brightness + LED color and a tap toggles the chamber
-    // light. The cell itself is hidden unless an LED strip is controllable
-    // (led_controllable binding in XML); the XML wires the click, and attach()
-    // finds light_icon by name and binds the observers.
-    if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, "controls_led_cell")) {
-        led_widget_ = std::make_unique<helix::LedWidget>("controls_led", printer_state_, api_);
-        led_widget_->attach(led_cell, parent_screen);
+    // A Quick Actions slot can hold the light toggle. Each slot's light cell
+    // reuses LedWidget, the class behind the home light tile, so the bulb shows
+    // on/off, brightness and colour, and a tap toggles the chamber light; the
+    // XML wires the click, and attach() finds light_icon inside the cell by name.
+    for (size_t i = 0; i < led_widgets_.size(); ++i) {
+        const std::string slot = "macro_" + std::to_string(i + 1);
+        const std::string cell = slot + "_light_cell";
+        if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, cell.c_str())) {
+            led_widgets_[i] =
+                std::make_unique<helix::LedWidget>("controls_" + slot, printer_state_, api_);
+            led_widgets_[i]->attach(led_cell, parent_screen);
+        }
     }
 
     // Wire up card click handlers (cards need manual wiring for navigation)
@@ -428,21 +412,7 @@ void ControlsPanel::on_activate() {
     populate_secondary_fans();
 
     // Re-read quick button slot config — user may have changed settings
-    if (Config* config = Config::get_instance()) {
-        std::string slot1_name =
-            config->get<std::string>("/standard_macros/quick_button_1", "clean_nozzle");
-        std::string slot2_name =
-            config->get<std::string>("/standard_macros/quick_button_2", "bed_level");
-        std::string slot3_name = config->get<std::string>("/standard_macros/quick_button_3", "");
-        std::string slot4_name = config->get<std::string>("/standard_macros/quick_button_4", "");
-
-        macro_1_slot_ = StandardMacros::slot_from_name(slot1_name);
-        macro_2_slot_ = StandardMacros::slot_from_name(slot2_name);
-        macro_3_slot_ =
-            slot3_name.empty() ? std::nullopt : StandardMacros::slot_from_name(slot3_name);
-        macro_4_slot_ =
-            slot4_name.empty() ? std::nullopt : StandardMacros::slot_from_name(slot4_name);
-    }
+    load_quick_button_config();
 
     // Refresh macro buttons — picks up config changes and auto-detected macros
     refresh_macro_buttons();
@@ -649,6 +619,13 @@ void ControlsPanel::register_observers() {
         StandardMacros::instance().get_macros_version_subject(), this,
         [](ControlsPanel* self, int /* version */) { self->refresh_macro_buttons(); },
         StandardMacros::instance().get_subjects_lifetime());
+
+    // The light toggle's slot depends on whether an LED is controllable, which
+    // discovery settles after setup.
+    led_controllable_observer_ = observe_int_sync<ControlsPanel>(
+        helix::led::LedController::instance().get_led_controllable_subject(), this,
+        [](ControlsPanel* self, int /* controllable */) { self->refresh_macro_buttons(); },
+        helix::led::LedController::instance().get_subjects_lifetime());
 
     // Subscribe to active tool changes for dynamic nozzle label
     active_tool_observer_ = observe_int_sync<ControlsPanel>(
@@ -888,7 +865,6 @@ void ControlsPanel::update_macro_button(StandardMacros& macros,
 void ControlsPanel::refresh_macro_buttons() {
     auto& macros = StandardMacros::instance();
 
-    // Arrays for iteration - slots, visible subjects, name subjects, button numbers
     const std::optional<StandardMacroSlot>* slots[] = {&macro_1_slot_, &macro_2_slot_,
                                                        &macro_3_slot_, &macro_4_slot_};
     lv_subject_t* visible_subjects[] = {&macro_1_visible_, &macro_2_visible_, &macro_3_visible_,
@@ -898,15 +874,36 @@ void ControlsPanel::refresh_macro_buttons() {
     lv_subject_t* name_subjects[] = {&macro_1_name_, &macro_2_name_, &macro_3_name_,
                                      &macro_4_name_};
 
+    const auto kinds = helix::resolve_current_quick_slots(stored_quick_slots_);
+
     for (size_t i = 0; i < 4; ++i) {
-        update_macro_button(macros, *slots[i], *visible_subjects[i], *available_subjects[i],
-                            *name_subjects[i], static_cast<int>(i + 1));
+        const bool light = kinds[i] == helix::QuickSlotKind::Light;
+        lv_subject_set_int(&macro_light_[i], light ? 1 : 0);
+        if (kinds[i] == helix::QuickSlotKind::Macro) {
+            update_macro_button(macros, *slots[i], *visible_subjects[i], *available_subjects[i],
+                                *name_subjects[i], static_cast<int>(i + 1));
+        } else {
+            lv_subject_set_int(visible_subjects[i], 0);
+            lv_subject_set_int(available_subjects[i], 0);
+        }
     }
 
-    // Hide the Quick Actions header when row 2 is visible (macro 3 or 4) to save space
-    bool row2_visible =
-        lv_subject_get_int(&macro_3_visible_) == 1 || lv_subject_get_int(&macro_4_visible_) == 1;
+    // Hide the Quick Actions header when row 2 shows anything, to save space
+    const bool row2_visible =
+        kinds[2] != helix::QuickSlotKind::Empty || kinds[3] != helix::QuickSlotKind::Empty;
     lv_subject_set_int(&macro_header_visible_, row2_visible ? 0 : 1);
+}
+
+void ControlsPanel::load_quick_button_config() {
+    std::optional<StandardMacroSlot>* slots[] = {&macro_1_slot_, &macro_2_slot_, &macro_3_slot_,
+                                                 &macro_4_slot_};
+    stored_quick_slots_ = helix::read_stored_quick_slots();
+    for (size_t i = 0; i < 4; ++i) {
+        const std::string& name = stored_quick_slots_.value[i];
+        *slots[i] = name.empty() || name == helix::kQuickSlotLight
+                        ? std::nullopt
+                        : StandardMacros::slot_from_name(name);
+    }
 }
 
 /// @brief Priority score for fan display ordering on the cooling card.

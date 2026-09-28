@@ -1202,6 +1202,30 @@ The widget is registered via `ui_markdown_init()` in `xml_registration.cpp`. Thi
 - The `text` attribute in XML does not support literal newlines; use `\n` for line breaks in static content
 - When using `bind_text`, the observer does not use `ObserverGuard` -- the observer is cleaned up automatically when the widget is deleted via LVGL's built-in observer-object tracking
 
+#### moves_machine
+
+`moves_machine="true"` on any widget that commands the toolhead or starts a print makes the XML engine bind its disabled state to `machine_motion_blocked` (`lib/helix-xml/src/xml/parsers/lv_xml_obj_parser.c`). That subject is `job_holds_machine` (a print owns the machine) or the spools-on-the-bed latch ([BED_DRYING.md](BED_DRYING.md)). The attribute composes with the widget's own `bind_state_*` children, and `tests/unit/test_job_holds_machine.cpp` keeps a census of every control that should carry it. Disabling is a courtesy; the send-layer gates are the guarantee.
+
+#### home_action_tile
+
+One centred icon over one label, filling its cell (`ui_xml/components/home_action_tile.xml`). The home action tiles and every cell of the Controls panel's Calibration & Tools card, plus Motors Off on its Position card, are built from it, so a row of them aligns by construction. Extend its props rather than hand-building a look-alike cell.
+
+| Prop | Default | Purpose |
+|------|---------|---------|
+| `icon`, `icon_variant`, `icon_size` | `power`, `secondary`, `#icon_size` | The glyph |
+| `label`, `label_tag` | empty | The label and its translation tag |
+| `callback` | empty | Clicked callback on the inner button |
+| `disabled_cond` | `0 eq 1` | Whole expression; the default can never be true |
+| `label_hidden_cond` | `show_widget_labels eq 0` | Whole expression; a cell outside the home grid can follow the breakpoint instead |
+| `moves_machine` | `false` | Forwarded to the inner button (see [moves_machine](#moves_machine)) |
+| `alt_icon`, `alt_icon_variant`, `icon_swap_subject` | `power`, `secondary`, empty | Shows `alt_icon` in place of `icon` while the subject reads 0; empty installs no binding |
+| `button_name`, `icon_name` | `home_action_tile_button`, `home_action_tile_icon` | Names C++ looks up; keep the one the owning class already finds |
+| `tile_icon_subject`, `tile_label_subject` | empty | Per-instance size rung from a home tile; empty keeps `#icon_size` |
+
+#### setting_group
+
+A card of settings rows under a `setting_group_header`. When every row in it is hidden, the group hides its header and collapses (the `LV_STATE_USER_1` style zeroes its margin, border and background), and it comes back when a row shows again. LVGL sends no event when a child's hidden flag changes, but any row appearing or disappearing changes the group's height, so the check runs on `LV_EVENT_SIZE_CHANGED` (`src/ui/setting_group.cpp#setting_group_sync_header`). A row counts when it is visible with a non-zero height, so a wrapper that groups gated rows must have `style_pad_all="0"`: padding gives an empty wrapper height, and its header would stay.
+
 #### Widget Defaults Quick Reference
 
 | Widget | Don't Specify (Built-in) |

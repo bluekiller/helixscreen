@@ -62,7 +62,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini bar mode: width bands pick bar wid
     lv_obj_update_layout(w);
     fill_slots(w, 8);
 
-    // Tight band: width_px < 100 -> 8px bars, at most 6 of the 8 slots shown.
+    // width_px < 100: bar cap is width_px / 8 (11px), at most 6 of the 8 slots shown.
     ui_ams_mini_status_set_width(w, 90);
     helix::ui::UpdateQueue::instance().drain();
     lv_obj_update_layout(w);
@@ -70,7 +70,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini bar mode: width bands pick bar wid
     lv_obj_t* bars = UITest::find_by_name(w, "ams_bars_container");
     REQUIRE(bars != nullptr);
     REQUIRE_FALSE(lv_obj_has_flag(bars, LV_OBJ_FLAG_HIDDEN));
-    REQUIRE(lv_obj_get_width(lv_obj_get_child(bars, 0)) == 8);
+    REQUIRE(lv_obj_get_width(lv_obj_get_child(bars, 0)) == 11);
 
     // 8 slots, max 6 visible -> "+2" overflow badge, visible and non-empty.
     // overflow_label isn't named, so find it by type among the container's children.
@@ -86,14 +86,12 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini bar mode: width bands pick bar wid
     REQUIRE_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
     REQUIRE(std::string(lv_label_get_text(label)) == "+2");
 
-    // Medium band: 100 <= width_px < w_normal() -> 10px bars, all 8 slots shown
-    // (the old <150 branch's min(max_visible, 8) was a no-op; removing it
-    // must not change this — max_visible was already clamped to 8).
+    // 100 <= width_px < w_normal(): 13px bar cap, all 8 slots shown.
     ui_ams_mini_status_set_width(w, 110);
     helix::ui::UpdateQueue::instance().drain();
     lv_obj_update_layout(w);
 
-    REQUIRE(lv_obj_get_width(lv_obj_get_child(bars, 0)) == 10);
+    REQUIRE(lv_obj_get_width(lv_obj_get_child(bars, 0)) == 13);
     REQUIRE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN)); // no overflow: all 8 fit
 
     lv_obj_delete(w);
@@ -348,31 +346,36 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: every shipping panel gets the bar
     }
 }
 
-// The bar-width bands are absolute pixels (8 below 100, 10 below 150, else 16)
-// while the widget's box scales with the tier, so the SAME widget is drawn at a
-// different fraction of its box on each panel. This pins that ratio per panel
-// rather than the constant, because the constant is not the thing that reads
-// wrong on a screen.
+// The bar-width cap is a fixed fraction of the widget's box, so four lanes fill
+// the same share of their tile on every panel. Pinned per shipping panel because
+// a step back to absolute pixel bands reads wrong on some screens and fine on
+// others.
 TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: bar width band per shipping panel",
                  "[ui][ams_mini][widget_size][1126]") {
     ui_ams_mini_status_init();
 
     struct Expect {
         const char* name;
+        UiBreakpoint bp;
         int width_px;
         int bar_w;
     };
-    // Derived from effective_max_bar_width()'s bands against the measured
-    // widths above; the bar can come out NARROWER if the box cannot fit four
-    // of them, which is why this asserts <= rather than ==.
+    // width_px / 8 against the measured widths above. Four lanes always fit
+    // under that cap, so the cap is exactly what renders. Each case runs at its
+    // own tier: the widest width is spool mode at the test binary's default.
     const std::vector<Expect> cases = {
-        {"micro 480x272", 70, 8},     {"micro portrait 272x480", 64, 8},
-        {"small 480x400", 79, 8},     {"ultrawide 1920x440", 75, 8},
-        {"medium 800x480", 114, 10},  {"large 1024x600", 107, 10},
-        {"xlarge 1280x720", 134, 10}, {"xxlarge 1920x1080", 182, 16},
+        {"micro 480x272", UiBreakpoint::Micro, 70, 8},
+        {"micro portrait 272x480", UiBreakpoint::Micro, 64, 8},
+        {"small 480x400", UiBreakpoint::Small, 79, 9},
+        {"ultrawide 1920x440", UiBreakpoint::Small, 75, 9},
+        {"medium 800x480", UiBreakpoint::Medium, 114, 14},
+        {"large 1024x600", UiBreakpoint::Large, 107, 13},
+        {"xlarge 1280x720", UiBreakpoint::XLarge, 134, 16},
+        {"xxlarge 1920x1080", UiBreakpoint::XXLarge, 182, 22},
     };
 
     for (const auto& c : cases) {
+        BreakpointGuard bp_guard(c.bp);
         lv_obj_t* parent = lv_obj_create(test_screen());
         lv_obj_remove_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_pad_all(parent, 0, LV_PART_MAIN);
@@ -389,11 +392,11 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: bar width band per shipping panel
 
         lv_obj_t* bars = UITest::find_by_name(w, "ams_bars_container");
         REQUIRE(bars != nullptr);
+        REQUIRE_FALSE(lv_obj_has_flag(bars, LV_OBJ_FLAG_HIDDEN));
         REQUIRE(lv_obj_get_child_count(bars) >= 1);
 
-        INFO(c.name << " width " << c.width_px << "px expects <= " << c.bar_w << "px bars");
-        CHECK(lv_obj_get_width(lv_obj_get_child(bars, 0)) <= c.bar_w);
-        CHECK(lv_obj_get_width(lv_obj_get_child(bars, 0)) >= 3); // MIN_BAR_WIDTH_PX
+        INFO(c.name << " width " << c.width_px << "px expects " << c.bar_w << "px bars");
+        CHECK(lv_obj_get_width(lv_obj_get_child(bars, 0)) == c.bar_w);
 
         lv_obj_delete(w);
         lv_obj_delete(parent);

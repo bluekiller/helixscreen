@@ -143,6 +143,11 @@ class AmsBackendMock : public AmsBackend {
     AmsError select_slot(int slot_index) override;
     AmsError change_tool(int tool_number) override;
 
+    /// Slot index the last accepted unload_filament() ran with, or nullopt when
+    /// none has run. The unload itself ignores the slot, so tests asserting
+    /// which target a dispatch surface chose read it here.
+    [[nodiscard]] std::optional<int> last_unload_slot() const;
+
     // Batch filament ops: advertised in Snapmaker mode so the picker UI is
     // drivable in --test. Rehearses the real script (see the .cpp) and then
     // runs the single-op simulation.
@@ -163,6 +168,14 @@ class AmsBackendMock : public AmsBackend {
     AmsError reset() override;
     AmsError cancel() override;
     AmsError clear_fault(int slot_index) override;
+    AmsError recover_with_state(const RecoverStateRequest& request) override;
+    [[nodiscard]] bool supports_recover_with_state() const override {
+        return system_info_.type == AmsType::HAPPY_HARE;
+    }
+    AmsError preload_lane(int slot_index) override;
+    [[nodiscard]] bool supports_lane_preload() const override {
+        return system_info_.type == AmsType::HAPPY_HARE;
+    }
 
     // Gate select / check (Happy Hare selector-based systems only)
     AmsError select_gate(int slot_index) override;
@@ -940,7 +953,9 @@ class AmsBackendMock : public AmsBackend {
      * @brief Execute unload operation with optional multi-phase sequence
      * @param interruptible_sleep Sleep function that respects shutdown
      */
-    void execute_unload_operation(InterruptibleSleep interruptible_sleep);
+    void execute_unload_operation(InterruptibleSleep interruptible_sleep,
+                                  AmsAction then = AmsAction::IDLE,
+                                  const std::string& then_detail = {});
 
     /**
      * @brief Animate filament through load path segments
@@ -963,8 +978,14 @@ class AmsBackendMock : public AmsBackend {
 
     /**
      * @brief Finalize state after successful unload
+     *
+     * @param then Action the backend moves to in the same locked step. A tool
+     *        change passes its next phase, so the action never reads IDLE
+     *        between unloading the old tool and loading the new one.
+     * @param then_detail Operation detail for @p then
      */
-    void finalize_unload_state();
+    void finalize_unload_state(AmsAction then = AmsAction::IDLE,
+                               const std::string& then_detail = {});
 
     /**
      * @brief Execute tool change operation with SELECTING phase
@@ -1082,6 +1103,7 @@ class AmsBackendMock : public AmsBackend {
     std::thread scenario_thread_; ///< Thread for deferred loading/bypass scenario
     std::atomic<bool> scenario_thread_running_{false}; ///< Guards against double-join
     bool mock_toolhead_unaccounted_ = false; ///< "unaccounted" scenario staged (gate input)
+    std::optional<int> last_unload_slot_;    ///< slot unload_filament() last accepted
 
     // Test override for native-tracking capability. False in production; tests
     // flip this to exercise the FilamentConsumptionTracker gating path.

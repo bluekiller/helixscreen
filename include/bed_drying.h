@@ -41,8 +41,9 @@ enum class EnclosureStyle { AUTO = 0, ENCLOSED = 1, OPEN = 2 };
 
 /// A lying 1 kg spool is 65-75 mm tall; a cover box and margin need the rest.
 inline constexpr double kMinZTravelMm = 130.0;
-/// How far short of the end of Z travel the clearance move stops.
-inline constexpr double kClearanceMarginMm = 10.0;
+/// How far short of the end of Z travel the clearance move stops: room for
+/// anything lying under a plate that moves down.
+inline constexpr double kZClearanceMarginMm = 20.0;
 /// Beyond this, spools and filament deform faster than a bed dries them.
 inline constexpr int kMaxBedC = 90;
 /// The remove prompt waits for the bed to read below this.
@@ -70,7 +71,7 @@ inline constexpr int kKlipperDefaultIdleS = 600;
 /// moves it is the nozzle at the top. Either way the plate is as far from the
 /// nozzle as it gets, which a cover box needs.
 [[nodiscard]] constexpr double clearance_z(double z_max) {
-    return z_max - kClearanceMarginMm;
+    return z_max - kZClearanceMarginMm;
 }
 
 struct Material {
@@ -114,6 +115,20 @@ enum class UnloadOffer {
         return UnloadOffer::Offered;
     }
     return *toolhead_loaded ? UnloadOffer::Recommended : UnloadOffer::None;
+}
+
+/// Where a filament-system unload the flow waits on stands. The system has to
+/// be seen busy before an idle reading means it finished: the idle it reports
+/// as the unload is sent is the state it started from. ERROR means it gave up,
+/// and the error surface that owns that edge reports it.
+enum class UnloadProgress { Waiting, Done, Failed };
+
+/// @param seen_busy whether any earlier reading was busy
+[[nodiscard]] constexpr UnloadProgress unload_progress(bool seen_busy, bool busy, bool error) {
+    if (error) {
+        return UnloadProgress::Failed;
+    }
+    return (busy || !seen_busy) ? UnloadProgress::Waiting : UnloadProgress::Done;
 }
 
 /// What the sensors say about filament at the toolhead; nullopt when none can

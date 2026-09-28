@@ -123,34 +123,29 @@ def test_globals_xml_round_trips_and_preserves_content():
     assert collect(original_root) == collect(minified_root)
 
 
-def test_stage_translations_hard_errors_when_en_does_not_fit(tmp_path):
-    # The "en always ships" invariant must be a hard failure, not a silently
-    # dropped language, if en.xml's minified size doesn't fit the remaining
-    # on-flash budget.
+def test_stage_translations_ships_every_language_but_the_identity_en(tmp_path):
     translations_dir = tmp_path / "ui_xml" / "translations"
     translations_dir.mkdir(parents=True)
-    (translations_dir / "en.xml").write_text(
-        "<translations><entry key=\"a\">Hello, World!</entry></translations>",
-        encoding="utf-8",
-    )
+    for lang in ("en", "fr", "de", "ja", "zh"):
+        (translations_dir / f"{lang}.xml").write_text(
+            f"<translations languages=\"{lang}\"><translation tag=\"a\" {lang}=\"x\"/></translations>",
+            encoding="utf-8")
+    (translations_dir / "translations.xml").write_text("<translations/>", encoding="utf-8")
 
-    with pytest.raises(SystemExit) as exc_info:
-        stage_translations(tmp_path / "ui_xml", tmp_path / "out", remaining_budget=0)
+    _, included = stage_translations(tmp_path / "ui_xml", tmp_path / "out")
 
-    assert exc_info.value.code != 0
-    # nothing should have been staged
-    assert not (tmp_path / "out" / "ui_xml" / "translations" / "en.xml").exists()
+    staged = tmp_path / "out" / "ui_xml" / "translations"
+    assert included == ["de", "fr"]
+    assert sorted(p.name for p in staged.iterdir()) == ["de.xml", "fr.xml"]
 
 
-def test_stage_translations_hard_errors_when_en_missing(tmp_path):
+def test_stage_translations_ships_cjk_only_when_asked(tmp_path):
     translations_dir = tmp_path / "ui_xml" / "translations"
     translations_dir.mkdir(parents=True)
-    (translations_dir / "fr.xml").write_text(
-        "<translations><entry key=\"a\">Bonjour</entry></translations>",
-        encoding="utf-8",
-    )
+    for lang in ("en", "fr", "ja", "zh"):
+        (translations_dir / f"{lang}.xml").write_text(
+            f"<translations languages=\"{lang}\"><translation tag=\"a\" {lang}=\"x\"/></translations>",
+            encoding="utf-8")
 
-    with pytest.raises(SystemExit) as exc_info:
-        stage_translations(tmp_path / "ui_xml", tmp_path / "out", remaining_budget=1_000_000)
-
-    assert exc_info.value.code != 0
+    _, included = stage_translations(tmp_path / "ui_xml", tmp_path / "out", with_cjk=True)
+    assert included == ["fr", "ja", "zh"]

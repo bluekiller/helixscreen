@@ -186,6 +186,16 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // evidence (5 separate requests across 3 different methods each sat the
     // full 60s with no disconnect ever observed in between).
     static constexpr int PING_PONG_TIMEOUT_SEC = 20;
+    static constexpr int64_t SLOW_DISPATCH_LOG_MS = 500;
+    // Websocket-task only: reported when a connection drops.
+    unsigned pongs_this_connection_ = 0;
+    int64_t last_pong_us_ = 0;
+    int64_t connected_us_ = 0;
+    // Any frame received (websocket task writes, timer task reads) and the last
+    // stall report, for the rx-stall tripwire in process_timeouts().
+    std::atomic<int64_t> last_rx_us_{0};
+    int64_t last_stall_log_us_ = 0;
+    static constexpr int64_t RX_STALL_LOG_US = 5 * 1000 * 1000;
     static_assert(PING_PONG_TIMEOUT_SEC * 1000u < DEFAULT_REQUEST_TIMEOUT_MS,
                   "ping/pong must detect a dead link before the per-request timeout fires — "
                   "otherwise silent connection death stalls requests for the full request "

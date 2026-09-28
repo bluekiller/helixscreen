@@ -5,6 +5,7 @@
 
 #include "ui_panel_base.h"
 
+#include "async_lifetime_guard.h"
 #include "subject_managed_panel.h" // For SubjectManager
 
 #include <memory>
@@ -12,6 +13,8 @@
 #include <vector>
 
 class ChangeHostModal;
+class EthernetManager; // NAMESPACE_OK: matches its own definition (ethernet_manager.h), global by
+                       // design
 
 /**
  * @file ui_panel_settings.h
@@ -21,15 +24,15 @@ class ChangeHostModal;
  * Notifications, System, and About information.
  *
  * ## Key Features:
- * - Dark mode toggle with immediate theme switching
- * - Display sleep timeout configuration
+ * - Grouped root list (Screen, Printer, HelixScreen) navigating to sub-panel overlays
+ * - Live one-line status under each stateful row, refreshed on return via on_activate()
  * - LED light control (via Moonraker)
- * - Sound and notification settings (placeholder)
  * - System info display (version, printer, Klipper)
  *
  * ## Architecture:
- * Uses SettingsManager for reactive data binding and persistence.
- * Toggle switches automatically sync with SettingsManager subjects.
+ * Uses SettingsManager for reactive data binding and persistence. Each domain
+ * settings manager (Display, Audio, System, ...) owns its own subjects; this
+ * panel only reads them to compose the root rows' status text.
  *
  * @see SettingsManager for data layer
  * @see PanelBase for base class documentation
@@ -76,6 +79,16 @@ class SettingsPanel : public PanelBase {
      */
     void setup(lv_obj_t* panel, lv_obj_t* parent_screen) override;
 
+    /**
+     * @brief Refresh every root row's live status line
+     *
+     * Called on every return to the root (on_activate()), and directly by
+     * tests. Reads each domain's current values and writes the formatted
+     * one-liner into that row's settings_status_* subject.
+     */
+    void on_activate() override;
+    void refresh_status_lines();
+
     const char* get_name() const override {
         return "Settings Panel";
     }
@@ -83,30 +96,15 @@ class SettingsPanel : public PanelBase {
         return "settings_panel";
     }
 
+    friend class SettingsPanelTestAccess;
+
   private:
     //
     // === Widget References ===
     //
 
-    // Toggle switches
-    lv_obj_t* dark_mode_switch_ = nullptr;
-    lv_obj_t* animations_switch_ = nullptr;
-    lv_obj_t* gcode_3d_switch_ = nullptr;
-    lv_obj_t* estop_confirm_switch_ = nullptr;
-    lv_obj_t* telemetry_switch_ = nullptr;
-    // Dropdowns
-    lv_obj_t* completion_alert_dropdown_ = nullptr;
-    lv_obj_t* display_sleep_dropdown_ = nullptr;
-    lv_obj_t* language_dropdown_ = nullptr;
-
     // Restart prompt dialog
     lv_obj_t* restart_prompt_dialog_ = nullptr;
-
-    // Action rows (clickable)
-    lv_obj_t* display_settings_row_ = nullptr;
-    lv_obj_t* filament_sensors_row_ = nullptr;
-    lv_obj_t* network_row_ = nullptr;
-    lv_obj_t* factory_reset_row_ = nullptr;
 
     // Change host modal is owned by helix::ui::show_change_host_modal(); the
     // connection-failed prompt reaches the same dialog, and ChangeHostModal keeps
@@ -144,6 +142,36 @@ class SettingsPanel : public PanelBase {
     // Static buffers for string subjects
     char printer_host_value_buf_[96]; // e.g., "192.168.1.100:7125"
 
+    // Live status line shown under each stateful root row (settings_panel.xml),
+    // refreshed by refresh_status_lines().
+    lv_subject_t settings_status_display_subject_;
+    lv_subject_t settings_status_appearance_subject_;
+    lv_subject_t settings_status_sound_subject_;
+    lv_subject_t settings_status_devices_subject_;
+    lv_subject_t settings_status_connection_subject_;
+    lv_subject_t settings_status_language_time_subject_;
+    lv_subject_t settings_status_updates_subject_;
+    char settings_status_display_buf_[64];
+    char settings_status_appearance_buf_[64];
+    char settings_status_sound_buf_[64];
+    char settings_status_devices_buf_[64];
+    char settings_status_connection_buf_[64];
+    char settings_status_language_time_buf_[64];
+    char settings_status_updates_buf_[64];
+
+    // Ethernet's status probe blocks (sysfs scans, or a netd Unix-socket
+    // round-trip on daemon-managed firmwares), so refresh_status_lines() never
+    // calls it synchronously; get_info_async() hands the result back on an
+    // HttpExecutor worker thread. lifetime_ gates the deferred write so a probe
+    // that outlives this panel's subjects (e.g. across a deinit_subjects() /
+    // init_subjects() cycle) is safely dropped instead of writing stale data.
+    std::unique_ptr<EthernetManager> ethernet_manager_;
+    helix::AsyncLifetimeGuard lifetime_;
+    // Last resolved Ethernet state, so the provisional (pre-probe) status on a
+    // later refresh reads "Ethernet" instead of guessing "Not connected" on a
+    // wired-only printer until the async probe lands again.
+    bool last_ethernet_up_ = false;
+
     // Note: Machine Limits overlay is now managed by MachineLimitsOverlay class
     // See ui_settings_machine_limits.h
 
@@ -151,9 +179,6 @@ class SettingsPanel : public PanelBase {
     // === Setup Helpers ===
     //
 
-    void setup_toggle_handlers();
-    void setup_dropdown();
-    void setup_action_handlers();
     void populate_info_rows();
 
   public:
@@ -172,10 +197,7 @@ class SettingsPanel : public PanelBase {
     // === Event Handlers ===
     //
 
-    void handle_dark_mode_changed(bool enabled);
-    void handle_animations_changed(bool enabled);
     void handle_led_settings_clicked();
-    void handle_sound_settings_clicked();
     void handle_security_settings_clicked();
 #if HELIX_HAS_LABEL_PRINTER
     void handle_label_printer_settings_clicked();
@@ -189,7 +211,6 @@ class SettingsPanel : public PanelBase {
     void handle_discord_clicked();
     void handle_docs_clicked();
     void handle_printers_clicked();
-    void handle_display_settings_clicked();
     void handle_filament_sensors_clicked();
     void handle_fans_settings_clicked();
     void handle_ams_settings_clicked();
@@ -229,10 +250,8 @@ class SettingsPanel : public PanelBase {
     // === XML Callbacks (public for global registration) ===
     // These are registered before settings_panel.xml is parsed [L013]
     //
-    static void on_animations_changed(lv_event_t* e);
     static void on_led_settings_clicked(lv_event_t* e);
     static void on_timelapse_settings_clicked(lv_event_t* e);
-    static void on_sound_settings_clicked(lv_event_t* e);
     static void on_security_clicked(lv_event_t* e);
 #if HELIX_HAS_LABEL_PRINTER
     static void on_label_printer_settings_clicked(lv_event_t* e);
@@ -244,7 +263,6 @@ class SettingsPanel : public PanelBase {
     static void on_docs_clicked(lv_event_t* e);
     static void on_telemetry_changed(lv_event_t* e);
     static void on_printers_clicked(lv_event_t* e);
-    static void on_display_settings_clicked(lv_event_t* e);
     static void on_filament_sensors_clicked(lv_event_t* e);
     static void on_fans_settings_clicked(lv_event_t* e);
     static void on_ams_settings_clicked(lv_event_t* e);
@@ -264,20 +282,20 @@ class SettingsPanel : public PanelBase {
     static void on_about_clicked(lv_event_t* e);
 
     // Category navigation callbacks (open sub-panel overlays)
-    static void on_display_sound_clicked(lv_event_t* e);
+    static void on_display_clicked(lv_event_t* e);
+    static void on_appearance_clicked(lv_event_t* e);
+    static void on_sound_clicked(lv_event_t* e);
+    static void on_language_time_clicked(lv_event_t* e);
     static void on_printing_clicked(lv_event_t* e);
-    static void on_hardware_clicked(lv_event_t* e);
+    static void on_devices_clicked(lv_event_t* e);
     static void on_safety_clicked(lv_event_t* e);
     static void on_system_clicked(lv_event_t* e);
     static void on_help_clicked(lv_event_t* e);
     static void on_touch_input_clicked(lv_event_t* e);
+    static void on_connection_clicked(lv_event_t* e);
+    static void on_updates_clicked(lv_event_t* e);
 
   private:
-    //
-    // === Static Trampolines (private - only used internally) ===
-    //
-    static void on_dark_mode_changed(lv_event_t* e);
-
     // Static callbacks for overlays
     static void on_restart_later_clicked(lv_event_t* e);
     static void on_restart_now_clicked(lv_event_t* e);

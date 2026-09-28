@@ -131,7 +131,9 @@ On the XML side, the rung styles `styles.tile_icon_xs` .. `styles.tile_icon_xl`,
 `#icon_font_*` TOKEN, never a literal face, because a literal face a platform did not
 link renders tofu. The seven single-icon action tiles share
 `ui_xml/components/home_action_tile.xml`, whose `tile_icon_subject` prop installs the
-per-instance rung binding (empty installs none).
+per-instance rung binding (empty installs none). The Controls panel's calibration cells and
+Motors Off use the same component; its props are listed in
+[LVGL9_XML_GUIDE.md](LVGL9_XML_GUIDE.md#home_action_tile).
 
 ### The printer image callouts instance
 
@@ -202,6 +204,20 @@ which returns a `CalloutMode`, the image rect, and each chip's rect and leader l
   `assets/images/printers/regions.json`; `assets/images/printers/README.md` documents the
   format and `tools/printer-regions-tagger.html` is the tagging tool. `[regions]` fails,
   naming the image, when a PNG no longer matches its recorded size.
+- **Users tag their own.** Tag parts in the printer image picker opens
+  `PrinterImageTaggerOverlay` (`src/ui/ui_overlay_printer_image_tagger.cpp`), which walks
+  `helix::ImageTagSession` through the same six prompts on the image the widget displays and
+  saves to `<config dir>/printer_image_regions.json` through `save_user_image_regions()`.
+  Both files are keyed by `printer_image_region_key()`, which gives a custom photo
+  `custom:<name>`. `lookup_image_regions()` prefers a user entry, but only when its `size`
+  matches the displayed image's natural size, so tags made on another screen tier, or on
+  shipped art that has since been re-cut, fall back to the shipped entry or to docked chips.
+  The size cannot tell one custom photo from another of the same aspect, so
+  `PrinterImageManager::import_image()` and `delete_custom_image()` clear that image's tags.
+  A save or reset changes memory only after the file is written. A user file that does not
+  parse is moved aside to `printer_image_regions.json.bad` on load, so tagging carries on;
+  one that cannot be read, or moved, is never written over. Save and Reset tags bump
+  `PrinterImageManager::notify_image_changed()`, which relayouts the widget.
 
 ### Engine contracts this pattern relies on
 

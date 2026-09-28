@@ -3,9 +3,11 @@
 #include "ui_overlay_temp_graph.h"
 #include "ui_printer_manager_overlay.h"
 #include "ui_temperature_utils.h"
+#include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "../test_helpers/printer_image_regions_test_access.h"
 #include "../test_helpers/process_async_timers.h"
@@ -27,6 +29,7 @@
 #include "printer_state.h"
 #include "src/ui/panel_widgets/printer_image_widget.h"
 #include "src/ui/panel_widgets/text_measure.h"
+#include "static_panel_registry.h"
 #include "theme_manager.h"
 #include "tool_state.h"
 #include "wizard_config_paths.h"
@@ -34,6 +37,7 @@
 #include <array>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <thread>
 
 #include "../catch_amalgamated.hpp"
@@ -507,6 +511,20 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a recycled instance drives its ne
     display.set_animations_enabled(prev_animations);
 }
 
+namespace {
+
+/// The temperature graph overlay is a process-lifetime singleton observing this
+/// case's subjects. Destroy it before they die, or a later case's destroy_all()
+/// tears down observers on freed subjects.
+struct TempGraphOverlayScope {
+    ~TempGraphOverlayScope() {
+        StaticPanelRegistry::instance().destroy_all();
+        helix::ui::UpdateQueue::instance().drain();
+    }
+};
+
+} // namespace
+
 TEST_CASE_METHOD(LVGLUITestFixture,
                  "callouts: tapping the bed chip opens the bed temperature graph, not the "
                  "printer manager",
@@ -517,6 +535,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(state().get_bed_target_subject(), 600);
     settle();
 
+    TempGraphOverlayScope overlay_scope;
     get_global_temp_graph_overlay().init_subjects();
     lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
     REQUIRE(mode);
@@ -559,6 +578,87 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(get_led_control_overlay().focused_device() == "neopixel chamber_light");
     NavigationManager::instance().go_back();
     settle();
+}
+
+namespace {
+
+/// The home panel sets EVENT_BUBBLE on every descendant of a page so a long-press
+/// anywhere reaches grid edit mode; a chip tap must stay contained in it (#1397).
+void bubble_like_home_panel(lv_obj_t* obj) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
+        lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
+        lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
+        bubble_like_home_panel(child);
+    }
+}
+
+bool printer_manager_open() {
+    lv_obj_t* root = get_printer_manager_overlay().get_root();
+    return root && NavigationManager::instance().is_panel_in_stack(root);
+}
+
+void count_event_cb(lv_event_t* e) {
+    ++*static_cast<int*>(lv_event_get_user_data(e));
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a chip tap under the home panel's bubbling tree opens only its "
+                 "control",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    settle();
+    bubble_like_home_panel(h.root());
+
+    TempGraphOverlayScope overlay_scope;
+    get_global_temp_graph_overlay().init_subjects();
+    lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
+    REQUIRE(mode);
+    lv_subject_set_int(mode, static_cast<int>(TempGraphOverlay::Mode::GraphOnly));
+    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_CLICKED, nullptr);
+    process_lvgl(30);
+    CHECK(lv_subject_get_int(mode) == static_cast<int>(TempGraphOverlay::Mode::Bed));
+    CHECK_FALSE(printer_manager_open());
+    destroy_printer_manager_overlay();
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a tap on the bare printer image still opens the printer manager",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    settle();
+    bubble_like_home_panel(h.root());
+
+    lv_obj_send_event(h.child("printer_image"), LV_EVENT_CLICKED, nullptr);
+    process_lvgl(30);
+    CHECK(printer_manager_open());
+    destroy_printer_manager_overlay();
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a long-press on a chip still bubbles to the home grid",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    settle();
+    bubble_like_home_panel(h.root());
+
+    int pressed = 0;
+    int long_pressed = 0;
+    lv_obj_add_event_cb(h.root(), count_event_cb, LV_EVENT_PRESSED, &pressed);
+    lv_obj_add_event_cb(h.root(), count_event_cb, LV_EVENT_LONG_PRESSED, &long_pressed);
+    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_PRESSED, nullptr);
+    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_LONG_PRESSED, nullptr);
+    CHECK(pressed == 1);
+    CHECK(long_pressed == 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -967,4 +1067,77 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(lv_obj_get_y(chip) + lv_obj_get_height(chip) ==
           area_h - theme_manager_get_spacing("space_xs"));
     h.widget().detach();
+}
+
+namespace {
+
+/// The bed chip's centre, relative to its parent.
+CalloutPoint bed_chip_centre(PanelWidgetHarness<PrinterImageWidget>& h) {
+    lv_obj_t* chip = h.child("callout_chip_bed");
+    return {lv_obj_get_x(chip) + lv_obj_get_width(chip) / 2,
+            lv_obj_get_y(chip) + lv_obj_get_height(chip) / 2};
+}
+
+/// Where the bed chip centres over `img` for a bed edge from x0 to x1 at y.
+CalloutPoint bed_point(const CalloutRect& img, float x0, float x1, float y) {
+    return {img.x + int((x0 + x1) / 2 * float(img.w)), img.y + int(y * float(img.h))};
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a user entry at the image's natural size pins chips at the user's "
+                 "points; one pixel off falls back to the shipped entry",
+                 "[printer_image][callouts][image_tagger]") {
+    const ConfigDirGuard cfg("callouts_user_entry");
+    const auto regions = prepare_tagged_widget();
+    const std::string shown = PrinterImageManager::instance().get_displayed_image_path(
+        PrinterImages::current_screen_width());
+    REQUIRE(printer_image_region_key(shown) == "generic-corexy");
+    lv_image_header_t hdr;
+    REQUIRE(lv_image_decoder_get_info(shown.c_str(), &hdr) == LV_RESULT_OK);
+    const int nat_w = int(hdr.w), nat_h = int(hdr.h);
+    const auto write_user_tags = [&](int size_w) {
+        std::ofstream(cfg.dir / "printer_image_regions.json")
+            << R"({"generic-corexy": {"size": [)" << size_w << ", " << nat_h
+            << R"(], "nozzle": [0.5, 0.2], "bed": [[0.6, 0.75], [0.8, 0.75]]}})";
+        reload_user_image_regions();
+    };
+
+    write_user_tags(nat_w);
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    settle();
+    lv_obj_update_layout(h.root());
+    REQUIRE(mode_now() == static_cast<int>(CalloutMode::Pinned));
+    lv_obj_t* c = h.child("printer_container");
+    const CalloutRect user_img =
+        fit_image(lv_obj_get_content_width(c), lv_obj_get_content_height(c), nat_w, nat_h);
+    const CalloutPoint want_user = bed_point(user_img, 0.6f, 0.8f, 0.75f);
+    CHECK(std::abs(bed_chip_centre(h).x - want_user.x) <= 1);
+    CHECK(std::abs(bed_chip_centre(h).y - want_user.y) <= 1);
+
+    // A save that cannot reach the disk changes nothing the widget draws.
+    const auto file = cfg.dir / "printer_image_regions.json";
+    std::filesystem::remove(file);
+    std::filesystem::create_directories(file / "keep");
+    ImageRegions moved = *lookup_user_image_regions("generic-corexy", nat_w, nat_h);
+    moved.bed_left = {0.1f, 0.3f};
+    moved.bed_right = {0.2f, 0.3f};
+    REQUIRE_FALSE(save_user_image_regions("generic-corexy", moved));
+    h.widget().refresh_printer_image();
+    settle();
+    lv_obj_update_layout(h.root());
+    CHECK(std::abs(bed_chip_centre(h).x - want_user.x) <= 1);
+    CHECK(std::abs(bed_chip_centre(h).y - want_user.y) <= 1);
+    std::filesystem::remove_all(file);
+
+    write_user_tags(nat_w + 1);
+    h.widget().refresh_printer_image();
+    settle();
+    lv_obj_update_layout(h.root());
+    const CalloutPoint want_shipped = bed_point(fitted_image(h), 0.308f, 0.611f, 0.572f);
+    CHECK(std::abs(bed_chip_centre(h).x - want_shipped.x) <= 1);
+    CHECK(std::abs(bed_chip_centre(h).y - want_shipped.y) <= 1);
 }

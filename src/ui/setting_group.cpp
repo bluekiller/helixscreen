@@ -10,6 +10,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cstring>
+
 static uint32_t setting_group_visible_child_count(lv_obj_t* group) {
     uint32_t count = 0;
     uint32_t n = lv_obj_get_child_count(group);
@@ -65,6 +67,56 @@ static void setting_group_draw_dividers(lv_event_t* e) {
     }
 }
 
+// setting_group_header's root carries this name, which is how a group tells
+// its header from its rows.
+static constexpr const char* kHeaderName = "setting_group_header";
+
+// A group that shows no row hides its header and collapses its card chrome
+// (LV_STATE_USER_1), so a section whose every row is gated off disappears.
+// LVGL sends no event when a child's hidden flag flips, but any row appearing
+// or disappearing changes the group's content height, so SIZE_CHANGED is where
+// this runs. A row counts only while laid out with some height: a visible
+// wrapper whose own contents are all hidden is not a row, which holds only
+// while wrappers carry no padding: a padded wrapper keeps its height when
+// empty and reads as a row, so section wrappers are style_pad_all="0". Rows
+// stay in the layout while the card is collapsed, so a row returning still
+// resizes it.
+static void setting_group_sync_header(lv_event_t* e) {
+    lv_obj_t* group = lv_event_get_target_obj(e);
+    lv_obj_t* header = nullptr;
+    bool has_row = false;
+    uint32_t n = lv_obj_get_child_count(group);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t* child = lv_obj_get_child(group, i);
+        const char* name = lv_obj_get_name(child);
+        if (!header && name && strcmp(name, kHeaderName) == 0) {
+            header = child;
+        } else if (!lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN) && lv_obj_get_height(child) > 0) {
+            has_row = true;
+        }
+    }
+    if (!header) {
+        return;
+    }
+    lv_obj_set_flag(header, LV_OBJ_FLAG_HIDDEN, !has_row);
+    lv_obj_set_state(group, LV_STATE_USER_1, !has_row);
+}
+
+static lv_style_t* setting_group_collapsed_style() {
+    static lv_style_t style;
+    static bool initialized = false;
+    if (!initialized) {
+        lv_style_init(&style);
+        lv_style_set_margin_bottom(&style, 0);
+        lv_style_set_border_width(&style, 0);
+        lv_style_set_outline_width(&style, 0);
+        lv_style_set_shadow_width(&style, 0);
+        lv_style_set_bg_opa(&style, LV_OPA_TRANSP);
+        initialized = true;
+    }
+    return &style;
+}
+
 static void* setting_group_xml_create(lv_xml_parser_state_t* state, const char** attrs) {
     LV_UNUSED(attrs);
 
@@ -107,6 +159,10 @@ static void* setting_group_xml_create(lv_xml_parser_state_t* state, const char**
 
     // Auto-managed dividers between visible children (pure render).
     lv_obj_add_event_cb(obj, setting_group_draw_dividers, LV_EVENT_DRAW_POST, nullptr);
+
+    // Hide the header while no row shows (see setting_group_sync_header).
+    lv_obj_add_style(obj, setting_group_collapsed_style(), LV_PART_MAIN | LV_STATE_USER_1);
+    lv_obj_add_event_cb(obj, setting_group_sync_header, LV_EVENT_SIZE_CHANGED, nullptr);
 
     return (void*)obj;
 }

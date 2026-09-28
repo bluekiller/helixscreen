@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- System Settings Overlay -->
-<!-- Security, network, host, touch calibration, plugins, telemetry, log level, restart, factory reset -->
+<!-- Security, performance, telemetry, log level, restart, factory reset -->
 <component>
   <view name="settings_system_overlay" extends="overlay_panel" title="System" title_tag="System" bg_color="#screen_bg">
     <!-- Content Area - no padding, rows handle their own -->
@@ -18,29 +18,6 @@
         <setting_action_row name="row_security"
                             label="Security" label_tag="Security" icon="lock" description="Screen lock and PIN settings"
                             description_tag="Screen lock and PIN settings" callback="on_security_clicked"/>
-        <!-- ================================================================== -->
-        <!-- NETWORK SETTINGS (hidden on Android where OS manages WiFi) -->
-        <!-- ================================================================== -->
-        <lv_obj name="container_network_settings" width="100%" style_pad_all="0" scrollable="false">
-          <bind_flag_if_eq subject="show_network_settings" flag="hidden" ref_value="0"/>
-          <setting_action_row name="row_network"
-                              label="Network Settings" label_tag="Network Settings" icon="wifi"
-                              description="WiFi and Ethernet configuration"
-                              description_tag="WiFi and Ethernet configuration" callback="on_network_clicked"/>
-        </lv_obj>
-        <!-- ================================================================== -->
-        <!-- HOST -->
-        <!-- ================================================================== -->
-        <setting_action_row name="row_printer_host"
-                            label="Host" label_tag="Host" icon="lan" bind_description="printer_host_value"
-                            callback="on_change_host_clicked"/>
-        <!-- ================================================================== -->
-        <!-- TOUCH & INPUT — opens sub-overlay with calibration + tuning knobs   -->
-        <!-- ================================================================== -->
-        <setting_action_row name="row_touch_input"
-                            label="Touch &amp; Input" label_tag="Touch &amp; Input" icon="cursor_move"
-                            description="Calibrate and tune scroll feel"
-                            description_tag="Calibrate and tune scroll feel" callback="on_touch_input_clicked"/>
         <!-- ================================================================== -->
         <!-- PERFORMANCE (live host CPU/memory + per-MCU load) -->
         <!-- ================================================================== -->

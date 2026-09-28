@@ -45,6 +45,11 @@ UI_XML_OVERRIDES_DIR = REPO_ROOT / "firmware" / "helixscreen-esp32" / "ui_xml_ov
 # ui_xml subtrees/files excluded from staging.
 EXCLUDED_XML_DIRS = ("micro",)
 EXCLUDED_XML_FILES = ("translations.xml",)  # merged file; per-language files ship instead
+IDENTITY_LOCALE = "en"  # the source language: its pack maps each tag to itself
+# Languages that need a CJK font. The firmware builds HELIX_HAS_CJK=0 and ships
+# no CJK face, so their packs would render as empty boxes; --with-cjk is for a
+# build that ships the font.
+CJK_LOCALES = ("ja", "zh")
 
 
 def strip_xml_comments(text: str) -> str:
@@ -186,56 +191,30 @@ def stage_ui_xml_overrides(overrides_dir: Path, out_dir: Path) -> int:
 
 
 def stage_translations(ui_xml_dir: Path, out_dir: Path,
-                       remaining_budget: int = sys.maxsize) -> tuple[int, list[str]]:
-    """Minify and stage every per-language translation file. `en` is a hard
-    requirement (fails the build if missing or, given an explicit
-    remaining_budget, if it doesn't fit); every other language ships
-    unconditionally — the packed container (see module docstring) has ample
-    room for all 9 languages, so there is no per-language trimming here.
-    remaining_budget only exists for the en-fits invariant; callers packing
-    into a real container don't need to (and by default don't) constrain it.
-    Returns (raw bytes written, included language codes)."""
+                       with_cjk: bool = False) -> tuple[int, list[str]]:
+    """Minify and stage the per-language translation files, all but en.xml and,
+    unless with_cjk, the CJK_LOCALES. en.xml maps every tag to itself and the
+    runtime never loads it: English lookups fall back to the tag
+    (src/system/translation_loader.cpp#ensure_translation_loaded), so on the
+    firmware it would be flash spent on nothing. Returns (raw bytes written,
+    included language codes)."""
     translations_dir = ui_xml_dir / "translations"
     if not translations_dir.is_dir():
         return 0, []
 
-    candidates = {}
-    for src in sorted(translations_dir.glob("*.xml")):
-        if src.name in EXCLUDED_XML_FILES:
-            continue
-        text = src.read_text(encoding="utf-8")
-        minified = minify_xml(text)
-        candidates[src.stem] = minified
-
     included: list[str] = []
     total = 0
-
-    def add(lang: str) -> bool:
-        nonlocal total
-        minified = candidates[lang]
-        size = len(minified.encode("utf-8"))
-        if total + size > remaining_budget:
-            return False
-        dest = out_dir / "ui_xml" / "translations" / f"{lang}.xml"
+    for src in sorted(translations_dir.glob("*.xml")):
+        if src.name in EXCLUDED_XML_FILES or src.stem == IDENTITY_LOCALE:
+            continue
+        if src.stem in CJK_LOCALES and not with_cjk:
+            continue
+        minified = minify_xml(src.read_text(encoding="utf-8"))
+        dest = out_dir / "ui_xml" / "translations" / src.name
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(minified, encoding="utf-8")
-        total += size
-        included.append(lang)
-        return True
-
-    if "en" not in candidates:
-        print("FAIL: no en.xml found in ui_xml/translations/ — en must always ship.",
-              file=sys.stderr)
-        sys.exit(1)
-    if not add("en"):
-        print(f"FAIL: en.xml ({len(candidates['en'].encode('utf-8'))} B minified) does not fit "
-              f"in the remaining budget ({remaining_budget} B) — en must always ship.",
-              file=sys.stderr)
-        sys.exit(1)
-
-    for lang in sorted(lang for lang in candidates if lang != "en"):
-        add(lang)
-
+        total += len(minified.encode("utf-8"))
+        included.append(src.stem)
     return total, included
 
 
@@ -344,6 +323,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT,
                         help=f"staging output directory (default: {DEFAULT_OUT})")
+    parser.add_argument("--with-cjk", action="store_true",
+                        help="also stage the ja/zh packs (only for a build that ships a CJK font)")
     args = parser.parse_args()
 
     out_dir: Path = args.out
@@ -356,7 +337,8 @@ def main() -> int:
 
     ui_xml_bytes = stage_ui_xml(ui_xml_dir, out_dir)
     ui_xml_bytes += stage_ui_xml_overrides(UI_XML_OVERRIDES_DIR, out_dir)
-    translations_bytes, included_langs = stage_translations(ui_xml_dir, out_dir)
+    translations_bytes, included_langs = stage_translations(ui_xml_dir, out_dir,
+                                                            with_cjk=args.with_cjk)
     config_bytes = stage_config(assets_dir, out_dir)
     filaments_bytes = stage_filaments(assets_dir, out_dir)
     printer_images_bytes, printer_images_present = stage_printer_images(REPO_ROOT, out_dir)

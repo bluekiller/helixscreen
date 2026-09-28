@@ -877,7 +877,13 @@ make lvgl-clean     # Clean LVGL compiled objects
 make libs-clean     # Clean all library artifacts at once
 ```
 
+**Thread stacks on musl targets**: musl gives every thread a 128 KiB stack unless the binary's `PT_GNU_STACK` header asks for more (musl 1.1.21 and later). The Moonraker callbacks run on such a thread, so recursion that is harmless on glibc overflows there and dies with no crash file. The unified `mips` target (K1, AD5X, Creator 5 Pro) and `k2` link with `MUSL_THREAD_STACK_LDFLAGS` (`-Wl,-z,stack-size=1048576`, defined in `mk/cross.mk`), which raises the default to 1 MiB of address space; a thread commits only the pages it touches. glibc targets size thread stacks from `RLIMIT_STACK` and ignore the flag, so they do not carry it. Check a build with `readelf -lW build/k2/bin/helix-screen | grep GNU_STACK` (the memsz reads `0x100000`). `std::regex` is kept out of app code for the same reason: libstdc++'s matcher recurses once per input character.
+
 **Cross-Compilation Note**: When cross-compiling (e.g., `make ad5m-docker`), libhv is **automatically cleaned** before each build to prevent architecture mixing. This adds ~5 seconds but ensures correct builds.
+
+### Test Binary Link
+
+`helix-tests` links through a response file: make's `$(file ...)` function writes the object list to `$(OBJ_DIR)/<binary>.objs` (for the plain build, `build/obj/helix-tests.objs`) and the compiler reads it as `@<that file>`. Inline, the list passes Linux's 128 KiB per-argument limit once object paths grow, as the ASAN build's do, and bash refuses the recipe with "Argument list too long".
 
 ### Test Harness
 

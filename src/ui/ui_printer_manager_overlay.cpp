@@ -18,8 +18,8 @@
 #include "ui_panel_screws_tilt.h"
 #include "ui_panel_spoolman.h"
 #include "ui_printer_list_overlay.h"
-#include "ui_settings_display_sound.h"
 #include "ui_settings_led.h"
+#include "ui_settings_sound.h"
 #include "ui_toast_manager.h"
 
 #include "app_globals.h"
@@ -294,7 +294,7 @@ void PrinterManagerOverlay::on_chip_power_clicked(lv_event_t* e) {
 void PrinterManagerOverlay::on_chip_speaker_clicked(lv_event_t* e) {
     (void)e;
     spdlog::debug("[Printer Manager] Speaker chip clicked");
-    auto& overlay = helix::settings::get_display_sound_settings_overlay();
+    auto& overlay = helix::settings::get_sound_settings_overlay();
     overlay.show(lv_display_get_screen_active(nullptr));
 }
 

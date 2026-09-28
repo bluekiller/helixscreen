@@ -194,7 +194,7 @@ TEST_CASE("Lockout rejects operations during in-flight tool change",
         CHECK(result2.result == helix::AmsResult::BUSY);
 
         // Wait for first operation to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        REQUIRE(wait_until_ams_idle(backend, std::chrono::seconds(10)));
     }
 
     SECTION("load_filament rejected while change_tool is in progress") {
@@ -205,7 +205,7 @@ TEST_CASE("Lockout rejects operations during in-flight tool change",
         CHECK_FALSE(result2);
         CHECK(result2.result == helix::AmsResult::BUSY);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        REQUIRE(wait_until_ams_idle(backend, std::chrono::seconds(10)));
     }
 
     SECTION("unload_filament rejected while change_tool is in progress") {
@@ -216,7 +216,7 @@ TEST_CASE("Lockout rejects operations during in-flight tool change",
         CHECK_FALSE(result2);
         CHECK(result2.result == helix::AmsResult::BUSY);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        REQUIRE(wait_until_ams_idle(backend, std::chrono::seconds(10)));
     }
 
     backend.stop();
@@ -327,7 +327,7 @@ TEST_CASE("unload_filament works in mock toolchanger mode",
     SECTION("unload returns error when nothing is loaded") {
         // First unload
         backend.unload_active_filament();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        REQUIRE(wait_until_ams_idle(backend, std::chrono::seconds(10)));
         REQUIRE_FALSE(backend.is_filament_loaded());
 
         // Second unload should fail — nothing loaded
@@ -480,7 +480,7 @@ TEST_CASE("Realistic mode tool change shows SELECTING phase in toolchanger mode"
         auto result = backend.change_tool(2);
         REQUIRE(result);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        REQUIRE(wait_until_ams_idle(backend, std::chrono::seconds(10)));
 
         // Should see SELECTING somewhere in the action sequence
         std::lock_guard<std::mutex> lock(actions_mtx);
@@ -495,6 +495,49 @@ TEST_CASE("Realistic mode tool change shows SELECTING phase in toolchanger mode"
 
         // Should end in IDLE
         CHECK(backend.get_current_action() == AmsAction::IDLE);
+    }
+
+    backend.stop();
+}
+
+// =============================================================================
+// A tool change never reads IDLE until the new tool is loaded
+// =============================================================================
+
+// The unload phase ends by clearing the loaded slot. If the action read IDLE
+// at that moment, a caller waiting for IDLE would take the half-finished
+// change (nothing loaded, slot -1) for the finished one.
+TEST_CASE("Mock tool change never reads IDLE before the new tool is loaded",
+          "[ams][toolchanger][toolchanger_actions]") {
+    FastTimingScopeTC timing_guard;
+
+    const bool realistic = GENERATE(false, true);
+    CAPTURE(realistic);
+
+    helix::AmsBackendMock backend(4);
+    backend.set_tool_changer_mode(true);
+    backend.set_realistic_mode(realistic);
+    backend.set_operation_delay(10);
+    REQUIRE(backend.start());
+
+    for (int t = 1; t < 4; ++t) {
+        CAPTURE(t);
+        REQUIRE(backend.change_tool(t));
+
+        int early_idle_reads = 0;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (backend.get_current_action() != AmsAction::IDLE) {
+                continue;
+            }
+            if (backend.get_current_slot() == t && backend.is_filament_loaded()) {
+                break;
+            }
+            ++early_idle_reads;
+        }
+        CHECK(early_idle_reads == 0);
+        REQUIRE(wait_until_ams_idle(backend, std::chrono::seconds(10)));
+        CHECK(backend.get_current_slot() == t);
     }
 
     backend.stop();

@@ -3,15 +3,15 @@
 
 /**
  * @file ui_settings_printing.h
- * @brief Printing Settings overlay - toolhead, G-code, Z movement, limits, retraction, temps
+ * @brief Printing Settings overlay - machine limits, retraction, filament temps and
+ *        cooldown behaviour, timelapse
  *
  * This overlay allows users to configure:
- * - Toolhead style (icon appearance)
- * - G-code preview render mode
- * - Z movement style (bed vs nozzle)
  * - Machine velocity/acceleration limits
  * - Firmware retraction settings (when available)
+ * - Enclosure marking
  * - Material temperature presets
+ * - Cold extrude / post-op nozzle cooldown behaviour
  * - Timelapse recording (when available)
  *
  * @pattern Overlay (lazy init)
@@ -77,33 +77,23 @@ class PrintingSettingsOverlay : public OverlayBase {
     // === Event Handlers (public for static callbacks) ===
     //
 
-    void handle_toolhead_style_changed(int index);
-    void handle_gcode_mode_changed(int index);
-    void handle_z_movement_style_changed(int index);
     void handle_machine_limits_clicked();
     void handle_material_temps_clicked();
+    void handle_allow_cold_extrude_changed(bool enabled);
+    void handle_filament_auto_cooldown_changed(bool enabled);
 
   private:
-    //
-    // === Dropdown Initialization ===
-    //
-
-    void init_toolhead_style_dropdown();
-    void init_gcode_mode_dropdown();
-    void init_z_movement_dropdown();
-
     //
     // === Static Callbacks ===
     //
 
-    static void on_toolhead_style_changed(lv_event_t* e);
-    static void on_gcode_mode_changed(lv_event_t* e);
-    static void on_z_movement_style_changed(lv_event_t* e);
     static void on_enclosure_style_changed(lv_event_t* e);
     static void on_machine_limits_clicked(lv_event_t* e);
     static void on_motion_settings_clicked(lv_event_t* e);
     static void on_retraction_row_clicked(lv_event_t* e);
     static void on_material_temps_clicked(lv_event_t* e);
+    static void on_allow_cold_extrude_changed(lv_event_t* e);
+    static void on_filament_auto_cooldown_changed(lv_event_t* e);
     static void on_timelapse_settings_clicked(lv_event_t* e);
 };
 

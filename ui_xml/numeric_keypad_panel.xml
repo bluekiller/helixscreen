@@ -4,23 +4,17 @@
 <!-- Numeric Keypad Overlay - Responsive layout for all screen sizes -->
 <component>
   <consts>
-    <!-- Numeric keypad overlay - button heights, panel width, display area -->
-    <!-- keypad_btn_height: Touch-friendly button heights -->
-    <px name="keypad_btn_height_tiny" value="36"/>
-    <px name="keypad_btn_height_small" value="52"/>
-    <px name="keypad_btn_height_medium" value="68"/>
-    <px name="keypad_btn_height_large" value="84"/>
-
     <!-- keypad_width: Panel width (right-aligned overlay) -->
-    <px name="keypad_width_tiny" value="180"/>
-    <px name="keypad_width_small" value="280"/>
+    <px name="keypad_width_tiny" value="320"/>
+    <px name="keypad_width_small" value="320"/>
     <px name="keypad_width_medium" value="340"/>
     <px name="keypad_width_large" value="400"/>
 
   </consts>
   <view name="keypad_panel"
-        extends="lv_obj" width="#keypad_width" height="100%" align="right_mid" style_pad_all="0" style_border_width="0"
-        style_bg_opa="255" style_bg_color="#card_bg" scrollable="false" flex_flow="column" hidden="true">
+        extends="lv_obj" width="#keypad_width" height="100%" style_max_width="100%" align="right_mid" style_pad_all="0"
+        style_border_width="0" style_bg_opa="255" style_bg_color="#card_bg" scrollable="false" flex_flow="column"
+        hidden="true">
     <!-- Header: no title, just back arrow and OK button -->
     <header_bar name="overlay_header"
                 title="" action_button_text="Set " action_button_text_tag="Set " hide_action_button="false"
@@ -42,40 +36,54 @@
                   text="" style_text_font="#font_body" style_text_color="#text_muted" style_pad_left="#space_sm"/>
       </lv_obj>
 
-      <!-- Button Grid: row_wrap with explicit row gaps (no space_evenly override) -->
+      <!-- Button Grid: four rows share the height left under the display, so the
+           keys grow with the screen instead of leaving it empty. -->
       <lv_obj name="keypad_grid"
-              width="100%" flex_grow="1" scrollable="false" flex_flow="row_wrap" style_pad_row="#space_sm"
-              style_pad_column="#space_xs" style_flex_main_place="space_evenly">
-        <!-- Row 1 -->
-        <ui_button name="btn_7" width="30%" height="#keypad_btn_height" text="7" variant="secondary"/>
-        <ui_button name="btn_8" width="30%" height="#keypad_btn_height" text="8" variant="secondary"/>
-        <ui_button name="btn_9" width="30%" height="#keypad_btn_height" text="9" variant="secondary"/>
-        <!-- Row 2 -->
-        <ui_button name="btn_4" width="30%" height="#keypad_btn_height" text="4" variant="secondary"/>
-        <ui_button name="btn_5" width="30%" height="#keypad_btn_height" text="5" variant="secondary"/>
-        <ui_button name="btn_6" width="30%" height="#keypad_btn_height" text="6" variant="secondary"/>
-        <!-- Row 3 -->
-        <ui_button name="btn_1" width="30%" height="#keypad_btn_height" text="1" variant="secondary"/>
-        <ui_button name="btn_2" width="30%" height="#keypad_btn_height" text="2" variant="secondary"/>
-        <ui_button name="btn_3" width="30%" height="#keypad_btn_height" text="3" variant="secondary"/>
+              width="100%" flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+              flex_flow="column" style_pad_row="#space_sm">
+        <lv_obj name="keypad_row_1"
+                width="100%" flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+                clickable="false" flex_flow="row" style_pad_column="#space_xs" style_flex_main_place="space_evenly">
+          <ui_button name="btn_7" width="30%" height="100%" text="7" variant="secondary"/>
+          <ui_button name="btn_8" width="30%" height="100%" text="8" variant="secondary"/>
+          <ui_button name="btn_9" width="30%" height="100%" text="9" variant="secondary"/>
+        </lv_obj>
+        <lv_obj name="keypad_row_2"
+                width="100%" flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+                clickable="false" flex_flow="row" style_pad_column="#space_xs" style_flex_main_place="space_evenly">
+          <ui_button name="btn_4" width="30%" height="100%" text="4" variant="secondary"/>
+          <ui_button name="btn_5" width="30%" height="100%" text="5" variant="secondary"/>
+          <ui_button name="btn_6" width="30%" height="100%" text="6" variant="secondary"/>
+        </lv_obj>
+        <lv_obj name="keypad_row_3"
+                width="100%" flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+                clickable="false" flex_flow="row" style_pad_column="#space_xs" style_flex_main_place="space_evenly">
+          <ui_button name="btn_1" width="30%" height="100%" text="1" variant="secondary"/>
+          <ui_button name="btn_2" width="30%" height="100%" text="2" variant="secondary"/>
+          <ui_button name="btn_3" width="30%" height="100%" text="3" variant="secondary"/>
+        </lv_obj>
         <!-- Row 4: dot, 0, backspace -->
         <!-- An integer-only field has no decimal key at all. The empty cell around it is
-             what holds the column: the grid is row_wrap with space_evenly, so hiding a
-             30% child directly would re-space the last row and slide 0 and backspace out
-             from under 2 and 3. The cell keeps its width whatever the key does, and it
-             is the key rather than the cell that goes, so the blank lands on the left
-             and the remaining two stay right-justified under their columns.
+             what holds the column: the row spaces its children evenly, so hiding a 30%
+             child directly would re-space the row and slide 0 and backspace out from
+             under 2 and 3. The cell keeps its width whatever the key does, and it is the
+             key rather than the cell that goes, so the blank lands on the left and the
+             remaining two stay right-justified under their columns.
              Dimming the key instead cannot work: ui_button stamps a local opa on itself
              on every apply, and a local style beats a bound one. -->
-        <lv_obj name="btn_dot_cell"
-                width="30%" height="#keypad_btn_height" style_pad_all="0" style_bg_opa="0" style_border_width="0"
-                scrollable="false" clickable="false">
-          <ui_button name="btn_dot" width="100%" height="100%" text="." variant="secondary">
-            <bind_flag_if_eq subject="keypad_allow_decimal" flag="hidden" ref_value="0"/>
-          </ui_button>
+        <lv_obj name="keypad_row_4"
+                width="100%" flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+                clickable="false" flex_flow="row" style_pad_column="#space_xs" style_flex_main_place="space_evenly">
+          <lv_obj name="btn_dot_cell"
+                  width="30%" height="100%" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+                  clickable="false">
+            <ui_button name="btn_dot" width="100%" height="100%" text="." variant="secondary">
+              <bind_flag_if_eq subject="keypad_allow_decimal" flag="hidden" ref_value="0"/>
+            </ui_button>
+          </lv_obj>
+          <ui_button name="btn_0" width="30%" height="100%" text="0" variant="secondary"/>
+          <ui_button name="btn_backspace" width="30%" height="100%" icon="backspace" text=""/>
         </lv_obj>
-        <ui_button name="btn_0" width="30%" height="#keypad_btn_height" text="0" variant="secondary"/>
-        <ui_button name="btn_backspace" width="30%" height="#keypad_btn_height" icon="backspace" text=""/>
       </lv_obj>
     </lv_obj>
   </view>
