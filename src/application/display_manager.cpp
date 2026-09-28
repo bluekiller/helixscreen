@@ -1855,8 +1855,6 @@ void DisplayManager::sleep_aware_read_cb(lv_indev_t* indev, lv_indev_data_t* dat
         dm->m_original_pointer_read_cb(indev, data);
     }
 
-    dm->m_scroll_guard.filter(data->state, data->point, lv_tick_get());
-
     // If sleeping or dimmed and touch detected, request wake.
     // During sleep: absorb the touch so it doesn't trigger UI actions.
     // During dim: let the touch pass through but still flag for wake.
@@ -1876,6 +1874,9 @@ void DisplayManager::sleep_aware_read_cb(lv_indev_t* indev, lv_indev_data_t* dat
                          data->point.x, data->point.y);
         }
     }
+
+    // After the wake handling, so a suppressed press can never cost a wake request.
+    dm->m_scroll_guard.filter(data->state, data->point, lv_tick_get());
 }
 
 void DisplayManager::install_sleep_aware_input_wrapper() {

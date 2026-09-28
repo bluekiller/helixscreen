@@ -84,16 +84,15 @@ TEST_CASE("scroll guard delivers a held press once the cooldown runs out under i
 
 TEST_CASE("scroll guard never suppresses a press that follows a tap", "[input][scroll_guard]") {
     auto guard = enabled_guard();
-    // Moves exactly the scroll limit, which LVGL does not treat as a scroll either.
-    touch(guard, lv_point_t{DOWN.x + 10, DOWN.y - 10}, 1000);
+    // One pixel short of the scroll limit on both axes, which LVGL does not scroll either.
+    touch(guard, lv_point_t{DOWN.x + 9, DOWN.y - 9}, 1000);
 
     CHECK(feed(guard, LV_INDEV_STATE_PRESSED, DOWN, 1010) == LV_INDEV_STATE_PRESSED);
 }
 
-TEST_CASE("scroll guard counts a touch as a scroll one pixel past the limit",
-          "[input][scroll_guard]") {
+TEST_CASE("scroll guard counts a touch as a scroll at exactly the limit", "[input][scroll_guard]") {
     auto guard = enabled_guard();
-    touch(guard, lv_point_t{DOWN.x - 11, DOWN.y}, 1000);
+    touch(guard, lv_point_t{DOWN.x - 10, DOWN.y}, 1000);
 
     CHECK(feed(guard, LV_INDEV_STATE_PRESSED, DOWN, 1010) == LV_INDEV_STATE_RELEASED);
 }
@@ -186,57 +185,86 @@ struct ConfigSnapshot {
     }
 };
 
+/// A DisplayManager whose pointer went through the setup init() runs, on an
+/// embedded backend, with the scroll guard saved on or off.
+class LiveChain {
+  public:
+    explicit LiveChain(bool guard_on) {
+        snapshot_.config->set<bool>("/input/scroll_guard", guard_on);
+        snapshot_.config->set<int>("/input/scroll_guard_cooldown_ms", 150);
+        DisplayManagerTestAccess::set_active_instance(&mgr);
+        DisplayManagerTestAccess::set_backend(mgr, std::make_unique<ScriptedFbdevBackend>());
+        DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+        pointer_ = mgr.pointer_input();
+        REQUIRE(pointer_ != nullptr);
+        // What LVGL's read timer would call for this device.
+        read_ = lv_indev_get_read_cb(pointer_);
+    }
+    ~LiveChain() {
+        DisplayManagerTestAccess::delete_pointer_input(mgr);
+        DisplayManagerTestAccess::set_active_instance(previous_);
+        g_driver_sample = lv_indev_data_t{};
+    }
+    LiveChain(const LiveChain&) = delete;
+    LiveChain& operator=(const LiveChain&) = delete;
+
+    /// Advances the clock, has the driver report @p state at @p point, and returns
+    /// the state the chain hands LVGL.
+    lv_indev_state_t sample(lv_indev_state_t state, lv_point_t point, uint32_t advance_ms) {
+        lv_tick_inc(advance_ms);
+        g_driver_sample.state = state;
+        g_driver_sample.point = point;
+        lv_indev_data_t data{};
+        read_(pointer_, &data);
+        return data.state;
+    }
+
+    void scroll_and_lift() {
+        sample(LV_INDEV_STATE_PRESSED, DOWN, 10);
+        sample(LV_INDEV_STATE_PRESSED, SCROLLED, 20);
+        sample(LV_INDEV_STATE_RELEASED, SCROLLED, 20);
+    }
+
+    DisplayManager mgr;
+
+  private:
+    helix::ScopedEnv env_guard_{"HELIX_SCROLL_GUARD", nullptr};
+    helix::ScopedEnv env_cooldown_{"HELIX_SCROLL_GUARD_COOLDOWN_MS", nullptr};
+    ConfigSnapshot snapshot_;
+    DisplayManager* previous_ = DisplayManager::instance();
+    lv_indev_t* pointer_ = nullptr;
+    lv_indev_read_cb_t read_ = nullptr;
+};
+
 } // namespace
 
 TEST_CASE_METHOD(LVGLTestFixture, "the pointer DisplayManager sets up runs the scroll guard",
                  "[input][scroll_guard][application][display]") {
     const bool guard_on = GENERATE(true, false);
     CAPTURE(guard_on);
+    LiveChain chain(guard_on);
 
-    helix::ScopedEnv env_guard("HELIX_SCROLL_GUARD", nullptr);
-    helix::ScopedEnv env_cooldown("HELIX_SCROLL_GUARD_COOLDOWN_MS", nullptr);
-    ConfigSnapshot snapshot;
-    snapshot.config->set<bool>("/input/scroll_guard", guard_on);
-    snapshot.config->set<int>("/input/scroll_guard_cooldown_ms", 150);
-
-    DisplayManager mgr;
-    DisplayManager* previous = DisplayManager::instance();
-    DisplayManagerTestAccess::set_active_instance(&mgr);
-    struct Restore {
-        DisplayManager& dm;
-        DisplayManager* previous;
-        ~Restore() {
-            DisplayManagerTestAccess::delete_pointer_input(dm);
-            DisplayManagerTestAccess::set_active_instance(previous);
-        }
-    } restore{mgr, previous};
-
-    DisplayManagerTestAccess::set_backend(mgr, std::make_unique<ScriptedFbdevBackend>());
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
-    lv_indev_t* pointer = mgr.pointer_input();
-    REQUIRE(pointer != nullptr);
-
-    // What LVGL's read timer would call for this device.
-    const lv_indev_read_cb_t read = lv_indev_get_read_cb(pointer);
-    auto sample = [&](lv_indev_state_t state, lv_point_t point, uint32_t advance_ms) {
-        lv_tick_inc(advance_ms);
-        g_driver_sample.state = state;
-        g_driver_sample.point = point;
-        lv_indev_data_t data{};
-        read(pointer, &data);
-        return data.state;
-    };
-
-    sample(LV_INDEV_STATE_PRESSED, DOWN, 10);
-    sample(LV_INDEV_STATE_PRESSED, SCROLLED, 20);
-    sample(LV_INDEV_STATE_RELEASED, SCROLLED, 20);
+    chain.scroll_and_lift();
 
     // 100 ms after the lift: past the 80 ms default, inside the configured 150.
-    const lv_indev_state_t ghost = sample(LV_INDEV_STATE_PRESSED, SCROLLED, 100);
+    const lv_indev_state_t ghost = chain.sample(LV_INDEV_STATE_PRESSED, SCROLLED, 100);
     CHECK(ghost == (guard_on ? LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED));
 
-    sample(LV_INDEV_STATE_RELEASED, SCROLLED, 10);
-    CHECK(sample(LV_INDEV_STATE_PRESSED, SCROLLED, 50) == LV_INDEV_STATE_PRESSED);
+    chain.sample(LV_INDEV_STATE_RELEASED, SCROLLED, 10);
+    CHECK(chain.sample(LV_INDEV_STATE_PRESSED, SCROLLED, 50) == LV_INDEV_STATE_PRESSED);
+}
 
-    g_driver_sample = lv_indev_data_t{};
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "a press inside the scroll guard cooldown still wakes the display",
+                 "[input][scroll_guard][application][display][sleep]") {
+    LiveChain chain(/*guard_on=*/true);
+    chain.scroll_and_lift();
+    DisplayManagerTestAccess::set_display_sleeping(chain.mgr, true);
+    REQUIRE_FALSE(DisplayManagerTestAccess::wake_requested(chain.mgr));
+
+    // Inside the cooldown, so the guard would suppress this press if it ran first.
+    CHECK(chain.sample(LV_INDEV_STATE_PRESSED, SCROLLED, 30) == LV_INDEV_STATE_RELEASED);
+    CHECK(DisplayManagerTestAccess::wake_requested(chain.mgr));
+
+    DisplayManagerTestAccess::set_display_sleeping(chain.mgr, false);
 }

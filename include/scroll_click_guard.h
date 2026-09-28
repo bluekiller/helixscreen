@@ -19,9 +19,9 @@ namespace helix {
  * scroll moved under the finger and LVGL clicks it. While enabled, a press that
  * starts within `cooldown_ms` of a scrolling touch ending reads as RELEASED.
  *
- * A touch counts as scrolling once it moves more than `scroll_limit_px` along
- * either axis from where it went down, the same distance LVGL waits for before
- * it starts a scroll. Taps, long presses and a press that starts after the
+ * A touch counts as scrolling once it moves `scroll_limit_px` or more along
+ * either axis from where it went down, the distance at which LVGL starts a
+ * scroll. Taps, long presses and a press that starts after the
  * cooldown pass unchanged; so does everything when disabled.
  *
  * Main thread only, fed from a pointer's read callback.
@@ -81,8 +81,8 @@ struct ScrollClickGuard {
                 m_pressed = true;
                 m_scrolled = false;
                 m_origin = point;
-            } else if (std::abs(point.x - m_origin.x) > scroll_limit_px ||
-                       std::abs(point.y - m_origin.y) > scroll_limit_px) {
+            } else if (std::abs(point.x - m_origin.x) >= scroll_limit_px ||
+                       std::abs(point.y - m_origin.y) >= scroll_limit_px) {
                 m_scrolled = true;
             }
             return false;
