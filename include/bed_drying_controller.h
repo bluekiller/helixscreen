@@ -68,7 +68,8 @@ class BedDryingController {
     /// sensor can say for certain.
     [[nodiscard]] std::optional<bool> toolhead_loaded() const;
 
-    /// Home if needed, then the clearance move and park. Once the plate is in
+    /// Home if needed, then the clearance move and park. @p with_appliance asks
+    /// for the chamber too: its dryer, or a plain chamber heater without one. Once the plate is in
     /// place the latch is set and persisted before @p on_ready fires (the place
     /// prompt): spools can land on the plate from then on. @p on_error with a
     /// message when a move was refused or failed, or the latch could not be
@@ -119,6 +120,16 @@ class BedDryingController {
     /// The bed temperature a run of @p material would use on this printer.
     [[nodiscard]] int bed_temp_for(const bed_drying::Material& material) const;
 
+    /// What can heat the chamber alongside the bed on this printer.
+    [[nodiscard]] bed_drying::ChamberAssist chamber_assist_available() const;
+
+    /// The target a plain chamber heater would hold for @p material.
+    [[nodiscard]] int chamber_temp_for(const bed_drying::Material& material) const;
+
+    /// Publish the start modal's chamber row for @p material: which form it
+    /// takes (a ChamberAssist) and the heater form's label.
+    void describe_chamber(const bed_drying::Material& material);
+
     /// Called once each time the bed has cooled enough to take the spools off.
     void set_on_ready_to_remove(std::function<void()> cb) {
         on_ready_to_remove_ = std::move(cb);
@@ -133,6 +144,12 @@ class BedDryingController {
     /// The start modal's "I understand" checkbox; Start enables on 1.
     lv_subject_t* get_ack_subject() {
         return &bed_drying_ack_;
+    }
+    lv_subject_t* get_chamber_assist_subject() {
+        return &bed_drying_chamber_assist_;
+    }
+    lv_subject_t* get_chamber_text_subject() {
+        return &bed_drying_chamber_text_;
     }
 
   private:
@@ -170,7 +187,10 @@ class BedDryingController {
     lv_subject_t bed_drying_state_{};
     lv_subject_t bed_drying_text_{};
     lv_subject_t bed_drying_ack_{};
+    lv_subject_t bed_drying_chamber_assist_{};
+    lv_subject_t bed_drying_chamber_text_{};
     char text_buf_[96]{};
+    char chamber_text_buf_[96]{};
 
     lv_timer_t* timer_ = nullptr;
     std::function<void()> on_ready_to_remove_;

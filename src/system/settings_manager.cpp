@@ -434,6 +434,7 @@ helix::bed_drying::RunRecord SettingsManager::get_bed_drying_record() const {
     r.bed_c = helix::json_util::safe_int(j, "bed_c");
     r.idle_restore_s = helix::json_util::safe_int(j, "idle_restore_s");
     r.appliance = helix::json_util::safe_bool(j, "appliance");
+    r.chamber_c = helix::json_util::safe_int(j, "chamber_c");
     r.ended = helix::json_util::safe_bool(j, "ended");
     r.flip_notified = helix::json_util::safe_bool(j, "flip_notified");
     r.placing = helix::json_util::safe_bool(j, "placing");
@@ -449,6 +450,7 @@ bool SettingsManager::set_bed_drying_record(const helix::bed_drying::RunRecord& 
                                                         {"bed_c", r.bed_c},
                                                         {"idle_restore_s", r.idle_restore_s},
                                                         {"appliance", r.appliance},
+                                                        {"chamber_c", r.chamber_c},
                                                         {"ended", r.ended},
                                                         {"flip_notified", r.flip_notified},
                                                         {"placing", r.placing},

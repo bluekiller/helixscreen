@@ -102,6 +102,23 @@ inline constexpr std::array<Material, 5> kMaterials = {{
     return c;
 }
 
+/// What heats the chamber alongside the bed. A dryer wins: on an appliance
+/// that is both, its drying mode drives the same heater a plain target would.
+enum class ChamberAssist { None, Dryer, Heater };
+
+[[nodiscard]] constexpr ChamberAssist chamber_assist(bool has_dryer, bool has_chamber_heater) {
+    if (has_dryer) {
+        return ChamberAssist::Dryer;
+    }
+    return has_chamber_heater ? ChamberAssist::Heater : ChamberAssist::None;
+}
+
+/// The chamber target a plain heater holds: the material's air value, capped at
+/// the heater's maximum (0 = unknown, no cap).
+[[nodiscard]] constexpr int chamber_temp_c(const Material& m, int chamber_max_c) {
+    return chamber_max_c > 0 ? std::min(m.air_c, chamber_max_c) : m.air_c;
+}
+
 /// Whether to offer the unload before anything moves.
 enum class UnloadOffer {
     None,        ///< a sensor says the toolhead is empty: go straight on
@@ -177,6 +194,7 @@ struct RunRecord {
     int bed_c = 0;
     int idle_restore_s = 0; ///< the configured idle timeout to put back; 0 = none held
     bool appliance = false; ///< a chamber appliance dries alongside
+    int chamber_c = 0;      ///< a plain chamber heater's target for the run; 0 = none
     bool ended = false;     ///< heaters are off; waiting for the spools to come out
     bool flip_notified = false;
 };

@@ -62,6 +62,7 @@ void BedDryingModal::on_show() {
         options += material_label(m, ctrl->bed_temp_for(m));
     }
     lv_dropdown_set_options(dropdown, options.c_str());
+    ctrl->describe_chamber(kMaterials[0]);
 }
 
 void BedDryingModal::on_ok() {
@@ -254,6 +255,16 @@ void on_bed_drying_banner_clicked_cb(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
+void on_bed_drying_material_changed_cb(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[BedDrying] material changed");
+    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    const auto index = lv_dropdown_get_selected(dropdown);
+    if (auto* ctrl = get_bed_drying_controller(); ctrl && index < kMaterials.size()) {
+        ctrl->describe_chamber(kMaterials[index]);
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 void on_bed_drying_start_clicked_cb(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[BedDrying] start clicked");
     // A flow already under way is the banner's to answer; a second start would
@@ -274,6 +285,8 @@ void register_bed_drying_callbacks() {
                              on_bed_drying_banner_clicked_cb);
     lv_xml_register_event_cb(nullptr, "on_bed_drying_start_clicked",
                              on_bed_drying_start_clicked_cb);
+    lv_xml_register_event_cb(nullptr, "on_bed_drying_material_changed",
+                             on_bed_drying_material_changed_cb);
 }
 
 } // namespace helix::ui

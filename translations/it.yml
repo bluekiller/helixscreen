@@ -1428,6 +1428,7 @@ translations:
     il piano prima di calibrare per un offset preciso con espansione termica.
   Heat nozzle: Riscalda ugello
   Heat the bed to {}°C: Riscalda il piano a {}°C
+  Heat the chamber too: Riscalda anche la camera
   Heat the extruder to at least {}°C before loading filament: Riscalda l'estrusore ad almeno {}°C prima di caricare il filamento
   Heat to at least %d°C for filament operations: Riscalda ad almeno %d°C per le operazioni
     sul filamento
