@@ -4,7 +4,9 @@ Developer guide for the live belt-tension tuner: the user plucks a belt by hand,
 listens on Klipper's live accelerometer stream, and reports the belt's fundamental
 frequency.
 
-**Panel**: Belt Tension (`panel_belt_tension`) - Advanced panel row, beta-gated
+**Panel**: Belt Tension (`panel_belt_tension`) - compiled in, but no UI row reaches it. It
+was withdrawn after its first real-hardware test (below); the belt check in the UI is
+planned as a `TEST_RESONANCES` path comparison instead (prestonbrown/helixscreen#1721).
 **User guide**: `../user/guide/calibration.md` § Belt Tension
 
 ---
@@ -14,8 +16,10 @@ frequency.
 **Read this before changing a threshold, before promoting the feature out of beta, and
 before believing a number it prints.**
 
-It is green in CI - 96/96 shards - and it has **never measured a real belt under its own
-UI**. Everything below is open.
+It is green in CI - 96/96 shards. Its one real-hardware test through its own UI, on a
+Voron 2.4 350 (#1721), failed: a clean audible pluck almost never cleared
+`MIN_RMS_RATIO`, a pluck hard enough to clear it rang as broadband noise, and one belt
+read ~130, ~85 and ~120 Hz across repeats. Everything below is open.
 
 ### The thresholds are circular
 
