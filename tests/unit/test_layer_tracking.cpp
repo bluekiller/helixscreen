@@ -177,24 +177,14 @@ TEST_CASE("Layer tracking: set_print_layer_current setter", "[layer_tracking][se
     }
 
     SECTION("setter and print_stats.info both update same subject") {
-        // Print running: the layer only climbs while a print is active.
-        state.update_from_status({{"print_stats", {{"state", "printing"}}}});
-        REQUIRE(lv_subject_get_int(state.get_print_active_subject()) == 1);
-
         // Simulate gcode fallback setting layer
         state.set_print_layer_current(10);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
         REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 10);
 
-        // print_stats.info comes in with a HIGHER value - still accepted
-        json higher = {{"print_stats", {{"info", {{"current_layer", 12}}}}}};
-        state.update_from_status(higher);
-        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 12);
-
-        // A stale frame still carrying an OLDER info value must not drag the
-        // layer back down mid-print
-        json stale = {{"print_stats", {{"info", {{"current_layer", 8}}}}}};
-        state.update_from_status(stale);
+        // Then print_stats.info comes in with a different value (takes precedence naturally)
+        json status = {{"print_stats", {{"info", {{"current_layer", 12}}}}}};
+        state.update_from_status(status);
         REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 12);
     }
 
@@ -264,6 +254,52 @@ TEST_CASE("Layer tracking: layer never bounces back mid-print", "[layer_tracking
         json stale_vsd = {{"virtual_sdcard", {{"progress", 0.5}, {"layer", 2}}}};
         state.update_from_status(stale_vsd);
         REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 5);
+    }
+
+    SECTION("a lower echo value is accepted (sequential print restarts per object)") {
+        // One-object-at-a-time prints restart ;LAYER:N per object, and a
+        // deliberate lower SET_PRINT_STATS_INFO CURRENT_LAYER is equally
+        // legitimate - the echo is never the stale side
+        state.set_print_layer_current(40);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 40);
+
+        state.set_print_layer_current(1);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 1);
+    }
+
+    SECTION("a lower print_stats.info value stands when no echo has written") {
+        // A printer that reports layers only through print_stats keeps its own
+        // decreases (sequential via info), so the guard protects only a value
+        // the echo just reported
+        json first = {{"print_stats", {{"info", {{"current_layer", 40}}}}}};
+        state.update_from_status(first);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 40);
+
+        json second = {{"print_stats", {{"info", {{"current_layer", 1}}}}}};
+        state.update_from_status(second);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 1);
+    }
+
+    SECTION("a drifted estimate loses to a lower echo value") {
+        // printer_reports_layers_ false: the progress tier fabricates a layer
+        state.update_from_status({{"print_stats", {{"print_duration", 120}}}});
+        state.set_print_layer_total(320);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+        state.update_from_status({{"virtual_sdcard", {{"progress", 0.50}}}});
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 160);
+        REQUIRE_FALSE(state.has_real_layer_data());
+
+        // The echo corrects the estimate downward, and a status frame behind
+        // the echo then cannot drag the layer back up the estimate's drift
+        state.set_print_layer_current(142);
+        UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 142);
+
+        json behind_echo = {{"print_stats", {{"info", {{"current_layer", 100}}}}}};
+        state.update_from_status(behind_echo);
+        REQUIRE(lv_subject_get_int(state.get_print_layer_current_subject()) == 142);
     }
 }
 

@@ -313,7 +313,7 @@ void PrinterPrintState::reset_for_new_print() {
     }
     lv_subject_set_int(&print_layer_current_, 0);
     has_real_layer_data_ = false;
-    layer_from_real_source_ = false;
+    layer_source_ = LayerSource::Estimate;
     // Commanded Z belongs to the print run, not the file — clear it. Do NOT
     // clear layer_height_/first_layer_height_: like print_layer_total_ and
     // estimated_print_time_ they belong to the file and must survive a same-file
@@ -339,13 +339,17 @@ void PrinterPrintState::reset_for_new_print() {
                   estimated_print_time_);
 }
 
-void PrinterPrintState::apply_layer_current(int layer, const char* source) {
+void PrinterPrintState::apply_layer_current(int layer, LayerSource kind, const char* source) {
     const int current = lv_subject_get_int(&print_layer_current_);
-    // The guard judges the value IN the subject, so it reads the provenance of
-    // the previous write, not of this call (real sources latch
-    // has_real_layer_data_ before calling, which would arm the guard against
-    // the very estimate this real value must be allowed to correct downward).
-    if (layer < current && lv_subject_get_int(&print_active_) != 0 && layer_from_real_source_) {
+    // A status frame lags the gcode echo: while the subject holds a value the
+    // echo just reported, a lower status number is the stale frame, not the
+    // print going backward. Echo writes are never refused (sequential
+    // one-object-at-a-time prints restart ;LAYER:N per object), and a decrease
+    // against a status-sourced value is a genuine report from a status-only
+    // printer. The guard judges the value IN the subject, so it compares
+    // against the previous write's provenance, not this call's kind.
+    if (layer < current && kind == LayerSource::Reported &&
+        lv_subject_get_int(&print_active_) != 0 && layer_source_ == LayerSource::Echo) {
         spdlog::debug("[LayerTracker] Refusing layer decrease {} -> {} (from {})", current, layer,
                       source);
         return;
@@ -355,7 +359,7 @@ void PrinterPrintState::apply_layer_current(int layer, const char* source) {
     }
     // Provenance now traces to whichever source addressed the subject last,
     // including on an equal write.
-    layer_from_real_source_ = has_real_layer_data_.load();
+    layer_source_ = kind;
 }
 
 bool PrinterPrintState::status_indicates_active_print(const nlohmann::json& status) {
@@ -644,7 +648,7 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                     spdlog::debug("[LayerTracker] current_layer={} (from print_stats.info)",
                                   current_layer);
                 }
-                apply_layer_current(current_layer, "print_stats.info");
+                apply_layer_current(current_layer, LayerSource::Reported, "print_stats.info");
                 current_layer_from_info = true;
             }
 
@@ -869,7 +873,7 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                     spdlog::debug("[LayerTracker] current_layer={} (from virtual_sdcard)",
                                   vsd_layer);
                 }
-                apply_layer_current(vsd_layer, "virtual_sdcard");
+                apply_layer_current(vsd_layer, LayerSource::Reported, "virtual_sdcard");
             }
             if (!total_layer_from_info && sdcard.contains("layer_count") &&
                 sdcard["layer_count"].is_number_integer()) {
@@ -932,7 +936,8 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                         if (estimated != current) {
                             spdlog::debug("[LayerTracker] Estimated layer {}/{} from progress {}%",
                                           estimated, total, file_progress_pct);
-                            apply_layer_current(estimated, "progress estimate");
+                            apply_layer_current(estimated, LayerSource::Estimate,
+                                                "progress estimate");
                         }
                     }
                 }
@@ -1000,7 +1005,7 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[LayerTracker] Derived layer {}/{} from Z={:.3f}mm "
                               "(first={:.3f}, height={:.3f})",
                               derived, total, last_gcode_z_mm_, first_layer_height_, layer_height_);
-                apply_layer_current(derived, "z-height derivation");
+                apply_layer_current(derived, LayerSource::Estimate, "z-height derivation");
             }
         }
     }
@@ -1163,7 +1168,7 @@ void PrinterPrintState::set_print_layer_current(int layer) {
             has_real_layer_data_ = true;
         }
         printer_reports_layers_ = true; // sticky printer capability
-        apply_layer_current(layer, "gcode response");
+        apply_layer_current(layer, LayerSource::Echo, "gcode response");
     });
 }
 

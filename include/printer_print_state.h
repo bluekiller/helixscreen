@@ -935,18 +935,25 @@ class PrinterPrintState {
     /// every source is judged by the same rules.
     void commit_progress(int percent);
 
+    /// Which kind of source wrote the value currently in print_layer_current_.
+    /// Echo is the gcode-response path (SET_PRINT_STATS_INFO / ;LAYER:N),
+    /// Reported is a status field (print_stats.info / virtual_sdcard.layer),
+    /// Estimate is a fabricated tier (progress fraction / Z-height).
+    enum class LayerSource { Estimate, Echo, Reported };
+
     /// Take a candidate current-layer value from any source (print_stats.info,
     /// virtual_sdcard.layer, the gcode fallback setter, or the estimate tiers)
     /// and decide whether it becomes the layer. The sole writer of
-    /// print_layer_current_ besides reset_for_new_print(), so the monotonic
-    /// rule is stated once: while a print is active, a real source's value
-    /// never moves the layer DOWN, because a status frame generated before the
-    /// newest gcode response can carry an older number (the layer bouncing
+    /// print_layer_current_ besides reset_for_new_print(), so the lag rule is
+    /// stated once: a status value never lowers a value the gcode echo just
+    /// reported while a print is active, because a status frame generated
+    /// before the newest echo can carry an older number (the layer bouncing
     /// 1 -> 0 -> 1 at print start, which downstream consumers read as a new
-    /// print). reset_for_new_print() is the one legitimate path to a lower
-    /// value. Estimate tiers never latch layer_from_real_source_, so the first
-    /// real value supersedes an estimate even when it is lower.
-    void apply_layer_current(int layer, const char* source);
+    /// print). Echo writes are always accepted (sequential one-object-at-a-time
+    /// prints restart ;LAYER:N per object), and a status decrease against a
+    /// status-sourced value stands. Estimates never latch real provenance, so
+    /// the first real value supersedes an estimate even when it is lower.
+    void apply_layer_current(int layer, LayerSource kind, const char* source);
 
     /// Hold the current display progress until the next print starts. Called on
     /// the transition into COMPLETE/CANCELLED/ERROR; completion pins 100 first.
@@ -1105,14 +1112,13 @@ class PrinterPrintState {
     // all; use printer_reports_layers_ for that (see below).
     std::atomic<bool> has_real_layer_data_{false};
 
-    // True when the value currently in print_layer_current_ came from a real
-    // source rather than an estimate tier. Per-print (cleared by
-    // reset_for_new_print). Gates the monotonic rule in apply_layer_current();
-    // distinct from has_real_layer_data_ because that latches as soon as the
-    // printer reports ANY real layer field, even while the subject still shows
-    // a progress estimate the first real value must be allowed to correct
-    // downward. Atomic: written on the same paths as has_real_layer_data_.
-    std::atomic<bool> layer_from_real_source_{false};
+    // Provenance of the value currently in print_layer_current_ (see
+    // LayerSource). Per-print (reset to Estimate by reset_for_new_print).
+    // Gates the lag rule in apply_layer_current(); distinct from
+    // has_real_layer_data_ because that latches as soon as the printer reports
+    // ANY real layer field, while this tracks the subject's value itself.
+    // Atomic: written on the same paths as has_real_layer_data_.
+    std::atomic<LayerSource> layer_source_{LayerSource::Estimate};
 
     // True when the current layer value came from the Z-height derivation (tier
     // 3) rather than the progress-fraction estimate (tier 4). Drives the display
