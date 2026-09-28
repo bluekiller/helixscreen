@@ -131,3 +131,15 @@ TEST_CASE_METHOD(MigrationV26Fixture, "v26 leaves an explicit stored int alone",
     CHECK(config.get<int>("/completion_alert", -1) ==
           static_cast<int>(helix::CompletionAlertMode::NOTIFICATION));
 }
+
+TEST_CASE_METHOD(MigrationV26Fixture, "v26 leaves an absent completion_alert absent",
+                 "[config][migration]") {
+    // A config that never stored the key reads AudioSettingsManager's default,
+    // Alert. Writing anything here, a null included, would replace that default.
+    write_and_init(json{{"config_version", 25},
+                        {"active_printer_id", "voron"},
+                        {"printers", {{"voron", {{"moonraker_host", "192.168.1.112"}}}}}});
+
+    REQUIRE(config.get<int>("/config_version", 0) == helix::CURRENT_CONFIG_VERSION);
+    CHECK_FALSE(config.exists("/completion_alert"));
+}

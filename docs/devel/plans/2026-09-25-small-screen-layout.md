@@ -75,31 +75,10 @@ under the fan row on a U1; at 57px wide "Cancel"/"Camera" labels clip.
 - At tiny and smaller: ~62/38. Tool picker (up to 4+) gets real gaps; preset grid grows to fill
   the dead band under the picker. Graph-only and portrait modes unchanged.
 
-## Phase 5: print detail compact layout (main; 1.0 if it lifts)
+## Phase 5: print detail layout (main; 1.0 if it lifts)
 
-`ui_xml/print_file_detail.xml`: fixed 5/9 : 4/9. U1 right column needs ~360px of 304 with all 4
-DB options (`bed_mesh`, `shaper_calibrate`, `flow_calibrate`, `u1_timelapse`).
-
-- At tiny and smaller: 50/50 split.
-- Pre-print options render as a 2-column grid of **option tiles**: a NEW reusable component
-  (e.g. `ui_xml/components/option_tile.xml`, search for an existing selectable-card component
-  first and extend it if one fits). Tile = icon + label (wrap to 2 lines, then ellipsis), 1px
-  `#border` outline; ON = `#primary` outline + a small `#primary` check tab in the top-right
-  corner, icon tinted. Whole tile is the tap target, same semantics as the toggle it replaces
-  (same subject/callback wiring in `PrePrintOptionsRenderer`). Larger breakpoints keep
-  `compact_toggle_row`.
-- Icons: `PrePrintOption::icon` (already parsed, `src/printer/pre_print_option.cpp`) overrides;
-  otherwise an id->icon default next to `ui_pre_print_options_renderer.cpp#label_key_for`:
-  bed_mesh `grid_large`, shaper_calibrate `sine_wave`, flow_calibrate `gauge`, timelapse and
-  u1_timelapse `camera_timer`, ai_detect `robot`, qgl/z_tilt `spirit_level`, fallback `tune`.
-  All exist in `include/ui_icon_codepoints.h`; no font regen.
-- "Sliced colors" toggle moves into the Filaments card header (compact switch + label) at tiny.
-- History status ("Last print cancelled") moves under the filename in the left metadata at tiny.
-- Pinned bottom row at ALL sizes: delete + Print (+ prep estimate / blocked reason) stay fixed;
-  the content above scrolls if it still overflows.
-- Mock has no U1 persona; to see 4 options either add `snapmaker_u1` to `HELIX_MOCK_PRINTER`
-  (preferred if small, `src/application/moonraker_manager.cpp`) or point a `--test`-less build at
-  the real U1 read-only (ask the orchestrator first; it is a real printer).
+Superseded by `2026-09-28-print-detail-layout-design.md`: option tiles and a pinned action row
+at every size, plus portrait, not just tiny.
 
 ## Phase 6: home screen at tiny (main + 1.0 where applicable)
 
