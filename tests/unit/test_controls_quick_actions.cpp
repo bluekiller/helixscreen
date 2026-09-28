@@ -22,6 +22,7 @@
 #include "../test_fixtures.h"
 #include "../test_helpers/controls_panel_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "led/led_controller.h"
 #include "macro_param_cache.h"
 #include "macro_param_defaults.h"
 #include "moonraker_api.h"
@@ -236,4 +237,52 @@ TEST_CASE_METHOD(QuickButtonMacroFixture, "Quick button sends no params without 
     // No record: the macro runs bare, the way it always has.
     REQUIRE(script_sent_containing(mock_client, "MY_MACRO"));
     CHECK_FALSE(script_sent_containing(mock_client, "MY_MACRO TEMP"));
+}
+
+// =============================================================================
+// The light toggle in a Quick Actions slot
+// =============================================================================
+
+namespace helix {
+void register_led_widget();
+} // namespace helix
+
+TEST_CASE_METHOD(QuickButtonMacroFixture,
+                 "Quick Actions: each light slot's tap toggles the chamber light",
+                 "[controls][quick_action][led]") {
+    const int slot = GENERATE(1, 2, 3, 4);
+    INFO("quick action slot " << slot);
+
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(&mock_api, &mock_client);
+    for (const char* id : {"neopixel chamber_light", "neopixel sb_leds"}) {
+        helix::led::LedStripInfo s{};
+        s.id = id;
+        s.name = id;
+        s.backend = helix::led::LedBackendType::NATIVE;
+        s.supports_color = true;
+        s.supports_white = true;
+        ctrl.native().add_strip(s);
+    }
+    struct LedGuard {
+        ~LedGuard() {
+            helix::led::LedController::instance().deinit();
+        }
+    } led_guard;
+    helix::register_led_widget(); // the widget registry runs this before any XML is built
+    build_and_activate();
+
+    const std::string cell_name = "macro_" + std::to_string(slot) + "_light_cell";
+    lv_obj_t* cell = lv_obj_find_by_name(panel_obj, cell_name.c_str());
+    REQUIRE(cell != nullptr);
+    lv_obj_t* button = lv_obj_find_by_name(cell, "light_button");
+    REQUIRE(button != nullptr);
+
+    mock_client.clear_gcode_script_history();
+    lv_obj_send_event(button, LV_EVENT_CLICKED, nullptr);
+    helix::ui::UpdateQueue::instance().drain();
+
+    CHECK(script_sent_containing(mock_client, "chamber_light"));
+    CHECK_FALSE(script_sent_containing(mock_client, "sb_leds"));
 }
