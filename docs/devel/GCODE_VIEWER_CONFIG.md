@@ -99,7 +99,8 @@ Whether large files stream layer-by-layer instead of loading whole.
 
 ### `streaming_threshold_percent`
 **Type:** int **Default:** 40
-Share of available memory a file may occupy before streaming engages.
+Share of available memory a file may occupy before streaming engages. Capped at
+15 on boards with 2GB total RAM or less.
 
 ### `layers_per_frame`
 **Type:** int **Default:** 0 (adaptive)
