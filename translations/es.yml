@@ -2318,6 +2318,7 @@ translations:
   Preset: Preajuste
   'Preset ID: {}': 'ID de preajuste: {}'
   Presets: Preajustes
+  Presets come from the WLED device. Edit them in the WLED app.: Los preajustes vienen del dispositivo WLED. Edítalos en la app de WLED.
   Press Abort to stop: Pulse Abortar para detener
   Press Scan to search: Presione Escanear para buscar
   'Pressure:': 'Presión:'

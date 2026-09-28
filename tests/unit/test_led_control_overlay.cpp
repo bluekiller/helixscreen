@@ -891,3 +891,90 @@ TEST_CASE_METHOD(OverlayXmlFixture,
     REQUIRE(other_title != nullptr);
     CHECK(reinterpret_cast<lv_label_t*>(other_title)->text_transform_upper == 1);
 }
+
+namespace {
+
+/// Sends the tone, then feeds back what the strip reports, the way a status frame
+/// returns it, and reopens the page on the device.
+int white_sel_after_readback(LedControlOverlayTestAccess& access, const std::string& id, int tone) {
+    access.tap_white(tone);
+    const auto c = LedController::instance().native().get_strip_color(id);
+    const bool rgbw = find_strip(LedController::instance().native().strips(), id)->supports_white;
+    nlohmann::json data =
+        rgbw ? nlohmann::json::array({c.r, c.g, c.b, c.w}) : nlohmann::json::array({c.r, c.g, c.b});
+    LedController::instance().update_from_status({{id, {{"color_data", {data}}}}});
+    drain();
+    access.activate(id);
+    return LedControlOverlayTestAccess::int_subject("led_page_white_sel");
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a white read back from the strip rings its tone",
+                 "[led][overlay]") {
+    add_native("neopixel rgbw", true, true);
+    add_native("neopixel rgb", true, false);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    for (int tone = 0; tone < 3; ++tone) {
+        INFO("tone " << tone);
+        access.activate("neopixel rgbw");
+        access.drag_brightness(40);
+        CHECK(white_sel_after_readback(access, "neopixel rgbw", tone) == tone);
+        access.activate("neopixel rgb");
+        access.drag_brightness(40);
+        CHECK(white_sel_after_readback(access, "neopixel rgb", tone) == tone);
+    }
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: plain RGB white on an RGBW strip rings Neutral, not Custom",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    LedController::instance().update_from_status(
+        {{"neopixel chamber_light", {{"color_data", {{0.5, 0.5, 0.5, 0.0}}}}}});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+
+    CHECK(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
+    CHECK(access.int_subject("led_selected_swatch") == -1);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: a color that is no preset and no white rings Custom", "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    // A red tint under a lit W: neither a white tone nor a preset.
+    LedController::instance().update_from_status(
+        {{"neopixel chamber_light", {{"color_data", {{0.6, 0.0, 0.0, 0.3}}}}}});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+
+    CHECK(access.int_subject("led_page_white_sel") == -1);
+    CHECK(access.int_subject("led_selected_swatch") == -2);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a WLED page notes where its presets come from",
+                 "[led][overlay]") {
+    LedStripInfo strip;
+    strip.id = "printer_led";
+    strip.name = "printer_led";
+    strip.backend = LedBackendType::WLED;
+    strip.supports_color = true;
+    strip.supports_white = true;
+    LedController::instance().wled().add_strip(strip);
+    set_macros({party_macro()});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("printer_led");
+    CHECK(access.str_subject("led_page_note") ==
+          "Presets come from the WLED device. Edit them in the WLED app.");
+
+    access.activate("macro:Party");
+    CHECK(access.str_subject("led_page_note").empty());
+}

@@ -2171,6 +2171,7 @@ translations:
   Preset: プリセット
   'Preset ID: {}': 'プリセット ID: {}'
   Presets: プリセット
+  Presets come from the WLED device. Edit them in the WLED app.: プリセットはWLEDデバイスから取得されます。WLEDアプリで編集してください。
   Press Abort to stop: 中止するには「中止」を押してください
   Press Scan to search: スキャンを押して検索
   'Pressure:': '圧力:'

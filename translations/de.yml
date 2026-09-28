@@ -2326,6 +2326,7 @@ translations:
   Preset: Voreinstellung
   'Preset ID: {}': 'Voreinstellungs-ID: {}'
   Presets: Voreinstellungen
+  Presets come from the WLED device. Edit them in the WLED app.: Voreinstellungen kommen vom WLED-Gerät. Bearbeiten Sie sie in der WLED-App.
   Press Abort to stop: Zum Stoppen Abbrechen drücken
   Press Scan to search: Scannen drücken zum Suchen
   'Pressure:': 'Druck:'

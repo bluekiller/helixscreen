@@ -2086,6 +2086,7 @@
   <translation tag="Preset" zh="预设"/>
   <translation tag="Preset ID: {}" zh="预设 ID: {}"/>
   <translation tag="Presets" zh="预设"/>
+  <translation tag="Presets come from the WLED device. Edit them in the WLED app." zh="预设来自 WLED 设备。请在 WLED 应用中编辑。"/>
   <translation tag="Press Abort to stop" zh="按中止以停止"/>
   <translation tag="Press Scan to search" zh="按扫描搜索"/>
   <translation tag="Pressure Adv." zh="压力提前"/>

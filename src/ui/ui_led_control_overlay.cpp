@@ -67,16 +67,19 @@ lv_obj_t* open_led_control_overlay(lv_obj_t* parent_screen, const std::string& d
 
 namespace {
 
-/// Channel-wise equality within the rounding a status round-trip introduces.
-bool rgb_near(uint32_t a, uint32_t b) {
+/// Largest per-channel difference between two 0xRRGGBB colors.
+int channel_distance(uint32_t a, uint32_t b) {
+    int worst = 0;
     for (int shift : {16, 8, 0}) {
         const int d = static_cast<int>((a >> shift) & 0xFF) - static_cast<int>((b >> shift) & 0xFF);
-        if (std::abs(d) > 2) {
-            return false;
-        }
+        worst = std::max(worst, std::abs(d));
     }
-    return true;
+    return worst;
 }
+
+/// A dimmed color read back from the strip and scaled up to full brightness
+/// drifts by a few steps per channel; within this it is still the same color.
+constexpr int COLOR_MATCH_TOLERANCE = 12;
 
 int user_data_int(lv_event_t* e) {
     const auto* ud = static_cast<const char*>(lv_event_get_user_data(e));
@@ -380,7 +383,9 @@ void LedControlOverlay::publish_page() {
 
     // A PRESET device's chips already say what it runs.
     std::string note;
-    if (info != nullptr && info->backend == LedBackendType::MACRO) {
+    if (info != nullptr && info->backend == LedBackendType::WLED) {
+        note = lv_tr("Presets come from the WLED device. Edit them in the WLED app.");
+    } else if (info != nullptr && info->backend == LedBackendType::MACRO) {
         const auto* m = find_macro(ctrl.configured_macros(), focused_strip_);
         if (m != nullptr && m->type != MacroLedType::PRESET) {
             note = macro_device_note(*m);
@@ -412,28 +417,45 @@ void LedControlOverlay::publish_color_state() {
     lv_subject_set_int(&page_level_, is_level ? current_brightness_ : 0);
 }
 
+uint32_t LedControlOverlay::shown_rgb() const {
+    double r = 0.0, g = 0.0, b = 0.0;
+    unpack_rgb(current_color_, r, g, b);
+    return output_rgb(r, g, b, current_white_);
+}
+
 int LedControlOverlay::white_selection() const {
     if (page_.white == WhiteMode::None) {
         return -1;
     }
-    for (int t = 0; t < 3; ++t) {
-        const Rgbw c = white_tone(static_cast<WhiteTone>(t), page_.white);
-        if (rgb_near(pack_rgb(c.r, c.g, c.b), current_color_) &&
-            std::abs(static_cast<int>(to_channel_byte(c.w)) -
-                     static_cast<int>(to_channel_byte(current_white_))) <= 2) {
-            return t;
+    // Compared as the light looks, so a W-channel white and the same white mixed
+    // from RGB both count; an RGBW strip can show either, an RGB strip only mixes.
+    const uint32_t shown = shown_rgb();
+    int best = -1;
+    int best_distance = COLOR_MATCH_TOLERANCE + 1;
+    for (const WhiteMode mode : {WhiteMode::WChannel, WhiteMode::Mixed}) {
+        if (mode == WhiteMode::WChannel && page_.white != WhiteMode::WChannel) {
+            continue;
+        }
+        for (int t = 0; t < 3; ++t) {
+            const Rgbw c = white_tone(static_cast<WhiteTone>(t), mode);
+            const int d = channel_distance(output_rgb(c.r, c.g, c.b, c.w), shown);
+            if (d < best_distance) {
+                best = t;
+                best_distance = d;
+            }
         }
     }
-    return -1;
+    return best;
 }
 
 int LedControlOverlay::swatch_selection() const {
-    if (!page_.color || current_white_ > 0.0 || white_selection() >= 0) {
+    if (!page_.color || white_selection() >= 0) {
         return -1;
     }
+    const uint32_t shown = shown_rgb();
     const auto& presets = LedController::instance().color_presets();
     for (size_t i = 0; i < presets.size(); ++i) {
-        if (rgb_near(presets[i], current_color_)) {
+        if (channel_distance(presets[i], shown) <= COLOR_MATCH_TOLERANCE) {
             return static_cast<int>(i);
         }
     }

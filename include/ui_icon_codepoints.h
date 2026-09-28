@@ -108,7 +108,6 @@ static const IconMapping ICON_MAP[] = {
     {"database",           "\xF3\xB0\x86\xBC"},  // F01BC database
     {"debug_step_over",    "\xF3\xB0\x86\xB7"},  // F01B7 debug-step-over (skip objects)
     {"delete",             "\xF3\xB0\x86\xB4"},  // F01B4 delete/trash
-    {"dots_circle",        "\xF3\xB1\xA5\xB8"},  // F1978 dots-circle
     {"dots_vertical",      "\xF3\xB0\x87\x99"},  // F01D9 dots-vertical/advanced
     {"download",           "\xF3\xB0\x87\x9A"},  // F01DA download
     {"eject",              "\xF3\xB0\x87\xAA"},  // F01EA eject (lane eject)

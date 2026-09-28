@@ -2086,6 +2086,7 @@
   <translation tag="Preset" it="Preset"/>
   <translation tag="Preset ID: {}" it="ID preset: {}"/>
   <translation tag="Presets" it="Preset"/>
+  <translation tag="Presets come from the WLED device. Edit them in the WLED app." it="I preset provengono dal dispositivo WLED. Modificali nell&apos;app WLED."/>
   <translation tag="Press Abort to stop" it="Premi Interrompi per fermare"/>
   <translation tag="Press Scan to search" it="Premi Scansiona per cercare"/>
   <translation tag="Pressure Adv." it="Pressure Adv."/>

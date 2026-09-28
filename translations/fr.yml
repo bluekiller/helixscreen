@@ -2334,6 +2334,7 @@ translations:
   Preset: Préréglage
   'Preset ID: {}': 'ID du préréglage : {}'
   Presets: Préréglages
+  Presets come from the WLED device. Edit them in the WLED app.: "Les préréglages viennent de l'appareil WLED. Modifiez-les dans l'app WLED."
   Press Abort to stop: Appuyez sur Abandonner pour arrêter
   Press Scan to search: Appuyez sur Scanner pour rechercher
   'Pressure:': 'Pression :'

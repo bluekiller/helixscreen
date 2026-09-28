@@ -100,9 +100,13 @@
                 style_border_color="#text_muted" scrollable="false" clickable="false" hidden="true">
           <bind_flag_if_not_eq subject="$light_subject" flag="hidden" ref_value="0"/>
         </lv_obj>
-        <icon src="dots_circle" size="xs" variant="muted" hidden="true">
+        <!-- Unknown: the off ring, dimmed, so all three states share one size. -->
+        <lv_obj width="#tab_dot_size"
+                height="#tab_dot_size" style_radius="9999" style_bg_opa="0" style_border_width="#tab_dot_ring_width"
+                style_border_color="#text_muted" style_border_opa="#tab_dot_unknown_opacity" scrollable="false"
+                clickable="false" hidden="true">
           <bind_flag_if_not_eq subject="$light_subject" flag="hidden" ref_value="2"/>
-        </icon>
+        </lv_obj>
       </lv_obj>
       <text_body name="tab_label" width="content" bind_text="$label_subject" hidden="$hide_label">
         <bind_style_if_not_eq name="$label_idle_style" subject="$active_subject" ref_value="$active_value"/>

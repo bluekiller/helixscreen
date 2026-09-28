@@ -2086,6 +2086,7 @@
   <translation tag="Preset" ru="Пресет"/>
   <translation tag="Preset ID: {}" ru="ID пресета: {}"/>
   <translation tag="Presets" ru="Пресеты"/>
+  <translation tag="Presets come from the WLED device. Edit them in the WLED app." ru="Пресеты берутся с устройства WLED. Изменяйте их в приложении WLED."/>
   <translation tag="Press Abort to stop" ru="Нажмите «Прервать», чтобы остановить"/>
   <translation tag="Press Scan to search" ru="Нажмите «Поиск» для сканирования"/>
   <translation tag="Pressure Adv." ru="Pressure Adv."/>

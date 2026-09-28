@@ -186,6 +186,7 @@ const TokenEntry k_token_table[] = {
     {"px", "tab_dot_ring_width_small", "2"},
     {"px", "tab_dot_ring_width_medium", "2"},
     {"px", "tab_dot_ring_width_large", "2"},
+    {"px", "tab_dot_unknown_opacity", "90"},
     {"px", "border_radius_sm", "4"},
     {"px", "space_xxs_tiny", "1"},
     {"px", "space_xxs_small", "2"},

@@ -2163,6 +2163,7 @@ translations:
   Preset: 预设
   'Preset ID: {}': '预设 ID: {}'
   Presets: 预设
+  Presets come from the WLED device. Edit them in the WLED app.: 预设来自 WLED 设备。请在 WLED 应用中编辑。
   Press Abort to stop: 按中止以停止
   Press Scan to search: 按扫描搜索
   'Pressure:': '压力:'

@@ -31,6 +31,7 @@
     <px name="tab_dot_ring_width_small" value="2"/>
     <px name="tab_dot_ring_width_medium" value="2"/>
     <px name="tab_dot_ring_width_large" value="2"/>
+    <px name="tab_dot_unknown_opacity" value="90"/>
     <px name="border_radius_sm" value="4"/>
 
     <!-- Unified Responsive Spacing System (space_*)                         -->

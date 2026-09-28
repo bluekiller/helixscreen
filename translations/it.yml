@@ -2318,6 +2318,7 @@ translations:
   Preset: Preset
   'Preset ID: {}': 'ID preset: {}'
   Presets: Preset
+  Presets come from the WLED device. Edit them in the WLED app.: "I preset provengono dal dispositivo WLED. Modificali nell'app WLED."
   Press Abort to stop: Premi Interrompi per fermare
   Press Scan to search: Premi Scansiona per cercare
   'Pressure:': 'Pressione:'

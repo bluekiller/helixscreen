@@ -2086,6 +2086,7 @@
   <translation tag="Preset" ja="プリセット"/>
   <translation tag="Preset ID: {}" ja="プリセット ID: {}"/>
   <translation tag="Presets" ja="プリセット"/>
+  <translation tag="Presets come from the WLED device. Edit them in the WLED app." ja="プリセットはWLEDデバイスから取得されます。WLEDアプリで編集してください。"/>
   <translation tag="Press Abort to stop" ja="中止するには「中止」を押してください"/>
   <translation tag="Press Scan to search" ja="スキャンを押して検索"/>
   <translation tag="Pressure Adv." ja="Pressure Adv."/>
