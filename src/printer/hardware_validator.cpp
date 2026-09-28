@@ -43,13 +43,8 @@ std::string json_string_member(const json& obj, const char* key) {
     return it->get<std::string>();
 }
 
-/// The configured LED strips, in precedence order: the live key LedController
-/// persists (leds/selected_strips), then the legacy keys (leds/selected array,
-/// leds/strip single string). Empty when no LED is configured. Both validators
-/// ask this one question through here — a configured LED must read as
-/// configured whichever key it was saved under.
 /// Whether a configured strip id is something printer.objects can report.
-/// leds/selected_strips spans every LED backend: macro devices are synthetic
+/// A configured strip list spans every LED backend: macro devices are synthetic
 /// "macro:NAME" ids and WLED strips are served over Moonraker's HTTP proxy, so
 /// neither ever appears in a Klipper object list. Only a Klipper-object strip can
 /// be judged present or absent against discovery.
@@ -60,6 +55,11 @@ bool led_strip_is_klipper_object(const std::string& strip_id) {
     return strip_id.rfind("wled ", 0) != 0;
 }
 
+/// The configured LED strips, in precedence order: leds/auto_state/strips, then
+/// the legacy selection keys an older config may still hold (leds/selected_strips,
+/// leds/selected array, leds/strip single string). Empty when no LED is
+/// configured. Both validators ask this one question through here — a configured
+/// LED must read as configured whichever key it was saved under.
 std::vector<std::string> configured_led_strips(Config* config) {
     std::vector<std::string> strips;
     if (config == nullptr) {

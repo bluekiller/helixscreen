@@ -838,23 +838,23 @@ TEST_CASE_METHOD(
     LedControllerFixture,
     "LedController: a legacy selection naming a missing strip is not the chamber light",
     "[led][controller]") {
-    // An AD5M preset names "led chamber_light"; Zmod firmware calls it "chamber_LED".
+    // A preset's LED name the firmware does not have. No discovered strip uses a
+    // chamber-light spelling, so only the fallback decides the chamber light.
     auto* cfg = Config::get_instance();
     REQUIRE(cfg != nullptr);
-    cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array({"led chamber_light"}));
+    cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array({"neopixel ghost"}));
 
     auto& ctrl = helix::led::LedController::instance();
     ctrl.deinit();
     ctrl.init(nullptr, nullptr);
 
-    // Discover hardware with a DIFFERENT LED name (Zmod uses "chamber_LED")
     helix::PrinterDiscovery discovery;
-    nlohmann::json objects = nlohmann::json::array({"led chamber_LED", "extruder"});
+    nlohmann::json objects = nlohmann::json::array({"neopixel sb_leds", "extruder"});
     discovery.parse_objects(objects);
     ctrl.discover_from_hardware(discovery);
 
-    REQUIRE(ctrl.chamber_light() == "led chamber_LED");
-    REQUIRE(ctrl.light_targets("") == std::vector<std::string>{"led chamber_LED"});
+    REQUIRE(ctrl.chamber_light() == "neopixel sb_leds");
+    REQUIRE(ctrl.light_targets("") == std::vector<std::string>{"neopixel sb_leds"});
 
     ctrl.deinit();
 }
@@ -2258,4 +2258,57 @@ TEST_CASE_METHOD(LedControllerFixture,
     CHECK_FALSE(helix::led::find_strip(ctrl.native().strips(), "led status")->supports_color);
 
     ctrl.deinit();
+}
+
+TEST_CASE_METHOD(LedMockApiFixture,
+                 "LedController: set_power off stops only the effects targeting those devices",
+                 "[led][controller][effects]") {
+    setup_controller_with_strip();
+    auto& ctrl = helix::led::LedController::instance();
+    helix::led::LedStripInfo sb;
+    sb.name = "SB";
+    sb.id = "neopixel sb";
+    sb.backend = helix::led::LedBackendType::NATIVE;
+    sb.supports_color = true;
+    ctrl.native().add_strip(sb);
+    for (const auto& [name, target] :
+         {std::pair<std::string, std::string>{"led_effect chamber_glow", kChamber},
+          std::pair<std::string, std::string>{"led_effect sb_glow", "neopixel sb"}}) {
+        helix::led::LedEffectInfo effect;
+        effect.name = name;
+        effect.target_leds = {target};
+        ctrl.effects().add_effect(effect);
+    }
+    make_led_dispatch_real(state);
+    mock_client.clear_gcode_script_history();
+
+    ctrl.set_power({kChamber}, false);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    const auto& history = mock_client.gcode_script_history();
+    CHECK(history_mentions(history, "EFFECT=chamber_glow STOP=1"));
+    CHECK_FALSE(history_mentions(history, "sb_glow"));
+    CHECK_FALSE(history_mentions(history, "STOP_LED_EFFECTS"));
+    CHECK(ctrl.device_state(kChamber).power == helix::led::PowerState::Off);
+}
+
+TEST_CASE_METHOD(LedMockApiFixture,
+                 "LedController: set_power reaches native and WLED devices together",
+                 "[led][controller]") {
+    setup_controller_with_strip();
+    auto& ctrl = helix::led::LedController::instance();
+    helix::led::LedStripInfo wled_strip;
+    wled_strip.name = "Printer LED";
+    wled_strip.id = "wled_printer_led";
+    wled_strip.backend = helix::led::LedBackendType::WLED;
+    ctrl.wled().add_strip(wled_strip);
+    make_led_dispatch_real(state);
+    mock_client.clear_gcode_script_history();
+
+    ctrl.set_power({kChamber, "wled_printer_led"}, true);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    CHECK(count_set_led(mock_client.gcode_script_history()) == 1);
+    CHECK(chamber_on());
+    CHECK(ctrl.device_state("wled_printer_led").power == helix::led::PowerState::On);
 }

@@ -98,7 +98,6 @@ class SettingsPanel : public PanelBase {
     lv_obj_t* completion_alert_dropdown_ = nullptr;
     lv_obj_t* display_sleep_dropdown_ = nullptr;
     lv_obj_t* language_dropdown_ = nullptr;
-    // LED chip selection moved to LedSettingsOverlay
 
     // Restart prompt dialog
     lv_obj_t* restart_prompt_dialog_ = nullptr;

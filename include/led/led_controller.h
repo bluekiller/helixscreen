@@ -464,8 +464,9 @@ class LedController {
     /// thread and run @p on_done there.
     void refresh_wled_state(std::function<void()> on_done = nullptr);
 
-    /// The backend that owns @p strip_id; nullopt for an id no backend has
-    /// discovered, so nothing is ever sent to a device that is not there.
+    /// The backend that owns @p strip_id; nullopt for an id no backend owns, so
+    /// nothing is ever sent to a device that is not there. A "macro:" id is always
+    /// MACRO, even after its macro device is deleted.
     [[nodiscard]] std::optional<LedBackendType>
     backend_for_strip(const std::string& strip_id) const;
 

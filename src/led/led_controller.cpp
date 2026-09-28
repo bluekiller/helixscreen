@@ -1733,10 +1733,9 @@ void LedController::load_config() {
         return;
     }
 
-    // NOTE: the one-time fold of the legacy top-level /led block into the
-    // active printer's leds/ section lives in migrate_v19_to_v20() (config.cpp).
-    // It used to run here on every load_config(), and its get_json() probes
-    // re-created the /led orphan on every boot (#1129).
+    // The one-time fold of the legacy top-level /led block into the active
+    // printer's leds/ section lives in migrate_v19_to_v20() (config.cpp); probing
+    // /led from here would re-create it as an orphan on every boot (#1129).
 
     // The legacy selection, newest key first. Read for migrate_legacy_selection()
     // and never written back: the keys stay on disk as they were.
