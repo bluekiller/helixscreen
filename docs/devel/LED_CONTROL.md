@@ -24,7 +24,7 @@ LedControlOverlay (UI)         LedSettingsOverlay (UI)         LedWidget / LedCo
     │ device's capabilities          │ list, macro devices                │ (device, or All lights)
 ```
 
-`LedController` no longer owns "the selection." Every control acts on an explicit list of
+`LedController` owns no shared selection. Every control acts on an explicit list of
 device ids the caller supplies — the LEDs overlay's focused device, a light button's
 configured target, or Automatic LED Control's own list — never a single shared list that
 several features read at once. See [Config Persistence](#config-persistence) for where
@@ -375,9 +375,8 @@ The first hardware discovery that finds a saved `leds/selected_strips` but no sa
 | Every switchable device | `LIGHT_BUTTON_ALL` (`leds/light_button_pending`) | Every switchable device |
 | Anything else (a subset, or none of the above) | Nothing written — falls back to the chamber-light default | The old selection, unchanged |
 
-The third row is the one case that changes user-visible behavior: a selection that was
-neither "one device" nor "everything" used to drive the light button directly and now
-drives only Automatic LED Control. `stage_light_selection()` writes `auto_state/strips`
+The third row is the one case users notice: a partial selection carries over to Automatic
+LED Control only, and light buttons start on the chamber-light default. `stage_light_selection()` writes `auto_state/strips`
 unconditionally (so a re-run never mistakes a real empty selection for "not yet
 migrated") and the pending light-button value only when the plan produced one.
 
