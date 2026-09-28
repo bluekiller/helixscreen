@@ -472,6 +472,86 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         NavigationManager::instance().is_panel_in_stack(get_printer_manager_overlay().get_root()));
 }
 
+namespace {
+
+/// The home panel sets EVENT_BUBBLE on every descendant of a page so a long-press
+/// anywhere reaches grid edit mode; a chip tap must stay contained in it (#1397).
+void bubble_like_home_panel(lv_obj_t* obj) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
+        lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
+        lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
+        bubble_like_home_panel(child);
+    }
+}
+
+bool printer_manager_open() {
+    lv_obj_t* root = get_printer_manager_overlay().get_root();
+    return root && NavigationManager::instance().is_panel_in_stack(root);
+}
+
+void count_event_cb(lv_event_t* e) {
+    ++*static_cast<int*>(lv_event_get_user_data(e));
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a chip tap under the home panel's bubbling tree opens only its "
+                 "control",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    settle();
+    bubble_like_home_panel(h.root());
+
+    get_global_temp_graph_overlay().init_subjects();
+    lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
+    REQUIRE(mode);
+    lv_subject_set_int(mode, static_cast<int>(TempGraphOverlay::Mode::GraphOnly));
+    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_CLICKED, nullptr);
+    process_lvgl(30);
+    CHECK(lv_subject_get_int(mode) == static_cast<int>(TempGraphOverlay::Mode::Bed));
+    CHECK_FALSE(printer_manager_open());
+    destroy_printer_manager_overlay();
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a tap on the bare printer image still opens the printer manager",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    settle();
+    bubble_like_home_panel(h.root());
+
+    lv_obj_send_event(h.child("printer_image"), LV_EVENT_CLICKED, nullptr);
+    process_lvgl(30);
+    CHECK(printer_manager_open());
+    destroy_printer_manager_overlay();
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a long-press on a chip still bubbles to the home grid",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    settle();
+    bubble_like_home_panel(h.root());
+
+    int pressed = 0;
+    int long_pressed = 0;
+    lv_obj_add_event_cb(h.root(), count_event_cb, LV_EVENT_PRESSED, &pressed);
+    lv_obj_add_event_cb(h.root(), count_event_cb, LV_EVENT_LONG_PRESSED, &long_pressed);
+    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_PRESSED, nullptr);
+    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_LONG_PRESSED, nullptr);
+    CHECK(pressed == 1);
+    CHECK(long_pressed == 1);
+}
+
 // ---------------------------------------------------------------------------
 // Leader lines, bed glow, and the image moving aside
 // ---------------------------------------------------------------------------

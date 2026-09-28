@@ -657,6 +657,11 @@ void PrinterImageWidget::printer_manager_clicked_cb(lv_event_t* e) {
 }
 
 void PrinterImageWidget::route_callout_click(lv_event_t* e, CalloutKind kind) {
+    // The home panel makes every descendant bubble, so an unstopped chip tap also
+    // reaches printer_container and opens Printer Manager over the chip's control.
+    // Only CLICKED stops here; PRESSED and LONG_PRESSED still reach grid edit mode.
+    lv_event_stop_bubbling(e);
+
     // chip -> callout_layer -> printer_container, whose user_data attach() set.
     auto* chip = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
     lv_obj_t* layer = chip ? lv_obj_get_parent(chip) : nullptr;
