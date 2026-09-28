@@ -433,6 +433,10 @@ static double srgb_contrast_ratio(lv_color_t a, lv_color_t b) {
     return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
 }
 
+double helix::contrast_ratio(lv_color_t a, lv_color_t b) {
+    return srgb_contrast_ratio(a, b);
+}
+
 lv_color_t theme_manager_get_readable_on(lv_color_t fill) {
     const double lum = srgb_relative_luminance(fill);
     // Contrast against white is (1.05 / (lum + 0.05)); against black it is

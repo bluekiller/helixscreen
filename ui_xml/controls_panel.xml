@@ -509,6 +509,7 @@
                 <icon name="light_icon"
                       src="lightbulb_outline" size="sm" variant="muted" clickable="false" event_bubble="true"/>
                 <text_small text="Light" translation_tag="Light" clickable="false" event_bubble="true"/>
+                <event_cb trigger="clicked" callback="light_toggle_cb"/>
               </ui_button>
             </lv_obj>
             <ui_button name="btn_macro_2"
@@ -533,6 +534,7 @@
                 <icon name="light_icon"
                       src="lightbulb_outline" size="sm" variant="muted" clickable="false" event_bubble="true"/>
                 <text_small text="Light" translation_tag="Light" clickable="false" event_bubble="true"/>
+                <event_cb trigger="clicked" callback="light_toggle_cb"/>
               </ui_button>
             </lv_obj>
           </lv_obj>
@@ -561,6 +563,7 @@
                 <icon name="light_icon"
                       src="lightbulb_outline" size="sm" variant="muted" clickable="false" event_bubble="true"/>
                 <text_small text="Light" translation_tag="Light" clickable="false" event_bubble="true"/>
+                <event_cb trigger="clicked" callback="light_toggle_cb"/>
               </ui_button>
             </lv_obj>
             <ui_button name="btn_macro_4"
@@ -585,6 +588,7 @@
                 <icon name="light_icon"
                       src="lightbulb_outline" size="sm" variant="muted" clickable="false" event_bubble="true"/>
                 <text_small text="Light" translation_tag="Light" clickable="false" event_bubble="true"/>
+                <event_cb trigger="clicked" callback="light_toggle_cb"/>
               </ui_button>
             </lv_obj>
           </lv_obj>

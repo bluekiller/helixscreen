@@ -197,7 +197,6 @@ class SettingsPanel : public PanelBase {
     // === Event Handlers ===
     //
 
-    void handle_led_light_changed(bool enabled);
     void handle_led_settings_clicked();
     void handle_security_settings_clicked();
 #if HELIX_HAS_LABEL_PRINTER
@@ -251,7 +250,6 @@ class SettingsPanel : public PanelBase {
     // === XML Callbacks (public for global registration) ===
     // These are registered before settings_panel.xml is parsed [L013]
     //
-    static void on_led_light_changed(lv_event_t* e);
     static void on_led_settings_clicked(lv_event_t* e);
     static void on_timelapse_settings_clicked(lv_event_t* e);
     static void on_security_clicked(lv_event_t* e);

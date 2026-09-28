@@ -185,6 +185,7 @@ translations:
   All axes homed: 所有轴已归位
   All fields are required: 所有字段均为必填项
   All healthy: 一切正常
+  All lights: 全部灯光
   Allow: '允许'
   Allow Home Screen Editing: '允许编辑主屏幕'
   Allow cold load/unload: 允许冷态加载/卸载
@@ -219,6 +220,7 @@ translations:
   App Background: 应用背景
   App startup encountered an error. Some features may be unavailable.: 应用程序启动时遇到错误。某些功能可能不可用。
   Appearance: 外观
+  Applies to: 适用于
   Apply: 应用
   Apply Changes: 应用更改
   Applying Changes: 正在应用更改
@@ -680,6 +682,7 @@ translations:
   Controlled by hardware sensor: 由硬件传感器控制
   Controller: 控制器
   Controls: 控制
+  Cool: 冷色
   Cool Down: 冷却
   Cool nozzle after filament ops: 耗材操作后冷却喷嘴
   Cooling: 冷却中
@@ -1560,13 +1563,11 @@ translations:
   LED Controls: 'LED 控制'
   LED Light: 'LED 灯'
   LED Mode: 'LED 模式'
-  LED SELECTION: LED 选择
   LED Settings: LED 设置
   LED Strip: LED 灯带
   LED on at Start: 启动时开启 LED
   LED strip available for lighting control: LED 灯带可用于照明控制
   LEDs: LED
-  LEDs controlled by the light button: 由灯光按钮控制的 LED
   LOAD CELLS: '称重传感器'
   LOADED: 已加载
   LOCKED: 已锁定
@@ -1602,12 +1603,14 @@ translations:
   Length of the cooling tube section: '冷却管段的长度'
   'Length:': 长度：
   Let's take a quick tour so you can find things fast.: 让我们快速浏览一下，帮助您快速找到所需内容。
+  Level: 级别
   Leveling Gantry...: 正在调平龙门...
   Library: 库
   Lifetime Print Stats: 累计打印统计
   Light: 浅色
   Light Mode: 浅色模式
   Light will switch when the current operation finishes: 灯光将在当前操作完成后切换
+  Lights that follow the printer's state: 跟随打印机状态变化的灯光
   Line the nozzle up with the purge chute so purged filament drops straight in.: 将喷嘴对准排料口上方，使排出的料丝垂直落入。
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: '第 {} 行调用 {}，此打印机将其视为紧急停止。请使用为此打印机制作的配置重新切片该文件。'
@@ -1846,6 +1849,7 @@ translations:
   Network forgotten: 已忘记网络
   Network name cannot be empty: 网络名称不能为空
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 网络、显示、声音、打印机设置等。您可以随时从“帮助与关于”中重播此漫游。
+  Neutral: 中性
   Never: 从不
   Never sleeps: 从不休眠
   New Spool: 新料盘
@@ -1870,6 +1874,7 @@ translations:
     LED 宏。请先添加用于 LED 控制的 Klipper 宏。
   No LED macros detected. Type a macro name below.: 未检测到 LED 宏。请在下方输入宏名称。
   No LED strips detected: '未检测到 LED 灯带'
+  No LEDs found: 未找到 LED
   No Macros Found: 未找到宏
   No Multi-Filament System connected: 未连接多耗材系统
   No Multi-Filament System connected.: 未连接多耗材系统。
@@ -2177,6 +2182,7 @@ translations:
   Preset: 预设
   'Preset ID: {}': '预设 ID: {}'
   Presets: 预设
+  Presets come from the WLED device. Edit them in the WLED app.: 预设来自 WLED 设备。请在 WLED 应用中编辑。
   Press Abort to stop: 按中止以停止
   Press Scan to search: 按扫描搜索
   'Pressure:': '压力:'
@@ -3086,6 +3092,7 @@ translations:
   This AFC system does not support bypass mode: '此 AFC 系统不支持旁通模式'
   This CFS firmware exposes no external spool slot: '此 CFS 固件没有外部料盘槽位'
   This Happy Hare system does not support bypass mode: '此 Happy Hare 系统不支持旁通模式'
+  This button controls: 此按钮控制
   This calibration uses the paper friction method to set your Z-offset.: 此校准使用纸张摩擦法设置
     Z 偏移。
   This cannot be undone.: 此操作无法撤销。
@@ -3237,7 +3244,7 @@ translations:
   Turn On LEDs: '打开 LED'
   Turn endless spool on, then set the backup gate: '请先开启无限料盘，再设置备用通道'
   Turn off detection: 关闭检测
-  Turn on LEDs when printer starts: 打印机启动时开启 LED
+  Turn on the lights your light buttons control: 开启灯光按钮所控制的灯光
   Turn the extruder heater off after a load or unload finishes: 加载或卸载完成后关闭挤出机加热器
   Turn the picture to match how the screen is mounted. Applies after restart.: 旋转画面以匹配屏幕的安装方向。重启后生效。
   Turn the printer's lights on or off: 开启或关闭打印机灯光
@@ -3368,7 +3375,6 @@ translations:
   Volume of filament used during ramming: '填充过程中使用的耗材体积'
   Volume {}%: 音量 {}%
   WIDTH SENSORS: 宽度传感器
-  WLED: WLED
   WLED Preset: WLED 预设
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3383,6 +3389,7 @@ translations:
   Waiting for another box to finish.: 正在等待另一个料盒完成。
   Waiting for bed to reach temperature for accurate calibration.: 等待热床达到温度以进行精确校准。
   Waiting for the filament system to report its state: 正在等待耗材系统报告状态
+  Warm: 暖色
   Warm Bed: 预热热床
   Warm up for a material in one tap: 一键为材料预热
   Warming Bed...: 正在预热热床...
