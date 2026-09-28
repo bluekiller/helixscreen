@@ -39,6 +39,8 @@ system problems, most of them on Happy Hare and the Snapmaker U1.
   automatically on the first start. Going back to 1.0 or beta.1 loses them, because
   those builds read them from `settings.json`, so note them down first if you might go
   back.
+- **AD5X and K1 series: touch works again.** beta.1 did not respond to touch at all on
+  these printers; update over SSH or the web interface if the screen is unusable.
 - **"Home printer first?" is gone.** A filament load or unload on an unhomed printer
   homes and carries on, without asking.
 
@@ -140,6 +142,9 @@ system problems, most of them on Happy Hare and the Snapmaker U1.
 
 **Crashes**
 
+- **AD5X, K1, K1C and K1 Max: the touchscreen did not respond** - beta.1's build for these
+  printers read touch events in the wrong size, so every tap was lost. Touch works as in
+  1.0 again, and a barcode scanner on USB is read correctly too.
 - **K2: the screen crashed and restarted during print start** - matching the printer's
   start-sequence messages could run out of the small stack these printers give each
   thread, with no crash report. K1, AD5X and Creator 5 Pro builds had the same limit.
