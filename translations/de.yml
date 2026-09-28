@@ -196,6 +196,7 @@ translations:
   All Devices: Alle Geräte
   All axes homed: Alle Achsen referenziert
   All fields are required: Alle Felder sind erforderlich
+  All lights: Alle Leuchten
   Allow: 'Zulassen'
   Allow Home Screen Editing: 'Bearbeiten des Startbildschirms zulassen'
   Allow cold load/unload: Kaltes Laden/Entladen erlauben
@@ -3301,6 +3302,7 @@ translations:
   This AFC system does not support bypass mode: 'Dieses AFC-System unterstützt den Bypass-Modus nicht'
   This CFS firmware exposes no external spool slot: 'Diese CFS-Firmware bietet keinen externen Spulen-Slot'
   This Happy Hare system does not support bypass mode: 'Dieses Happy-Hare-System unterstützt den Bypass-Modus nicht'
+  This button controls: Diese Taste steuert
   This calibration uses the paper friction method to set your Z-offset.: Diese Kalibrierung
     verwendet die Papierreibungsmethode zur Einstellung Ihres Z-Offsets.
   This cannot be undone.: Dies kann nicht rückgängig gemacht werden.

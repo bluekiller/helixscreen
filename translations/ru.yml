@@ -191,6 +191,7 @@ translations:
   All Devices: Все устройства
   All axes homed: Все оси запаркованы
   All fields are required: Все поля обязательны для заполнения
+  All lights: Вся подсветка
   Allow: 'Разрешить'
   Allow Home Screen Editing: 'Разрешить редактирование главного экрана'
   Allow cold load/unload: Разрешить загрузку/выгрузку без нагрева
@@ -3259,6 +3260,7 @@ translations:
   This AFC system does not support bypass mode: 'Эта система AFC не поддерживает режим обхода'
   This CFS firmware exposes no external spool slot: 'Эта прошивка CFS не предоставляет слот для внешней катушки'
   This Happy Hare system does not support bypass mode: 'Эта система Happy Hare не поддерживает режим обхода'
+  This button controls: Эта кнопка управляет
   This calibration uses the paper friction method to set your Z-offset.: Эта калибровка
     использует метод трения бумаги об сопло для установки Z-смещения.
   This cannot be undone.: Это действие нельзя отменить.

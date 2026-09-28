@@ -182,6 +182,7 @@
   <translation tag="All Devices" zh="所有设备"/>
   <translation tag="All axes homed" zh="所有轴已归位"/>
   <translation tag="All fields are required" zh="所有字段均为必填项"/>
+  <translation tag="All lights" zh="全部灯光"/>
   <translation tag="Allow" zh="允许"/>
   <translation tag="Allow Home Screen Editing" zh="允许编辑主屏幕"/>
   <translation tag="Allow cold load/unload" zh="允许冷态加载/卸载"/>
@@ -2928,6 +2929,7 @@
   <translation tag="This AFC system does not support bypass mode" zh="此 AFC 系统不支持旁通模式"/>
   <translation tag="This CFS firmware exposes no external spool slot" zh="此 CFS 固件没有外部料盘槽位"/>
   <translation tag="This Happy Hare system does not support bypass mode" zh="此 Happy Hare 系统不支持旁通模式"/>
+  <translation tag="This button controls" zh="此按钮控制"/>
   <translation tag="This calibration uses the paper friction method to set your Z-offset." zh="此校准使用纸张摩擦法设置 Z 偏移。"/>
   <translation tag="This cannot be undone." zh="此操作无法撤销。"/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." zh="此通道提供 v{}，早于已安装的 v{}。此后新增的内容都将被移除。"/>

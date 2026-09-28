@@ -98,3 +98,18 @@ TEST_CASE_METHOD(HelixTestFixture,
     auto pc2 = load_panel("t_lb_nobuttons", nlohmann::json::array({entry("led", true)}));
     CHECK(home_light_button_keys(pc2, "") == std::vector<std::string>{""});
 }
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "adopt_pending_light_button: two placed buttons, only the unset one adopts",
+                 "[led][light_button]") {
+    auto* cfg = Config::get_instance();
+    nlohmann::json second = entry("led:1", true, {{"led", "neopixel b"}});
+    second["col"] = 2;
+    auto pc = load_panel("t_lb_two", nlohmann::json::array({entry("led", true), second}));
+    CHECK(home_light_button_keys(pc, "all") == std::vector<std::string>{"all", "neopixel b"});
+
+    cfg->set(cfg->df() + led::LIGHT_BUTTON_PENDING_PATH, std::string("neopixel a"));
+    CHECK(adopt_pending_light_button(*cfg, pc));
+    CHECK(pc.get_widget_config("led")["led"] == "neopixel a");
+    CHECK(pc.get_widget_config("led:1")["led"] == "neopixel b");
+}
