@@ -37,6 +37,8 @@ Joining Wi-Fi while Ethernet is connected shows a warning first that the wired c
 
 Opens **Manage Printers**, the list of every printer this screen knows about.
 
+![Manage Printers](../../../images/user/settings-printers.png)
+
 - **Switch printers**: tap a printer in the list. HelixScreen disconnects from the current printer, connects to the new one, confirms with a message and takes you to the Home screen.
 - **Add a printer**: tap **+ Add Printer**. The setup wizard runs for the new printer, skipping the Wi-Fi and language steps you already did. You can cancel at any time and go back to your current printer.
 - **Delete a printer**: tap the trash icon next to a printer you aren't using and confirm. You can't delete the last printer.

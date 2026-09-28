@@ -3,6 +3,8 @@
 // Catch2 test runner main file
 // This file compiles the Catch2 implementation once
 #define CATCH_CONFIG_MAIN
+#include "helix_test_fixture.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -110,9 +112,18 @@ namespace {
 
 /// Remove the sandbox once the run is over. Only the teardown lives in a
 /// listener — by testRunEnded the ordering hazard above is long past.
+///
+/// Every case also starts from HelixTestFixture's baseline, not only the ones
+/// that derive from it: CI shards run in random order, so a plain-fixture or
+/// fixture-less case would otherwise inherit whatever the case before it left in
+/// the process-wide singletons and the shared config sandbox.
 class CacheSandboxListener : public Catch::EventListenerBase {
   public:
     using Catch::EventListenerBase::EventListenerBase;
+
+    void testCaseStarting(Catch::TestCaseInfo const&) override {
+        HelixTestFixture::reset_all();
+    }
 
     void testRunEnded(Catch::TestRunStats const&) override {
         // Best-effort: a leftover sandbox is litter, never a test failure.

@@ -55,6 +55,7 @@ PANELS=(
     "settings-sound-2:sound-2"
     "settings-printing:printing"
     "settings-printing-2:printing-2"
+    "settings-printing-3:printing-3"
     "settings-devices:devices"
     "settings-devices-2:devices-2"
     "settings-hardware-health:hardware-health"

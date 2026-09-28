@@ -4,6 +4,8 @@
 
 ![Touch & Input settings, top of the page](../../../images/user/settings-touch-input.png)
 
+![Touch & Input settings, scrolled to the bottom](../../../images/user/settings-touch-input-2.png)
+
 ---
 
 ## Touch Calibration
@@ -59,7 +61,11 @@ Turn it off if edit mode keeps opening by accident. Turn it back on when you wan
 
 ## Scroll Guard
 
-Meant to ignore the stray tap some touch panels send when you lift your finger after scrolling. **This switch currently has no effect.** If scrolling sets off taps, lower [Scroll Engage Distance](#scroll-engage-distance) instead.
+Ignores the stray tap some touch panels send when you lift your finger after scrolling. For a short moment after each scroll (80 ms by default), a new press doesn't count as a tap. Turn it on if finishing a scroll sometimes presses whatever was under your finger. **Off** by default; the FlashForge AD5M and AD5X presets turn it on. Most Raspberry Pi screens don't need it.
+
+Takes effect after a restart. HelixScreen offers to restart when you change it. It only works on printers with a built-in touchscreen; on the desktop simulator and on Android the switch does nothing.
+
+> Still getting stray taps with Scroll Guard on? Some panels need a longer pause. See [Accidental Button Presses After Scrolling](../../TROUBLESHOOTING.md#accidental-button-presses-after-scrolling) to lengthen it with `scroll_guard_cooldown_ms`. For taps that fire *while* you're still scrolling, lower [Scroll Engage Distance](#scroll-engage-distance) instead.
 
 ---
 

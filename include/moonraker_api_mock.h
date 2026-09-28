@@ -5,6 +5,7 @@
 
 #include "moonraker_api.h"
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -478,7 +479,17 @@ class MoonrakerRestAPIMock : public MoonrakerRestAPI {
         get_responses_[endpoint] = std::move(response);
     }
 
+    /// Hold every wled_get_strips answer until mock_release_wled_strips(), so a
+    /// test can order WLED's reply against other startup events.
+    void mock_hold_wled_strips() {
+        hold_wled_strips_ = true;
+    }
+    void mock_release_wled_strips();
+
   private:
+    bool hold_wled_strips_ = false;
+    std::vector<std::function<void()>> held_wled_strips_;
+
     /// Mock WLED strip on/off states (strip_id -> is_on)
     std::map<std::string, bool> mock_wled_states_;
     /// Mock WLED active presets (strip_id -> preset_id, -1 = none)

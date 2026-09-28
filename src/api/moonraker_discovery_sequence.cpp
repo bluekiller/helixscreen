@@ -855,9 +855,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                 helix::ui::queue_update([cfg_copy]() {
                                     auto& led_ctrl = helix::led::LedController::instance();
                                     if (led_ctrl.is_initialized()) {
-                                        led_ctrl.update_effect_targets(cfg_copy);
-                                        led_ctrl.update_output_pin_config(cfg_copy);
-                                        led_ctrl.update_led_pin_config(cfg_copy);
+                                        led_ctrl.apply_configfile(cfg_copy);
                                     }
                                 });
                             }

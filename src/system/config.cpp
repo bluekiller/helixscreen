@@ -3,7 +3,7 @@
 
 #include "config.h"
 
-#include "audio_settings_manager.h" // CompletionAlertMode
+#include "completion_alert_mode.h"
 
 #if !defined(HELIX_SPLASH_ONLY) && !defined(HELIX_WATCHDOG)
 #include "system/telemetry_manager.h"
