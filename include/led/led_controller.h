@@ -606,15 +606,14 @@ class LedController {
     /// case that really is a fresh start.
     bool startup_preference_applied_ = false;
 
-    /// RGBW (0.0-1.0) values computed from saved last_color_/last_white for a
-    /// "turn on at given brightness" operation. Applies a safety floor: if
-    /// saved state has no color at all (RGB==0 && white==0), returns full
-    /// white. If brightness_pct is 0 but saved color is nonzero, treats
-    /// effective brightness as 100% to preserve user intent.
+    /// RGBW (0.0-1.0) channel levels for turning @p device on at a brightness:
+    /// the saved look as fit_look() fits it to the device (a look that lights
+    /// nothing is white), scaled. A brightness of 0 restores at 100%.
     struct ScaledColor {
         double r, g, b, w;
     };
-    [[nodiscard]] ScaledColor compute_scaled_last_color(int brightness_pct) const;
+    [[nodiscard]] ScaledColor compute_scaled_last_color(int brightness_pct,
+                                                        const LedStripInfo& device) const;
 
     lv_subject_t led_config_version_{};    // Bumped on discover/config changes
     lv_subject_t led_controllable_{};      // 0/1: at least one switchable device exists

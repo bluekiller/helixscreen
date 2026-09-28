@@ -1993,28 +1993,14 @@ void LedController::save_config() {
     spdlog::debug("[LedController] Saved config");
 }
 
-LedController::ScaledColor LedController::compute_scaled_last_color(int brightness_pct) const {
-    const bool has_color = (last_color_.rgb != 0 || last_color_.white != 0.0);
-    if (!has_color) {
-        // Safety net: saved state would produce no visible light at all.
-        // Fall back to full white so "turn on" always produces light. Honor
-        // the requested brightness — a slider drag to 75% should still land at
-        // 75% white, not 100%. If brightness is zero here too, default to 100%.
-        const int effective = brightness_pct > 0 ? brightness_pct : 100;
-        const double scale = effective / 100.0;
-        spdlog::info("[LedController] compute_scaled_last_color: no saved color, using full white "
-                     "at {}%",
-                     effective);
-        return {scale, scale, scale, 0.0};
-    }
-    // Preserve saved color; if brightness is zero but we have color, treat as 100%
-    // so toggling on from a dimmed-to-zero state lights at full intensity rather
-    // than silently falling back to white.
-    const int effective = brightness_pct > 0 ? brightness_pct : 100;
-    const double scale = effective / 100.0;
+LedController::ScaledColor
+LedController::compute_scaled_last_color(int brightness_pct, const LedStripInfo& device) const {
+    // A zero brightness with a saved look restores at full intensity.
+    const double scale = (brightness_pct > 0 ? brightness_pct : 100) / 100.0;
+    const Look look = fit_look(last_color_.rgb, last_color_.white, device);
     double r = 0.0, g = 0.0, b = 0.0;
-    unpack_rgb(last_color_.rgb, r, g, b);
-    return {r * scale, g * scale, b * scale, last_color_.white * scale};
+    unpack_rgb(look.rgb, r, g, b);
+    return {r * scale, g * scale, b * scale, look.w * scale};
 }
 
 void LedController::set_power(const std::vector<std::string>& ids, bool on) {
@@ -2098,9 +2084,8 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
         switch (*backend_type) {
         case LedBackendType::NATIVE:
             if (on) {
-                // Shared helper handles the no-saved-color safety floor and the
-                // brightness==0-but-color-nonzero restore-at-100% semantics.
-                auto c = compute_scaled_last_color(last_brightness_);
+                auto c = compute_scaled_last_color(last_brightness_,
+                                                   *find_strip(native_.strips(), strip_id));
                 auto cbs = make_settle();
                 native_.set_color(strip_id, c.r, c.g, c.b, c.w, cbs.done, cbs.fail, cbs.queued);
             } else {
@@ -2440,12 +2425,11 @@ void LedController::set_brightness(const std::vector<std::string>& ids, int brig
         set_power(ids, false);
         return;
     }
-    // Use shared helper so slider drags honor the same safety floor and
-    // RGBW white-channel preservation as set_power(ids, true).
-    auto c = compute_scaled_last_color(brightness_pct);
     for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
         if (backend_type == LedBackendType::NATIVE) {
+            const auto c =
+                compute_scaled_last_color(brightness_pct, *find_strip(native_.strips(), strip_id));
             native_.set_color(strip_id, c.r, c.g, c.b, c.w);
         } else if (backend_type == LedBackendType::OUTPUT_PIN) {
             output_pin_.set_brightness(strip_id, brightness_pct);

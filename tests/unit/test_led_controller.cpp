@@ -2389,3 +2389,42 @@ TEST_CASE_METHOD(LedControllerFixture,
     CHECK(page("dotstar star").white == helix::led::WhiteMode::Mixed);
     ctrl.deinit();
 }
+
+TEST_CASE_METHOD(LedMockApiFixture,
+                 "LedController: power-on and brightness fit the last look to each device",
+                 "[led][controller]") {
+    setup_controller_with_strip(); // RGB, no W channel
+    auto& ctrl = helix::led::LedController::instance();
+    helix::led::LedStripInfo lamp;
+    lamp.name = "Lamp";
+    lamp.id = "led lamp";
+    lamp.backend = helix::led::LedBackendType::NATIVE;
+    lamp.supports_color = false;
+    lamp.supports_white = true;
+    ctrl.native().add_strip(lamp);
+
+    // A W-only look lights an RGB strip white.
+    ctrl.set_last_color(0);
+    ctrl.set_last_white(1.0);
+    ctrl.set_last_brightness(100);
+    ctrl.set_power({kChamber}, true);
+    auto c = ctrl.native().get_strip_color(kChamber);
+    CHECK(c.r == Catch::Approx(1.0).margin(0.01));
+    CHECK(c.g == Catch::Approx(1.0).margin(0.01));
+    CHECK(c.b == Catch::Approx(1.0).margin(0.01));
+    CHECK(c.w == Catch::Approx(0.0).margin(0.001));
+
+    ctrl.set_brightness({kChamber}, 50);
+    c = ctrl.native().get_strip_color(kChamber);
+    CHECK(c.r == Catch::Approx(0.5).margin(0.01));
+    CHECK(c.w == Catch::Approx(0.0).margin(0.001));
+
+    // A colored look on a single-channel strip is its brightness on W.
+    ctrl.set_last_color(0xFF0000);
+    ctrl.set_last_white(0.0);
+    ctrl.set_last_brightness(60);
+    ctrl.set_power({"led lamp"}, true);
+    c = ctrl.native().get_strip_color("led lamp");
+    CHECK(c.r == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.w == Catch::Approx(0.6).margin(0.01));
+}
