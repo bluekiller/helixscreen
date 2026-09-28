@@ -541,21 +541,16 @@ static void destroy_gpu_blur() {
 static bool gpu_blur(uint8_t* data, int width, int height) {
     if (s_gpu.init_failed)
         return false;
+    if (!s_gpu.initialized && !init_gpu_blur()) {
+        s_gpu.init_failed = true;
+        return false;
+    }
 
-    // Save before init: init_gpu_blur() binds and then releases its own context, which
-    // unbinds the caller's (LVGL's display context on the EGL backend). Losing it fails
-    // every later eglSwapBuffers and freezes the screen.
+    // Save and restore previous EGL context
     auto saved_display = eglGetCurrentDisplay();
     auto saved_context = eglGetCurrentContext();
     auto saved_draw = eglGetCurrentSurface(EGL_DRAW);
     auto saved_read = eglGetCurrentSurface(EGL_READ);
-
-    if (!s_gpu.initialized && !init_gpu_blur()) {
-        s_gpu.init_failed = true;
-        if (saved_context != EGL_NO_CONTEXT)
-            eglMakeCurrent(saved_display, saved_draw, saved_read, saved_context);
-        return false;
-    }
 
     if (saved_context != EGL_NO_CONTEXT) {
         eglMakeCurrent(saved_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

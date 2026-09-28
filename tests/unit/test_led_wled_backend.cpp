@@ -5,7 +5,6 @@
 #include "../helix_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "led/led_controller.h"
-#include "light_button_config.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
@@ -468,7 +467,6 @@ struct WledMockFixture : public HelixTestFixture {
     }
 
     ~WledMockFixture() override {
-        helix::led::LedController::instance().set_on_wled_settled(nullptr);
         helix::led::LedController::instance().deinit();
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     }
@@ -524,64 +522,4 @@ TEST_CASE_METHOD(WledMockFixture, "LedController: WLED discovery uses real strip
     std::sort(ids.begin(), ids.end());
     REQUIRE(ids[0] == "enclosure_led");
     REQUIRE(ids[1] == "printer_led");
-}
-
-TEST_CASE_METHOD(WledMockFixture,
-                 "LedController: a WLED-only printer becomes controllable when its strips arrive",
-                 "[led][wled][discovery]") {
-    auto& ctrl = helix::led::LedController::instance();
-    ctrl.deinit();
-    ctrl.init(mock_api.get(), &mock_client);
-    REQUIRE(ctrl.all_devices().empty());
-    REQUIRE(lv_subject_get_int(ctrl.get_led_controllable_subject()) == 0);
-
-    ctrl.discover_wled_strips();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-
-    CHECK(lv_subject_get_int(ctrl.get_led_controllable_subject()) == 1);
-}
-
-TEST_CASE_METHOD(WledMockFixture,
-                 "LedController: LED on at Start lights a WLED-only printer once, when its "
-                 "strips arrive",
-                 "[led][wled][startup]") {
-    auto& ctrl = helix::led::LedController::instance();
-    ctrl.deinit();
-    ctrl.init(mock_api.get(), &mock_client);
-    ctrl.set_led_on_at_start(true);
-    ctrl.set_on_wled_settled(helix::settle_light_buttons); // as Application wires it
-
-    // Discovery completes before WLED answers: nothing to light yet.
-    helix::settle_light_buttons();
-    REQUIRE(ctrl.chamber_light().empty());
-
-    ctrl.discover_wled_strips();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    const std::string light = ctrl.chamber_light();
-    REQUIRE_FALSE(light.empty());
-    CHECK(ctrl.device_state(light).power == helix::led::PowerState::On);
-
-    // The user switches it off; a later discovery (a Klipper restart) leaves it off.
-    ctrl.set_power({light}, false);
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    REQUIRE(ctrl.device_state(light).power == helix::led::PowerState::Off);
-    ctrl.discover_wled_strips();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    helix::settle_light_buttons();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    CHECK(ctrl.device_state(light).power == helix::led::PowerState::Off);
-}
-
-TEST_CASE_METHOD(WledMockFixture, "LedController: WLED strips arriving notify the app's listener",
-                 "[led][wled][discovery]") {
-    auto& ctrl = helix::led::LedController::instance();
-    ctrl.deinit();
-    ctrl.init(mock_api.get(), &mock_client);
-    int settled = 0;
-    ctrl.set_on_wled_settled([&settled]() { ++settled; });
-
-    ctrl.discover_wled_strips();
-    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    CHECK(settled == 1);
-    CHECK_FALSE(ctrl.wled().strips().empty());
 }

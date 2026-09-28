@@ -16,6 +16,7 @@
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
+#include "device_display_name.h"
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -392,7 +393,26 @@ void LedSettingsOverlay::populate_macro_devices_impl() {
 
         // --- Macro summary line (shown when NOT editing) ---
         if (!is_editing) {
-            const std::string summary = helix::led::macro_device_note(macro);
+            std::string summary;
+            switch (macro.type) {
+            case helix::led::MacroLedType::ON_OFF:
+                summary = fmt::format(lv_tr("ON: {} | OFF: {}"),
+                                      macro.on_macro.empty() ? "—" : macro.on_macro,
+                                      macro.off_macro.empty() ? "—" : macro.off_macro);
+                break;
+            case helix::led::MacroLedType::TOGGLE:
+                summary = fmt::format(lv_tr("TOGGLE: {}"),
+                                      macro.toggle_macro.empty() ? "—" : macro.toggle_macro);
+                break;
+            case helix::led::MacroLedType::PRESET:
+                if (macro.presets.empty()) {
+                    summary = lv_tr("No presets configured");
+                } else {
+                    summary = fmt::format(lv_tr("{} preset{}"), macro.presets.size(),
+                                          macro.presets.size() == 1 ? "" : "s");
+                }
+                break;
+            }
 
             auto* summary_label = lv_label_create(card);
             lv_label_set_text(summary_label, summary.c_str());
@@ -869,15 +889,13 @@ void LedSettingsOverlay::handle_delete_macro_device(int index) {
     updated.erase(updated.begin() + index);
     ctrl.set_configured_macros(updated);
 
-    // Drop the deleted macro from Automatic LED Control's targets.
+    // Remove deleted macro from selected strips to prevent stale entries
     std::string macro_strip_id = "macro:" + deleted_name;
-    auto& auto_state = helix::led::LedAutoState::instance();
-    auto strips = auto_state.strips();
+    auto strips = ctrl.selected_strips();
     auto it = std::find(strips.begin(), strips.end(), macro_strip_id);
     if (it != strips.end()) {
         strips.erase(it);
-        auto_state.set_strips(strips);
-        auto_state.save_config();
+        ctrl.set_selected_strips(strips);
     }
 
     ctrl.save_config();
@@ -1037,48 +1055,62 @@ void LedSettingsOverlay::populate_led_chips_impl() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_auto_state_strips");
-    if (!row)
+    lv_obj_t* led_chip_row = lv_obj_find_by_name(overlay_root_, "row_led_select");
+    if (!led_chip_row)
         return;
 
-    lv_obj_t* chip_container = lv_obj_find_by_name(row, "chip_container");
+    lv_obj_t* chip_container = lv_obj_find_by_name(led_chip_row, "chip_container");
     if (!chip_container || !lv_obj_is_valid(chip_container)) {
-        spdlog::warn("[{}] Applies-to chip row found but chip_container invalid/missing",
-                     get_name());
+        spdlog::warn("[{}] LED chip row found but chip_container invalid/missing", get_name());
         return;
     }
 
     helix::ui::safe_clean_children(chip_container);
 
-    // Chip list spans all backends (native + WLED + macros); selection is
-    // Automatic LED Control's current targets.
+    // Source LED list from all backends (native + WLED + macros)
     auto& led_ctrl = helix::led::LedController::instance();
-    const auto targets = helix::led::LedAutoState::instance().targets();
-
-    size_t selected_count = 0;
+    discovered_leds_.clear();
     for (const auto& strip : led_ctrl.all_selectable_strips()) {
-        bool selected = std::find(targets.begin(), targets.end(), strip.id) != targets.end();
-        selected_count += selected ? 1 : 0;
-        std::string display_name = helix::led::device_display_name(strip);
+        discovered_leds_.push_back(strip.id);
+    }
+
+    // Load selected LEDs from LedController
+    selected_leds_.clear();
+    for (const auto& strip_id : led_ctrl.selected_strips()) {
+        selected_leds_.insert(strip_id);
+    }
+
+    // Create chips for each discovered LED
+    for (const auto& led : discovered_leds_) {
+        bool selected = selected_leds_.count(led) > 0;
+        std::string display_name = helix::get_display_name(led, helix::DeviceType::LED);
 
         helix::ui::create_led_chip(
-            chip_container, strip.id, display_name, selected,
+            chip_container, led, display_name, selected,
             [this](const std::string& led_name) { handle_led_chip_clicked(led_name); });
     }
 
-    spdlog::debug("[{}] Applies-to chips populated ({} selected)", get_name(), selected_count);
+    spdlog::debug("[{}] LED chips populated ({} LEDs, {} selected)", get_name(),
+                  discovered_leds_.size(), selected_leds_.size());
 }
 
 void LedSettingsOverlay::handle_led_chip_clicked(const std::string& led_name) {
-    auto& as = helix::led::LedAutoState::instance();
-    // The saved list, not targets(): a strip not discovered yet stays selected.
-    as.set_strips(
-        helix::led::toggle_target(as.strips().empty() ? as.targets() : as.strips(), led_name));
-    as.save_config();
-    as.evaluate();
+    // Toggle selection
+    if (selected_leds_.count(led_name) > 0) {
+        selected_leds_.erase(led_name);
+        spdlog::info("[{}] LED deselected: {}", get_name(), led_name);
+    } else {
+        selected_leds_.insert(led_name);
+        spdlog::info("[{}] LED selected: {}", get_name(), led_name);
+    }
 
+    // Save via LedController
+    std::vector<std::string> strips_vec(selected_leds_.begin(), selected_leds_.end());
+    helix::led::LedController::instance().set_selected_strips(strips_vec);
+    helix::led::LedController::instance().save_config();
+
+    // Rebuild chips to update visual state
     populate_led_chips();
-    populate_auto_state_rows();
 }
 
 // ============================================================================
@@ -1172,23 +1204,19 @@ void LedSettingsOverlay::populate_auto_state_rows() {
     action_type_options_.push_back("brightness");
 
     auto& ctrl = helix::led::LedController::instance();
-    const auto targets = auto_state.targets();
     bool has_color = false;
-    bool has_wled = false;
-    for (const auto& strip_id : targets) {
+    for (const auto& strip_id : ctrl.selected_strips()) {
         const auto* s = helix::led::find_strip(ctrl.native().strips(), strip_id);
         if (s != nullptr && s->supports_color) {
             has_color = true;
-        }
-        if (ctrl.backend_for_strip(strip_id) == helix::led::LedBackendType::WLED) {
-            has_wled = true;
+            break;
         }
     }
     if (has_color)
         action_type_options_.push_back("color");
     if (ctrl.effects().is_available())
         action_type_options_.push_back("effect");
-    if (has_wled)
+    if (ctrl.wled().is_available())
         action_type_options_.push_back("wled_preset");
     if (ctrl.macro().is_available())
         action_type_options_.push_back("macro");

@@ -32,10 +32,11 @@ namespace {
 ///   theme token to nothing across the entire UI. (Scope teardown itself is now
 ///   safe — `lv_xml_component_unregister` skips borrowed subjects instead of
 ///   free()ing C++ storage — but the constants are not recoverable.)
-/// - color_picker: register_xml_components() pushes breakpoint-computed
-///   constants into its scope after registration. A fresh registration would
-///   resolve those tokens to nothing.
-constexpr const char* NON_RELOADABLE_COMPONENTS[] = {"globals", "color_picker"};
+/// - color_picker / color_swatch_grid: register_xml_components() pushes
+///   breakpoint-computed constants into their scopes after registration. A
+///   fresh registration would resolve those tokens to nothing.
+constexpr const char* NON_RELOADABLE_COMPONENTS[] = {"globals", "color_picker",
+                                                     "color_swatch_grid"};
 
 bool is_non_reloadable(const std::string& component) {
     for (const auto* name : NON_RELOADABLE_COMPONENTS) {

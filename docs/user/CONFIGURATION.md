@@ -653,7 +653,7 @@ Matches LVGL's native default of 10.
 ### `scroll_guard`
 **Type:** boolean
 **Default:** `false` (`true` in the AD5M and AD5X presets)
-**Description:** Ignore the stray click some touch controllers send when you lift your finger at the end of a scroll: a press that starts within `scroll_guard_cooldown_ms` (default 80 ms, range 20 to 500) of a scroll does not count as a click. Shown as the **Scroll Guard** toggle under **Settings > Touch & Input**. The AD5M and AD5X presets set it to `true`. Takes effect after a restart. Applies only to built-in touchscreens (DRM/fbdev); the desktop (SDL) and Android builds ignore it. `HELIX_SCROLL_GUARD` and `HELIX_SCROLL_GUARD_COOLDOWN_MS` override the saved values. For clicks that fire while you are still scrolling, the setting that helps is `scroll_limit` (see [Touch Feel](TROUBLESHOOTING.md#touch-feel--which-setting-do-i-tune)).
+**Description:** Has no effect in current builds. The value is stored and appears as the **Scroll Guard** toggle under **Settings > Touch & Input**, and the AD5M and AD5X presets still set it to `true`, but nothing reads it. Keeping the key in an existing settings file is harmless. For clicks that fire while you are still scrolling, the setting that helps is `scroll_limit` (see [Touch Feel](TROUBLESHOOTING.md#touch-feel--which-setting-do-i-tune)); there is currently no setting that suppresses a click at the instant you lift off a scroll.
 
 ### `force_calibration`
 **Type:** boolean
@@ -858,33 +858,28 @@ Located in the `printer` section:
 
 ## LED Settings
 
-Located in the `printer.leds` section. Startup and Automatic LED Control are configured via **Settings > Devices > LED Settings**; which light each Home Panel Light button controls is set from that button's own gear icon in Edit Mode (see [Panel Widget Settings](#panel-widget-settings) below and [Home Panel > LED Controls](guide/home-panel.md#led-controls)).
+Located in the `printer.leds` section. Configured via **Settings > Devices > LED Settings**.
 
 ### `leds.strip`
 **Type:** string
 **Default:** `""` (empty)
-**Description:** A single LED strip name, from a version of HelixScreen that only supported one strip at all. Like `leds.selected_strips` below, it is legacy — folded into that key on load and otherwise unused.
+**Description:** A single LED strip name, empty when there are no controllable LEDs. Use `leds.selected_strips` instead — it is the one that handles more than one strip.
 
 ### `leds.selected_strips`
 **Type:** array of strings
 **Default:** `[]`
-**Description:** A legacy key. It used to be the list of lights every light button, Automatic LED Control, and LED on at Start all shared. It is read once, the first time HelixScreen finds your lights with no `leds.auto_state.strips` saved yet, to give each of those now-separate settings a starting point. Automatic LED Control starts on the lights you had selected. Your Home Panel Light buttons start on that light if you had selected one, on **All lights** if you had selected every light, and on the chamber light otherwise. Nothing reads this key as "the lights HelixScreen controls" any more; editing it by hand does nothing.
-
-### `leds.light_button_pending`
-**Type:** string
-**Default:** absent
-**Description:** Written once by the migration above (or by the first-run wizard's LED step) and consumed the first time a Home Panel Light button with no light of its own picks one up. You should not need to set this by hand — it clears itself once a button has adopted it.
+**Description:** Klipper LED strip IDs to control (e.g., `["neopixel caselight", "dotstar toolhead"]`). Supports neopixel, dotstar, led, and WLED strips. Configured via **Settings > Devices > LED Settings**.
 
 ### `leds.led_on_at_start`
 **Type:** boolean
 **Default:** `false`
-**Description:** Automatically turn on your lights when Klipper becomes ready — every light your Home Panel Light buttons control, or the chamber light if you haven't placed one. A WLED strip gets up to 5 seconds to answer before HelixScreen falls back to the chamber light. A copy of this key under `output` is also honoured if you have one; `printer.leds` is where HelixScreen writes it.
+**Description:** Automatically turn on selected LED strips when Klipper becomes ready. Useful for chamber lights that should always be on. A copy of this key under `output` is also honoured if you have one; `printer.leds` is where HelixScreen writes it.
 
 ### `leds.startup_brightness`
 **Type:** integer
 **Default:** `80`
 **Range:** `0` - `100`
-**Description:** Brightness the lights come up at when `leds.led_on_at_start` switches them on. Independent of `leds.last_brightness`, so the lights can start at a fixed level regardless of where you left the slider.
+**Description:** Brightness the strips come up at when `leds.led_on_at_start` switches them on. Independent of `leds.last_brightness`, so the lights can start at a fixed level regardless of where you left the slider.
 
 ### `leds.last_color`
 **Type:** string (or integer)
@@ -904,13 +899,12 @@ Located in the `printer.leds` section. Startup and Automatic LED Control are con
 
 ### `leds.auto_state`
 **Type:** object
-**Description:** Automatic state-based LED lighting configuration. When enabled, the lights in `strips` change automatically based on printer state — its own list, independent of what any Home Panel Light button controls.
+**Description:** Automatic state-based LED lighting configuration. When enabled, LEDs change automatically based on printer state.
 
 ```json
 {
   "auto_state": {
     "enabled": false,
-    "strips": ["neopixel toolhead_leds"],
     "mappings": {
       "idle": { "action": "brightness", "brightness": 50, "color": "#000000" },
       "heating": { "action": "color", "color": "#FF0000", "brightness": 100 },
@@ -924,7 +918,6 @@ Located in the `printer.leds` section. Startup and Automatic LED Control are con
 ```
 
 - `enabled` — Boolean, enable/disable automatic state-based lighting
-- `strips` — Array of light ids Automatic LED Control acts on (the "Applies to" row in Settings)
 - `mappings` — Object mapping printer state keys (`idle`, `heating`, `printing`, `paused`, `error`, `complete`) to actions
 - Each mapping has an `action` type: `"off"`, `"brightness"`, `"color"`, `"effect"`, `"wled_preset"`, or `"macro"`
 - Additional fields depend on the action: `brightness` (0-100), `color` (`#RRGGBB` hex string, or a plain integer RGB), `effect_name` (string), `wled_preset` (integer), `macro` (string)
@@ -932,7 +925,7 @@ Located in the `printer.leds` section. Startup and Automatic LED Control are con
 ### `leds.macro_devices`
 **Type:** array of objects
 **Default:** `[]`
-**Description:** Custom LED macro devices, each shown as its own tab in the LEDs overlay. Each device object:
+**Description:** Custom LED macro devices shown as cards in the LED control overlay. Each device object:
 
 ```json
 {
@@ -1322,7 +1315,6 @@ Each widget object has:
 | `source`, `danger_threshold` | `clog_detection` | Detection source and danger-zone percentage |
 | `source` | `filament` | Which sensor role the tile follows: `"auto"` (default), `"runout"`, `"toolhead"`, or `"entry"` |
 | `material_index` | `preheat` | Which material profile the buttons preheat to |
-| `led` | `led` | Which light this button controls: a light id (e.g. `"neopixel chamber_light"`), `"all"` for every light, or omitted for the chamber light |
 
 `require_confirmation` is the one worth spelling out: omitted (the default) means tapping the button prompts first - a parameter form when the macro takes parameters, otherwise the Settings > Safety & Alerts confirmation dialog. `false` runs the macro on a single tap with no parameters and no dialog. Dangerous macros confirm regardless. Set it from the widget's **Options** tab; see [Macro Button confirmation](guide/home-panel.md#macro-button-confirmation).
 
@@ -1374,7 +1366,7 @@ For what each widget does and how big it can get, see the [Home Panel guide](gui
 | `firmware_restart` | Firmware Restart | No | No |
 | `lock` | Lock Screen | No | No |
 
-`power_device`, `fan`, `thermistor`, `favorite_macro`, `temp_graph`, and `led` can appear more than once. Extra copies get an ID like `favorite_macro:2`.
+`power_device`, `fan`, `thermistor`, `favorite_macro`, and `temp_graph` can appear more than once. Extra copies get an ID like `favorite_macro:2`.
 
 **Notes:**
 - Widget grid positions (`col`, `row`, `colspan`, `rowspan`) determine where each widget appears on its page, in half cells

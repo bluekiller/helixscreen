@@ -67,6 +67,7 @@
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "input_settings_manager.h"
+#include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_manager.h"
 #include "page_scroll_auto_inject.h"
@@ -363,6 +364,7 @@ void SettingsPanel::init_subjects() {
         {"on_page_scroll_buttons_changed", on_page_scroll_buttons_changed},
 
         // Toggle switches
+        {"on_led_light_changed", on_led_light_changed},
         {"on_led_settings_clicked", on_led_settings_clicked},
         // Note: on_retraction_row_clicked is registered by RetractionSettingsOverlay
         {"on_security_clicked", on_security_clicked},
@@ -608,6 +610,13 @@ void SettingsPanel::populate_led_chips() {
 // ============================================================================
 // EVENT HANDLERS
 // ============================================================================
+
+void SettingsPanel::handle_led_light_changed(bool enabled) {
+    spdlog::info("[{}] LED light toggled: {}", get_name(), enabled ? "ON" : "OFF");
+    SettingsManager::instance().set_led_enabled(enabled);
+}
+
+// handle_led_chip_clicked moved to LedSettingsOverlay
 
 void SettingsPanel::handle_estop_confirm_changed(bool enabled) {
     spdlog::info("[{}] E-Stop confirmation toggled: {}", get_name(), enabled ? "ON" : "OFF");
@@ -1040,6 +1049,14 @@ void SettingsPanel::on_updates_clicked(lv_event_t* /*e*/) {
 // STATIC TRAMPOLINES (XML event_cb pattern - use global singleton)
 // ============================================================================
 
+void SettingsPanel::on_led_light_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_led_light_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    get_global_settings_panel().handle_led_light_changed(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 void SettingsPanel::on_estop_confirm_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_estop_confirm_changed");
     auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -1290,6 +1307,7 @@ void register_settings_panel_callbacks() {
 
     register_xml_callbacks({
         // Toggle callbacks used in settings_panel.xml
+        {"on_led_light_changed", SettingsPanel::on_led_light_changed},
         {"on_led_settings_clicked", SettingsPanel::on_led_settings_clicked},
         {"on_timelapse_settings_clicked", SettingsPanel::on_timelapse_settings_clicked},
         {"on_security_clicked", SettingsPanel::on_security_clicked},

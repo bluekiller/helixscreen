@@ -741,6 +741,7 @@ class PrintStatusPanel : public OverlayBase {
     /// Re-renders the Speed/Flow row in the units the speed/flow preference picks.
     void update_speed_flow_text();
     void on_gcode_z_offset_changed(int microns);
+    void on_led_state_changed(int state);
     void on_print_layer_changed(int current_layer);
     void on_print_duration_changed(int seconds);
     void on_print_time_left_changed(int seconds);
@@ -764,6 +765,7 @@ class PrintStatusPanel : public OverlayBase {
     ObserverGuard extruder_velocity_observer_;
     ObserverGuard physical_units_observer_;
     ObserverGuard gcode_z_offset_observer_;
+    ObserverGuard led_state_observer_;
     ObserverGuard print_layer_observer_;
     ObserverGuard z_position_observer_;
     ObserverGuard print_duration_observer_;

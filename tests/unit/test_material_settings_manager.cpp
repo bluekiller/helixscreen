@@ -28,17 +28,8 @@ using namespace helix;
 using namespace filament;
 
 // Fixture that resets MaterialSettingsManager singleton and its overlay between tests
-// Reset on entry as well as exit: any earlier case, in any file, can leave the
-// singleton initialized, and then this case's init() never reads its own data.
 struct MaterialSettingsFixture : LVGLTestFixture {
-    MaterialSettingsFixture() {
-        clean();
-    }
     ~MaterialSettingsFixture() override {
-        clean();
-    }
-
-    static void clean() {
         TestAccess::reset(MaterialSettingsManager::instance());
         std::error_code ec;
         std::filesystem::remove(

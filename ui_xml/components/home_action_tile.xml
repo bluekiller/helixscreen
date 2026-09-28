@@ -3,7 +3,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <component>
   <!--
-    One centred glyph over one label, filling its tile: the shape six home
+    One centred glyph over one label, filling its tile: the shape seven home
     widgets share.
 
     button_name and icon_name are props because C++ finds these by name
@@ -12,12 +12,11 @@
 
     disabled_cond takes a whole expression rather than a subject, because the
     call sites do not agree on how many reasons there are to be disabled:
-    shutdown and firmware_restart have none, the other home tiles and the
-    calibration tiles have one. One expression covers both shapes; "0 eq 1" is
-    the default because it can never be true, so a tile that passes nothing is
-    never disabled. label_hidden_cond is an expression for the same reason:
-    home tiles follow show_widget_labels, and a tile elsewhere can follow the
-    breakpoint or nothing.
+    shutdown has none, four have one, and led has two. One expression covers
+    all three shapes; "0 eq 1" is the default because it can never be true, so
+    a tile that passes nothing is never disabled. label_hidden_cond is an
+    expression for the same reason: home tiles follow show_widget_labels, and a
+    tile elsewhere can follow the breakpoint or nothing.
 
     icon_swap_subject shows alt_icon in place of icon while the subject is 0,
     for a tile whose glyph reports a state. Empty installs no binding, so

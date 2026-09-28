@@ -24,7 +24,6 @@
 #include "panel_widget_manager.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
-#include "standard_macros.h"
 #include "system_settings_manager.h"
 #include "temperature_sensor_manager.h"
 #include "test_helpers/ams_state_test_access.h"
@@ -173,13 +172,6 @@ const std::string& config_sandbox_dir() {
 void reset_config_singleton() {
     g_config_sandbox.apply();
 
-    // The rolling-backup tiers are shared by the whole process. A backup one
-    // case wrote would otherwise be what the next case's first-boot init()
-    // restores from, so every case starts with both tiers empty.
-    std::error_code backup_ec;
-    std::filesystem::remove_all(config_sandbox_dir() + "/state", backup_ec);
-    std::filesystem::remove_all(config_sandbox_dir() + "/backup", backup_ec);
-
     // ToolState persists tool_spools.json into helix::get_user_config_dir(),
     // which defaults to the RELATIVE dir "config" — i.e. the repo's own
     // config/ under the test binary's CWD. It really did write there during
@@ -301,8 +293,7 @@ void HelixTestFixture::reset_all() {
     {
         auto& ps = get_printer_state();
         if (ps.are_subjects_initialized() &&
-            (ps.get_print_lifecycle() != PrintState::Idle || ps.is_in_print_start() ||
-             ps.get_print_job_state() != helix::PrintJobState::STANDBY)) {
+            (ps.get_print_lifecycle() != PrintState::Idle || ps.is_in_print_start())) {
             ps.reset_print_start_state(); // deferred: drained below
             ps.update_from_status(nlohmann::json{{"print_stats", {{"state", "standby"}}}});
             helix::ui::UpdateQueue::instance().drain();
@@ -320,12 +311,6 @@ void HelixTestFixture::reset_all() {
     // derived fixture did, which is what the scattered clear_path() calls in
     // individual tests were working around.
     helix::test::reset_config_singleton();
-    // StandardMacros holds each slot's user-configured macro, and reset() keeps
-    // it on purpose, so a Load macro one test assigned outlives the config
-    // reset above and routes every later filament op to the macro tier.
-    // Re-read the slots from the now-empty config.
-    StandardMacros::instance().reset();
-    StandardMacros::instance().load_from_config();
     helix::SystemSettingsManager::instance().init_subjects();
     helix::SystemSettingsManager::instance().set_language("en");
 

@@ -142,7 +142,6 @@ translations:
   Abort already in progress: 中止がすでに進行中です
   Abort failed: 中止に失敗
   Aborting AFC operation...: AFC操作を中止中...
-  Aborting...: 中止中...
   About: バージョン情報
   Accel to Decel: 加速から減速
   Acceleration to deceleration limit (mm/s²): 加速から減速の制限値 (mm/s²)
@@ -187,7 +186,6 @@ translations:
   All axes homed: すべての軸がホーミング済み
   All fields are required: すべての項目が必須です
   All healthy: すべて正常
-  All lights: すべてのライト
   Allow: '許可'
   Allow Home Screen Editing: 'ホーム画面の編集を許可'
   Allow cold load/unload: コールド時の装填/取り出しを許可
@@ -222,7 +220,6 @@ translations:
   App Background: アプリ背景
   App startup encountered an error. Some features may be unavailable.: アプリの起動中にエラーが発生しました。一部の機能が利用できない場合があります。
   Appearance: 外観
-  Applies to: 適用対象
   Apply: 適用
   Apply Changes: 変更を適用
   Applying Changes: 変更を適用中
@@ -685,7 +682,6 @@ translations:
   Controlled by hardware sensor: ハードウェアセンサーで制御
   Controller: コントローラー
   Controls: コントロール
-  Cool: クール
   Cool Down: 冷却
   Cool nozzle after filament ops: フィラメント操作後にノズルを冷却
   Cooling: 冷却中
@@ -1569,11 +1565,13 @@ translations:
   LED Controls: 'LEDコントロール'
   LED Light: 'LEDライト'
   LED Mode: 'LEDモード'
+  LED SELECTION: LED選択
   LED Settings: LED設定
   LED Strip: LEDストリップ
   LED on at Start: 起動時LED点灯
   LED strip available for lighting control: 照明制御用の LED ストリップが利用可能です
   LEDs: LED
+  LEDs controlled by the light button: ライトボタンで制御される LED
   LOAD CELLS: 'ロードセル'
   LOADED: 装填済み
   LOCKED: ロック中
@@ -1610,14 +1608,12 @@ translations:
   Length of the cooling tube section: '冷却チューブ区間の長さ'
   'Length:': '長さ:'
   Let's take a quick tour so you can find things fast.: 機能をすぐに見つけられるよう、簡単なツアーを始めましょう。
-  Level: レベル
   Leveling Gantry...: ガントリーレベリング中...
   Library: ライブラリ
   Lifetime Print Stats: 累計印刷統計
   Light: ライト
   Light Mode: ライトモード
   Light will switch when the current operation finishes: 現在の操作が完了したらライトを切り替えます
-  Lights that follow the printer's state: プリンターの状態に応じて変わるライト
   Line the nozzle up with the purge chute so purged filament drops straight in.: パージシュートにノズルを合わせ、パージされたフィラメントがまっすぐ落ちるようにします。
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: '{} 行目で {} を実行します。このプリンターでは緊急停止とみなされます。このプリンター用のプロファイルでファイルを再スライスしてください。'
@@ -1856,7 +1852,6 @@ translations:
   Network forgotten: ネットワークを登録解除しました
   Network name cannot be empty: ネットワーク名は空にできません
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': ネットワーク、ディスプレイ、サウンド、プリンター設定など。このツアーは「ヘルプと情報」からいつでも再生できます。
-  Neutral: ニュートラル
   Never: なし
   Never sleeps: スリープしない
   New Spool: 新規スプール
@@ -1882,7 +1877,6 @@ translations:
     LED マクロが検出されませんでした。先に LED 制御用の Klipper マクロを追加してください。
   No LED macros detected. Type a macro name below.: LED マクロが検出されませんでした。下にマクロ名を入力してください。
   No LED strips detected: 'LEDストリップが検出されません'
-  No LEDs found: LEDが見つかりません
   No Macros Found: マクロが見つかりません
   No Multi-Filament System connected: マルチフィラメントシステムが接続されていません
   No Multi-Filament System connected.: マルチフィラメントシステムが接続されていません。
@@ -2191,7 +2185,6 @@ translations:
   Preset: プリセット
   'Preset ID: {}': 'プリセット ID: {}'
   Presets: プリセット
-  Presets come from the WLED device. Edit them in the WLED app.: プリセットはWLEDデバイスから取得されます。WLEDアプリで編集してください。
   Press Abort to stop: 中止するには「中止」を押してください
   Press Scan to search: スキャンを押して検索
   'Pressure:': '圧力:'
@@ -2411,7 +2404,6 @@ translations:
   Recover MMU state?: MMU の状態を復旧しますか？
   Recover State: '状態を回復'
   Recovering AFC system...: AFCシステムを復旧中...
-  Recovering...: 復旧中...
   Recovery failed: 復旧失敗
   'Recovery failed: ': '復旧に失敗しました: '
   'Recovery failed: {}': '復旧に失敗しました: {}'
@@ -3103,7 +3095,6 @@ translations:
   This AFC system does not support bypass mode: 'この AFC システムはバイパスモードに対応していません'
   This CFS firmware exposes no external spool slot: 'この CFS ファームウェアには外部スプール用スロットがありません'
   This Happy Hare system does not support bypass mode: 'この Happy Hare システムはバイパスモードに対応していません'
-  This button controls: このボタンの制御対象
   This calibration uses the paper friction method to set your Z-offset.: このキャリブレーションは紙の摩擦方式を使用して
     Z-offset を設定します。
   This cannot be undone.: この操作は元に戻せません。
@@ -3256,7 +3247,7 @@ translations:
   Turn On LEDs: 'LEDを点灯'
   Turn endless spool on, then set the backup gate: 'エンドレススプールを有効にしてから、バックアップゲートを設定してください'
   Turn off detection: 検出をオフにする
-  Turn on the lights your light buttons control: ライトボタンが操作するライトを点灯します
+  Turn on LEDs when printer starts: プリンター起動時に LED を点灯
   Turn the extruder heater off after a load or unload finishes: 装填または排出の完了後にエクストルーダーヒーターをオフにします
   Turn the picture to match how the screen is mounted. Applies after restart.: 画面の取り付け向きに合わせて表示を回転します。再起動後に適用されます。
   Turn the printer's lights on or off: プリンターのライトをオン/オフ
@@ -3387,6 +3378,7 @@ translations:
   Volume of filament used during ramming: 'ラミング時に使用するフィラメント量'
   Volume {}%: 音量 {}%
   WIDTH SENSORS: 幅センサー
+  WLED: WLED
   WLED Preset: WLED プリセット
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3401,7 +3393,6 @@ translations:
   Waiting for another box to finish.: 別のボックスの完了を待っています。
   Waiting for bed to reach temperature for accurate calibration.: 正確なキャリブレーションのためにベッド温度到達を待機中。
   Waiting for the filament system to report its state: フィラメントシステムの状態報告を待機中
-  Warm: ウォーム
   Warm Bed: ベッドを予熱
   Warm up for a material in one tap: 素材に合わせてワンタップで予熱
   Warming Bed...: ベッド予熱中...

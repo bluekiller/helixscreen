@@ -368,7 +368,7 @@ TEST_CASE("get_display_name() real-world examples", "[device_display_name][examp
         REQUIRE(get_display_name("fan_generic bed_fans", DeviceType::FAN) == "Bed Fans");
 
         // Voron-style LEDs - "sb_leds" contains "leds" so no suffix
-        REQUIRE(get_display_name("neopixel sb_leds", DeviceType::LED) == "Sb LEDs");
+        REQUIRE(get_display_name("neopixel sb_leds", DeviceType::LED) == "Sb Leds");
         REQUIRE(get_display_name("neopixel caselight", DeviceType::LED) == "Caselight LED");
 
         // Temperature sensors

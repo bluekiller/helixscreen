@@ -150,7 +150,6 @@ translations:
   Abort already in progress: Annulation déjà en cours
   Abort failed: Échec de l'annulation
   Aborting AFC operation...: Annulation de l'opération AFC...
-  Aborting...: Annulation...
   About: À propos
   Accel to Decel: Accél. à Décél.
   Acceleration to deceleration limit (mm/s²): Limite d'accélération à décélération
@@ -200,7 +199,6 @@ translations:
   All axes homed: Tous les axes référencés
   All fields are required: Tous les champs sont requis
   All healthy: Tout va bien
-  All lights: Toutes les lumières
   Allow: 'Autoriser'
   Allow Home Screen Editing: 'Autoriser la modification de l''écran d''accueil'
   Allow cold load/unload: Autoriser le chargement/déchargement à froid
@@ -245,7 +243,6 @@ translations:
     de l'application a rencontré une erreur. Certaines fonctionnalités peuvent être
     indisponibles.
   Appearance: Apparence
-  Applies to: S'applique à
   Apply: Appliquer
   Apply Changes: Appliquer les modifications
   Applying Changes: Application des modifications
@@ -759,7 +756,6 @@ translations:
   Controlled by hardware sensor: Contrôlé par capteur matériel
   Controller: Contrôleur
   Controls: Commandes
-  Cool: Froid
   Cool Down: Refroidir
   Cool nozzle after filament ops: Refroidir la buse après opérations filament
   Cooling: Refroidissement
@@ -1700,12 +1696,14 @@ translations:
   LED Controls: 'Commandes LED'
   LED Light: 'Éclairage LED'
   LED Mode: 'Mode LED'
+  LED SELECTION: SÉLECTION LED
   LED Settings: Paramètres LED
   LED Strip: Bandeau LED
   LED on at Start: LED allumée au démarrage
   LED strip available for lighting control: Bandeau LED disponible pour le contrôle
     de l'éclairage
   LEDs: LEDs
+  LEDs controlled by the light button: LEDs contrôlées par le bouton lumière
   LOAD CELLS: 'CELLULES DE CHARGE'
   LOADED: CHARGÉ
   LOCKED: VERROUILLÉ
@@ -1744,7 +1742,6 @@ translations:
   Length of the cooling tube section: 'Longueur de la section du tube de refroidissement'
   'Length:': 'Longueur :'
   Let's take a quick tour so you can find things fast.: Faisons une visite rapide pour que vous puissiez trouver vos marques rapidement.
-  Level: Niveau
   Leveling Gantry...: Nivellement du portique...
   Library: Bibliothèque
   Lifetime Print Stats: Statistiques d'impression totales
@@ -1752,7 +1749,6 @@ translations:
   Light Mode: Mode clair
   Light will switch when the current operation finishes: La lumière basculera dès
     que l'opération en cours sera terminée.
-  Lights that follow the printer's state: Lumières qui suivent l'état de l'imprimante
   Line the nozzle up with the purge chute so purged filament drops straight in.: Alignez la buse au-dessus de la goulotte de purge pour que le filament purgé tombe droit dedans.
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'La ligne {} appelle {}, que cette imprimante traite comme un arrêt d''urgence. Retranchez le fichier avec un profil conçu pour cette imprimante.'
@@ -2003,7 +1999,6 @@ translations:
   Network forgotten: Réseau oublié
   Network name cannot be empty: Le nom du réseau ne peut pas être vide
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Réseau, affichage, son, configuration de l''imprimante, et plus. Vous pouvez rejouer cette visite à tout moment depuis Aide et à propos.'
-  Neutral: Neutre
   Never: Jamais
   Never sleeps: Ne dort jamais
   New Spool: Nouvelle bobine
@@ -2030,7 +2025,6 @@ translations:
     le contrôle des LEDs.
   No LED macros detected. Type a macro name below.: Aucune macro LED détectée. Saisissez un nom de macro ci-dessous.
   No LED strips detected: 'Aucun ruban LED détecté'
-  No LEDs found: Aucune LED trouvée
   No Macros Found: Aucune macro trouvée
   No Multi-Filament System connected: Aucun système multi-filament connecté
   No Multi-Filament System connected.: Aucun système multi-filament connecté.
@@ -2353,7 +2347,6 @@ translations:
   Preset: Préréglage
   'Preset ID: {}': 'ID du préréglage : {}'
   Presets: Préréglages
-  Presets come from the WLED device. Edit them in the WLED app.: "Les préréglages viennent de l'appareil WLED. Modifiez-les dans l'app WLED."
   Press Abort to stop: Appuyez sur Abandonner pour arrêter
   Press Scan to search: Appuyez sur Scanner pour rechercher
   'Pressure:': 'Pression :'
@@ -2588,7 +2581,6 @@ translations:
   Recover MMU state?: Récupérer l'état du MMU ?
   Recover State: 'Récupérer l''état'
   Recovering AFC system...: Récupération du système AFC...
-  Recovering...: Récupération...
   Recovery failed: Échec de la récupération
   'Recovery failed: ': 'Échec de la récupération : '
   'Recovery failed: {}': 'Échec de la récupération : {}'
@@ -3358,7 +3350,6 @@ translations:
   This AFC system does not support bypass mode: 'Ce système AFC ne prend pas en charge le mode bypass'
   This CFS firmware exposes no external spool slot: 'Ce firmware CFS n''expose pas de slot pour bobine externe'
   This Happy Hare system does not support bypass mode: 'Ce système Happy Hare ne prend pas en charge le mode bypass'
-  This button controls: Ce bouton contrôle
   This calibration uses the paper friction method to set your Z-offset.: Cette calibration
     utilise la méthode de friction du papier pour définir votre Z-offset.
   This cannot be undone.: Cette action est irréversible.
@@ -3531,7 +3522,7 @@ translations:
   Turn On LEDs: 'Allumer les LED'
   Turn endless spool on, then set the backup gate: 'Activez la bobine infinie, puis définissez le Gate de secours'
   Turn off detection: Désactiver la détection
-  Turn on the lights your light buttons control: Allume les lumières que vos boutons lumière contrôlent
+  Turn on LEDs when printer starts: Allumer les LED au démarrage de l'imprimante
   Turn the extruder heater off after a load or unload finishes: Éteindre le chauffage de l'extrudeur après un chargement ou un déchargement
   Turn the picture to match how the screen is mounted. Applies after restart.: Fait pivoter l'image selon l'orientation de montage de l'écran. Prend effet après redémarrage.
   Turn the printer's lights on or off: Allumer ou éteindre les lumières
@@ -3669,6 +3660,7 @@ translations:
   Volume of filament used during ramming: 'Volume de filament utilisé pendant le bourrage'
   Volume {}%: Volume {}%
   WIDTH SENSORS: CAPTEURS DE LARGEUR
+  WLED: WLED
   WLED Preset: Préréglage WLED
   WPA/WPA2: 'WPA/WPA2'
   WPA3: 'WPA3'
@@ -3684,7 +3676,6 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: En attente que le
     plateau atteigne la température pour une calibration précise.
   Waiting for the filament system to report its state: En attente de l'état du système de filament
-  Warm: Chaud
   Warm Bed: Préchauffer le plateau
   Warm up for a material in one tap: Préchauffer pour un matériau en un appui
   Warming Bed...: Préchauffage du plateau...

@@ -17,8 +17,6 @@ Tap the **gear icon** in the navigation bar to open Settings. It's a single list
 
 **Printer** is about the printer the screen drives and the hardware around it.
 
-![The Settings screen, Printer group](../../images/user/settings-root-printer.png)
-
 | Page | What's in it |
 |------|--------------|
 | [Printing](settings/printing.md) | Machine limits, motion, retraction, enclosure, material temperatures, cold load and unload, cooling the nozzle after a filament change, timelapse, macro buttons |
@@ -27,8 +25,6 @@ Tap the **gear icon** in the navigation bar to open Settings. It's a single list
 | [Connection](settings/connection.md) | Wi-Fi and Ethernet, your printers, the Moonraker address |
 
 **HelixScreen** is about the app itself.
-
-![The Settings screen, HelixScreen group](../../images/user/settings-root-helixscreen.png)
 
 | Page | What's in it |
 |------|--------------|

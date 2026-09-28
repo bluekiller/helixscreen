@@ -816,6 +816,7 @@ TEST_CASE_METHOD(HotReloadFixture, "globals.xml is never reloaded", "[hot-reload
 TEST_CASE_METHOD(HotReloadFixture, "components with C++-injected constants are never reloaded",
                  "[hot-reload]") {
     create_xml("color_picker.xml", "<component><view/></component>");
+    create_sub_xml("color_swatch_grid.xml", "<component><view/></component>");
 
     std::vector<std::string> reloaded;
     helix::XmlHotReloader hr;
@@ -824,6 +825,8 @@ TEST_CASE_METHOD(HotReloadFixture, "components with C++-injected constants are n
     hr.start({temp_dir_.string()}, 10000);
 
     overwrite_xml(temp_dir_ / "color_picker.xml", "<component><view/><!--edited--></component>");
+    overwrite_xml(sub_dir_ / "color_swatch_grid.xml",
+                  "<component><view/><!--edited--></component>");
     hr.scan_and_reload();
     REQUIRE(reloaded.empty());
 

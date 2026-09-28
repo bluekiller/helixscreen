@@ -42,7 +42,6 @@
 #include "layout_manager.h"
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
-#include "light_button_config.h"
 #include "moonraker_manager.h"
 #include "page_scroll_auto_inject.h"
 #include "panel_factory.h"
@@ -2533,10 +2532,6 @@ bool show_demo_overlay(const std::string& name) {
         return true;
     }
 
-    if (name == "leds") {
-        return helix::open_led_control_overlay(screen) != nullptr;
-    }
-
     if (name == "runout-modal") {
         auto* modal = new RunoutGuidanceModal();
         modal->set_autofeed_capable(false);
@@ -2963,10 +2958,6 @@ void Application::setup_discovery_callbacks() {
     IMoonrakerAPI* api = m_moonraker->api();
 
     Application* app = this;
-
-    // On a WLED-only printer discovery-complete finds nothing to light; WLED's
-    // answer is LED on at Start's next chance, and the latch keeps it to one.
-    helix::led::LedController::instance().set_on_wled_settled(helix::settle_light_buttons);
 
     client->set_on_hardware_discovered([api, client, app](const helix::PrinterDiscovery& hardware) {
         // Copy hardware into a mutable snapshot on the BG thread so the
@@ -3682,7 +3673,8 @@ void Application::setup_discovery_callbacks() {
                 app->m_plugin_manager->on_moonraker_connected();
             }
 
-            helix::settle_light_buttons();
+            // Apply LED startup preference (turn on LED if user preference is enabled)
+            helix::led::LedController::instance().apply_startup_preference();
 
             // Start automatic update checks (15s initial delay, then every 24h)
             UpdateChecker::instance().start_auto_check();

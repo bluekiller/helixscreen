@@ -494,28 +494,6 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     REQUIRE(count_series_points_eq(controller->graph(), 2295) > 0);
 }
 
-// Bed and chamber series observe PrinterState's static subjects. When those die
-// first, lv_subject_deinit() has already freed each observer node, so the
-// controller's teardown must skip lv_observer_remove() rather than free it again.
-TEST_CASE_METHOD(TempGraphControllerFixture,
-                 "Controller destroyed after its bed and chamber subjects die is safe",
-                 "[controller][temp_graph_controller]") {
-    TempGraphControllerConfig cfg;
-    cfg.series = {
-        {"heater_bed", lv_color_hex(0x88C0D0), true},
-        {"heater_generic chamber", lv_color_hex(0xA3BE8C), true},
-    };
-
-    auto controller = std::make_unique<TempGraphController>(screen, cfg);
-    REQUIRE(controller->is_valid());
-
-    get_printer_state().deinit_subjects();
-    controller.reset();
-    get_printer_state().init_subjects(false);
-
-    REQUIRE(controller == nullptr);
-}
-
 TEST_CASE("sample_due puts every series on the same wall-clock slots", "[temp_graph_controller]") {
     constexpr int64_t slot = UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
     constexpr int64_t base = 1'000'000 * slot;

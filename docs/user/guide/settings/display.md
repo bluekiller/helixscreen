@@ -6,8 +6,6 @@ On the Settings screen, the **Display** row shows your brightness and sleep time
 
 ![Display settings, top of the page](../../../images/user/settings-display.png)
 
-![Display settings, scrolled to the screensaver rows](../../../images/user/settings-display-2.png)
-
 ---
 
 ## Screen Rotation

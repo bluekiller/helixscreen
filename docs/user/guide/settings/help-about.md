@@ -2,8 +2,6 @@
 
 **Settings > Help & About** is where to go when you need help: replay the welcome tour, send a debug bundle to support, or find the community and the docs. **About** at the bottom shows which versions you're running. Updates have their own page: see [Updates](updates.md).
 
-![Help & About settings](../../../images/user/settings-help-about.png)
-
 ---
 
 ## Replay Welcome Tour
@@ -72,8 +70,6 @@ Shows a QR code for these guides at **helixscreen.org/docs**.
 ## About
 
 Shows which versions of everything you're running. Tap **About** to open it.
-
-![About](../../../images/user/settings-about.png)
 
 | Row | What it shows |
 |-----|---------------|

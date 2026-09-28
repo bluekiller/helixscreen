@@ -99,23 +99,24 @@ zeus_modes() {
     export HELIX_ADVISOR_ZEUS_RUN="$TEST_DIR/zeus-run.sh"
 }
 
-@test "unit-sweep goes to zeus's sweep and says nothing about bats" {
-    zeus_modes sweep
+@test "with both modes, unit-sweep gets sweep and full-test-run gets full" {
+    zeus_modes sweep full
     advise "make unit-sweep"
     contains "zeus-run.sh sweep" "$(context)"
-    lacks "make test-shell" "$(context)"
+    lacks "zeus-run.sh full" "$(context)"
+    advise "make -j full-test-run"
+    contains "zeus-run.sh full" "$(context)"
+    lacks "zeus-run.sh sweep" "$(context)"
 }
 
-@test "full-test-run sends the C++ half to zeus and keeps bats on thelio" {
-    zeus_modes sweep
-    advise "make -j full-test-run"
-    contains "zeus-run.sh sweep" "$(context)"
-    contains "make test-shell" "$(context)"
-    lacks "zeus-run.sh full" "$(context)"
+@test "unit-sweep falls back to full when zeus-run has only full" {
+    zeus_modes full
+    advise "make unit-sweep"
+    contains "zeus-run.sh full" "$(context)"
 }
 
 @test "a sweep suggestion points at helix-claim resources" {
-    zeus_modes sweep
+    zeus_modes sweep full
     advise "make unit-sweep"
     contains "scripts/helix-claim resources" "$(context)"
 }
@@ -347,12 +348,6 @@ zeus_modes() {
 
 @test "every spelling of an oversized -j is flagged" {
     tight_share
-    # The advisor expands $(nproc) on the host, so pin it: a 4-core runner's
-    # -j$(nproc) sits under the share of 6 and would not be oversized there.
-    mkdir -p "$TEST_DIR/nproc-bin"
-    printf '#!/bin/sh\necho 32\n' > "$TEST_DIR/nproc-bin/nproc"
-    chmod +x "$TEST_DIR/nproc-bin/nproc"
-    PATH="$TEST_DIR/nproc-bin:$PATH"
     for c in 'make -j$(nproc)' 'make -j 32 test' 'make --jobs=32' 'make --jobs 32'; do
         advise "$c"
         contains "fair share, -j6" "$(context)" || fail "missed: $c"

@@ -722,11 +722,6 @@ lv_color_t theme_manager_get_contrast_color(lv_color_t bg_color);
  */
 lv_color_t theme_manager_get_readable_on(lv_color_t fill);
 
-namespace helix {
-/// WCAG contrast ratio between two colors (1.0 = identical, 21 = black on white).
-double contrast_ratio(lv_color_t a, lv_color_t b);
-} // namespace helix
-
 /// Contrast a text colour must reach on its fill: 4:1, between WCAG AA
 /// large-text (3:1) and AA body text (4.5:1). Around fill luminance 0.18 no
 /// colour at all reaches 4.5, and light text is capped below 4.5 on every fill

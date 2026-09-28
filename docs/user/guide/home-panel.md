@@ -217,7 +217,7 @@ The **Reset** button in the catalog header resets your whole dashboard — see [
 2. A **trash icon** appears at the widget's upper-right corner - tap it
 3. The widget is removed from your grid
 
-Removing a widget you can add only once keeps its settings, so adding it back from the Widget Catalog brings them back. A widget you can add more than once, like Fan, Macro Button, or LED Light, is added as a new copy each time, and removing a copy you added deletes that copy along with its settings.
+Removing a widget you can add only once keeps its settings, so adding it back from the Widget Catalog brings them back. A widget you can add more than once, like Fan or Macro Button, is added as a new copy each time, and removing a copy you added deletes that copy along with its settings.
 
 ![Widget selected with trash icon in upper-right corner](../../images/user/home-widget-trash.png)
 
@@ -328,8 +328,8 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **Motion** | One-tap shortcut to open the [Motion](motion.md) panel for jogging the toolhead and homing. | 1x1 | 0.5x1 | Full grid | Yes | — |
 | **Tool Switcher** | Quick tool switching for multi-tool printers (IDEX, toolchangers, multi-head). Shows the available tools and lets you switch the active tool with one tap. See [Tool Switcher Widget](#tool-switcher-widget) below. | 1x1 | 1x1 | 2x2 | Yes | Multi-tool printer |
 | **Power** | Toggle a Moonraker power device (PSU, lights, etc.) with one tap. You can add multiple instances, each bound to a different device. Shows the device name, state, and a customizable icon. | 1x1 | 1x1 | Full grid | Yes | Power devices |
-| **LED Light** | Turns one light on or off — pick which one, or **All lights**, from the gear icon in Edit Mode; defaults to the chamber light. At 2x1 or wider, an arrow next to the bulb opens full color, brightness, and effects for it in the LEDs overlay. You can add more than one, each controlling a different light. | 1x1 | 0.5x1 | Full grid | Yes | A light HelixScreen can switch |
-| **LED Controls** | One-tap shortcut to open the LEDs overlay directly, on whichever light you last looked at (or the chamber light). | 1x1 | 0.5x1 | Full grid | Yes | Any LED device |
+| **LED Light** | Quick on/off toggle for your printer's LEDs. Tapping it switches the lights on or off - nothing else. For color, brightness, and effects, use the **LED Controls** widget below. | 1x1 | 0.5x1 | Full grid | Yes | LEDs configured |
+| **LED Controls** | One-tap shortcut to open the LED color and brightness controls overlay directly. | 1x1 | 0.5x1 | Full grid | Yes | LEDs configured |
 
 ### System
 
@@ -363,8 +363,7 @@ Some widgets depend on specific hardware being detected by Klipper. If the hardw
 | AMS Status | AMS, AFC (Box Turtle), Happy Hare, ACE (Anycubic ACE Pro), or compatible MMU system |
 | Bypass | A filament system with a bypass — Creality CFS, FlashForge AD5X IFS, AFC (Box Turtle), or Happy Hare with `has_bypass` enabled |
 | Clog Detection | AMS, AFC, Happy Hare, or compatible MMU with clog/flow detection |
-| LED Light | A light HelixScreen can switch: a Klipper LED (neopixel, dotstar, led), a light `[output_pin]`, a WLED strip, or an On/Off or Toggle macro device |
-| LED Controls | Any of those, or a preset-only macro device |
+| LED Light / LED Controls | Any LED strip configured in Klipper (neopixel, dotstar, output_pin) |
 | Power | Moonraker power devices (PSU control, smart plugs) |
 | Filament Sensor | `[filament_switch_sensor]` or `[filament_motion_sensor]` in Klipper |
 | Humidity | `[temperature_sensor]` with humidity capability |
@@ -430,8 +429,8 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 | Filament Sensor | Opens a load/unload/purge dialog (idle or paused), a status-only dialog (printing), or the sensor's settings (sensor turned off) |
 | Width Sensor | — (display only) |
 | Clog Detection | Opens the Buffer Status detail modal |
-| LED Light | Toggles its light on or off; on a 2x1 or wider tile, the arrow opens the LEDs overlay for it |
-| LED Controls | Opens the LEDs overlay |
+| LED Light | Toggles the printer lights on or off |
+| LED Controls | Opens LED Control Overlay |
 | Macro Button | Runs the configured macro — asking for parameters or confirmation first, unless you turned that off ([details](#macro-button-confirmation)) |
 | Macros | Opens the Macros panel overlay |
 | G-code Console | Opens the G-code Console overlay |
@@ -744,44 +743,56 @@ The red **Emergency Stop** button in the top bar halts all printer motion immedi
 
 ## LED Controls
 
-Tap the **LED Controls** widget, or the arrow on a wider **LED Light** button, to open the **LEDs** overlay — one tab per light, each showing only the controls that light actually supports.
+Tap the **LED Controls** widget to open the LED Control Overlay — a full control panel for all your printer's lighting. What you see depends on your hardware. (The **LED Light** widget is a plain on/off toggle and does not open this overlay.)
 
-### Tabs
+### Strip Selector
 
-A tab per light runs along the top in a row that scrolls sideways once you have more than fit. Each tab carries a small dot: filled in that light's current color while it's on, hollow while it's off, or a dimmed ring for a light whose on/off state HelixScreen can't read (a macro-driven light). Tapping a tab only changes which light you're looking at — it never changes what a Home Panel Light button or Automatic LED Control targets.
+If you have more than one LED strip configured, a row of chips at the top lets you pick which strip to control. The overlay heading updates to show the selected strip name.
 
-![LEDs overlay — tabs across the top, power and brightness, white tones, color swatches](../../images/user/home-led-control.png)
+### Color & Brightness (Klipper Native LEDs)
 
-### Power & Brightness
+For neopixel, dotstar, and other Klipper-native strips:
 
-Most lights show a round power button above a tall brightness slider:
+- **Color presets**: 8 preset swatches — White, Warm White, Orange, Blue, Red, Green, Purple, Cyan
+- **Custom color**: Tap the custom color button to open an HSV color picker. Pick any color — HelixScreen automatically separates it into a base color and brightness level
+- **Brightness slider**: Adjust from 0-100%, independent of color selection
+- **Color swatch**: Shows the actual output color (base color adjusted by current brightness)
+- **Turn Off**: Stops any active effects and turns off the selected strip
 
-- **Power button** — fills with the light's current color while on, an outline while off. Tap to toggle. Turning a light off this way also stops any effect running on it.
-- **Brightness slider** — drag to set 0-100%; 0% turns the light off. The fill matches the light's current color, with the percentage shown inside it.
+![LED Control — strip selector, color presets, brightness slider, effects](../../images/user/home-led-control.png)
 
-A light with no brightness control (a plain on/off `[output_pin]`, or a macro Toggle device) shows just a centered button in that spot.
+### Output Pin Lights
 
-### White (Color-Capable Klipper LEDs)
+For `[output_pin]` lights (auto-detected by naming convention):
 
-RGBW and RGB lights show three fixed white swatches — **Cool**, **Neutral**, **Warm**. Tap one to set that white level: on an RGBW light it drives the dedicated white channel, on RGB it's mixed from the color channels. A neopixel counts as RGBW when its `color_order` includes a `W`. A ring shows which one (if any) matches the light's current look.
+- **PWM pins**: Brightness slider from 0-100%
+- **Non-PWM pins**: Simple on/off toggle
+- Color controls are hidden since output pins don't support color
 
-### Color
+### LED Effects
 
-Color-capable lights also show a row of preset color swatches, plus a rainbow **Custom** swatch at the end that opens the full color picker. A ring shows which preset matches the light's current color.
+If you have the [klipper-led_effect](https://github.com/julianschill/klipper-led_effect) plugin installed:
 
-### Effects & Presets
+- Effect cards appear for each available effect, filtered to the currently selected strip
+- The active effect is highlighted with an accent border
+- **Stop All Effects** button kills all running effects at once
+- Tap any effect card to activate it
 
-- **Klipper LED effects** ([klipper-led_effect](https://github.com/julianschill/klipper-led_effect)): the effects defined for that light appear as chips, plus a **None** chip that stops whichever one is running. Tap a chip to activate its effect.
-- **WLED presets**: the presets you've configured on that WLED device appear as chips — tap to activate. WLED lights get power and brightness here, but no color controls.
-- **Non-color Klipper lights and PWM output pins**: quick level chips (10/25/50/75/100%) appear instead, since there's nothing else to show.
+### WLED Controls
 
-### Macro-Driven Lights
+For WLED network-connected strips:
 
-A light backed by a Klipper macro can't show a power dot or button, because HelixScreen has no way to read whether it's actually on:
+- **On/Off toggle** to control the strip power
+- **Brightness slider** from 0-100%
+- **Preset buttons** for each WLED preset — fetched directly from your WLED device, with the active preset highlighted
 
-- **On/Off devices** (configured in [LED Settings](settings/led-settings.md#macro-devices)): separate **On** and **Off** buttons take the place of the slider
-- **Toggle devices**: a single **Toggle** button
-- **Preset devices**: named preset buttons fill the whole page
+### Macro Device Controls
+
+Custom macro devices you've configured in [LED Settings](settings/led-settings.md) appear with controls matching their type:
+
+- **On/Off devices**: Separate "Turn On" and "Turn Off" buttons
+- **Toggle devices**: A single "Toggle" button
+- **Preset devices**: Named buttons for each preset action
 
 ---
 
@@ -897,9 +908,9 @@ While the printer is working, small chips on the printer image show what each pa
 
 - **Nozzle, bed and chamber** - a temperature chip appears while the heater has a target, and stays, greyed, until a heater you turned off has cooled below 50°C. The chamber chip appears only on printers with a chamber heater.
 - **Part fan** - shows its speed while it is running.
-- **Light** - shows while your chamber light is on.
+- **Light** - shows while the light is on.
 
-Tap a heater chip for its temperature graph, the fan chip for the fan controls, or the light chip for the chamber light's page in the LEDs overlay.
+Tap a heater chip for its temperature graph, the fan chip for the fan controls, or the light chip for the light controls.
 
 On the most common printers the shipped pictures know where each part is, so each chip points at its part: beside the picture with a line to it on a wide tile, or on top of it on a small one. On other pictures, including your own photos, the chips sit along the edge of the picture until you tag its parts.
 

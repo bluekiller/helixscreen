@@ -143,7 +143,6 @@ translations:
   Abort already in progress: Abort already in progress
   Abort failed: Abort failed
   Aborting AFC operation...: Aborting AFC operation...
-  Aborting...: Aborting...
   About: About
   Accel to Decel: Accel to Decel
   Acceleration to deceleration limit (mm/s²): Acceleration to deceleration limit (mm/s²)
@@ -192,7 +191,6 @@ translations:
   All axes homed: All axes homed
   All fields are required: All fields are required
   All healthy: All healthy
-  All lights: All lights
   Allow: Allow
   Allow Home Screen Editing: Allow Home Screen Editing
   Allow cold load/unload: Allow cold load/unload
@@ -232,7 +230,6 @@ translations:
   App startup encountered an error. Some features may be unavailable.: App startup
     encountered an error. Some features may be unavailable.
   Appearance: Appearance
-  Applies to: Applies to
   Apply: Apply
   Apply Changes: Apply Changes
   Applying Changes: Applying Changes
@@ -725,7 +722,6 @@ translations:
   Controlled by hardware sensor: Controlled by hardware sensor
   Controller: Controller
   Controls: Controls
-  Cool: Cool
   Cool Down: Cool Down
   Cool nozzle after filament ops: Cool nozzle after filament ops
   Cooling: Cooling
@@ -1630,11 +1626,13 @@ translations:
   LED Controls: LED Controls
   LED Light: LED Light
   LED Mode: LED Mode
+  LED SELECTION: LED SELECTION
   LED Settings: LED Settings
   LED Strip: LED Strip
   LED on at Start: LED on at Start
   LED strip available for lighting control: LED strip available for lighting control
   LEDs: LEDs
+  LEDs controlled by the light button: LEDs controlled by the light button
   LOAD CELLS: LOAD CELLS
   LOADED: LOADED
   LOCKED: LOCKED
@@ -1672,7 +1670,6 @@ translations:
   Length of the cooling tube section: Length of the cooling tube section
   'Length:': 'Length:'
   Let's take a quick tour so you can find things fast.: Let's take a quick tour so you can find things fast.
-  Level: Level
   Leveling Gantry...: Leveling Gantry...
   Library: Library
   Lifetime Print Stats: Lifetime Print Stats
@@ -1680,7 +1677,6 @@ translations:
   Light Mode: Light Mode
   Light will switch when the current operation finishes: Light will switch when the
     current operation finishes
-  Lights that follow the printer's state: Lights that follow the printer's state
   Line the nozzle up with the purge chute so purged filament drops straight in.: Line the nozzle up with the purge chute so purged filament drops straight in.
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.
   Listen to all theme sounds: Listen to all theme sounds
@@ -1926,7 +1922,6 @@ translations:
   Network forgotten: Network forgotten
   Network name cannot be empty: Network name cannot be empty
   'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.': 'Network, display, sound, printer setup, and more. You can replay this tour anytime from Help & About.'
-  Neutral: Neutral
   Never: Never
   Never sleeps: Never sleeps
   New Spool: New Spool
@@ -1952,7 +1947,6 @@ translations:
     LED macros detected on your printer. Add Klipper macros for LED control first.
   No LED macros detected. Type a macro name below.: No LED macros detected. Type a macro name below.
   No LED strips detected: No LED strips detected
-  No LEDs found: No LEDs found
   No Macros Found: No Macros Found
   No Multi-Filament System connected: No Multi-Filament System connected
   No Multi-Filament System connected.: No Multi-Filament System connected.
@@ -2266,7 +2260,6 @@ translations:
   Preset: Preset
   'Preset ID: {}': 'Preset ID: {}'
   Presets: Presets
-  Presets come from the WLED device. Edit them in the WLED app.: Presets come from the WLED device. Edit them in the WLED app.
   Press Abort to stop: Press Abort to stop
   Press Scan to search: Press Scan to search
   'Pressure:': 'Pressure:'
@@ -2493,7 +2486,6 @@ translations:
   Recover MMU state?: Recover MMU state?
   Recover State: Recover State
   Recovering AFC system...: Recovering AFC system...
-  Recovering...: Recovering...
   Recovery failed: Recovery failed
   'Recovery failed: ': 'Recovery failed: '
   'Recovery failed: {}': 'Recovery failed: {}'
@@ -3221,7 +3213,6 @@ translations:
   This AFC system does not support bypass mode: This AFC system does not support bypass mode
   This CFS firmware exposes no external spool slot: This CFS firmware exposes no external spool slot
   This Happy Hare system does not support bypass mode: This Happy Hare system does not support bypass mode
-  This button controls: This button controls
   This calibration uses the paper friction method to set your Z-offset.: This calibration
     uses the paper friction method to set your Z-offset.
   This cannot be undone.: This cannot be undone.
@@ -3388,7 +3379,7 @@ translations:
   Turn On LEDs: Turn On LEDs
   Turn endless spool on, then set the backup gate: Turn endless spool on, then set the backup gate
   Turn off detection: Turn off detection
-  Turn on the lights your light buttons control: Turn on the lights your light buttons control
+  Turn on LEDs when printer starts: Turn on LEDs when printer starts
   Turn the extruder heater off after a load or unload finishes: Turn the extruder heater off after a load or unload finishes
   Turn the picture to match how the screen is mounted. Applies after restart.: Turn the picture to match how the screen is mounted. Applies after restart.
   Turn the printer's lights on or off: Turn the printer's lights on or off
@@ -3522,6 +3513,7 @@ translations:
   Volume of filament used during ramming: Volume of filament used during ramming
   Volume {}%: Volume {}%
   WIDTH SENSORS: WIDTH SENSORS
+  WLED: WLED
   WLED Preset: WLED Preset
   WPA/WPA2: WPA/WPA2
   WPA3: WPA3
@@ -3538,7 +3530,6 @@ translations:
   Waiting for bed to reach temperature for accurate calibration.: Waiting for bed
     to reach temperature for accurate calibration.
   Waiting for the filament system to report its state: Waiting for the filament system to report its state
-  Warm: Warm
   Warm Bed: Warm Bed
   Warm up for a material in one tap: Warm up for a material in one tap
   Warming Bed...: Warming Bed...

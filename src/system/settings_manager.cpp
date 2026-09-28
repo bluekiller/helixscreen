@@ -15,6 +15,7 @@
 #include "i_moonraker_client.h"
 #include "input_settings_manager.h"
 #include "json_utils.h"
+#include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "material_settings_manager.h"
 #include "printer_detector.h"
@@ -142,6 +143,9 @@ void SettingsManager::init_subjects() {
     AudioSettingsManager::instance().init_subjects();
     SafetySettingsManager::instance().init_subjects();
     MaterialSettingsManager::instance().init();
+
+    // LED state (ephemeral, not persisted - start as off)
+    UI_MANAGED_SUBJECT_INT(led_enabled_subject_, 0, "settings_led_enabled", subjects_);
 
     // Z movement style (default: 0 = Auto)
     int z_movement_style = config->get<int>(config->df() + "z_movement_style", 0);
@@ -368,6 +372,33 @@ void SettingsManager::deinit_subjects() {
 void SettingsManager::set_moonraker_client(IMoonrakerClient* client) {
     moonraker_client_ = client;
     spdlog::debug("[SettingsManager] Moonraker client set: {}", client ? "connected" : "nullptr");
+}
+
+// =============================================================================
+// PRINTER SETTINGS (LED — owned by SettingsManager)
+// =============================================================================
+
+bool SettingsManager::get_led_enabled() const {
+    return lv_subject_get_int(const_cast<lv_subject_t*>(&led_enabled_subject_)) != 0;
+}
+
+void SettingsManager::set_led_enabled(bool enabled) {
+    spdlog::info("[SettingsManager] set_led_enabled({})", enabled);
+
+    auto old_val = std::to_string(lv_subject_get_int(&led_enabled_subject_));
+
+    // 1. Delegate to LedController for actual hardware control
+    helix::led::LedController::instance().light_set(enabled);
+
+    // 2. Update subject (UI reacts)
+    lv_subject_set_int(&led_enabled_subject_, enabled ? 1 : 0);
+
+    TelemetryManager::instance().notify_setting_changed("led_enabled", old_val,
+                                                        std::to_string(enabled ? 1 : 0));
+
+    // 3. Persist startup preference via LedController
+    helix::led::LedController::instance().set_led_on_at_start(enabled);
+    helix::led::LedController::instance().save_config();
 }
 
 // =============================================================================

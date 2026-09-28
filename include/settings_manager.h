@@ -107,6 +107,26 @@ class SettingsManager {
     void set_moonraker_client(IMoonrakerClient* client);
 
     // =========================================================================
+    // PRINTER SETTINGS (owned by SettingsManager — MoonrakerClient dependency)
+    // =========================================================================
+
+    /**
+     * @brief Get LED enabled state
+     * @return true if LED is on
+     */
+    bool get_led_enabled() const;
+
+    /**
+     * @brief Set LED enabled state
+     *
+     * Updates subject, sends Moonraker command, and persists startup preference.
+     * The LED state is saved as "LED on at start" preference.
+     *
+     * @param enabled true to turn on, false to turn off
+     */
+    void set_led_enabled(bool enabled);
+
+    // =========================================================================
     // Z MOVEMENT STYLE (owned by SettingsManager — PrinterState dependency)
     // =========================================================================
 
@@ -315,6 +335,11 @@ class SettingsManager {
     // =========================================================================
     // SUBJECT ACCESSORS (for XML binding) — owned subjects only
     // =========================================================================
+
+    /** @brief LED enabled subject (integer: 0=off, 1=on) */
+    lv_subject_t* subject_led_enabled() {
+        return &led_enabled_subject_;
+    }
 
     // =========================================================================
     // PRINTER SWITCHER VISIBILITY (owned by SettingsManager — appearance)
@@ -664,6 +689,7 @@ class SettingsManager {
     SubjectManager subjects_;
 
     // LVGL subjects — only those owned by SettingsManager
+    lv_subject_t led_enabled_subject_{};
     lv_subject_t z_movement_style_subject_{};
     lv_subject_t enclosure_style_subject_{};
     lv_subject_t extrude_speed_subject_{};

@@ -7,9 +7,8 @@
 #
 # thelio is shared by several sessions at once; zeus has twice the RAM and is
 # usually idle. Mutation, sanitizers and symbolizers belong on zeus however quiet
-# thelio looks, and so does a sweep: `make unit-sweep` and the C++ half of
-# `make full-test-run` map to zeus-run.sh's sweep mode; bats stays on thelio,
-# because the zeus container runs as root with no shellcheck. An
+# thelio looks, and so does a sweep: `make unit-sweep` maps to zeus-run.sh's
+# sweep mode and `make full-test-run` to full, each falling back to the other. An
 # explicit -j above the fair share is always worth a word. Container builds and
 # test loops are only worth moving when thelio is tight. "Tight" is not decided
 # here: `helix-claim jobs -v` folds in claimed builds, live build trees and
@@ -64,6 +63,16 @@ emit() {
     jq -cn --arg c "[resource-advisor] $1" \
         '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $c}}'
     exit 0
+}
+
+# The zeus-run mode for a sweep, preferring the one that matches the make
+# target ($1: sweep or full) and falling back to whichever this checkout has.
+zeus_gate_mode() {
+    local m other=sweep
+    [ "$1" = sweep ] && other=full
+    for m in "$1" "$other"; do
+        grep -qE "^[[:space:]]*${m}\)" "$zeus_run" 2>/dev/null && { echo "$m"; return; }
+    done
 }
 
 # Quoted text becomes Q, so `-j"$(helix-claim jobs)"` reads as -jQ (a computed
@@ -148,10 +157,9 @@ if [ -n "$want_asan" ]; then
     emit "ASAN produces no output on thelio (ld.so.preload loads its runtime second) and exits 0. Run it on zeus: ${push_then} \`scripts/zeus-run.sh asan '[tag]'\`."
 fi
 if [ -n "$want_sweep" ]; then
-    if grep -qE '^[[:space:]]*sweep\)' "$zeus_run" 2>/dev/null; then
-        bats=""
-        [ "$want_sweep" = full ] && bats=" Run the bats half on thelio with \`make test-shell\`: the zeus container runs as root with no shellcheck, so bats fails there for reasons that are not the code."
-        emit "A full sweep starts dozens of shards at once. Run it on zeus: ${push_then} \`scripts/zeus-run.sh sweep\`.${bats} Keep it local only when you need the verdict on uncommitted work in this exact tree. ${see_load}"
+    mode=$(zeus_gate_mode "$want_sweep")
+    if [ -n "$mode" ]; then
+        emit "A full sweep starts dozens of shards at once. Run it on zeus: ${push_then} \`scripts/zeus-run.sh ${mode}\`. Keep it local only when you need the verdict on uncommitted work in this exact tree. ${see_load}"
     fi
 fi
 

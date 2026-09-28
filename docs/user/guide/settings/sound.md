@@ -6,8 +6,6 @@ On the Settings screen, the **Sound** row shows your volume, for example *Volume
 
 ![Sound settings, top of the page](../../../images/user/settings-sound.png)
 
-![Sound settings, scrolled to the bottom](../../../images/user/settings-sound-2.png)
-
 ---
 
 ## Sounds

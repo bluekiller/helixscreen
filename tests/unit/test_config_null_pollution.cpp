@@ -185,6 +185,8 @@ TEST_CASE_METHOD(ConfigPollutionFixture,
     REQUIRE(nulls.empty());
 
     // The real value must survive the round trip.
+    REQUIRE(ctrl.selected_strips().size() == 1);
+    REQUIRE(ctrl.selected_strips()[0] == "neopixel case_lights");
     REQUIRE(saved["printers"]["voronv2"]["leds"]["selected_strips"] ==
             json::array({"neopixel case_lights"}));
 }
@@ -379,6 +381,7 @@ TEST_CASE_METHOD(ConfigPollutionFixture,
     auto& ctrl = helix::led::LedController::instance();
     ctrl.deinit();
     ctrl.init(nullptr, nullptr);
+    REQUIRE(ctrl.selected_strips() == std::vector<std::string>{"neopixel legacy_light"});
     REQUIRE(ctrl.last_color() == 0xAA5500);
     REQUIRE(ctrl.last_brightness() == 55);
     REQUIRE(ctrl.color_presets().size() == 2);
@@ -394,8 +397,7 @@ TEST_CASE_METHOD(ConfigPollutionFixture,
     // Idempotent: a second boot (config is now v20) changes nothing.
     ctrl.deinit();
     ctrl.init(nullptr, nullptr);
-    REQUIRE(config.get_string_array("/printers/voronv2/leds/selected_strips") ==
-            std::vector<std::string>{"neopixel legacy_light"});
+    REQUIRE(ctrl.selected_strips() == std::vector<std::string>{"neopixel legacy_light"});
     REQUIRE(ctrl.last_color() == 0xAA5500);
     REQUIRE(ctrl.configured_macros().size() == 1);
     REQUIRE_FALSE(config.exists("/led"));

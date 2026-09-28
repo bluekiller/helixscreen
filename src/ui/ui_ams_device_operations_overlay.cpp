@@ -500,7 +500,7 @@ void AmsDeviceOperationsOverlay::on_home_clicked(lv_event_t* e) {
     } else {
         AmsError result = backend->reset();
         if (result.success()) {
-            NOTIFY_INFO("{}", lv_tr("Homing..."));
+            NOTIFY_INFO("{}", lv_tr("Homing AFC system..."));
         } else {
             helix::ui::notify_ams_error(result, lv_tr("Home failed"));
         }
@@ -524,7 +524,7 @@ void AmsDeviceOperationsOverlay::on_recover_clicked(lv_event_t* e) {
     } else {
         AmsError result = backend->recover();
         if (result.success()) {
-            NOTIFY_INFO("{}", lv_tr("Recovering..."));
+            NOTIFY_INFO("{}", lv_tr("Recovering AFC system..."));
         } else {
             helix::ui::notify_ams_error(result, lv_tr("Recovery failed"));
         }
@@ -546,7 +546,7 @@ void AmsDeviceOperationsOverlay::on_abort_clicked(lv_event_t* e) {
     } else {
         AmsError result = backend->cancel();
         if (result.success()) {
-            NOTIFY_INFO("{}", lv_tr("Aborting..."));
+            NOTIFY_INFO("{}", lv_tr("Aborting AFC operation..."));
         } else {
             helix::ui::notify_ams_error(result, lv_tr("Abort failed"));
         }

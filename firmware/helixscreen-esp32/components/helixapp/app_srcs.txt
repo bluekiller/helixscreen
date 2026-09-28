@@ -103,8 +103,6 @@ src/format_utils.cpp
 src/layout_manager.cpp
 src/led/led_auto_state.cpp
 src/led/led_controller.cpp
-src/led/led_devices.cpp
-src/led/led_device_page.cpp
 src/plugin/injection_point_manager.cpp
 src/print/active_print_media_manager.cpp
 src/print/filament_sensor_manager.cpp
@@ -293,7 +291,6 @@ src/ui/job_queue_state.cpp
 src/ui/job_queue_start.cpp
 src/ui/keyboard_layout_provider.cpp
 src/ui/layout_port.cpp
-src/ui/light_button_config.cpp
 src/ui/locale_formats.cpp
 src/ui/modals/buffer_status_modal.cpp
 src/ui/modals/camera_config_modal.cpp

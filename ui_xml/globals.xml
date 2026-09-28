@@ -19,58 +19,6 @@
     <!-- border_radius is now resolved from BorderRadiusSizes table per breakpoint in C++ -->
     <!-- Fixed small radius for swatches/badges that always want 4px regardless of theme -->
     <px name="border_radius_small" value="4"/>
-    <!-- Underline under a selected zone_tab (the LEDs overlay's device tabs). -->
-    <px name="tab_underline_width_small" value="2"/>
-    <px name="tab_underline_width_medium" value="3"/>
-    <px name="tab_underline_width_large" value="3"/>
-    <!-- A zone_tab's light dot (lit, hollow). -->
-    <px name="tab_dot_size_micro" value="8"/>
-    <px name="tab_dot_size_small" value="10"/>
-    <px name="tab_dot_size_medium" value="10"/>
-    <px name="tab_dot_size_large" value="12"/>
-    <px name="tab_dot_ring_width_small" value="2"/>
-    <px name="tab_dot_ring_width_medium" value="2"/>
-    <px name="tab_dot_ring_width_large" value="2"/>
-    <px name="tab_dot_unknown_opacity" value="90"/>
-    <!-- The 6-column, 30-swatch preset grids (color_swatch_grid, theme_swatch_grid):
-         swatch, gap, half the gap (each swatch's hit reach), and the grid width,
-         six swatches and five gaps, so the 30 always form 5 even rows. -->
-    <px name="swatch_grid_size_micro" value="26"/>
-    <px name="swatch_grid_size_small" value="28"/>
-    <px name="swatch_grid_size_medium" value="32"/>
-    <px name="swatch_grid_size_large" value="32"/>
-    <px name="swatch_grid_gap_micro" value="4"/>
-    <px name="swatch_grid_gap_small" value="8"/>
-    <px name="swatch_grid_gap_medium" value="8"/>
-    <px name="swatch_grid_gap_large" value="8"/>
-    <px name="swatch_grid_gap_half_micro" value="2"/>
-    <px name="swatch_grid_gap_half_small" value="4"/>
-    <px name="swatch_grid_gap_half_medium" value="4"/>
-    <px name="swatch_grid_gap_half_large" value="4"/>
-    <px name="swatch_grid_width_micro" value="176"/>
-    <px name="swatch_grid_width_small" value="208"/>
-    <px name="swatch_grid_width_medium" value="232"/>
-    <px name="swatch_grid_width_large" value="232"/>
-    <!-- The grids' ring: 2px wide with a 1px gap, a reach of 3. -->
-    <px name="swatch_grid_ring_width_small" value="2"/>
-    <px name="swatch_grid_ring_width_medium" value="2"/>
-    <px name="swatch_grid_ring_width_large" value="2"/>
-    <px name="swatch_grid_ring_reach_small" value="3"/>
-    <px name="swatch_grid_ring_reach_medium" value="3"/>
-    <px name="swatch_grid_ring_reach_large" value="3"/>
-    <!-- The tabbed picker (micro, tiny) gives its presets the whole tab: larger
-         swatches, and the column count follows from the tab's width. Only those
-         two tiers ever show the tab; the core tiers mirror them. -->
-    <px name="picker_tab_swatch_size_micro" value="40"/>
-    <px name="picker_tab_swatch_size_small" value="40"/>
-    <px name="picker_tab_swatch_size_medium" value="40"/>
-    <px name="picker_tab_swatch_size_large" value="40"/>
-    <px name="picker_tab_swatch_gap_small" value="6"/>
-    <px name="picker_tab_swatch_gap_medium" value="6"/>
-    <px name="picker_tab_swatch_gap_large" value="6"/>
-    <px name="picker_tab_swatch_gap_half_small" value="3"/>
-    <px name="picker_tab_swatch_gap_half_medium" value="3"/>
-    <px name="picker_tab_swatch_gap_half_large" value="3"/>
     <px name="border_radius_sm" value="4"/>
 
     <!-- Unified Responsive Spacing System (space_*)                         -->

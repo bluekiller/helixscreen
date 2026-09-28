@@ -141,7 +141,6 @@
   <translation tag="Abort already in progress" ja="中止がすでに進行中です"/>
   <translation tag="Abort failed" ja="中止に失敗"/>
   <translation tag="Aborting AFC operation..." ja="AFC操作を中止中..."/>
-  <translation tag="Aborting..." ja="中止中..."/>
   <translation tag="About" ja="バージョン情報"/>
   <translation tag="Accel to Decel" ja="加速から減速"/>
   <translation tag="Acceleration to deceleration limit (mm/s²)" ja="加速から減速の制限値 (mm/s²)"/>
@@ -186,7 +185,6 @@
   <translation tag="All axes homed" ja="すべての軸がホーミング済み"/>
   <translation tag="All fields are required" ja="すべての項目が必須です"/>
   <translation tag="All healthy" ja="すべて正常"/>
-  <translation tag="All lights" ja="すべてのライト"/>
   <translation tag="Allow" ja="許可"/>
   <translation tag="Allow Home Screen Editing" ja="ホーム画面の編集を許可"/>
   <translation tag="Allow cold load/unload" ja="コールド時の装填/取り出しを許可"/>
@@ -219,7 +217,6 @@
   <translation tag="App Background" ja="アプリ背景"/>
   <translation tag="App startup encountered an error. Some features may be unavailable." ja="アプリの起動中にエラーが発生しました。一部の機能が利用できない場合があります。"/>
   <translation tag="Appearance" ja="外観"/>
-  <translation tag="Applies to" ja="適用対象"/>
   <translation tag="Apply" ja="適用"/>
   <translation tag="Apply Changes" ja="変更を適用"/>
   <translation tag="Applying Changes" ja="変更を適用中"/>
@@ -669,7 +666,6 @@
   <translation tag="Controlled by hardware sensor" ja="ハードウェアセンサーで制御"/>
   <translation tag="Controller" ja="コントローラー"/>
   <translation tag="Controls" ja="コントロール"/>
-  <translation tag="Cool" ja="クール"/>
   <translation tag="Cool Down" ja="冷却"/>
   <translation tag="Cool nozzle after filament ops" ja="フィラメント操作後にノズルを冷却"/>
   <translation tag="Cooling" ja="冷却中"/>
@@ -1507,11 +1503,13 @@
   <translation tag="LED Controls" ja="LEDコントロール"/>
   <translation tag="LED Light" ja="LEDライト"/>
   <translation tag="LED Mode" ja="LEDモード"/>
+  <translation tag="LED SELECTION" ja="LED選択"/>
   <translation tag="LED Settings" ja="LED設定"/>
   <translation tag="LED Strip" ja="LEDストリップ"/>
   <translation tag="LED on at Start" ja="起動時LED点灯"/>
   <translation tag="LED strip available for lighting control" ja="照明制御用の LED ストリップが利用可能です"/>
   <translation tag="LEDs" ja="LED"/>
+  <translation tag="LEDs controlled by the light button" ja="ライトボタンで制御される LED"/>
   <translation tag="LOAD CELLS" ja="ロードセル"/>
   <translation tag="LOADED" ja="装填済み"/>
   <translation tag="LOCKED" ja="ロック中"/>
@@ -1546,14 +1544,12 @@
   <translation tag="Length of the cooling tube section" ja="冷却チューブ区間の長さ"/>
   <translation tag="Length:" ja="長さ:"/>
   <translation tag="Let&apos;s take a quick tour so you can find things fast." ja="機能をすぐに見つけられるよう、簡単なツアーを始めましょう。"/>
-  <translation tag="Level" ja="レベル"/>
   <translation tag="Leveling Gantry..." ja="ガントリーレベリング中..."/>
   <translation tag="Library" ja="ライブラリ"/>
   <translation tag="Lifetime Print Stats" ja="累計印刷統計"/>
   <translation tag="Light" ja="ライト"/>
   <translation tag="Light Mode" ja="ライトモード"/>
   <translation tag="Light will switch when the current operation finishes" ja="現在の操作が完了したらライトを切り替えます"/>
-  <translation tag="Lights that follow the printer&apos;s state" ja="プリンターの状態に応じて変わるライト"/>
   <translation tag="Line the nozzle up with the purge chute so purged filament drops straight in." ja="パージシュートにノズルを合わせ、パージされたフィラメントがまっすぐ落ちるようにします。"/>
   <translation tag="Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer." ja="{} 行目で {} を実行します。このプリンターでは緊急停止とみなされます。このプリンター用のプロファイルでファイルを再スライスしてください。"/>
   <translation tag="Listen to all theme sounds" ja="すべてのテーマサウンドを試聴"/>
@@ -1786,7 +1782,6 @@
   <translation tag="Network forgotten" ja="ネットワークを登録解除しました"/>
   <translation tag="Network name cannot be empty" ja="ネットワーク名は空にできません"/>
   <translation tag="Network, display, sound, printer setup, and more. You can replay this tour anytime from Help &amp; About." ja="ネットワーク、ディスプレイ、サウンド、プリンター設定など。このツアーは「ヘルプと情報」からいつでも再生できます。"/>
-  <translation tag="Neutral" ja="ニュートラル"/>
   <translation tag="Never" ja="なし"/>
   <translation tag="Never sleeps" ja="スリープしない"/>
   <translation tag="New Spool" ja="新規スプール"/>
@@ -1810,7 +1805,6 @@
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." ja="プリンターで LED マクロが検出されませんでした。先に LED 制御用の Klipper マクロを追加してください。"/>
   <translation tag="No LED macros detected. Type a macro name below." ja="LED マクロが検出されませんでした。下にマクロ名を入力してください。"/>
   <translation tag="No LED strips detected" ja="LEDストリップが検出されません"/>
-  <translation tag="No LEDs found" ja="LEDが見つかりません"/>
   <translation tag="No Macros Found" ja="マクロが見つかりません"/>
   <translation tag="No Multi-Filament System connected" ja="マルチフィラメントシステムが接続されていません"/>
   <translation tag="No Multi-Filament System connected." ja="マルチフィラメントシステムが接続されていません。"/>
@@ -2106,7 +2100,6 @@
   <translation tag="Preset" ja="プリセット"/>
   <translation tag="Preset ID: {}" ja="プリセット ID: {}"/>
   <translation tag="Presets" ja="プリセット"/>
-  <translation tag="Presets come from the WLED device. Edit them in the WLED app." ja="プリセットはWLEDデバイスから取得されます。WLEDアプリで編集してください。"/>
   <translation tag="Press Abort to stop" ja="中止するには「中止」を押してください"/>
   <translation tag="Press Scan to search" ja="スキャンを押して検索"/>
   <translation tag="Pressure Adv." ja="Pressure Adv."/>
@@ -2319,7 +2312,6 @@
   <translation tag="Recover MMU state?" ja="MMU の状態を復旧しますか？"/>
   <translation tag="Recover State" ja="状態を回復"/>
   <translation tag="Recovering AFC system..." ja="AFCシステムを復旧中..."/>
-  <translation tag="Recovering..." ja="復旧中..."/>
   <translation tag="Recovery failed" ja="復旧失敗"/>
   <translation tag="Recovery failed: " ja="復旧に失敗しました: "/>
   <translation tag="Recovery failed: {}" ja="復旧に失敗しました: {}"/>
@@ -2966,7 +2958,6 @@
   <translation tag="This AFC system does not support bypass mode" ja="この AFC システムはバイパスモードに対応していません"/>
   <translation tag="This CFS firmware exposes no external spool slot" ja="この CFS ファームウェアには外部スプール用スロットがありません"/>
   <translation tag="This Happy Hare system does not support bypass mode" ja="この Happy Hare システムはバイパスモードに対応していません"/>
-  <translation tag="This button controls" ja="このボタンの制御対象"/>
   <translation tag="This calibration uses the paper friction method to set your Z-offset." ja="このキャリブレーションは紙の摩擦方式を使用して Z-offset を設定します。"/>
   <translation tag="This cannot be undone." ja="この操作は元に戻せません。"/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." ja="このチャンネルが提供するのは v{} で、インストール済みの v{} より古いバージョンです。それ以降に追加されたものは削除されます。"/>
@@ -3099,7 +3090,7 @@
   <translation tag="Turn On LEDs" ja="LEDを点灯"/>
   <translation tag="Turn endless spool on, then set the backup gate" ja="エンドレススプールを有効にしてから、バックアップゲートを設定してください"/>
   <translation tag="Turn off detection" ja="検出をオフにする"/>
-  <translation tag="Turn on the lights your light buttons control" ja="ライトボタンが操作するライトを点灯します"/>
+  <translation tag="Turn on LEDs when printer starts" ja="プリンター起動時に LED を点灯"/>
   <translation tag="Turn the extruder heater off after a load or unload finishes" ja="装填または排出の完了後にエクストルーダーヒーターをオフにします"/>
   <translation tag="Turn the picture to match how the screen is mounted. Applies after restart." ja="画面の取り付け向きに合わせて表示を回転します。再起動後に適用されます。"/>
   <translation tag="Turn the printer&apos;s lights on or off" ja="プリンターのライトをオン/オフ"/>
@@ -3228,6 +3219,7 @@
   <translation tag="Volume of filament used during ramming" ja="ラミング時に使用するフィラメント量"/>
   <translation tag="Volume {}%" ja="音量 {}%"/>
   <translation tag="WIDTH SENSORS" ja="幅センサー"/>
+  <translation tag="WLED" ja="WLED"/>
   <translation tag="WLED Preset" ja="WLED プリセット"/>
   <translation tag="WPA/WPA2" ja="WPA/WPA2"/>
   <translation tag="WPA3" ja="WPA3"/>
@@ -3242,7 +3234,6 @@
   <translation tag="Waiting for another box to finish." ja="別のボックスの完了を待っています。"/>
   <translation tag="Waiting for bed to reach temperature for accurate calibration." ja="正確なキャリブレーションのためにベッド温度到達を待機中。"/>
   <translation tag="Waiting for the filament system to report its state" ja="フィラメントシステムの状態報告を待機中"/>
-  <translation tag="Warm" ja="ウォーム"/>
   <translation tag="Warm Bed" ja="ベッドを予熱"/>
   <translation tag="Warm up for a material in one tap" ja="素材に合わせてワンタップで予熱"/>
   <translation tag="Warming Bed..." ja="ベッド予熱中..."/>

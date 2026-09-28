@@ -3,8 +3,6 @@
 #include "ui_overlay_temp_graph.h"
 #include "ui_printer_manager_overlay.h"
 #include "ui_temperature_utils.h"
-#include "ui_update_queue.h"
-#include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/config_dir_guard.h"
@@ -16,8 +14,6 @@
 #include "config.h"
 #include "display_settings_manager.h"
 #include "helix-xml/src/xml/lv_xml.h"
-#include "led/led_controller.h"
-#include "led/ui_led_control_overlay.h"
 #include "lvgl_image_writer.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
@@ -29,12 +25,10 @@
 #include "printer_state.h"
 #include "src/ui/panel_widgets/printer_image_widget.h"
 #include "src/ui/panel_widgets/text_measure.h"
-#include "static_panel_registry.h"
 #include "theme_manager.h"
 #include "tool_state.h"
 #include "wizard_config_paths.h"
 
-#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -149,37 +143,6 @@ bool shown(PanelWidgetHarness<PrinterImageWidget>& h, const char* chip) {
     return !lv_obj_has_flag(h.child(chip), LV_OBJ_FLAG_HIDDEN);
 }
 
-/// Native `chamber_light` and `sb_leds` strips with no known state while the
-/// guard lives. Declare it before the harness: the widget observes the
-/// controller's state subject.
-struct ScopedLedStrips {
-    ScopedLedStrips() {
-        auto& ctrl = helix::led::LedController::instance();
-        ctrl.deinit();
-        ctrl.init(nullptr, nullptr);
-        for (const char* id : {"neopixel chamber_light", "neopixel sb_leds"}) {
-            helix::led::LedStripInfo s;
-            s.id = id;
-            s.name = id;
-            s.backend = helix::led::LedBackendType::NATIVE;
-            s.supports_color = true;
-            ctrl.native().add_strip(s);
-        }
-    }
-    ~ScopedLedStrips() {
-        helix::led::LedController::instance().deinit();
-    }
-    ScopedLedStrips(const ScopedLedStrips&) = delete;
-    ScopedLedStrips& operator=(const ScopedLedStrips&) = delete;
-
-    /// Feeds a Klipper status frame reporting @p id fully on or off.
-    static void report(const char* id, bool on) {
-        const double v = on ? 1.0 : 0.0;
-        helix::led::LedController::instance().update_from_status(
-            {{id, {{"color_data", {{v, v, v, 0.0}}}}}});
-    }
-};
-
 } // namespace
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -259,7 +222,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                  "callouts: fan on shows percent; light needs the LED capability",
                  "[printer_image][callouts]") {
     const auto regions = prepare_tagged_widget();
-    const ScopedLedStrips leds;
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
     lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
@@ -267,7 +229,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(state().get_active_extruder_target_subject(), 0);
     lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
     lv_subject_set_int(state().get_fan_speed_subject(), 80);
-    ScopedLedStrips::report("neopixel chamber_light", true);
+    lv_subject_set_int(state().get_led_state_subject(), 1);
     lv_subject_set_int(has_led, 0);
     settle();
     CHECK(shown(h, "callout_chip_fan"));
@@ -276,28 +238,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(has_led, 1);
     settle();
     CHECK(shown(h, "callout_chip_light"));
-}
-
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "callouts: the light chip follows the chamber light, not the tracked LED",
-                 "[printer_image][callouts]") {
-    const auto regions = prepare_tagged_widget();
-    const ScopedLedStrips leds;
-    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 160, 160);
-    lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
-    REQUIRE(has_led);
-    lv_subject_set_int(has_led, 1);
-    lv_subject_set_int(state().get_led_state_subject(), 1);
-    ScopedLedStrips::report("neopixel sb_leds", true);
-    settle();
-    CHECK_FALSE(shown(h, "callout_chip_light"));
-    ScopedLedStrips::report("neopixel chamber_light", true);
-    settle();
-    CHECK(shown(h, "callout_chip_light"));
-    ScopedLedStrips::report("neopixel chamber_light", false);
-    settle();
-    CHECK_FALSE(shown(h, "callout_chip_light"));
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -511,20 +451,6 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a recycled instance drives its ne
     display.set_animations_enabled(prev_animations);
 }
 
-namespace {
-
-/// The temperature graph overlay is a process-lifetime singleton observing this
-/// case's subjects. Destroy it before they die, or a later case's destroy_all()
-/// tears down observers on freed subjects.
-struct TempGraphOverlayScope {
-    ~TempGraphOverlayScope() {
-        StaticPanelRegistry::instance().destroy_all();
-        helix::ui::UpdateQueue::instance().drain();
-    }
-};
-
-} // namespace
-
 TEST_CASE_METHOD(LVGLUITestFixture,
                  "callouts: tapping the bed chip opens the bed temperature graph, not the "
                  "printer manager",
@@ -535,7 +461,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(state().get_bed_target_subject(), 600);
     settle();
 
-    TempGraphOverlayScope overlay_scope;
     get_global_temp_graph_overlay().init_subjects();
     lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
     REQUIRE(mode);
@@ -545,120 +470,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(lv_subject_get_int(mode) == static_cast<int>(TempGraphOverlay::Mode::Bed));
     CHECK_FALSE(
         NavigationManager::instance().is_panel_in_stack(get_printer_manager_overlay().get_root()));
-}
-
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "callouts: tapping the light chip opens the LEDs overlay on the chamber light",
-                 "[printer_image][callouts]") {
-    const auto regions = prepare_tagged_widget();
-    const ScopedLedStrips leds;
-    std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
-    for (auto& p : panels) {
-        p = lv_obj_create(test_screen());
-    }
-    NavigationManager::instance().set_panels(panels.data());
-    init_led_control_overlay(state());
-
-    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 160, 160);
-    lv_subject_set_int(lv_xml_get_subject(nullptr, "printer_has_led"), 1);
-    ScopedLedStrips::report("neopixel sb_leds", true);
-    ScopedLedStrips::report("neopixel chamber_light", true);
-    settle();
-    REQUIRE(shown(h, "callout_chip_light"));
-    // The overlay otherwise reopens on the last focused device.
-    REQUIRE(helix::open_led_control_overlay(test_screen(), "neopixel sb_leds") != nullptr);
-    settle();
-    NavigationManager::instance().go_back();
-    settle();
-    REQUIRE(get_led_control_overlay().focused_device() == "neopixel sb_leds");
-
-    lv_obj_send_event(h.child("callout_chip_light"), LV_EVENT_CLICKED, nullptr);
-    settle();
-    CHECK(get_led_control_overlay().focused_device() == "neopixel chamber_light");
-    NavigationManager::instance().go_back();
-    settle();
-}
-
-namespace {
-
-/// The home panel sets EVENT_BUBBLE on every descendant of a page so a long-press
-/// anywhere reaches grid edit mode; a chip tap must stay contained in it (#1397).
-void bubble_like_home_panel(lv_obj_t* obj) {
-    for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
-        lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
-        lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
-        bubble_like_home_panel(child);
-    }
-}
-
-bool printer_manager_open() {
-    lv_obj_t* root = get_printer_manager_overlay().get_root();
-    return root && NavigationManager::instance().is_panel_in_stack(root);
-}
-
-void count_event_cb(lv_event_t* e) {
-    ++*static_cast<int*>(lv_event_get_user_data(e));
-}
-
-} // namespace
-
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "callouts: a chip tap under the home panel's bubbling tree opens only its "
-                 "control",
-                 "[printer_image][callouts]") {
-    const auto regions = prepare_tagged_widget();
-    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    settle();
-    bubble_like_home_panel(h.root());
-
-    TempGraphOverlayScope overlay_scope;
-    get_global_temp_graph_overlay().init_subjects();
-    lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
-    REQUIRE(mode);
-    lv_subject_set_int(mode, static_cast<int>(TempGraphOverlay::Mode::GraphOnly));
-    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_CLICKED, nullptr);
-    process_lvgl(30);
-    CHECK(lv_subject_get_int(mode) == static_cast<int>(TempGraphOverlay::Mode::Bed));
-    CHECK_FALSE(printer_manager_open());
-    destroy_printer_manager_overlay();
-}
-
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "callouts: a tap on the bare printer image still opens the printer manager",
-                 "[printer_image][callouts]") {
-    const auto regions = prepare_tagged_widget();
-    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 160, 160);
-    settle();
-    bubble_like_home_panel(h.root());
-
-    lv_obj_send_event(h.child("printer_image"), LV_EVENT_CLICKED, nullptr);
-    process_lvgl(30);
-    CHECK(printer_manager_open());
-    destroy_printer_manager_overlay();
-}
-
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "callouts: a long-press on a chip still bubbles to the home grid",
-                 "[printer_image][callouts]") {
-    const auto regions = prepare_tagged_widget();
-    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    settle();
-    bubble_like_home_panel(h.root());
-
-    int pressed = 0;
-    int long_pressed = 0;
-    lv_obj_add_event_cb(h.root(), count_event_cb, LV_EVENT_PRESSED, &pressed);
-    lv_obj_add_event_cb(h.root(), count_event_cb, LV_EVENT_LONG_PRESSED, &long_pressed);
-    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_PRESSED, nullptr);
-    lv_obj_send_event(h.child("callout_chip_bed"), LV_EVENT_LONG_PRESSED, nullptr);
-    CHECK(pressed == 1);
-    CHECK(long_pressed == 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -994,7 +805,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(has_led);
     lv_subject_set_int(has_led, 0);
     lv_subject_set_int(has_chamber, 0);
-    const ScopedLedStrips leds;
+    lv_subject_set_int(state().get_led_state_subject(), 0);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
     settle();

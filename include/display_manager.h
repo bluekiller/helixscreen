@@ -9,7 +9,6 @@
 #include "indev_delete_watch.h"
 #include "refresh_timing.h"
 #include "remote_screen_manager.h"
-#include "scroll_click_guard.h"
 #include "touch_calibration.h"
 #include "touch_calibration_session.h"
 
@@ -785,9 +784,6 @@ class DisplayManager : public helix::ICalibrationSink {
     // Original pointer read callback (before sleep-aware wrapper)
     lv_indev_read_cb_t m_original_pointer_read_cb = nullptr;
 
-    // Runs inside sleep_aware_read_cb, so only where that wrapper is installed
-    helix::ScrollClickGuard m_scroll_guard;
-
     // Last scroll config applied to the pointer, remembered so a post-swap input
     // rebuild (rotation fallback) can reapply it. Defaults match the clamped
     // InputSettingsManager defaults.
@@ -862,11 +858,6 @@ class DisplayManager : public helix::ICalibrationSink {
      * @brief Configure scroll behavior on pointer device
      */
     void configure_scroll(int scroll_throw, int scroll_limit);
-
-    /// Applies scroll, long-press, the sleep-aware wrapper and the scroll guard to
-    /// a freshly created m_pointer. init() and rebuild_input_after_backend_swap()
-    /// both call it, so the two paths set the pointer up identically.
-    void configure_pointer(int scroll_throw, int scroll_limit);
 
     /// Registers m_pointer/m_keyboard with m_indev_delete_watch. init() and
     /// rebuild_input_after_backend_swap() both call these right after

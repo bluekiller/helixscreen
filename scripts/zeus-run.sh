@@ -7,6 +7,7 @@
 #   scripts/zeus-run.sh asan                        # AddressSanitizer, full suite
 #   scripts/zeus-run.sh test '[netd]'               # plain suite, one tag
 #   scripts/zeus-run.sh sweep                       # make unit-sweep, sharded
+#   scripts/zeus-run.sh full                        # make full-test-run (+ bats)
 #   scripts/zeus-run.sh asan-app help-qr --repeat 50  # the APP under ASAN
 #   scripts/zeus-run.sh tsan-app help-qr --repeat 50  # the APP under TSan
 #
@@ -14,11 +15,9 @@
 # non-interactive, and the container's image (SDL, no ld.so.preload) is the
 # only place an instrumented desktop app runs cleanly.
 #
-# A whole-suite C++ verdict comes from sweep, which shards the way CI and the
-# local gate do. test with no tag runs the suite in one process, where
+# A whole-suite verdict comes from sweep or full, which shard the way CI and
+# the local gate do. test with no tag runs the suite in one process, where
 # cross-test contamination fails cases no branch touched, so it is not a gate.
-# bats is not run here: the container is root with no shellcheck, so the shell
-# suite fails on its environment; run `make test-shell` on thelio instead.
 #
 # Why these two in particular:
 #
@@ -85,6 +84,7 @@ case "$WHAT" in
     # share a process, so zeus's own 216 would judge a grouping nobody runs
     # locally; a trailing NPROCS= still overrides it.
     sweep)  CMD='make unit-sweep NPROCS=96 -j$HELIX_J '"$*" ;;
+    full)   CMD='make full-test-run NPROCS=96 -j$HELIX_J '"$*" ;;
     asan-app|tsan-app)
         # RECIPE is the positional argument; --repeat N (default 25 in the
         # make target) widens the drive. Both map onto the make target's
@@ -112,7 +112,7 @@ case "$WHAT" in
         CMD="make $WHAT $_vars"' -j$HELIX_J'
         EXPECTED_REPEAT="${_repeat:-25}"
         GB_PER_JOB=1.5 ;;
-    *)      echo "✗ unknown job '$WHAT' (mutate | asan | test | sweep | asan-app | tsan-app)" >&2; exit 2 ;;
+    *)      echo "✗ unknown job '$WHAT' (mutate | asan | test | sweep | full | asan-app | tsan-app)" >&2; exit 2 ;;
 esac
 
 LOG="${TMPDIR:-/tmp}/zeus-$WHAT-$SHORT.log"

@@ -35,7 +35,6 @@ constexpr const char* MENUS[] = {
     "thermistor_configure_picker",
     "thermistor_sensor_picker",
     "fan_picker",
-    "led_picker",
     "fan_stack_picker",
     "tool_switcher_picker",
     "printer_switch_menu",

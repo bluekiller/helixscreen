@@ -6,8 +6,6 @@ On the Settings screen, the **Devices** row shows a one-line health check: *All 
 
 ![Devices settings, top of the page](../../../images/user/settings-devices.png)
 
-![Devices settings, scrolled to the bottom](../../../images/user/settings-devices-2.png)
-
 ---
 
 ## Hardware Health
@@ -15,8 +13,6 @@ On the Settings screen, the **Devices** row shows a one-line health check: *All 
 Compares the hardware Klipper reports with what HelixScreen expects, and lists anything that doesn't match. The row itself shows the result: **No Hardware Issues**, or a count such as **3 Hardware Issues**. Its icon turns amber when something needs attention and red when something is critical.
 
 Tap it to see the list:
-
-![Hardware Health](../../../images/user/settings-hardware-health.png)
 
 | Kind | Meaning |
 |------|---------|

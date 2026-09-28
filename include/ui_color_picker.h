@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <functional>
 #include <string>
-#include <vector>
 
 namespace helix {
 
@@ -154,14 +153,18 @@ class ColorPicker : public Modal {
     lv_obj_t* btn_tab_presets_ = nullptr;
     lv_obj_t* btn_tab_custom_ = nullptr;
 
+    // Currently highlighted preset swatch (outline shown), cleared when the
+    // active color diverges from any preset via HSV picker or hex input.
+    lv_obj_t* selected_swatch_ = nullptr;
+
     // === Internal Methods ===
     void init_subjects();
     void deinit_subjects();
     void update_preview(uint32_t color_rgb, bool from_hsv_picker = false,
                         bool from_hex_input = false);
     void switch_tab(bool show_custom);
-    /// Rings the preset matching @p color_rgb in the current palette, or none.
-    void highlight_preset(uint32_t color_rgb);
+    void highlight_swatch(lv_obj_t* swatch);
+    lv_obj_t* find_swatch_for_color(uint32_t color_rgb);
 
     // === Event Handlers (called by static callbacks) ===
     void handle_swatch_clicked(lv_obj_t* swatch);
@@ -194,23 +197,5 @@ class ColorPicker : public Modal {
      */
     static ColorPicker* get_instance_from_event(lv_event_t* e);
 };
-
-/// The preset colors a swatch grid offers, 30 per palette, row-major in six
-/// columns. XML renders them through the general_/theme_swatch_color_<i> pools.
-const std::vector<uint32_t>& swatch_palette(ColorPicker::Palette palette);
-
-/// Whether a swatch filled with @p rgb blends into @p surface (too little
-/// luminance contrast, dark-on-dark or light-on-light) and needs a #border edge.
-bool swatch_needs_edge(uint32_t rgb, uint32_t surface);
-
-/// swatch_needs_edge() against the current theme's panel and dialog surfaces.
-bool swatch_needs_edge_here(uint32_t rgb);
-
-/// Recomputes the grids' edge pools for the current theme.
-void refresh_swatch_edges();
-
-/// Registers the grids' color and edge pools and color_picker_selected_swatch.
-/// Idempotent; call before any swatch grid is created.
-void ensure_swatch_grid_subjects();
 
 } // namespace helix::ui

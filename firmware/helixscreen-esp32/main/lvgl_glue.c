@@ -81,6 +81,10 @@ static void (*s_ui_tick)(void);
 static uint8_t* s_shadow; // full-frame PSRAM shadow (LVGL chunks land here)
 static uint8_t* s_band;   // internal-DRAM two-hop staging band (NULL => direct blit)
 static SemaphoreHandle_t s_shadow_lock;
+// The UI thread, suspended by the presenter for the length of each copy: a panel
+// build's PSRAM traffic otherwise slows the copy enough for the next frame's
+// scan-out to overtake it.
+static TaskHandle_t s_ui_task;
 static bool s_writer_holds;
 
 // Waits bounded so a wedged side can never freeze the other; a timeout proceeds
@@ -120,6 +124,7 @@ static int32_t s_cur_y2;
 // zero is not exoneration (measured 741 late refills vs 34 counted here in one
 // 10-line-bounce boot).
 static volatile uint32_t s_vsync_n;
+static volatile int64_t s_vsync_isr_us;
 static volatile uint32_t s_frame_complete_n;
 
 static bool flush_on_vsync(esp_lcd_panel_handle_t panel,
@@ -128,6 +133,7 @@ static bool flush_on_vsync(esp_lcd_panel_handle_t panel,
     (void)edata;
     (void)user_ctx;
     s_vsync_n++;
+    s_vsync_isr_us = esp_timer_get_time();
     BaseType_t high_task_woken = pdFALSE;
     if (s_vsync_sem) {
         xSemaphoreGiveFromISR(s_vsync_sem, &high_task_woken);
@@ -264,18 +270,84 @@ static void flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map)
     lv_display_flush_ready(disp); // immediate — LVGL never blocks on the panel
 }
 
+// Beam-trailing blit. The copy (~7-20 lines/ms, PSRAM bound) is slower than the
+// scan-out (17.7 lines/ms), so a blit that starts at frame top is overtaken and
+// that frame shows old content below the crossing. Instead each band is written
+// only once the bounce DMA has read it in the current frame; a writer that starts
+// right behind the reader stays behind it, and must only finish each band before
+// the NEXT frame reads it. Frame N then shows the old frame whole, frame N+1 the
+// new one whole.
+//
+// The bounce DMA reads FB line y at vsync + (VSYNC_PW + VSYNC_BP + y - lead) line
+// times, where lead is how far the two bounce buffers run ahead of the beam
+// (between one and two buffers). The earliest read uses the longest lead.
+#define LINE_US_X100                                                                               \
+    ((int64_t)(BOARD_LCD_H_RES + BOARD_LCD_HSYNC_PW + BOARD_LCD_HSYNC_BP + BOARD_LCD_HSYNC_FP) *   \
+     100000000LL / BOARD_LCD_PCLK_HZ)
+#define FRAME_LINES (BOARD_LCD_V_RES + BOARD_LCD_VSYNC_PW + BOARD_LCD_VSYNC_BP + BOARD_LCD_VSYNC_FP)
+#define BOUNCE_LINES 20
+#define READ_LEAD_MIN BOUNCE_LINES
+#define READ_LEAD_MAX (2 * BOUNCE_LINES)
+#define TRAIL_GUARD_US 200
+static volatile uint32_t s_late_presents;
+
+// When scan-out reads line y in frame `frame` after the vsync at vsync_us.
+static int64_t scan_read_us(int64_t vsync_us, int32_t y, int32_t frame, int32_t lead) {
+    return vsync_us +
+           ((int64_t)(BOARD_LCD_VSYNC_PW + BOARD_LCD_VSYNC_BP + y - lead + frame * FRAME_LINES) *
+            LINE_US_X100) /
+               100;
+}
+
 // Blit shadow rows [y1, y2] (full width) to the FB. Two-hop through the internal
 // band buffer when available (see the s_band comment); direct otherwise.
 static void present_blit(int32_t y1, int32_t y2) {
     if (s_band) {
+        const int64_t vsync_us = s_vsync_isr_us;
+        int32_t late_y = -1;
+        int64_t late_us = 0;
+        // Safe: the UI thread cannot hold the shadow lock (we do), heap locks are
+        // spinlocks it cannot be suspended inside, and nothing below takes a
+        // mutex it might own. Resume before logging: the log lock is a mutex.
+        if (s_ui_task) {
+            vTaskSuspend(s_ui_task);
+        }
         for (int32_t by = y1; by <= y2; by += UI_BAND_LINES) {
             int32_t bh = y2 - by + 1;
             if (bh > UI_BAND_LINES)
                 bh = UI_BAND_LINES;
+            // Trail the reader: this band's last line must already be read.
+            // Only the first bands ever wait; the copy is slower than the scan.
+            const int64_t start_after =
+                scan_read_us(vsync_us, by + bh - 1, 0, READ_LEAD_MIN) + TRAIL_GUARD_US;
+            // Sleep through most of a long wait (a band low on the screen waits
+            // up to a frame); spin only the last stretch, for timing.
+            const int64_t wait_us = start_after - esp_timer_get_time();
+            if (wait_us > 2000) {
+                vTaskDelay(pdMS_TO_TICKS((wait_us - 1000) / 1000));
+            }
+            while (esp_timer_get_time() < start_after) {
+            }
             // hop 1: shadow(PSRAM) -> internal band (sequential read)
             memcpy(s_band, s_shadow + (size_t)by * FB_STRIDE, (size_t)bh * FB_STRIDE);
             // hop 2: internal band -> FB(PSRAM) (cache-buffered write)
             esp_lcd_panel_draw_bitmap(s_panel, 0, by, BOARD_LCD_H_RES, by + bh, s_band);
+            const int64_t over =
+                esp_timer_get_time() - scan_read_us(vsync_us, by, 1, READ_LEAD_MAX);
+            if (over > late_us) {
+                late_us = over;
+                late_y = by;
+            }
+        }
+        if (s_ui_task) {
+            vTaskResume(s_ui_task);
+        }
+        if (late_y >= 0) {
+            s_late_presents++;
+            ESP_LOGW(TAG,
+                     "[present] late blit: band y=%ld finished %lldus after the next frame "
+                     "read it, %ld-line blit",
+                     (long)late_y, (long long)late_us, (long)(y2 - y1 + 1));
         }
     } else {
         esp_lcd_panel_draw_bitmap(s_panel, 0, y1, BOARD_LCD_H_RES, y2 + 1,
@@ -344,6 +416,8 @@ static uint32_t tick_cb(void) {
 // sequential (LV_OS_NONE, no locking).
 static void* ui_thread_main(void* arg) {
     (void)arg;
+
+    s_ui_task = xTaskGetCurrentTaskHandle();
 
     // Panel first (RGB init + bounce buffers). Thread-agnostic hardware setup.
     s_panel = board_display_init();

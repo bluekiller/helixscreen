@@ -62,7 +62,7 @@ void LedControlsWidget::on_led_controls_clicked(lv_event_t* e) {
 
 void LedControlsWidget::handle_clicked() {
     spdlog::debug("[LedControlsWidget] Clicked - opening LED control overlay");
-    open_led_control_overlay(parent_screen_, "");
+    open_led_control_overlay(parent_screen_);
 }
 
 } // namespace helix
