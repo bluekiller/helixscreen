@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
@@ -894,14 +895,15 @@ TEST_CASE_METHOD(OverlayXmlFixture,
 
 namespace {
 
-/// Sends the tone, then feeds back what the strip reports, the way a status frame
-/// returns it, and reopens the page on the device.
+/// Sends the tone, then feeds back what the strip reports: each channel as the
+/// 8-bit level the LED holds, the way a status frame returns it. Reopens the page.
 int white_sel_after_readback(LedControlOverlayTestAccess& access, const std::string& id, int tone) {
     access.tap_white(tone);
     const auto c = LedController::instance().native().get_strip_color(id);
     const bool rgbw = find_strip(LedController::instance().native().strips(), id)->supports_white;
-    nlohmann::json data =
-        rgbw ? nlohmann::json::array({c.r, c.g, c.b, c.w}) : nlohmann::json::array({c.r, c.g, c.b});
+    auto held = [](double v) { return std::round(v * 255.0) / 255.0; };
+    nlohmann::json data = rgbw ? nlohmann::json::array({held(c.r), held(c.g), held(c.b), held(c.w)})
+                               : nlohmann::json::array({held(c.r), held(c.g), held(c.b)});
     LedController::instance().update_from_status({{id, {{"color_data", {data}}}}});
     drain();
     access.activate(id);
@@ -917,13 +919,15 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a white read back from the stri
 
     helix::PrinterState ps;
     LedControlOverlayTestAccess access(ps);
+    // Dim enough that 8-bit levels scaled back to full brightness drift by a
+    // few steps: the ring must still find the tone.
     for (int tone = 0; tone < 3; ++tone) {
         INFO("tone " << tone);
         access.activate("neopixel rgbw");
-        access.drag_brightness(40);
+        access.drag_brightness(10);
         CHECK(white_sel_after_readback(access, "neopixel rgbw", tone) == tone);
         access.activate("neopixel rgb");
-        access.drag_brightness(40);
+        access.drag_brightness(10);
         CHECK(white_sel_after_readback(access, "neopixel rgb", tone) == tone);
     }
 }
