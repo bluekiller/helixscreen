@@ -258,10 +258,9 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
         strip.id = led_id;
         strip.backend = LedBackendType::NATIVE;
         // Fail-closed: default to white-only (no color). Addressable strips
-        // (neopixel/dotstar) re-enable color below since their configfile sections
-        // carry no red/green/blue_pin and are skipped by update_pin_config(). A
-        // generic [led] stays white-only until the configfile proves RGB pins exist,
-        // avoiding a meaningless color picker on white-only chamber lights.
+        // (neopixel/dotstar) are always RGB; update_pin_config() settles their W
+        // channel. A generic [led] stays white-only until the configfile proves RGB
+        // pins exist, avoiding a meaningless color picker on white-only chamber lights.
         strip.supports_color = false;
 
         // Determine display name: strip prefix, replace underscores, title case
@@ -269,11 +268,11 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
         if (led_id.rfind("neopixel ", 0) == 0) {
             raw_name = led_id.substr(9);
             strip.supports_color = true; // Addressable: RGB(W); no rgb pins in configfile
-            strip.supports_white = true; // Neopixel supports RGBW
+            strip.supports_white = true; // Until its color_order is read
         } else if (led_id.rfind("dotstar ", 0) == 0) {
             raw_name = led_id.substr(8);
-            strip.supports_color = true; // Addressable: RGB(W); no rgb pins in configfile
-            strip.supports_white = true; // Dotstar supports RGBW
+            strip.supports_color = true; // Addressable RGB; no rgb pins in configfile
+            strip.supports_white = false;
         } else if (led_id.rfind("led ", 0) == 0) {
             raw_name = led_id.substr(4);
             // Generic [led]: white-only until the configfile parse proves RGB pins
@@ -699,6 +698,28 @@ void LedController::update_led_pin_config(const nlohmann::json& configfile_confi
 // NativeBackend
 // ============================================================================
 
+namespace {
+
+/// True when every entry of a neopixel section's color_order has a W. Klipper
+/// reads the option as a comma list, one order for the whole chain or one per LED.
+bool color_order_has_white(const nlohmann::json& section) {
+    const std::string order = helix::json_util::safe_string(section, "color_order");
+    if (order.empty()) {
+        return false;
+    }
+    size_t start = 0;
+    while (start <= order.size()) {
+        const size_t end = std::min(order.find(',', start), order.size());
+        if (order.substr(start, end - start).find('W') == std::string::npos) {
+            return false;
+        }
+        start = end + 1;
+    }
+    return true;
+}
+
+} // namespace
+
 void NativeBackend::update_pin_config(const nlohmann::json& config_section) {
     if (!config_section.is_object()) {
         return;
@@ -713,6 +734,19 @@ void NativeBackend::update_pin_config(const nlohmann::json& config_section) {
 
         const auto& led_cfg = config_section[strip.id];
         if (!led_cfg.is_object()) {
+            continue;
+        }
+
+        // Addressable strips name no channel pins: a neopixel has W where its
+        // color_order says so (Klipper's default is GRB, and a chain may list one
+        // order per LED), and a dotstar never has W.
+        const bool neopixel = strip.id.rfind("neopixel ", 0) == 0;
+        if (neopixel || strip.id.rfind("dotstar ", 0) == 0) {
+            strip.supports_color = true;
+            strip.supports_white = neopixel && color_order_has_white(led_cfg);
+            strip.pin_config_known = true;
+            spdlog::info("[NativeBackend] Strip '{}' white channel: {}", strip.id,
+                         strip.supports_white);
             continue;
         }
 

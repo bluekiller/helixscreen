@@ -99,10 +99,9 @@ TEST_CASE_METHOD(LedControllerFixture,
 
     REQUIRE(strips[1].id == "dotstar status_led");
     REQUIRE(strips[1].name == "Status LED");
-    // Addressable strips keep color at discovery — their configfile section carries
-    // no red/green/blue_pin, so update_pin_config() skips them (regression guard).
+    // Addressable strips have color at discovery; a dotstar has no W channel.
     REQUIRE(strips[1].supports_color == true);
-    REQUIRE(strips[1].supports_white == true);
+    REQUIRE(strips[1].supports_white == false);
 
     REQUIRE(strips[2].id == "led case_light");
     REQUIRE(strips[2].name == "Case Light");
@@ -155,12 +154,11 @@ TEST_CASE_METHOD(LedControllerFixture,
     REQUIRE(find("led chamber_light").supports_color == false);
     REQUIRE(find("led chamber_light").supports_white == true);
 
-    // Addressable strips: color stays true at discovery (regression guard — their
-    // configfile sections have no red/green/blue_pin, so update_pin_config skips them).
+    // Addressable strips have color at discovery; a dotstar has no W channel.
     REQUIRE(find("neopixel ring").supports_color == true);
     REQUIRE(find("neopixel ring").supports_white == true);
     REQUIRE(find("dotstar bar").supports_color == true);
-    REQUIRE(find("dotstar bar").supports_white == true);
+    REQUIRE(find("dotstar bar").supports_white == false);
 
     ctrl.deinit();
 }
@@ -2350,5 +2348,44 @@ TEST_CASE_METHOD(LedMockApiFixture, "LedController: an output_pin with no pwm li
     // An explicit `pwm: True` keeps the pin dimmable.
     ctrl.apply_configfile({{"output_pin caselight", {{"pin", "PA1"}, {"pwm", "True"}}}});
     CHECK(ctrl.output_pin().is_pwm("output_pin caselight"));
+    ctrl.deinit();
+}
+
+TEST_CASE_METHOD(LedControllerFixture,
+                 "LedController: an addressable strip's white channel comes from its color_order",
+                 "[led][controller][configfile]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(nullptr, nullptr);
+
+    // Production order: configfile, then discovery, then a status frame. Klipper
+    // reports four color_data channels for every LED type.
+    ctrl.apply_configfile({{"neopixel grb", {{"pin", "PA1"}}},
+                           {"neopixel grbw", {{"pin", "PA2"}, {"color_order", "GRBW"}}},
+                           {"neopixel chain", {{"pin", "PA3"}, {"color_order", "GRB, GRBW"}}},
+                           {"dotstar star", {{"data_pin", "PA4"}, {"clock_pin", "PA5"}}}});
+    helix::PrinterDiscovery discovery;
+    discovery.parse_objects(nlohmann::json::array(
+        {"neopixel grb", "neopixel grbw", "neopixel chain", "dotstar star", "extruder"}));
+    ctrl.discover_from_hardware(discovery);
+    const nlohmann::json frame = {{"color_data", {{0.1, 0.2, 0.3, 0.0}}}};
+    ctrl.native().update_from_status({{"neopixel grb", frame},
+                                      {"neopixel grbw", frame},
+                                      {"neopixel chain", frame},
+                                      {"dotstar star", frame}});
+
+    const auto& strips = ctrl.native().strips();
+    const auto page = [&](const char* id) {
+        const auto* s = helix::led::find_strip(strips, id);
+        REQUIRE(s != nullptr);
+        CHECK(s->supports_color);
+        CHECK(s->pin_config_known);
+        return helix::led::classify_device_page(*s, helix::led::MacroLedType::ON_OFF, false);
+    };
+    CHECK(page("neopixel grb").white == helix::led::WhiteMode::Mixed);
+    CHECK(page("neopixel grbw").white == helix::led::WhiteMode::WChannel);
+    // A chain is white-capable only when every LED in it has W.
+    CHECK(page("neopixel chain").white == helix::led::WhiteMode::Mixed);
+    CHECK(page("dotstar star").white == helix::led::WhiteMode::Mixed);
     ctrl.deinit();
 }
