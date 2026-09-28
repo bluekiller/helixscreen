@@ -754,11 +754,6 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   the session and never written down, on every Happy Hare printer. Clearing a lane had the
   mirror-image problem: the lane emptied on screen and the old details came back on the next
   start. Both stick now.
-- **Pure black was dropped as a filament colour on AFC and Happy Hare lanes** - picking black
-  recorded no colour at all, so the lane kept whatever colour was on it before, and the
-  recommended nozzle and bed temperatures for the filament were not saved with it. Black is now
-  a colour like any other on HelixScreen's own screens; on these two systems it still does not
-  reach the printer's own lane record or its LEDs (#1597).
 - **The old spool's brand stayed on a lane** (#1672) - when Spoolman dropped a spool, or
   another tool (Mainsail, a macro, the MMU's own screen) swapped one, the outgoing spool's
   details lingered. Seen on AD5X IFS and Happy Hare.
