@@ -569,8 +569,8 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
                  budget_config.tier);
 
     // Moving mesh: what a finger-down frame draws on a GPU too slow for the
-    // strided view to read as the model. The gate is the seed-rate budget —
-    // the weakest GPU class the app plans for — so a fast desktop builds it
+    // strided view to read as the model. The gate is the seed-rate budget of
+    // the weakest GPU class the app plans for, so a fast desktop builds it
     // too and simply never draws it.
     const size_t moving_budget =
         static_cast<size_t>(helix::gcode::render_schedule::kSeedRateTrisPerMs *
@@ -603,7 +603,7 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
             if (should_cancel && should_cancel()) {
                 spdlog::info("[GCode Viewer] {}: moving mesh cancelled", context_tag);
             } else if (mesh->strips.empty() || mesh_triangles == 0) {
-                spdlog::info("[GCode Viewer] {}: moving mesh built empty — keeping stride fallback",
+                spdlog::info("[GCode Viewer] {}: moving mesh built empty, keeping stride fallback",
                              context_tag);
             } else {
                 mesh->prepare_interleaved_buffers();

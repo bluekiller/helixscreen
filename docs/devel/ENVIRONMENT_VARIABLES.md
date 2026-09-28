@@ -1015,7 +1015,7 @@ HELIX_GCODE_STREAMING=auto ./build/bin/helix-screen --test -vv &
 ```
 
 **Auto-detection thresholds** (15x expansion factor; boards at or under 2GB
-total RAM — they usually co-host Klipper and Moonraker — take a 15% share of
+total RAM (they usually co-host Klipper and Moonraker) take a 15% share of
 available memory instead of the 40% default, so a small file still full-parses
 and the 3D preview can follow the print):
 | Available RAM | Streaming kicks in at |

@@ -337,7 +337,7 @@ class GCodeGLESRenderer {
 
     /// Build the model-view-projection matrix the GLES geometry pass applies:
     /// -90° model rotation about Z plus the optional vertical content offset.
-    /// Shared by setup_frame and pick_object so they can't drift — drift
+    /// Shared by setup_frame and pick_object so they can't drift; drift
     /// caused #22 (clicks landing on the wrong object).
     glm::mat4 build_mvp(const GCodeCamera& camera) const;
     /// Lazily compile/link the simple line shader used for selection brackets.

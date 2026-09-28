@@ -81,7 +81,7 @@ circular and matches OrcaSlicer. Anything else logs a warning and falls back to
 16. The geometry budget tier can override this downward on constrained devices.
 
 The tier ladder gates on memory first, and on slow GPUs also on triangle count:
-`select_tier()` (`src/rendering/geometry_budget_manager.cpp#GeometryBudgetManager::select_tier`)
+`select_tier()` (`src/rendering/geometry_budget_manager.cpp#select_tier`)
 takes a `max_triangles` cap supplied by `gpu_triangle_budget()`
 (`include/gcode_gl_fallback.h#gpu_triangle_budget`), which keys off the kernel
 driver behind the DRM render node. A tier whose estimated triangles

@@ -319,7 +319,7 @@ downclocked core. Treat absolute figures from this board accordingly.
 ## The 3D G-code preview on vc4 (2026-09-28)
 
 What a VideoCore IV is worth to the GLES gcode renderer, measured on a Pi 3B
-(856 MB, 368x390 viewer, 3DBenchy). Raw whole-scene draw cost first — these are
+(856 MB, 368x390 viewer, 3DBenchy). Raw whole-scene draw cost first; these are
 the numbers that decide whether a frame may submit the whole scene at all:
 
 | Drawn triangles | Draw | Frame |
@@ -353,15 +353,15 @@ on readback instead.
 
 **The renderer learns its rate rather than looking it up.** No GPU-name table:
 each finished slice folds its triangles-per-millisecond into a smoothed session
-rate (`include/gcode_render_schedule.h#update_rate`), seeded at 4k tris/ms — a
-VideoCore IV — so the first slice and the first moving frame stay short on the
+rate (`include/gcode_render_schedule.h#update_rate`), seeded at 4k tris/ms, a
+VideoCore IV, so the first slice and the first moving frame stay short on the
 weakest GPU the app plans for. Slice quotas, the moving plan and the moving
 mesh's band depth all derive from that one measured number.
 
 **Why the vc4 triangle cap stays 1,000,000.** Time-slicing removes the long
 submissions, so the cap now bounds only memory and time-to-sharp, and it was
 re-measured for a raise. A 2M and a 3M build of exclude_object_test (1.31M
-triangles, sharp in ~1.0 s) pass the timing gates — but the GPU allocates from
+triangles, sharp in ~1.0 s) pass the timing gates, but the GPU allocates from
 the 256 MB CMA pool, of which ~99 MB is free with the app idle, and the bigger
 builds left 9 MB and 3 MB of it free. Free CMA that low starves anything else
 asking the GPU for memory, so the cap stays at 1M

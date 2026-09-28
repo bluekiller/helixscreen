@@ -6,6 +6,7 @@
  * @brief Unit tests for G-code streaming configuration and the low-RAM threshold cap
  */
 
+#include "config.h"
 #include "gcode_streaming_config.h"
 #include "memory_utils.h"
 
@@ -104,6 +105,34 @@ TEST_CASE("A low-RAM board streams again once available memory collapses", "[gco
     auto mem = make_mem(856 * 1024, 200 * 1024);
     size_t benchy = 2970 * KB;
     REQUIRE(should_use_gcode_streaming(benchy, mem));
+}
+
+TEST_CASE("A configured threshold below 15 is honoured on a low-RAM board", "[gcode][streaming]") {
+    // The 15% low-RAM share is a cap on big configured values, not a floor on
+    // small ones: a user's 10 must stay 10, or a memory-starved board silently
+    // full-parses files the smaller ceiling was meant to stream.
+    const char* key = "/gcode_viewer/streaming_threshold_percent";
+    helix::Config* config = helix::Config::get_instance();
+    const int original = config->get<int>(key, 40);
+    struct Restore {
+        helix::Config* config;
+        const char* key;
+        int value;
+        ~Restore() {
+            config->set<int>(key, value);
+        }
+    } restore{config, key, original};
+
+    config->set<int>(key, 10);
+    REQUIRE(get_streaming_threshold_percent() == 10);
+
+    // 2GB board, 512MB available: 10% of it over the 15x expansion is a
+    // ~3.4MB ceiling; the 15% cap would give ~5.1MB. A 4.5MB file sits between
+    // the two, so it streams only while the configured 10 is in force.
+    auto mem = make_mem(2 * GB_KB, 512 * KB);
+    REQUIRE(mem.is_low_ram_device());
+    REQUIRE(should_use_gcode_streaming(size_t(4.5 * MB), mem));
+    REQUIRE_FALSE(should_use_gcode_streaming(3 * MB, mem));
 }
 
 TEST_CASE("Testable overload uses threshold logic for 8GB device", "[gcode]") {

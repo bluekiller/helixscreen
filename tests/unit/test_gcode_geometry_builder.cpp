@@ -193,6 +193,7 @@ TEST_CASE("Geometry Builder: RibbonGeometry - clear", "[gcode][geometry][ribbon]
     geometry.strip_color_index.push_back(0);
     geometry.color_palette.push_back(0xFF0000);
     geometry.extrusion_triangle_count = 10;
+    geometry.moving_mesh = std::make_unique<RibbonGeometry>();
 
     geometry.clear();
 
@@ -201,6 +202,7 @@ TEST_CASE("Geometry Builder: RibbonGeometry - clear", "[gcode][geometry][ribbon]
     REQUIRE(geometry.strip_color_index.empty());
     REQUIRE(geometry.color_palette.empty());
     REQUIRE(geometry.extrusion_triangle_count == 0);
+    REQUIRE(geometry.moving_mesh == nullptr);
 }
 
 TEST_CASE("Geometry Builder: RibbonGeometry - memory usage", "[gcode][geometry][ribbon]") {
@@ -222,6 +224,14 @@ TEST_CASE("Geometry Builder: RibbonGeometry - memory usage", "[gcode][geometry][
     size_t before_colors = geometry.memory_usage();
     geometry.strip_color_index.resize(1000, 0);
     REQUIRE(geometry.memory_usage() == before_colors + 999);
+
+    // A moving mesh counts toward the owning geometry's usage: it is live
+    // memory while the viewer holds both.
+    auto mesh = std::make_unique<RibbonGeometry>();
+    mesh->vertices.resize(256);
+    size_t before_mesh = geometry.memory_usage();
+    geometry.moving_mesh = std::move(mesh);
+    REQUIRE(geometry.memory_usage() == before_mesh + 256 * sizeof(RibbonVertex));
 }
 
 // ============================================================================
