@@ -4,6 +4,7 @@
 #include "led/led_backend.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace helix::led {
 
@@ -71,6 +72,21 @@ struct Look {
 /// on W when the strip has one, else full on every RGB pin. Color without W:
 /// W folds into RGB. Nothing lit at all: white.
 Look fit_look(uint32_t rgb, double w, const LedStripInfo& device);
+
+/// Which White tone and which swatch a look rings. white: a WhiteTone or -1.
+/// swatch: a preset index, -2 for Custom, -1 when the look is a white.
+struct LookRing {
+    int white = -1;
+    int swatch = -1;
+};
+
+/// The ring for a full-brightness look (@p rgb tint plus @p w) on a strip whose
+/// White section is @p strip_white. Both sides of every comparison are scaled so
+/// their brightest channel is full. A near-neutral look (channels agree after
+/// scaling, or W alone) is a white and rings the tone nearest its warmth, never
+/// Custom; otherwise the matching preset rings, else Custom.
+LookRing ring_for_look(uint32_t rgb, double w, WhiteMode strip_white,
+                       const std::vector<uint32_t>& presets);
 
 /// What an RGB(W) output looks like at full brightness: W adds to every
 /// channel, then the result scales so its brightest channel is full. White

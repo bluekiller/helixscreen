@@ -92,12 +92,6 @@ class LedControlOverlay : public OverlayBase {
 
     [[nodiscard]] const LedStripInfo* focused_info() const;
     [[nodiscard]] MacroLedType focused_macro_type() const;
-    /// The current color and W level as the light shows them at full brightness.
-    [[nodiscard]] uint32_t shown_rgb() const;
-    /// The White tone nearest the current look, or -1 when it is no white.
-    [[nodiscard]] int white_selection() const;
-    /// Index into color_presets(), -2 for a custom color, -1 for none.
-    [[nodiscard]] int swatch_selection() const;
     /// The focused strip's running effect among its list chips, or -1.
     [[nodiscard]] int active_effect_index() const;
     [[nodiscard]] std::vector<bool> focused_effects_enabled() const;

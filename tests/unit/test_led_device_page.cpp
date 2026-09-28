@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "led/led_color_utils.h"
 #include "led/led_device_page.h"
+#include "led/led_devices.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -144,4 +146,50 @@ TEST_CASE("output_rgb: W adds to every channel, scaled to full", "[led][page]") 
     CHECK(output_rgb(0.5, 0.0, 0.0, 0.0) == 0xFF0000u);
     CHECK(output_rgb(0.0, 0.0, 0.0, 0.0) == 0xFFFFFFu);
     CHECK(output_rgb(0.0, 0.0, 0.25, 1.0) == 0xCCCCFFu);
+}
+
+namespace {
+const std::vector<uint32_t> PRESETS(std::begin(helix::led::DEFAULT_COLOR_PRESETS),
+                                    std::end(helix::led::DEFAULT_COLOR_PRESETS));
+}
+
+TEST_CASE("ring_for_look: every preset rings itself, whatever its brightest channel",
+          "[led][page]") {
+    for (size_t i = 0; i < PRESETS.size(); ++i) {
+        INFO("preset " << i);
+        const LookRing ring = ring_for_look(PRESETS[i], 0.0, WhiteMode::WChannel, PRESETS);
+        CHECK(ring.swatch == static_cast<int>(i));
+        CHECK(ring.white == -1);
+    }
+}
+
+TEST_CASE("ring_for_look: any white rings a White tone, never Custom", "[led][page]") {
+    // RGB strip: pure white is Neutral, warm and cool mixes their tones.
+    CHECK(ring_for_look(0xFFFFFF, 0.0, WhiteMode::Mixed, PRESETS).white ==
+          static_cast<int>(WhiteTone::Neutral));
+    CHECK(ring_for_look(0xFFC080, 0.0, WhiteMode::Mixed, PRESETS).white ==
+          static_cast<int>(WhiteTone::Warm));
+    CHECK(ring_for_look(0xC8DCFF, 0.0, WhiteMode::Mixed, PRESETS).white ==
+          static_cast<int>(WhiteTone::Cool));
+    // RGBW: W alone is Neutral; a tint under W leans the way of its tint.
+    CHECK(ring_for_look(0, 1.0, WhiteMode::WChannel, PRESETS).white ==
+          static_cast<int>(WhiteTone::Neutral));
+    CHECK(ring_for_look(0xFFFFFF, 0.0, WhiteMode::WChannel, PRESETS).white ==
+          static_cast<int>(WhiteTone::Neutral));
+    for (int t = 0; t < 3; ++t) {
+        for (WhiteMode mode : {WhiteMode::WChannel, WhiteMode::Mixed}) {
+            INFO("tone " << t << " mode " << static_cast<int>(mode));
+            const Rgbw c = white_tone(static_cast<WhiteTone>(t), mode);
+            const LookRing ring =
+                ring_for_look(pack_rgb(c.r, c.g, c.b), c.w, WhiteMode::WChannel, PRESETS);
+            CHECK(ring.white == t);
+            CHECK(ring.swatch == -1);
+        }
+    }
+}
+
+TEST_CASE("ring_for_look: a color that is neither rings Custom", "[led][page]") {
+    const LookRing ring = ring_for_look(0x804000, 0.0, WhiteMode::WChannel, PRESETS);
+    CHECK(ring.white == -1);
+    CHECK(ring.swatch == -2);
 }

@@ -982,3 +982,112 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a WLED page notes where its pre
     access.activate("macro:Party");
     CHECK(access.str_subject("led_page_note").empty());
 }
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: every preset rings itself at any brightness, tapped and read back",
+                 "[led][overlay]") {
+    add_native("neopixel rgbw", true, true);
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    const auto presets = LedController::instance().color_presets();
+    for (int pct : {100, 50, 10}) {
+        for (size_t i = 0; i < presets.size(); ++i) {
+            INFO("brightness " << pct << " preset " << i);
+            access.activate("neopixel rgbw");
+            access.drag_brightness(pct);
+            access.tap_swatch(static_cast<int>(i));
+            CHECK(access.int_subject("led_selected_swatch") == static_cast<int>(i));
+
+            const auto c = LedController::instance().native().get_strip_color("neopixel rgbw");
+            auto held = [](double v) { return std::round(v * 255.0) / 255.0; };
+            LedController::instance().update_from_status(
+                {{"neopixel rgbw",
+                  {{"color_data", {{held(c.r), held(c.g), held(c.b), held(c.w)}}}}}});
+            drain();
+            access.activate("neopixel rgbw");
+            CHECK(access.int_subject("led_selected_swatch") == static_cast<int>(i));
+        }
+    }
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture, "overlay: plain white on an RGB-only strip rings Neutral",
+                 "[led][overlay]") {
+    add_native("neopixel rgb", true, false);
+    LedController::instance().update_from_status(
+        {{"neopixel rgb", {{"color_data", {{1.0, 1.0, 1.0}}}}}});
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel rgb");
+
+    CHECK(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
+    CHECK(access.int_subject("led_selected_swatch") == -1);
+}
+
+TEST_CASE_METHOD(LedApplyColorFixture,
+                 "overlay: a WLED page is neutral white, not the last strip's color",
+                 "[led][overlay]") {
+    add_native("neopixel chamber_light", true, true);
+    LedStripInfo strip;
+    strip.id = "printer_led";
+    strip.name = "printer_led";
+    strip.backend = LedBackendType::WLED;
+    strip.supports_color = true;
+    strip.supports_white = true;
+    LedController::instance().wled().add_strip(strip);
+
+    helix::PrinterState ps;
+    LedControlOverlayTestAccess access(ps);
+    access.activate("neopixel chamber_light");
+    access.tap_swatch(0);
+    REQUIRE(lv_color_to_u32(lv_subject_get_color(lv_xml_get_subject(nullptr, "led_page_color"))) !=
+            lv_color_to_u32(lv_color_hex(0xFFFFFF)));
+
+    access.tap_tab(1);
+    REQUIRE(access.focused() == "printer_led");
+    CHECK((lv_color_to_u32(lv_subject_get_color(lv_xml_get_subject(nullptr, "led_page_color"))) &
+           0xFFFFFF) == 0xFFFFFFu);
+    CHECK(LedController::instance().device_state("printer_led").rgb == 0xFFFFFFu);
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the underline follows the focused tab",
+                 "[led][overlay][xml]") {
+    lv_obj_t* tab0 = find("led_tab_0");
+    lv_obj_t* tab1 = find("led_tab_1");
+    REQUIRE(tab0 != nullptr);
+    REQUIRE(tab1 != nullptr);
+    CHECK(lv_obj_get_style_border_width(tab0, LV_PART_MAIN) > 0);
+    CHECK(lv_obj_get_style_border_width(tab1, LV_PART_MAIN) == 0);
+
+    lv_obj_send_event(tab1, LV_EVENT_CLICKED, nullptr);
+    CHECK(lv_obj_get_style_border_width(tab0, LV_PART_MAIN) == 0);
+    CHECK(lv_obj_get_style_border_width(tab1, LV_PART_MAIN) > 0);
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab dot shows exactly its device's state",
+                 "[led][overlay][xml]") {
+    auto visible_dots = [this](const char* tab) {
+        lv_obj_t* dot = lv_obj_find_by_name(find(tab), "light_dot");
+        REQUIRE(dot != nullptr);
+        std::vector<int> shown;
+        for (uint32_t i = 0; i < lv_obj_get_child_count(dot); ++i) {
+            if (!lv_obj_has_flag(lv_obj_get_child(dot, static_cast<int32_t>(i)),
+                                 LV_OBJ_FLAG_HIDDEN)) {
+                shown.push_back(static_cast<int>(i));
+            }
+        }
+        return shown;
+    };
+    // Children: 0 lit, 1 off ring, 2 unknown ring. No state read yet: unknown.
+    CHECK(visible_dots("led_tab_1") == std::vector<int>{2});
+
+    LedController::instance().update_from_status(
+        {{"neopixel sb_leds", {{"color_data", {{1.0, 0.0, 0.0}}}}}});
+    drain();
+    CHECK(visible_dots("led_tab_1") == std::vector<int>{0});
+
+    LedController::instance().update_from_status(
+        {{"neopixel sb_leds", {{"color_data", {{0.0, 0.0, 0.0}}}}}});
+    drain();
+    CHECK(visible_dots("led_tab_1") == std::vector<int>{1});
+}

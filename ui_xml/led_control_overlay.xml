@@ -25,11 +25,11 @@
     <style name="power_on" bg_opa="255" border_width="0"/>
     <style name="power_off" bg_opa="0" border_width="#led_ring_width" border_color="#text_muted"/>
     <!-- One PowerOnly lamp (a non-PWM pin) spans the page, so its button centers. -->
-    <style name="lamp_wide" flex_grow="1"/>
+    <style name="lamp_wide" flex_grow="1" flex_main_place="center"/>
     <!-- The brightness pill: a rounded track, a square-cornered fill that the
          track's radius clips (lv_bar masks an indicator whose radius is smaller
          than the track's), so the fill's top edge stays flat. No knob. -->
-    <style name="pill_track" bg_color="#elevated_bg" bg_opa="255" radius="9999" border_width="0" pad_all="0"/>
+    <style name="pill_track" bg_color="#elevated_bg" bg_opa="255" radius="#led_pill_radius" border_width="0" pad_all="0"/>
     <style name="pill_fill" radius="0" bg_opa="255"/>
     <style name="pill_knob" bg_opa="0" border_width="0" shadow_width="0" outline_width="0" pad_all="0"/>
     <style name="section_label" text_color="#text_muted"/>
@@ -42,7 +42,7 @@
 
       <!-- Tabs: a sideways row, faded on the right while more tabs sit past the edge. -->
       <lv_obj name="led_tab_strip"
-              width="100%" height="content" style_pad_all="0" scrollable="false" style_border_width="1"
+              width="100%" height="content" style_pad_all="0" scrollable="false" style_border_width="#border_width"
               style_border_side="bottom" style_border_color="#border">
         <bind_flag_if_eq subject="led_tab_count" flag="hidden" ref_value="0"/>
         <lv_obj name="led_tab_row"
@@ -109,17 +109,17 @@
             <!-- The percentage sits near the top of the pill: in the theme's text
                  color over the empty track, in the fill's contrast color once the
                  fill reaches it. -->
-            <text_small name="led_brightness_pct"
-                        bind_text="led_page_brightness_text" align="top_mid" style_translate_y="#space_md"
-                        clickable="false" event_bubble="true">
-              <bind_flag_if_ge subject="led_page_brightness" flag="hidden" ref_value="88"/>
-            </text_small>
-            <text_small name="led_brightness_pct_on_fill"
-                        bind_text="led_page_brightness_text" align="top_mid" style_translate_y="#space_md"
-                        clickable="false" event_bubble="true">
+            <text_heading name="led_brightness_pct"
+                          bind_text="led_page_brightness_text" align="top_mid" style_translate_y="#space_md"
+                          clickable="false" event_bubble="true">
+              <bind_flag_if_ge subject="led_page_brightness" flag="hidden" ref_value="94"/>
+            </text_heading>
+            <text_heading name="led_brightness_pct_on_fill"
+                          bind_text="led_page_brightness_text" align="top_mid" style_translate_y="#space_md"
+                          clickable="false" event_bubble="true">
               <bind_style_prop prop="text_color" subject="led_page_fill_text"/>
-              <bind_flag_if_lt subject="led_page_brightness" flag="hidden" ref_value="88"/>
-            </text_small>
+              <bind_flag_if_lt subject="led_page_brightness" flag="hidden" ref_value="94"/>
+            </text_heading>
             <event_cb trigger="value_changed" callback="led_brightness_changed_cb"/>
           </lv_slider>
           <!-- Macro devices: HelixScreen cannot read their state, so they get
@@ -148,7 +148,7 @@
                   width="100%" height="content" flex_flow="column" scrollable="false" style_pad_all="0"
                   style_pad_gap="#space_xs">
             <bind_flag_if_eq subject="led_page_white" flag="hidden" ref_value="0"/>
-            <text_small text="White" translation_tag="White">
+            <text_small text="White" translation_tag="White" text_transform="uppercase">
               <style name="section_label"/>
             </text_small>
             <lv_obj width="100%"
@@ -165,7 +165,7 @@
                   width="100%" height="content" flex_flow="column" scrollable="false" style_pad_all="0"
                   style_pad_gap="#space_xs">
             <bind_flag_if_eq subject="led_page_color_vis" flag="hidden" ref_value="0"/>
-            <text_small text="Color" translation_tag="Color">
+            <text_small text="Color" translation_tag="Color" text_transform="uppercase">
               <style name="section_label"/>
             </text_small>
             <lv_obj width="100%"
@@ -199,11 +199,11 @@
                   width="100%" height="content" flex_flow="column" scrollable="false" style_pad_all="0"
                   style_pad_gap="#space_xs">
             <bind_flag_if_eq subject="led_page_list" flag="hidden" ref_value="0"/>
-            <text_small name="led_list_title" bind_text="led_page_list_title">
+            <text_small name="led_list_title" bind_text="led_page_list_title" text_transform="uppercase">
               <style name="section_label"/>
               <bind_flag_if_eq subject="led_page_list" flag="hidden" ref_value="3"/>
             </text_small>
-            <text_small name="led_level_title" text="Level" translation_tag="Level">
+            <text_small name="led_level_title" text="Level" translation_tag="Level" text_transform="uppercase">
               <style name="section_label"/>
               <bind_flag_if_not_eq subject="led_page_list" flag="hidden" ref_value="3"/>
             </text_small>

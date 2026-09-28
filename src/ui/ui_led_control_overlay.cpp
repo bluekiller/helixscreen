@@ -67,20 +67,6 @@ lv_obj_t* open_led_control_overlay(lv_obj_t* parent_screen, const std::string& d
 
 namespace {
 
-/// Largest per-channel difference between two 0xRRGGBB colors.
-int channel_distance(uint32_t a, uint32_t b) {
-    int worst = 0;
-    for (int shift : {16, 8, 0}) {
-        const int d = static_cast<int>((a >> shift) & 0xFF) - static_cast<int>((b >> shift) & 0xFF);
-        worst = std::max(worst, std::abs(d));
-    }
-    return worst;
-}
-
-/// A dimmed color read back from the strip and scaled up to full brightness
-/// drifts by a few steps per channel; within this it is still the same color.
-constexpr int COLOR_MATCH_TOLERANCE = 12;
-
 int user_data_int(lv_event_t* e) {
     const auto* ud = static_cast<const char*>(lv_event_get_user_data(e));
     return ud != nullptr ? helix::text_io::parse_leading<int>(ud).value_or(-1) : -1;
@@ -326,7 +312,11 @@ void LedControlOverlay::load_page_state() {
     auto& ctrl = LedController::instance();
 
     if (info->backend != LedBackendType::NATIVE) {
+        // HelixScreen sends these no color, so their page is a neutral white
+        // rather than whatever the previously focused strip left behind.
         current_brightness_ = ctrl.device_state(focused_strip_).brightness;
+        current_color_ = 0xFFFFFF;
+        current_white_ = 0.0;
         return;
     }
 
@@ -409,57 +399,15 @@ void LedControlOverlay::publish_color_state() {
     const std::string text = fmt::format("{}%", current_brightness_);
     lv_subject_copy_string(&page_brightness_text_, text.c_str());
 
-    lv_subject_set_int(&page_white_sel_, white_selection());
-    lv_subject_set_int(&selected_swatch_, swatch_selection());
+    const LookRing ring = page_.color ? ring_for_look(current_color_, current_white_, page_.white,
+                                                      LedController::instance().color_presets())
+                                      : LookRing{};
+    lv_subject_set_int(&page_white_sel_, ring.white);
+    lv_subject_set_int(&selected_swatch_, ring.swatch);
 
     const bool is_level = std::find(std::begin(LEVEL_CHIPS), std::end(LEVEL_CHIPS),
                                     current_brightness_) != std::end(LEVEL_CHIPS);
     lv_subject_set_int(&page_level_, is_level ? current_brightness_ : 0);
-}
-
-uint32_t LedControlOverlay::shown_rgb() const {
-    double r = 0.0, g = 0.0, b = 0.0;
-    unpack_rgb(current_color_, r, g, b);
-    return output_rgb(r, g, b, current_white_);
-}
-
-int LedControlOverlay::white_selection() const {
-    if (page_.white == WhiteMode::None) {
-        return -1;
-    }
-    // Compared as the light looks, so a W-channel white and the same white mixed
-    // from RGB both count; an RGBW strip can show either, an RGB strip only mixes.
-    const uint32_t shown = shown_rgb();
-    int best = -1;
-    int best_distance = COLOR_MATCH_TOLERANCE + 1;
-    for (const WhiteMode mode : {WhiteMode::WChannel, WhiteMode::Mixed}) {
-        if (mode == WhiteMode::WChannel && page_.white != WhiteMode::WChannel) {
-            continue;
-        }
-        for (int t = 0; t < 3; ++t) {
-            const Rgbw c = white_tone(static_cast<WhiteTone>(t), mode);
-            const int d = channel_distance(output_rgb(c.r, c.g, c.b, c.w), shown);
-            if (d < best_distance) {
-                best = t;
-                best_distance = d;
-            }
-        }
-    }
-    return best;
-}
-
-int LedControlOverlay::swatch_selection() const {
-    if (!page_.color || white_selection() >= 0) {
-        return -1;
-    }
-    const uint32_t shown = shown_rgb();
-    const auto& presets = LedController::instance().color_presets();
-    for (size_t i = 0; i < presets.size(); ++i) {
-        if (channel_distance(presets[i], shown) <= COLOR_MATCH_TOLERANCE) {
-            return static_cast<int>(i);
-        }
-    }
-    return -2;
 }
 
 void LedControlOverlay::publish_list() {

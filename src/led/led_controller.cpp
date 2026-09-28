@@ -2229,6 +2229,9 @@ DeviceState LedController::device_state(const std::string& id) const {
         const auto w = wled_.get_strip_state(id);
         s.power = w.is_on ? PowerState::On : PowerState::Off;
         s.brightness = std::clamp(w.brightness * 100 / 255, 0, 100);
+        // HelixScreen sends WLED no colors; its look is a neutral white.
+        s.has_rgb = true;
+        s.rgb = 0xFFFFFF;
         return s;
     }
     case LedBackendType::MACRO:

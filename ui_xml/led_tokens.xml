@@ -41,6 +41,12 @@
     <px name="led_fade_width_medium" value="48"/>
     <px name="led_fade_width_large" value="56"/>
 
+    <!-- Corner radius of the brightness pill. -->
+    <px name="led_pill_radius_micro" value="15"/>
+    <px name="led_pill_radius_small" value="18"/>
+    <px name="led_pill_radius_medium" value="26"/>
+    <px name="led_pill_radius_large" value="30"/>
+
     <!-- Ring width for the outlined power button and the selected swatch. -->
     <px name="led_ring_width_small" value="2"/>
     <px name="led_ring_width_medium" value="2"/>
