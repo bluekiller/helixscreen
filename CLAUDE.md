@@ -185,6 +185,16 @@ plan a rebase, including before you file or comment publicly on it.
 - A successful send is not a delivery and silence is not agreement. Never merge, rebase or
   delete on an unanswered message.
 
+**Settle it between sessions; bring Preston outcomes, not questions.** He runs several
+sessions at once, and every question routed back to him stalls all of them.
+
+- Coordination is yours: who builds, who holds a tree, merge order, conflicts, release
+  timing. Resolve it session-to-session, then tell him what happened.
+- Ask him only for what no session can settle: a product call nobody has made yet, or
+  judging what pixels look like.
+- Be proactive. When a peer's work affects yours, message them before they have to ask.
+  When you learn something another session needs, send it.
+
 What is shared here:
 
 - **The main working tree is live.** Other sessions commit in it. Never let git autostash
