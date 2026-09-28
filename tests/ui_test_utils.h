@@ -313,6 +313,25 @@ bool is_visible(lv_obj_t* widget);
 std::string get_text(lv_obj_t* widget);
 
 /**
+ * @brief Last lv_label child of a button: ui_button's text label
+ *
+ * The icon glyph is an lv_label too and precedes the text once stacked
+ * (stacked layout, icon_position="left"), so "first label" would hand back
+ * the icon instead of the text.
+ */
+inline lv_obj_t* button_label(lv_obj_t* btn) {
+    lv_obj_t* found = nullptr;
+    uint32_t count = lv_obj_get_child_count(btn);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* child = lv_obj_get_child(btn, i);
+        if (lv_obj_check_type(child, &lv_label_class)) {
+            found = child;
+        }
+    }
+    return found;
+}
+
+/**
  * @brief Check if widget is in checked/selected state
  * @param widget Checkbox, switch, or button widget
  * @return true if widget is checked/selected

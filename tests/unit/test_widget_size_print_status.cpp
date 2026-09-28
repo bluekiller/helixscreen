@@ -87,6 +87,7 @@
 #include "../test_helpers/printer_state_test_access.h"
 #include "../test_helpers/scoped_animations_enabled.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "panel_widget_size.h"
@@ -539,21 +540,6 @@ class ScopedTinyLandscape {
     int32_t h0_;
 };
 
-/// Last lv_label child of a button: ui_button's text label. The icon glyph is
-/// an lv_label too and precedes the text once stacked, so "first label" would
-/// measure the icon instead.
-lv_obj_t* button_label(lv_obj_t* btn) {
-    lv_obj_t* found = nullptr;
-    uint32_t count = lv_obj_get_child_count(btn);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_t* child = lv_obj_get_child(btn, i);
-        if (lv_obj_check_type(child, &lv_label_class)) {
-            found = child;
-        }
-    }
-    return found;
-}
-
 } // namespace
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -593,9 +579,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         REQUIRE(grid != nullptr);
         lv_obj_update_layout(grid);
 
-        // Rows grown: the two rows tile the grid's content height exactly,
-        // where the old content-height rows clustered at the bottom leaving a
-        // dead band above.
+        // Rows grown: the two rows tile the grid's content height exactly.
         REQUIRE(lv_obj_get_child_count(grid) == 2);
         lv_obj_t* row1 = lv_obj_get_child(grid, 0);
         lv_obj_t* row2 = lv_obj_get_child(grid, 1);
@@ -619,7 +603,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
             lv_obj_update_layout(btn);
             CHECK(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
             CHECK(lv_obj_get_height(btn) == lv_obj_get_height(lv_obj_get_parent(btn)));
-            lv_obj_t* label = button_label(btn);
+            lv_obj_t* label = UITest::button_label(btn);
             REQUIRE(label != nullptr);
             CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
             const int32_t content_h = lv_obj_get_height(btn) -
