@@ -85,6 +85,8 @@ class LedControlOverlay : public OverlayBase {
     void load_page_state();
     void publish_page();
     void publish_color_state();
+    /// Edges are judged against the current theme's surfaces.
+    void publish_swatch_edges();
     void publish_list();
     void on_led_state_changed();
     /// Polls the focused WLED strip and re-reads its page when the poll lands.
@@ -186,6 +188,7 @@ class LedControlOverlay : public OverlayBase {
     char page_note_buf_[128] = {0};
 
     ObserverGuard state_observer_;
+    ObserverGuard theme_observer_;
 
     std::string focused_strip_;
     std::string last_focused_; ///< for this session only

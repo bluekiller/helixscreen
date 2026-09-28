@@ -9,12 +9,14 @@
  * @see ui_led_control_overlay.h
  */
 
+#include "ui_color_picker.h"
 #include "ui_nav_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/scoped_theme_mode.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "app_globals.h"
 #include "config.h"
@@ -879,6 +881,41 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the slider fill takes the page
     lv_subject_set_color(lv_xml_get_subject(nullptr, "led_page_color"), lv_color_hex(0xFF4444));
     CHECK(lv_color_to_u32(lv_obj_get_style_bg_color(slider, LV_PART_INDICATOR)) ==
           lv_color_to_u32(lv_color_hex(0xFF4444)));
+}
+
+TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: swatch edges follow a theme toggle while open",
+                 "[led][overlay][xml]") {
+    const auto& presets = LedController::instance().color_presets();
+    REQUIRE_FALSE(presets.empty());
+    auto published = [&presets] {
+        std::vector<int> v;
+        for (size_t i = 0; i < presets.size(); ++i) {
+            const std::string name = "led_swatch_edge_" + std::to_string(i);
+            lv_subject_t* subject = lv_xml_get_subject(nullptr, name.c_str());
+            REQUIRE(subject != nullptr);
+            v.push_back(lv_subject_get_int(subject));
+        }
+        return v;
+    };
+    auto rule = [&presets] {
+        std::vector<int> v;
+        for (uint32_t rgb : presets) {
+            v.push_back(helix::ui::swatch_needs_edge_here(rgb) ? 1 : 0);
+        }
+        return v;
+    };
+
+    ScopedThemeMode mode;
+    mode.set(false);
+    drain();
+    const auto light = rule();
+    REQUIRE(published() == light);
+
+    mode.set(true);
+    drain();
+    const auto dark = rule();
+    REQUIRE(dark != light); // the toggle changes at least one swatch's edge
+    CHECK(published() == dark);
 }
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab click focuses that tab's device",
