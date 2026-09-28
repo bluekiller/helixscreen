@@ -62,7 +62,7 @@ inline MovingPlan plan_moving(size_t total_triangles, float rate) {
 
 /// What the renderer does with its time-sliced job after a state change.
 enum class JobAction {
-    None,        ///< keep going (or keep showing the cached image)
+    Keep,        ///< keep going (or keep showing the cached image)
     Restart,     ///< start a full still job from layer 0
     Extend,      ///< the running incremental job grows to the new progress layer
     Incremental, ///< draw only the newly finished layers onto the retained buffers
@@ -84,7 +84,7 @@ inline JobAction decide_job(const JobInputs& in) {
         return JobAction::Restart;
     }
     if (in.new_progress == in.job_progress) {
-        return (in.job_running || in.have_complete_image) ? JobAction::None : JobAction::Restart;
+        return (in.job_running || in.have_complete_image) ? JobAction::Keep : JobAction::Restart;
     }
     const bool advanced = in.job_progress >= 0 && in.new_progress > in.job_progress;
     if (!advanced || in.selection_active) {

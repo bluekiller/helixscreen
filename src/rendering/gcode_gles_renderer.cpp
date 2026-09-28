@@ -1158,7 +1158,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
     in.job_progress = job_.progress_layer;
     in.new_progress = progress_layer_;
     switch (render_schedule::decide_job(in)) {
-    case render_schedule::JobAction::None:
+    case render_schedule::JobAction::Keep:
         break;
     case render_schedule::JobAction::Restart:
         start_job(false, current_state);
@@ -1176,7 +1176,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
     cached_state_ = current_state;
 
     if (!job_.active) {
-        // draw_cached_to_lvgl skips glReadPixels — just blits the existing draw_buf_.
+        // draw_cached_to_lvgl skips glReadPixels: it just blits the existing draw_buf_.
         draw_cached_to_lvgl(layer, widget_coords);
         return;
     }
@@ -1267,7 +1267,7 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     glViewport(0, 0, render_w, render_h);
 
     if (clear) {
-        // Neutral gray background — light and dark filaments both contrast well
+        // Neutral gray background - light and dark filaments both contrast well
         glClearColor(BACKGROUND_GRAY, BACKGROUND_GRAY, BACKGROUND_GRAY_BLUE, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
@@ -1859,6 +1859,7 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
         }
         // Force VBO re-upload to push the new colors to the GPU
         // (old VBOs freed inside render() where GL context is active)
+        cancel_job();
         geometry_uploaded_ = false;
         upload_next_layer_ = 0;
         upload_total_layers_ = 0;
@@ -1895,6 +1896,7 @@ void GCodeGLESRenderer::clear_tool_color_overrides() {
     // the prepared buffers rather than re-expanding the whole pack, then force
     // the VBOs back up so the GPU sees the restored colors.
     geometry_->patch_prepared_buffer_colors();
+    cancel_job();
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;

@@ -56,14 +56,14 @@ static JobInputs idle_complete(int progress) {
 }
 
 TEST_CASE("nothing changed means no work", "[gcode][render_schedule]") {
-    REQUIRE(decide_job(idle_complete(10)) == JobAction::None);
+    REQUIRE(decide_job(idle_complete(10)) == JobAction::Keep);
 }
 
 TEST_CASE("a running job is left alone when nothing changed", "[gcode][render_schedule]") {
     JobInputs in = idle_complete(10);
     in.have_complete_image = false;
     in.job_running = true;
-    REQUIRE(decide_job(in) == JobAction::None);
+    REQUIRE(decide_job(in) == JobAction::Keep);
 }
 
 TEST_CASE("no complete image restarts", "[gcode][render_schedule]") {
