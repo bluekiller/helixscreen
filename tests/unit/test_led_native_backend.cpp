@@ -97,15 +97,6 @@ TEST_CASE("NativeBackend: set_color with null API calls error callback", "[led][
     REQUIRE(!error_msg.empty());
 }
 
-TEST_CASE("NativeBackend: turn_on with null API calls error callback", "[led][native]") {
-    helix::led::NativeBackend backend;
-
-    bool error_called = false;
-    backend.turn_on("neopixel test", nullptr, [&](const std::string& err) { error_called = true; });
-
-    REQUIRE(error_called);
-}
-
 TEST_CASE("NativeBackend: turn_off with null API calls error callback", "[led][native]") {
     helix::led::NativeBackend backend;
 
@@ -116,24 +107,12 @@ TEST_CASE("NativeBackend: turn_off with null API calls error callback", "[led][n
     REQUIRE(error_called);
 }
 
-TEST_CASE("NativeBackend: set_brightness with null API calls error callback", "[led][native]") {
-    helix::led::NativeBackend backend;
-
-    bool error_called = false;
-    backend.set_brightness("neopixel test", 50, 1.0, 1.0, 1.0, 0.0, nullptr,
-                           [&](const std::string& err) { error_called = true; });
-
-    REQUIRE(error_called);
-}
-
 TEST_CASE("NativeBackend: null error callback with null API doesn't crash", "[led][native]") {
     helix::led::NativeBackend backend;
 
     // Should not crash even without callbacks
     backend.set_color("neopixel test", 1.0, 0.0, 0.0, 0.0, nullptr, nullptr);
-    backend.turn_on("neopixel test", nullptr, nullptr);
     backend.turn_off("neopixel test", nullptr, nullptr);
-    backend.set_brightness("neopixel test", 50, 1.0, 1.0, 1.0, 0.0, nullptr, nullptr);
 }
 
 TEST_CASE("NativeBackend: strip type detection", "[led][native]") {
@@ -281,28 +260,6 @@ TEST_CASE("NativeBackend: update_pin_config ignores unknown strips", "[led][nati
     REQUIRE(backend.strips()[0].pin_config_known == false);
 }
 
-TEST_CASE("NativeBackend: set_color converts RGB to white for white-only LED",
-          "[led][native][white_only]") {
-    LedPinConfigFixture fixture;
-    fixture.setup_white_only_led();
-
-    auto& backend = helix::led::LedController::instance().native();
-
-    bool success_called = false;
-    backend.set_color(
-        "led case_light", 0.8, 0.8, 0.8, 0.0, [&]() { success_called = true; }, nullptr);
-
-    REQUIRE(success_called);
-
-    // Cached color should have RGB=0 and W=luminance
-    auto color = backend.get_strip_color("led case_light");
-    REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
-    // Luminance of (0.8, 0.8, 0.8) = 0.299*0.8 + 0.587*0.8 + 0.114*0.8 = 0.8
-    REQUIRE(color.w == Catch::Approx(0.8).margin(0.001));
-}
-
 TEST_CASE("NativeBackend: set_color keeps RGB for RGBW LED with known pins",
           "[led][native][rgbw]") {
     LedPinConfigFixture fixture;
@@ -321,32 +278,6 @@ TEST_CASE("NativeBackend: set_color keeps RGB for RGBW LED with known pins",
     REQUIRE(color.g == Catch::Approx(0.5).margin(0.001));
     REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
     REQUIRE(color.w == Catch::Approx(0.8).margin(0.001));
-}
-
-TEST_CASE("NativeBackend: set_color reads white-only from capability, not pin_config_known",
-          "[led][native][white_only]") {
-    LedPinConfigFixture fixture;
-    fixture.setup_white_only_led();
-
-    auto& backend = helix::led::LedController::instance().native();
-
-    // The capability flags decide, whether or not a configfile was parsed
-    auto& strips = const_cast<std::vector<helix::led::LedStripInfo>&>(backend.strips());
-    for (auto& strip : strips) {
-        strip.pin_config_known = false;
-    }
-
-    bool success_called = false;
-    backend.set_color(
-        "led case_light", 0.6, 0.6, 0.6, 0.0, [&]() { success_called = true; }, nullptr);
-
-    REQUIRE(success_called);
-
-    auto color = backend.get_strip_color("led case_light");
-    REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.w == Catch::Approx(0.6).margin(0.001));
 }
 
 namespace {
@@ -374,7 +305,7 @@ TEST_CASE_METHOD(LedPinConfigFixture,
     add_unprefixed_strip("led rgb_light", /*color=*/true, /*white=*/false);
 
     SECTION("a W-only strip with no \"led \" prefix sends on W") {
-        ctrl.native().set_color("caselight", 0.6, 0.6, 0.6, 0.0);
+        ctrl.set_look({"caselight"}, 0xFFFFFF, 0.0, 60);
         const auto c = ctrl.native().get_strip_color("caselight");
         CHECK(c.r == Catch::Approx(0.0).margin(0.001));
         CHECK(c.g == Catch::Approx(0.0).margin(0.001));
@@ -382,10 +313,10 @@ TEST_CASE_METHOD(LedPinConfigFixture,
         CHECK(c.w == Catch::Approx(0.6).margin(0.001));
     }
     SECTION("an RGB strip with an \"led \" prefix keeps its color") {
-        ctrl.native().set_color("led rgb_light", 1.0, 0.5, 0.0, 0.0);
+        ctrl.set_look({"led rgb_light"}, 0xFF0000, 0.0, 100);
         const auto c = ctrl.native().get_strip_color("led rgb_light");
         CHECK(c.r == Catch::Approx(1.0).margin(0.001));
-        CHECK(c.g == Catch::Approx(0.5).margin(0.001));
+        CHECK(c.g == Catch::Approx(0.0).margin(0.001));
         CHECK(c.b == Catch::Approx(0.0).margin(0.001));
         CHECK(c.w == Catch::Approx(0.0).margin(0.001));
     }
@@ -395,13 +326,12 @@ TEST_CASE_METHOD(LedPinConfigFixture,
 // Integration: LedController with mock API — pin config + color commands
 // ============================================================================
 
-TEST_CASE_METHOD(LedPinConfigFixture,
-                 "LedController: set_color sends white-only for white-only LED",
+TEST_CASE_METHOD(LedPinConfigFixture, "LedController: set_look sends white-only for white-only LED",
                  "[led][controller][pin_config]") {
     setup_white_only_led();
     auto& ctrl = helix::led::LedController::instance();
 
-    ctrl.set_color({"led case_light"}, 0.8, 0.8, 0.8, 0.0);
+    ctrl.set_look({"led case_light"}, 0xFFFFFF, 0.0, 80);
 
     auto color = ctrl.native().get_strip_color("led case_light");
     REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
@@ -410,16 +340,16 @@ TEST_CASE_METHOD(LedPinConfigFixture,
     REQUIRE(color.w == Catch::Approx(0.8).margin(0.001));
 }
 
-TEST_CASE_METHOD(LedPinConfigFixture, "LedController: set_color preserves RGBW for RGBW LED",
+TEST_CASE_METHOD(LedPinConfigFixture, "LedController: set_look preserves RGBW for RGBW LED",
                  "[led][controller][pin_config]") {
     setup_rgbw_led();
     auto& ctrl = helix::led::LedController::instance();
 
-    ctrl.set_color({"led chamber_led"}, 1.0, 0.5, 0.0, 0.8);
+    ctrl.set_look({"led chamber_led"}, 0xFF0000, 0.8, 100);
 
     auto color = ctrl.native().get_strip_color("led chamber_led");
     REQUIRE(color.r == Catch::Approx(1.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.5).margin(0.001));
+    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
     REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
     REQUIRE(color.w == Catch::Approx(0.8).margin(0.001));
 }
@@ -462,47 +392,6 @@ TEST_CASE_METHOD(LedPinConfigFixture,
     REQUIRE(color.w == Catch::Approx(0.5).margin(0.001));
 }
 
-TEST_CASE_METHOD(LedPinConfigFixture,
-                 "NativeBackend: turn_on on white-only strip sends white channel via set_color",
-                 "[led][native][white_only]") {
-    setup_white_only_led();
-    auto& backend = helix::led::LedController::instance().native();
-
-    // Pre-cache a color so turn_on restores it
-    backend.set_color("led case_light", 0.7, 0.7, 0.7, 0.0, nullptr, nullptr);
-
-    bool success_called = false;
-    backend.turn_on("led case_light", [&]() { success_called = true; }, nullptr);
-    REQUIRE(success_called);
-
-    // turn_on should route through set_color, applying white-only conversion
-    auto color = backend.get_strip_color("led case_light");
-    REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.w == Catch::Approx(0.7).margin(0.001));
-}
-
-TEST_CASE_METHOD(LedPinConfigFixture,
-                 "NativeBackend: turn_on with no cached color defaults to full white",
-                 "[led][native][white_only]") {
-    // Use a unique strip ID so no prior test has cached a color for it
-    setup_white_only_led("led fresh_light", "led fresh_light");
-    auto& backend = helix::led::LedController::instance().native();
-
-    // No prior set_color — turn_on should use default {1,1,1,0}
-    bool success_called = false;
-    backend.turn_on("led fresh_light", [&]() { success_called = true; }, nullptr);
-    REQUIRE(success_called);
-
-    // Default (1,1,1,0) → luminance=1.0 → W=1.0, RGB=0
-    auto color = backend.get_strip_color("led fresh_light");
-    REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.w == Catch::Approx(1.0).margin(0.001));
-}
-
 TEST_CASE_METHOD(LedPinConfigFixture, "NativeBackend: turn_off on white-only strip sends all zeros",
                  "[led][native][white_only]") {
     setup_white_only_led();
@@ -520,46 +409,6 @@ TEST_CASE_METHOD(LedPinConfigFixture, "NativeBackend: turn_off on white-only str
     REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
     REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
     REQUIRE(color.w == Catch::Approx(0.0).margin(0.001));
-}
-
-TEST_CASE_METHOD(LedPinConfigFixture,
-                 "NativeBackend: set_brightness on white-only strip scales white channel",
-                 "[led][native][white_only]") {
-    setup_white_only_led();
-    auto& backend = helix::led::LedController::instance().native();
-
-    // set_brightness applies scale then routes through set_color
-    bool success_called = false;
-    backend.set_brightness(
-        "led case_light", 50, 1.0, 1.0, 1.0, 0.0, [&]() { success_called = true; }, nullptr);
-    REQUIRE(success_called);
-
-    // 50% of (1,1,1) = (0.5,0.5,0.5) → luminance=0.5 → W=0.5, RGB=0
-    auto color = backend.get_strip_color("led case_light");
-    REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.w == Catch::Approx(0.5).margin(0.001));
-}
-
-TEST_CASE_METHOD(LedPinConfigFixture,
-                 "NativeBackend: set_color preserves explicit W on white-only strip",
-                 "[led][native][white_only]") {
-    setup_white_only_led();
-    auto& backend = helix::led::LedController::instance().native();
-
-    // Pass W=0.9 with low RGB — W should win over computed luminance
-    bool success_called = false;
-    backend.set_color(
-        "led case_light", 0.2, 0.2, 0.2, 0.9, [&]() { success_called = true; }, nullptr);
-    REQUIRE(success_called);
-
-    // Luminance of (0.2,0.2,0.2) = 0.2, but explicit W=0.9 is higher → W=0.9
-    auto color = backend.get_strip_color("led case_light");
-    REQUIRE(color.r == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.g == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.b == Catch::Approx(0.0).margin(0.001));
-    REQUIRE(color.w == Catch::Approx(0.9).margin(0.001));
 }
 
 TEST_CASE("NativeBackend: update_pin_config works for neopixel with configfile data",

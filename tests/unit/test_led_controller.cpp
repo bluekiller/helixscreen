@@ -1320,23 +1320,6 @@ TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_brightness preserves whi
     REQUIRE(color.w == Catch::Approx(0.5).margin(0.01)); // 1.0 * 50%
 }
 
-TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_color caches white for toggle restore",
-                 "[led][controller][rgbw]") {
-    setup_controller_with_rgbw_strip();
-    auto& ctrl = helix::led::LedController::instance();
-
-    // Set white-only via set_color
-    ctrl.set_color({kChamber}, 0.0, 0.0, 0.0, 1.0);
-    REQUIRE(ctrl.last_white() == Catch::Approx(1.0));
-
-    // Toggle off then on — should restore white
-    ctrl.set_power({kChamber}, false);
-    ctrl.set_power({kChamber}, true);
-
-    auto color = ctrl.native().get_strip_color("neopixel chamber");
-    REQUIRE(color.w == Catch::Approx(1.0).margin(0.01));
-}
-
 // ============================================================================
 // Regression: set_power(ids, true) must never emit all-zero output (LED stuck off)
 // https://github.com/prestonbrown/helixscreen — "LEDs stay off" regression
@@ -1384,7 +1367,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
 }
 
 // Test A: RGBW white-only strip — the actual user hardware scenario.
-// Saved state has RGB=0 but white channel set. The guard in compute_scaled_last_color
+// Saved state has RGB=0 but white channel set. The power-on look
 // must NOT treat this as "no saved color"; it should scale the white channel.
 TEST_CASE_METHOD(LedMockApiFixture,
                  "LedController: set_power(on) scales white-only RGBW saved state",
@@ -2336,7 +2319,7 @@ TEST_CASE_METHOD(LedMockApiFixture, "LedController: an output_pin with no pwm li
     // Nothing sends a fractional value to it, whichever path asks.
     make_led_dispatch_real(state);
     mock_client.clear_gcode_script_history();
-    ctrl.set_color({"output_pin caselight"}, 0.3, 0.3, 0.3, 0.0);
+    ctrl.set_look({"output_pin caselight"}, 0xFFFFFF, 0.0, 30);
     ctrl.set_brightness({"output_pin caselight"}, 40);
     ctrl.output_pin().set_value("output_pin caselight", 0.5);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());

@@ -13,6 +13,8 @@
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
 
+#include <algorithm>
+
 #include "../catch_amalgamated.hpp"
 
 using namespace helix::led;
@@ -478,6 +480,52 @@ TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: a 'color' action lights 
     const auto s = LedController::instance().device_state("neopixel chamber_light");
     CHECK(s.power == PowerState::On);
     CHECK(s.rgb == 0xFF0000);
+}
+
+TEST_CASE_METHOD(AutoStateTargetFixture,
+                 "LedAutoState: a 'color' action is fitted to each target's channels",
+                 "[led][autostate]") {
+    auto& ctrl = LedController::instance();
+    LedStripInfo lamp; // a [led] with only a white_pin
+    lamp.id = "led lamp";
+    lamp.backend = LedBackendType::NATIVE;
+    lamp.supports_color = false;
+    lamp.supports_white = true;
+    ctrl.native().add_strip(lamp);
+    LedStripInfo rgb;
+    rgb.id = "neopixel rgb";
+    rgb.backend = LedBackendType::NATIVE;
+    rgb.supports_color = true;
+    rgb.supports_white = false;
+    ctrl.native().add_strip(rgb);
+    LedStripInfo pin;
+    pin.id = "output_pin cabinet";
+    pin.backend = LedBackendType::OUTPUT_PIN;
+    pin.is_pwm = true;
+    ctrl.output_pin().add_pin(pin);
+    auto& ps = get_printer_state();
+    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+                       static_cast<int>(helix::ConnectionState::CONNECTED));
+    ps.set_klippy_state_sync(helix::KlippyState::READY);
+    drain();
+    client.clear_gcode_script_history();
+
+    LedAutoState::instance().set_strips({"led lamp", "neopixel rgb", "output_pin cabinet"});
+    LedAutoStateTestAccess::apply({"color", 0xFF0000, 60, "", 0, ""});
+    drain();
+
+    // Single channel: the look's brightness, not the red's luminance.
+    const auto w = ctrl.native().get_strip_color("led lamp");
+    CHECK(w.r == Catch::Approx(0.0).margin(0.001));
+    CHECK(w.w == Catch::Approx(0.6).margin(0.01));
+    const auto c = ctrl.native().get_strip_color("neopixel rgb");
+    CHECK(c.r == Catch::Approx(0.6).margin(0.01));
+    CHECK(c.g == Catch::Approx(0.0).margin(0.001));
+    CHECK(c.w == Catch::Approx(0.0).margin(0.001));
+    const auto& h = client.gcode_script_history();
+    CHECK(std::any_of(h.begin(), h.end(), [](const std::string& g) {
+        return g.find("SET_PIN PIN=cabinet VALUE=0.6000") != std::string::npos;
+    }));
 }
 
 TEST_CASE_METHOD(AutoStateTargetFixture, "LedAutoState: a 'brightness' action sets that level",

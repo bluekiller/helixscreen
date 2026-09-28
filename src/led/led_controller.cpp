@@ -843,18 +843,6 @@ void NativeBackend::set_color(const std::string& strip_id, double r, double g, d
     b = std::clamp(b, 0.0, 1.0);
     w = std::clamp(w, 0.0, 1.0);
 
-    // A W channel with no color pins shows everything on W: the capability rule
-    // fit_look() applies, so what is sent matches what the overlay shows.
-    const auto* strip = find_strip(strips_, strip_id);
-    if (strip != nullptr && !strip->supports_color && strip->supports_white) {
-        // Convert RGB to luminance for the white channel
-        double luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        w = std::max(luminance, w);
-        r = 0.0;
-        g = 0.0;
-        b = 0.0;
-    }
-
     // Cache the color we're sending
     strip_colors_[strip_id] = {r, g, b, w};
 
@@ -875,45 +863,6 @@ void NativeBackend::set_color(const std::string& strip_id, double r, double g, d
             }
         },
         std::move(on_queued), caller_surfaces);
-}
-
-void NativeBackend::set_brightness(const std::string& strip_id, int brightness_pct, double r,
-                                   double g, double b, double w, SuccessCallback on_success,
-                                   ErrorCallback on_error, SuccessCallback on_queued) {
-    if (!api_) {
-        spdlog::warn("[NativeBackend] set_brightness called with no API (strip={})", strip_id);
-        if (on_error) {
-            on_error("NativeBackend: no API available");
-        }
-        return;
-    }
-
-    // Clamp brightness to valid range and apply as scalar to color
-    brightness_pct = std::clamp(brightness_pct, 0, 100);
-    double scale = brightness_pct / 100.0;
-
-    spdlog::debug("[NativeBackend] set_brightness: {} {}% (scale={:.2f})", strip_id, brightness_pct,
-                  scale);
-
-    set_color(strip_id, r * scale, g * scale, b * scale, w * scale, std::move(on_success),
-              std::move(on_error), std::move(on_queued));
-}
-
-void NativeBackend::turn_on(const std::string& strip_id, SuccessCallback on_success,
-                            ErrorCallback on_error, SuccessCallback on_queued) {
-    if (!api_) {
-        spdlog::warn("[NativeBackend] turn_on called with no API (strip={})", strip_id);
-        if (on_error) {
-            on_error("NativeBackend: no API available");
-        }
-        return;
-    }
-
-    spdlog::debug("[NativeBackend] turn_on: {}", strip_id);
-    // Use cached color if available, otherwise default to full white
-    StripColor cached = get_strip_color(strip_id);
-    set_color(strip_id, cached.r, cached.g, cached.b, cached.w, std::move(on_success),
-              std::move(on_error), std::move(on_queued));
 }
 
 void NativeBackend::turn_off(const std::string& strip_id, SuccessCallback on_success,
@@ -2035,14 +1984,20 @@ void LedController::save_config() {
     spdlog::debug("[LedController] Saved config");
 }
 
-LedController::ScaledColor
-LedController::compute_scaled_last_color(int brightness_pct, const LedStripInfo& device) const {
-    // A zero brightness with a saved look restores at full intensity.
+void LedController::send_look(const std::string& strip_id, uint32_t rgb, double w,
+                              int brightness_pct, NativeBackend::SuccessCallback on_success,
+                              NativeBackend::ErrorCallback on_error,
+                              NativeBackend::SuccessCallback on_queued) {
+    const auto* device = find_strip(native_.strips(), strip_id);
+    if (device == nullptr) {
+        return;
+    }
     const double scale = (brightness_pct > 0 ? brightness_pct : 100) / 100.0;
-    const Look look = fit_look(last_color_.rgb, last_color_.white, device);
+    const Look look = fit_look(rgb, w, *device);
     double r = 0.0, g = 0.0, b = 0.0;
     unpack_rgb(look.rgb, r, g, b);
-    return {r * scale, g * scale, b * scale, look.w * scale};
+    native_.set_color(strip_id, r * scale, g * scale, b * scale, look.w * scale,
+                      std::move(on_success), std::move(on_error), std::move(on_queued));
 }
 
 void LedController::set_power(const std::vector<std::string>& ids, bool on) {
@@ -2126,10 +2081,9 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
         switch (*backend_type) {
         case LedBackendType::NATIVE:
             if (on) {
-                auto c = compute_scaled_last_color(last_brightness_,
-                                                   *find_strip(native_.strips(), strip_id));
                 auto cbs = make_settle();
-                native_.set_color(strip_id, c.r, c.g, c.b, c.w, cbs.done, cbs.fail, cbs.queued);
+                send_look(strip_id, last_color_.rgb, last_color_.white, last_brightness_, cbs.done,
+                          cbs.fail, cbs.queued);
             } else {
                 auto cbs = make_settle();
                 native_.turn_off(strip_id, cbs.done, cbs.fail, cbs.queued);
@@ -2451,25 +2405,10 @@ void LedController::query_led_state() {
         });
 }
 
-void LedController::set_color(const std::vector<std::string>& ids, double r, double g, double b,
-                              double w) {
-    // Cache the white channel for toggle restore
-    last_color_.white = w;
-    for (const auto& strip_id : ids) {
-        auto backend_type = backend_for_strip(strip_id);
-        if (backend_type == LedBackendType::NATIVE) {
-            native_.set_color(strip_id, r, g, b, w);
-        } else if (backend_type == LedBackendType::OUTPUT_PIN) {
-            // Use luminance approximation for single-channel pins
-            double lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            output_pin_.set_value(strip_id, lum);
-        }
-    }
-}
-
-void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct) {
-    // Brightness 0 is off on every backend. compute_scaled_last_color() reads 0
-    // as "restore at 100%", which is right for power-on and wrong here.
+void LedController::set_look(const std::vector<std::string>& ids, uint32_t rgb, double w,
+                             int brightness_pct) {
+    // Brightness 0 is off on every backend; send_look() reads 0 as "restore at
+    // 100%", which is right for power-on and wrong here.
     if (brightness_pct <= 0) {
         set_power(ids, false);
         return;
@@ -2477,13 +2416,16 @@ void LedController::set_brightness(const std::vector<std::string>& ids, int brig
     for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
         if (backend_type == LedBackendType::NATIVE) {
-            const auto c =
-                compute_scaled_last_color(brightness_pct, *find_strip(native_.strips(), strip_id));
-            native_.set_color(strip_id, c.r, c.g, c.b, c.w);
+            send_look(strip_id, rgb, w, brightness_pct);
         } else if (backend_type == LedBackendType::OUTPUT_PIN) {
+            // One channel: the look's brightness, as fit_look() gives a colorless device.
             output_pin_.set_brightness(strip_id, brightness_pct);
         }
     }
+}
+
+void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct) {
+    set_look(ids, last_color_.rgb, last_color_.white, brightness_pct);
 }
 
 bool LedController::get_led_on_at_start() const {

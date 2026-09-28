@@ -86,11 +86,6 @@ class NativeBackend {
     void set_color(const std::string& strip_id, double r, double g, double b, double w,
                    SuccessCallback on_success = nullptr, ErrorCallback on_error = nullptr,
                    SuccessCallback on_queued = nullptr);
-    void set_brightness(const std::string& strip_id, int brightness_pct, double r, double g,
-                        double b, double w, SuccessCallback on_success = nullptr,
-                        ErrorCallback on_error = nullptr, SuccessCallback on_queued = nullptr);
-    void turn_on(const std::string& strip_id, SuccessCallback on_success = nullptr,
-                 ErrorCallback on_error = nullptr, SuccessCallback on_queued = nullptr);
     void turn_off(const std::string& strip_id, SuccessCallback on_success = nullptr,
                   ErrorCallback on_error = nullptr, SuccessCallback on_queued = nullptr);
 
@@ -463,8 +458,10 @@ class LedController {
     /// Switch @p ids per next_power_on(); returns the state sent.
     bool toggle_power(const std::vector<std::string>& ids);
 
-    /// Set an RGBW color (0.0-1.0) on the native and output_pin devices among @p ids.
-    void set_color(const std::vector<std::string>& ids, double r, double g, double b, double w);
+    /// Show a look (an RGB tint plus a W level 0.0-1.0) at @p brightness_pct on
+    /// the native and output_pin devices among @p ids, fitted to each device as
+    /// fit_look() fits it. 0 switches them off, as set_power(ids, false).
+    void set_look(const std::vector<std::string>& ids, uint32_t rgb, double w, int brightness_pct);
 
     /// Set brightness on the native and output_pin devices among @p ids, keeping the
     /// last color. 0 switches every device in @p ids off, as set_power(ids, false).
@@ -626,14 +623,12 @@ class LedController {
     /// case that really is a fresh start.
     bool startup_preference_applied_ = false;
 
-    /// RGBW (0.0-1.0) channel levels for turning @p device on at a brightness:
-    /// the saved look as fit_look() fits it to the device (a look that lights
-    /// nothing is white), scaled. A brightness of 0 restores at 100%.
-    struct ScaledColor {
-        double r, g, b, w;
-    };
-    [[nodiscard]] ScaledColor compute_scaled_last_color(int brightness_pct,
-                                                        const LedStripInfo& device) const;
+    /// Send a look to one native strip: fit_look() fitted to it (a look that
+    /// lights nothing is white), scaled to @p brightness_pct, where 0 means 100%.
+    void send_look(const std::string& strip_id, uint32_t rgb, double w, int brightness_pct,
+                   NativeBackend::SuccessCallback on_success = nullptr,
+                   NativeBackend::ErrorCallback on_error = nullptr,
+                   NativeBackend::SuccessCallback on_queued = nullptr);
 
     /// Tells light buttons the set of devices changed: discovery, WLED
     /// strips arriving, a macro device added, edited or deleted.

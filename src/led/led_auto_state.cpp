@@ -180,10 +180,7 @@ void LedAutoState::apply_action(const LedStateAction& action) {
     if (action.action_type == "off") {
         ctrl.set_power(targets(), false);
     } else if (action.action_type == "color") {
-        double r = 0.0, g = 0.0, b = 0.0;
-        unpack_rgb(action.color, r, g, b);
-        double scale = action.brightness / 100.0;
-        ctrl.set_color(targets(), r * scale, g * scale, b * scale, 0.0);
+        ctrl.set_look(targets(), action.color, 0.0, action.brightness);
     } else if (action.action_type == "brightness") {
         ctrl.set_brightness(targets(), action.brightness);
     } else if (action.action_type == "effect") {
