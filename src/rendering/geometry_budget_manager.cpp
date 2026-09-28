@@ -101,10 +101,10 @@ GeometryBudgetManager::BudgetConfig GeometryBudgetManager::select_tier(size_t se
     // only ever set by a tier FINER than the one chosen (coarser tiers are
     // never tested past the chosen one, and a tier failing its own triangle
     // test is not chosen), so at a return site it means exactly "bytes alone
-    // would have allowed a finer tier" — and the coarse tolerances, which
-    // exist to save bytes, are spending detail the cap did not need to save.
-    // The triangle estimates were calibrated at 0.01 mm, so that is the
-    // tolerance a capped build uses.
+    // would have allowed a finer tier". The coarse tolerances exist to save
+    // bytes; the cap is what bound the build, so they are spending detail
+    // nothing asked them to save. The triangle estimates were calibrated at
+    // 0.01 mm, so that is the tolerance a capped build uses.
     bool tris_excluded_a_tier = false;
     auto tris_fit = [&](size_t est_tris) {
         if (max_triangles == 0 || est_tris <= max_triangles) {

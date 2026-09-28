@@ -1662,7 +1662,14 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
     // readback's channel order has to be named. glReadPixels above asked for
     // GL_RGBA, which puts red at byte 0 where an ARGB8888 buffer puts blue.
     if (selection_.any_highlighted()) {
-        const int rim = selection::outline_width_px(fbo_width_);
+        // The rim is sized for the widget the frame is displayed at, then
+        // scaled into readback pixels: a supersampled still strokes its rim at
+        // 2x so the box filter lands it back at the same on-screen width a
+        // widget-sized frame would have shown.
+        const float readback_scale =
+            static_cast<float>(fbo_width_) / static_cast<float>(std::max(1, widget_w));
+        const int rim =
+            static_cast<int>(std::lround(selection::outline_width_px(widget_w) * readback_scale));
         const RasterTarget rt{readback_buf_.data(), static_cast<size_t>(fbo_width_) * 4, fbo_width_,
                               fbo_height_};
         size_t tagged = 0;

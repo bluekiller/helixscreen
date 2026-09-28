@@ -189,7 +189,7 @@ TEST_CASE("Budget: triangle cap demotes tiers that exceed it", "[gcode][budget]"
 // The coarse-tier tolerances (0.2 / 1.0 / 2.0 mm) exist to fit a byte budget.
 // When the GPU triangle cap is what demoted the tier, bytes were never the
 // binding constraint, so the coarse tolerance spends detail nothing asked it
-// to save — and the TRIS_PER_SEG_* estimates were calibrated at 0.01 mm, the
+// to save; the TRIS_PER_SEG_* estimates were calibrated at 0.01 mm, the
 // tolerance the build then uses.
 TEST_CASE("Budget: triangle-capped tiers keep the fine simplification tolerance",
           "[gcode][budget]") {
