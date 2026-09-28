@@ -182,6 +182,7 @@
   <translation tag="All Devices" ru="Все устройства"/>
   <translation tag="All axes homed" ru="Все оси запаркованы"/>
   <translation tag="All fields are required" ru="Все поля обязательны для заполнения"/>
+  <translation tag="All lights" ru="Вся подсветка"/>
   <translation tag="Allow" ru="Разрешить"/>
   <translation tag="Allow Home Screen Editing" ru="Разрешить редактирование главного экрана"/>
   <translation tag="Allow cold load/unload" ru="Разрешить загрузку/выгрузку без нагрева"/>
@@ -2928,6 +2929,7 @@
   <translation tag="This AFC system does not support bypass mode" ru="Эта система AFC не поддерживает режим обхода"/>
   <translation tag="This CFS firmware exposes no external spool slot" ru="Эта прошивка CFS не предоставляет слот для внешней катушки"/>
   <translation tag="This Happy Hare system does not support bypass mode" ru="Эта система Happy Hare не поддерживает режим обхода"/>
+  <translation tag="This button controls" ru="Эта кнопка управляет"/>
   <translation tag="This calibration uses the paper friction method to set your Z-offset." ru="Эта калибровка использует метод трения бумаги об сопло для установки Z-смещения."/>
   <translation tag="This cannot be undone." ru="Это действие нельзя отменить."/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." ru="Этот канал предлагает v{}, старее установленной v{}. Всё добавленное с тех пор будет удалено."/>

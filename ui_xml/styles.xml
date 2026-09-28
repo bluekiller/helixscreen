@@ -100,6 +100,9 @@
          border, so it draws inside the swatch and no container can clip it. -->
     <style name="led_ring_holder" radius="9999" bg_opa="0" border_width="0" pad_all="#led_ring_reach"/>
     <style name="led_swatch_ring" border_width="#led_ring_width" border_color="#text" border_opa="255"/>
+    <!-- A row of a single-choice picker list, and the chosen one. -->
+    <style name="picker_row" bg_opa="0" border_width="0" radius="#border_radius" pad_hor="#space_sm" pad_ver="0"/>
+    <style name="selected_row" bg_color="#primary" bg_opa="40"/>
   </styles>
   <!-- Registration requires a <view>; nothing ever instantiates this
        component, so an empty lv_obj keeps it harmless. -->

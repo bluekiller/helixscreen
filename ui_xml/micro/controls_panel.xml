@@ -332,7 +332,7 @@
             </lv_obj>
             <!-- LED quick-toggle (hidden unless an LED strip is controllable).
                  Reuses LedWidget: bulb icon reflects on/off + brightness + LED
-                 color, tap toggles. C++ finds light_button/light_icon by name. -->
+                 color, tap toggles the chamber light. C++ finds light_icon by name. -->
             <lv_obj name="controls_led_cell"
                     height="100%" flex_grow="1" style_bg_opa="0" style_pad_all="0" style_pad_gap="0" scrollable="false"
                     hidden="true">
@@ -345,6 +345,7 @@
                 <bind_state_if_eq subject="led_command_in_flight" state="disabled" ref_value="1"/>
                 <icon name="light_icon" src="lightbulb_outline" size="sm" variant="muted"/>
                 <text_small text="Light" translation_tag="Light"/>
+                <event_cb trigger="clicked" callback="light_toggle_cb"/>
               </ui_button>
             </lv_obj>
           </lv_obj>

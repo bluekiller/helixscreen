@@ -379,12 +379,12 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // LED quick-toggle cell (Calibration & Tools grid). Reuses LedWidget — the
     // same class that drives the home-dashboard light widget — so the bulb icon
-    // reflects on/off + brightness + LED color and a tap toggles the light.
-    // The cell itself is hidden unless an LED strip is controllable
-    // (led_controllable binding in XML). attach() finds light_button/light_icon
-    // by name and wires the click handler + observers.
+    // reflects on/off + brightness + LED color and a tap toggles the chamber
+    // light. The cell itself is hidden unless an LED strip is controllable
+    // (led_controllable binding in XML); the XML wires the click, and attach()
+    // finds light_icon by name and binds the observers.
     if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, "controls_led_cell")) {
-        led_widget_ = std::make_unique<helix::LedWidget>(printer_state_, api_);
+        led_widget_ = std::make_unique<helix::LedWidget>("controls_led", printer_state_, api_);
         led_widget_->attach(led_cell, parent_screen);
     }
 

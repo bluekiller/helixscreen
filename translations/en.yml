@@ -188,6 +188,7 @@ translations:
   All Devices: All Devices
   All axes homed: All axes homed
   All fields are required: All fields are required
+  All lights: All lights
   Allow: Allow
   Allow Home Screen Editing: Allow Home Screen Editing
   Allow cold load/unload: Allow cold load/unload
@@ -3185,6 +3186,7 @@ translations:
   This AFC system does not support bypass mode: This AFC system does not support bypass mode
   This CFS firmware exposes no external spool slot: This CFS firmware exposes no external spool slot
   This Happy Hare system does not support bypass mode: This Happy Hare system does not support bypass mode
+  This button controls: This button controls
   This calibration uses the paper friction method to set your Z-offset.: This calibration
     uses the paper friction method to set your Z-offset.
   This cannot be undone.: This cannot be undone.

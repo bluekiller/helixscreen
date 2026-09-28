@@ -182,6 +182,7 @@ translations:
   All Devices: 所有设备
   All axes homed: 所有轴已归位
   All fields are required: 所有字段均为必填项
+  All lights: 全部灯光
   Allow: '允许'
   Allow Home Screen Editing: '允许编辑主屏幕'
   Allow cold load/unload: 允许冷态加载/卸载
@@ -3056,6 +3057,7 @@ translations:
   This AFC system does not support bypass mode: '此 AFC 系统不支持旁通模式'
   This CFS firmware exposes no external spool slot: '此 CFS 固件没有外部料盘槽位'
   This Happy Hare system does not support bypass mode: '此 Happy Hare 系统不支持旁通模式'
+  This button controls: 此按钮控制
   This calibration uses the paper friction method to set your Z-offset.: 此校准使用纸张摩擦法设置
     Z 偏移。
   This cannot be undone.: 此操作无法撤销。

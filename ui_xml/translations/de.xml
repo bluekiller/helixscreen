@@ -182,6 +182,7 @@
   <translation tag="All Devices" de="Alle Geräte"/>
   <translation tag="All axes homed" de="Alle Achsen referenziert"/>
   <translation tag="All fields are required" de="Alle Felder sind erforderlich"/>
+  <translation tag="All lights" de="Alle Leuchten"/>
   <translation tag="Allow" de="Zulassen"/>
   <translation tag="Allow Home Screen Editing" de="Bearbeiten des Startbildschirms zulassen"/>
   <translation tag="Allow cold load/unload" de="Kaltes Laden/Entladen erlauben"/>
@@ -2928,6 +2929,7 @@
   <translation tag="This AFC system does not support bypass mode" de="Dieses AFC-System unterstützt den Bypass-Modus nicht"/>
   <translation tag="This CFS firmware exposes no external spool slot" de="Diese CFS-Firmware bietet keinen externen Spulen-Slot"/>
   <translation tag="This Happy Hare system does not support bypass mode" de="Dieses Happy-Hare-System unterstützt den Bypass-Modus nicht"/>
+  <translation tag="This button controls" de="Diese Taste steuert"/>
   <translation tag="This calibration uses the paper friction method to set your Z-offset." de="Diese Kalibrierung verwendet die Papierreibungsmethode zur Einstellung Ihres Z-Offsets."/>
   <translation tag="This cannot be undone." de="Dies kann nicht rückgängig gemacht werden."/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." de="Dieser Kanal bietet v{}, älter als die installierte v{}. Alles seither Hinzugekommene wird entfernt."/>

@@ -183,6 +183,7 @@ translations:
   All Devices: すべてのデバイス
   All axes homed: すべての軸がホーミング済み
   All fields are required: すべての項目が必須です
+  All lights: すべてのライト
   Allow: '許可'
   Allow Home Screen Editing: 'ホーム画面の編集を許可'
   Allow cold load/unload: コールド時の装填/取り出しを許可
@@ -3065,6 +3066,7 @@ translations:
   This AFC system does not support bypass mode: 'この AFC システムはバイパスモードに対応していません'
   This CFS firmware exposes no external spool slot: 'この CFS ファームウェアには外部スプール用スロットがありません'
   This Happy Hare system does not support bypass mode: 'この Happy Hare システムはバイパスモードに対応していません'
+  This button controls: このボタンの制御対象
   This calibration uses the paper friction method to set your Z-offset.: このキャリブレーションは紙の摩擦方式を使用して
     Z-offset を設定します。
   This cannot be undone.: この操作は元に戻せません。
