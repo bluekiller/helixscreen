@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ui_observer_guard.h" // For ObserverGuard RAII wrapper
 #include "ui_panel_base.h"
 
 #include "subject_managed_panel.h" // For SubjectManager
@@ -93,7 +92,6 @@ class SettingsPanel : public PanelBase {
     lv_obj_t* dark_mode_switch_ = nullptr;
     lv_obj_t* animations_switch_ = nullptr;
     lv_obj_t* gcode_3d_switch_ = nullptr;
-    lv_obj_t* led_light_switch_ = nullptr;
     lv_obj_t* estop_confirm_switch_ = nullptr;
     lv_obj_t* telemetry_switch_ = nullptr;
     // Dropdowns
@@ -114,9 +112,6 @@ class SettingsPanel : public PanelBase {
     // Change host modal is owned by helix::ui::show_change_host_modal(); the
     // connection-failed prompt reaches the same dialog, and ChangeHostModal keeps
     // a static active_instance_, so a second owner here would fight it.
-
-    // LED state observer (syncs toggle with printer LED state)
-    ObserverGuard led_state_observer_;
 
     //
     // === Reactive Subjects ===
@@ -180,7 +175,6 @@ class SettingsPanel : public PanelBase {
 
     void handle_dark_mode_changed(bool enabled);
     void handle_animations_changed(bool enabled);
-    void handle_led_light_changed(bool enabled);
     void handle_led_settings_clicked();
     void handle_sound_settings_clicked();
     void handle_security_settings_clicked();
@@ -237,7 +231,6 @@ class SettingsPanel : public PanelBase {
     // These are registered before settings_panel.xml is parsed [L013]
     //
     static void on_animations_changed(lv_event_t* e);
-    static void on_led_light_changed(lv_event_t* e);
     static void on_led_settings_clicked(lv_event_t* e);
     static void on_timelapse_settings_clicked(lv_event_t* e);
     static void on_sound_settings_clicked(lv_event_t* e);

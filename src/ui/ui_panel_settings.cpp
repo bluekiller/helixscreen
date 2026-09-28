@@ -61,10 +61,8 @@
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "input_settings_manager.h"
-#include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_manager.h"
-#include "observer_factory.h"
 #include "platform_info.h"
 #include "printer_hardware.h"
 #include "printer_state.h"
@@ -394,7 +392,6 @@ void SettingsPanel::init_subjects() {
         // Toggle switches
         {"on_dark_mode_changed", on_dark_mode_changed},
         {"on_animations_changed", on_animations_changed},
-        {"on_led_light_changed", on_led_light_changed},
         {"on_led_settings_clicked", on_led_settings_clicked},
         // Note: on_retraction_row_clicked is registered by RetractionSettingsOverlay
         {"on_sound_settings_clicked", on_sound_settings_clicked},
@@ -542,32 +539,6 @@ void SettingsPanel::setup_toggle_handlers() {
                 lv_obj_remove_state(animations_switch_, LV_STATE_CHECKED);
             }
             spdlog::trace("[{}]   ✓ Animations toggle", get_name());
-        }
-    }
-
-    // LED chip selection moved to LedSettingsOverlay
-
-    // === LED Light Toggle ===
-    // Event handler wired via XML <event_cb>, sync toggle with actual printer LED state
-    lv_obj_t* led_light_row = lv_obj_find_by_name(panel_, "row_led_light");
-    if (led_light_row) {
-        led_light_switch_ = lv_obj_find_by_name(led_light_row, "toggle");
-        if (led_light_switch_) {
-            // Sync toggle with actual printer LED state via observer
-            led_state_observer_ = helix::ui::observe_int_sync<SettingsPanel>(
-                printer_state_.get_led_state_subject(), this,
-                [](SettingsPanel* self, int value) {
-                    if (self->led_light_switch_) {
-                        bool on = value != 0;
-                        if (on) {
-                            lv_obj_add_state(self->led_light_switch_, LV_STATE_CHECKED);
-                        } else {
-                            lv_obj_remove_state(self->led_light_switch_, LV_STATE_CHECKED);
-                        }
-                    }
-                },
-                printer_state_.get_subjects_lifetime());
-            spdlog::trace("[{}]   ✓ LED light toggle (observing printer state)", get_name());
         }
     }
 
@@ -795,13 +766,6 @@ void SettingsPanel::handle_animations_changed(bool enabled) {
     spdlog::info("[{}] Animations toggled: {}", get_name(), enabled ? "ON" : "OFF");
     DisplaySettingsManager::instance().set_animations_enabled(enabled);
 }
-
-void SettingsPanel::handle_led_light_changed(bool enabled) {
-    spdlog::info("[{}] LED light toggled: {}", get_name(), enabled ? "ON" : "OFF");
-    SettingsManager::instance().set_led_enabled(enabled);
-}
-
-// handle_led_chip_clicked moved to LedSettingsOverlay
 
 void SettingsPanel::handle_estop_confirm_changed(bool enabled) {
     spdlog::info("[{}] E-Stop confirmation toggled: {}", get_name(), enabled ? "ON" : "OFF");
@@ -1231,14 +1195,6 @@ void SettingsPanel::on_animations_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void SettingsPanel::on_led_light_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_led_light_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_global_settings_panel().handle_led_light_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void SettingsPanel::on_estop_confirm_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_estop_confirm_changed");
     auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -1505,7 +1461,6 @@ void register_settings_panel_callbacks() {
     register_xml_callbacks({
         // Toggle callbacks used in settings_panel.xml
         {"on_animations_changed", SettingsPanel::on_animations_changed},
-        {"on_led_light_changed", SettingsPanel::on_led_light_changed},
         {"on_led_settings_clicked", SettingsPanel::on_led_settings_clicked},
         {"on_timelapse_settings_clicked", SettingsPanel::on_timelapse_settings_clicked},
         {"on_sound_settings_clicked", SettingsPanel::on_sound_settings_clicked},
