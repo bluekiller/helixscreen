@@ -143,7 +143,7 @@ lv_obj_t* WizardHeaterSelectStep::create(lv_obj_t* parent) {
         "bed", // Filter for bed-related heaters
         true,  // Allow "None" option
         helix::wizard::BED_HEATER, [](const PrinterHardware& hw) { return hw.guess_bed_heater(); },
-        "[Wizard Heater]", helix::DeviceType::HEATER);
+        "[Wizard Heater]", helix::ui::wizard::display_name_for(helix::DeviceType::HEATER));
 
     // Populate hotend heater dropdown (discover + filter + populate + restore)
     // Event handler is wired via XML <event_cb>
@@ -154,7 +154,7 @@ lv_obj_t* WizardHeaterSelectStep::create(lv_obj_t* parent) {
         true,       // Allow "None" option
         helix::wizard::HOTEND_HEATER,
         [](const PrinterHardware& hw) { return hw.guess_hotend_heater(); }, "[Wizard Heater]",
-        helix::DeviceType::HEATER);
+        helix::ui::wizard::display_name_for(helix::DeviceType::HEATER));
 
     spdlog::debug("[{}] Screen created successfully", get_name());
     return screen_root_;

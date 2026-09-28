@@ -12,6 +12,7 @@
 #include "config.h"
 #include "i_moonraker_api.h"
 #include "led/led_auto_state.h"
+#include "led/led_devices.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_client.h"
@@ -116,7 +117,12 @@ lv_obj_t* WizardLedSelectStep::create(lv_obj_t* parent) {
             true,    // Allow "None" option
             helix::wizard::LED_STRIP,
             [](const PrinterHardware& hw) { return hw.guess_main_led_strip(); }, "[Wizard LED]",
-            helix::DeviceType::LED);
+            [](const std::string& id) {
+                // The same name the LEDs overlay, picker, tile and Settings show.
+                led::LedStripInfo device{};
+                device.id = id;
+                return led::device_display_name(device);
+            });
 
         spdlog::debug("[{}] Dropdown populated, attaching callback", get_name());
 

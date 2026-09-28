@@ -13,10 +13,13 @@ namespace helix {
 namespace ui {
 namespace wizard {
 
+ItemNamer display_name_for(helix::DeviceType type) {
+    return [type](const std::string& item) { return helix::get_display_name(item, type); };
+}
+
 std::string build_dropdown_options(const std::vector<std::string>& items,
                                    std::function<bool(const std::string&)> filter,
-                                   bool include_none,
-                                   std::optional<helix::DeviceType> device_type) {
+                                   bool include_none, ItemNamer display_name) {
     std::string options_str;
 
     // "None" goes FIRST for optional hardware (makes index 0 = safe default)
@@ -35,12 +38,7 @@ std::string build_dropdown_options(const std::vector<std::string>& items,
             options_str += "\n";
         }
 
-        // Transform to display name if device type is provided
-        if (device_type.has_value()) {
-            options_str += helix::get_display_name(item, device_type.value());
-        } else {
-            options_str += item;
-        }
+        options_str += display_name ? display_name(item) : item;
     }
 
     return options_str;
