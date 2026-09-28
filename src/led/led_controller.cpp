@@ -905,9 +905,10 @@ bool NativeBackend::update_from_status(const nlohmann::json& status) {
         strip_colors_[strip.id] = color;
         carried = true;
 
-        // Detect RGBW capability from actual color_data size (overrides prefix guess)
+        // Detect RGBW from the color_data size, only for a strip whose configfile
+        // named no channel pins: Klipper reports four channels for every [led].
         const bool has_white = (parsed.channels >= 4);
-        if (strip.supports_white != has_white) {
+        if (!strip.pin_config_known && strip.supports_white != has_white) {
             spdlog::info("[NativeBackend] Strip '{}' RGBW detection updated: {} -> {}", strip.id,
                          strip.supports_white, has_white);
             strip.supports_white = has_white;

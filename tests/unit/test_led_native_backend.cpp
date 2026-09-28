@@ -795,3 +795,25 @@ TEST_CASE_METHOD(LedPinConfigFixture,
     CHECK(c.g == Catch::Approx(0.0).margin(0.001));
     CHECK(c.b == Catch::Approx(0.0).margin(0.001));
 }
+
+TEST_CASE("NativeBackend: a status frame does not override configfile channel pins",
+          "[led][native][pin_config]") {
+    // Klipper reports four color_data channels for every LED, whatever its pins.
+    helix::led::NativeBackend backend;
+    helix::led::LedStripInfo strip;
+    strip.id = "led status";
+    strip.name = "Status";
+    strip.backend = helix::led::LedBackendType::NATIVE;
+    strip.supports_color = false;
+    strip.supports_white = true;
+    backend.add_strip(strip);
+    backend.update_pin_config(
+        {{"led status", {{"red_pin", "PC1"}, {"green_pin", "PC2"}, {"blue_pin", "PC3"}}}});
+    REQUIRE(backend.strips()[0].pin_config_known);
+
+    backend.update_from_status({{"led status", {{"color_data", {{0.5, 0.2, 0.1, 0.0}}}}}});
+
+    CHECK(backend.strips()[0].supports_color);
+    CHECK_FALSE(backend.strips()[0].supports_white);
+    CHECK(backend.has_strip_color("led status"));
+}
