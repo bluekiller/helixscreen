@@ -13,6 +13,7 @@
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
 
+#include <string>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -31,6 +32,9 @@ class LedSettingsOverlayTestAccess {
   public:
     static void delete_macro(int index) {
         get_led_settings_overlay().handle_delete_macro_device(index);
+    }
+    static void tap_applies_to(const std::string& id) {
+        get_led_settings_overlay().handle_led_chip_clicked(id);
     }
 };
 } // namespace helix::settings
@@ -52,5 +56,30 @@ TEST_CASE_METHOD(LVGLTestFixture, "deleting a macro device removes it from Appli
 
     CHECK(as.strips() == std::vector<std::string>{"neopixel chamber_light"});
     as.set_strips({});
+    ctrl.deinit();
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Applies to keeps a target that is not discovered yet",
+                 "[led][settings]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(nullptr, nullptr);
+    for (const char* id : {"neopixel chamber_light", "neopixel sb_leds"}) {
+        helix::led::LedStripInfo s;
+        s.id = id;
+        s.name = id;
+        s.backend = helix::led::LedBackendType::NATIVE;
+        ctrl.native().add_strip(s);
+    }
+    auto& as = helix::led::LedAutoState::instance();
+    // A migrated WLED strip whose discovery has not answered yet.
+    as.set_strips({"neopixel chamber_light", "printer_led"});
+
+    helix::settings::LedSettingsOverlayTestAccess::tap_applies_to("neopixel sb_leds");
+
+    CHECK(as.strips() ==
+          std::vector<std::string>{"neopixel chamber_light", "printer_led", "neopixel sb_leds"});
+    as.set_strips({});
+    as.save_config();
     ctrl.deinit();
 }

@@ -1071,7 +1071,9 @@ void LedSettingsOverlay::populate_led_chips_impl() {
 
 void LedSettingsOverlay::handle_led_chip_clicked(const std::string& led_name) {
     auto& as = helix::led::LedAutoState::instance();
-    as.set_strips(helix::led::toggle_target(as.targets(), led_name));
+    // The saved list, not targets(): a strip not discovered yet stays selected.
+    as.set_strips(
+        helix::led::toggle_target(as.strips().empty() ? as.targets() : as.strips(), led_name));
     as.save_config();
     as.evaluate();
 
