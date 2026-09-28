@@ -33,6 +33,7 @@
 #define HELIX_MAX_FONT_TIER 6 // default: all tiers (micro=0 .. xxlarge=6)
 #endif
 
+#include <array>
 #include <cstring>
 
 // Canonical ui_xml directory for token discovery, resolved once through the
@@ -415,10 +416,19 @@ lv_color_t theme_manager_get_contrast_color(lv_color_t bg_color) {
     return (brightness < 140) ? tm.dark_palette().text : tm.light_palette().text;
 }
 
-/// WCAG relative luminance of one 8-bit channel.
+/// WCAG relative luminance of one 8-bit channel. Tabulated: the contrast search
+/// evaluates dozens of ratios per widget, and the ESP32's FPU is single
+/// precision, so each double pow() runs in software.
 static double srgb_channel_luminance(uint8_t v) {
-    const double c = v / 255.0;
-    return (c <= 0.03928) ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+    static const std::array<double, 256> table = [] {
+        std::array<double, 256> t{};
+        for (int i = 0; i < 256; ++i) {
+            const double c = i / 255.0;
+            t[i] = (c <= 0.03928) ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+        }
+        return t;
+    }();
+    return table[v];
 }
 
 /// WCAG relative luminance of a color.
