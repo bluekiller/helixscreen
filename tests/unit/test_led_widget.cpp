@@ -4,6 +4,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "app_globals.h"
 #include "config.h"
 #include "grid_layout.h"
 #include "led/led_controller.h"
@@ -237,4 +238,25 @@ TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_
     CHECK(lit.rgb == 0xFF0000);
 
     CHECK_FALSE(light_icon_look({bright_plain}).has_rgb);
+}
+
+TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: binding a light button leaves the tracked LED alone",
+                 "[led][light_button]") {
+    auto& global = get_printer_state();
+    const std::string prior = global.get_tracked_led();
+    global.set_tracked_led("neopixel chamber_light");
+    ps.set_tracked_led("neopixel chamber_light");
+    LedController::instance().set_selected_strips({"neopixel sb_leds"});
+
+    LedWidget w("led", ps, api.get());
+    w.set_config({{"led", "neopixel sb_leds"}});
+    w.attach(lv_obj_create(test_screen()), test_screen());
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    w.select_light(LIGHT_BUTTON_ALL);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    CHECK(global.get_tracked_led() == "neopixel chamber_light");
+    CHECK(ps.get_tracked_led() == "neopixel chamber_light");
+    w.detach();
+    global.set_tracked_led(prior);
 }
