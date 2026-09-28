@@ -173,7 +173,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(reopened != nullptr);
     CHECK(lv_obj_is_valid(reopened));
     CHECK(get_led_control_overlay().get_root() == reopened);
-    CHECK(lv_obj_find_by_name(reopened, "color_presets_container") != nullptr);
+    CHECK(lv_obj_find_by_name(reopened, "led_tab_row") != nullptr);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
