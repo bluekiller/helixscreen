@@ -32,6 +32,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// The kernel writes input_event with its timestamp as two native longs. A libc with a
+// 64-bit time_t on a 32-bit target paired with pre-4.16 uapi headers gets a larger
+// struct, and every evdev reader (LVGL's touch driver included) then decodes garbage.
+static_assert(sizeof(struct input_event) == 2 * sizeof(long) + 8,
+              "struct input_event does not match the kernel ABI: toolchain uapi headers "
+              "must be 4.16+ when time_t is 64-bit on a 32-bit target");
+
 // Optional LVGL extension in some branches/builds; weak symbol allows probing at runtime.
 extern "C" void lv_linux_fbdev_set_skip_unblank(lv_display_t* disp, bool enabled)
     __attribute__((weak));
