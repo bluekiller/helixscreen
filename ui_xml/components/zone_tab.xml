@@ -54,6 +54,8 @@
     <style name="zone_tab_underline_idle" bg_opa="0" border_width="0"/>
     <style name="zone_tab_label_plain"/>
     <style name="zone_tab_label_muted" text_color="#text_muted"/>
+    <!-- The lit dot's own border reset, a style so the light-theme edge can outrank it. -->
+    <style name="zone_tab_dot_plain" border_width="0"/>
   </styles>
   <view name="zone_tab"
         extends="lv_button" width="content" height="content" style_radius="$radius" style_pad_hor="#space_md"
@@ -90,9 +92,11 @@
       <lv_obj name="light_dot"
               width="content" height="content" scrollable="false" clickable="false" hidden_if_empty="$light_subject">
         <lv_obj width="#tab_dot_size"
-                height="#tab_dot_size" style_radius="9999" style_bg_opa="255" style_border_width="0" scrollable="false"
-                clickable="false" hidden="true">
+                height="#tab_dot_size" style_radius="9999" style_bg_opa="255" scrollable="false" clickable="false"
+                hidden="true">
+          <style name="zone_tab_dot_plain"/>
           <bind_style_prop prop="bg_color" subject="$light_color_subject"/>
+          <bind_style_if name="styles.light_edge" cond="settings_dark_mode eq 0"/>
           <bind_flag_if_not_eq subject="$light_subject" flag="hidden" ref_value="1"/>
         </lv_obj>
         <lv_obj width="#tab_dot_size"
