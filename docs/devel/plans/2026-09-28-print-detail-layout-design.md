@@ -47,50 +47,62 @@ rebuild.
 
 - **Landscape** (unchanged arrangement): `content_container` is a row, left column 5/9
   (header + preview card), right column 4/9 (the options column below).
-- **Portrait:** a bound style turns `content_container` into a column. The left column becomes
-  the top block at full width: header, then the preview card at a measured height (below).
-  The options column fills the rest at full width.
+- **Portrait:** `content_container` becomes a column. The left column becomes the top block at
+  full width: header, then the preview card at a measured height (below). The options column
+  fills the rest at full width.
+- **Mechanism:** the inline `flex_flow`, `flex_grow`, `width` and `height` attributes on
+  `content_container`, `left_column` and `options_section` are removed, and each becomes a
+  complementary `bind_style_if_eq` pair on `ui_is_portrait` (ref 0 and ref 1), the
+  `mapping_rows_standard` / `mapping_rows_tall` pattern already in this file. An inline
+  attribute beside a bound style wins over it (declarative-ui rule 6), so a single bound style
+  over the old attributes does nothing. The style engine accepts all four properties in a
+  named style.
 
 ### Options column (every size)
 
 Top to bottom:
 
-1. **Scroll area**, `flex_grow=1`, scrollable vertically, scrollbar hidden:
-   - Filaments card (unchanged content), header gains the Sliced colors switch.
+1. **Scroll area**, `flex_grow=1`, scrollable vertically, scrollbar hidden, in this order:
+   - `bypass_source_card` (unchanged; its "the lanes below" copy still holds).
+   - `sliced_colors_row` (unchanged: same name, label, switch, bindings).
+   - Filaments card (unchanged).
    - Print options card: header label + option tile grid.
 2. **Scroll cue** overlaid on the bottom of the scroll area (see Scroll cue).
 3. Prep time estimate (`prep_time_estimate`).
 4. Pinned action row: Delete (square, `#button_height_lg`) + Print (`flex_grow=1`).
 5. Blocked reason (`print_blocked_reason`).
 
-Items 3-5 never scroll. `history_status_row` and `sliced_colors_row` leave this column.
+Items 3-5 never scroll. `history_status_row` leaves this column.
 
 ### Moved elements
 
-- **History** ("Printed 1 time" / "Last print cancelled"): a line in the metadata strip under
-  the filename, at every size. Same widgets and names (`history_status_icon`,
-  `history_status_label`), same C++ writers.
-- **Sliced colors:** a label plus `ui_switch size="small"` in the Filaments card header,
-  between the lamps and the chevron, at every size. Same subject
-  (`detail_prefer_sliced_colors`), callback (`on_toggle_sliced_colors`) and visibility
-  condition (`detail_gcode_viewer_mode eq 1 and detail_viewer_first_frame eq 1`). The switch
-  and its label must not bubble clicks to the card (a toggle must not open the remap picker).
-  It is now also hidden whenever the Filaments card is hidden. Accepted:
-  `PrintSelectDetailView::apply_preview_colors` only switches between default mappings and
-  `effective_mappings()`, which differ only when there is a lane mapping to show; queue mode
-  (card hidden deliberately) loses the switch.
+- **History** ("Printed 1 time" / "Last print cancelled"): `history_status_row` moves, by name
+  and with its children, into the metadata strip under the filename, at every size.
+  `update_history_display` finds it by name and owns its `hidden` flag, so it is unchanged. The
+  row sits inside a new wrapper, `detail_history_wrap`; any size-driven hide targets the
+  wrapper, never the row, so the C++ writer and the breakpoint binding never share a flag.
+- **Sliced colors stays its own row**, now at the top of the scroll area. It does NOT move into
+  the Filaments header: at 272x480 that header cannot carry the lamps, the chevron and a
+  labelled switch, which `tests/unit/test_print_select_detail_subjects.cpp` ("Sliced colors
+  toggle sits outside the filament card") pins. Keeping the row also keeps its name, its
+  visibility condition and the test on `sliced_colors_row`, and a tap on its label never
+  reaches the card's remap handler.
 
 ### Metadata strip at micro portrait
 
 At `ui_breakpoint eq 0 and ui_is_portrait eq 1` (272x480) the strip shows the filename and ONE
-stats line: print time, filament weight, layer count. Height, layer height, filament type and
-history are hidden at that size. Every other size keeps the full strip.
+stats line, `metadata_row_1` (print time, filament weight). `metadata_row_2`,
+`metadata_row_3` and `detail_history_wrap` are hidden at that size, each by one
+`bind_flag_if` on the container. Layer count drops with row 2; the approved mockup showed it on
+the stats line, but composing it there would mean a second label bound to the same subject for
+one size. Every other size keeps the full strip.
 
 ### Portrait preview height
 
 Portrait only; landscape keeps `flex_grow` in its column. A measured-layout function (the
-`src/ui/ui_panel_filament.cpp#fit_portrait_graph` shape: `SIZE_CHANGED` on the content
-container) sets the preview card height from a pure decision function:
+`src/ui/ui_panel_filament.cpp#fit_portrait_graph` shape: `LV_EVENT_LAYOUT_CHANGED` on the
+content container, a structural exception) sets the preview card height from a pure decision
+function:
 
 ```
 int decide_detail_portrait_preview(int width, int avail_h, int content_h,
@@ -99,12 +111,17 @@ int decide_detail_portrait_preview(int width, int avail_h, int content_h,
 
 - `width`: preview card width. `avail_h`: height the preview and the scroll area share.
   `content_h`: the scroll area's full content height. `row_pitch`: tile height + grid gap.
+  The caller also knows where the tile grid starts inside the scroll content; pass it as
+  `grid_top` (add the parameter) so the rule can tell a tile edge from space above the grid.
+- `min_h = width / 3`: below that the preview stops reading as a model.
 - Base height = `width * 10 / 16`.
 - If `content_h <= avail_h - base`, return base (everything fits, no cue).
-- Otherwise the scroll area overflows. Where the visible edge lands inside a tile row, it is
-  returned untouched. Where it lands within the grid gap or the outer quarter of a row, shrink
-  the preview by just enough (at most half a `row_pitch`) that the edge crosses the middle half
-  of a tile.
+- Otherwise the scroll area overflows. If the visible edge lands above `grid_top`, return base
+  (the cue alone carries it). If it lands in the middle half of a tile, return base. If it lands
+  in a grid gap or in either outer quarter of a tile, shrink the preview by the smallest amount
+  that puts the edge in the middle half of a tile. That amount is at most `gap + tile / 4`,
+  which is under half a `row_pitch` at every tier because the grid gap is a spacing token far
+  smaller than a tile.
 - Never return less than `min_h`.
 
 Lives in a header with no LVGL dependency so the rule is unit-tested without a display.
@@ -114,7 +131,10 @@ Lives in a header with no LVGL dependency so the rule is unit-tested without a d
 New `ui_xml/components/option_tile.xml`, 2-column grid (`flex_flow="row_wrap"`, each tile
 `width` just under 50% of the grid, fixed height per breakpoint tier), at every size.
 `compact_toggle_row` has no other user and is deleted with its registration in
-`src/xml_registration.cpp`.
+`src/xml_registration.cpp` and its row in `kNoMachineControlFiles` in
+`tests/unit/test_job_holds_machine.cpp` (the census fails a listed path that no longer exists).
+`option_tile.xml` takes a `callback` prop wired to an `<event_cb>` the way its predecessor did,
+so it gets that census row instead.
 
 - **Look (approved style C):** icon + label; label wraps to 2 lines, then ellipsis; 1px
   `#border` outline on `#card_bg`. Checked: `#primary` outline, icon tinted `#primary`, a small
@@ -128,9 +148,10 @@ New `ui_xml/components/option_tile.xml`, 2-column grid (`flex_flow="row_wrap"`, 
   `option_tile` where it creates `compact_toggle_row` now, keeps every per-option subject,
   observer, visibility binding and callback, and finds the tile itself instead of a `toggle`
   child. The option state provider for `PrintPreparationManager` is unchanged.
-- **Icons:** the option's own `PrePrintOption::icon` wins when set (verify the form the parser
-  stores; the header documents it as a codepoint string). Otherwise a default from the option
-  id, as a pure function beside `PrePrintOptionsRenderer::label_key_for`:
+- **Icons:** from the option id, as a pure function beside
+  `PrePrintOptionsRenderer::label_key_for`. `PrePrintOption::icon` is left alone and not read:
+  no printer database entry sets it and its stored form (documented as a codepoint string) does
+  not match the icon names below; wire it when a printer ships one.
 
   | id | icon |
   |---|---|
@@ -149,10 +170,16 @@ New `ui_xml/components/option_tile.xml`, 2-column grid (`flex_flow="row_wrap"`, 
 Shown only while content is hidden below the scroll area's visible bottom:
 
 - A fade from transparent to the column background over the bottom of the scroll area, with a
-  `chevron_down` icon at its bottom centre. Not clickable, so touches reach the content under
-  it.
-- Visibility binds to a new int subject `detail_options_more_below` owned by
-  `PrintSelectDetailView`: 1 while `lv_obj_get_scroll_bottom(scroll_area) > 0`. C++ updates it
+  `chevron_down` icon at its bottom centre. The scroll area and the cue share a wrapper; the
+  cue is `ignore_layout` + `align="bottom_mid"`, so it overlays instead of taking a flex slot,
+  and it is not a child of the scroll area, so it does not scroll away. It must never be
+  `clickable`: touches reach the content under it only because hit-testing skips
+  non-clickable objects.
+- Visibility: `detail_options_more_below eq 1 and settings_page_scroll_buttons eq 0`.
+  `detail_options_more_below` is a new int subject owned by `PrintSelectDetailView`, 1 while
+  `lv_obj_get_scroll_bottom(scroll_area) > 0`. Where page-scroll buttons are on (default on
+  ESP32), `PageScrollAutoInject` gives the overflowing scroll area its chevron gutter, and that
+  gutter is the cue; the fade would only duplicate it. C++ updates it
   on the scroll area's `SCROLL`, `SCROLL_END` and `SIZE_CHANGED` events (scroll and size events
   are a structural exception in `.claude/rules/declarative-ui.md`) and after the option rows are
   populated.
@@ -170,11 +197,15 @@ env var. Document it in `docs/devel/MOCK_ENVIRONMENT_VARIABLES.md`.
 - `decide_detail_portrait_preview`: fits (base returned); overflow with the edge in a gap
   (shrunk, edge now mid-tile); overflow with the edge already mid-tile (base returned); nudge
   capped at half a row; `min_h` floor.
-- Default icon: each id in the table, the fallback, and an option's own icon winning.
+- Default icon: each id in the table and the fallback.
 - `test_pre_print_options_renderer.cpp` moves from switch to tile: a tap toggles the option
   subject, subject changes reach the checked state, plugin-gated visibility still hides a tile.
-- New geometry test, style of `tests/unit/test_widget_size_print_status.cpp`, U1 option set, at
-  800x480, 480x320, 480x272, 480x800 and 272x480: the Print and Delete buttons lie fully inside
+- `test_print_select_detail_subjects.cpp`: the sliced-colors cases stay green unchanged (the row
+  keeps its name and stays outside the card); add a case that `history_status_row` is inside
+  the metadata strip.
+- New geometry test forcing the canvas and `ui_is_portrait` the way
+  `tests/unit/test_overlay_height_portrait.cpp` does, U1 option set, at 800x480, 480x320,
+  480x272, 480x800 and 272x480: the Print and Delete buttons lie fully inside
   the screen; each tile's label lies inside its tile; `detail_options_more_below` is 1 exactly
   when the scroll area overflows.
 - By hand: `ctl geom` numbers and screenshots, read, at all seven canvases in the Problem
