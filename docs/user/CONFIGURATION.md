@@ -653,7 +653,7 @@ Matches LVGL's native default of 10.
 ### `scroll_guard`
 **Type:** boolean
 **Default:** `false` (`true` in the AD5M and AD5X presets)
-**Description:** Has no effect in current builds. The value is stored and appears as the **Scroll Guard** toggle under **Settings > Touch & Input**, and the AD5M and AD5X presets still set it to `true`, but nothing reads it. Keeping the key in an existing settings file is harmless. For clicks that fire while you are still scrolling, the setting that helps is `scroll_limit` (see [Touch Feel](TROUBLESHOOTING.md#touch-feel--which-setting-do-i-tune)); there is currently no setting that suppresses a click at the instant you lift off a scroll.
+**Description:** Ignore the stray click some touch controllers send when you lift your finger at the end of a scroll: a press that starts within `scroll_guard_cooldown_ms` (default 80 ms, range 20 to 500) of a scroll does not count as a click. Shown as the **Scroll Guard** toggle under **Settings > Touch & Input**. The AD5M and AD5X presets set it to `true`. Takes effect after a restart. Applies only to built-in touchscreens (DRM/fbdev); the desktop (SDL) and Android builds ignore it. `HELIX_SCROLL_GUARD` and `HELIX_SCROLL_GUARD_COOLDOWN_MS` override the saved values. For clicks that fire while you are still scrolling, the setting that helps is `scroll_limit` (see [Touch Feel](TROUBLESHOOTING.md#touch-feel--which-setting-do-i-tune)).
 
 ### `force_calibration`
 **Type:** boolean
