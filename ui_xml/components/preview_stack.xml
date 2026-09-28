@@ -34,8 +34,12 @@
     <prop name="viewer_name" type="string" default="preview_viewer"/>
     <prop name="thumbnail_name" type="string" default="preview_thumbnail"/>
     <prop name="hint_name" type="string" default="preview_rotate_hint"/>
-    <!-- Per-layer hide conditions, as bind_flag_if expressions. -->
-    <prop name="gradient_hidden" type="string"/>
+    <!-- Per-layer hide conditions, as bind_flag_if expressions. gradient_hidden
+         carries an empty default so a host can omit it (nothing ever covers the
+         gradient): an unset no-default prop drops the cond attribute entirely,
+         which the engine reports as a warning, while an empty cond is its
+         explicit "no binding" path and stays silent. -->
+    <prop name="gradient_hidden" type="string" default=""/>
     <prop name="viewer_hidden" type="string"/>
     <prop name="thumbnail_hidden" type="string"/>
     <prop name="hint_hidden" type="string"/>
