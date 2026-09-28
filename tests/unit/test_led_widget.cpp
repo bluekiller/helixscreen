@@ -445,6 +445,31 @@ TEST_CASE_METHOD(LedWidgetFixture,
     CHECK(scripts_naming(client, "chamber_light") > 0);
 }
 
+TEST_CASE_METHOD(LedWidgetFixture,
+                 "A PRESET-only printer offers the LED Controls tile but no light button",
+                 "[led][light_button]") {
+    auto& ctrl = LedController::instance();
+    ctrl.deinit();
+    ctrl.init(api.get(), &client);
+    LedMacroInfo party;
+    party.display_name = "Party";
+    party.type = MacroLedType::PRESET;
+    party.presets = {"LED_PARTY"};
+    ctrl.set_configured_macros({party});
+    REQUIRE(ctrl.switchable_ids().empty());
+
+    nlohmann::json controls = placed_light("led_controls", 2);
+    ScopedHomeLayout layout(nlohmann::json::array({placed_light("led", 0), controls}));
+    const auto ids = PanelWidgetManager::instance().compute_visible_widget_ids("home", 0);
+    CHECK(std::find(ids.begin(), ids.end(), "led~gated") != ids.end());
+    CHECK(std::find(ids.begin(), ids.end(), "led_controls") != ids.end());
+
+    // With no LED device at all, the tile is gated too.
+    ctrl.set_configured_macros({});
+    const auto none = PanelWidgetManager::instance().compute_visible_widget_ids("home", 0);
+    CHECK(std::find(none.begin(), none.end(), "led_controls~gated") != none.end());
+}
+
 TEST_CASE("light_icon_look: lit by any on target, dark otherwise", "[led][light_button]") {
     DeviceState off{PowerState::Off, 0, 0xFF0000, true};
     DeviceState unknown;

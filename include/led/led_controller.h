@@ -636,6 +636,7 @@ class LedController {
 
     lv_subject_t led_config_version_{};    // Bumped on discover/config changes
     lv_subject_t led_controllable_{};      // 0/1: at least one switchable device exists
+    lv_subject_t led_has_devices_{};       // 0/1: the LEDs overlay has a device, PRESET included
     lv_subject_t led_command_in_flight_{}; // 0/1: a light toggle is awaiting its gcode ACK
     lv_subject_t led_state_version_{};     // Bumped when device state may have changed
     int in_flight_count_ = 0;              // outstanding toggle commands awaiting ACK
@@ -650,7 +651,8 @@ class LedController {
     /// deinit_all(), the death signal expires before they are freed.
     SubjectManager subjects_;
 
-    /// Push whether a chamber light resolves into led_controllable_.
+    /// Push whether a chamber light resolves into led_controllable_, and whether
+    /// any LED device exists into led_has_devices_ (the LED Controls tile's gate).
     /// Cheap no-op if the value is unchanged. Safe before subject init (skips).
     void publish_controllable_state();
     void update_in_flight_subject();

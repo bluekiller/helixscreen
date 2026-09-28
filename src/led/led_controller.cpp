@@ -84,14 +84,17 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
     if (!version_subject_initialized_) {
         lv_subject_init_int(&led_config_version_, 0);
         lv_subject_init_int(&led_controllable_, 0);
+        lv_subject_init_int(&led_has_devices_, 0);
         lv_subject_init_int(&led_command_in_flight_, 0);
         lv_subject_init_int(&led_state_version_, 0);
         helix::xml::register_subject_in_current_scope("led_controllable", &led_controllable_);
+        helix::xml::register_subject_in_current_scope("led_has_devices", &led_has_devices_);
         helix::xml::register_subject_in_current_scope("led_command_in_flight",
                                                       &led_command_in_flight_);
         helix::xml::register_subject_in_current_scope("led_state_version", &led_state_version_);
         subjects_.register_subject(&led_config_version_);
         subjects_.register_subject(&led_controllable_, "led_controllable");
+        subjects_.register_subject(&led_has_devices_, "led_has_devices");
         subjects_.register_subject(&led_command_in_flight_, "led_command_in_flight");
         subjects_.register_subject(&led_state_version_, "led_state_version");
         version_subject_initialized_ = true;
@@ -2486,6 +2489,11 @@ void LedController::publish_controllable_state() {
     if (lv_subject_get_int(&led_controllable_) != desired) {
         lv_subject_set_int(&led_controllable_, desired);
         spdlog::debug("[LedController] led_controllable={}", desired);
+    }
+    const int any = all_devices().empty() ? 0 : 1;
+    if (lv_subject_get_int(&led_has_devices_) != any) {
+        lv_subject_set_int(&led_has_devices_, any);
+        spdlog::debug("[LedController] led_has_devices={}", any);
     }
 }
 
