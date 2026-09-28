@@ -3,6 +3,7 @@
 #include "ui_overlay_temp_graph.h"
 #include "ui_printer_manager_overlay.h"
 #include "ui_temperature_utils.h"
+#include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/config_dir_guard.h"
@@ -25,6 +26,7 @@
 #include "printer_state.h"
 #include "src/ui/panel_widgets/printer_image_widget.h"
 #include "src/ui/panel_widgets/text_measure.h"
+#include "static_panel_registry.h"
 #include "theme_manager.h"
 #include "tool_state.h"
 #include "wizard_config_paths.h"
@@ -451,6 +453,20 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a recycled instance drives its ne
     display.set_animations_enabled(prev_animations);
 }
 
+namespace {
+
+/// The temperature graph overlay is a process-lifetime singleton observing this
+/// case's subjects. Destroy it before they die, or a later case's destroy_all()
+/// tears down observers on freed subjects.
+struct TempGraphOverlayScope {
+    ~TempGraphOverlayScope() {
+        StaticPanelRegistry::instance().destroy_all();
+        helix::ui::UpdateQueue::instance().drain();
+    }
+};
+
+} // namespace
+
 TEST_CASE_METHOD(LVGLUITestFixture,
                  "callouts: tapping the bed chip opens the bed temperature graph, not the "
                  "printer manager",
@@ -461,6 +477,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(state().get_bed_target_subject(), 600);
     settle();
 
+    TempGraphOverlayScope overlay_scope;
     get_global_temp_graph_overlay().init_subjects();
     lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
     REQUIRE(mode);
@@ -506,6 +523,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     settle();
     bubble_like_home_panel(h.root());
 
+    TempGraphOverlayScope overlay_scope;
     get_global_temp_graph_overlay().init_subjects();
     lv_subject_t* mode = lv_xml_get_subject(nullptr, "temp_graph_mode");
     REQUIRE(mode);

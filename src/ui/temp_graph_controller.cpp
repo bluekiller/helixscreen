@@ -545,13 +545,13 @@ bool TempGraphController::attach_series_observers(size_t i) {
         lv_subject_t* target_subj = nullptr;
 
         if (s.klipper_name == "heater_bed") {
-            temp_subj = ps.get_bed_temp_subject();
-            target_subj = ps.get_bed_target_subject();
+            temp_subj = ps.get_bed_temp_subject(s.lifetime);
+            target_subj = ps.get_bed_target_subject(s.lifetime);
         } else if (s.klipper_name.find("heater_generic") == 0 ||
                    s.klipper_name.find("temperature_fan") == 0) {
             // Chamber (or other heater/fan-based heaters)
-            temp_subj = ps.get_chamber_temp_subject();
-            target_subj = ps.get_chamber_target_subject();
+            temp_subj = ps.get_chamber_temp_subject(s.lifetime);
+            target_subj = ps.get_chamber_target_subject(s.lifetime);
         } else if (s.klipper_name.find("extruder") == 0) {
             // Always prefer this extruder's OWN subject — update_from_status
             // publishes one per discovered head, single-tool printers included.
@@ -568,6 +568,7 @@ bool TempGraphController::attach_series_observers(size_t i) {
             if (!temp_subj && s.klipper_name == "extruder" && ps.extruder_count() == 0) {
                 temp_subj = ps.get_active_extruder_temp_subject();
                 target_subj = ps.get_active_extruder_target_subject();
+                s.lifetime = ps.get_subjects_lifetime();
                 s.provisional = (temp_subj != nullptr);
             }
         } else {
