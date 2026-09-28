@@ -146,6 +146,7 @@ translations:
   Abort already in progress: Прерывание уже выполняется
   Abort failed: Ошибка прерывания
   Aborting AFC operation...: Прерывание операции AFC...
+  Aborting...: Прерывание...
   About: О программе
   Accel to Decel: Ускорение к торможению
   Acceleration to deceleration limit (mm/s²): Предел ускорения к торможению (мм/с²)
@@ -2544,6 +2545,7 @@ translations:
   Recover MMU state?: Восстановить состояние MMU?
   Recover State: 'Восстановить состояние'
   Recovering AFC system...: Восстановление системы AFC...
+  Recovering...: Восстановление...
   Recovery failed: Восстановление не удалось
   'Recovery failed: ': 'Восстановление не удалось: '
   'Recovery failed: {}': 'Восстановление не удалось: {}'
