@@ -811,6 +811,15 @@ struct OverlayXmlFixture : public LVGLUITestFixture {
     lv_obj_t* find(const char* name) const {
         return lv_obj_find_by_name(root, name);
     }
+
+    /// find() for a control the test needs: a missing one fails here, naming it,
+    /// instead of reaching LVGL as nullptr.
+    lv_obj_t* need(const char* name) const {
+        lv_obj_t* obj = find(name);
+        INFO("ui_xml has no widget named " << name);
+        REQUIRE(obj != nullptr);
+        return obj;
+    }
 };
 
 } // namespace
@@ -833,7 +842,7 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: every named control exists",
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the slider fill takes the page color",
                  "[led][overlay][xml]") {
-    lv_obj_t* slider = find("led_brightness_slider");
+    lv_obj_t* slider = need("led_brightness_slider");
     REQUIRE(slider != nullptr);
     lv_subject_set_color(lv_xml_get_subject(nullptr, "led_page_color"), lv_color_hex(0xFF4444));
     CHECK(lv_color_to_u32(lv_obj_get_style_bg_color(slider, LV_PART_INDICATOR)) ==
@@ -842,7 +851,7 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the slider fill takes the page
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab click focuses that tab's device",
                  "[led][overlay][xml]") {
-    lv_obj_t* tab = find("led_tab_1");
+    lv_obj_t* tab = need("led_tab_1");
     REQUIRE(tab != nullptr);
     lv_obj_send_event(tab, LV_EVENT_CLICKED, nullptr);
     CHECK(get_led_control_overlay().focused_device() == "neopixel sb_leds");
@@ -853,24 +862,24 @@ TEST_CASE_METHOD(OverlayXmlFixture,
                  "overlay XML: the page shows only the focused device's sections",
                  "[led][overlay][xml]") {
     // RGBW with an effect: lamp, White, Color and the Effects row; no levels, no macro buttons.
-    CHECK_FALSE(lv_obj_has_flag(find("led_power_btn"), LV_OBJ_FLAG_HIDDEN));
-    CHECK_FALSE(lv_obj_has_flag(find("led_white_section"), LV_OBJ_FLAG_HIDDEN));
-    CHECK_FALSE(lv_obj_has_flag(find("led_color_section"), LV_OBJ_FLAG_HIDDEN));
-    CHECK_FALSE(lv_obj_has_flag(find("led_chip_none"), LV_OBJ_FLAG_HIDDEN));
-    CHECK(lv_obj_has_flag(find("led_level_row"), LV_OBJ_FLAG_HIDDEN));
-    CHECK(lv_obj_has_flag(find("led_macro_on"), LV_OBJ_FLAG_HIDDEN));
-    CHECK(lv_obj_has_flag(find("led_empty_state"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(need("led_power_btn"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(need("led_white_section"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(need("led_color_section"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(need("led_chip_none"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(need("led_level_row"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(need("led_macro_on"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(need("led_empty_state"), LV_OBJ_FLAG_HIDDEN));
 }
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the brightness fill is flat-topped inside a pill",
                  "[led][overlay][xml]") {
-    lv_obj_t* slider = find("led_brightness_slider");
+    lv_obj_t* slider = need("led_brightness_slider");
     REQUIRE(slider != nullptr);
     // lv_bar clips an indicator whose radius is below the track's to the track's
     // rounded shape, so a square fill reads flat on top and round at the bottom.
     CHECK(lv_obj_get_style_radius(slider, LV_PART_INDICATOR) == 0);
     CHECK(lv_obj_get_style_radius(slider, LV_PART_MAIN) > 0);
-    lv_obj_t* pct = find("led_brightness_pct");
+    lv_obj_t* pct = need("led_brightness_pct");
     REQUIRE(pct != nullptr);
     CHECK(lv_obj_get_style_align(pct, LV_PART_MAIN) == LV_ALIGN_TOP_MID);
 }
@@ -878,7 +887,7 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the brightness fill is flat-to
 TEST_CASE_METHOD(OverlayXmlFixture,
                  "overlay XML: the LEDs title keeps its case; other headers do not",
                  "[led][overlay][xml]") {
-    lv_obj_t* title = find("header_title");
+    lv_obj_t* title = need("header_title");
     REQUIRE(title != nullptr);
     CHECK(std::string(lv_label_get_text(title)) == "LEDs");
     CHECK(reinterpret_cast<lv_label_t*>(title)->text_transform_upper == 0);
@@ -1050,8 +1059,8 @@ TEST_CASE_METHOD(LedApplyColorFixture,
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the underline follows the focused tab",
                  "[led][overlay][xml]") {
-    lv_obj_t* tab0 = find("led_tab_0");
-    lv_obj_t* tab1 = find("led_tab_1");
+    lv_obj_t* tab0 = need("led_tab_0");
+    lv_obj_t* tab1 = need("led_tab_1");
     REQUIRE(tab0 != nullptr);
     REQUIRE(tab1 != nullptr);
     CHECK(lv_obj_get_style_border_width(tab0, LV_PART_MAIN) > 0);
@@ -1065,7 +1074,7 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the underline follows the focu
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab dot shows exactly its device's state",
                  "[led][overlay][xml]") {
     auto visible_dots = [this](const char* tab) {
-        lv_obj_t* dot = lv_obj_find_by_name(find(tab), "light_dot");
+        lv_obj_t* dot = lv_obj_find_by_name(need(tab), "light_dot");
         REQUIRE(dot != nullptr);
         std::vector<int> shown;
         for (uint32_t i = 0; i < lv_obj_get_child_count(dot); ++i) {
@@ -1092,8 +1101,8 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a tab dot shows exactly its de
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a swatch row has no dead gaps and no overlap",
                  "[led][overlay][xml]") {
-    lv_obj_t* list = find("led_swatch_list");
-    lv_obj_t* swatch = find("led_swatch_0");
+    lv_obj_t* list = need("led_swatch_list");
+    lv_obj_t* swatch = need("led_swatch_0");
     REQUIRE(list != nullptr);
     REQUIRE(swatch != nullptr);
     const int32_t gap = lv_obj_get_style_pad_column(list, LV_PART_MAIN);
@@ -1107,20 +1116,20 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: a swatch row has no dead gaps 
     };
     // Each swatch reaches half the gap to each side: together they cover it exactly.
     CHECK(reach(swatch) * 2 == gap);
-    CHECK(reach(find("led_custom_swatch")) * 2 == gap);
-    CHECK(reach(find("led_white_cool")) * 2 == gap);
+    CHECK(reach(need("led_custom_swatch")) * 2 == gap);
+    CHECK(reach(need("led_white_cool")) * 2 == gap);
 
     // Chips do the same across their own gap.
-    const int32_t chip_gap = lv_obj_get_style_pad_column(find("led_chip_scroller"), LV_PART_MAIN);
+    const int32_t chip_gap = lv_obj_get_style_pad_column(need("led_chip_scroller"), LV_PART_MAIN);
     REQUIRE(chip_gap > 0);
-    CHECK(reach(find("led_chip_none")) * 2 == chip_gap);
-    CHECK(reach(find("led_chip_0")) * 2 == chip_gap);
+    CHECK(reach(need("led_chip_none")) * 2 == chip_gap);
+    CHECK(reach(need("led_chip_0")) * 2 == chip_gap);
 }
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the selection ring draws inside its swatch",
                  "[led][overlay][xml]") {
     lv_subject_set_int(lv_xml_get_subject(nullptr, "led_selected_swatch"), -2);
-    lv_obj_t* custom = find("led_custom_swatch");
+    lv_obj_t* custom = need("led_custom_swatch");
     REQUIRE(custom != nullptr);
     // A border, not an outline: nothing past the swatch's own bounds, so no row clips it.
     CHECK(lv_obj_get_style_border_width(custom, LV_PART_MAIN) > 0);
@@ -1131,8 +1140,8 @@ TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the selection ring draws insid
 
 TEST_CASE_METHOD(OverlayXmlFixture, "overlay XML: the modes sit a step further from the look",
                  "[led][overlay][xml]") {
-    const int32_t look_gap = lv_obj_get_style_margin_top(find("led_color_section"), LV_PART_MAIN);
-    const int32_t modes_gap = lv_obj_get_style_margin_top(find("led_list_section"), LV_PART_MAIN);
+    const int32_t look_gap = lv_obj_get_style_margin_top(need("led_color_section"), LV_PART_MAIN);
+    const int32_t modes_gap = lv_obj_get_style_margin_top(need("led_list_section"), LV_PART_MAIN);
     CHECK(look_gap > 0);
     CHECK(modes_gap > look_gap);
 }
@@ -1145,7 +1154,7 @@ TEST_CASE_METHOD(OverlayXmlFixture,
     REQUIRE(grid != nullptr);
     REQUIRE(lv_obj_get_child_count(grid) == 30);
 
-    for (lv_obj_t* swatch : {find("led_swatch_0"), lv_obj_get_child(grid, 0)}) {
+    for (lv_obj_t* swatch : {need("led_swatch_0"), lv_obj_get_child(grid, 0)}) {
         REQUIRE(swatch != nullptr);
         // Built by color_swatch: a transparent ring holder around the named disc.
         lv_obj_t* disc = lv_obj_get_child(swatch, 0);
