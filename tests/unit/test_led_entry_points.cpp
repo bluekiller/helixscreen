@@ -13,6 +13,7 @@
 #include "moonraker_client_mock.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
+#include "src/ui/panel_widgets/led_widget.h"
 
 #include <array>
 
@@ -90,6 +91,41 @@ TEST_CASE_METHOD(EntryFixture, "the LED controls tile opens on the last focused 
     CHECK(get_led_control_overlay().focused_device() == "neopixel sb_leds");
     NavigationManager::instance().go_back();
     drain();
+}
+
+TEST_CASE_METHOD(EntryFixture, "a light button's › opens the overlay on that button's device",
+                 "[led][entry][light_button]") {
+    struct Case {
+        const char* key;
+        const char* expected;
+        const char* focused_before; ///< differs from expected, so "last focused" cannot pass
+    };
+    const Case c = GENERATE(Case{"neopixel sb_leds", "neopixel sb_leds", "neopixel chamber_light"},
+                            Case{"all", "neopixel chamber_light", "neopixel sb_leds"});
+    INFO("light key: " << c.key);
+
+    init_led_control_overlay(ps);
+    REQUIRE(helix::open_led_control_overlay(test_screen(), c.focused_before) != nullptr);
+    drain();
+    NavigationManager::instance().go_back();
+    drain();
+    REQUIRE_FALSE(NavigationManager::instance().has_open_overlays());
+
+    LedWidget w("led", ps, api.get());
+    w.set_config({{"led", c.key}});
+    lv_obj_t* root = lv_obj_create(test_screen());
+    lv_obj_t* more = lv_obj_create(root);
+    lv_obj_add_event_cb(more, LedWidget::light_more_cb, LV_EVENT_CLICKED, nullptr);
+    w.attach(root, test_screen());
+
+    lv_obj_send_event(more, LV_EVENT_CLICKED, nullptr);
+    drain();
+
+    CHECK(NavigationManager::instance().has_open_overlays());
+    CHECK(get_led_control_overlay().focused_device() == c.expected);
+    NavigationManager::instance().go_back();
+    drain();
+    w.detach();
 }
 
 TEST_CASE_METHOD(EntryFixture, "the print-status light toggles only the chamber light",
