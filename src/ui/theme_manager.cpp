@@ -1403,7 +1403,7 @@ void theme_manager_refresh_layout_constants(lv_display_t* display) {
     // the ultrawide ladder. See theme_manager_resolve_px_tokens().
     int32_t resp_res = responsive_dimension(display);
     for (const auto& [base_name, value] : theme_manager_resolve_px_tokens(display)) {
-        lv_xml_update_const(scope, base_name.c_str(), value.c_str());
+        lv_xml_set_const(scope, base_name.c_str(), value.c_str());
     }
 
     // Recalculate overlay widths from updated nav_width and space_lg
@@ -1633,14 +1633,13 @@ void theme_manager_register_responsive_fonts(lv_display_t* display) {
 
             spdlog::trace("[Theme] Registering font {}: selected={} ({})", base_name, value,
                           selected_suffix);
-            // update, not register: lv_xml_register_const() is first-write-wins,
+            // set, not register: lv_xml_register_const() is first-write-wins,
             // so on the second pass (a runtime breakpoint change, or a theme
             // reload) it silently keeps the startup value. These base tokens
             // have no globals.xml declaration to protect — they exist only
             // because this function derives them — so overwriting is correct,
-            // and lv_xml_update_const() falls back to registering on the first
-            // pass (#1210).
-            lv_xml_update_const(scope, base_name.c_str(), value);
+            // and on the first pass lv_xml_set_const() registers them (#1210).
+            lv_xml_set_const(scope, base_name.c_str(), value);
             registered++;
         }
     }
