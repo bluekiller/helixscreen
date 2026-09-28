@@ -9,6 +9,7 @@
 #include "lvgl/lvgl.h"
 #include "platform_info.h"
 #include "subject_managed_panel.h"
+#include "wifi_backend.h"
 #include "wizard_step.h"
 
 #include <memory>
@@ -209,7 +210,10 @@ class WizardWifiStep : public helix::wizard::Step {
 
     // Helper functions
     void update_wifi_status(const char* status);
-    void update_wifi_ip(const char* ip);
+    // Shows what a status read returned; never reads the backend itself.
+    void update_wifi_ip(const char* ip, const std::string& mac = "");
+    // "Connected to <current_ssid_>", then the address from one async read.
+    void announce_connected();
     void update_ethernet_status();
 
     // Apply the current (already-initialized) WiFi backend state to the UI.
@@ -217,7 +221,12 @@ class WizardWifiStep : public helix::wizard::Step {
     // state change via add_state_observer(). Non-blocking: never calls
     // set_enabled(). Runs on the UI thread (state observer defers via token).
     void apply_wifi_backend_state();
-    void populate_network_list(const std::vector<WiFiNetwork>& networks);
+    // Repopulates from cached_networks_ once an async status read says which
+    // network is connected. A status read can block for seconds on
+    // wpa_supplicant, so none happens on the UI thread.
+    void refresh_network_list();
+    void populate_network_list(const std::vector<WiFiNetwork>& networks,
+                               const WifiBackend::ConnectionStatus& status);
     void clear_network_list();
 
     // Static trampolines for LVGL callbacks

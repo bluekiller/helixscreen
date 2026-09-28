@@ -211,13 +211,12 @@ void WizardWifiStep::update_wifi_status(const char* status) {
     lv_subject_copy_string(&wifi_status_, status);
 }
 
-void WizardWifiStep::update_wifi_ip(const char* ip) {
+void WizardWifiStep::update_wifi_ip(const char* ip, const std::string& mac) {
     spdlog::debug("[{}] Updating WiFi IP: {}", get_name(), ip ? ip : "(none)");
     lv_subject_copy_string(&wifi_ip_, ip ? ip : "");
 
     // Update WiFi MAC when we have an IP (connected)
-    if (ip && ip[0] != '\0' && wifi_manager_) {
-        std::string mac = wifi_manager_->get_mac_address();
+    if (ip && ip[0] != '\0') {
         spdlog::debug("[{}] WiFi MAC from backend: '{}' (len={})", get_name(),
                       helix::redact::mac(mac), mac.size());
         if (!mac.empty()) {
@@ -228,6 +227,33 @@ void WizardWifiStep::update_wifi_ip(const char* ip) {
     } else {
         lv_subject_copy_string(&wifi_mac_, "");
     }
+}
+
+void WizardWifiStep::announce_connected() {
+    char msg[128];
+    snprintf(msg, sizeof(msg), "%s%s", get_status_text("connected"), current_ssid_);
+    update_wifi_status(msg);
+    if (wifi_manager_) {
+        wifi_manager_->get_status_async(
+            lifetime_.token(), [this](const WifiBackend::ConnectionStatus& status) {
+                update_wifi_ip(status.ip_address.c_str(), status.mac_address);
+            });
+    }
+    spdlog::info("[{}] Connected to {}", get_name(), helix::redact::ssid(current_ssid_));
+}
+
+void WizardWifiStep::refresh_network_list() {
+    if (!wifi_manager_) {
+        populate_network_list(cached_networks_, WifiBackend::ConnectionStatus{});
+        return;
+    }
+    wifi_manager_->get_status_async(lifetime_.token(),
+                                    [this](const WifiBackend::ConnectionStatus& status) {
+                                        if (cleanup_called_ || !screen_root_) {
+                                            return;
+                                        }
+                                        populate_network_list(cached_networks_, status);
+                                    });
 }
 
 void WizardWifiStep::update_ethernet_status() {
@@ -284,7 +310,8 @@ void WizardWifiStep::update_ethernet_status() {
     crash_handler::breadcrumb::note("wifi", "eth_probe_submitted");
 }
 
-void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& networks) {
+void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& networks,
+                                           const WifiBackend::ConnectionStatus& status) {
     spdlog::debug("[{}] Populating network list with {} networks", get_name(), networks.size());
     crash_handler::breadcrumb::note("wifi", "populate_begin", static_cast<long>(networks.size()));
 
@@ -307,14 +334,11 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
                   return a.signal_strength > b.signal_strength;
               });
 
-    // Get connected network SSID
-    std::string connected_ssid;
-    if (wifi_manager_) {
-        connected_ssid = wifi_manager_->get_connected_ssid();
-        if (!connected_ssid.empty()) {
-            spdlog::debug("[{}] Currently connected to: {}", get_name(),
-                          helix::redact::ssid(connected_ssid));
-        }
+    // Connected network SSID
+    const std::string& connected_ssid = status.ssid;
+    if (!connected_ssid.empty()) {
+        spdlog::debug("[{}] Currently connected to: {}", get_name(),
+                      helix::redact::ssid(connected_ssid));
     }
 
     // Band badges only earn their pixels when the scan actually spans bands —
@@ -400,15 +424,12 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
             spdlog::debug("[{}] Marked connected network: {}", get_name(),
                           helix::redact::ssid(network.ssid));
 
-            // Update status/IP/MAC display — the initial is_connected() check at
-            // init time can miss pre-existing connections due to NM query timing,
-            // so we also update here when the scan reveals a connected network.
+            // Update status/IP/MAC display — the status read at init time can
+            // miss pre-existing connections due to NM query timing, so we also
+            // update here when the scan reveals a connected network.
             std::string status_msg = std::string(get_status_text("connected")) + connected_ssid;
             update_wifi_status(status_msg.c_str());
-            if (wifi_manager_) {
-                std::string ip = wifi_manager_->get_ip_address();
-                update_wifi_ip(ip.c_str());
-            }
+            update_wifi_ip(status.ip_address.c_str(), status.mac_address);
         }
 
         // Store network data for click handler (callback registered via XML event_cb)
@@ -627,7 +648,7 @@ void WizardWifiStep::handle_wifi_toggle_changed(lv_event_t* e) {
                     spdlog::info("[{}] Scan callback with {} networks", get_name(), scanned.size());
                     cached_networks_ = std::move(scanned);
                     lv_subject_set_int(&wifi_scanning_, 0);
-                    populate_network_list(cached_networks_);
+                    refresh_network_list();
                 });
             });
         });
@@ -671,17 +692,7 @@ void WizardWifiStep::handle_network_item_clicked(lv_event_t* e) {
                     // thread (L081).
                     token.defer([this, success, error]() {
                         if (success) {
-                            char msg[128];
-                            snprintf(msg, sizeof(msg), "%s%s", get_status_text("connected"),
-                                     current_ssid_);
-                            update_wifi_status(msg);
-                            // Update IP address display
-                            if (wifi_manager_) {
-                                std::string ip = wifi_manager_->get_ip_address();
-                                update_wifi_ip(ip.c_str());
-                            }
-                            spdlog::info("[{}] Connected to {}", get_name(),
-                                         helix::redact::ssid(current_ssid_));
+                            announce_connected();
                         } else {
                             char msg[128];
                             snprintf(msg, sizeof(msg), lv_tr("Failed to connect: %s"),
@@ -775,18 +786,7 @@ void WizardWifiStep::handle_modal_connect_clicked() {
 
                     if (success) {
                         hide_password_modal();
-
-                        char msg[128];
-                        snprintf(msg, sizeof(msg), "%s%s", get_status_text("connected"),
-                                 current_ssid_);
-                        update_wifi_status(msg);
-                        // Update IP address display
-                        if (wifi_manager_) {
-                            std::string ip = wifi_manager_->get_ip_address();
-                            update_wifi_ip(ip.c_str());
-                        }
-                        spdlog::info("[{}] Connected to {}", get_name(),
-                                     helix::redact::ssid(current_ssid_));
+                        announce_connected();
                     } else {
                         lv_obj_t* modal_status =
                             password_modal_ ? lv_obj_find_by_name(password_modal_, "modal_status")
@@ -1011,19 +1011,24 @@ void WizardWifiStep::apply_wifi_backend_state() {
         crash_handler::breadcrumb::note("wifi", "apply_state_enabled");
 
         // Check if already connected
-        if (wifi_manager_->is_connected()) {
-            std::string ssid = wifi_manager_->get_connected_ssid();
-            std::string ip = wifi_manager_->get_ip_address();
-            spdlog::info("[{}] Already connected to '{}' with IP {}", get_name(),
-                         helix::redact::ssid(ssid), ip);
+        wifi_manager_->get_status_async(
+            lifetime_.token(), [this](const WifiBackend::ConnectionStatus& status) {
+                // The user can turn WiFi off before the read lands.
+                if (lv_subject_get_int(&wifi_enabled_) == 0) {
+                    return;
+                }
+                if (status.connected) {
+                    spdlog::info("[{}] Already connected to '{}' with IP {}", get_name(),
+                                 helix::redact::ssid(status.ssid), status.ip_address);
 
-            // Update status and IP display
-            std::string status_msg = std::string(lv_tr("Connected to ")) + ssid;
-            update_wifi_status(status_msg.c_str());
-            update_wifi_ip(ip.c_str());
-        } else {
-            update_wifi_status(get_status_text("enabled"));
-        }
+                    // Update status and IP display
+                    std::string status_msg = std::string(lv_tr("Connected to ")) + status.ssid;
+                    update_wifi_status(status_msg.c_str());
+                    update_wifi_ip(status.ip_address.c_str(), status.mac_address);
+                } else {
+                    update_wifi_status(get_status_text("enabled"));
+                }
+            });
 
         // Kick a scan to populate the network list — exactly once.
         if (!scan_started_) {
@@ -1046,7 +1051,7 @@ void WizardWifiStep::apply_wifi_backend_state() {
                     cached_networks_ = std::move(scanned);
                     lv_subject_set_int(&wifi_scanning_, 0);
                     if (!cached_networks_.empty()) {
-                        populate_network_list(cached_networks_);
+                        refresh_network_list();
                     }
                 });
             });
