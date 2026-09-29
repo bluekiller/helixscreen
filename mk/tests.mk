@@ -1437,11 +1437,13 @@ test-tsan: test-tsan-build
 	$(call report_sanitizer_result,TSAN,/tmp/tsan_output.txt,$(TSAN_REPORT_RE))
 
 # Run specific test with ASAN (usage: make test-asan-one TEST="[streaming]")
+# SEED=<n> runs it in Catch2's random order with that seed, so a crash that only
+# a --order rand run reaches can be reproduced under ASAN.
 test-asan-one: test-asan-build
 	$(ECHO) "$(CYAN)$(BOLD)Running test '$(TEST)' with AddressSanitizer...$(RESET)"
 	@set -o pipefail; \
 	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) LSAN_OPTIONS=$(LSAN_RUN_OPTIONS) \
-	  $(TEST_ASAN_BIN) "$(TEST)" 2>&1 | tee /tmp/asan_output.txt; \
+	  $(TEST_ASAN_BIN) "$(TEST)" $(if $(SEED),--order rand --rng-seed $(SEED)) 2>&1 | tee /tmp/asan_output.txt; \
 	$(call report_sanitizer_result,ASAN,/tmp/asan_output.txt,$(ASAN_REPORT_RE))
 # NOTE: no leak ratchet here. The baseline is pinned to the full-suite invocation
 # above; a filtered run leaks a different population, so checking it would fail on
