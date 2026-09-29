@@ -38,6 +38,20 @@ void install_io_bindings(PluginContext& ctx);
 
 PluginContext& context(lua_State* L);
 
+/// Raises "<call> needs the '<permission>' permission in manifest.json" unless granted.
+void require_permission(lua_State* L, Permission p, const char* call);
+
+/// Pushes the success value(s) of an RpcResult and returns how many were pushed.
+using PushRpc = std::function<int(lua_State*, const RpcResult&)>;
+
+/// An RpcCallback that resumes `p` with on_ok's value(s), or with (nil, error) on failure.
+RpcCallback make_resolver(LuaRuntime::Pending p, PushRpc on_ok);
+
+/// Pushes `true`.
+int push_rpc_true(lua_State* co, const RpcResult&);
+/// Pushes the result's JSON value.
+int push_rpc_value(lua_State* co, const RpcResult&);
+
 /// How one row of the stable printer table converts its subject into a Lua value.
 enum class PrinterValueKind { Bool, String, Int, DeciDegrees };
 
