@@ -502,14 +502,13 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     PrintStatusWidget::destroy_formatter_for_test();
 }
 
-// --- Phase 3 pin: tiny landscape stacks the action grid -----------------------
+// --- Tiny landscape stacks the action grid -----------------------------------
 //
 // The full-screen print_status_panel (not the home widget above) grows its two
 // action rows into the grid's leftover column height at ui_breakpoint < 2 and
-// stacks each button icon over label. Pinned at 480x320, the cramped target
-// that motivated the phase: every visible action button's label must be inside
-// the button's content box (the old row layout clipped them) and the grid must
-// fill the column bottom (it used to leave a dead band above row 1).
+// stacks each button icon over label. Pinned at 480x320: every visible action
+// button's label must be inside the button's content box, and the grid must
+// fill the column bottom.
 
 namespace {
 
