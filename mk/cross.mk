@@ -2939,7 +2939,7 @@ DEV_PANEL_XML := gcode_test_panel.xml glyphs_panel.xml step_test_panel.xml test_
 define release-copy-xml-config
 	@cp -r ui_xml config moonraker-plugin $(1)/
 	@rm -f $(addprefix $(1)/ui_xml/,$(DEV_PANEL_XML))
-	@rm -rf $(1)/moonraker-plugin/tests
+	@rm -rf $(1)/moonraker-plugin/tests $(1)/moonraker-plugin/TESTING_PLAN.md
 	@find $(1)/moonraker-plugin -type d -name __pycache__ -prune -exec rm -rf {} +
 	@# Minify the STAGED copy only -- never ui_xml/ in the source tree. The XML
 	@# engine keeps a verbatim copy of every component's <view> source text alive

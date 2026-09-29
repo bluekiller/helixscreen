@@ -361,11 +361,11 @@ std::string HelixPluginInstaller::get_install_script_path() const {
             continue;
         }
 
+        // No exec-bit check: the script runs via /bin/sh, and a release
+        // unpacked by Moonraker's zip extractor carries no unix modes.
         return *canonical_path;
     }
 
-    // No exec-bit requirement: the script runs via /bin/sh, and a release
-    // unpacked by Moonraker's zip extractor carries no unix modes.
     spdlog::warn("[PluginInstaller] install.sh not found below exe dir {}", exe_dir);
     return "";
 }
