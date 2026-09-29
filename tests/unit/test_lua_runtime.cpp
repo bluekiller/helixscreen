@@ -125,4 +125,27 @@ TEST_CASE("closers run in reverse before the state closes", "[plugin][lua_runtim
     CHECK(order == std::vector<int>{2, 1});
 }
 
+TEST_CASE("source larger than the memory cap is refused", "[plugin][lua_runtime]") {
+    LuaRuntime::Limits limits;
+    limits.memory_bytes = 256 * 1024;
+    TestRuntime t(limits);
+    std::string ones;
+    ones.reserve(1000000);
+    for (int i = 0; i < 500000; ++i)
+        ones += "1,";
+    std::string chunk = "local t = {" + ones + "}";
+    CHECK(chunk.size() > limits.memory_bytes);
+    CHECK_FALSE(t.run(chunk));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("memory") != std::string::npos);
+    CHECK(t.rt->memory_used() <= 256 * 1024);
+}
+
+TEST_CASE("run_file refuses a missing file and a directory", "[plugin][lua_runtime]") {
+    TestRuntime t;
+    CHECK_FALSE(t.rt->run_file("no-such-file.lua"));
+    CHECK_FALSE(t.rt->run_file("lib"));
+    CHECK_FALSE(t.rt->faulted());
+}
+
 #endif // HELIX_HAS_PLUGINS

@@ -41,6 +41,10 @@ bool file_exists(const std::string& path) {
 
 const char kLoadedKey = 0; // its address keys the require cache in the registry
 
+std::string memory_cap_reason(size_t cap_bytes) {
+    return "out of memory (cap " + std::to_string(cap_bytes / 1024) + " KB)";
+}
+
 } // namespace
 
 ErrorWindow::ErrorWindow(size_t threshold, std::chrono::seconds window)
@@ -178,17 +182,34 @@ int LuaRuntime::lua_require(lua_State* L) {
 bool LuaRuntime::run_string(const std::string& code, const std::string& chunk_name) {
     if (faulted_)
         return false;
-    if (luaL_loadbufferx(L_, code.data(), code.size(), chunk_name.c_str(), "t") != LUA_OK) {
+    // Compiling counts as an entry, so the memory cap bounds the source a plugin can load.
+    ++depth_;
+    int status = luaL_loadbufferx(L_, code.data(), code.size(), chunk_name.c_str(), "t");
+    --depth_;
+    if (status != LUA_OK) {
         std::string msg = lua_tostring(L_, -1);
         lua_pop(L_, 1);
-        report_error(msg);
+        if (status == LUA_ERRMEM)
+            fault(memory_cap_reason(limits_.memory_bytes));
+        else
+            report_error(msg);
         return false;
     }
     return spawn({});
 }
 
 bool LuaRuntime::run_file(const std::string& relative_path) {
-    std::ifstream in(plugin_dir_ + "/" + relative_path, std::ios::binary);
+    const std::string path = plugin_dir_ + "/" + relative_path;
+    struct stat st {};
+    if (::stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
+        report_error("cannot read " + relative_path);
+        return false;
+    }
+    if (static_cast<size_t>(st.st_size) > limits_.memory_bytes) {
+        report_error(relative_path + " is larger than the plugin memory cap");
+        return false;
+    }
+    std::ifstream in(path, std::ios::binary);
     if (!in) {
         report_error("cannot read " + relative_path);
         return false;
@@ -252,7 +273,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     lua_pop(L_, 1);
     drop(co);
     if (status == LUA_ERRMEM)
-        fault("out of memory (cap " + std::to_string(limits_.memory_bytes / 1024) + " KB)");
+        fault(memory_cap_reason(limits_.memory_bytes));
     else
         report_error(text);
     return false;
