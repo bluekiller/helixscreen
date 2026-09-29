@@ -549,6 +549,14 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   Actions choice: pick **Light** for any Quick Button in Settings > Printing > Macro Buttons,
   and while an LED is controllable and you have left a slot unassigned, the first such slot
   shows it. A slot you cleared stays empty.
+- **The print screen's buttons are named on the smallest panels** - on 480x320 and
+  480x272 screens the action buttons (Light, Pause, Tune, Cancel) stack their icon over
+  their label and fill the column, where they used to leave a dead band under short
+  buttons; at 480x272 the Speed/Flow readout gives way so every button keeps its label.
+- **The temperature screen's control strip fills its column on small panels** - on
+  480x320 and 480x272 screens the strip of heater controls is wider, the tool buttons
+  get real gaps between them, and the preset buttons fill the strip instead of leaving
+  empty space under the tool picker.
 - **Advanced hides empty sections** - a section whose rows all hide on your printer takes its
   heading with it.
 - **Filament operations on an unhomed printer home without asking** - the "Home printer
@@ -649,12 +657,16 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   clean removal, a removal that left a config file needing a manual look, and an outright
   failure.
 
-- **The 3D G-code preview works on slow boards** - on a Raspberry Pi 3-class screen the
-  preview stays responsive: while your finger is on it you see a simplified model that
-  follows the drag smoothly, and the sharp image returns within about a second of letting
-  go. During a print, each finished layer appears on its own instead of forcing a full
-  redraw, and small files now get the 3D preview during the print on low-memory boards
-  (where they previously always fell back to the 2D view).
+- **The 3D G-code preview works on slow boards** - on a Raspberry Pi 3-class screen a
+  sharp 3D image of the whole model is ready in well under a second, and the preview
+  stays responsive: while your finger is on it you see a lighter model that keeps the
+  top, bottom and first layer and follows the drag smoothly, and the sharp image returns
+  within about a second of letting go. During a print, each finished layer appears on its
+  own instead of forcing a full redraw, and small files now get the 3D preview during the
+  print on low-memory boards (where they previously always fell back to the 2D view).
+- **The 3D preview sits on the same background as the 2D one** - the 3D view used to
+  trade the shaded backdrop for a plain black one; both now share it, so flipping
+  between them changes only the picture.
 
 **Printer-specific**
 
@@ -833,6 +845,10 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   start pipeline as any other print, and a busy printer says so.
 - **The current layer could drop back at print start** - a status report lagging behind the
   printer's own layer count lowered the layer shown; during a print it now only climbs.
+- **Preparing a large print file no longer dims its preview** - the loading note sat
+  centered over a dimmed picture, dark on a dark model and under whatever toast
+  appeared; it is now a small pill in the preview's corner that keeps the percentage
+  and leaves the picture alone.
 - **G-code with signed coordinates** like `G1 X+10.5` (#1658) previews completely.
 - **A preview from the previous print** could replace the running print's preview, layer
   count and pause ticks.
@@ -894,6 +910,14 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   edit mode believing the catalog was still open forever, with a stranded backdrop over the
   panel.
 - **Long widget names ran straight through the size badge** on a 480px panel.
+- **The notification count is readable on small tiles** - the count sat in a fixed dot
+  that a single digit overflowed, reading as an exclamation mark; it now scales with the
+  bell it sits on.
+- **Power and macro tile names stay on one line** - a long name wrapped to two lines
+  instead of shortening with dots, and a power tile the printer has never reported drew
+  a crossed-out icon over the word Configure; it keeps its own icon until it is set up.
+- **A cold nozzle read as one word** - the gap between the temperature and its "off"
+  target was tighter than the space inside a word, so the row showed "47.0 off".
 - **The Detailed idle actions squeezed to 77px on a portrait card** with their captions
   overrunning the button border. The action row now spans the card and stacks when the buttons
   do not fit side by side.
