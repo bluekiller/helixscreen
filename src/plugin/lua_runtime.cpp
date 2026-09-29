@@ -254,7 +254,12 @@ void LuaRuntime::unref(int ref) {
 void LuaRuntime::invoke(int fn_ref, const PushFn& push_args) {
     if (faulted_)
         return;
-    lua_rawgeti(L_, LUA_REGISTRYINDEX, fn_ref);
+    {
+        // A stack push on L_ can grow the stack; from inside a running entry a
+        // refusal there reaches the panic handler and aborts, so the cap is held off.
+        HostWorkGuard host_work(host_work_);
+        lua_rawgeti(L_, LUA_REGISTRYINDEX, fn_ref);
+    }
     spawn(push_args);
 }
 

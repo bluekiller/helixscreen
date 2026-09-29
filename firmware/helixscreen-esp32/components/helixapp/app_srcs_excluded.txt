@@ -290,3 +290,4 @@ src/plugin/plugin_manifest.cpp  # not in the v1 Core+AMS cut
 src/plugin/lua_runtime.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_backend_app.cpp  # not in the v1 Core+AMS cut
 src/plugin/lua_bind_core.cpp  # not in the v1 Core+AMS cut
+src/plugin/lua_bind_ui.cpp  # not in the v1 Core+AMS cut

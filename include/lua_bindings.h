@@ -8,7 +8,9 @@
 #include "plugin_manifest.h"
 
 #include <functional>
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace helix::plugin {
 
@@ -41,5 +43,18 @@ void push_json(lua_State* L, const json& j);
 /// Raises a Lua error for functions, userdata, cycles, non-string object keys and nesting
 /// deeper than 32. An empty table converts to an empty array.
 json to_json(lua_State* L, int index);
+
+/// Target of a plugin_event: "<id>_<name>[:arg]". `id` is empty when malformed.
+struct PluginEventTarget {
+    std::string id;
+    std::string name;
+    std::optional<std::string> arg;
+};
+
+PluginEventTarget parse_plugin_event(std::string_view user_data);
+
+/// Runs the helix.ui.on handler `name` of `rt` with `arg` (or nil). False if there is none.
+bool dispatch_ui_handler(LuaRuntime& rt, const std::string& name,
+                         const std::optional<std::string>& arg);
 
 } // namespace helix::plugin
