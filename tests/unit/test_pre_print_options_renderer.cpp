@@ -734,6 +734,33 @@ TEST_CASE_METHOD(LVGLUITestFixture, "PrePrintOptionsRenderer: a tap on a tile to
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
+                 "PrePrintOptionsRenderer: the check tab clears the label and icon boxes",
+                 "[print_file_detail][pre_print_options]") {
+    PrePrintOptionsRenderer renderer;
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_set_size(container, 400, 200);
+    renderer.populate(container, make_multi_category_set(), nullptr, nullptr);
+
+    lv_obj_t* tile = renderer.get_toggle("bed_mesh");
+    REQUIRE(tile != nullptr);
+    lv_obj_t* tab = lv_obj_find_by_name(tile, "check_tab");
+    lv_obj_t* label = lv_obj_find_by_name(tile, "label");
+    lv_obj_t* icon = lv_obj_find_by_name(tile, "icon");
+    REQUIRE(tab != nullptr);
+    REQUIRE(label != nullptr);
+    REQUIRE(icon != nullptr);
+    lv_obj_update_layout(tile);
+
+    // The tab lives at the bottom of the icon column, below the icon and
+    // left of the label, so it can never sit over the label's first line.
+    CHECK(lv_obj_get_x(tab) + lv_obj_get_width(tab) <= lv_obj_get_x(label));
+    CHECK(lv_obj_get_y(icon) + lv_obj_get_height(icon) <= lv_obj_get_y(tab));
+    CHECK(lv_obj_get_x(tab) >= lv_obj_get_x(tile));
+    CHECK(lv_obj_get_y(tab) + lv_obj_get_height(tab) <=
+          lv_obj_get_y(tile) + lv_obj_get_height(tile));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
                  "PrePrintOptionsRenderer: tile children follow the checked state",
                  "[print_file_detail][pre_print_options]") {
     PrePrintOptionsRenderer renderer;
