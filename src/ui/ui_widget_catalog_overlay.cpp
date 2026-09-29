@@ -738,6 +738,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     if (backdrop) {
         // Don't block clicks — let taps on the backdrop close the catalog
         lv_obj_remove_flag(backdrop, LV_OBJ_FLAG_CLICKABLE);
+        helix::ui::bring_to_front(backdrop);
     }
     g_catalog_state.backdrop = backdrop;
 

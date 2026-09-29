@@ -3,6 +3,7 @@
 
 #include "ui_nav_manager.h"
 
+#include "ui_effects.h"
 #include "ui_emergency_stop.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
@@ -1024,8 +1025,8 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 continue;
             }
 
-            // The rail E-stop is not an overlay: it follows estop_visible alone.
-            if (child == app_layout_widget_ || child == rail_estop_) {
+            // Screen chrome (the rail E-stop) is not an overlay.
+            if (child == app_layout_widget_ || helix::ui::is_screen_chrome(child)) {
                 continue;
             }
 
@@ -1705,12 +1706,11 @@ void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen) {
     if (!overlay_backdrop_)
         return;
 
-    lv_obj_move_foreground(overlay_backdrop_);
+    helix::ui::bring_to_front(overlay_backdrop_);
     // PRESSED latches keyboard visibility before LVGL's click-focus
     // hides it; CLICKED consumes the tap for the keyboard dismiss.
     lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_CLICKED, nullptr);
-    raise_rail_estop();
 }
 
 void NavigationManager::create_rail_estop(lv_obj_t* navbar) {
@@ -1726,10 +1726,20 @@ void NavigationManager::create_rail_estop(lv_obj_t* navbar) {
         return;
     }
     lv_obj_set_name(rail_estop_, "nav_btn_estop");
+    helix::ui::set_always_on_top(rail_estop_);
     spdlog::debug("[NavigationManager] Rail E-stop created over nav_estop_slot");
     // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
     lv_obj_add_event_cb(
-        rail_estop_, [](lv_event_t* /*e*/) { NavigationManager::instance().rail_estop_ = nullptr; },
+        rail_estop_,
+        [](lv_event_t* e) {
+            // Only the current E-stop: a replaced one dying late must not
+            // clear its successor.
+            auto& mgr = NavigationManager::instance();
+            if (lv_event_get_target_obj(e) == mgr.rail_estop_) {
+                mgr.rail_estop_ = nullptr;
+                helix::ui::set_always_on_top(nullptr);
+            }
+        },
         LV_EVENT_DELETE, nullptr);
     // The slot moves whenever the rail lays out (it appears, the orientation
     // flips), and the button has to follow it there.
@@ -1779,13 +1789,10 @@ void NavigationManager::sync_rail_estop() {
 void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
     rail_estop_keyboard_top_ = top;
     sync_rail_estop();
-    if (top >= 0) {
-        raise_rail_estop();
-    }
-}
-
-void NavigationManager::raise_rail_estop() {
-    if (rail_estop_ && lv_obj_is_valid(rail_estop_)) {
+    // Only a side rail leaves room above the keyboard. A portrait bottom bar is
+    // under it, and an E-stop raised there would sit on the keyboard's keys.
+    if (top >= 0 && rail_estop_ && navbar_widget_ &&
+        lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_)) {
         lv_obj_move_foreground(rail_estop_);
     }
 }
@@ -2121,7 +2128,7 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
 
         // Show overlay
         lv_obj_remove_flag(overlay_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(overlay_panel);
+        helix::ui::bring_to_front(overlay_panel);
         // Claim taps landing anywhere within the panel bounds. Overlays are
         // narrower than the screen and sit in front of a full-screen, clickable
         // dismiss-backdrop. Without this, a touch that misses an interactive
@@ -2234,7 +2241,7 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
 
         // Show overlay with zoom animation instead of slide
         lv_obj_remove_flag(overlay_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(overlay_panel);
+        helix::ui::bring_to_front(overlay_panel);
         // See push_overlay(): claim in-bounds taps so stray touches don't fall
         // through to the dismiss-backdrop and close the overlay (#1066).
         lv_obj_add_flag(overlay_panel, LV_OBJ_FLAG_CLICKABLE);
@@ -2375,7 +2382,8 @@ bool NavigationManager::go_back() {
             for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++) {
                 lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
                 if (child == mgr.app_layout_widget_ || child == mgr.overlay_backdrop_ ||
-                    child == current_top || child == previous_panel || child == mgr.rail_estop_) {
+                    child == current_top || child == previous_panel ||
+                    helix::ui::is_screen_chrome(child)) {
                     continue;
                 }
                 bool is_main = false;
@@ -2620,7 +2628,12 @@ void NavigationManager::deinit_subjects() {
         overlay_backdrop_ = nullptr;
     }
     navbar_widget_ = nullptr;
-    rail_estop_ = nullptr;
+    // The E-stop lives on the screen, not in the app layout a printer switch
+    // rebuilds, so it goes explicitly or the rebuild leaves an orphan behind.
+    if (rail_estop_) {
+        helix::ui::set_always_on_top(nullptr);
+        helix::ui::safe_delete_deferred(rail_estop_);
+    }
     rail_estop_keyboard_top_ = -1;
     active_panel_ = PanelId::Home;
     previous_connection_state_ = -1;

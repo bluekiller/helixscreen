@@ -227,7 +227,7 @@ void ui_keypad_show(const ui_keypad_config_t* config) {
         // surroundings exactly as much as any other layer does.
         keypad_backdrop = helix::ui::create_fullscreen_backdrop(screen, 40);
         if (keypad_backdrop) {
-            lv_obj_move_foreground(keypad_backdrop);
+            helix::ui::bring_to_front(keypad_backdrop);
         }
     }
     NavigationManager::instance().register_overlay_close_callback(

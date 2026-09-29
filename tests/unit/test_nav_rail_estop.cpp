@@ -13,11 +13,14 @@
  * Run with: ./build/bin/helix-tests "[estop_rail]"
  */
 
+#include "ui_component_keypad.h"
+#include "ui_effects.h"
 #include "ui_keyboard_manager.h"
 #include "ui_lock_screen.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/navigation_manager_test_access.h"
@@ -25,6 +28,8 @@
 #include "theme_manager.h"
 
 #include <algorithm>
+#include <array>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -234,6 +239,97 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above the keyboard",
     CHECK(button.y1 == slot.y1);
 }
 
+TEST_CASE_METHOD(RailFixture, "a portrait keyboard covers the rail E-stop instead of lifting it",
+                 "[estop_rail][navigation]") {
+    // A bottom bar: wider than tall, along the bottom of the screen.
+    lv_obj_set_size(navbar_, lv_obj_get_width(test_screen()), 70);
+    lv_obj_align(navbar_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    struct KeyboardOwner {
+        explicit KeyboardOwner(lv_obj_t* parent) {
+            release();
+            KeyboardManager::instance().init(parent);
+        }
+        ~KeyboardOwner() {
+            release();
+        }
+        static void release() {
+            KeyboardManager::instance().reset();
+            helix::ui::UpdateQueue::instance().drain();
+        }
+    } keyboard(test_screen());
+
+    set_visible(1);
+    REQUIRE(lv_obj_get_width(navbar_) > lv_obj_get_height(navbar_));
+    lv_obj_t* textarea = lv_textarea_create(test_screen());
+    KeyboardManager::instance().show(textarea);
+    lv_obj_t* kb = KeyboardManager::instance().get_instance();
+    REQUIRE(kb != nullptr);
+    REQUIRE(lv_obj_get_parent(kb) == lv_obj_get_parent(estop_));
+
+    // Under the keyboard, never on top of its keys.
+    CHECK(index_of(estop_) < index_of(kb));
+    KeyboardManager::instance().hide();
+}
+
+TEST_CASE_METHOD(RailFixture, "a keypad over an overlay keeps the rail E-stop on top",
+                 "[estop_rail][navigation][keypad]") {
+    std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
+    for (auto& panel : panels) {
+        panel = lv_obj_create(test_screen());
+    }
+    NavigationManager::instance().set_panels(panels.data());
+    set_visible(1);
+
+    ui_keypad_init(test_screen());
+    ui_keypad_config_t config = {};
+    config.initial_value = 100;
+    config.min_value = 0;
+    config.max_value = 300;
+    config.title_label = "Nozzle";
+    config.unit_label = "C";
+    ui_keypad_show(&config);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(ui_keypad_is_visible());
+
+    // The keypad brings its own backdrop, above the first overlay's.
+    const uint32_t last = lv_obj_get_child_count(test_screen()) - 1;
+    CHECK(lv_obj_get_child(test_screen(), static_cast<int32_t>(last)) == estop_);
+
+    helix::ui::destroy_static_panels();
+    helix::ui::UpdateQueue::instance().drain();
+}
+
+TEST_CASE_METHOD(RailFixture, "a printer switch leaves exactly one rail E-stop",
+                 "[estop_rail][navigation]") {
+    auto& nav = NavigationManager::instance();
+    auto count_estops = [&]() {
+        int n = 0;
+        for (uint32_t i = 0; i < lv_obj_get_child_count(test_screen()); ++i) {
+            lv_obj_t* child = lv_obj_get_child(test_screen(), static_cast<int32_t>(i));
+            const char* name = lv_obj_get_name(child);
+            if (name && std::string(name) == "nav_btn_estop") {
+                ++n;
+            }
+        }
+        return n;
+    };
+    for (int i = 0; i < 2; ++i) {
+        nav.deinit_subjects();
+        nav.init();
+        nav.wire_events(navbar_);
+        helix::ui::UpdateQueue::instance().drain();
+        process_lvgl(20);
+    }
+    CHECK(count_estops() == 1);
+    lv_obj_t* current = nav.rail_estop();
+    REQUIRE(current != nullptr);
+    CHECK(helix::ui::always_on_top() == current);
+    set_visible(1);
+    CHECK_FALSE(lv_obj_has_flag(current, LV_OBJ_FLAG_HIDDEN));
+    set_visible(0);
+    CHECK(lv_obj_has_flag(current, LV_OBJ_FLAG_HIDDEN));
+}
+
 TEST_CASE_METHOD(RailFixture, "the lock screen covers the rail E-stop",
                  "[estop_rail][navigation]") {
     set_visible(1);
@@ -312,5 +408,64 @@ TEST_CASE("the rail is the one E-stop where the rail shows, and screens that cov
         const std::string xml = read_xml(path);
         CHECK(xml.find("estop_visible") == std::string::npos);
         CHECK(xml.find("emergency_stop_clicked") == std::string::npos);
+    }
+}
+
+TEST_CASE("every screen-level backdrop goes up through bring_to_front",
+          "[estop_rail][navigation]") {
+    // A backdrop raised with a bare lv_obj_move_foreground() buries the rail
+    // E-stop. Backdrops on lv_layer_top are above the screen anyway.
+    int checked = 0;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator("src")) {
+        if (entry.path().extension() != ".cpp") {
+            continue;
+        }
+        const std::string path = entry.path().generic_string();
+        if (path == "src/ui/ui_effects.cpp" || path == "src/ui/backdrop_blur.cpp") {
+            continue; // the creators themselves
+        }
+        if (path == "src/ui/ui_busy_overlay.cpp") {
+            continue; // parents its backdrop on lv_layer_top through a local
+        }
+        const std::string src = read_xml(path);
+        size_t pos = 0;
+        bool creates_screen_backdrop = false;
+        for (const char* call : {"create_fullscreen_backdrop(", "create_darkened_backdrop("}) {
+            pos = 0;
+            while ((pos = src.find(call, pos)) != std::string::npos) {
+                const size_t eol = src.find('\n', pos);
+                const std::string line = src.substr(pos, eol - pos);
+                if (line.find("lv_layer_top()") == std::string::npos) {
+                    creates_screen_backdrop = true;
+                }
+                pos += 1;
+            }
+        }
+        if (!creates_screen_backdrop) {
+            continue;
+        }
+        ++checked;
+        INFO(path << " creates a screen-level backdrop");
+        CHECK(src.find("bring_to_front(") != std::string::npos);
+    }
+    CHECK(checked >= 4);
+}
+
+TEST_CASE("no root panel takes text input, so the keyboard never opens over a live rail",
+          "[estop_rail][navigation]") {
+    // The lifted E-stop sits over a rail button. That is only safe while the
+    // rail is inert under an overlay or modal backdrop.
+    for (const char* stem : {"home_panel", "print_select_panel", "controls_panel", "filament_panel",
+                             "settings_panel", "advanced_panel"}) {
+        for (const char* dir : {"ui_xml/", "ui_xml/micro/", "ui_xml/portrait/"}) {
+            const std::string path = std::string(dir) + stem + ".xml";
+            if (!std::filesystem::exists(path)) {
+                continue;
+            }
+            INFO(path);
+            const std::string xml = read_xml(path);
+            CHECK(xml.find("<text_input") == std::string::npos);
+            CHECK(xml.find("<lv_textarea") == std::string::npos);
+        }
     }
 }

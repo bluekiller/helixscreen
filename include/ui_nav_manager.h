@@ -149,15 +149,10 @@ class NavigationManager {
     /// backdrop's snapshot of the rail reaches the live rail under an overlay.
     [[nodiscard]] static lv_obj_t* navbar_target_at(lv_obj_t* navbar, const lv_point_t& point);
 
-    /// Put the rail's E-stop above everything on the screen. Called as each
-    /// overlay or modal backdrop goes up and as the keyboard opens, so the
-    /// E-stop stays bright and tappable over them. Overlay panels, raised
-    /// later, never cover the rail.
-    void raise_rail_estop();
-
     /// The keyboard's top edge in screen coordinates while it is open, or -1
-    /// once it closes. The E-stop moves up the rail column to clear it, and
-    /// back to its slot after.
+    /// once it closes. Beside a side rail the E-stop moves up the rail column
+    /// to clear it and back to its slot after; under a portrait bottom bar the
+    /// keyboard covers it.
     void set_rail_estop_keyboard_top(int32_t top);
 
     /// The E-stop kept over the rail's nav_estop_slot, or nullptr.

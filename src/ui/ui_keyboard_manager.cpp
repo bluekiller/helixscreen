@@ -4,6 +4,7 @@
 #include "ui_keyboard_manager.h"
 
 #include "ui_breakpoint.h"
+#include "ui_effects.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
 #include "ui_keycap_style.h"
@@ -1422,8 +1423,9 @@ void KeyboardManager::show(lv_obj_t* textarea) {
 
         for (uint32_t i = 0; i < child_count; i++) {
             lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-            // The rail E-stop is placed against the keyboard, not shifted with the page.
-            if (child == keyboard_ || child == NavigationManager::instance().rail_estop())
+            // Screen chrome (the rail E-stop) is placed against the keyboard, not
+            // shifted with the page.
+            if (child == keyboard_ || helix::ui::is_screen_chrome(child))
                 continue;
 
             int32_t current_y = lv_obj_get_y(child);
@@ -1510,7 +1512,7 @@ void KeyboardManager::hide() {
 
     for (uint32_t i = 0; i < child_count; i++) {
         lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-        if (child == keyboard_ || child == NavigationManager::instance().rail_estop())
+        if (child == keyboard_ || helix::ui::is_screen_chrome(child))
             continue;
 
         int32_t current_y = lv_obj_get_y(child);

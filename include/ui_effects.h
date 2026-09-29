@@ -69,6 +69,31 @@ void create_touch_marker(lv_obj_t* parent, lv_coord_t x, lv_coord_t y);
 lv_obj_t* create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity = 180);
 
 /**
+ * @brief Register the one screen object that stays in front of every backdrop
+ *
+ * The navigation rail's E-stop: it has to stay tappable above any overlay,
+ * modal or keypad backdrop while a job holds the machine. nullptr clears it.
+ */
+void set_always_on_top(lv_obj_t* obj);
+
+/// The object registered with set_always_on_top(), or nullptr.
+lv_obj_t* always_on_top();
+
+/**
+ * @brief Bring @p obj to the front of its parent, keeping the always-on-top
+ *        object in front of it
+ *
+ * Every screen-level backdrop goes up through this, so none of them can bury
+ * the E-stop. An object that must cover the E-stop (the lock screen, which
+ * lives on lv_layer_top) does not need it.
+ */
+void bring_to_front(lv_obj_t* obj);
+
+/// Whether @p child is screen chrome that sweeps over the screen's children
+/// (stale-overlay hiding, the keyboard's page shift) must leave alone.
+bool is_screen_chrome(const lv_obj_t* child);
+
+/**
  * @brief Flash an object with a brief opacity pulse for touch feedback
  *
  * Animates the object's opacity down and back up to provide visual confirmation

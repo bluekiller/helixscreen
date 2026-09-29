@@ -13,6 +13,7 @@
 
 #include "ui_snake_game.h"
 
+#include "ui_effects.h"
 #include "ui_spool_drawing.h"
 #include "ui_utils.h"
 
@@ -1411,7 +1412,7 @@ void create_overlay() {
     }
 
     // Bring overlay to front
-    lv_obj_move_foreground(g_overlay);
+    helix::ui::bring_to_front(g_overlay);
 
     // Initialize game state
     init_game();
