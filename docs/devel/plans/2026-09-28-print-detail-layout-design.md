@@ -116,10 +116,14 @@ int decide_detail_portrait_preview(int width, int avail_h, int content_h,
 - `min_h = width / 3`: below that the preview stops reading as a model.
 - Base height = `width / 2` (2:1).
 - If `content_h <= avail_h - base`, return base (everything fits, no cue).
-- Otherwise the scroll area overflows. If the visible edge lands above `grid_top`, return base
-  (the cue alone carries it). If it lands in the middle half of a tile, return base. If it lands
-  in a grid gap or in either outer quarter of a tile, shrink the preview by the smallest amount
-  that puts the edge in the middle half of a tile. That amount is at most `gap + tile / 2`.
+- Otherwise the scroll area overflows. Target edge = `min(grid_top + pitch + tile / 2,
+  content_h)`: the first tile row fully visible and the second row cut through its middle, or
+  all of the content when it ends sooner. If `avail_h - target` is below base, return
+  `max(avail_h - target, min_h)` (the preview shrinks for the tiles). If it is at or above
+  base, the rows already fit and the edge only gets the nudge: an edge in the middle half of
+  a tile returns base; an edge in a grid gap or in either outer quarter of a tile shrinks the
+  preview by the smallest amount that puts the edge in the middle half of a tile, at most
+  `gap + tile / 2`.
 - Never return less than `min_h`.
 
 Lives in a header with no LVGL dependency so the rule is unit-tested without a display.

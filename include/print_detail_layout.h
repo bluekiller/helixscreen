@@ -8,12 +8,12 @@ namespace helix::ui {
 /// Portrait preview card height for the print file detail view.
 ///
 /// The preview is half its width (2:1). When the options below it overflow,
-/// the scroll area's visible bottom edge should cut a tile through its middle
-/// half, so part of a tile shows under the fade cue: an edge in a grid gap or
-/// a tile's outer quarter shrinks the preview until it does, by at most
-/// gap + tile_h / 2. Edges above the tile grid are left alone; the cue alone
-/// carries those. Never below width/3, where the preview stops reading as a
-/// model.
+/// it shrinks until the scroll area's visible bottom edge shows the first
+/// tile row fully and cuts the second row through its middle (or all of the
+/// content when it ends sooner). When the rows already fit under the base
+/// height, the edge is only nudged out of grid gaps and tile outer quarters
+/// into a middle half, by at most gap + tile_h / 2. Never below width/3,
+/// where the preview stops reading as a model.
 inline int decide_detail_portrait_preview(int width, int avail_h, int content_h, int grid_top,
                                           int tile_h, int gap) {
     const int base = width / 2;
@@ -21,22 +21,27 @@ inline int decide_detail_portrait_preview(int width, int avail_h, int content_h,
     if (content_h <= avail_h - base) {
         return base;
     }
-    const int edge = avail_h - base;
-    const int pitch = tile_h + gap;
-    if (edge < grid_top || pitch <= 0) {
+    if (tile_h <= 0) {
         return base;
     }
+    const int pitch = tile_h + gap;
+    // The edge target: the middle of row 2, or the end of the content.
+    const int target_edge = std::min(grid_top + pitch + tile_h / 2, content_h);
+    const int h = avail_h - target_edge;
+    if (h < base) {
+        return std::max(h, min_h);
+    }
+    // The rows fit under the base height, so the edge only needs the nudge.
+    const int edge = avail_h - base;
     const int in_row = (edge - grid_top) % pitch;
     const int lo = tile_h / 4;
     const int hi = tile_h - tile_h / 4;
     if (in_row >= lo && in_row <= hi) {
         return base;
     }
-    // Shrinking the preview moves the edge down. Past `hi` the next tile's
-    // middle half starts at pitch + lo; below `lo` it starts at lo.
+    // Moving the edge down past `hi` reaches the next tile's middle half at
+    // pitch + lo; below `lo` it starts at lo.
     const int shift = in_row < lo ? lo - in_row : pitch + lo - in_row;
-    // base is half the width and min_h a third, so only the shrink can land
-    // below min_h.
     return std::max(base - shift, min_h);
 }
 

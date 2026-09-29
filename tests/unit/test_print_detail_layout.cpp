@@ -6,92 +6,98 @@
 using helix::ui::decide_detail_portrait_preview;
 
 namespace {
-// 480x800 portrait numbers: preview 452 wide -> base 226 (2:1).
+// 480x800 portrait numbers: preview 452 wide -> base 226 (2:1), floor 150.
 constexpr int W = 452;
 constexpr int BASE = W / 2;
+constexpr int FLOOR = W / 3;
 constexpr int TILE = 48;
 constexpr int GAP = 6;
 constexpr int GRID_TOP = 120; // tile grid starts 120px into the scroll content
+constexpr int PITCH = TILE + GAP;
+// The shrink target: the middle of the second tile row.
+constexpr int TARGET = GRID_TOP + PITCH + TILE / 2;
 
 // Where the visible edge falls inside the scroll content for a given preview height.
 int edge_for(int avail_h, int preview_h) {
     return avail_h - preview_h;
 }
 bool mid_tile(int edge) {
-    if (edge < GRID_TOP) {
-        return false;
-    }
-    const int in_row = (edge - GRID_TOP) % (TILE + GAP);
+    const int in_row = (edge - GRID_TOP) % PITCH;
     return in_row >= TILE / 4 && in_row <= TILE - TILE / 4;
 }
+// The smallest avail_h whose nudge regime is entered: h == base there.
+constexpr int NUDGE_AVAIL = BASE + TARGET;
 } // namespace
 
-TEST_CASE("portrait preview: content fits -> 2:1 base, no nudge", "[print_detail_layout]") {
-    const int avail = BASE + 300;
-    CHECK(decide_detail_portrait_preview(W, avail, 250, GRID_TOP, TILE, GAP) == BASE);
+TEST_CASE("portrait preview: content fits -> 2:1 base, no shrink", "[print_detail_layout]") {
+    const int avail = BASE + 200;
+    CHECK(decide_detail_portrait_preview(W, avail, 150, GRID_TOP, TILE, GAP) == BASE);
 }
 
-TEST_CASE("portrait preview: overflow with edge in a grid gap is nudged mid-tile",
+TEST_CASE("portrait preview: no tile rows -> base", "[print_detail_layout]") {
+    CHECK(decide_detail_portrait_preview(W, 400, 1000, GRID_TOP, 0, GAP) == BASE);
+}
+
+TEST_CASE("portrait preview: overflow shrinks to cut row 2 through its middle",
           "[print_detail_layout]") {
-    // Put the edge exactly at the end of row 1 (inside the gap).
-    const int edge = GRID_TOP + TILE + 2;
-    const int avail = BASE + edge;
-    const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
-    CHECK(h < BASE);
-    CHECK(BASE - h <= GAP + TILE / 2);
+    // avail 378: base leaves only 152 for 300 of content, so it shrinks.
+    const int avail = 378;
+    const int h = decide_detail_portrait_preview(W, avail, 300, GRID_TOP, TILE, GAP);
+    REQUIRE(h < BASE);
+    CHECK(h == avail - TARGET);
+    CHECK(h > FLOOR);
+    // Row 1 fully visible, row 2 cut at its middle half.
+    CHECK(edge_for(avail, h) >= GRID_TOP + TILE);
     CHECK(mid_tile(edge_for(avail, h)));
 }
 
-TEST_CASE("portrait preview: overflow with edge in a tile's outer quarter is nudged",
+TEST_CASE("portrait preview: shrink target is clamped by the content end",
           "[print_detail_layout]") {
-    const int edge = GRID_TOP + TILE - 3; // bottom outer quarter of row 1
-    const int avail = BASE + edge;
-    const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
-    CHECK(BASE - h <= GAP + TILE / 2);
-    CHECK(mid_tile(edge_for(avail, h)));
-}
-
-TEST_CASE("portrait preview: overflow with edge in a tile's top outer quarter is nudged",
-          "[print_detail_layout]") {
-    const int edge = GRID_TOP + 2; // top outer quarter of row 1
-    const int avail = BASE + edge;
-    const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
-    CHECK(h < BASE);
-    CHECK(BASE - h <= GAP + TILE / 2);
-    CHECK(mid_tile(edge_for(avail, h)));
-}
-
-TEST_CASE("portrait preview: overflow with edge already mid-tile is left alone",
-          "[print_detail_layout]") {
-    const int edge = GRID_TOP + TILE / 2;
-    CHECK(decide_detail_portrait_preview(W, BASE + edge, 1000, GRID_TOP, TILE, GAP) == BASE);
-}
-
-TEST_CASE("portrait preview: edge above the tile grid is left alone", "[print_detail_layout]") {
-    const int edge = GRID_TOP - 10;
-    CHECK(decide_detail_portrait_preview(W, BASE + edge, 1000, GRID_TOP, TILE, GAP) == BASE);
+    // Content ends at 170, before row 2's middle: the whole grid shows.
+    const int avail = 378;
+    const int h = decide_detail_portrait_preview(W, avail, 170, GRID_TOP, TILE, GAP);
+    REQUIRE(h < BASE);
+    CHECK(h == avail - 170);
+    CHECK(edge_for(avail, h) == 170);
 }
 
 TEST_CASE("portrait preview: shrink stops at the width / 3 floor", "[print_detail_layout]") {
-    // 80 wide: base 40, floor 26. An edge on the first pixel past a tile's
-    // middle half wants a 29px shrink (to 11), past the floor.
-    const int w = 80;
-    const int base = w / 2;
-    const int floor = w / 3;
-    const int in_row = TILE - TILE / 4 + 1;
-    const int shift = TILE + GAP + TILE / 4 - in_row;
-    REQUIRE(base - shift < floor); // the nudge alone undershoots the floor
-    const int avail = base + GRID_TOP + in_row;
-    CHECK(decide_detail_portrait_preview(w, avail, 1000, GRID_TOP, TILE, GAP) == floor);
+    // avail 298 wants h = 100 for the target; the floor is 150.
+    CHECK(decide_detail_portrait_preview(W, 298, 300, GRID_TOP, TILE, GAP) == FLOOR);
 }
 
-TEST_CASE("portrait preview: never below width / 3", "[print_detail_layout]") {
-    // 272x480: 256 wide, base 128, floor 85. An edge past the grid that
-    // lands mid-tile returns the base; the floor still bounds everything.
-    const int w = 256;
-    const int floor = w / 3;
-    const int h =
-        decide_detail_portrait_preview(w, 160 + GRID_TOP + TILE + 1, 1000, GRID_TOP, TILE, GAP);
-    CHECK(h >= floor);
-    CHECK(decide_detail_portrait_preview(w, 0, 1000, GRID_TOP, TILE, GAP) >= floor);
+TEST_CASE("portrait preview: rows fit under base, edge already mid-tile is left alone",
+          "[print_detail_layout]") {
+    // Edge at TARGET is 24px into row 2 (its middle): no nudge, and it is the
+    // exact avail_h where the nudge regime begins.
+    CHECK(decide_detail_portrait_preview(W, NUDGE_AVAIL, 1000, GRID_TOP, TILE, GAP) == BASE);
+}
+
+TEST_CASE("portrait preview: rows fit, edge in a grid gap is nudged mid-tile",
+          "[print_detail_layout]") {
+    // Edge 224 is 2px past row 2's end, inside the gap.
+    const int avail = BASE + GRID_TOP + 2 * PITCH + 2;
+    const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
+    CHECK(h < BASE);
+    CHECK(BASE - h <= GAP + TILE / 2);
+    CHECK(mid_tile(edge_for(avail, h)));
+}
+
+TEST_CASE("portrait preview: rows fit, edge in row 3's top outer quarter is nudged",
+          "[print_detail_layout]") {
+    const int avail = BASE + GRID_TOP + 2 * PITCH + 2;
+    const int h = decide_detail_portrait_preview(W, avail + 6, 1000, GRID_TOP, TILE, GAP);
+    CHECK(h < BASE);
+    CHECK(BASE - h <= GAP + TILE / 2);
+    CHECK(mid_tile(edge_for(avail + 6, h)));
+}
+
+TEST_CASE("portrait preview: rows fit, edge in a tile's bottom outer quarter is nudged",
+          "[print_detail_layout]") {
+    // Edge 220 is 46px into row 2 (its bottom outer quarter).
+    const int avail = BASE + GRID_TOP + PITCH + TILE - 2;
+    const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
+    CHECK(h < BASE);
+    CHECK(BASE - h <= GAP + TILE / 2);
+    CHECK(mid_tile(edge_for(avail, h)));
 }
