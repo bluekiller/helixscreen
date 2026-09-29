@@ -7,6 +7,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/plugin_test_support.h"
+#include "helix-xml/src/xml/lv_xml_component.h"
 #include "plugin_host.h"
 
 #include "../catch_amalgamated.hpp"
@@ -181,6 +182,26 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin that spins in main.lua faults and un
     CHECK(rig.info("looper")->status == PluginStatus::Faulted);
     CHECK(rig.info("looper")->reason.find("time budget") != std::string::npos);
     CHECK(rig.host->runtime("looper") == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app component is rejected",
+                 "[plugin][host]") {
+    REQUIRE(lv_xml_register_component_from_data(
+        "shadow_panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
+                        "<lv_label name=\"app_child\"/></view></component>"));
+    HostRig rig(enabled("shadow", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.info("shadow"));
+    CHECK(rig.info("shadow")->status == PluginStatus::Invalid);
+    CHECK(rig.info("shadow")->reason.find("already exists") != std::string::npos);
+    CHECK(rig.host->runtime("shadow") == nullptr);
+
+    auto* panel =
+        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "shadow_panel", nullptr));
+    REQUIRE(panel);
+    REQUIRE(lv_obj_find_by_name(panel, "app_child"));
+    lv_obj_delete(panel);
+    lv_xml_component_unregister("shadow_panel");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "disable unloads and forgets consent", "[plugin][host]") {

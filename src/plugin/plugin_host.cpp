@@ -237,6 +237,15 @@ bool PluginHost::load(PluginInfo& info) {
             return false;
         }
     }
+    // A plugin registering an existing name would replace the app's component (and unloading
+    // would then remove it), so nothing is registered until every stem is free.
+    for (const auto& p : xmls) {
+        if (lv_xml_component_get_scope(p.stem().string().c_str())) {
+            info.status = PluginStatus::Invalid;
+            info.reason = "component '" + p.stem().string() + "' already exists";
+            return false;
+        }
+    }
 
     auto [it, inserted] = loaded_.try_emplace(id);
     Loaded& l = it->second;
