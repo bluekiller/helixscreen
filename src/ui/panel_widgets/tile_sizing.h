@@ -48,6 +48,9 @@ class TileSizing {
         /// and is drawn whatever show_widget_labels says. Every other label
         /// follows the setting, and is measured only while it is on.
         bool label_always_drawn = false;
+        /// The glyph sits in a disc that scales with it (tile_badge.xml), so
+        /// the disc's edge is what the icon occupies.
+        bool icon_in_disc = false;
     };
 
     explicit TileSizing(const std::string& instance_id);
@@ -61,10 +64,6 @@ class TileSizing {
     TileSizing(const TileSizing&) = delete;
     TileSizing& operator=(const TileSizing&) = delete;
 
-    /// Refuse anything narrower than a whole cell, whatever the measurement
-    /// says. For a tile whose glyph sits in a fixed-size badge: the disc does
-    /// not shrink with the box, so half a cell spills the badge rather than
-    /// drawing a smaller one.
     /// The live track geometry, so the half-cell floor is measured against the
     /// cell this grid actually built rather than the nominal edge for the tier.
     /// A grid whose content box forces a smaller track would otherwise never
@@ -72,10 +71,6 @@ class TileSizing {
     void set_cell_metrics(const CellMetrics& metrics) {
         cell_metrics_ = metrics;
         has_cell_metrics_ = true;
-    }
-
-    void require_whole_cell() {
-        whole_cell_only_ = true;
     }
 
     void set_content(Content content) {
@@ -130,7 +125,6 @@ class TileSizing {
 
     Content content_;
     lv_obj_t* content_root_ = nullptr;
-    bool whole_cell_only_ = false;
     CellMetrics cell_metrics_{};
     bool has_cell_metrics_ = false;
     int last_width_px_ = -1;

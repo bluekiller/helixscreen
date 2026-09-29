@@ -52,6 +52,12 @@ void rung_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     auto* obj = static_cast<lv_obj_t*>(lv_observer_get_target(observer));
     const char* token = tile_rung_font_token(ladder, lv_subject_get_int(subject) + offset);
     const lv_font_t* font = theme_manager_get_font(token);
+    if (ladder == TileLadder::Disc) {
+        // DECLARATIVE_OK: measured from the computed face, which XML cannot name.
+        const int edge = tile_disc_edge(font);
+        lv_obj_set_size(obj, edge, edge);
+        return;
+    }
     apply_font_style(obj, font);
     // A dotted label ellipsizes only at a fixed height; at content height it
     // wraps instead. One line of the face it now draws in is that height.
@@ -84,6 +90,8 @@ void bind_tile_rung_apply(lv_xml_parser_state_t* state, const char** attrs) {
         ladder = TileLadder::Value;
     } else if (ladder_name && std::strcmp(ladder_name, "label") == 0) {
         ladder = TileLadder::Label;
+    } else if (ladder_name && std::strcmp(ladder_name, "disc") == 0) {
+        ladder = TileLadder::Disc;
     } else if (ladder_name && std::strcmp(ladder_name, "icon") != 0) {
         spdlog::warn("[TileRung] unknown ladder '{}'; binding the icon ladder", ladder_name);
     }
@@ -100,7 +108,15 @@ void bind_tile_rung_apply(lv_xml_parser_state_t* state, const char** attrs) {
 } // namespace
 
 const char* tile_rung_font_token(TileLadder ladder, int rung) {
-    return kLadders[static_cast<int>(ladder)][std::clamp(rung, 0, kTileRungs - 1)];
+    const int row =
+        ladder == TileLadder::Disc ? static_cast<int>(TileLadder::Icon) : static_cast<int>(ladder);
+    return kLadders[row][std::clamp(rung, 0, kTileRungs - 1)];
+}
+
+int tile_disc_edge(const lv_font_t* icon_face) {
+    // Half again the glyph's line height: the proportion #icon_badge_size
+    // holds to the md glyph on the tiers that author it.
+    return icon_face ? static_cast<int>(lv_font_get_line_height(icon_face)) * 3 / 2 : 0;
 }
 
 void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset,

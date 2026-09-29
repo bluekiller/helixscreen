@@ -274,6 +274,7 @@ TEST_CASE("every centred-icon tile resolves a different glyph at two sizes",
                                              "bypass",
                                              "notifications",
                                              "power_device",
+                                             "favorite_macro",
                                              "fan",
                                              "thermistor",
                                              "filament",
@@ -362,6 +363,7 @@ TEST_CASE("every centred-icon tile RENDERS a different glyph at two sizes",
                                              "bypass",
                                              "notifications",
                                              "power_device",
+                                             "favorite_macro",
                                              "fan",
                                              "thermistor",
                                              "filament",
@@ -369,17 +371,8 @@ TEST_CASE("every centred-icon tile RENDERS a different glyph at two sizes",
                                              "bed_temperature",
                                              "chamber_temperature"};
 
-    // power_device draws its glyph inside a fixed-size disc, so growing the
-    // glyph spills the badge rather than drawing a larger one. It keeps the
-    // authored face and floors at a whole cell; scaling it means scaling the
-    // badge, which is its own design question.
-    const std::string kBadgeBound = "power_device";
-
     std::vector<std::string> unscaled;
     for (const auto& id : kTiles) {
-        if (id == kBadgeBound) {
-            continue;
-        }
         const auto* def = find_widget_def(id);
         INFO("tile " << id);
         REQUIRE(def != nullptr);
@@ -420,14 +413,37 @@ TEST_CASE("every centred-icon tile RENDERS a different glyph at two sizes",
     }
     INFO("these tiles do not RENDER a different glyph between 48px and 420px:" << joined);
     CHECK(unscaled.empty());
+}
 
-    // The exception is real and narrow: assert it still declines a half cell,
-    // so "does not scale" cannot quietly spread to tiles that should.
-    const auto* badge_def = find_widget_def(kBadgeBound);
-    REQUIRE(badge_def != nullptr);
-    auto badge = badge_def->factory(kBadgeBound);
-    REQUIRE(badge != nullptr);
-    CHECK_FALSE(badge->fits_at(30, 200));
+TEST_CASE("a badged tile scales its disc with its glyph", "[widget_size][tile][badge]") {
+    // A glyph that grows inside a disc that does not spills out of it, so the
+    // disc must move with the rung and TileSizing must measure its edge.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    for (const char* id : {"power_device", "favorite_macro"}) {
+        INFO("tile " << id);
+        const auto* def = find_widget_def(id);
+        REQUIRE(def != nullptr);
+        auto instance = def->factory(id);
+        REQUIRE(instance != nullptr);
+        lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+            fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+        REQUIRE(root != nullptr);
+        lv_obj_t* disc = lv_obj_find_by_name(
+            root, std::string(id) == "power_device" ? "power_badge" : "fav_macro_badge");
+        REQUIRE(disc != nullptr);
+
+        instance->notify_size_changed(2, 2, 60, 60);
+        lv_obj_update_layout(root);
+        const int small = lv_obj_get_width(disc);
+        instance->notify_size_changed(8, 8, 420, 420);
+        lv_obj_update_layout(root);
+        const int large = lv_obj_get_width(disc);
+        INFO("disc " << small << "px at 60x60, " << large << "px at 420x420");
+        CHECK(large > small);
+        CHECK(lv_obj_get_height(disc) == large);
+        lv_obj_delete(root);
+    }
 }
 
 TEST_CASE("every tile exposes its live instance to edit mode", "[widget_size][tile][1559]") {
@@ -452,6 +468,7 @@ TEST_CASE("every tile exposes its live instance to edit mode", "[widget_size][ti
                                              "bypass",
                                              "notifications",
                                              "power_device",
+                                             "favorite_macro",
                                              "fan",
                                              "thermistor",
                                              "filament",

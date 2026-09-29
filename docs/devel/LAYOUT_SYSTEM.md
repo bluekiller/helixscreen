@@ -664,10 +664,10 @@ chart, an aspect-fit frame, wrapping text, a scrolling strip, stacked readout ro
 layout picked by measurement (`active_spool`'s compact/wide switch,
 `decide_nozzle_layout()`): half a cell shows more content. Or the widget is a centred-icon
 tile whose glyph scales with its box (`decide_tile_layout()`,
-`src/ui/panel_widgets/tile_layout.h`): half a cell is a larger icon rung. The eighteen
+`src/ui/panel_widgets/tile_layout.h`): half a cell is a larger icon rung. The
 centred-icon tiles - the three heater tiles, `network`, `led`, `filament`, `fan`,
 `thermistor`, `bypass`, `notifications`, `macros`, `motion`, `gcode_console`,
-`power_device` and the four action tiles - carry both flags
+`power_device`, `favorite_macro` and the four action tiles - carry both flags
 (prestonbrown/helixscreen#1559). Leave it off for a widget authored around a fixed number
 of cells - `humidity`, `width_sensor`, `control_buttons` - where the intermediate size
 buys whitespace and nothing else, and costs a drag snap twice as fussy on a 34px track.
@@ -687,10 +687,10 @@ both axes.
 Half a cell is declined outright at the micro and tiny tiers, where a track is 31-40px and
 the glyph already fills it, and a tile of one cell or less is capped to the authored face
 there so those screens keep the proportions they were designed with. A tile given more
-than a cell on both axes grows on every tier. A widget whose glyph sits in a
-fixed-size badge declines it everywhere (`TileSizing::require_whole_cell()`): the disc
-spills rather than shrinking, so `power_device` keeps the authored face and a whole-cell
-floor.
+than a cell on both axes grows on every tier. A glyph that sits in a disc
+(`power_device`, `favorite_macro`) uses `ui_xml/components/tile_badge.xml`, whose disc
+follows the same rung as the glyph, and TileSizing measures the disc's edge
+(`Content::icon_in_disc`), so a badged tile scales like any other.
 
 `tests/unit/test_grid_layout.cpp` classifies every registry id and pins the rule that a
 sub-cell floor belongs only to a widget that can decline one;

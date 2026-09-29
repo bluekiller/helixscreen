@@ -123,11 +123,7 @@ using namespace helix;
 
 PowerDeviceWidget* PowerDeviceWidget::s_active_picker_ = nullptr;
 
-PowerDeviceWidget::PowerDeviceWidget(const std::string& instance_id) : instance_id_(instance_id) {
-    // The glyph sits in a fixed-size disc, so this tile cannot draw itself
-    // narrower than a whole cell: the badge would spill rather than shrink.
-    sizing_.require_whole_cell();
-}
+PowerDeviceWidget::PowerDeviceWidget(const std::string& instance_id) : instance_id_(instance_id) {}
 
 PowerDeviceWidget::~PowerDeviceWidget() {
     detach();

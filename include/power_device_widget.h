@@ -134,8 +134,12 @@ class PowerDeviceWidget : public PanelWidget {
 
     /// Built with the widget so its subjects exist before the manager parses
     /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_{instance_id_.c_str(), TileSizing::Content{"", "", "Power", false}};
+    /// is dropped permanently. The state is the reading ("LOCKED" is the
+    /// widest), the device name the label, drawn whatever show_widget_labels
+    /// says, and the glyph sits in a disc that scales with it.
+    TileSizing sizing_{instance_id_.c_str(),
+                       TileSizing::Content{"LOCKED", "LOCKED", "Power", true, "",
+                                           /*label_always_drawn=*/true, /*icon_in_disc=*/true}};
 };
 
 } // namespace helix

@@ -214,8 +214,6 @@ const std::vector<KnownClip> kKnownClipping = {
     {"control_buttons",  "480x320"},  {"control_buttons",  "480x400"},
     {"control_buttons",  "480x800"},  {"control_buttons",  "800x480"},
 
-    {"favorite_macro",   "272x480"},  {"favorite_macro",   "480x272"},
-
     // Below the ladder's floor: at the authored minimum tile these
     // geometries cannot hold the stack (the two smallest panels are narrower
     // than icon + value at the compact font; 1024x600's minimum tile floors a
@@ -224,10 +222,6 @@ const std::vector<KnownClip> kKnownClipping = {
     // no entry.
     {"nozzle_temps",     "272x480"},  {"nozzle_temps",     "480x400"},
     {"nozzle_temps",     "1024x600"},
-
-    {"power_device",     "1024x600"}, {"power_device",     "272x480"},
-    {"power_device",     "480x272"},  {"power_device",     "480x320"},
-    {"power_device",     "480x400"},  {"power_device",     "480x800"},
 
     // Measured against the LONGEST title in the database, which is what the
     // sweep now pins — the two entries this used to hold were whatever the

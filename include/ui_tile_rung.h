@@ -23,7 +23,13 @@ enum class TileLadder : int {
     Icon = 0,
     Value = 1,
     Label = 2,
+    /// The disc behind a badged glyph: the icon ladder, drawn as a square of
+    /// tile_disc_edge() of that face instead of as a face.
+    Disc = 3,
 };
+
+/// Edge of the disc a badged glyph in @p icon_face sits in, in px.
+int tile_disc_edge(const lv_font_t* icon_face);
 
 /// The theme font token @p ladder names at @p rung. Out-of-range rungs clamp to
 /// the ladder's ends.
@@ -36,9 +42,9 @@ const char* tile_rung_font_token(TileLadder ladder, int rung);
 void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset = 0,
                     bool one_line = false);
 
-/// Register `<bind_tile_rung ladder="icon|value|label" subject="..." offset="0"
-/// one_line="false"/>`, a child element of any widget. An empty subject installs no binding, so a
-/// component used outside a sizing tile keeps its authored face.
+/// Register `<bind_tile_rung ladder="icon|value|label|disc" subject="..." offset="0"
+/// one_line="false"/>`, a child element of any widget. An empty subject installs
+/// no binding, so a component used outside a sizing tile keeps its authored face.
 void register_tile_rung_binding();
 
 } // namespace helix::ui

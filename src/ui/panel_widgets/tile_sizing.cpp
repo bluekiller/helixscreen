@@ -97,8 +97,12 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
         const lv_font_t* label_face =
             theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Label, r));
 
-        rungs[r].icon_w = ui::text_width(kIconGlyph, icon_face) + badge_w;
-        rungs[r].icon_h = std::max(line_height_of(icon_face), badge_h);
+        const int glyph_w = content_.icon_in_disc ? ui::tile_disc_edge(icon_face)
+                                                  : ui::text_width(kIconGlyph, icon_face);
+        const int glyph_h =
+            content_.icon_in_disc ? ui::tile_disc_edge(icon_face) : line_height_of(icon_face);
+        rungs[r].icon_w = glyph_w + badge_w;
+        rungs[r].icon_h = std::max(glyph_h, badge_h);
         rungs[r].value_full_w = ui::text_width(content_.widest_value.c_str(), value_face);
         rungs[r].value_current_w = ui::text_width(content_.widest_current.c_str(), value_face);
         rungs[r].value_h = line_height_of(value_face);
@@ -176,7 +180,7 @@ bool TileSizing::fits(int width_px, int height_px) const {
     const UiBreakpoint bp = widget_size::current_breakpoint();
     const bool small_tier_floor =
         bp <= UiBreakpoint::Micro || (content_.has_value && bp <= UiBreakpoint::Tiny);
-    if (whole_cell_only_ || small_tier_floor) {
+    if (small_tier_floor) {
         const int whole_cell = whole_cell_px();
         if (width_px < whole_cell || height_px < whole_cell) {
             return false;
