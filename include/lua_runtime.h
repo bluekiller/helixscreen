@@ -86,6 +86,9 @@ class LuaRuntime {
     size_t memory_used() const {
         return used_;
     }
+    size_t memory_cap() const {
+        return limits_.memory_bytes;
+    }
     bool faulted() const {
         return faulted_;
     }
@@ -141,7 +144,8 @@ class LuaRuntime {
     lua_State* L_ = nullptr;
 
     size_t used_ = 0;
-    int depth_ = 0; ///< active entries; the memory cap applies only while > 0
+    int depth_ = 0;     ///< active entries; the memory cap applies only while > 0
+    int host_work_ = 0; ///< host-side bookkeeping in progress; the cap is not enforced on it
     Clock::time_point deadline_{};
     bool yielded_for_async_ = false;
     bool killed_ = false;

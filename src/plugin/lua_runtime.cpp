@@ -45,6 +45,25 @@ std::string memory_cap_reason(size_t cap_bytes) {
     return "out of memory (cap " + std::to_string(cap_bytes / 1024) + " KB)";
 }
 
+// A refusal is only safe inside a protected entry, where lua_resume turns it into a Lua
+// error. Host-side bookkeeping (refs, thread setup, result pushes) allocates on L_ or on
+// a coroutine that is not running, where a refusal escapes as a panic and aborts the
+// process; this guard suspends the cap for its duration.
+class HostWorkGuard {
+  public:
+    explicit HostWorkGuard(int& counter) : counter_(counter) {
+        ++counter_;
+    }
+    ~HostWorkGuard() {
+        --counter_;
+    }
+    HostWorkGuard(const HostWorkGuard&) = delete;
+    HostWorkGuard& operator=(const HostWorkGuard&) = delete;
+
+  private:
+    int& counter_;
+};
+
 } // namespace
 
 ErrorWindow::ErrorWindow(size_t threshold, std::chrono::seconds window)
@@ -119,9 +138,10 @@ void* LuaRuntime::alloc(void* ud, void* ptr, size_t osize, size_t nsize) {
         rt->used_ -= old;
         return nullptr;
     }
-    // Only a protected entry may be refused. A refusal anywhere else reaches Lua's panic
-    // handler, and the setup work around entries is small and bounded.
-    if (nsize > old && rt->depth_ > 0 && rt->used_ - old + nsize > rt->limits_.memory_bytes)
+    // Only a protected entry may be refused, and only while no host bookkeeping is in
+    // progress. A refusal anywhere else reaches Lua's panic handler and aborts.
+    if (nsize > old && rt->depth_ > 0 && rt->host_work_ == 0 &&
+        rt->used_ - old + nsize > rt->limits_.memory_bytes)
         return nullptr;
     void* p = std::realloc(ptr, nsize);
     if (p)
@@ -220,6 +240,7 @@ bool LuaRuntime::run_file(const std::string& relative_path) {
 }
 
 int LuaRuntime::ref_value(lua_State* L, int index) {
+    HostWorkGuard host_work(host_work_);
     lua_pushvalue(L, index);
     if (L != L_)
         lua_xmove(L, L_, 1);
@@ -243,11 +264,23 @@ void LuaRuntime::on_close(std::function<void()> fn) {
 
 // The function to run is on top of L_'s stack.
 bool LuaRuntime::spawn(const PushFn& push_args) {
-    lua_State* co = lua_newthread(L_);
-    int thread_ref = luaL_ref(L_, LUA_REGISTRYINDEX);
-    lua_xmove(L_, co, 1);
-    int nargs = push_args ? push_args(co) : 0;
-    threads_[co] = thread_ref;
+    lua_State* co = nullptr;
+    int nargs = 0;
+    {
+        HostWorkGuard host_work(host_work_);
+        co = lua_newthread(L_);
+        int thread_ref = luaL_ref(L_, LUA_REGISTRYINDEX);
+        lua_xmove(L_, co, 1);
+        nargs = push_args ? push_args(co) : 0;
+        threads_[co] = thread_ref;
+    }
+    // Args are pushed outside any entry, so the cap is enforced here, before running.
+    if (used_ > limits_.memory_bytes) {
+        lua_settop(co, 0);
+        drop(co);
+        fault(memory_cap_reason(limits_.memory_bytes));
+        return false;
+    }
     return enter(co, nargs);
 }
 
@@ -294,10 +327,15 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
         drop(co);
         return false;
     }
-    const char* msg = lua_tostring(co, -1);
-    luaL_traceback(L_, co, msg ? msg : "(error object is not a string)", 0);
-    std::string text = lua_tostring(L_, -1);
-    lua_pop(L_, 1);
+    std::string text;
+    {
+        HostWorkGuard host_work(host_work_);
+        const char* msg = lua_tostring(co, -1);
+        luaL_traceback(L_, co, msg ? msg : "(error object is not a string)", 0);
+        if (const char* s = lua_tostring(L_, -1))
+            text = s;
+        lua_pop(L_, 1);
+    }
     drop(co);
     if (killed_)
         fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
@@ -367,7 +405,18 @@ void LuaRuntime::Pending::resolve(PushFn push_results) const {
 void LuaRuntime::resume(lua_State* co, const PushFn& push_results) {
     if (faulted_ || !threads_.count(co))
         return;
-    int n = push_results ? push_results(co) : 0;
+    int n = 0;
+    {
+        HostWorkGuard host_work(host_work_);
+        n = push_results ? push_results(co) : 0;
+    }
+    // Results are pushed outside any entry, so the cap is enforced here, before resuming.
+    if (used_ > limits_.memory_bytes) {
+        lua_settop(co, 0);
+        drop(co);
+        fault(memory_cap_reason(limits_.memory_bytes));
+        return;
+    }
     enter(co, n);
 }
 

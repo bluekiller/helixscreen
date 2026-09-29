@@ -219,6 +219,22 @@ LuaRuntime::PushFn push_int(lua_Integer v) {
         return 1;
     };
 }
+
+// helix.test_ref_many(f, n) takes n registry refs to f; the registry keeps every entry,
+// so the held memory grows with n.
+void install_test_ref_many(LuaRuntime& rt) {
+    lua_State* L = rt.state();
+    lua_getglobal(L, "helix");
+    lua_pushcfunction(L, [](lua_State* co) -> int {
+        auto& rt = LuaRuntime::from(co);
+        int n = luaL_checkinteger(co, 2);
+        for (int i = 0; i < n; ++i)
+            rt.ref_value(co, 1);
+        return 0;
+    });
+    lua_setfield(L, -2, "test_ref_many");
+    lua_pop(L, 1);
+}
 } // namespace
 
 TEST_CASE("an async call suspends and resumes with its result", "[plugin][lua_runtime][async]") {
@@ -316,6 +332,39 @@ TEST_CASE("nested entries stop at the depth cap", "[plugin][lua_runtime][async]"
         recurse()
     )");
     CHECK(t.global("depth") == "8");
+}
+
+TEST_CASE("registering callbacks at the memory cap faults instead of aborting",
+          "[plugin][lua_runtime][async]") {
+    LuaRuntime::Limits limits;
+    limits.memory_bytes = 256 * 1024;
+    TestRuntime t(limits);
+    install_test_ref_many(*t.rt);
+    CHECK_FALSE(t.run("helix.test_ref_many(function() end, 200000); "
+                      "local t = {} for i = 1, 1000 do t[i] = {} end"));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("memory") != std::string::npos);
+}
+
+TEST_CASE("an async result larger than the cap faults the plugin", "[plugin][lua_runtime][async]") {
+    LuaRuntime::Limits limits;
+    limits.memory_bytes = 256 * 1024;
+    TestRuntime t(limits);
+    std::vector<LuaRuntime::Pending> pending;
+    install_test_wait(*t.rt, &pending);
+    // Both globals exist before the wait, so the resumed entry performs no allocation
+    // and only the explicit post-push check can fault it.
+    REQUIRE(t.run("got = false; after = false"));
+    REQUIRE(t.run("got = helix.test_wait(); after = true"));
+    pending[0].resolve([](lua_State* co) {
+        std::string big(1 << 20, 'x');
+        lua_pushlstring(co, big.data(), big.size());
+        return 1;
+    });
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("memory") != std::string::npos);
+    CHECK(t.global("after") == "false"); // the entry never resumed past the wait
 }
 
 TEST_CASE("a budget kill swallowed by coroutine.resume still faults",
