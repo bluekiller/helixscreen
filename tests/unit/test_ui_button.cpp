@@ -644,3 +644,72 @@ TEST_CASE_METHOD(UiButtonTestFixture,
     REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
     REQUIRE(icon_idx > label_idx);
 }
+
+// ============================================================================
+// label_hidden_subject / label_hidden_if_bp_eq
+// ============================================================================
+
+namespace {
+/// The button's text label: the label child that is not its icon glyph.
+lv_obj_t* text_label(lv_obj_t* btn) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(btn); ++i) {
+        lv_obj_t* child = lv_obj_get_child(btn, static_cast<int32_t>(i));
+        if (lv_obj_check_type(child, &lv_label_class) && child != ui_button_get_icon(btn)) {
+            return child;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+TEST_CASE_METHOD(UiButtonTestFixture, "ui_button label follows label_hidden_subject",
+                 "[ui_button][xml][label_hidden]") {
+    // Static: the XML scope keeps the name after the test, so the storage must outlive it.
+    static lv_subject_t labels{};
+    lv_subject_init_int(&labels, 1);
+    lv_xml_register_subject(nullptr, "test_labels_subject", &labels);
+
+    const char* attrs[] = {"icon",
+                           "stop",
+                           "text",
+                           "Stop",
+                           "label_hidden_subject",
+                           "test_labels_subject",
+                           "label_hidden_if_eq",
+                           "0",
+                           nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    lv_obj_t* label = text_label(btn);
+    REQUIRE(label != nullptr);
+
+    CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+    lv_subject_set_int(&labels, 0);
+    CHECK(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+    lv_subject_set_int(&labels, 1);
+    CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_delete(btn);
+    lv_subject_deinit(&labels);
+}
+
+TEST_CASE_METHOD(UiButtonTestFixture, "ui_button label_hidden_if_bp_eq follows ui_breakpoint",
+                 "[ui_button][xml][label_hidden]") {
+    lv_subject_t* bp = lv_xml_get_subject(nullptr, "ui_breakpoint");
+    REQUIRE(bp != nullptr);
+    const int32_t saved = lv_subject_get_int(bp);
+
+    const char* attrs[] = {"icon", "stop", "text", "Stop", "label_hidden_if_bp_eq", "1", nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    lv_obj_t* label = text_label(btn);
+    REQUIRE(label != nullptr);
+
+    lv_subject_set_int(bp, 1);
+    CHECK(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+    lv_subject_set_int(bp, 3);
+    CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_delete(btn);
+    lv_subject_set_int(bp, saved);
+}

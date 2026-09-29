@@ -1536,6 +1536,12 @@
         },
         "label_hidden_if_bp_eq": {
           "type": "int"
+        },
+        "label_hidden_subject": {
+          "type": "string"
+        },
+        "label_hidden_if_eq": {
+          "type": "int"
         }
       },
       "inherits": "lv_obj"

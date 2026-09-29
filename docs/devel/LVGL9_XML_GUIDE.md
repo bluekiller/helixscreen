@@ -1093,6 +1093,18 @@ Both `text="@subject"` and `bind_text="subject"` produce identical reactive bind
 
 When bound to a subject, the button label updates automatically, and a deferred invalidation ensures the button background repaints correctly (avoids partial-redraw artifacts).
 
+**Icon-only collapse:** the button's internal label can be hidden by an int subject, which an XML child binding cannot reach:
+
+```xml
+<!-- Hide the label while my_labels_subject == 0 -->
+<ui_button icon="stop" text="Stop" label_hidden_subject="my_labels_subject" label_hidden_if_eq="0"/>
+
+<!-- Shorthand for label_hidden_subject="ui_breakpoint" -->
+<ui_button icon="stop" text="Stop" label_hidden_if_bp_eq="1"/>
+```
+
+An empty `label_hidden_subject` installs no binding. Give each label one writer: a widget that also measures whether its label fits should fold the breakpoint rule into its own subject rather than set both attributes.
+
 #### divider_vertical / divider_horizontal
 
 Visual separators with theme-aware colors.
