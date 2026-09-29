@@ -283,7 +283,7 @@ def parse_apply_styles(source: str) -> dict[str, dict[str, Any]]:
 
     # Find the apply_styles function body first
     func_pattern = re.compile(
-        r"static\s+void\s+apply_styles\s*\([^)]*\)\s*\{",
+        r"static\s+(?:void|bool)\s+apply_styles\s*\([^)]*\)\s*\{",
         re.DOTALL,
     )
     func_match = func_pattern.search(source)

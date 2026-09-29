@@ -71,7 +71,7 @@ Do not move it into `globals.xml` instead: that file parses before theme init, s
 
 ### My `style_*:checked` (colon) state style does nothing.
 
-**Cause:** The engine reads state and part selectors only in dash form. `lv_xml_style_string_process` (`lib/helix-xml/src/xml/lv_xml_style.c`) splits every style attribute name on `-`, so `style_opa-checked` is property `style_opa` with selector `checked`. The colon form never splits: `style_opa:checked` stays one property name, matches nothing in the property table, and the attribute is dropped. Nothing logs.
+**Cause:** The engine reads state and part selectors only in dash form. `lv_xml_style_string_process` (`lib/helix-xml/src/xml/lv_xml_style.c`) splits every style attribute name on `-`, so `style_opa-checked` is property `style_opa` with selector `checked`. The colon form never splits: `style_opa:checked` stays one property name, matches nothing in the property table, and the attribute is dropped. The engine logs `` `style_opa:checked` is ignored: style selectors follow '-' `` and `make lint-xml` fails on it.
 
 **Fix:** Write the dash form:
 
@@ -286,14 +286,14 @@ Gate: `scripts/check_responsive_token_scope.py` (prestonbrown/helixscreen#1211).
 
 ---
 
-### An attribute like `y="-#space_md"` resolves to 0.
+### An attribute like `y="-#space_md"` does nothing.
 
-**Cause:** The const resolver substitutes only values that start with `#`: `resolve_consts` (`lib/helix-xml/src/xml/lv_xml.c`) checks `value[0] == '#'` before it looks a token up. `-#space_md` fails that check, so the raw string reaches the number parser, which stops after the sign and yields 0. Neither side warns.
+**Cause:** The const resolver substitutes only values that start with `#`, so there is no way to negate a token in place. `resolve_consts` (`lib/helix-xml/src/xml/lv_xml.c`) drops a `-#` value with a warning (`` `-#space_md` ... negates a const, which is not supported ``) and the widget keeps its default; a style property takes the same path in `lv_xml_style.c`. `make lint-xml` fails on it.
 
-**Fix:** Give the token the negative value and reference it bare. `ui_xml/globals.xml` does this with a per-breakpoint ladder, and the XML says `y="#option_tile_tab_lift"`:
+**Fix:** Give the token the negative value and reference it bare. `ui_xml/globals.xml` carries negated spacing ladders (`space_md_neg`, `space_xxs_neg`, `space_2xl_neg`), so an inward offset reads `y="#space_md_neg"`. Add a ladder there when a tier you need has none:
 
 ```xml
-<px name="option_tile_tab_lift_large" value="-6"/>
+<px name="space_md_neg_large" value="-12"/>
 ```
 
 ---
