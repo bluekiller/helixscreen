@@ -8,6 +8,11 @@
 #include "../test_helpers/plugin_test_support.h"
 #include "lua_runtime.h"
 
+#include <spdlog/sinks/ostream_sink.h>
+#include <spdlog/spdlog.h>
+
+#include <sstream>
+
 #include "../catch_amalgamated.hpp"
 
 using namespace helix::plugin;
@@ -41,8 +46,27 @@ TEST_CASE("sandbox removes host access", "[plugin][lua_runtime]") {
     CHECK(t.global("stop_ok") == "false");
 }
 
-TEST_CASE("sandbox print accepts every argument shape", "[plugin][lua_runtime]") {
+namespace {
+
+/// Routes the default spdlog logger into a string for the scope's lifetime.
+struct LogCapture {
+    std::ostringstream out;
+    std::shared_ptr<spdlog::logger> previous = spdlog::default_logger();
+    LogCapture() {
+        auto sink = std::make_shared<spdlog::sinks::ostream_sink_mt>(out);
+        sink->set_pattern("%v");
+        spdlog::set_default_logger(std::make_shared<spdlog::logger>("lua_print_capture", sink));
+    }
+    ~LogCapture() {
+        spdlog::set_default_logger(previous);
+    }
+};
+
+} // namespace
+
+TEST_CASE("sandbox print logs its arguments tab-joined", "[plugin][lua_runtime]") {
     TestRuntime t;
+    LogCapture log;
     REQUIRE(t.run(R"(
         print("a", 1, nil, true)
         print()
@@ -50,6 +74,21 @@ TEST_CASE("sandbox print accepts every argument shape", "[plugin][lua_runtime]")
         printed_ok = true
     )"));
     CHECK(t.global("printed_ok") == "true");
+    CHECK(log.out.str().find("a\t1\tnil\ttrue") != std::string::npos);
+}
+
+TEST_CASE("sandbox print caps the logged line", "[plugin][lua_runtime]") {
+    TestRuntime t;
+    LogCapture log;
+    REQUIRE(t.run(R"(
+        local s = string.rep("x", 64 * 1024)
+        local many = {}
+        for i = 1, 100 do many[i] = s end
+        print(table.unpack(many))
+    )"));
+    std::string line = log.out.str();
+    CHECK(line.size() < 4200);
+    CHECK(line.find("...") != std::string::npos);
 }
 
 TEST_CASE("require resolves inside the plugin and caches", "[plugin][lua_runtime]") {

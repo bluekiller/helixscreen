@@ -7,6 +7,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -176,14 +177,21 @@ void LuaRuntime::install_sandbox() {
 }
 
 int LuaRuntime::lua_print(lua_State* L) {
+    // The line lives outside the Lua cap, and many arguments can reference one large string,
+    // so it stops growing at a fixed size.
+    constexpr size_t kMaxLine = 4096;
     std::string line;
     int n = lua_gettop(L);
-    for (int i = 1; i <= n; ++i) {
+    for (int i = 1; i <= n && line.size() < kMaxLine; ++i) {
         if (i > 1)
             line += '\t';
-        line += luaL_tolstring(L, i, nullptr); // print's tostring semantics, tabs between
-        lua_pop(L, 1);                         // the converted copy
+        size_t len = 0;
+        const char* text = luaL_tolstring(L, i, &len); // print's tostring semantics
+        line.append(text, std::min(len, kMaxLine - line.size()));
+        lua_pop(L, 1); // the converted copy
     }
+    if (line.size() >= kMaxLine)
+        line += "...";
     spdlog::info("[plugin {}] {}", from(L).plugin_id_, line);
     return 0;
 }
