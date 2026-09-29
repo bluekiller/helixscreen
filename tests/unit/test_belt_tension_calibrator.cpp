@@ -19,15 +19,28 @@
 
 #include "../../include/belt_tension_calibrator.h"
 #include "../../include/belt_tension_types.h"
+#include "../../include/moonraker_api.h"
+#include "../../include/moonraker_client_mock.h"
+#include "../../include/printer_state.h"
+#include "../../lvgl/lvgl.h"
+#include "../test_helpers/printer_state_test_access.h"
+#include "../test_helpers/update_queue_test_access.h"
+#include "../ui_test_utils.h"
+#include "app_globals.h"
 
+#include <atomic>
 #include <cfloat>
+#include <chrono>
 #include <cmath>
+#include <memory>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
 
+using namespace helix;
 using namespace helix::calibration;
 
 // ============================================================================
@@ -330,13 +343,128 @@ TEST_CASE("BeltTensionCalibrator State enum values are distinct", "[belt_tension
     using State = BeltTensionCalibrator::State;
 
     CHECK(State::IDLE != State::DETECTING_HARDWARE);
-    CHECK(State::DETECTING_HARDWARE != State::CHECKING_ADXL);
-    CHECK(State::CHECKING_ADXL != State::HOMING);
-    CHECK(State::HOMING != State::TESTING_PATH_A);
-    CHECK(State::TESTING_PATH_A != State::TESTING_PATH_B);
-    CHECK(State::TESTING_PATH_B != State::RESULTS_READY);
-    CHECK(State::RESULTS_READY != State::ERROR);
+    CHECK(State::DETECTING_HARDWARE != State::HOMING);
+    CHECK(State::HOMING != State::MEASURING);
+    CHECK(State::MEASURING != State::ERROR);
     CHECK(State::ERROR != State::IDLE);
+}
+
+// ============================================================================
+// 5b. One-Path Measurement (mock client end to end)
+// ============================================================================
+
+namespace {
+
+struct LVGLInitializerBeltCal {
+    LVGLInitializerBeltCal() {
+        static bool initialized = false;
+        if (!initialized) {
+            lv_init_safe();
+            lv_display_t* disp = lv_display_create(800, 480);
+            alignas(64) static lv_color_t buf[800 * 10];
+            lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
+            initialized = true;
+        }
+    }
+};
+
+static LVGLInitializerBeltCal lvgl_init_belt_cal;
+
+} // namespace
+
+/**
+ * @brief Calibrator over the mock client, with the printer already homed
+ *
+ * Same shape as BeltApiFixture (test_moonraker_api_belt_resonance.cpp): the
+ * mock answers TEST_RESONANCES by playing console lines on an lv_timer, so
+ * every wait is a lv_tick_inc/lv_timer_handler_safe pump. measure_path()
+ * homes through ensure_homed_then(), which reads the GLOBAL PrinterState's
+ * homed_axes subject, so that one is seeded "xyz" and the sweep starts
+ * without a G28.
+ */
+class BeltCalibratorFixture {
+  public:
+    BeltCalibratorFixture() : mock_client_(MoonrakerClientMock::PrinterType::VORON_24) {
+        state_.init_subjects(false); // Don't register XML bindings in tests
+        // execute_gcode() halted gate would otherwise reject every command.
+        state_.set_klippy_state_sync(helix::KlippyState::READY);
+        api_ = std::make_unique<MoonrakerAPI>(mock_client_, state_);
+        mock_client_.set_belt_line_interval_ms(1);
+
+        PrinterStateTestAccess::reset(get_printer_state());
+        get_printer_state().init_subjects(false);
+        lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "xyz");
+
+        calibrator_ = std::make_unique<BeltTensionCalibrator>(api_.get());
+    }
+
+    ~BeltCalibratorFixture() {
+        // Cancel and invalidate the guard before the test-local callback
+        // targets die, then run whatever is still queued.
+        calibrator_.reset();
+        helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        api_.reset();
+        MoonrakerClientMock::remove_belt_csvs();
+    }
+
+    /// Pump LVGL until @p flag is set; false when the bound ran out instead.
+    static bool pump_until(std::atomic<bool>& flag) {
+        for (int i = 0; i < 2000 && !flag.load(); ++i) {
+            lv_tick_inc(100);
+            lv_timer_handler_safe();
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        return flag.load();
+    }
+
+  protected:
+    MoonrakerClientMock mock_client_;
+    PrinterState state_;
+    std::unique_ptr<MoonrakerAPI> api_;
+    std::unique_ptr<BeltTensionCalibrator> calibrator_;
+};
+
+TEST_CASE("belt path names match Klipper's axis syntax", "[belt_tension][calibrator]") {
+    CHECK(std::string(BeltTensionCalibrator::axis_param(BeltPath::PATH_A)) == "1,1");
+    CHECK(std::string(BeltTensionCalibrator::axis_param(BeltPath::PATH_B)) == "1,-1");
+    CHECK(std::string(BeltTensionCalibrator::output_name(BeltPath::PATH_A)) == "helix_belt_a");
+    CHECK(std::string(BeltTensionCalibrator::output_name(BeltPath::PATH_B)) == "helix_belt_b");
+}
+
+TEST_CASE_METHOD(BeltCalibratorFixture, "measure_path sweeps its path and reports the peak",
+                 "[belt_tension][calibrator]") {
+    std::atomic<bool> done{false};
+    BeltCurve got;
+    int last_percent = -1;
+    calibrator_->measure_path(
+        BeltPath::PATH_B, [&](int percent, float) { last_percent = percent; },
+        [&](BeltCurve curve) {
+            got = std::move(curve);
+            done = true;
+        },
+        [&](const std::string& msg) { FAIL(msg); });
+    REQUIRE(pump_until(done));
+    CHECK(last_percent == 100);
+    REQUIRE_FALSE(got.empty());
+    auto peak = find_peak_frequency(got, 20.0f, got.back().first);
+    REQUIRE(peak.found);
+    CHECK(peak.frequency == Catch::Approx(mock_client_.belt_peak_hz('B')).margin(1.0f));
+    CHECK(calibrator_->get_state() == BeltTensionCalibrator::State::IDLE);
+}
+
+TEST_CASE_METHOD(BeltCalibratorFixture, "cancel silences the run's callbacks",
+                 "[belt_tension][calibrator]") {
+    bool called = false;
+    calibrator_->measure_path(
+        BeltPath::PATH_A, [&](int, float) { called = true; }, [&](BeltCurve) { called = true; },
+        [&](const std::string&) { called = true; });
+    calibrator_->cancel();
+    CHECK(calibrator_->get_state() == BeltTensionCalibrator::State::IDLE);
+    for (int i = 0; i < 500; ++i) {
+        lv_tick_inc(2);
+        lv_timer_handler_safe();
+    }
+    CHECK_FALSE(called);
 }
 
 // ============================================================================
