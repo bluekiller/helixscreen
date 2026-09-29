@@ -2665,6 +2665,22 @@ bool show_demo_overlay(const std::string& name) {
         return true;
     }
 
+    if (name == "belt-tension") {
+        // The Advanced panel row is gone until the resonance-compare UI ships,
+        // so the only mock-mode way in is here. Same lazy-create-plus-show the
+        // row click performs.
+        auto& panel = get_global_belt_tension_panel();
+        if (!panel.get_root()) {
+            panel.set_api(get_moonraker_client(), get_moonraker_api());
+            if (!panel.create(screen)) {
+                spdlog::warn("[demo] failed to create panel_belt_tension");
+                return false;
+            }
+        }
+        panel.show();
+        return true;
+    }
+
     if (name == "ams") {
         // The filament panel's AMS row no-ops without a configured backend, so
         // reach the dedicated AMS management panel directly (mock provides the

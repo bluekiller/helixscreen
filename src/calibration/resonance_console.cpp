@@ -3,6 +3,7 @@
 #include "resonance_console.h"
 
 #include "helix_regex.h"
+#include "i_moonraker_client.h"
 #include "text_io.h"
 
 #include <algorithm>
@@ -12,6 +13,24 @@ namespace helix::calibration {
 
 float ResonanceTesterConfig::sweep_seconds() const {
     return (max_freq - min_freq) / hz_per_sec;
+}
+
+void query_resonance_tester_config(IMoonrakerClient& client,
+                                   std::function<void(ResonanceTesterConfig)> on_done) {
+    json params = {{"objects", json::object({{"configfile", json::array({"settings"})}})}};
+    client.send_jsonrpc(
+        "printer.objects.query", params,
+        [on_done](const json& response) {
+            if (!response.contains("result") || !response["result"].contains("status") ||
+                !response["result"]["status"].contains("configfile") ||
+                !response["result"]["status"]["configfile"].contains("settings")) {
+                on_done(ResonanceTesterConfig{});
+                return;
+            }
+            on_done(parse_resonance_tester_config(
+                response["result"]["status"]["configfile"]["settings"]));
+        },
+        [on_done](const MoonrakerError&) { on_done(ResonanceTesterConfig{}); });
 }
 
 ResonanceTesterConfig parse_resonance_tester_config(const nlohmann::json& settings) {

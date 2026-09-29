@@ -3,6 +3,7 @@
   <translation tag=" (timed out)" zh="（超时）"/>
   <translation tag=" frames" zh=" 帧"/>
   <translation tag=" left" zh=" 剩余"/>
+  <translation tag=" · was {:.0f}" zh=" · 原为 {:.0f}"/>
   <translation tag="&quot;%s&quot; failed to load" zh="&quot;%s&quot; 加载失败"/>
   <translation tag="%.0f Hz difference" zh="%.0f Hz 差异"/>
   <translation tag="%d additional fan%s" zh="%d 个额外风扇%s"/>
@@ -110,6 +111,7 @@
   <translation tag="A picture of your printer" zh="打印机的图片"/>
   <translation tag="A print is in progress - restart still pending" zh="打印进行中 - 重启待执行"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." zh="此通道正在打印中。HelixScreen 已清除本地副本；打印结束后请再次清空。"/>
+  <translation tag="A runs faster" zh="A 更快"/>
   <translation tag="A spool may be tangled or the drive gear is jammed" zh="料盘可能缠绕，或驱动齿轮卡住"/>
   <translation tag="ABS" zh="ABS"/>
   <translation tag="ACCELEROMETERS" zh="加速度计"/>
@@ -174,6 +176,7 @@
   <translation tag="Address" zh="地址"/>
   <translation tag="Adjust screen brightness level" zh="调整屏幕亮度"/>
   <translation tag="Adjust screws, then re-probe." zh="调整螺丝，然后重新探测。"/>
+  <translation tag="Adjustment needed" zh="需要调整"/>
   <translation tag="Adjustments stay active until restart. Save after print completes." zh="调整在重启前保持有效。打印完成后保存。"/>
   <translation tag="Adjusts individual characteristics of your heaters for optimal control" zh="调整加热器的各项参数以实现最佳控制"/>
   <translation tag="Advanced" zh="高级"/>
@@ -263,6 +266,7 @@
   <translation tag="Average" zh="平均值"/>
   <translation tag="Axis limits unknown" zh="轴限位未知"/>
   <translation tag="B" zh="B"/>
+  <translation tag="B runs faster" zh="B 更快"/>
   <translation tag="BEACON" zh="BEACON"/>
   <translation tag="BETA" zh="测试版"/>
   <translation tag="BLE connect failed: {}" zh="BLE 连接失败: {}"/>
@@ -312,6 +316,7 @@
   <translation tag="Belt Tension" zh="皮带张力"/>
   <translation tag="Belt Tension Check" zh="皮带张力检查"/>
   <translation tag="Belt tension looks good!" zh="皮带张力良好！"/>
+  <translation tag="Belts matched" zh="皮带已匹配"/>
   <translation tag="Beta" zh="测试版"/>
   <translation tag="Beta features: OFF" zh="测试版功能: 关"/>
   <translation tag="Beta features: ON" zh="测试版功能: 开"/>
@@ -565,6 +570,7 @@
   <translation tag="Clog and flow health while printing" zh="打印时的堵料与流量状况"/>
   <translation tag="Clog detection" zh="堵料检测"/>
   <translation tag="Close" zh="关闭"/>
+  <translation tag="Close - small adjustment" zh="接近 - 微调"/>
   <translation tag="Close feeder" zh="关闭送料器"/>
   <translation tag="Close feeder macro" zh="关闭送料器宏"/>
   <translation tag="Closer" zh="更近"/>
@@ -585,6 +591,7 @@
   <translation tag="Communication Test" zh="通信测试"/>
   <translation tag="Compact" zh="紧凑"/>
   <translation tag="Compare" zh="比较"/>
+  <translation tag="Compare both belt paths" zh="比较两条皮带路径"/>
   <translation tag="Comparison" zh="比较"/>
   <translation tag="Complete" zh="完成"/>
   <translation tag="Complete!" zh="完成！"/>
@@ -830,6 +837,7 @@
   <translation tag="Distance from lane extruder to hub" zh="从耗材通道挤出机到集线器的距离"/>
   <translation tag="Distance from toolhead sensor to nozzle tip" zh="从工具头传感器到喷嘴尖端的距离"/>
   <translation tag="Distance moved per jog button tap" zh="每按一次移动按钮移动的距离"/>
+  <translation tag="Do not open the printer while the toolhead is moving" zh="工具头移动时请勿打开打印机"/>
   <translation tag="Do not power off your printer." zh="请勿关闭打印机电源。"/>
   <translation tag="Do not touch the printer during calibration" zh="校准期间请勿触碰打印机"/>
   <translation tag="Dock" zh="归位"/>
@@ -1499,6 +1507,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." zh="Klipper 已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。"/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." zh="Klipper 将 &apos;default&apos; 保留用于新的校准。请选择其他名称。"/>
   <translation tag="Klipper restarting - macros activating" zh="正在重启 Klipper - 正在启用宏"/>
+  <translation tag="Klipper stopped reporting progress. Check the printer, then try again." zh="Klipper 停止报告进度。请检查打印机后重试。"/>
   <translation tag="Klipper will restart to apply changes" zh="Klipper 将重启以应用更改"/>
   <translation tag="Klipper will restart to apply changes." zh="Klipper 将重启以应用更改。"/>
   <translation tag="Klipper will restart to apply new settings." zh="Klipper 将重启以应用新设置。"/>
@@ -1683,6 +1692,7 @@
   <translation tag="Match" zh="匹配度"/>
   <translation tag="Match to belt A" zh="匹配皮带 A"/>
   <translation tag="Match your typical print fan speed" zh="匹配您常用的打印风扇速度"/>
+  <translation tag="Matched" zh="匹配"/>
   <translation tag="Matching printers" zh="匹配的打印机"/>
   <translation tag="Material" zh="材料"/>
   <translation tag="Material Comfort:" zh="材料适配度："/>
@@ -1707,7 +1717,9 @@
   <translation tag="Measured filament diameter" zh="测量的耗材直径"/>
   <translation tag="Measured pressure advance" zh="测得的压力提前"/>
   <translation tag="Measurement Failed" zh="测量失败"/>
+  <translation tag="Measurement incomplete. Try again." zh="测量未完成。请重试。"/>
   <translation tag="Measuring" zh="测量中"/>
+  <translation tag="Measuring Path {}" zh="正在测量路径 {}"/>
   <translation tag="Measuring accelerometer noise..." zh="正在测量加速度计噪声..."/>
   <translation tag="Measuring vibrations... {}%" zh="正在测量振动... {}%"/>
   <translation tag="Measuring wheel error" zh="计量轮错误"/>
@@ -1868,6 +1880,7 @@
   <translation tag="No printers found" zh="未找到打印机"/>
   <translation tag="No prints yet" zh="暂无打印记录"/>
   <translation tag="No profiles available" zh="无可用配置"/>
+  <translation tag="No resonance peak found for {}" zh="未找到 {} 的共振峰值"/>
   <translation tag="No sensors detected" zh="未检测到传感器"/>
   <translation tag="No slot currently matches." zh="当前没有匹配的槽位。"/>
   <translation tag="No spool assigned" zh="未分配料盘"/>
@@ -2031,7 +2044,10 @@
   <translation tag="Password cannot be empty" zh="密码不能为空"/>
   <translation tag="Password is required for secured networks" zh="加密网络需要密码"/>
   <translation tag="Path A" zh="路径 A"/>
+  <translation tag="Path A / Path B" zh="路径 A / 路径 B"/>
   <translation tag="Path B" zh="路径 B"/>
+  <translation tag="Path {}" zh="路径 {}"/>
+  <translation tag="Path {} before" zh="路径 {}（之前）"/>
   <translation tag="Pause" zh="暂停"/>
   <translation tag="Pause macro not configured" zh="暂停宏未配置"/>
   <translation tag="Pause on Detection" zh="检测到故障时暂停"/>
@@ -2294,6 +2310,8 @@
   <translation tag="Re-read spool RFID tags and remaining length" zh="重新读取料盘 RFID 标签与剩余长度"/>
   <translation tag="Re-seat the Bowden tube connector on the CFS unit" zh="请重新插紧 CFS 单元上的鲍登管接头"/>
   <translation tag="Re-syncs Happy Hare&apos;s tracked state with the hardware." zh="将 Happy Hare 跟踪的状态与硬件重新同步。"/>
+  <translation tag="Re-test A" zh="重新测试 A"/>
+  <translation tag="Re-test B" zh="重新测试 B"/>
   <translation tag="Readings from extra temperature sensors" zh="额外温度传感器的读数"/>
   <translation tag="Ready" zh="就绪"/>
   <translation tag="Ready for filament operations" zh="可进行耗材操作"/>
@@ -2793,6 +2811,7 @@
   <translation tag="Stop drying?" zh="停止烘干?"/>
   <translation tag="Stop failed" zh="停止失败"/>
   <translation tag="Stop printing &quot;{}&quot;?&#10;&#10;This cannot be undone after 5 seconds." zh="停止打印 &quot;{}&quot;？&#10;&#10;5秒后将无法撤销。"/>
+  <translation tag="Stop the check?" zh="停止检查？"/>
   <translation tag="Stopped" zh="已停止"/>
   <translation tag="Stopped between Hub and Toolhead" zh="停在集线器与工具头之间"/>
   <translation tag="Stopped between Lane and Hub" zh="停在耗材通道与集线器之间"/>
@@ -2808,6 +2827,7 @@
   <translation tag="Suppress periodic temperature status lines" zh="抑制周期性温度状态行"/>
   <translation tag="Suppress raw debug output from printer firmware modules" zh="抑制打印机固件模块的原始调试输出"/>
   <translation tag="Surfaces inherit app background tokens for light and dark modes." zh="表面继承应用背景色用于浅色和深色模式。"/>
+  <translation tag="Sweep" zh="扫频"/>
   <translation tag="Switch Printer" zh="切换打印机"/>
   <translation tag="Switch Sensors" zh="开关传感器"/>
   <translation tag="Switch a power device on or off" zh="开启或关闭电源设备"/>
@@ -2883,6 +2903,7 @@
   <translation tag="Temporary adjustment for this print, unless saved on Controls panel" zh="此打印的临时调整，除非在控制面板上保存"/>
   <translation tag="Tertiary" zh="第三"/>
   <translation tag="Test All Lanes" zh="测试所有耗材通道"/>
+  <translation tag="Test Both Again" zh="再次测试两者"/>
   <translation tag="Test Connection" zh="测试连接"/>
   <translation tag="Test Grip" zh="测试夹持"/>
   <translation tag="Test Load" zh="测试装载"/>
@@ -2971,6 +2992,7 @@
   <translation tag="This calibration uses the paper friction method to set your Z-offset." zh="此校准使用纸张摩擦法设置 Z 偏移。"/>
   <translation tag="This cannot be undone." zh="此操作无法撤销。"/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." zh="此通道提供 v{}，早于已安装的 v{}。此后新增的内容都将被移除。"/>
+  <translation tag="This check runs Klipper&apos;s resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." zh="此检查会沿每条皮带对角线运行 Klipper 的共振扫频，并比较两条曲线。频率匹配意味着张力平衡。&#10;&#10;每次扫频需要几分钟并会移动工具头；运行期间请勿打开打印机。&#10;&#10;在 CoreXY 上，皮带 A 和 B 的相差应在几 Hz 之内。"/>
   <translation tag="This clears every spool&apos;s failover assignment. The print will stop on runout until you set up failover again." zh="这会清除每个料盘的备用分配。在重新设置之前，耗材用尽时打印将停止。"/>
   <translation tag="This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen." zh="此设备没有有线网络连接。关闭 WiFi 后，只能在此界面重新开启。"/>
   <translation tag="This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a &quot;Timer Too Close&quot; error or restart mid-test. Continue anyway?" zh="此设备仅有 {} MB 内存。共振校准会占用大量内存，可能导致打印机固件报告 &quot;Timer Too Close&quot; 错误或在测试中途重启。仍要继续吗？"/>
@@ -2983,6 +3005,7 @@
   <translation tag="This firmware can only switch slots by loading them" zh="此固件只能通过装载来切换槽位"/>
   <translation tag="This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes." zh="这会在打印机上安装 HelixScreen 帮助宏并添加到 printer.cfg。当前正在打印，Klipper 将在打印结束后重启。"/>
   <translation tag="This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper." zh="这会在打印机上安装 HelixScreen 帮助宏，添加到 printer.cfg，并重启 Klipper。"/>
+  <translation tag="This is an emergency stop: the printer halts and Klipper restarts." zh="这是紧急停止：打印机将停机并重启 Klipper。"/>
   <translation tag="This is exactly the data that will be sent" zh="这正是将要发送的数据"/>
   <translation tag="This is what data would be sent if enabled" zh="这是启用后将发送的数据"/>
   <translation tag="This may take up to 30 seconds" zh="这可能需要 30 秒"/>
@@ -3385,6 +3408,7 @@
   <translation tag="helixscreen.env ignored: {}" zh="已忽略 helixscreen.env：{}"/>
   <translation tag="idle" zh="空闲"/>
   <translation tag="in unit {} slot {}" zh="在单元 {} 槽位 {}"/>
+  <translation tag="just now" zh="刚刚"/>
   <translation tag="layers" zh="层"/>
   <translation tag="left" zh="剩余"/>
   <translation tag="loaded" zh="已加载"/>
@@ -3410,6 +3434,7 @@
   <translation tag="slots)" zh="个槽位)"/>
   <translation tag="started" zh="已启动"/>
   <translation tag="steppers" zh="步进电机"/>
+  <translation tag="sweeping" zh="测量中"/>
   <translation tag="tall" zh="高"/>
   <translation tag="target {}°" zh="目标 {}°"/>
   <translation tag="tool(s)" zh="工具"/>
@@ -3418,6 +3443,8 @@
   <translation tag="v{} installed! Restarting..." zh="已安装 v{}！正在重启..."/>
   <translation tag="v{} is available. Tap to update." zh="v{} 可用。点击以更新。"/>
   <translation tag="you have" zh="您有"/>
+  <translation tag="{:.0f} Hz apart · similarity {:.0f}%" zh="相差 {:.0f} Hz · 相似度 {:.0f}%"/>
+  <translation tag="{:.0f}-{:.0f} Hz · about {} min" zh="{:.0f}-{:.0f} Hz · 约 {} 分钟"/>
   <translation tag="{} LED strips available" zh="{} 条 LED 灯带可用"/>
   <translation tag="{} and {} are both mapped here" zh="{} 和 {} 都映射到这里"/>
   <translation tag="{} available" zh="{} 可用"/>
@@ -3444,6 +3471,7 @@
   <translation tag="{} macro not configured" zh="{} 宏未配置"/>
   <translation tag="{} matches." zh="{} 匹配。"/>
   <translation tag="{} may cause unintended changes. Are you sure?" zh="{} 可能导致意外更改。确定吗？"/>
+  <translation tag="{} min ago" zh="{} 分钟前"/>
   <translation tag="{} more taps to {} beta features" zh="再点击 {} 次以{}测试功能"/>
   <translation tag="{} needs the HelixPrint plugin. Printing original file." zh="{} 需要 HelixPrint 插件。将打印原始文件。"/>
   <translation tag="{} new hardware available" zh="{} 个新硬件可用"/>

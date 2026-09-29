@@ -385,7 +385,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     panel.deinit_subjects();
     panel.init_subjects();
 
-    lv_subject_t* adxl = lv_xml_get_subject(nullptr, "bt_hw_adxl");
+    lv_subject_t* adxl = lv_xml_get_subject(nullptr, "bt_hw_accel");
     REQUIRE(adxl != nullptr);
     const std::string before = lv_subject_get_string(adxl);
 
@@ -411,7 +411,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     UpdateQueue::instance().drain();
 
-    lv_subject_t* adxl = lv_xml_get_subject(nullptr, "bt_hw_adxl");
+    lv_subject_t* adxl = lv_xml_get_subject(nullptr, "bt_hw_accel");
     REQUIRE(adxl != nullptr);
     const std::string before = lv_subject_get_string(adxl);
 

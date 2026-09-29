@@ -843,6 +843,32 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     return 0; // Success
 }
 
+namespace mock_internal {
+
+// NAMESPACE_OK: mock_internal sits at global scope with the mock's other helpers
+std::string mock_kinematics(MoonrakerClientMock::PrinterType type) {
+    // HELIX_MOCK_KINEMATICS overrides; otherwise the default matches the type.
+    const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS");
+    if (kin_env && kin_env[0])
+        return kin_env;
+    switch (type) {
+    case MoonrakerClientMock::PrinterType::VORON_24:
+    case MoonrakerClientMock::PrinterType::VORON_TRIDENT:
+    case MoonrakerClientMock::PrinterType::CREALITY_K1:
+    case MoonrakerClientMock::PrinterType::CREALITY_K1_MAX:
+    case MoonrakerClientMock::PrinterType::FLASHFORGE_CREATOR5:
+    case MoonrakerClientMock::PrinterType::FLASHFORGE_CREATOR5_ZMOD:
+    case MoonrakerClientMock::PrinterType::GENERIC_COREXY:
+        return "corexy";
+    case MoonrakerClientMock::PrinterType::DELTA:
+        return "delta";
+    default:
+        return "cartesian";
+    }
+}
+
+} // namespace mock_internal
+
 void MoonrakerClientMock::populate_capabilities() {
     // Held for the whole body: the simulation thread may already be running (connect()
     // starts it before discover_printer() calls this) and iterates these same lists.
@@ -1228,29 +1254,7 @@ void MoonrakerClientMock::populate_capabilities() {
                                          {"speed", "50"},
                                          {"horizontal_move_z", "10"}};
     // Provide kinematics so bed_moves detection works
-    // HELIX_MOCK_KINEMATICS overrides; otherwise default matches printer type
-    const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS");
-    std::string default_kinematics;
-    switch (printer_type_) {
-    case PrinterType::VORON_24:
-    case PrinterType::VORON_TRIDENT:
-        default_kinematics = "corexy";
-        break;
-    case PrinterType::CREALITY_K1:
-    case PrinterType::CREALITY_K1_MAX:
-    case PrinterType::FLASHFORGE_CREATOR5:
-    case PrinterType::FLASHFORGE_CREATOR5_ZMOD:
-        default_kinematics = "corexy";
-        break;
-    case PrinterType::DELTA:
-        default_kinematics = "delta";
-        break;
-    default:
-        default_kinematics = "cartesian";
-        break;
-    }
-    std::string mock_kinematics = (kin_env && kin_env[0]) ? kin_env : default_kinematics;
-    mock_config["printer"] = {{"kinematics", mock_kinematics}};
+    mock_config["printer"] = {{"kinematics", mock_internal::mock_kinematics(printer_type_)}};
     // Add gcode_macro entries for param detection (shared with configfile.config response)
     mock_config.merge_patch(mock_internal::get_mock_gcode_macro_config());
     // Probe section — shared with the configfile.config query/subscribe responses
@@ -1278,7 +1282,7 @@ void MoonrakerClientMock::populate_capabilities() {
     helix::MacroParamCache::instance().populate_from_configfile(mock_config, macros_snapshot);
 
     spdlog::debug("[MoonrakerClientMock] Mock config: adxl345, resonance_tester, kinematics={}",
-                  mock_kinematics);
+                  mock_internal::mock_kinematics(printer_type_));
 
     // Populate printer objects for hardware discovery
     std::vector<std::string> all_objects;
@@ -6730,9 +6734,13 @@ void write_mock_belt_csv(const std::string& path, char path_letter, float peak_h
     constexpr float PEAK_HEIGHT = 3e4f;
     constexpr float SECONDARY_HEIGHT = 0.22f * PEAK_HEIGHT;
     constexpr double BIN_STEP = 3200.0 / 4096.0;
+    // HWHM of 10 Hz (Q ~ 5 at 100 Hz), the width a real belt rig shows. A
+    // spike much narrower than that tanks the curve-similarity leg of
+    // compare_belt_paths() for peak pairs a real printer scores as close.
+    constexpr float MAIN_HALF_WIDTH_SQ = 100.0f;
     for (double freq = 5.0; freq <= max_freq + 1e-9; freq += BIN_STEP) {
         const float df = static_cast<float>(freq) - peak_hz;
-        const float main = PEAK_HEIGHT / (1.0f + (df * df) / 25.0f);
+        const float main = PEAK_HEIGHT / (1.0f + (df * df) / MAIN_HALF_WIDTH_SQ);
         const float ds = static_cast<float>(freq) - 42.0f;
         const float secondary = SECONDARY_HEIGHT / (1.0f + (ds * ds) / 20.25f);
         const float psd_xyz = 150.0f * noise_dist(rng) + main + secondary;

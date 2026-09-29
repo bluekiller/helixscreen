@@ -308,7 +308,13 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
 
                 status_obj["configfile"] = {
                     {"settings",
-                     {{"printer", {{"max_velocity", 500.0}, {"max_accel", 10000.0}}},
+                     {{"printer",
+                       {{"max_velocity", 500.0},
+                        {"max_accel", 10000.0},
+                        // Same kinematics the config payload reports, so a
+                        // settings reader (belt hardware detect) and a config
+                        // reader (bed moves detection) see the same machine.
+                        {"kinematics", mock_kinematics(self->get_printer_type())}}},
                       {"stepper_x",
                        {{"position_min", MOCK_BED_X_MIN}, {"position_max", MOCK_BED_X_MAX}}},
                       {"stepper_y",
@@ -823,7 +829,13 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
 
                 status_obj["configfile"] = {
                     {"settings",
-                     {{"printer", {{"max_velocity", 500.0}, {"max_accel", 10000.0}}},
+                     {{"printer",
+                       {{"max_velocity", 500.0},
+                        {"max_accel", 10000.0},
+                        // Same kinematics the config payload reports, so a
+                        // settings reader (belt hardware detect) and a config
+                        // reader (bed moves detection) see the same machine.
+                        {"kinematics", mock_kinematics(self->get_printer_type())}}},
                       {"stepper_x",
                        {{"position_min", MOCK_BED_X_MIN}, {"position_max", MOCK_BED_X_MAX}}},
                       {"stepper_y",

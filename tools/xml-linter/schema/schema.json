@@ -1915,19 +1915,7 @@
       },
       "inherits": "lv_obj"
     },
-    "belt_trace": {
-      "attributes": {
-        "mode": {
-          "type": "string"
-        }
-      },
-      "inherits": "lv_obj"
-    },
     "leader_line": {
-      "attributes": {},
-      "inherits": "lv_obj"
-    },
-    "pluck_animation": {
       "attributes": {},
       "inherits": "lv_obj"
     }
@@ -2881,9 +2869,7 @@
     "setting_group",
     "ams_lane_bar",
     "ams_lane_spool",
-    "belt_trace",
-    "leader_line",
-    "pluck_animation"
+    "leader_line"
   ],
   "runtime_constants": [
     "accent_bar_gap",

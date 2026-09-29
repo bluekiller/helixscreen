@@ -2,10 +2,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <string>
 
 #include "hv/json.hpp"
+
+namespace helix {
+
+class IMoonrakerClient;
+}
 
 namespace helix::calibration {
 
@@ -23,6 +29,15 @@ struct ResonanceTesterConfig {
 /// Parse `configfile.settings.resonance_tester` (values may be numbers or
 /// strings). Missing keys keep their defaults.
 [[nodiscard]] ResonanceTesterConfig parse_resonance_tester_config(const nlohmann::json& settings);
+
+/// Ask the printer what [resonance_tester] range it will actually sweep.
+/// The range varies - Klipper's default ceiling is 133.33 Hz, Kalico's is
+/// 135, and the section can set anything - so it is queried rather than
+/// assumed: mapping sweep progress against a guessed ceiling pins the bar at
+/// an arbitrary point mid-run. `on_done` receives defaults on any error or
+/// missing section, which leaves the caller's own fallbacks in force.
+void query_resonance_tester_config(IMoonrakerClient& client,
+                                   std::function<void(ResonanceTesterConfig)> on_done);
 
 /// "Testing frequency 74 Hz" -> 74. nullopt for any other line.
 [[nodiscard]] std::optional<float> parse_testing_frequency(const std::string& line);

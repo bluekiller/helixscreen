@@ -3,6 +3,7 @@ translations:
   ' (timed out)': ' (время ожидания истекло)'
   ' frames': ' кадров'
   ' left': ' осталось'
+  ' · was {:.0f}': ' · было {:.0f}'
   '"%s" failed to load': Не удалось загрузить «%s»
   '%.0f Hz difference': Разница %.0f Гц
   '%d additional fan%s': '%d дополнительный вентилятор%s'
@@ -116,6 +117,7 @@ translations:
   A picture of your printer: Изображение вашего принтера
   A print is in progress - restart still pending: 'Идёт печать - перезапуск ещё отложен'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: На этом шлюзе идёт печать. HelixScreen очистил свою копию; после окончания печати очистите его снова.
+  A runs faster: A быстрее
   A spool may be tangled or the drive gear is jammed: Катушка может быть запутана или заклинило приводную шестерню
   ABS: ABS
   ACCELEROMETERS: АКСЕЛЕРОМЕТРЫ
@@ -180,6 +182,7 @@ translations:
   Address: Адрес
   Adjust screen brightness level: Настроить уровень яркости экрана
   Adjust screws, then re-probe.: Отрегулируйте винты, затем перепроверьте.
+  Adjustment needed: Требуется регулировка
   Adjustments stay active until restart. Save after print completes.: Настройки активны
     до перезагрузки. Сохраните после завершения печати.
   Adjusts individual characteristics of your heaters for optimal control: Настраивает
@@ -286,6 +289,7 @@ translations:
   Average: Среднее
   Axis limits unknown: Границы оси неизвестны
   B: B
+  B runs faster: B быстрее
   BEACON: BEACON
   BETA: БЕТА
   'BLE connect failed: {}': 'Не удалось подключиться по BLE: {}'
@@ -336,6 +340,7 @@ translations:
   Belt Tension: Натяжение ремня
   Belt Tension Check: Проверка натяжения ремня
   Belt tension looks good!: Натяжение ремня в норме!
+  Belts matched: Ремни совпадают
   Beta: Бета
   'Beta features: OFF': 'Beta-функции: ВЫКЛ'
   'Beta features: ON': 'Beta-функции: ВКЛ'
@@ -626,6 +631,7 @@ translations:
   Clog and flow health while printing: Засоры и поток во время печати
   Clog detection: Обнаружение засора
   Close: Закрыть
+  Close - small adjustment: Близко - небольшая регулировка
   Close feeder: Закрыть фидер
   Close feeder macro: Макрос для закрытия фидера
   Closer: Ближе
@@ -648,6 +654,7 @@ translations:
   Communication Test: 'Проверка связи'
   Compact: Компактный
   Compare: Сравнить
+  Compare both belt paths: Сравнить оба пути ремня
   Comparison: Сравнение
   Complete: Завершено
   Complete!: Готово!
@@ -912,6 +919,7 @@ translations:
   Distance from lane extruder to hub: 'Расстояние от канала экструдера до хаба'
   Distance from toolhead sensor to nozzle tip: 'Расстояние от датчика печатающей головки до кончика сопла'
   Distance moved per jog button tap: Расстояние за одно нажатие кнопки перемещения
+  Do not open the printer while the toolhead is moving: Не открывайте принтер, пока перемещается печатающая головка
   Do not power off your printer.: Не выключайте принтер.
   Do not touch the printer during calibration: Не трогайте принтер во время калибровки
   Dock: Парковать
@@ -1659,6 +1667,7 @@ translations:
     разгоном или ошибкой конфигурации.
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper резервирует 'default' для новых калибровок. Выберите другое имя."
   Klipper restarting - macros activating: 'Перезапуск Klipper - активация макросов'
+  Klipper stopped reporting progress. Check the printer, then try again.: Klipper перестал сообщать о ходе. Проверьте принтер и повторите попытку.
   Klipper will restart to apply changes: Klipper перезапустится для применения изменений
   Klipper will restart to apply changes.: Klipper перезапустится для применения изменений.
   Klipper will restart to apply new settings.: Klipper перезапустится для применения
@@ -1859,6 +1868,7 @@ translations:
   Match: Совпадение
   Match to belt A: Совпадение с ремнём A
   Match your typical print fan speed: Настройте типичную скорость вентилятора печати
+  Matched: Совпадение
   Matching printers: Подходящие принтеры
   Material: Материал
   'Material Comfort:': 'Комфорт материала:'
@@ -1883,7 +1893,9 @@ translations:
   Measured filament diameter: Измеренный диаметр филамента
   Measured pressure advance: 'Измеренный Pressure Advance'
   Measurement Failed: Измерение не удалось
+  Measurement incomplete. Try again.: Измерение не завершено. Повторите попытку.
   Measuring: 'Измерение'
+  Measuring Path {}: Измерение Пути {}
   Measuring accelerometer noise...: 'Измерение шума акселерометра...'
   Measuring vibrations... {}%: 'Измерение вибраций... {}%'
   Measuring wheel error: Ошибка измерительного колеса
@@ -2058,6 +2070,7 @@ translations:
   No printers found: Принтеры не найдены
   No prints yet: Нет печатей
   No profiles available: Профили недоступны
+  No resonance peak found for {}: Для {} не найден пик резонанса
   No sensors detected: Датчики не обнаружены
   No slot currently matches.: 'Сейчас нет подходящего слота.'
   No spool assigned: Катушка не назначена
@@ -2230,7 +2243,10 @@ translations:
   Password cannot be empty: Пароль не может быть пустым
   Password is required for secured networks: Для защищённых сетей требуется пароль
   Path A: Путь A
+  Path A / Path B: Путь A / Путь B
   Path B: Путь B
+  Path {}: Путь {}
+  Path {} before: Путь {} раньше
   Pause: Пауза
   Pause macro not configured: Макрос паузы не настроен
   Pause on Detection: Пауза при обнаружении
@@ -2518,6 +2534,8 @@ translations:
   Re-seat the Bowden tube connector on the CFS unit: Переустановите разъём трубки Боудена на блоке CFS
   Re-syncs Happy Hare's tracked state with the hardware.: Повторно синхронизирует
     отслеживаемое состояние Happy Hare с оборудованием.
+  Re-test A: Повторный тест A
+  Re-test B: Повторный тест B
   Readings from extra temperature sensors: Показания доп. датчиков температуры
   Ready: Готов
   Ready for filament operations: Готово к операциям с филаментом
@@ -3080,6 +3098,7 @@ translations:
   Stop failed: Ошибка остановки
   ? "Stop printing \"{}\"?\n\nThis cannot be undone after 5 seconds."
   : "Остановить печать \"{}\"?\n\nЭто нельзя будет отменить через 5 секунд."
+  Stop the check?: Остановить проверку?
   Stopped: Остановлено
   Stopped between Hub and Toolhead: Остановка между хабом и печатающей головкой
   Stopped between Lane and Hub: Остановка между каналом и хабом
@@ -3099,6 +3118,7 @@ translations:
     модулей прошивки принтера
   Surfaces inherit app background tokens for light and dark modes.: Поверхности наследуют
     токены фона приложения для светлого и тёмного режимов.
+  Sweep: Свип
   Switch Printer: Переключить принтер
   Switch a power device on or off: Включить или выключить питание
   Switch Sensors: Датчики-переключатели
@@ -3181,6 +3201,7 @@ translations:
     для этой печати, если не сохранена в панели управления
   Tertiary: Третичный
   Test All Lanes: 'Проверить все каналы'
+  Test Both Again: Повторить оба
   Test Connection: Тест соединения
   Test Grip: 'Проверить захват'
   Test Load: 'Проверить загрузку'
@@ -3300,6 +3321,8 @@ translations:
     использует метод трения бумаги об сопло для установки Z-смещения.
   This cannot be undone.: Это действие нельзя отменить.
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: 'Этот канал предлагает v{}, старее установленной v{}. Всё добавленное с тех пор будет удалено.'
+  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
+  : "Эта проверка запускает свип-резонанс Klipper по каждой диагонали ремня и сравнивает две кривые. Совпадающие частоты означают сбалансированное натяжение.\n\nКаждый свип занимает несколько минут и перемещает печатающую головку; не открывайте принтер во время его выполнения.\n\nНа CoreXY ремни A и B должны отличаться лишь на несколько Гц."
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: 'Это очистит назначение резервной катушки для всех катушек. Печать будет останавливаться при окончании филамента, пока вы не настроите их заново.'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: У этого устройства нет проводного подключения к сети. Если выключить WiFi, включить его обратно можно будет только с этого экрана.
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3316,6 +3339,7 @@ translations:
   ? This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes.
   : 'Это установит вспомогательные макросы HelixScreen на принтер и добавит их в printer.cfg. Идёт печать, поэтому Klipper перезапустится после её завершения.'
   This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper.: 'Это установит вспомогательные макросы HelixScreen на принтер, добавит их в printer.cfg и перезапустит Klipper.'
+  'This is an emergency stop: the printer halts and Klipper restarts.': 'Это аварийный останов: принтер останавливается, и Klipper перезапускается.'
   This is exactly the data that will be sent: Это именно те данные, которые будут
     отправлены
   This is what data would be sent if enabled: Эти данные были бы отправлены при включении
@@ -3772,6 +3796,7 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env проигнорирован: {}'
   idle: простой
   in unit {} slot {}: 'в блоке {} слот {}'
+  just now: только что
   layers: слои
   left: осталось
   loaded: 'загружен'
@@ -3802,6 +3827,7 @@ translations:
   slots): слотов)
   started: запущено
   steppers: шаговые двигатели
+  sweeping: идёт измерение
   tall: высотой
   target {}°: 'цель {}°'
   tool(s): инструмент(ы)
@@ -3810,6 +3836,8 @@ translations:
   v{} installed! Restarting...: v{} установлена! Перезапуск...
   v{} is available. Tap to update.: v{} доступна. Нажмите для обновления.
   you have: у вас
+  '{:.0f} Hz apart · similarity {:.0f}%': разница {:.0f} Гц · схожесть {:.0f}%
+  '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Гц · примерно {} мин'
   '{} LED strips available': 'Доступно светодиодных лент: {}'
   '{} and {} are both mapped here': '{} и {} оба назначены сюда'
   '{} available': Доступна версия {}
@@ -3837,6 +3865,7 @@ translations:
   '{} matches.': '{} подходит.'
   '{} may cause unintended changes. Are you sure?': '{} может привести к непреднамеренным
     изменениям. Вы уверены?'
+  '{} min ago': '{} мин. назад'
   '{} more taps to {} beta features': '{} нажатий до {} бета-функций'
   '{} needs the HelixPrint plugin. Printing original file.': 'Для {} нужен плагин HelixPrint. Печатается исходный файл.'
   '{} new hardware available': 'Доступно нового оборудования: {}'

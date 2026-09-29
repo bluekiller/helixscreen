@@ -1,9 +1,18 @@
 <?xml version="1.0"?>
 <!-- Copyright (C) 2025-2026 356C LLC -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- Belt Tension Tuning Panel - Measure and compare belt path frequencies -->
-<!-- States: 0=START, 1=POSITION, 2=LISTEN, 3=COMPARE, 4=ERROR -->
+<!-- Belt Tension Panel - Two resonance sweeps, compared -->
+<!-- States: 0=START, 1=RUNNING, 2=RESULTS, 3=ERROR -->
 <component>
+  <styles>
+    <!-- Verdict color follows the verdict the C++ computed; the A/B running
+         title carries the same per-path color the results cards use. -->
+    <style name="verdict_matched" text_color="#success"/>
+    <style name="verdict_close" text_color="#warning"/>
+    <style name="verdict_adjust" text_color="#danger"/>
+    <style name="run_path_a" text_color="#primary"/>
+    <style name="run_path_b" text_color="#warning"/>
+  </styles>
   <view name="panel_belt_tension"
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_border_width="0"
         style_pad_all="0" style_bg_opa="255" style_bg_color="#card_bg" scrollable="false" flex_flow="column">
@@ -33,8 +42,8 @@
                   height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
                   style_pad_gap="#space_sm" scrollable="false">
             <icon src="waveform" size="lg" variant="primary"/>
-            <text_body text="Measure belt path frequencies"
-                       translation_tag="Measure belt path frequencies" flex_grow="1" style_text_color="#text_muted"/>
+            <text_body text="Compare both belt paths"
+                       translation_tag="Compare both belt paths" flex_grow="1" style_text_color="#text_muted"/>
             <ui_button name="btn_help"
                        width="#icon_button_size_lg" height="#icon_button_size_lg" variant="ghost" icon="help_circle">
               <event_cb trigger="clicked" callback="belt_tension_help_cb"/>
@@ -47,24 +56,29 @@
             <text_body text="Kinematics" translation_tag="Kinematics"/>
             <text_body bind_text="bt_hw_kinematics" style_text_color="#primary"/>
           </lv_obj>
-          <!-- ADXL row -->
+          <!-- Accelerometer row -->
           <lv_obj width="100%"
                   height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
                   style_flex_cross_place="center" scrollable="false">
             <text_body text="Accelerometer" translation_tag="Accelerometer"/>
-            <text_body bind_text="bt_hw_adxl" style_text_color="#primary"/>
+            <text_body bind_text="bt_hw_accel" style_text_color="#primary"/>
           </lv_obj>
-          <!-- Target frequency row. Same bt_has_target guard as POSITION: an -->
-          <!-- absolute target is a property of the belt span, so on a model -->
-          <!-- with no measured span offset there is no target to state and -->
-          <!-- showing one would be an invention. -->
+          <!-- Sweep row: the range comes from the printer's [resonance_tester] -->
           <lv_obj width="100%"
                   height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
                   style_flex_cross_place="center" scrollable="false">
-            <bind_flag_if_eq subject="bt_has_target" flag="hidden" ref_value="0"/>
-            <text_body text="Target Frequency" translation_tag="Target Frequency"/>
-            <text_body bind_text="bt_target_freq" style_text_color="#primary"/>
+            <text_body text="Sweep" translation_tag="Sweep"/>
+            <text_body bind_text="bt_hw_sweep" style_text_color="#primary"/>
           </lv_obj>
+        </lv_obj>
+        <!-- Belt path sketch placeholder: the A/B diagram lands here -->
+        <!-- SIZE_OK: 200x200 is this placeholder's own footprint; the belt_path_sketch
+             widget replaces it with a measured diagram. -->
+        <lv_obj name="bt_sketch"
+                width="200" height="200" align="center" style_bg_color="#screen_bg" style_bg_opa="255"
+                style_radius="#border_radius" style_border_width="1" style_border_color="#border" scrollable="false">
+          <text_small text="Path A / Path B"
+                      translation_tag="Path A / Path B" align="center" style_text_color="#text_muted"/>
         </lv_obj>
         <!-- Why Start is refused, shown only when it is -->
         <lv_obj width="100%"
@@ -85,198 +99,137 @@
         </ui_button>
       </lv_obj>
       <!-- ============================================================ -->
-      <!-- STATE 1: POSITION - Park the gantry, show which run to pluck -->
+      <!-- STATE 1: RUNNING - one sweep at a time -->
       <!-- ============================================================ -->
-      <lv_obj name="state_position"
+      <lv_obj name="state_running"
               width="100%" height="content" style_pad_all="0" flex_flow="column" style_pad_gap="#space_md"
               scrollable="false">
         <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="1"/>
-        <pluck_animation name="bt_pluck_anim"/>
-        <!-- Park progress / manual-positioning instruction -->
-        <lv_obj width="100%"
-                height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
-                style_pad_gap="#space_sm" scrollable="false">
-          <icon src="info" size="md" variant="primary"/>
-          <text_body name="bt_park_status_label" flex_grow="1" bind_text="bt_park_status" long_mode="wrap"/>
+        <text_heading width="100%" bind_text="bt_run_title" style_text_align="center">
+          <bind_style_if_eq name="run_path_a" subject="bt_running_path" ref_value="0"/>
+          <bind_style_if_eq name="run_path_b" subject="bt_running_path" ref_value="1"/>
+        </text_heading>
+        <text_body width="100%" bind_text="bt_run_detail" style_text_align="center" style_text_color="#text_muted"/>
+        <!-- Live chart host; hidden on tiers that carry no chart -->
+        <lv_obj name="chart_host_running"
+                width="100%" height="180" style_pad_all="0" style_radius="#border_radius" style_bg_color="#screen_bg"
+                style_bg_opa="255" scrollable="false">
+          <bind_flag_if_eq subject="bt_chart_available" flag="hidden" ref_value="0"/>
         </lv_obj>
-        <!-- Absolute target only means something when the model has a measured -->
-        <!-- span offset. Without one the tuner falls back to A-vs-B matching. -->
-        <lv_obj width="100%"
-                height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
-                style_flex_cross_place="center" scrollable="false">
-          <bind_flag_if_eq subject="bt_has_target" flag="hidden" ref_value="0"/>
-          <text_body text="Target Frequency" translation_tag="Target Frequency"/>
-          <text_body bind_text="bt_target_freq" style_text_color="#primary"/>
-        </lv_obj>
-        <ui_button name="btn_listen"
-                   width="100%" height="#button_height" icon="waveform" text="Start Listening"
-                   translation_tag="Start Listening" variant="primary">
-          <event_cb trigger="clicked" callback="belt_tension_listen_cb"/>
+        <ui_button name="btn_stop"
+                   width="100%" height="#button_height" icon="close" text="Stop" translation_tag="Stop" variant="danger">
+          <event_cb trigger="clicked" callback="belt_tension_stop_cb"/>
         </ui_button>
-        <ui_button name="btn_cancel"
-                   width="100%" height="#button_height" icon="close" text="Cancel" translation_tag="Cancel"
-                   variant="danger">
-          <event_cb trigger="clicked" callback="belt_tension_cancel_cb"/>
-        </ui_button>
+        <text_small width="100%"
+                    text="Do not open the printer while the toolhead is moving"
+                    translation_tag="Do not open the printer while the toolhead is moving" style_text_align="center"
+                    style_text_color="#text_muted"/>
       </lv_obj>
       <!-- ============================================================ -->
-      <!-- STATE 2: LISTEN - Live meter, one belt at a time -->
+      <!-- STATE 2: RESULTS - both paths measured, compared -->
       <!-- ============================================================ -->
-      <lv_obj name="state_listen"
+      <lv_obj name="state_results"
               width="100%" height="content" style_pad_all="0" flex_flow="column" style_pad_gap="#space_md"
               scrollable="false">
         <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="2"/>
-        <!-- Readout card: name/frequency/count on the left, the match-to-A -->
-        <!-- bar on the right when there is a reference to match against. One -->
-        <!-- card rather than two stacked blocks, so the traces below get the -->
-        <!-- vertical space back. font_xl is the largest font token the theme -->
-        <!-- defines; there is no text_hero widget. The number has to be -->
-        <!-- readable at arm's length, standing at the machine with a hand on -->
-        <!-- the belt. -->
+        <text_heading name="bt_verdict_text" width="100%" bind_text="bt_verdict_text" style_text_align="center">
+          <bind_style_if_eq name="verdict_matched" subject="bt_verdict" ref_value="0"/>
+          <bind_style_if_eq name="verdict_close" subject="bt_verdict" ref_value="1"/>
+          <bind_style_if_eq name="verdict_adjust" subject="bt_verdict" ref_value="2"/>
+        </text_heading>
+        <text_body width="100%" bind_text="bt_facts" style_text_align="center" style_text_color="#text_muted"/>
+        <!-- Delta rail: A-minus-B in tenths of a Hz over +/-15 Hz. The bands -->
+        <!-- mirror the verdict constants in belt_tension_types.h: MATCHED is -->
+        <!-- +/-3 Hz = 3/15 = 20% of the span, CLOSE is +/-8 Hz = 8/15 = 53%. -->
+        <!-- Keep these widths in step with MATCHED_DELTA_HZ/CLOSE_DELTA_HZ -->
+        <!-- over BeltTensionPanel::RAIL_SPAN_HZ; the panel test pins them. -->
+        <!-- SIZE_OK: 12px track and 2px end caps are this rail's own geometry; the
+             nearest tokens belong to unrelated components. -->
+        <lv_obj name="rail_track"
+                width="100%" height="12" style_pad_all="0" style_radius="6" style_bg_color="#screen_bg"
+                style_bg_opa="255" scrollable="false">
+          <lv_obj name="rail_band_close"
+                  width="53%" height="100%" align="center" style_bg_color="#warning" style_bg_opa="60" style_radius="6"
+                  style_pad_all="0" scrollable="false"/>
+          <lv_obj name="rail_band_matched"
+                  width="20%" height="100%" align="center" style_bg_color="#primary" style_bg_opa="120" style_radius="6"
+                  style_pad_all="0" scrollable="false"/>
+          <lv_obj name="rail_end_a"
+                  width="2" height="100%" align="left_mid" style_bg_color="#border" style_pad_all="0" scrollable="false"/>
+          <lv_obj name="rail_end_b"
+                  width="2" height="100%" align="right_mid" style_bg_color="#border" style_pad_all="0"
+                  scrollable="false"/>
+        </lv_obj>
         <lv_obj width="100%"
-                height="content" style_bg_color="#screen_bg" style_bg_opa="255" style_radius="#border_radius"
-                style_pad_all="#space_lg" flex_flow="row" style_pad_gap="#space_md" scrollable="false">
-          <lv_obj width="0"
-                  height="content" flex_grow="1" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xs"
-                  scrollable="false">
-            <text_body name="bt_belt_label" bind_text="bt_current_belt" style_text_color="#text_muted"/>
-            <text_heading name="bt_live_freq_label" bind_text="bt_live_freq" style_text_font="#font_xl"/>
-            <text_small name="bt_pluck_count_label" bind_text="bt_pluck_count" style_text_color="#text_muted"/>
-            <text_small name="bt_median_freq_label" bind_text="bt_median_freq" style_text_color="#text_muted"/>
-          </lv_obj>
-          <!-- Hidden until belt A has committed a median, because there is -->
-          <!-- nothing to match against before then. -->
-          <lv_obj width="0"
-                  height="content" flex_grow="1" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xs"
-                  scrollable="false">
-            <bind_flag_if_eq subject="bt_has_reference" flag="hidden" ref_value="0"/>
-            <lv_obj width="100%"
-                    height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
-                    scrollable="false">
-              <text_body text="Match to belt A" translation_tag="Match to belt A"/>
-              <text_body name="bt_reference_freq_label" bind_text="bt_reference_freq" style_text_color="#primary"/>
-            </lv_obj>
-            <progress_bar name="bt_match_bar" width="100%" bind_value="bt_match_percent"/>
-          </lv_obj>
+                height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
+                scrollable="false">
+          <text_small text="B runs faster" translation_tag="B runs faster" style_text_color="#text_muted"/>
+          <text_small text="Matched" translation_tag="Matched" style_text_color="#primary"/>
+          <text_small text="A runs faster" translation_tag="A runs faster" style_text_color="#text_muted"/>
         </lv_obj>
-        <!-- Live waveform (left) and spectrum (right) strips. A fixed pixel -->
-        <!-- height, not a token or "content": belt_trace children are -->
-        <!-- height="100%" and need a real number to resolve against - the -->
-        <!-- theme has no space token this large (space_2xl tops out at -->
-        <!-- 24/32/40px; see theme_manager.cpp's spacing scale). Moving the -->
-        <!-- match bar into the readout card above frees roughly this much -->
-        <!-- again, so this is close to double the previous 90px. -->
-        <lv_obj name="bt_trace_container"
-                width="100%" height="180" style_pad_all="0" flex_flow="row" style_pad_gap="#space_sm" scrollable="false">
-          <belt_trace name="bt_waveform" height="100%" mode="waveform" flex_grow="1" style_line_color="#primary"/>
-          <belt_trace name="bt_spectrum" height="100%" mode="spectrum" flex_grow="1" style_line_color="#success"/>
+        <lv_slider name="bt_rail"
+                   width="100%" min_value="-150" max_value="150" bind_value="bt_rail_value" style_bg_color="#screen_bg"/>
+        <!-- Results chart host; hidden on tiers that carry no chart -->
+        <lv_obj name="chart_host_results"
+                width="100%" height="180" style_pad_all="0" style_radius="#border_radius" style_bg_color="#screen_bg"
+                style_bg_opa="255" scrollable="false">
+          <bind_flag_if_eq subject="bt_chart_available" flag="hidden" ref_value="0"/>
         </lv_obj>
-        <text_body name="bt_hint_label"
-                   width="100%" bind_text="bt_hint" style_text_align="center" style_text_color="#text_muted"
-                   long_mode="wrap"/>
-        <!-- Compare/advance and start-over side by side - both are things -->
-        <!-- the user reaches for constantly while tensioning, not a primary -->
-        <!-- action and an escape hatch. -->
+        <!-- Path cards -->
         <lv_obj width="100%"
                 height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_sm" scrollable="false">
-          <!-- One button advances the flow; its label is bound, so it reads -->
-          <!-- "Next belt" on A and "Compare" on B. Disabled until the median -->
-          <!-- has committed - advancing on two plucks would ship a guess. -->
-          <ui_button name="btn_next_belt"
-                     width="0" height="#button_height" flex_grow="1" bind_text="bt_advance_label" variant="primary">
-            <bind_state_if_eq subject="bt_committed" state="disabled" ref_value="0"/>
-            <event_cb trigger="clicked" callback="belt_tension_next_belt_cb"/>
+          <lv_obj width="0"
+                  height="content" flex_grow="1" style_bg_color="#screen_bg" style_bg_opa="255"
+                  style_radius="#border_radius" style_pad_all="#space_md" flex_flow="column" style_pad_gap="#space_xs"
+                  scrollable="false">
+            <text_body width="100%" text="Path A" translation_tag="Path A"/>
+            <text_heading name="bt_peak_a"
+                          width="100%" bind_text="bt_peak_a" style_text_align="center" style_text_color="#primary"/>
+            <text_small width="100%" bind_text="bt_note_a" style_text_align="center" style_text_color="#text_muted"/>
+          </lv_obj>
+          <lv_obj width="0"
+                  height="content" flex_grow="1" style_bg_color="#screen_bg" style_bg_opa="255"
+                  style_radius="#border_radius" style_pad_all="#space_md" flex_flow="column" style_pad_gap="#space_xs"
+                  scrollable="false">
+            <text_body width="100%" text="Path B" translation_tag="Path B"/>
+            <text_heading name="bt_peak_b"
+                          width="100%" bind_text="bt_peak_b" style_text_align="center" style_text_color="#warning"/>
+            <text_small width="100%" bind_text="bt_note_b" style_text_align="center" style_text_color="#text_muted"/>
+          </lv_obj>
+        </lv_obj>
+        <ui_button name="btn_test_both"
+                   width="100%" height="#button_height" icon="restart" text="Test Both Again"
+                   translation_tag="Test Both Again" variant="primary">
+          <event_cb trigger="clicked" callback="belt_tension_start_cb"/>
+        </ui_button>
+        <lv_obj width="100%"
+                height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_sm" scrollable="false">
+          <ui_button name="btn_retest_a"
+                     width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test A"
+                     translation_tag="Re-test A" variant="secondary">
+            <event_cb trigger="clicked" callback="belt_tension_retest_a_cb"/>
           </ui_button>
-          <!-- Not "Cancel" - this does not cancel out of the panel (the -->
-          <!-- header back button does that). It stops the stream, resets, -->
-          <!-- and returns to START while staying put, which is the only way -->
-          <!-- back to re-measure belt A once the flow has moved on to B. -->
-          <!-- L025: an icon+text button sharing a flex_flow="row" needs all -->
-          <!-- three flex place styles set to center, or its content sits at -->
-          <!-- the top of the button. -->
-          <ui_button name="btn_listen_cancel"
-                     width="0" height="#button_height" flex_grow="1" icon="close" text="Start over"
-                     translation_tag="Start over" variant="danger" flex_flow="row" style_flex_main_place="center"
-                     style_flex_cross_place="center" style_flex_track_place="center">
-            <event_cb trigger="clicked" callback="belt_tension_cancel_cb"/>
+          <ui_button name="btn_retest_b"
+                     width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test B"
+                     translation_tag="Re-test B" variant="secondary">
+            <event_cb trigger="clicked" callback="belt_tension_retest_b_cb"/>
           </ui_button>
         </lv_obj>
       </lv_obj>
       <!-- ============================================================ -->
-      <!-- STATE 3: COMPARE - A vs B, delta, verdict -->
-      <!-- ============================================================ -->
-      <lv_obj name="state_compare"
-              width="100%" height="content" style_pad_all="0" flex_flow="column" style_pad_gap="#space_md"
-              scrollable="false">
-        <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="3"/>
-        <!-- Result cards row -->
-        <lv_obj width="100%"
-                height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_md" scrollable="false">
-          <!-- Path A card -->
-          <belt_result_card title="Path A"
-                            title_tag="Path A" freq_subject="bt_result_a_freq" status_subject="bt_result_a_status"/>
-          <!-- Path B card -->
-          <belt_result_card title="Path B"
-                            title_tag="Path B" freq_subject="bt_result_b_freq" status_subject="bt_result_b_status"/>
-        </lv_obj>
-        <!-- Comparison & recommendation card -->
-        <lv_obj width="100%"
-                height="content" style_bg_color="#screen_bg" style_bg_opa="255" style_radius="#border_radius"
-                style_pad_top="#space_sm" style_pad_bottom="#space_lg" style_pad_left="#space_lg"
-                style_pad_right="#space_lg" flex_flow="column" style_pad_gap="#space_sm" scrollable="false">
-          <!-- Title row with help button -->
-          <lv_obj width="100%"
-                  height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
-                  style_pad_gap="#space_sm" scrollable="false">
-            <text_body text="Comparison" translation_tag="Comparison" flex_grow="1" style_text_color="#text_muted"/>
-            <ui_button name="btn_results_help"
-                       width="#icon_button_size_lg" height="#icon_button_size_lg" variant="ghost" icon="help_circle">
-              <event_cb trigger="clicked" callback="belt_tension_results_help_cb"/>
-            </ui_button>
-          </lv_obj>
-          <!-- Delta -->
-          <lv_obj width="100%"
-                  height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
-                  style_flex_cross_place="center" scrollable="false">
-            <text_body text="Frequency Delta" translation_tag="Frequency Delta"/>
-            <text_body name="bt_result_delta_label" bind_text="bt_result_delta" style_text_color="#primary"/>
-          </lv_obj>
-          <!-- Match. Not "Path Similarity": that named a Pearson correlation -->
-          <!-- between two swept PSD curves, and the live tuner compares two -->
-          <!-- committed medians instead. -->
-          <lv_obj width="100%"
-                  height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
-                  style_flex_cross_place="center" scrollable="false">
-            <text_body text="Match" translation_tag="Match"/>
-            <text_body name="bt_result_similarity_label" bind_text="bt_result_similarity" style_text_color="#primary"/>
-          </lv_obj>
-          <!-- Recommendation -->
-          <lv_obj width="100%"
-                  height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
-                  style_pad_gap="#space_sm" scrollable="false">
-            <icon src="info" size="md" variant="primary"/>
-            <text_body flex_grow="1" bind_text="bt_result_recommendation" long_mode="wrap"/>
-          </lv_obj>
-        </lv_obj>
-      </lv_obj>
-      <!-- ============================================================ -->
-      <!-- STATE 4: ERROR -->
+      <!-- STATE 3: ERROR -->
       <!-- ============================================================ -->
       <lv_obj name="state_error"
               width="100%" height="content" style_pad_all="0" flex_flow="column" style_pad_gap="#space_md"
               scrollable="false">
-        <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="4"/>
-        <!-- Error card -->
+        <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="3"/>
         <lv_obj width="100%"
-                height="content" style_bg_color="#danger" style_bg_opa="25" style_radius="#border_radius"
-                style_border_width="1" style_border_color="#danger" style_pad_all="#space_lg" flex_flow="column"
-                style_flex_cross_place="center" style_pad_gap="#space_md" scrollable="false">
-          <icon src="alert" size="lg" variant="danger"/>
-          <text_heading text="Measurement Failed"
-                        translation_tag="Measurement Failed" style_text_align="center" style_text_color="#danger"/>
-          <text_body width="100%" bind_text="bt_error_message" long_mode="wrap" style_text_align="center"/>
+                height="content" style_bg_color="#screen_bg" style_bg_opa="255" style_radius="#border_radius"
+                style_pad_all="#space_lg" flex_flow="column" style_pad_gap="#space_sm" scrollable="false">
+          <icon src="alert" size="lg" variant="warning" align="center"/>
+          <text_body name="error_label"
+                     width="100%" bind_text="bt_error_message" long_mode="wrap" style_text_align="center"/>
         </lv_obj>
-        <!-- Retry button -->
         <ui_button name="btn_retry"
                    width="100%" height="#button_height" icon="refresh" text="Retry" translation_tag="Retry"
                    variant="primary">

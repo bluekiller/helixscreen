@@ -2612,35 +2612,6 @@ void MoonrakerAdvancedAPI::run_z_tilt_adjust(SuccessCallback /*on_success*/,
     }
 }
 
-namespace {
-
-/// Ask the printer what [resonance_tester] range it will actually sweep.
-/// The range varies — Klipper's default ceiling is 133.33 Hz, Kalico's is
-/// 135, and the section can set anything — so it is queried rather than
-/// assumed: mapping sweep progress against a guessed ceiling pins the bar at
-/// an arbitrary point mid-run and can report analysis while the toolhead is
-/// still moving. `on_done` receives defaults on any error or missing section,
-/// which leaves the caller's own fallbacks in force.
-void query_resonance_tester_config(
-    IMoonrakerClient& client, std::function<void(calibration::ResonanceTesterConfig)> on_done) {
-    json params = {{"objects", json::object({{"configfile", json::array({"settings"})}})}};
-    client.send_jsonrpc(
-        "printer.objects.query", params,
-        [on_done](const json& response) {
-            if (!response.contains("result") || !response["result"].contains("status") ||
-                !response["result"]["status"].contains("configfile") ||
-                !response["result"]["status"]["configfile"].contains("settings")) {
-                on_done(calibration::ResonanceTesterConfig{});
-                return;
-            }
-            on_done(calibration::parse_resonance_tester_config(
-                response["result"]["status"]["configfile"]["settings"]));
-        },
-        [on_done](const MoonrakerError&) { on_done(calibration::ResonanceTesterConfig{}); });
-}
-
-} // namespace
-
 void MoonrakerAdvancedAPI::start_resonance_test(char axis, ShaperProgressCallback on_progress,
                                                 InputShaperCallback on_complete,
                                                 ErrorCallback on_error) {
@@ -2655,11 +2626,12 @@ void MoonrakerAdvancedAPI::start_resonance_test(char axis, ShaperProgressCallbac
     // reply lands in milliseconds while SHAPER_CALIBRATE still has to home
     // and travel to the probe point, and if it never lands the collector
     // keeps its defaults.
-    query_resonance_tester_config(client_, [collector](calibration::ResonanceTesterConfig cfg) {
-        if (cfg.from_printer) {
-            collector->set_sweep_range(cfg.min_freq, cfg.max_freq);
-        }
-    });
+    calibration::query_resonance_tester_config(
+        client_, [collector](calibration::ResonanceTesterConfig cfg) {
+            if (cfg.from_printer) {
+                collector->set_sweep_range(cfg.min_freq, cfg.max_freq);
+            }
+        });
 
     // Send the G-code command
     // SHAPER_CALIBRATE sweeps the configured range (~2 min at the 5-135 Hz
@@ -3312,9 +3284,9 @@ MoonrakerAdvancedAPI::BeltRunCancel MoonrakerAdvancedAPI::test_belt_resonance(
     // Ask the printer what range it will sweep, so progress is scaled by the
     // printer's own [resonance_tester] rather than a guess. The reply always
     // arrives (defaults on error), so the collector's progress hold is finite.
-    query_resonance_tester_config(client_, [collector](calibration::ResonanceTesterConfig cfg) {
-        collector->set_config(cfg);
-    });
+    calibration::query_resonance_tester_config(
+        client_,
+        [collector](calibration::ResonanceTesterConfig cfg) { collector->set_config(cfg); });
 
     const std::string gcode =
         fmt::format("TEST_RESONANCES AXIS={} OUTPUT=resonances NAME={}", axis_param, output_name);

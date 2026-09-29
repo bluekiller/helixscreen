@@ -146,6 +146,17 @@ bool ui_frequency_response_chart_is_series_muted(ui_frequency_response_chart_t* 
                                                  int series_id);
 
 /**
+ * @brief Report whether a series is currently visible
+ *
+ * @param chart Chart instance
+ * @param series_id Series ID
+ * @return true when visible, false when hidden (or for an unknown series)
+ */
+// NAMESPACE_OK: matches this file's C-style chart API
+bool ui_frequency_response_chart_is_series_visible(ui_frequency_response_chart_t* chart,
+                                                   int series_id);
+
+/**
  * @brief Per-series draw style for the custom draw pass
  *
  * A series whose effective style has glow or fill set is drawn entirely by

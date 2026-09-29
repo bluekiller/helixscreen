@@ -3,6 +3,7 @@ translations:
   ' (timed out)': ' (timed out)'
   ' frames': ' frames'
   ' left': ' left'
+  ' · was {:.0f}': ' · was {:.0f}'
   '"%s" failed to load': '"%s" failed to load'
   '%.0f Hz difference': '%.0f Hz difference'
   '%d additional fan%s': '%d additional fan%s'
@@ -111,6 +112,7 @@ translations:
   A picture of your printer: A picture of your printer
   A print is in progress - restart still pending: A print is in progress - restart still pending
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.
+  A runs faster: A runs faster
   A spool may be tangled or the drive gear is jammed: A spool may be tangled or the drive gear is jammed
   ABS: ABS
   ACCELEROMETERS: ACCELEROMETERS
@@ -177,6 +179,7 @@ translations:
   Address: Address
   Adjust screen brightness level: Adjust screen brightness level
   Adjust screws, then re-probe.: Adjust screws, then re-probe.
+  Adjustment needed: Adjustment needed
   Adjustments stay active until restart. Save after print completes.: Adjustments
     stay active until restart. Save after print completes.
   Adjusts individual characteristics of your heaters for optimal control: Adjusts
@@ -280,6 +283,7 @@ translations:
   Average: Average
   Axis limits unknown: Axis limits unknown
   B: B
+  B runs faster: B runs faster
   BEACON: BEACON
   BETA: BETA
   'BLE connect failed: {}': 'BLE connect failed: {}'
@@ -329,6 +333,7 @@ translations:
   Belt Tension: Belt Tension
   Belt Tension Check: Belt Tension Check
   Belt tension looks good!: Belt tension looks good!
+  Belts matched: Belts matched
   Beta: Beta
   'Beta features: OFF': 'Beta features: OFF'
   'Beta features: ON': 'Beta features: ON'
@@ -611,6 +616,7 @@ translations:
   Clog and flow health while printing: Clog and flow health while printing
   Clog detection: Clog detection
   Close: Close
+  Close - small adjustment: Close - small adjustment
   Close feeder: Close feeder
   Close feeder macro: Close feeder macro
   Closer: Closer
@@ -632,6 +638,7 @@ translations:
   Communication Test: Communication Test
   Compact: Compact
   Compare: Compare
+  Compare both belt paths: Compare both belt paths
   Comparison: Comparison
   Complete: Complete
   Complete!: Complete!
@@ -892,6 +899,7 @@ translations:
   Distance from lane extruder to hub: Distance from lane extruder to hub
   Distance from toolhead sensor to nozzle tip: Distance from toolhead sensor to nozzle tip
   Distance moved per jog button tap: Distance moved per jog button tap
+  Do not open the printer while the toolhead is moving: Do not open the printer while the toolhead is moving
   Do not power off your printer.: Do not power off your printer.
   Do not touch the printer during calibration: Do not touch the printer during calibration
   Dock: Dock
@@ -1622,6 +1630,7 @@ translations:
     or configuration error.
   Klipper reserves 'default' for new calibrations. Choose another name.: Klipper reserves 'default' for new calibrations. Choose another name.
   Klipper restarting - macros activating: Klipper restarting - macros activating
+  Klipper stopped reporting progress. Check the printer, then try again.: Klipper stopped reporting progress. Check the printer, then try again.
   Klipper will restart to apply changes: Klipper will restart to apply changes
   Klipper will restart to apply changes.: Klipper will restart to apply changes.
   Klipper will restart to apply new settings.: Klipper will restart to apply new settings.
@@ -1814,6 +1823,7 @@ translations:
   Match: Match
   Match to belt A: Match to belt A
   Match your typical print fan speed: Match your typical print fan speed
+  Matched: Matched
   Matching printers: Matching printers
   Material: Material
   'Material Comfort:': 'Material Comfort:'
@@ -1838,7 +1848,9 @@ translations:
   Measured filament diameter: Measured filament diameter
   Measured pressure advance: Measured pressure advance
   Measurement Failed: Measurement Failed
+  Measurement incomplete. Try again.: Measurement incomplete. Try again.
   Measuring: Measuring
+  Measuring Path {}: Measuring Path {}
   Measuring accelerometer noise...: Measuring accelerometer noise...
   Measuring vibrations... {}%: Measuring vibrations... {}%
   Measuring wheel error: Measuring wheel error
@@ -2014,6 +2026,7 @@ translations:
   No printers found: No printers found
   No prints yet: No prints yet
   No profiles available: No profiles available
+  No resonance peak found for {}: No resonance peak found for {}
   No sensors detected: No sensors detected
   No slot currently matches.: No slot currently matches.
   No spool assigned: No spool assigned
@@ -2183,7 +2196,10 @@ translations:
   Password cannot be empty: Password cannot be empty
   Password is required for secured networks: Password is required for secured networks
   Path A: Path A
+  Path A / Path B: Path A / Path B
   Path B: Path B
+  Path {}: Path {}
+  Path {} before: Path {} before
   Pause: Pause
   Pause macro not configured: Pause macro not configured
   Pause on Detection: Pause on Detection
@@ -2466,6 +2482,8 @@ translations:
   Re-seat the Bowden tube connector on the CFS unit: Re-seat the Bowden tube connector on the CFS unit
   Re-syncs Happy Hare's tracked state with the hardware.: Re-syncs Happy Hare's tracked
     state with the hardware.
+  Re-test A: Re-test A
+  Re-test B: Re-test B
   Readings from extra temperature sensors: Readings from extra temperature sensors
   Ready: Ready
   Ready for filament operations: Ready for filament operations
@@ -3014,6 +3032,7 @@ translations:
   Stop failed: Stop failed
   ? "Stop printing \"{}\"?\n\nThis cannot be undone after 5 seconds."
   : "Stop printing \"{}\"?\n\nThis cannot be undone after 5 seconds."
+  Stop the check?: Stop the check?
   Stopped: Stopped
   Stopped between Hub and Toolhead: Stopped between Hub and Toolhead
   Stopped between Lane and Hub: Stopped between Lane and Hub
@@ -3033,6 +3052,7 @@ translations:
     from printer firmware modules
   Surfaces inherit app background tokens for light and dark modes.: Surfaces inherit
     app background tokens for light and dark modes.
+  Sweep: Sweep
   Switch Printer: Switch Printer
   Switch a power device on or off: Switch a power device on or off
   Switch Sensors: Switch Sensors
@@ -3115,6 +3135,7 @@ translations:
     for this print, unless saved on Controls panel
   Tertiary: Tertiary
   Test All Lanes: Test All Lanes
+  Test Both Again: Test Both Again
   Test Connection: Test Connection
   Test Grip: Test Grip
   Test Load: Test Load
@@ -3227,6 +3248,8 @@ translations:
     uses the paper friction method to set your Z-offset.
   This cannot be undone.: This cannot be undone.
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: This channel offers v{}, older than the installed v{}. Anything added since then will be removed.
+  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
+  : "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: This clears every spool's failover assignment. The print will stop on runout until you set up failover again.
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3243,6 +3266,7 @@ translations:
   ? This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes.
   : This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes.
   This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper.: This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper.
+  'This is an emergency stop: the printer halts and Klipper restarts.': 'This is an emergency stop: the printer halts and Klipper restarts.'
   This is exactly the data that will be sent: This is exactly the data that will be
     sent
   This is what data would be sent if enabled: This is what data would be sent if enabled
@@ -3701,6 +3725,7 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env ignored: {}'
   idle: idle
   in unit {} slot {}: in unit {} slot {}
+  just now: just now
   layers: layers
   left: left
   loaded: loaded
@@ -3726,6 +3751,7 @@ translations:
   slots): slots)
   started: started
   steppers: steppers
+  sweeping: sweeping
   tall: tall
   target {}°: target {}°
   tool(s): tool(s)
@@ -3734,6 +3760,8 @@ translations:
   v{} installed! Restarting...: v{} installed! Restarting...
   v{} is available. Tap to update.: v{} is available. Tap to update.
   you have: you have
+  '{:.0f} Hz apart · similarity {:.0f}%': '{:.0f} Hz apart · similarity {:.0f}%'
+  '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · about {} min'
   '{} LED strips available': '{} LED strips available'
   '{} and {} are both mapped here': '{} and {} are both mapped here'
   '{} available': '{} available'
@@ -3761,6 +3789,7 @@ translations:
   '{} matches.': '{} matches.'
   '{} may cause unintended changes. Are you sure?': '{} may cause unintended changes.
     Are you sure?'
+  '{} min ago': '{} min ago'
   '{} more taps to {} beta features': '{} more taps to {} beta features'
   '{} needs the HelixPrint plugin. Printing original file.': '{} needs the HelixPrint plugin. Printing original file.'
   '{} new hardware available': '{} new hardware available'

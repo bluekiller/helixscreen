@@ -3,6 +3,7 @@ translations:
   ' (timed out)': （タイムアウト）
   ' frames': ' フレーム'
   ' left': ' 残り'
+  ' · was {:.0f}': ' · 以前は {:.0f}'
   '"%s" failed to load': '"%s" の読み込みに失敗しました'
   '%.0f Hz difference': '%.0f Hz の差'
   '%d additional fan%s': 追加ファン %d 個%s
@@ -113,6 +114,7 @@ translations:
   A picture of your printer: プリンターの画像
   A print is in progress - restart still pending: '印刷中です - 再起動は保留中'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: このゲートで印刷中です。HelixScreen 側のコピーはクリアしました。印刷終了後に再度クリアしてください。
+  A runs faster: Aが速い
   A spool may be tangled or the drive gear is jammed: スプールが絡まっているか、駆動ギアが詰まっている可能性があります
   ABS: ABS
   ACCELEROMETERS: 加速度センサー
@@ -175,6 +177,7 @@ translations:
   Address: アドレス
   Adjust screen brightness level: 画面の明るさを調整します
   Adjust screws, then re-probe.: ネジを調整して、再度プローブしてください。
+  Adjustment needed: 調整が必要です
   Adjustments stay active until restart. Save after print completes.: 調整は再起動まで有効です。印刷完了後に保存してください。
   Adjusts individual characteristics of your heaters for optimal control: ヒーターの個別特性を調整して最適な制御を実現します
   Advanced: 詳細設定
@@ -267,6 +270,7 @@ translations:
   Average: 平均
   Axis limits unknown: 軸の限界は不明です
   B: B
+  B runs faster: Bが速い
   BEACON: BEACON
   BETA: BETA
   'BLE connect failed: {}': 'BLE 接続に失敗しました: {}'
@@ -317,6 +321,7 @@ translations:
   Belt Tension: ベルトテンション
   Belt Tension Check: ベルトテンション確認
   Belt tension looks good!: ベルトテンションは良好です！
+  Belts matched: ベルトが一致しています
   Beta: ベータ
   'Beta features: OFF': 'ベータ機能: OFF'
   'Beta features: ON': 'ベータ機能: ON'
@@ -579,6 +584,7 @@ translations:
   Clog and flow health while printing: 印刷中の詰まりとフローの状態
   Clog detection: 詰まり検出
   Close: 閉じる
+  Close - small adjustment: わずかな差 - 微調整
   Close feeder: フィーダーを閉じる
   Close feeder macro: フィーダーを閉じるマクロ
   Closer: 近く
@@ -599,6 +605,7 @@ translations:
   Communication Test: '通信テスト'
   Compact: コンパクト
   Compare: 比較
+  Compare both belt paths: 両方のベルト経路を比較
   Comparison: 比較
   Complete: 完了
   Complete!: 完了！
@@ -855,6 +862,7 @@ translations:
   Distance from lane extruder to hub: 'レーンのエクストルーダーからハブまでの距離'
   Distance from toolhead sensor to nozzle tip: 'ツールヘッドセンサーからノズル先端までの距離'
   Distance moved per jog button tap: ジョグボタン1回あたりの移動距離
+  Do not open the printer while the toolhead is moving: ツールヘッドが動いている間はプリンターを開かないでください
   Do not power off your printer.: プリンターの電源を切らないでください。
   Do not touch the printer during calibration: キャリブレーション中はプリンターに触れないでください
   Dock: ドック
@@ -1561,6 +1569,7 @@ translations:
     がシャットダウン状態になりました。緊急停止、熱暴走、または設定エラーが原因の可能性があります。
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper は 'default' を新しいキャリブレーション用に予約しています。別の名前を選んでください。"
   Klipper restarting - macros activating: 'Klipper を再起動しています - マクロを有効化中'
+  Klipper stopped reporting progress. Check the printer, then try again.: Klipperが進捗の報告を停止しました。プリンターを確認して、再試行してください。
   Klipper will restart to apply changes: 変更を適用するために Klipper が再起動します
   Klipper will restart to apply changes.: 変更を適用するために Klipper が再起動します。
   Klipper will restart to apply new settings.: 新しい設定を適用するためKlipperが再起動します。
@@ -1750,6 +1759,7 @@ translations:
   Match: 一致度
   Match to belt A: ベルトAに合わせる
   Match your typical print fan speed: 通常の印刷ファン速度に合わせてください
+  Matched: 一致
   Matching printers: 一致するプリンター
   Material: 素材
   'Material Comfort:': '素材の適合度:'
@@ -1774,7 +1784,9 @@ translations:
   Measured filament diameter: 測定したフィラメント直径
   Measured pressure advance: '測定された Pressure Advance'
   Measurement Failed: 測定失敗
+  Measurement incomplete. Try again.: 測定が不完全です。再試行してください。
   Measuring: '測定中'
+  Measuring Path {}: パス{}を測定中
   Measuring accelerometer noise...: '加速度センサーのノイズを測定中...'
   Measuring vibrations... {}%: '振動を測定中... {}%'
   Measuring wheel error: 計測ホイールのエラー
@@ -1941,6 +1953,7 @@ translations:
   No printers found: プリンターが見つかりません
   No prints yet: 印刷履歴なし
   No profiles available: 利用可能なプロファイルがありません
+  No resonance peak found for {}: '{}の共振ピークが見つかりません'
   No sensors detected: センサーが検出されませんでした
   No slot currently matches.: '現在、一致するスロットはありません。'
   No spool assigned: スプール未割当
@@ -2111,7 +2124,10 @@ translations:
   Password cannot be empty: パスワードを入力してください
   Password is required for secured networks: セキュリティ保護されたネットワークにはパスワードが必要です
   Path A: パス A
+  Path A / Path B: パス A / パス B
   Path B: パス B
+  Path {}: パス {}
+  Path {} before: パス{}（以前）
   Pause: 一時停止
   Pause macro not configured: 一時停止マクロが未設定です
   Pause on Detection: 検出時に一時停止
@@ -2385,6 +2401,8 @@ translations:
   Re-read spool RFID tags and remaining length: 'スプールのRFIDタグと残量を再読み込み'
   Re-seat the Bowden tube connector on the CFS unit: CFS ユニットのボーデンチューブ接続を差し直してください
   Re-syncs Happy Hare's tracked state with the hardware.: Happy Hare が追跡している状態をハードウェアと再同期します。
+  Re-test A: Aを再テスト
+  Re-test B: Bを再テスト
   Readings from extra temperature sensors: 追加の温度センサーの値
   Ready: 準備完了
   Ready for filament operations: フィラメント操作の準備ができています
@@ -2909,6 +2927,7 @@ translations:
   Stop failed: 停止に失敗
   ? "Stop printing \"{}\"?\n\nThis cannot be undone after 5 seconds."
   : "\"{}\" の印刷を停止しますか？\n\n5秒後は取り消せません。"
+  Stop the check?: チェックを停止しますか？
   Stopped: 停止しました
   Stopped between Hub and Toolhead: ハブとツールヘッドの間で停止
   Stopped between Lane and Hub: レーンとハブの間で停止
@@ -2924,6 +2943,7 @@ translations:
   Suppress periodic temperature status lines: 定期的な温度ステータス行を抑制
   Suppress raw debug output from printer firmware modules: プリンターファームウェアモジュールからの生のデバッグ出力を抑制
   Surfaces inherit app background tokens for light and dark modes.: サーフェスはライトモードとダークモードのアプリ背景トークンを継承します。
+  Sweep: スイープ
   Switch Printer: プリンターを切り替え
   Switch a power device on or off: 電源デバイスのオン/オフ切り替え
   Switch Sensors: スイッチセンサー
@@ -3002,6 +3022,7 @@ translations:
   Temporary adjustment for this print, unless saved on Controls panel: コントロールパネルで保存しない限り、この印刷のみの一時的な調整です
   Tertiary: ターシャリ
   Test All Lanes: '全レーンをテスト'
+  Test Both Again: 両方を再テスト
   Test Connection: 接続テスト
   Test Grip: 'グリップをテスト'
   Test Load: 'ロードをテスト'
@@ -3109,6 +3130,8 @@ translations:
     Z-offset を設定します。
   This cannot be undone.: この操作は元に戻せません。
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: 'このチャンネルが提供するのは v{} で、インストール済みの v{} より古いバージョンです。それ以降に追加されたものは削除されます。'
+  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
+  : "このチェックはKlipperの共振スイープを各ベルト対角に沿って実行し、2つの曲線を比較します。周波数が一致していればテンションはバランスが取れています。\n\n各スイープには数分かかり、ツールヘッドが動きます。実行中はプリンターを開かないでください。\n\nCoreXYでは、ベルトAとBの差が数Hz以内であるべきです。"
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: 'すべてのスプールの予備割り当てを消去します。再設定するまで、フィラメント切れで印刷が停止します。'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: このデバイスには有線ネットワーク接続がありません。WiFiをオフにすると、この画面からのみオンに戻せます。
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3124,6 +3147,7 @@ translations:
   ? This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes.
   : 'HelixScreen のヘルパーマクロをプリンターにインストールし、printer.cfg に追加します。印刷中のため、Klipper は印刷完了後に再起動されます。'
   This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper.: 'HelixScreen のヘルパーマクロをプリンターにインストールし、printer.cfg に追加して、Klipper を再起動します。'
+  'This is an emergency stop: the printer halts and Klipper restarts.': これは緊急停止です：プリンターが停止し、Klipperが再起動します。
   This is exactly the data that will be sent: これが送信されるデータです
   This is what data would be sent if enabled: これは有効にした場合に送信されるデータです
   This may take up to 30 seconds: 最大30秒かかる場合があります
@@ -3554,6 +3578,7 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env は無視されました：{}'
   idle: アイドル
   in unit {} slot {}: 'ユニット {} スロット {}'
+  just now: たった今
   layers: レイヤー
   left: 残り
   loaded: '装填済み'
@@ -3584,6 +3609,7 @@ translations:
   slots): スロット)
   started: 開始
   steppers: ステッパー
+  sweeping: 測定中
   tall: 高さ
   target {}°: '目標 {}°'
   tool(s): ツール
@@ -3592,6 +3618,8 @@ translations:
   v{} installed! Restarting...: v{} をインストールしました！再起動中...
   v{} is available. Tap to update.: v{} が利用可能です。タップして更新してください。
   you have: 現在は
+  '{:.0f} Hz apart · similarity {:.0f}%': '{:.0f} Hz差 · 類似度{:.0f}%'
+  '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · 約{}分'
   '{} LED strips available': '{} 個の LED ストリップが利用可能です'
   '{} and {} are both mapped here': '{} と {} の両方がここに割り当てられています'
   '{} available': '{} が利用可能'
@@ -3618,6 +3646,7 @@ translations:
   '{} macro not configured': '{} マクロが未設定です'
   '{} matches.': '{} が一致します。'
   '{} may cause unintended changes. Are you sure?': '{} は意図しない変更を引き起こす可能性があります。よろしいですか？'
+  '{} min ago': '{}分前'
   '{} more taps to {} beta features': あと{}回タップでベータ機能を{}
   '{} needs the HelixPrint plugin. Printing original file.': '{} には HelixPrint プラグインが必要です。元のファイルを印刷します。'
   '{} new hardware available': '{} 個の新しいハードウェアが利用可能です'

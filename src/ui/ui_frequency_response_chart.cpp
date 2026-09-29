@@ -454,6 +454,14 @@ bool ui_frequency_response_chart_is_series_muted(ui_frequency_response_chart_t* 
 }
 
 // NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+bool ui_frequency_response_chart_is_series_visible(
+    ui_frequency_response_chart_t* chart, // NAMESPACE_OK: matches this file's C-style chart API
+    int series_id) {
+    const FrequencySeriesData* series = find_series(chart, series_id);
+    return series ? series->visible : false;
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
 void ui_frequency_response_chart_set_series_style(ui_frequency_response_chart_t* chart,
                                                   int series_id, const FrChartSeriesStyle& style) {
     if (!chart) {

@@ -3,6 +3,7 @@
   <translation tag=" (timed out)" fr=" (délai dépassé)"/>
   <translation tag=" frames" fr=" images"/>
   <translation tag=" left" fr=" restant"/>
+  <translation tag=" · was {:.0f}" fr=" · était {:.0f}"/>
   <translation tag="&quot;%s&quot; failed to load" fr="&quot;%s&quot; n&apos;a pas pu se charger"/>
   <translation tag="%.0f Hz difference" fr="%.0f Hz d&apos;écart"/>
   <translation tag="%d additional fan%s" fr="%d ventilateur%s supplémentaire"/>
@@ -110,6 +111,7 @@
   <translation tag="A picture of your printer" fr="Une photo de votre imprimante"/>
   <translation tag="A print is in progress - restart still pending" fr="Une impression est en cours - redémarrage en attente"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." fr="Une impression est en cours sur ce gate. HelixScreen a effacé sa propre copie ; effacez-le à nouveau une fois l&apos;impression terminée."/>
+  <translation tag="A runs faster" fr="A tourne plus vite"/>
   <translation tag="A spool may be tangled or the drive gear is jammed" fr="Une bobine est peut-être emmêlée ou l&apos;engrenage d&apos;entraînement est bloqué"/>
   <translation tag="ABS" fr="ABS"/>
   <translation tag="ACCELEROMETERS" fr="ACCÉLÉROMÈTRES"/>
@@ -174,6 +176,7 @@
   <translation tag="Address" fr="Adresse"/>
   <translation tag="Adjust screen brightness level" fr="Ajuster le niveau de luminosité de l&apos;écran"/>
   <translation tag="Adjust screws, then re-probe." fr="Ajustez les vis, puis re-palpez."/>
+  <translation tag="Adjustment needed" fr="Ajustement nécessaire"/>
   <translation tag="Adjustments stay active until restart. Save after print completes." fr="Les ajustements restent actifs jusqu&apos;au redémarrage. Enregistrez après la fin de l&apos;impression."/>
   <translation tag="Adjusts individual characteristics of your heaters for optimal control" fr="Ajuste les caractéristiques individuelles de vos chauffages pour un contrôle optimal"/>
   <translation tag="Advanced" fr="Avancé"/>
@@ -263,6 +266,7 @@
   <translation tag="Average" fr="Moyenne"/>
   <translation tag="Axis limits unknown" fr="Limites de l&apos;axe inconnues"/>
   <translation tag="B" fr="B"/>
+  <translation tag="B runs faster" fr="B tourne plus vite"/>
   <translation tag="BEACON" fr="BEACON"/>
   <translation tag="BETA" fr="BETA"/>
   <translation tag="BLE connect failed: {}" fr="Échec de la connexion BLE : {}"/>
@@ -312,6 +316,7 @@
   <translation tag="Belt Tension" fr="Tension de courroie"/>
   <translation tag="Belt Tension Check" fr="Vérification de tension de courroie"/>
   <translation tag="Belt tension looks good!" fr="La tension de courroie semble bonne !"/>
+  <translation tag="Belts matched" fr="Courroies assorties"/>
   <translation tag="Beta" fr="Bêta"/>
   <translation tag="Beta features: OFF" fr="Fonctionnalités Beta : OFF"/>
   <translation tag="Beta features: ON" fr="Fonctionnalités Beta : ON"/>
@@ -565,6 +570,7 @@
   <translation tag="Clog and flow health while printing" fr="Bouchons et débit pendant l&apos;impression"/>
   <translation tag="Clog detection" fr="Détection de bouchon"/>
   <translation tag="Close" fr="Fermer"/>
+  <translation tag="Close - small adjustment" fr="Proche - petit ajustement"/>
   <translation tag="Close feeder" fr="Fermer l&apos;alimentateur"/>
   <translation tag="Close feeder macro" fr="Macro de fermeture de l&apos;alimentateur"/>
   <translation tag="Closer" fr="Plus près"/>
@@ -585,6 +591,7 @@
   <translation tag="Communication Test" fr="Test de communication"/>
   <translation tag="Compact" fr="Compact"/>
   <translation tag="Compare" fr="Comparer"/>
+  <translation tag="Compare both belt paths" fr="Comparer les deux chemins de courroie"/>
   <translation tag="Comparison" fr="Comparaison"/>
   <translation tag="Complete" fr="Terminé"/>
   <translation tag="Complete!" fr="Terminé !"/>
@@ -830,6 +837,7 @@
   <translation tag="Distance from lane extruder to hub" fr="Distance de l&apos;extrudeur de voie au hub"/>
   <translation tag="Distance from toolhead sensor to nozzle tip" fr="Distance du capteur de tête d&apos;outil à la pointe de la buse"/>
   <translation tag="Distance moved per jog button tap" fr="Distance parcourue par appui sur un bouton de déplacement"/>
+  <translation tag="Do not open the printer while the toolhead is moving" fr="N&apos;ouvrez pas l&apos;imprimante pendant que la tête d&apos;outil se déplace"/>
   <translation tag="Do not power off your printer." fr="N&apos;éteignez pas votre imprimante."/>
   <translation tag="Do not touch the printer during calibration" fr="Ne touchez pas l&apos;imprimante pendant la calibration"/>
   <translation tag="Dock" fr="Ranger"/>
@@ -1499,6 +1507,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." fr="Klipper est passé en état d&apos;arrêt. Cela peut être dû à un arrêt d&apos;urgence, à un emballement thermique ou à une erreur de configuration."/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." fr="Klipper réserve &apos;default&apos; aux nouvelles calibrations. Choisissez un autre nom."/>
   <translation tag="Klipper restarting - macros activating" fr="Redémarrage de Klipper - activation des macros"/>
+  <translation tag="Klipper stopped reporting progress. Check the printer, then try again." fr="Klipper ne signale plus la progression. Vérifiez l&apos;imprimante puis réessayez."/>
   <translation tag="Klipper will restart to apply changes" fr="Klipper redémarrera pour appliquer les modifications"/>
   <translation tag="Klipper will restart to apply changes." fr="Klipper redémarrera pour appliquer les modifications."/>
   <translation tag="Klipper will restart to apply new settings." fr="Klipper va redémarrer pour appliquer les nouveaux paramètres."/>
@@ -1683,6 +1692,7 @@
   <translation tag="Match" fr="Correspondance"/>
   <translation tag="Match to belt A" fr="Correspond à la courroie A"/>
   <translation tag="Match your typical print fan speed" fr="Correspondre à votre vitesse de ventilateur habituelle"/>
+  <translation tag="Matched" fr="Apparié"/>
   <translation tag="Matching printers" fr="Imprimantes correspondantes"/>
   <translation tag="Material" fr="Matériau"/>
   <translation tag="Material Comfort:" fr="Confort du matériau :"/>
@@ -1707,7 +1717,9 @@
   <translation tag="Measured filament diameter" fr="Diamètre du filament mesuré"/>
   <translation tag="Measured pressure advance" fr="Pressure Advance mesuré"/>
   <translation tag="Measurement Failed" fr="Échec de la mesure"/>
+  <translation tag="Measurement incomplete. Try again." fr="Mesure incomplète. Réessayez."/>
   <translation tag="Measuring" fr="Mesure"/>
+  <translation tag="Measuring Path {}" fr="Mesure du Chemin {}"/>
   <translation tag="Measuring accelerometer noise..." fr="Mesure du bruit de l&apos;accéléromètre..."/>
   <translation tag="Measuring vibrations... {}%" fr="Mesure des vibrations... {}%"/>
   <translation tag="Measuring wheel error" fr="Erreur de la roue de mesure"/>
@@ -1868,6 +1880,7 @@
   <translation tag="No printers found" fr="Aucune imprimante trouvée"/>
   <translation tag="No prints yet" fr="Aucune impression"/>
   <translation tag="No profiles available" fr="Aucun profil disponible"/>
+  <translation tag="No resonance peak found for {}" fr="Aucun pic de résonance trouvé pour {}"/>
   <translation tag="No sensors detected" fr="Aucun capteur détecté"/>
   <translation tag="No slot currently matches." fr="Aucun slot ne correspond actuellement."/>
   <translation tag="No spool assigned" fr="Aucune bobine assignée"/>
@@ -2031,7 +2044,10 @@
   <translation tag="Password cannot be empty" fr="Le mot de passe ne peut pas être vide"/>
   <translation tag="Password is required for secured networks" fr="Un mot de passe est requis pour les réseaux sécurisés"/>
   <translation tag="Path A" fr="Chemin A"/>
+  <translation tag="Path A / Path B" fr="Chemin A / Chemin B"/>
   <translation tag="Path B" fr="Chemin B"/>
+  <translation tag="Path {}" fr="Chemin {}"/>
+  <translation tag="Path {} before" fr="Chemin {} avant"/>
   <translation tag="Pause" fr="Pause"/>
   <translation tag="Pause macro not configured" fr="Macro de pause non configurée"/>
   <translation tag="Pause on Detection" fr="Pause à la détection"/>
@@ -2294,6 +2310,8 @@
   <translation tag="Re-read spool RFID tags and remaining length" fr="Relire les étiquettes RFID des bobines et la longueur restante"/>
   <translation tag="Re-seat the Bowden tube connector on the CFS unit" fr="Réemboîtez le raccord du tube Bowden sur l&apos;unité CFS"/>
   <translation tag="Re-syncs Happy Hare&apos;s tracked state with the hardware." fr="Resynchronise l&apos;état suivi par Happy Hare avec le matériel."/>
+  <translation tag="Re-test A" fr="Retester A"/>
+  <translation tag="Re-test B" fr="Retester B"/>
   <translation tag="Readings from extra temperature sensors" fr="Relevés des capteurs supplémentaires"/>
   <translation tag="Ready" fr="Prêt"/>
   <translation tag="Ready for filament operations" fr="Prêt pour les opérations filament"/>
@@ -2793,6 +2811,7 @@
   <translation tag="Stop drying?" fr="Arrêter le séchage ?"/>
   <translation tag="Stop failed" fr="Échec de l&apos;arrêt"/>
   <translation tag="Stop printing &quot;{}&quot;?&#10;&#10;This cannot be undone after 5 seconds." fr="Arrêter l&apos;impression de &quot;{}&quot; ?&#10;&#10;Cette action sera irréversible après 5 secondes."/>
+  <translation tag="Stop the check?" fr="Arrêter la vérification ?"/>
   <translation tag="Stopped" fr="Arrêté"/>
   <translation tag="Stopped between Hub and Toolhead" fr="Arrêté entre le Hub et la tête d&apos;outil"/>
   <translation tag="Stopped between Lane and Hub" fr="Arrêté entre la voie et le Hub"/>
@@ -2808,6 +2827,7 @@
   <translation tag="Suppress periodic temperature status lines" fr="Supprimer les lignes d&apos;état périodiques de température"/>
   <translation tag="Suppress raw debug output from printer firmware modules" fr="Supprimer la sortie de débogage brute des modules du firmware de l&apos;imprimante"/>
   <translation tag="Surfaces inherit app background tokens for light and dark modes." fr="Les surfaces héritent des jetons d&apos;arrière-plan de l&apos;application pour les modes clair et sombre."/>
+  <translation tag="Sweep" fr="Balayage"/>
   <translation tag="Switch Printer" fr="Changer d&apos;imprimante"/>
   <translation tag="Switch Sensors" fr="Capteurs à interrupteur"/>
   <translation tag="Switch a power device on or off" fr="Allumer ou éteindre un appareil"/>
@@ -2883,6 +2903,7 @@
   <translation tag="Temporary adjustment for this print, unless saved on Controls panel" fr="Ajustement temporaire pour cette impression, sauf si enregistré dans le panneau Contrôles"/>
   <translation tag="Tertiary" fr="Tertiaire"/>
   <translation tag="Test All Lanes" fr="Tester toutes les voies"/>
+  <translation tag="Test Both Again" fr="Retester les deux"/>
   <translation tag="Test Connection" fr="Tester la connexion"/>
   <translation tag="Test Grip" fr="Tester la prise"/>
   <translation tag="Test Load" fr="Tester le chargement"/>
@@ -2971,6 +2992,7 @@
   <translation tag="This calibration uses the paper friction method to set your Z-offset." fr="Cette calibration utilise la méthode de friction du papier pour définir votre Z-offset."/>
   <translation tag="This cannot be undone." fr="Cette action est irréversible."/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." fr="Ce canal propose la v{}, plus ancienne que la v{} installée. Tout ce qui a été ajouté depuis sera supprimé."/>
+  <translation tag="This check runs Klipper&apos;s resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." fr="Ce contrôle exécute le balayage de résonance de Klipper le long de chaque diagonale de courroie et compare les deux courbes. Des fréquences assorties signifient une tension équilibrée.&#10;&#10;Chaque balayage prend quelques minutes et déplace la tête d&apos;outil ; n&apos;ouvrez pas l&apos;imprimante pendant son exécution.&#10;&#10;Sur une CoreXY, les courroies A et B ne devraient différer que de quelques Hz."/>
   <translation tag="This clears every spool&apos;s failover assignment. The print will stop on runout until you set up failover again." fr="Cela efface l&apos;affectation de bobine de secours de chaque bobine. L&apos;impression s&apos;arrêtera en fin de filament jusqu&apos;à ce que vous la reconfiguriez."/>
   <translation tag="This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen." fr="Cet appareil n&apos;a pas de connexion réseau filaire. Si vous désactivez le WiFi, il ne pourra être réactivé que depuis cet écran."/>
   <translation tag="This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a &quot;Timer Too Close&quot; error or restart mid-test. Continue anyway?" fr="Cet appareil ne dispose que de {} Mo de RAM. La calibration de résonance est gourmande en mémoire et peut amener le firmware de l&apos;imprimante à signaler une erreur &quot;Timer Too Close&quot; ou à redémarrer en cours de test. Continuer quand même ?"/>
@@ -2983,6 +3005,7 @@
   <translation tag="This firmware can only switch slots by loading them" fr="Ce firmware ne peut changer de slot qu&apos;en le chargeant"/>
   <translation tag="This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes." fr="Cela installe les macros d&apos;aide HelixScreen sur l&apos;imprimante et les ajoute à printer.cfg. Une impression est en cours, Klipper redémarrera une fois terminée."/>
   <translation tag="This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper." fr="Cela installe les macros d&apos;aide HelixScreen sur l&apos;imprimante, les ajoute à printer.cfg et redémarre Klipper."/>
+  <translation tag="This is an emergency stop: the printer halts and Klipper restarts." fr="Ceci est un arrêt d&apos;urgence : l&apos;imprimante s&apos;arrête et Klipper redémarre."/>
   <translation tag="This is exactly the data that will be sent" fr="Voici exactement les données qui seront envoyées"/>
   <translation tag="This is what data would be sent if enabled" fr="Voici les données qui seraient envoyées si activé"/>
   <translation tag="This may take up to 30 seconds" fr="Cela peut prendre jusqu&apos;à 30 secondes"/>
@@ -3385,6 +3408,7 @@
   <translation tag="helixscreen.env ignored: {}" fr="helixscreen.env ignoré : {}"/>
   <translation tag="idle" fr="inactif"/>
   <translation tag="in unit {} slot {}" fr="dans l&apos;unité {} slot {}"/>
+  <translation tag="just now" fr="à l&apos;instant"/>
   <translation tag="layers" fr="couches"/>
   <translation tag="left" fr="restant"/>
   <translation tag="loaded" fr="chargé"/>
@@ -3410,6 +3434,7 @@
   <translation tag="slots)" fr="emplacements)"/>
   <translation tag="started" fr="lancé"/>
   <translation tag="steppers" fr="moteurs pas à pas"/>
+  <translation tag="sweeping" fr="en cours de mesure"/>
   <translation tag="tall" fr="de haut"/>
   <translation tag="target {}°" fr="cible {}°"/>
   <translation tag="tool(s)" fr="outil(s)"/>
@@ -3418,6 +3443,8 @@
   <translation tag="v{} installed! Restarting..." fr="v{} installée ! Redémarrage..."/>
   <translation tag="v{} is available. Tap to update." fr="v{} est disponible. Appuyez pour mettre à jour."/>
   <translation tag="you have" fr="vous avez"/>
+  <translation tag="{:.0f} Hz apart · similarity {:.0f}%" fr="écart de {:.0f} Hz · similitude {:.0f} %"/>
+  <translation tag="{:.0f}-{:.0f} Hz · about {} min" fr="{:.0f}-{:.0f} Hz · environ {} min"/>
   <translation tag="{} LED strips available" fr="{} bandeaux LED disponibles"/>
   <translation tag="{} and {} are both mapped here" fr="{} et {} sont tous deux affectés ici"/>
   <translation tag="{} available" fr="{} disponible"/>
@@ -3444,6 +3471,7 @@
   <translation tag="{} macro not configured" fr="Macro {} non configurée"/>
   <translation tag="{} matches." fr="{} correspond."/>
   <translation tag="{} may cause unintended changes. Are you sure?" fr="{} peut entraîner des modifications non souhaitées. Êtes-vous sûr ?"/>
+  <translation tag="{} min ago" fr="il y a {} min"/>
   <translation tag="{} more taps to {} beta features" fr="{} appuis supplémentaires pour {} les fonctionnalités bêta"/>
   <translation tag="{} needs the HelixPrint plugin. Printing original file." fr="{} nécessite le plugin HelixPrint. Impression du fichier original."/>
   <translation tag="{} new hardware available" fr="{} nouveau matériel disponible"/>
