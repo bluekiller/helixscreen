@@ -1731,9 +1731,11 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     std::string print_filename_;              // Current print file (protected by print_mutex_)
     mutable std::mutex print_mutex_;          // Protects print_filename_
     std::atomic<double> print_progress_{0.0}; // 0.0 to 1.0
-    std::atomic<int> speed_factor_{100};      // Percentage
-    std::atomic<int> flow_factor_{100};       // Percentage
-    std::atomic<int> fan_speed_{0};           // 0-255
+    /// Last layer announced on the console. Sim thread only.
+    int last_console_layer_ = 0;
+    std::atomic<int> speed_factor_{100}; // Percentage
+    std::atomic<int> flow_factor_{100};  // Percentage
+    std::atomic<int> fan_speed_{0};      // 0-255
 
     // Enhanced print simulation state (phase-based)
     std::atomic<MockPrintPhase> print_phase_{MockPrintPhase::IDLE};

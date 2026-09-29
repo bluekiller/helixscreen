@@ -25,7 +25,6 @@
 #include "settings_manager.h"
 
 #include <algorithm>
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -39,20 +38,6 @@ namespace {
 // Two cells wide at a generous height, so every kept line has a visible row.
 constexpr int kW = 240;
 constexpr int kTallH = 600;
-
-/// The stock API mock drops method callbacks; this one hands them to the mock
-/// client, whose dispatch_gcode_response() is what a live line looks like.
-class StreamingApiMock : public MoonrakerAPIMock {
-  public:
-    using MoonrakerAPIMock::MoonrakerAPIMock;
-    void register_method_callback(const std::string& method, const std::string& name,
-                                  std::function<void(const nlohmann::json&)> cb) override {
-        MoonrakerAPI::register_method_callback(method, name, std::move(cb));
-    }
-    bool unregister_method_callback(const std::string& method, const std::string& name) override {
-        return MoonrakerAPI::unregister_method_callback(method, name);
-    }
-};
 
 class ConsoleTailFixture : public LVGLUITestFixture {
   public:
@@ -73,7 +58,7 @@ class ConsoleTailFixture : public LVGLUITestFixture {
     }
 
     MoonrakerClientMock client_{MoonrakerClientMock::PrinterType::VORON_24};
-    StreamingApiMock api_{client_, get_printer_state()};
+    MoonrakerAPIMock api_{client_, get_printer_state()};
     IMoonrakerAPI* previous_api_ = get_moonraker_api();
 };
 

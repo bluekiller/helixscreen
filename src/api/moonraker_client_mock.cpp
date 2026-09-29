@@ -5705,6 +5705,15 @@ void MoonrakerClientMock::temperature_simulation_loop() {
         }
         double filament_used = (filament_total_mm > 0) ? progress * filament_total_mm : 0.0;
 
+        // A console line per layer while printing, so the console has live
+        // output to show in --test.
+        if (print_state_str == "printing" && current_layer > 0 &&
+            current_layer != last_console_layer_) {
+            last_console_layer_ = current_layer;
+            dispatch_gcode_response("// Layer " + std::to_string(current_layer) + "/" +
+                                    std::to_string(total_layers));
+        }
+
         // Get Z offset for gcode_move
         double z_offset = gcode_offset_z_.load();
 

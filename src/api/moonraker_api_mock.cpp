@@ -170,15 +170,15 @@ bool MoonrakerAPIMock::unsubscribe_notifications(SubscriptionId /*id*/) {
     return true;
 }
 
-void MoonrakerAPIMock::register_method_callback(const std::string& /*method*/,
-                                                const std::string& /*name*/,
-                                                std::function<void(const json&)> /*callback*/) {
-    // No-op in mock
+void MoonrakerAPIMock::register_method_callback(const std::string& method, const std::string& name,
+                                                std::function<void(const json&)> callback) {
+    // The mock client dispatches notifications itself, so listeners reach them.
+    MoonrakerAPI::register_method_callback(method, name, std::move(callback));
 }
 
-bool MoonrakerAPIMock::unregister_method_callback(const std::string& /*method*/,
-                                                  const std::string& /*name*/) {
-    return true;
+bool MoonrakerAPIMock::unregister_method_callback(const std::string& method,
+                                                  const std::string& name) {
+    return MoonrakerAPI::unregister_method_callback(method, name);
 }
 
 void MoonrakerAPIMock::suppress_disconnect_modal(uint32_t duration_ms) {
