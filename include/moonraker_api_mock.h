@@ -615,7 +615,20 @@ class MoonrakerFileTransferAPIMock : public MoonrakerFileTransferAPI {
         fail_path_uploads_ = fail;
     }
 
+    /// A directory searched before assets/test_gcodes for downloads and reads.
+    /// Tests plant files here: the gcodes directory is shared by every test
+    /// process, and the mock's history and file-list scans read all of it.
+    /// Empty (the default) searches the gcodes directory only.
+    static void set_planted_dir(std::string dir) {
+        planted_dir() = std::move(dir);
+    }
+
   private:
+    static std::string& planted_dir() {
+        static std::string dir;
+        return dir;
+    }
+
     /**
      * @brief Find test file using fallback path search
      *
