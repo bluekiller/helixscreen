@@ -143,3 +143,58 @@ TEST_CASE_METHOD(LVGLUITestFixture, "The hardware keyboard setting row shows onl
     settings.set_hardware_keyboard_present(prior_present);
     lv_obj_delete(overlay);
 }
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "Suppression turning on takes down a keyboard already raised for another field",
+                 "[1572][keyboard]") {
+    ScopedKeyboardPolicy policy(test_screen());
+    auto& settings = DisplaySettingsManager::instance();
+    settings.set_hide_keyboard_with_hardware(false);
+    settings.set_hardware_keyboard_present(true);
+
+    lv_obj_t* first = focus_new_textarea(test_screen(), policy.group);
+    REQUIRE(KeyboardManager::instance().is_visible());
+    lv_obj_t* kb = KeyboardManager::instance().get_instance();
+    REQUIRE(lv_keyboard_get_textarea(kb) == first);
+
+    // A direct show() for another field, as a caller that raises the keyboard
+    // itself does, with no defocus of the first field in between.
+    settings.set_hide_keyboard_with_hardware(true);
+    lv_obj_t* second = lv_textarea_create(test_screen());
+    KeyboardManager::instance().show(second);
+    process_lvgl(400);
+
+    CHECK_FALSE(KeyboardManager::instance().is_visible());
+    CHECK(lv_keyboard_get_textarea(kb) == nullptr);
+
+    lv_group_focus_obj(nullptr);
+    lv_obj_delete(second);
+    lv_obj_delete(first);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Hiding a suppressed keyboard leaves the screen's layout alone",
+                 "[1572][keyboard]") {
+    ScopedKeyboardPolicy policy(test_screen());
+    auto& settings = DisplaySettingsManager::instance();
+    settings.set_hide_keyboard_with_hardware(true);
+    settings.set_hardware_keyboard_present(true);
+
+    // A screen child placed below the top on purpose, which an unsuppressed
+    // hide() would slide back to y=0.
+    lv_obj_t* placed = lv_obj_create(lv_screen_active());
+    lv_obj_set_y(placed, 37);
+    lv_obj_update_layout(placed);
+    REQUIRE(lv_obj_get_y(placed) == 37);
+    lv_obj_t* ta = focus_new_textarea(test_screen(), policy.group);
+    REQUIRE_FALSE(KeyboardManager::instance().is_visible());
+
+    KeyboardManager::instance().hide();
+    process_lvgl(400);
+    lv_obj_update_layout(placed);
+
+    CHECK(lv_obj_get_y(placed) == 37);
+
+    lv_group_focus_obj(nullptr);
+    lv_obj_delete(ta);
+    lv_obj_delete(placed);
+}

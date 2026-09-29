@@ -907,6 +907,11 @@ class DisplayManager : public helix::ICalibrationSink {
      */
     void rebuild_input_after_backend_swap();
 
+    /// Create the backend's keyboard indev, report whether it is a physical
+    /// keyboard to DisplaySettingsManager, and watch and group it. init() and
+    /// rebuild_input_after_backend_swap() both create the keyboard through this.
+    void create_keyboard_input();
+
     /**
      * @brief Set up keyboard input group
      */

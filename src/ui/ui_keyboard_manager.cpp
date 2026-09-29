@@ -1346,6 +1346,11 @@ void KeyboardManager::show(lv_obj_t* textarea) {
     // group; the on-screen keyboard would only cover it. Checked after the
     // Android system keyboard, which wins when both are on.
     if (DisplaySettingsManager::instance().soft_keyboard_suppressed()) {
+        // A keyboard raised before suppression turned on must not stay up, linked
+        // to the field it was raised for.
+        if (is_visible()) {
+            hide();
+        }
         spdlog::debug("[KeyboardManager] Hardware keyboard attached - on-screen keyboard "
                       "suppressed for textarea: {}",
                       (void*)textarea);
