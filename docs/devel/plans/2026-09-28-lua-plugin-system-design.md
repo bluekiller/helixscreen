@@ -39,7 +39,7 @@ wizard UI, some Moonraker calls and a channel to a companion process. None of it
 |---|---|
 | Audience | Third-party authors first, with enough surface for vendor-specific plugins |
 | Vendor capability backends | Not in v1; bindings designed so a Lua-implemented C++ interface can be added later |
-| Language | Lua 5.4, vendored as `lib/lua` (submodule of `github.com/lua/lua` at a 5.4.x tag), compiled as C |
+| Language | Lua 5.4, vendored as `lib/lua` (submodule of `github.com/lua/lua` at tag `v5.4.9`), compiled as C++ so a Lua error is a C++ exception and unwinding runs destructors |
 | Isolation | One `lua_State` per plugin, in-process, main thread only |
 | Trust | Permissions declared in the manifest, shown at enable, enforced per binding |
 | Distribution | `printer_data/config/helixscreen/plugins/<id>/`, mirrored over Moonraker's file API |
@@ -142,7 +142,10 @@ Outside the plugin code:
 ### Lua sandbox
 
 Loaded libraries: base (without `dofile`, `loadfile`, and with `load` restricted to text chunks),
-`string`, `table`, `math`, `utf8`, `coroutine`. Not loaded: `io`, `os`, `package`, `debug`.
+`string` (without `string.dump`), `table`, `math`, `utf8`, `coroutine`. `collectgarbage` accepts
+only `"count"`, `"collect"` and `"step"`. `io`, `os`, `package` and `debug` are not compiled into
+the binary at all (`liolib.c`, `loslib.c`, `loadlib.c`, `ldblib.c` and `linit.c` are left out of
+the build).
 `require(name)` resolves only to `<plugin>/<name>.lua` or `<plugin>/lib/<name>.lua`, with `..` and
 absolute paths rejected.
 
@@ -196,7 +199,7 @@ One path for reload, disable, removal, fault and shutdown:
 1. Run the plugin's global `on_unload` if defined (time-budgeted, errors logged and ignored).
 2. Pop the plugin's overlays and modals.
 3. Detach its widget instances and unregister its widget definitions.
-4. Unregister its subjects, XML callbacks and XML components.
+4. Unregister its subjects and XML components, and drop its `helix.ui.on` handlers.
 5. Invalidate its `AsyncLifetimeGuard` so pending replies, timers and HTTP results are dropped.
 6. `lua_close`.
 
@@ -224,13 +227,14 @@ All under one global `helix`. Lua changes the screen only through subjects the X
 |---|---|
 | `helix.log.info/warn/error/debug(msg)` | spdlog, tagged with the plugin id |
 | `helix.subject.int(name, init)`, `helix.subject.string(name, init)` | `name` excludes the prefix; registered as `<id>_<name>`. Handle: `:get()`, `:set(v)`, `:observe(fn)` |
-| `helix.ui.on(cb_name, fn)` | registers XML event callback `<id>_<cb_name>` |
+| `helix.ui.on(name, fn)` | handles XML events addressed to `<id>_<name>` (see Event callbacks) |
 | `helix.ui.overlay(component, {on_close})` | pushes and registers through `PluginOverlayHost`; returns a handle with `:close()` |
 | `helix.ui.confirm(title, msg, {severity, confirm_text, on_confirm, on_cancel})` | wraps `modal_confirm`; dismissal reaches `on_cancel` |
 | `helix.ui.toast(msg, severity)` | |
 | `helix.widget(id, {on_attach, on_detach, on_size, on_activate, on_deactivate})` | handlers for a manifest-declared widget; `on_size(cols, rows, w, h)` |
-| `helix.printer.get(name)`, `helix.printer.watch(name, fn)` | read-only, documented stable subset: connection, print state, progress, filename, extruder/bed/chamber temps and targets. Other subject names resolve but are unsupported |
-| `helix.moonraker.query(objects)`, `helix.moonraker.subscribe(objects, fn)` | printer objects, Klipper's stable contract |
+| `helix.printer.get(name)`, `helix.printer.watch(name, fn)` | read-only, a fixed table of Lua-facing names decoupled from our subject names (see Printer state) |
+| `helix.moonraker.query(objects)` | printer objects, Klipper's stable contract |
+| `helix.moonraker.subscribe(objects, fn)` | **Phase 3.** Moonraker's `printer.objects.subscribe` replaces the connection's whole subscription, so plugin objects have to be merged into the app's union subscription in `MoonrakerDiscoverySequence`, which is WebSocket critical-path work. Until then, poll with `query` on a timer |
 | `helix.moonraker.on_agent_event(name, fn)` | Moonraker agent events: the channel to companions such as an Orca plugin |
 | `helix.settings.get(key)`, `helix.settings.on_change(key, fn)` | the plugin's schema settings |
 | `helix.timer.after(ms, fn)`, `helix.timer.every(ms, fn)` | return a handle with `:cancel()` |
@@ -242,11 +246,42 @@ All under one global `helix`. Lua changes the screen only through subjects the X
 | Permission | Unlocks |
 |---|---|
 | `gcode` | `helix.gcode(script)` |
-| `moonraker_write` | `helix.moonraker.call(method, params)` for any method. Without it, `call` accepts only a read-only allowlist (`printer.objects.query`, `printer.objects.list`, `server.info`, `server.files.list`, `server.files.metadata`, `machine.system_info`) |
+| `moonraker_write` | `helix.moonraker.call(method, params)` for any method. Without it, `call` accepts only a read-only allowlist (`printer.objects.query`, `printer.objects.list`, `server.info`, `server.files.list`, `server.files.metadata`, `machine.system_info`). Also `helix.moonraker.upload(root, path, content)` and `helix.moonraker.download(root, path)` for `gcodes` and `config`, over the existing `ITransfersAPI` |
 | `http` | `helix.http.get(url, opts)`, `helix.http.post(url, opts)` on `HttpExecutor` |
 | `storage` | `helix.storage.get(key)`, `helix.storage.set(key, v)`: JSON values in `~/helixscreen/config/plugin-data/<id>.json`, capped at 256 KB |
 
 A denied call raises a Lua error naming the missing permission and logs it once per call site.
+
+### Event callbacks
+
+LVGL event callbacks are plain function pointers and the XML engine has no way to unregister one,
+so plugins do not register their own. One callback, `plugin_event`, is registered once for the
+life of the app. Plugin XML addresses a handler through `user_data`, optionally with an argument
+after a colon:
+
+```xml
+<event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal_start"/>
+<event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal_pick:3"/>
+```
+
+`plugin_event` splits the owner id at the first `_`, finds that loaded plugin, and calls the
+handler registered with `helix.ui.on("start", fn)` or `helix.ui.on("pick", fn)`, passing the
+argument string (or `nil`). An event for a plugin that is not loaded, or a name with no handler,
+is logged at debug and ignored.
+
+### Printer state
+
+| Lua name | Type | Source subject |
+|---|---|---|
+| `connected` | boolean | `printer_connection_state` equals `ConnectionState::CONNECTED` |
+| `print_state` | string | `print_state` |
+| `progress` | integer percent | `print_progress` |
+| `filename` | string | `print_filename` |
+| `extruder_temp`, `extruder_target` | number, °C | `extruder_temp`, `extruder_target` (decidegrees / 10) |
+| `bed_temp`, `bed_target` | number, °C | `bed_temp`, `bed_target` (decidegrees / 10) |
+| `chamber_temp`, `chamber_target` | number, °C | `chamber_temp`, `chamber_effective_target` (decidegrees / 10) |
+
+Any other name is an error. The table is the contract; the subjects behind it can be renamed.
 
 ### Async model
 
@@ -268,9 +303,13 @@ end)
 
 ### Binding rule
 
-A binding converts its Lua arguments into plain values, calls into the app, and raises any Lua
-error only after every C++ object with a destructor on its stack has gone out of scope, because
-`lua_error` unwinds with `longjmp`. One helper implements that shape and every binding uses it.
+Lua is compiled as C++, so `lua_error` throws and destructors on a binding's stack run normally.
+What remains is that no Lua error may escape into a C frame: every entry into Lua goes through
+`lua_resume` or `lua_pcall`, which catch it, and LVGL only ever calls our C++ trampolines, never
+Lua directly. The allocator enforces the memory cap only inside those protected entries, so the
+unprotected setup work around them (creating the coroutine, pushing arguments) cannot fail with a
+memory error and reach Lua's panic handler.
+
 Bindings take plain values and Lua callbacks and never expose C++ object identity, which is what
 lets a later trampoline let a Lua table implement a C++ interface.
 
@@ -278,12 +317,12 @@ lets a later trampoline let a Lua table implement a C++ interface.
 
 | Limit | Rule |
 |---|---|
-| Memory per plugin | Allocator cap, default 2 MB, `memory_mb` in the manifest raises it. The cap is a ceiling, not a reservation |
+| Memory per plugin | Allocator cap, default 2 MB, `memory_mb` in the manifest raises it (1 to 64). The cap is a ceiling, not a reservation |
 | Memory, all plugins | Budget `min(MemTotal / 16, 64 MB)` computed at startup. A plugin whose cap does not fit what remains is not loaded, and Settings says why |
-| Time | Count hook every 10,000 instructions checks a monotonic deadline of 50 ms per entry into Lua. Overrun raises an error |
+| Time | Count hook every 10,000 instructions checks a monotonic deadline of 50 ms per entry into Lua. Overrun raises an error and switches the hook to every instruction, so a `pcall` loop cannot swallow it: each instruction outside the innermost `pcall` raises again until the entry unwinds |
 | Errors | Every entry runs under `lua_pcall` with a traceback handler. Three errors within 60 s disable the plugin |
 
-Allocation failure, a time overrun, or the error threshold disables the plugin through the unload
+An out-of-memory error that reaches the entry point, a time overrun, or the error threshold disables the plugin through the unload
 path, shows a toast naming it, and records the reason. Settings → Plugins shows the reason and a
 Re-enable button. Other plugins keep running.
 
@@ -313,7 +352,8 @@ primitives.
    category, `LuaPanelWidget`, `PluginOverlayHost`, Settings → Plugins, consent, schema settings
    overlay, `setting_text_row`.
 3. **Moonraker source.** `PluginSource` mirror, sync on connect, change notifications, permission
-   growth on update.
+   growth on update, and `helix.moonraker.subscribe` through a plugin object set merged into the
+   app's union subscription.
 4. **Acceptance and docs.** Port `led-effects` to Lua; rewrite `docs/devel/PLUGIN_DEVELOPMENT.md`
    as the Lua author guide; update `docs/devel/architecture/12-system-services.md` and
    `ENVIRONMENT_VARIABLES.md`.
