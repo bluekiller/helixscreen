@@ -298,6 +298,12 @@ class PrinterStateTestAccess {
         ps.pre_print_option_set_ = std::move(set);
     }
 
+    /// Recompute has_any_preprint_options after a set_option_set(); the
+    /// aggregate follows the option count, which the injection above skips.
+    static void refresh_option_visibility(PrinterState& ps) {
+        ps.update_gcode_modification_visibility();
+    }
+
     /// Pin a capability override without going through settings.json, for tests
     /// that need one specific override arm. The config-load path has its own
     /// coverage in test_capability_overrides.cpp; this is the wiring-level lever.

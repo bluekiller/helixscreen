@@ -575,6 +575,10 @@ class PrintSelectDetailView : public OverlayBase {
         return &prep_time_estimate_subject_;
     }
 
+    void set_prep_estimate_visible(int visible) {
+        lv_subject_set_int(&preprint_estimate_visible_, visible);
+    }
+
     // === Resize Handling ===
 
     /**
@@ -667,6 +671,11 @@ class PrintSelectDetailView : public OverlayBase {
     // 1 = show slicer-intended colors instead of loaded AMS slot colors.
     // View-local, resets to 0 (actual) on every show().
     lv_subject_t detail_prefer_sliced_colors_{};
+    // 1 = the options scroll area has content below its visible bottom edge.
+    // Drives the bottom fade cue's visibility binding in print_file_detail.xml;
+    // updated by update_options_more_below() from the scroll area's
+    // scroll/size/layout events and after the option rows are populated.
+    lv_subject_t detail_options_more_below_{};
     // 0 = mapping/swatch chips not authoritative yet (XML shows skeletons),
     // 1 = authoritative chip state rendered. Mirrors is_preflight_ready() —
     // the same readiness the print-start gate waits on. Flips 0→1 at show()
@@ -777,6 +786,7 @@ class PrintSelectDetailView : public OverlayBase {
     // print-start gate and the enriched pre-print modal. Empty until a file parses.
     helix::PreflightResult preflight_result_{};
     lv_subject_t prep_time_estimate_subject_{}; // formatted prep time string for bind_text
+    lv_subject_t preprint_estimate_visible_{};  // 1 while the estimate line has text
     char prep_time_estimate_buf_[64]{};         // buffer backing the string subject
     SubjectManager subjects_;                   // RAII manager for subject cleanup
     // Note: subjects_initialized_ inherited from OverlayBase
@@ -802,6 +812,16 @@ class PrintSelectDetailView : public OverlayBase {
     // printer type changes. Owns per-option state subjects.
     PrePrintOptionsRenderer option_rows_renderer_;
     lv_obj_t* pre_print_options_container_ = nullptr;
+    // The scroll area wrapping the four option cards; owns the scroll cue's
+    // data (see detail_options_more_below_) and half of the portrait preview
+    // measurement (see fit_portrait_preview()). The card is the other half of
+    // that measurement; both are children of overlay_root_ and die with it.
+    // fit_pending_ dedupes the deferred fit (one queued run at a time); it is
+    // cleared when the run fires and on every teardown path, where a queued
+    // run dies with its token.
+    lv_obj_t* options_scroll_ = nullptr;
+    lv_obj_t* detail_card_ = nullptr;
+    bool fit_pending_ = false;
     std::string last_rendered_printer_type_;
 
     // States handed over by seed_option_states(), applied over the freshly
@@ -1080,6 +1100,22 @@ class PrintSelectDetailView : public OverlayBase {
      * callback that updates the prep-time estimate.
      */
     void populate_option_rows();
+
+    /// Refresh the more-below subject and the portrait fit on the next
+    /// main-loop tick, when the layout pass that triggered the refresh has
+    /// settled. Entry point for the scroll area's scroll/size/layout events
+    /// and the content container's layout event.
+    void defer_detail_fit();
+
+    /// Publish detail_options_more_below_ from the scroll area's current
+    /// overflow state (lv_obj_get_scroll_bottom > 0).
+    void update_options_more_below();
+
+    /// Measured portrait layout: size the preview card so the scroll area's
+    /// visible bottom edge cuts a tile row through its middle half
+    /// (decide_detail_portrait_preview). Landscape drops any measured height
+    /// and lets the card's flex_grow govern.
+    void fit_portrait_preview();
 
     /**
      * @brief Static callback for delete confirmation
