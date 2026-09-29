@@ -996,6 +996,13 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
 
 ### Internal
 
+- helix-xml warns on a style attribute written with `:` for its state selector
+  (`style_bg_opa:checked`, which applies nothing) and on a negated const reference (`-#space_md`,
+  which it drops), and the unknown-attribute check now covers misspelled `style_*` names on
+  built-in widgets. `make lint-xml` fails on both spellings. The input shaper's recommended row
+  gets the highlight its markup always asked for; the dead chip, preset and Save attributes are
+  gone, and the home AMS label and notification badge get the offsets they were written with.
+
 - K1, AD5X, Creator 5 Pro and K2 builds (musl) link with `-Wl,-z,stack-size=1048576`, because
   musl gives each thread 128 KiB unless the binary asks for more. The crash handler runs on a
   64 KiB alternate stack for the installing thread; other threads have none, so an overflow

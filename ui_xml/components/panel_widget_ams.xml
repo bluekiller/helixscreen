@@ -11,7 +11,7 @@
     <ams_mini_status name="ams_mini_status_widget" card="false"/>
     <text_tiny text="Multi-Filament"
                translation_tag="Multi-Filament" style_text_color="#text_muted" style_text_align="center"
-               align="bottom_mid" y="-#space_md">
+               align="bottom_mid" y="#space_md_neg">
       <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>
     </text_tiny>
   </view>

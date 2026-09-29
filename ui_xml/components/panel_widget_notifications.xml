@@ -33,7 +33,7 @@
       </icon>
       <!-- Notification Count Badge - auto-contrast text color based on severity bg -->
       <notification_badge name="notification_badge"
-                          align="top_right" x="-#space_xxs" y="#space_xxs" hidden="true" clickable="true"
+                          align="top_right" x="#space_xxs_neg" y="#space_xxs" hidden="true" clickable="true"
                           click_focusable="false" bind_text="notification_count_text">
         <bind_flag_if_eq subject="notification_count" flag="hidden" ref_value="0"/>
         <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
