@@ -649,18 +649,17 @@ void DisplayBackendDRM::open_pointer_devices() {
         }
     }
 #else
-    // No libinput — use evdev scanner to find touch/pointer device
+    // No libinput: the sysfs scanner finds the touchscreen
     const char* touch_path = nullptr;
-    auto mouse = helix::input::find_mouse_device("/dev/input", "/sys/class/input");
-    std::string touch_path_str;
-    if (mouse) {
-        touch_path_str = mouse->path;
-        touch_path = touch_path_str.c_str();
-        spdlog::info("[DRM Backend] Found touch/pointer device via evdev scan: {}", touch_path_str);
+    auto touch = helix::input::find_touch_device();
+    if (touch) {
+        touch_path = touch->path.c_str();
+        spdlog::info("[DRM Backend] Found touch device via evdev scan: {} ({})", touch->path,
+                     touch->name);
         pointer_ = lv_evdev_create(LV_INDEV_TYPE_POINTER, touch_path);
         if (pointer_ != nullptr) {
             pointer_is_evdev_ = true;
-            spdlog::info("[DRM Backend] Evdev touch device created on {}", touch_path_str);
+            spdlog::info("[DRM Backend] Evdev touch device created on {}", touch->path);
             configure_touch_gestures(pointer_);
         }
     }

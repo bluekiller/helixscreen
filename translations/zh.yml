@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d 个送料器'
   '%d gates': '%d 个通道'
   '%d lanes': '%d 个耗材通道'
+  '%d min': '%d分钟'
+  '%d min left': '剩余 %d 分钟'
   '%d more sensors': 还有%d个传感器
   '%d slots': '%d 个槽位'
   '%d toolheads': '%d 个工具头'
   '%d tools': '%d 个工具'
+  '%d:%02d left': '剩余 %d:%02d'
+  '%dh': '%d小时'
+  '%dh %02dm': '%d小时%02d分'
+  '%dh %dm': '%d小时%d分'
+  '%dm': '%d分'
+  '%dm %02ds': '%d分%02d秒'
+  '%ds': '%d秒'
   '%lu days ago': '%lu天前'
   '%lu hours ago': '%lu小时前'
   '%lu min ago': '%lu分钟前'
@@ -134,6 +143,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS 已激活: '
   AMS is busy: AMS 正忙
+  AMS/MMU system not detected: '未检测到 AMS/MMU 系统'
   API not available: API 不可用
   APPEARANCE: 外观
   AUTO FANS: 自动风扇

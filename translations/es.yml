@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d alimentadores'
   '%d gates': '%d Gates'
   '%d lanes': '%d carriles'
+  '%d min': '%d min'
+  '%d min left': 'quedan %d min'
   '%d more sensors': '%d sensores más'
   '%d slots': '%d ranuras'
   '%d toolheads': '%d cabezales'
   '%d tools': '%d herramientas'
+  '%d:%02d left': 'quedan %d:%02d'
+  '%dh': '%d h'
+  '%dh %02dm': '%d h %02d min'
+  '%dh %dm': '%d h %d min'
+  '%dm': '%d min'
+  '%dm %02ds': '%d min %02d s'
+  '%ds': '%d s'
   '%lu days ago': hace %lu días
   '%lu hours ago': hace %lu horas
   '%lu min ago': hace %lu min
@@ -141,6 +150,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS activo: '
   AMS is busy: El AMS está ocupado
+  AMS/MMU system not detected: 'No se detectó el sistema AMS/MMU'
   API not available: API no disponible
   APPEARANCE: APARIENCIA
   AUTO FANS: VENTILADORES AUTO

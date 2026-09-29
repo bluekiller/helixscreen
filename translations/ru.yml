@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d фидеров'
   '%d gates': '%d шлюзов'
   '%d lanes': '%d каналов'
+  '%d min': '%d мин'
+  '%d min left': 'осталось %d мин'
   '%d more sensors': Ещё %d датчиков
   '%d slots': '%d слотов'
   '%d toolheads': '%d печатающих головок'
   '%d tools': '%d инструментов'
+  '%d:%02d left': 'осталось %d:%02d'
+  '%dh': '%d ч'
+  '%dh %02dm': '%d ч %02d мин'
+  '%dh %dm': '%d ч %d мин'
+  '%dm': '%d мин'
+  '%dm %02ds': '%d мин %02d с'
+  '%ds': '%d с'
   '%lu days ago': '%lu дн. назад'
   '%lu hours ago': '%lu ч. назад'
   '%lu min ago': '%lu мин. назад'
@@ -139,6 +148,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS активен: '
   AMS is busy: AMS занят
+  AMS/MMU system not detected: 'Система AMS/MMU не обнаружена'
   API not available: API недоступен
   APPEARANCE: ВНЕШНИЙ ВИД
   AUTO FANS: АВТО ВЕНТИЛЯТОРЫ

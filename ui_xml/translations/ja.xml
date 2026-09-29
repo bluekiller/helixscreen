@@ -9,10 +9,19 @@
   <translation tag="%d feeders" ja="%d フィーダー"/>
   <translation tag="%d gates" ja="%d ゲート"/>
   <translation tag="%d lanes" ja="%d レーン"/>
+  <translation tag="%d min" ja="%d分"/>
+  <translation tag="%d min left" ja="残り %d 分"/>
   <translation tag="%d more sensors" ja="他%d個のセンサー"/>
   <translation tag="%d slots" ja="%d スロット"/>
   <translation tag="%d toolheads" ja="%d ツールヘッド"/>
   <translation tag="%d tools" ja="%d ツール"/>
+  <translation tag="%d:%02d left" ja="残り %d:%02d"/>
+  <translation tag="%dh" ja="%d時間"/>
+  <translation tag="%dh %02dm" ja="%d時間%02d分"/>
+  <translation tag="%dh %dm" ja="%d時間%d分"/>
+  <translation tag="%dm" ja="%d分"/>
+  <translation tag="%dm %02ds" ja="%d分%02d秒"/>
+  <translation tag="%ds" ja="%d秒"/>
   <translation tag="%lu days ago" ja="%lu日前"/>
   <translation tag="%lu hours ago" ja="%lu時間前"/>
   <translation tag="%lu min ago" ja="%lu分前"/>
@@ -134,6 +143,7 @@
   <translation tag="AMS" ja="AMS"/>
   <translation tag="AMS Active: " ja="AMS 有効: "/>
   <translation tag="AMS is busy" ja="AMS はビジー状態です"/>
+  <translation tag="AMS/MMU system not detected" ja="AMS/MMU システムが検出されません"/>
   <translation tag="API not available" ja="APIが利用できません"/>
   <translation tag="APPEARANCE" ja="外観"/>
   <translation tag="AUTO FANS" ja="自動ファン"/>

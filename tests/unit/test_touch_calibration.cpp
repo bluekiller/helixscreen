@@ -629,9 +629,8 @@ TEST_CASE("TouchCalibration: device_needs_calibration",
 // Touch Device Scoring Scenario Tests
 // ============================================================================
 // These test the individual scoring factors (name recognition, USB detection)
-// that auto_detect_touch_device() uses. The actual scoring loop requires sysfs
-// access, but these verify the building blocks produce correct results for the
-// scenarios described in issue #117.
+// that find_touch_device() combines; its scoring loop is tested against a mock
+// sysfs tree in test_input_device_scanner.cpp. Scenarios from issue #117.
 
 TEST_CASE("TouchCalibration: phantom SPI vs real USB touchscreen scoring factors",
           "[touch-calibration][scoring]") {
