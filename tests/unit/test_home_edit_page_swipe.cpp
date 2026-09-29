@@ -1926,6 +1926,43 @@ TEST_CASE_METHOD(EditHomeFixture,
 }
 
 TEST_CASE_METHOD(EditHomeFixture,
+                 "a drop whose swap does not fit leaves both widgets and keeps the dragged one "
+                 "selected",
+                 "[1638][1503][edit-swipe][home][grid_edit]") {
+    build_home();
+    // A two-cell 'fan' one cell right of 'temperature': swapped, it would span
+    // the cell 'temperature' lands on.
+    REQUIRE(config().place_entry("fan", 0, CELL_TRACKS, 0, 2 * CELL_TRACKS, CELL_TRACKS) >= 0);
+    repopulate();
+    lv_obj_t* temperature = widget_on(0, "temperature");
+    widget_on(0, "fan");
+    enter_edit_mode();
+    const helix::PanelWidgetEntry temperature_before = entry_on_page(0, "temperature");
+    const helix::PanelWidgetEntry fan_before = entry_on_page(0, "fan");
+    REQUIRE(fan_before.colspan == 2 * CELL_TRACKS);
+
+    const lv_point_t c = center_of(temperature);
+    indev.grab(c.x, c.y);
+    REQUIRE(grid().selected_widget() == temperature);
+    const lv_point_t drop{c.x + past_drag_threshold() + tracks_px(CELL_TRACKS), c.y};
+    indev.move(c.x + past_drag_threshold(), c.y);
+    REQUIRE(GridEditModeTestAccess::dragging(grid()));
+    indev.move(drop.x, drop.y);
+    REQUIRE(GridEditModeTestAccess::snap_col(grid()) == fan_before.col);
+    REQUIRE(GridEditModeTestAccess::snap_row(grid()) == fan_before.row);
+    indev.release(drop.x, drop.y);
+    settle();
+
+    CHECK(entry_on_page(0, "temperature").col == temperature_before.col);
+    CHECK(entry_on_page(0, "temperature").row == temperature_before.row);
+    CHECK(entry_on_page(0, "fan").col == fan_before.col);
+    CHECK(entry_on_page(0, "fan").row == fan_before.row);
+    lv_obj_t* selected = grid().selected_widget();
+    REQUIRE(selected != nullptr);
+    CHECK(std::string(lv_obj_get_name(selected)) == "temperature");
+}
+
+TEST_CASE_METHOD(EditHomeFixture,
                  "a tap on a widget inside the selected widget's grab band selects it",
                  "[1638][edit-swipe][home][grid_edit]") {
     build_home();
