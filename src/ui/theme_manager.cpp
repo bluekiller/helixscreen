@@ -3268,7 +3268,7 @@ void theme_manager_parse_xml_file_for_suffix(
     XML_ParserFree(parser);
 }
 
-std::vector<std::string> theme_manager_find_xml_files(const char* directory) {
+std::vector<std::string> theme_manager_find_xml_files(const char* directory, bool recursive) {
     std::vector<std::string> result;
 
     // Handle NULL directory gracefully
@@ -3287,9 +3287,14 @@ std::vector<std::string> theme_manager_find_xml_files(const char* directory) {
     while ((entry = readdir(dir)) != nullptr) {
         std::string filename = entry->d_name;
 
-        // Skip directories (including . and ..)
-        if (entry->d_type == DT_DIR)
+        if (entry->d_type == DT_DIR) {
+            if (recursive && filename != "." && filename != "..") {
+                const std::string sub = std::string(directory) + "/" + filename;
+                auto nested = theme_manager_find_xml_files(sub.c_str(), true);
+                result.insert(result.end(), nested.begin(), nested.end());
+            }
             continue;
+        }
 
         // Skip suspicious filenames (path traversal defense)
         if (filename.find('/') != std::string::npos || filename.find("..") != std::string::npos) {
@@ -3357,12 +3362,24 @@ std::vector<std::string> theme_manager_validate_constant_sets(const char* direct
         return warnings;
     }
 
+    // Every layout directory (components/, portrait/, micro/, ...), read from the
+    // files themselves: a set split across files there is as broken as one at
+    // the top level.
+    const std::vector<std::string> files = theme_manager_find_xml_files(directory, true);
+    auto suffix_tokens = [&files](const char* element_type, const char* suffix) {
+        std::unordered_map<std::string, std::string> tokens;
+        for (const auto& filepath : files) {
+            theme_manager_parse_xml_file_for_suffix(filepath.c_str(), element_type, suffix, tokens);
+        }
+        return tokens;
+    };
+
     // Validate responsive px sets (_small/_medium/_large required, _tiny optional)
     {
-        auto tiny_tokens = theme_manager_parse_all_xml_for_suffix(directory, "px", "_tiny");
-        auto small_tokens = theme_manager_parse_all_xml_for_suffix(directory, "px", "_small");
-        auto medium_tokens = theme_manager_parse_all_xml_for_suffix(directory, "px", "_medium");
-        auto large_tokens = theme_manager_parse_all_xml_for_suffix(directory, "px", "_large");
+        auto tiny_tokens = suffix_tokens("px", "_tiny");
+        auto small_tokens = suffix_tokens("px", "_small");
+        auto medium_tokens = suffix_tokens("px", "_medium");
+        auto large_tokens = suffix_tokens("px", "_large");
 
         // Collect all base names that have at least one responsive suffix
         // _tiny is optional — only _small/_medium/_large are required for a complete set
@@ -3379,7 +3396,11 @@ std::vector<std::string> theme_manager_validate_constant_sets(const char* direct
 
         // border_radius_small is a fixed 4px token that only looks like a
         // responsive variant; plugin XML references it by name, so it stays.
-        base_names.erase("border_radius");
+        // Exempt only while it is the lone tier: a second tier makes it a set.
+        auto border_radius = base_names.find("border_radius");
+        if (border_radius != base_names.end() && border_radius->second == 1) {
+            base_names.erase(border_radius);
+        }
 
         // Check for incomplete sets (_small/_medium/_large must be complete)
         for (const auto& [base_name, flags] : base_names) {
@@ -3432,8 +3453,8 @@ std::vector<std::string> theme_manager_validate_constant_sets(const char* direct
 
     // Validate themed color pairs (_light/_dark)
     {
-        auto light_tokens = theme_manager_parse_all_xml_for_suffix(directory, "color", "_light");
-        auto dark_tokens = theme_manager_parse_all_xml_for_suffix(directory, "color", "_dark");
+        auto light_tokens = suffix_tokens("color", "_light");
+        auto dark_tokens = suffix_tokens("color", "_dark");
 
         // Collect all base names that have at least one theme suffix
         std::unordered_map<std::string, int> base_names;

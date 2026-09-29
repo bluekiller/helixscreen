@@ -786,3 +786,63 @@ TEST_CASE_METHOD(ThemeConstantsFixture,
 
     cleanup_temp_dir();
 }
+
+TEST_CASE_METHOD(ThemeConstantsFixture,
+                 "ui_theme: border_radius loses its exemption once it grows a second tier",
+                 "[ui_theme][validation]") {
+    setup_temp_xml_dir();
+
+    write_xml("fixed.xml", R"(
+<component>
+    <consts>
+        <px name="border_radius_small" value="4"/>
+        <px name="border_radius_medium" value="8"/>
+    </consts>
+</component>
+)");
+
+    auto warnings = theme_manager_validate_constant_sets(temp_dir.string().c_str());
+
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0].find("border_radius") != std::string::npos);
+    CHECK(warnings[0].find("_large") != std::string::npos);
+
+    cleanup_temp_dir();
+}
+
+TEST_CASE_METHOD(ThemeConstantsFixture,
+                 "ui_theme: constant sets are checked in layout subdirectories too",
+                 "[ui_theme][validation]") {
+    setup_temp_xml_dir();
+    fs::create_directories(temp_dir / "components");
+    fs::create_directories(temp_dir / "portrait");
+
+    write_xml("components/tile.xml", R"(
+<component>
+    <consts>
+        <px name="tile_pad_small" value="4"/>
+    </consts>
+</component>
+)");
+    write_xml("portrait/panel.xml", R"(
+<component>
+    <consts>
+        <color name="strip_bg_light" value="#FFFFFF"/>
+    </consts>
+</component>
+)");
+
+    auto warnings = theme_manager_validate_constant_sets(temp_dir.string().c_str());
+
+    REQUIRE(warnings.size() == 2);
+    bool found_px = false;
+    bool found_color = false;
+    for (const auto& w : warnings) {
+        found_px |= w.find("tile_pad") != std::string::npos;
+        found_color |= w.find("strip_bg") != std::string::npos;
+    }
+    CHECK(found_px);
+    CHECK(found_color);
+
+    cleanup_temp_dir();
+}
