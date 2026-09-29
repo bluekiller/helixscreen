@@ -1047,6 +1047,9 @@ theme_manager_parse_all_xml_for_element(const char* directory, const char* eleme
  * - Responsive px: If ANY of foo_small, foo_medium, foo_large exist but NOT ALL -> warn
  * - Themed colors: If ONLY bar_light OR ONLY bar_dark exists -> warn
  *
+ * Undefined `#name` references are `make lint-xml`'s check (unknown-const-ref),
+ * which also knows the theme tokens and the constants registered from C++.
+ *
  * This function is useful for:
  * - Unit tests to catch incomplete constant sets
  * - Pre-commit hooks to validate XML files before committing
