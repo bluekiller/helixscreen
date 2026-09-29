@@ -89,6 +89,7 @@
                       width="1" height="content" bind_text="bed_mesh_profile_${i}_name" flex_grow="1"
                       style_text_color="#text" clickable="false" long_mode="dots" scrollable="false" event_bubble="true"/>
           <!-- Range -->
+          <!-- SIZE_OK: 50px value-column width, coincides with #option_tile_label_max_h by chance -->
           <text_small name="profile_${i}_range"
                       width="50" bind_text="bed_mesh_profile_${i}_range" style_text_align="right" clickable="false"
                       event_bubble="true"/>

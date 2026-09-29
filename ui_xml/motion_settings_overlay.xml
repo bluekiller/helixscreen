@@ -42,6 +42,7 @@
                      style_margin_right="#space_sm">
             <event_cb trigger="value_changed" callback="on_jog_speed_xy_changed"/>
           </lv_slider>
+          <!-- SIZE_OK: 50px label width, coincides with #option_tile_label_max_h by chance -->
           <text_small name="jog_speed_xy_max_label" width="50" text="500" bind_text="jog_speed_max_display"/>
         </lv_obj>
       </lv_obj>
@@ -79,6 +80,7 @@
                      style_margin_right="#space_sm">
             <event_cb trigger="value_changed" callback="on_jog_speed_z_changed"/>
           </lv_slider>
+          <!-- SIZE_OK: 50px label width, coincides with #option_tile_label_max_h by chance -->
           <text_small name="jog_speed_z_max_label" width="50" text="500" bind_text="jog_speed_max_display"/>
         </lv_obj>
       </lv_obj>

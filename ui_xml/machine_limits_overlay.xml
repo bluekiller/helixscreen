@@ -56,6 +56,7 @@
                      style_margin_right="#space_sm">
             <event_cb trigger="released" callback="on_max_velocity_changed"/>
           </lv_slider>
+          <!-- SIZE_OK: 50px value-column width, coincides with #option_tile_label_max_h by chance -->
           <text_small width="50" text="1000"/>
         </lv_obj>
       </lv_obj>
@@ -166,6 +167,7 @@
         <lv_obj width="100%"
                 height="#input_height" style_pad_left="#space_md" style_pad_right="#space_md" style_pad_top="#space_md"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="row" style_flex_cross_place="center">
+          <!-- SIZE_OK: 30px numeric-label width, coincides with #option_tile_label_max_h by chance -->
           <text_small width="30" text="1"/>
           <!-- Tenths, not whole mm/s: this value is tuned in 0.5 steps, so the
                slider stores 10-200 and C++ divides by 10 (SCV_DIVISOR). The
@@ -175,6 +177,7 @@
                      style_margin_right="#space_sm">
             <event_cb trigger="released" callback="on_square_corner_velocity_changed"/>
           </lv_slider>
+          <!-- SIZE_OK: 30px numeric-label width, coincides with #option_tile_label_max_h by chance -->
           <text_small width="30" text="20"/>
         </lv_obj>
       </lv_obj>
@@ -207,12 +210,14 @@
         <lv_obj width="100%"
                 height="#input_height" style_pad_left="#space_md" style_pad_right="#space_md" style_pad_top="#space_md"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="row" style_flex_cross_place="center">
+          <!-- SIZE_OK: 30px numeric-label width, coincides with #option_tile_label_max_h by chance -->
           <text_small width="30" text="1"/>
           <lv_slider name="extrude_speed_slider"
                      flex_grow="1" min_value="1" max_value="50" value="5" style_margin_left="#space_sm"
                      style_margin_right="#space_sm">
             <event_cb trigger="released" callback="on_extrude_speed_changed"/>
           </lv_slider>
+          <!-- SIZE_OK: 30px numeric-label width, coincides with #option_tile_label_max_h by chance -->
           <text_small width="30" text="50"/>
         </lv_obj>
       </lv_obj>

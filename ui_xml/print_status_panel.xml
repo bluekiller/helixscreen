@@ -237,6 +237,7 @@
          gutter (estop_visible_subject) so the title never runs under this FAB.
          estop_visible covers PRINTING + PAUSED + the preparing phase. Declared
          last so it draws above the content it overlaps. -->
+    <!-- SIZE_OK: 44px badge, coincides with #option_tile_height by chance -->
     <lv_button name="estop_fab"
                width="44" height="44" ignore_layout="true" align="top_right" style_translate_y="#space_sm"
                style_radius="9999" style_bg_color="#danger" style_pad_all="0" hidden="true">

@@ -491,7 +491,7 @@ void register_xml_components() {
     register_xml("components/filament_slot_picker_row.xml");
     register_xml("components/filament_mapping_tool_row.xml");
     register_xml("components/filament_source_row.xml");
-    register_xml("components/compact_toggle_row.xml");
+    register_xml("components/option_tile.xml");
     // Endless-spool status line. Registered here, ahead of filament_panel.xml,
     // because the AMS panel registers itself lazily and would otherwise be the
     // only consumer guaranteed to find it.

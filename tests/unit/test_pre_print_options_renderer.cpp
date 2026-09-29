@@ -244,7 +244,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // Every option must have produced a corresponding row.
     for (const auto& opt : set.options) {
         REQUIRE(renderer.get_row(opt.id) != nullptr);
-        REQUIRE(renderer.get_switch(opt.id) != nullptr);
+        REQUIRE(renderer.get_toggle(opt.id) != nullptr);
     }
 }
 
@@ -261,7 +261,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "PrePrintOptionsRenderer: K1C live DB entry 
     // pre-start gcode). Verify the row exists with a switch widget.
     REQUIRE(renderer.row_count() == set.options.size());
     REQUIRE(renderer.get_row("bed_mesh") != nullptr);
-    REQUIRE(renderer.get_switch("bed_mesh") != nullptr);
+    REQUIRE(renderer.get_toggle("bed_mesh") != nullptr);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -281,7 +281,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(renderer.row_count() == set.options.size());
     REQUIRE(renderer.get_row("bed_mesh") != nullptr);
     REQUIRE(renderer.get_row("ai_detect") != nullptr);
-    REQUIRE(renderer.get_switch("ai_detect") != nullptr);
+    REQUIRE(renderer.get_toggle("ai_detect") != nullptr);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -350,14 +350,13 @@ TEST_CASE_METHOD(LVGLUITestFixture, "PrePrintOptionsRenderer: label_key wins ove
     renderer.populate(container, set, nullptr, nullptr);
     REQUIRE(renderer.row_count() == 2);
 
-    // Find the label widget inside each row. Each row container's first
-    // child is the label (it's added before the switch).
+    // Find the label widget inside each tile by name (the icon and check tab
+    // are also label-class children, so child order is not the label).
     auto label_text_for = [&](const std::string& id) -> std::string {
         lv_obj_t* row = renderer.get_row(id);
         REQUIRE(row != nullptr);
-        REQUIRE(lv_obj_get_child_count(row) >= 1);
-        lv_obj_t* label = lv_obj_get_child(row, 0);
-        REQUIRE(lv_obj_get_class(label) == &lv_label_class);
+        lv_obj_t* label = lv_obj_find_by_name(row, "label");
+        REQUIRE(label != nullptr);
         const char* t = lv_label_get_text(label);
         return std::string(t ? t : "");
     };
@@ -690,5 +689,68 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_obj_t* container = lv_obj_create(test_screen());
     renderer.populate(container, set, nullptr, nullptr);
     REQUIRE(renderer.row_count() == set.options.size());
-    REQUIRE(renderer.get_switch("bed_mesh") != nullptr);
+    REQUIRE(renderer.get_toggle("bed_mesh") != nullptr);
+}
+
+TEST_CASE("PrePrintOptionsRenderer: default icon per option id", "[pre_print_options][icons]") {
+    CHECK(PrePrintOptionsRenderer::default_icon_for("bed_mesh") == "grid_large");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("shaper_calibrate") == "sine_wave");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("flow_calibrate") == "gauge");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("timelapse") == "camera_timer");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("u1_timelapse") == "camera_timer");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("ai_detect") == "robot");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("qgl") == "spirit_level");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("z_tilt") == "spirit_level");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("nozzle_clean") == "tune");
+    CHECK(PrePrintOptionsRenderer::default_icon_for("") == "tune");
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "PrePrintOptionsRenderer: a tap on a tile toggles its option",
+                 "[print_file_detail][pre_print_options]") {
+    PrePrintOptionsRenderer renderer;
+    lv_obj_t* container = lv_obj_create(test_screen());
+    std::string toggled_id;
+    int toggled_state = -1;
+    renderer.populate(container, make_multi_category_set(), nullptr,
+                      [&](const std::string& id, int s) {
+                          toggled_id = id;
+                          toggled_state = s;
+                      });
+
+    lv_obj_t* tile = renderer.get_toggle("nozzle_clean"); // default off
+    REQUIRE(tile != nullptr);
+    REQUIRE(lv_obj_has_flag(tile, LV_OBJ_FLAG_CHECKABLE));
+    REQUIRE_FALSE(lv_obj_has_state(tile, LV_STATE_CHECKED));
+
+    // What a real tap does: LVGL's base RELEASED handler flips CHECKED and
+    // sends VALUE_CHANGED (lv_obj.c event handler).
+    lv_obj_add_state(tile, LV_STATE_CHECKED);
+    lv_obj_send_event(tile, LV_EVENT_VALUE_CHANGED, nullptr);
+
+    CHECK(toggled_id == "nozzle_clean");
+    CHECK(toggled_state == 1);
+    CHECK(renderer.get_state("nozzle_clean") == 1);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "PrePrintOptionsRenderer: tile children follow the checked state",
+                 "[print_file_detail][pre_print_options]") {
+    PrePrintOptionsRenderer renderer;
+    lv_obj_t* container = lv_obj_create(test_screen());
+    renderer.populate(container, make_multi_category_set(), nullptr, nullptr);
+
+    lv_obj_t* tile = renderer.get_toggle("bed_mesh"); // default on
+    REQUIRE(tile != nullptr);
+    lv_obj_t* tab = lv_obj_find_by_name(tile, "check_tab");
+    lv_obj_t* label = lv_obj_find_by_name(tile, "label");
+    REQUIRE(tab != nullptr);
+    REQUIRE(label != nullptr);
+    CHECK(lv_obj_has_state(tile, LV_STATE_CHECKED)); // subject observer applied it
+    CHECK(lv_obj_has_state(tab, LV_STATE_CHECKED));  // state_trickle
+    CHECK(std::string(lv_label_get_text(label)) == "Auto Bed Mesh");
+
+    renderer.set_state("bed_mesh", 0);
+    process_lvgl(10);
+    CHECK_FALSE(lv_obj_has_state(tile, LV_STATE_CHECKED));
+    CHECK_FALSE(lv_obj_has_state(tab, LV_STATE_CHECKED));
 }
