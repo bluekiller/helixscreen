@@ -232,7 +232,7 @@ class HistoryDashboardPanel : public OverlayBase {
     char stat_print_time_buf_[32];
     char stat_filament_buf_[32];
     char stat_success_rate_buf_[16];
-    char trend_period_buf_[32];
+    char trend_period_buf_[64];
 
     //
     // === Data Fetching ===

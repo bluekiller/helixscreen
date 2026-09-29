@@ -58,4 +58,9 @@ class HelixTestFixture {
     // List expands reactively. Keep small; don't over-reset. Public because the
     // test runner's listener also calls it before every case (tests/test_main.cpp).
     static void reset_all();
+
+    // The global PrinterState part of reset_all(): its plain data and its print
+    // lifecycle. Both need its subjects up, so a fixture that tears them down
+    // calls this first.
+    static void reset_printer_state();
 };

@@ -33,9 +33,9 @@
                 style_flex_main_place="end" style_pad_all="0" style_pad_left="#space_lg" style_pad_right="#space_lg"
                 style_pad_top="#space_sm" style_pad_bottom="#space_sm" style_pad_gap="#space_md" style_bg_opa="0"
                 style_border_width="0" scrollable="false">
-          <text_muted name="label_address" width="content" text="Address"/>
+          <text_muted name="label_address" width="content" text="Address" translation_tag="Address"/>
           <text_input name="input_address" width="160" placeholder_text="192.168.1.50" one_line="true"/>
-          <text_muted name="label_port" width="content" text="Port"/>
+          <text_muted name="label_port" width="content" text="Port" translation_tag="Port"/>
           <text_input name="input_port" width="70" placeholder_text="9100" one_line="true"/>
         </lv_obj>
       </lv_obj>

@@ -1969,6 +1969,17 @@ void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id) {
                   graph->series_count);
 }
 
+// Rename a series; the legend draws its name
+void helix::temp_graph_set_series_name(ui_temp_graph_t* graph, int series_id, const char* name) {
+    ui_temp_series_meta_t* meta = find_series(graph, series_id);
+    if (!meta || !name) {
+        return;
+    }
+    strncpy(meta->name, name, sizeof(meta->name) - 1);
+    meta->name[sizeof(meta->name) - 1] = '\0';
+    lv_obj_invalidate(graph->chart);
+}
+
 // Show or hide a series
 void ui_temp_graph_show_series(ui_temp_graph_t* graph, int series_id, bool visible) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);

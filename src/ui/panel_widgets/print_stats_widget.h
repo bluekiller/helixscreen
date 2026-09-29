@@ -65,6 +65,7 @@ class PrintStatsWidget : public PanelWidget {
     bool lifetime_totals_in_flight_ = false;
 
     helix::HistoryChangedCallback history_observer_;
+    ObserverGuard language_observer_;
     helix::AsyncLifetimeGuard lifetime_;
 };
 

@@ -196,6 +196,31 @@ TEST_CASE("a tile gives up text before shrinking its glyph below the authored ru
     CHECK(tight.icon_rung < 3);
 }
 
+TEST_CASE("an identity label outlasts the glyph", "[tile][layout][identity]") {
+    // 90x90 at authored lg: rung 3 holds the value but not the label under it
+    // (48 + 4 + 24 + 4 + 22 = 102 tall), rung 2 holds all three.
+    const TileVerdict plain = decide_tile_layout(90, 90, kGap, kMedium, true, true, 3, 0, false);
+    CHECK(plain.icon_rung == 3);
+    CHECK(plain.label == TileLabelRung::None);
+
+    const TileVerdict named = decide_tile_layout(90, 90, kGap, kMedium, true, true, 3, 0, true);
+    CHECK(named.fits);
+    CHECK(named.icon_rung == 2);
+    CHECK(named.label == TileLabelRung::Label);
+
+    // It still goes once no rung can hold it: 50x22 fits rung 0 as a row with
+    // the value beside it (16 + 4 + 26 = 46 wide), and the label beside
+    // instead (16 + 4 + 38 = 58) or under it (58 tall) does not.
+    const TileVerdict tight = decide_tile_layout(50, 22, kGap, kMedium, true, true, 3, 0, true);
+    CHECK(tight.fits);
+    CHECK(tight.label == TileLabelRung::None);
+
+    // The setting still wins: an identity label the user hid stays hidden.
+    const TileVerdict hidden = decide_tile_layout(90, 90, kGap, kMedium, true, false, 3, 0, true);
+    CHECK(hidden.label == TileLabelRung::None);
+    CHECK(hidden.icon_rung == 3);
+}
+
 TEST_CASE("a row gives up its side inset before it draws", "[tile][layout][1559]") {
     // A row tile insets its sides (styles.tile_row), so a row that fits the
     // bare box by less than the inset must not be chosen.

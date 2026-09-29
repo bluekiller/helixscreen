@@ -18,6 +18,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstring>
+#include <utility>
 
 namespace helix {
 void register_fan_widget() {
@@ -51,8 +52,14 @@ FanWidget::FanWidget(const std::string& instance_id)
     : instance_id_(instance_id), sizing_(instance_id) {
     // Worst cases, not a live reading: a size accepted while the fan reads 5%
     // must still draw 100%.
-    sizing_.set_content({"100%", "100%", "Fan", /*has_value=*/true, "",
-                         /*label_always_drawn=*/true});
+    TileSizing::Content content{"100%",
+                                "100%",
+                                "Fan",
+                                /*has_value=*/true,
+                                "",
+                                /*label_always_drawn=*/true};
+    content.label_is_identity = true;
+    sizing_.set_content(std::move(content));
     std::strcpy(speed_buffer_, "--");
 }
 
@@ -237,7 +244,8 @@ void FanWidget::update_display() {
 
     if (name_label_) {
         if (selected_fan_.empty()) {
-            lv_label_set_text(name_label_, lv_tr("Select fan"));
+            // A tag, not lv_tr() text: the label then re-translates itself.
+            lv_label_set_translation_tag(name_label_, "Select fan");
         } else {
             lv_label_set_text(name_label_, display_name_.c_str());
         }

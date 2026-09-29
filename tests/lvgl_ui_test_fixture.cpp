@@ -230,7 +230,10 @@ void LVGLUITestFixture::cleanup() {
         // Wizard subjects
         ui_wizard_deinit_subjects();
 
-        // PrinterState subjects
+        // PrinterState subjects, reset first: with them down,
+        // HelixTestFixture::reset_all() can no longer clear the fan list or end
+        // a print this case started, and the next case inherits both.
+        reset_printer_state();
         get_printer_state().deinit_subjects();
 
         // Core singleton subjects - must be deinitialized to clear observers

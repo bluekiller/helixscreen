@@ -14,6 +14,7 @@
 #include "device_display_name.h"
 #include "hardware_role_registry.h"
 #include "json_utils.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 #include "state/subject_macros.h"
 #include "unit_conversions.h"
 
@@ -334,6 +335,30 @@ std::string PrinterFanState::disambiguate_chamber_fan_name(const std::string& ob
     }
 }
 
+std::string PrinterFanState::resolve_display_name(const std::string& object_name,
+                                                  FanType type) const {
+    // Name priority: custom name > role name > auto-generated
+    if (auto* config = Config::get_instance()) {
+        std::string custom =
+            config->get<std::string>(config->df() + "fans/names/" + object_name, "");
+        if (!custom.empty()) {
+            return custom;
+        }
+    }
+    const std::string role_name = get_role_display_name(object_name);
+    const std::string english = disambiguate_chamber_fan_name(
+        object_name, type,
+        role_name.empty() ? get_display_name(object_name, DeviceType::FAN) : role_name);
+    return lv_tr(english.c_str());
+}
+
+void PrinterFanState::refresh_display_names() {
+    for (auto& fan : fans_) {
+        fan.display_name = resolve_display_name(fan.object_name, fan.type);
+    }
+    lv_subject_set_int(&fans_version_, lv_subject_get_int(&fans_version_) + 1);
+}
+
 bool PrinterFanState::is_fan_controllable(FanType type) {
     return type == FanType::PART_COOLING || type == FanType::GENERIC_FAN ||
            type == FanType::OUTPUT_PIN_FAN;
@@ -443,21 +468,7 @@ void PrinterFanState::init_fans(const std::vector<std::string>& fan_objects,
             info.rpm = prior->second.rpm;
         }
 
-        // Name priority: custom name > role name > auto-generated
-        auto* config = Config::get_instance();
-        std::string custom_name;
-        if (config) {
-            custom_name = config->get<std::string>(config->df() + "fans/names/" + obj_name, "");
-        }
-        if (!custom_name.empty()) {
-            info.display_name = custom_name;
-        } else {
-            std::string role_name = get_role_display_name(obj_name);
-            info.display_name =
-                role_name.empty() ? get_display_name(obj_name, DeviceType::FAN) : role_name;
-            info.display_name =
-                disambiguate_chamber_fan_name(obj_name, info.type, info.display_name);
-        }
+        info.display_name = resolve_display_name(obj_name, info.type);
 
         spdlog::trace("[PrinterFanState] Registered fan: {} -> \"{}\" (type={}, controllable={})",
                       obj_name, info.display_name, static_cast<int>(info.type),
@@ -630,11 +641,7 @@ void PrinterFanState::rename_fan(const std::string& object_name, const std::stri
             matched = true;
             if (new_name.empty()) {
                 // Revert to role name or auto-generated name
-                std::string role_name = get_role_display_name(object_name);
-                fan.display_name =
-                    role_name.empty() ? get_display_name(object_name, DeviceType::FAN) : role_name;
-                fan.display_name =
-                    disambiguate_chamber_fan_name(object_name, fan.type, fan.display_name);
+                fan.display_name = resolve_display_name(object_name, fan.type);
             } else {
                 fan.display_name = new_name;
             }

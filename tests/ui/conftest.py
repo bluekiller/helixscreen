@@ -208,6 +208,11 @@ def dump_failure_diagnostics(app, target):
 GOLDENS_DIR = Path(__file__).parent / "goldens"
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "slow: minutes-long; deselected in PR CI, run nightly and by make test-ui-pytest")
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--accept-goldens", action="store_true", default=False,
