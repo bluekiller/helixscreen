@@ -268,7 +268,6 @@ class IAdvancedAPI {
     static constexpr uint32_t MPC_TIMEOUT_MS = 1200000; // 20 min - MPC_CALIBRATE
     static constexpr uint32_t PROBING_TIMEOUT_MS =
         180000; // 3 min - PROBE_CALIBRATE, Z_ENDSTOP_CALIBRATE
-    static constexpr uint32_t BELT_TENSION_TIMEOUT_MS = 120000; // 2 min per path
 
     using SuccessCallback = std::function<void()>;
     using ErrorCallback = std::function<void(const MoonrakerError&)>;
@@ -298,7 +297,12 @@ class IAdvancedAPI {
     using MPCCalibrateCallback = std::function<void(const MPCResult&)>;
     using MPCProgressCallback =
         std::function<void(int phase, int total_phases, const std::string& description)>;
-    using BeltResonanceCallback = std::function<void(const std::string& csv_path)>;
+    /// (percent 0-100, current sweep frequency Hz). Fires off the LVGL thread.
+    using BeltSweepProgressCallback = std::function<void(int percent, float freq_hz)>;
+    /// Fires off the LVGL thread with the parsed curve.
+    using BeltCurveCallback = std::function<void(const helix::calibration::BeltCurve& curve)>;
+    /// Stops listening and suppresses every later callback. Idempotent.
+    using BeltRunCancel = std::function<void()>;
     using BeltHardwareCallback =
         std::function<void(const helix::calibration::BeltTensionHardware&)>;
 
@@ -418,16 +422,14 @@ class IAdvancedAPI {
 
     virtual void detect_belt_hardware(BeltHardwareCallback on_complete, ErrorCallback on_error) = 0;
 
-    virtual void test_belt_resonance(const std::string& axis_param, const std::string& output_name,
-                                     helix::AdvancedProgressCallback on_progress,
-                                     BeltResonanceCallback on_complete, ErrorCallback on_error) = 0;
-
-    virtual void excite_belt_at_frequency(const std::string& axis_param, float freq_hz,
-                                          SuccessCallback on_complete, ErrorCallback on_error) = 0;
-
-    virtual void download_accel_csv(const std::string& filename,
-                                    std::function<void(const std::string& csv_data)> on_complete,
-                                    ErrorCallback on_error) = 0;
+    /// TEST_RESONANCES AXIS=<axis_param> OUTPUT=resonances NAME=<output_name>.
+    /// Completes on Klipper's "Resonances data written to" line; there is no
+    /// overall deadline (the caller owns stall detection and cancels).
+    [[nodiscard]] virtual BeltRunCancel test_belt_resonance(const std::string& axis_param,
+                                                            const std::string& output_name,
+                                                            BeltSweepProgressCallback on_progress,
+                                                            BeltCurveCallback on_complete,
+                                                            ErrorCallback on_error) = 0;
 };
 
 /**
