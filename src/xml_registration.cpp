@@ -8,6 +8,7 @@
 #include "ui_ams_device_operations_overlay.h"
 #include "ui_ams_device_section_detail_overlay.h"
 #include "ui_bed_drying_modal.h"
+#include "ui_belt_path_sketch.h"
 #if HELIX_HAS_CFS
 #include "ui_cfs_chute_calibration_overlay.h"
 #endif
@@ -647,6 +648,7 @@ void register_xml_components() {
     register_xml("screws_tilt_share_modal.xml");
     register_xml("input_shaper_panel.xml");
 #if HELIX_HAS_BELT_TUNER
+    helix::ui::register_belt_path_sketch_widget(); // before the panel XML that uses it
     register_xml("panel_belt_tension.xml");
 #endif
 

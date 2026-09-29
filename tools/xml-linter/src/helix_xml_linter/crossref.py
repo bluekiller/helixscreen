@@ -86,6 +86,13 @@ class ProjectRegistry:
         for path in paths:
             file_registry = _collect_registry_from_file(path)
             registry.merge(file_registry)
+        # The theme registers the base name of every <name>_light/<name>_dark
+        # pair at runtime, resolved for the current mode, so `#name` is valid.
+        registry.const_names |= {
+            name[: -len("_light")]
+            for name in registry.const_names
+            if name.endswith("_light") and name[: -len("_light")] + "_dark" in registry.const_names
+        }
         return registry
 
     def merge(self, other: ProjectRegistry) -> None:
