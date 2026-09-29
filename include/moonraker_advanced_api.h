@@ -513,12 +513,12 @@ class MoonrakerAdvancedAPI : public IAdvancedAPI {
     /**
      * @brief Run TEST_RESONANCES for belt tension measurement
      *
-     * Executes TEST_RESONANCES with OUTPUT=resonances and collects the console
-     * sweep, then reads the CSV Klipper names in its "Resonances data written
-     * to" line and hands back the parsed curve.
+     * Executes TEST_RESONANCES with OUTPUT=resonances and SWEEPING_PERIOD=0
+     * (pulse-only excitation) and collects the console sweep, then reads the
+     * CSV Klipper names in its "Resonances data written to" line and hands
+     * back the parsed curve.
      *
-     * @param axis_param Axis parameter: "1,1" for CoreXY Path A, "1,-1" for Path B, "X"/"Y" for
-     * Cartesian
+     * @param axis_param Axis parameter: "1,-1" for CoreXY Path A, "1,1" for Path B
      * @param output_name Name for the CSV output file
      * @param on_progress Called with progress percentage (0-100) and current frequency
      * @param on_complete Called with the parsed curve on success

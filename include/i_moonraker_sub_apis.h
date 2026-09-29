@@ -422,7 +422,7 @@ class IAdvancedAPI {
 
     virtual void detect_belt_hardware(BeltHardwareCallback on_complete, ErrorCallback on_error) = 0;
 
-    /// TEST_RESONANCES AXIS=<axis_param> OUTPUT=resonances NAME=<output_name>.
+    /// TEST_RESONANCES AXIS=<axis_param> OUTPUT=resonances NAME=<output_name> SWEEPING_PERIOD=0.
     /// Completes on Klipper's "Resonances data written to" line; there is no
     /// overall deadline (the caller owns stall detection and cancels).
     [[nodiscard]] virtual BeltRunCancel test_belt_resonance(const std::string& axis_param,

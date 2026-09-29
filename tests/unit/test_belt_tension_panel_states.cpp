@@ -8,8 +8,8 @@
  * transcript and asserts on the bt_* subjects the XML binds:
  *
  * 1. Start queues both paths, runs them in order and lands on RESULTS with
- *    paired peaks, similarity verdict and rail derived from
- *    compare_belt_paths() over the printer's sweep range.
+ *    the similarity headline, verdict, paired-peak facts and chart markers
+ *    derived from compare_belt_paths() over the printer's sweep range.
  * 2. Re-test keeps the sibling path's run and ghosts the re-measured path's
  *    previous curve.
  * 3. Every mock failure mode and a silent sweep reach ERROR; a path whose
@@ -24,6 +24,7 @@
 
 #include "ui_belt_path_sketch.h"
 #include "ui_frequency_response_chart.h"
+#include "ui_modal.h"
 #include "ui_panel_belt_tension.h"
 #include "ui_update_queue.h"
 
@@ -124,6 +125,12 @@ class BeltPanelFixture : public XMLTestFixture {
     int panel_ghost_id(int path_index) {
         return panel_->ghost_series_[path_index];
     }
+    int panel_series_id(int path_index) {
+        return panel_->series_[path_index];
+    }
+    lv_obj_t* panel_low_ram_dialog() {
+        return panel_->low_ram_dialog_;
+    }
 
     int state_int(const char* name) {
         lv_subject_t* s = lv_xml_get_subject(nullptr, name);
@@ -209,7 +216,8 @@ TEST_CASE("belt tension panel has a container for every view state", "[belt][pan
     // Every named object the state machine and ctl driving depend on.
     for (const char* name :
          {"btn_start", "btn_stop", "btn_retest_a", "btn_retest_b", "btn_test_both", "btn_retry",
-          "bt_rail", "chart_host_running", "chart_host_results", "bt_sketch", "error_label"}) {
+          "bt_similarity", "bt_facts_label", "bt_unpaired_label", "chart_host_running",
+          "chart_host_results", "bt_sketch", "error_label"}) {
         INFO("missing named object: " << name);
         CHECK(lv_obj_find_by_name(fx.view(), name) != nullptr);
     }
@@ -217,6 +225,9 @@ TEST_CASE("belt tension panel has a container for every view state", "[belt][pan
     CHECK(lv_obj_find_by_name(fx.view(), "state_position") == nullptr);
     CHECK(lv_obj_find_by_name(fx.view(), "state_listen") == nullptr);
     CHECK(lv_obj_find_by_name(fx.view(), "state_compare") == nullptr);
+    // The direction rail is gone until real captures show a dependable
+    // signed signal.
+    CHECK(lv_obj_find_by_name(fx.view(), "bt_rail") == nullptr);
 }
 
 TEST_CASE("belt tension panel binds only subjects that exist", "[belt][panel][xml]") {
@@ -224,16 +235,18 @@ TEST_CASE("belt tension panel binds only subjects that exist", "[belt][panel][xm
 
     for (const char* name :
          {"belt_tension_state", "bt_can_start", "bt_gate_message", "bt_hw_kinematics",
-          "bt_hw_accel", "bt_hw_sweep", "bt_run_title", "bt_run_detail", "bt_running_path",
-          "bt_peak_a", "bt_peak_b", "bt_note_a", "bt_note_b", "bt_verdict", "bt_verdict_text",
-          "bt_facts", "bt_rail_value", "bt_chart_available", "bt_error_message"}) {
+          "bt_hw_accel",        "bt_hw_sweep",  "bt_run_title",    "bt_run_detail",
+          "bt_running_path",    "bt_peak_a",    "bt_peak_b",       "bt_note_a",
+          "bt_note_b",          "bt_verdict",   "bt_verdict_text", "bt_similarity",
+          "bt_facts",           "bt_unpaired",  "bt_has_unpaired", "bt_chart_available",
+          "bt_error_message"}) {
         INFO("subject not registered: " << name);
         CHECK(lv_xml_get_subject(nullptr, name) != nullptr);
     }
     // Retired with the pluck tuner. Leaving them registered would let a stale
     // binding survive review by continuing to resolve.
-    for (const char* name :
-         {"bt_hw_adxl", "bt_live_freq", "bt_median_freq", "bt_committed", "bt_pluck_count"}) {
+    for (const char* name : {"bt_hw_adxl", "bt_live_freq", "bt_median_freq", "bt_committed",
+                             "bt_pluck_count", "bt_rail_value"}) {
         INFO("retired subject still registered: " << name);
         CHECK(lv_xml_get_subject(nullptr, name) == nullptr);
     }
@@ -255,12 +268,24 @@ TEST_CASE("Start runs A then B and lands on RESULTS", "[belt][panel]") {
     CHECK(fx.text("bt_peak_a") == "104");
     CHECK(fx.text("bt_peak_b") == "98");
     CHECK(fx.state_int("bt_verdict") == static_cast<int>(helix::calibration::BeltVerdict::CLOSE));
-    CHECK(fx.text("bt_verdict_text").empty() == false);
-    CHECK(fx.text("bt_facts").find("Similarity") != std::string::npos);
+    CHECK(fx.text("bt_verdict_text") == "Fair match");
 
-    // The rail parks at centre: no signed direction signal until real captures
-    // show one.
-    CHECK(fx.state_int("bt_rail_value") == 0);
+    // The headline is the similarity; the facts line lists the pairs, A/B.
+    const std::string similarity = fx.text("bt_similarity");
+    CHECK(similarity.back() == '%');
+    CHECK(fx.text("bt_facts").find("104/98") != std::string::npos);
+
+    // The listed pairs are numbered on both curves, the strongest as 1.
+    auto* chart = fx.panel_chart();
+    REQUIRE(chart != nullptr);
+    const auto marks_a = ui_frequency_response_chart_get_markers(chart, fx.panel_series_id(0));
+    const auto marks_b = ui_frequency_response_chart_get_markers(chart, fx.panel_series_id(1));
+    REQUIRE_FALSE(marks_a.empty());
+    REQUIRE_FALSE(marks_b.empty());
+    CHECK(marks_a.front().number == 1);
+    CHECK(marks_a.front().freq_hz == Catch::Approx(104.0f).margin(1.0f));
+    CHECK(marks_b.front().number == 1);
+    CHECK(marks_b.front().freq_hz == Catch::Approx(98.0f).margin(1.0f));
 }
 
 TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
@@ -269,9 +294,13 @@ TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
     fx.panel().handle_start_clicked();
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
     // 110 and 98 sit 12 Hz apart, past the 10 Hz pairing cap, so the only pair
-    // the defaults form is the ~42 Hz rig peak both curves share.
+    // the defaults form is the ~42 Hz rig peak both curves share, and each
+    // belt peak is listed as unpaired.
     REQUIRE(fx.text("bt_peak_a") == "42");
     REQUIRE(fx.text("bt_peak_b") == "42");
+    CHECK(fx.state_int("bt_has_unpaired") == 1);
+    CHECK(fx.text("bt_unpaired").find("Only on A: 110") != std::string::npos);
+    CHECK(fx.text("bt_unpaired").find("Only on B: 98") != std::string::npos);
 
     fx.panel().handle_retest_clicked(helix::calibration::BeltPath::PATH_A);
     REQUIRE(fx.state_int("belt_tension_state") ==
@@ -281,8 +310,10 @@ TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
     // B, inside the cap: the belt-hump pair outranks the 42 Hz one.
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
     CHECK(fx.text("bt_peak_a") == "106");
-    CHECK(fx.text("bt_note_a").find("was 110") != std::string::npos);
+    // "was" repeats the number the path showed before its re-measure.
+    CHECK(fx.text("bt_note_a").find("was 42") != std::string::npos);
     CHECK(fx.text("bt_peak_b") == "98");
+    CHECK(fx.state_int("bt_has_unpaired") == 0);
 
     auto* chart = fx.panel_chart();
     REQUIRE(chart != nullptr);
@@ -326,6 +357,7 @@ TEST_CASE("a stall trips the stall guard", "[belt][panel]") {
     CHECK(fx.state_int("belt_tension_state") ==
           static_cast<int>(BeltTensionPanel::ViewState::ERROR));
     CHECK(fx.text("bt_error_message").find("stopped reporting progress") != std::string::npos);
+    CHECK(fx.text("bt_error_message").find("restart Klipper") != std::string::npos);
 }
 
 TEST_CASE("closing mid-run stops listening", "[belt][panel]") {
@@ -427,4 +459,42 @@ TEST_CASE("sweep fact line comes from the printer's resonance_tester config", "[
     REQUIRE(fx.wait_gate_open());
     // Mock defaults 5-135 Hz at 1 Hz/s: two sweeps take ceil(2*130/60) = 5 min.
     CHECK(fx.text("bt_hw_sweep") == "5-135 Hz · about 5 min");
+}
+
+TEST_CASE("low RAM asks before the sweep starts", "[belt][panel]") {
+    BeltPanelFixture fx;
+    helix::ui::modal_init_subjects();
+    REQUIRE(fx.register_component("modal_dialog"));
+    REQUIRE(fx.wait_gate_open());
+    fx.panel().set_total_ram_mb_for_test(128);
+
+    fx.panel().handle_start_clicked();
+    fx.pump_ms(500);
+    // Klipper analyses the sweep on this host: on a small board the warning
+    // comes first and nothing moves until it is answered.
+    lv_obj_t* dialog = ModalStack::instance().top_dialog();
+    REQUIRE(dialog != nullptr);
+    CHECK(fx.panel_low_ram_dialog() == dialog);
+    CHECK(fx.state_int("belt_tension_state") ==
+          static_cast<int>(BeltTensionPanel::ViewState::START));
+
+    // Continuing starts the sweep and clears the handle.
+    lv_obj_t* go = lv_obj_find_by_name(dialog, "btn_primary");
+    REQUIRE(go != nullptr);
+    lv_obj_send_event(go, LV_EVENT_CLICKED, nullptr);
+    fx.pump_ms(500);
+    CHECK(fx.panel_low_ram_dialog() == nullptr);
+    CHECK(fx.state_int("belt_tension_state") ==
+          static_cast<int>(BeltTensionPanel::ViewState::RUNNING));
+}
+
+TEST_CASE("enough RAM starts the sweep without asking", "[belt][panel]") {
+    BeltPanelFixture fx;
+    REQUIRE(fx.wait_gate_open());
+    fx.panel().set_total_ram_mb_for_test(1024);
+
+    fx.panel().handle_start_clicked();
+    CHECK(fx.panel_low_ram_dialog() == nullptr);
+    CHECK(fx.state_int("belt_tension_state") ==
+          static_cast<int>(BeltTensionPanel::ViewState::RUNNING));
 }

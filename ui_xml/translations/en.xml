@@ -111,8 +111,7 @@
   <translation tag="A print is in progress - restart still pending" en="A print is in progress - restart still pending"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." en="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" en="A spool may be tangled or the drive gear is jammed"/>
-  <translation tag="A tighter" en="A tighter"/>
-  <translation tag="A · 1,1" en="A · 1,1"/>
+  <translation tag="A · 1,-1" en="A · 1,-1"/>
   <translation tag="ABS" en="ABS"/>
   <translation tag="ACCELEROMETERS" en="ACCELEROMETERS"/>
   <translation tag="ACE Moonraker bridge not found. Install ace_status.py for full support." en="ACE Moonraker bridge not found. Install ace_status.py for full support."/>
@@ -174,7 +173,6 @@
   <translation tag="Added to queue (position {}) - queue is paused" en="Added to queue (position {}) - queue is paused"/>
   <translation tag="Adding to queue..." en="Adding to queue..."/>
   <translation tag="Address" en="Address"/>
-  <translation tag="Adjust needed" en="Adjust needed"/>
   <translation tag="Adjust screen brightness level" en="Adjust screen brightness level"/>
   <translation tag="Adjust screws, then re-probe." en="Adjust screws, then re-probe."/>
   <translation tag="Adjustments stay active until restart. Save after print completes." en="Adjustments stay active until restart. Save after print completes."/>
@@ -264,8 +262,7 @@
   <translation tag="Available networks" en="Available networks"/>
   <translation tag="Average" en="Average"/>
   <translation tag="Axis limits unknown" en="Axis limits unknown"/>
-  <translation tag="B tighter" en="B tighter"/>
-  <translation tag="B · 1,-1" en="B · 1,-1"/>
+  <translation tag="B · 1,1" en="B · 1,1"/>
   <translation tag="BACK" en="BACK"/>
   <translation tag="BEACON" en="BEACON"/>
   <translation tag="BETA" en="BETA"/>
@@ -1100,6 +1097,7 @@
   <translation tag="Failed to update moonraker.conf.&#10;Check printer connection." en="Failed to update moonraker.conf.&#10;Check printer connection."/>
   <translation tag="Failed to upload modified G-code: {}" en="Failed to upload modified G-code: {}"/>
   <translation tag="Failed to upload remapped G-code: {}" en="Failed to upload remapped G-code: {}"/>
+  <translation tag="Fair match" en="Fair match"/>
   <translation tag="Fan" en="Fan"/>
   <translation tag="Fan Calibration" en="Fan Calibration"/>
   <translation tag="Fan Speeds" en="Fan Speeds"/>
@@ -1248,6 +1246,7 @@
   <translation tag="Global" en="Global"/>
   <translation tag="Good" en="Good"/>
   <translation tag="Good Accuracy" en="Good Accuracy"/>
+  <translation tag="Good match" en="Good match"/>
   <translation tag="Got it" en="Got it"/>
   <translation tag="Gray" en="Gray"/>
   <translation tag="Grip filament" en="Grip filament"/>
@@ -1490,7 +1489,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." en="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error."/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." en="Klipper reserves &apos;default&apos; for new calibrations. Choose another name."/>
   <translation tag="Klipper restarting - macros activating" en="Klipper restarting - macros activating"/>
-  <translation tag="Klipper stopped reporting progress. Check the printer, then try again." en="Klipper stopped reporting progress. Check the printer, then try again."/>
+  <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." en="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again."/>
   <translation tag="Klipper will restart to apply changes" en="Klipper will restart to apply changes"/>
   <translation tag="Klipper will restart to apply changes." en="Klipper will restart to apply changes."/>
   <translation tag="Klipper will restart to apply new settings." en="Klipper will restart to apply new settings."/>
@@ -1849,8 +1848,8 @@
   <translation tag="No printers found" en="No printers found"/>
   <translation tag="No prints yet" en="No prints yet"/>
   <translation tag="No profiles available" en="No profiles available"/>
-  <translation tag="No resonance peak found for {}" en="No resonance peak found for {}"/>
   <translation tag="No sensors detected" en="No sensors detected"/>
+  <translation tag="No shared peaks" en="No shared peaks"/>
   <translation tag="No slot currently matches." en="No slot currently matches."/>
   <translation tag="No spool assigned" en="No spool assigned"/>
   <translation tag="No spools found — tap to retry" en="No spools found — tap to retry"/>
@@ -1943,6 +1942,8 @@
   <translation tag="On/Off (state-aware)" en="On/Off (state-aware)"/>
   <translation tag="On:" en="On:"/>
   <translation tag="One tap runs this macro. Dangerous macros still ask." en="One tap runs this macro. Dangerous macros still ask."/>
+  <translation tag="Only on A: {} Hz" en="Only on A: {} Hz"/>
+  <translation tag="Only on B: {} Hz" en="Only on B: {} Hz"/>
   <translation tag="Ooze Reduction" en="Ooze Reduction"/>
   <translation tag="Open" en="Open"/>
   <translation tag="Open Source Licenses" en="Open Source Licenses"/>
@@ -1973,8 +1974,8 @@
   <translation tag="Override auto-detection if your chamber sensor or heater isn&apos;t named &apos;chamber&apos;." en="Override auto-detection if your chamber sensor or heater isn&apos;t named &apos;chamber&apos;."/>
   <translation tag="P" en="P"/>
   <translation tag="PA" en="PA"/>
-  <translation tag="PATH A · 1,1" en="PATH A · 1,1"/>
-  <translation tag="PATH B · 1,-1" en="PATH B · 1,-1"/>
+  <translation tag="PATH A · 1,-1" en="PATH A · 1,-1"/>
+  <translation tag="PATH B · 1,1" en="PATH B · 1,1"/>
   <translation tag="PETG" en="PETG"/>
   <translation tag="PID" en="PID"/>
   <translation tag="PIN must be 4-6 digits" en="PIN must be 4-6 digits"/>
@@ -2014,8 +2015,6 @@
   <translation tag="Password" en="Password"/>
   <translation tag="Password cannot be empty" en="Password cannot be empty"/>
   <translation tag="Password is required for secured networks" en="Password is required for secured networks"/>
-  <translation tag="Path A" en="Path A"/>
-  <translation tag="Path B" en="Path B"/>
   <translation tag="Path {}" en="Path {}"/>
   <translation tag="Path {} before" en="Path {} before"/>
   <translation tag="Pause" en="Pause"/>
@@ -2029,6 +2028,7 @@
   <translation tag="Pausing..." en="Pausing..."/>
   <translation tag="Peak Freq" en="Peak Freq"/>
   <translation tag="Peak:" en="Peak:"/>
+  <translation tag="Peaks {} Hz" en="Peaks {} Hz"/>
   <translation tag="Performance" en="Performance"/>
   <translation tag="Phomemo (Bluetooth)" en="Phomemo (Bluetooth)"/>
   <translation tag="Phomemo M110" en="Phomemo M110"/>
@@ -2062,6 +2062,7 @@
   <translation tag="Point camera at QR code on spool" en="Point camera at QR code on spool"/>
   <translation tag="Polymaker" en="Polymaker"/>
   <translation tag="Poor Accuracy" en="Poor Accuracy"/>
+  <translation tag="Poor match" en="Poor match"/>
   <translation tag="Port" en="Port"/>
   <translation tag="Position" en="Position"/>
   <translation tag="Post-Sensor Clear" en="Post-Sensor Clear"/>
@@ -2662,7 +2663,7 @@
   <translation tag="Shutting down..." en="Shutting down..."/>
   <translation tag="Signal" en="Signal"/>
   <translation tag="Signal #" en="Signal #"/>
-  <translation tag="Similarity {:.0f}%" en="Similarity {:.0f}%"/>
+  <translation tag="Similarity" en="Similarity"/>
   <translation tag="Single toggle macro. State is not tracked." en="Single toggle macro. State is not tracked."/>
   <translation tag="Size" en="Size"/>
   <translation tag="Skip" en="Skip"/>
@@ -2955,7 +2956,7 @@
   <translation tag="This calibration uses the paper friction method to set your Z-offset." en="This calibration uses the paper friction method to set your Z-offset."/>
   <translation tag="This cannot be undone." en="This cannot be undone."/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." en="This channel offers v{}, older than the installed v{}. Anything added since then will be removed."/>
-  <translation tag="This check runs Klipper&apos;s resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." en="This check runs Klipper&apos;s resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other."/>
+  <translation tag="This check runs Klipper&apos;s resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs." en="This check runs Klipper&apos;s resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."/>
   <translation tag="This clears every spool&apos;s failover assignment. The print will stop on runout until you set up failover again." en="This clears every spool&apos;s failover assignment. The print will stop on runout until you set up failover again."/>
   <translation tag="This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen." en="This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen."/>
   <translation tag="This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a &quot;Timer Too Close&quot; error or restart mid-test. Continue anyway?" en="This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a &quot;Timer Too Close&quot; error or restart mid-test. Continue anyway?"/>
@@ -3239,7 +3240,6 @@
   <translation tag="Weekly Print Stats" en="Weekly Print Stats"/>
   <translation tag="Weight data is synced from Spoolman to display remaining filament. Changes are also synced when prints start, pause, or complete." en="Weight data is synced from Spoolman to display remaining filament. Changes are also synced when prints start, pause, or complete."/>
   <translation tag="Welcome to HelixScreen" en="Welcome to HelixScreen"/>
-  <translation tag="Well matched" en="Well matched"/>
   <translation tag="What We Collect" en="What We Collect"/>
   <translation tag="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs." en="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs."/>
   <translation tag="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation." en="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation."/>
@@ -3402,7 +3402,6 @@
   <translation tag="v{} installed! Restarting..." en="v{} installed! Restarting..."/>
   <translation tag="v{} is available. Tap to update." en="v{} is available. Tap to update."/>
   <translation tag="you have" en="you have"/>
-  <translation tag="{:.0f} Hz apart · similarity {:.0f}%" en="{:.0f} Hz apart · similarity {:.0f}%"/>
   <translation tag="{:.0f}-{:.0f} Hz · about {} min" en="{:.0f}-{:.0f} Hz · about {} min"/>
   <translation tag="{} LED strips available" en="{} LED strips available"/>
   <translation tag="{} and {} are both mapped here" en="{} and {} are both mapped here"/>

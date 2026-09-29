@@ -214,6 +214,7 @@ The row appears under **Advanced > Calibration** once [beta features are enabled
 - A **CoreXY** printer. The check compares the two diagonals only a CoreXY has, so it is unavailable on other kinematics
 - An **accelerometer** configured in Klipper, and exactly one. When more than one accelerometer reports during the sweep, the check stops with a message rather than guess which one to compare
 - **HelixScreen running on the printer's own computer.** Klipper writes its measurements to a file as it sweeps; only a HelixScreen installed on the same machine can read it. A remote session from another computer cannot run the check
+- On a printer with **less than 200 MB of memory**, the check warns you first. Klipper analyses each sweep on the printer itself, and on a small board that analysis can run out of memory and leave Klipper stuck until it is restarted
 - Klipper ready, and **no print running**. The toolhead has to be free to move
 
 ### Running a Check
@@ -221,18 +222,23 @@ The row appears under **Advanced > Calibration** once [beta features are enabled
 1. Navigate to **Advanced > Belt Tension**
 2. The panel shows what it found: your kinematics, your accelerometer, and the frequency range the sweep will cover. If a requirement is not met, the reason appears above the Start button
 3. Tap **Start check**. The printer homes first if it needs to, then sweeps each belt path in turn: the toolhead moves back and forth along one diagonal while the accelerometer listens, then the other. Two full sweeps take about 5 minutes at Klipper's default settings - keep clear of the printer while it moves
-4. Both curves appear on one chart, each path in its own color, with the peak of each marked
+4. Both curves appear on one chart, each path in its own color
+
+The check always uses Klipper's plain pulse test, even on printers set up for the newer sweeping test: the sweeping test smooths over exactly the kind of mechanical difference a belt comparison looks for.
 
 **Stop** aborts the run with an emergency stop followed by a firmware restart: a sweep cannot be paused or cancelled partway. Use it only when something is actually wrong.
 
 ### Reading the Results
 
-- **Each path's peak frequency**, shown as the two large numbers. A higher peak means a tighter path
-- **"N Hz apart · similarity N%"** between them: how far the peaks sit from each other, and how closely the two response curves match in shape
-- A verdict of **Well matched**, **Close** or **Adjust needed**. The verdict is provisional: the thresholds behind it have not been validated against real machines yet, so treat it as a starting point and use the numbers and the curves yourself
-- A rail showing which path peaks higher, labeled **A tighter** or **B tighter** at each end
+- **Similarity**, the large number in the middle: how closely the two response curves match in shape, from 0 to 100%. Balanced belts give curves of the same shape
+- A verdict of **Good match** (90% and up), **Fair match** (75% and up) or **Poor match**. The verdict is provisional: the thresholds come from a handful of printers so far, so treat it as a starting point and read the curves yourself
+- **Peaks both paths share**, listed under the chart as pairs of frequencies, Path A first ("Peaks 35/36 · 133/132 Hz"), strongest first. Each pair carries the same number on both curves. The two numbers at the sides of the screen are the strongest pair
+- **Peaks only one path has** ("Only on A: 120, 129 Hz"), shown as hollow rings on the chart. A strong peak one path has and the other lacks is usually the clearest sign the two belts differ
+- The chart's height is **relative**: both curves are scaled to the taller one, so the highest point reads 100%
 
-The check reports **paths, not belts**. Path A and Path B are the two diagonals the toolhead travels; which physical belt each diagonal loads depends on your printer's layout. Check your printer's documentation for which belt to actually adjust before turning anything.
+The check reports **paths, not belts**. Path A is the 1,-1 diagonal and Path B the 1,1 diagonal, the same naming Shake&Tune and the Voron documentation use. Which physical belt each diagonal loads depends on your printer's layout, so check your printer's documentation before turning anything.
+
+HelixScreen's similarity reads lower than Shake&Tune's for the same printer. Shake&Tune compares the curves up to 200 Hz, where both are nearly flat and so agree; HelixScreen compares only the range the printer actually swept.
 
 ### Adjusting and Re-testing
 

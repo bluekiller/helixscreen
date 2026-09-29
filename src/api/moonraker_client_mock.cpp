@@ -206,7 +206,7 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor
     }
 
     // HELIX_MOCK_BELT_A_HZ / HELIX_MOCK_BELT_B_HZ — the two belt paths'
-    // simulated resonance peaks. Defaults (110/98) sit in "Adjust needed"
+    // simulated resonance peaks. Defaults (110/98) sit in "Poor match"
     // territory so the tuning loop is visible from the first sweep.
     if (const char* a_env = std::getenv("HELIX_MOCK_BELT_A_HZ")) {
         if (auto v = text_io::parse_leading<float>(a_env); v && *v > 0.0f) {
@@ -216,6 +216,22 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor
     if (const char* b_env = std::getenv("HELIX_MOCK_BELT_B_HZ")) {
         if (auto v = text_io::parse_leading<float>(b_env); v && *v > 0.0f) {
             belt_peaks_hz_[1] = *v;
+        }
+    }
+
+    // HELIX_MOCK_BELT_RANGE=<min>-<max> — the [resonance_tester] sweep range
+    // the mock reports and sweeps, so a real capture fed through
+    // HELIX_MOCK_BELT_CSV_A/_B is analysed over the band it was measured in.
+    if (const char* range_env = std::getenv("HELIX_MOCK_BELT_RANGE")) {
+        const std::string range(range_env);
+        const auto dash = range.find('-', 1);
+        const auto lo = text_io::parse_leading<double>(range.substr(0, dash));
+        const auto hi = dash == std::string::npos
+                            ? std::nullopt
+                            : text_io::parse_leading<double>(range.substr(dash + 1));
+        if (lo && hi && *lo > 0.0 && *hi > *lo) {
+            resonance_min_freq_ = *lo;
+            resonance_max_freq_ = *hi;
         }
     }
 
@@ -6947,16 +6963,17 @@ void MoonrakerClientMock::dispatch_shaper_calibrate_response(char axis) {
 }
 
 void MoonrakerClientMock::dispatch_test_resonances_response(const std::string& gcode) {
-    // AXIS= names a belt diagonal in Klipper's XY-vector form: 1,1 = A,
-    // 1,-1 = B. Anything else cannot be swept.
+    // AXIS= names a belt diagonal in Klipper's XY-vector form. Path A is
+    // 1,-1 and Path B is 1,1, the Voron motor names Shake&Tune uses.
+    // Anything else cannot be swept.
     std::string axis_value;
     if (auto axis_pos = gcode.find("AXIS="); axis_pos != std::string::npos) {
         const size_t start = axis_pos + 5;
         const size_t end = gcode.find_first_of(" \t", start);
         axis_value = gcode.substr(start, end == std::string::npos ? end : end - start);
     }
-    const bool is_a = axis_value == "1,1";
-    const bool is_b = axis_value == "1,-1";
+    const bool is_a = axis_value == "1,-1";
+    const bool is_b = axis_value == "1,1";
     if (!is_a && !is_b) {
         dispatch_gcode_response("!! Unsupported axis");
         spdlog::warn("[MoonrakerClientMock] TEST_RESONANCES unsupported axis '{}'", axis_value);
@@ -6983,8 +7000,8 @@ void MoonrakerClientMock::dispatch_test_resonances_response(const std::string& g
 
     const bool kalico = belt_failure_ == BeltMockFailure::KALICO;
     const std::string axis_name =
-        kalico ? (is_a ? "axis=1.000,1.000" : "axis=1.000,-1.000")
-               : (is_a ? "axis=1.000,1.000,0.000" : "axis=1.000,-1.000,0.000");
+        kalico ? (is_a ? "axis=1.000,-1.000" : "axis=1.000,1.000")
+               : (is_a ? "axis=1.000,-1.000,0.000" : "axis=1.000,1.000,0.000");
 
     // Whole-Hz console lines across the configured [resonance_tester] range.
     std::vector<std::string> lines;
@@ -7053,8 +7070,19 @@ void MoonrakerClientMock::dispatch_test_resonances_response(const std::string& g
 
             if (!s->final_line.empty()) {
                 if (s->write) {
-                    write_mock_belt_csv(s->csv_path, s->path_letter, s->peak_hz, s->max_freq,
-                                        s->mode);
+                    // HELIX_MOCK_BELT_CSV_A/_B replay a real capture for that
+                    // path instead of the synthetic curve.
+                    const char* replay = std::getenv(
+                        s->path_letter == 'A' ? "HELIX_MOCK_BELT_CSV_A" : "HELIX_MOCK_BELT_CSV_B");
+                    std::ifstream src(replay ? replay : "");
+                    if (src && s->mode == BeltMockFailure::NONE) {
+                        std::ofstream(s->csv_path) << src.rdbuf();
+                        spdlog::info("[MoonrakerClientMock] Replayed belt CSV {} to {}", replay,
+                                     s->csv_path);
+                    } else {
+                        write_mock_belt_csv(s->csv_path, s->path_letter, s->peak_hz, s->max_freq,
+                                            s->mode);
+                    }
                 } else {
                     // No file may survive at the path the terminal line names,
                     // or a caller would read stale data as this run's result.

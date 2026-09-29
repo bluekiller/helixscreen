@@ -113,8 +113,7 @@ translations:
   A print is in progress - restart still pending: '打印进行中 - 重启待执行'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: 此通道正在打印中。HelixScreen 已清除本地副本；打印结束后请再次清空。
   A spool may be tangled or the drive gear is jammed: 料盘可能缠绕，或驱动齿轮卡住
-  A tighter: A 更紧
-  A · 1,1: A · 1,1
+  A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: 加速度计
   ACE Moonraker bridge not found. Install ace_status.py for full support.: 未找到 ACE Moonraker 桥接。请安装 ace_status.py 以获得完整支持。
@@ -174,7 +173,6 @@ translations:
   Added to queue (position {}) - queue is paused: 已添加到队列（第 {} 位）– 队列已暂停
   Adding to queue...: 正在添加到队列...
   Address: 地址
-  Adjust needed: 需要调整
   Adjust screen brightness level: 调整屏幕亮度
   Adjust screws, then re-probe.: 调整螺丝，然后重新探测。
   Adjustments stay active until restart. Save after print completes.: 调整在重启前保持有效。打印完成后保存。
@@ -267,8 +265,7 @@ translations:
   Available networks: 可用网络
   Average: 平均值
   Axis limits unknown: 轴限位未知
-  B tighter: B 更紧
-  B · 1,-1: B · 1,-1
+  B · 1,1: "B · 1,1"
   BACK: 后侧
   BEACON: BEACON
   BETA: 测试版
@@ -590,7 +587,7 @@ translations:
   Command failed: 命令失败
   Communication Test: '通信测试'
   Compact: 紧凑
-  Compare belt paths with a resonance sweep: ''
+  Compare belt paths with a resonance sweep: "用共振扫频比较皮带路径"
   Compare your belt paths: 比较皮带路径
   Complete: 完成
   Complete!: 完成！
@@ -1133,6 +1130,7 @@ translations:
   : "更新 moonraker.conf 失败。\n请检查打印机连接。"
   'Failed to upload modified G-code: {}': '上传修改后的 G-code 失败: {}'
   'Failed to upload remapped G-code: {}': 上传重新映射的 G-code 失败：{}
+  Fair match: "匹配中等"
   Fan: 风扇
   Fan Calibration: 风扇校准
   Fan Speeds: '风扇速度'
@@ -1287,6 +1285,7 @@ translations:
   Global: 全局
   Good: 良好
   Good Accuracy: 精度良好
+  Good match: "匹配良好"
   Got it: 知道了
   Gray: 灰色
   Grip filament: 夹持耗材
@@ -1546,7 +1545,7 @@ translations:
     已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper 将 'default' 保留用于新的校准。请选择其他名称。"
   Klipper restarting - macros activating: '正在重启 Klipper - 正在启用宏'
-  Klipper stopped reporting progress. Check the printer, then try again.: Klipper 停止报告进度。请检查打印机后重试。
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存；请重启 Klipper 后重试。"
   Klipper will restart to apply changes: Klipper 将重启以应用更改
   Klipper will restart to apply changes.: Klipper 将重启以应用更改。
   Klipper will restart to apply new settings.: Klipper 将重启以应用新设置。
@@ -1914,8 +1913,8 @@ translations:
   No printers found: 未找到打印机
   No prints yet: 暂无打印记录
   No profiles available: 无可用配置
-  No resonance peak found for {}: 未找到 {} 的共振峰值
   No sensors detected: 未检测到传感器
+  No shared peaks: "无共同峰值"
   No slot currently matches.: '当前没有匹配的槽位。'
   No spool assigned: 未分配料盘
   No spools found — tap to retry: 未找到料盘 - 点击重试
@@ -2011,6 +2010,8 @@ translations:
   On/Off (state-aware): 开/关（状态跟踪）
   'On:': '开:'
   One tap runs this macro. Dangerous macros still ask.: '单击即可运行此宏。危险宏仍会询问。'
+  'Only on A: {} Hz': "仅 A：{} Hz"
+  'Only on B: {} Hz': "仅 B：{} Hz"
   Ooze Reduction: '减少渗漏'
   Open: 打开
   Open Source Licenses: 开源许可证
@@ -2044,8 +2045,8 @@ translations:
     'chamber'，可覆盖自动检测。
   P: 件
   PA: PA
-  PATH A · 1,1: 路径 A · 1,1
-  PATH B · 1,-1: 路径 B · 1,-1
+  PATH A · 1,-1: "路径 A · 1,-1"
+  PATH B · 1,1: "路径 B · 1,1"
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN 码必须为 4-6 位数字
@@ -2086,8 +2087,6 @@ translations:
   Password: 密码
   Password cannot be empty: 密码不能为空
   Password is required for secured networks: 加密网络需要密码
-  Path A: 路径 A
-  Path B: 路径 B
   Path {}: 路径 {}
   Path {} before: 路径 {}（之前）
   Pause: 暂停
@@ -2101,6 +2100,7 @@ translations:
   Pausing...: 暂停中...
   Peak Freq: 峰值频率
   'Peak:': 峰值：
+  Peaks {} Hz: "峰值 {} Hz"
   Performance: 性能
   Phomemo (Bluetooth): Phomemo（蓝牙）
   Phomemo M110: Phomemo M110
@@ -2138,6 +2138,7 @@ translations:
   Point camera at QR code on spool: 将摄像头对准料盘上的 QR 码
   Polymaker: Polymaker
   Poor Accuracy: 精度较差
+  Poor match: "匹配较差"
   Port: 端口
   Position: 位置
   Post-Sensor Clear: '传感器触发后额外移动'
@@ -2760,7 +2761,7 @@ translations:
   Shutting down...: 正在关机...
   Signal: 信号
   'Signal #': '信号 #'
-  Similarity {:.0f}%: '相似度 {:.0f}%'
+  Similarity: "相似度"
   Single toggle macro. State is not tracked.: 单个切换宏。不跟踪状态。
   Size: 大小
   Skip: 跳过
@@ -3083,8 +3084,8 @@ translations:
     Z 偏移。
   This cannot be undone.: 此操作无法撤销。
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: '此通道提供 v{}，早于已安装的 v{}。此后新增的内容都将被移除。'
-  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "此检查会沿每条皮带对角线运行 Klipper 的共振扫频，并比较两条曲线。频率匹配意味着张力平衡。\n\n每次扫频需要几分钟并会移动工具头；运行期间请勿打开打印机。\n\n在 CoreXY 上，皮带 A 和 B 的相差应在几 Hz 之内。"
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "此检查会沿每条皮带路径运行 Klipper 的共振测试，并比较两个响应。平衡的皮带会给出形状相同、峰值位于相同频率的曲线。\n\n每次扫频需要几分钟并会移动工具头；运行期间请远离打印机。"
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: '这会清除每个料盘的备用分配。在重新设置之前，耗材用尽时打印将停止。'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: 此设备没有有线网络连接。关闭 WiFi 后，只能在此界面重新开启。
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3389,7 +3390,6 @@ translations:
     also synced when prints start, pause, or complete.
   : 重量数据从 Spoolman 同步以显示剩余耗材。打印开始、暂停或完成时也会同步更改。
   Welcome to HelixScreen: 欢迎使用 HelixScreen
-  Well matched: 匹配良好
   What We Collect: 我们收集的内容
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: 启用时仅运行宏。禁用时先设置温度，然后运行宏。
   ? When starting a print, you'll be able to choose whether to run %s. This saves
@@ -3564,7 +3564,6 @@ translations:
   v{} installed! Restarting...: 已安装 v{}！正在重启...
   v{} is available. Tap to update.: v{} 可用。点击以更新。
   you have: 您有
-  '{:.0f} Hz apart · similarity {:.0f}%': 相差 {:.0f} Hz · 相似度 {:.0f}%
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · 约 {} 分钟'
   '{} LED strips available': '{} 条 LED 灯带可用'
   '{} and {} are both mapped here': '{} 和 {} 都映射到这里'

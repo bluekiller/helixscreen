@@ -114,8 +114,7 @@ translations:
   A print is in progress - restart still pending: '印刷中です - 再起動は保留中'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: このゲートで印刷中です。HelixScreen 側のコピーはクリアしました。印刷終了後に再度クリアしてください。
   A spool may be tangled or the drive gear is jammed: スプールが絡まっているか、駆動ギアが詰まっている可能性があります
-  A tighter: Aが強い
-  A · 1,1: A · 1,1
+  A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: 加速度センサー
   ACE Moonraker bridge not found. Install ace_status.py for full support.: ACE Moonraker ブリッジが見つかりません。完全なサポートには ace_status.py をインストールしてください。
@@ -175,7 +174,6 @@ translations:
   Added to queue (position {}) - queue is paused: キューに追加しました（{} 番目）– キューは一時停止中です
   Adding to queue...: キューに追加中...
   Address: アドレス
-  Adjust needed: 調整が必要です
   Adjust screen brightness level: 画面の明るさを調整します
   Adjust screws, then re-probe.: ネジを調整して、再度プローブしてください。
   Adjustments stay active until restart. Save after print completes.: 調整は再起動まで有効です。印刷完了後に保存してください。
@@ -268,8 +266,7 @@ translations:
   Available networks: 利用可能なネットワーク
   Average: 平均
   Axis limits unknown: 軸の限界は不明です
-  B tighter: Bが強い
-  B · 1,-1: B · 1,-1
+  B · 1,1: "B · 1,1"
   BACK: 背面
   BEACON: BEACON
   BETA: BETA
@@ -592,7 +589,7 @@ translations:
   Command failed: コマンドに失敗しました
   Communication Test: '通信テスト'
   Compact: コンパクト
-  Compare belt paths with a resonance sweep: ''
+  Compare belt paths with a resonance sweep: "共振スイープでベルトパスを比較"
   Compare your belt paths: ベルト経路を比較
   Complete: 完了
   Complete!: 完了！
@@ -1137,6 +1134,7 @@ translations:
   : "moonraker.confの更新に失敗しました。\nプリンター接続を確認してください。"
   'Failed to upload modified G-code: {}': '変更済み G-code のアップロードに失敗しました: {}'
   'Failed to upload remapped G-code: {}': 'リマップしたG-codeのアップロードに失敗しました: {}'
+  Fair match: "まずまずの一致"
   Fan: ファン
   Fan Calibration: ファンキャリブレーション
   Fan Speeds: 'ファン速度'
@@ -1291,6 +1289,7 @@ translations:
   Global: グローバル
   Good: 良好
   Good Accuracy: 良好な精度
+  Good match: "良好な一致"
   Got it: 了解
   Gray: グレー
   Grip filament: フィラメントを把持
@@ -1551,7 +1550,7 @@ translations:
     がシャットダウン状態になりました。緊急停止、熱暴走、または設定エラーが原因の可能性があります。
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper は 'default' を新しいキャリブレーション用に予約しています。別の名前を選んでください。"
   Klipper restarting - macros activating: 'Klipper を再起動しています - マクロを有効化中'
-  Klipper stopped reporting progress. Check the printer, then try again.: Klipperが進捗の報告を停止しました。プリンターを確認して、再試行してください。
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipperが進捗の報告を停止しました。小型のプリンターでは解析でメモリが不足することがあります。Klipperを再起動してから再試行してください。"
   Klipper will restart to apply changes: 変更を適用するために Klipper が再起動します
   Klipper will restart to apply changes.: 変更を適用するために Klipper が再起動します。
   Klipper will restart to apply new settings.: 新しい設定を適用するためKlipperが再起動します。
@@ -1921,8 +1920,8 @@ translations:
   No printers found: プリンターが見つかりません
   No prints yet: 印刷履歴なし
   No profiles available: 利用可能なプロファイルがありません
-  No resonance peak found for {}: '{}の共振ピークが見つかりません'
   No sensors detected: センサーが検出されませんでした
+  No shared peaks: "共通のピークなし"
   No slot currently matches.: '現在、一致するスロットはありません。'
   No spool assigned: スプール未割当
   No spools found — tap to retry: スプールが見つかりません — タップして再試行
@@ -2018,6 +2017,8 @@ translations:
   On/Off (state-aware): オン/オフ（状態追跡）
   'On:': 'オン:'
   One tap runs this macro. Dangerous macros still ask.: 'ワンタップでこのマクロを実行します。危険なマクロは確認を求めます。'
+  'Only on A: {} Hz': "Aのみ: {} Hz"
+  'Only on B: {} Hz': "Bのみ: {} Hz"
   Ooze Reduction: 'にじみ低減'
   Open: 開く
   Open Source Licenses: オープンソースライセンス
@@ -2051,8 +2052,8 @@ translations:
     'chamber' でない場合、自動検出を上書きできます。
   P: P
   PA: PA
-  PATH A · 1,1: パス A · 1,1
-  PATH B · 1,-1: パス B · 1,-1
+  PATH A · 1,-1: "パス A · 1,-1"
+  PATH B · 1,1: "パス B · 1,1"
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN は 4〜6 桁にしてください
@@ -2093,8 +2094,6 @@ translations:
   Password: パスワード
   Password cannot be empty: パスワードを入力してください
   Password is required for secured networks: セキュリティ保護されたネットワークにはパスワードが必要です
-  Path A: パス A
-  Path B: パス B
   Path {}: パス {}
   Path {} before: パス{}（以前）
   Pause: 一時停止
@@ -2108,6 +2107,7 @@ translations:
   Pausing...: 一時停止中...
   Peak Freq: ピーク周波数
   'Peak:': 'ピーク:'
+  Peaks {} Hz: "ピーク {} Hz"
   Performance: パフォーマンス
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
@@ -2146,6 +2146,7 @@ translations:
   Point camera at QR code on spool: スプールの QR コードにカメラを向けてください
   Polymaker: Polymaker
   Poor Accuracy: 精度不良
+  Poor match: "不十分な一致"
   Port: ポート
   Position: 位置
   Post-Sensor Clear: 'センサー通過後の追加移動'
@@ -2769,7 +2770,7 @@ translations:
   Shutting down...: シャットダウン中...
   Signal: 信号
   'Signal #': 信号番号
-  Similarity {:.0f}%: '類似度{:.0f}%'
+  Similarity: "類似度"
   Single toggle macro. State is not tracked.: 単一のトグルマクロ。状態は追跡されません。
   Size: サイズ
   Skip: スキップ
@@ -3092,8 +3093,8 @@ translations:
     Z-offset を設定します。
   This cannot be undone.: この操作は元に戻せません。
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: 'このチャンネルが提供するのは v{} で、インストール済みの v{} より古いバージョンです。それ以降に追加されたものは削除されます。'
-  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "このチェックはKlipperの共振スイープを各ベルト対角に沿って実行し、2つの曲線を比較します。周波数が一致していればテンションはバランスが取れています。\n\n各スイープには数分かかり、ツールヘッドが動きます。実行中はプリンターを開かないでください。\n\nCoreXYでは、ベルトAとBの差が数Hz以内であるべきです。"
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "このチェックはKlipperの共振テストを各ベルトパスに沿って実行し、2つの応答を比較します。バランスの取れたベルトは同じ形の曲線になり、ピークが同じ周波数に現れます。\n\n各スイープには数分かかり、ツールヘッドが動きます。実行中はプリンターから離れてください。"
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: 'すべてのスプールの予備割り当てを消去します。再設定するまで、フィラメント切れで印刷が停止します。'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: このデバイスには有線ネットワーク接続がありません。WiFiをオフにすると、この画面からのみオンに戻せます。
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3399,7 +3400,6 @@ translations:
     also synced when prints start, pause, or complete.
   : 残りのフィラメントを表示するために、重量データが Spoolman から同期されます。印刷の開始、一時停止、完了時にも変更が同期されます。
   Welcome to HelixScreen: HelixScreen へようこそ
-  Well matched: よく一致
   What We Collect: 収集する情報
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: 有効時はマクロのみ実行されます。無効時は先に温度を設定してからマクロが実行されます。
   ? When starting a print, you'll be able to choose whether to run %s. This saves
@@ -3575,7 +3575,6 @@ translations:
   v{} installed! Restarting...: v{} をインストールしました！再起動中...
   v{} is available. Tap to update.: v{} が利用可能です。タップして更新してください。
   you have: 現在は
-  '{:.0f} Hz apart · similarity {:.0f}%': '{:.0f} Hz差 · 類似度{:.0f}%'
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · 約{}分'
   '{} LED strips available': '{} 個の LED ストリップが利用可能です'
   '{} and {} are both mapped here': '{} と {} の両方がここに割り当てられています'

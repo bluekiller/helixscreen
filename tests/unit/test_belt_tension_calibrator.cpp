@@ -426,8 +426,9 @@ class BeltCalibratorFixture {
 };
 
 TEST_CASE("belt path names match Klipper's axis syntax", "[belt_tension][calibrator]") {
-    CHECK(std::string(BeltTensionCalibrator::axis_param(BeltPath::PATH_A)) == "1,1");
-    CHECK(std::string(BeltTensionCalibrator::axis_param(BeltPath::PATH_B)) == "1,-1");
+    // Voron/Shake&Tune naming: A is the 1,-1 diagonal, B the 1,1 one.
+    CHECK(std::string(BeltTensionCalibrator::axis_param(BeltPath::PATH_A)) == "1,-1");
+    CHECK(std::string(BeltTensionCalibrator::axis_param(BeltPath::PATH_B)) == "1,1");
     CHECK(std::string(BeltTensionCalibrator::output_name(BeltPath::PATH_A)) == "helix_belt_a");
     CHECK(std::string(BeltTensionCalibrator::output_name(BeltPath::PATH_B)) == "helix_belt_b");
 }

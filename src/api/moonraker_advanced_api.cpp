@@ -3291,8 +3291,13 @@ MoonrakerAdvancedAPI::BeltRunCancel MoonrakerAdvancedAPI::test_belt_resonance(
         client_,
         [collector](calibration::ResonanceTesterConfig cfg) { collector->set_config(cfg); });
 
+    // SWEEPING_PERIOD=0 forces the pulse-only excitation on firmware whose
+    // [resonance_tester] defaults to sweeping: the slow sweep smooths over the
+    // mechanical faults a belt comparison looks for. Firmware without the
+    // parameter ignores it.
     const std::string gcode =
-        fmt::format("TEST_RESONANCES AXIS={} OUTPUT=resonances NAME={}", axis_param, output_name);
+        fmt::format("TEST_RESONANCES AXIS={} OUTPUT=resonances NAME={} SWEEPING_PERIOD=0",
+                    axis_param, output_name);
     // A sweep takes minutes, so the request rides the long calibration timeout
     // rather than the tracker default. A transport loss only means the RPC
     // reply vanished - Klipper keeps sweeping and the console lines keep

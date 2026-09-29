@@ -1107,7 +1107,7 @@ INPUT_SHAPER_DEMO_KALICO=1 ./build/bin/helix-screen --test -vv &
 
 ### `HELIX_MOCK_BELT_A_HZ`
 
-Set belt path A's simulated resonance peak (Hz) in the mock's `TEST_RESONANCES` simulation. Path A is the `AXIS=1,1` diagonal. Re-measuring a path walks its peak toward the other path's by up to 4 Hz per run, so the tuning loop converges the way cranking a belt tensioner does.
+Set belt path A's simulated resonance peak (Hz) in the mock's `TEST_RESONANCES` simulation. Path A is the `AXIS=1,-1` diagonal (Voron/Shake&Tune naming). Re-measuring a path walks its peak toward the other path's by up to 4 Hz per run, so the tuning loop converges the way cranking a belt tensioner does.
 
 | Property | Value |
 |----------|-------|
@@ -1122,7 +1122,7 @@ HELIX_MOCK_BELT_A_HZ=104 HELIX_MOCK_BELT_B_HZ=102 ./build/bin/helix-screen --tes
 
 ### `HELIX_MOCK_BELT_B_HZ`
 
-Set belt path B's simulated resonance peak (Hz), the `AXIS=1,-1` diagonal. Read once at mock construction, alongside `HELIX_MOCK_BELT_A_HZ`. The defaults (110/98) sit 12 Hz apart, deliberately in "Adjust needed" territory so the belt-tension loop is visible from the first sweep.
+Set belt path B's simulated resonance peak (Hz), the `AXIS=1,1` diagonal. Read once at mock construction, alongside `HELIX_MOCK_BELT_A_HZ`. The defaults (110/98) sit 12 Hz apart, deliberately in "Poor match" territory so the belt-tension loop is visible from the first sweep.
 
 | Property | Value |
 |----------|-------|
@@ -1154,4 +1154,38 @@ HELIX_MOCK_BELT_FAIL=stall ./build/bin/helix-screen --test --sim-speed 6 -vv
 ```
 
 `stall` stops emitting at the sweep midpoint, `nofile` names a CSV path it never writes, `multichip` writes per-chip columns (`adxl345`, `adxl345_hotend`) instead of a summed `psd_xyz`, `error` dies after three lines with `!! Invalid adxl345 id (got 0 vs e5).`, and `kalico` switches the transcript and CSV to Kalico's dialect. An unrecognized value leaves the normal behavior in place.
+
+### `HELIX_MOCK_BELT_CSV_A` / `HELIX_MOCK_BELT_CSV_B`
+
+Replay a real `TEST_RESONANCES OUTPUT=resonances` capture as that path's result, instead of the synthetic curve, so the belt-tension RESULTS screen can be seen on real data. The file is copied to the path the mock's "Resonances data written to" line names. Read at the end of each sweep; ignored under a `HELIX_MOCK_BELT_FAIL` mode. Pair it with `HELIX_MOCK_BELT_RANGE` so the analysis uses the band the capture was swept over.
+
+| Property | Value |
+|----------|-------|
+| **Values** | Path to a resonances CSV (Path A = the `AXIS=1,-1` capture, Path B = `AXIS=1,1`) |
+| **Default** | unset — the synthetic curve from `HELIX_MOCK_BELT_A_HZ` / `_B_HZ` |
+| **File** | `src/api/moonraker_client_mock.cpp` (`dispatch_test_resonances_response`) |
+
+```bash
+# The real Voron 2.4 pair from the test fixtures, over its 5-135 Hz sweep
+F=tests/fixtures/belt_sweeps
+HELIX_MOCK_BELT_CSV_A=$F/voron24_kalico_axis_1_-1.csv HELIX_MOCK_BELT_CSV_B=$F/voron24_kalico_axis_1_1.csv \
+  ./build/bin/helix-screen --test --sim-speed 50 -vv
+```
+
+### `HELIX_MOCK_BELT_RANGE`
+
+The `[resonance_tester]` sweep range the mock reports in its configfile and sweeps in `TEST_RESONANCES`, as `<min>-<max>` in Hz. Read once at mock construction. An unparsable value, or one where max is not above min, leaves the default.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `<min>-<max>`, e.g. `5-100` |
+| **Default** | `5-135` |
+| **File** | `src/api/moonraker_client_mock.cpp` (`MoonrakerClientMock` constructor) |
+
+```bash
+# The Snapmaker U1's band, with its real capture
+F=tests/fixtures/belt_sweeps
+HELIX_MOCK_BELT_RANGE=5-100 HELIX_MOCK_BELT_CSV_A=$F/u1_axis_1_-1.csv HELIX_MOCK_BELT_CSV_B=$F/u1_axis_1_1.csv \
+  ./build/bin/helix-screen --test --sim-speed 50 -vv
+```
 

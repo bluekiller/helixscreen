@@ -15,6 +15,7 @@
 #include "subject_managed_panel.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -72,9 +73,9 @@ class BeltTensionPanel : public OverlayBase {
     /// minutes of silence means the run is not coming back.
     static constexpr uint32_t STALL_TIMEOUT_MS = 120000;
 
-    /// The delta rail spans plus/minus this many Hz; the XML sizes its verdict
-    /// bands as the verdict constants over this span.
-    static constexpr float RAIL_SPAN_HZ = 15.0f;
+    /// Pairs and unpaired peaks named in the results facts and marked on the
+    /// chart, strongest first.
+    static constexpr size_t MAX_LISTED_PEAKS = 3;
 
     BeltTensionPanel() = default;
     ~BeltTensionPanel() override;
@@ -107,6 +108,10 @@ class BeltTensionPanel : public OverlayBase {
     /// EMBEDDED (no chart at all). Call before create(); production reads
     /// PlatformCapabilities::detect() when the first measurement starts.
     void set_render_tier_for_test(helix::PlatformTier tier, bool supports_animations);
+
+    /// Pin the RAM size the low-memory warning checks. Production reads the
+    /// host's own memory, which is the printer's: the check only runs co-located.
+    void set_total_ram_mb_for_test(size_t total_mb);
 
     //
     // === Event Handlers (public for XML callbacks) ===
@@ -196,7 +201,9 @@ class BeltTensionPanel : public OverlayBase {
     /// Park the chart obj in the RUNNING host; called when a new run starts.
     void chart_to_running_host();
     /// Fit the chart's axes to the curves it holds (or the sweep range before any).
-    void rescale_chart();
+    void push_chart_data();
+    void push_chart_markers(const helix::calibration::BeltComparison& cmp);
+    void run_after_ram_check(std::function<void()> go);
 
     // Subject manager for RAII cleanup
     SubjectManager subjects_;
@@ -233,7 +240,11 @@ class BeltTensionPanel : public OverlayBase {
     char verdict_text_buf_[128] = {};
     lv_subject_t facts_subject_{};
     char facts_buf_[96] = {};
-    lv_subject_t rail_value_subject_{};
+    lv_subject_t unpaired_subject_{};
+    char unpaired_buf_[128] = {};
+    lv_subject_t has_unpaired_subject_{};
+    lv_subject_t similarity_subject_{};
+    char similarity_buf_[16] = {};
     lv_subject_t chart_available_subject_{};
     lv_subject_t error_message_subject_{};
     char error_message_buf_[256] = {};
@@ -276,6 +287,13 @@ class BeltTensionPanel : public OverlayBase {
 
     // Run state
     PathRun runs_[2];
+    // Each path's number in the hero row: its peak in the strongest pair of the
+    // latest comparison, 0 when there is none. was_peak_hz_ is the number a
+    // re-tested path showed before its re-measure.
+    float shown_peak_hz_[2] = {0.0f, 0.0f};
+    float was_peak_hz_[2] = {0.0f, 0.0f};
+    std::optional<size_t> ram_mb_override_;
+    lv_obj_t* low_ram_dialog_ = nullptr;
     std::vector<helix::calibration::BeltPath> queue_;
     /// Size of the queue this run started with, for "2 of 2" detail lines.
     size_t run_queue_total_ = 0;

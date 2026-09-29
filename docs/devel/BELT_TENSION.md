@@ -16,6 +16,11 @@ Shake&Tune compares belts: a band-limited Pearson similarity as the headline ver
 each path's peaks paired by frequency with unpaired peaks flagged. A re-test sweeps one
 path and keeps the other, ghosting the replaced curve.
 
+Path A is the `AXIS=1,-1` diagonal and Path B the `AXIS=1,1` one. The letters follow the
+Voron motor names Shake&Tune uses: a 1,1 move turns only `stepper_x`, which on a Voron is
+the B motor, so a user comparing this screen with Shake&Tune or the Voron documentation
+sees the same letters on the same belts.
+
 Start is gated, in `src/calibration/belt_gating.cpp#evaluate_belt_gate`:
 
 | Gate leg | Meaning |
@@ -31,6 +36,12 @@ plus a calibrator-idle leg; `bt_can_start` binds the Start button's disabled sta
 gate holds however the panel was reached (row click, `ctl navigate`, a demo entry, an
 accelerometer that drops out after entry).
 
+Start and Re-test also pass through `BeltTensionPanel::run_after_ram_check`: on a host with
+less than `RESONANCE_LOW_RAM_WARN_MB` (200 MB) it shows input shaper's shared
+`show_low_ram_resonance_warning` first. Klipper analyses each sweep on the printer's own
+host, which is this one (the co-location gate), and on a 128 MB board that analysis can be
+OOM-killed, leaving klippy wedged until it is restarted.
+
 Z belts are deliberately unsupported; see the header comment on
 `include/belt_tension_types.h` for the measurement that closed that door.
 
@@ -45,7 +56,7 @@ Z belts are deliberately unsupported; see the header comment on
 | `src/calibration/resonance_console.cpp` | `[resonance_tester]` config query and console-line parsing shared with input shaper |
 | `src/calibration/shaper_csv_parser.cpp` | `parse_resonance_csv`: reads the CSV, returns `(freq, psd_xyz)` pairs or a classified error |
 | `src/api/moonraker_advanced_api.cpp` | `BeltResonanceCollector` (console follow + CSV read) and `test_belt_resonance` (entry point); `detect_belt_hardware` for kinematics |
-| `src/ui/ui_frequency_response_chart.cpp` | Shared chart: series styles, muted ghost series, sweep cursor, peak markers |
+| `src/ui/ui_frequency_response_chart.cpp` | Shared chart: series styles, muted ghost series, sweep cursor, numbered and hollow markers, percent gridline labels |
 | `src/calibration/belt_gating.cpp` | The pure Start-gate predicate |
 | `src/api/moonraker_client_mock.cpp` | `dispatch_test_resonances_response`: the `--test` simulation of a sweep |
 
@@ -62,8 +73,8 @@ IAdvancedAPI::test_belt_resonance(axis, name, ...)     moonraker_advanced_api.cp
   |  1. BeltResonanceCollector::start()                (console subscription)
   |  2. query_resonance_tester_config(client)          resonance_console.cpp
   |     -> collector->set_config(cfg)  [progress hold]
-  |  3. execute_gcode TEST_RESONANCES AXIS=<1,1|1,-1>
-  |                      OUTPUT=resonances NAME=helix_belt_{a,b}
+  |  3. execute_gcode TEST_RESONANCES AXIS=<1,-1|1,1>
+  |                      OUTPUT=resonances NAME=helix_belt_{a,b} SWEEPING_PERIOD=0
   v
 Klipper
   |  "Testing frequency %.0f Hz"          -> on_progress (percent + cursor)
@@ -76,7 +87,7 @@ BeltTensionPanel::on_sweep_complete -> next path, then finish_run()
   |
   v
 compare_belt_paths(curve_a, curve_b, sweep min, sweep max)  belt_tension_types.cpp
-  -> BeltComparison -> populate_results(): verdict chip, facts line, ghosts
+  -> BeltComparison -> populate_results(): similarity, verdict chip, peak facts, markers
 ```
 
 Two threading rules shape the middle of that flow. Every collector callback arrives on the
@@ -94,7 +105,10 @@ query always answers (defaults on error), so the hold is finite.
 
 The panel owns stall detection: `BeltTensionPanel::STALL_TIMEOUT_MS` (120 s, an
 `OperationTimeoutGuard`) fires when no progress line arrived, because Klipper prints one
-every second. `BeltResonanceCollector` carries no deadline of its own.
+every second. `BeltResonanceCollector` carries no deadline of its own. The stall message
+names the likeliest cause on a small board, Klipper's analysis running out of memory, and
+tells the user to restart Klipper: an OOM-killed analysis leaves klippy wedged, and the
+Moonraker firmware-restart RPC cannot reach it.
 
 **Stop** is not a pause. A sweep cannot be resumed, so `handle_stop_clicked` calls
 `BeltTensionCalibrator::emergency_abort`, which is
@@ -103,12 +117,18 @@ clear the movement state the aborted sweep left behind.
 
 ## Klipper facts the implementation leans on
 
-- `TEST_RESONANCES AXIS=1,1` and `AXIS=1,-1` excite the two CoreXY diagonals. Which
+- `TEST_RESONANCES AXIS=1,-1` and `AXIS=1,1` excite the two CoreXY diagonals. Which
   physical belt each diagonal loads depends on the printer's geometry, which is why the UI
   reports paths A and B, never belt names.
-- `OUTPUT=resonances` makes Klipper write `/tmp/resonances_<name>_<timestamp>.csv`. Only
-  the path announced on the console in THIS run is read, so a stale file from an earlier
-  run cannot be mistaken for a result (`BeltResonanceCollector::on_gcode_response`).
+- `SWEEPING_PERIOD=0` forces the pulse-only excitation. Mainline Klipper's
+  `[resonance_tester]` defaults to the sweeping test (1.2 s), Kalico's to pulse-only, and
+  firmware older than the sweeping test has no such parameter and ignores it. Shake&Tune's
+  own guidance is that the sweep smooths over mechanical faults (loose belts, binding), which
+  is what a belt comparison looks for.
+- `OUTPUT=resonances` makes Klipper write `resonances_<axis>_<name>.csv`, usually in `/tmp`
+  (the Snapmaker U1 writes to `/userdata/gcodes/shaper_calibrate/`). Only the path
+  announced on the console in THIS run is read, so a stale file from an earlier run cannot
+  be mistaken for a result (`BeltResonanceCollector::on_gcode_response`).
 - The CSV's `psd_xyz` column is the combined response. Per-chip columns instead of
   `psd_xyz` mean more than one accelerometer reported; that is `ResonanceCsvError::MULTI_CHIP`,
   surfaced as "More than one accelerometer reported. Belt Tension supports one."
@@ -126,9 +146,9 @@ past the sweep ceiling, and those carry no excitation.
 
 | Verdict | Condition |
 |---------|-----------|
-| MATCHED ("Well matched") | similarity >= 90% |
-| CLOSE ("Close") | similarity >= 75% |
-| ADJUST ("Adjust needed") | anything worse |
+| MATCHED ("Good match") | similarity >= 90% |
+| CLOSE ("Fair match") | similarity >= 75% |
+| ADJUST ("Poor match") | anything worse |
 
 Similarity is the Pearson correlation of the two in-band PSDs (B interpolated onto A's
 bins) x100, clamped to 0..100. Alongside it the comparison pairs local maxima by
@@ -139,9 +159,40 @@ tallest peak: the two tallest peaks can be different modes entirely (a frame mod
 path, a belt hump on the other).
 
 The comparison is invalid when either curve has fewer than three in-band bins. The
-constants are provisional: the similarity tiers are from one real capture pair so far,
-and the user guide says so. Replace them from more captures before the verdict gains
-directional advice (#1721). The RESULTS rail is parked at centre until then.
+constants are provisional. Five printers captured so far sort plausibly under them (fixtures
+in `tests/fixtures/belt_sweeps/`, named by axis):
+
+| Printer | Band (Hz) | Similarity | Verdict |
+|---------|-----------|-----------:|---------|
+| K1C | 5-133.3 | 98.9% | Good match |
+| AD5M | 5-100 | 97.4% | Good match |
+| K2 Plus | 20-120 | 92.2% | Good match |
+| U1 | 5-100 | 81.7% | Fair match (main pair 3 Hz apart) |
+| Voron 2.4 (Kalico) | 5-135 | 48.3% | Poor match (uneven belts, gantry due for re-racking) |
+
+Belt modes sit where the machine puts them (40-60 Hz on the small factory printers,
+110-130 Hz on the Voron), so no fixed "belt band" would work across the fleet. No capture
+showed anything above 150 Hz stronger than 2% of its peak.
+
+The panel shows no direction ("A tighter" / "B tighter"): a signed difference between two
+single peaks read the Voron's 36 Hz frame mode against its 120 Hz belt hump. Direction
+returns only if captures show a dependable signal (#1721).
+
+Shake&Tune reports a higher similarity for the same printer (71% against 48% on the Voron):
+it correlates 0-200 Hz, where both curves are nearly flat and so agree, while this check
+correlates only the swept band.
+
+## The RESULTS screen
+
+- Centre: `bt_similarity` ("48%") and the verdict chip.
+- Sides: `bt_peak_a` / `bt_peak_b`, each path's frequency in the strongest pair ("--" when
+  nothing pairs); after a re-test the note carries the number the path showed before.
+- Under the chart: `bt_facts`, up to `MAX_LISTED_PEAKS` pairs strongest first as A/B
+  ("Peaks 36/35 · 132/133 Hz"), and `bt_unpaired` ("Only on B: 120, 129 Hz"), hidden by
+  `bt_has_unpaired` when empty.
+- Chart: the listed pairs carry the same number on both curves; the listed unpaired peaks
+  are hollow rings. Both curves (and the re-test ghosts) are trimmed to the sweep band and
+  scaled by the tallest in-band point on screen, so the y axis reads 0-100%.
 
 ## Mock knobs
 
@@ -153,20 +204,22 @@ one `###` entry per variable.
 
 | Variable | Effect |
 |----------|--------|
-| `HELIX_MOCK_BELT_A_HZ` / `HELIX_MOCK_BELT_B_HZ` | The two paths' simulated peaks. Defaults 110/98: 12 Hz apart, deliberately in "Adjust needed" territory. Re-measuring one path walks its peak toward the other's by up to 4 Hz per run, so the re-test loop converges the way cranking a tensioner does |
+| `HELIX_MOCK_BELT_A_HZ` / `HELIX_MOCK_BELT_B_HZ` | The two paths' simulated peaks. Defaults 110/98: 12 Hz apart, deliberately in "Poor match" territory. Re-measuring one path walks its peak toward the other's by up to 4 Hz per run, so the re-test loop converges the way cranking a tensioner does |
 | `HELIX_MOCK_BELT_FAIL` | `stall` (no progress lines), `nofile` (CSV missing), `multichip` (per-chip columns), `error` (adxl error line), `kalico` (dialect the parser rejects) |
 | `HELIX_MOCK_KINEMATICS` | Overrides the kinematics the mock reports; `cartesian` on the default Voron persona exercises the NOT_COREXY gate leg |
+| `HELIX_MOCK_BELT_CSV_A` / `HELIX_MOCK_BELT_CSV_B` | Replay a real capture as that path's result instead of the synthetic curve (e.g. the fixtures in `tests/fixtures/belt_sweeps/`) |
+| `HELIX_MOCK_BELT_RANGE` | `<min>-<max>`: the `[resonance_tester]` sweep range the mock reports and sweeps, to match a replayed capture's band |
 
 ## Tests
 
 | File | Covers |
 |------|--------|
 | `tests/unit/test_belt_tension_calibrator.cpp` | The calibrator: homing order, sweep lifecycle, cancel-mid-run generation guard, emergency abort |
-| `tests/unit/test_belt_tension_panel_states.cpp` | Panel view states, gate-to-button binding, verdict/rail population, ghost series on re-test |
-| `tests/unit/test_belt_compare.cpp` | `compare_belt_paths` / `pair_belt_peaks` / `band_similarity` against a real capture pair (`tests/fixtures/belt_sweeps/`) and synthetic curves |
+| `tests/unit/test_belt_tension_panel_states.cpp` | Panel view states, gate-to-button binding, similarity/facts/markers, ghost series on re-test, low-RAM warning |
+| `tests/unit/test_belt_compare.cpp` | `compare_belt_paths` / `pair_belt_peaks` / `band_similarity` against five printers' real captures (`tests/fixtures/belt_sweeps/`) and synthetic curves |
 | `tests/unit/test_belt_gating.cpp` | Every gate leg of `evaluate_belt_gate` |
 | `tests/unit/test_mock_test_resonances.cpp` | The mock's sweep simulation, including each `HELIX_MOCK_BELT_FAIL` mode |
-| `tests/unit/test_frequency_response_chart_style.cpp` (`[belt]` cases) | Series styling, muted ghost, sweep cursor |
+| `tests/unit/test_frequency_response_chart_style.cpp` (`[belt]` cases) | Series styling, muted ghost, sweep cursor, markers |
 
 Run them with `make t F='[belt]'` (the `[belt]` tag also collects the pluck-tuner units
 kept from `BELT_TUNER.md`; the panel and calibrator suites additionally carry

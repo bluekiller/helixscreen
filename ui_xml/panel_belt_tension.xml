@@ -12,11 +12,6 @@
     <style name="chip_matched" bg_color="#success" border_color="#success" text_color="#success"/>
     <style name="chip_close" bg_color="#warning" border_color="#warning" text_color="#warning"/>
     <style name="chip_adjust" bg_color="#danger" border_color="#danger" text_color="#danger"/>
-    <!-- Rail marker: a slider with no track or fill, only its knob. -->
-    <style name="rail_slider_main" bg_opa="0" border_width="0" pad_all="0"/>
-    <style name="rail_slider_fill" bg_opa="0"/>
-    <style name="rail_knob"
-           bg_color="#text" bg_opa="255" border_color="#screen_bg" border_width="2" pad_all="#space_xs" shadow_width="0"/>
   </styles>
   <view name="panel_belt_tension"
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_border_width="0"
@@ -29,25 +24,27 @@
             style_pad_right="#space_lg" style_pad_gap="#space_sm" scrollable="false" flex_flow="column">
       <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
       <!-- ============================================================ -->
-      <!-- HERO ROW - both paths' peaks, shared by RUNNING and RESULTS -->
+      <!-- HERO ROW - shared by RUNNING and RESULTS. Each side is a path's -->
+      <!-- peak in the strongest pair; the centre is the run status while -->
+      <!-- measuring and the similarity once both paths are in. -->
       <!-- ============================================================ -->
       <lv_obj name="hero_row"
               width="100%" height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
-              style_flex_cross_place="start" scrollable="false">
+              style_flex_cross_place="center" scrollable="false">
         <bind_flag_if cond="belt_tension_state eq 0 or belt_tension_state eq 3" flag="hidden"/>
         <!-- Path A -->
-        <lv_obj width="30%" height="content" style_pad_all="0" flex_flow="column" scrollable="false">
-          <text_small text="PATH A · 1,1" translation_tag="PATH A · 1,1">
+        <lv_obj width="28%" height="content" style_pad_all="0" flex_flow="column" scrollable="false">
+          <text_small text="PATH A · 1,-1" translation_tag="PATH A · 1,-1">
             <style name="path_a_text"/>
             <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
           </text_small>
-          <lv_label name="bt_peak_a" bind_text="bt_peak_a" style_text_font="#font_display">
+          <lv_label name="bt_peak_a" bind_text="bt_peak_a" style_text_font="#font_xl">
             <style name="path_a_text"/>
           </lv_label>
           <text_small width="100%" bind_text="bt_note_a" style_text_color="#text_muted" long_mode="dots"/>
         </lv_obj>
-        <!-- Centre: run status while measuring, verdict once both paths are in -->
-        <lv_obj width="40%"
+        <!-- Centre: run status while measuring, similarity once both paths are in -->
+        <lv_obj width="44%"
                 height="content" style_pad_all="0" flex_flow="column" style_flex_cross_place="center"
                 style_pad_gap="#space_xs" scrollable="false">
           <lv_obj width="100%"
@@ -61,9 +58,17 @@
             <text_small width="100%" bind_text="bt_run_detail" style_text_align="center" style_text_color="#text_muted"/>
           </lv_obj>
           <lv_obj width="100%"
-                  height="content" style_pad_all="0" flex_flow="column" style_flex_cross_place="center"
-                  style_pad_gap="#space_xs" scrollable="false">
+                  height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="center"
+                  style_flex_cross_place="center" style_pad_gap="#space_md" scrollable="false">
             <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="2"/>
+            <lv_obj width="content"
+                    height="content" style_pad_all="0" flex_flow="column" style_flex_cross_place="center"
+                    scrollable="false">
+              <text_small text="Similarity" translation_tag="Similarity" style_text_color="#text_muted">
+                <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
+              </text_small>
+              <lv_label name="bt_similarity" bind_text="bt_similarity" style_text_font="#font_display"/>
+            </lv_obj>
             <lv_obj name="bt_verdict_chip"
                     width="content" height="content" style_radius="#space_xl" style_border_width="1" style_bg_opa="40"
                     style_border_opa="140" style_pad_hor="#space_md" style_pad_ver="#space_xs" scrollable="false">
@@ -76,17 +81,16 @@
                 <bind_style_if_eq name="chip_adjust" subject="bt_verdict" ref_value="2"/>
               </text_body>
             </lv_obj>
-            <text_small width="100%" bind_text="bt_facts" style_text_align="center" style_text_color="#text_muted"/>
           </lv_obj>
         </lv_obj>
         <!-- Path B -->
-        <lv_obj width="30%"
+        <lv_obj width="28%"
                 height="content" style_pad_all="0" flex_flow="column" style_flex_cross_place="end" scrollable="false">
-          <text_small text="PATH B · 1,-1" translation_tag="PATH B · 1,-1">
+          <text_small text="PATH B · 1,1" translation_tag="PATH B · 1,1">
             <style name="path_b_text"/>
             <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
           </text_small>
-          <lv_label name="bt_peak_b" bind_text="bt_peak_b" style_text_font="#font_display">
+          <lv_label name="bt_peak_b" bind_text="bt_peak_b" style_text_font="#font_xl">
             <style name="path_b_text"/>
           </lv_label>
           <text_small width="100%"
@@ -192,10 +196,10 @@
         </lv_obj>
       </lv_obj>
       <!-- ============================================================ -->
-      <!-- STATE 2: RESULTS - both curves, the delta rail, what next -->
+      <!-- STATE 2: RESULTS - both curves, their peaks, what next -->
       <!-- ============================================================ -->
       <lv_obj name="state_results"
-              width="100%" flex_grow="1" style_pad_all="0" flex_flow="column" style_pad_gap="#space_sm"
+              width="100%" flex_grow="1" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xs"
               scrollable="false">
         <bind_flag_if_not_eq subject="belt_tension_state" flag="hidden" ref_value="2"/>
         <lv_obj name="chart_host_results"
@@ -203,49 +207,18 @@
                 scrollable="false">
           <bind_flag_if_eq subject="bt_chart_available" flag="hidden" ref_value="0"/>
         </lv_obj>
-        <!-- Delta rail: A-minus-B in tenths of a Hz over +/-15 Hz. The bands -->
-        <!-- mirror the verdict constants in belt_tension_types.h: MATCHED is -->
-        <!-- +/-3 Hz = 3/15 = 20% of the span, CLOSE is +/-8 Hz = 8/15 = 53%. -->
-        <!-- Keep these widths in step with MATCHED_DELTA_HZ/CLOSE_DELTA_HZ -->
-        <!-- over BeltTensionPanel::RAIL_SPAN_HZ; the panel test pins them. -->
-        <lv_obj name="rail_block"
-                width="100%" height="content" style_pad_all="0" flex_flow="column" style_pad_gap="0" scrollable="false">
-          <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
-          <!-- SIZE_OK: the 24px rail and its 8px track are this rail's own
-               geometry; no token describes a marker rail. -->
-          <lv_obj name="rail_track"
-                  width="100%" height="24" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false">
-            <lv_obj width="100%"
-                    height="8" align="center" style_radius="4" style_bg_color="#elevated_bg" style_bg_opa="255"
-                    style_border_width="0" style_pad_all="0" scrollable="false"/>
-            <lv_obj name="rail_band_close"
-                    width="53%" height="8" align="center" style_bg_color="#warning" style_bg_opa="110" style_radius="4"
-                    style_border_width="0" style_pad_all="0" scrollable="false"/>
-            <lv_obj name="rail_band_matched"
-                    width="20%" height="12" align="center" style_bg_color="#success" style_bg_opa="255" style_radius="4"
-                    style_border_width="0" style_pad_all="0" scrollable="false"/>
-            <lv_slider name="bt_rail"
-                       width="100%" height="8" align="center" min_value="-150" max_value="150"
-                       bind_value="bt_rail_value" clickable="false">
-              <style name="rail_slider_main"/>
-              <style name="rail_slider_fill" selector="indicator"/>
-              <style name="rail_knob" selector="knob"/>
-            </lv_slider>
-          </lv_obj>
-          <lv_obj width="100%"
-                  height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
-                  scrollable="false">
-            <text_small text="B tighter" translation_tag="B tighter">
-              <style name="path_b_text"/>
-            </text_small>
-            <text_small text="matched" translation_tag="matched" style_text_color="#text_muted"/>
-            <text_small text="A tighter" translation_tag="A tighter">
-              <style name="path_a_text"/>
-            </text_small>
-          </lv_obj>
-        </lv_obj>
+        <!-- Paired peaks (numbered on the chart), then peaks only one path has -->
+        <text_small name="bt_facts_label"
+                    width="100%" bind_text="bt_facts" style_text_align="center" style_text_color="#text_muted"
+                    long_mode="dots"/>
+        <text_small name="bt_unpaired_label"
+                    width="100%" bind_text="bt_unpaired" style_text_align="center" style_text_color="#text_muted"
+                    long_mode="dots">
+          <bind_flag_if_eq subject="bt_has_unpaired" flag="hidden" ref_value="0"/>
+        </text_small>
         <lv_obj width="100%"
-                height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_sm" scrollable="false">
+                height="content" style_pad_all="0" style_pad_top="#space_xs" flex_flow="row" style_pad_gap="#space_sm"
+                scrollable="false">
           <ui_button name="btn_retest_a"
                      width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test A"
                      translation_tag="Re-test A" variant="secondary">

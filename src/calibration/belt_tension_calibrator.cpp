@@ -39,7 +39,7 @@ BeltTensionCalibrator::~BeltTensionCalibrator() {
 // ============================================================================
 
 const char* BeltTensionCalibrator::axis_param(BeltPath p) {
-    return p == BeltPath::PATH_A ? "1,1" : "1,-1";
+    return p == BeltPath::PATH_A ? "1,-1" : "1,1";
 }
 
 const char* BeltTensionCalibrator::output_name(BeltPath p) {

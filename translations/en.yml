@@ -112,8 +112,7 @@ translations:
   A print is in progress - restart still pending: A print is in progress - restart still pending
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.
   A spool may be tangled or the drive gear is jammed: A spool may be tangled or the drive gear is jammed
-  A tighter: A tighter
-  A · 1,1: A · 1,1
+  A · 1,-1: A · 1,-1
   ABS: ABS
   ACCELEROMETERS: ACCELEROMETERS
   ACE Moonraker bridge not found. Install ace_status.py for full support.: ACE Moonraker bridge not found. Install ace_status.py for full support.
@@ -177,7 +176,6 @@ translations:
   Added to queue (position {}) - queue is paused: Added to queue (position {}) - queue is paused
   Adding to queue...: Adding to queue...
   Address: Address
-  Adjust needed: Adjust needed
   Adjust screen brightness level: Adjust screen brightness level
   Adjust screws, then re-probe.: Adjust screws, then re-probe.
   Adjustments stay active until restart. Save after print completes.: Adjustments
@@ -281,8 +279,7 @@ translations:
   Available networks: Available networks
   Average: Average
   Axis limits unknown: Axis limits unknown
-  B tighter: B tighter
-  B · 1,-1: B · 1,-1
+  B · 1,1: B · 1,1
   BACK: BACK
   BEACON: BEACON
   BETA: BETA
@@ -1178,6 +1175,7 @@ translations:
   : "Failed to update moonraker.conf.\nCheck printer connection."
   'Failed to upload modified G-code: {}': 'Failed to upload modified G-code: {}'
   'Failed to upload remapped G-code: {}': 'Failed to upload remapped G-code: {}'
+  Fair match: Fair match
   Fan: Fan
   Fan Calibration: Fan Calibration
   Fan Speeds: Fan Speeds
@@ -1333,6 +1331,7 @@ translations:
   Global: Global
   Good: Good
   Good Accuracy: Good Accuracy
+  Good match: Good match
   Got it: Got it
   Gray: Gray
   Grip filament: Grip filament
@@ -1612,7 +1611,7 @@ translations:
     or configuration error.
   Klipper reserves 'default' for new calibrations. Choose another name.: Klipper reserves 'default' for new calibrations. Choose another name.
   Klipper restarting - macros activating: Klipper restarting - macros activating
-  Klipper stopped reporting progress. Check the printer, then try again.: Klipper stopped reporting progress. Check the printer, then try again.
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.
   Klipper will restart to apply changes: Klipper will restart to apply changes
   Klipper will restart to apply changes.: Klipper will restart to apply changes.
   Klipper will restart to apply new settings.: Klipper will restart to apply new settings.
@@ -1994,8 +1993,8 @@ translations:
   No printers found: No printers found
   No prints yet: No prints yet
   No profiles available: No profiles available
-  No resonance peak found for {}: No resonance peak found for {}
   No sensors detected: No sensors detected
+  No shared peaks: No shared peaks
   No slot currently matches.: No slot currently matches.
   No spool assigned: No spool assigned
   No spools found — tap to retry: No spools found — tap to retry
@@ -2089,6 +2088,8 @@ translations:
   On/Off (state-aware): On/Off (state-aware)
   'On:': 'On:'
   One tap runs this macro. Dangerous macros still ask.: One tap runs this macro. Dangerous macros still ask.
+  'Only on A: {} Hz': 'Only on A: {} Hz'
+  'Only on B: {} Hz': 'Only on B: {} Hz'
   Ooze Reduction: Ooze Reduction
   Open: Open
   Open Source Licenses: Open Source Licenses
@@ -2122,8 +2123,8 @@ translations:
     auto-detection if your chamber sensor or heater isn't named 'chamber'.
   P: P
   PA: PA
-  PATH A · 1,1: PATH A · 1,1
-  PATH B · 1,-1: PATH B · 1,-1
+  PATH A · 1,-1: PATH A · 1,-1
+  PATH B · 1,1: PATH B · 1,1
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN must be 4-6 digits
@@ -2165,8 +2166,6 @@ translations:
   Password: Password
   Password cannot be empty: Password cannot be empty
   Password is required for secured networks: Password is required for secured networks
-  Path A: Path A
-  Path B: Path B
   Path {}: Path {}
   Path {} before: Path {} before
   Pause: Pause
@@ -2181,6 +2180,7 @@ translations:
   Pausing...: Pausing...
   Peak Freq: Peak Freq
   'Peak:': 'Peak:'
+  Peaks {} Hz: Peaks {} Hz
   Performance: Performance
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
@@ -2221,6 +2221,7 @@ translations:
   Point camera at QR code on spool: Point camera at QR code on spool
   Polymaker: Polymaker
   Poor Accuracy: Poor Accuracy
+  Poor match: Poor match
   Port: Port
   Position: Position
   Post-Sensor Clear: Post-Sensor Clear
@@ -2874,7 +2875,7 @@ translations:
   Shutting down...: Shutting down...
   Signal: Signal
   'Signal #': 'Signal #'
-  Similarity {:.0f}%: 'Similarity {:.0f}%'
+  Similarity: Similarity
   Single toggle macro. State is not tracked.: Single toggle macro. State is not tracked.
   Size: Size
   Skip: Skip
@@ -3210,8 +3211,8 @@ translations:
     uses the paper friction method to set your Z-offset.
   This cannot be undone.: This cannot be undone.
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: This channel offers v{}, older than the installed v{}. Anything added since then will be removed.
-  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: This clears every spool's failover assignment. The print will stop on runout until you set up failover again.
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3537,7 +3538,6 @@ translations:
   : Weight data is synced from Spoolman to display remaining filament. Changes are
     also synced when prints start, pause, or complete.
   Welcome to HelixScreen: Welcome to HelixScreen
-  Well matched: Well matched
   What We Collect: What We Collect
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: When
     enabled, only the macro runs. When disabled, temperatures are set first, then
@@ -3717,7 +3717,6 @@ translations:
   v{} installed! Restarting...: v{} installed! Restarting...
   v{} is available. Tap to update.: v{} is available. Tap to update.
   you have: you have
-  '{:.0f} Hz apart · similarity {:.0f}%': '{:.0f} Hz apart · similarity {:.0f}%'
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · about {} min'
   '{} LED strips available': '{} LED strips available'
   '{} and {} are both mapped here': '{} and {} are both mapped here'

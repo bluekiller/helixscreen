@@ -117,8 +117,10 @@ void on_draw(lv_event_t* e) {
     const lv_area_t bottom_row = {frame.x1 + pad, frame.y2 - pad - font_h, frame.x2 - pad,
                                   frame.y2 - pad};
     draw_label(layer, lv_tr("BACK"), muted, font, top_row, LV_TEXT_ALIGN_CENTER);
-    draw_label(layer, lv_tr("A · 1,1"), a_color, font, top_row, LV_TEXT_ALIGN_RIGHT);
-    draw_label(layer, lv_tr("B · 1,-1"), b_color, font, bottom_row, LV_TEXT_ALIGN_RIGHT);
+    // Each label sits at the +X end of its own arrow: B's 1,1 diagonal points
+    // up-right, A's 1,-1 diagonal down-right.
+    draw_label(layer, lv_tr("B · 1,1"), b_color, font, top_row, LV_TEXT_ALIGN_RIGHT);
+    draw_label(layer, lv_tr("A · 1,-1"), a_color, font, bottom_row, LV_TEXT_ALIGN_RIGHT);
 
     // Diagonals through the centre, kept clear of the label rows.
     const float cx = (frame.x1 + frame.x2) / 2.0f;
@@ -130,8 +132,8 @@ void on_draw(lv_event_t* e) {
     };
     const int32_t head = std::max<int32_t>(8, side / 18);
     // +Y is toward the back, which is up on screen.
-    draw_arrow(layer, pt(cx - reach, cy + reach), pt(cx + reach, cy - reach), a_color, head);
-    draw_arrow(layer, pt(cx - reach, cy - reach), pt(cx + reach, cy + reach), b_color, head);
+    draw_arrow(layer, pt(cx - reach, cy + reach), pt(cx + reach, cy - reach), b_color, head);
+    draw_arrow(layer, pt(cx - reach, cy - reach), pt(cx + reach, cy + reach), a_color, head);
 
     // Toolhead in the middle, drawn last so the arrows pass under it.
     const int32_t th = std::max<int32_t>(14, side / 7);

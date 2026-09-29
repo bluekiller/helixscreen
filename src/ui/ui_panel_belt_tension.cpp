@@ -14,6 +14,7 @@
 #include "belt_stream_client.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
+#include "memory_utils.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "resonance_console.h"
@@ -141,13 +142,12 @@ void ui_panel_belt_tension_register_callbacks() {
          [](lv_event_t* /*e*/) {
              helix::ui::modal_alert(
                  lv_tr("Belt Tension Check"),
-                 lv_tr("This check runs Klipper's resonance sweep down each belt "
-                       "diagonal and compares the two curves. Matched frequencies "
-                       "mean balanced tension.\n\n"
-                       "Each sweep takes a few minutes and moves the toolhead; do "
-                       "not open the printer while it runs.\n\n"
-                       "On CoreXY, belts A and B should be within a few Hz of each "
-                       "other."),
+                 lv_tr("This check runs Klipper's resonance test along each belt "
+                       "path and compares the two responses. Balanced belts give "
+                       "curves of the same shape, with peaks at the same "
+                       "frequencies.\n\n"
+                       "Each sweep takes a few minutes and moves the toolhead; keep "
+                       "clear of the printer while it runs."),
                  ModalSeverity::Info, lv_tr("Got it"));
          }},
     });
@@ -196,8 +196,11 @@ void BeltTensionPanel::init_subjects() {
     UI_MANAGED_SUBJECT_INT(verdict_subject_, 0, "bt_verdict", subjects_);
     UI_MANAGED_SUBJECT_STRING(verdict_text_subject_, verdict_text_buf_, "", "bt_verdict_text",
                               subjects_);
+    UI_MANAGED_SUBJECT_STRING(similarity_subject_, similarity_buf_, "--", "bt_similarity",
+                              subjects_);
     UI_MANAGED_SUBJECT_STRING(facts_subject_, facts_buf_, "", "bt_facts", subjects_);
-    UI_MANAGED_SUBJECT_INT(rail_value_subject_, 0, "bt_rail_value", subjects_);
+    UI_MANAGED_SUBJECT_STRING(unpaired_subject_, unpaired_buf_, "", "bt_unpaired", subjects_);
+    UI_MANAGED_SUBJECT_INT(has_unpaired_subject_, 0, "bt_has_unpaired", subjects_);
     UI_MANAGED_SUBJECT_INT(chart_available_subject_, 0, "bt_chart_available", subjects_);
 
     // Error
@@ -285,6 +288,10 @@ void BeltTensionPanel::set_render_tier_for_test(helix::PlatformTier tier,
                                                 bool supports_animations) {
     tier_override_ = tier;
     tier_animations_ = supports_animations;
+}
+
+void BeltTensionPanel::set_total_ram_mb_for_test(size_t total_mb) {
+    ram_mb_override_ = total_mb;
 }
 
 void BeltTensionPanel::show() {
@@ -479,23 +486,50 @@ void BeltTensionPanel::handle_start_clicked() {
         return;
     }
 
-    begin_run({helix::calibration::BeltPath::PATH_A, helix::calibration::BeltPath::PATH_B},
-              /*clear_previous=*/true);
+    run_after_ram_check([this]() {
+        begin_run({helix::calibration::BeltPath::PATH_A, helix::calibration::BeltPath::PATH_B},
+                  /*clear_previous=*/true);
+    });
 }
 
 void BeltTensionPanel::handle_retest_clicked(helix::calibration::BeltPath path) {
     spdlog::info("[BeltTension] Re-test clicked for path {}",
                  helix::calibration::BeltTensionCalibrator::output_name(path));
 
-    auto& run = runs_[path == helix::calibration::BeltPath::PATH_A ? 0 : 1];
+    run_after_ram_check([this, path]() {
+        const int idx = path == helix::calibration::BeltPath::PATH_A ? 0 : 1;
+        auto& run = runs_[idx];
 
-    // The curve being replaced becomes the ghost this run compares against.
-    run.previous = std::move(run.curve);
-    run.curve.clear();
-    run.has_previous = run.has;
-    run.has = false;
+        // The curve being replaced becomes the ghost this run compares against,
+        // and the number it showed becomes the note's "was".
+        run.previous = std::move(run.curve);
+        run.curve.clear();
+        run.has_previous = run.has;
+        run.has = false;
+        was_peak_hz_[idx] = shown_peak_hz_[idx];
+        shown_peak_hz_[idx] = 0.0f;
 
-    begin_run({path}, /*clear_previous=*/false);
+        begin_run({path}, /*clear_previous=*/false);
+    });
+}
+
+void BeltTensionPanel::run_after_ram_check(std::function<void()> go) {
+    const size_t total_mb = ram_mb_override_.value_or(helix::get_system_memory_info().total_mb());
+    if (total_mb >= helix::RESONANCE_LOW_RAM_WARN_MB) {
+        go();
+        return;
+    }
+    // Klipper analyses the sweep on this same host, and on a small board that
+    // analysis can run out of memory and leave Klipper stuck.
+    if (low_ram_dialog_) {
+        return; // the warning is already up
+    }
+    helix::ui::ConfirmOptions opts;
+    opts.owner_token = lifetime_.token();
+    helix::ui::show_low_ram_resonance_warning(total_mb, &low_ram_dialog_, go, opts);
+    if (!low_ram_dialog_) {
+        go(); // the modal failed to build; do not silently block the check
+    }
 }
 
 void BeltTensionPanel::handle_stop_clicked() {
@@ -540,14 +574,14 @@ void BeltTensionPanel::begin_run(const std::vector<helix::calibration::BeltPath>
             run.previous.clear();
             run.has_previous = false;
         }
+        shown_peak_hz_[0] = shown_peak_hz_[1] = 0.0f;
+        was_peak_hz_[0] = was_peak_hz_[1] = 0.0f;
     }
 
-    // A path being re-measured leaves the chart until its new curve lands; its
-    // old curve, if any, shows as the ghost.
+    // Markers belong to the comparison being replaced.
     if (chart_) {
-        for (const auto path : queue) {
-            ui_frequency_response_chart_show_series(
-                chart_, series_[path == helix::calibration::BeltPath::PATH_A ? 0 : 1], false);
+        for (int idx = 0; idx < 2; ++idx) {
+            ui_frequency_response_chart_set_markers(chart_, series_[idx], nullptr, 0);
         }
     }
 
@@ -625,20 +659,6 @@ void BeltTensionPanel::on_sweep_complete(helix::calibration::BeltPath path,
 
     if (chart_) {
         ui_frequency_response_chart_clear_cursor(chart_);
-        const int idx = path == helix::calibration::BeltPath::PATH_A ? 0 : 1;
-        std::vector<float> freqs, amps;
-        freqs.reserve(run.curve.size());
-        amps.reserve(run.curve.size());
-        for (const auto& [f, a] : run.curve) {
-            freqs.push_back(f);
-            amps.push_back(a);
-        }
-        if (!freqs.empty()) {
-            ui_frequency_response_chart_set_data(chart_, series_[idx], freqs.data(), amps.data(),
-                                                 freqs.size());
-        }
-        ui_frequency_response_chart_show_series(chart_, series_[idx], true);
-        rescale_chart();
     }
 
     if (!queue_.empty() && queue_.front() == path) {
@@ -663,7 +683,8 @@ void BeltTensionPanel::on_sweep_error(const std::string& message) {
 
 void BeltTensionPanel::on_stall() {
     spdlog::warn("[BeltTension] Stall guard fired: no progress for {} ms", STALL_TIMEOUT_MS);
-    on_error(lv_tr("Klipper stopped reporting progress. Check the printer, then try again."));
+    on_error(lv_tr("Klipper stopped reporting progress. Its analysis can run out of memory on "
+                   "small printers; restart Klipper, then try again."));
 }
 
 void BeltTensionPanel::finish_run() {
@@ -694,13 +715,13 @@ void BeltTensionPanel::finish_run() {
 
 void BeltTensionPanel::populate_results(const helix::calibration::BeltComparison& cmp) {
     lv_subject_set_int(&verdict_subject_, static_cast<int>(cmp.verdict));
-    const char* verdict_label = lv_tr("Adjust needed");
+    const char* verdict_label = lv_tr("Poor match");
     switch (cmp.verdict) {
     case helix::calibration::BeltVerdict::MATCHED:
-        verdict_label = lv_tr("Well matched");
+        verdict_label = lv_tr("Good match");
         break;
     case helix::calibration::BeltVerdict::CLOSE:
-        verdict_label = lv_tr("Close");
+        verdict_label = lv_tr("Fair match");
         break;
     case helix::calibration::BeltVerdict::ADJUST:
         break;
@@ -708,36 +729,93 @@ void BeltTensionPanel::populate_results(const helix::calibration::BeltComparison
     snprintf(verdict_text_buf_, sizeof(verdict_text_buf_), "%s", verdict_label);
     lv_subject_copy_string(&verdict_text_subject_, verdict_text_buf_);
 
-    snprintf(facts_buf_, sizeof(facts_buf_), "%s",
-             fmt::format(lv_tr("Similarity {:.0f}%"), cmp.similarity_percent).c_str());
+    snprintf(similarity_buf_, sizeof(similarity_buf_), "%.0f%%",
+             static_cast<double>(cmp.similarity_percent));
+    lv_subject_copy_string(&similarity_subject_, similarity_buf_);
+
+    // Paired peaks, strongest first: "Peaks 35/36 · 133/132 Hz" (A/B).
+    const auto& pairs = cmp.peaks.pairs;
+    std::string pair_list;
+    for (size_t i = 0; i < pairs.size() && i < MAX_LISTED_PEAKS; ++i) {
+        pair_list += fmt::format("{}{:.0f}/{:.0f}", i == 0 ? "" : " · ", pairs[i].a.freq_hz,
+                                 pairs[i].b.freq_hz);
+    }
+    const std::string facts = pair_list.empty()
+                                  ? std::string(lv_tr("No shared peaks"))
+                                  : fmt::format(fmt::runtime(lv_tr("Peaks {} Hz")), pair_list);
+    snprintf(facts_buf_, sizeof(facts_buf_), "%s", facts.c_str());
     lv_subject_copy_string(&facts_subject_, facts_buf_);
 
-    // The direction rail is parked at centre until real captures show a
-    // dependable signed signal.
-    lv_subject_set_int(&rail_value_subject_, 0);
-
-    if (chart_ && !cmp.peaks.pairs.empty()) {
-        const auto& strongest = cmp.peaks.pairs.front();
-        ui_frequency_response_chart_mark_peak(chart_, series_[0], strongest.a.freq_hz,
-                                              strongest.a.amplitude);
-        ui_frequency_response_chart_mark_peak(chart_, series_[1], strongest.b.freq_hz,
-                                              strongest.b.amplitude);
+    // Unpaired peaks, the strongest few per path, in frequency order:
+    // "Only on A: 120, 129 Hz".
+    const auto listed = [](std::vector<helix::calibration::BeltPeak> peaks) {
+        std::sort(peaks.begin(), peaks.end(),
+                  [](const auto& l, const auto& r) { return l.amplitude > r.amplitude; });
+        if (peaks.size() > MAX_LISTED_PEAKS) {
+            peaks.resize(MAX_LISTED_PEAKS);
+        }
+        std::sort(peaks.begin(), peaks.end(),
+                  [](const auto& l, const auto& r) { return l.freq_hz < r.freq_hz; });
+        return peaks;
+    };
+    const auto join_freqs = [](const std::vector<helix::calibration::BeltPeak>& peaks) {
+        std::string out;
+        for (size_t i = 0; i < peaks.size(); ++i) {
+            out += fmt::format("{}{:.0f}", i == 0 ? "" : ", ", peaks[i].freq_hz);
+        }
+        return out;
+    };
+    const auto only_a = listed(cmp.peaks.unpaired_a);
+    const auto only_b = listed(cmp.peaks.unpaired_b);
+    std::string unpaired;
+    if (!only_a.empty()) {
+        unpaired = fmt::format(fmt::runtime(lv_tr("Only on A: {} Hz")), join_freqs(only_a));
     }
+    if (!only_b.empty()) {
+        unpaired += (unpaired.empty() ? "" : " · ") +
+                    fmt::format(fmt::runtime(lv_tr("Only on B: {} Hz")), join_freqs(only_b));
+    }
+    snprintf(unpaired_buf_, sizeof(unpaired_buf_), "%s", unpaired.c_str());
+    lv_subject_copy_string(&unpaired_subject_, unpaired_buf_);
+    lv_subject_set_int(&has_unpaired_subject_, unpaired.empty() ? 0 : 1);
 
+    // The hero numbers are the strongest pair's frequencies, not each curve's
+    // own tallest bin: an unpaired peak is exactly what they must not imply is
+    // comparable.
+    shown_peak_hz_[0] = pairs.empty() ? 0.0f : pairs.front().a.freq_hz;
+    shown_peak_hz_[1] = pairs.empty() ? 0.0f : pairs.front().b.freq_hz;
+
+    push_chart_markers(cmp);
     refresh_peaks_and_notes();
+}
 
-    // The peak labels show the strongest pair's frequencies, not each curve's
-    // own tallest bin: an unpaired peak is exactly what the numbers must not
-    // quietly imply is comparable.
-    const bool paired = !cmp.peaks.pairs.empty();
-    const std::string peak_a =
-        paired ? fmt::format("{:.0f}", cmp.peaks.pairs.front().a.freq_hz) : "--";
-    const std::string peak_b =
-        paired ? fmt::format("{:.0f}", cmp.peaks.pairs.front().b.freq_hz) : "--";
-    snprintf(peak_a_buf_, sizeof(peak_a_buf_), "%s", peak_a.c_str());
-    lv_subject_copy_string(&peak_a_subject_, peak_a_buf_);
-    snprintf(peak_b_buf_, sizeof(peak_b_buf_), "%s", peak_b.c_str());
-    lv_subject_copy_string(&peak_b_subject_, peak_b_buf_);
+void BeltTensionPanel::push_chart_markers(const helix::calibration::BeltComparison& cmp) {
+    if (!chart_) {
+        return;
+    }
+    // Numbered dots on the listed pairs (the same number on both curves),
+    // hollow rings on the listed unpaired peaks.
+    std::vector<FrChartMarker> markers[2];
+    const auto& pairs = cmp.peaks.pairs;
+    for (size_t i = 0; i < pairs.size() && i < MAX_LISTED_PEAKS; ++i) {
+        const int number = static_cast<int>(i) + 1;
+        markers[0].push_back({pairs[i].a.freq_hz, number});
+        markers[1].push_back({pairs[i].b.freq_hz, number});
+    }
+    const auto add_unpaired = [](std::vector<helix::calibration::BeltPeak> peaks,
+                                 std::vector<FrChartMarker>& out) {
+        std::sort(peaks.begin(), peaks.end(),
+                  [](const auto& l, const auto& r) { return l.amplitude > r.amplitude; });
+        for (size_t i = 0; i < peaks.size() && i < MAX_LISTED_PEAKS; ++i) {
+            out.push_back({peaks[i].freq_hz, 0});
+        }
+    };
+    add_unpaired(cmp.peaks.unpaired_a, markers[0]);
+    add_unpaired(cmp.peaks.unpaired_b, markers[1]);
+    for (int idx = 0; idx < 2; ++idx) {
+        ui_frequency_response_chart_set_markers(chart_, series_[idx], markers[idx].data(),
+                                                markers[idx].size());
+    }
 }
 
 void BeltTensionPanel::cancel_run() {
@@ -768,33 +846,26 @@ void BeltTensionPanel::refresh_peaks_and_notes() {
         static_cast<ViewState>(lv_subject_get_int(&s_belt_tension_state)) == ViewState::RUNNING;
 
     for (int idx = 0; idx < 2; ++idx) {
-        auto& run = runs_[idx];
+        const auto& run = runs_[idx];
         auto& peak_subject = idx == 0 ? peak_a_subject_ : peak_b_subject_;
         auto& note_subject = idx == 0 ? note_a_subject_ : note_b_subject_;
         auto& note_buf = idx == 0 ? note_a_buf_ : note_b_buf_;
         auto& peak_buf = idx == 0 ? peak_a_buf_ : peak_b_buf_;
 
-        std::string peak = "--";
+        const std::string peak =
+            shown_peak_hz_[idx] > 0.0f ? fmt::format("{:.0f}", shown_peak_hz_[idx]) : "--";
         std::string note = "--";
         if (running && !queue_.empty() &&
             (queue_.front() == (idx == 0 ? helix::calibration::BeltPath::PATH_A
                                          : helix::calibration::BeltPath::PATH_B))) {
             note = lv_tr("sweeping");
         } else if (run.has) {
-            const auto peak_hz = helix::calibration::find_peak_frequency(
-                run.curve, sweep_cfg_.min_freq, sweep_cfg_.max_freq);
-            if (peak_hz.found) {
-                peak = fmt::format("{:.0f}", peak_hz.frequency);
-            }
             const uint32_t age_s = (lv_tick_get() - run.measured_at_ms) / 1000;
-            note = age_s < 60 ? lv_tr("just now") : fmt::format(lv_tr("{} min ago"), age_s / 60);
+            note = age_s < 60 ? lv_tr("just now")
+                              : fmt::format(fmt::runtime(lv_tr("{} min ago")), age_s / 60);
         }
-        if (run.has_previous) {
-            const auto prev_hz = helix::calibration::find_peak_frequency(
-                run.previous, sweep_cfg_.min_freq, sweep_cfg_.max_freq);
-            if (prev_hz.found) {
-                note += fmt::format(lv_tr(" · was {:.0f}"), prev_hz.frequency);
-            }
+        if (run.has_previous && was_peak_hz_[idx] > 0.0f) {
+            note += fmt::format(fmt::runtime(lv_tr(" · was {:.0f}")), was_peak_hz_[idx]);
         }
 
         snprintf(peak_buf, idx == 0 ? sizeof(peak_a_buf_) : sizeof(peak_b_buf_), "%s",
@@ -803,23 +874,8 @@ void BeltTensionPanel::refresh_peaks_and_notes() {
         snprintf(note_buf, idx == 0 ? sizeof(note_a_buf_) : sizeof(note_b_buf_), "%s",
                  note.c_str());
         lv_subject_copy_string(&note_subject, note_buf);
-
-        if (chart_ && ghost_series_[idx] >= 0) {
-            if (run.has_previous && !run.previous.empty()) {
-                std::vector<float> freqs, amps;
-                freqs.reserve(run.previous.size());
-                amps.reserve(run.previous.size());
-                for (const auto& [f, a] : run.previous) {
-                    freqs.push_back(f);
-                    amps.push_back(a);
-                }
-                ui_frequency_response_chart_set_data(chart_, ghost_series_[idx], freqs.data(),
-                                                     amps.data(), freqs.size());
-            }
-            ui_frequency_response_chart_show_series(chart_, ghost_series_[idx], run.has_previous);
-        }
     }
-    rescale_chart();
+    push_chart_data();
 }
 
 void BeltTensionPanel::refresh_run_detail() {
@@ -997,7 +1053,7 @@ void BeltTensionPanel::query_hw_facts() {
         lifetime_.bg_cb(
             "BeltTension::resonance_cfg", [this](helix::calibration::ResonanceTesterConfig cfg) {
                 sweep_cfg_ = cfg;
-                rescale_chart();
+                push_chart_data();
                 // Both paths sweep once each, hence the 2x.
                 const int minutes =
                     std::max(1, static_cast<int>(std::ceil(2.0f * cfg.sweep_seconds() / 60.0f)));
@@ -1032,7 +1088,9 @@ ui_frequency_response_chart_t* BeltTensionPanel::ensure_chart() {
         return nullptr;
     }
     ui_frequency_response_chart_configure_for_platform(chart_, tier, tier_animations_);
-    ui_frequency_response_chart_set_y_labels_visible(chart_, false);
+    // Relative response: both curves share one 0-100% scale (push_chart_data).
+    ui_frequency_response_chart_set_y_labels_visible(chart_, true);
+    ui_frequency_response_chart_set_y_labels_percent(chart_, true);
 
     for (int idx = 0; idx < 2; ++idx) {
         const char letter = 'A' + idx;
@@ -1050,42 +1108,82 @@ ui_frequency_response_chart_t* BeltTensionPanel::ensure_chart() {
         ui_frequency_response_chart_show_series(chart_, ghost_series_[idx], false);
     }
 
-    rescale_chart();
+    push_chart_data();
     lv_subject_set_int(&chart_available_subject_, 1);
     spdlog::debug("[BeltTension] Chart created (tier {})", helix::platform_tier_to_string(tier));
     return chart_;
 }
 
-void BeltTensionPanel::rescale_chart() {
+void BeltTensionPanel::push_chart_data() {
     if (!chart_) {
         return;
     }
-    // The chart places points by index across the plot, so the axis has to
-    // span exactly the data's own first and last bin; before any data the
-    // printer's configured sweep range keeps the running cursor honest.
-    float f_lo = sweep_cfg_.min_freq;
-    float f_hi = sweep_cfg_.max_freq;
-    float amp_hi = 0.0f;
-    bool have_data = false;
-    for (const auto& run : runs_) {
-        for (const auto* curve : {&run.curve, &run.previous}) {
-            if (curve->empty()) {
-                continue;
+    const float lo = sweep_cfg_.min_freq;
+    const float hi = sweep_cfg_.max_freq;
+    const auto in_band = [lo, hi](const helix::calibration::BeltCurve& curve) {
+        helix::calibration::BeltCurve out;
+        for (const auto& bin : curve) {
+            if (bin.first >= lo && bin.first <= hi) {
+                out.push_back(bin);
             }
-            if (!have_data) {
-                f_lo = curve->front().first;
-                f_hi = curve->back().first;
-                have_data = true;
-            }
-            for (const auto& [f, a] : *curve) {
-                amp_hi = std::max(amp_hi, a);
+        }
+        return out;
+    };
+
+    // The chart shows the sweep band only (bins past the ceiling carry no
+    // excitation) as a percentage of the tallest in-band point of any curve on
+    // screen, so the two paths share one scale and the axis reads 0-100%.
+    helix::calibration::BeltCurve current[2], previous[2];
+    float tallest = 0.0f;
+    for (int idx = 0; idx < 2; ++idx) {
+        if (runs_[idx].has) {
+            current[idx] = in_band(runs_[idx].curve);
+        }
+        if (runs_[idx].has_previous) {
+            previous[idx] = in_band(runs_[idx].previous);
+        }
+        for (const auto* curve : {&current[idx], &previous[idx]}) {
+            for (const auto& bin : *curve) {
+                tallest = std::max(tallest, bin.second);
             }
         }
     }
+
+    // Points are placed by index across the plot, so the axis must span
+    // exactly the data's first and last bin; with no data yet the printer's
+    // band keeps the running cursor honest.
+    float f_lo = lo;
+    float f_hi = hi;
+    for (const auto* curve : {&current[0], &current[1], &previous[0], &previous[1]}) {
+        if (!curve->empty()) {
+            f_lo = curve->front().first;
+            f_hi = curve->back().first;
+            break;
+        }
+    }
     ui_frequency_response_chart_set_freq_range(chart_, f_lo, f_hi);
-    // Headroom above the tallest peak for its marker dot.
-    ui_frequency_response_chart_set_amplitude_range(chart_, 0.0f,
-                                                    amp_hi > 0.0f ? amp_hi * 1.15f : 1.0f);
+    ui_frequency_response_chart_set_amplitude_range(chart_, 0.0f, 100.0f);
+
+    const auto push = [this, tallest](int series_id, const helix::calibration::BeltCurve& curve) {
+        if (curve.empty() || tallest <= 0.0f) {
+            ui_frequency_response_chart_show_series(chart_, series_id, false);
+            return;
+        }
+        std::vector<float> freqs, amps;
+        freqs.reserve(curve.size());
+        amps.reserve(curve.size());
+        for (const auto& [f, a] : curve) {
+            freqs.push_back(f);
+            amps.push_back(100.0f * a / tallest);
+        }
+        ui_frequency_response_chart_set_data(chart_, series_id, freqs.data(), amps.data(),
+                                             freqs.size());
+        ui_frequency_response_chart_show_series(chart_, series_id, true);
+    };
+    for (int idx = 0; idx < 2; ++idx) {
+        push(series_[idx], current[idx]);
+        push(ghost_series_[idx], previous[idx]);
+    }
 }
 
 void BeltTensionPanel::destroy_chart() {

@@ -117,8 +117,7 @@ translations:
   A print is in progress - restart still pending: 'Идёт печать - перезапуск ещё отложен'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: На этом шлюзе идёт печать. HelixScreen очистил свою копию; после окончания печати очистите его снова.
   A spool may be tangled or the drive gear is jammed: Катушка может быть запутана или заклинило приводную шестерню
-  A tighter: A туже
-  A · 1,1: A · 1,1
+  A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: АКСЕЛЕРОМЕТРЫ
   ACE Moonraker bridge not found. Install ace_status.py for full support.: Мост ACE Moonraker не найден. Установите ace_status.py для полной поддержки.
@@ -180,7 +179,6 @@ translations:
   Added to queue (position {}) - queue is paused: Добавлено в очередь (позиция {}) – очередь на паузе
   Adding to queue...: Добавление в очередь...
   Address: Адрес
-  Adjust needed: Требуется регулировка
   Adjust screen brightness level: Настроить уровень яркости экрана
   Adjust screws, then re-probe.: Отрегулируйте винты, затем перепроверьте.
   Adjustments stay active until restart. Save after print completes.: Настройки активны
@@ -287,8 +285,7 @@ translations:
   Available networks: Доступные сети
   Average: Среднее
   Axis limits unknown: Границы оси неизвестны
-  B tighter: B туже
-  B · 1,-1: B · 1,-1
+  B · 1,1: "B · 1,1"
   BACK: ЗАД
   BEACON: BEACON
   BETA: БЕТА
@@ -641,7 +638,7 @@ translations:
   Command failed: Ошибка команды
   Communication Test: 'Проверка связи'
   Compact: Компактный
-  Compare belt paths with a resonance sweep: ''
+  Compare belt paths with a resonance sweep: "Сравнение путей ремней резонансным свипом"
   Compare your belt paths: Сравните пути ремней
   Complete: Завершено
   Complete!: Готово!
@@ -1209,6 +1206,7 @@ translations:
     {}'
   'Failed to upload remapped G-code: {}': 'Не удалось загрузить переназначенный G-code:
     {}'
+  Fair match: "Среднее совпадение"
   Fan: Вентилятор
   Fan Calibration: Калибровка вентилятора
   Fan Speeds: 'Скорости вентиляторов'
@@ -1365,6 +1363,7 @@ translations:
   Global: Общий
   Good: Хорошо
   Good Accuracy: Хорошая точность
+  Good match: "Хорошее совпадение"
   Got it: Понятно
   Gray: Серый
   Grip filament: Зажать филамент
@@ -1649,7 +1648,7 @@ translations:
     разгоном или ошибкой конфигурации.
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper резервирует 'default' для новых калибровок. Выберите другое имя."
   Klipper restarting - macros activating: 'Перезапуск Klipper - активация макросов'
-  Klipper stopped reporting progress. Check the printer, then try again.: Klipper перестал сообщать о ходе. Проверьте принтер и повторите попытку.
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper перестал сообщать о ходе. На небольших принтерах его анализу может не хватить памяти; перезапустите Klipper и повторите попытку."
   Klipper will restart to apply changes: Klipper перезапустится для применения изменений
   Klipper will restart to apply changes.: Klipper перезапустится для применения изменений.
   Klipper will restart to apply new settings.: Klipper перезапустится для применения
@@ -2038,8 +2037,8 @@ translations:
   No printers found: Принтеры не найдены
   No prints yet: Нет печатей
   No profiles available: Профили недоступны
-  No resonance peak found for {}: Для {} не найден пик резонанса
   No sensors detected: Датчики не обнаружены
+  No shared peaks: "Нет общих пиков"
   No slot currently matches.: 'Сейчас нет подходящего слота.'
   No spool assigned: Катушка не назначена
   No spools found — tap to retry: Катушки не найдены — нажмите для повтора
@@ -2135,6 +2134,8 @@ translations:
   On/Off (state-aware): Вкл/Выкл (с отслеживанием)
   'On:': 'Вкл:'
   One tap runs this macro. Dangerous macros still ask.: 'Один тап запускает этот макрос. Опасные макросы всё равно запрашивают подтверждение.'
+  'Only on A: {} Hz': "Только на A: {} Гц"
+  'Only on B: {} Hz': "Только на B: {} Гц"
   Ooze Reduction: 'Снижение подтекания'
   Open: Открыть
   Open Source Licenses: Лицензии с открытым кодом
@@ -2169,8 +2170,8 @@ translations:
     автоопределение, если датчик или нагреватель камеры не называется 'chamber'.
   P: Д
   PA: PA
-  PATH A · 1,1: ПУТЬ A · 1,1
-  PATH B · 1,-1: ПУТЬ B · 1,-1
+  PATH A · 1,-1: "ПУТЬ A · 1,-1"
+  PATH B · 1,1: "ПУТЬ B · 1,1"
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN должен содержать 4-6 цифр
@@ -2212,8 +2213,6 @@ translations:
   Password: Пароль
   Password cannot be empty: Пароль не может быть пустым
   Password is required for secured networks: Для защищённых сетей требуется пароль
-  Path A: Путь A
-  Path B: Путь B
   Path {}: Путь {}
   Path {} before: Путь {} раньше
   Pause: Пауза
@@ -2227,6 +2226,7 @@ translations:
   Pausing...: Приостановка...
   Peak Freq: Пиковая частота
   'Peak:': 'Пик:'
+  Peaks {} Hz: "Пики {} Гц"
   Performance: Производительность
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
@@ -2268,6 +2268,7 @@ translations:
   Point camera at QR code on spool: Наведите камеру на QR-код на катушке
   Polymaker: Polymaker
   Poor Accuracy: Низкая точность
+  Poor match: "Плохое совпадение"
   Port: Порт
   Position: Позиция
   Post-Sensor Clear: 'Догон после датчика'
@@ -2934,7 +2935,7 @@ translations:
   Shutting down...: Выключение...
   Signal: Сигнал
   'Signal #': Сигнал №
-  Similarity {:.0f}%: 'Схожесть {:.0f}%'
+  Similarity: "Схожесть"
   Single toggle macro. State is not tracked.: Один макрос переключения. Состояние
     не отслеживается.
   Size: Размер
@@ -3283,8 +3284,8 @@ translations:
     использует метод трения бумаги об сопло для установки Z-смещения.
   This cannot be undone.: Это действие нельзя отменить.
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: 'Этот канал предлагает v{}, старее установленной v{}. Всё добавленное с тех пор будет удалено.'
-  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Эта проверка запускает свип-резонанс Klipper по каждой диагонали ремня и сравнивает две кривые. Совпадающие частоты означают сбалансированное натяжение.\n\nКаждый свип занимает несколько минут и перемещает печатающую головку; не открывайте принтер во время его выполнения.\n\nНа CoreXY ремни A и B должны отличаться лишь на несколько Гц."
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "Эта проверка запускает резонансный тест Klipper по каждому пути ремня и сравнивает два отклика. Сбалансированные ремни дают кривые одинаковой формы с пиками на одних и тех же частотах.\n\nКаждый свип занимает несколько минут и перемещает печатающую головку; держитесь подальше от принтера во время работы."
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: 'Это очистит назначение резервной катушки для всех катушек. Печать будет останавливаться при окончании филамента, пока вы не настроите их заново.'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: У этого устройства нет проводного подключения к сети. Если выключить WiFi, включить его обратно можно будет только с этого экрана.
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3609,7 +3610,6 @@ translations:
   : Данные о весе синхронизируются из Spoolman для отображения оставшегося филамента.
     Изменения также синхронизируются при начале, паузе или завершении печати.
   Welcome to HelixScreen: Добро пожаловать в HelixScreen
-  Well matched: Хорошо совпадают
   What We Collect: Что мы собираем
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: Когда
     включено, запускается только макрос. Когда выключено, сначала задаются температуры,
@@ -3793,7 +3793,6 @@ translations:
   v{} installed! Restarting...: v{} установлена! Перезапуск...
   v{} is available. Tap to update.: v{} доступна. Нажмите для обновления.
   you have: у вас
-  '{:.0f} Hz apart · similarity {:.0f}%': разница {:.0f} Гц · схожесть {:.0f}%
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Гц · примерно {} мин'
   '{} LED strips available': 'Доступно светодиодных лент: {}'
   '{} and {} are both mapped here': '{} и {} оба назначены сюда'

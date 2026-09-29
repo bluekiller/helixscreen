@@ -111,8 +111,7 @@
   <translation tag="A print is in progress - restart still pending" zh="打印进行中 - 重启待执行"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." zh="此通道正在打印中。HelixScreen 已清除本地副本；打印结束后请再次清空。"/>
   <translation tag="A spool may be tangled or the drive gear is jammed" zh="料盘可能缠绕，或驱动齿轮卡住"/>
-  <translation tag="A tighter" zh="A 更紧"/>
-  <translation tag="A · 1,1" zh="A · 1,1"/>
+  <translation tag="A · 1,-1" zh="A · 1,-1"/>
   <translation tag="ABS" zh="ABS"/>
   <translation tag="ACCELEROMETERS" zh="加速度计"/>
   <translation tag="ACE Moonraker bridge not found. Install ace_status.py for full support." zh="未找到 ACE Moonraker 桥接。请安装 ace_status.py 以获得完整支持。"/>
@@ -174,7 +173,6 @@
   <translation tag="Added to queue (position {}) - queue is paused" zh="已添加到队列（第 {} 位）– 队列已暂停"/>
   <translation tag="Adding to queue..." zh="正在添加到队列..."/>
   <translation tag="Address" zh="地址"/>
-  <translation tag="Adjust needed" zh="需要调整"/>
   <translation tag="Adjust screen brightness level" zh="调整屏幕亮度"/>
   <translation tag="Adjust screws, then re-probe." zh="调整螺丝，然后重新探测。"/>
   <translation tag="Adjustments stay active until restart. Save after print completes." zh="调整在重启前保持有效。打印完成后保存。"/>
@@ -264,8 +262,7 @@
   <translation tag="Available networks" zh="可用网络"/>
   <translation tag="Average" zh="平均值"/>
   <translation tag="Axis limits unknown" zh="轴限位未知"/>
-  <translation tag="B tighter" zh="B 更紧"/>
-  <translation tag="B · 1,-1" zh="B · 1,-1"/>
+  <translation tag="B · 1,1" zh="B · 1,1"/>
   <translation tag="BACK" zh="后侧"/>
   <translation tag="BEACON" zh="BEACON"/>
   <translation tag="BETA" zh="测试版"/>
@@ -578,7 +575,7 @@
   <translation tag="Command failed" zh="命令失败"/>
   <translation tag="Communication Test" zh="通信测试"/>
   <translation tag="Compact" zh="紧凑"/>
-  <translation tag="Compare belt paths with a resonance sweep"/>
+  <translation tag="Compare belt paths with a resonance sweep" zh="用共振扫频比较皮带路径"/>
   <translation tag="Compare your belt paths" zh="比较皮带路径"/>
   <translation tag="Complete" zh="完成"/>
   <translation tag="Complete!" zh="完成！"/>
@@ -1100,6 +1097,7 @@
   <translation tag="Failed to update moonraker.conf.&#10;Check printer connection." zh="更新 moonraker.conf 失败。&#10;请检查打印机连接。"/>
   <translation tag="Failed to upload modified G-code: {}" zh="上传修改后的 G-code 失败: {}"/>
   <translation tag="Failed to upload remapped G-code: {}" zh="上传重新映射的 G-code 失败：{}"/>
+  <translation tag="Fair match" zh="匹配中等"/>
   <translation tag="Fan" zh="风扇"/>
   <translation tag="Fan Calibration" zh="风扇校准"/>
   <translation tag="Fan Speeds" zh="风扇速度"/>
@@ -1248,6 +1246,7 @@
   <translation tag="Global" zh="全局"/>
   <translation tag="Good" zh="良好"/>
   <translation tag="Good Accuracy" zh="精度良好"/>
+  <translation tag="Good match" zh="匹配良好"/>
   <translation tag="Got it" zh="知道了"/>
   <translation tag="Gray" zh="灰色"/>
   <translation tag="Grip filament" zh="夹持耗材"/>
@@ -1490,7 +1489,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." zh="Klipper 已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。"/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." zh="Klipper 将 &apos;default&apos; 保留用于新的校准。请选择其他名称。"/>
   <translation tag="Klipper restarting - macros activating" zh="正在重启 Klipper - 正在启用宏"/>
-  <translation tag="Klipper stopped reporting progress. Check the printer, then try again." zh="Klipper 停止报告进度。请检查打印机后重试。"/>
+  <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." zh="Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存；请重启 Klipper 后重试。"/>
   <translation tag="Klipper will restart to apply changes" zh="Klipper 将重启以应用更改"/>
   <translation tag="Klipper will restart to apply changes." zh="Klipper 将重启以应用更改。"/>
   <translation tag="Klipper will restart to apply new settings." zh="Klipper 将重启以应用新设置。"/>
@@ -1849,8 +1848,8 @@
   <translation tag="No printers found" zh="未找到打印机"/>
   <translation tag="No prints yet" zh="暂无打印记录"/>
   <translation tag="No profiles available" zh="无可用配置"/>
-  <translation tag="No resonance peak found for {}" zh="未找到 {} 的共振峰值"/>
   <translation tag="No sensors detected" zh="未检测到传感器"/>
+  <translation tag="No shared peaks" zh="无共同峰值"/>
   <translation tag="No slot currently matches." zh="当前没有匹配的槽位。"/>
   <translation tag="No spool assigned" zh="未分配料盘"/>
   <translation tag="No spools found — tap to retry" zh="未找到料盘 - 点击重试"/>
@@ -1943,6 +1942,8 @@
   <translation tag="On/Off (state-aware)" zh="开/关（状态跟踪）"/>
   <translation tag="On:" zh="开:"/>
   <translation tag="One tap runs this macro. Dangerous macros still ask." zh="单击即可运行此宏。危险宏仍会询问。"/>
+  <translation tag="Only on A: {} Hz" zh="仅 A：{} Hz"/>
+  <translation tag="Only on B: {} Hz" zh="仅 B：{} Hz"/>
   <translation tag="Ooze Reduction" zh="减少渗漏"/>
   <translation tag="Open" zh="打开"/>
   <translation tag="Open Source Licenses" zh="开源许可证"/>
@@ -1973,8 +1974,8 @@
   <translation tag="Override auto-detection if your chamber sensor or heater isn&apos;t named &apos;chamber&apos;." zh="如果仓室传感器或加热器名称不是 &apos;chamber&apos;，可覆盖自动检测。"/>
   <translation tag="P" zh="件"/>
   <translation tag="PA" zh="PA"/>
-  <translation tag="PATH A · 1,1" zh="路径 A · 1,1"/>
-  <translation tag="PATH B · 1,-1" zh="路径 B · 1,-1"/>
+  <translation tag="PATH A · 1,-1" zh="路径 A · 1,-1"/>
+  <translation tag="PATH B · 1,1" zh="路径 B · 1,1"/>
   <translation tag="PETG" zh="PETG"/>
   <translation tag="PID" zh="PID"/>
   <translation tag="PIN must be 4-6 digits" zh="PIN 码必须为 4-6 位数字"/>
@@ -2014,8 +2015,6 @@
   <translation tag="Password" zh="密码"/>
   <translation tag="Password cannot be empty" zh="密码不能为空"/>
   <translation tag="Password is required for secured networks" zh="加密网络需要密码"/>
-  <translation tag="Path A" zh="路径 A"/>
-  <translation tag="Path B" zh="路径 B"/>
   <translation tag="Path {}" zh="路径 {}"/>
   <translation tag="Path {} before" zh="路径 {}（之前）"/>
   <translation tag="Pause" zh="暂停"/>
@@ -2029,6 +2028,7 @@
   <translation tag="Pausing..." zh="暂停中..."/>
   <translation tag="Peak Freq" zh="峰值频率"/>
   <translation tag="Peak:" zh="峰值："/>
+  <translation tag="Peaks {} Hz" zh="峰值 {} Hz"/>
   <translation tag="Performance" zh="性能"/>
   <translation tag="Phomemo (Bluetooth)" zh="Phomemo（蓝牙）"/>
   <translation tag="Phomemo M110" zh="Phomemo M110"/>
@@ -2062,6 +2062,7 @@
   <translation tag="Point camera at QR code on spool" zh="将摄像头对准料盘上的 QR 码"/>
   <translation tag="Polymaker" zh="Polymaker"/>
   <translation tag="Poor Accuracy" zh="精度较差"/>
+  <translation tag="Poor match" zh="匹配较差"/>
   <translation tag="Port" zh="端口"/>
   <translation tag="Position" zh="位置"/>
   <translation tag="Post-Sensor Clear" zh="传感器触发后额外移动"/>
@@ -2662,7 +2663,7 @@
   <translation tag="Shutting down..." zh="正在关机..."/>
   <translation tag="Signal" zh="信号"/>
   <translation tag="Signal #" zh="信号 #"/>
-  <translation tag="Similarity {:.0f}%" zh="相似度 {:.0f}%"/>
+  <translation tag="Similarity" zh="相似度"/>
   <translation tag="Single toggle macro. State is not tracked." zh="单个切换宏。不跟踪状态。"/>
   <translation tag="Size" zh="大小"/>
   <translation tag="Skip" zh="跳过"/>
@@ -2955,7 +2956,7 @@
   <translation tag="This calibration uses the paper friction method to set your Z-offset." zh="此校准使用纸张摩擦法设置 Z 偏移。"/>
   <translation tag="This cannot be undone." zh="此操作无法撤销。"/>
   <translation tag="This channel offers v{}, older than the installed v{}. Anything added since then will be removed." zh="此通道提供 v{}，早于已安装的 v{}。此后新增的内容都将被移除。"/>
-  <translation tag="This check runs Klipper&apos;s resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." zh="此检查会沿每条皮带对角线运行 Klipper 的共振扫频，并比较两条曲线。频率匹配意味着张力平衡。&#10;&#10;每次扫频需要几分钟并会移动工具头；运行期间请勿打开打印机。&#10;&#10;在 CoreXY 上，皮带 A 和 B 的相差应在几 Hz 之内。"/>
+  <translation tag="This check runs Klipper&apos;s resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.&#10;&#10;Each sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs." zh="此检查会沿每条皮带路径运行 Klipper 的共振测试，并比较两个响应。平衡的皮带会给出形状相同、峰值位于相同频率的曲线。&#10;&#10;每次扫频需要几分钟并会移动工具头；运行期间请远离打印机。"/>
   <translation tag="This clears every spool&apos;s failover assignment. The print will stop on runout until you set up failover again." zh="这会清除每个料盘的备用分配。在重新设置之前，耗材用尽时打印将停止。"/>
   <translation tag="This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen." zh="此设备没有有线网络连接。关闭 WiFi 后，只能在此界面重新开启。"/>
   <translation tag="This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a &quot;Timer Too Close&quot; error or restart mid-test. Continue anyway?" zh="此设备仅有 {} MB 内存。共振校准会占用大量内存，可能导致打印机固件报告 &quot;Timer Too Close&quot; 错误或在测试中途重启。仍要继续吗？"/>
@@ -3239,7 +3240,6 @@
   <translation tag="Weekly Print Stats" zh="本周打印统计"/>
   <translation tag="Weight data is synced from Spoolman to display remaining filament. Changes are also synced when prints start, pause, or complete." zh="重量数据从 Spoolman 同步以显示剩余耗材。打印开始、暂停或完成时也会同步更改。"/>
   <translation tag="Welcome to HelixScreen" zh="欢迎使用 HelixScreen"/>
-  <translation tag="Well matched" zh="匹配良好"/>
   <translation tag="What We Collect" zh="我们收集的内容"/>
   <translation tag="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs." zh="启用时仅运行宏。禁用时先设置温度，然后运行宏。"/>
   <translation tag="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation." zh="开始打印时，您可以选择是否运行 %s。如果您最近已经执行过或希望对打印准备过程有更多控制，这样可以节省时间。"/>
@@ -3402,7 +3402,6 @@
   <translation tag="v{} installed! Restarting..." zh="已安装 v{}！正在重启..."/>
   <translation tag="v{} is available. Tap to update." zh="v{} 可用。点击以更新。"/>
   <translation tag="you have" zh="您有"/>
-  <translation tag="{:.0f} Hz apart · similarity {:.0f}%" zh="相差 {:.0f} Hz · 相似度 {:.0f}%"/>
   <translation tag="{:.0f}-{:.0f} Hz · about {} min" zh="{:.0f}-{:.0f} Hz · 约 {} 分钟"/>
   <translation tag="{} LED strips available" zh="{} 条 LED 灯带可用"/>
   <translation tag="{} and {} are both mapped here" zh="{} 和 {} 都映射到这里"/>

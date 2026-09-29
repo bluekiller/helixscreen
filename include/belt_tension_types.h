@@ -29,8 +29,8 @@ namespace helix::calibration {
 
 /// Belt path identifiers for CoreXY
 enum class BeltPath {
-    PATH_A, ///< CoreXY diagonal A (1,1)
-    PATH_B, ///< CoreXY diagonal B (1,-1)
+    PATH_A, ///< CoreXY diagonal A (1,-1)
+    PATH_B, ///< CoreXY diagonal B (1,1)
 };
 
 /// Kinematics type detected from printer

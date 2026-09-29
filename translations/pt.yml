@@ -118,8 +118,7 @@ translations:
   A print is in progress - restart still pending: 'Uma impressão está em andamento - reinício pendente'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: Uma impressão está em andamento neste gate. O HelixScreen limpou a própria cópia; limpe-o novamente quando a impressão terminar.
   A spool may be tangled or the drive gear is jammed: Um carretel pode estar embaraçado ou a engrenagem de tração travada
-  A tighter: A mais tensa
-  A · 1,1: A · 1,1
+  A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: ACELERÔMETROS
   ACE Moonraker bridge not found. Install ace_status.py for full support.: Ponte
@@ -183,7 +182,6 @@ translations:
   Added to queue (position {}) - queue is paused: Adicionado à fila (posição {}) – a fila está pausada
   Adding to queue...: Adicionando à fila...
   Address: Endereço
-  Adjust needed: Ajuste necessário
   Adjust screen brightness level: Ajustar nível de brilho da tela
   Adjust screws, then re-probe.: Ajuste os parafusos, depois sonde novamente.
   Adjustments stay active until restart. Save after print completes.: Ajustes permanecem
@@ -292,8 +290,7 @@ translations:
   Available networks: Redes disponíveis
   Average: Média
   Axis limits unknown: Limites do eixo desconhecidos
-  B tighter: B mais tensa
-  B · 1,-1: B · 1,-1
+  B · 1,1: "B · 1,1"
   BACK: TRÁS
   BEACON: BEACON
   BETA: BETA
@@ -649,7 +646,7 @@ translations:
   Command failed: O comando falhou
   Communication Test: 'Teste de comunicação'
   Compact: Compacto
-  Compare belt paths with a resonance sweep: ''
+  Compare belt paths with a resonance sweep: "Compare os caminhos das correias com uma varredura de ressonância"
   Compare your belt paths: Compare os caminhos das correias
   Complete: Concluído
   Complete!: Concluído!
@@ -1222,6 +1219,7 @@ translations:
   : "Falha ao atualizar moonraker.conf.\nVerifique a conexão da impressora."
   'Failed to upload modified G-code: {}': 'Falha ao enviar G-code modificado: {}'
   'Failed to upload remapped G-code: {}': 'Falha ao enviar G-code remapeado: {}'
+  Fair match: "Correspondência razoável"
   Fan: Ventoinha
   Fan Calibration: Calibração da Ventoinha
   Fan Speeds: 'Velocidades das ventoinhas'
@@ -1381,6 +1379,7 @@ translations:
   Global: Global
   Good: Bom
   Good Accuracy: Boa Precisão
+  Good match: "Boa correspondência"
   Got it: Entendi
   Gray: Cinza
   Grip filament: Segurar filamento
@@ -1669,7 +1668,7 @@ translations:
     emergência, fuga térmica ou erro de configuração.
   Klipper reserves 'default' for new calibrations. Choose another name.: "O Klipper reserva 'default' para novas calibrações. Escolha outro nome."
   Klipper restarting - macros activating: 'Reiniciando o Klipper - ativando macros'
-  Klipper stopped reporting progress. Check the printer, then try again.: O Klipper parou de informar o progresso. Verifique a impressora e tente novamente.
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "O Klipper parou de informar o progresso. A análise pode ficar sem memória em impressoras pequenas; reinicie o Klipper e tente novamente."
   Klipper will restart to apply changes: O Klipper será reiniciado para aplicar as
     alterações
   Klipper will restart to apply changes.: O Klipper será reiniciado para aplicar as
@@ -2061,8 +2060,8 @@ translations:
   No printers found: Nenhuma impressora encontrada
   No prints yet: Sem impressões ainda
   No profiles available: Nenhum perfil disponível
-  No resonance peak found for {}: Nenhum pico de ressonância encontrado para {}
   No sensors detected: Nenhum sensor detectado
+  No shared peaks: "Nenhum pico em comum"
   No slot currently matches.: 'Nenhum slot corresponde no momento.'
   No spool assigned: Nenhuma bobina atribuída
   No spools found — tap to retry: Nenhuma bobina encontrada — toque para tentar novamente
@@ -2158,6 +2157,8 @@ translations:
   On/Off (state-aware): Ligar/Desligar (com estado)
   'On:': 'Ligado:'
   One tap runs this macro. Dangerous macros still ask.: 'Um toque executa esta macro. Macros perigosas ainda pedem confirmação.'
+  'Only on A: {} Hz': "Somente em A: {} Hz"
+  'Only on B: {} Hz': "Somente em B: {} Hz"
   Ooze Reduction: 'Redução de escorrimento'
   Open: Abrir
   Open Source Licenses: Licenças de código aberto
@@ -2193,8 +2194,8 @@ translations:
     auto-detecção se seu sensor ou aquecedor da câmara não se chama 'chamber'.
   P: P
   PA: PA
-  PATH A · 1,1: CAMINHO A · 1,1
-  PATH B · 1,-1: CAMINHO B · 1,-1
+  PATH A · 1,-1: "CAMINHO A · 1,-1"
+  PATH B · 1,1: "CAMINHO B · 1,1"
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: O PIN deve ter 4-6 dígitos
@@ -2236,8 +2237,6 @@ translations:
   Password: Senha
   Password cannot be empty: A senha não pode estar vazia
   Password is required for secured networks: Senha é necessária para redes protegidas
-  Path A: Caminho A
-  Path B: Caminho B
   Path {}: Caminho {}
   Path {} before: Caminho {} antes
   Pause: Pausar
@@ -2251,6 +2250,7 @@ translations:
   Pausing...: Pausando...
   Peak Freq: Freq Pico
   'Peak:': 'Pico:'
+  Peaks {} Hz: "Picos {} Hz"
   Performance: Desempenho
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
@@ -2292,6 +2292,7 @@ translations:
   Point camera at QR code on spool: Aponte a câmera para o código QR no carretel
   Polymaker: Polymaker
   Poor Accuracy: Precisão Baixa
+  Poor match: "Correspondência fraca"
   Port: Porta
   Position: Posição
   Post-Sensor Clear: 'Avanço após o sensor'
@@ -2967,7 +2968,7 @@ translations:
   Shutting down...: Desligando...
   Signal: Sinal
   'Signal #': 'Sinal #'
-  Similarity {:.0f}%: 'Similaridade {:.0f}%'
+  Similarity: "Similaridade"
   Single toggle macro. State is not tracked.: Macro de alternância única. O estado
     não é rastreado.
   Size: Tamanho
@@ -3323,8 +3324,8 @@ translations:
     usa o método de fricção de papel para definir seu Z-offset.
   This cannot be undone.: Isso não pode ser desfeito.
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: 'Este canal oferece a v{}, anterior à v{} instalada. Tudo o que foi adicionado desde então será removido.'
-  ? "This check runs Klipper's resonance sweep down each belt diagonal and compares the two curves. Matched frequencies mean balanced tension.\n\nEach sweep takes a few minutes and moves the toolhead; do not open the printer while it runs.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Esta verificação executa a varredura de ressonância do Klipper ao longo de cada diagonal da correia e compara as duas curvas. Frequências correspondentes indicam tensão equilibrada.\n\nCada varredura leva alguns minutos e move o cabeçote; não abra a impressora enquanto ela executa.\n\nEm uma CoreXY, as correias A e B devem diferir em apenas alguns Hz."
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "Esta verificação executa o teste de ressonância do Klipper ao longo de cada caminho da correia e compara as duas respostas. Correias equilibradas produzem curvas com a mesma forma, com picos nas mesmas frequências.\n\nCada varredura leva alguns minutos e move o cabeçote; mantenha distância da impressora enquanto ela executa."
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: 'Isso limpa a atribuição de carretel reserva de cada carretel. A impressão parará ao acabar o filamento até você configurar novamente.'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: Este dispositivo não tem conexão de rede com fio. Se você desligar o WiFi, só será possível ligá-lo novamente nesta tela.
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3655,7 +3656,6 @@ translations:
   : Dados de peso são sincronizados do Spoolman para exibir filamento restante. Alterações
     também são sincronizadas quando impressões iniciam, pausam ou terminam.
   Welcome to HelixScreen: Bem-vindo ao HelixScreen
-  Well matched: Bem equilibradas
   What We Collect: O Que Coletamos
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: Quando
     habilitado, apenas a macro é executada. Quando desabilitado, as temperaturas são
@@ -3842,7 +3842,6 @@ translations:
   v{} installed! Restarting...: v{} instalado! Reiniciando...
   v{} is available. Tap to update.: v{} disponível. Toque para atualizar.
   you have: você tem
-  '{:.0f} Hz apart · similarity {:.0f}%': '{:.0f} Hz de diferença · similaridade {:.0f}%'
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · cerca de {} min'
   '{} LED strips available': '{} fitas de LED disponíveis'
   '{} and {} are both mapped here': '{} e {} estão ambos atribuídos aqui'

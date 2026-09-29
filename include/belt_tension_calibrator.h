@@ -69,8 +69,9 @@ class BeltTensionCalibrator {
         return hardware_;
     }
 
-    /// Klipper XY-vector form of a path's axis: PATH_A sweeps (1,1), PATH_B
-    /// (1,-1) — the diagonals a CoreXY belt drives.
+    /// Klipper XY-vector form of a path's axis: PATH_A sweeps (1,-1), PATH_B
+    /// (1,1). The letters follow the Voron motor names Shake&Tune uses: a 1,1
+    /// move turns only stepper_x, which is a Voron's B motor.
     [[nodiscard]] static const char* axis_param(BeltPath p);
 
     /// TEST_RESONANCES NAME= for a path; also the CSV basename Klipper writes.
