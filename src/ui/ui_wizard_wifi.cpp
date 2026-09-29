@@ -831,6 +831,7 @@ void WizardWifiStep::init_subjects() {
         lv_subject_set_int(&wifi_scanning_, 0);
         lv_subject_set_int(&wifi_connecting_, 0);
         lv_subject_set_int(&wifi_hardware_available_, 1);
+        lv_subject_set_int(&wifi_can_toggle_radio_, 0);
         lv_subject_copy_string(&wifi_password_modal_ssid_, "");
         lv_subject_copy_string(&wifi_status_, get_status_text("disabled"));
         lv_subject_copy_string(&wifi_ip_, "");
@@ -846,6 +847,7 @@ void WizardWifiStep::init_subjects() {
     UI_MANAGED_SUBJECT_INT(wifi_scanning_, 0, "wifi_scanning", subjects_);
     UI_MANAGED_SUBJECT_INT(wifi_connecting_, 0, "wifi_connecting", subjects_);
     UI_MANAGED_SUBJECT_INT(wifi_hardware_available_, 1, "wifi_hardware_available", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_can_toggle_radio_, 0, "wifi_can_toggle_radio", subjects_);
 
     UI_MANAGED_SUBJECT_STRING(wifi_password_modal_ssid_, wifi_password_modal_ssid_buffer_, "",
                               "wifi_password_modal_ssid", subjects_);
@@ -930,12 +932,18 @@ lv_obj_t* WizardWifiStep::create(lv_obj_t* parent) {
 // WiFi Manager Initialization
 // ============================================================================
 
+void WizardWifiStep::publish_wifi_capabilities() {
+    lv_subject_set_int(&wifi_can_toggle_radio_,
+                       wifi_manager_ && wifi_manager_->supports_radio_toggle() ? 1 : 0);
+}
+
 void WizardWifiStep::init_wifi_manager() {
     spdlog::debug("[{}] Initializing WiFi and Ethernet managers", get_name());
     crash_handler::breadcrumb::note("wifi", "init_mgr_enter");
 
     wifi_manager_ = get_wifi_manager();
     crash_handler::breadcrumb::note("wifi", "wifi_mgr_obtained");
+    publish_wifi_capabilities();
 
     ethernet_manager_ = std::make_unique<EthernetManager>();
     crash_handler::breadcrumb::note("wifi", "eth_mgr_made");

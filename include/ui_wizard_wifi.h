@@ -160,7 +160,7 @@ class WizardWifiStep : public helix::wizard::Step {
     helix::ui::WidgetRef password_modal_;
     lv_obj_t* network_list_container_ = nullptr;
 
-    // Subjects (8 total - visibility controlled by Modal system)
+    // Subjects (visibility controlled by Modal system)
     lv_subject_t wifi_enabled_;
     lv_subject_t wifi_status_;
     lv_subject_t wifi_ip_;
@@ -171,6 +171,7 @@ class WizardWifiStep : public helix::wizard::Step {
     lv_subject_t wifi_password_modal_ssid_;
     lv_subject_t wifi_connecting_;
     lv_subject_t wifi_hardware_available_;
+    lv_subject_t wifi_can_toggle_radio_; ///< 1 if the backend can move the radio
 
     // String buffers (must be persistent)
     char wifi_status_buffer_[64];
@@ -215,6 +216,8 @@ class WizardWifiStep : public helix::wizard::Step {
     // "Connected to <current_ssid_>", then the address from one async read.
     void announce_connected();
     void update_ethernet_status();
+    /// Publish what wifi_manager_'s backend can do to the capability subjects.
+    void publish_wifi_capabilities();
 
     // Apply the current (already-initialized) WiFi backend state to the UI.
     // Called once during init_wifi_manager() and again on every backend

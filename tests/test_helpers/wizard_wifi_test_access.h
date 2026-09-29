@@ -78,6 +78,12 @@ class WizardWifiStepTestAccess {
         return step.network_list_container_;
     }
 
+    /// Publish the capability subjects from the manager set above, as
+    /// init_wifi_manager() does once it has obtained its manager.
+    static void publish_wifi_capabilities(WizardWifiStep& step) {
+        step.publish_wifi_capabilities();
+    }
+
     /// Drive the production toggle handler for THIS step, from a switch left in
     /// `checked`. The XML trampoline resolves the step through the process-wide
     /// accessor, so an instance-scoped test needs an event carrying its own.
