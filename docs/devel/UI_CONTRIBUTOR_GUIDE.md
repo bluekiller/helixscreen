@@ -816,6 +816,10 @@ You're free to rearrange the visual hierarchy, change flex directions, adjust si
 
 **Tiny (480x320):** Very limited in both directions. Reduce information density, use bigger touch targets (48px minimum), show fewer labels. Hide optional elements with conditional visibility or just remove decorative content.
 
+### One tree, restyled for portrait
+
+A panel usually needs no portrait override. The print file detail view is the pattern: one widget tree, with complementary `bind_style` pairs keyed on `ui_is_portrait` carrying every restyle that is a style property (row vs column, which side grows, the button tier). The inline attribute for a restyled property must come off the widget, because an inline attribute beats a bound style and freezes one orientation. What styles cannot express (a size measured from runtime pixels) is measured in C++: `src/ui/ui_print_select_detail_view.cpp#fit_portrait_preview` reads the options column's real content height and sets the preview card's height from `include/print_detail_layout.h#decide_detail_portrait_preview`. See `ui_xml/print_file_detail.xml` for the whole shape.
+
 ### Priority panels to override
 
 Start with the panels that matter most:
