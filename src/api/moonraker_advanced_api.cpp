@@ -19,6 +19,7 @@
 #include "operation_timeout_guard.h"
 #include "printer_state.h"
 #include "probe_preparation.h"
+#include "resonance_console.h"
 #include "screws_tilt_dialect.h"
 #include "screws_tilt_parser.h"
 #include "shaper_csv_parser.h"
@@ -1689,13 +1690,8 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
     }
 
     void parse_sweep_line(const std::string& line) {
-        static const helix::Regex freq_regex(R"(Testing frequency ([\d.]+) Hz)");
-        helix::RegexMatch match;
-        if (helix::regex_search(line, match, freq_regex) && match.size() == 2) {
-            const auto parsed_freq = text_io::parse_leading<float>(match[1].str());
-            if (!parsed_freq) {
-                return;
-            }
+        const auto parsed_freq = calibration::parse_testing_frequency(line);
+        if (parsed_freq) {
             float freq = *parsed_freq;
             last_sweep_freq_.store(freq);
 
@@ -1721,11 +1717,10 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
             // 100 until it ends. That is still honest — the
             // phase stays Sweeping, so the UI keeps saying "measuring"
             // rather than claiming the analysis has started.
-            const float min_freq = min_freq_.load();
-            const float range = max_freq_.load() - min_freq;
-            const float progress_frac = (range > 0) ? (freq - min_freq) / range : 0.0f;
-            int percent = static_cast<int>(std::lround(progress_frac * 100.0f));
-            percent = std::clamp(percent, 0, 100);
+            calibration::ResonanceTesterConfig range;
+            range.min_freq = min_freq_.load();
+            range.max_freq = max_freq_.load();
+            const int percent = calibration::sweep_percent(freq, range);
 
             char status[64];
             snprintf(status, sizeof(status), "Testing frequency %.0f Hz", freq);
@@ -1833,10 +1828,8 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
     }
 
     void parse_csv_path(const std::string& line) {
-        static const helix::Regex csv_regex(R"(calibration data written to (\S+\.csv))");
-        helix::RegexMatch match;
-        if (helix::regex_search(line, match, csv_regex) && match.size() == 2) {
-            csv_path_ = match[1].str();
+        if (const auto path = calibration::parse_written_csv_path(line)) {
+            csv_path_ = *path;
             spdlog::info("[InputShaperCollector] CSV path: {}", csv_path_);
         }
     }
@@ -2473,6 +2466,35 @@ void MoonrakerAdvancedAPI::run_z_tilt_adjust(SuccessCallback /*on_success*/,
     }
 }
 
+namespace {
+
+/// Ask the printer what [resonance_tester] range it will actually sweep.
+/// The range varies — Klipper's default ceiling is 133.33 Hz, Kalico's is
+/// 135, and the section can set anything — so it is queried rather than
+/// assumed: mapping sweep progress against a guessed ceiling pins the bar at
+/// an arbitrary point mid-run and can report analysis while the toolhead is
+/// still moving. `on_done` receives defaults on any error or missing section,
+/// which leaves the caller's own fallbacks in force.
+void query_resonance_tester_config(
+    IMoonrakerClient& client, std::function<void(calibration::ResonanceTesterConfig)> on_done) {
+    json params = {{"objects", json::object({{"configfile", json::array({"settings"})}})}};
+    client.send_jsonrpc(
+        "printer.objects.query", params,
+        [on_done](const json& response) {
+            if (!response.contains("result") || !response["result"].contains("status") ||
+                !response["result"]["status"].contains("configfile") ||
+                !response["result"]["status"]["configfile"].contains("settings")) {
+                on_done(calibration::ResonanceTesterConfig{});
+                return;
+            }
+            on_done(calibration::parse_resonance_tester_config(
+                response["result"]["status"]["configfile"]["settings"]));
+        },
+        [on_done](const MoonrakerError&) { on_done(calibration::ResonanceTesterConfig{}); });
+}
+
+} // namespace
+
 void MoonrakerAdvancedAPI::start_resonance_test(char axis, ShaperProgressCallback on_progress,
                                                 InputShaperCallback on_complete,
                                                 ErrorCallback on_error) {
@@ -2483,47 +2505,13 @@ void MoonrakerAdvancedAPI::start_resonance_test(char axis, ShaperProgressCallbac
         std::make_shared<InputShaperCollector>(client_, axis, on_progress, on_complete, on_error);
     collector->start();
 
-    // Ask the printer what range it will actually sweep. Klipper's default
-    // ceiling is 133.33 Hz and Kalico's is 135, and [resonance_tester] can set
-    // anything — assuming 100 Hz made progress saturate a third of the way
-    // from the end and the UI call it "analyzing" while the toolhead was still
-    // moving. Fire-and-forget: the reply lands in milliseconds while
-    // SHAPER_CALIBRATE still has to home and travel to the probe point, and if
-    // it never lands the collector keeps its defaults.
-    json range_params = {{"objects", json::object({{"configfile", json::array({"settings"})}})}};
-    client_.send_jsonrpc("printer.objects.query", range_params, [collector](const json& response) {
-        if (!response.contains("result") || !response["result"].contains("status") ||
-            !response["result"]["status"].contains("configfile") ||
-            !response["result"]["status"]["configfile"].contains("settings")) {
-            return;
-        }
-        const json& settings = response["result"]["status"]["configfile"]["settings"];
-        if (!settings.contains("resonance_tester") || !settings["resonance_tester"].is_object()) {
-            return;
-        }
-        const json& rt = settings["resonance_tester"];
-        // configfile reports numbers, but forks have been seen echoing
-        // strings — accept both rather than silently keeping defaults.
-        auto read = [&rt](const char* key, float fallback) -> std::optional<float> {
-            if (!rt.contains(key)) {
-                return fallback;
-            }
-            const json& v = rt[key];
-            if (v.is_number()) {
-                return v.get<float>();
-            }
-            if (v.is_string()) {
-                return text_io::parse_leading<float>(v.get<std::string>());
-            }
-            return fallback;
-        };
-        const auto min_freq = read("min_freq", InputShaperCollector::DEFAULT_MIN_FREQ);
-        const auto max_freq = read("max_freq", InputShaperCollector::DEFAULT_MAX_FREQ);
-        if (min_freq && max_freq) {
-            collector->set_sweep_range(*min_freq, *max_freq);
-        } else {
-            spdlog::debug("[Moonraker API] Could not read resonance_tester range: unparseable "
-                          "value");
+    // Ask the printer what range it will actually sweep. Fire-and-forget: the
+    // reply lands in milliseconds while SHAPER_CALIBRATE still has to home
+    // and travel to the probe point, and if it never lands the collector
+    // keeps its defaults.
+    query_resonance_tester_config(client_, [collector](calibration::ResonanceTesterConfig cfg) {
+        if (cfg.from_printer) {
+            collector->set_sweep_range(cfg.min_freq, cfg.max_freq);
         }
     });
 
