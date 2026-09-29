@@ -795,6 +795,9 @@ void TemperatureService::setup_panel(HeaterType type, lv_obj_t* panel, lv_obj_t*
                 self->rebuild_extruder_segments();
             },
             printer_state_.get_subjects_lifetime());
+        // Segment labels are extruder display names.
+        language_observer_ = helix::ui::observe_language_change(
+            this, [](TemperatureService* self) { self->rebuild_extruder_segments(); });
 
         auto& tool_state = helix::ToolState::instance();
         if (tool_state.is_multi_tool()) {

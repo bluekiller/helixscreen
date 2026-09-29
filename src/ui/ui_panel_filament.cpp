@@ -110,8 +110,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     std::snprintf(status_buf_, sizeof(status_buf_), "%s", lv_tr("Select material to begin"));
     std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_),
                   lv_tr("Current: %d°C | Target: %d°C"), nozzle_current_, nozzle_target_);
-    std::snprintf(safety_warning_text_buf_, sizeof(safety_warning_text_buf_),
-                  lv_tr("Heat to at least %d°C for filament operations"), min_extrude_temp_);
+    update_safety_warning_text();
     format_target_or_off(0, material_nozzle_buf_, sizeof(material_nozzle_buf_));
     format_target_or_off(0, material_bed_buf_, sizeof(material_bed_buf_));
     std::snprintf(nozzle_current_buf_, sizeof(nozzle_current_buf_), "%d°C", nozzle_current_);
@@ -227,10 +226,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         self->update_status();
         self->update_nozzle_label();
         self->update_warning_text();
-        std::snprintf(self->safety_warning_text_buf_, sizeof(self->safety_warning_text_buf_),
-                      lv_tr("Heat to at least %d°C for filament operations"),
-                      self->min_extrude_temp_);
-        lv_subject_copy_string(&self->safety_warning_text_subject_, self->safety_warning_text_buf_);
+        self->update_safety_warning_text();
     });
 
     // Re-evaluate Load/Unload/Purge gating whenever live AMS load state changes
@@ -812,6 +808,14 @@ void FilamentPanel::update_warning_text() {
     std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_),
                   lv_tr("Current: %d°C | Target: %d°C"), nozzle_current_, nozzle_target_);
     lv_subject_copy_string(&warning_temps_subject_, warning_temps_buf_);
+}
+
+void FilamentPanel::update_safety_warning_text() {
+    std::snprintf(safety_warning_text_buf_, sizeof(safety_warning_text_buf_),
+                  lv_tr("Heat to at least %d°C for filament operations"), min_extrude_temp_);
+    if (subjects_initialized_) {
+        lv_subject_copy_string(&safety_warning_text_subject_, safety_warning_text_buf_);
+    }
 }
 
 void FilamentPanel::update_safety_state() {
@@ -2868,9 +2872,7 @@ void FilamentPanel::set_limits(const SafetyLimits& limits) {
     // Update min_extrude_temp and safety warning text if changed
     if (min_extrude_temp_ != min_extrude_temp) {
         min_extrude_temp_ = min_extrude_temp;
-        std::snprintf(safety_warning_text_buf_, sizeof(safety_warning_text_buf_),
-                      lv_tr("Heat to at least %d°C for filament operations"), min_extrude_temp_);
-        lv_subject_copy_string(&safety_warning_text_subject_, safety_warning_text_buf_);
+        update_safety_warning_text();
         spdlog::info("[{}] Min extrusion temp updated: {}°C", get_name(), min_extrude_temp_);
     }
 

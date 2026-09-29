@@ -260,9 +260,6 @@ void SettingsPanel::init_subjects() {
         return;
     }
 
-    // Initialize settings subjects across all domain managers (for reactive binding)
-    SettingsManager::instance().init_subjects();
-
     // Note: LED config loading moved to MoonrakerManager::create_api() for centralized init
 
     // Initialize info row subjects that remain in SettingsPanel

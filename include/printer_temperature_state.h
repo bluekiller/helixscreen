@@ -103,7 +103,8 @@ class PrinterTemperatureState {
     void init_extruders(const std::vector<std::string>& heaters);
 
     /// Re-render each extruder's translated display name ("Nozzle 2") in the
-    /// current language and bump extruder_version so consumers redraw.
+    /// current language. The extruder set is unchanged, so extruder_version is
+    /// not bumped: consumers showing a name re-read it on the language switch.
     void refresh_display_names();
 
     // Active extruder subjects (decidegrees: value * 10)

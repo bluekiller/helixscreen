@@ -27,12 +27,14 @@ void init_language_refresh() {
     // since torn down and rebuilt, so calling this again re-arms it.
     s_language_observer = observe_language_change(&ToolState::instance(), [](ToolState* tools) {
         tools->refresh_display_labels();
-        get_printer_state().refresh_extruder_display_names();
-        get_printer_state().refresh_fan_display_names();
+        get_printer_state().refresh_translated_texts();
         refresh_ams_tool_text();
         // AmsState formats its status texts (clog meter, dryer, loaded
-        // lane) as it syncs from the backend.
-        AmsState::instance().sync_from_backend();
+        // lane) and slot texts as it syncs from each backend.
+        auto& ams = AmsState::instance();
+        for (int i = 0; i < ams.backend_count(); ++i) {
+            ams.sync_backend(i);
+        }
     });
     if (s_deinit_registered) {
         return;

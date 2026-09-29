@@ -343,7 +343,6 @@ void PrinterTemperatureState::refresh_display_names() {
     for (size_t i = 0; i < names.size(); ++i) {
         extruders_[names[i]].display_name = extruder_display_name(i, multi);
     }
-    lv_subject_set_int(&extruder_version_, lv_subject_get_int(&extruder_version_) + 1);
 }
 
 lv_subject_t* PrinterTemperatureState::get_extruder_temp_subject(const std::string& name) {

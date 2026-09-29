@@ -858,7 +858,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // words are lv_tr()'d when the metadata lands; a new language formats them again.
     language_observer_ = helix::ui::observe_language_change(this, [](PrintSelectPanel* self) {
         for (auto& file : self->file_list_) {
-            if (file.print_time_str.empty()) {
+            if (!file.metadata_fetched) {
                 continue; // metadata not in yet; it formats in the current language
             }
             file.layer_count_str = format_layer_count(file.layer_count);

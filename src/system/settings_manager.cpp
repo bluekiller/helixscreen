@@ -37,13 +37,6 @@ using namespace helix;
 // The full style list: the dropdown and the enum carry the same eight
 // entries in the same order, so a style the DB auto-detects (K1/K2) or
 // pins (Default) is also selectable by hand.
-static const char* TOOLHEAD_STYLE_OPTIONS_TEXT =
-    "Auto\nDefault\nA4T\nAntHead\nJabberWocky\nStealthburner\nCreality K1\nCreality K2";
-
-// In test mode, show all styles for debugging
-static const char* TOOLHEAD_STYLE_OPTIONS_TEXT_DEBUG =
-    "Auto\nDefault\nA4T\nAntHead\nJabberWocky\nStealthburner\nCreality K1\nCreality K2";
-
 // Map dropdown index → ToolheadStyle enum value (production dropdown)
 static constexpr helix::ToolheadStyle DROPDOWN_TO_STYLE[] = {
     helix::ToolheadStyle::AUTO,          // 0: Auto
@@ -528,12 +521,10 @@ void SettingsManager::set_toolhead_style(ToolheadStyle style) {
                                                         std::to_string(val));
 }
 
-const char* SettingsManager::get_toolhead_style_options() {
-    auto* rc = get_runtime_config();
-    if (rc && rc->test_mode) {
-        return TOOLHEAD_STYLE_OPTIONS_TEXT_DEBUG;
-    }
-    return TOOLHEAD_STYLE_OPTIONS_TEXT;
+std::string SettingsManager::get_toolhead_style_options() {
+    // The first two are words; the rest name toolhead products.
+    return std::string(lv_tr("Auto")) + "\n" + lv_tr("Default") +
+           "\nA4T\nAntHead\nJabberWocky\nStealthburner\nCreality K1\nCreality K2";
 }
 
 int SettingsManager::toolhead_style_to_dropdown_index(ToolheadStyle style) {

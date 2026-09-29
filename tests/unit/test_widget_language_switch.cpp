@@ -196,6 +196,7 @@ TEST_CASE_METHOD(LanguageSwitchFixture, "preheat's tool target re-translates on 
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     REQUIRE(std::string(lv_tr("All")) != "All");
     CHECK(std::string(lv_label_get_text(label)) == std::string(lv_tr("All")) + " (2)");
+    REQUIRE(std::string(lv_tr("Preheat %s (%d/%d)")) != "Preheat %s (%d/%d)");
     CHECK(PreheatWidget::label_for_slot(0, false, 400)
               .rfind(std::string(lv_tr("Preheat")) + " ", 0) == 0);
     CHECK(PreheatWidget::label_for_slot(0, true, 400) == lv_tr("Cool Down"));

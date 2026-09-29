@@ -494,7 +494,7 @@ class FilamentPanel : public PanelBase {
     char temp_display_buf_[32];
     char status_buf_[64];
     char warning_temps_buf_[64];
-    char safety_warning_text_buf_[48]; ///< "Heat to at least X°C to load/unload"
+    char safety_warning_text_buf_[128]; ///< "Heat to at least X°C for filament operations"
     char material_nozzle_buf_[16];
     char material_bed_buf_[16];
     char nozzle_current_buf_[16];
@@ -646,6 +646,7 @@ class FilamentPanel : public PanelBase {
     void update_status();
     void update_status_icon(const char* icon_name, const char* color_token);
     void update_warning_text();
+    void update_safety_warning_text();
     void update_safety_state();
     void update_preset_buttons_visual();
     // Label/temps refresh moved to helix::presets::refresh_subjects().

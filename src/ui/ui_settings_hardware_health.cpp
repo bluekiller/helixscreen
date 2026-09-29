@@ -196,7 +196,8 @@ void HardwareHealthOverlay::populate_hardware_issues() {
             // Set issue message
             lv_obj_t* message_label = lv_obj_find_by_name(row, "issue_message");
             if (message_label) {
-                lv_label_set_text(message_label, issue.message.c_str());
+                // Messages are TR_NOOP keys; a tag keeps the row re-translatable.
+                lv_label_set_translation_tag(message_label, issue.message.c_str());
             }
 
             // Configure action buttons for non-critical issues

@@ -317,7 +317,7 @@ void BarcodeScannerSettingsOverlay::add_auto_detect_row(lv_obj_t* container) {
     const char* attrs[] = {
         "row_icon",     "magnify",
         "row_label",    lv_tr("Auto-detect"),
-        "row_sublabel", "Use first HID scanner found",
+        "row_sublabel", lv_tr("Use first HID scanner found"),
         "hide_check",   selected ? "false" : "true",
         "hide_forget",  "true",
         nullptr,

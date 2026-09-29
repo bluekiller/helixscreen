@@ -217,10 +217,10 @@ std::string PreheatWidget::label_for_slot(int slot, bool heaters_active, int32_t
         std::snprintf(label, sizeof(label), "%s", material_name.c_str());
     } else if (t.nozzle > 0 && t.bed > 0) {
         // Wide (3-col+): material + target temps
-        std::snprintf(label, sizeof(label), "%s %s (%d/%d)", lv_tr("Preheat"),
-                      material_name.c_str(), t.nozzle, t.bed);
+        std::snprintf(label, sizeof(label), lv_tr("Preheat %s (%d/%d)"), material_name.c_str(),
+                      t.nozzle, t.bed);
     } else {
-        std::snprintf(label, sizeof(label), "%s %s", lv_tr("Preheat"), material_name.c_str());
+        std::snprintf(label, sizeof(label), lv_tr("Preheat %s"), material_name.c_str());
     }
     return label;
 }
