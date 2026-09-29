@@ -598,6 +598,14 @@ bool PrintPreparationManager::has_scan_result_for(const std::string& filename) c
     return cached_scan_filename_ == filename && cached_scan_result_.has_value();
 }
 
+const gcode::PrintStartCallInfo*
+PrintPreparationManager::print_start_for(const std::string& filename) const {
+    if (!has_scan_result_for(filename) || !cached_scan_result_->print_start.found) {
+        return nullptr;
+    }
+    return &cached_scan_result_->print_start;
+}
+
 // ============================================================================
 // Resource Safety
 // ============================================================================
@@ -1221,10 +1229,9 @@ PrintPreparationManager::collect_pre_start_gcode_lines(const std::string& filena
         // otherwise 0 lets the firmware macro keep its own default.
         PreStartGcodeContext ctx;
         ctx.filename = filename;
-        if (cached_scan_result_ && cached_scan_filename_ == filename &&
-            cached_scan_result_->print_start.found) {
-            ctx.bed_temp = cached_scan_result_->print_start.bed_temp;
-            ctx.extruder_temp = cached_scan_result_->print_start.extruder_temp;
+        if (const auto* start = print_start_for(filename)) {
+            ctx.bed_temp = start->bed_temp;
+            ctx.extruder_temp = start->extruder_temp;
         }
         std::string line = render_pre_start_gcode(opt, enabled, ctx);
         if (line.empty()) {

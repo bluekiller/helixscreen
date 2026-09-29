@@ -300,6 +300,14 @@ class PrintPreparationManager {
     [[nodiscard]] bool has_scan_result_for(const std::string& filename) const;
 
     /**
+     * @brief The PRINT_START/START_PRINT call the cached scan found in `filename`
+     *
+     * @return nullptr when the cache holds another file, or no call was found.
+     */
+    [[nodiscard]] const gcode::PrintStartCallInfo*
+    print_start_for(const std::string& filename) const;
+
+    /**
      * @brief Get cached scan result (if available)
      */
     [[nodiscard]] const std::optional<gcode::ScanResult>& get_scan_result() const {

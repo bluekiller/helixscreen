@@ -1093,6 +1093,28 @@ Both `text="@subject"` and `bind_text="subject"` produce identical reactive bind
 
 When bound to a subject, the button label updates automatically, and a deferred invalidation ensures the button background repaints correctly (avoids partial-redraw artifacts).
 
+**Breakpoint-conditional attributes:**
+
+Two `ui_button` attributes react to the `ui_breakpoint` subject, for the two ways a
+button outgrows a small panel. Both need the button to carry an icon and a label.
+
+```xml
+<!-- Icon over label on tiny and micro panels (ui_breakpoint <= 1), row layout above.
+     From ui_xml/print_status_panel.xml: a stacked button fills its growable row. -->
+<ui_button name="btn_tune" flex_grow="1" icon="tune" text="Tune"
+           translation_tag="Tune" stacked_if_bp_lte="1"/>
+
+<!-- Icon-only while ui_breakpoint == 1. From ui_xml/components/panel_widget_control_buttons.xml -->
+<ui_button name="btn_primary"
+           height="#button_height_lg" flex_grow="1" bind_icon="print_control_primary_icon"
+           bind_text="print_control_primary_label" label_hidden_if_bp_eq="1"/>
+```
+
+| Attr | Effect |
+|------|--------|
+| `stacked_if_bp_lte="N"` | While `ui_breakpoint <= N`, restacks the button icon-over-label - the create-time `icon_position="top"` recipe - and sets its height to 100% of its parent, so a stacked button fills the growable row it lives in. Above `N` the button returns to the row layout and fixed `button_height` it declared at create time. |
+| `label_hidden_if_bp_eq="N"` | Hides the button's label while `ui_breakpoint == N`, collapsing it to icon-only; every other rung shows the label. |
+
 #### divider_vertical / divider_horizontal
 
 Visual separators with theme-aware colors.
