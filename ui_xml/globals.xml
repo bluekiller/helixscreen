@@ -217,6 +217,52 @@
     <px name="badge_size_xxlarge" value="32"/>
 
     <!-- ===================================================================== -->
+    <!-- Tile badge rungs (tile_badge_*)                                       -->
+    <!-- ===================================================================== -->
+    <!-- A count badge sitting on a home-tile glyph that follows the tile icon
+         rung (styles.tile_icon_*). The badge must follow the same rung or it
+         covers the glyph on the small rungs: a fixed badge_size is 10px against
+         a 16-24px bell. Each value is 2/5 of the matching tile_icon_* rung
+         face at that tier (round to nearest), the proportion the AMS lane
+         badge uses on its spool. Changing an icon_font_* rung means revisiting
+         the matching column here. -->
+    <px name="tile_badge_xs_small" value="6"/>
+    <px name="tile_badge_xs_medium" value="6"/>
+    <px name="tile_badge_xs_large" value="6"/>
+    <px name="tile_badge_xs_xlarge" value="10"/>
+    <px name="tile_badge_xs_xxlarge" value="13"/>
+
+    <px name="tile_badge_sm_micro" value="6"/>
+    <px name="tile_badge_sm_small" value="10"/>
+    <px name="tile_badge_sm_medium" value="10"/>
+    <px name="tile_badge_sm_large" value="10"/>
+    <px name="tile_badge_sm_xlarge" value="13"/>
+    <px name="tile_badge_sm_xxlarge" value="19"/>
+
+    <px name="tile_badge_md_micro" value="10"/>
+    <px name="tile_badge_md_small" value="13"/>
+    <px name="tile_badge_md_medium" value="13"/>
+    <px name="tile_badge_md_large" value="13"/>
+    <px name="tile_badge_md_xlarge" value="19"/>
+    <px name="tile_badge_md_xxlarge" value="26"/>
+
+    <px name="tile_badge_lg_micro" value="10"/>
+    <px name="tile_badge_lg_tiny" value="13"/>
+    <px name="tile_badge_lg_small" value="19"/>
+    <px name="tile_badge_lg_medium" value="19"/>
+    <px name="tile_badge_lg_large" value="19"/>
+    <px name="tile_badge_lg_xlarge" value="26"/>
+    <px name="tile_badge_lg_xxlarge" value="32"/>
+
+    <px name="tile_badge_xl_micro" value="13"/>
+    <px name="tile_badge_xl_tiny" value="19"/>
+    <px name="tile_badge_xl_small" value="26"/>
+    <px name="tile_badge_xl_medium" value="26"/>
+    <px name="tile_badge_xl_large" value="26"/>
+    <px name="tile_badge_xl_xlarge" value="32"/>
+    <px name="tile_badge_xl_xxlarge" value="38"/>
+
+    <!-- ===================================================================== -->
     <!-- Responsive Spinner Sizes (spinner_*)                                  -->
     <!-- ===================================================================== -->
     <!-- Runtime selects appropriate variant via ui_theme_register_responsive_spacing()
@@ -257,6 +303,18 @@
     <px name="meter_track_h_large" value="14"/>
     <px name="meter_track_h_xlarge" value="16"/>
     <px name="meter_track_h_xxlarge" value="20"/>
+
+    <!-- font_xs_line_h: ONE line of font_xs, so a long_mode="dots" text_tiny
+         label ellipsizes instead of wrapping to a second line (dots only engage
+         when the label's height is bounded). Tracks font_xs:
+         10/10/10/12/14/16/20 px + ~40% leading. -->
+    <px name="font_xs_line_h_micro" value="14"/>
+    <px name="font_xs_line_h_tiny" value="14"/>
+    <px name="font_xs_line_h_small" value="14"/>
+    <px name="font_xs_line_h_medium" value="17"/>
+    <px name="font_xs_line_h_large" value="20"/>
+    <px name="font_xs_line_h_xlarge" value="23"/>
+    <px name="font_xs_line_h_xxlarge" value="28"/>
 
     <!-- Spinner arc widths - proportional to size -->
     <px name="spinner_arc_lg_small" value="3"/>
