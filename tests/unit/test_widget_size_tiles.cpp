@@ -884,3 +884,16 @@ TEST_CASE("a scaled glyph's layout box is the box TileSizing measures",
     lv_obj_delete(icon);
     lv_subject_deinit(&rung);
 }
+
+TEST_CASE("a tile forgets its content root when the root is deleted", "[widget_size][tile]") {
+    // The deferred label-setting re-measure walks the root long after the tree
+    // it named may be gone; a deleted root must leave nothing to walk.
+    LVGLUITestFixture fixture;
+    helix::TileSizing sizing("roottest", helix::TileSizing::Content{"", "", "Motion", false});
+    lv_obj_t* root = lv_obj_create(fixture.test_screen());
+    sizing.set_content_root(root);
+    CHECK(sizing.content_root() == root);
+    lv_obj_delete(root);
+    CHECK(sizing.content_root() == nullptr);
+    sizing.measure_and_publish(120, 120); // walks nothing
+}

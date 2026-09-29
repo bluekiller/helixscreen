@@ -81,9 +81,25 @@ void TileSizing::rebuild_attrs() {
 }
 
 TileSizing::~TileSizing() {
+    set_content_root(nullptr);
     // Withdraws each name from the XML scope before the subjects are freed, so
     // a later parse cannot bind to storage that is gone.
     subjects_.deinit_all();
+}
+
+void TileSizing::set_content_root(lv_obj_t* root) {
+    // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
+    if (content_root_ && lv_is_initialized()) {
+        lv_obj_remove_event_cb_with_user_data(content_root_, on_content_root_deleted, this);
+    }
+    content_root_ = root;
+    if (content_root_) {
+        lv_obj_add_event_cb(content_root_, on_content_root_deleted, LV_EVENT_DELETE, this);
+    }
+}
+
+void TileSizing::on_content_root_deleted(lv_event_t* e) {
+    static_cast<TileSizing*>(lv_event_get_user_data(e))->content_root_ = nullptr;
 }
 
 TileVerdict TileSizing::decide(int width_px, int height_px) const {

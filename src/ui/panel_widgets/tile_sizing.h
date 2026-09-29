@@ -87,8 +87,12 @@ class TileSizing {
     /// the content actually draws in, which is the outer box less whatever
     /// padding the containers between them consume; estimating that instead of
     /// measuring it picks a rung that spills out of the tile's own container.
-    void set_content_root(lv_obj_t* root) {
-        content_root_ = root;
+    /// Forgotten when the root is deleted, since a deferred re-measure can run
+    /// after the tree is gone.
+    void set_content_root(lv_obj_t* root);
+
+    lv_obj_t* content_root() const {
+        return content_root_;
     }
 
     /// Measure at this pixel box and publish the verdict.
@@ -127,6 +131,7 @@ class TileSizing {
   private:
     TileVerdict decide(int width_px, int height_px) const;
     void rebuild_attrs();
+    static void on_content_root_deleted(lv_event_t* e);
     /// Whether the label, if this tile has one, is drawn at all.
     bool label_drawn() const;
     /// Re-measure at the last box whenever show_widget_labels moves, since the
