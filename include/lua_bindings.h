@@ -51,6 +51,11 @@ RpcCallback make_resolver(LuaRuntime::Pending p, PushRpc on_ok);
 int push_rpc_true(lua_State* co, const RpcResult&);
 /// Pushes the result's JSON value.
 int push_rpc_value(lua_State* co, const RpcResult&);
+/// Pushes `value`, or (nil, "response larger than the plugin memory cap") when a response
+/// body of `body_bytes` would not fit between the runtime's memory use and its cap. A body
+/// that lands whole in the Lua state and overshoots would fault the runtime; refusing keeps
+/// it a normal (nil, error) return. Returns how many were pushed.
+int push_rpc_capped_body(lua_State* co, const json& value, size_t body_bytes);
 
 /// How one row of the stable printer table converts its subject into a Lua value.
 enum class PrinterValueKind { Bool, String, Int, DeciDegrees };
@@ -71,6 +76,12 @@ void push_json(lua_State* L, const json& j);
 /// Raises a Lua error for functions, userdata, cycles, non-string object keys and nesting
 /// deeper than 32. An empty table converts to an empty array.
 json to_json(lua_State* L, int index);
+
+/// Stores `value` in the plugin's settings, saves, and runs its on_change handlers. False,
+/// with nothing stored, when `key` is undeclared or `value` does not fit its declaration.
+bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& value);
+/// <dir of settings_path>/plugin-data/<id>.json
+std::string plugin_storage_path(const std::string& settings_path, const std::string& id);
 
 /// Target of a plugin_event: "<id>_<name>[:arg]". `id` is empty when malformed.
 struct PluginEventTarget {

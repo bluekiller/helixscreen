@@ -90,9 +90,11 @@ PluginBackend make_app_backend() {
             req->timeout = static_cast<int>((timeout_ms + 999) / 1000);
             req->body = body;
             req->headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
-            for (auto it = headers.begin(); it != headers.end(); ++it) {
-                if (it.value().is_string())
-                    req->headers[it.key()] = it.value().get<std::string>();
+            if (headers.is_object()) {
+                for (auto it = headers.begin(); it != headers.end(); ++it) {
+                    if (it.value().is_string())
+                        req->headers[it.key()] = it.value().get<std::string>();
+                }
             }
             auto resp = requests::request(req);
             if (!resp)

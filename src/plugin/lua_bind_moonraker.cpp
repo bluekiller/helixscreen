@@ -36,6 +36,18 @@ int push_rpc_value(lua_State* co, const RpcResult& r) {
     return 1;
 }
 
+int push_rpc_capped_body(lua_State* co, const json& value, size_t body_bytes) {
+    LuaRuntime& rt = LuaRuntime::from(co);
+    size_t remaining = rt.memory_cap() > rt.memory_used() ? rt.memory_cap() - rt.memory_used() : 0;
+    if (body_bytes > remaining) {
+        lua_pushnil(co);
+        lua_pushliteral(co, "response larger than the plugin memory cap");
+        return 2;
+    }
+    push_json(co, value);
+    return 1;
+}
+
 namespace {
 
 // An empty Lua table converts to an array; Moonraker wants an object for params.
@@ -48,21 +60,11 @@ json params_arg(lua_State* L, int index) {
     return p;
 }
 
-// A download body lands whole in the plugin's Lua state, so one that does not fit under
-// the memory cap would fault the runtime; refusing keeps it a normal (nil, error) return.
+// A download body lands whole in the plugin's Lua state, so it goes through the memory-cap
+// check shared with the http bindings.
 int push_rpc_download_body(lua_State* co, const RpcResult& r) {
-    LuaRuntime& rt = LuaRuntime::from(co);
-    size_t remaining = rt.memory_cap() > rt.memory_used() ? rt.memory_cap() - rt.memory_used() : 0;
-    if (r.value.is_string()) {
-        const auto& body = r.value.get_ref<const std::string&>();
-        if (body.size() > remaining) {
-            lua_pushnil(co);
-            lua_pushliteral(co, "response larger than the plugin memory cap");
-            return 2;
-        }
-    }
-    push_json(co, r.value);
-    return 1;
+    size_t bytes = r.value.is_string() ? r.value.get_ref<const std::string&>().size() : 0;
+    return push_rpc_capped_body(co, r.value, bytes);
 }
 
 int gcode(lua_State* L) {
