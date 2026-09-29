@@ -6,6 +6,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_fixtures.h"
 #include "../test_helpers/grid_edit_mode_test_access.h"
+#include "../test_helpers/scoped_whole_cell_def.h"
 #include "config.h"
 #include "grid_edit_mode.h"
 #include "grid_layout.h"
@@ -1402,9 +1403,10 @@ TEST_CASE("PanelWidgetDef: partially scalable (one axis)", "[grid_edit][sizing]"
 
 TEST_CASE("clamp_span: clamps to widget min/max", "[grid_edit][sizing]") {
     // Spans are in tracks — a track is half a cell (GridLayout::TRACKS_PER_CELL).
-    // "humidity" is bounded on both axes (min 2x2, max 4x4 tracks), which is
-    // what makes a clamp observable at all; a widget whose maximum is the whole
-    // grid would never reach its ceiling here.
+    // "humidity" is held to min 2x2, max 4x4 tracks, which is what makes a
+    // clamp observable at all; a widget whose maximum is the whole grid would
+    // never reach its ceiling here.
+    ScopedWholeCellDef whole_cell("humidity");
     const auto* bounded = find_widget_def("humidity");
     REQUIRE(bounded != nullptr);
     REQUIRE(bounded->effective_max_colspan() == 4);
