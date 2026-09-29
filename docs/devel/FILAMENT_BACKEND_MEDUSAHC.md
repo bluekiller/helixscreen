@@ -281,8 +281,8 @@ does not decide it: any changer without klipper-toolchanger rewrites.
 
 On the rewrite route the file is the only thing that moves, so a start macro that takes
 per-tool values (`EXTRUDER_TEMP`, `EXTRUDER1_TEMP`, ...) keeps heating the tools the slicer
-chose while the rewritten body selects others. The rewrite handles `INITIAL_TOOL=`, and the
-Filament Mapping dialog warns about the rest; see
+chose while the rewritten body selects others. The rewrite handles `INITIAL_TOOL=` and
+`TOOL=`, and the Filament Mapping dialog warns about the rest while the picks move a tool; see
 [the remapper](FILAMENT_MANAGEMENT.md#gcode-tool-remapper). The recommended slicer start
 G-code for these machines is in the user guide,
 [Printers that remap by rewriting the file](../user/guide/filament.md#printers-that-remap-by-rewriting-the-file).
