@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace helix::plugin {
@@ -84,7 +85,9 @@ class PluginHost {
         json settings;
         std::unique_ptr<PluginContext> ctx;
         std::unique_ptr<LuaRuntime> rt; ///< destroyed before ctx
-        std::vector<std::string> components;
+        /// Each component this plugin registered, with the scope it created: an app that later
+        /// registers the same name replaces the scope, and unload must then leave it alone.
+        std::vector<std::pair<std::string, const void*>> components;
         size_t memory_bytes = 0;
     };
 

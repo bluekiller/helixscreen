@@ -204,6 +204,23 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app compon
     lv_xml_component_unregister("shadow_panel");
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the plugin's name",
+                 "[plugin][host]") {
+    HostRig rig(enabled("hello", {"gcode"}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.info("hello")->status == PluginStatus::Loaded);
+    REQUIRE(lv_xml_register_component_from_data(
+        "hello_panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
+                       "<lv_label name=\"app_child\"/></view></component>"));
+    rig.host->disable("hello");
+
+    auto* panel = static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "hello_panel", nullptr));
+    REQUIRE(panel);
+    CHECK(lv_obj_find_by_name(panel, "app_child"));
+    lv_obj_delete(panel);
+    lv_xml_component_unregister("hello_panel");
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "disable unloads and forgets consent", "[plugin][host]") {
     HostRig rig(enabled("hello", {"gcode"}));
     rig.host->load_from("tests/fixtures/plugins");

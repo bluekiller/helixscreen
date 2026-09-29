@@ -257,7 +257,8 @@ bool PluginHost::load(PluginInfo& info) {
             unload(id);
             return false;
         }
-        l.components.push_back(p.stem().string());
+        std::string name = p.stem().string();
+        l.components.emplace_back(name, lv_xml_component_get_scope(name.c_str()));
     }
 
     json block = deps_.read_block();
@@ -313,8 +314,10 @@ void PluginHost::unload(const std::string& id) {
         }
     }
     l.rt.reset();
-    for (const auto& c : l.components)
-        lv_xml_component_unregister(c.c_str());
+    for (const auto& [name, scope] : l.components) {
+        if (lv_xml_component_get_scope(name.c_str()) == scope)
+            lv_xml_component_unregister(name.c_str());
+    }
     l.ctx.reset();
     loaded_.erase(it);
 }
