@@ -5,7 +5,6 @@ translations:
   ' left': ' 残り'
   ' · was {:.0f}': ' · 以前は {:.0f}'
   '"%s" failed to load': '"%s" の読み込みに失敗しました'
-  '%.0f Hz difference': '%.0f Hz の差'
   '%d additional fan%s': 追加ファン %d 個%s
   '%d feeders': '%d フィーダー'
   '%d gates': '%d ゲート'
@@ -114,8 +113,9 @@ translations:
   A picture of your printer: プリンターの画像
   A print is in progress - restart still pending: '印刷中です - 再起動は保留中'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: このゲートで印刷中です。HelixScreen 側のコピーはクリアしました。印刷終了後に再度クリアしてください。
-  A runs faster: Aが速い
   A spool may be tangled or the drive gear is jammed: スプールが絡まっているか、駆動ギアが詰まっている可能性があります
+  A tighter: Aが強い
+  A · 1,1: A · 1,1
   ABS: ABS
   ACCELEROMETERS: 加速度センサー
   ACE Moonraker bridge not found. Install ace_status.py for full support.: ACE Moonraker ブリッジが見つかりません。完全なサポートには ace_status.py をインストールしてください。
@@ -175,9 +175,9 @@ translations:
   Added to queue (position {}) - queue is paused: キューに追加しました（{} 番目）– キューは一時停止中です
   Adding to queue...: キューに追加中...
   Address: アドレス
+  Adjust needed: 調整が必要です
   Adjust screen brightness level: 画面の明るさを調整します
   Adjust screws, then re-probe.: ネジを調整して、再度プローブしてください。
-  Adjustment needed: 調整が必要です
   Adjustments stay active until restart. Save after print completes.: 調整は再起動まで有効です。印刷完了後に保存してください。
   Adjusts individual characteristics of your heaters for optimal control: ヒーターの個別特性を調整して最適な制御を実現します
   Advanced: 詳細設定
@@ -205,7 +205,6 @@ translations:
   An app on your network is asking to connect to this printer.: 'ネットワーク上のアプリがこのプリンターへの接続を求めています。'
   An error occurred during calibration.: キャリブレーション中にエラーが発生しました。
   An error occurred during filament loading.: フィラメントの読み込み中にエラーが発生しました。
-  An error occurred during measurement.: 測定中にエラーが発生しました。
   An error occurred during probing.: プローブ中にエラーが発生しました。
   An error occurred while loading filament.: フィラメントの装填中にエラーが発生しました。
   # Source: probe_accuracy_modal.xml:90
@@ -269,8 +268,9 @@ translations:
   Available networks: 利用可能なネットワーク
   Average: 平均
   Axis limits unknown: 軸の限界は不明です
-  B: B
-  B runs faster: Bが速い
+  B tighter: Bが強い
+  B · 1,-1: B · 1,-1
+  BACK: 背面
   BEACON: BEACON
   BETA: BETA
   'BLE connect failed: {}': 'BLE 接続に失敗しました: {}'
@@ -314,14 +314,10 @@ translations:
   Bed temp must be 0-%d°C: ベッド温度は 0〜%d°C にしてください
   Bed warming timed out: ベッド加熱がタイムアウトしました
   Before starting: '開始前に'
-  Belt A: ベルトA
   Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: ベルトA（フロント右）が %.0f Hz 張りすぎています。フロント左のベルトBを張るか、ベルトAを緩めてください。
-  Belt B: ベルトB
   Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: ベルトB（フロント左）が %.0f Hz 張りすぎています。フロント右のベルトAを張るか、ベルトBを緩めてください。
   Belt Tension: ベルトテンション
   Belt Tension Check: ベルトテンション確認
-  Belt tension looks good!: ベルトテンションは良好です！
-  Belts matched: ベルトが一致しています
   Beta: ベータ
   'Beta features: OFF': 'ベータ機能: OFF'
   'Beta features: ON': 'ベータ機能: ON'
@@ -346,8 +342,6 @@ translations:
   Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: 両方のベルトが目標の %.0f Hz を上回っています - Aは %.0f Hz、Bは %.0f Hz。両方とも緩めてください。
   Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: 両方のベルトが目標の %.0f Hz を下回っています - Aは %.0f Hz、Bは %.0f Hz。両方とも %s 分張ってください。
   Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: 両方のベルトが目標の %.0f Hz に合っており、互いに一致しています。調整の必要はありません。
-  Both belts are overtightened.: 両方のベルトが張りすぎています。
-  Both belts need tightening.: 両方のベルトを張る必要があります。
   Both belts read the same to within what this measurement can resolve. Nothing to adjust.: 両方のベルトは、この測定の分解能内で同じ値を示しています。調整の必要はありません。
   Bouncing Printer: バウンドプリンター
   Bowden Length: 'ボーデン長'
@@ -584,7 +578,6 @@ translations:
   Clog and flow health while printing: 印刷中の詰まりとフローの状態
   Clog detection: 詰まり検出
   Close: 閉じる
-  Close - small adjustment: わずかな差 - 微調整
   Close feeder: フィーダーを閉じる
   Close feeder macro: フィーダーを閉じるマクロ
   Closer: 近く
@@ -604,9 +597,7 @@ translations:
   Command failed: コマンドに失敗しました
   Communication Test: '通信テスト'
   Compact: コンパクト
-  Compare: 比較
-  Compare both belt paths: 両方のベルト経路を比較
-  Comparison: 比較
+  Compare your belt paths: ベルト経路を比較
   Complete: 完了
   Complete!: 完了！
   Completed: 完了
@@ -862,7 +853,6 @@ translations:
   Distance from lane extruder to hub: 'レーンのエクストルーダーからハブまでの距離'
   Distance from toolhead sensor to nozzle tip: 'ツールヘッドセンサーからノズル先端までの距離'
   Distance moved per jog button tap: ジョグボタン1回あたりの移動距離
-  Do not open the printer while the toolhead is moving: ツールヘッドが動いている間はプリンターを開かないでください
   Do not power off your printer.: プリンターの電源を切らないでください。
   Do not touch the printer during calibration: キャリブレーション中はプリンターに触れないでください
   Dock: ドック
@@ -1282,7 +1272,6 @@ translations:
   Found %zu printers: '%zu台のプリンターを検出'
   Found 1 printer: プリンター1台を検出
   Framerate: フレームレート
-  Frequency Delta: 周波数差
   ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
   : "周波数差: パス A と B の差。2 Hz 未満はこの測定の分解能を下回るため、一致とみなされます。\n\n一致度: 2つのベルトの周波数がどれだけ近いかを、ベルトAの周波数に対する割合で示したもの。95% を超えれば優秀で、90% を下回ると調整が必要です。"
   From Buffer: バッファから
@@ -1395,7 +1384,6 @@ translations:
   Hide Temperature Reports: 温度レポートを非表示
   High Water Mark: 最大値
   Hold anywhere to cancel: どこかを長押ししてキャンセル
-  Hold still: 動かないでください
   Holding nozzle at {}°C to purge previous filament.: 前のフィラメントをパージするためノズルを {}°C に保持しています。
   Home: ホーム
   Home & Continue: ホーミングして続行
@@ -1552,6 +1540,7 @@ translations:
   Keep Printing: 印刷を続行
   Keep Required: 必須を維持
   Keep Spool Info on Eject: 取り出し時にスプール情報を保持
+  Keep clear of the printer while the toolhead is moving: ツールヘッドが動いている間はプリンターから離れてください
   Keep current: 現状維持
   Keep hands clear. The printer moves on its own.: 手を近づけないでください。プリンターは自動で動きます。
 
@@ -1632,7 +1621,6 @@ translations:
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: '{} 行目で {} を実行します。このプリンターでは緊急停止とみなされます。このプリンター用のプロファイルでファイルを再スライスしてください。'
   Listen to all theme sounds: すべてのテーマサウンドを試聴
-  Listening: 聞き取り中
   Live view from your webcam: ウェブカメラのライブ表示
   Load: 装填
   Load Cell: 'ロードセル'
@@ -1678,8 +1666,6 @@ translations:
   'Long-press any tile to enter edit mode — rearrange, resize, remove, or add widgets, and add extra pages for your preferred layout.': タイルを長押しして編集モードに入ります — ウィジェットの並べ替え、サイズ変更、削除、追加や、好みのレイアウトに合わせたページの追加ができます。
   Long-press the home grid to rearrange widgets (turn off if it triggers by accident): 'ホーム画面のグリッドを長押しするとウィジェットを並べ替えできます（誤動作する場合はオフにしてください）'
   Longest Disconnect: 最長切断時間
-  Loosen Path A belt.: パスAのベルトを緩めてください。
-  Loosen Path B belt.: パスBのベルトを緩めてください。
   Lost connection during print — try again: 印刷中に接続が切断されました — もう一度お試しください
   Lost connection to CFS unit: CFS ユニットとの接続が切断されました
   'Lot # (optional)': ロット番号（オプション）
@@ -1756,10 +1742,7 @@ translations:
   Mark a printer you enclosed yourself: 自分で筐体を付けたプリンターとして設定
 
   Master volume level: マスター音量
-  Match: 一致度
-  Match to belt A: ベルトAに合わせる
   Match your typical print fan speed: 通常の印刷ファン速度に合わせてください
-  Matched: 一致
   Matching printers: 一致するプリンター
   Material: 素材
   'Material Comfort:': '素材の適合度:'
@@ -1777,20 +1760,17 @@ translations:
   Maximum toolhead speed (mm/s): ツールヘッドの最大速度 (mm/s)
   Measure: '測定'
   Measure and compare belt path frequencies: ベルトパスの周波数を測定・比較
-  Measure belt path frequencies: ベルトパスの周波数を測定
   Measure every tool's XYZ offset automatically: 各ツールの XYZ オフセットを自動で測定します
   Measure pressure advance automatically: 'Pressure Advance を自動で測定します'
   Measured (shaper off): 測定値（シェーパーオフ時）
   Measured filament diameter: 測定したフィラメント直径
   Measured pressure advance: '測定された Pressure Advance'
-  Measurement Failed: 測定失敗
   Measurement incomplete. Try again.: 測定が不完全です。再試行してください。
   Measuring: '測定中'
   Measuring Path {}: パス{}を測定中
   Measuring accelerometer noise...: '加速度センサーのノイズを測定中...'
   Measuring vibrations... {}%: '振動を測定中... {}%'
   Measuring wheel error: 計測ホイールのエラー
-  Median %.0f Hz: 中央値 %.0f Hz
   Memory: メモリ
   Memory (MB): メモリ (MB)
   Memory Snapshot: メモリースナップショット
@@ -1831,7 +1811,6 @@ translations:
   ? Moves the print head to measure vibration frequencies on each axis. Takes 2-3
     minutes. The printer will make noise — this is normal.
   : プリントヘッドを移動させて各軸の振動周波数を測定します。2〜3分かかります。プリンターから音がしますが、これは正常です。
-  Moving gantry: ガントリーを移動中
   Moving lane: レーンを移動中
   Moving the plate...: ベッドを移動中...
 
@@ -1856,7 +1835,6 @@ translations:
   Name (optional): 名前（オプション）
   'Name:': '名前:'
   Named actions in the LED Controls widget. Not shown under LED selection.: LEDコントロールウィジェットの名前付きアクションです。LED選択には表示されません。
-  Needs adjustment: 調整が必要
   Needs attention: 対応が必要
   Needs the {} package to switch spools: 'スプール切り替えには {} プラグインが必要です'
   Net Weight (g): 正味重量（g）
@@ -1880,7 +1858,6 @@ translations:
   New printer successfully added: 新しいプリンターを追加しました
   New profile name: 新しいプロファイル名
   Next: 次へ
-  Next belt: 次のベルト
   Niimbot (Bluetooth): Niimbot (Bluetooth)
   'No': いいえ
   No AMS Detected: 'AMS が検出されません'
@@ -2083,6 +2060,8 @@ translations:
     'chamber' でない場合、自動検出を上書きできます。
   P: P
   PA: PA
+  PATH A · 1,1: パス A · 1,1
+  PATH B · 1,-1: パス B · 1,-1
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN は 4〜6 桁にしてください
@@ -2124,7 +2103,6 @@ translations:
   Password cannot be empty: パスワードを入力してください
   Password is required for secured networks: セキュリティ保護されたネットワークにはパスワードが必要です
   Path A: パス A
-  Path A / Path B: パス A / パス B
   Path B: パス B
   Path {}: パス {}
   Path {} before: パス{}（以前）
@@ -2164,8 +2142,6 @@ translations:
   Please wait while the printer homes and moves to the start position.: プリンターが原点復帰して開始位置へ移動するまでお待ちください。
   Please wait while the printer homes and probes.: プリンターがホーミングとプローブを行う間お待ちください。
   Please wait while the printer probes each screw position.: プリンターが各ネジ位置をプローブする間お待ちください。
-  Pluck the front belt on the left: 左のフロントベルトをはじいてください
-  Pluck the front belt on the right: 右のフロントベルトをはじいてください
   Plugin already installed: プラグインは既にインストール済みです
   Plugin disabled: プラグインが無効になりました
   Plugin installed successfully: プラグインが正常にインストールされました
@@ -2181,7 +2157,6 @@ translations:
   Poor Accuracy: 精度不良
   Port: ポート
   Position: 位置
-  Position the gantry yourself, then continue: ガントリーを手動で動かしてから続行してください
   Post-Sensor Clear: 'センサー通過後の追加移動'
   Power: 電源
   Power Devices: 電源デバイス
@@ -2397,6 +2372,7 @@ translations:
   Raspberry Pi (32-bit): Raspberry Pi (32-bit)
   Re-identify: 再識別
   Re-measure: '再測定'
+  Re-measuring Path {}: パス{}を再測定中
   Re-probe: 再プローブ
   Re-read spool RFID tags and remaining length: 'スプールのRFIDタグと残量を再読み込み'
   Re-seat the Bowden tube connector on the CFS unit: CFS ユニットのボーデンチューブ接続を差し直してください
@@ -2408,7 +2384,6 @@ translations:
   Ready for filament operations: フィラメント操作の準備ができています
   Ready to Apply: 適用の準備完了
   Ready to calibrate: キャリブレーション準備完了
-  Ready to pluck: はじく準備完了
   Rear: '奥'
   Rear Left: '左奥'
   Rear Right: '右奥'
@@ -2773,6 +2748,7 @@ translations:
   Setup Timelapse: タイムラプスを設定
   Several printers match - choose yours: 複数のプリンターが一致します - 選択してください
   Shadow Intensity: 影の強度
+  Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together.: ツールヘッドを対角線ごとに動かし、2つの結果を同時に表示します。張りが同じベルトは同じ位置でピークになります。
   Share Usage Data: 使用データを共有
   Share anonymous usage statistics to help us make HelixScreen better. No personal data is ever collected.: 匿名の使用統計を共有して、HelixScreen
     の改善にご協力ください。個人データは一切収集されません。
@@ -2890,18 +2866,16 @@ translations:
   Start: 開始
   Start Anyway: このまま開始
   Start Calibration: キャリブレーション開始
-  Start Check: チェック開始
   Start Drying: 乾燥開始
-  Start Listening: 聞き取り開始
   Start Print: 印刷を開始
   Start Probing: プローブ開始
   Start anyway?: 'それでも開始しますか？'
   Start at: 開始位置
+  Start check: チェック開始
   Start drying: 乾燥開始
 
   Start failed: 開始に失敗
   'Start next: {}': '次を開始：{}'
-  Start over: やり直す
   Start print anyway?: それでも印刷を開始しますか？
   Started: 開始
   Starting Print...: 印刷開始中...
@@ -2996,10 +2970,8 @@ translations:
   Tap the part cooling fan: パーツ冷却ファンをタップ
   Tap to assign: タップして割当
   Target: '目標'
-  Target Frequency: 目標周波数
   Target Temperature: 目標温度
   Target Version: 目標バージョン
-  Target is %.0f Hz. Tighten belt %s and loosen belt %s.: 目標は %.0f Hz です。ベルト %s を張り、ベルト %s を緩めてください。
   Telemetry: テレメトリ
   Telemetry Data: テレメトリデータ
   Telemetry Disabled: テレメトリー無効
@@ -3022,7 +2994,6 @@ translations:
   Temporary adjustment for this print, unless saved on Controls panel: コントロールパネルで保存しない限り、この印刷のみの一時的な調整です
   Tertiary: ターシャリ
   Test All Lanes: '全レーンをテスト'
-  Test Both Again: 両方を再テスト
   Test Connection: 接続テスト
   Test Grip: 'グリップをテスト'
   Test Load: 'ロードをテスト'
@@ -3032,6 +3003,7 @@ translations:
   Test RS-485 link to CFS units: 'CFSユニットへのRS-485接続をテスト'
   Test Screensaver: スクリーンセーバーをテスト
   Test Tracker: テストトラッカー
+  Test both: 両方をテスト
   Test label printed: テストラベル印刷完了
   'Testing rotation: %d° (%d/%d) - %ds remaining': '回転テスト: %d° (%d/%d)
     - %ds残り'
@@ -3040,7 +3012,6 @@ translations:
     HelixScreen の改善に役立ちます。
   Thanks! TOTALLY anonymous usage data helps improve HelixScreen.: ご協力ありがとうございます！完全匿名の使用データが
     HelixScreen の改善に役立ちます。
-  That did not sound like a pluck - try again: はじいた音ではないようです - もう一度お試しください
   'That setting cannot be changed while a print is running': '印刷中はこの設定を変更できません'
   That slot cannot stand in for this one: そのスロットはこのスロットの代わりになりません
   That tool is already loaded: そのツールはすでに装填されています
@@ -3193,8 +3164,6 @@ translations:
   Thorough: 徹底的
   Thumbnail Only: サムネイルのみ
   'Thumbnail: ': 'サムネイル: '
-  Tighten Path A belt.: パスAのベルトを張ってください。
-  Tighten Path B belt.: パスBのベルトを張ってください。
   Time: 時間
   Time Format: 時間形式
   Time to wait before escalating to emergency stop: 緊急停止にエスカレートするまでの待機時間
@@ -3228,7 +3197,6 @@ translations:
   Toggle toolhead LED for an extruder: 'エクストルーダーのツールヘッドLEDを切り替え'
   'Toggle:': '切り替え:'
   Too humid: 湿度が高すぎます
-  Too soft - pluck harder: 弱すぎます - もっと強くはじいてください
   Tool: ツール
   Tool Change Failed: 'ツール変更に失敗しました'
   Tool Changer: ツールチェンジャー
@@ -3299,7 +3267,6 @@ translations:
   USB printer access denied — check permissions: USB プリンターへのアクセスが拒否されました — 権限を確認してください
   Unavailable: 利用不可
   Unavailable on this printer: このプリンターでは利用できません
-  Understanding Results: 結果の理解
   Undo: 元に戻す
   ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
   : "ベルト張力が不均一だと、レイヤーシフトや VFA(垂直微細アーティファクト)、リンギングなどの印刷不良が発生します。\n\n各ベルトを手ではじくと、このツールが加速度センサーでベルトの周波数を測定します。周波数が一致していれば張力が均等であることを意味します。\n\nCoreXY では、ベルト A と B は数 Hz 以内に収まっている必要があります。"
@@ -3443,6 +3410,7 @@ translations:
     also synced when prints start, pause, or complete.
   : 残りのフィラメントを表示するために、重量データが Spoolman から同期されます。印刷の開始、一時停止、完了時にも変更が同期されます。
   Welcome to HelixScreen: HelixScreen へようこそ
+  Well matched: よく一致
   What We Collect: 収集する情報
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: 有効時はマクロのみ実行されます。無効時は先に温度を設定してからマクロが実行されます。
   ? When starting a print, you'll be able to choose whether to run %s. This saves
@@ -3476,7 +3444,6 @@ translations:
   Wifi: Wi-Fi
   Will not switch spools on runout: フィラメント切れ時にスプールを切り替えません
   Wipe nozzle on silicone cleaning strip: 'シリコン清掃ストリップでノズルを拭く'
-  Within measurement resolution: 測定分解能内
   Wizard Error: ウィザードエラー
   Working...: 処理中...
   Write failed at chunk {}: チャンク {} で書き込みに失敗しました
@@ -3583,6 +3550,7 @@ translations:
   left: 残り
   loaded: '装填済み'
   locked: 'ロック中'
+  matched: 一致
   mm before clog: 詰まりまでの距離 (mm)
   needs: 必要
   never sleeps: スリープしない
@@ -3663,3 +3631,4 @@ translations:
   : '{} は、フィラメントの種類と色の両方がアクティブなスプールと一致し、かつ自身のポートセンサーがフィラメントを検知しているスロットに切り替えます。'
   '{} — response timed out': '{} — 応答タイムアウト'
   '{} → {}: no filament loaded.': '{} → {}: フィラメントが装填されていません。'
+  '{}:{:02} elapsed': 経過 {}:{:02}

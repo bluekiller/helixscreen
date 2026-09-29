@@ -21,6 +21,7 @@
  * constants) is pinned in the container/binding/rail cases below.
  */
 
+#include "ui_belt_path_sketch.h"
 #include "ui_frequency_response_chart.h"
 #include "ui_panel_belt_tension.h"
 #include "ui_update_queue.h"
@@ -79,6 +80,7 @@ class BeltPanelFixture : public XMLTestFixture {
         panel_->set_api(&client_, &api_);
         panel_->set_render_tier_for_test(tier, true);
 
+        helix::ui::register_belt_path_sketch_widget();
         REQUIRE(register_component("header_bar"));
         REQUIRE(register_component("panel_belt_tension"));
         view_ = panel_->create(test_screen());
@@ -292,6 +294,7 @@ TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
     fx.panel().handle_retest_clicked(helix::calibration::BeltPath::PATH_A);
     REQUIRE(fx.state_int("belt_tension_state") ==
             static_cast<int>(BeltTensionPanel::ViewState::RUNNING));
+    CHECK(fx.text("bt_run_title") == "Re-measuring Path A");
     // A re-measure walks A toward B by at most 4 Hz: 110 -> 106.
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
     CHECK(fx.text("bt_peak_a") == "106");

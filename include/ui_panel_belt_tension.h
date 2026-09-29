@@ -11,6 +11,7 @@
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "platform_capabilities.h"
+#include "resonance_console.h"
 #include "subject_managed_panel.h"
 
 #include <cstdint>
@@ -194,6 +195,8 @@ class BeltTensionPanel : public OverlayBase {
     void destroy_chart();
     /// Park the chart obj in the RUNNING host; called when a new run starts.
     void chart_to_running_host();
+    /// Fit the chart's axes to the curves it holds (or the sweep range before any).
+    void rescale_chart();
 
     // Subject manager for RAII cleanup
     SubjectManager subjects_;
@@ -265,6 +268,8 @@ class BeltTensionPanel : public OverlayBase {
     /// Render tier override for tests; nullopt reads PlatformCapabilities.
     std::optional<helix::PlatformTier> tier_override_;
     bool tier_animations_ = true;
+    /// The printer's [resonance_tester] sweep; Klipper defaults until the query lands.
+    helix::calibration::ResonanceTesterConfig sweep_cfg_;
 
     // Hardware detection cache. Feeds BeltGateInputs::is_corexy.
     helix::calibration::BeltTensionHardware detected_hw_;

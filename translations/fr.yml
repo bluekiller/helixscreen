@@ -5,7 +5,6 @@ translations:
   ' left': ' restant'
   ' · was {:.0f}': ' · était {:.0f}'
   '"%s" failed to load': '"%s" n''a pas pu se charger'
-  '%.0f Hz difference': "%.0f Hz d'écart"
   '%d additional fan%s': '%d ventilateur%s supplémentaire'
   '%d feeders': '%d alimentateurs'
   '%d gates': '%d Gates'
@@ -120,8 +119,9 @@ translations:
   A picture of your printer: Une photo de votre imprimante
   A print is in progress - restart still pending: 'Une impression est en cours - redémarrage en attente'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: Une impression est en cours sur ce gate. HelixScreen a effacé sa propre copie ; effacez-le à nouveau une fois l'impression terminée.
-  A runs faster: A tourne plus vite
   A spool may be tangled or the drive gear is jammed: Une bobine est peut-être emmêlée ou l'engrenage d'entraînement est bloqué
+  A tighter: A plus tendue
+  A · 1,1: A · 1,1
   ABS: ABS
   ACCELEROMETERS: ACCÉLÉROMÈTRES
   ACE Moonraker bridge not found. Install ace_status.py for full support.: Pont
@@ -185,9 +185,9 @@ translations:
   Added to queue (position {}) - queue is paused: Ajouté à la file (position {}) – la file est en pause
   Adding to queue...: Ajout à la file...
   Address: Adresse
+  Adjust needed: Ajustement nécessaire
   Adjust screen brightness level: Ajuster le niveau de luminosité de l'écran
   Adjust screws, then re-probe.: Ajustez les vis, puis re-palpez.
-  Adjustment needed: Ajustement nécessaire
   Adjustments stay active until restart. Save after print completes.: Les ajustements
     restent actifs jusqu'au redémarrage. Enregistrez après la fin de l'impression.
   Adjusts individual characteristics of your heaters for optimal control: Ajuste les
@@ -223,7 +223,6 @@ translations:
   An error occurred during calibration.: Une erreur s'est produite pendant la calibration.
   An error occurred during filament loading.: Une erreur s'est produite lors du chargement
     du filament.
-  An error occurred during measurement.: Une erreur s'est produite lors de la mesure.
   An error occurred during probing.: Une erreur s'est produite pendant le palpage.
   An error occurred while loading filament.: Une erreur s'est produite lors du chargement
     du filament.
@@ -298,8 +297,9 @@ translations:
   Available networks: Réseaux disponibles
   Average: Moyenne
   Axis limits unknown: Limites de l'axe inconnues
-  B: B
-  B runs faster: B tourne plus vite
+  B tighter: B plus tendue
+  B · 1,-1: B · 1,-1
+  BACK: ARRIÈRE
   BEACON: BEACON
   BETA: BETA
   'BLE connect failed: {}': 'Échec de la connexion BLE : {}'
@@ -343,14 +343,10 @@ translations:
   Bed temp must be 0-%d°C: La température du plateau doit être entre 0 et %d°C
   Bed warming timed out: Préchauffage du plateau — délai dépassé
   Before starting: 'Avant de commencer'
-  Belt A: Courroie A
   Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: La courroie A (avant droite) est plus tendue de %.0f Hz. Tendez la courroie B, à l'avant gauche, ou détendez la courroie A.
-  Belt B: Courroie B
   Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: La courroie B (avant gauche) est plus tendue de %.0f Hz. Tendez la courroie A, à l'avant droite, ou détendez la courroie B.
   Belt Tension: Tension de courroie
   Belt Tension Check: Vérification de tension de courroie
-  Belt tension looks good!: La tension de courroie semble bonne !
-  Belts matched: Courroies assorties
   Beta: Bêta
   'Beta features: OFF': 'Fonctionnalités Beta : OFF'
   'Beta features: ON': 'Fonctionnalités Beta : ON'
@@ -378,8 +374,6 @@ translations:
   Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Les deux courroies dépassent la cible de %.0f Hz - A de %.0f Hz, B de %.0f Hz. Détendez les deux.
   Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Les deux courroies sont en dessous de la cible de %.0f Hz - A de %.0f Hz, B de %.0f Hz. Tendez les deux, %s de plus.
   Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Les deux courroies sont sur la cible de %.0f Hz et correspondent l'une à l'autre. Rien à ajuster.
-  Both belts are overtightened.: Les deux courroies sont trop tendues.
-  Both belts need tightening.: Les deux courroies doivent être tendues.
   Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Les deux courroies affichent la même valeur, à la résolution de cette mesure près. Rien à ajuster.
   Bouncing Printer: Bouncing Printer
   Bowden Length: 'Longueur du bowden'
@@ -645,7 +639,6 @@ translations:
   Clog and flow health while printing: Bouchons et débit pendant l'impression
   Clog detection: Détection de bouchon
   Close: Fermer
-  Close - small adjustment: Proche - petit ajustement
   Close feeder: Fermer l'alimentateur
   Close feeder macro: Macro de fermeture de l'alimentateur
   Closer: Plus près
@@ -667,9 +660,7 @@ translations:
   Command failed: Échec de la commande
   Communication Test: 'Test de communication'
   Compact: Compact
-  Compare: Comparer
-  Compare both belt paths: Comparer les deux chemins de courroie
-  Comparison: Comparaison
+  Compare your belt paths: Comparez vos chemins de courroie
   Complete: Terminé
   Complete!: Terminé !
   Completed: Terminé
@@ -938,7 +929,6 @@ translations:
   Distance from lane extruder to hub: 'Distance de l''extrudeur de voie au hub'
   Distance from toolhead sensor to nozzle tip: 'Distance du capteur de tête d''outil à la pointe de la buse'
   Distance moved per jog button tap: Distance parcourue par appui sur un bouton de déplacement
-  Do not open the printer while the toolhead is moving: N'ouvrez pas l'imprimante pendant que la tête d'outil se déplace
   Do not power off your printer.: N'éteignez pas votre imprimante.
   Do not touch the printer during calibration: Ne touchez pas l'imprimante pendant
     la calibration
@@ -1386,7 +1376,6 @@ translations:
   Found %zu printers: '%zu imprimantes trouvées'
   Found 1 printer: 1 imprimante trouvée
   Framerate: Fréquence d'images
-  Frequency Delta: Delta de fréquence
   ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
   : "Delta de fréquence : différence entre les chemins A et B. Tout écart inférieur à 2 Hz est en dessous de la résolution de cette mesure, donc il compte comme correspondant.\n\nCorrespondance : à quel point les deux courroies sont proches, en pourcentage de la fréquence de la courroie A. Au-dessus de 95 % c'est excellent ; en dessous de 90 %, un ajustement est utile."
   From Buffer: Depuis tampon
@@ -1505,7 +1494,6 @@ translations:
   Hide Temperature Reports: Masquer les rapports de température
   High Water Mark: Pic d'utilisation
   Hold anywhere to cancel: Maintenez n'importe où pour annuler
-  Hold still: Ne bougez pas
   Holding nozzle at {}°C to purge previous filament.: Maintien de la buse à {}°C pour
     purger le filament précédent.
   Home: Origine
@@ -1679,6 +1667,7 @@ translations:
   Keep Printing: Continuer l'impression
   Keep Required: Garder obligatoire
   Keep Spool Info on Eject: Garder les informations de bobine lors de l'éjection
+  Keep clear of the printer while the toolhead is moving: Restez à l'écart de l'imprimante pendant que la tête d'outil se déplace
   Keep current: Garder l'actuel
   Keep hands clear. The printer moves on its own.: Tenez vos mains à distance. L'imprimante bouge seule.
 
@@ -1767,7 +1756,6 @@ translations:
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'La ligne {} appelle {}, que cette imprimante traite comme un arrêt d''urgence. Retranchez le fichier avec un profil conçu pour cette imprimante.'
   Listen to all theme sounds: Écouter tous les sons du thème
-  Listening: À l'écoute
   Live view from your webcam: Vue en direct de votre webcam
   Load: Charger
   Load Cell: 'Cellule de charge'
@@ -1814,8 +1802,6 @@ translations:
   'Long-press any tile to enter edit mode — rearrange, resize, remove, or add widgets, and add extra pages for your preferred layout.': 'Appui long sur n''importe quelle tuile pour entrer en mode édition — réorganisez, redimensionnez, supprimez ou ajoutez des widgets, et ajoutez des pages supplémentaires pour votre disposition préférée.'
   Long-press the home grid to rearrange widgets (turn off if it triggers by accident): 'Appui long sur la grille d''accueil pour réorganiser les widgets (désactivez si cela se déclenche par accident)'
   Longest Disconnect: Déconnexion la plus longue
-  Loosen Path A belt.: Desserrer la courroie du Chemin A.
-  Loosen Path B belt.: Desserrer la courroie du Chemin B.
   Lost connection during print — try again: Connexion perdue pendant l'impression
     — réessayez
   Lost connection to CFS unit: Connexion perdue avec l'unité CFS
@@ -1897,11 +1883,8 @@ translations:
   Mark a printer you enclosed yourself: Indiquer une imprimante que vous avez fermée vous-même
 
   Master volume level: Niveau de volume principal
-  Match: Correspondance
-  Match to belt A: Correspond à la courroie A
   Match your typical print fan speed: Correspondre à votre vitesse de ventilateur
     habituelle
-  Matched: Apparié
   Matching printers: Imprimantes correspondantes
   Material: Matériau
   'Material Comfort:': 'Confort du matériau :'
@@ -1920,20 +1903,17 @@ translations:
   Measure: 'Mesurer'
   Measure and compare belt path frequencies: Mesurer et comparer les fréquences des
     chemins de courroie
-  Measure belt path frequencies: Mesurer les fréquences des chemins de courroie
   Measure every tool's XYZ offset automatically: Mesure automatiquement l'offset XYZ de chaque outil
   Measure pressure advance automatically: 'Mesure automatiquement le Pressure Advance'
   Measured (shaper off): Mesuré (shaper désactivé)
   Measured filament diameter: Diamètre du filament mesuré
   Measured pressure advance: 'Pressure Advance mesuré'
-  Measurement Failed: Échec de la mesure
   Measurement incomplete. Try again.: Mesure incomplète. Réessayez.
   Measuring: 'Mesure'
   Measuring Path {}: Mesure du Chemin {}
   Measuring accelerometer noise...: 'Mesure du bruit de l''accéléromètre...'
   Measuring vibrations... {}%: 'Mesure des vibrations... {}%'
   Measuring wheel error: Erreur de la roue de mesure
-  Median %.0f Hz: Médiane %.0f Hz
   Memory: Mémoire
   Memory (MB): Mémoire (Mo)
   Memory Snapshot: Instantané de la mémoire
@@ -1978,7 +1958,6 @@ translations:
     minutes. The printer will make noise — this is normal.
   : Déplace la tête d'impression pour mesurer les fréquences de vibration sur chaque
     axe. Prend 2-3 minutes. L'imprimante fera du bruit — c'est normal.
-  Moving gantry: Déplacement du portique
   Moving lane: Déplacement de la voie
   Moving the plate...: Déplacement du plateau...
 
@@ -2003,7 +1982,6 @@ translations:
   Name (optional): Nom (facultatif)
   'Name:': 'Nom :'
   Named actions in the LED Controls widget. Not shown under LED selection.: Actions nommées dans le widget Commandes LED. Non affichées dans la sélection LED.
-  Needs adjustment: Ajustement nécessaire
   Needs attention: Attention requise
   Needs the {} package to switch spools: 'Nécessite le plugin {} pour changer de bobine'
   Net Weight (g): Poids net (g)
@@ -2027,7 +2005,6 @@ translations:
   New printer successfully added: Nouvelle imprimante ajoutée avec succès
   New profile name: Nouveau nom de profil
   Next: Suivant
-  Next belt: Courroie suivante
   Niimbot (Bluetooth): Niimbot (Bluetooth)
   'No': Non
   No AMS Detected: 'Aucun AMS détecté'
@@ -2238,6 +2215,8 @@ translations:
     l'auto-détection si votre capteur ou chauffage ne s'appelle pas 'chamber'.
   P: P
   PA: PA
+  PATH A · 1,1: CHEMIN A · 1,1
+  PATH B · 1,-1: CHEMIN B · 1,-1
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: Le code PIN doit comporter 4 à 6 chiffres
@@ -2281,7 +2260,6 @@ translations:
   Password is required for secured networks: Un mot de passe est requis pour les réseaux
     sécurisés
   Path A: Chemin A
-  Path A / Path B: Chemin A / Chemin B
   Path B: Chemin B
   Path {}: Chemin {}
   Path {} before: Chemin {} avant
@@ -2325,8 +2303,6 @@ translations:
     l'imprimante fait l'origine et palpe.
   Please wait while the printer probes each screw position.: Veuillez patienter pendant
     que l'imprimante palpe chaque position de vis.
-  Pluck the front belt on the left: Pincez la courroie avant, à gauche
-  Pluck the front belt on the right: Pincez la courroie avant, à droite
   Plugin already installed: Plugin déjà installé
   Plugin disabled: Plugin désactivé
   Plugin installed successfully: Plugin installé avec succès
@@ -2342,7 +2318,6 @@ translations:
   Poor Accuracy: Faible précision
   Port: Port
   Position: Position
-  Position the gantry yourself, then continue: Positionnez le portique vous-même, puis continuez
   Post-Sensor Clear: 'Dégagement après capteur'
   Power: Alimentation
   Power Devices: Appareils électriques
@@ -2571,6 +2546,7 @@ translations:
   Raspberry Pi (32-bit): Raspberry Pi (32-bit)
   Re-identify: Ré-identifier
   Re-measure: 'Remesurer'
+  Re-measuring Path {}: Nouvelle mesure du Chemin {}
   Re-probe: Re-palper
   Re-read spool RFID tags and remaining length: 'Relire les étiquettes RFID des bobines et la longueur restante'
   Re-seat the Bowden tube connector on the CFS unit: Réemboîtez le raccord du tube Bowden sur l'unité CFS
@@ -2583,7 +2559,6 @@ translations:
   Ready for filament operations: Prêt pour les opérations filament
   Ready to Apply: Prêt à appliquer
   Ready to calibrate: Prêt à calibrer
-  Ready to pluck: Prêt à pincer
   Rear: 'Arrière'
   Rear Left: 'Arrière gauche'
   Rear Right: 'Arrière droit'
@@ -2982,6 +2957,7 @@ translations:
   Setup Timelapse: Configurer le timelapse
   Several printers match - choose yours: Plusieurs imprimantes correspondent - choisissez la vôtre
   Shadow Intensity: Intensité de l'ombre
+  Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together.: Fait vibrer la tête d'outil le long de chaque diagonale et superpose les deux réponses. Des courroies équilibrées culminent ensemble.
   Share Usage Data: Partager les données d'utilisation
   Share anonymous usage statistics to help us make HelixScreen better. No personal data is ever collected.: Partagez
     des statistiques d'utilisation anonymes pour nous aider à améliorer HelixScreen.
@@ -3114,18 +3090,16 @@ translations:
   Start: Démarrer
   Start Anyway: Démarrer quand même
   Start Calibration: Démarrer la calibration
-  Start Check: Lancer la vérification
   Start Drying: Démarrer le séchage
-  Start Listening: Démarrer l'écoute
   Start Print: Lancer l'impression
   Start Probing: Démarrer le palpage
   Start anyway?: 'Démarrer quand même ?'
   Start at: Commencer à
+  Start check: Lancer la vérification
   Start drying: Démarrer le séchage
 
   Start failed: Échec du démarrage
   'Start next: {}': 'Lancer le suivant : {}'
-  Start over: Recommencer
   Start print anyway?: Démarrer l'impression quand même ?
   Started: Démarré
   Starting Print...: Démarrage de l'impression...
@@ -3229,10 +3203,8 @@ translations:
   Tap the part cooling fan: Touchez le ventilateur de refroidissement pièce
   Tap to assign: Appuyez pour assigner
   Target: 'Cible'
-  Target Frequency: Fréquence cible
   Target Temperature: Température cible
   Target Version: Version cible
-  Target is %.0f Hz. Tighten belt %s and loosen belt %s.: La cible est %.0f Hz. Tendez la courroie %s et détendez la courroie %s.
   Telemetry: Télémétrie
   Telemetry Data: Données de télémétrie
   Telemetry Disabled: Télémétrie désactivée
@@ -3256,7 +3228,6 @@ translations:
     temporaire pour cette impression, sauf si enregistré dans le panneau Contrôles
   Tertiary: Tertiaire
   Test All Lanes: 'Tester toutes les voies'
-  Test Both Again: Retester les deux
   Test Connection: Tester la connexion
   Test Grip: 'Tester la prise'
   Test Load: 'Tester le chargement'
@@ -3266,6 +3237,7 @@ translations:
   Test RS-485 link to CFS units: 'Tester la liaison RS-485 vers les unités CFS'
   Test Screensaver: Tester l'économiseur d'écran
   Test Tracker: Test Tracker
+  Test both: Tester les deux
   Test label printed: Étiquette de test imprimée
   'Testing rotation: %d° (%d/%d) - %ds remaining': 'Test de rotation : %d°
     (%d/%d) - %ds restantes'
@@ -3274,7 +3246,6 @@ translations:
     anonymes aident à améliorer HelixScreen.
   Thanks! TOTALLY anonymous usage data helps improve HelixScreen.: Merci ! Les données
     d'utilisation TOTALEMENT anonymes aident à améliorer HelixScreen.
-  That did not sound like a pluck - try again: Cela ne ressemblait pas à un pincement - réessayez
   'That setting cannot be changed while a print is running': 'Ce réglage ne peut pas être modifié pendant une impression'
   That slot cannot stand in for this one: Cet emplacement ne peut pas remplacer celui-ci
   That tool is already loaded: Cet outil est déjà chargé
@@ -3465,8 +3436,6 @@ translations:
   Thorough: Approfondi
   Thumbnail Only: Miniature uniquement
   'Thumbnail: ': 'Miniature : '
-  Tighten Path A belt.: Tendre la courroie du Chemin A.
-  Tighten Path B belt.: Tendre la courroie du Chemin B.
   Time: Temps
   Time Format: Format de l'heure
   Time to wait before escalating to emergency stop: Temps d'attente avant d'escalader
@@ -3502,7 +3471,6 @@ translations:
   Toggle toolhead LED for an extruder: 'Basculer la LED de la tête d''outil pour un extrudeur'
   'Toggle:': 'Basculer :'
   Too humid: Trop humide
-  Too soft - pluck harder: Trop faible - pincez plus fort
   Tool: Outil
   Tool Change Failed: 'Échec du changement d''outil'
   Tool Changer: Changeur d'outils
@@ -3575,7 +3543,6 @@ translations:
     vérifiez les autorisations
   Unavailable: Indisponible
   Unavailable on this printer: Non disponible sur cette imprimante
-  Understanding Results: Comprendre les résultats
   Undo: Défaire
   ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
   : "Une tension de courroie inégale provoque des défauts d'impression comme des décalages de couches, des VFA (défauts verticaux fins) et du ringing.\n\nPincez chaque courroie à la main et cet outil écoute via l'accéléromètre pour mesurer la fréquence de la courroie. Des fréquences identiques signifient une tension équilibrée.\n\nPour le CoreXY, les courroies A et B devraient être à quelques Hz l'une de l'autre."
@@ -3728,6 +3695,7 @@ translations:
     restant. Les modifications sont également synchronisées au démarrage, à la pause
     ou à la fin des impressions.
   Welcome to HelixScreen: Bienvenue sur HelixScreen
+  Well matched: Bien équilibrées
   What We Collect: Ce que nous collectons
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: Quand
     activé, seule la macro s'exécute. Quand désactivé, les températures sont définies
@@ -3766,7 +3734,6 @@ translations:
   Wifi: Wi-Fi
   Will not switch spools on runout: Ne changera pas de bobine en fin de filament
   Wipe nozzle on silicone cleaning strip: 'Essuyer la buse sur la bande de nettoyage en silicone'
-  Within measurement resolution: Sous la résolution de mesure
   Wizard Error: Erreur de l'assistant
   Working...: En cours...
   Write failed at chunk {}: Échec de l'écriture au bloc {}
@@ -3880,6 +3847,7 @@ translations:
   left: restant
   loaded: 'chargé'
   locked: 'verrouillé'
+  matched: équilibrées
   mm before clog: mm avant bouchon
   needs: nécessite
   never sleeps: ne dort jamais
@@ -3963,3 +3931,4 @@ translations:
   : '{} basculera vers un slot dont le type de filament ET la couleur correspondent à la bobine active et dont le capteur de port détecte du filament.'
   '{} — response timed out': '{} — réponse expirée'
   '{} → {}: no filament loaded.': '{} → {} : aucun filament chargé.'
+  '{}:{:02} elapsed': '{}:{:02} écoulé'

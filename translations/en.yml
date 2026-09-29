@@ -5,7 +5,6 @@ translations:
   ' left': ' left'
   ' · was {:.0f}': ' · was {:.0f}'
   '"%s" failed to load': '"%s" failed to load'
-  '%.0f Hz difference': '%.0f Hz difference'
   '%d additional fan%s': '%d additional fan%s'
   '%d feeders': '%d feeders'
   '%d gates': '%d gates'
@@ -112,8 +111,9 @@ translations:
   A picture of your printer: A picture of your printer
   A print is in progress - restart still pending: A print is in progress - restart still pending
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.
-  A runs faster: A runs faster
   A spool may be tangled or the drive gear is jammed: A spool may be tangled or the drive gear is jammed
+  A tighter: A tighter
+  A · 1,1: A · 1,1
   ABS: ABS
   ACCELEROMETERS: ACCELEROMETERS
   ACE Moonraker bridge not found. Install ace_status.py for full support.: ACE Moonraker bridge not found. Install ace_status.py for full support.
@@ -177,9 +177,9 @@ translations:
   Added to queue (position {}) - queue is paused: Added to queue (position {}) - queue is paused
   Adding to queue...: Adding to queue...
   Address: Address
+  Adjust needed: Adjust needed
   Adjust screen brightness level: Adjust screen brightness level
   Adjust screws, then re-probe.: Adjust screws, then re-probe.
-  Adjustment needed: Adjustment needed
   Adjustments stay active until restart. Save after print completes.: Adjustments
     stay active until restart. Save after print completes.
   Adjusts individual characteristics of your heaters for optimal control: Adjusts
@@ -214,7 +214,6 @@ translations:
   An app on your network is asking to connect to this printer.: An app on your network is asking to connect to this printer.
   An error occurred during calibration.: An error occurred during calibration.
   An error occurred during filament loading.: An error occurred during filament loading.
-  An error occurred during measurement.: An error occurred during measurement.
   An error occurred during probing.: An error occurred during probing.
   An error occurred while loading filament.: An error occurred while loading filament.
   # Source: probe_accuracy_modal.xml:90
@@ -282,8 +281,9 @@ translations:
   Available networks: Available networks
   Average: Average
   Axis limits unknown: Axis limits unknown
-  B: B
-  B runs faster: B runs faster
+  B tighter: B tighter
+  B · 1,-1: B · 1,-1
+  BACK: BACK
   BEACON: BEACON
   BETA: BETA
   'BLE connect failed: {}': 'BLE connect failed: {}'
@@ -326,14 +326,10 @@ translations:
   Bed temp must be 0-%d°C: Bed temp must be 0-%d°C
   Bed warming timed out: Bed warming timed out
   Before starting: Before starting
-  Belt A: Belt A
   Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.
-  Belt B: Belt B
   Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.
   Belt Tension: Belt Tension
   Belt Tension Check: Belt Tension Check
-  Belt tension looks good!: Belt tension looks good!
-  Belts matched: Belts matched
   Beta: Beta
   'Beta features: OFF': 'Beta features: OFF'
   'Beta features: ON': 'Beta features: ON'
@@ -360,8 +356,6 @@ translations:
   Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.
   Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.
   Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Both belts are on the %.0f Hz target and match each other. Nothing to adjust.
-  Both belts are overtightened.: Both belts are overtightened.
-  Both belts need tightening.: Both belts need tightening.
   Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Both belts read the same to within what this measurement can resolve. Nothing to adjust.
   Bouncing Printer: Bouncing Printer
   Bowden Length: Bowden Length
@@ -616,7 +610,6 @@ translations:
   Clog and flow health while printing: Clog and flow health while printing
   Clog detection: Clog detection
   Close: Close
-  Close - small adjustment: Close - small adjustment
   Close feeder: Close feeder
   Close feeder macro: Close feeder macro
   Closer: Closer
@@ -637,9 +630,7 @@ translations:
   Command failed: Command failed
   Communication Test: Communication Test
   Compact: Compact
-  Compare: Compare
-  Compare both belt paths: Compare both belt paths
-  Comparison: Comparison
+  Compare your belt paths: Compare your belt paths
   Complete: Complete
   Complete!: Complete!
   Completed: Completed
@@ -899,7 +890,6 @@ translations:
   Distance from lane extruder to hub: Distance from lane extruder to hub
   Distance from toolhead sensor to nozzle tip: Distance from toolhead sensor to nozzle tip
   Distance moved per jog button tap: Distance moved per jog button tap
-  Do not open the printer while the toolhead is moving: Do not open the printer while the toolhead is moving
   Do not power off your printer.: Do not power off your printer.
   Do not touch the printer during calibration: Do not touch the printer during calibration
   Dock: Dock
@@ -1324,7 +1314,6 @@ translations:
   Found %zu printers: Found %zu printers
   Found 1 printer: Found 1 printer
   Framerate: Framerate
-  Frequency Delta: Frequency Delta
   ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
   : "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
   From Buffer: From Buffer
@@ -1441,7 +1430,6 @@ translations:
   Hide Temperature Reports: Hide Temperature Reports
   High Water Mark: High Water Mark
   Hold anywhere to cancel: Hold anywhere to cancel
-  Hold still: Hold still
   Holding nozzle at {}°C to purge previous filament.: Holding nozzle at {}°C to purge previous filament.
   Home: Home
   Home & Continue: Home & Continue
@@ -1611,6 +1599,7 @@ translations:
   Keep Printing: Keep Printing
   Keep Required: Keep Required
   Keep Spool Info on Eject: Keep Spool Info on Eject
+  Keep clear of the printer while the toolhead is moving: Keep clear of the printer while the toolhead is moving
   Keep current: Keep current
   Keep hands clear. The printer moves on its own.: Keep hands clear. The printer moves on its own.
   Keep the bypass spool visible when bypass is off: Keep the bypass spool visible when bypass is off
@@ -1694,7 +1683,6 @@ translations:
   Line the nozzle up with the purge chute so purged filament drops straight in.: Line the nozzle up with the purge chute so purged filament drops straight in.
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.
   Listen to all theme sounds: Listen to all theme sounds
-  Listening: Listening
   Live view from your webcam: Live view from your webcam
   Load: Load
   Load Cell: Load Cell
@@ -1741,8 +1729,6 @@ translations:
   'Long-press any tile to enter edit mode — rearrange, resize, remove, or add widgets, and add extra pages for your preferred layout.': 'Long-press any tile to enter edit mode — rearrange, resize, remove, or add widgets, and add extra pages for your preferred layout.'
   Long-press the home grid to rearrange widgets (turn off if it triggers by accident): Long-press the home grid to rearrange widgets (turn off if it triggers by accident)
   Longest Disconnect: Longest Disconnect
-  Loosen Path A belt.: Loosen Path A belt.
-  Loosen Path B belt.: Loosen Path B belt.
   Lost connection during print — try again: Lost connection during print — try again
   Lost connection to CFS unit: Lost connection to CFS unit
   'Lot # (optional)': 'Lot # (optional)'
@@ -1820,10 +1806,7 @@ translations:
   Marginal: Marginal
   Mark a printer you enclosed yourself: Mark a printer you enclosed yourself
   Master volume level: Master volume level
-  Match: Match
-  Match to belt A: Match to belt A
   Match your typical print fan speed: Match your typical print fan speed
-  Matched: Matched
   Matching printers: Matching printers
   Material: Material
   'Material Comfort:': 'Material Comfort:'
@@ -1841,20 +1824,17 @@ translations:
   Maximum toolhead speed (mm/s): Maximum toolhead speed (mm/s)
   Measure: Measure
   Measure and compare belt path frequencies: Measure and compare belt path frequencies
-  Measure belt path frequencies: Measure belt path frequencies
   Measure every tool's XYZ offset automatically: Measure every tool's XYZ offset automatically
   Measure pressure advance automatically: Measure pressure advance automatically
   Measured (shaper off): Measured (shaper off)
   Measured filament diameter: Measured filament diameter
   Measured pressure advance: Measured pressure advance
-  Measurement Failed: Measurement Failed
   Measurement incomplete. Try again.: Measurement incomplete. Try again.
   Measuring: Measuring
   Measuring Path {}: Measuring Path {}
   Measuring accelerometer noise...: Measuring accelerometer noise...
   Measuring vibrations... {}%: Measuring vibrations... {}%
   Measuring wheel error: Measuring wheel error
-  Median %.0f Hz: Median %.0f Hz
   Memory: Memory
   Memory (MB): Memory (MB)
   Memory Snapshot: Memory Snapshot
@@ -1902,7 +1882,6 @@ translations:
     minutes. The printer will make noise — this is normal.
   : Moves the print head to measure vibration frequencies on each axis. Takes 2-3
     minutes. The printer will make noise — this is normal.
-  Moving gantry: Moving gantry
   Moving lane: Moving lane
   Moving the plate...: Moving the plate...
   Multi-Filament: Multi-Filament
@@ -1926,7 +1905,6 @@ translations:
   Name (optional): Name (optional)
   'Name:': 'Name:'
   Named actions in the LED Controls widget. Not shown under LED selection.: Named actions in the LED Controls widget. Not shown under LED selection.
-  Needs adjustment: Needs adjustment
   Needs attention: Needs attention
   Needs the {} package to switch spools: Needs the {} package to switch spools
   Net Weight (g): Net Weight (g)
@@ -1950,7 +1928,6 @@ translations:
   New printer successfully added: New printer successfully added
   New profile name: New profile name
   Next: Next
-  Next belt: Next belt
   Niimbot (Bluetooth): Niimbot (Bluetooth)
   'No': 'No'
   No AMS Detected: No AMS Detected
@@ -2154,6 +2131,8 @@ translations:
     auto-detection if your chamber sensor or heater isn't named 'chamber'.
   P: P
   PA: PA
+  PATH A · 1,1: PATH A · 1,1
+  PATH B · 1,-1: PATH B · 1,-1
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN must be 4-6 digits
@@ -2196,7 +2175,6 @@ translations:
   Password cannot be empty: Password cannot be empty
   Password is required for secured networks: Password is required for secured networks
   Path A: Path A
-  Path A / Path B: Path A / Path B
   Path B: Path B
   Path {}: Path {}
   Path {} before: Path {} before
@@ -2239,8 +2217,6 @@ translations:
     and probes.
   Please wait while the printer probes each screw position.: Please wait while the
     printer probes each screw position.
-  Pluck the front belt on the left: Pluck the front belt on the left
-  Pluck the front belt on the right: Pluck the front belt on the right
   Plugin already installed: Plugin already installed
   Plugin disabled: Plugin disabled
   Plugin installed successfully: Plugin installed successfully
@@ -2256,7 +2232,6 @@ translations:
   Poor Accuracy: Poor Accuracy
   Port: Port
   Position: Position
-  Position the gantry yourself, then continue: Position the gantry yourself, then continue
   Post-Sensor Clear: Post-Sensor Clear
   Power: Power
   Power Devices: Power Devices
@@ -2477,6 +2452,7 @@ translations:
   Raspberry Pi (32-bit): Raspberry Pi (32-bit)
   Re-identify: Re-identify
   Re-measure: Re-measure
+  Re-measuring Path {}: Re-measuring Path {}
   Re-probe: Re-probe
   Re-read spool RFID tags and remaining length: Re-read spool RFID tags and remaining length
   Re-seat the Bowden tube connector on the CFS unit: Re-seat the Bowden tube connector on the CFS unit
@@ -2489,7 +2465,6 @@ translations:
   Ready for filament operations: Ready for filament operations
   Ready to Apply: Ready to Apply
   Ready to calibrate: Ready to calibrate
-  Ready to pluck: Ready to pluck
   Rear: Rear
   Rear Left: Rear Left
   Rear Right: Rear Right
@@ -2873,6 +2848,7 @@ translations:
   Setup Timelapse: Setup Timelapse
   Several printers match - choose yours: Several printers match - choose yours
   Shadow Intensity: Shadow Intensity
+  Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together.: Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together.
   Share Usage Data: Share Usage Data
   Share anonymous usage statistics to help us make HelixScreen better. No personal data is ever collected.: Share
     anonymous usage statistics to help us make HelixScreen better. No personal data
@@ -2997,17 +2973,15 @@ translations:
   Start: Start
   Start Anyway: Start Anyway
   Start Calibration: Start Calibration
-  Start Check: Start Check
   Start Drying: Start Drying
-  Start Listening: Start Listening
   Start Print: Start Print
   Start Probing: Start Probing
   Start anyway?: Start anyway?
   Start at: Start at
+  Start check: Start check
   Start drying: Start drying
   Start failed: Start failed
   'Start next: {}': 'Start next: {}'
-  Start over: Start over
   Start print anyway?: Start print anyway?
   Started: Started
   Starting Print...: Starting Print...
@@ -3108,10 +3082,8 @@ translations:
   Tap the part cooling fan: Tap the part cooling fan
   Tap to assign: Tap to assign
   Target: Target
-  Target Frequency: Target Frequency
   Target Temperature: Target Temperature
   Target Version: Target Version
-  Target is %.0f Hz. Tighten belt %s and loosen belt %s.: Target is %.0f Hz. Tighten belt %s and loosen belt %s.
   Telemetry: Telemetry
   Telemetry Data: Telemetry Data
   Telemetry Disabled: Telemetry Disabled
@@ -3135,7 +3107,6 @@ translations:
     for this print, unless saved on Controls panel
   Tertiary: Tertiary
   Test All Lanes: Test All Lanes
-  Test Both Again: Test Both Again
   Test Connection: Test Connection
   Test Grip: Test Grip
   Test Load: Test Load
@@ -3145,6 +3116,7 @@ translations:
   Test RS-485 link to CFS units: Test RS-485 link to CFS units
   Test Screensaver: Test Screensaver
   Test Tracker: Test Tracker
+  Test both: Test both
   Test label printed: Test label printed
   'Testing rotation: %d° (%d/%d) - %ds remaining': 'Testing rotation: %d°
     (%d/%d) - %ds remaining'
@@ -3153,7 +3125,6 @@ translations:
     data helps improve HelixScreen.
   Thanks! TOTALLY anonymous usage data helps improve HelixScreen.: Thanks! TOTALLY
     anonymous usage data helps improve HelixScreen.
-  That did not sound like a pluck - try again: That did not sound like a pluck - try again
   'That setting cannot be changed while a print is running': 'That setting cannot be changed while a print is running'
   That slot cannot stand in for this one: That slot cannot stand in for this one
   That tool is already loaded: That tool is already loaded
@@ -3323,8 +3294,6 @@ translations:
   Thorough: Thorough
   Thumbnail Only: Thumbnail Only
   'Thumbnail: ': 'Thumbnail: '
-  Tighten Path A belt.: Tighten Path A belt.
-  Tighten Path B belt.: Tighten Path B belt.
   Time: Time
   Time Format: Time Format
   Time to wait before escalating to emergency stop: Time to wait before escalating
@@ -3359,7 +3328,6 @@ translations:
   Toggle toolhead LED for an extruder: Toggle toolhead LED for an extruder
   'Toggle:': 'Toggle:'
   Too humid: Too humid
-  Too soft - pluck harder: Too soft - pluck harder
   Tool: Tool
   Tool Change Failed: Tool Change Failed
   Tool Changer: Tool Changer
@@ -3432,7 +3400,6 @@ translations:
     permissions
   Unavailable: Unavailable
   Unavailable on this printer: Unavailable on this printer
-  Understanding Results: Understanding Results
   Undo: Undo
   ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
   : "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
@@ -3581,6 +3548,7 @@ translations:
   : Weight data is synced from Spoolman to display remaining filament. Changes are
     also synced when prints start, pause, or complete.
   Welcome to HelixScreen: Welcome to HelixScreen
+  Well matched: Well matched
   What We Collect: What We Collect
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: When
     enabled, only the macro runs. When disabled, temperatures are set first, then
@@ -3618,7 +3586,6 @@ translations:
   Wifi: Wifi
   Will not switch spools on runout: Will not switch spools on runout
   Wipe nozzle on silicone cleaning strip: Wipe nozzle on silicone cleaning strip
-  Within measurement resolution: Within measurement resolution
   Wizard Error: Wizard Error
   Working...: Working...
   Write failed at chunk {}: Write failed at chunk {}
@@ -3730,6 +3697,7 @@ translations:
   left: left
   loaded: loaded
   locked: locked
+  matched: matched
   mm before clog: mm before clog
   needs: needs
   never sleeps: never sleeps
@@ -3806,3 +3774,4 @@ translations:
   : '{} will switch to a slot whose filament type AND colour both match the active spool and whose own port sensor reads filament present.'
   '{} — response timed out': '{} — response timed out'
   '{} → {}: no filament loaded.': '{} → {}: no filament loaded.'
+  '{}:{:02} elapsed': '{}:{:02} elapsed'
