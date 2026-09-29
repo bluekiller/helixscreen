@@ -7,6 +7,7 @@
 
 #include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
 #include "panel_widget_size.h"
 #include "settings_manager.h"
@@ -99,6 +100,10 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
         badge_h = line_height_of(badge_face);
     }
 
+    // The component draws the caption translated, so that is what is measured.
+    // A label with no translation (a device's own name) comes back unchanged.
+    const char* label = content_.label.empty() ? "" : lv_tr(content_.label.c_str());
+
     TileRungMetrics rungs[kTileRungs];
     for (int r = 0; r < kTileRungs; ++r) {
         const ui::TileFace icon_face = ui::tile_rung_face(
@@ -120,7 +125,7 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
         rungs[r].value_full_w = ui::text_width(content_.widest_value.c_str(), value_face);
         rungs[r].value_current_w = ui::text_width(content_.widest_current.c_str(), value_face);
         rungs[r].value_h = line_height_of(value_face);
-        rungs[r].label_w = ui::text_width(content_.label.c_str(), label_face);
+        rungs[r].label_w = ui::text_width(label, label_face);
         rungs[r].label_h = line_height_of(label_face);
     }
 

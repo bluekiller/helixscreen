@@ -20,10 +20,12 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "helix/ui/shared_font_style.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 #include "panel_widget.h"
 #include "panel_widget_registry.h"
 #include "settings_manager.h"
 #include "src/ui/panel_widgets/tile_sizing.h"
+#include "system_settings_manager.h"
 #include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
@@ -774,4 +776,37 @@ TEST_CASE("an animated glyph never takes the scaled xxl path", "[widget_size][ti
     REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "bed_temperature_tile_icon")) == 5);
     CHECK(lv_obj_get_style_transform_scale_x(glyph, LV_PART_MAIN) == LV_SCALE_NONE);
     lv_obj_delete(root);
+}
+
+TEST_CASE("a tile measures its label in the language it draws", "[widget_size][tile][labels]") {
+    // The component draws the translated caption, so an English measurement
+    // under a wider translation keeps a label the tile has no room for.
+    LVGLUITestFixture fixture;
+    // Always drawn, so the measurement does not hinge on show_widget_labels.
+    helix::TileSizing sizing("trtest", helix::TileSizing::Content{"", "", "Shutdown", false, "",
+                                                                  /*label_always_drawn=*/true});
+    auto label_at = [&](int w) {
+        sizing.measure_and_publish(w, 120);
+        return lv_subject_get_int(lv_xml_get_subject(nullptr, "trtest_tile_label"));
+    };
+
+    helix::SystemSettingsManager::instance().set_language("de");
+    REQUIRE(std::string(lv_tr("Shutdown")) == "Herunterfahren");
+    int de_first = -1;
+    for (int w = 30; w <= 300 && de_first < 0; w += 2) {
+        if (label_at(w)) {
+            de_first = w;
+        }
+    }
+    helix::SystemSettingsManager::instance().set_language("en");
+    int en_first = -1;
+    for (int w = 30; w <= 300 && en_first < 0; w += 2) {
+        if (label_at(w)) {
+            en_first = w;
+        }
+    }
+    INFO("label first fits at " << en_first << "px in English, " << de_first << "px in German");
+    REQUIRE(en_first > 0);
+    REQUIRE(de_first > 0);
+    CHECK(de_first > en_first);
 }
