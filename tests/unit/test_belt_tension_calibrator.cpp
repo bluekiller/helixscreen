@@ -28,6 +28,7 @@
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cfloat>
 #include <chrono>
@@ -450,6 +451,32 @@ TEST_CASE_METHOD(BeltCalibratorFixture, "measure_path sweeps its path and report
     REQUIRE(peak.found);
     CHECK(peak.frequency == Catch::Approx(mock_client_.belt_peak_hz('B')).margin(1.0f));
     CHECK(calibrator_->get_state() == BeltTensionCalibrator::State::IDLE);
+}
+
+TEST_CASE_METHOD(BeltCalibratorFixture, "cancel while homing never starts the sweep",
+                 "[belt_tension][calibrator]") {
+    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "");
+    mock_client_.clear_gcode_script_history();
+    bool called = false;
+    calibrator_->measure_path(
+        BeltPath::PATH_A, [&](int, float) { called = true; }, [&](BeltCurve) { called = true; },
+        [&](const std::string&) { called = true; });
+    calibrator_->cancel();
+    for (int i = 0; i < 500; ++i) {
+        helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        lv_tick_inc(10);
+        lv_timer_handler_safe();
+    }
+    const auto history = mock_client_.gcode_script_history();
+    const bool homed = std::any_of(history.begin(), history.end(), [](const std::string& g) {
+        return g.find("G28") != std::string::npos;
+    });
+    const bool swept = std::any_of(history.begin(), history.end(), [](const std::string& g) {
+        return g.find("TEST_RESONANCES") != std::string::npos;
+    });
+    CHECK(homed); // the homing path really ran
+    CHECK_FALSE(swept);
+    CHECK_FALSE(called);
 }
 
 TEST_CASE_METHOD(BeltCalibratorFixture, "cancel silences the run's callbacks",

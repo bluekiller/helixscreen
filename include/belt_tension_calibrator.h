@@ -131,6 +131,11 @@ class BeltTensionCalibrator {
     /// Silences the running sweep's callbacks; null when no run is active.
     IAdvancedAPI::BeltRunCancel run_cancel_;
 
+    /// Bumped by cancel(). Each step of a run (the post-homing start, progress,
+    /// completion, error) acts only while it still holds the current value, so a
+    /// run cancelled mid-homing never starts its sweep.
+    uint32_t run_generation_ = 0;
+
     /// Async callback safety guard
     helix::AsyncLifetimeGuard lifetime_;
 };

@@ -96,30 +96,39 @@ void BeltTensionCalibrator::measure_path(
 
     // A run may still be sweeping; stop listening to it before starting anew.
     cancel();
+    const uint32_t generation = ++run_generation_;
 
     state_.store(State::HOMING);
     spdlog::info("[BeltTension] Measuring belt path {}", output_name(path));
 
     ensure_homed_then(
         api_, lifetime_,
-        [this, path, on_progress, on_complete, on_error]() {
+        [this, generation, path, on_progress, on_complete, on_error]() {
+            if (generation != run_generation_) {
+                spdlog::debug("[BeltTension] Cancelled while homing; not starting the sweep");
+                return;
+            }
             state_.store(State::MEASURING);
             run_cancel_ = api_->advanced().test_belt_resonance(
                 axis_param(path), output_name(path),
                 lifetime_.bg_cb("BeltTensionCalibrator::sweep_progress",
-                                [on_progress](int percent, float freq_hz) {
-                                    if (on_progress)
+                                [this, generation, on_progress](int percent, float freq_hz) {
+                                    if (generation == run_generation_ && on_progress)
                                         on_progress(percent, freq_hz);
                                 }),
                 lifetime_.bg_cb("BeltTensionCalibrator::sweep_complete",
-                                [this, on_complete](const BeltCurve& curve) {
+                                [this, generation, on_complete](const BeltCurve& curve) {
+                                    if (generation != run_generation_)
+                                        return;
                                     run_cancel_ = nullptr;
                                     state_.store(State::IDLE);
                                     if (on_complete)
                                         on_complete(curve);
                                 }),
                 lifetime_.bg_cb("BeltTensionCalibrator::sweep_error",
-                                [this, on_error](const MoonrakerError& err) {
+                                [this, generation, on_error](const MoonrakerError& err) {
+                                    if (generation != run_generation_)
+                                        return;
                                     run_cancel_ = nullptr;
                                     state_.store(State::ERROR);
                                     spdlog::error("[BeltTension] Sweep failed: {}", err.message);
@@ -127,7 +136,9 @@ void BeltTensionCalibrator::measure_path(
                                         on_error(err.message);
                                 }));
         },
-        [this, on_error](const MoonrakerError& err) {
+        [this, generation, on_error](const MoonrakerError& err) {
+            if (generation != run_generation_)
+                return;
             state_.store(State::ERROR);
             spdlog::error("[BeltTension] Homing failed: {}", err.message);
             if (on_error)
@@ -141,6 +152,7 @@ void BeltTensionCalibrator::measure_path(
 
 void BeltTensionCalibrator::cancel() {
     spdlog::info("[BeltTension] Cancelling (was state={})", static_cast<int>(state_.load()));
+    ++run_generation_;
     if (run_cancel_) {
         run_cancel_();
         run_cancel_ = nullptr;
