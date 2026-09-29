@@ -3323,6 +3323,7 @@
   <translation tag="Your printer at a glance" ru="Ваш принтер одним взглядом"/>
   <translation tag="Your printer has an automatic filament changer" ru="Ваш принтер оснащён автоматическим сменщиком филамента"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" ru="Принтер был не в сети во время настройки, поэтому параметры оборудования пропущены. Настроить их сейчас?"/>
+  <translation tag="Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide." ru="Строка {} передаёт настройки для отдельных инструментов, которые переназначение не меняет ({}). Переназначенный инструмент может не нагреться. См. раздел «Tool Mapping» в руководстве пользователя."/>
   <translation tag="Z" ru="Z"/>
   <translation tag="Z Calibration" ru="Калибровка Z"/>
   <translation tag="Z Movement" ru="Движение Z"/>

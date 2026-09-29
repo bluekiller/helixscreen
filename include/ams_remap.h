@@ -3,8 +3,14 @@
 #pragma once
 
 #include "ams_backend.h"
+#include "filament_mapper.h"
+#include "gcode_tool_remapper.h"
 
 #include <cstdint>
+#include <map>
+#include <string>
+#include <string_view>
+#include <vector>
 
 /**
  * @file ams_remap.h
@@ -152,6 +158,64 @@ enum class RemapBlock : uint8_t {
 [[nodiscard]] inline bool can_write_mapping_table(const AmsBackend& backend) {
     return backend.get_remap_strategy() == AmsBackend::RemapStrategy::Native &&
            backend.remap_ready();
+}
+
+/**
+ * @brief The tool-naming start macro parameters this route's remap leaves as sliced.
+ *
+ * Only GcodeRewrite edits the job file, so only it can leave a stale tool
+ * number behind in the file: a PRINT_START that heats EXTRUDER_TEMP's tool
+ * while the rewritten body selects another prints from a cold head.
+ *
+ * @param start_line The job's PRINT_START/START_PRINT line, or empty when none
+ *        was scanned for this file.
+ * @return Parameter keys to warn about; empty when there is nothing to say.
+ */
+[[nodiscard]] inline std::vector<std::string>
+start_params_remap_leaves(AmsBackend::RemapStrategy strategy, std::string_view start_line) {
+    if (strategy != AmsBackend::RemapStrategy::GcodeRewrite || start_line.empty()) {
+        return {};
+    }
+    return GcodeToolRemapper::unremapped_tool_params(start_line);
+}
+
+/**
+ * @brief The logical->physical tool map a GcodeRewrite applies for these picks.
+ *
+ * Auto and unmapped picks (-1) are left out: the rewrite leaves those tool
+ * numbers as sliced. Slot index is the physical head on every backend that
+ * takes this route.
+ */
+[[nodiscard]] inline std::map<int, int>
+gcode_rewrite_remap(const std::vector<ToolMapping>& mappings) {
+    std::map<int, int> remap;
+    for (const auto& m : mappings) {
+        if (m.tool_index >= 0 && m.mapped_slot >= 0) {
+            remap[m.tool_index] = m.mapped_slot;
+        }
+    }
+    return remap;
+}
+
+/**
+ * @brief Does the start macro warning belong on screen for these picks?
+ *
+ * Only when the rewrite actually changes a tool number: identity picks leave
+ * the start macro's own values consistent with the body.
+ *
+ * @param has_keys Whether start_params_remap_leaves() reported anything.
+ */
+[[nodiscard]] inline bool start_macro_note_shown(bool has_keys,
+                                                 const std::vector<ToolMapping>& mappings) {
+    if (!has_keys) {
+        return false;
+    }
+    for (const auto& [logical, physical] : gcode_rewrite_remap(mappings)) {
+        if (logical != physical) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace printer

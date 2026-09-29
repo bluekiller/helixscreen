@@ -3636,6 +3636,8 @@ translations:
   Your printer has an automatic filament changer: Your printer has an automatic filament
     changer
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: Your printer was offline during setup, so hardware options were skipped. Set them up now?
+  ? Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide.
+  : Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide.
   Z: Z
   Z Calibration: Z Calibration
   Z Movement: Z Movement

@@ -3323,6 +3323,7 @@
   <translation tag="Your printer at a glance" it="La tua stampante a colpo d&apos;occhio"/>
   <translation tag="Your printer has an automatic filament changer" it="La stampante ha un cambio filamento automatico"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" it="La stampante era offline durante la configurazione, quindi le opzioni hardware sono state saltate. Configurarle ora?"/>
+  <translation tag="Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide." it="La riga {} passa impostazioni per strumento che la rimappatura non modifica ({}). Uno strumento rimappato potrebbe non essere riscaldato. Vedi &quot;Tool Mapping&quot; nella guida utente."/>
   <translation tag="Z" it="Z"/>
   <translation tag="Z Calibration" it="Calibrazione Z"/>
   <translation tag="Z Movement" it="Movimento Z"/>
