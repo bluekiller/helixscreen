@@ -114,6 +114,13 @@ class ConsolePanel : public OverlayBase {
                                              bool filter_temps, bool filter_firmware_noise,
                                              const helix::ui::ConsoleFilterEngine& firmware_filter);
 
+    /// Whether @p entry is shown, under the user's console filter settings as
+    /// they stand now and the active printer's @p firmware_filter. The one
+    /// display decision for the overlay's history and live paths and the home
+    /// console tile. Main thread: reads SettingsManager.
+    [[nodiscard]] static bool accepts(const GcodeEntry& entry,
+                                      const helix::ui::ConsoleFilterEngine& firmware_filter);
+
     /// One server.gcode_store row as an entry. Pure, safe on any thread.
     [[nodiscard]] static GcodeEntry entry_from_store(const GcodeStoreEntry& stored);
 
@@ -198,14 +205,9 @@ class ConsolePanel : public OverlayBase {
     helix::InFlightGuard fetch_guard_{std::chrono::milliseconds(30000)};
     bool user_scrolled_up_ = false; ///< True if user manually scrolled up
 
-    // Filtering — engine + observers driven by SettingsManager subjects.
-    // The engine is rebuilt on every on_activate() so user pattern edits take
-    // effect immediately when returning from the settings overlay.
+    // Firmware-noise patterns, rebuilt on every on_activate() so user pattern
+    // edits take effect when returning from the settings overlay.
     helix::ui::ConsoleFilterEngine firmware_filter_;
-    ObserverGuard filter_temps_observer_;
-    ObserverGuard filter_firmware_observer_;
-    bool filter_temps_ = true;
-    bool filter_firmware_noise_ = true;
 
     // Timestamp display (responsive: medium+ breakpoints only)
     bool show_timestamps_ = false; ///< True if screen is large enough for timestamps

@@ -12,6 +12,9 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
+#include "helix/ui/text_metrics.h"
+#include "lvgl/src/others/translation/lv_translation.h"
+#include "print_control_view.h"
 #include "src/ui/panel_widgets/control_buttons_widget.h"
 
 #include "../catch_amalgamated.hpp"
@@ -161,4 +164,38 @@ TEST_CASE_METHOD(LVGLUITestFixture, "control buttons tile lays its buttons out f
         CHECK(lv_obj_has_flag(stop_label, LV_OBJ_FLAG_HIDDEN));
         CHECK(inside_root(stop));
     }
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "control buttons size labels for the transient labels too",
+                 "[control_buttons][panel_widget]") {
+    PanelWidgetHarness<ControlButtonsWidget> h(test_screen());
+    lv_obj_t* primary = h.child("btn_primary");
+    REQUIRE(primary != nullptr);
+    lv_obj_t* label = text_label(primary);
+    REQUIRE(label != nullptr);
+    const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+
+    // "Resuming..." is wider than the steady labels; a button sized only for
+    // Pause/Resume overflows the moment a resume is in flight.
+    const int resuming =
+        static_cast<int>(helix::ui::text_width(lv_tr(helix::ui::CONTROL_LABEL_RESUMING), font));
+    const int resume =
+        static_cast<int>(helix::ui::text_width(lv_tr(helix::ui::CONTROL_LABEL_RESUME), font));
+    REQUIRE(resuming > resume);
+    CHECK(h.widget().button_need_px() > resuming);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "control buttons re-take the label verdict on a language change",
+                 "[control_buttons][panel_widget]") {
+    PanelWidgetHarness<ControlButtonsWidget> h(test_screen());
+    h.resize(4, 2, 300, 120);
+    lv_subject_t* labels = lv_xml_get_subject(nullptr, "control_buttons_labels");
+    REQUIRE(labels != nullptr);
+    REQUIRE(lv_subject_get_int(labels) == 1);
+
+    // A stale verdict, as a language switch without a resize would leave it.
+    lv_subject_set_int(labels, 0);
+    lv_obj_send_event(h.root(), LV_EVENT_TRANSLATION_LANGUAGE_CHANGED, nullptr);
+    CHECK(lv_subject_get_int(labels) == 1);
 }

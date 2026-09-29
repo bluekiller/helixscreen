@@ -37,6 +37,7 @@ class GCodeConsoleWidget : public PanelWidget {
     void attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) override;
     void detach() override;
     void on_activate() override;
+    void on_deactivate() override;
     const char* id() const override {
         return "gcode_console";
     }
@@ -78,7 +79,6 @@ class GCodeConsoleWidget : public PanelWidget {
     void fetch_history();
     void replace_lines(const std::vector<Entry>& history);
     void append_line(Entry entry);
-    bool accepts(const Entry& entry) const;
     void rebuild_rows();
     void create_row(const Entry& entry);
     void publish_view();

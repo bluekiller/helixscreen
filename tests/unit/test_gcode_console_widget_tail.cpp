@@ -199,6 +199,28 @@ TEST_CASE_METHOD(ConsoleTailFixture, "console tail appends live responses at the
     CHECK(rows(h).back() == "// probe at 150.000,150.000 is z=1.234");
 }
 
+TEST_CASE_METHOD(ConsoleTailFixture, "console tail stops listening while Home is hidden",
+                 "[gcode_console_tail][panel_widget]") {
+    PanelWidgetHarness<GCodeConsoleWidget> h(test_screen());
+    h.resize(4, 8, kW, kTallH);
+    drain();
+    REQUIRE_FALSE(GCodeConsoleWidgetTestAccess::handler_name(h.widget()).empty());
+    const size_t before = GCodeConsoleWidgetTestAccess::lines(h.widget()).size();
+
+    h.widget().on_deactivate();
+    CHECK(GCodeConsoleWidgetTestAccess::handler_name(h.widget()).empty());
+    client_.dispatch_gcode_response("// while hidden");
+    drain();
+    CHECK(GCodeConsoleWidgetTestAccess::lines(h.widget()).size() == before);
+
+    h.widget().on_activate();
+    drain();
+    CHECK_FALSE(GCodeConsoleWidgetTestAccess::handler_name(h.widget()).empty());
+    client_.dispatch_gcode_response("// back on screen");
+    drain();
+    CHECK(rows(h).back() == "// back on screen");
+}
+
 TEST_CASE_METHOD(ConsoleTailFixture, "console tail keeps a bounded ring of lines",
                  "[gcode_console_tail][panel_widget]") {
     PanelWidgetHarness<GCodeConsoleWidget> h(test_screen());

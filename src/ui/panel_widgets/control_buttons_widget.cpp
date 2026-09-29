@@ -10,6 +10,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "panel_widget_registry.h"
 #include "panel_widget_size.h"
+#include "print_control_view.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -73,10 +74,24 @@ ControlButtonsWidget::~ControlButtonsWidget() {
 
 void ControlButtonsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen*/) {
     widget_obj_ = widget_obj;
+    lv_obj_set_user_data(widget_obj_, this);
+    // A new language can change whether the labels fit without any resize, so
+    // the verdict is re-taken against the size the grid last granted.
+    lv_obj_add_event_cb(
+        widget_obj_,
+        [](lv_event_t* e) {
+            if (auto* self = panel_widget_from_event<ControlButtonsWidget>(e)) {
+                self->relayout_for_granted_size();
+            }
+        },
+        LV_EVENT_TRANSLATION_LANGUAGE_CHANGED, nullptr);
     spdlog::debug("[ControlButtonsWidget] Attached");
 }
 
 void ControlButtonsWidget::detach() {
+    if (widget_obj_) {
+        lv_obj_set_user_data(widget_obj_, nullptr);
+    }
     widget_obj_ = nullptr;
     spdlog::debug("[ControlButtonsWidget] Detached");
 }
@@ -85,29 +100,29 @@ int ControlButtonsWidget::button_need_px() const {
     if (!widget_obj_) {
         return 0;
     }
-    // Every label either button can show, translated or not: the primary
-    // button's text arrives from a subject and switches between these.
-    struct Button {
-        const char* name;
-        std::vector<const char*> labels;
-    };
-    const Button buttons[] = {
-        {"btn_primary", {"Pause", "Resume"}},
-        {"btn_stop", {"Stop"}},
-    };
+    // The primary button's text arrives from a subject and switches between
+    // every label print_control_view can give it, translated or not; the stop
+    // button's is whatever its label says now.
+    std::vector<const char*> primary_labels;
+    for (const char* text : ui::CONTROL_PRIMARY_LABELS) {
+        primary_labels.push_back(text);
+        primary_labels.push_back(lv_tr(text));
+    }
 
+    lv_obj_t* primary = lv_obj_find_by_name(widget_obj_, "btn_primary");
+    lv_obj_t* stop = lv_obj_find_by_name(widget_obj_, "btn_stop");
     int need = 0;
-    for (const auto& b : buttons) {
-        lv_obj_t* btn = lv_obj_find_by_name(widget_obj_, b.name);
+    for (lv_obj_t* btn : {primary, stop}) {
         lv_obj_t* label = btn ? button_text_label(btn) : nullptr;
         if (!label) {
             continue;
         }
         const lv_font_t* label_font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+        const std::vector<const char*> texts =
+            btn == primary ? primary_labels : std::vector<const char*>{lv_label_get_text(label)};
         int label_w = 0;
-        for (const char* text : b.labels) {
+        for (const char* text : texts) {
             label_w = std::max(label_w, static_cast<int>(ui::text_width(text, label_font)));
-            label_w = std::max(label_w, static_cast<int>(ui::text_width(lv_tr(text), label_font)));
         }
         int icon_w = 0;
         if (lv_obj_t* icon = ui_button_get_icon(btn)) {

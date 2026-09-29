@@ -50,10 +50,11 @@ class ControlButtonsWidget : public PanelWidget {
         return const_cast<const char**>(attrs_.data());
     }
 
-  private:
-    /// Widest the buttons draw with labels, or 0 before the tree exists.
-    int button_need_px() const;
+    /// Widest a labelled button draws: icon, gap, the widest label it can
+    /// show and its inset. 0 before the tree exists.
+    [[nodiscard]] int button_need_px() const;
 
+  private:
     lv_obj_t* widget_obj_ = nullptr;
 
     // Registered in the constructor: the manager parses this tile's XML

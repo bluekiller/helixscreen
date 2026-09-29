@@ -20,7 +20,6 @@
 #include "console_line.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "observer_factory.h"
 #include "printer_detector.h"
 #include "printer_state.h"
 #include "settings_manager.h"
@@ -91,22 +90,6 @@ void ConsolePanel::init_subjects() {
         UI_MANAGED_SUBJECT_INT(status_visible_subject_, 1, "console_status_visible", subjects_);
         // Entry presence (1 = has entries, 0 = empty/show empty state)
         UI_MANAGED_SUBJECT_INT(has_entries_subject_, 0, "console_has_entries", subjects_);
-
-        // Seed filter flags from SettingsManager and observe future changes.
-        // SettingsManager owns these subjects in its SubjectManager; panels
-        // outlive a mid-process deinit_subjects(), so they carry its token.
-        auto& sm = helix::SettingsManager::instance();
-        filter_temps_ = sm.get_console_filter_temps();
-        filter_firmware_noise_ = sm.get_console_filter_firmware_noise();
-
-        filter_temps_observer_ = helix::ui::observe_int_sync(
-            sm.subject_console_filter_temps(), this,
-            [](ConsolePanel* self, int v) { self->filter_temps_ = (v != 0); },
-            sm.get_subjects_lifetime());
-        filter_firmware_observer_ = helix::ui::observe_int_sync(
-            sm.subject_console_filter_firmware_noise(), this,
-            [](ConsolePanel* self, int v) { self->filter_firmware_noise_ = (v != 0); },
-            sm.get_subjects_lifetime());
     });
 }
 
@@ -114,9 +97,6 @@ void ConsolePanel::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    // Drop observers before subjects (subjects are static so order is mainly cosmetic here).
-    filter_temps_observer_.reset();
-    filter_firmware_observer_.reset();
     subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());
@@ -459,8 +439,7 @@ void ConsolePanel::populate_entries(const std::vector<GcodeEntry>& entries) {
     std::vector<const GcodeEntry*> kept;
     kept.reserve(entries.size());
     for (const auto& entry : entries) {
-        if (should_display(entry.message, helix::ui::is_console_temp_message(entry.message),
-                           filter_temps_, filter_firmware_noise_, firmware_filter_)) {
+        if (accepts(entry, firmware_filter_)) {
             kept.push_back(&entry);
         }
     }
@@ -647,6 +626,14 @@ void ConsolePanel::scroll_to_bottom() {
     }
 }
 
+bool ConsolePanel::accepts(const GcodeEntry& entry,
+                           const helix::ui::ConsoleFilterEngine& firmware_filter) {
+    auto& sm = helix::SettingsManager::instance();
+    return should_display(entry.message, helix::ui::is_console_temp_message(entry.message),
+                          sm.get_console_filter_temps(), sm.get_console_filter_firmware_noise(),
+                          firmware_filter);
+}
+
 bool ConsolePanel::should_display(const std::string& message, bool is_temp, bool filter_temps,
                                   bool filter_firmware_noise,
                                   const helix::ui::ConsoleFilterEngine& firmware_filter) {
@@ -721,18 +708,14 @@ void ConsolePanel::on_gcode_response(const nlohmann::json& msg) {
     }
     GcodeEntry entry = std::move(*parsed);
 
-    // Pure C++, safe on the WebSocket thread; keeps the scan off the main loop.
-    const bool is_temp = helix::ui::is_console_temp_message(entry.message);
-
     // CRITICAL: Defer LVGL operations to main thread via token.defer
     // WebSocket callbacks run on libhv thread - direct LVGL calls cause crashes.
     // Use token.defer() (not lifetime_.defer()) to avoid TOCTOU race (#707).
     // Filtering decisions also happen on the main thread so the engine's pattern
     // vector is mutated and read on the same thread (no lock required).
     auto tok = lifetime_.token();
-    tok.defer("ConsolePanel::gcode_entry", [this, entry = std::move(entry), is_temp]() {
-        if (!should_display(entry.message, is_temp, filter_temps_, filter_firmware_noise_,
-                            firmware_filter_)) {
+    tok.defer("ConsolePanel::gcode_entry", [this, entry = std::move(entry)]() {
+        if (!accepts(entry, firmware_filter_)) {
             return;
         }
         add_entry(entry);

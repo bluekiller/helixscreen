@@ -13,7 +13,6 @@
 #include "i_moonraker_api.h"
 #include "panel_widget_registry.h"
 #include "printer_cache_registry.h"
-#include "settings_manager.h"
 #include "theme_manager.h"
 #include "ui/ui_lazy_panel_helper.h"
 
@@ -118,6 +117,12 @@ void GCodeConsoleWidget::on_activate() {
     fetch_history();
 }
 
+void GCodeConsoleWidget::on_deactivate() {
+    // Off screen the tail needs no live lines; on_activate() refetches the store.
+    unsubscribe();
+    lifetime_.invalidate();
+}
+
 void GCodeConsoleWidget::on_size_changed(int colspan, int rowspan, int width_px, int height_px) {
     sizing_.measure_and_publish(width_px, height_px);
 
@@ -209,18 +214,11 @@ void GCodeConsoleWidget::fetch_history() {
         });
 }
 
-bool GCodeConsoleWidget::accepts(const Entry& entry) const {
-    auto& sm = SettingsManager::instance();
-    return ConsolePanel::should_display(
-        entry.message, helix::ui::is_console_temp_message(entry.message),
-        sm.get_console_filter_temps(), sm.get_console_filter_firmware_noise(), filter_);
-}
-
 void GCodeConsoleWidget::replace_lines(const std::vector<Entry>& history) {
     lines_.clear();
     // Filter before trimming, so noise never spends the line budget.
     for (const auto& entry : history) {
-        if (accepts(entry)) {
+        if (ConsolePanel::accepts(entry, filter_)) {
             lines_.push_back(entry);
         }
     }
@@ -232,7 +230,7 @@ void GCodeConsoleWidget::replace_lines(const std::vector<Entry>& history) {
 }
 
 void GCodeConsoleWidget::append_line(Entry entry) {
-    if (!accepts(entry)) {
+    if (!ConsolePanel::accepts(entry, filter_)) {
         return;
     }
     lines_.push_back(std::move(entry));
