@@ -1354,15 +1354,15 @@ TEST_CASE("clamp_span: clamps to widget min/max", "[grid_edit][sizing]") {
 }
 
 TEST_CASE("clamp_span: a fixed axis stays fixed while the other scales", "[grid_edit][sizing]") {
-    // "favorite_macro" scales its width but not its height. Assert the premise
-    // so a widget that later gains a range does not leave this passing on a
-    // clamp that never happened.
-    const auto* def = find_widget_def("favorite_macro");
+    // "preheat" scales its width but not its height. Assert the premise so a
+    // widget that later gains a range does not leave this passing on a clamp
+    // that never happened.
+    const auto* def = find_widget_def("preheat");
     REQUIRE(def != nullptr);
     REQUIRE(def->effective_min_rowspan() == def->effective_max_rowspan());
     REQUIRE(def->effective_max_colspan() > def->effective_min_colspan());
 
-    auto [c1, r1] = GridEditMode::clamp_span("favorite_macro", def->effective_max_colspan(), 8);
+    auto [c1, r1] = GridEditMode::clamp_span("preheat", def->effective_max_colspan(), 8);
     CHECK(c1 == def->effective_max_colspan());
     CHECK(r1 == def->rowspan);
 }
