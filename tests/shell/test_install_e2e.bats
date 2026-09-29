@@ -9,7 +9,7 @@
 # under BusyBox ash inside a user + mount + pid namespace
 # (fixtures/install_e2e_scenario.sh): tmpfs over every directory it writes, a
 # stateful systemctl stub, and a fake x86 release - /bin/true for the binaries,
-# the real config/ tree and launcher, and enough padding to pass the size check.
+# the tracked config/ tree and launcher, and enough padding to pass the size check.
 #
 # The host is a Debian box running Klipper as root in one of two shapes. With
 # Moonraker's config at /root/printer_data/config (the default), the install
@@ -67,7 +67,11 @@ _make_release() {
         cp /bin/true "$pkg/bin/$b"
     done
     cp "$WORKTREE_ROOT/scripts/helix-launcher.sh" "$pkg/bin/"
-    cp -r "$WORKTREE_ROOT/config" "$pkg/config"
+    # The release stages a clean checkout's config/ and ships no personal
+    # config (mk/cross.mk release-x86): tracked files only, so a dev tree's
+    # ignored settings.json never reaches the fake payload.
+    (cd "$WORKTREE_ROOT" && git ls-files -z config | xargs -0 cp --parents -t "$pkg")
+    rm -f "$pkg/config/settings.json" "$pkg/config/helixconfig.json"
     echo "$version" > "$pkg/ui_xml/e2e-release.txt"
     # Incompressible, so the archive clears the installer's 1MB floor.
     head -c 1600000 /dev/urandom > "$pkg/assets/e2e-pad.bin"
@@ -144,7 +148,7 @@ snap_resolve() {
 
     # Config lives in printer_data, and the payload's config links to it.
     [ -f "$s$USER_CFG/helixscreen.env" ] || fail "no helixscreen.env in printer_data"
-    [ "$(readlink "$s$INST/config/settings.json")" = "$USER_CFG/settings.json" ]
+    [ "$(readlink "$s$INST/config/helixscreen.env")" = "$USER_CFG/helixscreen.env" ]
 }
 
 @test "install.sh e2e: an update replaces the payload and carries config and env across" {
