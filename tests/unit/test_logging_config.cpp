@@ -154,7 +154,7 @@ TEST_CASE("set_runtime_level keeps libhv at WARN", "[logging][config]") {
     hlogw("warn from libhv");
     CHECK(g_hv_lines == 1);
 
-    hlog_set_handler(nullptr);
+    route_libhv_to_spdlog(); // the handler every process runs with
     set_runtime_level(spdlog::level::info);
 }
 
@@ -182,8 +182,6 @@ TEST_CASE("libhv log lines reach spdlog tagged [libhv]", "[logging][config][libh
         CHECK(capture.levels_for("libhv fatal probe") ==
               std::vector<spdlog::level::level_enum>{spdlog::level::critical});
     }
-
-    hlog_set_handler(nullptr);
 }
 
 // ============================================================================
