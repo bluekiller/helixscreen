@@ -108,7 +108,6 @@ TEST_CASE_METHOD(PrintHistoryTestFixture, "get_history_list returns mock jobs", 
     REQUIRE_FALSE(first_job.job_id.empty());
     REQUIRE_FALSE(first_job.filename.empty());
     REQUIRE(first_job.start_time > 0.0);
-    REQUIRE_FALSE(first_job.duration_str.empty());
     REQUIRE_FALSE(first_job.date_str.empty());
 }
 
@@ -150,7 +149,6 @@ TEST_CASE_METHOD(PrintHistoryTestFixture, "get_history_list reads the response b
         CHECK_FALSE(job.filename.empty());
         CHECK(job.start_time > 0.0);
         // Derived display strings are built per job during the same walk.
-        CHECK_FALSE(job.duration_str.empty());
         CHECK_FALSE(job.date_str.empty());
     }
 }

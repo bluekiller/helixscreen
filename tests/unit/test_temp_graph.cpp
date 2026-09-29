@@ -4,6 +4,7 @@
 #include "../../include/temp_graph_internal.h"
 #include "../../include/theme_manager.h"
 #include "../../include/ui_temp_graph.h"
+#include "../lvgl_test_fixture.h"
 #include "../ui_test_utils.h"
 #include "lvgl/lvgl.h"
 #include "misc/lv_timer_private.h"
@@ -1544,4 +1545,49 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: Y-axis width is measured,
     REQUIRE(lv_obj_get_style_pad_left(chart, LV_PART_MAIN) >= graph->y_axis_width);
 
     ui_temp_graph_destroy(graph);
+}
+
+// The frame that shows new data draws the gradient from a cache rebuilt at
+// LV_EVENT_RENDER_START. Left stale, that frame draws it directly and schedules a
+// recompute that repaints the chart in the next frame.
+TEST_CASE_METHOD(LVGLTestFixture, "ui_temp_graph: a frame rebuilds a stale gradient cache first",
+                 "[temp_graph][gradient_cache]") {
+    ui_temp_graph_t* graph = ui_temp_graph_create(test_screen());
+    REQUIRE(graph != nullptr);
+    lv_obj_set_size(ui_temp_graph_get_chart(graph), 400, 200);
+    int s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(s >= 0);
+    for (float t : {20.0f, 60.0f, 120.0f, 180.0f})
+        ui_temp_graph_update_series(graph, s, t);
+    REQUIRE(ui_temp_graph_gradient_cache_is_dirty(graph));
+
+    lv_refr_now(nullptr);
+
+    CHECK_FALSE(ui_temp_graph_gradient_cache_is_dirty(graph));
+    ui_temp_graph_destroy(graph);
+}
+
+// The render-start hook holds the graph pointer; a hook left behind on the
+// display would run against a freed graph at the next frame.
+TEST_CASE_METHOD(LVGLTestFixture, "ui_temp_graph: tearing a graph down leaves no display hook",
+                 "[temp_graph][gradient_cache]") {
+    lv_display_t* disp = lv_obj_get_display(test_screen());
+    const uint32_t hooks = lv_display_get_event_count(disp);
+
+    SECTION("destroyed through the graph API") {
+        ui_temp_graph_t* graph = ui_temp_graph_create(test_screen());
+        REQUIRE(graph != nullptr);
+        REQUIRE(lv_display_get_event_count(disp) > hooks);
+        ui_temp_graph_destroy(graph);
+        CHECK(lv_display_get_event_count(disp) == hooks);
+    }
+    SECTION("chart deleted by its parent") {
+        lv_obj_t* parent = lv_obj_create(test_screen());
+        ui_temp_graph_t* graph = ui_temp_graph_create(parent);
+        REQUIRE(graph != nullptr);
+        REQUIRE(lv_display_get_event_count(disp) > hooks);
+        lv_obj_delete(parent);
+        CHECK(lv_display_get_event_count(disp) == hooks);
+        ui_temp_graph_destroy(graph);
+    }
 }

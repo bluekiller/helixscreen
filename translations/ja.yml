@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d フィーダー'
   '%d gates': '%d ゲート'
   '%d lanes': '%d レーン'
+  '%d min': '%d分'
+  '%d min left': '残り %d 分'
   '%d more sensors': 他%d個のセンサー
   '%d slots': '%d スロット'
   '%d toolheads': '%d ツールヘッド'
   '%d tools': '%d ツール'
+  '%d:%02d left': '残り %d:%02d'
+  '%dh': '%d時間'
+  '%dh %02dm': '%d時間%02d分'
+  '%dh %dm': '%d時間%d分'
+  '%dm': '%d分'
+  '%dm %02ds': '%d分%02d秒'
+  '%ds': '%d秒'
   '%lu days ago': '%lu日前'
   '%lu hours ago': '%lu時間前'
   '%lu min ago': '%lu分前'
@@ -135,6 +144,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS 有効: '
   AMS is busy: AMS はビジー状態です
+  AMS/MMU system not detected: 'AMS/MMU システムが検出されません'
   API not available: APIが利用できません
   APPEARANCE: 外観
   AUTO FANS: 自動ファン

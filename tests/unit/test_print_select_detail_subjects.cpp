@@ -421,6 +421,92 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::UpdateQueue::instance().drain();
 }
 
+TEST_CASE_METHOD(LVGLUITestFixture, "prep time estimate line appears on the first open",
+                 "[print_select][detail][xml]") {
+    // The line hides itself through preprint_estimate_visible, the int twin
+    // update_prep_time_label() writes beside the estimate string. The writer
+    // runs from on_activate(), so a real show() must publish a visible
+    // estimate with no option toggled and no direct subject write.
+    CacheDirGuard guard;
+
+    register_xml_callbacks({
+        {"on_print_select_detail_backdrop", detail_noop_cb},
+        {"on_print_select_print_button", detail_noop_cb},
+        {"on_print_select_delete_button", detail_noop_cb},
+        {"on_print_detail_back_clicked", detail_noop_cb},
+        {"on_toggle_sliced_colors", detail_noop_cb},
+    });
+
+    helix::ui::PrintSelectDetailView view;
+    view.init_subjects();
+    lv_obj_t* const root = view.create(test_screen());
+    REQUIRE(root != nullptr);
+    // After create(): set_dependencies() forwards the printer state to the
+    // prep manager, which create() has just constructed.
+    view.set_dependencies(nullptr, &get_printer_state());
+
+    lv_obj_t* const line = lv_obj_find_by_name(root, "prep_time_estimate");
+    REQUIRE(line != nullptr);
+    lv_subject_t* const visible = lv_xml_get_subject(nullptr, "preprint_estimate_visible");
+    REQUIRE(visible != nullptr);
+
+    // Before the view is shown there is no estimate: 0 and hidden.
+    CHECK(lv_subject_get_int(visible) == 0);
+    CHECK(lv_obj_has_flag(line, LV_OBJ_FLAG_HIDDEN));
+
+    // First open. show() defers the push; the drain runs on_activate()
+    // -> update_prep_time_label() -> recalculate_estimate().
+    view.show("prep.gcode", "", "PLA");
+    helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(20);
+
+    CHECK(lv_subject_get_int(visible) == 1);
+    CHECK_FALSE(lv_obj_has_flag(line, LV_OBJ_FLAG_HIDDEN));
+    CHECK(std::string(lv_label_get_text(line)).find("prep time") != std::string::npos);
+
+    // The binding is reactive in both directions, not a one-shot at build.
+    lv_subject_set_int(visible, 0);
+    process_lvgl(20);
+    CHECK(lv_obj_has_flag(line, LV_OBJ_FLAG_HIDDEN));
+
+    view.hide();
+    helix::ui::UpdateQueue::instance().drain();
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "History row lives in the metadata strip",
+                 "[print_select][detail][xml]") {
+    lv_obj_t* const root = make_detail_root(test_screen());
+    REQUIRE(root != nullptr);
+    lv_obj_t* const row = lv_obj_find_by_name(root, "history_status_row");
+    lv_obj_t* const strip = lv_obj_find_by_name(root, "detail_metadata_overlay");
+    REQUIRE(row != nullptr);
+    REQUIRE(strip != nullptr);
+    bool inside = false;
+    for (lv_obj_t* p = lv_obj_get_parent(row); p; p = lv_obj_get_parent(p)) {
+        inside = inside || p == strip;
+    }
+    CHECK(inside);
+    CHECK(std::string(lv_obj_get_name(lv_obj_get_parent(row))) == "detail_history_wrap");
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Print button sits outside the options scroll area",
+                 "[print_select][detail][xml]") {
+    lv_obj_t* const root = make_detail_root(test_screen());
+    REQUIRE(root != nullptr);
+    lv_obj_t* const scroll = lv_obj_find_by_name(root, "detail_options_scroll");
+    lv_obj_t* const print = lv_obj_find_by_name(root, "print_button");
+    REQUIRE(scroll != nullptr);
+    REQUIRE(print != nullptr);
+    for (lv_obj_t* p = lv_obj_get_parent(print); p; p = lv_obj_get_parent(p)) {
+        CHECK(p != scroll);
+    }
+    CHECK(lv_obj_has_flag(scroll, LV_OBJ_FLAG_SCROLLABLE));
+    // The fade must never take touches from the tiles under it.
+    lv_obj_t* const cue = lv_obj_find_by_name(root, "detail_options_cue");
+    REQUIRE(cue != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(cue, LV_OBJ_FLAG_CLICKABLE));
+}
+
 // ============================================================================
 // filament_mismatch means MATERIAL, and only material
 // ============================================================================
@@ -1014,4 +1100,51 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::UpdateQueue::instance().drain();
     CHECK_FALSE(lv_obj_has_state(print_button, LV_STATE_DISABLED));
     CHECK(lv_obj_has_flag(reason_label, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "More-below subject tracks the options scroll area",
+                 "[print_select][detail][xml]") {
+    register_xml_callbacks({
+        {"on_print_select_detail_backdrop", detail_noop_cb},
+        {"on_print_select_print_button", detail_noop_cb},
+        {"on_print_select_delete_button", detail_noop_cb},
+        {"on_print_detail_back_clicked", detail_noop_cb},
+        {"on_toggle_sliced_colors", detail_noop_cb},
+    });
+    helix::ui::PrintSelectDetailView view;
+    view.init_subjects();
+    lv_obj_t* const root = view.create(test_screen());
+    REQUIRE(root != nullptr);
+    lv_obj_remove_flag(root, LV_OBJ_FLAG_HIDDEN);
+
+    struct CloseOnExit {
+        helix::ui::PrintSelectDetailView& v;
+        ~CloseOnExit() {
+            v.hide();
+            helix::ui::UpdateQueue::instance().drain();
+        }
+    } closer{view};
+
+    lv_obj_t* const scroll = lv_obj_find_by_name(root, "detail_options_scroll");
+    lv_subject_t* const more = lv_xml_get_subject(nullptr, "detail_options_more_below");
+    REQUIRE(scroll != nullptr);
+    REQUIRE(more != nullptr);
+
+    // Force an overflow: a tall child in the scroll area.
+    lv_obj_t* filler = lv_obj_create(scroll);
+    lv_obj_set_size(filler, 10, 4000);
+    lv_obj_update_layout(root);
+    lv_obj_send_event(scroll, LV_EVENT_SIZE_CHANGED, nullptr);
+    process_lvgl(20);
+    CHECK(lv_subject_get_int(more) == 1);
+
+    lv_obj_scroll_to_y(scroll, LV_COORD_MAX, LV_ANIM_OFF);
+    process_lvgl(20);
+    CHECK(lv_subject_get_int(more) == 0);
+
+    lv_obj_delete(filler);
+    lv_obj_update_layout(root);
+    lv_obj_send_event(scroll, LV_EVENT_SIZE_CHANGED, nullptr);
+    process_lvgl(20);
+    CHECK(lv_subject_get_int(more) == 0);
 }

@@ -186,6 +186,18 @@ char* format_frequency_hz(double hz, char* buf, size_t size);
 // Duration Formatting
 // =============================================================================
 
+/// Looks up a unit format ("%dh %dm") in the current language.
+using Translator = const char* (*)(const char*);
+
+/**
+ * @brief Install the lookup the duration formatters translate their units with
+ *
+ * Until one is set they print English. This module stays free of LVGL so the
+ * Moonraker inspector tool can link it alone; the app installs
+ * lv_translation_get() when it sets the language.
+ */
+void set_translator(Translator translator);
+
 /**
  * @brief Format duration in seconds to human-readable string
  *

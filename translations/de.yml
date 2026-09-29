@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d Zuführungen'
   '%d gates': '%d Gates'
   '%d lanes': '%d Spuren'
+  '%d min': '%d Min'
+  '%d min left': 'noch %d Min'
   '%d more sensors': '%d weitere Sensoren'
   '%d slots': '%d Slots'
   '%d toolheads': '%d Werkzeugköpfe'
   '%d tools': '%d Werkzeuge'
+  '%d:%02d left': 'noch %d:%02d'
+  '%dh': '%d Std'
+  '%dh %02dm': '%d Std %02d Min'
+  '%dh %dm': '%d Std %d Min'
+  '%dm': '%d Min'
+  '%dm %02ds': '%d Min %02d s'
+  '%ds': '%d s'
   '%lu days ago': vor %lu Tagen
   '%lu hours ago': vor %lu Stunden
   '%lu min ago': vor %lu Min.
@@ -143,6 +152,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS aktiv: '
   AMS is busy: AMS ist beschäftigt
+  AMS/MMU system not detected: 'AMS/MMU-System nicht erkannt'
   API not available: API nicht verfügbar
   APPEARANCE: ERSCHEINUNGSBILD
   AUTO FANS: AUTO-LÜFTER

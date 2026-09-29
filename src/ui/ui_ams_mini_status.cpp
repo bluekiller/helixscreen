@@ -29,6 +29,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -123,6 +124,11 @@ struct SpoolCellData {
     std::string material;   // "" => label reads "--"
     int remaining_pct = -1; // actual % remaining; -1 = unknown (blank label)
     bool active = false;    // actively-loaded lane (success-colored badge)
+
+    bool operator==(const SpoolCellData& o) const {
+        return lane_state == o.lane_state && material == o.material &&
+               remaining_pct == o.remaining_pct && active == o.active;
+    }
 };
 
 /**
@@ -190,6 +196,7 @@ struct AmsMiniStatusData {
     // in one UpdateQueue batch. Without this, the second rebuild_bars would try
     // to reparent rows the first call already moved to its condemned_parent.
     bool rebuilding = false;
+    bool synced = false; // the widget shows what the last sync_from_ams_state() read
 };
 
 // Static registry for safe cleanup
@@ -1187,15 +1194,12 @@ lv_obj_t* ui_ams_mini_status_create(lv_obj_t* parent, int32_t height) {
             },
             helix::AmsState::instance().get_subjects_lifetime());
 
-        // Sync initial state if AMS already has data — defer so layout is
-        // fully resolved before rebuild_bars queries container dimensions.
+        // Sync now, so the frame that first shows the widget draws its lanes.
+        // Layout has not sized the container yet: rebuild_bars waits for that,
+        // and on_size_changed rebuilds once it lands, still before that frame.
         lv_subject_t* slot_count_subject = helix::AmsState::instance().get_slot_count_subject();
         if (slot_count_subject && lv_subject_get_int(slot_count_subject) > 0) {
-            helix::ui::queue_update([container]() {
-                auto* d = get_data(container);
-                if (d)
-                    sync_from_ams_state(d);
-            });
+            sync_from_ams_state(data);
         }
         spdlog::debug("[AmsMiniStatus] Auto-bound to AmsState slots_version subject");
     }
@@ -1352,6 +1356,15 @@ static void sync_from_ams_state(AmsMiniStatusData* data) {
         return;
     }
 
+    // A sync that reads nothing new skips the rebuild: a rebuild re-applies the
+    // layout styles and flags, and each one repaints the widget.
+    const int prev_slot_count = data->slot_count;
+    const int prev_unit_count = data->unit_count;
+    std::array<std::pair<int, int>, 8> prev_rows;
+    for (int u = 0; u < 8; ++u)
+        prev_rows[u] = {data->unit_rows[u].first_slot, data->unit_rows[u].slot_count};
+    const std::vector<SpoolCellData> prev_cells = data->spool_cells;
+
     int slot_count = lv_subject_get_int(helix::AmsState::instance().get_slot_count_subject());
     data->slot_count = slot_count;
 
@@ -1398,6 +1411,15 @@ static void sync_from_ams_state(AmsMiniStatusData* data) {
         c.remaining_pct = rem;
         c.active = active_subject && lv_subject_get_int(active_subject) != 0;
     }
+
+    bool unchanged = data->synced && prev_slot_count == slot_count &&
+                     prev_unit_count == data->unit_count && prev_cells == data->spool_cells;
+    for (int u = 0; unchanged && u < 8; ++u)
+        unchanged = prev_rows[u] ==
+                    std::make_pair(data->unit_rows[u].first_slot, data->unit_rows[u].slot_count);
+    data->synced = true;
+    if (unchanged)
+        return;
 
     rebuild(data);
     spdlog::trace("[AmsMiniStatus] Synced from AmsState: {} slots", slot_count);
@@ -1496,15 +1518,12 @@ static void* ui_ams_mini_status_xml_create(lv_xml_parser_state_t* state, const c
             },
             helix::AmsState::instance().get_subjects_lifetime());
 
-        // Sync initial state if AMS already has data — defer so layout is
-        // fully resolved before rebuild_bars queries container dimensions.
+        // Sync now, so the frame that first shows the widget draws its lanes.
+        // Layout has not sized the container yet: rebuild_bars waits for that,
+        // and on_size_changed rebuilds once it lands, still before that frame.
         lv_subject_t* slot_count_subject = helix::AmsState::instance().get_slot_count_subject();
         if (slot_count_subject && lv_subject_get_int(slot_count_subject) > 0) {
-            helix::ui::queue_update([container]() {
-                auto* d = get_data(container);
-                if (d)
-                    sync_from_ams_state(d);
-            });
+            sync_from_ams_state(data);
         }
     }
 

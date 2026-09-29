@@ -30,7 +30,6 @@ LANGUAGES = REPO_ROOT / "src" / "system" / "system_settings_manager.cpp"
 # Edit-mode callouts drive raw pointer gestures, not screens of their own.
 SKIP = {"callouts-2x2", "callouts-4x2", "callouts-untagged"}
 
-DURATION = re.compile(r"^\d+(h|h \d+m| min)$")
 
 WORD = re.compile(r"[A-Za-z][A-Za-z'-]+")
 
@@ -57,9 +56,17 @@ def _ru_index() -> int:
 
 
 def _translatable(en: str, ru: dict) -> tuple[str, str] | None:
-    """The longest phrase of ``en`` that Russian translates, whole text first."""
+    """The longest phrase of ``en`` that Russian translates, whole text first.
+
+    An uppercase-transformed label shows its key uppercased, so a whole
+    uppercase text also matches its key case-insensitively.
+    """
     if ru.get(en) and ru[en] != en:
         return en, ru[en]
+    if en.isupper():
+        for key, want in ru.items():
+            if want and want != key and key.upper() == en:
+                return en, want
     words = WORD.findall(en)
     for n in range(len(words), 0, -1):
         for i in range(len(words) - n + 1):
@@ -147,13 +154,16 @@ def test_every_screen_retranslates_on_a_language_switch(fresh_helix_app):
             now = after.get(path)
             if now is None:
                 continue  # not on screen after the switch: rebuilt, nothing stale
+            # An uppercase label must show its translation uppercased too.
+            if en.isupper() and phrase == en:
+                if now != want.upper():
+                    stale.append(f"{token}: {path}: {en!r} reads {now!r}, want {want.upper()!r}")
+                continue
             # Still exactly the English text is the stale signature; a different
-            # rendering of the right translation (case, a count beside it) is not.
+            # rendering of the right translation (a count beside it) is not.
             # A composed label ("Tool 2", "Heat to 200°C") counts when any phrase
             # of it has a translation.
-            # Durations are formatted without translation (format::duration_*),
-            # so one that happens to equal a key ("5 min") is data, not stale.
-            if now == en and not DURATION.match(en):
+            if now == en:
                 stale.append(f"{token}: {path}: {en!r} unchanged; {phrase!r} -> {want!r}")
 
     report = "\n".join(stale)

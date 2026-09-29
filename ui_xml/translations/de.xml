@@ -9,10 +9,19 @@
   <translation tag="%d feeders" de="%d Zuführungen"/>
   <translation tag="%d gates" de="%d Gates"/>
   <translation tag="%d lanes" de="%d Spuren"/>
+  <translation tag="%d min" de="%d Min"/>
+  <translation tag="%d min left" de="noch %d Min"/>
   <translation tag="%d more sensors" de="%d weitere Sensoren"/>
   <translation tag="%d slots" de="%d Slots"/>
   <translation tag="%d toolheads" de="%d Werkzeugköpfe"/>
   <translation tag="%d tools" de="%d Werkzeuge"/>
+  <translation tag="%d:%02d left" de="noch %d:%02d"/>
+  <translation tag="%dh" de="%d Std"/>
+  <translation tag="%dh %02dm" de="%d Std %02d Min"/>
+  <translation tag="%dh %dm" de="%d Std %d Min"/>
+  <translation tag="%dm" de="%d Min"/>
+  <translation tag="%dm %02ds" de="%d Min %02d s"/>
+  <translation tag="%ds" de="%d s"/>
   <translation tag="%lu days ago" de="vor %lu Tagen"/>
   <translation tag="%lu hours ago" de="vor %lu Stunden"/>
   <translation tag="%lu min ago" de="vor %lu Min."/>
@@ -134,6 +143,7 @@
   <translation tag="AMS" de="AMS"/>
   <translation tag="AMS Active: " de="AMS aktiv: "/>
   <translation tag="AMS is busy" de="AMS ist beschäftigt"/>
+  <translation tag="AMS/MMU system not detected" de="AMS/MMU-System nicht erkannt"/>
   <translation tag="API not available" de="API nicht verfügbar"/>
   <translation tag="APPEARANCE" de="ERSCHEINUNGSBILD"/>
   <translation tag="AUTO FANS" de="AUTO-LÜFTER"/>

@@ -6,7 +6,6 @@
 #include "ui_format_utils.h"
 
 #include "display_settings_manager.h"
-#include "format_utils.h"
 #include "json_utils.h"
 #include "locale_formats.h"
 #include "moonraker_api_internal.h"
@@ -26,15 +25,6 @@
 using namespace helix;
 
 namespace {
-
-/**
- * @brief Format duration in seconds to human-readable string
- * @param seconds Duration in seconds
- * @return Formatted string like "2h 15m" or "45m" or "30s"
- */
-std::string format_history_duration(double seconds) {
-    return helix::format::duration(static_cast<int>(seconds));
-}
 
 /**
  * @brief Format Unix timestamp to human-readable date
@@ -128,7 +118,6 @@ PrintHistoryJob helix::parse_history_job(const nlohmann::json& job_json) {
     }
 
     // Pre-format display strings
-    job.duration_str = format_history_duration(job.print_duration);
     job.date_str = format_history_date(job.start_time);
     job.filament_str = format_history_filament(job.filament_used);
 

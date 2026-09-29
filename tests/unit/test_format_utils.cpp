@@ -8,6 +8,7 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <utility>
 
 #include "../catch_amalgamated.hpp"
 
@@ -468,4 +469,69 @@ TEST_CASE("eta_clock_time formats 24-hour clock when use_24h is true", "[format_
         auto eta = eta_clock_time(15 * 60, make_ref_time(9, 0), true);
         CHECK(eta == "(~9:15)");
     }
+}
+
+namespace {
+
+/// Stands in for lv_translation_get(): tags each unit format so a test can see
+/// that every duration formatter looked its format up.
+const char* bracket_units(const char* format) {
+    static const std::pair<const char*, const char*> kTable[] = {
+        {"%ds", "[%d s]"},
+        {"%dm", "[%d m]"},
+        {"%dh", "[%d h]"},
+        {"%dh %dm", "[%d h %d m]"},
+        {"%dm %02ds", "[%d m %02d s]"},
+        {"%dh %02dm", "[%d h %02d m]"},
+        {"%d min", "[%d min]"},
+        {"%d:%02d left", "[%d:%02d left]"},
+        {"%d min left", "[%d min left]"},
+    };
+    for (const auto& [from, to] : kTable) {
+        if (std::strcmp(from, format) == 0) {
+            return to;
+        }
+    }
+    return format;
+}
+
+struct TranslatorGuard {
+    explicit TranslatorGuard(Translator translator) {
+        set_translator(translator);
+    }
+    ~TranslatorGuard() {
+        set_translator(nullptr);
+    }
+};
+
+} // namespace
+
+TEST_CASE("Every duration formatter looks its unit format up", "[format_utils][duration][i18n]") {
+    TranslatorGuard guard(bracket_units);
+
+    CHECK(duration(0) == "[0 s]");
+    CHECK(duration(45) == "[45 s]");
+    CHECK(duration(600) == "[10 m]");
+    CHECK(duration(7200) == "[2 h]");
+    CHECK(duration(3900) == "[1 h 5 m]");
+
+    char buf[64];
+    CHECK(duration_to_buffer(buf, sizeof(buf), 3900) == std::strlen("[1 h 5 m]"));
+    CHECK(std::string(buf) == "[1 h 5 m]");
+
+    CHECK(duration_from_minutes(0) == "[0 min]");
+    CHECK(duration_from_minutes(5) == "[5 min]");
+    CHECK(duration_from_minutes(120) == "[2 h]");
+    CHECK(duration_from_minutes(65) == "[1 h 5 m]");
+
+    CHECK(duration_remaining(0) == "[0 min left]");
+    CHECK(duration_remaining(125) == "[2:05 left]");
+    CHECK(duration_remaining(45) == "[0:45 left]");
+    CHECK(duration_remaining(600) == "[10 min left]");
+    CHECK(duration_remaining(3900) == "[1:05 left]");
+
+    CHECK(duration_padded(0) == "[0 s]");
+    CHECK(duration_padded(125) == "[2 m 05 s]");
+    CHECK(duration_padded(600) == "[10 m]");
+    CHECK(duration_padded(3900) == "[1 h 05 m]");
 }
