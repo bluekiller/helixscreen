@@ -227,6 +227,8 @@ static void chart_resize_cb(lv_event_t* e) {
     }
 }
 
+static void gradient_render_start_cb(lv_event_t* e);
+
 // Event callback: Null out graph->chart when the LVGL chart widget is destroyed.
 // Prevents use-after-free when parent widget deletion cascades to the chart
 // but the ui_temp_graph_t struct (and temp_graphs registrations) survive.
@@ -234,6 +236,8 @@ static void chart_delete_cb(lv_event_t* e) {
     auto* graph = static_cast<ui_temp_graph_t*>(lv_event_get_user_data(e));
     if (graph) {
         spdlog::debug("[TempGraph] Chart widget deleted, nulling graph->chart");
+        lv_display_remove_event_cb_with_user_data(lv_obj_get_display(graph->chart),
+                                                  gradient_render_start_cb, graph);
         graph->chart = nullptr;
         // The gradient canvas is a child of the chart, so LVGL's delete cascade
         // already freed it — just null our pointer. The backing draw buffer is
@@ -643,14 +647,24 @@ static bool gradient_skip_enabled() {
     return enabled;
 }
 
+// Gradients are skipped when too many series are visible (visual clutter).
+static bool gradient_series_fit(const ui_temp_graph_t* graph) {
+    int visible_count = 0;
+    for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
+        if (graph->series_meta[i].chart_series && graph->series_meta[i].visible)
+            visible_count++;
+    }
+    return visible_count <= 3;
+}
+
 // Recompute the cached gradient buffer. lv_canvas_init_layer / finish_layer run a
 // nested synchronous draw dispatch and end with lv_obj_invalidate(canvas), which
 // is ILLEGAL during an active render pass (disp->rendering_in_progress) — doing it
 // from the DRAW_MAIN_END draw callback produced an empty/undrawn buffer, so the
 // blit rendered nothing (the LVGL 9.5 gradient regression; same rule the filament
-// path layers obey, see ui_filament_path_layers.cpp). This runs from the graph's
-// gradient_refresh timer, OUTSIDE the render pass, so the canvas layer round-trip
-// is legal here.
+// path layers obey, see ui_filament_path_layers.cpp). This runs at the display's
+// LV_EVENT_RENDER_START or from the graph's gradient_refresh timer, both OUTSIDE
+// the render pass, so the canvas layer round-trip is legal here.
 static void gradient_recompute(ui_temp_graph_t* graph) {
     if (!graph || !graph->chart)
         return;
@@ -725,6 +739,16 @@ static void gradient_recompute(ui_temp_graph_t* graph) {
     lv_obj_invalidate(graph->chart);
 }
 
+// A stale cache is rebuilt after layout and before anything draws, so the frame
+// that shows new data blits the gradient once. Left to the draw callback, that
+// frame draws it directly and the recompute it schedules repaints the chart.
+static void gradient_render_start_cb(lv_event_t* e) {
+    auto* graph = static_cast<ui_temp_graph_t*>(lv_event_get_user_data(e));
+    if (graph->chart && graph->gradient_cache_dirty && gradient_series_fit(graph) &&
+        lv_obj_is_visible(graph->chart))
+        gradient_recompute(graph);
+}
+
 // Render gradient fills by reading chart data directly.
 // LVGL 9.5 changed DRAW_TASK_ADDED to fire during rendering (after all draw events),
 // so we can no longer add draw tasks from that callback. Instead, we compute pixel
@@ -737,13 +761,7 @@ static void draw_gradient_cb(lv_event_t* e) {
     if (!(graph->features & TEMP_GRAPH_FEATURE_GRADIENTS))
         return;
 
-    // Disable gradients when too many series are visible (visual clutter)
-    int visible_count = 0;
-    for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
-        if (graph->series_meta[i].chart_series && graph->series_meta[i].visible)
-            visible_count++;
-    }
-    if (visible_count > 3)
+    if (!gradient_series_fit(graph))
         return;
 
     lv_layer_t* event_layer = lv_event_get_layer(e);
@@ -1690,6 +1708,8 @@ ui_temp_graph_t* ui_temp_graph_create(lv_obj_t* parent) {
     // gradient reads them — gradients will clamp to chart top (via lv_map) which is
     // the desired visual: gradient fills to top indicating off-scale data.
     lv_obj_add_event_cb(graph->chart, draw_gradient_cb, LV_EVENT_DRAW_MAIN_END, graph);
+    lv_display_add_event_cb(lv_obj_get_display(graph->chart), gradient_render_start_cb,
+                            LV_EVENT_RENDER_START, graph);
 
     // Store graph pointer in chart user data for retrieval
     lv_obj_set_user_data(graph->chart, graph);
@@ -1779,6 +1799,8 @@ void ui_temp_graph_destroy(ui_temp_graph_t* graph) {
         lv_obj_remove_event_cb(chart, mask_overrange_end_cb);
         lv_obj_remove_event_cb(chart, draw_gradient_cb);
         lv_obj_remove_event_cb(chart, chart_delete_cb);
+        lv_display_remove_event_cb_with_user_data(lv_obj_get_display(chart),
+                                                  gradient_render_start_cb, graph);
         lv_obj_remove_event_cb(chart, draw_grid_lines_cb);
         lv_obj_remove_event_cb(chart, draw_x_axis_labels_cb);
         lv_obj_remove_event_cb(chart, draw_y_axis_labels_cb);

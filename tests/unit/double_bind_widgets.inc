@@ -66,8 +66,8 @@ static const BindGroup kDoubleBindWidgets[] = {
 // clang-format on
 
 // Groups the scan found but that no test can drive; see the header comment.
-static constexpr int kUndrivableGroups = 26;
+static constexpr int kUndrivableGroups = 34;
 
 // Total groups in ui_xml/. A new double-bind widget moves this, which is the
 // point: it has to be regenerated and re-run rather than silently uncovered.
-static constexpr int kTotalGroups = 71;
+static constexpr int kTotalGroups = 79;

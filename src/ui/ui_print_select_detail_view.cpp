@@ -33,6 +33,7 @@
 #include "memory_utils.h"
 #include "moonraker_types.h"
 #include "observer_factory.h"
+#include "print_detail_layout.h"
 #include "print_status_preview_decision.h"
 #include "runtime_config.h"
 #include "settings_manager.h"
@@ -202,9 +203,17 @@ void PrintSelectDetailView::init_subjects() {
     // recompute_preflight() when any T-command-referenced slot is empty.
     UI_MANAGED_SUBJECT_INT(empty_tools_warning_, 0, "empty_tools_warning", subjects_);
 
-    // Pre-print time estimate (formatted string for bind_text)
+    // Options scroll-area overflow (0=everything visible, 1=content hidden
+    // below the visible bottom edge). print_file_detail.xml shows the bottom
+    // fade cue on this; update_options_more_below() is the only writer.
+    UI_MANAGED_SUBJECT_INT(detail_options_more_below_, 0, "detail_options_more_below", subjects_);
+
+    // Pre-print time estimate (formatted string for bind_text); the int twin
+    // hides the whole line when no estimate exists, because an empty string
+    // still occupies a row in the layout.
     UI_MANAGED_SUBJECT_STRING(prep_time_estimate_subject_, prep_time_estimate_buf_, "",
                               "preprint_estimate_text", subjects_);
+    UI_MANAGED_SUBJECT_INT(preprint_estimate_visible_, 0, "preprint_estimate_visible", subjects_);
 
     // Re-color the preview live when a slot's loaded color/presence changes
     // (filament reloaded). Static singleton subject -> plain ObserverGuard, no
@@ -317,6 +326,41 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     timelapse_checkbox_ = nullptr;
     pre_print_options_container_ =
         lv_obj_find_by_name(overlay_root_, "pre_print_options_container");
+
+    // The options scroll area feeds two measured rules: the more-below cue
+    // (scroll bottom > 0) and the portrait preview height. Scroll, size and
+    // layout events have no XML trigger; both handlers only measure and
+    // publish, the cue's visibility stays bound in XML. LAYOUT_CHANGED on the
+    // scroll area is the one event that also fires when the CONTENT grows
+    // without any scrolling (option tiles or filament rows arriving after the
+    // view is built), which scroll/size events alone would miss.
+    options_scroll_ = lv_obj_find_by_name(overlay_root_, "detail_options_scroll");
+    detail_card_ = lv_obj_find_by_name(overlay_root_, "detail_card");
+    if (options_scroll_) {
+        for (lv_event_code_t code : {LV_EVENT_SCROLL, LV_EVENT_SCROLL_END, LV_EVENT_SIZE_CHANGED,
+                                     LV_EVENT_LAYOUT_CHANGED}) {
+            lv_obj_add_event_cb(
+                options_scroll_,
+                [](lv_event_t* e) {
+                    static_cast<PrintSelectDetailView*>(lv_event_get_user_data(e))
+                        ->defer_detail_fit();
+                },
+                code, this);
+        }
+    }
+
+    // Portrait preview sizing is measured layout: it depends on runtime pixel
+    // sizes of the scroll content, so it reacts to the container's layout
+    // rather than any subject. The container was looked up above for its
+    // responsive padding; the same object carries this event.
+    if (content_container) {
+        lv_obj_add_event_cb(
+            content_container,
+            [](lv_event_t* e) {
+                static_cast<PrintSelectDetailView*>(lv_event_get_user_data(e))->defer_detail_fit();
+            },
+            LV_EVENT_LAYOUT_CHANGED, this);
+    }
 
     // Look up and initialize the one filament card. Its children declare
     // clickable=false + event_bubble=true in print_file_detail.xml (L071), so
@@ -873,6 +917,13 @@ void PrintSelectDetailView::cleanup() {
 
     // Expire all outstanding async tokens
     lifetime_.invalidate();
+    // The scroll area, the card and the content container are children of
+    // overlay_root_; their events can still fire between cleanup() and the
+    // widgets' deletion, and a fresh lifetime_.token() is valid again, so
+    // drop the pointers a deferred fit would dereference.
+    options_scroll_ = nullptr;
+    detail_card_ = nullptr;
+    fit_pending_ = false;
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
@@ -954,6 +1005,15 @@ void PrintSelectDetailView::on_ui_destroyed() {
     // their observers were attached to the now-deleted row widgets, so
     // dropping the subjects here is safe.
     pre_print_options_container_ = nullptr;
+    // The scroll area, the preview card and the content container (whose
+    // LAYOUT_CHANGED feeds fit_portrait_preview) were children of
+    // overlay_root_, already destroyed by the base class; their event
+    // callbacks died with them.
+    options_scroll_ = nullptr;
+    detail_card_ = nullptr;
+    // The invalidate above drops a queued fit without running it; the flag
+    // must not survive into the next create() cycle.
+    fit_pending_ = false;
     option_rows_renderer_.clear();
     last_rendered_printer_type_.clear();
     // A seed that never reached a render dies with the view it was meant
@@ -2351,6 +2411,7 @@ static void update_prep_time_label() {
 
     if (estimate_s <= 0) {
         lv_subject_copy_string(s_detail_view_instance->get_prep_time_estimate_subject(), "");
+        s_detail_view_instance->set_prep_estimate_visible(0);
         return;
     }
 
@@ -2367,6 +2428,7 @@ static void update_prep_time_label() {
         snprintf(buf, sizeof(buf), "~%d sec prep time", secs);
     }
     lv_subject_copy_string(s_detail_view_instance->get_prep_time_estimate_subject(), buf);
+    s_detail_view_instance->set_prep_estimate_visible(1);
 }
 
 // ============================================================================
@@ -2484,6 +2546,88 @@ void PrintSelectDetailView::populate_option_rows() {
             }
             return -1;
         });
+    }
+
+    // The rows just changed the scroll area's content height without any
+    // scroll or size event, so refresh the cue's data here.
+    if (options_scroll_) {
+        lv_obj_update_layout(options_scroll_);
+        update_options_more_below();
+    }
+}
+
+void PrintSelectDetailView::defer_detail_fit() {
+    // Deferred one tick: these events fire mid-layout-pass, when the scroll
+    // area's height still reflects the PREVIOUS card height, and measuring
+    // that stale pair oscillates (card shrinks -> stale avail reads smaller
+    // -> card grows back -> repeat). After the tick the whole tree is
+    // consistent, and a fit that writes nothing ends the cycle. At most one
+    // deferral is queued at a time: a scroll drag fires this every frame,
+    // and one run after the last frame measures the same tree.
+    if (!options_scroll_ || !detail_card_ || fit_pending_) {
+        return;
+    }
+    fit_pending_ = true;
+    lifetime_.token().defer("DetailView::fit_portrait_preview", [this]() {
+        fit_pending_ = false;
+        if (!options_scroll_ || !detail_card_) {
+            return;
+        }
+        update_options_more_below();
+        fit_portrait_preview();
+    });
+}
+
+void PrintSelectDetailView::update_options_more_below() {
+    if (!options_scroll_) {
+        return;
+    }
+    const int more = lv_obj_get_scroll_bottom(options_scroll_) > 0 ? 1 : 0;
+    if (lv_subject_get_int(&detail_options_more_below_) != more) {
+        lv_subject_set_int(&detail_options_more_below_, more);
+    }
+}
+
+void PrintSelectDetailView::fit_portrait_preview() {
+    lv_obj_t* card = detail_card_;
+    if (!card || !options_scroll_) {
+        return;
+    }
+    lv_subject_t* portrait = lv_xml_get_subject(nullptr, "ui_is_portrait");
+    if (!portrait || lv_subject_get_int(portrait) == 0) {
+        // Landscape: the card fills its column by flex; drop any measured
+        // portrait height.
+        lv_obj_remove_local_style_prop(card, LV_STYLE_HEIGHT, 0);
+        return;
+    }
+    const int width = lv_obj_get_width(card);
+    const int avail = lv_obj_get_height(card) + lv_obj_get_height(options_scroll_);
+    const int content = lv_obj_get_scroll_y(options_scroll_) + lv_obj_get_height(options_scroll_) +
+                        lv_obj_get_scroll_bottom(options_scroll_);
+
+    // The tile grid's top, in the scroll area's content coordinates.
+    // lv_obj_get_y is relative to the parent's content box and folds the
+    // parent's scroll offset back in, which for the scroll area's direct
+    // child IS the conversion into content coordinates; the intermediates
+    // never scroll, so the plain chain sum needs no correction.
+    lv_obj_t* grid = pre_print_options_container_;
+    int grid_top = 0;
+    for (lv_obj_t* o = grid; o && o != options_scroll_; o = lv_obj_get_parent(o)) {
+        grid_top += lv_obj_get_y(o);
+    }
+    lv_obj_t* first_tile = grid ? lv_obj_get_child(grid, 0) : nullptr;
+    const int tile_h = first_tile ? lv_obj_get_height(first_tile) : 0;
+    const int gap = grid ? lv_obj_get_style_pad_row(grid, LV_PART_MAIN) : 0;
+
+    const int h =
+        helix::ui::decide_detail_portrait_preview(width, avail, content, grid_top, tile_h, gap);
+    spdlog::trace("[DetailView] fit_portrait_preview: card {} -> {} (avail {} content {} grid_top "
+                  "{} tile {} gap {})",
+                  lv_obj_get_height(card), h, avail, content, grid_top, tile_h, gap);
+    if (lv_obj_get_height(card) != h) {
+        // DECLARATIVE_OK: measured layout; the height depends on runtime
+        // pixel sizes the XML cannot know.
+        lv_obj_set_height(card, h);
     }
 }
 

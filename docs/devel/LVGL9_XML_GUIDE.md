@@ -1093,6 +1093,28 @@ Both `text="@subject"` and `bind_text="subject"` produce identical reactive bind
 
 When bound to a subject, the button label updates automatically, and a deferred invalidation ensures the button background repaints correctly (avoids partial-redraw artifacts).
 
+**Breakpoint-conditional attributes:**
+
+Two `ui_button` attributes react to the `ui_breakpoint` subject, for the two ways a
+button outgrows a small panel. Both need the button to carry an icon and a label.
+
+```xml
+<!-- Icon over label on tiny and micro panels (ui_breakpoint <= 1), row layout above.
+     From ui_xml/print_status_panel.xml: a stacked button fills its growable row. -->
+<ui_button name="btn_tune" flex_grow="1" icon="tune" text="Tune"
+           translation_tag="Tune" stacked_if_bp_lte="1"/>
+
+<!-- Icon-only while ui_breakpoint == 1. From ui_xml/components/panel_widget_control_buttons.xml -->
+<ui_button name="btn_primary"
+           height="#button_height_lg" flex_grow="1" bind_icon="print_control_primary_icon"
+           bind_text="print_control_primary_label" label_hidden_if_bp_eq="1"/>
+```
+
+| Attr | Effect |
+|------|--------|
+| `stacked_if_bp_lte="N"` | While `ui_breakpoint <= N`, restacks the button icon-over-label - the create-time `icon_position="top"` recipe - and sets its height to 100% of its parent, so a stacked button fills the growable row it lives in. Above `N` the button returns to the row layout and fixed `button_height` it declared at create time. |
+| `label_hidden_if_bp_eq="N"` | Hides the button's label while `ui_breakpoint == N`, collapsing it to icon-only; every other rung shows the label. |
+
 #### divider_vertical / divider_horizontal
 
 Visual separators with theme-aware colors.
@@ -1221,6 +1243,16 @@ One centred icon over one label, filling its cell (`ui_xml/components/home_actio
 | `alt_icon`, `alt_icon_variant`, `icon_swap_subject` | `power`, `secondary`, empty | Shows `alt_icon` in place of `icon` while the subject reads 0; empty installs no binding |
 | `button_name`, `icon_name` | `home_action_tile_button`, `home_action_tile_icon` | Names C++ looks up; keep the one the owning class already finds |
 | `tile_icon_subject`, `tile_label_subject` | empty | Per-instance size rung from a home tile; empty keeps `#icon_size` |
+
+#### option_tile
+
+One pre-print option as a checkable tile: an icon and a two-line label in an outline, with a corner check tab that appears only while checked (`ui_xml/components/option_tile.xml`). The whole tile is the tap target. Its view sets `state_trickle`, so the tile's checked state reaches the children and each child styles itself with a `-checked` state style (the border turns `#primary`, the icon tints, the tab's `style_opa` goes 255). You do not instantiate it from XML: `PrePrintOptionsRenderer` creates one tile per option and binds the option's subject to the tile's checked state (`src/ui/ui_pre_print_options_renderer.cpp`). The tile height and the tab's negative lift come from the `option_tile_height_*` / `option_tile_tab_lift_*` token ladders in `ui_xml/globals.xml`.
+
+| Prop | Default | Purpose |
+|------|---------|---------|
+| `label`, `label_tag` | `Option`, empty | The label and its translation tag |
+| `icon` | `tune` | The glyph |
+| `callback` | empty | `value_changed` callback; the renderer wires the toggle |
 
 #### setting_group
 

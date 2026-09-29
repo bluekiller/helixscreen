@@ -2971,9 +2971,10 @@ qc_translation_coverage() {
 # The dry run proves a KEY exists, nothing more: `make translation-sync` writes
 # a brand-new key as an EMPTY placeholder, and an empty value renders as empty
 # text in that locale (lv_translation_get() only falls back on a MISSING key).
-# So the second half runs the same pytest CI's Code Quality job runs,
-# tests/python/test_cpp_translation_coverage.py, which fails on empty values -
-# reusing that scan rather than restating the rule here.
+# So the second half runs the same pytests CI's Code Quality job runs,
+# tests/python/test_cpp_translation_coverage.py and test_explicit_tag_coverage.py
+# (XML label_tag/description_tag keys), which fail on empty values - reusing
+# those scans rather than restating the rule here.
 #
 # --dry-run is load-bearing: a bare `sync` REWRITES all nine catalogs, and a
 # check that edits the tree it is inspecting would stage catalog churn behind
@@ -2985,7 +2986,7 @@ if [ -x "$VENV_PYTHON" ] && [ -f "scripts/translation_sync.py" ]; then
   if "$VENV_PYTHON" scripts/translation_sync.py sync --dry-run >/tmp/trans_cov.out 2>&1 \
      && grep -q "All XML strings already in YAML files" /tmp/trans_cov.out; then
     if "$VENV_PYTHON" -m pytest -q tests/python/test_cpp_translation_coverage.py \
-       >/tmp/trans_empty.out 2>&1; then
+       tests/python/test_explicit_tag_coverage.py >/tmp/trans_empty.out 2>&1; then
       section_time $SECTION_START
       echo ""
       echo "✅ Every user-facing string has a translated value in every locale"
@@ -3505,7 +3506,49 @@ echo ""
   return $EXIT_CODE
 }
 
-QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert"
+# ====================================================================
+# Python script tests
+# ====================================================================
+qc_python_tests() {
+  local EXIT_CODE=0
+# CI's Code Quality job runs tests/python/ as its own step, outside this
+# script, so without this gate nothing local ran it and a push could turn that
+# job red. ~20s. Skipped on GitHub Actions, where that step already ran.
+SECTION_START=$(date +%s)
+echo -n "🐍 Running Python script tests..."
+
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+  section_time $SECTION_START
+  echo ""
+  echo "⏭️  CI runs tests/python/ as its own step"
+elif [ -x "$VENV_PYTHON" ]; then
+  # Git exports GIT_INDEX_FILE and friends to hooks; a test that builds a
+  # throwaway repo would otherwise read this commit's index.
+  if ( for v in $(compgen -e); do case "$v" in GIT_*) unset "$v" ;; esac; done
+       "$VENV_PYTHON" -m pytest -q -p no:cacheprovider tests/python/ ) \
+     >"$QC_TMP/python_tests.log" 2>&1; then
+    section_time $SECTION_START
+    echo ""
+    echo "✅ $(tail -1 "$QC_TMP/python_tests.log")"
+  else
+    section_time $SECTION_START
+    echo ""
+    grep -E "^(FAILED|ERROR) " "$QC_TMP/python_tests.log" | head -20
+    tail -1 "$QC_TMP/python_tests.log"
+    echo "   Reproduce: .venv/bin/pytest tests/python/"
+    EXIT_CODE=1
+  fi
+else
+  section_time $SECTION_START
+  echo ""
+  echo "⚠️  .venv not set up - skipping (run 'make venv-setup')"
+fi
+
+echo ""
+  return $EXIT_CODE
+}
+
+QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
 
 QC_PARALLEL=""
 for fn in $QC_ALL; do
@@ -3562,6 +3605,7 @@ qc_trigger_re() {
     qc_workflow_submodules)
                         echo '^\.github/workflows/|^\.github/actions/|check_workflow_submodules\.py$' ;;
     qc_ams_xml_mirror)  echo '^src/printer/ams_state\.cpp$|^include/state/subject_macros\.h$|check_ams_xml_mirror\.py$' ;;
+    qc_python_tests)    echo '\.py$|^tests/python/' ;;
     *)                  echo '' ;;
   esac
 }

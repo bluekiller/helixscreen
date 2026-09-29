@@ -3775,6 +3775,8 @@ translations:
   Your printer has an automatic filament changer: Tu impresora tiene un cambiador
     de filamento automático
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: Su impresora estaba desconectada durante la configuración, por lo que se omitieron las opciones de hardware. ¿Configurarlas ahora?
+  ? Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide.
+  : "Su línea {} pasa ajustes por herramienta que la reasignación no cambia ({}). Es posible que una herramienta reasignada no se caliente. Consulte «Tool Mapping» en la guía del usuario."
   Z: Z
   Z Calibration: Calibración Z
   Z Movement: Movimiento Z

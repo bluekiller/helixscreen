@@ -299,6 +299,39 @@ Tap **Done** to keep your mapping, or **Cancel** to discard it.
 
 > **Note:** The card also hides itself while **bypass is engaged on a single-tool file**, because the print takes its filament from the external spool and the mapping decides nothing — showing it would offer an assignment the print ignores. The **Bypass active** note on the file detail screen appears in its place. A *multi-tool* file with bypass engaged still shows the card: those prints do use the lanes.
 
+### Printers that remap by rewriting the file
+
+Most filament systems carry out your mapping themselves: HelixScreen tells the printer "tool 0 comes from slot 2" and the printer does the rest. A few can't, because their firmware has no mapping table. On those, HelixScreen rewrites a copy of the G-code with the new tool numbers and prints that copy. Today that means a tool changer running without klipper-toolchanger, such as the [MedusaHC fork](#medusahc-hotend-changer) that drops `[toolchanger]`.
+
+This needs the **HelixPrint plugin** on your printer. Without it the mapping card offers to install it instead. With it, the finished job is listed in print history under its original name ([details](print-history.md)).
+
+**What the rewrite changes:**
+
+- Tool changes: `T0`, `T1`, ...
+- Temperature commands for a specific tool: `M104 T1 S220`, `M109 T0 S230`
+- An `INITIAL_TOOL=` or `TOOL=` value on any command line, such as `PRINT_START INITIAL_TOOL=0` or `SET_TOOL_TEMPERATURE TOOL=1`, so a start macro that picks up or primes the first tool picks up the right one
+
+**What it does not change:** any other per-tool value you pass to your start macro, such as `EXTRUDER_TEMP=`, `EXTRUDER1_TEMP=`, `T0_TEMP=`, `TOOL_TEMP=` or `T=`, and a tool given by name rather than number (`TOOL=T0`). Those names are your own macro's, and HelixScreen can't know whether `EXTRUDER_TEMP` means "tool 0" or "the tool this print starts with", so it leaves them as sliced. If your start macro heats tools from those values, a job remapped from tool 0 to tool 1 heats tool 0 and then switches to a cold tool 1.
+
+When the file you picked passes values like these and your picks move at least one tool to a different number, the **Filament Mapping** dialog shows a warning naming them, for example:
+
+> Your PRINT_START line passes per-tool settings that remapping does not change (EXTRUDER_TEMP, EXTRUDER1_TEMP). A remapped tool may not be heated.
+
+The warning appears and disappears as you change the picks: leave every tool on its own number and there is nothing to warn about, because the file prints as sliced. It doesn't stop you remapping; if your macro doesn't use those values to heat anything, you can ignore it.
+
+**Recommended start G-code.** Do the tool heating in plain `M104`/`M109` lines, which the rewrite does change, and keep only the bed, homing and mesh in `PRINT_START`. In OrcaSlicer's **Machine start G-code** (one `M104` line per tool your printer has):
+
+```
+PRINT_START INITIAL_TOOL=[initial_tool] BED_TEMP=[bed_temperature_initial_layer_single]
+{if is_extruder_used[0]}M104 T0 S{idle_temperature[0]}{endif}
+{if is_extruder_used[1]}M104 T1 S{idle_temperature[1]}{endif}
+{if is_extruder_used[2]}M104 T2 S{idle_temperature[2]}{endif}
+{if is_extruder_used[3]}M104 T3 S{idle_temperature[3]}{endif}
+M109 T[initial_tool] S{first_layer_temperature[initial_tool]}
+```
+
+Keep the `M109` for the first tool last. It sets that tool from its idle temperature up to printing temperature and waits, so it has to come after the idle lines. `INITIAL_TOOL=` and `TOOL=` are fine to keep if your macro uses them: the rewrite moves them along with everything else. OrcaSlicer adds a `T[initial_tool]` line right after the start G-code, and that line is remapped too.
+
 ### Syncing with OrcaSlicer (2.3.2 and later, including 2.4.0)
 
 When you edit spool info in HelixScreen — on any supported filament system (AD5X IFS, Snapmaker U1, ACE, CFS) — that information is saved to your printer in the standard location OrcaSlicer 2.3.2 and later reads automatically. Open OrcaSlicer after editing and your slot's vendor, material, color, and temperatures show up in the filament panel with no extra setup.
@@ -514,10 +547,20 @@ means you'll pick up the newer commands for free if you migrate later.
 
 ### Tool mapping
 
-Tool mapping works the same as on any klipper-toolchanger machine — see
-[Tool Mapping](#tool-mapping) above. You can point a G-code tool number at a different
-physical tool, which is useful when a slicer project expects a different tool order than
-your machine is loaded with.
+You can point a G-code tool number at a different physical tool, which is useful when a
+slicer project expects a different tool order than your machine is loaded with. See
+[Tool Mapping](#tool-mapping) above for the dialog itself.
+
+How the mapping reaches the printer depends on your setup:
+
+- **Original MedusaHC config or the Python controller** (your config has `[toolchanger]`):
+  HelixScreen tells klipper-toolchanger the mapping and the file is printed as sliced,
+  like any klipper-toolchanger machine.
+- **topi314's fork** (no `[toolchanger]`): there is no mapping table to write, so
+  HelixScreen rewrites the file instead. That needs the HelixPrint plugin, and any
+  per-tool temperatures you pass to `PRINT_START` stay as sliced. Read
+  [Printers that remap by rewriting the file](#printers-that-remap-by-rewriting-the-file)
+  before your first remapped print; it has start G-code that heats the right tools.
 
 ### What HelixScreen remembers per tool
 

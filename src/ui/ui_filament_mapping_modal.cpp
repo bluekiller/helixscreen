@@ -6,10 +6,13 @@
 #include "ui_swatch.h"
 #include "ui_utils.h"
 
+#include "ams_remap.h"
 #include "ams_state.h"
 #include "display_numbering.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "settings_manager.h"
+#include "static_subject_registry.h"
+#include "subject_managed_panel.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -23,7 +26,44 @@ namespace helix::ui {
 namespace {
 constexpr int TOOL_LABEL_MIN_W = 32;
 constexpr lv_opa_t SWATCH_BORDER_OPA = 30;
+
+// Process-wide, not per-instance: the dialog tree is deleted after the owning
+// modal's teardown, so instance-owned subjects would die under bound labels.
+// StaticSubjectRegistry tears them down before lv_deinit().
+struct NoteSubjects {
+    lv_subject_t text{};
+    lv_subject_t visible{};
+    char text_buf[512] = {};
+    SubjectManager manager;
+    bool initialized = false;
+};
+
+NoteSubjects& note_subjects() {
+    static NoteSubjects s;
+    return s;
+}
+
+void init_note_subjects() {
+    auto& s = note_subjects();
+    if (s.initialized) {
+        return;
+    }
+    UI_MANAGED_SUBJECT_STRING_N(s.text, s.text_buf, sizeof(s.text_buf), "", "filament_mapping_note",
+                                s.manager);
+    UI_MANAGED_SUBJECT_INT(s.visible, 0, "filament_mapping_note_visible", s.manager);
+    s.initialized = true;
+    StaticSubjectRegistry::instance().register_deinit("FilamentMappingModal", []() {
+        auto& n = note_subjects();
+        n.manager.deinit_all();
+        n.initialized = false;
+    });
+}
 } // namespace
+
+// The XML binds these at creation, so they must exist before show().
+FilamentMappingModal::FilamentMappingModal() {
+    init_note_subjects();
+}
 
 // ============================================================================
 // Configuration
@@ -45,6 +85,10 @@ void FilamentMappingModal::set_on_mappings_updated(MappingsUpdatedCallback cb) {
     on_updated_cb_ = std::move(cb);
 }
 
+void FilamentMappingModal::set_start_macro_note(std::string note) {
+    start_macro_note_ = std::move(note);
+}
+
 // ============================================================================
 // Modal lifecycle
 // ============================================================================
@@ -61,6 +105,11 @@ void FilamentMappingModal::on_show() {
     // effect of merely LOOKING at what the other mode would do.
     original_mappings_ = mappings_;
     original_auto_color_map_ = auto_color_map_;
+
+    // Published on every show: the subjects are shared by every instance, so a
+    // note left from one caller must not reach another's dialog. Visibility is
+    // published by rebuild_rows(), which every change to the picks goes through.
+    lv_subject_copy_string(&note_subjects().text, start_macro_note_.c_str());
 
     tool_list_ = find_widget("mapping_tool_list");
     if (!tool_list_) {
@@ -102,6 +151,9 @@ void FilamentMappingModal::on_cancel() {
 // ============================================================================
 
 void FilamentMappingModal::rebuild_rows() {
+    lv_subject_set_int(
+        &note_subjects().visible,
+        helix::printer::start_macro_note_shown(!start_macro_note_.empty(), mappings_) ? 1 : 0);
     if (!tool_list_) {
         return;
     }
