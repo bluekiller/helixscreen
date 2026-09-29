@@ -1725,6 +1725,9 @@
         "size_target_subject": {
           "type": "string"
         },
+        "rung_subject": {
+          "type": "string"
+        },
         "bind_current": {
           "type": "string"
         },
@@ -1932,6 +1935,26 @@
     },
     "pluck_animation": {
       "attributes": {},
+      "inherits": "lv_obj"
+    },
+    "lv_obj-bind_tile_rung": {
+      "attributes": {
+        "subject": {
+          "type": "string"
+        },
+        "ladder": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "string"
+        },
+        "one_line": {
+          "type": "string"
+        },
+        "animated": {
+          "type": "string"
+        }
+      },
       "inherits": "lv_obj"
     }
   },
@@ -2886,7 +2909,8 @@
     "ams_lane_spool",
     "belt_trace",
     "leader_line",
-    "pluck_animation"
+    "pluck_animation",
+    "lv_obj-bind_tile_rung"
   ],
   "runtime_constants": [
     "accent_bar_gap",
@@ -3279,14 +3303,6 @@
     "font_xl_xxlarge",
     "font_xs",
     "font_xs_large",
-    "font_xs_line_h",
-    "font_xs_line_h_large",
-    "font_xs_line_h_medium",
-    "font_xs_line_h_micro",
-    "font_xs_line_h_small",
-    "font_xs_line_h_tiny",
-    "font_xs_line_h_xlarge",
-    "font_xs_line_h_xxlarge",
     "font_xs_medium",
     "font_xs_micro",
     "font_xs_small",
@@ -3921,6 +3937,22 @@
     "tile_badge_xs_small",
     "tile_badge_xs_xlarge",
     "tile_badge_xs_xxlarge",
+    "tile_badge_xxl",
+    "tile_badge_xxl_large",
+    "tile_badge_xxl_medium",
+    "tile_badge_xxl_micro",
+    "tile_badge_xxl_small",
+    "tile_badge_xxl_tiny",
+    "tile_badge_xxl_xlarge",
+    "tile_badge_xxl_xxlarge",
+    "tile_icon_xxl_size",
+    "tile_icon_xxl_size_large",
+    "tile_icon_xxl_size_medium",
+    "tile_icon_xxl_size_micro",
+    "tile_icon_xxl_size_small",
+    "tile_icon_xxl_size_tiny",
+    "tile_icon_xxl_size_xlarge",
+    "tile_icon_xxl_size_xxlarge",
     "toolhead_body",
     "tray_bg",
     "tray_border",

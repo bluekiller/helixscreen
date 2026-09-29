@@ -14,14 +14,16 @@ Three layers, each failing loudly:
              (a new patch without a row would otherwise pass vacuously);
   staleness  each patch file's sha256 matches the recorded one (a changed
              patch invalidates its derivation - regenerate the table);
-  presence   the marker text is in (for '+') or absent from (for '-') the
-             target file.
+  presence   each marker text is in (for '+') or absent from (for '-') its
+             target file. A patch has one row per file it touches, so a patch
+             whose other files were reverted cannot pass on the one that
+             stayed applied.
 
 Both fixable states name their remedy: 'make reapply-patches' restores a
 missing patch, 'make regen-patch-markers' refreshes a stale table.
 
-`--only PATCH` answers the same presence question for a single patch and
-exits silently: 0 marker present, 1 absent, 2 no row. apply_submodule_patch.sh
+`--only PATCH` answers the same presence question for a single patch across
+all its rows and exits silently: 0 every marker present, 1 any absent, 2 no row. apply_submodule_patch.sh
 uses it to tell a healthy shared-file warn (context moved by a sibling, effect
 intact) from a dead one, which the three-way git verdict cannot do on its own.
 """
@@ -69,9 +71,12 @@ def main():
 
     rows = read_table(args.tsv)
     if args.only:
-        for row in rows:
-            if row["patch"] != args.only:
-                continue
+        # A patch has one row per file it touches; it is present only when
+        # every one of them is.
+        mine = [row for row in rows if row["patch"] == args.only]
+        if not mine:
+            return 2
+        for row in mine:
             target = f"{dirs[row['dir']]}/{row['file']}"
             try:
                 with open(target, encoding="utf-8", errors="replace") as fh:
@@ -79,8 +84,9 @@ def main():
             except OSError:
                 # No target file: the marker cannot be in it.
                 return 1
-            return 0 if (row["marker"] in content) == (row["kind"] == "+") else 1
-        return 2
+            if (row["marker"] in content) != (row["kind"] == "+"):
+                return 1
+        return 0
     if args.list_files:
         seen = set()
         for row in rows:
@@ -105,18 +111,23 @@ def main():
             f"{row['patch']} has a marker row but no wired stanza - the table "
             f"is staler than mk/patches.mk. Run 'make regen-patch-markers'.")
 
+    unjudgeable = set()
     for row in rows:
         name = row["patch"]
         if name in missing_rows or name in {r["patch"] for r in stale_rows}:
             continue
+        if name in unjudgeable:
+            continue  # one message per patch, not one per file it touches
         patch_path = os.path.join(args.patch_dir, name)
         try:
             with open(patch_path, "rb") as fh:
                 digest = hashlib.sha256(fh.read()).hexdigest()
         except OSError:
+            unjudgeable.add(name)
             failures.append(f"{name}: patch file {patch_path} is missing.")
             continue
         if digest != row["sha256"]:
+            unjudgeable.add(name)
             failures.append(
                 f"{name} changed since the marker table was derived - its "
                 f"marker may no longer exist. Run 'make regen-patch-markers'.")

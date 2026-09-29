@@ -162,6 +162,34 @@ else
     TIER_FONT_SRCS := $(sort $(TIER_FONT_SRCS))
 endif
 
+# Icon faces linked below their own tier, for the home tiles' xxl rung: a tile
+# grown past a cell and a half asks for twice its tier's xl glyph
+# (src/ui/ui_tile_rung.cpp). A build without the face draws the largest linked
+# one scaled up to at most 2x, so a face is linked only where the board has
+# room to spare for it. Measured cost, binary / gzipped package: 80 = +500KB /
+# +69KB, 96 = +708KB / +76KB, 128 = +1.26MB / +114KB. All of it is .rodata, so
+# RAM pays only for the glyph pages a screen touches.
+#   - snapmaker-u1 (a tiny panel, xxl 96): 961MB RAM, 705MB free, the roomiest
+#     board in the fleet.
+#   - k2 (a medium panel, xxl 128): ~512MB RAM, 395MB free, a 27GB user
+#     partition beside the root overlay.
+#   - "all" builds (pi, pi32, x86) link every face already.
+#   - ad5m / ad5m-br scale: the root partition is 91-95% full.
+#   - cc1, k1, k1-dynamic, mips and yocto scale: MIPS or ~110MB boards.
+#   - ESP32 builds its own font set (firmware/helixscreen-esp32) and is untouched.
+EXTRA_ICON_FONTS :=
+ifeq ($(PLATFORM_TARGET),snapmaker-u1)
+    EXTRA_ICON_FONTS := 96
+else ifeq ($(PLATFORM_TARGET),k2)
+    EXTRA_ICON_FONTS := 128
+endif
+ifneq ($(FONT_TIERS),all)
+    TIER_FONT_SRCS := $(sort $(TIER_FONT_SRCS) \
+                      $(foreach n,$(EXTRA_ICON_FONTS),assets/fonts/mdi_icons_$(n).c))
+    CFLAGS += $(foreach n,$(EXTRA_ICON_FONTS),-DHELIX_HAS_MDI_ICONS_$(n)=1)
+    CXXFLAGS += $(foreach n,$(EXTRA_ICON_FONTS),-DHELIX_HAS_MDI_ICONS_$(n)=1)
+endif
+
 # Generate MDI icon fonts using the authoritative regen script
 # Triggered when regen_mdi_fonts.sh changes (single source of truth for icon codepoints)
 .fonts.stamp: scripts/regen_mdi_fonts.sh

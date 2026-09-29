@@ -141,6 +141,8 @@
                 <icon src="heat_wave" size="sm" variant="warning"/>
                 <text_body name="drying_countdown_label" bind_text="ams_env_overlay_drying_text"/>
               </lv_obj>
+              <!-- SIZE_OK: a fixed hairline track; no bar-height ladder exists, and
+                   the tile_badge_* token that shares the value is unrelated. -->
               <lv_bar name="drying_progress_bar"
                       width="100%" height="6" bind_value="ams_env_overlay_drying_progress" min_value="0" max_value="100"
                       style_radius="#border_radius" style_radius-indicator="#border_radius" style_bg_color="#screen_bg"

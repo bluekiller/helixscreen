@@ -20,6 +20,7 @@
 #include "../test_fixtures.h"
 #include "../test_helpers/grid_edit_mode_test_access.h"
 #include "../test_helpers/scoped_pointer_indev.h"
+#include "../test_helpers/scoped_whole_cell_def.h"
 #include "config.h"
 #include "grid_edit_mode.h"
 #include "grid_layout.h"
@@ -50,6 +51,7 @@ void forward_pressing(lv_event_t* e) {
 
 TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: real drag lands on the gutter-aware snap target",
                  "[grid_edit][grid_edit_drag]") {
+    ScopedWholeCellDef whole_cell("humidity");
     // theme_manager_get_spacing() reads "ui_xml" as a path relative to the
     // process's cwd. Run this test from anywhere but the repo root and the
     // token silently resolves to 0 — gutters vanish and the whole test
@@ -168,13 +170,12 @@ TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: real drag lands on the gutter-aw
     // build the expectation could not tell a correct helper from a broken
     // one.
     //
-    // Snap resolution: "humidity" halves on neither axis, so
+    // Snap resolution: "humidity" is held to whole cells here, so
     // snap_step_for() hands round_to_grid_cell() a step of TRACKS_PER_CELL and
     // every reachable target is an EVEN track index. Assert that here — if the
-    // registry ever grants this widget half-cell support the step drops to 1,
-    // every expectation below shifts, and the test must be re-derived rather
-    // than left to fail on an arithmetic mismatch that looks like a geometry
-    // regression.
+    // override is ever dropped the step falls to 1, every expectation below
+    // shifts, and the test must be re-derived rather than left to fail on an
+    // arithmetic mismatch that looks like a geometry regression.
     const auto* drag_def = helix::find_widget_def("humidity");
     REQUIRE(drag_def != nullptr);
     REQUIRE_FALSE(drag_def->supports_half_col);

@@ -2,13 +2,10 @@
 
 #include "humidity_widget.h"
 
-#include "ui_fonts.h"
-
 #include "format_utils.h"
 #include "humidity_sensor_manager.h"
 #include "observer_factory.h"
 #include "panel_widget_registry.h"
-#include "panel_widget_size.h"
 #include "static_subject_registry.h"
 #include "subject_debug_registry.h"
 #include "theme_manager.h"
@@ -93,47 +90,5 @@ void HumidityWidget::detach() {
     if (widget_obj_) {
         lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
-    }
-}
-
-void HumidityWidget::on_size_changed(int /*colspan*/, int /*rowspan*/, int width_px,
-                                     int height_px) {
-    if (!widget_obj_)
-        return;
-
-    bool wide = (width_px >= widget_size::w_normal());
-    bool tall = (height_px >= widget_size::h_tall());
-
-    // Scale icon when tall or wide
-    const lv_font_t* icon_font = (tall || wide) ? &mdi_icons_32 : &mdi_icons_24;
-
-    // Scale text when wide
-    const char* label_token = wide ? "font_body" : "font_xs";
-    const char* value_token = wide ? "font_body" : "font_xs";
-    const lv_font_t* label_font = theme_manager_get_font(label_token);
-    const lv_font_t* value_font = theme_manager_get_font(value_token);
-    if (!label_font || !value_font)
-        return;
-
-    // Icon inside humidity_indicator
-    lv_obj_t* indicator = lv_obj_find_by_name(widget_obj_, "humidity_indicator");
-    if (indicator) {
-        // First child of indicator is the icon (lv_label with MDI font)
-        lv_obj_t* icon = lv_obj_get_child(indicator, 0);
-        if (icon)
-            lv_obj_set_style_text_font(icon, icon_font, 0);
-    }
-
-    // Percentage value label (named in humidity_indicator.xml)
-    lv_obj_t* value_label = lv_obj_find_by_name(widget_obj_, "humidity_value");
-    if (value_label)
-        lv_obj_set_style_text_font(value_label, value_font, 0);
-
-    // Bottom "Humidity" label — second child of the widget view
-    uint32_t wcount = lv_obj_get_child_count(widget_obj_);
-    if (wcount >= 2) {
-        lv_obj_t* label = lv_obj_get_child(widget_obj_, 1);
-        if (label)
-            lv_obj_set_style_text_font(label, label_font, 0);
     }
 }
