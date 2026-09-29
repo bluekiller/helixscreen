@@ -421,6 +421,40 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::UpdateQueue::instance().drain();
 }
 
+TEST_CASE_METHOD(LVGLUITestFixture, "History row lives in the metadata strip",
+                 "[print_select][detail][xml]") {
+    lv_obj_t* const root = make_detail_root(test_screen());
+    REQUIRE(root != nullptr);
+    lv_obj_t* const row = lv_obj_find_by_name(root, "history_status_row");
+    lv_obj_t* const strip = lv_obj_find_by_name(root, "detail_metadata_overlay");
+    REQUIRE(row != nullptr);
+    REQUIRE(strip != nullptr);
+    bool inside = false;
+    for (lv_obj_t* p = lv_obj_get_parent(row); p; p = lv_obj_get_parent(p)) {
+        inside = inside || p == strip;
+    }
+    CHECK(inside);
+    CHECK(std::string(lv_obj_get_name(lv_obj_get_parent(row))) == "detail_history_wrap");
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Print button sits outside the options scroll area",
+                 "[print_select][detail][xml]") {
+    lv_obj_t* const root = make_detail_root(test_screen());
+    REQUIRE(root != nullptr);
+    lv_obj_t* const scroll = lv_obj_find_by_name(root, "detail_options_scroll");
+    lv_obj_t* const print = lv_obj_find_by_name(root, "print_button");
+    REQUIRE(scroll != nullptr);
+    REQUIRE(print != nullptr);
+    for (lv_obj_t* p = lv_obj_get_parent(print); p; p = lv_obj_get_parent(p)) {
+        CHECK(p != scroll);
+    }
+    CHECK(lv_obj_has_flag(scroll, LV_OBJ_FLAG_SCROLLABLE));
+    // The fade must never take touches from the tiles under it.
+    lv_obj_t* const cue = lv_obj_find_by_name(root, "detail_options_cue");
+    REQUIRE(cue != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(cue, LV_OBJ_FLAG_CLICKABLE));
+}
+
 // ============================================================================
 // filament_mismatch means MATERIAL, and only material
 // ============================================================================
