@@ -81,6 +81,15 @@ TileFace tile_rung_face(TileLadder ladder, int rung, int32_t max_scale = kTileMa
 /// the xl token it grows from.
 const char* tile_rung_font_token(TileLadder ladder, int rung);
 
+/// The layout box a glyph drawn in @p face takes: the face's glyph box grown to
+/// its scale on each axis. What TileSizing measures and what the binding pads
+/// a scaled glyph to.
+struct TileGlyphBox {
+    int w = 0;
+    int h = 0;
+};
+TileGlyphBox tile_glyph_box(const TileFace& face);
+
 /// Edge of the disc a badged glyph in @p icon_face sits in, in px.
 int tile_disc_edge(const TileFace& icon_face);
 

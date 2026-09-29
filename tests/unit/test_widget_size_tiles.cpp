@@ -861,3 +861,26 @@ TEST_CASE("a wide light tile reserves the chevron zone it draws", "[widget_size]
     CHECK(lv_obj_get_width(zone) <= helix::light_chevron_reserve_px());
     lv_obj_delete(root);
 }
+
+TEST_CASE("a scaled glyph's layout box is the box TileSizing measures",
+          "[widget_size][tile][xxl]") {
+    // The padding that grows a scaled glyph's box and the width TileSizing
+    // measures come from one rule, so a scaled glyph takes exactly the room
+    // the verdict budgeted for it.
+    LVGLUITestFixture fixture;
+    ScopedXxlSize size(256); // twice the 128 face: scaled 2x
+    const auto face = helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, 5);
+    REQUIRE(face.scale == 2 * LV_SCALE_NONE);
+    const auto box = helix::ui::tile_glyph_box(face);
+
+    lv_subject_t rung;
+    lv_subject_init_int(&rung, 5);
+    lv_obj_t* icon = lv_label_create(fixture.test_screen());
+    lv_label_set_text(icon, "\xF3\xB0\x90\xA5");
+    helix::ui::bind_tile_rung(icon, &rung, helix::ui::TileLadder::Icon);
+    lv_obj_update_layout(fixture.test_screen());
+    CHECK(lv_obj_get_width(icon) == box.w);
+    CHECK(lv_obj_get_height(icon) == box.h);
+    lv_obj_delete(icon);
+    lv_subject_deinit(&rung);
+}

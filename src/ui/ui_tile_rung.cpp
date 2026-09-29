@@ -8,6 +8,7 @@
 #include "helix-xml/src/xml/lv_xml_utils.h"
 #include "helix-xml/src/xml/lv_xml_widget.h"
 #include "helix/ui/shared_font_style.h"
+#include "helix/ui/text_metrics.h"
 #include "src/ui/panel_widgets/tile_layout.h"
 #include "theme_manager.h"
 
@@ -74,8 +75,10 @@ TileFace xxl_icon_face(int32_t max_scale) {
 /// renders the object through a layer; at 1x there is none.
 /// DECLARATIVE_OK: the scale is computed from which faces this build links.
 void apply_face_scale(lv_obj_t* obj, const TileFace& face) {
-    const int h = static_cast<int>(lv_font_get_line_height(face.font));
-    lv_obj_set_style_pad_all(obj, (face.px(h) - h) / 2, LV_PART_MAIN);
+    const TileGlyphBox unscaled = tile_glyph_box(TileFace{face.font, LV_SCALE_NONE});
+    const TileGlyphBox scaled = tile_glyph_box(face);
+    lv_obj_set_style_pad_hor(obj, (scaled.w - unscaled.w) / 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(obj, (scaled.h - unscaled.h) / 2, LV_PART_MAIN);
     lv_obj_set_style_transform_scale(obj, face.scale, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_x(obj, lv_pct(50), LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_y(obj, lv_pct(50), LV_PART_MAIN);
@@ -196,6 +199,18 @@ TileFace tile_rung_face(TileLadder ladder, int rung, int32_t max_scale) {
         return xxl_icon_face(max_scale);
     }
     return TileFace{theme_manager_get_font(tile_rung_font_token(ladder, rung)), LV_SCALE_NONE};
+}
+
+TileGlyphBox tile_glyph_box(const TileFace& face) {
+    if (!face.font) {
+        return {};
+    }
+    // Every MDI face is monospaced across the icon block, so any codepoint
+    // measures the box all of them draw in. Each axis grows by an even number
+    // of pixels, the padding split evenly either side of the face's box.
+    const int w = ui::text_width("\xF3\xB0\x90\xA5", face.font);
+    const int h = static_cast<int>(lv_font_get_line_height(face.font));
+    return {w + (face.px(w) - w) / 2 * 2, h + (face.px(h) - h) / 2 * 2};
 }
 
 int tile_pip_edge(const TileFace& icon_face, const lv_font_t* count_face) {

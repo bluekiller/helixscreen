@@ -43,10 +43,6 @@ int authored_rung() {
     return 2;
 }
 
-/// A representative icon glyph. Every MDI face is monospaced across the icon
-/// block, so any codepoint measures the box all of them draw in.
-constexpr const char* kIconGlyph = "\xF3\xB0\x90\xA5";
-
 int line_height_of(const lv_font_t* font) {
     return font ? static_cast<int>(lv_font_get_line_height(font)) : 0;
 }
@@ -113,8 +109,9 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
         const lv_font_t* label_face = ui::tile_rung_face(ui::TileLadder::Label, r).font;
 
         // The glyph occupies its face's box at the scale it is drawn at.
-        int glyph_w = icon_face.px(ui::text_width(kIconGlyph, icon_face.font));
-        int glyph_h = icon_face.px(line_height_of(icon_face.font));
+        const ui::TileGlyphBox glyph = ui::tile_glyph_box(icon_face);
+        int glyph_w = glyph.w;
+        int glyph_h = glyph.h;
         if (content_.icon_box == IconBox::Square) {
             glyph_w = glyph_h;
         } else if (content_.icon_box == IconBox::Disc) {
