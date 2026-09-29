@@ -10,6 +10,8 @@
     <prop name="tile_label_subject" type="string" default=""/>
     <prop name="tile_dir_subject" type="string" default=""/>
     <prop name="tile_target_subject" type="string" default=""/>
+    <!-- The rung the bell draws at, which the badge sizes off -->
+    <prop name="tile_drawn_subject" type="string" default=""/>
   </api>
   <styles>
     <style name="badge_info" bg_color="#info"/>
@@ -37,14 +39,15 @@
         <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
         <bind_style name="badge_warning" subject="notification_severity" ref_value="1"/>
         <bind_style name="badge_error" subject="notification_severity" ref_value="2"/>
-        <!-- The badge rides the same rung as the bell above it, so it stays
-             2/5 of the glyph instead of covering it on the small rungs. -->
-        <bind_style_if_eq name="styles.tile_badge_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_badge_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_badge_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_badge_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_badge_xl" subject="$tile_icon_subject" ref_value="4"/>
-        <bind_style_if_eq name="styles.tile_badge_xxl" subject="$tile_icon_subject" ref_value="5"/>
+        <!-- The badge rides the rung the bell draws at, so it stays 2/5 of the
+             glyph instead of covering it on the small rungs, and an xxl bell
+             held to its xl face keeps the xl badge. -->
+        <bind_style_if_eq name="styles.tile_badge_xs" subject="$tile_drawn_subject" ref_value="0"/>
+        <bind_style_if_eq name="styles.tile_badge_sm" subject="$tile_drawn_subject" ref_value="1"/>
+        <bind_style_if_eq name="styles.tile_badge_md" subject="$tile_drawn_subject" ref_value="2"/>
+        <bind_style_if_eq name="styles.tile_badge_lg" subject="$tile_drawn_subject" ref_value="3"/>
+        <bind_style_if_eq name="styles.tile_badge_xl" subject="$tile_drawn_subject" ref_value="4"/>
+        <bind_style_if_eq name="styles.tile_badge_xxl" subject="$tile_drawn_subject" ref_value="5"/>
         <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
       </notification_badge>
     </lv_obj>

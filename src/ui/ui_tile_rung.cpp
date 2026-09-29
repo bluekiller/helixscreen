@@ -180,6 +180,16 @@ TileFace tile_rung_face(TileLadder ladder, int rung, int32_t max_scale) {
     return TileFace{theme_manager_get_font(tile_rung_font_token(ladder, rung)), LV_SCALE_NONE};
 }
 
+int tile_drawn_rung(int rung, int32_t max_scale) {
+    const TileFace xl = tile_rung_face(TileLadder::Icon, kXxl - 1);
+    const TileFace xxl = tile_rung_face(TileLadder::Icon, kXxl, max_scale);
+    if (!xl.font || !xxl.font) {
+        return rung;
+    }
+    return tile_drawn_rung(rung, static_cast<int>(lv_font_get_line_height(xl.font)),
+                           xxl.px(static_cast<int>(lv_font_get_line_height(xxl.font))));
+}
+
 TileGlyphBox tile_glyph_box(const TileFace& face) {
     if (!face.font) {
         return {};

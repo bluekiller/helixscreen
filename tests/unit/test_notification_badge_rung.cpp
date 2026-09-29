@@ -9,6 +9,7 @@
  * Run with: ./build/bin/helix-tests "[widget_size][tile]"
  */
 
+#include "ui_tile_rung.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -54,8 +55,12 @@ struct NotificationsTile {
             widget->detach();
     }
 
-    void set_rung(int rung) const {
+    /// Publish @p rung as TileSizing does: the requested rung, and the rung
+    /// the glyph draws at (@p drawn, or this build's own answer).
+    void set_rung(int rung, int drawn = -1) const {
         lv_subject_set_int(lv_xml_get_subject(nullptr, "notifications:0_tile_icon"), rung);
+        lv_subject_set_int(lv_xml_get_subject(nullptr, "notifications:0_tile_drawn"),
+                           drawn >= 0 ? drawn : helix::ui::tile_drawn_rung(rung));
         helix::ui::UpdateQueue::instance().drain();
     }
 };
@@ -123,4 +128,41 @@ TEST_CASE("the notification badge's label face fits the circle", "[widget_size][
     REQUIRE(face != nullptr);
     CHECK(face != font_xs);
     CHECK(face->line_height <= big);
+}
+
+TEST_CASE("an xxl bell held to its xl face keeps the xl badge", "[widget_size][tile][xxl]") {
+    // xxl requested where the cap leaves the largest face at the xl size (the
+    // ESP32 image, or an animated glyph): the glyph draws at xl, so the badge
+    // must too, not at the xxl size the rung asked for.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    NotificationsTile tile(fixture);
+
+    const int xxl = helix::kTileRungs - 1;
+    const int drawn = helix::ui::tile_drawn_rung(xxl, 64, 64);
+    REQUIRE(drawn == xxl - 1);
+    tile.set_rung(xxl, drawn);
+    CHECK(lv_obj_get_style_width(tile.badge, LV_PART_MAIN) ==
+          theme_manager_get_spacing("tile_badge_xl"));
+    CHECK(theme_manager_get_spacing("tile_badge_xl") !=
+          theme_manager_get_spacing("tile_badge_xxl"));
+}
+
+TEST_CASE("the notifications tile publishes the rung its bell draws at",
+          "[widget_size][tile][xxl]") {
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    NotificationsTile tile(fixture);
+    lv_subject_t* icon = lv_xml_get_subject(nullptr, "notifications:0_tile_icon");
+    lv_subject_t* drawn = lv_xml_get_subject(nullptr, "notifications:0_tile_drawn");
+    REQUIRE(icon != nullptr);
+    REQUIRE(drawn != nullptr);
+
+    for (int px : {60, 420, 900}) {
+        INFO("box " << px);
+        tile.widget->notify_size_changed(2, 2, px, px);
+        CHECK(lv_subject_get_int(drawn) == helix::ui::tile_drawn_rung(lv_subject_get_int(icon)));
+    }
+    // The biggest box asks for the top rung, which the default seed never holds.
+    CHECK(lv_subject_get_int(icon) != 2);
 }

@@ -123,6 +123,12 @@ class TileSizing {
         return icon_name_;
     }
 
+    /// The rung the glyph draws at (ui::tile_drawn_rung()), for a part sized
+    /// off the glyph. Not passed by default; add_subject_attr() it.
+    const std::string& drawn_subject_name() const {
+        return drawn_name_;
+    }
+
     /// The icon rung last published.
     int icon_rung() const {
         return lv_subject_get_int(const_cast<lv_subject_t*>(&icon_rung_subject_));
@@ -142,6 +148,7 @@ class TileSizing {
     std::string label_name_;
     std::string dir_name_;
     std::string target_name_;
+    std::string drawn_name_;
     std::vector<std::string> attr_storage_;
     std::vector<const char*> attrs_;
 
@@ -156,6 +163,7 @@ class TileSizing {
     lv_subject_t label_subject_{};
     lv_subject_t direction_subject_{};
     lv_subject_t show_target_subject_{};
+    lv_subject_t drawn_rung_subject_{};
     SubjectManager subjects_;
     ObserverGuard label_setting_observer_;
 };

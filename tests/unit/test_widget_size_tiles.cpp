@@ -727,6 +727,22 @@ TEST_CASE("the alerts badge scales with the bell and hangs from its shoulder",
     lv_obj_delete(root);
 }
 
+TEST_CASE("an xxl glyph no larger than the xl face draws at the xl rung",
+          "[widget_size][tile][xxl]") {
+    using helix::ui::tile_drawn_rung;
+    const int xxl = helix::kTileRungs - 1;
+    // The largest face is the xl face and the cap holds it at 1x.
+    CHECK(tile_drawn_rung(xxl, 64, 64) == xxl - 1);
+    CHECK(tile_drawn_rung(xxl, 64, 48) == xxl - 1);
+    // A bigger face, or a scaled one, is a real xxl glyph.
+    CHECK(tile_drawn_rung(xxl, 64, 96) == xxl);
+    CHECK(tile_drawn_rung(xxl, 64, 128) == xxl);
+    // Every other rung draws at its own size.
+    for (int r = 0; r < xxl; ++r) {
+        CHECK(tile_drawn_rung(r, 64, 64) == r);
+    }
+}
+
 TEST_CASE("the xxl scale reaches the target size up to the platform's cap",
           "[widget_size][tile][xxl]") {
     using helix::ui::tile_xxl_scale;

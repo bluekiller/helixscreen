@@ -15,6 +15,7 @@
  */
 
 #include "lvgl/lvgl.h"
+#include "src/ui/panel_widgets/tile_layout.h"
 
 namespace helix::ui {
 
@@ -72,6 +73,17 @@ inline int32_t tile_xxl_scale(int target_px, int face_px, int32_t max_scale) {
 /// The face @p ladder draws in at @p rung, its scale capped at @p max_scale.
 /// Out-of-range rungs clamp to the ladder's ends.
 TileFace tile_rung_face(TileLadder ladder, int rung, int32_t max_scale = kTileMaxScale);
+
+/// The rung a glyph asked for at @p rung draws at, by size: an xxl glyph that
+/// draws @p xxl_px, no larger than the xl face's @p xl_px, is an xl glyph.
+/// Anything sized off the glyph (a count badge) follows this rung, not the
+/// requested one.
+inline int tile_drawn_rung(int rung, int xl_px, int xxl_px) {
+    return rung >= kTileRungs - 1 && xxl_px <= xl_px ? kTileRungs - 2 : rung;
+}
+
+/// tile_drawn_rung() for this tier's faces, the xxl glyph capped at @p max_scale.
+int tile_drawn_rung(int rung, int32_t max_scale = kTileMaxScale);
 
 /// The theme font token @p ladder names at @p rung; for the icon's xxl rung,
 /// the xl token it grows from.

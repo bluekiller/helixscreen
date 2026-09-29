@@ -51,7 +51,8 @@ int line_height_of(const lv_font_t* font) {
 
 TileSizing::TileSizing(const std::string& instance_id)
     : icon_name_(instance_id + "_tile_icon"), label_name_(instance_id + "_tile_label"),
-      dir_name_(instance_id + "_tile_dir"), target_name_(instance_id + "_tile_target") {
+      dir_name_(instance_id + "_tile_dir"), target_name_(instance_id + "_tile_target"),
+      drawn_name_(instance_id + "_tile_drawn") {
     // Registered here, in the constructor, because the manager parses this
     // tile's XML before attach() runs and the parser drops a binding whose
     // subject is missing at parse time.
@@ -59,6 +60,7 @@ TileSizing::TileSizing(const std::string& instance_id)
     UI_MANAGED_SUBJECT_INT(label_subject_, 1, label_name_.c_str(), subjects_);
     UI_MANAGED_SUBJECT_INT(direction_subject_, 0, dir_name_.c_str(), subjects_);
     UI_MANAGED_SUBJECT_INT(show_target_subject_, 1, target_name_.c_str(), subjects_);
+    UI_MANAGED_SUBJECT_INT(drawn_rung_subject_, 2, drawn_name_.c_str(), subjects_);
 
     attr_storage_ = {"tile_icon_subject", icon_name_, "tile_label_subject",  label_name_,
                      "tile_dir_subject",  dir_name_,  "tile_target_subject", target_name_};
@@ -269,6 +271,10 @@ void TileSizing::measure_and_publish(int width_px, int height_px) {
     follow_label_setting();
     const TileVerdict v = decide(width_px, height_px);
     lv_subject_set_int(&icon_rung_subject_, v.icon_rung);
+    lv_subject_set_int(&drawn_rung_subject_,
+                       ui::tile_drawn_rung(v.icon_rung, content_.icon_animates
+                                                            ? ui::kTileAnimatedMaxScale
+                                                            : ui::kTileMaxScale));
     lv_subject_set_int(&label_subject_, static_cast<int>(v.label));
     lv_subject_set_int(&direction_subject_, static_cast<int>(v.direction));
     lv_subject_set_int(&show_target_subject_, v.show_target ? 1 : 0);
