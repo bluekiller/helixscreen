@@ -261,10 +261,9 @@ echo ""
 # a skip: a validator that silently doesn't exist is a validator that silently
 # passes.
 #
-# validate-xml-constants is not built here while qc_xml_const is paused
-# (prestonbrown/helixscreen#1698): it links the whole app, which on a cold CI
-# runner is a full build that cannot finish inside the step's time limit.
-# Add it back to this make line when enforcement returns.
+# validate-xml-constants is not built here: it links the whole app, which on
+# a cold CI runner is a full build that cannot finish inside the step's time
+# limit. Its check runs in the unit suite instead (see qc_xml_const).
 qc_xml_tools() {
   local EXIT_CODE=0
   # Same bounded share the build-verification phase uses: this is a real make
@@ -293,12 +292,12 @@ qc_xml_const() {
   local EXIT_CODE=0
 echo "🔤 XML constant set gate..."
 
-# Not enforced while the validator cannot resolve theme tokens: every
-# constant defined in assets/config/themes reads as undefined, so enforcing
-# would fail every XML-touching commit on false positives, and a wall of
-# noise nobody reads is worse than an honest pause. Enforcement returns
-# with prestonbrown/helixscreen#1698.
-echo "⏸️  validate-xml-constants not enforced - it cannot resolve theme tokens yet (prestonbrown/helixscreen#1698)"
+# Nothing runs here. Incomplete responsive and light/dark sets fail the unit
+# test "ui_xml has no incomplete constant sets" ([ui_theme][validation]), and
+# undefined #constant references fail qc_xml_linter (unknown-const-ref), so
+# neither needs the app-linking validator binary in the hook
+# (prestonbrown/helixscreen#1698).
+echo "ℹ️  XML constant sets are enforced by the unit suite; undefined #refs by the XML linter (prestonbrown/helixscreen#1698)"
 
 echo ""
 
@@ -1862,7 +1861,7 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2216 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2215 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out

@@ -756,3 +756,33 @@ TEST_CASE_METHOD(ThemeConstantsFixture,
 
     cleanup_temp_dir();
 }
+
+TEST_CASE("ui_xml has no incomplete constant sets", "[ui_theme][validation]") {
+    const auto warnings = theme_manager_validate_constant_sets("ui_xml");
+    for (const auto& w : warnings) {
+        UNSCOPED_INFO(w);
+    }
+    CHECK(warnings.empty());
+}
+
+TEST_CASE_METHOD(ThemeConstantsFixture,
+                 "ui_theme: only border_radius_small is exempt from the responsive set rule",
+                 "[ui_theme][validation]") {
+    setup_temp_xml_dir();
+
+    write_xml("fixed.xml", R"(
+<component>
+    <consts>
+        <px name="border_radius_small" value="4"/>
+        <px name="swatch_gap_small" value="4"/>
+    </consts>
+</component>
+)");
+
+    auto warnings = theme_manager_validate_constant_sets(temp_dir.string().c_str());
+
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0].find("swatch_gap") != std::string::npos);
+
+    cleanup_temp_dir();
+}

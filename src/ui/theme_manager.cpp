@@ -3374,6 +3374,10 @@ std::vector<std::string> theme_manager_validate_constant_sets(const char* direct
             base_names[name] |= 4; // bit 2 = _large
         }
 
+        // border_radius_small is a fixed 4px token that only looks like a
+        // responsive variant; plugin XML references it by name, so it stays.
+        base_names.erase("border_radius");
+
         // Check for incomplete sets (_small/_medium/_large must be complete)
         for (const auto& [base_name, flags] : base_names) {
             if (flags != 7) { // Not all three present (111 in binary)
