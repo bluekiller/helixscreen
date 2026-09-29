@@ -12012,6 +12012,23 @@ helix_install_dirs_for_run() {
             return 0
         fi
     fi
+    # The run's own install root. Pi and x86 installs live in
+    # $KLIPPER_HOME/helixscreen, which no fixed entry names. It joins only when
+    # it is named like ours and holds our binary, and never on a firmware-mod
+    # host, where an unarmed run must leave the mod's payload root alone.
+    _hid_root="${INSTALL_DIR:-}"
+    _hid_root="${_hid_root%/}"
+    if [ -n "$_hid_root" ] && [ -z "${HOST_MOD_ROOT:-}" ] && [ -z "${HOST_MOD_CHROOT:-}" ] &&
+        [ -x "${_hid_root}/bin/helix-screen" ] &&
+        _user_dir_name_ok "$_hid_root" '*helixscreen*'; then
+        case " $HELIX_INSTALL_DIRS " in
+            *" $_hid_root "*) ;;
+            *)
+                echo "$HELIX_INSTALL_DIRS $_hid_root"
+                return 0
+                ;;
+        esac
+    fi
     echo "$HELIX_INSTALL_DIRS"
 }
 

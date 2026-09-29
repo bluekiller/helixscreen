@@ -906,3 +906,57 @@ CONF
     [ "$status" -eq 0 ]
     [ ! -d "$HELIX_STATE_ROOT_HOME" ]
 }
+
+# ============================================================================
+# helix_install_dirs_for_run: the run's own install root
+# ============================================================================
+
+@test "install dirs for run: a home install root holding our binary joins the sweep" {
+    local home_root="$BATS_TEST_TMPDIR/home/pi/helixscreen"
+    mkdir -p "$home_root/bin"
+    : > "$home_root/bin/helix-screen"
+    chmod +x "$home_root/bin/helix-screen"
+    INSTALL_DIR="$home_root/"
+
+    run helix_install_dirs_for_run
+    [ "$status" -eq 0 ]
+    [ "$output" = "$HELIX_INSTALL_DIRS $home_root" ]
+}
+
+@test "install dirs for run: a root without our binary stays off the sweep" {
+    INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/helixscreen"
+    mkdir -p "$INSTALL_DIR/bin"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
+
+@test "install dirs for run: a root not named like ours stays off the sweep" {
+    INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/printer_data"
+    mkdir -p "$INSTALL_DIR/bin"
+    : > "$INSTALL_DIR/bin/helix-screen"
+    chmod +x "$INSTALL_DIR/bin/helix-screen"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
+
+@test "install dirs for run: a root already in the list is not repeated" {
+    mkdir -p "$INSTALL_DIR/bin"
+    : > "$INSTALL_DIR/bin/helix-screen"
+    chmod +x "$INSTALL_DIR/bin/helix-screen"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
+
+@test "install dirs for run: a firmware-mod host's install root stays off the sweep" {
+    INSTALL_DIR="$BATS_TEST_TMPDIR/opt/config/mod/.shell/helixscreen"
+    mkdir -p "$INSTALL_DIR/bin"
+    : > "$INSTALL_DIR/bin/helix-screen"
+    chmod +x "$INSTALL_DIR/bin/helix-screen"
+    HOST_MOD_ROOT="$BATS_TEST_TMPDIR/opt/config/mod"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
