@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ams_types.h"
+#include "filament_database.h"
 #include "moonraker_error.h"
 #include "spoolman_types.h"
 
@@ -101,8 +102,10 @@ class SpoolmanSlotSaver {
     /**
      * @brief Construct a SpoolmanSlotSaver
      * @param api IMoonrakerAPI instance for Spoolman API calls
+     * @param filament_diameter_mm Diameter a filament this saver creates is filed with
      */
-    explicit SpoolmanSlotSaver(IMoonrakerAPI* api);
+    explicit SpoolmanSlotSaver(IMoonrakerAPI* api,
+                               float filament_diameter_mm = filament::DEFAULT_DIAMETER_MM);
 
     /**
      * @brief Compare two SlotInfo structs and detect what changed
@@ -243,6 +246,7 @@ class SpoolmanSlotSaver {
 
   private:
     IMoonrakerAPI* api_;
+    float filament_diameter_mm_;
 
     /**
      * @brief Convert uint32_t RGB to hex string like "FF0000" (no # prefix)
