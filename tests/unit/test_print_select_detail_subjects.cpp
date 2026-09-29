@@ -1049,3 +1049,50 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK_FALSE(lv_obj_has_state(print_button, LV_STATE_DISABLED));
     CHECK(lv_obj_has_flag(reason_label, LV_OBJ_FLAG_HIDDEN));
 }
+
+TEST_CASE_METHOD(LVGLUITestFixture, "More-below subject tracks the options scroll area",
+                 "[print_select][detail][xml]") {
+    register_xml_callbacks({
+        {"on_print_select_detail_backdrop", detail_noop_cb},
+        {"on_print_select_print_button", detail_noop_cb},
+        {"on_print_select_delete_button", detail_noop_cb},
+        {"on_print_detail_back_clicked", detail_noop_cb},
+        {"on_toggle_sliced_colors", detail_noop_cb},
+    });
+    helix::ui::PrintSelectDetailView view;
+    view.init_subjects();
+    lv_obj_t* const root = view.create(test_screen());
+    REQUIRE(root != nullptr);
+    lv_obj_remove_flag(root, LV_OBJ_FLAG_HIDDEN);
+
+    struct CloseOnExit {
+        helix::ui::PrintSelectDetailView& v;
+        ~CloseOnExit() {
+            v.hide();
+            helix::ui::UpdateQueue::instance().drain();
+        }
+    } closer{view};
+
+    lv_obj_t* const scroll = lv_obj_find_by_name(root, "detail_options_scroll");
+    lv_subject_t* const more = lv_xml_get_subject(nullptr, "detail_options_more_below");
+    REQUIRE(scroll != nullptr);
+    REQUIRE(more != nullptr);
+
+    // Force an overflow: a tall child in the scroll area.
+    lv_obj_t* filler = lv_obj_create(scroll);
+    lv_obj_set_size(filler, 10, 4000);
+    lv_obj_update_layout(root);
+    lv_obj_send_event(scroll, LV_EVENT_SIZE_CHANGED, nullptr);
+    process_lvgl(20);
+    CHECK(lv_subject_get_int(more) == 1);
+
+    lv_obj_scroll_to_y(scroll, LV_COORD_MAX, LV_ANIM_OFF);
+    process_lvgl(20);
+    CHECK(lv_subject_get_int(more) == 0);
+
+    lv_obj_delete(filler);
+    lv_obj_update_layout(root);
+    lv_obj_send_event(scroll, LV_EVENT_SIZE_CHANGED, nullptr);
+    process_lvgl(20);
+    CHECK(lv_subject_get_int(more) == 0);
+}

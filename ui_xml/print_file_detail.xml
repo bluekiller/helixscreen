@@ -22,24 +22,41 @@
          when a remap is unavailable, and a card dimmed through LV_STATE_DISABLED
          also stops receiving touches. -->
     <style name="mapping_rows_unmappable" opa="128"/>
+    <!-- Landscape: preview column left, options column right. Portrait: the
+         preview block on top, options below, both full width. Paired so each
+         orientation is always covered; inline attributes would win over them.
+         layout="flex" is required: a style carries only style properties, and
+         the flex layout itself is installed by LV_STYLE_LAYOUT, which the old
+         inline flex_flow attribute set as a side effect. -->
+    <style name="content_row" layout="flex" flex_flow="row"/>
+    <style name="content_column" layout="flex" flex_flow="column"/>
+    <style name="left_landscape" width="0" height="100%" flex_grow="5"/>
+    <style name="left_portrait" width="100%" height="content" flex_grow="0"/>
+    <style name="options_landscape" width="0" height="100%" flex_grow="4"/>
+    <style name="options_portrait" width="100%" height="0" flex_grow="1"/>
+    <style name="card_landscape" flex_grow="1"/>
+    <style name="card_portrait" flex_grow="0"/>
   </styles>
   <view name="detail_view_root"
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_bg_opa="255"
         style_bg_color="#card_bg" style_border_width="0" style_pad_all="0" style_pad_gap="0" flex_flow="column"
         clickable="true">
     <event_cb trigger="clicked" callback="on_print_select_detail_backdrop"/>
-    <!-- CONTENT AREA (two columns) -->
+    <!-- CONTENT AREA (two columns in landscape, one stacked block in portrait) -->
     <lv_obj name="content_container"
             width="100%" flex_grow="1" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="0"
-            style_pad_bottom="#space_lg" flex_flow="row" style_pad_gap="#space_md" scrollable="false">
+            style_pad_bottom="#space_lg" style_pad_gap="#space_md" scrollable="false">
+      <bind_style_if_eq name="content_row" subject="ui_is_portrait" ref_value="0"/>
+      <bind_style_if_eq name="content_column" subject="ui_is_portrait" ref_value="1"/>
 
       <!-- ================================================================== -->
       <!-- LEFT SECTION: Header + File card (5/9 width)                     -->
       <!-- Header is scoped to left column so right section extends to top  -->
       <!-- ================================================================== -->
       <lv_obj name="left_column"
-              height="100%" flex_grow="5" style_pad_all="0" style_pad_gap="0" flex_flow="column"
-              style_margin_left="#space_sm" scrollable="false">
+              style_pad_all="0" style_pad_gap="0" flex_flow="column" style_margin_left="#space_sm" scrollable="false">
+        <bind_style_if_eq name="left_landscape" subject="ui_is_portrait" ref_value="0"/>
+        <bind_style_if_eq name="left_portrait" subject="ui_is_portrait" ref_value="1"/>
         <!-- HEADER BAR (left column only) -->
         <header_bar name="detail_header"
                     title="Print File" title_tag="Print File" back_button_callback="on_print_detail_back_clicked"/>
@@ -48,7 +65,11 @@
         <!-- for static data, but detail view needs bindings (bind_*) for     -->
         <!-- reactive updates when user selects different files.              -->
         <ui_card name="detail_card"
-                 width="100%" flex_grow="1" style_radius="#border_radius" style_pad_all="0" style_clip_corner="true">
+                 width="100%" style_radius="#border_radius" style_pad_all="0" style_clip_corner="true">
+          <!-- Portrait height is measured in C++ (fit_portrait_preview): it
+               depends on runtime pixel sizes of the scroll content below. -->
+          <bind_style_if_eq name="card_landscape" subject="ui_is_portrait" ref_value="0"/>
+          <bind_style_if_eq name="card_portrait" subject="ui_is_portrait" ref_value="1"/>
           <!-- Shared preview stack (thumbnail / 2D / 3D + rotate hint) - the same
                component print status uses, see components/preview_stack.xml.
                Here the two swap: the viewer stays hidden until it has real
@@ -108,8 +129,10 @@
               <!-- Print history status display (hidden by default). The
                    wrapper gives a size-driven hide a target that is not the
                    row's own hidden flag, which update_history_display()
-                   owns. -->
+                   owns. At micro the strip is filename + one stats line, so
+                   the history row is one of the three it drops. -->
               <lv_obj name="detail_history_wrap" width="100%" height="content" style_pad_all="0" scrollable="false">
+                <bind_flag_if cond="ui_breakpoint eq 0" flag="hidden"/>
                 <lv_obj name="history_status_row"
                         width="100%" height="content" flex_flow="row" style_pad_gap="#space_xs"
                         style_flex_cross_place="center" hidden="true">
@@ -141,10 +164,12 @@
                                 style_translate_y="2"/>
                   </lv_obj>
                 </lv_obj>
-                <!-- Row 2: Print height + Layer count -->
+                <!-- Row 2: Print height + Layer count. Hidden at micro: the
+                     strip there is filename + one stats line. -->
                 <lv_obj name="metadata_row_2"
                         width="100%" height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs"
                         scrollable="false">
+                  <bind_flag_if cond="ui_breakpoint eq 0" flag="hidden"/>
                   <lv_obj flex_grow="1"
                           style_pad_all="0" flex_flow="row" style_pad_gap="#space_xxs" style_flex_cross_place="center"
                           scrollable="false">
@@ -160,10 +185,12 @@
                                 bind_text="selected_layer_count" long_mode="dots" flex_grow="1" style_translate_y="2"/>
                   </lv_obj>
                 </lv_obj>
-                <!-- Row 3: Layer height + Filament type (full width for truncation) -->
+                <!-- Row 3: Layer height + Filament type (full width for truncation).
+                     Hidden at micro, like row 2. -->
                 <lv_obj name="metadata_row_3"
                         width="100%" height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs"
                         scrollable="false">
+                  <bind_flag_if cond="ui_breakpoint eq 0" flag="hidden"/>
                   <lv_obj flex_grow="1"
                           style_pad_all="0" flex_flow="row" style_pad_gap="#space_xxs" style_flex_cross_place="center"
                           scrollable="false">
@@ -189,8 +216,10 @@
       <!-- RIGHT SECTION: Options and buttons (4/9 width)                    -->
       <!-- ================================================================== -->
       <lv_obj name="options_section"
-              height="100%" flex_grow="4" style_pad_hor="0" style_pad_top="#space_sm" style_pad_bottom="0"
-              style_pad_gap="#space_sm" flex_flow="column" scrollable="false">
+              style_pad_hor="0" style_pad_top="#space_sm" style_pad_bottom="0" style_pad_gap="#space_sm"
+              flex_flow="column" scrollable="false">
+        <bind_style_if_eq name="options_landscape" subject="ui_is_portrait" ref_value="0"/>
+        <bind_style_if_eq name="options_portrait" subject="ui_is_portrait" ref_value="1"/>
         <!-- Options scroll area. The four cards scroll; the prep time, action
              buttons and blocked reason below this wrapper stay pinned at the
              column's bottom. detail_options_wrap is a plain non-flex box so
@@ -222,9 +251,9 @@
             <!-- Sliced colors toggle. Belongs to the 3D PREVIEW, not the chips:
                  apply_preview_colors() uses detail_prefer_sliced_colors to pick
                  which mappings feed the viewer (sliced = each tool's own slicer
-                 color; actual = the matched-lane colors). It lives in the options column, not under
-                 the preview: the preview card is flex_grow=1 in the left column, so a
-                 row under it would steal render height. -->
+                 color; actual = the matched-lane colors). It lives in the options
+                 column, not under the preview: the preview card is flex_grow=1 in
+                 the left column, so a row under it would steal render height. -->
             <lv_obj name="sliced_colors_row"
                     width="100%" height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_xs"
                     style_flex_main_place="space_between" style_flex_cross_place="center" style_pad_bottom="#space_sm"
@@ -312,10 +341,8 @@
               <!-- height is FIXED, not "content": the filament_swatch chips inside are
                    height="100%" and collapse to zero in a content-height parent. And
                    flex_flow is "row", not "row_wrap": at a fixed height a wrapped
-                   second row is clipped, and options_section is height="100%"
-                   scrollable="false" so the card cannot grow either. The card caps
-                   the chips at what fits and renders a "+N" pill for the rest (see
-                   rebuild_compact_view). -->
+                   second row is clipped. The card caps the chips at what fits and
+                   renders a "+N" pill for the rest (see rebuild_compact_view). -->
               <!-- SIZE_OK: the bound styles in this file's <styles> block ARE the chip
                    height (40 through Large, 48 at XLarge+). filament_swatch is
                    height="100%" and resolves against this row's CONTENT box, so padding
@@ -355,11 +382,10 @@
             </ui_card>
 
             <!-- Options card.
-                 Toggle rows are populated dynamically in C++ from the active
+                 Option tiles are populated dynamically in C++ from the active
                  printer's PrePrintOptionSet (see PrintSelectDetailView::
-                 populate_option_rows). Subheaders ("Mechanical setup", etc.)
-                 and switches are emitted per-category. The card is hidden when
-                 no preprint options apply, via has_any_preprint_options. -->
+                 populate_option_rows). The card is hidden when no preprint
+                 options apply, via has_any_preprint_options. -->
             <ui_card name="options_card"
                      width="100%" style_pad_ver="0" style_pad_gap="#space_sm" flex_flow="column"
                      style_bg_color="#elevated_bg">
@@ -381,12 +407,16 @@
           </lv_obj>
           <!-- Bottom fade: hints the scroll area continues below the visible
                edge. Not clickable, so touches fall through to the tiles under
-               it. -->
+               it. Shown only while content IS hidden below AND the
+               page-scroll buttons are off - where they are on, their chevron
+               gutter is the cue and this fade would only duplicate it. -->
           <lv_obj name="detail_options_cue"
-                  width="100%" height="#space_2xl" ignore_layout="true" align="bottom_mid" hidden="true"
-                  clickable="false" scrollable="false" style_pad_all="0" style_border_width="0" style_radius="0"
-                  style_bg_opa="255" style_bg_color="#card_bg" style_bg_grad_color="#card_bg" style_bg_grad_dir="ver"
-                  style_bg_main_opa="0" style_bg_grad_opa="255">
+                  width="100%" height="#space_2xl" ignore_layout="true" align="bottom_mid" clickable="false"
+                  scrollable="false" style_pad_all="0" style_border_width="0" style_radius="0" style_bg_opa="255"
+                  style_bg_color="#card_bg" style_bg_grad_color="#card_bg" style_bg_grad_dir="ver" style_bg_main_opa="0"
+                  style_bg_grad_opa="255">
+            <bind_flag_if cond="detail_options_more_below eq 1 and settings_page_scroll_buttons eq 0"
+                          flag="hidden" invert="true"/>
             <icon src="chevron_down" size="sm" variant="secondary" align="bottom_mid" clickable="false"/>
           </lv_obj>
         </lv_obj>
