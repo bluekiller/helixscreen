@@ -13,27 +13,18 @@
 #include "system_settings_manager.h"
 #include "tool_state.h"
 
-#include <memory>
-
 namespace helix::ui {
 
 namespace {
 
 ObserverGuard s_language_observer;
-bool s_initialized = false;
-/// The language subjects the observer was registered on. Settings subjects can
-/// be torn down and rebuilt (the test fixtures do), and an observer on the old
-/// ones would never fire again.
-std::weak_ptr<bool> s_bound_to;
+bool s_deinit_registered = false;
 
 } // namespace
 
 void init_language_refresh() {
-    const auto bound = s_bound_to.lock();
-    if (s_initialized && bound && *bound) {
-        return;
-    }
-    s_bound_to = SystemSettingsManager::instance().get_subjects_lifetime();
+    // Replacing the guard drops any observer left on settings subjects that were
+    // since torn down and rebuilt, so calling this again re-arms it.
     s_language_observer = observe_language_change(&ToolState::instance(), [](ToolState* tools) {
         tools->refresh_display_labels();
         get_printer_state().refresh_extruder_display_names();
@@ -43,15 +34,13 @@ void init_language_refresh() {
         // lane) as it syncs from the backend.
         AmsState::instance().sync_from_backend();
     });
-    if (s_initialized) {
-        return; // Re-armed; the deinit below is already registered.
+    if (s_deinit_registered) {
+        return;
     }
-    s_initialized = true;
-
+    s_deinit_registered = true;
     StaticSubjectRegistry::instance().register_deinit("LanguageRefresh", []() {
         s_language_observer.reset();
-        s_bound_to.reset();
-        s_initialized = false;
+        s_deinit_registered = false;
     });
 }
 

@@ -79,9 +79,12 @@ def test_every_screen_retranslates_on_a_language_switch(fresh_helix_app):
     ru = yaml.safe_load(RUSSIAN.read_text())["translations"]
 
     before = {}
+    unreachable = []
     for token, steps in _recipes():
         if _run(app, steps):
             before[token] = _labels(app)
+        else:
+            unreachable.append(token)
 
     app.reset()
     app.navigate("settings")
@@ -113,6 +116,7 @@ def test_every_screen_retranslates_on_a_language_switch(fresh_helix_app):
                 stale.append(f"{token}: {path}: {en!r} still reads {now!r}, want {want!r}")
 
     report = "\n".join(stale)
-    print(f"\n{checked} translatable labels checked, {len(stale)} stale\n{report}")
+    print(f"\n{checked} translatable labels checked, {len(stale)} stale; "
+          f"unreachable on this mock: {', '.join(unreachable) or 'none'}\n{report}")
     assert checked > 0
     assert not stale, f"{len(stale)} stale labels:\n{report}"
