@@ -689,3 +689,64 @@ TEST_CASE_METHOD(UiButtonTestFixture,
                 theme_manager_get_spacing("button_height"));
     }
 }
+
+// A style applied after the button's own setup (a component's styles, a
+// binding) queues its contrast pass. That pass lands before the next frame
+// draws, so the frame after does not repaint every button of a freshly built
+// panel.
+TEST_CASE_METHOD(UiButtonTestFixture, "ui_button: the next frame draws the contrast text colour",
+                 "[ui_button][contrast]") {
+    const char* attrs[] = {"text", "Go", "variant", "primary", nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    lv_obj_t* label = nullptr;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(btn) && !label; ++i)
+        if (lv_obj_check_type(lv_obj_get_child(btn, i), &lv_label_class))
+            label = lv_obj_get_child(btn, i);
+    REQUIRE(label != nullptr);
+    const uint32_t before = lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN));
+
+    static lv_style_t white_fill;
+    lv_style_init(&white_fill);
+    lv_style_set_bg_color(&white_fill, lv_color_white());
+    lv_style_set_bg_opa(&white_fill, LV_OPA_COVER);
+    lv_obj_add_style(btn, &white_fill, LV_PART_MAIN);
+
+    lv_refr_now(nullptr); // no UpdateQueue drain
+    const uint32_t drawn = lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN));
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    const uint32_t settled = lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN));
+    CAPTURE(before & 0xFFFFFF, drawn & 0xFFFFFF, settled & 0xFFFFFF);
+    REQUIRE(settled != before); // the new fill does change the text colour
+    CHECK(drawn == settled);
+    lv_obj_remove_style(btn, &white_fill, LV_PART_MAIN);
+}
+
+namespace {
+int s_invalidations = 0;
+void count_invalidation(lv_event_t* /*e*/) {
+    ++s_invalidations;
+}
+} // namespace
+
+// The contrast pass runs on every style and state change; one that finds the
+// colours already applied must not repaint the button.
+TEST_CASE_METHOD(UiButtonTestFixture,
+                 "ui_button: a contrast pass with nothing to change repaints nothing",
+                 "[ui_button][contrast]") {
+    const char* attrs[] = {"text", "Go", "variant", "primary", nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    lv_refr_now(nullptr);
+
+    lv_display_t* disp = lv_obj_get_display(btn);
+    s_invalidations = 0;
+    lv_display_add_event_cb(disp, count_invalidation, LV_EVENT_INVALIDATE_AREA, nullptr);
+    lv_obj_send_event(btn, LV_EVENT_STATE_CHANGED, nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    lv_display_remove_event_cb_with_user_data(disp, count_invalidation, nullptr);
+
+    CHECK(s_invalidations == 0);
+}

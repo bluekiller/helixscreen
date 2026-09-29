@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <unordered_set>
+#include <vector>
 
 using namespace helix;
 
@@ -219,6 +220,28 @@ void stop(lv_obj_t* arc) {
 
 } // namespace op_spinner_anim
 
+// A style set refreshes and repaints the object even when the value is the one
+// it already holds. The contrast pass runs on every style and state change and
+// once, deferred, after each button is built, so a repeat set would repaint
+// every button in the frame after the panel first draws.
+void set_local_opa(lv_obj_t* obj, lv_style_prop_t prop, lv_opa_t opa) {
+    lv_style_value_t cur;
+    if (lv_obj_get_local_style_prop(obj, prop, &cur, LV_PART_MAIN) == LV_RESULT_OK &&
+        cur.num == opa)
+        return;
+    lv_style_value_t v{};
+    v.num = opa;
+    lv_obj_set_local_style_prop(obj, prop, v, LV_PART_MAIN);
+}
+
+void set_local_text_color(lv_obj_t* obj, lv_color_t color) {
+    lv_style_value_t cur;
+    if (lv_obj_get_local_style_prop(obj, LV_STYLE_TEXT_COLOR, &cur, LV_PART_MAIN) == LV_RESULT_OK &&
+        lv_color_eq(cur.color, color))
+        return;
+    lv_obj_set_style_text_color(obj, color, LV_PART_MAIN);
+}
+
 /**
  * @brief Update button text color for contrast against the button background
  *
@@ -239,7 +262,7 @@ void update_button_text_contrast(lv_obj_t* btn) {
     }
 
     bool is_disabled = lv_obj_has_state(btn, LV_STATE_DISABLED);
-    lv_obj_set_style_opa(btn, is_disabled ? LV_OPA_50 : LV_OPA_COVER, LV_PART_MAIN);
+    set_local_opa(btn, LV_STYLE_OPA, is_disabled ? LV_OPA_50 : LV_OPA_COVER);
     lv_opa_t bg_opa = lv_obj_get_style_bg_opa(btn, LV_PART_MAIN);
     bool is_ghost = bg_opa < LV_OPA_50;
 
@@ -269,12 +292,11 @@ void update_button_text_contrast(lv_obj_t* btn) {
     // to maintain readability while indicating disabled
     lv_opa_t text_opa = is_disabled ? LV_OPA_70 : LV_OPA_COVER;
 
-    // Helper to set contrast color on a widget unconditionally
     auto set_contrast = [&](lv_obj_t* obj) {
         if (!obj)
             return;
-        lv_obj_set_style_text_color(obj, text_color, LV_PART_MAIN);
-        lv_obj_set_style_text_opa(obj, text_opa, LV_PART_MAIN);
+        set_local_text_color(obj, text_color);
+        set_local_opa(obj, LV_STYLE_TEXT_OPA, text_opa);
     };
 
     // Button's own label and icon always get contrast colors -
@@ -303,9 +325,19 @@ void update_button_text_contrast(lv_obj_t* btn) {
     }
 }
 
-// Defer a contrast recompute that survives widget address reuse.
-// The button may be freed and its address reused before the deferred tick
-// fires. Two independent hazards:
+struct PendingContrast {
+    lv_obj_t* btn;
+    uint64_t gen; // the button's identity token when the update was queued
+};
+
+std::vector<PendingContrast>& pending_contrast() {
+    static std::vector<PendingContrast> pending;
+    return pending;
+}
+
+// Apply the queued contrast updates, each only to a button that is still the one
+// it was queued for. The button may be freed and its address reused in between.
+// Two independent hazards:
 //   1. Reused by a foreign (non-ui_button) widget whose user_data is a small
 //      non-pointer sentinel (e.g. 0x2). lv_obj_is_valid() passes (a live object
 //      occupies the address) and !d passes, so dereferencing d->magic faults at
@@ -313,22 +345,43 @@ void update_button_text_contrast(lv_obj_t* btn) {
 //      our tracked live ui_buttons — only then is user_data a real UiButtonData.
 //   2. Reused by a *different* ui_button. It passes the registry + magic checks,
 //      so re-verify the per-button identity token captured at defer time (#924).
+void drain_pending_contrast() {
+    std::vector<PendingContrast> batch;
+    batch.swap(pending_contrast());
+    for (const PendingContrast& p : batch) {
+        if (!live_ui_buttons().count(p.btn))
+            continue;
+        UiButtonData* d = static_cast<UiButtonData*>(lv_obj_get_user_data(p.btn));
+        if (!d || d->magic != UiButtonData::MAGIC || d->id != p.gen)
+            continue;
+        update_button_text_contrast(p.btn);
+    }
+}
+
+void contrast_render_start_cb(lv_event_t* /*e*/) {
+    drain_pending_contrast();
+}
+
+// Queue a contrast recompute for after the current style cascade (see
+// button_style_changed_cb). It lands at the display's next LV_EVENT_RENDER_START,
+// so a new panel's first frame already draws its buttons' final text colours
+// instead of repainting every button in the frame after. The queued drain covers
+// a display that renders nothing, and is a no-op once the render-start one ran.
 void defer_button_contrast_update(lv_obj_t* btn) {
     UiButtonData* data = static_cast<UiButtonData*>(lv_obj_get_user_data(btn));
     if (!data || data->magic != UiButtonData::MAGIC)
         return;
-    const uint64_t gen = data->id;
-    helix::ui::queue_update("ui_button::contrast_update", [btn, gen]() {
-        // Hazard 1: never dereference user_data unless btn is still a live
-        // ui_button we own (guards against foreign-widget address reuse, #1111).
-        if (!live_ui_buttons().count(btn))
-            return;
-        UiButtonData* d = static_cast<UiButtonData*>(lv_obj_get_user_data(btn));
-        // Hazard 2: same address, different ui_button — identity token differs.
-        if (!d || d->magic != UiButtonData::MAGIC || d->id != gen)
-            return;
-        update_button_text_contrast(btn);
-    });
+    pending_contrast().push_back({btn, data->id});
+
+    if (lv_display_t* disp = lv_obj_get_display(btn)) {
+        bool hooked = false;
+        for (uint32_t i = 0; i < lv_display_get_event_count(disp) && !hooked; i++)
+            hooked =
+                lv_event_dsc_get_cb(lv_display_get_event_dsc(disp, i)) == contrast_render_start_cb;
+        if (!hooked)
+            lv_display_add_event_cb(disp, contrast_render_start_cb, LV_EVENT_RENDER_START, nullptr);
+    }
+    helix::ui::queue_update("ui_button::contrast_update", [] { drain_pending_contrast(); });
 }
 
 /**
