@@ -27,30 +27,24 @@
                    style_pad_ver="#space_sm" style_pad_gap="#temp_preset_btn_spacing">
           <event_cb trigger="short_clicked" callback="on_filament_preset_pla"/>
           <event_cb trigger="long_pressed" callback="on_filament_preset_pla_hold"/>
-          <text_body bind_text="preset_material_0_name" style_text_color:checked="#text"/>
-          <text_small bind_text="preset_material_0_temps"
-                      style_text_align="center" style_text_color="#text_muted"
-                      style_text_color:checked="#text"/>
+          <text_body bind_text="preset_material_0_name"/>
+          <text_small bind_text="preset_material_0_temps" style_text_align="center" style_text_color="#text_muted"/>
         </ui_button>
         <ui_button name="preset_petg"
                    width="0" height="content" flex_grow="1" layout="column" state_trickle="true"
                    style_pad_ver="#space_sm" style_pad_gap="#temp_preset_btn_spacing">
           <event_cb trigger="short_clicked" callback="on_filament_preset_petg"/>
           <event_cb trigger="long_pressed" callback="on_filament_preset_petg_hold"/>
-          <text_body bind_text="preset_material_1_name" style_text_color:checked="#text"/>
-          <text_small bind_text="preset_material_1_temps"
-                      style_text_align="center" style_text_color="#text_muted"
-                      style_text_color:checked="#text"/>
+          <text_body bind_text="preset_material_1_name"/>
+          <text_small bind_text="preset_material_1_temps" style_text_align="center" style_text_color="#text_muted"/>
         </ui_button>
         <ui_button name="preset_abs"
                    width="0" height="content" flex_grow="1" layout="column" state_trickle="true"
                    style_pad_ver="#space_sm" style_pad_gap="#temp_preset_btn_spacing">
           <event_cb trigger="short_clicked" callback="on_filament_preset_abs"/>
           <event_cb trigger="long_pressed" callback="on_filament_preset_abs_hold"/>
-          <text_body bind_text="preset_material_2_name" style_text_color:checked="#text"/>
-          <text_small bind_text="preset_material_2_temps"
-                      style_text_align="center" style_text_color="#text_muted"
-                      style_text_color:checked="#text"/>
+          <text_body bind_text="preset_material_2_name"/>
+          <text_small bind_text="preset_material_2_temps" style_text_align="center" style_text_color="#text_muted"/>
         </ui_button>
       </lv_obj>
       <!-- Row 2: TPU, Spool preset, Cool Down. The spool button hides
@@ -63,10 +57,8 @@
                    style_pad_ver="#space_sm" style_pad_gap="#temp_preset_btn_spacing">
           <event_cb trigger="short_clicked" callback="on_filament_preset_tpu"/>
           <event_cb trigger="long_pressed" callback="on_filament_preset_tpu_hold"/>
-          <text_body bind_text="preset_material_3_name" style_text_color:checked="#text"/>
-          <text_small bind_text="preset_material_3_temps"
-                      style_text_align="center" style_text_color="#text_muted"
-                      style_text_color:checked="#text"/>
+          <text_body bind_text="preset_material_3_name"/>
+          <text_small bind_text="preset_material_3_temps" style_text_align="center" style_text_color="#text_muted"/>
         </ui_button>
         <lv_obj name="spool_preset_cell"
                 width="0" height="content" flex_grow="1" style_pad_all="0" scrollable="false" flex_flow="column">
@@ -74,11 +66,8 @@
                      width="100%" height="content" layout="column" state_trickle="true" style_pad_ver="#space_sm"
                      style_pad_gap="#temp_preset_btn_spacing" hidden="true">
             <event_cb trigger="clicked" callback="on_filament_preset_spool"/>
-            <text_body name="spool_preset_label"
-                       text="" style_text_color:checked="#text" long_mode="dots"/>
-            <text_small name="spool_preset_temps"
-                        text="" style_text_align="center" style_text_color="#text_muted"
-                        style_text_color:checked="#text"/>
+            <text_body name="spool_preset_label" text="" long_mode="dots"/>
+            <text_small name="spool_preset_temps" text="" style_text_align="center" style_text_color="#text_muted"/>
           </ui_button>
         </lv_obj>
         <!-- Cool Down always occupies the third cell; it is disabled, not

@@ -148,6 +148,21 @@
     <px name="space_2xl_neg_large" value="-40"/>
     <px name="space_2xl_neg_xlarge" value="-48"/>
     <px name="space_2xl_neg_xxlarge" value="-64"/>
+    <!-- space_md_neg / space_xxs_neg: an inward offset from a right or bottom
+         edge. An attribute cannot negate a token ("-#space_md" is dropped), so
+         the negated tier lives here. -->
+    <px name="space_md_neg_tiny" value="-6"/>
+    <px name="space_md_neg_small" value="-8"/>
+    <px name="space_md_neg_medium" value="-10"/>
+    <px name="space_md_neg_large" value="-12"/>
+    <px name="space_md_neg_xlarge" value="-16"/>
+    <px name="space_md_neg_xxlarge" value="-20"/>
+    <px name="space_xxs_neg_tiny" value="-1"/>
+    <px name="space_xxs_neg_small" value="-2"/>
+    <px name="space_xxs_neg_medium" value="-3"/>
+    <px name="space_xxs_neg_large" value="-4"/>
+    <px name="space_xxs_neg_xlarge" value="-5"/>
+    <px name="space_xxs_neg_xxlarge" value="-6"/>
 
     <!-- ===================================================================== -->
     <!-- Responsive Icon Sizes (icon_size)                                    -->
@@ -381,10 +396,7 @@
     <px name="option_tile_tab_medium" value="16"/>
     <px name="option_tile_tab_large" value="18"/>
     <px name="option_tile_tab_xlarge" value="20"/>
-    <!-- The tab's lift off the tile's bottom border: -space_xs per tier. A
-         negated value, not a "-#space_xs" attribute (the const resolver only
-         substitutes values that START with '#', so a leading '-' would pass
-         the raw string through and silently resolve to 0). -->
+    <!-- The tab's lift off the tile's bottom border: -space_xs per tier. -->
     <px name="option_tile_tab_lift_micro" value="-2"/>
     <px name="option_tile_tab_lift_tiny" value="-2"/>
     <px name="option_tile_tab_lift_small" value="-4"/>

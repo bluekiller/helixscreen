@@ -215,9 +215,7 @@
               <ui_button name="btn_chip_x_0"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="0"/>
                 <bind_state_if_eq subject="is_x_chip_0_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_0_cb"/>
@@ -227,9 +225,7 @@
               <ui_button name="btn_chip_x_1"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="1"/>
                 <bind_state_if_eq subject="is_x_chip_1_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_1_cb"/>
@@ -239,9 +235,7 @@
               <ui_button name="btn_chip_x_2"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="2"/>
                 <bind_state_if_eq subject="is_x_chip_2_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_2_cb"/>
@@ -251,9 +245,7 @@
               <ui_button name="btn_chip_x_3"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="3"/>
                 <bind_state_if_eq subject="is_x_chip_3_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_3_cb"/>
@@ -263,9 +255,7 @@
               <ui_button name="btn_chip_x_4"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="4"/>
                 <bind_state_if_eq subject="is_x_chip_4_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_4_cb"/>
@@ -275,9 +265,7 @@
               <ui_button name="btn_chip_x_5"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="5"/>
                 <bind_state_if_eq subject="is_x_chip_5_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_5_cb"/>
@@ -287,9 +275,7 @@
               <ui_button name="btn_chip_x_6"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="6"/>
                 <bind_state_if_eq subject="is_x_chip_6_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_6_cb"/>
@@ -299,9 +285,7 @@
               <ui_button name="btn_chip_x_7"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="7"/>
                 <bind_state_if_eq subject="is_x_chip_7_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_7_cb"/>
@@ -311,9 +295,7 @@
               <ui_button name="btn_chip_x_8"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="8"/>
                 <bind_state_if_eq subject="is_x_chip_8_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_8_cb"/>
@@ -323,9 +305,7 @@
               <ui_button name="btn_chip_x_9"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="9"/>
                 <bind_state_if_eq subject="is_x_chip_9_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_9_cb"/>
@@ -335,9 +315,7 @@
               <ui_button name="btn_chip_x_10"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_chips" flag="hidden" ref_value="10"/>
                 <bind_state_if_eq subject="is_x_chip_10_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_x_10_cb"/>
@@ -392,9 +370,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="0"/>
                 <text_small width="28%" bind_text="is_x_cmp_0_type"/>
                 <text_small width="22%" bind_text="is_x_cmp_0_freq"/>
@@ -405,9 +382,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="1"/>
                 <text_small width="28%" bind_text="is_x_cmp_1_type"/>
                 <text_small width="22%" bind_text="is_x_cmp_1_freq"/>
@@ -418,9 +394,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="2"/>
                 <text_small width="28%" bind_text="is_x_cmp_2_type"/>
                 <text_small width="22%" bind_text="is_x_cmp_2_freq"/>
@@ -431,9 +406,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="3"/>
                 <text_small width="28%" bind_text="is_x_cmp_3_type"/>
                 <text_small width="22%" bind_text="is_x_cmp_3_freq"/>
@@ -444,9 +418,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="4"/>
                 <text_small width="28%" bind_text="is_x_cmp_4_type"/>
                 <text_small width="22%" bind_text="is_x_cmp_4_freq"/>
@@ -457,9 +430,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_shapers" flag="hidden" ref_value="5"/>
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="5"/>
                 <text_small width="28%" bind_text="is_x_cmp_5_type"/>
@@ -471,9 +443,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_shapers" flag="hidden" ref_value="6"/>
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="6"/>
                 <text_small width="28%" bind_text="is_x_cmp_6_type"/>
@@ -485,9 +456,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_shapers" flag="hidden" ref_value="7"/>
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="7"/>
                 <text_small width="28%" bind_text="is_x_cmp_7_type"/>
@@ -499,9 +469,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_shapers" flag="hidden" ref_value="8"/>
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="8"/>
                 <text_small width="28%" bind_text="is_x_cmp_8_type"/>
@@ -513,9 +482,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_shapers" flag="hidden" ref_value="9"/>
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="9"/>
                 <text_small width="28%" bind_text="is_x_cmp_9_type"/>
@@ -527,9 +495,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_x_num_shapers" flag="hidden" ref_value="10"/>
                 <bind_state_if_eq subject="is_x_recommended_row" state="checked" ref_value="10"/>
                 <text_small width="28%" bind_text="is_x_cmp_10_type"/>
@@ -594,9 +561,7 @@
               <ui_button name="btn_chip_y_0"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="0"/>
                 <bind_state_if_eq subject="is_y_chip_0_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_0_cb"/>
@@ -606,9 +571,7 @@
               <ui_button name="btn_chip_y_1"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="1"/>
                 <bind_state_if_eq subject="is_y_chip_1_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_1_cb"/>
@@ -618,9 +581,7 @@
               <ui_button name="btn_chip_y_2"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="2"/>
                 <bind_state_if_eq subject="is_y_chip_2_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_2_cb"/>
@@ -630,9 +591,7 @@
               <ui_button name="btn_chip_y_3"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="3"/>
                 <bind_state_if_eq subject="is_y_chip_3_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_3_cb"/>
@@ -642,9 +601,7 @@
               <ui_button name="btn_chip_y_4"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="4"/>
                 <bind_state_if_eq subject="is_y_chip_4_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_4_cb"/>
@@ -654,9 +611,7 @@
               <ui_button name="btn_chip_y_5"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="5"/>
                 <bind_state_if_eq subject="is_y_chip_5_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_5_cb"/>
@@ -666,9 +621,7 @@
               <ui_button name="btn_chip_y_6"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="6"/>
                 <bind_state_if_eq subject="is_y_chip_6_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_6_cb"/>
@@ -678,9 +631,7 @@
               <ui_button name="btn_chip_y_7"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="7"/>
                 <bind_state_if_eq subject="is_y_chip_7_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_7_cb"/>
@@ -690,9 +641,7 @@
               <ui_button name="btn_chip_y_8"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="8"/>
                 <bind_state_if_eq subject="is_y_chip_8_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_8_cb"/>
@@ -702,9 +651,7 @@
               <ui_button name="btn_chip_y_9"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="9"/>
                 <bind_state_if_eq subject="is_y_chip_9_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_9_cb"/>
@@ -714,9 +661,7 @@
               <ui_button name="btn_chip_y_10"
                          width="content" height="content" style_pad_left="#space_sm" style_pad_right="#space_sm"
                          style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_radius="12" style_border_width="1"
-                         style_border_color="#border" style_bg_opa="0" style_bg_opa:checked="200"
-                         style_bg_color:checked="#primary"
-                         style_border_color:checked="#primary" scrollable="false">
+                         style_border_color="#border" style_bg_opa="0" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_chips" flag="hidden" ref_value="10"/>
                 <bind_state_if_eq subject="is_y_chip_10_active" state="checked" ref_value="1"/>
                 <event_cb trigger="clicked" callback="input_shaper_chip_y_10_cb"/>
@@ -771,9 +716,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="0"/>
                 <text_small width="28%" bind_text="is_y_cmp_0_type"/>
                 <text_small width="22%" bind_text="is_y_cmp_0_freq"/>
@@ -784,9 +728,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="1"/>
                 <text_small width="28%" bind_text="is_y_cmp_1_type"/>
                 <text_small width="22%" bind_text="is_y_cmp_1_freq"/>
@@ -797,9 +740,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="2"/>
                 <text_small width="28%" bind_text="is_y_cmp_2_type"/>
                 <text_small width="22%" bind_text="is_y_cmp_2_freq"/>
@@ -810,9 +752,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="3"/>
                 <text_small width="28%" bind_text="is_y_cmp_3_type"/>
                 <text_small width="22%" bind_text="is_y_cmp_3_freq"/>
@@ -823,9 +764,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="4"/>
                 <text_small width="28%" bind_text="is_y_cmp_4_type"/>
                 <text_small width="22%" bind_text="is_y_cmp_4_freq"/>
@@ -836,9 +776,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_shapers" flag="hidden" ref_value="5"/>
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="5"/>
                 <text_small width="28%" bind_text="is_y_cmp_5_type"/>
@@ -850,9 +789,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_shapers" flag="hidden" ref_value="6"/>
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="6"/>
                 <text_small width="28%" bind_text="is_y_cmp_6_type"/>
@@ -864,9 +802,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_shapers" flag="hidden" ref_value="7"/>
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="7"/>
                 <text_small width="28%" bind_text="is_y_cmp_7_type"/>
@@ -878,9 +815,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_shapers" flag="hidden" ref_value="8"/>
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="8"/>
                 <text_small width="28%" bind_text="is_y_cmp_8_type"/>
@@ -892,9 +828,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_shapers" flag="hidden" ref_value="9"/>
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="9"/>
                 <text_small width="28%" bind_text="is_y_cmp_9_type"/>
@@ -906,9 +841,8 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_left="#space_sm" style_pad_right="#space_sm"
                       style_pad_top="#space_xs" style_pad_bottom="#space_xs" flex_flow="row"
-                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa:checked="40"
-                      style_bg_color:checked="#primary" style_radius:checked="4"
-                      scrollable="false">
+                      style_flex_cross_place="center" style_bg_opa="0" style_bg_opa-checked="40"
+                      style_bg_color-checked="#primary" style_radius-checked="4" scrollable="false">
                 <bind_flag_if_le subject="is_y_num_shapers" flag="hidden" ref_value="10"/>
                 <bind_state_if_eq subject="is_y_recommended_row" state="checked" ref_value="10"/>
                 <text_small width="28%" bind_text="is_y_cmp_10_type"/>
