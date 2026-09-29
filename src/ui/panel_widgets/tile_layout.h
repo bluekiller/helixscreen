@@ -155,9 +155,15 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
     };
 
     // Candidates [first, last) are tried over every rung before any later one:
-    // an identity label splits them into those that keep it and those that
-    // do not, everything else is one group.
-    const int kept = label_is_identity && labels_enabled ? 2 : candidate_count;
+    // an identity label splits them into those that keep it (a prefix, by the
+    // order above) and those that do not, everything else is one group.
+    int kept = candidate_count;
+    if (label_is_identity) {
+        kept = 0;
+        while (kept < candidate_count && candidates[kept].label) {
+            ++kept;
+        }
+    }
     const int groups[][2] = {{0, kept}, {kept, candidate_count}};
     for (const auto& [first, last] : groups) {
         // At or above the authored rung: keep content, grow the glyph into room.
