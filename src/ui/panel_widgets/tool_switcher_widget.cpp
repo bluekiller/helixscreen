@@ -85,7 +85,7 @@ ToolSwitcherWidget::PillGrid ToolSwitcherWidget::pill_grid_at(int width_px, int 
     const lv_font_t* face = lv_obj_get_style_text_font(lv_screen_active(), LV_PART_MAIN);
     int label_w = 0;
     for (const auto& tool : tools) {
-        label_w = std::max(label_w, ui::text_width(tool.display_label.c_str(), face));
+        label_w = std::max<int>(label_w, ui::text_width(tool.display_label.c_str(), face));
     }
     // The 2px on each axis is the button's border.
     const int pill_min_w = label_w + 2 * resolve_space_token("space_sm", 8) + 2;
