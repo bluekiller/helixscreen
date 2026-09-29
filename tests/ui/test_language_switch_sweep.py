@@ -25,14 +25,49 @@ from helix.app import HelixCtlError
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RECIPES = REPO_ROOT / "scripts" / "screenshot-recipes.sh"
 RUSSIAN = REPO_ROOT / "translations" / "ru.yml"
-
-# Index of Русский in SystemSettingsManager's language dropdown.
-RU_INDEX = 4
+LANGUAGES = REPO_ROOT / "src" / "system" / "system_settings_manager.cpp"
 
 # Edit-mode callouts drive raw pointer gestures, not screens of their own.
 SKIP = {"callouts-2x2", "callouts-4x2", "callouts-untagged"}
 
 DURATION = re.compile(r"^\d+(h|h \d+m| min)$")
+
+WORD = re.compile(r"[A-Za-z][A-Za-z'-]+")
+
+# Keys whose text stays as-is inside composed labels: units, material and
+# brand names that a label carries as data.
+ALLOW = {"min", "mm", "PLA", "PETG", "ABS", "ASA", "TPU", "OK"}
+
+TEXT_TYPES = {"label", "dropdown"}
+
+# Widgets that show data: file, spool, material and macro names, paths, the
+# licenses text, LED names from the printer's config.
+DATA_PATH = re.compile(
+    r"licenses_text|row_install_root|loaded_material|macro_label|macro_desc|"
+    r"filename_label|spool_name|led_tab_\d+/0/tab_label")
+
+# Fan names generated from the mock printer's config object names.
+CONFIG_NAMES = {"Controller Fan", "Nevermore Fan"}
+
+
+def _ru_index() -> int:
+    """Position of "ru" in SystemSettingsManager's language list."""
+    codes = re.search(r"LANGUAGE_CODES\[\] = \{([^}]*)\}", LANGUAGES.read_text()).group(1)
+    return re.findall(r'"(\w+)"', codes).index("ru")
+
+
+def _translatable(en: str, ru: dict) -> tuple[str, str] | None:
+    """The longest phrase of ``en`` that Russian translates, whole text first."""
+    if ru.get(en) and ru[en] != en:
+        return en, ru[en]
+    words = WORD.findall(en)
+    for n in range(len(words), 0, -1):
+        for i in range(len(words) - n + 1):
+            phrase = " ".join(words[i:i + n])
+            want = ru.get(phrase)
+            if phrase not in ALLOW and want and want != phrase:
+                return phrase, want
+    return None
 
 
 def _recipes() -> list[tuple[str, list[list[str]]]]:
@@ -65,7 +100,7 @@ def _run(app, steps: list[list[str]]) -> bool:
 def _labels(app) -> dict[str, str]:
     out = {}
     for widget in app.ls().get("widgets", []):
-        if widget.get("type") != "label":
+        if widget.get("type") not in TEXT_TYPES:
             continue
         try:
             out[widget["path"]] = app.text(widget["path"])
@@ -74,6 +109,7 @@ def _labels(app) -> dict[str, str]:
     return out
 
 
+@pytest.mark.slow
 def test_every_screen_retranslates_on_a_language_switch(fresh_helix_app):
     app = fresh_helix_app
     ru = yaml.safe_load(RUSSIAN.read_text())["translations"]
@@ -91,7 +127,7 @@ def test_every_screen_retranslates_on_a_language_switch(fresh_helix_app):
     app.wait_idle()
     app.click("row_language_time")
     app.wait_idle()
-    app.ctl("set_value", "row_language", RU_INDEX)
+    app.ctl("set_value", "row_language", _ru_index())
     app.wait_idle()
 
     stale = []
@@ -101,19 +137,24 @@ def test_every_screen_retranslates_on_a_language_switch(fresh_helix_app):
             continue
         after = _labels(app)
         for path, en in before[token].items():
-            want = ru.get(en)
-            if not en.strip() or not want or want == en:
+            if DATA_PATH.search(path) or en in CONFIG_NAMES:
                 continue
+            hit = _translatable(en, ru) if en.strip() else None
+            if not hit:
+                continue
+            phrase, want = hit
             checked += 1
             now = after.get(path)
             if now is None:
                 continue  # not on screen after the switch: rebuilt, nothing stale
             # Still exactly the English text is the stale signature; a different
             # rendering of the right translation (case, a count beside it) is not.
+            # A composed label ("Tool 2", "Heat to 200°C") counts when any phrase
+            # of it has a translation.
             # Durations are formatted without translation (format::duration_*),
             # so one that happens to equal a key ("5 min") is data, not stale.
             if now == en and not DURATION.match(en):
-                stale.append(f"{token}: {path}: {en!r} still reads {now!r}, want {want!r}")
+                stale.append(f"{token}: {path}: {en!r} unchanged; {phrase!r} -> {want!r}")
 
     report = "\n".join(stale)
     print(f"\n{checked} translatable labels checked, {len(stale)} stale; "

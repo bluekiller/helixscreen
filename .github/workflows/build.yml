@@ -373,9 +373,10 @@ jobs:
       timeout-minutes: 2
       run: pytest moonraker-plugin/tests/ -v
 
+    # -m "not slow" leaves the minutes-long screen sweeps to nightly.yml.
     - name: Run out-of-process UI tests (pytest, excluding goldens)
       timeout-minutes: 5
-      run: pytest tests/ui/ -v --ignore=tests/ui/test_screens.py
+      run: pytest tests/ui/ -v --ignore=tests/ui/test_screens.py -m "not slow"
 
     # tests/ui/conftest.py writes a screenshot, an app log and a state dump per
     # failing case. Without this they die with the runner, which is what makes a
