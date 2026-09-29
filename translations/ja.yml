@@ -1931,6 +1931,7 @@ translations:
   No new mesh was stored as '{}': "新しいメッシュは '{}' として保存されませんでした"
   No notifications: 通知なし
   No objects defined for this print: この印刷にはオブジェクトが定義されていません
+  No output yet: 出力なし
   No presets configured: プリセットが設定されていません
   No preview: プレビューなし
   No print history found: 印刷履歴が見つかりません

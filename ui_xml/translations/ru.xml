@@ -1858,6 +1858,7 @@
   <translation tag="No new mesh was stored as &apos;{}&apos;" ru="Новая сетка не сохранена как &apos;{}&apos;"/>
   <translation tag="No notifications" ru="Нет уведомлений"/>
   <translation tag="No objects defined for this print" ru="Для этой печати не определены объекты"/>
+  <translation tag="No output yet" ru="Нет вывода"/>
   <translation tag="No presets configured" ru="Пресеты не настроены"/>
   <translation tag="No preview" ru="Нет предпросмотра"/>
   <translation tag="No print history found" ru="История печати не найдена"/>

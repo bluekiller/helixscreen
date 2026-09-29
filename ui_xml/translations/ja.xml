@@ -1858,6 +1858,7 @@
   <translation tag="No new mesh was stored as &apos;{}&apos;" ja="新しいメッシュは &apos;{}&apos; として保存されませんでした"/>
   <translation tag="No notifications" ja="通知なし"/>
   <translation tag="No objects defined for this print" ja="この印刷にはオブジェクトが定義されていません"/>
+  <translation tag="No output yet" ja="出力なし"/>
   <translation tag="No presets configured" ja="プリセットが設定されていません"/>
   <translation tag="No preview" ja="プレビューなし"/>
   <translation tag="No print history found" ja="印刷履歴が見つかりません"/>

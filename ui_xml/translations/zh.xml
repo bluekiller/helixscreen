@@ -1858,6 +1858,7 @@
   <translation tag="No new mesh was stored as &apos;{}&apos;" zh="没有新的网格保存为 &apos;{}&apos;"/>
   <translation tag="No notifications" zh="无通知"/>
   <translation tag="No objects defined for this print" zh="此次打印未定义对象"/>
+  <translation tag="No output yet" zh="暂无输出"/>
   <translation tag="No presets configured" zh="未配置预设"/>
   <translation tag="No preview" zh="无预览"/>
   <translation tag="No print history found" zh="未找到打印历史"/>

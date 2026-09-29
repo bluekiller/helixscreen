@@ -1858,6 +1858,7 @@
   <translation tag="No new mesh was stored as &apos;{}&apos;" fr="Aucun nouveau maillage n&apos;a été enregistré sous &apos;{}&apos;"/>
   <translation tag="No notifications" fr="Aucune notification"/>
   <translation tag="No objects defined for this print" fr="Aucun objet défini pour cette impression"/>
+  <translation tag="No output yet" fr="Aucune sortie"/>
   <translation tag="No presets configured" fr="Aucun préréglage configuré"/>
   <translation tag="No preview" fr="Pas d&apos;aperçu"/>
   <translation tag="No print history found" fr="Aucun historique d&apos;impression"/>

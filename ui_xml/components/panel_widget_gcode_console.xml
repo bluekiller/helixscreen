@@ -10,13 +10,33 @@
     <prop name="tile_label_subject" type="string" default=""/>
     <prop name="tile_dir_subject" type="string" default=""/>
     <prop name="tile_target_subject" type="string" default=""/>
+    <!-- 0 = icon tile, 1 = output tail with nothing to show yet, 2 = output tail -->
+    <prop name="tail_view_subject" type="string" default=""/>
   </api>
   <view name="panel_widget_gcode_console"
         extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" scrollable="false">
-    <home_action_tile width="100%"
-                      height="100%" icon="console" icon_variant="secondary" label="Console" label_tag="Console"
-                      callback="gcode_console_clicked_cb" button_name="gcode_console_button" icon_name="console_icon"
-                      tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
-                      disabled_cond="printer_connection_state ne 2"/>
+    <lv_obj name="gcode_console_icon_face" width="100%" height="100%" style_pad_all="0" scrollable="false">
+      <bind_flag_if_not_eq subject="$tail_view_subject" flag="hidden" ref_value="0"/>
+      <home_action_tile width="100%"
+                        height="100%" icon="console" icon_variant="secondary" label="Console" label_tag="Console"
+                        callback="gcode_console_clicked_cb" button_name="gcode_console_button" icon_name="console_icon"
+                        tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
+                        disabled_cond="printer_connection_state ne 2"/>
+    </lv_obj>
+    <!-- Live output tail: newest line at the bottom, older lines clip off the top.
+         Rows are created in C++ as output arrives. -->
+    <lv_obj name="gcode_console_tail"
+            width="100%" height="100%" style_pad_all="#space_sm" scrollable="false" clickable="true" hidden="true">
+      <bind_flag_if_eq subject="$tail_view_subject" flag="hidden" ref_value="0"/>
+      <event_cb trigger="clicked" callback="gcode_console_clicked_cb"/>
+      <text_muted name="gcode_console_tail_empty"
+                  width="100%" align="center" text="No output yet" translation_tag="No output yet"
+                  style_text_align="center" event_bubble="true">
+        <bind_flag_if_not_eq subject="$tail_view_subject" flag="hidden" ref_value="1"/>
+      </text_muted>
+      <lv_obj name="gcode_console_tail_rows"
+              width="100%" height="100%" style_pad_all="0" style_pad_gap="0" flex_flow="column"
+              style_flex_main_place="end" scrollable="false" clickable="false" event_bubble="true"/>
+    </lv_obj>
   </view>
 </component>
