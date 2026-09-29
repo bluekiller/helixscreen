@@ -222,17 +222,20 @@ PluginBackend make_app_backend() {
                 }
             }
             auto out = std::make_shared<std::string>();
-            req->http_cb = [req, out, max_body](HttpMessage*, http_parser_state state,
-                                                const char* data, size_t size) {
+            // A raw pointer: the callback lives inside *req, so owning req here would be a
+            // reference cycle. It only runs during requests::request, which holds req.
+            HttpRequest* r = req.get();
+            req->http_cb = [r, out, max_body](HttpMessage*, http_parser_state state,
+                                              const char* data, size_t size) {
                 if (state != HP_BODY || data == nullptr || size == 0)
                     return;
                 if (out->size() >= max_body) { // keep the cancel armed on every later chunk
-                    req->Cancel();
+                    r->Cancel();
                     return;
                 }
                 out->append(data, std::min(size, max_body - out->size()));
                 if (out->size() >= max_body)
-                    req->Cancel();
+                    r->Cancel();
             };
             auto resp = requests::request(req);
             if (!resp)
