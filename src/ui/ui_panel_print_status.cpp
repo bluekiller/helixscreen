@@ -3337,7 +3337,8 @@ void PrintStatusPanel::update_speed_flow_text() {
         DisplaySettingsManager::instance().get_speed_flow_physical_units(),
         lifecycle_.speed_percent(), lifecycle_.flow_percent(),
         lv_subject_get_int(printer_state_.get_live_velocity_subject()),
-        lv_subject_get_int(printer_state_.get_live_extruder_velocity_subject()));
+        lv_subject_get_int(printer_state_.get_live_extruder_velocity_subject()),
+        printer_state_.get_discovery().filament_diameter_mm());
     // The extruder velocity observer fires several times a second; only a
     // changed string is worth a relabel.
     if (text.speed != speed_buf_) {

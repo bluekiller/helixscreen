@@ -155,6 +155,27 @@ TEST_CASE("insufficient_spool_weight_in: length fallback via material density",
     CHECK(r->second == 5.0f);
 }
 
+TEST_CASE("insufficient_spool_weight_in: length fallback uses the printer's filament diameter",
+          "[print-start][gate-pipeline][filament_diameter]") {
+    // 100m of PLA weighs about 298g at 1.75mm and 791g at 2.85mm.
+    auto with_diameter = [](float diameter_mm) {
+        return ctx_with([diameter_mm](PrintStartContext& c) {
+            SlotInfo spool;
+            spool.remaining_weight_g = 500.0f;
+            spool.material = "PLA";
+            c.external_spool = spool;
+            FileMetadata md;
+            md.filament_total = 100000.0;
+            c.metadata = md;
+            c.filament_diameter_mm = diameter_mm;
+        });
+    };
+    CHECK_FALSE(insufficient_spool_weight_in(with_diameter(1.75f)).has_value());
+    auto r = insufficient_spool_weight_in(with_diameter(2.85f));
+    REQUIRE(r.has_value());
+    CHECK(r->first == Catch::Approx(791.0f).epsilon(0.01));
+}
+
 TEST_CASE("insufficient_spool_weight_in: silent on a lane-fed AMS print",
           "[print-start][gate-pipeline]") {
     // K2 Plus, 2026-08-24: the user mapped a large print from T1 to T2 and kept
