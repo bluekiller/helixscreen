@@ -35,21 +35,30 @@ constexpr const char* kLadders[3][kTileRungs] = {
     {"font_xs", "font_xs", "font_xs", "font_xs", "font_small"},
 };
 
-/// The ladder and offset ride in the observer's user data, so a binding needs
-/// no allocation and nothing to free when its object goes away.
-void* pack(TileLadder ladder, int offset) {
-    return reinterpret_cast<void*>(
-        static_cast<intptr_t>(static_cast<int>(ladder) * 256 + (offset + 128)));
+/// The ladder, offset and one-line flag ride in the observer's user data, so a
+/// binding needs no allocation and nothing to free when its object goes away.
+constexpr int kOneLineBit = 1 << 12;
+
+void* pack(TileLadder ladder, int offset, bool one_line) {
+    return reinterpret_cast<void*>(static_cast<intptr_t>(
+        static_cast<int>(ladder) * 256 + (offset + 128) + (one_line ? kOneLineBit : 0)));
 }
 
 void rung_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     const auto packed =
         static_cast<int>(reinterpret_cast<intptr_t>(lv_observer_get_user_data(observer)));
-    const auto ladder = static_cast<TileLadder>(packed / 256);
+    const auto ladder = static_cast<TileLadder>((packed & ~kOneLineBit) / 256);
     const int offset = packed % 256 - 128;
     auto* obj = static_cast<lv_obj_t*>(lv_observer_get_target(observer));
     const char* token = tile_rung_font_token(ladder, lv_subject_get_int(subject) + offset);
-    apply_font_style(obj, theme_manager_get_font(token));
+    const lv_font_t* font = theme_manager_get_font(token);
+    apply_font_style(obj, font);
+    // A dotted label ellipsizes only at a fixed height; at content height it
+    // wraps instead. One line of the face it now draws in is that height.
+    // DECLARATIVE_OK: measured from the computed face, which XML cannot name.
+    if ((packed & kOneLineBit) && font) {
+        lv_obj_set_height(obj, lv_font_get_line_height(font));
+    }
 }
 
 void* bind_tile_rung_create(lv_xml_parser_state_t* state, const char** attrs) {
@@ -81,8 +90,11 @@ void bind_tile_rung_apply(lv_xml_parser_state_t* state, const char** attrs) {
 
     const char* offset_str = lv_xml_get_value_of(attrs, "offset");
     const int offset = offset_str ? lv_xml_atoi(offset_str) : 0;
+    const char* one_line_str = lv_xml_get_value_of(attrs, "one_line");
+    const bool one_line = one_line_str && std::strcmp(one_line_str, "true") == 0;
 
-    bind_tile_rung(static_cast<lv_obj_t*>(lv_xml_state_get_parent(state)), subject, ladder, offset);
+    bind_tile_rung(static_cast<lv_obj_t*>(lv_xml_state_get_parent(state)), subject, ladder, offset,
+                   one_line);
 }
 
 } // namespace
@@ -91,11 +103,12 @@ const char* tile_rung_font_token(TileLadder ladder, int rung) {
     return kLadders[static_cast<int>(ladder)][std::clamp(rung, 0, kTileRungs - 1)];
 }
 
-void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset) {
+void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset,
+                    bool one_line) {
     if (!obj || !subject) {
         return;
     }
-    lv_subject_add_observer_obj(subject, rung_observer_cb, obj, pack(ladder, offset));
+    lv_subject_add_observer_obj(subject, rung_observer_cb, obj, pack(ladder, offset, one_line));
 }
 
 void register_tile_rung_binding() {

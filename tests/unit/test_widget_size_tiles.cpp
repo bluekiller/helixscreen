@@ -541,3 +541,32 @@ TEST_CASE("a hidden label costs a tile no glyph, and toggling it re-measures",
     lv_subject_set_int(shown, original);
     drain();
 }
+
+TEST_CASE("a sensor tile's name stays one line however narrow the tile",
+          "[widget_size][tile][labels]") {
+    // The name is long_mode="dots", which ellipsizes only at a fixed height; at
+    // content height a narrow tile wraps it onto a second line instead.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    for (const char* id : {"fan", "thermistor"}) {
+        INFO("tile " << id);
+        const auto* def = find_widget_def(id);
+        REQUIRE(def != nullptr);
+        auto instance = def->factory(id);
+        REQUIRE(instance != nullptr);
+        lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+            fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+        REQUIRE(root != nullptr);
+        lv_obj_t* name =
+            lv_obj_find_by_name(root, std::string(id) == "fan" ? "fan_name" : "thermistor_name");
+        REQUIRE(name != nullptr);
+        lv_label_set_text(name, "A very long sensor name indeed");
+        lv_obj_set_size(root, 40, 160);
+        instance->notify_size_changed(1, 3, 40, 160);
+        lv_obj_update_layout(root);
+
+        const lv_font_t* face = lv_obj_get_style_text_font(name, LV_PART_MAIN);
+        CHECK(lv_obj_get_height(name) == lv_font_get_line_height(face));
+        lv_obj_delete(root);
+    }
+}

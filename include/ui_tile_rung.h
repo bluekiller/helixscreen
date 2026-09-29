@@ -31,11 +31,13 @@ const char* tile_rung_font_token(TileLadder ladder, int rung);
 
 /// Keep @p obj's face on @p ladder at the rung @p subject holds, shifted by
 /// @p offset rungs. The face is resolved from the current tier's token each
-/// time the rung changes.
-void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset = 0);
+/// time the rung changes. @p one_line also holds the object to one line of that
+/// face, which a long_mode="dots" label needs to ellipsize rather than wrap.
+void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset = 0,
+                    bool one_line = false);
 
-/// Register `<bind_tile_rung ladder="icon|value|label" subject="..." offset="0"/>`,
-/// a child element of any widget. An empty subject installs no binding, so a
+/// Register `<bind_tile_rung ladder="icon|value|label" subject="..." offset="0"
+/// one_line="false"/>`, a child element of any widget. An empty subject installs no binding, so a
 /// component used outside a sizing tile keeps its authored face.
 void register_tile_rung_binding();
 

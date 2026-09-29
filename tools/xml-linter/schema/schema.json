@@ -1944,6 +1944,9 @@
         },
         "offset": {
           "type": "string"
+        },
+        "one_line": {
+          "type": "string"
         }
       },
       "inherits": "lv_obj"
