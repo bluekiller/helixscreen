@@ -31,6 +31,7 @@
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "../test_helpers/tool_switcher_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "grid_layout.h"
 #include "panel_widget_size.h"
 #include "printer_discovery.h"
 #include "src/ui/panel_widgets/tool_switcher_widget.h"
@@ -92,61 +93,72 @@ int resolve_space_token(const char* name, int fallback) {
 
 } // namespace
 
+/// Columns and rows the pill grid was built with.
+static std::pair<int, int> pill_tracks(lv_obj_t* container) {
+    return {
+        helix::grid_count_tracks(lv_obj_get_style_grid_column_dsc_array(container, LV_PART_MAIN)),
+        helix::grid_count_tracks(lv_obj_get_style_grid_row_dsc_array(container, LV_PART_MAIN))};
+}
+
+/// Whether @p pill wears a different face than the active pill: equal buttons,
+/// one highlighted.
+static bool looks_inactive(lv_obj_t* pill, lv_obj_t* active) {
+    return !lv_color_eq(lv_obj_get_style_bg_color(pill, LV_PART_MAIN),
+                        lv_obj_get_style_bg_color(active, LV_PART_MAIN));
+}
+
 TEST_CASE_METHOD(ToolSwitcherFixture,
-                 "tool_switcher: compact, pill-row and pill-column forms follow pixels, "
-                 "not spans",
+                 "tool_switcher: pills show only where every pill fits legibly, in the "
+                 "squarest grid",
                  "[widget_size][tool_switcher]") {
     configure_tools(3);
 
     PanelWidgetHarness<ToolSwitcherWidget> h(test_screen(), state());
     lv_obj_t* container = h.child("tool_switcher_container");
-    REQUIRE(container != nullptr);
-
-    // LVGL fires a freshly-added observer once immediately on subscribe
-    // (lv_subject_add_observer_obj), so attach() — via observe_int_sync —
-    // queues ONE deferred rebuild from each of tool_count_observer_ and
-    // active_tool_observer_ before any resize() ever runs, using whatever
-    // current_width_px_/current_height_px_ hold at that point (still the
-    // 0,0 default — compact). Drain that now, while it is a no-op (compact
-    // in, compact out). Left undrained, it would instead fire on the FIRST
-    // process_lvgl() below — by which point on_size_changed() has already
-    // cached the real resize() pixels — and silently re-derive the correct
-    // layout from those, masking a broken on_size_changed() for exactly one
-    // case: whichever resize happens to land first.
-    process_lvgl(30);
-
-    // --- Compact: both axes below floor. Contradicting span: 2x2 (old rule:
-    // colspan==1 && rowspan==1 is false -> pills).
-    h.resize(2, 2, w_normal() - 1, h_tall() - 1);
-    process_lvgl(30);
-
     lv_obj_t* compact = h.child("tool_switcher_compact");
+    REQUIRE(container != nullptr);
     REQUIRE(compact != nullptr);
+
+    // attach()'s observers each queue one rebuild on subscribe; drain them
+    // before the first resize so they cannot re-derive a layout later and
+    // mask a broken on_size_changed().
+    process_lvgl(30);
+
+    // Too small for three legible pills in any arrangement: compact. The span
+    // contradicts the pixels, so a span-reading rule fails here.
+    h.resize(8, 8, 60, 60);
+    process_lvgl(30);
     CHECK_FALSE(lv_obj_has_flag(compact, LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(container, LV_OBJ_FLAG_HIDDEN));
 
-    // --- Pill row: width at/over the floor. Height is deliberately short
-    // (well under two pill rows' worth of content height) so rebuild_pills()'s
-    // own row-count measurement — a real-geometry heuristic independent of
-    // the colspan/rowspan migration this test targets — keeps a single flex
-    // row instead of switching to its 2-row grid. Contradicting span: 1x1
-    // (old rule -> compact).
-    h.resize(1, 1, w_normal(), 60);
+    // Wide and short: one row of three.
+    h.resize(1, 1, 400, 60);
     process_lvgl(30);
-
-    REQUIRE(lv_obj_get_child_count(container) == 3); // one ui_button per tool
-    CHECK(lv_obj_get_style_flex_flow(container, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
     CHECK_FALSE(lv_obj_has_flag(container, LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(compact, LV_OBJ_FLAG_HIDDEN));
-
-    // --- Pill column: narrow but tall — the legacy 1x2 vertical-stack shape
-    // (tool_switcher_widget.cpp's rebuild_pills(), the current_rowspan_>=2
-    // branch). Contradicting span: 1x1 (old rule -> compact, not even pills).
-    h.resize(1, 2, w_normal() - 1, h_tall());
-    process_lvgl(30);
-
     REQUIRE(lv_obj_get_child_count(container) == 3);
-    CHECK(lv_obj_get_style_flex_flow(container, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+    CHECK(pill_tracks(container) == std::make_pair(3, 1));
+
+    // Narrow and tall: one column.
+    h.resize(1, 1, 90, 300);
+    process_lvgl(30);
+    REQUIRE(lv_obj_get_child_count(container) == 3);
+    CHECK(pill_tracks(container) == std::make_pair(1, 3));
+
+    // Square: a balanced grid of equal cells, not one long row.
+    h.resize(1, 1, 230, 230);
+    process_lvgl(30);
+    REQUIRE(lv_obj_get_child_count(container) == 3);
+    CHECK(pill_tracks(container) == std::make_pair(2, 2));
+    lv_obj_update_layout(container);
+    // Equal cells, to the pixel the grid's rounding allows.
+    CHECK(std::abs(lv_obj_get_width(lv_obj_get_child(container, 0)) -
+                   lv_obj_get_width(lv_obj_get_child(container, 1))) <= 1);
+
+    // fits_at follows the same measurement: a box with no legible pill
+    // arrangement is sized by the compact form alone.
+    CHECK(h.widget().fits_at(230, 230));
+    CHECK_FALSE(h.widget().fits_at(4, 4));
 }
 
 TEST_CASE_METHOD(ToolSwitcherFixture,
@@ -173,9 +185,8 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
     process_lvgl(30);
     REQUIRE(lv_obj_get_child_count(container) == 3);
 
-    // T0 active: pill 0 opaque (ButtonPrimary), pill 1 transparent (ButtonGhost).
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 0), LV_PART_MAIN) == LV_OPA_COVER);
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 1), LV_PART_MAIN) == LV_OPA_0);
+    // T0 active: pill 0 highlighted, pill 1 not.
+    CHECK(looks_inactive(lv_obj_get_child(container, 1), lv_obj_get_child(container, 0)));
 
     // Change the active tool WITHOUT any further on_size_changed() call —
     // exactly what a real touchscreen does (screens don't resize at
@@ -188,8 +199,7 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
     // stale-span implementation (colspan/rowspan defaulting to 1x1) would
     // instead collapse this to the 2-child compact form.
     REQUIRE(lv_obj_get_child_count(container) == 3);
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 0), LV_PART_MAIN) == LV_OPA_0);
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 1), LV_PART_MAIN) == LV_OPA_COVER);
+    CHECK(looks_inactive(lv_obj_get_child(container, 0), lv_obj_get_child(container, 1)));
 }
 
 TEST_CASE_METHOD(ToolSwitcherFixture,
@@ -222,79 +232,30 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
     process_lvgl(30);
 
     REQUIRE(lv_obj_get_child_count(container) == 3);
-    CHECK(lv_obj_get_style_flex_flow(container, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 0), LV_PART_MAIN) == LV_OPA_COVER);
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 1), LV_PART_MAIN) == LV_OPA_0);
-    CHECK(lv_obj_get_style_bg_opa(lv_obj_get_child(container, 2), LV_PART_MAIN) == LV_OPA_0);
+    CHECK(looks_inactive(lv_obj_get_child(container, 1), lv_obj_get_child(container, 0)));
+    CHECK(looks_inactive(lv_obj_get_child(container, 2), lv_obj_get_child(container, 0)));
 }
 
 TEST_CASE_METHOD(ToolSwitcherFixture,
-                 "tool_switcher: pre-grid oversized self-measurement is corrected once the "
-                 "real grid cell settles",
+                 "tool_switcher: the pill grid follows the granted size, not the container's "
+                 "pre-grid box",
                  "[widget_size][tool_switcher]") {
-    // PanelWidgetManager calls on_size_changed() BEFORE activating the grid
-    // layout (panel_widget_manager.cpp:901-903, deliberately — activating
-    // early crashed, #983). Until the grid activates, widget_obj_'s XML
-    // 100%/100% sizing resolves against the outer panel's whole content box,
-    // not its eventual grid cell — so the FIRST time rebuild_pills()
-    // self-measures tool_switcher_container's height to pick a row count, it
-    // reads that oversized box, not the real cell.
+    // PanelWidgetManager calls on_size_changed() before it activates the grid
+    // (#983), so the container still reports the panel's whole content box. The
+    // arrangement must come from the size the widget was granted.
     configure_tools(3);
-
-    int pill_min_h = resolve_space_token("button_height_sm", 40);
-    int row_gap = resolve_space_token("space_xs", 4);
-
-    // Pre-grid: tall enough that fit_rows saturates well past rebuild_pills()'s
-    // 2-row cap, regardless of which breakpoint tier resolved the tokens above.
-    int pregrid_h = 20 * (pill_min_h + row_gap);
-    // Real cell: exactly enough height for one pill row (fit_rows == 1
-    // exactly) — the real cell that only fits a single row, per the bug
-    // report's "590px measured, 66px real" repro.
-    int real_h = pill_min_h;
-    int real_w = w_wide();
-
     PanelWidgetHarness<ToolSwitcherWidget> h(test_screen(), state());
     lv_obj_t* container = h.child("tool_switcher_container");
     REQUIRE(container != nullptr);
-
-    // Drain attach()'s immediate-on-subscribe observer notifications (see the
-    // longer comment in the compact/pill-row/pill-column test above).
     process_lvgl(30);
 
-    // Step 1: pre-grid state — widget_obj_ (h.root()) still reports the
-    // oversized whole-content-box size. Deliberately NOT using h.resize()
-    // here: it keeps widget_obj_'s actual size and on_size_changed()'s
-    // arguments in lockstep, which is exactly what production does NOT do
-    // pre-grid.
-    lv_obj_set_size(h.root(), real_w, pregrid_h);
+    lv_obj_set_size(h.root(), 400, 1000);
     lv_obj_update_layout(h.root());
-
-    // Step 2: on_size_changed() receives the CORRECT target cell pixels (as
-    // PanelWidgetManager's grid_track_extent() computes them in production)
-    // even though widget_obj_'s on-screen size hasn't caught up to them yet.
-    h.widget().on_size_changed(1, 1, real_w, real_h);
+    h.widget().on_size_changed(1, 1, 400, 60);
     process_lvgl(30);
 
-    // Sanity check on the reproduction itself: rebuild_pills() self-measured
-    // the still-oversized container and baked the 2-row grid — this holds
-    // both before AND after the fix, since the fix doesn't change what
-    // happens here, only what happens once the grid actually settles below.
     REQUIRE(lv_obj_get_child_count(container) == 3);
-    CHECK(lv_obj_get_style_layout(container, LV_PART_MAIN) == LV_LAYOUT_GRID);
-
-    // Step 3: grid activation — widget_obj_ actually shrinks to its real
-    // cell size, firing LV_EVENT_SIZE_CHANGED. Before the fix, nothing
-    // listens for this and the 2-row grid from step 2 is never revisited.
-    lv_obj_set_size(h.root(), real_w, real_h);
-    lv_obj_update_layout(h.root());
-    process_lvgl(30);
-
-    // The real cell only fits one pill row (real_h == pill_min_h exactly),
-    // so the layout must have collapsed to the single flex row — not stayed
-    // on the 2-row grid baked from the oversized pre-grid box.
-    REQUIRE(lv_obj_get_child_count(container) == 3);
-    CHECK(lv_obj_get_style_layout(container, LV_PART_MAIN) == LV_LAYOUT_FLEX);
-    CHECK(lv_obj_get_style_flex_flow(container, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
+    CHECK(pill_tracks(container) == std::make_pair(3, 1));
 }
 
 TEST_CASE_METHOD(ToolSwitcherFixture, "tool_switcher: compact mode marks an unknown active tool",
@@ -316,8 +277,8 @@ TEST_CASE_METHOD(ToolSwitcherFixture, "tool_switcher: compact mode marks an unkn
     REQUIRE(h.child("tool_switcher_container") != nullptr);
     process_lvgl(30);
 
-    // Both axes below the floor: the compact icon-plus-label form.
-    h.resize(2, 2, w_normal() - 1, h_tall() - 1);
+    // Too small for any pill arrangement: the compact icon-plus-label form.
+    h.resize(2, 2, 60, 60);
     process_lvgl(30);
 
     lv_obj_t* label = ToolSwitcherTestAccess::compact_label(h.widget());
