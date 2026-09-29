@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -27,9 +28,9 @@ constexpr size_t kMaxInflightHttp = 2;
 struct IoState {
     std::optional<json> storage; ///< loaded on first use
     std::unordered_map<std::string, std::vector<int>> on_change;
-    /// Shared with the backend's reply closures, which can outlive the runtime; the count
-    /// they decrement must survive with them.
-    std::shared_ptr<size_t> inflight_http = std::make_shared<size_t>(0);
+    /// Shared with the backend's reply closures, which can outlive the runtime and run on a
+    /// worker thread; the count they decrement must survive with them.
+    std::shared_ptr<std::atomic<size_t>> inflight_http = std::make_shared<std::atomic<size_t>>(0);
 };
 
 IoState& io_state(lua_State* L) {
@@ -95,17 +96,17 @@ int http_request(lua_State* L, const char* method, const char* call_name) {
     if (*st.inflight_http >= kMaxInflightHttp)
         return luaL_error(L, "helix.http: at most %d requests in flight per plugin",
                           static_cast<int>(kMaxInflightHttp));
-    ++*st.inflight_http;
     // One byte more than fits: a body that fills the ask is then refused by the memory-cap
     // check as (nil, error) instead of faulting the runtime.
     size_t max_body = memory_remaining(LuaRuntime::from(L)) + 1;
-    std::shared_ptr<size_t> inflight = st.inflight_http;
+    std::shared_ptr<std::atomic<size_t>> inflight = st.inflight_http;
     PluginBackend* backend = &context(L).backend;
+    // The slot is taken inside start, which await_async skips when it refuses the call.
     return LuaRuntime::from(L).await_async(
         L, [backend, m, url, body, headers, timeout_ms, max_body, inflight](LuaRuntime::Pending p) {
+            ++*inflight;
             backend->http(m, url, body, headers, timeout_ms, max_body, [p, inflight](RpcResult r) {
-                if (*inflight > 0)
-                    --*inflight;
+                --*inflight;
                 make_resolver(p, &push_rpc_http_response)(std::move(r));
             });
         });

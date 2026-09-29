@@ -85,6 +85,20 @@ TEST_CASE_METHOD(LVGLTestFixture, "helix.http bounds in-flight requests per plug
     CHECK(h.fake.requests.size() == 3);
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "an http call refused as not awaitable holds no slot",
+                 "[plugin][bindings][io]") {
+    BoundRuntime h({&install_io_bindings}, {Permission::Http});
+    REQUIRE(h.t.run(R"(
+        for i = 1, 3 do
+            pcall(coroutine.wrap(function() return helix.http.get("https://example.com/c") end))
+        end
+        r = helix.http.get("https://example.com/ok")
+    )"));
+    REQUIRE(h.fake.requests.size() == 1);
+    h.fake.requests[0].reply(RpcResult{true, json{{"status", 200}, {"body", "x"}}, {}});
+    helix::ui::UpdateQueue::instance().drain();
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "http asks for one byte more than the remaining cap",
                  "[plugin][bindings][io]") {
     BoundRuntime h({&install_io_bindings}, {Permission::Http});
