@@ -1858,8 +1858,7 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   # It joins the ui_gcode_viewer_* C API, which is global by design because it
   # is the widget's LVGL-facing surface; scoping this one call into helix::
   # would make it the only member of that family that is. 2215 -> 2214 is
-  # plugin_api.h's file-scope `class IMoonrakerAPI;` forward declaration,
-  # retired with the dlopen plugin system.
+  # plugin_api.h's file-scope `class IMoonrakerAPI;` forward declaration.
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.

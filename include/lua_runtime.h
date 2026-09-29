@@ -136,6 +136,7 @@ class LuaRuntime {
     static void* alloc(void* ud, void* ptr, size_t osize, size_t nsize);
     static void budget_hook(lua_State* L, lua_Debug* ar);
     static int lua_require(lua_State* L);
+    static int lua_print(lua_State* L);
 
     void install_sandbox();
     bool spawn(const PushFn& push_args);

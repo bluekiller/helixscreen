@@ -41,6 +41,17 @@ TEST_CASE("sandbox removes host access", "[plugin][lua_runtime]") {
     CHECK(t.global("stop_ok") == "false");
 }
 
+TEST_CASE("sandbox print accepts every argument shape", "[plugin][lua_runtime]") {
+    TestRuntime t;
+    REQUIRE(t.run(R"(
+        print("a", 1, nil, true)
+        print()
+        print({})
+        printed_ok = true
+    )"));
+    CHECK(t.global("printed_ok") == "true");
+}
+
 TEST_CASE("require resolves inside the plugin and caches", "[plugin][lua_runtime]") {
     TestRuntime t;
     REQUIRE(t.run(R"(
@@ -274,7 +285,7 @@ TEST_CASE("a reply after the runtime is gone is dropped", "[plugin][lua_runtime]
     REQUIRE(pending.size() == 1);
     pending[0].resolve(push_int(1));
     helix::ui::UpdateQueue::instance().drain();
-    SUCCEED(); // ASAN (Step 5) is what proves nothing touched the destroyed runtime
+    SUCCEED(); // ASAN is what proves nothing touched the destroyed runtime
 }
 
 TEST_CASE("a reply after a fault is dropped", "[plugin][lua_runtime][async]") {

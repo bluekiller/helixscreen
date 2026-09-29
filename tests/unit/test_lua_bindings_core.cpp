@@ -114,7 +114,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "timers and sleeps die with the runtime",
     }
     process_lvgl(30);
     helix::ui::UpdateQueue::instance().drain();
-    SUCCEED(); // ASAN (Step 7) is what proves no timer outlived its state
+    SUCCEED(); // ASAN is what proves no timer outlived its state
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "helix.timer bounds live timers per plugin",

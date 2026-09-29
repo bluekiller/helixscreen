@@ -128,7 +128,7 @@ EOF
     cat > "$ROOT/src/demo.cpp" <<'EOF'
 void init_subjects() {
     lv_xml_register_subject(nullptr, "plugin_state",
-                            &plugin_state_); // SUBJECT_OK: read by the plugin ABI
+                            &plugin_state_); // SUBJECT_OK: read by name from XML
 }
 EOF
     run_gate

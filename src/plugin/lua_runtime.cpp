@@ -167,8 +167,25 @@ void LuaRuntime::install_sandbox() {
     lua_rawsetp(L_, LUA_REGISTRYINDEX, &kLoadedKey);
     lua_pushcfunction(L_, &LuaRuntime::lua_require);
     lua_setglobal(L_, "require");
+    // A C function rather than prelude Lua: the prelude runs before the helix global
+    // exists, and the base library's print writes straight to stdout.
+    lua_pushcfunction(L_, &LuaRuntime::lua_print);
+    lua_setglobal(L_, "print");
     lua_newtable(L_);
     lua_setglobal(L_, "helix");
+}
+
+int LuaRuntime::lua_print(lua_State* L) {
+    std::string line;
+    int n = lua_gettop(L);
+    for (int i = 1; i <= n; ++i) {
+        if (i > 1)
+            line += '\t';
+        line += luaL_tolstring(L, i, nullptr); // print's tostring semantics, tabs between
+        lua_pop(L, 1);                         // the converted copy
+    }
+    spdlog::info("[plugin {}] {}", from(L).plugin_id_, line);
+    return 0;
 }
 
 int LuaRuntime::lua_require(lua_State* L) {
