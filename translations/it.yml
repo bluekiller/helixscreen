@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d alimentatori'
   '%d gates': '%d Gate'
   '%d lanes': '%d corsie'
+  '%d min': '%d min'
+  '%d min left': '%d min rimanenti'
   '%d more sensors': '%d altri sensori'
   '%d slots': '%d slot'
   '%d toolheads': '%d testine'
   '%d tools': '%d strumenti'
+  '%d:%02d left': '%d:%02d rimanenti'
+  '%dh': '%d h'
+  '%dh %02dm': '%d h %02d min'
+  '%dh %dm': '%d h %d min'
+  '%dm': '%d min'
+  '%dm %02ds': '%d min %02d s'
+  '%ds': '%d s'
   '%lu days ago': '%lu giorni fa'
   '%lu hours ago': '%lu ore fa'
   '%lu min ago': '%lu min fa'
@@ -141,6 +150,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS attivo: '
   AMS is busy: AMS occupato
+  AMS/MMU system not detected: 'Sistema AMS/MMU non rilevato'
   API not available: API non disponibile
   APPEARANCE: ASPETTO
   AUTO FANS: VENTOLE AUTO

@@ -100,6 +100,13 @@ static std::vector<uint8_t> read_file_bytes(const std::string& path) {
 
 static std::unique_ptr<PrintSelectPanel> g_print_select_panel;
 
+/// A card's time: the slicer estimate plus the predicted pre-print overhead
+/// (heating, homing, bed mesh, ...), so users see realistic wall-clock time.
+static int card_total_minutes(int print_time_minutes) {
+    const int preprint_seconds = helix::PreprintPredictor::predicted_total_from_config();
+    return print_time_minutes + (preprint_seconds + 30) / 60; // round to nearest minute
+}
+
 PrintSelectPanel* get_print_select_panel(PrinterState& printer_state, IMoonrakerAPI* api) {
     if (!g_print_select_panel) {
         g_print_select_panel = std::make_unique<PrintSelectPanel>(printer_state, api);
@@ -854,16 +861,18 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                       get_name());
     }
 
-    // The detail view shows each file's cached layer count and height, whose
-    // words are lv_tr()'d when the metadata lands; a new language formats them again.
+    // Each file's time, layer count and height are formatted in the current
+    // language when its metadata lands; a new language formats them again.
     language_observer_ = helix::ui::observe_language_change(this, [](PrintSelectPanel* self) {
         for (auto& file : self->file_list_) {
             if (!file.metadata_fetched) {
                 continue; // metadata not in yet; it formats in the current language
             }
+            file.print_time_str = format_print_time(card_total_minutes(file.print_time_minutes));
             file.layer_count_str = format_layer_count(file.layer_count);
             file.print_height_str = format_print_height(file.object_height, /*tall_suffix=*/true);
         }
+        self->schedule_view_refresh();
     });
 
     spdlog::trace("[{}] Setup complete", get_name());
@@ -1217,14 +1226,8 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                   filename, metadata.thumbnails.size(),
                   best_thumb ? best_thumb->relative_path : "(none)", thumb_path);
 
-    // Include predicted pre-print overhead (heating, homing, bed mesh, etc.)
-    // in the total time estimate so users see realistic wall-clock time
-    int preprint_seconds = helix::PreprintPredictor::predicted_total_from_config();
-    int total_minutes =
-        print_time_minutes + (preprint_seconds + 30) / 60; // round to nearest minute
-
     // Format strings on background thread (uses standalone helper functions)
-    std::string print_time_str = format_print_time(total_minutes);
+    std::string print_time_str = format_print_time(card_total_minutes(print_time_minutes));
     std::string filament_str = format_filament_weight(filament_grams);
     std::string layer_count_str = format_layer_count(layer_count);
     std::string print_height_str = format_print_height(object_height, /*tall_suffix=*/true);
