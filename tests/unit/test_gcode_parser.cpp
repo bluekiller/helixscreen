@@ -703,8 +703,8 @@ TEST_CASE("extract_header_metadata - Cura format parsing", "[gcode][metadata]") 
 
         // 1.20047m = 1200.47mm
         REQUIRE(metadata.filament_used_mm == Approx(1200.47));
-        // Should also estimate grams based on PLA density
-        REQUIRE(metadata.filament_used_g > 0);
+        // Grams estimated as PLA (1.24 g/cm^3) through a 1.75mm cross-section
+        REQUIRE(metadata.filament_used_g == Approx(3.5805).margin(0.0005));
         std::remove(temp_path.c_str());
     }
 }
