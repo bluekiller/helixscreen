@@ -223,6 +223,11 @@ class UpdateChecker {
     lv_subject_t* version_text_subject();
     lv_subject_t* new_version_subject();
 
+    /// Re-render update_version_text in the active language. A subject string
+    /// is not re-translated by LVGL, so the language switch calls this after
+    /// lv_translation_set_language(). Main thread only.
+    void on_language_changed();
+
     /// Death signal for the subjects this singleton owns.
     ///
     /// shutdown() frees every observer node on them without bumping the
@@ -641,6 +646,17 @@ class UpdateChecker {
     // String buffers for string subjects (must outlive subjects)
     char version_text_buf_[256]{};
     char new_version_buf_[64]{};
+
+    // What update_version_text shows, kept untranslated so a language switch
+    // can render it again. Main thread only.
+    struct ShownVersionText {
+        Status status = Status::Idle;
+        std::string version;
+        bool is_downgrade = false;
+        std::string error;
+    };
+    ShownVersionText shown_{};
+    void render_version_text();
 
     // Download state
     std::atomic<DownloadStatus> download_status_{DownloadStatus::Idle};

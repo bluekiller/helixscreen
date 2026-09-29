@@ -173,6 +173,9 @@ void SystemSettingsManager::set_language(const std::string& lang) {
     // Load/unload CJK runtime fonts based on locale
     helix::system::CjkFontManager::instance().on_language_changed(lang);
 
+    // Subject strings translated when they were written re-render here
+    UpdateChecker::instance().on_language_changed();
+
     // 3. Update locale formatting tables
     helix::ui::locale_set_language(lang);
 

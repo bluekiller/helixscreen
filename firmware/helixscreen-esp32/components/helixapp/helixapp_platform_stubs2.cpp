@@ -493,6 +493,7 @@ UpdateChecker& UpdateChecker::instance() {
     return checker;
 }
 UpdateChecker::~UpdateChecker() = default;
+void UpdateChecker::on_language_changed() {}
 void UpdateChecker::clear_cache() {}
 void UpdateChecker::start_download() {}
 void UpdateChecker::cancel_download() {}
