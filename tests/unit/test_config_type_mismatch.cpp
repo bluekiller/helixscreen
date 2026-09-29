@@ -105,8 +105,8 @@ TEST_CASE_METHOD(ConfigTypeFixture, "Config: number where a string belongs reads
 
 TEST_CASE_METHOD(ConfigTypeFixture, "Config: wrongly typed container reads as the default",
                  "[core][config][get][type_mismatch]") {
-    // PluginManager reads /plugins/enabled as a vector<string>; a scalar there,
-    // or an array of the wrong element type, are both unconvertible.
+    // A scalar where a vector<string> is expected, or an array of the wrong
+    // element type, is unconvertible and reads as the default.
     const std::vector<std::string> fallback{"builtin"};
 
     seed({{"plugins", {{"enabled", "all"}}}});

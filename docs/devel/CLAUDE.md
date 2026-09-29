@@ -118,7 +118,6 @@ All developer documentation lives here. When working on features, look up the re
 |-----|-------------|
 | `MOONRAKER_ARCHITECTURE.md` | Moonraker API abstraction, WebSocket integration |
 | `RPC_ERROR_OWNERSHIP.md` | Who reports a failed JSON-RPC call: the caller's UI, the tracker's generic fallback, or `GcodeErrorRouter`'s `!!` broadcast. Read before adding an `on_error` to any gcode send |
-| `PLUGIN_DEVELOPMENT.md` | Plugin API, lifecycle, UI injection, threading, examples |
 | `TELEMETRY_ADMIN.md` | Telemetry pipeline, Analytics Engine, dashboard, scripts, secrets |
 
 ## Planning & Research

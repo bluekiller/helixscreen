@@ -2328,7 +2328,7 @@ EOF
     # Scope is every first-party C and C++ root; lib/ is vendored submodules
     # and scripts/ is not C++, so neither belongs here.
     run getenv_pointer_live_across_setenv_files \
-        tests/ src/ include/ tools/ firmware/ android/ plugins/ server/ moonraker-plugin/ ui_xml/
+        tests/ src/ include/ tools/ firmware/ android/ server/ moonraker-plugin/ ui_xml/
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }

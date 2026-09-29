@@ -41,7 +41,7 @@
 # the process.
 #
 # Rule 2 targets the class that is NOT catchable. NDEBUG is never defined in
-# this build (only plugins/led-effects/Makefile sets it), so nlohmann's
+# this build, so nlohmann's
 # JSON_ASSERT is a live assert():
 #
 #   lib/libhv/cpputil/json.hpp:22182  const_reference operator[](key) const

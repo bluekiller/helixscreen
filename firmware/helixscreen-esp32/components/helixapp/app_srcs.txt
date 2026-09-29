@@ -105,7 +105,6 @@ src/led/led_auto_state.cpp
 src/led/led_controller.cpp
 src/led/led_devices.cpp
 src/led/led_device_page.cpp
-src/plugin/injection_point_manager.cpp
 src/print/active_print_media_manager.cpp
 src/print/filament_sensor_manager.cpp
 src/print/preprint_predictor.cpp

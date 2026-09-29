@@ -23,9 +23,6 @@
 namespace helix {
 class Config;
 }
-namespace helix::plugin {
-class PluginManager;
-}
 namespace helix {
 class ActionPromptManager;
 class AmsErrorBridge;
@@ -106,7 +103,6 @@ class Application {
     bool connect_moonraker();
     void apply_startup_cli_actions();
     bool run_wizard();
-    bool init_plugins();
 
     // Main loop
     int main_loop();
@@ -182,7 +178,6 @@ class Application {
     std::unique_ptr<PrintHistoryManager> m_history_manager;
     std::unique_ptr<TemperatureHistoryManager> m_temp_history_manager;
     std::unique_ptr<helix::PanelFactory> m_panels;
-    std::unique_ptr<helix::plugin::PluginManager> m_plugin_manager;
     std::unique_ptr<helix::XmlHotReloader> m_hot_reloader;
 
     // Action prompt system (Klipper action:prompt protocol)

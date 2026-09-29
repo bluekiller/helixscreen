@@ -43,7 +43,6 @@
 #include "gcode_preview_setup.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "i_moonraker_api.h"
-#include "injection_point_manager.h"
 #include "layout_manager.h"
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -1182,14 +1181,6 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
         spdlog::info("[{}] Restored cached thumbnail: {}", get_name(), cached_thumbnail_path_);
     }
 #endif
-
-    // Register plugin injection point for print status widgets
-    lv_obj_t* extras_container = lv_obj_find_by_name(overlay_root_, "print_status_extras");
-    if (extras_container) {
-        helix::plugin::InjectionPointManager::instance().register_point("print_status_extras",
-                                                                        extras_container);
-        spdlog::debug("[{}] Registered injection point: print_status_extras", get_name());
-    }
 
     // Hide initially - NavigationManager will show when pushed
     lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);

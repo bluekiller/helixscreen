@@ -96,10 +96,6 @@ src/application/xml_hot_reloader.cpp  # not in the v1 Core+AMS cut
 src/helix_splash.cpp  # not in the v1 Core+AMS cut
 src/helix_watchdog.cpp  # not in the v1 Core+AMS cut
 src/main.cpp  # not in the v1 Core+AMS cut
-src/plugin/plugin_api.cpp  # not in the v1 Core+AMS cut
-src/plugin/plugin_events.cpp  # not in the v1 Core+AMS cut
-src/plugin/plugin_manager.cpp  # not in the v1 Core+AMS cut
-src/plugin/plugin_registry.cpp  # not in the v1 Core+AMS cut
 src/print/thumbnail_processor.cpp  # not in the v1 Core+AMS cut
 src/print/timelapse_thumbnailer.cpp  # not in the v1 Core+AMS cut
 src/printer/ams_backend_mock.cpp  # NOT the blanket rule: this one IS compiled, but only on the CONFIG_HELIX_MOCK_PRINTER arm (MOCK_SRCS in CMakeLists.txt), never in the default build
