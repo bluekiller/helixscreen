@@ -67,6 +67,9 @@ struct FrequencySeriesData {
     float peak_amplitude = 0.0f;
     size_t peak_idx = 0; ///< Cached index into frequencies/amplitudes for draw alignment
 
+    // Numbered dots and hollow rings drawn on the curve (draw_markers_cb)
+    std::vector<FrChartMarker> markers;
+
     // Stored data (for table mode or re-rendering)
     std::vector<float> frequencies;
     std::vector<float> amplitudes;
@@ -84,6 +87,7 @@ struct ui_frequency_response_chart_t {
     bool chart_mode = false;
     bool supports_animations = false; ///< Captured once at configure time; gates glow
     bool show_y_labels = true;        ///< Amplitude labels in a left gutter
+    bool y_labels_percent = false;    ///< Gridline labels read as percentages
 
     // Sweep cursor: vertical line at cursor_freq tinting [freq_min, cursor_freq]
     bool cursor_active = false;
@@ -350,6 +354,7 @@ int ui_frequency_response_chart_add_series(ui_frequency_response_chart_t* chart,
     series->muted = false;
     series->style = FrChartSeriesStyle{};
     series->has_peak = false;
+    series->markers.clear();
     series->lv_series = nullptr;
     series->frequencies.clear();
     series->amplitudes.clear();
@@ -469,6 +474,45 @@ void ui_frequency_response_chart_set_y_labels_visible(
                                   LV_PART_MAIN);
         lv_obj_invalidate(chart->chart);
     }
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+void ui_frequency_response_chart_set_y_labels_percent(ui_frequency_response_chart_t* chart,
+                                                      bool percent) {
+    if (!chart) {
+        return;
+    }
+    chart->y_labels_percent = percent;
+    if (chart->chart) {
+        // Normalised data peaks exactly at the top gridline; leave a marker's
+        // radius above it so a dot on a 100% peak is not clipped.
+        const int32_t marker_room =
+            theme_manager_get_font_height(theme_manager_get_font("font_small")) / 2 + 2;
+        lv_obj_set_style_pad_top(
+            chart->chart, theme_manager_get_spacing("space_sm") + (percent ? marker_room : 0),
+            LV_PART_MAIN);
+        lv_obj_invalidate(chart->chart);
+    }
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+void ui_frequency_response_chart_set_markers(ui_frequency_response_chart_t* chart, int series_id,
+                                             const FrChartMarker* markers, size_t count) {
+    FrequencySeriesData* series = find_series(chart, series_id);
+    if (!series) {
+        return;
+    }
+    series->markers.assign(markers, markers + (markers ? count : 0));
+    if (chart->chart) {
+        lv_obj_invalidate(chart->chart);
+    }
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+std::vector<FrChartMarker>
+ui_frequency_response_chart_get_markers(ui_frequency_response_chart_t* chart, int series_id) {
+    const FrequencySeriesData* series = find_series(chart, series_id);
+    return series ? series->markers : std::vector<FrChartMarker>{};
 }
 
 // NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
@@ -606,6 +650,7 @@ void ui_frequency_response_chart_clear(ui_frequency_response_chart_t* chart) {
             chart->series[i].frequencies.clear();
             chart->series[i].amplitudes.clear();
             chart->series[i].has_peak = false;
+            chart->series[i].markers.clear();
 
             if (chart->chart && chart->series[i].lv_series) {
                 lv_chart_set_all_values(chart->chart, chart->series[i].lv_series,
@@ -1222,6 +1267,84 @@ static void draw_styled_series_cb(lv_event_t* e) {
  * positions below the chart. Uses the same font/color styling pattern
  * as ui_temp_graph.cpp axis labels.
  */
+/**
+ * @brief Draw each series' markers on top of its curve
+ *
+ * A numbered marker is a filled dot in the series color with its number in
+ * the screen background color; an unnumbered one is a hollow ring. Placement
+ * matches the curve: the data point nearest the marker frequency, by index.
+ */
+static void draw_markers_cb(lv_event_t* e) {
+    lv_layer_t* layer = lv_event_get_layer(e);
+    auto* chart = static_cast<ui_frequency_response_chart_t*>(lv_event_get_user_data(e));
+    if (!layer || !chart || !chart->chart) {
+        return;
+    }
+    const ChartPlotArea plot = chart_plot_area(chart->chart);
+    if (!plot.valid || chart->amp_max <= chart->amp_min) {
+        return;
+    }
+
+    // String literals, not buffers: LVGL may draw the label after this returns.
+    static const char* const DIGITS[] = {"", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
+    const lv_font_t* font = theme_manager_get_font("font_small");
+    const int32_t radius = theme_manager_get_font_height(font) / 2 + 2;
+    const lv_color_t ink = theme_manager_get_color("screen_bg");
+
+    for (int i = 0; i < MAX_SERIES; i++) {
+        const FrequencySeriesData* series = &chart->series[i];
+        const size_t total_pts = series->amplitudes.size();
+        if (series->id == -1 || !series->visible || series->markers.empty() || total_pts == 0) {
+            continue;
+        }
+        for (const FrChartMarker& marker : series->markers) {
+            size_t idx = 0;
+            float best = std::numeric_limits<float>::max();
+            for (size_t j = 0; j < series->frequencies.size(); j++) {
+                const float d = std::abs(series->frequencies[j] - marker.freq_hz);
+                if (d < best) {
+                    best = d;
+                    idx = j;
+                }
+            }
+            const lv_point_precise_t p =
+                plot_point(plot, chart, idx, total_pts, series->amplitudes[idx]);
+            const bool numbered = marker.number > 0 && marker.number <= 9;
+
+            lv_draw_rect_dsc_t dot;
+            lv_draw_rect_dsc_init(&dot);
+            dot.radius = LV_RADIUS_CIRCLE;
+            if (numbered) {
+                dot.bg_color = series->color;
+                dot.bg_opa = LV_OPA_COVER;
+                dot.border_width = 0;
+            } else {
+                dot.bg_opa = LV_OPA_TRANSP;
+                dot.border_color = series->color;
+                dot.border_width = 2;
+                dot.border_opa = LV_OPA_COVER;
+            }
+            const int32_t r = numbered ? radius : radius - 2;
+            const lv_area_t area = {static_cast<int32_t>(p.x) - r, static_cast<int32_t>(p.y) - r,
+                                    static_cast<int32_t>(p.x) + r, static_cast<int32_t>(p.y) + r};
+            lv_draw_rect(layer, &dot, &area);
+
+            if (numbered) {
+                lv_draw_label_dsc_t label;
+                lv_draw_label_dsc_init(&label);
+                label.font = font;
+                label.color = ink;
+                label.align = LV_TEXT_ALIGN_CENTER;
+                label.text = DIGITS[marker.number];
+                const int32_t font_h = theme_manager_get_font_height(font);
+                const lv_area_t text_area = {area.x1, static_cast<int32_t>(p.y) - font_h / 2,
+                                             area.x2, static_cast<int32_t>(p.y) + font_h / 2};
+                lv_draw_label(layer, &label, &text_area);
+            }
+        }
+    }
+}
+
 static void draw_x_axis_labels_cb(lv_event_t* e) {
     lv_obj_t* chart_obj = lv_event_get_target_obj(e);
     lv_layer_t* layer = lv_event_get_layer(e);
@@ -1270,7 +1393,7 @@ static void draw_x_axis_labels_cb(lv_event_t* e) {
 
     // Choose frequency tick interval based on range
     float tick_interval = 50.0f;
-    if (freq_range <= 100.0f) {
+    if (freq_range <= 150.0f) {
         tick_interval = 25.0f;
     }
 
@@ -1278,18 +1401,17 @@ static void draw_x_axis_labels_cb(lv_event_t* e) {
     static char freq_labels[8][12];
     int label_idx = 0;
 
-    for (float freq = chart->freq_min; freq <= chart->freq_max && label_idx < 8;
-         freq += tick_interval) {
+    // Ticks sit on round multiples of the interval, so a band starting at
+    // 5 Hz reads 25, 50, ... rather than 5, 30, 55. The first carries the unit.
+    const float first_tick = std::ceil(chart->freq_min / tick_interval) * tick_interval;
+    for (float freq = first_tick; freq <= chart->freq_max && label_idx < 8; freq += tick_interval) {
         float frac = (freq - chart->freq_min) / freq_range;
         int32_t x = content_x1 + static_cast<int32_t>(frac * content_width);
 
         // Format label
-        char* buf = freq_labels[label_idx++];
-        if (freq == 0.0f) {
-            snprintf(buf, 12, "0 Hz");
-        } else {
-            snprintf(buf, 12, "%.0f", freq);
-        }
+        char* buf = freq_labels[label_idx];
+        snprintf(buf, 12, label_idx == 0 ? "%.0f Hz" : "%.0f", freq);
+        ++label_idx;
 
         // Center label on tick position
         lv_area_t label_area;
@@ -1366,7 +1488,9 @@ static void draw_y_axis_labels_cb(lv_event_t* e) {
 
         // Format amplitude value compactly
         char* buf = amp_labels[i];
-        if (amp == 0.0f) {
+        if (chart->y_labels_percent) {
+            snprintf(buf, 12, "%.0f%%", amp);
+        } else if (amp == 0.0f) {
             snprintf(buf, 12, "0");
         } else if (amp >= 1e9f) {
             snprintf(buf, 12, "%.0fe9", amp / 1e9f);
@@ -1478,6 +1602,7 @@ void ui_frequency_response_chart_configure_for_platform(ui_frequency_response_ch
             lv_obj_add_event_cb(chart->chart, draw_y_axis_labels_cb, LV_EVENT_DRAW_POST, chart);
             lv_obj_add_event_cb(chart->chart, draw_styled_series_cb, LV_EVENT_DRAW_POST, chart);
             lv_obj_add_event_cb(chart->chart, draw_peak_dots_cb, LV_EVENT_DRAW_POST, chart);
+            lv_obj_add_event_cb(chart->chart, draw_markers_cb, LV_EVENT_DRAW_POST, chart);
             lv_obj_add_event_cb(chart->chart, draw_muted_series_cb, LV_EVENT_DRAW_POST, chart);
 
             // Create LVGL series for existing series data

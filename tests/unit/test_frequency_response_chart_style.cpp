@@ -64,3 +64,32 @@ TEST_CASE_METHOD(LVGLTestFixture, "chart style: default style keeps the built-in
 
     ui_frequency_response_chart_destroy(chart);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "chart markers: set, replace, clear, and a reused slot starts empty",
+                 "[chart][belt]") {
+    auto* chart = ui_frequency_response_chart_create(lv_screen_active());
+    ui_frequency_response_chart_configure_for_platform(chart, helix::PlatformTier::STANDARD);
+    int id = ui_frequency_response_chart_add_series(chart, "A", lv_color_hex(0x4FA3F7));
+
+    const FrChartMarker marks[] = {{36.3f, 1}, {131.5f, 2}, {71.1f, 0}};
+    ui_frequency_response_chart_set_markers(chart, id, marks, 3);
+    auto got = ui_frequency_response_chart_get_markers(chart, id);
+    REQUIRE(got.size() == 3);
+    CHECK(got[0].number == 1);
+    CHECK(got[2].number == 0); // hollow
+    CHECK(got[1].freq_hz == Catch::Approx(131.5f));
+
+    ui_frequency_response_chart_set_markers(chart, id, marks, 1);
+    CHECK(ui_frequency_response_chart_get_markers(chart, id).size() == 1);
+    ui_frequency_response_chart_set_markers(chart, id, nullptr, 0);
+    CHECK(ui_frequency_response_chart_get_markers(chart, id).empty());
+
+    // A slot freed and handed to a new series must not inherit markers.
+    ui_frequency_response_chart_set_markers(chart, id, marks, 3);
+    ui_frequency_response_chart_remove_series(chart, id);
+    int id2 = ui_frequency_response_chart_add_series(chart, "B", lv_color_hex(0xF2994A));
+    CHECK(ui_frequency_response_chart_get_markers(chart, id2).empty());
+
+    ui_frequency_response_chart_destroy(chart);
+}

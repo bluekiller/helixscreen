@@ -47,6 +47,7 @@
 #include "platform_capabilities.h"
 
 #include <cstddef>
+#include <vector>
 
 // Forward declaration
 struct ui_frequency_response_chart_t;
@@ -154,6 +155,16 @@ bool ui_frequency_response_chart_is_series_muted(ui_frequency_response_chart_t* 
 // NAMESPACE_OK: matches this file's C-style chart API
 void ui_frequency_response_chart_set_y_labels_visible(ui_frequency_response_chart_t* chart,
                                                       bool visible);
+
+/**
+ * @brief Label the amplitude gridlines as percentages
+ *
+ * For callers that normalise their data to 0-100 and set the amplitude range
+ * to match: each gridline reads "100%", "75%", ... instead of a raw value.
+ */
+// NAMESPACE_OK: matches this file's C-style chart API
+void ui_frequency_response_chart_set_y_labels_percent(ui_frequency_response_chart_t* chart,
+                                                      bool percent);
 
 /**
  * @brief Report whether a series is currently visible
@@ -312,6 +323,33 @@ void ui_frequency_response_chart_mark_peak(ui_frequency_response_chart_t* chart,
  * @param series_id Series ID
  */
 void ui_frequency_response_chart_clear_peak(ui_frequency_response_chart_t* chart, int series_id);
+
+/**
+ * @brief One marker on a series' curve
+ *
+ * number > 0 draws a filled dot in the series color carrying that number (1-9);
+ * number == 0 draws a hollow ring. The marker sits on the curve at the data
+ * point nearest freq_hz.
+ */
+// NAMESPACE_OK: joins this header's global ui_frequency_response_chart_* API
+struct FrChartMarker {
+    float freq_hz = 0.0f;
+    int number = 0;
+};
+
+/**
+ * @brief Replace a series' markers (count 0 clears them)
+ */
+// NAMESPACE_OK: joins this header's global ui_frequency_response_chart_* API
+void ui_frequency_response_chart_set_markers(ui_frequency_response_chart_t* chart, int series_id,
+                                             const FrChartMarker* markers, size_t count);
+
+/**
+ * @brief Markers currently set on a series (empty for an unknown series)
+ */
+// NAMESPACE_OK: joins this header's global ui_frequency_response_chart_* API
+[[nodiscard]] std::vector<FrChartMarker>
+ui_frequency_response_chart_get_markers(ui_frequency_response_chart_t* chart, int series_id);
 
 // ============================================================================
 // Configuration
