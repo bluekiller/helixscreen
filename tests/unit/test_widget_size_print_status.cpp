@@ -506,7 +506,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 //
 // The full-screen print_status_panel (not the home widget above) grows its two
 // action rows into the grid's leftover column height at ui_breakpoint < 2 and
-// stacks each button icon over label. Pinned at 480x320: every visible action
+// stacks each button icon over label. Pinned at 480x320 and 480x272: every visible action
 // button's label must be inside the button's content box, and the grid must
 // fill the column bottom.
 
@@ -542,7 +542,7 @@ class ScopedTinyLandscape {
 } // namespace
 
 TEST_CASE_METHOD(LVGLUITestFixture,
-                 "print_status action grid stacks and fills the column at 480x320",
+                 "print_status action grid stacks and fills the column at tiny and micro",
                  "[widget_size][print_status][small_screen]") {
     PrintStatusWidget::destroy_formatter_for_test();
     PrinterStateTestAccess::reset(get_printer_state());
@@ -550,8 +550,13 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     ToolState::instance().init_subjects(false);
     heal_global_print_status_panel_subjects();
 
-    {
-        ScopedTinyLandscape tiny(480, 320);
+    const struct {
+        int32_t w;
+        int32_t h;
+    } canvases[] = {{480, 320}, {480, 272}};
+    for (const auto& c : canvases) {
+        CAPTURE(c.w, c.h);
+        ScopedTinyLandscape tiny(c.w, c.h);
         // Pause/Resume's icon+label subjects belong to PrintControlButtons; its
         // subjects must be live before the panel parses, or bind_icon is
         // dropped and the button never stacks.
@@ -573,6 +578,11 @@ TEST_CASE_METHOD(LVGLUITestFixture,
             lv_subject_set_int(outcome, 0);
         }
         process_lvgl(30);
+
+        // Speed/Flow gives its height to the buttons below MEDIUM.
+        lv_obj_t* speed_flow = lv_obj_find_by_name(root, "speed_flow_row");
+        REQUIRE(speed_flow != nullptr);
+        CHECK(lv_obj_has_flag(speed_flow, LV_OBJ_FLAG_HIDDEN));
 
         lv_obj_t* grid = lv_obj_find_by_name(root, "button_grid");
         REQUIRE(grid != nullptr);
