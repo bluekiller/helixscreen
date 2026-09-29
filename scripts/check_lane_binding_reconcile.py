@@ -22,14 +22,19 @@ import sys
 from pathlib import Path
 
 COMMENT = re.compile(r"//.*$", re.MULTILINE)
-SPOOL_ID_KEY = re.compile(r'"[A-Za-z_]*spool[A-Za-z_]*id[A-Za-z_]*"', re.IGNORECASE)
+# The key has to END in the id: "spool_width" and "spoolman_valid" are not ids.
+SPOOL_ID_KEY = re.compile(r'"[A-Za-z_]*[Ss]pool[A-Za-z_]*(?:_id|Id|ID)"')
 REPORTS_IDS = re.compile(r"printer_reports_spool_ids\s*\(\s*\)[^{;]*\{\s*return\s+true\b")
 RECONCILE = re.compile(r"\breconcile_lane_binding\s*\(")
 
 
-def scan(root: Path) -> list[str]:
+def scan(root: Path) -> list[str] | None:
+    """Findings, or None when there is no backend to check at all."""
+    backends = sorted((root / "src" / "printer").glob("ams_backend_*.cpp"))
+    if not backends:
+        return None
     hits = []
-    for cpp in sorted((root / "src" / "printer").glob("ams_backend_*.cpp")):
+    for cpp in backends:
         name = cpp.stem[len("ams_backend_"):]
         files = [cpp, root / "include" / f"ams_backend_{name}.h"]
         code = "\n".join(COMMENT.sub("", f.read_text()) for f in files if f.exists())
@@ -53,6 +58,9 @@ def main(argv: list[str]) -> int:
         return 2
 
     hits = scan(root)
+    if hits is None:
+        print(f"ERROR: no src/printer/ams_backend_*.cpp under {root}; nothing was checked")
+        return 2
     if hits:
         print(f"AMS backends that read spool ids without reconcile_lane_binding(): {len(hits)}")
         for h in hits:

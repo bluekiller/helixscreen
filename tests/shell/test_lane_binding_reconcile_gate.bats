@@ -63,3 +63,28 @@ void AmsBackendNewfw::parse() {
     run python3 "$GATE" --root "$FIXTURE"
     [ "$status" -eq 0 ] || fail "$output"
 }
+
+@test "a key that only contains spool and id is not a spool id" {
+    backend_cpp newfw '
+void AmsBackendNewfw::parse(const json& lane) {
+    width = json_util::safe_int(lane, "spool_width", 0);
+    valid = json_util::safe_bool(lane, "spoolman_valid", false);
+}'
+    run python3 "$GATE" --root "$FIXTURE"
+    [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "a camelCase spool id key is still a spool id" {
+    backend_cpp newfw '
+void AmsBackendNewfw::parse(const json& lane) {
+    slot.spoolman_id = json_util::safe_int(lane, "spoolId", 0);
+}'
+    run python3 "$GATE" --root "$FIXTURE"
+    [ "$status" -eq 1 ] || fail "expected exit 1, got $status: $output"
+}
+
+@test "a tree with no AMS backends is an error, not a pass" {
+    run python3 "$GATE" --root "$FIXTURE"
+    [ "$status" -eq 2 ] || fail "expected exit 2, got $status: $output"
+    [[ "$output" == *"nothing was checked"* ]] || fail "$output"
+}
