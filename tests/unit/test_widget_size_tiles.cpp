@@ -746,3 +746,32 @@ TEST_CASE("the xxl scale reaches the target size up to the platform's cap",
     CHECK(tile_xxl_scale(160, 128, LV_SCALE_NONE) == LV_SCALE_NONE);
     CHECK(tile_xxl_scale(128, 64, LV_SCALE_NONE) == LV_SCALE_NONE);
 }
+
+TEST_CASE("an animated glyph never takes the scaled xxl path", "[widget_size][tile][xxl]") {
+    // A scaled glyph re-renders its whole layer on every frame an animation
+    // touches it, so a glyph that pulses draws the largest real face at 1x.
+    LVGLUITestFixture fixture;
+    ScopedXxlSize size(160);
+    const auto still = helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, 5);
+    const auto animated =
+        helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, 5, helix::ui::kTileAnimatedMaxScale);
+    CHECK(still.scale > LV_SCALE_NONE);
+    CHECK(animated.scale == LV_SCALE_NONE);
+    CHECK(animated.font == still.font);
+
+    // The heater tile measures and draws that way.
+    helix::init_widget_registrations();
+    const auto* def = find_widget_def("bed_temperature");
+    REQUIRE(def != nullptr);
+    auto instance = def->factory("bed_temperature");
+    REQUIRE(instance != nullptr);
+    lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+        fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+    REQUIRE(root != nullptr);
+    lv_obj_t* glyph = lv_obj_find_by_name(root, "bed_icon_glyph");
+    REQUIRE(glyph != nullptr);
+    instance->notify_size_changed(8, 8, 420, 420);
+    REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "bed_temperature_tile_icon")) == 5);
+    CHECK(lv_obj_get_style_transform_scale_x(glyph, LV_PART_MAIN) == LV_SCALE_NONE);
+    lv_obj_delete(root);
+}

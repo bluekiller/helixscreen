@@ -34,7 +34,8 @@
   <view name="heater_icon"
         width="content" height="content" style_pad_all="0" scrollable="false" clickable="false" event_bubble="true">
     <icon name="$glyph_name" src="$src" size="$size" variant="secondary" clickable="false" event_bubble="true">
-      <bind_tile_rung ladder="icon" subject="$rung_subject"/>
+      <!-- The heating pulse animates this glyph, so it never takes the scaled path -->
+      <bind_tile_rung ladder="icon" subject="$rung_subject" animated="true"/>
     </icon>
   </view>
 </component>

@@ -57,6 +57,12 @@ inline constexpr int32_t kTileMaxScale = LV_SCALE_NONE;
 inline constexpr int32_t kTileMaxScale = 2 * LV_SCALE_NONE;
 #endif
 
+/// A scaled glyph renders through a layer buffer that is allocated and redrawn
+/// on every frame anything invalidates it, so a glyph that animates (a heater's
+/// pulse) costs that every animation frame. It draws the largest real face at
+/// 1x instead.
+inline constexpr int32_t kTileAnimatedMaxScale = LV_SCALE_NONE;
+
 /// The scale that draws a @p face_px face at @p target_px, capped at
 /// @p max_scale and never below 1x.
 inline int32_t tile_xxl_scale(int target_px, int face_px, int32_t max_scale) {
@@ -67,9 +73,9 @@ inline int32_t tile_xxl_scale(int target_px, int face_px, int32_t max_scale) {
     return reach < LV_SCALE_NONE ? LV_SCALE_NONE : (reach > max_scale ? max_scale : reach);
 }
 
-/// The face @p ladder draws in at @p rung. Out-of-range rungs clamp to the
-/// ladder's ends.
-TileFace tile_rung_face(TileLadder ladder, int rung);
+/// The face @p ladder draws in at @p rung, its scale capped at @p max_scale.
+/// Out-of-range rungs clamp to the ladder's ends.
+TileFace tile_rung_face(TileLadder ladder, int rung, int32_t max_scale = kTileMaxScale);
 
 /// The theme font token @p ladder names at @p rung; for the icon's xxl rung,
 /// the xl token it grows from.
@@ -86,11 +92,12 @@ int tile_pip_edge(const TileFace& icon_face, const lv_font_t* count_face);
 /// @p offset rungs. The face is resolved from the current tier's token each
 /// time the rung changes. @p one_line also holds the object to one line of that
 /// face, which a long_mode="dots" label needs to ellipsize rather than wrap.
+/// @p animated caps the glyph at kTileAnimatedMaxScale.
 void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset = 0,
-                    bool one_line = false);
+                    bool one_line = false, bool animated = false);
 
 /// Register `<bind_tile_rung ladder="icon|value|label|disc|pip" subject="..." offset="0"
-/// one_line="false"/>`, a child element of any widget. An empty subject installs
+/// one_line="false" animated="false"/>`, a child element of any widget. An empty subject installs
 /// no binding, so a component used outside a sizing tile keeps its authored face.
 void register_tile_rung_binding();
 

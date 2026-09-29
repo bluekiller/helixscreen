@@ -101,7 +101,9 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
 
     TileRungMetrics rungs[kTileRungs];
     for (int r = 0; r < kTileRungs; ++r) {
-        const ui::TileFace icon_face = ui::tile_rung_face(ui::TileLadder::Icon, r);
+        const ui::TileFace icon_face = ui::tile_rung_face(
+            ui::TileLadder::Icon, r,
+            content_.icon_animates ? ui::kTileAnimatedMaxScale : ui::kTileMaxScale);
         const lv_font_t* value_face = ui::tile_rung_face(ui::TileLadder::Value, r).font;
         const lv_font_t* label_face = ui::tile_rung_face(ui::TileLadder::Label, r).font;
 

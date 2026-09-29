@@ -54,6 +54,9 @@ class TileSizing {
         /// line of the face tall (a canvas sized from the face, such as the
         /// spool), or the disc a badged glyph sits in (tile_badge.xml).
         IconBox icon_box = IconBox::Glyph;
+        /// The glyph animates, so it is measured and drawn unscaled
+        /// (kTileAnimatedMaxScale).
+        bool icon_animates = false;
     };
 
     explicit TileSizing(const std::string& instance_id);

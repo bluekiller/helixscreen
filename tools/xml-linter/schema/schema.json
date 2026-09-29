@@ -1947,6 +1947,9 @@
         },
         "one_line": {
           "type": "string"
+        },
+        "animated": {
+          "type": "string"
         }
       },
       "inherits": "lv_obj"

@@ -51,7 +51,8 @@
         width="content" height="content" flex_flow="row" style_flex_cross_place="end" style_pad_all="0"
         style_pad_column="#space_xxs" scrollable="false" clickable="false" event_bubble="true">
     <icon name="nozzle_icon_glyph" src="heater" size="$size" variant="secondary" clickable="false" event_bubble="true">
-      <bind_tile_rung ladder="icon" subject="$rung_subject"/>
+      <!-- The heating pulse animates this glyph, so it never takes the scaled path -->
+      <bind_tile_rung ladder="icon" subject="$rung_subject" animated="true"/>
     </icon>
     <!-- The digit carries hidden="true" as the static default the
          empty-subject contract requires: a call site passing badge_subject=""

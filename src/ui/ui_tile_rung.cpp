@@ -47,7 +47,7 @@ constexpr int kXxl = kTileRungs - 1;
 
 /// The icon's xxl rung: the largest linked MDI face at or below the tier's
 /// #tile_icon_xxl_size, scaled to reach it.
-TileFace xxl_icon_face() {
+TileFace xxl_icon_face(int32_t max_scale) {
     const TileFace xl{theme_manager_get_font("icon_font_xl"), LV_SCALE_NONE};
     const int target = theme_manager_get_spacing("tile_icon_xxl_size");
     static constexpr int kSizes[] = {128, 96, 80, 64, 48, 32};
@@ -63,7 +63,7 @@ TileFace xxl_icon_face() {
         if (!font || static_cast<int>(lv_font_get_line_height(font)) < size) {
             continue;
         }
-        return TileFace{font, tile_xxl_scale(target, size, kTileMaxScale)};
+        return TileFace{font, tile_xxl_scale(target, size, max_scale)};
     }
     return xl;
 }
@@ -81,22 +81,25 @@ void apply_face_scale(lv_obj_t* obj, const TileFace& face) {
     lv_obj_set_style_transform_pivot_y(obj, lv_pct(50), LV_PART_MAIN);
 }
 
-/// The ladder, offset and one-line flag ride in the observer's user data, so a
-/// binding needs no allocation and nothing to free when its object goes away.
+/// The ladder, offset and flags ride in the observer's user data, so a binding
+/// needs no allocation and nothing to free when its object goes away.
 constexpr int kOneLineBit = 1 << 12;
+constexpr int kAnimatedBit = 1 << 13;
 
-void* pack(TileLadder ladder, int offset, bool one_line) {
-    return reinterpret_cast<void*>(static_cast<intptr_t>(
-        static_cast<int>(ladder) * 256 + (offset + 128) + (one_line ? kOneLineBit : 0)));
+void* pack(TileLadder ladder, int offset, bool one_line, bool animated) {
+    return reinterpret_cast<void*>(
+        static_cast<intptr_t>(static_cast<int>(ladder) * 256 + (offset + 128) +
+                              (one_line ? kOneLineBit : 0) + (animated ? kAnimatedBit : 0)));
 }
 
 void rung_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     const auto packed =
         static_cast<int>(reinterpret_cast<intptr_t>(lv_observer_get_user_data(observer)));
-    const auto ladder = static_cast<TileLadder>((packed & ~kOneLineBit) / 256);
+    const auto ladder = static_cast<TileLadder>((packed & ~(kOneLineBit | kAnimatedBit)) / 256);
     const int offset = packed % 256 - 128;
     auto* obj = static_cast<lv_obj_t*>(lv_observer_get_target(observer));
-    const TileFace face = tile_rung_face(ladder, lv_subject_get_int(subject) + offset);
+    const int32_t max_scale = (packed & kAnimatedBit) ? kTileAnimatedMaxScale : kTileMaxScale;
+    const TileFace face = tile_rung_face(ladder, lv_subject_get_int(subject) + offset, max_scale);
     const lv_font_t* font = face.font;
     if (!font) {
         return;
@@ -167,9 +170,11 @@ void bind_tile_rung_apply(lv_xml_parser_state_t* state, const char** attrs) {
     const int offset = offset_str ? lv_xml_atoi(offset_str) : 0;
     const char* one_line_str = lv_xml_get_value_of(attrs, "one_line");
     const bool one_line = one_line_str && std::strcmp(one_line_str, "true") == 0;
+    const char* animated_str = lv_xml_get_value_of(attrs, "animated");
+    const bool animated = animated_str && std::strcmp(animated_str, "true") == 0;
 
     bind_tile_rung(static_cast<lv_obj_t*>(lv_xml_state_get_parent(state)), subject, ladder, offset,
-                   one_line);
+                   one_line, animated);
 }
 
 } // namespace
@@ -184,11 +189,11 @@ const char* tile_rung_font_token(TileLadder ladder, int rung) {
     return kLadders[row][std::clamp(rung, 0, kTileRungs - 1)];
 }
 
-TileFace tile_rung_face(TileLadder ladder, int rung) {
+TileFace tile_rung_face(TileLadder ladder, int rung, int32_t max_scale) {
     rung = std::clamp(rung, 0, kTileRungs - 1);
     const bool icon = ladder == TileLadder::Icon || ladder == TileLadder::Disc;
     if (icon && rung == kXxl) {
-        return xxl_icon_face();
+        return xxl_icon_face(max_scale);
     }
     return TileFace{theme_manager_get_font(tile_rung_font_token(ladder, rung)), LV_SCALE_NONE};
 }
@@ -213,11 +218,12 @@ int tile_disc_edge(const TileFace& icon_face) {
 }
 
 void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset,
-                    bool one_line) {
+                    bool one_line, bool animated) {
     if (!obj || !subject) {
         return;
     }
-    lv_subject_add_observer_obj(subject, rung_observer_cb, obj, pack(ladder, offset, one_line));
+    lv_subject_add_observer_obj(subject, rung_observer_cb, obj,
+                                pack(ladder, offset, one_line, animated));
 }
 
 void register_tile_rung_binding() {

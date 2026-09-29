@@ -110,10 +110,12 @@ class HeaterTempWidget : public PanelWidget {
     /// reading carries a decimal, which makes "88.8" the widest current. No
     /// label is drawn. The nozzle glyph carries a tool digit whenever a second
     /// tool appears, which can happen after this tile was sized, so it is
-    /// always budgeted.
+    /// always budgeted. The glyph pulses while heating, so it is never scaled.
     TileSizing sizing_{cfg_.widget_id,
                        TileSizing::Content{"88.8 / 888\u00B0C", "88.8\u00B0C", "", true,
-                                           cfg_.heater == HeaterType::Nozzle ? "8" : ""}};
+                                           cfg_.heater == HeaterType::Nozzle ? "8" : "",
+                                           /*label_always_drawn=*/false, TileSizing::IconBox::Glyph,
+                                           /*icon_animates=*/true}};
 };
 
 // Per-heater configs — single source of truth shared by the widget factories
