@@ -144,17 +144,26 @@ CONTROL_FLOW = re.compile(r'\b(?:if|for|while|switch)\s*\(|\?[^:;?]*:')
 FILTERED_OBJ = re.compile(r'\$\(OBJ_DIR\)/(\S+)\.o\b')
 
 
+class GateInputError(Exception):
+    """The gate could not find what it checks, so it cannot vouch for anything."""
+
+
 def filtered_sources(root: Path):
-    """src/ files whose objects mk/tests.mk filters out of the test link."""
+    """src/ files whose objects mk/tests.mk filters out of the test link.
+
+    Raises GateInputError rather than returning nothing: an unreadable or
+    reshaped filter list would otherwise pass every stub unexamined.
+    """
     mk = root / 'mk' / 'tests.mk'
     try:
         text = mk.read_text(errors='replace')
-    except OSError:
-        return []
+    except OSError as e:
+        raise GateInputError(f'cannot read {mk}: {e}')
     m = re.search(r'^TEST_APP_OBJS\s*:=\s*\$\(filter-out(.*?),', text, re.M | re.S)
-    if not m:
-        return []
-    return [root / 'src' / f'{obj}.cpp' for obj in FILTERED_OBJ.findall(m.group(1))]
+    objs = FILTERED_OBJ.findall(m.group(1)) if m else []
+    if not objs:
+        raise GateInputError(f'no TEST_APP_OBJS := $(filter-out ...) object list in {mk}')
+    return [root / 'src' / f'{obj}.cpp' for obj in objs]
 
 
 def function_body(text: str, open_brace: int) -> str:
@@ -394,11 +403,24 @@ def main():
     ap.add_argument('--list', action='store_true', help='print every finding')
     ap.add_argument('--summary', action='store_true', help='print counts only')
     ap.add_argument('--max-allowed', type=int, default=None,
-                    help='fail if findings exceed this (ratchet)')
+                    help='fail if the total findings exceed this (ratchet)')
+    ap.add_argument('--max', action='append', default=[], metavar='KIND=N',
+                    help='per-signal ratchet; once any is given, an unnamed kind allows 0')
     args = ap.parse_args()
 
+    per_kind = {}
+    for spec in args.max:
+        kind, _, n = spec.partition('=')
+        if not n.isdigit():
+            ap.error(f'--max wants KIND=N, got {spec!r}')
+        per_kind[kind] = int(n)
+
     root = Path(args.root).resolve()
-    findings = scan(root)
+    try:
+        findings = scan(root)
+    except GateInputError as e:
+        print(f'ERROR: {e}')
+        return 2
 
     if args.list:
         for f, ln, kind, why in findings:
@@ -417,8 +439,12 @@ def main():
     print(f'test-mirror findings: {len(findings)} '
           f'({", ".join(f"{k}={v}" for k, v in sorted(kinds.items())) or "none"})')
 
+    over = [f'{k}={v} exceeds {per_kind.get(k, 0)}' for k, v in sorted(kinds.items())
+            if per_kind and v > per_kind.get(k, 0)]
     if args.max_allowed is not None and len(findings) > args.max_allowed:
-        print(f'FAIL: {len(findings)} exceeds --max-allowed {args.max_allowed}')
+        over.append(f'{len(findings)} exceeds --max-allowed {args.max_allowed}')
+    if over:
+        print(f'FAIL: {"; ".join(over)}')
         print('A unit test must exercise shipped code, not a copy of it.')
         print('Legitimate exception? Annotate the file:')
         print('  // TEST_MIRROR_OK: <why this file cannot include a production header>')

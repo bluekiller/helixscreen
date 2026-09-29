@@ -1716,12 +1716,17 @@ test-order-dependence: suite-report
 .PHONY: check-tautology
 check-tautology:
 	$(Q)python3 scripts/check_test_tautology.py --max-allowed $(TAUTOLOGY_MAX)
-	$(Q)python3 scripts/check_test_mirrors.py --max-allowed $(MIRROR_MAX)
+	$(Q)python3 scripts/check_test_mirrors.py $(MIRROR_MAX_ARGS)
 
 TAUTOLOGY_MAX ?= 3
-# 17 redefined-symbol + 30 stub-logic (tests/ui_test_utils.cpp standing in for
-# app_globals.o, ui_notification.o and ui_toast_manager.o). May fall, never rise.
-MIRROR_MAX ?= 47
+# One ratchet per signal, so fixing one kind cannot buy slack for another. Each
+# may fall, never rise; an unnamed signal (shadow-include, mirror-comment)
+# allows 0. stub-logic is tests/ui_test_utils.cpp standing in for app_globals.o,
+# ui_notification.o and ui_toast_manager.o.
+MIRROR_MAX_REDEFINED_SYMBOL ?= 17
+MIRROR_MAX_STUB_LOGIC ?= 30
+MIRROR_MAX_ARGS = --max redefined-symbol=$(MIRROR_MAX_REDEFINED_SYMBOL) \
+	--max stub-logic=$(MIRROR_MAX_STUB_LOGIC)
 
 # ---- diff coverage ---------------------------------------------------------
 # Its own object tree, so this never disturbs the normal build.

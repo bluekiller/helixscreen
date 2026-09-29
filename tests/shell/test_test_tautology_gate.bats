@@ -27,6 +27,12 @@ setup() {
     WORK="${BATS_TEST_TMPDIR:-$(mktemp -d)}/repo"
     rm -rf "$WORK"; mkdir -p "$WORK/scripts" "$WORK/include" "$WORK/src" "$WORK/tests/unit"
     cp "$REPO_ROOT/$TAUT" "$REPO_ROOT/$MIRROR" "$WORK/scripts/"
+    mkdir -p "$WORK/mk"
+    cat > "$WORK/mk/tests.mk" <<'EOF'
+TEST_APP_OBJS := $(filter-out \
+    $(OBJ_DIR)/main.o \
+    ,$(APP_OBJS))
+EOF
 
     cat > "$WORK/include/led.h" <<'EOF'
 #pragma once
@@ -263,4 +269,36 @@ void helix::ToastManager::show(int severity, const char* msg) {
 EOF
     run mirror
     [[ "$output" != *"stub-logic"* ]] || fail "$output"
+}
+
+@test "signal 4 refuses to run without the test link's filter list" {
+    rm "$WORK/mk/tests.mk"
+    run mirror
+    [ "$status" -eq 2 ] || fail "expected exit 2, got $status: $output"
+    [[ "$output" == *"cannot read"* ]] || fail "$output"
+}
+
+@test "signal 4 refuses a filter list it cannot parse" {
+    printf 'TEST_APP_OBJS := $(APP_OBJS)\n' > "$WORK/mk/tests.mk"
+    run mirror
+    [ "$status" -eq 2 ] || fail "expected exit 2, got $status: $output"
+    [[ "$output" == *"no TEST_APP_OBJS"* ]] || fail "$output"
+}
+
+@test "each signal is held to its own ceiling" {
+    stub_fixture
+    cat > "$WORK/tests/ui_test_utils.cpp" <<'EOF'
+void helix::ToastManager::show(int severity, const char* msg) {
+    if (severity > 1) { g_last = msg; }
+}
+EOF
+    # One stub-logic finding: a generous redefined-symbol ceiling buys it no room.
+    run bash -c "cd '$WORK' && python3 scripts/check_test_mirrors.py --summary \
+        --max redefined-symbol=5 --max stub-logic=0"
+    [ "$status" -eq 1 ] || fail "expected exit 1, got $status: $output"
+    [[ "$output" == *"stub-logic=1 exceeds 0"* ]] || fail "$output"
+
+    run bash -c "cd '$WORK' && python3 scripts/check_test_mirrors.py --summary \
+        --max redefined-symbol=0 --max stub-logic=1"
+    [ "$status" -eq 0 ] || fail "$output"
 }
