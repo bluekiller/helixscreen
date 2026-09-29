@@ -4,6 +4,7 @@
 #if HELIX_HAS_PLUGINS
 
 #include "app_globals.h"
+#include "config.h"
 #include "http_executor.h"
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
@@ -12,6 +13,8 @@
 #include "plugin_backend.h"
 
 #include <atomic>
+#include <netdb.h>
+#include <sys/socket.h>
 
 namespace helix::plugin {
 
@@ -32,8 +35,76 @@ bool is_transfer_root(const std::string& root) {
 }
 
 constexpr const char* kNotConnected = "Moonraker is not connected";
+constexpr const char* kPrinterHostRefused = "requests to the printer host are not allowed";
+
+bool is_loopback_ip(const std::string& ip) {
+    return ip.rfind("127.", 0) == 0 || ip == "::1" || ip.rfind("::ffff:127.", 0) == 0;
+}
+
+/// Every address `host` resolves to, in numeric form; empty when it does not resolve.
+std::vector<std::string> resolve_host_ips(const std::string& host) {
+    std::vector<std::string> ips;
+    if (host.empty())
+        return ips;
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* result = nullptr;
+    if (getaddrinfo(host.c_str(), nullptr, &hints, &result) != 0)
+        return ips;
+    char buf[INET6_ADDRSTRLEN];
+    for (addrinfo* ai = result; ai; ai = ai->ai_next) {
+        if (getnameinfo(ai->ai_addr, ai->ai_addrlen, buf, sizeof(buf), nullptr, 0,
+                        NI_NUMERICHOST) == 0)
+            ips.emplace_back(buf);
+    }
+    freeaddrinfo(result);
+    return ips;
+}
+
+std::string configured_moonraker_host() {
+    if (helix::Config* cfg = helix::Config::get_instance())
+        return cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
+    return "localhost";
+}
 
 } // namespace
+
+std::string url_host(const std::string& url) {
+    auto scheme_end = url.find("://");
+    if (scheme_end == std::string::npos)
+        return {};
+    size_t authority = scheme_end + 3;
+    size_t end = url.find_first_of("/?#", authority);
+    std::string host_port =
+        url.substr(authority, end == std::string::npos ? std::string::npos : end - authority);
+    if (auto at = host_port.rfind('@'); at != std::string::npos)
+        host_port = host_port.substr(at + 1);
+    if (host_port.empty())
+        return {};
+    if (host_port.front() == '[') {
+        auto close = host_port.find(']');
+        if (close == std::string::npos)
+            return {};
+        return host_port.substr(1, close - 1);
+    }
+    if (auto colon = host_port.find(':'); colon != std::string::npos)
+        host_port = host_port.substr(0, colon);
+    return host_port;
+}
+
+bool is_forbidden_http_target(const std::vector<std::string>& resolved_ips,
+                              const std::vector<std::string>& printer_ips) {
+    for (const auto& ip : resolved_ips) {
+        if (is_loopback_ip(ip))
+            return true;
+        for (const auto& p : printer_ips) {
+            if (ip == p)
+                return true;
+        }
+    }
+    return false;
+}
 
 PluginBackend make_app_backend() {
     PluginBackend b;
@@ -84,11 +155,18 @@ PluginBackend make_app_backend() {
     b.http = [](const std::string& method, const std::string& url, const std::string& body,
                 const json& headers, uint32_t timeout_ms, RpcCallback cb) {
         http::HttpExecutor::fast().submit([=]() {
+            // Resolving both hosts blocks on DNS, so the check runs here, off the main thread.
+            // A followed redirect would land on a host this check never saw, so the plugin's
+            // requests do not follow redirects.
+            if (is_forbidden_http_target(resolve_host_ips(url_host(url)),
+                                         resolve_host_ips(configured_moonraker_host())))
+                return cb(failure(kPrinterHostRefused));
             auto req = std::make_shared<HttpRequest>();
             req->method = method == "POST" ? HTTP_POST : HTTP_GET;
             req->url = url;
             req->timeout = static_cast<int>((timeout_ms + 999) / 1000);
             req->body = body;
+            req->redirect = 0;
             req->headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
             if (headers.is_object()) {
                 for (auto it = headers.begin(); it != headers.end(); ++it) {

@@ -4,7 +4,12 @@
 #if HELIX_HAS_PLUGINS
 
 #include "app_globals.h"
+#include "http_executor.h"
 #include "plugin_backend.h"
+
+#include <chrono>
+#include <future>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -38,6 +43,38 @@ TEST_CASE("app backend rejects roots other than gcodes and config", "[plugin][ba
     CHECK_FALSE(up.ok);
     CHECK(up.error.find("root") != std::string::npos);
     CHECK_FALSE(down.ok);
+}
+
+TEST_CASE("url_host extracts the host of a web URL", "[plugin][backend]") {
+    CHECK(url_host("http://127.0.0.1:7125/x") == "127.0.0.1");
+    CHECK(url_host("https://[::1]/") == "::1");
+    CHECK(url_host("http://Example.com:80/a?b") == "Example.com");
+    CHECK(url_host("http://u:p@h/") == "h");
+    CHECK(url_host("not a url").empty());
+}
+
+TEST_CASE("is_forbidden_http_target refuses loopback and the printer host", "[plugin][backend]") {
+    const std::vector<std::string> printer{"192.168.1.50"};
+    CHECK(is_forbidden_http_target({"127.0.0.1"}, printer));
+    CHECK(is_forbidden_http_target({"127.5.5.5"}, printer));
+    CHECK(is_forbidden_http_target({"::1"}, printer));
+    CHECK(is_forbidden_http_target({"::ffff:127.0.0.1"}, printer));
+    CHECK(is_forbidden_http_target({"192.168.1.50"}, printer));
+    CHECK_FALSE(is_forbidden_http_target({"93.184.216.34"}, printer));
+}
+
+TEST_CASE("app backend http refuses the printer's own host", "[plugin][backend]") {
+    helix::http::HttpExecutor::fast().start();
+    auto b = make_app_backend();
+    std::promise<RpcResult> done;
+    auto ready = done.get_future();
+    b.http("GET", "http://127.0.0.1:7125/x", "", json::object(), 5000,
+           [&done](RpcResult r) { done.set_value(std::move(r)); });
+    REQUIRE(ready.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    RpcResult r = ready.get();
+    CHECK_FALSE(r.ok);
+    CHECK(r.error.find("printer host") != std::string::npos);
+    helix::http::HttpExecutor::fast().stop();
 }
 
 #endif // HELIX_HAS_PLUGINS

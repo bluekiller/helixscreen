@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "hv/json.hpp"
 
@@ -45,5 +46,15 @@ struct PluginBackend {
 };
 
 PluginBackend make_app_backend();
+
+/// The host of `scheme://[user[:password]@]host[:port]/...`, without the port and without
+/// IPv6 brackets. Empty when the URL has no authority.
+std::string url_host(const std::string& url);
+
+/// True when any resolved target address is loopback (127.0.0.0/8, ::1, ::ffff:127.x) or
+/// equals a resolved address of the printer's own host: those addresses carry the control
+/// that the gcode/moonraker_write permissions gate, so plugin http may never reach them.
+bool is_forbidden_http_target(const std::vector<std::string>& resolved_ips,
+                              const std::vector<std::string>& printer_ips);
 
 } // namespace helix::plugin
