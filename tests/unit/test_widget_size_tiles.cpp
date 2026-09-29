@@ -732,3 +732,17 @@ TEST_CASE("the alerts badge scales with the bell and hangs from its shoulder",
     CHECK(large > small);
     lv_obj_delete(root);
 }
+
+TEST_CASE("the xxl scale reaches the target size up to the platform's cap",
+          "[widget_size][tile][xxl]") {
+    using helix::ui::tile_xxl_scale;
+    // A face as large as the target draws unscaled.
+    CHECK(tile_xxl_scale(128, 128, 2 * LV_SCALE_NONE) == LV_SCALE_NONE);
+    // A smaller face scales up to reach it...
+    CHECK(tile_xxl_scale(160, 128, 2 * LV_SCALE_NONE) == 160 * LV_SCALE_NONE / 128);
+    // ...never past the cap...
+    CHECK(tile_xxl_scale(400, 128, 2 * LV_SCALE_NONE) == 2 * LV_SCALE_NONE);
+    // ...and a cap of 1x (the ESP32 image) draws the largest real face as it is.
+    CHECK(tile_xxl_scale(160, 128, LV_SCALE_NONE) == LV_SCALE_NONE);
+    CHECK(tile_xxl_scale(128, 64, LV_SCALE_NONE) == LV_SCALE_NONE);
+}

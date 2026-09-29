@@ -47,8 +47,25 @@ struct TileFace {
     }
 };
 
+#if defined(HELIX_PLATFORM_ESP32)
+/// A scaled glyph renders through a layer buffer, and the ESP32 image has no
+/// RAM to spare for one per tile, so there the xxl rung draws the largest real
+/// face as it is.
+inline constexpr int32_t kTileMaxScale = LV_SCALE_NONE;
+#else
 /// A bitmap glyph drawn past twice its size stops reading as the glyph.
 inline constexpr int32_t kTileMaxScale = 2 * LV_SCALE_NONE;
+#endif
+
+/// The scale that draws a @p face_px face at @p target_px, capped at
+/// @p max_scale and never below 1x.
+inline int32_t tile_xxl_scale(int target_px, int face_px, int32_t max_scale) {
+    if (face_px <= 0) {
+        return LV_SCALE_NONE;
+    }
+    const int32_t reach = static_cast<int32_t>(target_px) * LV_SCALE_NONE / face_px;
+    return reach < LV_SCALE_NONE ? LV_SCALE_NONE : (reach > max_scale ? max_scale : reach);
+}
 
 /// The face @p ladder draws in at @p rung. Out-of-range rungs clamp to the
 /// ladder's ends.

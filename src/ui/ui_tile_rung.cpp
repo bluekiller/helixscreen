@@ -63,8 +63,7 @@ TileFace xxl_icon_face() {
         if (!font || static_cast<int>(lv_font_get_line_height(font)) < size) {
             continue;
         }
-        const int32_t scale = std::min<int32_t>(target * LV_SCALE_NONE / size, kTileMaxScale);
-        return TileFace{font, scale};
+        return TileFace{font, tile_xxl_scale(target, size, kTileMaxScale)};
     }
     return xl;
 }
