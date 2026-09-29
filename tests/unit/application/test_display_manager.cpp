@@ -15,6 +15,7 @@
 #include "config.h"
 #include "data_root_resolver.h"
 #include "display_manager.h"
+#include "display_settings_manager.h"
 #include "runtime_config.h"
 #include "test_helpers/config_test_access.h"
 #include "test_helpers/display_manager_test_access.h"
@@ -761,4 +762,94 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     CHECK(sentinel_reads == 0);
 
     lv_indev_delete(sentinel);
+}
+
+// ============================================================================
+// Hardware keyboard presence (prestonbrown/helixscreen#1572)
+// ============================================================================
+
+namespace {
+
+/// A backend whose keyboard indev is, or is not, a physical keyboard.
+class KeyboardBackend : public DisplayBackend {
+  public:
+    explicit KeyboardBackend(bool physical) : physical_(physical) {}
+    lv_display_t* create_display(int, int) override {
+        return nullptr;
+    }
+    lv_indev_t* create_input_pointer() override {
+        return nullptr;
+    }
+    lv_indev_t* create_input_keyboard() override {
+        lv_indev_t* indev = lv_indev_create();
+        lv_indev_set_type(indev, LV_INDEV_TYPE_KEYPAD);
+        lv_indev_set_read_cb(indev, [](lv_indev_t*, lv_indev_data_t* data) {
+            data->state = LV_INDEV_STATE_RELEASED;
+        });
+        return indev;
+    }
+    bool has_hardware_keyboard() const override {
+        return physical_;
+    }
+    DisplayBackendType type() const override {
+        return DisplayBackendType::FBDEV;
+    }
+    const char* name() const override {
+        return "KeyboardBackend";
+    }
+    bool is_available() const override {
+        return true;
+    }
+
+  private:
+    bool physical_;
+};
+
+struct ScopedKeyboardPresence {
+    bool prior = helix::DisplaySettingsManager::instance().hardware_keyboard_present();
+    ~ScopedKeyboardPresence() {
+        helix::DisplaySettingsManager::instance().set_hardware_keyboard_present(prior);
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(ApplicationTestFixture,
+                 "Creating the keyboard input reports whether it is a physical keyboard",
+                 "[application][display][indev][1572]") {
+    ScopedKeyboardPresence restore;
+    auto& settings = helix::DisplaySettingsManager::instance();
+
+    SECTION("a physical keyboard") {
+        settings.set_hardware_keyboard_present(false);
+        DisplayManager mgr;
+        DisplayManagerTestAccess::set_backend(mgr, std::make_unique<KeyboardBackend>(true));
+        DisplayManagerTestAccess::create_keyboard_input(mgr);
+        REQUIRE(mgr.keyboard_input() != nullptr);
+        CHECK(settings.hardware_keyboard_present());
+        lv_indev_delete(mgr.keyboard_input());
+    }
+    SECTION("a keyboard indev with no physical keyboard behind it") {
+        settings.set_hardware_keyboard_present(true);
+        DisplayManager mgr;
+        DisplayManagerTestAccess::set_backend(mgr, std::make_unique<KeyboardBackend>(false));
+        DisplayManagerTestAccess::create_keyboard_input(mgr);
+        REQUIRE(mgr.keyboard_input() != nullptr);
+        CHECK_FALSE(settings.hardware_keyboard_present());
+        lv_indev_delete(mgr.keyboard_input());
+    }
+}
+
+TEST_CASE_METHOD(ApplicationTestFixture,
+                 "Rebuilding input after a backend swap reports the new keyboard's presence",
+                 "[application][display][indev][1572]") {
+    ScopedKeyboardPresence restore;
+    auto& settings = helix::DisplaySettingsManager::instance();
+    settings.set_hardware_keyboard_present(false);
+
+    DisplayManager mgr;
+    DisplayManagerTestAccess::set_backend(mgr, std::make_unique<KeyboardBackend>(true));
+    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+
+    CHECK(settings.hardware_keyboard_present());
 }
