@@ -86,12 +86,13 @@ ClogBarGeometry clog_bar_geometry(int mode, int value, int danger_pct, int peak_
         g.fill_w = offset;
         g.marker_x = v < 0 ? centre - offset : centre + offset;
 
-        // Beyond +/- danger_pct at either end.
+        // Beyond +/- danger_pct at either end, the same width at both: an odd
+        // track's spare pixel sits in the safe middle, not in one danger zone.
         const int safe_half = scale(danger_pct, track_w, kHalfRange);
         g.danger_lo_x = 0;
         g.danger_lo_w = std::max(0, centre - safe_half);
-        g.danger_hi_x = centre + safe_half;
-        g.danger_hi_w = std::max(0, track_w - g.danger_hi_x);
+        g.danger_hi_w = g.danger_lo_w;
+        g.danger_hi_x = track_w - g.danger_hi_w;
 
         // The peak is a magnitude; show it on the side the reading leans to,
         // and to the right when it is sitting exactly in the middle.
