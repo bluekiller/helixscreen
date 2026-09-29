@@ -7,6 +7,7 @@
 
 #include "../tests/mocks/mock_printer_state.h"
 #include "gcode_parser.h"
+#include "mock_planted_gcodes.h"
 #include "moonraker_client_mock.h"
 #include "moonraker_client_mock_internal.h"
 #include "power_device_state.h"
@@ -461,8 +462,9 @@ void MoonrakerAPIMock::database_delete_item(const std::string& namespace_name,
 std::string MoonrakerFileTransferAPIMock::find_test_file(const std::string& filename) const {
     namespace fs = std::filesystem;
 
-    if (!planted_dir().empty() && fs::exists(planted_dir() + "/" + filename)) {
-        return planted_dir() + "/" + filename;
+    const std::string& planted = helix::mock::planted_gcode_dir();
+    if (!planted.empty() && fs::exists(planted + "/" + filename)) {
+        return planted + "/" + filename;
     }
 
     for (const auto& prefix : PATH_PREFIXES) {
