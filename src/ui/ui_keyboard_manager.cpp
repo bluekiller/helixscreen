@@ -7,6 +7,7 @@
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
 #include "ui_keycap_style.h"
+#include "ui_nav_manager.h"
 #include "ui_text_input.h"
 #include "ui_utils.h"
 
@@ -1370,6 +1371,13 @@ void KeyboardManager::show(lv_obj_t* textarea) {
     lv_obj_remove_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(keyboard_);
     lv_obj_update_layout(screen);
+    {
+        // The keyboard covers the bottom of the rail, where the E-stop sits:
+        // move it up the rail column to clear the keyboard's final top edge.
+        lv_area_t kb_area;
+        lv_obj_get_coords(keyboard_, &kb_area);
+        NavigationManager::instance().set_rail_estop_keyboard_top(kb_area.y1);
+    }
 
     // Animate keyboard sliding up from bottom
     if (keyboard_animations_enabled()) {
@@ -1414,7 +1422,8 @@ void KeyboardManager::show(lv_obj_t* textarea) {
 
         for (uint32_t i = 0; i < child_count; i++) {
             lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-            if (child == keyboard_)
+            // The rail E-stop is placed against the keyboard, not shifted with the page.
+            if (child == keyboard_ || child == NavigationManager::instance().rail_estop())
                 continue;
 
             int32_t current_y = lv_obj_get_y(child);
@@ -1469,6 +1478,7 @@ void KeyboardManager::hide() {
     longpress_state_ = LP_IDLE;
 
     lv_keyboard_set_textarea(keyboard_, nullptr);
+    NavigationManager::instance().set_rail_estop_keyboard_top(-1);
 
     // Animate keyboard sliding down (or hide instantly if animations disabled)
     if (keyboard_animations_enabled()) {
@@ -1500,7 +1510,7 @@ void KeyboardManager::hide() {
 
     for (uint32_t i = 0; i < child_count; i++) {
         lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-        if (child == keyboard_)
+        if (child == keyboard_ || child == NavigationManager::instance().rail_estop())
             continue;
 
         int32_t current_y = lv_obj_get_y(child);

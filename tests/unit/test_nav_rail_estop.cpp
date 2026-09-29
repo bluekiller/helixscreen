@@ -5,17 +5,22 @@
  * @file test_nav_rail_estop.cpp
  * @brief The navigation rail carries the one E-stop while a job holds the machine.
  *
- * Every panel and overlay sits beside the rail, so the rail's E-stop is on
- * screen for all of them; under an overlay the backdrop forwards a tap on the
- * rail's snapshot to it. Screens that cover the rail carry their own.
+ * The rail keeps a slot; the button itself lives on the screen over that slot,
+ * so it stays bright and tappable above overlay and modal backdrops, which dim
+ * the rest of the rail. Every panel and overlay sits beside the rail. Screens
+ * that cover the rail (lock screen, fullscreen camera) carry their own.
  *
  * Run with: ./build/bin/helix-tests "[estop_rail]"
  */
 
+#include "ui_keyboard_manager.h"
+#include "ui_lock_screen.h"
+#include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/navigation_manager_test_access.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "theme_manager.h"
 
@@ -42,12 +47,6 @@ bool has_estop_button(const std::string& xml) {
            xml.find("callback=\"emergency_stop_clicked\"") != std::string::npos;
 }
 
-lv_point_t center_of(lv_obj_t* obj) {
-    lv_area_t a;
-    lv_obj_get_coords(obj, &a);
-    return {(a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2};
-}
-
 struct RailFixture : public LVGLUITestFixture {
     RailFixture() {
         estop_visible_ = lv_xml_get_subject(nullptr, "estop_visible");
@@ -55,7 +54,10 @@ struct RailFixture : public LVGLUITestFixture {
         saved_ = lv_subject_get_int(estop_visible_);
         navbar_ = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "navigation_bar", nullptr));
         REQUIRE(navbar_ != nullptr);
-        estop_ = lv_obj_find_by_name(navbar_, "nav_btn_estop");
+        slot_ = lv_obj_find_by_name(navbar_, "nav_estop_slot");
+        REQUIRE(slot_ != nullptr);
+        NavigationManager::instance().wire_events(navbar_);
+        estop_ = NavigationManager::instance().rail_estop();
         REQUIRE(estop_ != nullptr);
     }
     ~RailFixture() override {
@@ -66,12 +68,17 @@ struct RailFixture : public LVGLUITestFixture {
     void set_visible(int v) {
         lv_subject_set_int(estop_visible_, v);
         helix::ui::UpdateQueue::instance().drain();
-        lv_obj_update_layout(navbar_);
+        lv_obj_update_layout(test_screen());
+    }
+
+    static int32_t index_of(lv_obj_t* obj) {
+        return static_cast<int32_t>(lv_obj_get_index(obj));
     }
 
     lv_subject_t* estop_visible_ = nullptr;
     int saved_ = 0;
     lv_obj_t* navbar_ = nullptr;
+    lv_obj_t* slot_ = nullptr;
     lv_obj_t* estop_ = nullptr;
 };
 
@@ -81,8 +88,10 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop is shown exactly while estop_visible 
                  "[estop_rail][navigation]") {
     set_visible(0);
     CHECK(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(slot_, LV_OBJ_FLAG_HIDDEN));
     set_visible(1);
     CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(slot_, LV_OBJ_FLAG_HIDDEN));
     set_visible(0);
     CHECK(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
 }
@@ -101,21 +110,149 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop fires the emergency stop callback",
     CHECK(wired);
 }
 
-TEST_CASE_METHOD(RailFixture, "a tap on the rail under an overlay reaches the E-stop",
+TEST_CASE_METHOD(RailFixture, "rail E-stop sits over its slot in the rail",
                  "[estop_rail][navigation]") {
     set_visible(1);
-    const lv_point_t at_estop = center_of(estop_);
-    CHECK(NavigationManager::navbar_target_at(navbar_, at_estop) == estop_);
+    lv_area_t slot, button;
+    lv_obj_get_coords(slot_, &slot);
+    lv_obj_get_coords(estop_, &button);
+    CHECK(button.x1 == slot.x1);
+    CHECK(button.y1 == slot.y1);
+    CHECK(lv_area_get_width(&button) == lv_area_get_width(&slot));
+    CHECK(lv_area_get_height(&button) == lv_area_get_height(&slot));
+}
 
-    // The panel buttons still forward as before.
-    lv_obj_t* home = lv_obj_find_by_name(navbar_, "nav_btn_home");
-    REQUIRE(home != nullptr);
-    CHECK(NavigationManager::navbar_target_at(navbar_, center_of(home)) == home);
+TEST_CASE_METHOD(RailFixture, "rail E-stop survives a panel switch", "[estop_rail][navigation]") {
+    // Switching panels hides every stray screen child as a stale overlay; the
+    // E-stop is not one and must stay up.
+    auto& nav = NavigationManager::instance();
+    lv_obj_t* panels[UI_PANEL_COUNT] = {nullptr};
+    panels[static_cast<int>(PanelId::Home)] = lv_obj_create(test_screen());
+    panels[static_cast<int>(PanelId::Controls)] = lv_obj_create(test_screen());
+    nav.set_panels(panels);
+    set_visible(1);
+    REQUIRE_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
 
-    // Hidden, the E-stop is not a target: a tap there must not stop a printer
-    // that is idle.
-    set_visible(0);
-    CHECK(NavigationManager::navbar_target_at(navbar_, at_estop) != estop_);
+    NavigationManagerTestAccess::switch_to_panel(nav, PanelId::Controls);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+
+    // Closing an overlay sweeps stray screen children the same way.
+    lv_obj_t* overlay = lv_obj_create(test_screen());
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    nav.register_overlay_instance(overlay, nullptr);
+    nav.push_overlay(overlay);
+    helix::ui::UpdateQueue::instance().drain();
+    nav.go_back();
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    nav.unregister_overlay_instance(overlay);
+
+    NavigationManagerTestAccess::switch_to_panel(nav, PanelId::Home);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(RailFixture, "rail E-stop stays bright above an overlay backdrop",
+                 "[estop_rail][navigation]") {
+    auto& nav = NavigationManager::instance();
+    set_visible(1);
+    NavigationManagerTestAccess::adopt_overlay_backdrop(nav, test_screen());
+    lv_obj_t* backdrop = NavigationManagerTestAccess::overlay_backdrop(nav);
+    REQUIRE(backdrop != nullptr);
+
+    // Above the dimming backdrop, not part of it: still its own, fully opaque
+    // button, and still the thing a tap there lands on.
+    CHECK(index_of(estop_) > index_of(backdrop));
+    CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_get_style_opa(estop_, LV_PART_MAIN) == LV_OPA_COVER);
+
+    // A re-taken snapshot slots in above the old one; the E-stop stays above it.
+    NavigationManagerTestAccess::refresh_overlay_backdrop(nav);
+    lv_obj_t* fresh = NavigationManagerTestAccess::overlay_backdrop(nav);
+    REQUIRE(fresh != nullptr);
+    CHECK(index_of(estop_) > index_of(fresh));
+}
+
+TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above a modal",
+                 "[estop_rail][navigation]") {
+    set_visible(1);
+    lv_obj_t* dialog =
+        helix::ui::modal_confirm("Title", "Message", ModalSeverity::Info, "OK", [] {});
+    REQUIRE(dialog != nullptr);
+    lv_obj_t* backdrop = lv_obj_get_parent(dialog);
+    REQUIRE(backdrop != nullptr);
+    REQUIRE(lv_obj_get_parent(backdrop) == lv_obj_get_parent(estop_));
+    CHECK(index_of(estop_) > index_of(backdrop));
+    Modal::hide(dialog);
+    helix::ui::UpdateQueue::instance().drain();
+}
+
+TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above the keyboard",
+                 "[estop_rail][navigation]") {
+    // The keyboard spans the bottom of the screen, rail included, which is
+    // where the E-stop sits.
+    struct KeyboardOwner {
+        explicit KeyboardOwner(lv_obj_t* parent) {
+            release();
+            KeyboardManager::instance().init(parent);
+        }
+        ~KeyboardOwner() {
+            release();
+        }
+        static void release() {
+            KeyboardManager::instance().reset();
+            helix::ui::UpdateQueue::instance().drain();
+        }
+    } keyboard(test_screen());
+
+    set_visible(1);
+    lv_obj_t* textarea = lv_textarea_create(test_screen());
+    KeyboardManager::instance().show(textarea);
+    lv_obj_t* kb = KeyboardManager::instance().get_instance();
+    REQUIRE(kb != nullptr);
+    REQUIRE(lv_obj_get_parent(kb) == lv_obj_get_parent(estop_));
+    REQUIRE_FALSE(lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN));
+    lv_obj_update_layout(test_screen());
+
+    // Visible, clear of every key, and above the keyboard in z.
+    lv_area_t kb_area, button, slot;
+    lv_obj_get_coords(kb, &kb_area);
+    lv_obj_get_coords(estop_, &button);
+    lv_obj_get_coords(slot_, &slot);
+    REQUIRE(slot.y2 >= kb_area.y1); // the premise: the keyboard covers the slot
+    CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    CHECK(button.y2 < kb_area.y1);
+    CHECK(button.y1 >= 0);
+    CHECK(button.x1 == slot.x1);
+    CHECK(index_of(estop_) > index_of(kb));
+
+    // Closed, the keyboard hands the E-stop back to its slot.
+    KeyboardManager::instance().hide();
+    lv_obj_update_layout(test_screen());
+    lv_obj_get_coords(estop_, &button);
+    CHECK(button.y1 == slot.y1);
+}
+
+TEST_CASE_METHOD(RailFixture, "the lock screen covers the rail E-stop",
+                 "[estop_rail][navigation]") {
+    set_visible(1);
+    // The rail E-stop lives on the screen; the lock screen is drawn on the top
+    // layer, which is always above it and absorbs every touch.
+    CHECK(lv_obj_get_screen(estop_) == test_screen());
+    helix::ui::LockScreenOverlay::instance().show();
+    CHECK(helix::ui::LockScreenOverlay::instance().is_visible());
+    bool lock_on_top_layer = false;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(lv_layer_top()); ++i) {
+        if (lv_obj_find_by_name(lv_obj_get_child(lv_layer_top(), static_cast<int32_t>(i)),
+                                "estop_fab")) {
+            lock_on_top_layer = true;
+        }
+    }
+    CHECK(lock_on_top_layer);
+    CHECK(lv_obj_get_parent(estop_) != lv_layer_top());
+    helix::ui::LockScreenOverlay::instance().hide();
+    helix::ui::UpdateQueue::instance().drain();
 }
 
 TEST_CASE_METHOD(RailFixture, "rail E-stop is no smaller than the circles it stands in for",
@@ -158,7 +295,7 @@ TEST_CASE("every overlay leaves the rail and its E-stop on screen", "[estop_rail
 
 TEST_CASE("the rail is the one E-stop where the rail shows, and screens that cover it keep one",
           "[estop_rail][navigation]") {
-    CHECK(has_estop_button(read_xml("ui_xml/navigation_bar.xml")));
+    CHECK(has_estop_button(read_xml("ui_xml/components/rail_estop.xml")));
 
     // These cover the rail, so they carry their own.
     for (const char* path :
@@ -168,10 +305,12 @@ TEST_CASE("the rail is the one E-stop where the rail shows, and screens that cov
     }
 
     // These sit beside the rail and drew a second E-stop over their content.
-    for (const char* path :
-         {"ui_xml/home_panel.xml", "ui_xml/controls_panel.xml", "ui_xml/micro/controls_panel.xml",
-          "ui_xml/print_status_panel.xml", "ui_xml/portrait/print_status_panel.xml"}) {
+    for (const char* path : {"ui_xml/home_panel.xml", "ui_xml/controls_panel.xml",
+                             "ui_xml/micro/controls_panel.xml", "ui_xml/print_status_panel.xml",
+                             "ui_xml/portrait/print_status_panel.xml", "ui_xml/motion_panel.xml"}) {
         INFO(path);
-        CHECK(read_xml(path).find("estop_visible") == std::string::npos);
+        const std::string xml = read_xml(path);
+        CHECK(xml.find("estop_visible") == std::string::npos);
+        CHECK(xml.find("emergency_stop_clicked") == std::string::npos);
     }
 }

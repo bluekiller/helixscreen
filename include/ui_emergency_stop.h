@@ -155,16 +155,6 @@ class EmergencyStopOverlay {
      */
     void update_visibility();
 
-    /// The estop_visible subject (1 while a job holds the machine), or nullptr
-    /// before init_subjects().
-    [[nodiscard]] lv_subject_t* get_estop_visible_subject() {
-        return subjects_initialized_ ? &estop_visible_ : nullptr;
-    }
-
-    [[nodiscard]] SubjectLifetime get_subjects_lifetime() const {
-        return subjects_.get_subjects_lifetime();
-    }
-
     /**
      * @brief Set whether confirmation dialog is required
      *

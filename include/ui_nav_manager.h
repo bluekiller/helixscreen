@@ -145,10 +145,25 @@ class NavigationManager {
      */
     void wire_events(lv_obj_t* navbar);
 
-    /// The navbar button under @p point, or nullptr: a panel button, or the
-    /// E-stop while it is shown. How a tap on the backdrop's snapshot of the
-    /// rail reaches the live rail underneath an overlay.
+    /// The panel button under @p point, or nullptr. How a tap on the
+    /// backdrop's snapshot of the rail reaches the live rail under an overlay.
     [[nodiscard]] static lv_obj_t* navbar_target_at(lv_obj_t* navbar, const lv_point_t& point);
+
+    /// Put the rail's E-stop above everything on the screen. Called as each
+    /// overlay or modal backdrop goes up and as the keyboard opens, so the
+    /// E-stop stays bright and tappable over them. Overlay panels, raised
+    /// later, never cover the rail.
+    void raise_rail_estop();
+
+    /// The keyboard's top edge in screen coordinates while it is open, or -1
+    /// once it closes. The E-stop moves up the rail column to clear it, and
+    /// back to its slot after.
+    void set_rail_estop_keyboard_top(int32_t top);
+
+    /// The E-stop kept over the rail's nav_estop_slot, or nullptr.
+    [[nodiscard]] lv_obj_t* rail_estop() const {
+        return rail_estop_;
+    }
 
     /**
      * @brief Wire up status icons in navbar
@@ -691,6 +706,13 @@ class NavigationManager {
      */
     void refresh_overlay_backdrop();
 
+    /// Build the screen-level E-stop over @p navbar's nav_estop_slot.
+    void create_rail_estop(lv_obj_t* navbar);
+    /// Move the E-stop onto the slot's current position.
+    void sync_rail_estop();
+    lv_obj_t* rail_estop_ = nullptr;
+    int32_t rail_estop_keyboard_top_ = -1;
+
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);
 
@@ -801,7 +823,6 @@ class NavigationManager {
     ObserverGuard klippy_state_observer_;
     ObserverGuard printer_dot_observer_;
     ObserverGuard printer_switcher_observer_;
-    ObserverGuard estop_visible_observer_;
 
     // Printer connection status dot widget
     lv_obj_t* printer_dot_widget_ = nullptr;
