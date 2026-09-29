@@ -31,15 +31,16 @@ namespace {
 /// caption and only a tile given more room than that grows it. font_small is
 /// the larger step because it is the same light weight as font_xs.
 ///
-/// Only the glyph grows past xl: the value and label hold their xl faces.
+/// At xxl, where the glyph doubles, the value and label take one more step
+/// so the text is not left undersized beside it.
 ///
 /// The last row is a count badge's digits, which stay small until the glyph
 /// they sit on is large enough to carry more.
 constexpr const char* kLadders[4][kTileRungs] = {
     {"icon_font_xs", "icon_font_sm", "icon_font_md", "icon_font_lg", "icon_font_xl",
      "icon_font_xl"},
-    {"font_xs", "font_xs", "font_small", "font_body", "font_heading", "font_heading"},
-    {"font_xs", "font_xs", "font_xs", "font_xs", "font_small", "font_small"},
+    {"font_xs", "font_xs", "font_small", "font_body", "font_heading", "font_xl"},
+    {"font_xs", "font_xs", "font_xs", "font_xs", "font_small", "font_body"},
     {"font_xs", "font_xs", "font_xs", "font_xs", "font_small", "font_heading"},
 };
 constexpr int kXxl = kTileRungs - 1;

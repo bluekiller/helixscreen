@@ -15,7 +15,9 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "src/ui/panel_widgets/humidity_widget.h"
+#include "src/ui/panel_widgets/tile_layout.h"
 #include "src/ui/panel_widgets/width_sensor_widget.h"
+#include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -48,6 +50,12 @@ void check_faces_follow_pixels(PanelWidgetHarness<Widget>& h, const char* id,
     h.resize(1, 1, 400, 400);
     const int large = faces_match_rung();
     CHECK(large > small);
+
+    // At the top rung the glyph doubles, and the reading steps up with it.
+    if (large == helix::kTileRungs - 1) {
+        CHECK(lv_obj_get_style_text_font(value, LV_PART_MAIN) == theme_manager_get_font("font_xl"));
+    }
+    CHECK(large == helix::kTileRungs - 1);
 }
 
 } // namespace

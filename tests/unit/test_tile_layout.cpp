@@ -23,8 +23,8 @@ namespace {
 
 /// Medium tier, measured.
 ///   icon_font_xs..xl  line height 18/24/33/48/66, glyph width 16/24/32/48/64;
-///   xxl is #tile_icon_xxl_size, 128, drawn 132 tall; its value and label
-///   hold the xl faces
+///   xxl is #tile_icon_xxl_size, 128, drawn 132 tall, with the value in
+///   font_xl and the label in font_body
 ///   paired value face font_xs/font_xs/font_small/font_body/font_heading
 ///   line height        18/18/22/24/34
 ///   "888 / 888°"       57/57/75/85/125      "888°"  26/26/34/38/56
@@ -32,7 +32,7 @@ namespace {
 constexpr TileRungMetrics kMedium[kTileRungs] = {
     //  icon_w icon_h  full  cur  val_h  lbl_w lbl_h
     {16, 18, 57, 26, 18, 38, 18}, {24, 24, 57, 26, 18, 38, 18},  {32, 33, 75, 34, 22, 38, 18},
-    {48, 48, 85, 38, 24, 48, 22}, {64, 66, 125, 56, 34, 56, 24}, {128, 132, 125, 56, 34, 56, 24},
+    {48, 48, 85, 38, 24, 48, 22}, {64, 66, 125, 56, 34, 56, 24}, {128, 132, 140, 63, 38, 56, 24},
 };
 
 constexpr int kGap = 4;
