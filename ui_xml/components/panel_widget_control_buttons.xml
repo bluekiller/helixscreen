@@ -10,10 +10,12 @@
     <prop name="labels_subject" type="string" default=""/>
     <!-- 1 = buttons stacked vertically, 0 = side by side -->
     <prop name="column_subject" type="string" default=""/>
+    <!-- 1 = buttons fill the tile's height, 0 = capped at a large button -->
+    <prop name="fill_subject" type="string" default=""/>
   </api>
   <styles>
-    <!-- Side by side: each button takes half the width, no taller than a large button. -->
-    <style name="cb_btn_row" max_height="#button_height_lg"/>
+    <!-- One cell tall: no taller than a large button. Taller tiles fill. -->
+    <style name="cb_btn_capped" max_height="#button_height_lg"/>
     <!-- Stacked: each button takes the full width and half the height. -->
     <style name="cb_btn_column" width="100%"/>
     <!-- Labelled: a slim side inset, so the label fits a half-width button.
@@ -33,7 +35,7 @@
     <ui_button name="btn_primary"
                height="100%" flex_grow="1" bind_icon="print_control_primary_icon"
                bind_text="print_control_primary_label" label_hidden_subject="$labels_subject" label_hidden_if_eq="0">
-      <bind_style_if_eq name="cb_btn_row" subject="$column_subject" ref_value="0"/>
+      <bind_style_if_eq name="cb_btn_capped" subject="$fill_subject" ref_value="0"/>
       <bind_style_if_eq name="cb_btn_column" subject="$column_subject" ref_value="1"/>
       <bind_style_if_eq name="cb_btn_labelled" subject="$labels_subject" ref_value="1"/>
       <bind_style_if_eq name="cb_btn_icon_only" subject="$labels_subject" ref_value="0"/>
@@ -44,7 +46,7 @@
     <ui_button name="btn_stop"
                height="100%" flex_grow="1" variant="danger" icon="stop" text="Stop" translation_tag="Stop"
                label_hidden_subject="$labels_subject" label_hidden_if_eq="0">
-      <bind_style_if_eq name="cb_btn_row" subject="$column_subject" ref_value="0"/>
+      <bind_style_if_eq name="cb_btn_capped" subject="$fill_subject" ref_value="0"/>
       <bind_style_if_eq name="cb_btn_column" subject="$column_subject" ref_value="1"/>
       <bind_style_if_eq name="cb_btn_labelled" subject="$labels_subject" ref_value="1"/>
       <bind_style_if_eq name="cb_btn_icon_only" subject="$labels_subject" ref_value="0"/>

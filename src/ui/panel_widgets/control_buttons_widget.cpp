@@ -41,11 +41,12 @@ void register_control_buttons_widget() {
     // by the helix::ui::PrintControlButtons singleton at startup.
 }
 
-ControlButtonsLayout decide_control_buttons_layout(int colspan, int width_px, int height_px,
-                                                   int pad_px, int gap_px, int button_need_px,
-                                                   bool tiny_breakpoint) {
+ControlButtonsLayout decide_control_buttons_layout(int colspan, int rowspan, int width_px,
+                                                   int height_px, int pad_px, int gap_px,
+                                                   int button_need_px, bool tiny_breakpoint) {
     ControlButtonsLayout layout;
     layout.column = height_px > width_px;
+    layout.fill = layout.column || rowspan >= 2 * GridLayout::TRACKS_PER_CELL;
     const int inner_w = width_px - 2 * pad_px;
     const int button_w = layout.column ? inner_w : (inner_w - gap_px) / 2;
     layout.labels = !tiny_breakpoint && colspan >= 2 * GridLayout::TRACKS_PER_CELL &&
@@ -56,7 +57,9 @@ ControlButtonsLayout decide_control_buttons_layout(int colspan, int width_px, in
 ControlButtonsWidget::ControlButtonsWidget() {
     UI_MANAGED_SUBJECT_INT(labels_subject_, 1, labels_name_.c_str(), subjects_);
     UI_MANAGED_SUBJECT_INT(column_subject_, 0, column_name_.c_str(), subjects_);
-    attr_storage_ = {"labels_subject", labels_name_, "column_subject", column_name_};
+    UI_MANAGED_SUBJECT_INT(fill_subject_, 0, fill_name_.c_str(), subjects_);
+    attr_storage_ = {"labels_subject", labels_name_,   "column_subject",
+                     column_name_,     "fill_subject", fill_name_};
     for (const auto& s : attr_storage_) {
         attrs_.push_back(s.c_str());
     }
@@ -122,8 +125,7 @@ int ControlButtonsWidget::button_need_px() const {
     return need;
 }
 
-void ControlButtonsWidget::on_size_changed(int colspan, int /*rowspan*/, int width_px,
-                                           int height_px) {
+void ControlButtonsWidget::on_size_changed(int colspan, int rowspan, int width_px, int height_px) {
     int pad = 0;
     int gap = 0;
     if (widget_obj_) {
@@ -132,12 +134,13 @@ void ControlButtonsWidget::on_size_changed(int colspan, int /*rowspan*/, int wid
     }
     const int need = button_need_px();
     const auto layout =
-        decide_control_buttons_layout(colspan, width_px, height_px, pad, gap, need,
+        decide_control_buttons_layout(colspan, rowspan, width_px, height_px, pad, gap, need,
                                       widget_size::current_breakpoint() == UiBreakpoint::Tiny);
     spdlog::debug("[ControlButtonsWidget] {}x{}px span {}, labels need {}px -> {} {}", width_px,
                   height_px, colspan, need, layout.column ? "column" : "row",
                   layout.labels ? "labels" : "icons only");
     lv_subject_set_int(&column_subject_, layout.column ? 1 : 0);
+    lv_subject_set_int(&fill_subject_, layout.fill ? 1 : 0);
     lv_subject_set_int(&labels_subject_, layout.labels ? 1 : 0);
 }
 

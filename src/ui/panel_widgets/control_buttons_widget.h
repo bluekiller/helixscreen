@@ -15,17 +15,19 @@ namespace helix {
 struct ControlButtonsLayout {
     bool column = false; ///< buttons stacked top to bottom
     bool labels = false; ///< buttons show their text beside the icon
+    bool fill = false;   ///< buttons take the tile's full height, uncapped
 };
 
-/// Decide the layout for a tile of @p colspan tracks drawn at @p width_px x
-/// @p height_px. Buttons stack when the box is taller than it is wide. Labels
+/// Decide the layout for a tile of @p colspan x @p rowspan tracks drawn at
+/// @p width_px x @p height_px. Buttons stack when the box is taller than it is
+/// wide, and fill the tile's height once it is two cells tall. Labels
 /// show only at two cells wide or more, never at the Tiny breakpoint, and only
 /// when each button is at least @p button_need_px wide: the widest icon, gap,
 /// label and horizontal padding a button draws. @p pad_px is the tile's inner
 /// padding on each side and @p gap_px the space between the buttons.
-ControlButtonsLayout decide_control_buttons_layout(int colspan, int width_px, int height_px,
-                                                   int pad_px, int gap_px, int button_need_px,
-                                                   bool tiny_breakpoint);
+ControlButtonsLayout decide_control_buttons_layout(int colspan, int rowspan, int width_px,
+                                                   int height_px, int pad_px, int gap_px,
+                                                   int button_need_px, bool tiny_breakpoint);
 
 /// Home-panel widget with two print-control buttons: a primary Pause/Resume
 /// button and a Stop button. Icon, label text, enabled state, and click
@@ -59,8 +61,10 @@ class ControlButtonsWidget : public PanelWidget {
     // missing at parse time.
     std::string labels_name_{"control_buttons_labels"};
     std::string column_name_{"control_buttons_column"};
+    std::string fill_name_{"control_buttons_fill"};
     lv_subject_t labels_subject_{};
     lv_subject_t column_subject_{};
+    lv_subject_t fill_subject_{};
     SubjectManager subjects_;
     std::vector<std::string> attr_storage_;
     std::vector<const char*> attrs_;

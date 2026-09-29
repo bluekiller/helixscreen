@@ -38,9 +38,14 @@ lv_obj_t* text_label(lv_obj_t* btn) {
     return nullptr;
 }
 
+/// Tracks tall for a pixel height in these cases: one cell or two.
+int rows_for(int h) {
+    return h > kCellPx ? 4 : 2;
+}
+
 ControlButtonsLayout layout_for(int colspan, int w, int h, int need = kEnglishNeed,
                                 bool tiny = false) {
-    return decide_control_buttons_layout(colspan, w, h, kPad, kGap, need, tiny);
+    return decide_control_buttons_layout(colspan, rows_for(h), w, h, kPad, kGap, need, tiny);
 }
 
 } // namespace
@@ -50,18 +55,22 @@ TEST_CASE("control buttons: one cell is two icon buttons side by side",
     const auto l = layout_for(2, kCellPx, kCellPx);
     CHECK_FALSE(l.column);
     CHECK_FALSE(l.labels);
+    CHECK_FALSE(l.fill);
 }
 
 TEST_CASE("control buttons: two cells wide show labels side by side", "[control_buttons][layout]") {
     const auto l = layout_for(4, kTwoCellsPx, kCellPx);
     CHECK_FALSE(l.column);
     CHECK(l.labels);
+    // One cell tall keeps the large-button height.
+    CHECK_FALSE(l.fill);
 }
 
 TEST_CASE("control buttons: one cell wide by two tall stacks icon buttons",
           "[control_buttons][layout]") {
     const auto l = layout_for(2, kCellPx, kTwoCellsPx);
     CHECK(l.column);
+    CHECK(l.fill);
     // Under two cells wide the text goes, even though a stacked button spans
     // the full width.
     CHECK_FALSE(l.labels);
@@ -72,6 +81,8 @@ TEST_CASE("control buttons: a square two-cell tile stays side by side",
     const auto l = layout_for(4, kTwoCellsPx, kTwoCellsPx);
     CHECK_FALSE(l.column);
     CHECK(l.labels);
+    // Two cells tall: the buttons fill it rather than stopping at one row's height.
+    CHECK(l.fill);
 }
 
 TEST_CASE("control buttons: a label too wide for its button is dropped",
@@ -128,6 +139,20 @@ TEST_CASE_METHOD(LVGLUITestFixture, "control buttons tile lays its buttons out f
         CHECK_FALSE(lv_obj_has_flag(stop_label, LV_OBJ_FLAG_HIDDEN));
         CHECK(inside_root(primary));
         CHECK(inside_root(stop));
+    }
+
+    SECTION("two cells tall side by side fills the height") {
+        h.resize(4, 4, 300, 300);
+        CHECK(lv_obj_get_x(stop) > lv_obj_get_x(primary));
+        const int32_t inner_h = lv_obj_get_content_height(h.root());
+        CHECK(lv_obj_get_height(primary) == inner_h);
+        CHECK(lv_obj_get_height(stop) == inner_h);
+        CHECK(inside_root(stop));
+    }
+
+    SECTION("one cell tall side by side stays capped") {
+        h.resize(4, 2, 300, 300);
+        CHECK(lv_obj_get_height(stop) < lv_obj_get_content_height(h.root()));
     }
 
     SECTION("one cell is side by side, icons only") {
