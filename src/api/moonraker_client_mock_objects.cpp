@@ -322,7 +322,7 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                        {{"min_freq", self->get_resonance_min_freq()},
                         {"max_freq", self->get_resonance_max_freq()},
                         {"accel_per_hz", 75.0},
-                        {"hz_per_sec", 1.0}}},
+                        {"hz_per_sec", self->get_resonance_hz_per_sec()}}},
                       // Bed screw geometry — the screws-tilt panel reads
                       // screw_thread from here to size its level tolerance.
                       {"screws_tilt_adjust",
@@ -837,7 +837,7 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                        {{"min_freq", self->get_resonance_min_freq()},
                         {"max_freq", self->get_resonance_max_freq()},
                         {"accel_per_hz", 75.0},
-                        {"hz_per_sec", 1.0}}},
+                        {"hz_per_sec", self->get_resonance_hz_per_sec()}}},
                       {"heater_bed",
                        {{"min_temp", 0.0},
                         {"max_temp", 120.0},

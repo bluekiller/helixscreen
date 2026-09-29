@@ -1104,3 +1104,54 @@ INPUT_SHAPER_DEMO_KALICO=1 ./build/bin/helix-screen --test -vv &
 ```
 
 **Only affects the demo injection path.** A real (or mock-driven) calibration run ignores this variable entirely. Like `HELIX_MOCK_KALICO`, the comparison is strict equality against `"1"`.
+
+### `HELIX_MOCK_BELT_A_HZ`
+
+Set belt path A's simulated resonance peak (Hz) in the mock's `TEST_RESONANCES` simulation. Path A is the `AXIS=1,1` diagonal. Re-measuring a path walks its peak toward the other path's by up to 4 Hz per run, so the tuning loop converges the way cranking a belt tensioner does.
+
+| Property | Value |
+|----------|-------|
+| **Values** | Positive float (Hz) |
+| **Default** | `110` |
+| **File** | `src/api/moonraker_client_mock.cpp` (`MoonrakerClientMock` constructor) |
+
+```bash
+# Start both belts 2 Hz apart, just inside the MATCHED band
+HELIX_MOCK_BELT_A_HZ=104 HELIX_MOCK_BELT_B_HZ=102 ./build/bin/helix-screen --test --sim-speed 6 -vv
+```
+
+### `HELIX_MOCK_BELT_B_HZ`
+
+Set belt path B's simulated resonance peak (Hz), the `AXIS=1,-1` diagonal. Read once at mock construction, alongside `HELIX_MOCK_BELT_A_HZ`. The defaults (110/98) sit 12 Hz apart, deliberately in "Adjust needed" territory so the belt-tension loop is visible from the first sweep.
+
+| Property | Value |
+|----------|-------|
+| **Values** | Positive float (Hz) |
+| **Default** | `98` |
+| **File** | `src/api/moonraker_client_mock.cpp` (`MoonrakerClientMock` constructor) |
+
+```bash
+# A stiff A belt and a loose B belt
+HELIX_MOCK_BELT_A_HZ=115 HELIX_MOCK_BELT_B_HZ=95 ./build/bin/helix-screen --test --sim-speed 6 -vv
+```
+
+### `HELIX_MOCK_BELT_FAIL`
+
+Make the mock's next `TEST_RESONANCES` run fail the way real hardware does, so the belt-tension UI's error paths are reachable without a printer. Read once at mock construction.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `stall` \| `nofile` \| `multichip` \| `error` \| `kalico` |
+| **Default** | unset — a normal sweep that writes its CSV |
+| **File** | `src/api/moonraker_client_mock.cpp` (`MoonrakerClientMock` constructor, `dispatch_test_resonances_response`) |
+
+```bash
+# Kalico dialect: two-part axis names and an extra accel_per_hz CSV column
+HELIX_MOCK_BELT_FAIL=kalico ./build/bin/helix-screen --test --sim-speed 6 -vv
+
+# Sweep stalls at its midpoint and never reports a file
+HELIX_MOCK_BELT_FAIL=stall ./build/bin/helix-screen --test --sim-speed 6 -vv
+```
+
+`stall` stops emitting at the sweep midpoint, `nofile` names a CSV path it never writes, `multichip` writes per-chip columns (`adxl345`, `adxl345_hotend`) instead of a summed `psd_xyz`, `error` dies after three lines with `!! Invalid adxl345 id (got 0 vs e5).`, and `kalico` switches the transcript and CSV to Kalico's dialect. An unrecognized value leaves the normal behavior in place.
+

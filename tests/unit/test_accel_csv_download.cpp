@@ -139,18 +139,18 @@ TEST_CASE("Mock returns data_store accelerometer files", "[accel_csv][mock]") {
     REQUIRE(result.is_array());
     REQUIRE(result.size() >= 2);
 
-    // Verify belt path CSV files are present
-    bool found_path_a = false;
-    bool found_path_b = false;
+    // Verify accelerometer CSV files are present
+    bool found_x = false;
+    bool found_y = false;
     for (const auto& file : result) {
         std::string path = file.value("path", "");
-        if (path.find("belt_path_a") != std::string::npos)
-            found_path_a = true;
-        if (path.find("belt_path_b") != std::string::npos)
-            found_path_b = true;
+        if (path.find("raw_data_x") != std::string::npos)
+            found_x = true;
+        if (path.find("raw_data_y") != std::string::npos)
+            found_y = true;
     }
-    CHECK(found_path_a);
-    CHECK(found_path_b);
+    CHECK(found_x);
+    CHECK(found_y);
 }
 
 // ============================================================================
