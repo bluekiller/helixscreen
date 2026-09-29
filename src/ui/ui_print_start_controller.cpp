@@ -922,7 +922,9 @@ void PrintStartController::restore_filament_mapping() {
         int saved_slot = saved_tool_mapping_[i];
         int current_slot = (i < current_mapping.size()) ? current_mapping[i] : -1;
 
-        if (saved_slot != current_slot) {
+        // A tool that was unmapped before the print has no lane to go back to;
+        // every backend refuses slot -1.
+        if (saved_slot >= 0 && saved_slot != current_slot) {
             spdlog::info("[PrintStartController] Restoring T{}: slot {} -> slot {}", i,
                          current_slot, saved_slot);
             auto err = backend->set_tool_mapping(static_cast<int>(i), saved_slot);
@@ -1007,7 +1009,8 @@ bool PrintStartController::retained_restore_sendable() const {
     for (size_t i = 0; i < saved_tool_mapping_.size(); ++i) {
         const int want = saved_tool_mapping_[i];
         const int have = (i < current.size()) ? current[i] : -1;
-        if (want != have && !backend->can_set_tool_mapping(static_cast<int>(i), want).success()) {
+        if (want >= 0 && want != have &&
+            !backend->can_set_tool_mapping(static_cast<int>(i), want).success()) {
             return false;
         }
     }

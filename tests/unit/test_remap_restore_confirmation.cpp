@@ -362,6 +362,31 @@ TEST_CASE("remap restore: a refusal past the backend's checks is not retried per
     CHECK_FALSE(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
 }
 
+TEST_CASE("remap restore: a tool unmapped before the print is left unmapped",
+          "[remap-restore][1684]") {
+    LVGLTestFixture fx;
+    ConfigDirGuard config_dir{"remap_retry_unmapped"};
+    ScopedCountingBackend be{{0, 1}};
+    be.backend->reported_slots = 2;
+    Harness h;
+    h.set_klippy(KlippyState::READY);
+
+    // T0 had no lane before the print; T1's lane is on the detached unit.
+    PrintStartControllerTestAccess::seed_saved_mapping(h.controller, {-1, 3}, 0);
+    PrintStartControllerTestAccess::restore(h.controller);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(be.backend->calls.size() == 1);
+    CHECK(be.backend->calls[0].tool == 1);
+
+    // The unmapped entry must not hold back the lane that can come back.
+    be.backend->reported_slots = 4;
+    Harness::ams_data_tick();
+    REQUIRE(be.backend->calls.size() == 2);
+    CHECK(be.backend->calls[1].tool == 1);
+    CHECK(be.backend->calls[1].slot == 3);
+    CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
+}
+
 namespace {
 
 /// A CFS backend whose gcode is captured instead of sent.
