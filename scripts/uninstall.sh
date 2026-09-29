@@ -7869,6 +7869,32 @@ restore_previous_ui_platform() {
     HELIX_RESTORE_WARNED="$restore_warned"
 }
 
+# Whether $1, the run's own install root, may join the uninstall sweep, which
+# rm -rf's every entry. All must hold: an absolute path, not a firmware-mod
+# host (an unarmed run leaves the mod's payload root alone), a real directory
+# rather than a link out of its parent, resolved name exactly "helixscreen",
+# neither "/", $HOME nor $KLIPPER_HOME, and our binary inside it.
+_uninstall_own_root_ok() {
+    _uor="${1%/}"
+    case "$_uor" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    case "$_uor" in
+        *..*) return 1 ;;
+    esac
+    [ -z "${HOST_MOD_ROOT:-}" ] && [ -z "${HOST_MOD_CHROOT:-}" ] || return 1
+    [ -d "$_uor" ] && [ ! -L "$_uor" ] || return 1
+    _uor_real=$(host_canonical_path "$_uor") || return 1
+    _uor_parent=$(host_canonical_path "$(dirname "$_uor")") || return 1
+    [ "$_uor_real" = "${_uor_parent%/}/helixscreen" ] || return 1
+    for _uor_home in / "${HOME:-}" "${KLIPPER_HOME:-}"; do
+        [ -n "$_uor_home" ] || continue
+        [ "$_uor_real" != "$(host_canonical_path "$_uor_home")" ] || return 1
+    done
+    [ -e "$_uor_real/bin/helix-screen" ]
+}
+
 # Emit HELIX_INSTALL_DIRS (common.sh) widened to whatever THIS run may sweep.
 # In --mod-payload mode the run's ACTUAL payload root joins the list via
 # resolve_payload_root (flag > the root the install recorded > INSTALL_DIR) -
@@ -7897,21 +7923,20 @@ helix_install_dirs_for_run() {
         fi
     fi
     # The run's own install root. Pi and x86 installs live in
-    # $KLIPPER_HOME/helixscreen, which no fixed entry names. It joins only when
-    # it is named like ours and holds our binary, and never on a firmware-mod
-    # host, where an unarmed run must leave the mod's payload root alone.
-    _hid_root="${INSTALL_DIR:-}"
-    _hid_root="${_hid_root%/}"
-    if [ -n "$_hid_root" ] && [ -z "${HOST_MOD_ROOT:-}" ] && [ -z "${HOST_MOD_CHROOT:-}" ] &&
-        [ -x "${_hid_root}/bin/helix-screen" ] &&
-        _user_dir_name_ok "$_hid_root" '*helixscreen*'; then
-        case " $HELIX_INSTALL_DIRS " in
-            *" $_hid_root "*) ;;
-            *)
-                echo "$HELIX_INSTALL_DIRS $_hid_root"
-                return 0
-                ;;
-        esac
+    # $KLIPPER_HOME/helixscreen, which no fixed entry names.
+    if _uninstall_own_root_ok "${INSTALL_DIR:-}"; then
+        _hid_root=$(host_canonical_path "${INSTALL_DIR%/}")
+        _hid_dup=0
+        for _hid_d in $HELIX_INSTALL_DIRS; do
+            if [ "$_hid_d" = "$_hid_root" ] ||
+                [ "$(host_canonical_path "$_hid_d")" = "$_hid_root" ]; then
+                _hid_dup=1
+            fi
+        done
+        if [ "$_hid_dup" = 0 ]; then
+            echo "$HELIX_INSTALL_DIRS $_hid_root"
+            return 0
+        fi
     fi
     echo "$HELIX_INSTALL_DIRS"
 }
