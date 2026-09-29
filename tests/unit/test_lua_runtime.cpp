@@ -3,6 +3,8 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_update_queue.h"
+
 #include "../test_helpers/plugin_test_support.h"
 #include "lua_runtime.h"
 
@@ -148,7 +150,8 @@ TEST_CASE("run_file refuses a missing file and a directory", "[plugin][lua_runti
     CHECK_FALSE(t.rt->faulted());
 }
 
-TEST_CASE("an infinite loop is stopped and faults the plugin", "[plugin][lua_runtime][budget]") {
+TEST_CASE("an infinite loop is stopped and faults the plugin",
+          "[plugin][lua_runtime][lua_budget]") {
     TestRuntime t;
     auto start = std::chrono::steady_clock::now();
     CHECK_FALSE(t.run("while true do end"));
@@ -157,7 +160,7 @@ TEST_CASE("an infinite loop is stopped and faults the plugin", "[plugin][lua_run
     CHECK(t.fault.find("time budget") != std::string::npos);
 }
 
-TEST_CASE("pcall cannot swallow the time budget", "[plugin][lua_runtime][budget]") {
+TEST_CASE("pcall cannot swallow the time budget", "[plugin][lua_runtime][lua_budget]") {
     TestRuntime t;
     CHECK_FALSE(t.run(R"(
         while true do
@@ -168,14 +171,14 @@ TEST_CASE("pcall cannot swallow the time budget", "[plugin][lua_runtime][budget]
     CHECK(t.fault.find("time budget") != std::string::npos);
 }
 
-TEST_CASE("work inside the budget is untouched", "[plugin][lua_runtime][budget]") {
+TEST_CASE("work inside the budget is untouched", "[plugin][lua_runtime][lua_budget]") {
     TestRuntime t;
     REQUIRE(t.run("s = 0 for i = 1, 200000 do s = s + i end"));
     CHECK(t.global("s") == "20000100000");
     CHECK_FALSE(t.rt->faulted());
 }
 
-TEST_CASE("each outermost entry gets a fresh budget", "[plugin][lua_runtime][budget]") {
+TEST_CASE("each outermost entry gets a fresh budget", "[plugin][lua_runtime][lua_budget]") {
     TestRuntime t; // 50 ms budget; three 20 ms runs exceed one budget but not their own
     lua_pushcfunction(t.rt->state(), [](lua_State* L) -> int {
         using namespace std::chrono;
@@ -189,6 +192,147 @@ TEST_CASE("each outermost entry gets a fresh budget", "[plugin][lua_runtime][bud
     CHECK(t.run(spin));
     CHECK(t.run(spin));
     CHECK_FALSE(t.rt->faulted());
+}
+
+namespace {
+// helix.test_wait() suspends and hands its Pending to the test.
+void install_test_wait(LuaRuntime& rt, std::vector<LuaRuntime::Pending>* sink) {
+    lua_State* L = rt.state();
+    lua_getglobal(L, "helix");
+    lua_pushlightuserdata(L, sink);
+    lua_pushcclosure(
+        L,
+        [](lua_State* co) -> int {
+            auto* s = static_cast<std::vector<LuaRuntime::Pending>*>(
+                lua_touserdata(co, lua_upvalueindex(1)));
+            return LuaRuntime::from(co).await_async(
+                co, [s](LuaRuntime::Pending p) { s->push_back(p); });
+        },
+        1);
+    lua_setfield(L, -2, "test_wait");
+    lua_pop(L, 1);
+}
+
+LuaRuntime::PushFn push_int(lua_Integer v) {
+    return [v](lua_State* co) {
+        lua_pushinteger(co, v);
+        return 1;
+    };
+}
+} // namespace
+
+TEST_CASE("an async call suspends and resumes with its result", "[plugin][lua_runtime][async]") {
+    TestRuntime t;
+    std::vector<LuaRuntime::Pending> pending;
+    install_test_wait(*t.rt, &pending);
+
+    REQUIRE(t.run("before = true; got = helix.test_wait(); after = got + 1"));
+    CHECK(t.global("before") == "true");
+    CHECK(t.global("after") == "nil");
+    REQUIRE(pending.size() == 1);
+
+    pending[0].resolve(push_int(41));
+    CHECK(t.global("after") == "nil"); // resumes on the main loop, not inside resolve
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(t.global("after") == "42");
+}
+
+TEST_CASE("resolve is one-shot", "[plugin][lua_runtime][async]") {
+    TestRuntime t;
+    std::vector<LuaRuntime::Pending> pending;
+    install_test_wait(*t.rt, &pending);
+    REQUIRE(t.run("n = 0; helix.test_wait(); n = n + 1"));
+    pending[0].resolve(push_int(1));
+    pending[0].resolve(push_int(2));
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(t.global("n") == "1");
+}
+
+TEST_CASE("a reply after the runtime is gone is dropped", "[plugin][lua_runtime][async]") {
+    std::vector<LuaRuntime::Pending> pending;
+    {
+        TestRuntime t;
+        install_test_wait(*t.rt, &pending);
+        REQUIRE(t.run("helix.test_wait()"));
+    }
+    REQUIRE(pending.size() == 1);
+    pending[0].resolve(push_int(1));
+    helix::ui::UpdateQueue::instance().drain();
+    SUCCEED(); // ASAN (Step 5) is what proves nothing touched the destroyed runtime
+}
+
+TEST_CASE("a reply after a fault is dropped", "[plugin][lua_runtime][async]") {
+    TestRuntime t;
+    std::vector<LuaRuntime::Pending> pending;
+    install_test_wait(*t.rt, &pending);
+    REQUIRE(t.run("helix.test_wait(); resumed = true"));
+    t.run("error('1')");
+    t.run("error('2')");
+    t.run("error('3')");
+    REQUIRE(t.rt->faulted());
+    pending[0].resolve(push_int(1));
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(t.global("resumed") == "nil");
+}
+
+TEST_CASE("a bare coroutine.yield at entry level is an error", "[plugin][lua_runtime][async]") {
+    TestRuntime t;
+    CHECK_FALSE(t.run("coroutine.yield()"));
+    CHECK(t.run("ok = true"));
+}
+
+TEST_CASE("an async call inside a plugin-made coroutine raises", "[plugin][lua_runtime][async]") {
+    TestRuntime t;
+    std::vector<LuaRuntime::Pending> pending;
+    install_test_wait(*t.rt, &pending);
+    REQUIRE(t.run(R"(
+        local co = coroutine.wrap(function() return helix.test_wait() end)
+        ok, err = pcall(co)
+        mentions = tostring(err):find("async call not allowed") ~= nil
+    )"));
+    CHECK(t.global("ok") == "false");
+    CHECK(t.global("mentions") == "true");
+    CHECK(pending.empty());
+}
+
+TEST_CASE("nested entries stop at the depth cap", "[plugin][lua_runtime][async]") {
+    TestRuntime t;
+    // helix.reenter(f) runs f as a new entry synchronously, the way a subject observer does.
+    lua_State* L = t.rt->state();
+    lua_getglobal(L, "helix");
+    lua_pushcfunction(L, [](lua_State* co) -> int {
+        auto& rt = LuaRuntime::from(co);
+        int ref = rt.ref_value(co, 1);
+        rt.invoke(ref);
+        rt.unref(ref);
+        return 0;
+    });
+    lua_setfield(L, -2, "reenter");
+    lua_pop(L, 1);
+
+    t.run(R"(
+        depth = 0
+        local function recurse() depth = depth + 1; helix.reenter(recurse) end
+        recurse()
+    )");
+    CHECK(t.global("depth") == "8");
+}
+
+TEST_CASE("a budget kill swallowed by coroutine.resume still faults",
+          "[plugin][lua_runtime][lua_budget]") {
+    TestRuntime t;
+    CHECK_FALSE(t.run("local co = coroutine.create(function() while true do end end); ok = "
+                      "coroutine.resume(co)"));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("time budget") != std::string::npos);
+}
+
+TEST_CASE("a budget kill followed by a yield still faults", "[plugin][lua_runtime][lua_budget]") {
+    TestRuntime t;
+    CHECK_FALSE(t.run("local co = coroutine.create(function() while true do end end); ok = "
+                      "coroutine.resume(co); coroutine.yield()"));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("time budget") != std::string::npos);
 }
 
 #endif // HELIX_HAS_PLUGINS

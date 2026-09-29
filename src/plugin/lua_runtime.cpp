@@ -252,14 +252,35 @@ bool LuaRuntime::spawn(const PushFn& push_args) {
 }
 
 bool LuaRuntime::enter(lua_State* co, int nargs) {
+    if (depth_ >= kMaxEntryDepth) {
+        lua_settop(co, 0);
+        drop(co);
+        report_error("entries nested more than " + std::to_string(kMaxEntryDepth) +
+                     " deep (an observer setting the subject it observes?)");
+        return false;
+    }
     if (depth_ == 0) {
         deadline_ = Clock::now() + limits_.time_budget;
         killed_ = false;
     }
+    bool outer_yielded = yielded_for_async_;
+    yielded_for_async_ = false;
     ++depth_;
     int nres = 0;
     int status = lua_resume(co, L_, nargs, &nres);
     --depth_;
+    bool yielded_for_async = yielded_for_async_;
+    yielded_for_async_ = outer_yielded;
+
+    // The count hook's error can come back as a plain value from coroutine.resume or end
+    // as a bare yield, so the overrun is checked on every exit of the outermost entry.
+    // A killed plugin must never be resumed later, so a suspended coroutine is dropped too.
+    if (depth_ == 0 && killed_) {
+        lua_pop(co, nres);
+        drop(co);
+        fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
+        return false;
+    }
     if (status == LUA_OK) {
         lua_pop(co, nres);
         drop(co);
@@ -267,6 +288,8 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     }
     if (status == LUA_YIELD) {
         lua_pop(co, nres);
+        if (yielded_for_async)
+            return true; // stays in threads_ until its Pending resolves
         report_error("coroutine.yield() outside an async call");
         drop(co);
         return false;
@@ -321,13 +344,32 @@ void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
     luaL_error(L, "exceeded the plugin time budget");
 }
 
-int LuaRuntime::await_async(lua_State* co, const std::function<void(Pending)>&) {
-    return luaL_error(co, "async calls are not available yet");
+int LuaRuntime::await_async(lua_State* co, const std::function<void(Pending)>& start) {
+    // Only entry coroutines are in threads_, which rejects plugin-made coroutines.
+    if (!threads_.count(co) || !lua_isyieldable(co))
+        return luaL_error(co, "async call not allowed here: call it from a handler or the top "
+                              "level of main.lua, not a metamethod, iterator, sort comparator, "
+                              "module top level or plugin-made coroutine");
+    start(Pending(this, co, guard_.token()));
+    yielded_for_async_ = true;
+    return lua_yield(co, 0);
 }
 
-void LuaRuntime::resume(lua_State*, const PushFn&) {}
+void LuaRuntime::Pending::resolve(PushFn push_results) const {
+    if (done_->exchange(true))
+        return;
+    LuaRuntime* rt = rt_;
+    lua_State* co = co_;
+    token_.defer("plugin_resume",
+                 [rt, co, push = std::move(push_results)]() { rt->resume(co, push); });
+}
 
-void LuaRuntime::Pending::resolve(PushFn) const {}
+void LuaRuntime::resume(lua_State* co, const PushFn& push_results) {
+    if (faulted_ || !threads_.count(co))
+        return;
+    int n = push_results ? push_results(co) : 0;
+    enter(co, n);
+}
 
 } // namespace helix::plugin
 
