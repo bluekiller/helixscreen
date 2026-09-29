@@ -687,3 +687,48 @@ TEST_CASE("an unconfigured power tile reserves no state line", "[widget_size][ti
     CHECK(unconfigured > configured);
     lv_obj_delete(root);
 }
+
+TEST_CASE("the alerts badge scales with the bell and hangs from its shoulder",
+          "[widget_size][tile][badge]") {
+    // A fixed badge floats off a large bell and swamps a small one.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    const auto* def = find_widget_def("notifications");
+    REQUIRE(def != nullptr);
+    auto instance = def->factory("notifications");
+    REQUIRE(instance != nullptr);
+    lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+        fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+    REQUIRE(root != nullptr);
+    lv_obj_t* badge = lv_obj_find_by_name(root, "notification_badge");
+    lv_obj_t* bell = lv_obj_find_by_name(root, "status_notification_icon");
+    REQUIRE(badge != nullptr);
+    REQUIRE(bell != nullptr);
+    lv_subject_t* rung = lv_xml_get_subject(nullptr, "notifications_tile_icon");
+    REQUIRE(rung != nullptr);
+
+    auto check_at = [&](int px) {
+        lv_obj_set_size(root, px, px);
+        instance->notify_size_changed(2, 2, px, px);
+        lv_obj_update_layout(root);
+        const int r = lv_subject_get_int(rung);
+        const lv_font_t* count_face = helix::ui::tile_rung_face(helix::ui::TileLadder::Pip, r).font;
+        CHECK(lv_obj_get_width(badge) ==
+              helix::ui::tile_pip_edge(helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, r),
+                                       count_face));
+        CHECK(lv_obj_get_style_text_font(lv_obj_get_child(badge, 0), LV_PART_MAIN) == count_face);
+        // Hung from the glyph box's top-right corner, not the tile's.
+        lv_area_t b, g;
+        lv_obj_get_coords(badge, &b);
+        lv_obj_get_coords(bell, &g);
+        CHECK(b.x2 <= g.x2 + 1);
+        CHECK(b.y1 >= g.y1 - 1);
+        CHECK(b.x1 > g.x1);
+        return lv_obj_get_width(badge);
+    };
+    const int small = check_at(60);
+    const int large = check_at(420);
+    INFO("badge " << small << "px at 60, " << large << "px at 420");
+    CHECK(large > small);
+    lv_obj_delete(root);
+}

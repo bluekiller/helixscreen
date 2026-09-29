@@ -33,6 +33,7 @@
                           align="top_right" x="-#space_xxs" y="#space_xxs" hidden="true" clickable="true"
                           click_focusable="false" bind_text="notification_count_text">
         <bind_flag_if_eq subject="notification_count" flag="hidden" ref_value="0"/>
+        <bind_tile_rung ladder="pip" subject="$tile_icon_subject"/>
         <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
         <bind_style name="badge_warning" subject="notification_severity" ref_value="1"/>
         <bind_style name="badge_error" subject="notification_severity" ref_value="2"/>

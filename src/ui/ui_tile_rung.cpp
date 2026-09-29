@@ -32,11 +32,15 @@ namespace {
 /// the larger step because it is the same light weight as font_xs.
 ///
 /// Only the glyph grows past xl: the value and label hold their xl faces.
-constexpr const char* kLadders[3][kTileRungs] = {
+///
+/// The last row is a count badge's digits, which stay small until the glyph
+/// they sit on is large enough to carry more.
+constexpr const char* kLadders[4][kTileRungs] = {
     {"icon_font_xs", "icon_font_sm", "icon_font_md", "icon_font_lg", "icon_font_xl",
      "icon_font_xl"},
     {"font_xs", "font_xs", "font_small", "font_body", "font_heading", "font_heading"},
     {"font_xs", "font_xs", "font_xs", "font_xs", "font_small", "font_small"},
+    {"font_xs", "font_xs", "font_xs", "font_xs", "font_small", "font_heading"},
 };
 constexpr int kXxl = kTileRungs - 1;
 
@@ -103,6 +107,19 @@ void rung_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
         lv_obj_set_size(obj, edge, edge);
         return;
     }
+    if (ladder == TileLadder::Pip) {
+        // The badge's circle is sized from the glyph it sits on, and its count
+        // label (its one child) takes the pip face.
+        // DECLARATIVE_OK: measured from the computed faces, which XML cannot name.
+        const int rung = lv_subject_get_int(subject) + offset;
+        const int edge = tile_pip_edge(tile_rung_face(TileLadder::Icon, rung), font);
+        lv_obj_set_size(obj, edge, edge);
+        lv_obj_set_style_radius(obj, edge / 2, LV_PART_MAIN);
+        if (lv_obj_t* count = lv_obj_get_child(obj, 0)) {
+            apply_font_style(count, font);
+        }
+        return;
+    }
     apply_font_style(obj, font);
     if (ladder == TileLadder::Icon) {
         apply_face_scale(obj, face);
@@ -140,6 +157,8 @@ void bind_tile_rung_apply(lv_xml_parser_state_t* state, const char** attrs) {
         ladder = TileLadder::Label;
     } else if (ladder_name && std::strcmp(ladder_name, "disc") == 0) {
         ladder = TileLadder::Disc;
+    } else if (ladder_name && std::strcmp(ladder_name, "pip") == 0) {
+        ladder = TileLadder::Pip;
     } else if (ladder_name && std::strcmp(ladder_name, "icon") != 0) {
         spdlog::warn("[TileRung] unknown ladder '{}'; binding the icon ladder", ladder_name);
     }
@@ -156,8 +175,12 @@ void bind_tile_rung_apply(lv_xml_parser_state_t* state, const char** attrs) {
 } // namespace
 
 const char* tile_rung_font_token(TileLadder ladder, int rung) {
-    const int row =
-        ladder == TileLadder::Disc ? static_cast<int>(TileLadder::Icon) : static_cast<int>(ladder);
+    int row = static_cast<int>(ladder);
+    if (ladder == TileLadder::Disc) {
+        row = static_cast<int>(TileLadder::Icon);
+    } else if (ladder == TileLadder::Pip) {
+        row = 3;
+    }
     return kLadders[row][std::clamp(rung, 0, kTileRungs - 1)];
 }
 
@@ -168,6 +191,17 @@ TileFace tile_rung_face(TileLadder ladder, int rung) {
         return xxl_icon_face();
     }
     return TileFace{theme_manager_get_font(tile_rung_font_token(ladder, rung)), LV_SCALE_NONE};
+}
+
+int tile_pip_edge(const TileFace& icon_face, const lv_font_t* count_face) {
+    // Two fifths of the glyph puts the badge's centre on a bell's shoulder when
+    // it hangs from the glyph box's top-right corner; never smaller than one
+    // line of its count.
+    const int glyph = icon_face.font
+                          ? icon_face.px(static_cast<int>(lv_font_get_line_height(icon_face.font)))
+                          : 0;
+    const int count = count_face ? static_cast<int>(lv_font_get_line_height(count_face)) + 2 : 0;
+    return std::max(glyph * 2 / 5, count);
 }
 
 int tile_disc_edge(const TileFace& icon_face) {

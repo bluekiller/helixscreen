@@ -8,6 +8,7 @@
 #include "helix-xml/src/xml/lv_xml_utils.h"
 #include "helix-xml/src/xml/lv_xml_widget.h"
 #include "helix-xml/src/xml/parsers/lv_xml_obj_parser.h"
+#include "helix/ui/shared_font_style.h"
 #include "lvgl/lvgl.h"
 #include "theme_manager.h"
 
@@ -140,7 +141,8 @@ void* notification_badge_create(lv_xml_parser_state_t* state, const char** attrs
     // Create label for count
     lv_obj_t* label = lv_label_create(badge);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, theme_manager_get_font("font_small"), LV_PART_MAIN);
+    // An added face, so a tile's rung binding can retier it.
+    helix::ui::apply_font_style(label, theme_manager_get_font("font_small"));
     lv_obj_center(label);
 
     // Allocate user data to track label reference (for safe style change handling)
