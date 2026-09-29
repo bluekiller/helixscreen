@@ -146,6 +146,16 @@ bool ui_frequency_response_chart_is_series_muted(ui_frequency_response_chart_t* 
                                                  int series_id);
 
 /**
+ * @brief Show or hide the amplitude labels and their left gutter
+ *
+ * Relative comparisons (two curves against each other) read better without
+ * absolute PSD numbers; the plot then takes the gutter's width.
+ */
+// NAMESPACE_OK: matches this file's C-style chart API
+void ui_frequency_response_chart_set_y_labels_visible(ui_frequency_response_chart_t* chart,
+                                                      bool visible);
+
+/**
  * @brief Report whether a series is currently visible
  *
  * @param chart Chart instance

@@ -83,6 +83,7 @@ struct ui_frequency_response_chart_t {
     size_t max_points = 0;
     bool chart_mode = false;
     bool supports_animations = false; ///< Captured once at configure time; gates glow
+    bool show_y_labels = true;        ///< Amplitude labels in a left gutter
 
     // Sweep cursor: vertical line at cursor_freq tinting [freq_min, cursor_freq]
     bool cursor_active = false;
@@ -451,6 +452,23 @@ bool ui_frequency_response_chart_is_series_muted(ui_frequency_response_chart_t* 
                                                  int series_id) {
     const FrequencySeriesData* series = find_series(chart, series_id);
     return series ? series->muted : false;
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+void ui_frequency_response_chart_set_y_labels_visible(
+    ui_frequency_response_chart_t* chart, // NAMESPACE_OK: matches this file's C-style chart API
+    bool visible) {
+    if (!chart) {
+        return;
+    }
+    chart->show_y_labels = visible;
+    if (chart->chart) {
+        lv_obj_set_style_pad_left(chart->chart,
+                                  visible ? 36 + theme_manager_get_spacing("space_xs")
+                                          : theme_manager_get_spacing("space_sm"),
+                                  LV_PART_MAIN);
+        lv_obj_invalidate(chart->chart);
+    }
 }
 
 // NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
@@ -1297,7 +1315,7 @@ static void draw_y_axis_labels_cb(lv_event_t* e) {
     lv_layer_t* layer = lv_event_get_layer(e);
     auto* chart = static_cast<ui_frequency_response_chart_t*>(lv_event_get_user_data(e));
 
-    if (!layer || !chart) {
+    if (!layer || !chart || !chart->show_y_labels) {
         return;
     }
 
@@ -1434,8 +1452,9 @@ void ui_frequency_response_chart_configure_for_platform(ui_frequency_response_ch
             int32_t axis_label_h = theme_manager_get_font_height(axis_font);
             int32_t space_xs = theme_manager_get_spacing("space_xs");
             int32_t space_sm = theme_manager_get_spacing("space_sm");
-            // Left padding: room for Y-axis labels
-            lv_obj_set_style_pad_left(chart->chart, 36 + space_xs, LV_PART_MAIN);
+            // Left padding: room for Y-axis labels when they are shown
+            lv_obj_set_style_pad_left(chart->chart, chart->show_y_labels ? 36 + space_xs : space_sm,
+                                      LV_PART_MAIN);
             // Bottom padding: room for X-axis labels
             lv_obj_set_style_pad_bottom(chart->chart, space_sm + axis_label_h + space_xs,
                                         LV_PART_MAIN);
