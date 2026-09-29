@@ -336,10 +336,37 @@ TEST_CASE("unremapped_tool_params names what the rewrite leaves on a line", "[re
     CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START INITIAL_TOOL=0").empty());
     CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START T0_TEMP=220 T1=0 TX=4") ==
           V{"T0_TEMP", "T1"});
+    // TOOL= is rewritten, so it is not reported; keys that merely contain TOOL are.
     CHECK(GcodeToolRemapper::unremapped_tool_params("START_PRINT tool=2 Extruder=210") ==
-          V{"tool", "Extruder"});
+          V{"Extruder"});
+    CHECK(GcodeToolRemapper::unremapped_tool_params("START_PRINT TOOL_TEMP=220 TOOLS=3 XTOOL=1") ==
+          V{"TOOL_TEMP", "TOOLS", "XTOOL"});
     // Nothing after a comment, and a bare word is not a parameter.
     CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START BED=60 ; EXTRUDER_TEMP=200")
               .empty());
     CHECK(GcodeToolRemapper::unremapped_tool_params("EXTRUDER_TEMP").empty());
+}
+
+TEST_CASE("TOOL is remapped like INITIAL_TOOL", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}, {1, 0}};
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START TOOL=0 BED=60\n", remap) ==
+          "PRINT_START TOOL=1 BED=60\n");
+    CHECK(helix::GcodeToolRemapper::apply_to_string("SET_TOOL_TEMPERATURE tool=1 TARGET=200\n",
+                                                    remap) ==
+          "SET_TOOL_TEMPERATURE tool=0 TARGET=200\n");
+    // Swap does not chain, across lines or families.
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START TOOL=0\nT1\nPRINT_START TOOL=1\n",
+                                                    remap) ==
+          "PRINT_START TOOL=1\nT0\nPRINT_START TOOL=0\n");
+    // Both parameters on one line are rewritten, each from its own original value.
+    CHECK(helix::GcodeToolRemapper::apply_to_string(
+              "PRINT_START INITIAL_TOOL=0 BED=60 TOOL=1 ; TOOL=0\n", remap) ==
+          "PRINT_START INITIAL_TOOL=1 BED=60 TOOL=0 ; TOOL=0\n");
+    // Keys that only contain TOOL are someone else's convention.
+    for (const char* line :
+         {"PRINT_START XTOOL=0\n", "PRINT_START TOOLS=0\n", "PRINT_START TOOL_TEMP=0\n",
+          "PRINT_START TOOL=T0\n", "PRINT_START TOOL=0x\n"}) {
+        CAPTURE(line);
+        CHECK(helix::GcodeToolRemapper::apply_to_string(line, remap) == line);
+    }
 }

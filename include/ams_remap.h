@@ -3,9 +3,11 @@
 #pragma once
 
 #include "ams_backend.h"
+#include "filament_mapper.h"
 #include "gcode_tool_remapper.h"
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -175,6 +177,45 @@ start_params_remap_leaves(AmsBackend::RemapStrategy strategy, std::string_view s
         return {};
     }
     return GcodeToolRemapper::unremapped_tool_params(start_line);
+}
+
+/**
+ * @brief The logical->physical tool map a GcodeRewrite applies for these picks.
+ *
+ * Auto and unmapped picks (-1) are left out: the rewrite leaves those tool
+ * numbers as sliced. Slot index is the physical head on every backend that
+ * takes this route.
+ */
+[[nodiscard]] inline std::map<int, int>
+gcode_rewrite_remap(const std::vector<ToolMapping>& mappings) {
+    std::map<int, int> remap;
+    for (const auto& m : mappings) {
+        if (m.tool_index >= 0 && m.mapped_slot >= 0) {
+            remap[m.tool_index] = m.mapped_slot;
+        }
+    }
+    return remap;
+}
+
+/**
+ * @brief Does the start macro warning belong on screen for these picks?
+ *
+ * Only when the rewrite actually changes a tool number: identity picks leave
+ * the start macro's own values consistent with the body.
+ *
+ * @param has_keys Whether start_params_remap_leaves() reported anything.
+ */
+[[nodiscard]] inline bool start_macro_note_shown(bool has_keys,
+                                                 const std::vector<ToolMapping>& mappings) {
+    if (!has_keys) {
+        return false;
+    }
+    for (const auto& [logical, physical] : gcode_rewrite_remap(mappings)) {
+        if (logical != physical) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace printer

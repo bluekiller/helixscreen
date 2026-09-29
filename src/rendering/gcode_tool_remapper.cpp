@@ -9,9 +9,10 @@
 //                 SM_PRINT_FLOW_CALIBRATE  with  EXTRUDER=<n>  (Snapmaker U1)
 //   2. Body:      a bare "T<n>" toolchange line
 //   3. Temps:     M104 / M109 lines carrying a "T<n>" tool token
-//   4. Start:     an INITIAL_TOOL=<n> parameter on any command line, the name
-//                 of the slicer placeholder a start macro is handed the first
-//                 tool by
+//   4. Params:    an INITIAL_TOOL=<n> or TOOL=<n> parameter on any command
+//                 line. INITIAL_TOOL is the slicer placeholder a start macro is
+//                 handed the first tool by; TOOL=<n> is the common spelling of
+//                 "this tool" across tool-changer macros
 //
 // Any other tool-naming parameter a start macro takes is the user's own
 // convention; unremapped_tool_params() reports those instead of guessing.
@@ -152,8 +153,8 @@ bool try_temp(const std::string& line, const std::map<int, int>& remap, std::str
     return false;
 }
 
-// --- Family 4: "INITIAL_TOOL=<digits>" parameter, key case-insensitive ---
-constexpr std::string_view INITIAL_TOOL_KEY = "INITIAL_TOOL";
+// --- Family 4: "<KEY>=<digits>" tool parameters, whole key case-insensitive ---
+constexpr std::string_view TOOL_PARAM_KEYS[] = {"INITIAL_TOOL", "TOOL"};
 
 bool iequals(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) {
@@ -198,16 +199,28 @@ template <typename Visit> void for_each_param(std::string_view line, Visit&& vis
     }
 }
 
-bool try_initial_tool(const std::string& line, const std::map<int, int>& remap, std::string& out) {
+bool is_tool_param_key(std::string_view key) {
+    for (std::string_view tool_key : TOOL_PARAM_KEYS) {
+        if (iequals(key, tool_key)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool try_tool_params(const std::string& line, const std::map<int, int>& remap, std::string& out) {
     // The command word itself is never a parameter.
     const size_t first_space = line.find_first_of(" \t");
     if (line.empty() || line[0] == ';' || first_space == std::string::npos) {
         return false;
     }
-    bool changed = false;
+    // Every value is read from `line` and spliced into `out` in order, so two
+    // parameters on one line are each mapped from their original number.
+    std::string rewritten;
+    size_t copied = 0;
     for_each_param(std::string_view(line).substr(first_space),
                    [&](std::string_view key, std::string_view value, size_t key_begin) {
-                       if (changed || !iequals(key, INITIAL_TOOL_KEY) || value.empty() ||
+                       if (!is_tool_param_key(key) || value.empty() ||
                            !std::isdigit(static_cast<unsigned char>(value[0]))) {
                            return;
                        }
@@ -215,16 +228,21 @@ bool try_initial_tool(const std::string& line, const std::map<int, int>& remap, 
                        size_t pos = value_begin;
                        int idx = parse_uint(line, pos);
                        if (pos != value_begin + value.size()) {
-                           return; // "INITIAL_TOOL=1x" is not a tool number
+                           return; // "TOOL=1x" is not a tool number
                        }
                        int m = mapped(idx, remap);
                        if (m == idx) {
                            return;
                        }
-                       out = line.substr(0, value_begin) + std::to_string(m) + line.substr(pos);
-                       changed = true;
+                       rewritten.append(line, copied, value_begin - copied);
+                       rewritten += std::to_string(m);
+                       copied = pos;
                    });
-    return changed;
+    if (copied == 0) {
+        return false;
+    }
+    out = rewritten + line.substr(copied);
+    return true;
 }
 
 // Shared per-line transform. Returns the rewritten line, or `line` unchanged.
@@ -240,7 +258,7 @@ std::string transform_line(const std::string& line, const std::map<int, int>& re
     if (try_temp(line, remap, out)) {
         return out;
     }
-    if (try_initial_tool(line, remap, out)) {
+    if (try_tool_params(line, remap, out)) {
         return out;
     }
     return line;
@@ -331,7 +349,7 @@ std::string GcodeToolRemapper::apply_to_string(const std::string& gcode,
 std::vector<std::string> GcodeToolRemapper::unremapped_tool_params(std::string_view line) {
     std::vector<std::string> keys;
     for_each_param(line, [&](std::string_view key, std::string_view, size_t) {
-        if (iequals(key, INITIAL_TOOL_KEY)) {
+        if (is_tool_param_key(key)) {
             return;
         }
         const bool t_numbered = key.size() >= 2 && (key[0] == 'T' || key[0] == 't') &&

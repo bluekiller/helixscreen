@@ -32,7 +32,7 @@ class GcodeToolRemapper {
 
     // The keys of the tool-naming KEY=VALUE parameters on `line` that a remap
     // leaves unchanged, in line order: any key containing EXTRUDER or TOOL, or a
-    // T<digits> key, except INITIAL_TOOL, which the rewrite handles. Their
+    // T<digits> key, except INITIAL_TOOL and TOOL, which the rewrite handles. Their
     // meaning is the user's own macro convention (is EXTRUDER_TEMP tool 0, or the
     // active tool?), so they are reported rather than guessed at.
     static std::vector<std::string> unremapped_tool_params(std::string_view line);

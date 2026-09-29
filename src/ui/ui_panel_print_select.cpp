@@ -3239,16 +3239,7 @@ void PrintSelectPanel::apply_remap(const std::vector<helix::ToolMapping>& update
         // in open_remap_modal(). Taken by a tool changer driving swaps with its
         // own T<n> macros rather than klipper-toolchanger; ACE will take it once
         // its ACE_CHANGE_TOOL family lands, until then ACE stays None.
-        std::map<int, int> remap;
-        for (const auto& m : updated) {
-            if (m.tool_index < 0 || m.mapped_slot < 0) {
-                continue; // auto / unmapped — leave the gcode's tool number alone
-            }
-            // slot index == physical head for these backends, so mapped_slot is the
-            // head the gcode rewrite targets. A backend where slot != head would
-            // need a slot→head translation here.
-            remap[m.tool_index] = m.mapped_slot;
-        }
+        const std::map<int, int> remap = helix::printer::gcode_rewrite_remap(updated);
 
         auto* prep = detail_view_ ? detail_view_->get_prep_manager() : nullptr;
         if (!prep) {

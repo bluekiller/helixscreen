@@ -616,3 +616,31 @@ TEST_CASE("Only a file rewrite reports start macro params it leaves alone", "[am
     CHECK(start_params_remap_leaves(S::PrePrintSend, line).empty());
     CHECK(start_params_remap_leaves(S::None, line).empty());
 }
+
+namespace {
+helix::ToolMapping picked(int tool, int slot) {
+    helix::ToolMapping m;
+    m.tool_index = tool;
+    m.mapped_slot = slot;
+    return m;
+}
+} // namespace
+
+TEST_CASE("gcode_rewrite_remap keeps only the tools a pick actually sends", "[ams][strategy]") {
+    using helix::printer::gcode_rewrite_remap;
+    CHECK(gcode_rewrite_remap({picked(0, 1), picked(1, -1), picked(-1, 2), picked(2, 2)}) ==
+          std::map<int, int>{{0, 1}, {2, 2}});
+    CHECK(gcode_rewrite_remap({}).empty());
+}
+
+TEST_CASE("The start macro note follows the picks", "[ams][strategy]") {
+    using helix::printer::start_macro_note_shown;
+    // Identity: the rewrite changes no tool number, so nothing is left behind.
+    CHECK_FALSE(start_macro_note_shown(true, {picked(0, 0), picked(1, 1)}));
+    // One tool moved.
+    CHECK(start_macro_note_shown(true, {picked(0, 0), picked(1, 0)}));
+    // An unmapped or auto tool is not sent, so it moves nothing.
+    CHECK_FALSE(start_macro_note_shown(true, {picked(0, -1), picked(1, 1)}));
+    // A move with nothing the rewrite leaves: no note.
+    CHECK_FALSE(start_macro_note_shown(false, {picked(0, 1)}));
+}

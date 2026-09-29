@@ -6,6 +6,7 @@
 #include "ui_swatch.h"
 #include "ui_utils.h"
 
+#include "ams_remap.h"
 #include "ams_state.h"
 #include "display_numbering.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -106,10 +107,9 @@ void FilamentMappingModal::on_show() {
     original_auto_color_map_ = auto_color_map_;
 
     // Published on every show: the subjects are shared by every instance, so a
-    // note left from one caller must not reach another's dialog.
-    auto& note = note_subjects();
-    lv_subject_copy_string(&note.text, start_macro_note_.c_str());
-    lv_subject_set_int(&note.visible, start_macro_note_.empty() ? 0 : 1);
+    // note left from one caller must not reach another's dialog. Visibility is
+    // published by rebuild_rows(), which every change to the picks goes through.
+    lv_subject_copy_string(&note_subjects().text, start_macro_note_.c_str());
 
     tool_list_ = find_widget("mapping_tool_list");
     if (!tool_list_) {
@@ -151,6 +151,9 @@ void FilamentMappingModal::on_cancel() {
 // ============================================================================
 
 void FilamentMappingModal::rebuild_rows() {
+    lv_subject_set_int(
+        &note_subjects().visible,
+        helix::printer::start_macro_note_shown(!start_macro_note_.empty(), mappings_) ? 1 : 0);
     if (!tool_list_) {
         return;
     }
