@@ -277,6 +277,26 @@ _seed_root() {
     [ -x "$target/bin/helix-screen" ]
 }
 
+@test "uninstall sweep: a root reached through a symlinked parent is left alone" {
+    _load_uninstall
+    local target="$BATS_TEST_TMPDIR/data/pi"
+    _seed_root "$target/helixscreen"
+    mkdir -p "$BATS_TEST_TMPDIR/home"
+    ln -s "$target" "$BATS_TEST_TMPDIR/home/pi"
+    INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/helixscreen"
+    run helix_install_dirs_for_run
+    [ "$output" = "/opt/helixscreen" ]
+}
+
+@test "uninstall sweep: trailing slashes do not change the answer" {
+    _load_uninstall
+    local root="$BATS_TEST_TMPDIR/home/pi/helixscreen"
+    _seed_root "$root"
+    INSTALL_DIR="$root//"
+    run helix_install_dirs_for_run
+    [ "$output" = "/opt/helixscreen $root" ]
+}
+
 @test "uninstall sweep: a root without our binary is left alone" {
     _load_uninstall
     INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/helixscreen"

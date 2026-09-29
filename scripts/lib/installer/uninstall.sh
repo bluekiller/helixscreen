@@ -491,11 +491,14 @@ restore_previous_ui_platform() {
 
 # Whether $1, the run's own install root, may join the uninstall sweep, which
 # rm -rf's every entry. All must hold: an absolute path, not a firmware-mod
-# host (an unarmed run leaves the mod's payload root alone), a real directory
-# rather than a link out of its parent, resolved name exactly "helixscreen",
-# neither "/", $HOME nor $KLIPPER_HOME, and our binary inside it.
+# host (an unarmed run leaves the mod's payload root alone), not a symlink and
+# reached through none (its resolved path is the path as given), named exactly
+# "helixscreen", neither "/", $HOME nor $KLIPPER_HOME, and our binary inside.
 _uninstall_own_root_ok() {
-    _uor="${1%/}"
+    _uor="$1"
+    while [ "${_uor%/}" != "$_uor" ]; do
+        _uor="${_uor%/}"
+    done
     case "$_uor" in
         /*) ;;
         *) return 1 ;;
@@ -506,8 +509,8 @@ _uninstall_own_root_ok() {
     [ -z "${HOST_MOD_ROOT:-}" ] && [ -z "${HOST_MOD_CHROOT:-}" ] || return 1
     [ -d "$_uor" ] && [ ! -L "$_uor" ] || return 1
     _uor_real=$(host_canonical_path "$_uor") || return 1
-    _uor_parent=$(host_canonical_path "$(dirname "$_uor")") || return 1
-    [ "$_uor_real" = "${_uor_parent%/}/helixscreen" ] || return 1
+    [ "$_uor_real" = "$_uor" ] || return 1
+    [ "${_uor_real##*/}" = "helixscreen" ] || return 1
     for _uor_home in / "${HOME:-}" "${KLIPPER_HOME:-}"; do
         [ -n "$_uor_home" ] || continue
         [ "$_uor_real" != "$(host_canonical_path "$_uor_home")" ] || return 1

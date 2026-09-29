@@ -960,3 +960,37 @@ CONF
     run helix_install_dirs_for_run
     [ "$output" = "$HELIX_INSTALL_DIRS" ]
 }
+
+@test "install dirs for run: a helixscreen-backup directory stays off the sweep" {
+    INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/helixscreen-backup"
+    mkdir -p "$INSTALL_DIR/bin"
+    : > "$INSTALL_DIR/bin/helix-screen"
+    chmod +x "$INSTALL_DIR/bin/helix-screen"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
+
+@test "install dirs for run: a helixscreen symlink pointing elsewhere stays off the sweep" {
+    local target="$BATS_TEST_TMPDIR/elsewhere/helixscreen"
+    mkdir -p "$target/bin" "$BATS_TEST_TMPDIR/home/pi"
+    : > "$target/bin/helix-screen"
+    chmod +x "$target/bin/helix-screen"
+    ln -s "$target" "$BATS_TEST_TMPDIR/home/pi/helixscreen"
+    INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/helixscreen"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
+
+@test "install dirs for run: INSTALL_DIR=\$HOME holding our binary stays off the sweep" {
+    local home="$BATS_TEST_TMPDIR/home/helixscreen"
+    mkdir -p "$home/bin"
+    : > "$home/bin/helix-screen"
+    chmod +x "$home/bin/helix-screen"
+    HOME="$home"
+    INSTALL_DIR="$home"
+
+    run helix_install_dirs_for_run
+    [ "$output" = "$HELIX_INSTALL_DIRS" ]
+}
