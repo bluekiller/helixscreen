@@ -9,6 +9,8 @@
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/plugin_test_support.h"
+#include "helix-xml/src/xml/lv_xml_component.h"
+#include "layout_manager.h"
 #include "lua_bindings.h"
 
 #include "../catch_amalgamated.hpp"
@@ -190,6 +192,29 @@ TEST_CASE("plugin_event user_data parsing", "[plugin][bindings][ui]") {
     CHECK(parse_plugin_event("Bad_x").id.empty());
     CHECK(parse_plugin_event("").id.empty());
     CHECK(parse_plugin_event(":x").id.empty());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a confirm dialog that cannot be shown holds no slot",
+                 "[plugin][bindings][ui]") {
+    // Without the modal_dialog component the dialog cannot be built; the component is
+    // restored afterwards for the tests that share this process.
+    struct HideModalDialog {
+        bool was_registered = lv_xml_component_get_scope("modal_dialog") != nullptr;
+        HideModalDialog() {
+            if (was_registered)
+                lv_xml_component_unregister("modal_dialog");
+        }
+        ~HideModalDialog() {
+            if (was_registered) {
+                std::string path =
+                    "A:" + helix::LayoutManager::instance().resolve_xml_path("modal_dialog.xml");
+                lv_xml_register_component_from_file(path.c_str());
+            }
+        }
+    } hidden;
+    BoundRuntime b({&install_ui_bindings}, {});
+    REQUIRE(b.t.run(R"(helix.ui.confirm("One", "body"))"));
+    REQUIRE(b.t.run(R"(helix.ui.confirm("Two", "body"))"));
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "toast and confirm validate their arguments",

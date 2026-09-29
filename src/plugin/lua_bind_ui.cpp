@@ -243,13 +243,15 @@ int ui_confirm(lua_State* L) {
     };
     opts.on_dismiss = opts.on_cancel;
     opts.owner_token = rt.token();
-    helix::ui::modal_confirm(
+    lv_obj_t* dialog = helix::ui::modal_confirm(
         title.c_str(), msg.c_str(), severity, confirm_text.c_str(),
         [run, confirm_ref, release] {
             release();
             run(confirm_ref);
         },
         opts);
+    if (!dialog) // never shown, so no close path will release the slot
+        release();
     return 0;
 }
 
