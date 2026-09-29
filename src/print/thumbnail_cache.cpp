@@ -371,8 +371,11 @@ void ThumbnailCache::rescan_locked() const {
         index_.emplace(helix::fs::lexically_normal(entry.path),
                        IndexEntry{entry.mtime_ns, entry.size});
     }
-    for (auto it = last_used_ns_.begin(); it != last_used_ns_.end();) {
-        it = index_.count(it->first) ? std::next(it) : last_used_ns_.erase(it);
+    {
+        std::lock_guard<std::mutex> usage_lock(usage_mutex_);
+        for (auto it = last_used_ns_.begin(); it != last_used_ns_.end();) {
+            it = index_.count(it->first) ? std::next(it) : last_used_ns_.erase(it);
+        }
     }
     index_total_ = total;
     index_primed_ = true;
@@ -426,7 +429,10 @@ void ThumbnailCache::index_file_locked(const std::string& raw_path) const {
 
 void ThumbnailCache::forget_file_locked(const std::string& path) const {
     const std::string normal = helix::fs::lexically_normal(path);
-    last_used_ns_.erase(normal);
+    {
+        std::lock_guard<std::mutex> usage_lock(usage_mutex_);
+        last_used_ns_.erase(normal);
+    }
     const auto it = index_.find(normal);
     if (it == index_.end()) {
         return;
@@ -439,8 +445,10 @@ void ThumbnailCache::note_use(const std::string& path) const {
     const std::int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                  std::chrono::system_clock::now().time_since_epoch())
                                  .count();
-    std::lock_guard<std::mutex> lock(mutex_);
-    last_used_ns_[helix::fs::lexically_normal(is_lvgl_path(path) ? path.substr(2) : path)] = now;
+    const std::string normal =
+        helix::fs::lexically_normal(is_lvgl_path(path) ? path.substr(2) : path);
+    std::lock_guard<std::mutex> lock(usage_mutex_);
+    last_used_ns_[normal] = now;
 }
 
 void ThumbnailCache::refresh_index_locked() const {
@@ -532,10 +540,14 @@ void ThumbnailCache::evict_locked() {
     // render that is only ever read (the dashboard's last-print card) would
     // otherwise be the first thing a busy file grid pushes out.
     std::vector<std::pair<std::string, IndexEntry>> victims(index_.begin(), index_.end());
-    auto recency = [this](const std::pair<std::string, IndexEntry>& v) {
-        const auto used = last_used_ns_.find(v.first);
-        return used == last_used_ns_.end() ? v.second.mtime_ns
-                                           : std::max(v.second.mtime_ns, used->second);
+    const auto last_used = [this]() {
+        std::lock_guard<std::mutex> usage_lock(usage_mutex_);
+        return last_used_ns_;
+    }();
+    auto recency = [&last_used](const std::pair<std::string, IndexEntry>& v) {
+        const auto used = last_used.find(v.first);
+        return used == last_used.end() ? v.second.mtime_ns
+                                       : std::max(v.second.mtime_ns, used->second);
     };
     std::sort(victims.begin(), victims.end(),
               [&recency](const auto& a, const auto& b) { return recency(a) < recency(b); });

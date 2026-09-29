@@ -87,6 +87,8 @@ struct ThumbnailRequest {
 };
 
 class ThumbnailCache {
+    friend class ThumbnailCacheTestAccess;
+
   public:
     /// Default cache subdirectory name (appended to base cache dir)
     static constexpr const char* CACHE_SUBDIR = "helix_thumbs";
@@ -594,11 +596,15 @@ class ThumbnailCache {
     /// The index and its bookkeeping. All guarded by mutex_; mutable because
     /// get_cache_size() is const and still has to prime and reconcile.
     mutable std::map<std::string, IndexEntry> index_;
-    /// Wall-clock ns of each indexed file's last cache hit. Kept apart from
-    /// IndexEntry because a rescan rebuilds that from the directory, and a use
-    /// is nothing the directory records: mtime is the freshness stamp, so a hit
-    /// must never move it.
+    /// Wall-clock ns (the same Unix-epoch CLOCK_REALTIME domain as
+    /// helix::fs::mtime_ns) of each indexed file's last cache hit. Kept apart
+    /// from IndexEntry because a rescan rebuilds that from the directory, and a
+    /// use is nothing the directory records: mtime is the freshness stamp, so a
+    /// hit must never move it. Guarded by usage_mutex_, NOT mutex_: hits are
+    /// recorded on the UI thread, and mutex_ is held across whole directory
+    /// walks and unlinks on the workers. Lock order: mutex_, then usage_mutex_.
     mutable std::map<std::string, std::int64_t> last_used_ns_;
+    mutable std::mutex usage_mutex_;
     mutable size_t index_total_ = 0;
     mutable bool index_primed_ = false;
     mutable size_t checks_since_scan_ = 0;
