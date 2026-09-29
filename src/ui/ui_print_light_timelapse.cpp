@@ -92,6 +92,11 @@ void PrintLightTimelapseControls::init_subjects() {
         [](PrintLightTimelapseControls* self, int /*version*/) { self->refresh_light_state(); },
         leds.get_subjects_lifetime());
 
+    // The On/Off label is translated into its buffer, so a switch re-fills it.
+    refresh_timelapse_display();
+    language_observer_ = helix::ui::observe_language_change(
+        this, [](PrintLightTimelapseControls* self) { self->refresh_timelapse_display(); });
+
     // Register XML event callbacks
     lv_xml_register_event_cb(nullptr, "on_print_status_light", on_print_status_light_cb);
     lv_xml_register_event_cb(nullptr, "on_print_status_timelapse", on_print_status_timelapse_cb);
@@ -106,6 +111,7 @@ void PrintLightTimelapseControls::deinit_subjects() {
     }
 
     led_state_observer_.reset();
+    language_observer_.reset();
     subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[PrintLightTimelapseControls] Subjects deinitialized");
@@ -128,6 +134,16 @@ void PrintLightTimelapseControls::handle_light_button() {
     const bool on = ctrl.toggle_power({ctrl.chamber_light()});
     spdlog::info("[PrintLightTimelapseControls] Light button clicked, chamber light -> {}",
                  on ? "ON" : "OFF");
+}
+
+void PrintLightTimelapseControls::refresh_timelapse_display() {
+    // MDI Plane 15 icons use 4-byte UTF-8: video (F0567) on, video-off (F0568) off
+    std::snprintf(timelapse_button_buf_, sizeof(timelapse_button_buf_), "%s",
+                  timelapse_enabled_ ? "\xF3\xB0\x95\xA7" : "\xF3\xB0\x95\xA8");
+    std::snprintf(timelapse_label_buf_, sizeof(timelapse_label_buf_), "%s",
+                  timelapse_enabled_ ? lv_tr("On") : lv_tr("Off"));
+    lv_subject_copy_string(&timelapse_button_subject_, timelapse_button_buf_);
+    lv_subject_copy_string(&timelapse_label_subject_, timelapse_label_buf_);
 }
 
 void PrintLightTimelapseControls::handle_timelapse_button() {
@@ -158,25 +174,7 @@ void PrintLightTimelapseControls::handle_timelapse_button() {
                         // Update local state
                         self->timelapse_enabled_ = enabled;
 
-                        // Update icon and label: video (F0567) enabled, video-off (F0568) disabled
-                        // MDI Plane 15 icons use 4-byte UTF-8 encoding
-                        if (enabled) {
-                            std::snprintf(self->timelapse_button_buf_,
-                                          sizeof(self->timelapse_button_buf_),
-                                          "\xF3\xB0\x95\xA7"); // video
-                            std::snprintf(self->timelapse_label_buf_,
-                                          sizeof(self->timelapse_label_buf_), "On");
-                        } else {
-                            std::snprintf(self->timelapse_button_buf_,
-                                          sizeof(self->timelapse_button_buf_),
-                                          "\xF3\xB0\x95\xA8"); // video-off
-                            std::snprintf(self->timelapse_label_buf_,
-                                          sizeof(self->timelapse_label_buf_), "Off");
-                        }
-                        lv_subject_copy_string(&self->timelapse_button_subject_,
-                                               self->timelapse_button_buf_);
-                        lv_subject_copy_string(&self->timelapse_label_subject_,
-                                               self->timelapse_label_buf_);
+                        self->refresh_timelapse_display();
                         // data automatically freed via ~unique_ptr()
                     },
                     data_ptr.release());
