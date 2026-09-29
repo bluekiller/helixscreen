@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Pure gcode tool remapper for Snapmaker U1 / ACE.
+// Pure gcode tool remapper: rewrites the tool numbers baked into a sliced
+// file, for printers whose firmware has no tool-mapping table of its own and
+// so remap by printing a rewritten copy (AmsBackend::RemapStrategy::GcodeRewrite).
 //
 // A sliced file bakes the logical->physical tool mapping into four command
 // families. A remap of logical tool a -> physical head b must rewrite ALL FOUR
@@ -208,6 +210,20 @@ bool is_tool_param_key(std::string_view key) {
     return false;
 }
 
+// The values the rewrite maps: a plain tool number. "T0" names a tool and
+// "1x" is not a number, so both are left, and reported.
+bool is_tool_number(std::string_view value) {
+    if (value.empty()) {
+        return false;
+    }
+    for (char c : value) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool try_tool_params(const std::string& line, const std::map<int, int>& remap, std::string& out) {
     // The command word itself is never a parameter.
     const size_t first_space = line.find_first_of(" \t");
@@ -220,16 +236,12 @@ bool try_tool_params(const std::string& line, const std::map<int, int>& remap, s
     size_t copied = 0;
     for_each_param(std::string_view(line).substr(first_space),
                    [&](std::string_view key, std::string_view value, size_t key_begin) {
-                       if (!is_tool_param_key(key) || value.empty() ||
-                           !std::isdigit(static_cast<unsigned char>(value[0]))) {
+                       if (!is_tool_param_key(key) || !is_tool_number(value)) {
                            return;
                        }
                        const size_t value_begin = first_space + key_begin + key.size() + 1;
                        size_t pos = value_begin;
                        int idx = parse_uint(line, pos);
-                       if (pos != value_begin + value.size()) {
-                           return; // "TOOL=1x" is not a tool number
-                       }
                        int m = mapped(idx, remap);
                        if (m == idx) {
                            return;
@@ -348,8 +360,11 @@ std::string GcodeToolRemapper::apply_to_string(const std::string& gcode,
 
 std::vector<std::string> GcodeToolRemapper::unremapped_tool_params(std::string_view line) {
     std::vector<std::string> keys;
-    for_each_param(line, [&](std::string_view key, std::string_view, size_t) {
+    for_each_param(line, [&](std::string_view key, std::string_view value, size_t) {
         if (is_tool_param_key(key)) {
+            if (!is_tool_number(value)) {
+                keys.emplace_back(key); // a tool name such as TOOL=T0 is not rewritten
+            }
             return;
         }
         const bool t_numbered = key.size() >= 2 && (key[0] == 'T' || key[0] == 't') &&
@@ -360,7 +375,7 @@ std::vector<std::string> GcodeToolRemapper::unremapped_tool_params(std::string_v
             ++after_digits;
         }
         const bool t_key = t_numbered && (after_digits == key.size() || key[after_digits] == '_');
-        if (t_key || icontains(key, "EXTRUDER") || icontains(key, "TOOL")) {
+        if (t_key || iequals(key, "T") || icontains(key, "EXTRUDER") || icontains(key, "TOOL")) {
             keys.emplace_back(key);
         }
     });

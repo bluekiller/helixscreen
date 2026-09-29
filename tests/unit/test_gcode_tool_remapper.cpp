@@ -341,6 +341,13 @@ TEST_CASE("unremapped_tool_params names what the rewrite leaves on a line", "[re
           V{"Extruder"});
     CHECK(GcodeToolRemapper::unremapped_tool_params("START_PRINT TOOL_TEMP=220 TOOLS=3 XTOOL=1") ==
           V{"TOOL_TEMP", "TOOLS", "XTOOL"});
+    // A bare T= names a tool (MedusaHC's own SET/MHC_SET take it) and is not rewritten.
+    CHECK(GcodeToolRemapper::unremapped_tool_params("MHC_SET T=1 BED=60") == V{"T"});
+    // A rewritten key whose value is a tool NAME is left by the rewrite, so it is reported.
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START TOOL=T0 INITIAL_TOOL=0") ==
+          V{"TOOL"});
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START initial_tool=T1") ==
+          V{"initial_tool"});
     // Nothing after a comment, and a bare word is not a parameter.
     CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START BED=60 ; EXTRUDER_TEMP=200")
               .empty());
@@ -369,4 +376,13 @@ TEST_CASE("TOOL is remapped like INITIAL_TOOL", "[remap][gcode]") {
         CAPTURE(line);
         CHECK(helix::GcodeToolRemapper::apply_to_string(line, remap) == line);
     }
+}
+
+TEST_CASE("tool parameters are rewritten across CRLF and tab separators", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}};
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START TOOL=0\r\nT0\r\n", remap) ==
+          "PRINT_START TOOL=1\r\nT1\r\n");
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START\tINITIAL_TOOL=0\tBED=60\tTOOL=0\n",
+                                                    remap) ==
+          "PRINT_START\tINITIAL_TOOL=1\tBED=60\tTOOL=1\n");
 }

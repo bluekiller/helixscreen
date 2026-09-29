@@ -16,7 +16,9 @@
 #include "ui_print_select_usb_source.h"
 #include "ui_print_start_controller.h"
 
+#include "ams_backend.h"
 #include "async_lifetime_guard.h"
+#include "gcode_ops_detector.h"
 #include "helix_plugin_installer.h"
 #include "in_flight_guard.h"
 #include "print_file_data.h"
@@ -230,6 +232,12 @@ class PrintSelectPanel : public PanelBase {
      *       Widget tree is cleaned up by LVGL.
      */
     ~PrintSelectPanel() override;
+
+    /// The Filament Mapping dialog's warning for a file's start line, or empty.
+    /// @param start The line scanned from the file being remapped, or nullptr.
+    [[nodiscard]] static std::string
+    start_macro_remap_note(helix::AmsBackend::RemapStrategy strategy,
+                           const helix::gcode::PrintStartCallInfo* start);
 
     //
     // === PanelBase Implementation ===
@@ -597,8 +605,6 @@ class PrintSelectPanel : public PanelBase {
     // branch: GcodeRewrite rewrites + prints; Native / PrePrintSend push to
     // the shared card store (backend-specific send happens at print-start).
     void apply_remap(const std::vector<helix::ToolMapping>& updated);
-    /// The Filament Mapping dialog's warning for the selected file, or empty.
-    [[nodiscard]] std::string start_macro_remap_note(const helix::AmsBackend& backend) const;
 
     //
     // === Constants ===
