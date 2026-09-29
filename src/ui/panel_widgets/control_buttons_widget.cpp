@@ -8,6 +8,7 @@
 #include "grid_layout.h"
 #include "helix/ui/text_metrics.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observer_factory.h"
 #include "panel_widget_registry.h"
 #include "panel_widget_size.h"
 #include "print_control_view.h"
@@ -77,18 +78,13 @@ void ControlButtonsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_scree
     lv_obj_set_user_data(widget_obj_, this);
     // A new language can change whether the labels fit without any resize, so
     // the verdict is re-taken against the size the grid last granted.
-    lv_obj_add_event_cb(
-        widget_obj_,
-        [](lv_event_t* e) {
-            if (auto* self = panel_widget_from_event<ControlButtonsWidget>(e)) {
-                self->relayout_for_granted_size();
-            }
-        },
-        LV_EVENT_TRANSLATION_LANGUAGE_CHANGED, nullptr);
+    language_observer_ = helix::ui::observe_language_change(
+        this, [](ControlButtonsWidget* self) { self->relayout_for_granted_size(); });
     spdlog::debug("[ControlButtonsWidget] Attached");
 }
 
 void ControlButtonsWidget::detach() {
+    language_observer_.reset();
     if (widget_obj_) {
         lv_obj_set_user_data(widget_obj_, nullptr);
     }

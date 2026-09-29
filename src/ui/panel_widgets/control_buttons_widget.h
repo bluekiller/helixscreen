@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ui_observer_guard.h"
+
 #include "panel_widget.h"
 #include "subject_managed_panel.h"
 
@@ -56,6 +58,7 @@ class ControlButtonsWidget : public PanelWidget {
 
   private:
     lv_obj_t* widget_obj_ = nullptr;
+    ObserverGuard language_observer_;
 
     // Registered in the constructor: the manager parses this tile's XML
     // before attach() runs, and the parser drops a binding whose subject is

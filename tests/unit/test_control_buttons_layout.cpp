@@ -9,6 +9,7 @@
  */
 
 #include "ui_button.h"
+#include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
@@ -16,6 +17,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "print_control_view.h"
 #include "src/ui/panel_widgets/control_buttons_widget.h"
+#include "system_settings_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -196,6 +198,12 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     // A stale verdict, as a language switch without a resize would leave it.
     lv_subject_set_int(labels, 0);
-    lv_obj_send_event(h.root(), LV_EVENT_TRANSLATION_LANGUAGE_CHANGED, nullptr);
+    lv_subject_t* language = SystemSettingsManager::instance().subject_language();
+    REQUIRE(language != nullptr);
+    const int32_t saved = lv_subject_get_int(language);
+    lv_subject_set_int(language, saved == 0 ? 1 : 0);
+    helix::ui::UpdateQueue::instance().drain();
     CHECK(lv_subject_get_int(labels) == 1);
+    lv_subject_set_int(language, saved);
+    helix::ui::UpdateQueue::instance().drain();
 }
