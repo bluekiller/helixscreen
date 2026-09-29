@@ -1875,8 +1875,8 @@ TEST_CASE_METHOD(EditHomeFixture, "a move that empties a page removes it",
 }
 
 TEST_CASE_METHOD(EditHomeFixture,
-                 "a drop rejected by an occupied cell keeps the dragged widget selected",
-                 "[1638][edit-swipe][home][grid_edit]") {
+                 "a drop on a same-size widget swaps the two and keeps the dragged one selected",
+                 "[1638][1503][edit-swipe][home][grid_edit]") {
     build_home();
     // 'fan' one cell right of 'temperature' on page 0, where the drag aims.
     REQUIRE(config().place_entry("fan", 0, CELL_TRACKS, 0, CELL_TRACKS, CELL_TRACKS) >= 0);
@@ -1916,8 +1916,10 @@ TEST_CASE_METHOD(EditHomeFixture,
     indev.release(drop.x, drop.y);
     settle();
 
-    CHECK(entry_on_page(0, "temperature").col == temperature_before.col);
-    CHECK(entry_on_page(0, "fan").col == fan_before.col);
+    CHECK(entry_on_page(0, "temperature").col == fan_before.col);
+    CHECK(entry_on_page(0, "temperature").row == fan_before.row);
+    CHECK(entry_on_page(0, "fan").col == temperature_before.col);
+    CHECK(entry_on_page(0, "fan").row == temperature_before.row);
     lv_obj_t* selected = grid().selected_widget();
     REQUIRE(selected != nullptr);
     CHECK(std::string(lv_obj_get_name(selected)) == "temperature");
