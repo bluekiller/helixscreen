@@ -265,6 +265,31 @@ which was measured resolving to MedusaHC when the signal was wired as an MMU typ
 `pin_watch_object_name()`). Deciding that pin_watch + toolchanger *means* MedusaHC is the
 add-on module's business - see the vendor-abstraction rule in the root `CLAUDE.md`.
 
+## Tool mapping
+
+Which remap route a MedusaHC takes follows from the same fact as the tool names above:
+whether `[toolchanger]` is there.
+
+| Configuration | `[toolchanger]` | Route | How a remap lands |
+|---------------|-----------------|-------|-------------------|
+| (a) Irbis3D Python controller | Yes | `RemapStrategy::Native` | `ASSIGN_TOOL TOOL=T{n} N={tool}`; the file is untouched |
+| (b) topi314's fork | No | `RemapStrategy::GcodeRewrite` | The job file is rewritten and printed through the HelixPrint plugin |
+
+`AmsBackendToolChanger::get_remap_strategy()` asks `tool_commands_.present`, which
+`resolve_tool_commands()` sets exactly when `[toolchanger]` is absent. The provider row
+does not decide it: any changer without klipper-toolchanger rewrites.
+
+On the rewrite route the file is the only thing that moves, so a start macro that takes
+per-tool values (`EXTRUDER_TEMP`, `EXTRUDER1_TEMP`, ...) keeps heating the tools the slicer
+chose while the rewritten body selects others. The rewrite handles `INITIAL_TOOL=`, and the
+Filament Mapping dialog warns about the rest; see
+[the remapper](FILAMENT_MANAGEMENT.md#gcode-tool-remapper). The recommended slicer start
+G-code for these machines is in the user guide,
+[Printers that remap by rewriting the file](../user/guide/filament.md#printers-that-remap-by-rewriting-the-file).
+
+`HELIX_MOCK_AMS=medusahc-fork` runs the rewrite route end to end in `--test`; set
+`helix_plugin_installed` to `1` with `ctl set` to get past the plugin gate.
+
 ## Adding another hotend changer
 
 Add one `Provider` row to the table in `toolchanger_addon.cpp`: a detection predicate,
