@@ -59,6 +59,9 @@ void downscale_2x_argb8888(const uint8_t* src, uint8_t* dst, int src_width, int 
 void darken_argb8888_inplace(uint8_t* data, int width, int height, int stride,
                              lv_opa_t dim_opacity);
 
+/// Darken RGB565 pixels in-place, the same way as darken_argb8888_inplace().
+void darken_rgb565_inplace(uint8_t* data, int width, int height, int stride, lv_opa_t dim_opacity);
+
 /// Reset the circuit breaker (for testing only).
 void reset_circuit_breaker();
 
