@@ -173,16 +173,6 @@ bool operator<(const KnownClip& a, const KnownClip& b) {
 /// which is why these are recorded rather than patched.
 // clang-format off
 const std::vector<KnownClip> kKnownClipping = {
-    // control_buttons is pinned at exactly 4x2 tracks (min == max in the
-    // registry, so it can never be given more room). At XXLARGE that is ~345px
-    // for two labelled buttons at a 32px body font, and the primary label runs
-    // ~60px past its button. Both real fixes are wider than the defect: raising
-    // min_colspan re-lays-out every shipping panel to fix one tier, and a
-    // per-tier minimum span does not exist in PanelWidgetDef. The narrow fix is
-    // an icon-only branch in ui_button once the button is too narrow for its
-    // label, which is measured layout and belongs in C++.
-    {"control_buttons",  "1080x2400"},
-
     // Whole-widget: does not fit at its minimum on any shipping panel.
     {"clog_detection",   "*"},
     {"lock",             "*"},
@@ -208,12 +198,6 @@ const std::vector<KnownClip> kKnownClipping = {
     // no more cell to grow into. The rung is "lg" now (ui_xml/globals.xml), and
     // all ten pairs fit.
 
-    // btn_primary's label runs 76-100px past its button on every panel; the
-    // 480x320 entry is the same defect, one pixel over on btn_stop's icon.
-    {"control_buttons",  "1024x600"}, {"control_buttons",  "1280x720"},
-    {"control_buttons",  "272x480"},  {"control_buttons",  "480x272"},
-    {"control_buttons",  "480x320"},  {"control_buttons",  "480x400"},
-    {"control_buttons",  "480x800"},  {"control_buttons",  "800x480"},
 
     {"favorite_macro",   "272x480"},  {"favorite_macro",   "480x272"},
 

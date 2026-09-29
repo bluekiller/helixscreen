@@ -237,20 +237,21 @@ TEST_CASE("GridEditMode: clamp_span respects min/max from registry", "[grid_edit
     CHECK(r3 == 2);
 }
 
-TEST_CASE("GridEditMode: clamp_span non-scalable widget stays fixed", "[grid_edit][resize]") {
-    // "control_buttons" is authored at a fixed footprint on both axes:
-    // min == max == default, so it cannot be resized at all. Assert that
-    // premise, or a widget that later gains a range turns this into a test of
-    // nothing.
-    const auto* def = find_widget_def("control_buttons");
+TEST_CASE("GridEditMode: clamp_span holds an axis whose min equals its max",
+          "[grid_edit][resize]") {
+    // "preheat" is authored at a fixed row span: min == max on that axis, so a
+    // drag can never change its height. Assert that premise, or a widget that
+    // later gains a range turns this into a test of nothing.
+    const auto* def = find_widget_def("preheat");
     REQUIRE(def != nullptr);
-    REQUIRE_FALSE(def->is_scalable());
+    REQUIRE(def->effective_min_rowspan() == def->effective_max_rowspan());
 
-    auto [c, r] = GridEditMode::clamp_span("control_buttons", 6, 6);
-    CHECK(c == def->effective_min_colspan());
-    CHECK(r == def->effective_min_rowspan());
-    CHECK(c == def->colspan);
+    auto [c, r] = GridEditMode::clamp_span("preheat", 6, 6);
     CHECK(r == def->rowspan);
+    auto [c2, r2] = GridEditMode::clamp_span("preheat", 6, 1);
+    CHECK(r2 == def->rowspan);
+    (void)c;
+    (void)c2;
 }
 
 TEST_CASE("GridEditMode: clamp_span unknown widget returns at least one track",
@@ -1427,16 +1428,17 @@ TEST_CASE("clamp_span: clamps to widget min/max", "[grid_edit][sizing]") {
     CHECK(r4 == 4);
 }
 
-TEST_CASE("clamp_span: non-scalable widget stays fixed", "[grid_edit][sizing]") {
-    // "control_buttons" is authored at a fixed footprint and cannot scale on
-    // either axis. Assert the premise so a widget that later gains a range does
-    // not leave this passing on a clamp that never happened.
-    const auto* def = find_widget_def("control_buttons");
+TEST_CASE("clamp_span: a fixed axis stays fixed while the other scales", "[grid_edit][sizing]") {
+    // "favorite_macro" scales its width but not its height. Assert the premise
+    // so a widget that later gains a range does not leave this passing on a
+    // clamp that never happened.
+    const auto* def = find_widget_def("favorite_macro");
     REQUIRE(def != nullptr);
-    REQUIRE_FALSE(def->is_scalable());
+    REQUIRE(def->effective_min_rowspan() == def->effective_max_rowspan());
+    REQUIRE(def->effective_max_colspan() > def->effective_min_colspan());
 
-    auto [c1, r1] = GridEditMode::clamp_span("control_buttons", 6, 6);
-    CHECK(c1 == def->colspan);
+    auto [c1, r1] = GridEditMode::clamp_span("favorite_macro", def->effective_max_colspan(), 8);
+    CHECK(c1 == def->effective_max_colspan());
     CHECK(r1 == def->rowspan);
 }
 
