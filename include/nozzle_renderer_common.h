@@ -84,13 +84,19 @@ inline void nr_draw_gradient_rect(lv_layer_t* layer, int32_t x1, int32_t y1, int
 inline void nr_draw_iso_side(lv_layer_t* layer, int32_t x, int32_t y1, int32_t y2, int32_t depth,
                              lv_color_t top_color, lv_color_t bottom_color,
                              lv_opa_t opa = LV_OPA_COVER) {
-    lv_draw_fill_dsc_t fill_dsc;
-    lv_draw_fill_dsc_init(&fill_dsc);
-    fill_dsc.opa = opa;
-
     int32_t height = y2 - y1;
     if (height <= 0 || depth <= 0)
         return;
+
+    // One vertical-gradient fill per column. Every fill is a draw task, and a
+    // layer checks each new task against the ones already queued, so a task per
+    // pixel makes a single toolhead cost seconds on an embedded CPU.
+    lv_draw_fill_dsc_t fill_dsc;
+    lv_draw_fill_dsc_init(&fill_dsc);
+    fill_dsc.opa = opa;
+    const lv_color_t stops[2] = {top_color, bottom_color};
+    lv_grad_init_stops(&fill_dsc.grad, stops, nullptr, nullptr, 2);
+    lv_grad_vertical_init(&fill_dsc.grad);
 
     int32_t y_offset = depth / 2;
 
@@ -99,15 +105,36 @@ inline void nr_draw_iso_side(lv_layer_t* layer, int32_t x, int32_t y1, int32_t y
         int32_t col_x = x + d;
         int32_t col_y1 = y1 - (int32_t)(horiz_factor * y_offset);
         int32_t col_y2 = y2 - (int32_t)(horiz_factor * y_offset);
-
-        for (int32_t y = col_y1; y <= col_y2; y++) {
-            float vert_factor = (float)(y - col_y1) / (float)(col_y2 - col_y1);
-            fill_dsc.color = nr_blend(top_color, bottom_color, vert_factor);
-            lv_area_t pixel = {col_x, y, col_x, y};
-            lv_draw_fill(layer, &fill_dsc, &pixel);
-        }
+        lv_area_t column = {col_x, col_y1, col_x, col_y2};
+        lv_draw_fill(layer, &fill_dsc, &column);
     }
 }
+
+namespace helix {
+
+/// @brief Draw one row of a rounded front bevel: lit by @p shade at the left
+///        edge, @p base_color at @p cx, shaded by @p shade at the right edge
+/// @param layer Draw layer
+/// @param cx Center X
+/// @param half_w Half the row width
+/// @param y Row Y
+/// @param base_color Color at the center of the row
+/// @param shade Lighten/darken amount at the edges
+inline void nr_draw_bevel_row(lv_layer_t* layer, int32_t cx, int32_t half_w, int32_t y,
+                              lv_color_t base_color, uint8_t shade) {
+    // One gradient fill per row rather than a draw task per pixel.
+    lv_draw_fill_dsc_t fill_dsc;
+    lv_draw_fill_dsc_init(&fill_dsc);
+    fill_dsc.opa = LV_OPA_COVER;
+    const lv_color_t stops[3] = {nr_lighten(base_color, shade), base_color,
+                                 nr_darken(base_color, shade)};
+    lv_grad_init_stops(&fill_dsc.grad, stops, nullptr, nullptr, 3);
+    lv_grad_horizontal_init(&fill_dsc.grad);
+    lv_area_t row = {cx - half_w, y, cx + half_w, y};
+    lv_draw_fill(layer, &fill_dsc, &row);
+}
+
+} // namespace helix
 
 /// @brief Draw isometric top face (parallelogram tilting up-right)
 /// @param layer Draw layer
