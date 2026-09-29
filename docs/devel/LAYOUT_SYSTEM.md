@@ -690,7 +690,7 @@ there so those screens keep the proportions they were designed with. A tile give
 than a cell on both axes grows on every tier. A glyph that sits in a disc
 (`power_device`, `favorite_macro`) uses `ui_xml/components/tile_badge.xml`, whose disc
 follows the same rung as the glyph, and TileSizing measures the disc's edge
-(`Content::icon_in_disc`), so a badged tile scales like any other.
+(`Content::icon_box`), so a badged tile scales like any other.
 
 `tests/unit/test_grid_layout.cpp` classifies every registry id and pins the rule that a
 sub-cell floor belongs only to a widget that can decline one;

@@ -6,7 +6,7 @@
     A glyph centred in a tinted disc, for a home tile whose icon reads as a
     button. The disc and the glyph follow one rung subject together, so the
     badge scales with its tile instead of spilling out of a fixed disc;
-    TileSizing measures the disc's edge (Content::icon_in_disc). Empty
+    TileSizing measures the disc's edge (Content::icon_box). Empty
     rung_subject installs no binding and keeps #icon_badge_size.
 
     icon_name is a prop because the owning widget finds the glyph by name to

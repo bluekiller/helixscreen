@@ -135,6 +135,10 @@ const OverflowExceptions& exceptions() {
         // and its content exceeding the box is its normal state, not a size
         // failure.
         "gcode_console_output",
+        // active_spool's wide text column scrolls each line (long_mode
+        // scroll_circular), so a material name wider than the column is read
+        // by scrolling, not clipped.
+        "spoolman_text_stack",
     }};
     return ex;
 }
@@ -193,10 +197,6 @@ const std::vector<KnownClip> kKnownClipping = {
     {"printer_image",    "*"},
 
     // Geometry-specific.
-    {"active_spool",     "1024x600"}, {"active_spool",     "272x480"},
-    {"active_spool",     "480x272"},  {"active_spool",     "480x320"},
-    {"active_spool",     "480x400"},  {"active_spool",     "480x800"},
-
     {"ams",              "272x480"},
 
     // The #icon_size cluster that used to live here - bed_temperature,

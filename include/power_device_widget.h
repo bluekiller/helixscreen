@@ -139,7 +139,7 @@ class PowerDeviceWidget : public PanelWidget {
     /// says, and the glyph sits in a disc that scales with it.
     TileSizing sizing_{instance_id_.c_str(),
                        TileSizing::Content{"LOCKED", "LOCKED", "Power", true, "",
-                                           /*label_always_drawn=*/true, /*icon_in_disc=*/true}};
+                                           /*label_always_drawn=*/true, TileSizing::IconBox::Disc}};
 };
 
 } // namespace helix

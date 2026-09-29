@@ -33,6 +33,8 @@ namespace helix {
  */
 class TileSizing {
   public:
+    enum class IconBox { Glyph, Square, Disc };
+
     /// What this tile draws. The two value strings are WORST CASES, never a
     /// live reading: a size accepted while the tile reads 95 must still draw
     /// 888.
@@ -48,9 +50,10 @@ class TileSizing {
         /// and is drawn whatever show_widget_labels says. Every other label
         /// follows the setting, and is measured only while it is on.
         bool label_always_drawn = false;
-        /// The glyph sits in a disc that scales with it (tile_badge.xml), so
-        /// the disc's edge is what the icon occupies.
-        bool icon_in_disc = false;
+        /// What the icon occupies at a rung: the glyph itself, a square one
+        /// line of the face tall (a canvas sized from the face, such as the
+        /// spool), or the disc a badged glyph sits in (tile_badge.xml).
+        IconBox icon_box = IconBox::Glyph;
     };
 
     explicit TileSizing(const std::string& instance_id);
@@ -103,6 +106,11 @@ class TileSizing {
 
     const std::string& icon_subject_name() const {
         return icon_name_;
+    }
+
+    /// The icon rung last published.
+    int icon_rung() const {
+        return lv_subject_get_int(const_cast<lv_subject_t*>(&icon_rung_subject_));
     }
 
   private:

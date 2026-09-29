@@ -97,10 +97,13 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
         const lv_font_t* label_face =
             theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Label, r));
 
-        const int glyph_w = content_.icon_in_disc ? ui::tile_disc_edge(icon_face)
-                                                  : ui::text_width(kIconGlyph, icon_face);
-        const int glyph_h =
-            content_.icon_in_disc ? ui::tile_disc_edge(icon_face) : line_height_of(icon_face);
+        int glyph_w = ui::text_width(kIconGlyph, icon_face);
+        int glyph_h = line_height_of(icon_face);
+        if (content_.icon_box == IconBox::Square) {
+            glyph_w = glyph_h;
+        } else if (content_.icon_box == IconBox::Disc) {
+            glyph_w = glyph_h = ui::tile_disc_edge(icon_face);
+        }
         rungs[r].icon_w = glyph_w + badge_w;
         rungs[r].icon_h = std::max(glyph_h, badge_h);
         rungs[r].value_full_w = ui::text_width(content_.widest_value.c_str(), value_face);

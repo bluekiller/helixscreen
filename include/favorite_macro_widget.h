@@ -95,7 +95,7 @@ class FavoriteMacroWidget : public PanelWidget {
     /// representative word measures its height; the glyph sits in a disc.
     TileSizing sizing_{widget_id_, TileSizing::Content{"", "", "Macro", false, "",
                                                        /*label_always_drawn=*/false,
-                                                       /*icon_in_disc=*/true}};
+                                                       TileSizing::IconBox::Disc}};
 };
 
 } // namespace helix
