@@ -916,8 +916,11 @@ void WiFiManager::get_status_async(
         }
         status_read_inflight_ = true;
     }
-    // A task dropped unrun clears the in-flight mark, so the next caller
-    // starts a read that also answers everyone still waiting.
+    // One owner, so the two steps run in this order however the work item's
+    // captures are destroyed: a task dropped unrun clears the in-flight mark (so
+    // the next caller starts a read that also answers everyone still waiting),
+    // and only then ends the radio op, after which ~WiFiManager may proceed.
+    begin_radio_op();
     auto ran = std::shared_ptr<std::atomic<bool>>(
         new std::atomic<bool>(false), [this](std::atomic<bool>* r) {
             if (!r->load()) {
@@ -925,8 +928,9 @@ void WiFiManager::get_status_async(
                 status_read_inflight_ = false;
             }
             delete r;
+            end_radio_op();
         });
-    helix::http::HttpExecutor::fast().submit([this, op = radio_op_scope(), ran = std::move(ran)]() {
+    helix::http::HttpExecutor::fast().submit([this, ran = std::move(ran)]() {
         ran->store(true);
         run_status_reads();
     });
