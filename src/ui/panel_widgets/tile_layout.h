@@ -145,11 +145,12 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
     }
 
     // Nothing draws here. Report the most forgiving arrangement so a caller
-    // that renders anyway clips as little as possible.
+    // that renders anyway clips as little as possible: the smallest glyph,
+    // stacked along whichever axis the box has more of.
     TileVerdict v;
     v.icon_rung = 0;
     v.label = TileLabelRung::None;
-    v.direction = TileDirection::Row;
+    v.direction = avail_h >= avail_w ? TileDirection::Column : TileDirection::Row;
     v.show_target = false;
     v.fits = false;
     return v;

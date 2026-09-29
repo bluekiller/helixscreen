@@ -35,18 +35,6 @@
          boundary. -->
     <style name="invisible" opa="0"/>
 
-    <!-- Home tile rungs. A tile's sizing helper publishes a rung index and the
-         tile binds the matching style, so the glyph, the value and the label
-         all move together. Each names a #icon_font_* TOKEN rather than a face:
-         the tokens re-point per breakpoint tier and are guarded when a tier's
-         face is not linked, while a literal mdi_icons_80 that a platform did
-         not build falls back to the default text font and renders tofu. -->
-    <style name="tile_icon_xs" text_font="#icon_font_xs"/>
-    <style name="tile_icon_sm" text_font="#icon_font_sm"/>
-    <style name="tile_icon_md" text_font="#icon_font_md"/>
-    <style name="tile_icon_lg" text_font="#icon_font_lg"/>
-    <style name="tile_icon_xl" text_font="#icon_font_xl"/>
-
     <!-- Heater status-area duty text. Two mutually exclusive bindings partition
          the state space (heating vs everything else); the pair lives here so
          every heater surface colors the duty identically. -->
@@ -57,14 +45,6 @@
          attribute path sets both, the style path does not, and a container
          with no active layout piles every child onto the first while
          lv_obj_get_style_flex_flow still reports the flow. -->
-    <!-- The value face paired with each glyph rung, so a tile never draws a
-         64px glyph beside 12px digits. Same rung index as tile_icon_*. -->
-    <style name="tile_value_xs" text_font="#font_xs"/>
-    <style name="tile_value_sm" text_font="#font_xs"/>
-    <style name="tile_value_md" text_font="#font_small"/>
-    <style name="tile_value_lg" text_font="#font_body"/>
-    <style name="tile_value_xl" text_font="#font_heading"/>
-
     <!-- A style that owns the layout owns its placement too: binding one that
          sets only the flow leaves the container packing its children at the
          start, so a centred tile silently becomes left-justified. -->
@@ -72,6 +52,9 @@
            layout="flex" flex_flow="column" flex_main_place="center" flex_cross_place="center" flex_track_place="center"/>
     <style name="tile_row"
            layout="flex" flex_flow="row" flex_main_place="center" flex_cross_place="center" flex_track_place="center"/>
+    <!-- The text column beside a glyph in a row tile takes the width the glyph
+         leaves, so a long name ellipsizes instead of running off the tile. -->
+    <style name="tile_fill" flex_grow="1"/>
 
     <!-- The printer-image callout pill: a card-colored, bordered chip that
          lays its children out icon-first (row_reverse, so a nested icon

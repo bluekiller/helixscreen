@@ -126,10 +126,12 @@ rung that fits wins, so a tile grows its glyph rather than its text.
   would otherwise replace real behaviour. A tile that grows real behaviour stops using
   it and implements `PanelWidget` directly.
 
-On the XML side, the rung styles `styles.tile_icon_xs` .. `styles.tile_icon_xl`, plus
-`styles.tile_column` / `styles.tile_row`, live in `ui_xml/styles.xml`; each names an
-`#icon_font_*` TOKEN, never a literal face, because a literal face a platform did not
-link renders tofu. The seven single-icon action tiles share
+On the XML side, every part of a tile binds its face with
+`<bind_tile_rung ladder="icon|value|label" subject="$tile_icon_subject"/>`
+(`include/ui_tile_rung.h`). The ladders there are the one table TileSizing measures in
+and the binding draws in, and each rung names a TOKEN (`#icon_font_*`, `font_*`), never a
+literal face, because a literal face a platform did not link renders tofu.
+`styles.tile_column` / `styles.tile_row` in `ui_xml/styles.xml` carry the direction. The seven single-icon action tiles share
 `ui_xml/components/home_action_tile.xml`, whose `tile_icon_subject` prop installs the
 per-instance rung binding (empty installs none). The Controls panel's calibration cells and
 Motors Off use the same component; its props are listed in

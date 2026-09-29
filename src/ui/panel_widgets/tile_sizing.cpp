@@ -3,6 +3,8 @@
 
 #include "src/ui/panel_widgets/tile_sizing.h"
 
+#include "ui_tile_rung.h"
+
 #include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "panel_widget_size.h"
@@ -17,16 +19,6 @@ namespace helix {
 
 namespace {
 
-/// The three ladders move together: one rung index selects the icon face, the
-/// value face beside it and the label face below that, so a tile can never
-/// draw a 64px glyph next to 12px digits.
-constexpr const char* kIconTokens[kTileRungs] = {"icon_font_xs", "icon_font_sm", "icon_font_md",
-                                                 "icon_font_lg", "icon_font_xl"};
-constexpr const char* kValueTokens[kTileRungs] = {"font_xs", "font_xs", "font_small", "font_body",
-                                                  "font_heading"};
-constexpr const char* kLabelTokens[kTileRungs] = {"font_xs", "font_xs", "font_xs", "font_small",
-                                                  "font_body"};
-
 /// The rung `#icon_size` names at the current tier, which is the size every
 /// other icon on screen draws at.
 ///
@@ -37,8 +29,9 @@ int authored_rung() {
     const char* size = lv_xml_get_const_silent(nullptr, "icon_size");
     if (size) {
         for (int r = 0; r < kTileRungs; ++r) {
-            // kIconTokens[r] is "icon_font_<name>"; compare past the prefix.
-            if (std::strcmp(kIconTokens[r] + std::strlen("icon_font_"), size) == 0) {
+            // The icon token is "icon_font_<name>"; compare past the prefix.
+            const char* token = ui::tile_rung_font_token(ui::TileLadder::Icon, r);
+            if (std::strcmp(token + std::strlen("icon_font_"), size) == 0) {
                 return r;
             }
         }
@@ -86,9 +79,12 @@ TileSizing::~TileSizing() {
 TileVerdict TileSizing::decide(int width_px, int height_px) const {
     TileRungMetrics rungs[kTileRungs];
     for (int r = 0; r < kTileRungs; ++r) {
-        const lv_font_t* icon_face = theme_manager_get_font(kIconTokens[r]);
-        const lv_font_t* value_face = theme_manager_get_font(kValueTokens[r]);
-        const lv_font_t* label_face = theme_manager_get_font(kLabelTokens[r]);
+        const lv_font_t* icon_face =
+            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Icon, r));
+        const lv_font_t* value_face =
+            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Value, r));
+        const lv_font_t* label_face =
+            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Label, r));
 
         rungs[r].icon_w = ui::text_width(kIconGlyph, icon_face);
         rungs[r].icon_h = line_height_of(icon_face);
@@ -138,13 +134,22 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
                                              !content_.label.empty());
 
     // At micro and tiny a whole cell is barely wider than the glyph itself, so
-    // there is no room to grow into and the authored rung is already the right
-    // answer. Capping there keeps those screens looking as they were designed
-    // and confines scaling to screens with room to spend.
-    if (widget_size::current_breakpoint() <= UiBreakpoint::Tiny) {
+    // a tile of one cell or less keeps the authored rung those screens were
+    // designed with. A tile given more than a cell on both axes has room the
+    // authored rung would leave empty, and grows like it does on every tier.
+    if (widget_size::current_breakpoint() <= UiBreakpoint::Tiny &&
+        std::min(width_px, height_px) <= whole_cell_px()) {
         verdict.icon_rung = std::min(verdict.icon_rung, authored_rung());
     }
     return verdict;
+}
+
+int TileSizing::whole_cell_px() const {
+    const UiBreakpoint bp = widget_size::current_breakpoint();
+    const float cell = has_cell_metrics_ ? std::min(cell_metrics_.cell_w, cell_metrics_.cell_h)
+                                         : static_cast<float>(GridLayout::GRID_CELL[to_int(bp)]);
+    const int gutter = has_cell_metrics_ ? cell_metrics_.gutter : GridLayout::gutter_px();
+    return static_cast<int>(grid_track_extent(cell, gutter, GridLayout::TRACKS_PER_CELL));
 }
 
 bool TileSizing::fits(int width_px, int height_px) const {
@@ -160,12 +165,7 @@ bool TileSizing::fits(int width_px, int height_px) const {
     const bool small_tier_floor =
         bp <= UiBreakpoint::Micro || (content_.has_value && bp <= UiBreakpoint::Tiny);
     if (whole_cell_only_ || small_tier_floor) {
-        const float cell = has_cell_metrics_
-                               ? std::min(cell_metrics_.cell_w, cell_metrics_.cell_h)
-                               : static_cast<float>(GridLayout::GRID_CELL[to_int(bp)]);
-        const int gutter = has_cell_metrics_ ? cell_metrics_.gutter : GridLayout::gutter_px();
-        const int whole_cell =
-            static_cast<int>(grid_track_extent(cell, gutter, GridLayout::TRACKS_PER_CELL));
+        const int whole_cell = whole_cell_px();
         if (width_px < whole_cell || height_px < whole_cell) {
             return false;
         }

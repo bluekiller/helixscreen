@@ -1930,6 +1930,20 @@
     "pluck_animation": {
       "attributes": {},
       "inherits": "lv_obj"
+    },
+    "lv_obj-bind_tile_rung": {
+      "attributes": {
+        "subject": {
+          "type": "string"
+        },
+        "ladder": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "string"
+        }
+      },
+      "inherits": "lv_obj"
     }
   },
   "enums": {
@@ -2883,7 +2897,8 @@
     "ams_lane_spool",
     "belt_trace",
     "leader_line",
-    "pluck_animation"
+    "pluck_animation",
+    "lv_obj-bind_tile_rung"
   ],
   "runtime_constants": [
     "accent_bar_gap",

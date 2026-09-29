@@ -683,8 +683,9 @@ authored default without asking, which is safe only because every definition hol
 default at or above its own minimum.
 
 Half a cell is declined outright at the micro and tiny tiers, where a track is 31-40px and
-the glyph already fills it, and the rung is capped to the authored face there so those
-screens keep the proportions they were designed with. A widget whose glyph sits in a
+the glyph already fills it, and a tile of one cell or less is capped to the authored face
+there so those screens keep the proportions they were designed with. A tile given more
+than a cell on both axes grows on every tier. A widget whose glyph sits in a
 fixed-size badge declines it everywhere (`TileSizing::require_whole_cell()`): the disc
 spills rather than shrinking, so `power_device` keeps the authored face and a whole-cell
 floor.

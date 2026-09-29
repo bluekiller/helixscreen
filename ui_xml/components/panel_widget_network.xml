@@ -13,67 +13,43 @@
   </api>
   <view name="panel_widget_network" extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" scrollable="false">
     <ui_button name="network_btn"
-               width="100%" height="100%" style_pad_all="0" variant="ghost" flex_flow="column"
-               style_flex_main_place="center" style_flex_cross_place="center" style_flex_track_place="center"
-               style_border_width="0" focusable="false">
+               width="100%" height="100%" style_pad_all="0" variant="ghost" style_border_width="0" focusable="false">
+      <style name="styles.tile_column"/>
+      <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
       <event_cb trigger="clicked" callback="network_clicked_cb"/>
       <!-- Disconnected (state 0) -->
       <icon name="net_disconnected" src="wifi_off" size="#icon_size" variant="disabled">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <bind_flag_if_not_eq subject="home_network_icon_state" flag="hidden" ref_value="0"/>
       </icon>
       <!-- WiFi strength 1 - weak (state 1) - warning color -->
       <icon name="net_wifi_1" src="wifi_strength_1_alert" size="#icon_size" variant="warning">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <bind_flag_if_not_eq subject="home_network_icon_state" flag="hidden" ref_value="1"/>
       </icon>
       <!-- WiFi strength 2 - fair (state 2) -->
       <icon name="net_wifi_2" src="wifi_strength_2" size="#icon_size" variant="secondary">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <bind_flag_if_not_eq subject="home_network_icon_state" flag="hidden" ref_value="2"/>
       </icon>
       <!-- WiFi strength 3 - good (state 3) -->
       <icon name="net_wifi_3" src="wifi_strength_3" size="#icon_size" variant="secondary">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <bind_flag_if_not_eq subject="home_network_icon_state" flag="hidden" ref_value="3"/>
       </icon>
       <!-- WiFi strength 4 - strong (state 4) -->
       <icon name="net_wifi_4" src="wifi_strength_4" size="#icon_size" variant="secondary">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <bind_flag_if_not_eq subject="home_network_icon_state" flag="hidden" ref_value="4"/>
       </icon>
       <!-- Ethernet (state 5) - success color indicates active wired connection -->
       <icon name="net_ethernet" src="ethernet" size="#icon_size" variant="success">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <bind_flag_if_not_eq subject="home_network_icon_state" flag="hidden" ref_value="5"/>
       </icon>
@@ -81,6 +57,7 @@
                  translation_tag="Network" style_text_color="#text_muted" style_text_align="center" clickable="false"
                  event_bubble="true">
         <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>
+        <bind_tile_rung ladder="label" subject="$tile_icon_subject"/>
         <bind_flag_if_eq subject="$tile_label_subject" flag="hidden" ref_value="0"/>
       </text_tiny>
     </ui_button>

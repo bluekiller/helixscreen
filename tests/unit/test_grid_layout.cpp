@@ -522,31 +522,33 @@ TEST_CASE("PanelWidgetDef: half-cell capability is classified per widget",
 
 TEST_CASE("PanelWidgetDef: a sub-cell floor belongs only to a widget that can decline one",
           "[widget_def][half_cell][1126][1559]") {
-    // A one-track column is 31-40px, which clips a widget whose layout is
-    // authored around whole cells. Only a widget that measures itself may sit
-    // below a cell, because only it can refuse a box it cannot draw:
-    // PanelWidget::fits_at is consulted by the resize clamp and the load path
-    // alike, and grow_span_to_fit lifts the span back above the floor when the
-    // answer is no.
-    //
-    // The ROW floor stays a whole cell for everyone. Height is what carries the
-    // glyph, its reading and its label stacked, and no measurement recovers a
-    // 31px stack.
+    // A one-track span is 31-40px on the small tiers, which clips a widget whose
+    // layout is authored around whole cells. Only a widget that measures itself
+    // may sit below a cell on either axis, because only it can refuse a box it
+    // cannot draw: PanelWidget::fits_at is consulted by the resize clamp and the
+    // load path alike, and grow_span_to_fit lifts the span back above the floor
+    // when the answer is no. The rule is the same on both axes: a tile short
+    // enough to lose its stack lays its glyph beside its text instead.
     constexpr int cell = GridLayout::TRACKS_PER_CELL;
-    int sub_cell = 0;
+    int sub_cell_cols = 0;
     // The factories are filled in by registration, not by the static table.
     helix::init_widget_registrations();
     for (const auto& def : helix::get_all_widget_defs()) {
         INFO("widget " << def.id);
-        CHECK(def.effective_min_rowspan() >= cell);
-
-        if (def.effective_min_colspan() >= cell) {
+        const bool narrow = def.effective_min_colspan() < cell;
+        const bool short_ = def.effective_min_rowspan() < cell;
+        if (!narrow && !short_) {
             continue;
         }
-        ++sub_cell;
-        // Below a cell, so it must both step by a half cell and be able to
-        // refuse one.
-        CHECK(def.supports_half_col);
+        // Below a cell on an axis, so it must step by a half cell on that axis.
+        if (narrow) {
+            ++sub_cell_cols;
+            CHECK(def.supports_half_col);
+        }
+        if (short_) {
+            CHECK(def.supports_half_row);
+        }
+        // ...and be able to refuse one.
         REQUIRE(def.factory != nullptr);
         auto instance = def.factory(def.id);
         REQUIRE(instance != nullptr);
@@ -563,8 +565,8 @@ TEST_CASE("PanelWidgetDef: a sub-cell floor belongs only to a widget that can de
 
     // A registry where nothing sits below a cell would pass the loop above
     // having checked none of this.
-    INFO("widgets authored below a whole cell");
-    CHECK(sub_cell > 0);
+    INFO("widgets authored below a whole cell wide");
+    CHECK(sub_cell_cols > 0);
 }
 
 TEST_CASE("PanelWidgetDef: half-cell defaults to off", "[widget_def][half_cell]") {

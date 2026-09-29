@@ -159,3 +159,15 @@ TEST_CASE("a box too small for anything reports that it does not fit", "[tile][l
     TileVerdict v = verdict_at(10, 10);
     CHECK_FALSE(v.fits);
 }
+
+TEST_CASE("a box nothing fits in still stacks along its long axis", "[tile][layout][1559]") {
+    // A caller that renders anyway draws this arrangement, so a narrow tall box
+    // must stay a column: a row spends width the box has least of.
+    const TileVerdict tall = verdict_at(10, 200);
+    CHECK_FALSE(tall.fits);
+    CHECK(tall.direction == TileDirection::Column);
+
+    const TileVerdict wide = verdict_at(200, 10);
+    CHECK_FALSE(wide.fits);
+    CHECK(wide.direction == TileDirection::Row);
+}

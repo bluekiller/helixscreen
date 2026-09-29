@@ -103,6 +103,9 @@ class TileSizing {
 
   private:
     TileVerdict decide(int width_px, int height_px) const;
+    /// One whole cell on this grid, in px: the live track geometry when the
+    /// grid has reported it, the tier's nominal cell until then.
+    int whole_cell_px() const;
 
     std::string icon_name_;
     std::string label_name_;
