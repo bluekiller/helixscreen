@@ -22,7 +22,7 @@ namespace helix::ui {
  *
  * Owns the per-option `lv_subject_t` state (one int subject per option in the
  * active printer's `PrePrintOptionSet`). Builds a 2-column grid of checkable
- * `option_tile` cells — one tile per option, icon + 2-line label in an
+ * `option_tile` cells: one tile per option, icon + 2-line label in an
  * outline that turns `#primary` when checked. Categories are used
  * as a sort key only; no sub-headers are emitted (the surrounding "PRINT
  * OPTIONS" card header in `print_file_detail.xml` provides the section title).
@@ -159,7 +159,7 @@ class PrePrintOptionsRenderer {
     [[nodiscard]] lv_obj_t* get_row(const std::string& id) const;
 
     /**
-     * @brief Look up the tile widget for `id` — the checkable object itself.
+     * @brief Look up the tile widget for `id`: the checkable object itself.
      *        Returns nullptr if not present. Test/diagnostic helper.
      */
     [[nodiscard]] lv_obj_t* get_toggle(const std::string& id) const;

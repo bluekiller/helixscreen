@@ -402,8 +402,8 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   its own icon: tap anywhere on the tile to switch it on or off, and the check mark in its
   corner shows which are on. Long option names wrap inside their tile instead of running
   under a switch.
-- **Delete and Print stay on screen** - the file details, filament mapping and options scroll
-  in one column that ends above the buttons, so starting the print never depends on finding
+- **Delete and Print stay on screen** - the filament mapping and the options scroll in one
+  column that ends above the buttons, so starting the print never depends on finding
   the button at the bottom of a scroll. A fade with a small arrow sits on the list's bottom
   edge whenever more of it is below.
 - **The print file screen has a portrait layout** - on tall panels the preview, options and
@@ -1027,5 +1027,5 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
 - The mock printer can be a named printer type (`HELIX_MOCK_PRINTER=snapmaker_u1`), so a
   `--test` run renders that printer's real pre-print options and hardware instead of the
   generic persona.
-- `helix-screen ctl click` now holds the CLICKED state on checkable widgets, so a remote tap
-  toggles an option tile the way a finger does instead of leaving it visually unchanged.
+- `helix-screen ctl click` on a checkable widget now flips its checked state and sends
+  VALUE_CHANGED then CLICKED, the way a finger tap does, so it toggles an option tile.

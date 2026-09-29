@@ -26,8 +26,8 @@
          preview block on top, options below, both full width. Paired so each
          orientation is always covered; inline attributes would win over them.
          layout="flex" is required: a style carries only style properties, and
-         the flex layout itself is installed by LV_STYLE_LAYOUT, which the old
-         inline flex_flow attribute set as a side effect. -->
+         the flex layout itself is installed by LV_STYLE_LAYOUT, which an
+         inline flex_flow attribute sets as a side effect and a style does not. -->
     <style name="content_row" layout="flex" flex_flow="row"/>
     <style name="content_column" layout="flex" flex_flow="column"/>
     <style name="left_landscape" width="0" height="100%" flex_grow="5"/>
@@ -241,8 +241,8 @@
             <!-- Bypass notice: when bypass is engaged the print runs on the
                  external spool. The mapping card below hides itself for a
                  single-tool bypass print (the mapping decides nothing there), so
-                 this must not promise "the lanes below" — a multi-lane bypass print
-                 still shows them. Bound to AmsState's global subject — no
+                 this must not promise "the lanes below": a multi-lane bypass print
+                 still shows them. Bound to AmsState's global subject; no
                  per-view C++. -->
             <ui_card name="bypass_source_card"
                      width="100%" style_pad_hor="0" style_pad_ver="#space_xs" style_pad_gap="#space_xs"
@@ -369,7 +369,7 @@
                      on filament_swatch) so a tap reaches this card. -->
               </lv_obj>
               <!-- Skeleton: two chip-sized placeholders shown only until the
-                   authoritative tool set exists — a cache hit never shows this.
+                   authoritative tool set exists; a cache hit never shows this.
                    Height, flow and alignment all mirror filament_mapping_rows above,
                    so nothing moves when detail_mapping_ready flips. -->
               <!-- SIZE_OK: skeleton row height mirrors filament_mapping_rows' bound

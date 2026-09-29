@@ -166,7 +166,7 @@ void PrePrintOptionsRenderer::populate(lv_obj_t* container, const PrePrintOption
     // subject's `subs_ll` (UAF).
     //
     // clear() also drops on_toggle_, so the caller's callback is assigned
-    // after it — assigning before clear() would leave a populate() with no
+    // after it; assigning before clear() would leave a populate() with no
     // toggle callback.
     clear();
     safe_clean_children(container);
@@ -280,7 +280,7 @@ void PrePrintOptionsRenderer::make_row(lv_obj_t* container, const PrePrintOption
         spdlog::error("[PrePrintOptionsRenderer] lv_xml_create('option_tile') returned "
                       "NULL for '{}'",
                       opt.id);
-        // Subject was init'd above but never handed to a tile — deinit
+        // Subject was init'd above but never handed to a tile; deinit
         // now or its observer-list backing leaks (see ~PrePrintOptionsRenderer).
         lv_subject_deinit(row.state_subject.get());
         return;

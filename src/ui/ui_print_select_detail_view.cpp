@@ -914,6 +914,13 @@ void PrintSelectDetailView::cleanup() {
 
     // Expire all outstanding async tokens
     lifetime_.invalidate();
+    // The scroll area, the card and the content container are children of
+    // overlay_root_; their events can still fire between cleanup() and the
+    // widgets' deletion, and a fresh lifetime_.token() is valid again, so
+    // drop the pointers a deferred fit would dereference.
+    options_scroll_ = nullptr;
+    detail_card_ = nullptr;
+    fit_pending_ = false;
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
@@ -1001,6 +1008,9 @@ void PrintSelectDetailView::on_ui_destroyed() {
     // callbacks died with them.
     options_scroll_ = nullptr;
     detail_card_ = nullptr;
+    // The invalidate above drops a queued fit without running it; the flag
+    // must not survive into the next create() cycle.
+    fit_pending_ = false;
     option_rows_renderer_.clear();
     last_rendered_printer_type_.clear();
     // A seed that never reached a render dies with the view it was meant
@@ -2546,8 +2556,18 @@ void PrintSelectDetailView::defer_detail_fit() {
     // area's height still reflects the PREVIOUS card height, and measuring
     // that stale pair oscillates (card shrinks -> stale avail reads smaller
     // -> card grows back -> repeat). After the tick the whole tree is
-    // consistent, and a fit that writes nothing ends the cycle.
+    // consistent, and a fit that writes nothing ends the cycle. At most one
+    // deferral is queued at a time: a scroll drag fires this every frame,
+    // and one run after the last frame measures the same tree.
+    if (!options_scroll_ || !detail_card_ || fit_pending_) {
+        return;
+    }
+    fit_pending_ = true;
     lifetime_.token().defer("DetailView::fit_portrait_preview", [this]() {
+        fit_pending_ = false;
+        if (!options_scroll_ || !detail_card_) {
+            return;
+        }
         update_options_more_below();
         fit_portrait_preview();
     });

@@ -811,8 +811,12 @@ class PrintSelectDetailView : public OverlayBase {
     // data (see detail_options_more_below_) and half of the portrait preview
     // measurement (see fit_portrait_preview()). The card is the other half of
     // that measurement; both are children of overlay_root_ and die with it.
+    // fit_pending_ dedupes the deferred fit (one queued run at a time); it is
+    // cleared when the run fires and on every teardown path, where a queued
+    // run dies with its token.
     lv_obj_t* options_scroll_ = nullptr;
     lv_obj_t* detail_card_ = nullptr;
+    bool fit_pending_ = false;
     std::string last_rendered_printer_type_;
 
     // States handed over by seed_option_states(), applied over the freshly

@@ -3,11 +3,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- One pre-print option as a checkable tile: icon + label (2 lines, then
      ellipsis) in an outline. The whole tile is the tap target. Checked draws
-     the #primary outline, tints the icon and shows the corner check tab;
-     state_trickle hands the tile's checked state to its children so each
-     child styles itself with a :checked selector. Created by
-     PrePrintOptionsRenderer, which binds the option subject to the tile's
-     checked state and wires value_changed. -->
+     the #primary outline, tints the icon and shows the check tab in the
+     bottom-left corner under the icon; state_trickle hands the tile's
+     checked state to its children so each child styles itself with a
+     -checked state style (dash form; the colon form is dropped, see
+     CONTRIBUTOR_GOTCHAS.md). Created by PrePrintOptionsRenderer, which binds
+     the option subject to the tile's checked state and wires value_changed. -->
 <component>
   <api>
     <prop name="label" type="string" default="Option"/>

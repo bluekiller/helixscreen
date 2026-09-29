@@ -225,9 +225,16 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         REQUIRE(scroll != nullptr);
         lv_subject_t* const more = lv_xml_get_subject(nullptr, "detail_options_more_below");
         REQUIRE(more != nullptr);
-        const int expected = lv_obj_get_scroll_bottom(scroll) > 0 ? 1 : 0;
-        INFO("scroll_bottom " << lv_obj_get_scroll_bottom(scroll));
+        const int scroll_bottom = lv_obj_get_scroll_bottom(scroll);
+        const int expected = scroll_bottom > 0 ? 1 : 0;
+        INFO("scroll_bottom " << scroll_bottom);
         CHECK(lv_subject_get_int(more) == expected);
+        // The overflow case the cue exists for must actually occur: at the
+        // smallest landscape canvas the column outgrows the screen, so the
+        // checked state above is reached, not just the unchecked one.
+        if (c.w == 480 && c.h == 272) {
+            CHECK(scroll_bottom > 0);
+        }
 
         // Portrait: the measured preview card height trades itself for option
         // rows. Where the width/3 floor did NOT clamp the card, row 1 must be
