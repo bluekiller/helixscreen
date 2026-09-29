@@ -133,6 +133,20 @@ int register_large_tier_fonts() {
 #endif
 }
 
+/// Icon faces above 64px, each registered wherever it is linked: with its tier,
+/// or on a platform that links it below that tier (mk/fonts.mk EXTRA_ICON_FONTS).
+void register_large_icon_fonts() {
+#if HELIX_HAS_MDI_ICONS_80
+    lv_xml_register_font(nullptr, "mdi_icons_80", &mdi_icons_80);
+#endif
+#if HELIX_HAS_MDI_ICONS_96
+    lv_xml_register_font(nullptr, "mdi_icons_96", &mdi_icons_96);
+#endif
+#if HELIX_HAS_MDI_ICONS_128
+    lv_xml_register_font(nullptr, "mdi_icons_128", &mdi_icons_128);
+#endif
+}
+
 /// XLarge tier fonts (HiDPI screens > LARGE_MAX on the constrained axis).
 int register_xlarge_tier_fonts() {
 #if HELIX_MAX_FONT_TIER >= 5
@@ -140,7 +154,6 @@ int register_xlarge_tier_fonts() {
     lv_xml_register_font(nullptr, "noto_sans_bold_32", &noto_sans_bold_32);
     lv_xml_register_font(nullptr, "noto_sans_light_20", &noto_sans_light_20);
     lv_xml_register_font(nullptr, "source_code_pro_18", &source_code_pro_18);
-    lv_xml_register_font(nullptr, "mdi_icons_80", &mdi_icons_80);
     return 5;
 #else
     return 0;
@@ -156,8 +169,6 @@ int register_xxlarge_tier_fonts() {
     lv_xml_register_font(nullptr, "noto_sans_light_26", &noto_sans_light_26);
     lv_xml_register_font(nullptr, "source_code_pro_20", &source_code_pro_20);
     lv_xml_register_font(nullptr, "source_code_pro_24", &source_code_pro_24);
-    lv_xml_register_font(nullptr, "mdi_icons_96", &mdi_icons_96);
-    lv_xml_register_font(nullptr, "mdi_icons_128", &mdi_icons_128);
 #if HELIX_HAS_HIDPI_FONTS
     // Rungs above the authored ladder, reachable only through the high-DPI UI
     // scale factor (DisplayMetrics). theme_manager only adopts one of these
@@ -206,6 +217,9 @@ int AssetManager::register_fonts_for_tier(int tier) {
     int registered = 0;
     if (prev < 0) {
         registered += register_base_fonts();
+        // At every tier: a home tile grown past two cells asks for a face above
+        // its tier's ladder (ui_tile_rung.h).
+        register_large_icon_fonts();
     }
     if (tier >= to_int(UiBreakpoint::Medium) && prev < to_int(UiBreakpoint::Medium)) {
         registered += register_medium_tier_fonts();

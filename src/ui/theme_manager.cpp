@@ -2465,15 +2465,18 @@ bool is_icon_font(const lv_font_t* font) {
     if (font == &mdi_icons_14 || font == &mdi_icons_16 || font == &mdi_icons_24 ||
         font == &mdi_icons_32 || font == &mdi_icons_48 || font == &mdi_icons_64)
         return true;
-        // Faces above 64px ship only with their tier — FONTS_CORE stops at 64, so
-        // taking the address of one unconditionally fails to link every build below
-        // that tier (mk/fonts.mk).
-#if HELIX_MAX_FONT_TIER >= 5
+        // Faces above 64px are linked only where mk/fonts.mk puts them, so
+        // taking the address of one unconditionally fails to link other builds.
+#if HELIX_HAS_MDI_ICONS_80
     if (font == &mdi_icons_80)
         return true;
 #endif
-#if HELIX_MAX_FONT_TIER >= 6
-    if (font == &mdi_icons_96 || font == &mdi_icons_128)
+#if HELIX_HAS_MDI_ICONS_96
+    if (font == &mdi_icons_96)
+        return true;
+#endif
+#if HELIX_HAS_MDI_ICONS_128
+    if (font == &mdi_icons_128)
         return true;
 #endif
     return false;
