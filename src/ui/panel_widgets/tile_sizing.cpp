@@ -188,8 +188,9 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     const int avail_w = std::max(width_px - chrome_w, 1);
     const int avail_h = std::max(height_px - chrome_h, 1);
 
-    TileVerdict verdict = decide_tile_layout(avail_w, avail_h, gap, rungs, content_.has_value,
-                                             label_drawn(), authored_rung(), row_inset);
+    TileVerdict verdict =
+        decide_tile_layout(avail_w, avail_h, gap, rungs, content_.has_value, label_drawn(),
+                           authored_rung(), row_inset, content_.label_is_identity);
 
     // At micro and tiny a whole cell is barely wider than the glyph itself, so
     // a tile of one cell or less keeps the authored rung those screens were

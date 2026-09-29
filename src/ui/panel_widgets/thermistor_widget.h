@@ -153,7 +153,8 @@ class ThermistorWidget : public PanelWidget {
 
     TileSizing sizing_{instance_id_,
                        TileSizing::Content{"110.0\u00B0C", "110.0\u00B0C", "Sensor", true, "",
-                                           /*label_always_drawn=*/true}};
+                                           /*label_always_drawn=*/true, TileSizing::IconBox::Glyph,
+                                           /*icon_animates=*/false, /*label_is_identity=*/true}};
     std::string icon_name_; // Custom icon, empty = "thermometer" default
 
     lv_obj_t* widget_obj_ = nullptr;
