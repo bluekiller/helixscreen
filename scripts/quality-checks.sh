@@ -2714,8 +2714,8 @@ echo -n "🪞 Checking for mirror tests..."
 
 if [ -f "scripts/check_test_mirrors.py" ]; then
   # Ratchet, not a clean-tree assertion. Signals 1 and 2 (shadow-include,
-  # mirror-comment) are at 0 and must stay there. Signal 3 (redefined-symbol)
-  # arrived with pre-existing findings; the number may fall, never rise.
+  # mirror-comment) are at 0 and must stay there. Signals 3 (redefined-symbol)
+  # and 4 (stub-logic) carry pre-existing findings; the number may fall, never rise.
   #
   # Read from mk/tests.mk rather than repeated here. A second hand-written copy
   # of the same threshold is how it goes stale: main rewrote
@@ -3531,7 +3531,7 @@ qc_trigger_re() {
     qc_mem_safety|qc_null_safety|qc_l081|qc_net_pii|qc_decl_ui|qc_namespace|qc_spdlog_only)
                         echo '\.(cpp|c|h|mm)$' ;;
     qc_design_tokens)   echo '\.(cpp|h|xml)$' ;;
-    qc_test_mirrors)    echo '^tests/|^scripts/check_test_mirrors\.py$' ;;
+    qc_test_mirrors)    echo '^tests/|^mk/tests\.mk$|^scripts/check_test_mirrors\.py$' ;;
     qc_test_tautology)  echo '^tests/|^include/|^src/|^scripts/check_test_tautology\.py$' ;;
     qc_test_widget_registry)
                         echo '^tests/|^src/|^scripts/check_test_widget_registry\.py$' ;;

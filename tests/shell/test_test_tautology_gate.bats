@@ -3,7 +3,8 @@
 #
 # Meta-tests for the two source-level test-quality gates:
 #   scripts/check_test_tautology.py   assertions that cannot fail
-#   scripts/check_test_mirrors.py     signal 3, a test redefining shipped code
+#   scripts/check_test_mirrors.py     signal 3, a test redefining shipped code;
+#                                     signal 4, a branching stub for a filtered object
 #
 # Both are narrow on purpose. The broad versions of these rules fire on good
 # tests: name-collision alone yields 109 mirror findings on this tree (mostly a
@@ -196,4 +197,70 @@ TEST_CASE("strip") { REQUIRE(strip_version_prefix("v1.2") == "1.2"); }
 EOF
     run mirror
     [[ "$output" != *"redefined-symbol"* ]]
+}
+
+# ------------------------------------------------- mirror signal 4: stub-logic
+
+stub_fixture() {
+    mkdir -p "$WORK/mk" "$WORK/src/ui"
+    cat > "$WORK/mk/tests.mk" <<'EOF'
+TEST_APP_OBJS := $(filter-out \
+    $(OBJ_DIR)/main.o \
+    $(OBJ_DIR)/ui/ui_toast_manager.o \
+    ,$(APP_OBJS))
+EOF
+    cat > "$WORK/src/ui/ui_toast_manager.cpp" <<'EOF'
+namespace helix {
+void ToastManager::show(int severity, const char* msg) {
+    if (severity > 0) { render(msg); }
+}
+void ToastManager::hide() { dismiss(); }
+} // namespace helix
+EOF
+}
+
+@test "a branching stub for an object filtered out of the test link is flagged" {
+    stub_fixture
+    cat > "$WORK/tests/ui_test_utils.cpp" <<'EOF'
+using namespace helix;
+void ToastManager::show(int severity, const char* msg) {
+    if (severity > 1) { g_last = msg; }
+}
+EOF
+    run mirror
+    [[ "$output" == *"tests/ui_test_utils.cpp:2: [stub-logic] ToastManager::show()"* ]] \
+        || fail "$output"
+}
+
+@test "an inert stub for a filtered object is NOT flagged" {
+    stub_fixture
+    cat > "$WORK/tests/ui_test_utils.cpp" <<'EOF'
+void helix::ToastManager::show(int, const char*) {}
+void helix::ToastManager::hide() { return; }
+EOF
+    run mirror
+    [[ "$output" != *"stub-logic"* ]] || fail "$output"
+}
+
+@test "a branching helper that stubs nothing filtered is NOT flagged" {
+    stub_fixture
+    cat > "$WORK/tests/ui_test_utils.cpp" <<'EOF'
+void MockToastSink::show(int severity, const char* msg) {
+    if (severity > 1) { last = msg; }
+}
+EOF
+    run mirror
+    [[ "$output" != *"stub-logic"* ]] || fail "$output"
+}
+
+@test "the TEST_MIRROR_OK annotation silences signal 4" {
+    stub_fixture
+    cat > "$WORK/tests/ui_test_utils.cpp" <<'EOF'
+// TEST_MIRROR_OK: records the call for assertions, renders nothing
+void helix::ToastManager::show(int severity, const char* msg) {
+    if (g_hook) { g_hook(severity, msg); }
+}
+EOF
+    run mirror
+    [[ "$output" != *"stub-logic"* ]] || fail "$output"
 }

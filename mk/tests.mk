@@ -1691,7 +1691,9 @@ check-tautology:
 	$(Q)python3 scripts/check_test_mirrors.py --max-allowed $(MIRROR_MAX)
 
 TAUTOLOGY_MAX ?= 3
-MIRROR_MAX ?= 17
+# 17 redefined-symbol + 30 stub-logic (tests/ui_test_utils.cpp standing in for
+# app_globals.o, ui_notification.o and ui_toast_manager.o). May fall, never rise.
+MIRROR_MAX ?= 47
 
 # ---- diff coverage ---------------------------------------------------------
 # Its own object tree, so this never disturbs the normal build.
