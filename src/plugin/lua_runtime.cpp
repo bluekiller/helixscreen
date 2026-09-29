@@ -252,6 +252,10 @@ bool LuaRuntime::spawn(const PushFn& push_args) {
 }
 
 bool LuaRuntime::enter(lua_State* co, int nargs) {
+    if (depth_ == 0) {
+        deadline_ = Clock::now() + limits_.time_budget;
+        killed_ = false;
+    }
     ++depth_;
     int nres = 0;
     int status = lua_resume(co, L_, nargs, &nres);
@@ -272,7 +276,9 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     std::string text = lua_tostring(L_, -1);
     lua_pop(L_, 1);
     drop(co);
-    if (status == LUA_ERRMEM)
+    if (killed_)
+        fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
+    else if (status == LUA_ERRMEM)
         fault(memory_cap_reason(limits_.memory_bytes));
     else
         report_error(text);
@@ -304,7 +310,16 @@ void LuaRuntime::fault(const std::string& reason) {
         on_fault_(reason);
 }
 
-void LuaRuntime::budget_hook(lua_State*, lua_Debug*) {}
+void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
+    auto& rt = from(L);
+    if (!rt.killed_ && Clock::now() < rt.deadline_)
+        return;
+    rt.killed_ = true;
+    // Firing on every instruction means each instruction outside the innermost pcall raises
+    // again, so no depth of pcall can hold the entry open.
+    lua_sethook(L, &LuaRuntime::budget_hook, LUA_MASKCOUNT, 1);
+    luaL_error(L, "exceeded the plugin time budget");
+}
 
 int LuaRuntime::await_async(lua_State* co, const std::function<void(Pending)>&) {
     return luaL_error(co, "async calls are not available yet");

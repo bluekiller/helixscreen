@@ -148,4 +148,47 @@ TEST_CASE("run_file refuses a missing file and a directory", "[plugin][lua_runti
     CHECK_FALSE(t.rt->faulted());
 }
 
+TEST_CASE("an infinite loop is stopped and faults the plugin", "[plugin][lua_runtime][budget]") {
+    TestRuntime t;
+    auto start = std::chrono::steady_clock::now();
+    CHECK_FALSE(t.run("while true do end"));
+    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(2));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("time budget") != std::string::npos);
+}
+
+TEST_CASE("pcall cannot swallow the time budget", "[plugin][lua_runtime][budget]") {
+    TestRuntime t;
+    CHECK_FALSE(t.run(R"(
+        while true do
+            pcall(function() while true do end end)
+        end
+    )"));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("time budget") != std::string::npos);
+}
+
+TEST_CASE("work inside the budget is untouched", "[plugin][lua_runtime][budget]") {
+    TestRuntime t;
+    REQUIRE(t.run("s = 0 for i = 1, 200000 do s = s + i end"));
+    CHECK(t.global("s") == "20000100000");
+    CHECK_FALSE(t.rt->faulted());
+}
+
+TEST_CASE("each outermost entry gets a fresh budget", "[plugin][lua_runtime][budget]") {
+    TestRuntime t; // 50 ms budget; three 20 ms runs exceed one budget but not their own
+    lua_pushcfunction(t.rt->state(), [](lua_State* L) -> int {
+        using namespace std::chrono;
+        lua_pushinteger(
+            L, duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+        return 1;
+    });
+    lua_setglobal(t.rt->state(), "now_ms");
+    const char* spin = "local t0 = now_ms() while now_ms() - t0 < 20 do end";
+    CHECK(t.run(spin));
+    CHECK(t.run(spin));
+    CHECK(t.run(spin));
+    CHECK_FALSE(t.rt->faulted());
+}
+
 #endif // HELIX_HAS_PLUGINS
