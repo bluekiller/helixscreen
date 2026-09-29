@@ -102,6 +102,11 @@ void SubjectInitializer::init_core_and_state() {
     // Phase 2: PrinterState subjects (panels depend on these)
     init_printer_state_subjects();
 
+    // Settings subjects next: panels built from here on observe the language
+    // subject, and LVGL refuses an observer on a subject not yet initialised.
+    // Needs PrinterState (the Z movement override applies there).
+    helix::SettingsManager::instance().init_subjects();
+
     // Warm the Orca match tables on the main thread, before AmsState/backends
     // start below — otherwise the first lane_data heal parses
     // assets/filaments.json under g_orca_mutex on a WebSocket background

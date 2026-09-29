@@ -264,6 +264,17 @@ void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id);
  */
 void ui_temp_graph_show_series(ui_temp_graph_t* graph, int series_id, bool visible);
 
+namespace helix {
+/**
+ * Rename a series; the legend draws the new name on the next redraw.
+ *
+ * @param graph Temperature graph widget
+ * @param series_id Series ID from ui_temp_graph_add_series()
+ * @param name New name, truncated to the metadata buffer
+ */
+void temp_graph_set_series_name(ui_temp_graph_t* graph, int series_id, const char* name);
+} // namespace helix
+
 /**
  * Data Update API
  */

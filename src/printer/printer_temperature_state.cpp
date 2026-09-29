@@ -236,6 +236,20 @@ void PrinterTemperatureState::deinit_subjects() {
     subjects_initialized_ = false;
 }
 
+namespace {
+
+/// Single extruder: "Nozzle". Multiple: "Nozzle 1", "Nozzle 2", ... in the
+/// current language.
+std::string extruder_display_name(size_t index, bool multi) {
+    if (!multi) {
+        return lv_tr("Nozzle");
+    }
+    return std::string(lv_tr("Nozzle")) + " " +
+           helix::ui::lane_number_text(static_cast<int>(index));
+}
+
+} // namespace
+
 void PrinterTemperatureState::init_extruders(const std::vector<std::string>& heaters) {
     // Signal subject death FIRST — sets the pointed-to bool to false so that
     // ALL ObserverGuards (including those in other services that still hold
@@ -289,15 +303,7 @@ void PrinterTemperatureState::init_extruders(const std::vector<std::string>& hea
         ExtruderInfo info;
         info.name = name;
 
-        // Single extruder: "Nozzle". Multiple: "Nozzle 1", "Nozzle 2", ...
-        // Translated at init time; mid-session language changes won't refresh
-        // cached names until the next extruder rediscover (e.g., reconnect).
-        if (multi) {
-            info.display_name = std::string(lv_tr("Nozzle")) + " " +
-                                helix::ui::lane_number_text(static_cast<int>(i));
-        } else {
-            info.display_name = lv_tr("Nozzle");
-        }
+        info.display_name = extruder_display_name(i, multi);
 
         // Create heap-allocated subjects (stable across rehash)
         info.temp_subject = std::make_unique<lv_subject_t>();
@@ -323,6 +329,20 @@ void PrinterTemperatureState::init_extruders(const std::vector<std::string>& hea
     lv_subject_set_int(&extruder_version_, lv_subject_get_int(&extruder_version_) + 1);
     spdlog::debug("[PrinterTemperatureState] Initialized {} extruders (version {})",
                   extruders_.size(), lv_subject_get_int(&extruder_version_));
+}
+
+void PrinterTemperatureState::refresh_display_names() {
+    std::vector<std::string> names;
+    names.reserve(extruders_.size());
+    for (const auto& [name, info] : extruders_) {
+        names.push_back(name);
+    }
+    // Same order init_extruders() numbers them in.
+    std::sort(names.begin(), names.end());
+    const bool multi = names.size() > 1;
+    for (size_t i = 0; i < names.size(); ++i) {
+        extruders_[names[i]].display_name = extruder_display_name(i, multi);
+    }
 }
 
 lv_subject_t* PrinterTemperatureState::get_extruder_temp_subject(const std::string& name) {

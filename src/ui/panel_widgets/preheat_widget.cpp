@@ -148,8 +148,10 @@ void PreheatWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             self->update_heater_state();
         },
         bed_target_lifetime_);
-    language_obs_ = helix::ui::observe_language_change(
-        this, [](PreheatWidget* self) { self->update_tool_target_label(); });
+    language_obs_ = helix::ui::observe_language_change(this, [](PreheatWidget* self) {
+        self->update_button_label();
+        self->update_tool_target_label();
+    });
 
     spdlog::debug("[PreheatWidget] Attached (material={}, tool_target={})",
                   presets::name(selected_material_), tool_target_);
@@ -203,7 +205,7 @@ PreheatWidget::PreheatTargets PreheatWidget::targets_for_slot(int slot) {
 
 std::string PreheatWidget::label_for_slot(int slot, bool heaters_active, int32_t width_px) {
     if (heaters_active) {
-        return "Cool Down";
+        return lv_tr("Cool Down");
     }
 
     const std::string material_name = presets::name(slot);
@@ -215,10 +217,10 @@ std::string PreheatWidget::label_for_slot(int slot, bool heaters_active, int32_t
         std::snprintf(label, sizeof(label), "%s", material_name.c_str());
     } else if (t.nozzle > 0 && t.bed > 0) {
         // Wide (3-col+): material + target temps
-        std::snprintf(label, sizeof(label), "Preheat %s (%d/%d)", material_name.c_str(), t.nozzle,
-                      t.bed);
+        std::snprintf(label, sizeof(label), lv_tr("Preheat %s (%d/%d)"), material_name.c_str(),
+                      t.nozzle, t.bed);
     } else {
-        std::snprintf(label, sizeof(label), "Preheat %s", material_name.c_str());
+        std::snprintf(label, sizeof(label), lv_tr("Preheat %s"), material_name.c_str());
     }
     return label;
 }

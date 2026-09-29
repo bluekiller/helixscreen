@@ -53,6 +53,8 @@ translations:
   0 slots: 0 Slots
   '0.4-2mm direct drive, 4-6mm bowden': '0,4-2mm Direct Drive, 4-6mm Bowden'
   '0°': '0°'
+  1 Hardware Issue: '1 Hardware-Problem'
+  1 Issue Detected: '1 Problem erkannt'
   '1 day ago': 'vor 1 Tag'
   1 event queued: 1 Ereignis in Warteschlange
   1 hour ago: vor 1 Stunde
@@ -197,10 +199,13 @@ translations:
   Alerts and messages waiting for you: Wartende Alarme und Meldungen
   All: Alle
   All Devices: Alle Geräte
+  All Healthy: 'Alles in Ordnung'
   All axes homed: Alle Achsen referenziert
+  All configured hardware detected: 'Alle konfigurierte Hardware erkannt'
   All fields are required: Alle Felder sind erforderlich
   All healthy: Alles in Ordnung
   All lights: Alle Leuchten
+  All time: 'Gesamte Zeit'
   Allow: 'Zulassen'
   Allow Home Screen Editing: 'Bearbeiten des Startbildschirms zulassen'
   Allow cold load/unload: Kaltes Laden/Entladen erlauben
@@ -698,6 +703,10 @@ translations:
   Configure quick buttons and standard macros: Schnelltasten und Standard-Makros konfigurieren
   Configure timelapse recording: Zeitrafferaufnahme konfigurieren
   Configure your printer's cooling fans: Kühllüfter Ihres Druckers konfigurieren
+  Configured LED strip not found: 'Konfigurierter LED-Streifen nicht gefunden'
+  Configured aux fan not found: 'Konfigurierter Zusatzlüfter nicht gefunden'
+  Configured filament sensor not found: 'Konfigurierter Filamentsensor nicht gefunden'
+  Configured hardware no longer present: 'Konfigurierte Hardware nicht mehr vorhanden'
   Configured in the backup-spool package, not from here: Wird im Reserve-Spulen-Plugin konfiguriert, nicht hier
   Configuring Moonraker...: Moonraker wird konfiguriert...
   Confirm PIN: PIN bestätigen
@@ -1246,6 +1255,7 @@ translations:
   Fan Calibration: Lüfter-Kalibrierung
   Fan Speeds: 'Lüftergeschwindigkeiten'
   Fan Transfer: Lüfterwärmeübertragung
+  Fan available but not assigned to any role: 'Lüfter verfügbar, aber keiner Rolle zugewiesen'
   'Fan control failed: {}': 'Lüftersteuerung fehlgeschlagen: {}'
   FanSelect: Lüfter auswählen
   Fans: Lüfter
@@ -1322,6 +1332,7 @@ translations:
   Filament saved: Filament gespeichert
   Filament sensor available for runout detection: Filamentsensor zur Auslauferkennung
     verfügbar
+  Filament sensor available. Add to config for runout detection?: 'Filamentsensor verfügbar. Zur Konfiguration hinzufügen, um das Filamentende zu erkennen?'
   Filament snapped inside CFS: Filament ist im CFS gebrochen
   Filament stalled between CFS hub and extruder sensor: Filament steckt zwischen CFS-Hub und Extruder-Sensor fest
   Filament stuck in connector during unload: Filament beim Entladen im Anschluss verklemmt
@@ -1361,6 +1372,7 @@ translations:
   Flowguard: Flowguard
   Flushing Filament...: Filament spülen...
   Flying Toasters: Flying Toasters
+  Focused: 'Fokussiert'
   Follow active tool: Aktivem Werkzeug folgen
   Follow graph screen: Diagrammbildschirm folgen
   Force/weight sensors: 'Kraft-/Gewichtssensoren'
@@ -1426,6 +1438,7 @@ translations:
     bei Wiederverbindung validiert
   Hardware marked as optional: Hardware als optional markiert
   Hardware saved to config: Hardware in Konfiguration gespeichert
+  Hardware was present in previous session but is now missing: 'Hardware war in der vorherigen Sitzung vorhanden, fehlt aber jetzt'
   Have a piece of paper ready.: Halten Sie ein Blatt Papier bereit.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
     adjusted with                              thumb wheels or some other built-in
@@ -1434,6 +1447,7 @@ translations:
     falls Ihr Bett nicht mit Rändelschrauben oder einem anderen eingebauten Mechanismus
     eingestellt wird.
   Heading: Überschrift
+  Healthy: 'In Ordnung'
   Heat Capacity: Wärmekapazität
   Heat Soak: Aufwärmen
   Heat Soaking...: Aufwärmen...
@@ -1705,6 +1719,7 @@ translations:
   LED on at Start: LED beim Start einschalten
   LED strip available for lighting control: LED-Streifen zur Beleuchtungssteuerung
     verfügbar
+  LED strip available. Add to config for lighting control?: 'LED-Streifen verfügbar. Zur Konfiguration hinzufügen, um die Beleuchtung zu steuern?'
   LEDs: LEDs
   LOAD CELLS: 'WÄGEZELLEN'
   LOADED: GELADEN
@@ -1723,6 +1738,9 @@ translations:
   Language & Time: Sprache & Zeit
   Last: Letzte
   # Source: history_dashboard_panel.xml:114
+  Last 12 months: 'Letzte 12 Monate'
+  Last 24 hours: 'Letzte 24 Stunden'
+  Last 30 days: 'Letzte 30 Tage'
   Last 7 days: 'Letzte 7 Tage'
   Last measured: 'Zuletzt gemessen'
   Last print cancelled: Letzter Druck abgebrochen
@@ -2021,6 +2039,7 @@ translations:
   No Bluetooth printers found: Keine Bluetooth-Drucker gefunden
   No Camera: Keine Kamera
   No Filament Detected: Kein Filament erkannt
+  No Hardware Issues: 'Keine Hardware-Probleme'
   No History: Kein Verlauf
   No LED macros detected on your printer. Add Klipper macros for LED control first.: Keine
     LED-Makros auf Ihrem Drucker erkannt. Fügen Sie zuerst Klipper-Makros zur LED-Steuerung
@@ -2051,6 +2070,7 @@ translations:
     lagern.
   No effects available: Keine Effekte verfügbar
   No events queued: Keine Ereignisse in Warteschlange
+  No extruder heater found. Check [extruder] in printer.cfg: 'Kein Extruder-Heizelement gefunden. [extruder] in printer.cfg prüfen'
   No fans detected: Keine Lüfter erkannt
   No filament: Kein Filament
   No filament environment sensors: Keine Filament-Umgebungssensoren
@@ -2331,6 +2351,8 @@ translations:
   'Pre-print command failed: {}': 'Vor-Druck-Befehl fehlgeschlagen: {}'
   Pre-print homing...: Referenzieren vor dem Druck...
   Preheat: 'Vorheizen'
+  Preheat %s: 'Vorheizen %s'
+  Preheat %s (%d/%d): 'Vorheizen %s (%d/%d)'
   Preheat Macro: Vorheiz-Makro
   Preheat PLA: PLA vorheizen
   Preheat cancelled: Vorheizen abgebrochen
@@ -2372,6 +2394,7 @@ translations:
   Print Failed: Druck fehlgeschlagen
   Print File: Druckdatei
   Print Files: Druckdateien
+  Print Head: 'Druckkopf'
   Print History: Druckverlauf
   Print Hours: Druckstunden
   Print Label: Etikett drucken
@@ -2535,6 +2558,7 @@ translations:
   Quick Button 3: Schnelltaste 3
   Quick Button 4: Schnelltaste 4
   Quick actions, calibration, speed: Schnellaktionen, Kalibrierung, Geschwindigkeit
+  Quiet: 'Leise'
   RFCOMM connect failed: RFCOMM-Verbindung fehlgeschlagen
   'RFCOMM connect failed: ': 'RFCOMM-Verbindung fehlgeschlagen: '
   RFID reader malfunction (left): Fehlfunktion des RFID-Lesers (links)
@@ -3608,6 +3632,7 @@ translations:
     verwenden
   Use G10/G11 firmware retraction: G10/G11-Firmware-Retraktion verwenden
   Use Unload before Eject: 'Verwenden Sie Entladen vor Auswerfen'
+  Use first HID scanner found: 'Ersten gefundenen HID-Scanner verwenden'
   Use printer type to select image: Druckertyp zur Bildauswahl verwenden
   User intervention required: 'Manueller Eingriff erforderlich'
   VM Peak: VM-Spitze
@@ -3866,14 +3891,18 @@ translations:
   v{} installed! Restarting...: v{} installiert! Neustart...
   v{} is available. Tap to update.: v{} ist verfügbar. Tippen zum Aktualisieren.
   you have: Sie haben
+  '{} Hardware Issues': '{} Hardware-Probleme'
+  '{} Issues Detected': '{} Probleme erkannt'
   '{} LED strips available': '{} LED-Streifen verfügbar'
   '{} and {} are both mapped here': '{} und {} sind beide hier zugewiesen'
   '{} available': '{} verfügbar'
   '{} axis homed': '{}-Achse referenziert'
+  '{} changed': '{} geändert'
   '{} command timed out': Befehl {} – Zeitüberschreitung
   '{} complete': '{} abgeschlossen'
   '{} configured item not found': '{} konfiguriertes Element nicht gefunden'
   '{} configured items not found': '{} konfigurierte Elemente nicht gefunden'
+  '{} critical': '{} kritisch'
   '{} critical hardware issues': '{} kritische Hardwareprobleme'
   '{} disabled': '{} deaktiviert'
   '{} enabled': '{} aktiviert'
@@ -3893,9 +3922,11 @@ translations:
   '{} matches.': '{} passt.'
   '{} may cause unintended changes. Are you sure?': '{} kann unbeabsichtigte Änderungen
     verursachen. Sind Sie sicher?'
+  '{} missing': '{} fehlend'
   '{} more taps to {} beta features': '{} weitere Male tippen, um Beta-Funktionen
     zu {}'
   '{} needs the HelixPrint plugin. Printing original file.': '{} benötigt das HelixPrint-Plugin. Die Originaldatei wird gedruckt.'
+  '{} new': '{} neu'
   '{} new hardware available': '{} neue Hardware verfügbar'
   '{} preset{}': '{} Voreinstellung{}'
   '{} set to {}': '{} auf {} gesetzt'

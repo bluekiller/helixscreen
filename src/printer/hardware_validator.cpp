@@ -15,6 +15,7 @@
 #include "printer_hardware.h"
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
+#include "translation_loader.h"
 #include "wizard_config_paths.h"
 
 #include <algorithm>
@@ -496,9 +497,9 @@ void HardwareValidator::validate_critical_hardware(const helix::PrinterDiscovery
         }
     }
     if (!has_extruder) {
-        result.critical_missing.push_back(
-            HardwareIssue::critical("extruder", HardwareType::HEATER,
-                                    "No extruder heater found. Check [extruder] in printer.cfg"));
+        result.critical_missing.push_back(HardwareIssue::critical(
+            "extruder", HardwareType::HEATER,
+            TR_NOOP("No extruder heater found. Check [extruder] in printer.cfg")));
     }
 
     // Check for heater_bed (note: not all printers have heated beds)
@@ -552,9 +553,10 @@ void HardwareValidator::validate_configured_hardware(Config* config,
         // AutoHealed branch here without moving the upstream pre-heal, or you reintroduce an
         // every-boot toast.
         if (res.status == helix::RoleResolutionStatus::Unresolved && !desc.guided) {
-            result.expected_missing.push_back(HardwareIssue::warning(
-                saved, hardware_type_for(desc.category), "Configured hardware no longer present",
-                /*optional=*/false));
+            result.expected_missing.push_back(
+                HardwareIssue::warning(saved, hardware_type_for(desc.category),
+                                       TR_NOOP("Configured hardware no longer present"),
+                                       /*optional=*/false));
         }
     }
 
@@ -566,8 +568,8 @@ void HardwareValidator::validate_configured_hardware(Config* config,
     std::string aux_fan = config->get<std::string>(config->df() + "fans/aux", "");
     if (!aux_fan.empty() && !contains_name(fans, aux_fan) &&
         !is_hardware_optional(config, aux_fan)) {
-        result.expected_missing.push_back(
-            HardwareIssue::warning(aux_fan, HardwareType::FAN, "Configured aux fan not found"));
+        result.expected_missing.push_back(HardwareIssue::warning(
+            aux_fan, HardwareType::FAN, TR_NOOP("Configured aux fan not found")));
     }
 
     // Check configured LEDs. Synthetic strips are skipped: discovery cannot see them,
@@ -578,7 +580,7 @@ void HardwareValidator::validate_configured_hardware(Config* config,
         }
         if (!contains_name(leds, led_name) && !is_hardware_optional(config, led_name)) {
             result.expected_missing.push_back(HardwareIssue::warning(
-                led_name, HardwareType::LED, "Configured LED strip not found"));
+                led_name, HardwareType::LED, TR_NOOP("Configured LED strip not found")));
         }
     }
 
@@ -599,7 +601,7 @@ void HardwareValidator::validate_configured_hardware(Config* config,
                     !is_hardware_optional(config, sensor_name)) {
                     result.expected_missing.push_back(
                         HardwareIssue::warning(sensor_name, HardwareType::FILAMENT_SENSOR,
-                                               "Configured filament sensor not found"));
+                                               TR_NOOP("Configured filament sensor not found")));
                 }
             }
         }
@@ -632,7 +634,7 @@ void HardwareValidator::validate_configured_hardware(Config* config,
 
                     if (!found && !is_hardware_optional(config, hw_name)) {
                         result.expected_missing.push_back(HardwareIssue::warning(
-                            hw_name, HardwareType::OTHER, "AMS/MMU system not detected"));
+                            hw_name, HardwareType::OTHER, TR_NOOP("AMS/MMU system not detected")));
                         spdlog::debug("[HardwareValidator] Expected AMS hardware '{}' not found",
                                       hw_name);
                     }
@@ -677,9 +679,9 @@ void HardwareValidator::validate_new_hardware(Config* config,
         }
 
         if (!suggested.empty() && !contains_name(expected_hardware, suggested)) {
-            result.newly_discovered.push_back(
-                HardwareIssue::info(suggested, HardwareType::LED,
-                                    "LED strip available. Add to config for lighting control?"));
+            result.newly_discovered.push_back(HardwareIssue::info(
+                suggested, HardwareType::LED,
+                TR_NOOP("LED strip available. Add to config for lighting control?")));
         }
     }
 
@@ -706,7 +708,7 @@ void HardwareValidator::validate_new_hardware(Config* config,
     for (const auto& fan : discovered_fans) {
         if (!contains_name(configured_fans, fan) && !contains_name(expected_hardware, fan)) {
             result.newly_discovered.push_back(HardwareIssue::info(
-                fan, HardwareType::FAN, "Fan available but not assigned to any role"));
+                fan, HardwareType::FAN, TR_NOOP("Fan available but not assigned to any role")));
         }
     }
 
@@ -743,7 +745,7 @@ void HardwareValidator::validate_new_hardware(Config* config,
         if (!contains_name(configured_names, sensor) && !contains_name(expected_hardware, sensor)) {
             result.newly_discovered.push_back(HardwareIssue::info(
                 sensor, HardwareType::FILAMENT_SENSOR,
-                "Filament sensor available. Add to config for runout detection?"));
+                TR_NOOP("Filament sensor available. Add to config for runout detection?")));
         }
     }
 }
@@ -769,8 +771,8 @@ void HardwareValidator::validate_session_changes(const HardwareSnapshot& previou
             if (!is_optional) {
                 HardwareType type = guess_hardware_type(name);
                 result.changed_from_last_session.push_back(HardwareIssue::warning(
-                    name, type, "Hardware was present in previous session but is now missing",
-                    false));
+                    name, type,
+                    TR_NOOP("Hardware was present in previous session but is now missing"), false));
             }
         }
     }

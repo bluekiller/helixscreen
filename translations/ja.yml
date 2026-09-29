@@ -52,6 +52,8 @@ translations:
   0 slots: '{0} スロット'
   '0.4-2mm direct drive, 4-6mm bowden': '0.4-2mm ダイレクトドライブ、4-6mm ボーデン'
   '0°': '0°'
+  1 Hardware Issue: 'ハードウェアの問題 1 件'
+  1 Issue Detected: '問題を 1 件検出'
   '1 day ago': '1日前'
   1 event queued: 1件のイベント待機中
   1 hour ago: 1時間前
@@ -184,10 +186,13 @@ translations:
   Alerts and messages waiting for you: 待機中のアラートとメッセージ
   All: すべて
   All Devices: すべてのデバイス
+  All Healthy: 'すべて正常'
   All axes homed: すべての軸がホーミング済み
+  All configured hardware detected: '設定済みのハードウェアをすべて検出'
   All fields are required: すべての項目が必須です
   All healthy: すべて正常
   All lights: すべてのライト
+  All time: '全期間'
   Allow: '許可'
   Allow Home Screen Editing: 'ホーム画面の編集を許可'
   Allow cold load/unload: コールド時の装填/取り出しを許可
@@ -631,6 +636,10 @@ translations:
   Configure quick buttons and standard macros: クイックボタンと標準マクロを設定
   Configure timelapse recording: タイムラプス録画を設定
   Configure your printer's cooling fans: プリンターの冷却ファンを設定します
+  Configured LED strip not found: '設定済みのLEDストリップが見つかりません'
+  Configured aux fan not found: '設定済みの補助ファンが見つかりません'
+  Configured filament sensor not found: '設定済みのフィラメントセンサーが見つかりません'
+  Configured hardware no longer present: '設定済みのハードウェアが見つかりません'
   Configured in the backup-spool package, not from here: バックアップスプール用プラグイン側で設定します
   Configuring Moonraker...: Moonrakerを設定中...
   Confirm PIN: PIN を確認
@@ -1148,6 +1157,7 @@ translations:
   Fan Calibration: ファンキャリブレーション
   Fan Speeds: 'ファン速度'
   Fan Transfer: ファン熱伝達
+  Fan available but not assigned to any role: 'ファンは使用可能ですが役割が割り当てられていません'
   'Fan control failed: {}': 'ファン制御に失敗しました: {}'
   FanSelect: ファンを選択
   Fans: ファン
@@ -1222,6 +1232,7 @@ translations:
   Filament runout and motion detection sensors: フィラメント切れとモーション検出センサー
   Filament saved: フィラメントを保存しました
   Filament sensor available for runout detection: フィラメント切れ検出用のフィラメントセンサーが利用可能です
+  Filament sensor available. Add to config for runout detection?: 'フィラメントセンサーが使用可能です。フィラメント切れ検出のために設定に追加しますか？'
   Filament snapped inside CFS: CFS 内でフィラメントが折れました
   Filament stalled between CFS hub and extruder sensor: CFS ハブとエクストルーダーセンサーの間でフィラメントが止まりました
   Filament stuck in connector during unload: アンロード中にコネクター内でフィラメントが詰まりました
@@ -1261,6 +1272,7 @@ translations:
   Flowguard: フローガード
   Flushing Filament...: フィラメントをフラッシュ中...
   Flying Toasters: フライングトースター
+  Focused: '集中'
   Follow active tool: アクティブツールに追従
   Follow graph screen: グラフ画面に追従
   Force/weight sensors: '力/重量センサー'
@@ -1325,12 +1337,14 @@ translations:
   Hardware is validated on startup and reconnection: ハードウェアは起動時と再接続時に検証されます
   Hardware marked as optional: ハードウェアをオプションに設定しました
   Hardware saved to config: ハードウェアを設定に保存しました
+  Hardware was present in previous session but is now missing: '前回のセッションにあったハードウェアが見つかりません'
   Have a piece of paper ready.: 紙を1枚用意してください。
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
     adjusted with                              thumb wheels or some other built-in
     mechanism.
   : ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。
   Heading: 見出し
+  Healthy: '正常'
   Heat Capacity: 熱容量
   Heat Soak: ヒートソーク
   Heat Soaking...: ヒートソーク中...
@@ -1576,6 +1590,7 @@ translations:
   LED Strip: LEDストリップ
   LED on at Start: 起動時LED点灯
   LED strip available for lighting control: 照明制御用の LED ストリップが利用可能です
+  LED strip available. Add to config for lighting control?: 'LEDストリップが使用可能です。照明制御のために設定に追加しますか？'
   LEDs: LED
   LOAD CELLS: 'ロードセル'
   LOADED: 装填済み
@@ -1594,6 +1609,9 @@ translations:
   Language & Time: 言語と時刻
   Last: 最後
   # Source: history_dashboard_panel.xml:114
+  Last 12 months: '過去12か月'
+  Last 24 hours: '過去24時間'
+  Last 30 days: '過去30日間'
   Last 7 days: '過去7日間'
   Last measured: '前回の測定値'
   Last print cancelled: 前回の印刷がキャンセルされました
@@ -1880,6 +1898,7 @@ translations:
   No Bluetooth printers found: Bluetooth プリンターが見つかりません
   No Camera: カメラなし
   No Filament Detected: フィラメント未検出
+  No Hardware Issues: 'ハードウェアの問題なし'
   No History: 履歴なし
   No LED macros detected on your printer. Add Klipper macros for LED control first.: プリンターで
     LED マクロが検出されませんでした。先に LED 制御用の Klipper マクロを追加してください。
@@ -1907,6 +1926,7 @@ translations:
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: 乾燥機がありません。最良の結果を得るには、乾燥剤入りの密封ドライボックスにフィラメントを保管してください。
   No effects available: 利用可能なエフェクトがありません
   No events queued: キューにイベントはありません
+  No extruder heater found. Check [extruder] in printer.cfg: 'エクストルーダーヒーターが見つかりません。printer.cfg の [extruder] を確認してください'
   No fans detected: ファンが検出されませんでした
   No filament: フィラメントなし
   No filament environment sensors: フィラメント環境センサーがありません
@@ -2177,6 +2197,8 @@ translations:
   'Pre-print command failed: {}': '印刷前コマンドに失敗しました: {}'
   Pre-print homing...: 印刷前ホーミング中...
   Preheat: '予熱'
+  Preheat %s: '予熱 %s'
+  Preheat %s (%d/%d): '予熱 %s (%d/%d)'
   Preheat Macro: 予熱マクロ
   Preheat PLA: PLA 予熱
   Preheat cancelled: 予熱がキャンセルされました
@@ -2218,6 +2240,7 @@ translations:
   Print Failed: 印刷失敗
   Print File: 印刷ファイル
   Print Files: 印刷ファイル
+  Print Head: 'プリントヘッド'
   Print History: 印刷履歴
   Print Hours: 印刷時間
   Print Label: ラベルを印刷
@@ -2371,6 +2394,7 @@ translations:
   Quick Button 3: クイックボタン3
   Quick Button 4: クイックボタン4
   Quick actions, calibration, speed: クイックアクション、キャリブレーション、速度
+  Quiet: '静音'
   RFCOMM connect failed: RFCOMM 接続に失敗しました
   'RFCOMM connect failed: ': 'RFCOMM 接続に失敗しました: '
   RFID reader malfunction (left): RFID リーダーの異常（左）
@@ -3351,6 +3375,7 @@ translations:
   Use Android native keyboard for text input: テキスト入力に Android ネイティブキーボードを使用
   Use G10/G11 firmware retraction: G10/G11 ファームウェアリトラクションを使用
   Use Unload before Eject: '先に「アンロード」してから「排出」してください'
+  Use first HID scanner found: '最初に見つかった HID スキャナーを使用'
   Use printer type to select image: プリンタータイプで画像を選択
   User intervention required: '手動での対応が必要です'
   VM Peak: VM ピーク
@@ -3594,14 +3619,18 @@ translations:
   v{} installed! Restarting...: v{} をインストールしました！再起動中...
   v{} is available. Tap to update.: v{} が利用可能です。タップして更新してください。
   you have: 現在は
+  '{} Hardware Issues': 'ハードウェアの問題 {} 件'
+  '{} Issues Detected': '問題を {} 件検出'
   '{} LED strips available': '{} 個の LED ストリップが利用可能です'
   '{} and {} are both mapped here': '{} と {} の両方がここに割り当てられています'
   '{} available': '{} が利用可能'
   '{} axis homed': '{} 軸がホーミング済み'
+  '{} changed': '変更 {} 件'
   '{} command timed out': '{} コマンドがタイムアウトしました'
   '{} complete': '{} 完了'
   '{} configured item not found': 設定された項目 {} 個が見つかりません
   '{} configured items not found': 設定された項目 {} 個が見つかりません
+  '{} critical': '重大 {} 件'
   '{} critical hardware issues': '{} 個の重要なハードウェアの問題'
   '{} disabled': '{} を無効にしました'
   '{} enabled': '{} を有効にしました'
@@ -3620,8 +3649,10 @@ translations:
   '{} macro not configured': '{} マクロが未設定です'
   '{} matches.': '{} が一致します。'
   '{} may cause unintended changes. Are you sure?': '{} は意図しない変更を引き起こす可能性があります。よろしいですか？'
+  '{} missing': '未検出 {} 件'
   '{} more taps to {} beta features': あと{}回タップでベータ機能を{}
   '{} needs the HelixPrint plugin. Printing original file.': '{} には HelixPrint プラグインが必要です。元のファイルを印刷します。'
+  '{} new': '新規 {} 件'
   '{} new hardware available': '{} 個の新しいハードウェアが利用可能です'
   '{} preset{}': '{} 個のプリセット{}'
   '{} set to {}': '{} を {} に設定しました'
