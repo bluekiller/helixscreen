@@ -27,7 +27,6 @@
 #include "settings_manager.h"
 #include "standard_macros.h"
 #include "subject_managed_panel.h"
-#include "system_settings_manager.h"
 #include "theme_manager.h"
 #include "toolhead_homing.h"
 #include "unit_conversions.h"
@@ -670,10 +669,8 @@ void MotionPanel::register_position_observers() {
     // Flipping the persisted setting re-renders the readouts.
     // Tab labels are translated into subject buffers, so a live language
     // switch has to re-fill them; XML text around them re-translates itself.
-    language_observer_ = observe_int_sync<MotionPanel>(
-        SystemSettingsManager::instance().subject_language(), this,
-        [](MotionPanel* self, int) { self->refresh_tab_labels(); },
-        SystemSettingsManager::instance().get_subjects_lifetime());
+    language_observer_ = helix::ui::observe_language_change(
+        this, [](MotionPanel* self) { self->refresh_tab_labels(); });
 
     coordinate_mode_observer_ = observe_int_sync<MotionPanel>(
         SettingsManager::instance().subject_motion_show_actual_position(), this,
