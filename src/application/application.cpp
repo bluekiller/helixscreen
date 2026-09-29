@@ -139,6 +139,7 @@
 #include "ui_switch.h"
 #include "ui_temp_display.h"
 #include "ui_theme_editor_overlay.h"
+#include "ui_tile_rung.h"
 #include "ui_toast_manager.h"
 #include "ui_touch_calibration_overlay.h"
 #include "ui_utils.h"
@@ -1846,6 +1847,7 @@ void Application::run_rotation_probe_and_layout() {
 
 bool Application::register_widgets() {
     helix::ui::icon::register_widget();
+    helix::ui::register_tile_rung_binding();
     ui_status_pill_register_widget();
     ui_switch_register();
     ui_card_register();

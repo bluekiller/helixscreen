@@ -5,6 +5,7 @@
 
 #include "ui_event_safety.h"
 #include "ui_icon.h"
+#include "ui_tile_rung.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
 
@@ -47,6 +48,13 @@ void register_led_widget() {
 
 bool light_tile_is_wide(int colspan) {
     return colspan >= 2 * GridLayout::TRACKS_PER_CELL;
+}
+
+int light_chevron_reserve_px() {
+    const ui::TileFace widest = ui::tile_rung_face(ui::TileLadder::Icon, kTileRungs - 2);
+    const int glyph =
+        widest.font ? widest.px(static_cast<int>(lv_font_get_line_height(widest.font))) : 0;
+    return std::max(static_cast<int>(theme_manager_get_spacing("button_height")), glyph);
 }
 
 std::vector<led::LedStripInfo> light_picker_devices() {
@@ -164,8 +172,12 @@ std::string LedWidget::overlay_device() const {
 
 void LedWidget::on_size_changed(int colspan, int rowspan, int width_px, int height_px) {
     (void)rowspan;
-    sizing_.measure_and_publish(width_px, height_px);
-    lv_subject_set_int(&wide_subject_, light_tile_is_wide(colspan) ? 1 : 0);
+    // A wide tile gives its › zone light_chevron_reserve_px(), so the bulb and
+    // its name draw in what is left.
+    const bool wide = light_tile_is_wide(colspan);
+    const int chevron_w = wide ? light_chevron_reserve_px() : 0;
+    sizing_.measure_and_publish(width_px - chevron_w, height_px);
+    lv_subject_set_int(&wide_subject_, wide ? 1 : 0);
 }
 
 void LedWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
@@ -256,7 +268,7 @@ void LedWidget::bind_led() {
         }
     }
     lv_subject_copy_string(&name_subject_, name.c_str());
-    sizing_.set_content({"", "", name.empty() ? std::string(lv_tr("Light")) : name, false});
+    sizing_.set_content({"", "", name.empty() ? std::string("Light") : name, false});
     relayout_for_granted_size();
 
     update_light_icon();

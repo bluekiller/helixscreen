@@ -13,6 +13,7 @@
  * stay flush, and a widget the port cannot seat costs only itself its position.
  */
 
+#include "../test_helpers/scoped_whole_cell_def.h"
 #include "grid_layout.h"
 #include "layout_port.h"
 #include "panel_widget_registry.h"
@@ -211,6 +212,7 @@ TEST_CASE("port_legacy_layout: a collision costs only the colliding widget",
     // loser must come back unseated rather than overlapping or vanishing.
     // The loser must be a whole-cell widget: one that snaps by a single track
     // could seat in the remainder and there would be no collision to observe.
+    ScopedWholeCellDef whole_cell("width_sensor");
     const auto* loser = find_widget_def("width_sensor");
     REQUIRE(loser != nullptr);
     REQUIRE_FALSE(loser->supports_half_col);

@@ -29,6 +29,10 @@ namespace helix {
 /// Whether a light tile this many tracks wide has room for its › zone.
 bool light_tile_is_wide(int colspan);
 
+/// Width a wide light tile gives its › zone: at least #button_height, and the
+/// zone's glyph at the widest it draws (one rung under the bulb's top rung).
+int light_chevron_reserve_px();
+
 /// The devices the light-button picker lists, before its fixed "All lights" row.
 std::vector<led::LedStripInfo> light_picker_devices();
 
@@ -67,8 +71,11 @@ class LedWidget : public PanelWidget {
 
     void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override;
 
+    /// Measured against the width the bulb keeps, as on_size_changed() does:
+    /// a box two cells wide gives the › zone its reserve.
     bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
+        const bool wide = width_px >= 2 * sizing_.whole_cell_px();
+        return sizing_.fits(wide ? width_px - light_chevron_reserve_px() : width_px, height_px);
     }
 
     const char** xml_attrs() const override {

@@ -136,7 +136,10 @@ TEST_CASE("commit() queues onto a live worker when the spawn hits EAGAIN",
         }
     } restore{original};
 
-    // Prove the limit bites before relying on it: a raw spawn must fail.
+    // Prove the limit bites before relying on it: a raw spawn must fail. The
+    // kernel does not apply RLIMIT_NPROC to root or CAP_SYS_RESOURCE, so as
+    // root (the sanitizer container) there is no spawn failure to provoke and
+    // nothing here can be tested.
     bool raw_spawn_threw = false;
     try {
         std::thread bystander([] {});
@@ -144,7 +147,12 @@ TEST_CASE("commit() queues onto a live worker when the spawn hits EAGAIN",
     } catch (const std::system_error&) {
         raw_spawn_threw = true;
     }
-    REQUIRE(raw_spawn_threw);
+    if (!raw_spawn_threw) {
+        gate.set_value();
+        busy.wait();
+        pool.stop();
+        SKIP("RLIMIT_NPROC does not bind for this process (root or CAP_SYS_RESOURCE)");
+    }
 
     std::future<void> queued;
     bool commit_threw = false;

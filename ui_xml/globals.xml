@@ -220,9 +220,9 @@
     <!-- Tile badge rungs (tile_badge_*)                                       -->
     <!-- ===================================================================== -->
     <!-- A count badge sitting on a home-tile glyph that follows the tile icon
-         rung (styles.tile_icon_*). The badge must follow the same rung or it
+         rung (bind_tile_rung ladder="icon"). The badge must follow the same rung or it
          covers the glyph on the small rungs: a fixed badge_size is 10px against
-         a 16-24px bell. Each value is 2/5 of the matching tile_icon_* rung
+         a 16-24px bell. Each value is 2/5 of the matching icon_font_* rung
          face at that tier (round to nearest), the proportion the AMS lane
          badge uses on its spool. Changing an icon_font_* rung means revisiting
          the matching column here. -->
@@ -261,6 +261,15 @@
     <px name="tile_badge_xl_large" value="26"/>
     <px name="tile_badge_xl_xlarge" value="32"/>
     <px name="tile_badge_xl_xxlarge" value="38"/>
+
+    <!-- xxl follows #tile_icon_xxl_size, the size that rung's glyph draws at. -->
+    <px name="tile_badge_xxl_micro" value="26"/>
+    <px name="tile_badge_xxl_tiny" value="38"/>
+    <px name="tile_badge_xxl_small" value="51"/>
+    <px name="tile_badge_xxl_medium" value="51"/>
+    <px name="tile_badge_xxl_large" value="51"/>
+    <px name="tile_badge_xxl_xlarge" value="64"/>
+    <px name="tile_badge_xxl_xxlarge" value="77"/>
 
     <!-- ===================================================================== -->
     <!-- Responsive Spinner Sizes (spinner_*)                                  -->
@@ -303,18 +312,6 @@
     <px name="meter_track_h_large" value="14"/>
     <px name="meter_track_h_xlarge" value="16"/>
     <px name="meter_track_h_xxlarge" value="20"/>
-
-    <!-- font_xs_line_h: ONE line of font_xs, so a long_mode="dots" text_tiny
-         label ellipsizes instead of wrapping to a second line (dots only engage
-         when the label's height is bounded). Tracks font_xs:
-         10/10/10/12/14/16/20 px + ~40% leading. -->
-    <px name="font_xs_line_h_micro" value="14"/>
-    <px name="font_xs_line_h_tiny" value="14"/>
-    <px name="font_xs_line_h_small" value="14"/>
-    <px name="font_xs_line_h_medium" value="17"/>
-    <px name="font_xs_line_h_large" value="20"/>
-    <px name="font_xs_line_h_xlarge" value="23"/>
-    <px name="font_xs_line_h_xxlarge" value="28"/>
 
     <!-- Spinner arc widths - proportional to size -->
     <px name="spinner_arc_lg_small" value="3"/>
@@ -730,6 +727,17 @@
     <string name="icon_font_xl_xlarge" value="mdi_icons_80"/>
     <string name="icon_font_xl_xxlarge" value="mdi_icons_96"/>
     <!-- NO BASE icon_font_xl - registered at runtime -->
+    <!-- tile_icon_xxl_size: the home tiles' top icon rung, twice the tier's xl
+         glyph, so a tile only reaches it past a cell and a half. It names a
+         size, not a face: src/ui/ui_tile_rung.cpp draws it in the largest MDI
+         face this build links at or below it, scaled up to at most 2x. -->
+    <px name="tile_icon_xxl_size_micro" value="64"/>
+    <px name="tile_icon_xxl_size_tiny" value="96"/>
+    <px name="tile_icon_xxl_size_small" value="128"/>
+    <px name="tile_icon_xxl_size_medium" value="128"/>
+    <px name="tile_icon_xxl_size_large" value="128"/>
+    <px name="tile_icon_xxl_size_xlarge" value="160"/>
+    <px name="tile_icon_xxl_size_xxlarge" value="192"/>
     <!-- icon_font_hero: Card-filling empty-state icons (thumbnail placeholders etc.) -->
     <!-- mdi_icons_96/128 live only in the xxlarge font tier (mk/fonts.mk). On -->
     <!-- devices whose FONT_TIERS excludes xxlarge (CC1 = micro+tiny, AD5M = -->

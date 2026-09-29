@@ -553,6 +553,7 @@ src/ui/ui_temp_display.cpp
 src/ui/ui_temp_graph.cpp
 src/ui/ui_temperature_utils.cpp
 src/ui/ui_text.cpp
+src/ui/ui_tile_rung.cpp
 src/ui/ui_text_input.cpp
 src/ui/ui_theme_editor_overlay.cpp
 src/ui/ui_toast_manager.cpp

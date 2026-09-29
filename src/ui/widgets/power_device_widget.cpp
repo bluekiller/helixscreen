@@ -90,9 +90,17 @@ using namespace helix;
 PowerDeviceWidget* PowerDeviceWidget::s_active_picker_ = nullptr;
 
 PowerDeviceWidget::PowerDeviceWidget(const std::string& instance_id) : instance_id_(instance_id) {
-    // The glyph sits in a fixed-size disc, so this tile cannot draw itself
-    // narrower than a whole cell: the badge would spill rather than shrink.
-    sizing_.require_whole_cell();
+    // Registered before the manager parses the component, which drops a
+    // binding whose subject is missing at parse time.
+    UI_MANAGED_SUBJECT_INT(has_status_subject_, 0, has_status_name_.c_str(), subjects_);
+    sizing_.add_subject_attr("status_subject", has_status_name_);
+}
+
+void PowerDeviceWidget::apply_status_presence() {
+    const bool has_status = !device_name_.empty();
+    lv_subject_set_int(&has_status_subject_, has_status ? 1 : 0);
+    sizing_.set_content(status_content(has_status));
+    relayout_for_granted_size();
 }
 
 PowerDeviceWidget::~PowerDeviceWidget() {
@@ -112,6 +120,7 @@ void PowerDeviceWidget::set_config(const nlohmann::json& config) {
     spdlog::debug("[PowerDeviceWidget] Config: {}={} icon={}", instance_id_,
                   device_name_.empty() ? "(unconfigured)" : device_name_,
                   icon_name_.empty() ? DEFAULT_ICON : icon_name_);
+    apply_status_presence();
 }
 
 void PowerDeviceWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
@@ -798,6 +807,7 @@ void PowerDeviceWidget::dismiss_device_picker() {
 
 void PowerDeviceWidget::select_device(const std::string& name) {
     device_name_ = name;
+    apply_status_presence();
     save_config();
     dismiss_device_picker();
 

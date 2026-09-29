@@ -19,22 +19,20 @@
         extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" style_pad_gap="0" scrollable="false"
         flex_flow="row">
     <ui_button name="light_button"
-               width="0" height="100%" flex_grow="1" style_pad_all="0" variant="ghost" flex_flow="column"
-               style_flex_main_place="center" style_flex_cross_place="center" style_flex_track_place="center"
-               style_border_width="0" focusable="false">
+               width="0" height="100%" flex_grow="1" style_pad_ver="0" variant="ghost" style_border_width="0"
+               focusable="false">
+      <style name="styles.tile_column"/>
+      <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
       <bind_state_if cond="printer_connection_state ne 2 or led_command_in_flight eq 1" state="disabled"/>
       <icon name="light_icon"
             src="lightbulb_outline" size="#icon_size" variant="muted" clickable="false" event_bubble="true">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
       </icon>
       <text_tiny name="light_name"
                  width="100%" bind_text="$name_subject" style_text_color="#text_muted" style_text_align="center"
                  long_mode="dots" clickable="false" event_bubble="true">
         <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>
+        <bind_tile_rung ladder="label" subject="$tile_icon_subject"/>
         <bind_flag_if_eq subject="$tile_label_subject" flag="hidden" ref_value="0"/>
       </text_tiny>
       <event_cb trigger="clicked" callback="light_toggle_cb"/>
@@ -48,11 +46,7 @@
       <!-- One rung under the bulb, so the chevron grows with the tile but stays secondary. -->
       <icon name="light_more_icon"
             src="chevron_right" size="#icon_size" variant="muted" clickable="false" event_bubble="true">
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
-        <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="1"/>
-        <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="2"/>
-        <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="3"/>
-        <bind_style_if_eq name="styles.tile_icon_lg" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_tile_rung ladder="icon" subject="$tile_icon_subject" offset="-1"/>
       </icon>
       <event_cb trigger="clicked" callback="light_more_cb"/>
     </ui_button>

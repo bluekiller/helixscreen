@@ -16,6 +16,6 @@
                       height="100%" icon="power" icon_variant="secondary" label="Shutdown" label_tag="Shutdown"
                       callback="shutdown_clicked_cb" button_name="shutdown_button" icon_name="shutdown_icon"
                       tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
-                      disabled_cond="0 eq 1"/>
+                      tile_dir_subject="$tile_dir_subject" disabled_cond="0 eq 1"/>
   </view>
 </component>

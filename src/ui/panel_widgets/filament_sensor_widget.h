@@ -163,8 +163,9 @@ class FilamentSensorWidget : public PanelWidget {
 
     /// Built with the widget so its subjects exist before the manager parses
     /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_{"filament", TileSizing::Content{"", "", "Filament", false}};
+    /// is dropped permanently. The label is the widest of the three state
+    /// words the tile draws (Loaded, Empty, Off).
+    TileSizing sizing_{"filament", TileSizing::Content{"", "", "Loaded", false}};
 };
 
 void register_filament_sensor_widget();

@@ -16,6 +16,6 @@
                       height="100%" icon="script_text" icon_variant="secondary" label="Macros" label_tag="Macros"
                       callback="macros_widget_clicked_cb" button_name="macros_button" icon_name="macros_icon"
                       tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
-                      disabled_cond="printer_connection_state ne 2"/>
+                      tile_dir_subject="$tile_dir_subject" disabled_cond="printer_connection_state ne 2"/>
   </view>
 </component>
