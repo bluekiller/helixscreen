@@ -88,11 +88,9 @@ bool MoonrakerManager::init(const RuntimeConfig& runtime_config, Config* config)
     if (config && std::getenv("HELIX_MOCK_PRINTER")) {
         const std::string mock_printer = std::getenv("HELIX_MOCK_PRINTER");
         const std::string type_path = config->df() + helix::wizard::PRINTER_TYPE;
-        // The k1 and snapmaker_u1 personas' detection identities are not
-        // complete enough to clear the auto-save bar (shared chamber sensor +
-        // generic volume score it as a Qidi at 73%), so name the capture
-        // machine directly: the persona's printer type is part of what the
-        // env var declares, for these three.
+        // Auto-detection cannot name these personas from the mock's reported
+        // identity, so the persona's printer type is part of what the env
+        // var declares.
         if (mock_printer == "k1" || mock_printer == "k1max" || mock_printer == "snapmaker_u1") {
             const std::string named = mock_printer == "k1max"          ? "Creality K1 Max"
                                       : mock_printer == "snapmaker_u1" ? "Snapmaker U1"
