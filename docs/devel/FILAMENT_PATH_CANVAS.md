@@ -10,7 +10,7 @@
 
 1. [Executive Summary](#executive-summary)
 2. [Architecture Overview](#architecture-overview)
-3. [The Three-Layer Model](#the-three-layer-model)
+3. [The Two-Layer Model](#the-two-layer-model)
 4. [The Geometry Module](#the-geometry-module)
 5. [The Shared Tube Stroker](#the-shared-tube-stroker)
 6. [RenderCtx & Phase Decomposition](#renderctx--phase-decomposition)
@@ -71,7 +71,7 @@ overview canvas.
                             │ setters → layered_mark_dirty()
 ┌───────────────────────────▼──────────────────────────────────┐
 │  ui_filament_path_layers.cpp                                  │
-│  - two lv_canvas children (static, overlay) + draw_bufs       │
+│  - one lv_canvas child (overlay) + its draw_buf               │
 │  - dirty flags, async refresh, size-change handling           │
 └───────────────────────────┬──────────────────────────────────┘
                             │ layered_render_overlay()
@@ -100,48 +100,43 @@ panels push printer state through the C setters.
 
 ---
 
-## The Three-Layer Model
+## The Two-Layer Model
 
-Rendering is split into three layers so per-frame animation never repaints the
+Rendering is split into two layers so per-frame animation never repaints the
 expensive tube geometry (`src/ui/ui_filament_path_internal.h`).
 
 ```cpp
 struct LayerState {
-    lv_obj_t*      static_canvas  = nullptr;  // Layer 1: state-independent content
-    lv_obj_t*      overlay_canvas = nullptr;  // Layer 2: full topology render
-    lv_draw_buf_t* static_buf     = nullptr;  // ARGB8888 backing buffer
+    lv_obj_t*      overlay_canvas = nullptr;  // Layer 1: full topology render
     lv_draw_buf_t* overlay_buf    = nullptr;  // ARGB8888 backing buffer
-    bool           static_dirty   = true;
     bool           overlay_dirty  = true;
     int32_t        canvas_w = 0;
     int32_t        canvas_h = 0;
 };
 ```
 
-1. **Static canvas** (`lv_canvas` child) — reserved for state-independent
-   content. The infrastructure exists (`layered_render_static()`); it is
-   currently cleared transparent, available for idle-topology content that
-   never changes with filament state.
-
-2. **Overlay canvas** (`lv_canvas` child) — the full active topology render:
+1. **Overlay canvas** (`lv_canvas` child) — the full active topology render:
    every lane, the hub/selector box, all sensors, the nozzle. Painted by
-   `render_overlay_content()`. LVGL composites it natively over the static
-   canvas. Repainted only when filament/topology state changes — **not** every
-   frame.
+   `render_overlay_content()`. LVGL composites it natively. Repainted only when
+   filament/topology state changes — **not** every frame.
 
-3. **DRAW_POST pass** — flow dots, heat glow, and the moving segment-transition
-   filament tip. Painted directly on top of the cached canvases every frame by
+2. **DRAW_POST pass** — flow dots, heat glow, and the moving segment-transition
+   filament tip. Painted directly on top of the cached canvas every frame by
    `filament_path_draw_cb()` → `render_animation_overlay()`. This is the only
    per-frame cost during animation; it touches no canvas buffer.
 
+A canvas holding nothing costs a full-size ARGB8888 buffer (~780KB on an
+800x480 panel's AMS view) and a composite on every frame, so content that never
+changes with filament state still goes on the overlay canvas.
+
 ### Canvas geometry
 
-Both canvases are sized to the widget plus a top overhang (`layered_overhang()`
+The canvas is sized to the widget plus a top overhang (`layered_overhang()`
 in `ui_filament_path_layers.cpp`) so lane-entry geometry that rises above the
 widget bounds isn't clipped. The parent widget carries
-`LV_OBJ_FLAG_OVERFLOW_VISIBLE`; canvases are positioned at a negative-Y origin
-so their buffer coordinates map to absolute display coordinates. Buffers are
-`LV_COLOR_FORMAT_ARGB8888` for full transparency between layers.
+`LV_OBJ_FLAG_OVERFLOW_VISIBLE`; the canvas is positioned at a negative-Y origin
+so its buffer coordinates map to absolute display coordinates. The buffer is
+`LV_COLOR_FORMAT_ARGB8888` so the widget background shows through.
 
 ---
 
@@ -410,18 +405,17 @@ single source of truth, no geometry re-derivation.
 
 ### What invalidates what
 
-State setters call `layered_mark_dirty(obj, static_dirty, overlay_dirty)`
+State setters call `layered_mark_dirty(obj)`
 (`src/ui/ui_filament_path_layers.cpp#layered_mark_dirty`):
 
 ```cpp
-void layered_mark_dirty(lv_obj_t* obj, bool static_dirty, bool overlay_dirty) {
+void layered_mark_dirty(lv_obj_t* obj) {
     auto* data = get_data(obj);
     if (data) {
-        if (static_dirty)  data->layers.static_dirty  = true;
-        if (overlay_dirty) data->layers.overlay_dirty = true;
-        if (overlay_dirty) data->path_cache.valid = false;  // force re-record
-        if (data->layers.static_canvas)
-            lv_async_call(layered_refresh_async, obj);       // deduped repaint
+        data->layers.overlay_dirty = true;
+        data->path_cache.valid = false;  // force re-record
+        if (data->layers.overlay_canvas)
+            data->layers.refresh_timer.schedule_once([obj]() { layered_refresh(obj); });
     }
     lv_obj_invalidate(obj);  // schedule the cheap DRAW_POST pass
 }
@@ -429,14 +423,14 @@ void layered_mark_dirty(lv_obj_t* obj, bool static_dirty, bool overlay_dirty) {
 
 | Trigger | Marks dirty | Effect |
 |---------|-------------|--------|
-| Topology / slot-count / theme / size change | static + overlay | Full canvas repaint (and buffer realloc if size changed) |
-| Filament color / segment / per-slot / active-slot / bypass / buffer change | overlay | Overlay canvas repaint; `path_cache` invalidated for re-record |
-| Animation tick (flow / heat / segment tip) | *(neither)* | `lv_obj_invalidate(obj)` only → DRAW_POST pass, no canvas work |
+| Topology / slot-count / theme / size change | overlay | Canvas repaint (and buffer realloc if size changed) |
+| Filament color / segment / per-slot / active-slot / bypass / buffer change | overlay | Canvas repaint; `path_cache` invalidated for re-record |
+| Animation tick (flow / heat / segment tip) | *(nothing)* | `lv_obj_invalidate(obj)` only → DRAW_POST pass, no canvas work |
 
-`layered_refresh_async()` runs outside the render phase: it early-returns until
-the widget has a real size (`w>0 && h>0`), reallocates buffers on size change
-(`layered_ensure_buffers()`), repaints only the dirty layers, then clears the
-flags. A `SIZE_CHANGED` event (`layered_size_changed_cb()`) re-marks both layers
+`layered_refresh()` runs outside the render phase: it early-returns until
+the widget has a real size (`w>0 && h>0`), reallocates the buffer on size change
+(`layered_ensure_buffers()`), repaints the canvas if dirty, then clears the
+flag. A `SIZE_CHANGED` event (`layered_size_changed_cb()`) re-marks the canvas
 dirty and reschedules — critical because the create-time refresh can run before
 layout has given the widget a size.
 
@@ -448,7 +442,7 @@ Five `lv_anim`-driven systems live in `ui_filament_path_anim.cpp` (segment
 transition, error pulse, heat pulse, flow, output-X slide). Each ticks
 `AnimState` and calls `lv_obj_invalidate(obj)`; the DRAW_POST handler
 (`render_animation_overlay()`) reads `AnimState` and paints on top of the cached
-canvases:
+canvas:
 
 - **Flow dots** — `path_point_at()` placing dots along the cached `path_cache`
   at an animated offset.
@@ -466,8 +460,7 @@ costs only the DRAW_POST repaint, not a topology re-render.
 
 **Add a setter / new state input.** Add the C setter in
 `ui_filament_path_canvas.h` / `.cpp`, store it in `FilamentPathData`, and call
-`layered_mark_dirty(obj, /*static*/false, /*overlay*/true)` (or both, if it
-changes layout). Setters that only affect animation should
+`layered_mark_dirty(obj)`. Setters that only affect animation should
 `lv_obj_invalidate(obj)` directly instead, to avoid a canvas repaint.
 
 **Add a new glyph.** Put the draw helper in `ui_filament_path_glyphs.cpp`, take

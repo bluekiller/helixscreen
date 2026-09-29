@@ -24,16 +24,15 @@
 
 namespace {
 
-// Find the overlay canvas child of the path-canvas widget. The widget creates
-// two lv_canvas children in order: [0] static topology, [1] state overlay.
-// MIXED draws all of its lanes/dots/hub/nozzles into the overlay canvas.
+// Find the overlay canvas child of the path-canvas widget. MIXED draws all of
+// its lanes/dots/hub/nozzles into the overlay canvas.
 lv_obj_t* overlay_canvas_of(lv_obj_t* widget) {
     lv_obj_t* last = nullptr;
     uint32_t n = lv_obj_get_child_count(widget);
     for (uint32_t i = 0; i < n; ++i) {
         lv_obj_t* c = lv_obj_get_child(widget, i);
         if (lv_obj_check_type(c, &lv_canvas_class))
-            last = c; // overlay is the second (last-created) canvas
+            last = c;
     }
     return last;
 }
