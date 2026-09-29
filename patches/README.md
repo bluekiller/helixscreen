@@ -193,7 +193,8 @@ regenerate correct patches. CI runners are fresh clones, so every workflow sets
 build steps — `scripts/check_workflow_submodules.py` fails a workflow that drops it.
 
 **Patch markers:** presence is checked separately from applicability. `mk/patch-markers.tsv`
-names, for every wired patch, one line it adds (or removes) that upstream never contained, and
+names, for every file each wired patch touches, one line it adds (or removes) there that
+upstream never contained, and
 `scripts/check_patch_markers.py` greps the checkout for each on every build, failing with the
 patch's name and its consequence when one is missing. The marker is a plain text search: it
 needs no git, so it holds in a docker build rsynced from a worktree where the submodules are
@@ -202,6 +203,8 @@ fail it the way an apply-check can. Three states fail loudly rather than pass va
 wired stanza with no row (new patch), a patch file whose hash no longer matches the table
 (changed patch), and a missing or reintroduced marker (missing patch). `make
 regen-patch-markers` reapplies from clean and rederives the table; run it whenever a patch
-changes. A patch qualifies for a marker with one added or removed line of at least 12
-characters that upstream does not contain and no other patch introduces — any real fix has
-one, and the generator refuses rather than leave a silent gap.
+changes. Per file, not per patch: a patch whose other files were reverted would otherwise
+pass on the one file that kept its change. Each file qualifies with one added or removed line
+of at least 12 characters that upstream does not contain and no other patch introduces —
+every file of every wired patch has one, and the generator refuses rather than leave a silent
+gap.
