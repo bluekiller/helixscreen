@@ -421,6 +421,47 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::UpdateQueue::instance().drain();
 }
 
+TEST_CASE_METHOD(LVGLUITestFixture, "prep time estimate line is hidden until an estimate exists",
+                 "[print_select][detail][xml]") {
+    // An empty string bound to the label still occupies a row in the layout,
+    // so the line hides itself through preprint_estimate_visible, the int
+    // twin update_prep_time_label() writes beside the string. Both states
+    // matter: a binding stuck in either direction shows a blank row at open or
+    // hides a real estimate.
+    register_xml_callbacks({
+        {"on_print_select_detail_backdrop", detail_noop_cb},
+        {"on_print_select_print_button", detail_noop_cb},
+        {"on_print_select_delete_button", detail_noop_cb},
+        {"on_print_detail_back_clicked", detail_noop_cb},
+    });
+
+    helix::ui::PrintSelectDetailView view;
+    view.init_subjects();
+    lv_obj_t* const root = view.create(test_screen());
+    REQUIRE(root != nullptr);
+
+    lv_obj_t* const line = lv_obj_find_by_name(root, "prep_time_estimate");
+    REQUIRE(line != nullptr);
+    lv_subject_t* const visible = lv_xml_get_subject(nullptr, "preprint_estimate_visible");
+    REQUIRE(visible != nullptr);
+
+    // No estimate at open: the default is 0 and the line is hidden.
+    CHECK(lv_subject_get_int(visible) == 0);
+    CHECK(lv_obj_has_flag(line, LV_OBJ_FLAG_HIDDEN));
+
+    lv_subject_set_int(visible, 1);
+    process_lvgl(20);
+    CHECK_FALSE(lv_obj_has_flag(line, LV_OBJ_FLAG_HIDDEN));
+
+    // Reactive in the other direction too, not a one-shot at build time.
+    lv_subject_set_int(visible, 0);
+    process_lvgl(20);
+    CHECK(lv_obj_has_flag(line, LV_OBJ_FLAG_HIDDEN));
+
+    view.hide();
+    helix::ui::UpdateQueue::instance().drain();
+}
+
 TEST_CASE_METHOD(LVGLUITestFixture, "History row lives in the metadata strip",
                  "[print_select][detail][xml]") {
     lv_obj_t* const root = make_detail_root(test_screen());

@@ -90,12 +90,13 @@ Items 3-5 never scroll. `history_status_row` leaves this column.
 
 ### Metadata strip at micro portrait
 
-At `ui_breakpoint eq 0 and ui_is_portrait eq 1` (272x480) the strip shows the filename and ONE
-stats line, `metadata_row_1` (print time, filament weight). `metadata_row_2`,
-`metadata_row_3` and `detail_history_wrap` are hidden at that size, each by one
-`bind_flag_if` on the container. Layer count drops with row 2; the approved mockup showed it on
-the stats line, but composing it there would mean a second label bound to the same subject for
-one size. Every other size keeps the full strip.
+The strip compacts to the filename and ONE stats line, `metadata_row_1` (print time, filament
+weight), at micro in BOTH orientations (`ui_breakpoint eq 0`) and in portrait at EVERY size
+(`ui_is_portrait eq 1`); the two conditions share one `bind_flag_if` per container.
+`metadata_row_2`, `metadata_row_3` and `detail_history_wrap` are hidden by it. Layer count
+drops with row 2; the approved mockup showed it on the stats line, but composing it there
+would mean a second label bound to the same subject for one size. Landscape above micro keeps
+the full strip.
 
 ### Portrait preview height
 

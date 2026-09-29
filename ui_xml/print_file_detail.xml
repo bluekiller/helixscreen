@@ -140,7 +140,7 @@
                    owns. At micro the strip is filename + one stats line, so
                    the history row is one of the three it drops. -->
               <lv_obj name="detail_history_wrap" width="100%" height="content" style_pad_all="0" scrollable="false">
-                <bind_flag_if cond="ui_breakpoint eq 0" flag="hidden"/>
+                <bind_flag_if cond="ui_breakpoint eq 0 or ui_is_portrait eq 1" flag="hidden"/>
                 <lv_obj name="history_status_row"
                         width="100%" height="content" flex_flow="row" style_pad_gap="#space_xs"
                         style_flex_cross_place="center" hidden="true">
@@ -177,7 +177,7 @@
                 <lv_obj name="metadata_row_2"
                         width="100%" height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs"
                         scrollable="false">
-                  <bind_flag_if cond="ui_breakpoint eq 0" flag="hidden"/>
+                  <bind_flag_if cond="ui_breakpoint eq 0 or ui_is_portrait eq 1" flag="hidden"/>
                   <lv_obj flex_grow="1"
                           style_pad_all="0" flex_flow="row" style_pad_gap="#space_xxs" style_flex_cross_place="center"
                           scrollable="false">
@@ -198,7 +198,7 @@
                 <lv_obj name="metadata_row_3"
                         width="100%" height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs"
                         scrollable="false">
-                  <bind_flag_if cond="ui_breakpoint eq 0" flag="hidden"/>
+                  <bind_flag_if cond="ui_breakpoint eq 0 or ui_is_portrait eq 1" flag="hidden"/>
                   <lv_obj flex_grow="1"
                           style_pad_all="0" flex_flow="row" style_pad_gap="#space_xxs" style_flex_cross_place="center"
                           scrollable="false">
@@ -430,10 +430,13 @@
             <icon src="chevron_down" size="sm" variant="secondary" align="bottom_mid" clickable="false"/>
           </lv_obj>
         </lv_obj>
-        <!-- Pre-print time estimate (bound to string subject) -->
+        <!-- Pre-print time estimate; hidden entirely while no estimate exists,
+             because an empty string still occupies a row. -->
         <text_small name="prep_time_estimate"
                     width="100%" bind_text="preprint_estimate_text" style_text_color="#text_muted"
-                    style_text_align="center" style_pad_bottom="#space_xs"/>
+                    style_text_align="center" style_pad_bottom="#space_xs">
+          <bind_flag_if_eq subject="preprint_estimate_visible" flag="hidden" ref_value="0"/>
+        </text_small>
 
         <!-- Button row -->
         <lv_obj name="button_row" width="100%" style_pad_all="0" style_pad_gap="#button_padding" flex_flow="row">

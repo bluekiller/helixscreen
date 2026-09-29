@@ -208,9 +208,12 @@ void PrintSelectDetailView::init_subjects() {
     // fade cue on this; update_options_more_below() is the only writer.
     UI_MANAGED_SUBJECT_INT(detail_options_more_below_, 0, "detail_options_more_below", subjects_);
 
-    // Pre-print time estimate (formatted string for bind_text)
+    // Pre-print time estimate (formatted string for bind_text); the int twin
+    // hides the whole line when no estimate exists, because an empty string
+    // still occupies a row in the layout.
     UI_MANAGED_SUBJECT_STRING(prep_time_estimate_subject_, prep_time_estimate_buf_, "",
                               "preprint_estimate_text", subjects_);
+    UI_MANAGED_SUBJECT_INT(preprint_estimate_visible_, 0, "preprint_estimate_visible", subjects_);
 
     // Re-color the preview live when a slot's loaded color/presence changes
     // (filament reloaded). Static singleton subject -> plain ObserverGuard, no
@@ -2408,6 +2411,7 @@ static void update_prep_time_label() {
 
     if (estimate_s <= 0) {
         lv_subject_copy_string(s_detail_view_instance->get_prep_time_estimate_subject(), "");
+        s_detail_view_instance->set_prep_estimate_visible(0);
         return;
     }
 
@@ -2424,6 +2428,7 @@ static void update_prep_time_label() {
         snprintf(buf, sizeof(buf), "~%d sec prep time", secs);
     }
     lv_subject_copy_string(s_detail_view_instance->get_prep_time_estimate_subject(), buf);
+    s_detail_view_instance->set_prep_estimate_visible(1);
 }
 
 // ============================================================================

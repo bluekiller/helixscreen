@@ -207,6 +207,30 @@ TEST_CASE_METHOD(LVGLUITestFixture,
             CHECK(r.y2 < c.h);
         }
 
+        // The metadata strip compacts in portrait at every size and at micro
+        // in both orientations: rows 2 and 3 and the history wrap fold away
+        // so the preview and the options own the column. Landscape above
+        // micro keeps the full strip. Read the same subjects the XML does.
+        {
+            lv_subject_t* const bp = lv_xml_get_subject(nullptr, "ui_breakpoint");
+            lv_subject_t* const portrait_sub = lv_xml_get_subject(nullptr, "ui_is_portrait");
+            REQUIRE(bp != nullptr);
+            REQUIRE(portrait_sub != nullptr);
+            const bool compact =
+                lv_subject_get_int(bp) == 0 || lv_subject_get_int(portrait_sub) == 1;
+            INFO("compact " << compact);
+            for (const char* name : {"metadata_row_2", "metadata_row_3", "detail_history_wrap"}) {
+                INFO(name);
+                lv_obj_t* const row = lv_obj_find_by_name(root, name);
+                REQUIRE(row != nullptr);
+                if (compact) {
+                    CHECK(lv_obj_has_flag(row, LV_OBJ_FLAG_HIDDEN));
+                } else {
+                    CHECK_FALSE(lv_obj_has_flag(row, LV_OBJ_FLAG_HIDDEN));
+                }
+            }
+        }
+
         // Labels wrap inside their tile; the check tab never covers one.
         for (uint32_t i = 0; i < tile_count; ++i) {
             INFO("tile " << i);

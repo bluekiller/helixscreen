@@ -575,6 +575,10 @@ class PrintSelectDetailView : public OverlayBase {
         return &prep_time_estimate_subject_;
     }
 
+    void set_prep_estimate_visible(int visible) {
+        lv_subject_set_int(&preprint_estimate_visible_, visible);
+    }
+
     // === Resize Handling ===
 
     /**
@@ -782,6 +786,7 @@ class PrintSelectDetailView : public OverlayBase {
     // print-start gate and the enriched pre-print modal. Empty until a file parses.
     helix::PreflightResult preflight_result_{};
     lv_subject_t prep_time_estimate_subject_{}; // formatted prep time string for bind_text
+    lv_subject_t preprint_estimate_visible_{};  // 1 while the estimate line has text
     char prep_time_estimate_buf_[64]{};         // buffer backing the string subject
     SubjectManager subjects_;                   // RAII manager for subject cleanup
     // Note: subjects_initialized_ inherited from OverlayBase
