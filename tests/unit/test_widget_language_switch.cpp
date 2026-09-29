@@ -99,6 +99,12 @@ TEST_CASE_METHOD(LanguageSwitchFixture,
     ScopedRuntimeConfig runtime_config;
     get_runtime_config()->test_mode = true;
 
+    // A backend an earlier case synced and then dropped leaves its clog meter
+    // text in AmsState, and with no backend left the refresh has nothing to
+    // resync it from, so the sweep starts from fresh AMS subjects.
+    AmsState::instance().deinit_subjects();
+    AmsState::instance().init_subjects(true);
+
     PanelWidgetManager::instance().init_widget_subjects();
     seed_two_hotends(state());
     // The app re-renders printer-layer text through this on every switch.
