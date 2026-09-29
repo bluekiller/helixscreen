@@ -26,6 +26,10 @@
  *    the same path PanelWidgetManager uses — sized to its authored minimum on
  *    each shipping geometry, and measured.
  *
+ * A growth pass renders every self-sizing tile again at two cells square, where
+ * a scaled-up glyph or face can spill instead, and pins that a tile given more
+ * than a cell on a small panel draws a larger glyph than at one cell.
+ *
  * The sweep asserts against kKnownClipping, an enumerated baseline of what
  * clips today. Fixing those is a per-widget judgement call (raise the authored
  * minimum, add a smaller layout branch, or accept the truncation) and is not
@@ -307,6 +311,43 @@ void seed_printer_topology(PrinterState& state) {
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 }
 
+struct Rendered {
+    bool built = false;
+    OverflowReport report;
+    int icon_rung = -1; ///< the tile's published rung; -1 for a widget that does not size itself
+};
+
+/// Build @p def through its registry factory, size it to @p c x @p r tracks of
+/// grid @p m with the arithmetic PanelWidgetManager applies (truncation
+/// included), and measure what spills.
+Rendered render_at(lv_obj_t* screen, const PanelWidgetDef& def, const CellMetrics& m, int c,
+                   int r) {
+    Rendered out;
+    {
+        RegistryWidgetHarness h(screen, def, &m);
+        if (!h.created()) {
+            return out;
+        }
+        out.built = true;
+        h.resize(c, r, static_cast<int>(grid_track_extent(m.cell_w, m.gutter, c)),
+                 static_cast<int>(grid_track_extent(m.cell_h, m.gutter, r)));
+        // Several widgets rebuild their content from an observer that fires
+        // through UpdateQueue rather than inline (observe_int_sync queues its
+        // handler), so measuring before the drain measures the pre-rebuild tree.
+        helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        lv_obj_update_layout(h.root());
+        out.report = collect_overflow(h.root(), exceptions());
+        if (lv_subject_t* rung =
+                lv_xml_get_subject(nullptr, (std::string(def.id) + "_tile_icon").c_str())) {
+            out.icon_rung = lv_subject_get_int(rung);
+        }
+    }
+    // Anything the widget queued on its way out must run while the objects it
+    // captured are still the most recent ones deleted.
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    return out;
+}
+
 } // namespace
 
 // ===========================================================================
@@ -577,32 +618,15 @@ TEST_CASE_METHOD(ContentFitsFixture,
                 continue;
             }
 
-            // Same arithmetic PanelWidgetManager applies before calling
-            // on_size_changed(), truncation included.
             const int w_px = static_cast<int>(grid_track_extent(m.cell_w, m.gutter, min_c));
             const int h_px = static_cast<int>(grid_track_extent(m.cell_h, m.gutter, min_r));
-
-            OverflowReport r;
-            {
-                RegistryWidgetHarness h(test_screen(), def, &m);
-                if (!h.created()) {
-                    spdlog::warn("[content_fits] {} @ {}: component would not build", def.id,
-                                 g.name);
-                    ++unbuildable;
-                    continue;
-                }
-                h.resize(min_c, min_r, w_px, h_px);
-                // Several widgets rebuild their content from an observer that
-                // fires through UpdateQueue rather than inline (observe_int_sync
-                // queues its handler), so measuring before the drain measures
-                // the pre-rebuild tree.
-                helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-                lv_obj_update_layout(h.root());
-                r = collect_overflow(h.root(), exceptions());
+            const Rendered rendered = render_at(test_screen(), def, m, min_c, min_r);
+            if (!rendered.built) {
+                spdlog::warn("[content_fits] {} @ {}: component would not build", def.id, g.name);
+                ++unbuildable;
+                continue;
             }
-            // Anything the widget queued on its way out must run while the
-            // objects it captured are still the most recent ones deleted.
-            helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+            const OverflowReport& r = rendered.report;
             ++checked;
 
             if (!r.clean()) {
@@ -668,4 +692,96 @@ TEST_CASE_METHOD(ContentFitsFixture,
         return s;
     }());
     CHECK(regressions.empty());
+}
+
+TEST_CASE_METHOD(ContentFitsFixture, "every icon tile renders its content grown to two cells",
+                 "[content_fits][growth]") {
+    // The sweep above measures the smallest span; a tile that scales its glyph
+    // and text up with its box can just as well spill when given room, so each
+    // one is rendered again at two cells square, capped by its own maximum and
+    // by the grid.
+    lv_display_t* disp = lv_display_get_default();
+    REQUIRE(disp != nullptr);
+    TestModeGuard test_mode_guard(get_runtime_config());
+    PanelWidgetManager::instance().init_widget_subjects();
+    require_font_tokens_distinct();
+    seed_printer_topology(state());
+
+    constexpr int kTwoCells = 2 * GridLayout::TRACKS_PER_CELL;
+    int checked = 0;
+    std::vector<std::string> spilled;
+    for (const auto& g : kShipping) {
+        ScopedResolution res(disp, g.panel_w, g.panel_h);
+        theme_manager_refresh_layout_constants(disp);
+        const UiBreakpoint bp = breakpoint_for(std::min(g.panel_w, g.panel_h));
+        const GridDimensions dims = GridLayout::get_dimensions(bp, g.content_w, g.content_h);
+        const CellMetrics m =
+            grid_cell_metrics(g.content_w, g.content_h, dims.cols, dims.rows, g.gutter);
+
+        for (const auto& def : get_all_widget_defs()) {
+            if (!def.factory) {
+                continue;
+            }
+            auto probe = def.factory(def.id);
+            if (!probe || !probe->tile_sizing()) {
+                continue; // only tiles that scale themselves
+            }
+            const int c = std::min({kTwoCells, def.effective_max_colspan(), dims.cols});
+            const int r = std::min({kTwoCells, def.effective_max_rowspan(), dims.rows});
+            const Rendered rendered = render_at(test_screen(), def, m, c, r);
+            REQUIRE(rendered.built);
+            ++checked;
+            if (!rendered.report.clean()) {
+                for (const auto& f : rendered.report.findings) {
+                    spilled.push_back(std::string(def.id) + " @ " + g.name + " " +
+                                      std::to_string(c) + "x" + std::to_string(r) + " [" +
+                                      overflow_kind_name(f.kind) + "] " + f.path + ": " + f.detail);
+                }
+            }
+        }
+    }
+
+    CHECK(checked > 0);
+    std::string joined;
+    for (const auto& s : spilled) {
+        joined += "\n  " + s;
+    }
+    INFO("tiles that spill when grown to two cells:" << joined);
+    CHECK(spilled.empty());
+}
+
+TEST_CASE_METHOD(ContentFitsFixture,
+                 "a one-cell action tile grows its glyph when given two cells on a small panel",
+                 "[content_fits][growth]") {
+    // At the tiny tier a one-cell tile keeps the rung the screen was designed
+    // with, and anything bigger has room that rung would leave empty.
+    lv_display_t* disp = lv_display_get_default();
+    REQUIRE(disp != nullptr);
+    TestModeGuard test_mode_guard(get_runtime_config());
+    PanelWidgetManager::instance().init_widget_subjects();
+    require_font_tokens_distinct();
+
+    const auto g = std::find_if(kShipping.begin(), kShipping.end(),
+                                [](const Geometry& x) { return std::string(x.name) == "480x320"; });
+    REQUIRE(g != kShipping.end());
+    ScopedResolution res(disp, g->panel_w, g->panel_h);
+    theme_manager_refresh_layout_constants(disp);
+    const UiBreakpoint bp = breakpoint_for(std::min(g->panel_w, g->panel_h));
+    REQUIRE(bp == UiBreakpoint::Tiny);
+    const GridDimensions dims = GridLayout::get_dimensions(bp, g->content_w, g->content_h);
+    const CellMetrics m =
+        grid_cell_metrics(g->content_w, g->content_h, dims.cols, dims.rows, g->gutter);
+
+    constexpr int kCell = GridLayout::TRACKS_PER_CELL;
+    // The tiles drawn by home_action_tile.
+    for (const char* id :
+         {"motion", "shutdown", "macros", "led_controls", "firmware_restart", "lock"}) {
+        const PanelWidgetDef* def = find_widget_def(id);
+        REQUIRE(def != nullptr);
+        const Rendered one = render_at(test_screen(), *def, m, kCell, kCell);
+        const Rendered two = render_at(test_screen(), *def, m, 2 * kCell, 2 * kCell);
+        INFO(id << ": rung " << one.icon_rung << " at one cell, " << two.icon_rung << " at two");
+        REQUIRE(one.icon_rung >= 0);
+        CHECK(two.icon_rung > one.icon_rung);
+    }
 }
