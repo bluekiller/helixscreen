@@ -288,3 +288,4 @@ src/printer/k2_stock_detection_source.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_permissions.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_manifest.cpp  # not in the v1 Core+AMS cut
 src/plugin/lua_runtime.cpp  # not in the v1 Core+AMS cut
+src/plugin/plugin_backend_app.cpp  # not in the v1 Core+AMS cut
