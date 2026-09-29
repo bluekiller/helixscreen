@@ -123,6 +123,8 @@ json& storage_of(lua_State* L) {
 
 int storage_get(lua_State* L) {
     require_permission(L, Permission::Storage, "helix.storage.get");
+    if (context(L).storage_path.empty())
+        return luaL_error(L, "helix.storage: no storage path for this plugin");
     std::string key = luaL_checkstring(L, 1);
     const json& s = storage_of(L);
     auto it = s.find(key);
@@ -135,6 +137,8 @@ int storage_get(lua_State* L) {
 
 int storage_set(lua_State* L) {
     require_permission(L, Permission::Storage, "helix.storage.set");
+    if (context(L).storage_path.empty())
+        return luaL_error(L, "helix.storage: no storage path for this plugin");
     std::string key = luaL_checkstring(L, 1);
     json value = to_json(L, 2);
     json next = storage_of(L);
@@ -153,6 +157,10 @@ int storage_set(lua_State* L) {
     {
         std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
         out << text;
+        out.flush();
+        out.close();
+        // close() flushes what the destructor would; only a fully landed tmp may replace
+        // the good file.
         if (!out)
             return luaL_error(L, "helix.storage.set: cannot write %s", tmp.c_str());
     }
@@ -228,7 +236,11 @@ bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& 
     ctx.save_settings();
     auto& handlers = io_state(ctx.rt.state()).on_change;
     if (auto it = handlers.find(key); it != handlers.end()) {
-        for (int ref : it->second) {
+        // A handler may register another handler for this key mid-notification, which
+        // reallocates the vector this loop would otherwise read. A handler registered
+        // during a change is first called on the next one.
+        std::vector<int> refs = it->second;
+        for (int ref : refs) {
             ctx.rt.invoke(ref, [value](lua_State* co) {
                 push_json(co, value);
                 return 1;

@@ -139,4 +139,30 @@ TEST_CASE_METHOD(LVGLTestFixture, "set_plugin_setting validates, saves and notif
     CHECK(b.saves == 1);
 }
 
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "a handler registered during on_change is not called for that change",
+                 "[plugin][bindings][io]") {
+    BoundRuntime b({&install_io_bindings}, {}, {step_decl()});
+    REQUIRE(b.t.run(R"(
+        log = ""
+        helix.settings.on_change("step", function(v)
+            log = log .. "a"
+            helix.settings.on_change("step", function(w) log = log .. "b" end)
+        end)
+    )"));
+    CHECK(set_plugin_setting(*b.ctx, "step", 9));
+    CHECK(b.t.global("log") == "a");
+    CHECK(set_plugin_setting(*b.ctx, "step", 10));
+    // A runs for both changes (registering B each time); B first fires on the change
+    // AFTER the one that registered it.
+    CHECK(b.t.global("log") == "aab");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "storage without a plugin storage path raises",
+                 "[plugin][bindings][io]") {
+    BoundRuntime b({&install_io_bindings}, {Permission::Storage});
+    CHECK_FALSE(b.t.run(R"(helix.storage.get("x"))"));
+    CHECK_FALSE(b.t.run(R"(helix.storage.set("x", 1))"));
+}
+
 #endif // HELIX_HAS_PLUGINS
