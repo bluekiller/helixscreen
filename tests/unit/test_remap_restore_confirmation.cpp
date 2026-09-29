@@ -71,6 +71,9 @@ class CountingAfcBackend : public AmsBackendAfc {
 
     AmsError set_tool_mapping_impl(int tool_number, int slot_index) override {
         calls.push_back({tool_number, slot_index});
+        if (refuse_past_check) {
+            return AmsErrorHelper::not_supported("write failed after the checks");
+        }
         return can_set_tool_mapping(tool_number, slot_index);
     }
 
@@ -118,6 +121,8 @@ class CountingAfcBackend : public AmsBackendAfc {
     std::vector<int> current;
     bool refuse_remaps = false;
     int reported_slots = -1; ///< lanes past this are refused, as a detached unit's are
+    /// Refuse after can_set_tool_mapping() passes, as an AD5X write_ifs_var failure does.
+    bool refuse_past_check = false;
     bool echoes_firmware = false;
     uint64_t generation = 0;
 };
@@ -332,6 +337,29 @@ TEST_CASE("remap restore: a new print's snapshot disarms the retained retry",
     CHECK(be.backend->calls.size() == 3);
     CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller) == std::vector<int>{1, 2});
     h.controller.set_detail_view(nullptr);
+}
+
+TEST_CASE("remap restore: a refusal past the backend's checks is not retried per tick",
+          "[remap-restore][1684]") {
+    LVGLTestFixture fx;
+    ConfigDirGuard config_dir{"remap_retry_past_check"};
+    ScopedCountingBackend be{{1, 2}};
+    be.backend->reported_slots = 4;
+    be.backend->refuse_past_check = true;
+    Harness h;
+    h.set_klippy(KlippyState::READY);
+
+    PrintStartControllerTestAccess::seed_saved_mapping(h.controller, {2, 2}, 0);
+    PrintStartControllerTestAccess::restore(h.controller);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(be.backend->calls.size() == 1);
+
+    // can_set_tool_mapping() passes, so a retry would fire and fail on every
+    // tick. The record stays for startup instead.
+    Harness::ams_data_tick();
+    Harness::ams_data_tick();
+    CHECK(be.backend->calls.size() == 1);
+    CHECK_FALSE(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
 }
 
 namespace {
