@@ -24,6 +24,7 @@
 #include "panel_widget.h"
 #include "panel_widget_registry.h"
 #include "settings_manager.h"
+#include "src/ui/panel_widgets/led_widget.h"
 #include "src/ui/panel_widgets/tile_sizing.h"
 #include "system_settings_manager.h"
 #include "theme_manager.h"
@@ -809,4 +810,54 @@ TEST_CASE("a tile measures its label in the language it draws", "[widget_size][t
     REQUIRE(en_first > 0);
     REQUIRE(de_first > 0);
     CHECK(de_first > en_first);
+}
+
+TEST_CASE("a wide light tile reserves the chevron zone it draws", "[widget_size][tile][led]") {
+    // The › zone is at least #button_height wide, and wider when its glyph is,
+    // so the bulb must be measured in what that zone actually leaves.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    const auto* def = find_widget_def("led");
+    REQUIRE(def != nullptr);
+    auto instance = def->factory("led");
+    REQUIRE(instance != nullptr);
+    lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+        fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+    REQUIRE(root != nullptr);
+    lv_obj_t* button = lv_obj_find_by_name(root, "light_button");
+    lv_obj_t* bulb = lv_obj_find_by_name(root, "light_icon");
+    REQUIRE(button != nullptr);
+    REQUIRE(bulb != nullptr);
+
+    int checked = 0;
+    for (int w = 120; w <= 320; w += 4) {
+        for (int h : {110, 150, 200}) {
+            lv_obj_set_size(root, w, h);
+            instance->notify_size_changed(4, 4, w, h);
+            lv_obj_update_layout(root);
+            lv_area_t b, g;
+            lv_obj_get_coords(button, &b);
+            lv_obj_get_coords(bulb, &g);
+            INFO(w << "x" << h << ": bulb " << g.x1 << ".." << g.x2 << " in button " << b.x1 << ".."
+                   << b.x2);
+            CHECK(g.x1 >= b.x1);
+            CHECK(g.x2 <= b.x2);
+            ++checked;
+        }
+    }
+    CHECK(checked > 0);
+
+    // At the bulb's top rung the chevron draws one rung under it, the widest it
+    // gets; the width reserved for the zone must cover what it draws there.
+    lv_obj_t* zone = lv_obj_find_by_name(root, "light_more_button");
+    REQUIRE(zone != nullptr);
+    lv_obj_set_size(root, 420, 420);
+    instance->notify_size_changed(8, 8, 420, 420);
+    lv_obj_update_layout(root);
+    REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "led_tile_icon")) ==
+            helix::kTileRungs - 1);
+    INFO("zone draws " << lv_obj_get_width(zone) << "px, reserve "
+                       << helix::light_chevron_reserve_px());
+    CHECK(lv_obj_get_width(zone) <= helix::light_chevron_reserve_px());
+    lv_obj_delete(root);
 }

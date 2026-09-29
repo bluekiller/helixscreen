@@ -107,6 +107,10 @@ class TileSizing {
         return const_cast<const char**>(attrs_.data());
     }
 
+    /// One whole cell on this grid, in px: the live track geometry when the
+    /// grid has reported it, the tier's nominal cell until then.
+    int whole_cell_px() const;
+
     /// Pass one more subject name to this tile's component, as prop @p prop.
     /// Call from the widget's constructor, before the component is parsed.
     void add_subject_attr(const char* prop, const std::string& subject_name);
@@ -128,9 +132,6 @@ class TileSizing {
     /// Re-measure at the last box whenever show_widget_labels moves, since the
     /// label's presence is part of the measurement.
     void follow_label_setting();
-    /// One whole cell on this grid, in px: the live track geometry when the
-    /// grid has reported it, the tier's nominal cell until then.
-    int whole_cell_px() const;
 
     std::string icon_name_;
     std::string label_name_;
