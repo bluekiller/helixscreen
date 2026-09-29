@@ -226,7 +226,7 @@ FBDEV_LDFLAGS := $(filter-out -ldrm -linput -lEGL -lGLESv2 -lgbm,$(LDFLAGS))
 # linenoise, and all three of its jobs died here on 11 undefined references.
 $(FBDEV_TARGET): $(APP_C_OBJS) $(FBDEV_APP_OBJS) $(FBDEV_GLES_VARIANT_OBJS) $(FBDEV_CRASH_OBJ) \
                  $(FBDEV_LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LV_MARKDOWN_OBJS) \
-                 $(QUIRC_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(REMOTE_LINENOISE_OBJ) \
+                 $(QUIRC_OBJS) $(LUA_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(REMOTE_LINENOISE_OBJ) \
                  $(DISPLAY_LIB_FBDEV) $(WPA_DEPS) \
                  | $(TARGET)
 	$(Q)mkdir -p $(dir $@)

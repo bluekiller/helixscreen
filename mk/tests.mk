@@ -1044,6 +1044,7 @@ $(TEST_BIN): $(TEST_CORE_DEPS) \
              $(MOCK_OBJS) \
              $(LV_MARKDOWN_OBJS) \
              $(QUIRC_OBJS) \
+             $(LUA_OBJS) \
              $(FONT_OBJS) \
              $(TRANS_OBJS) \
              $(OBJCPP_OBJS) \
