@@ -39,6 +39,9 @@ class TileSizing {
         std::string widest_current; ///< widest current half alone
         std::string label;
         bool has_value = false;
+        /// Text drawn beside the glyph in #font_body_bold at every rung, such
+        /// as a tool digit. It widens the glyph's box rather than scaling.
+        std::string icon_badge;
     };
 
     explicit TileSizing(const std::string& instance_id);

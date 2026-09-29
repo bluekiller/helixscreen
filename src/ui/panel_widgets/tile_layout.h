@@ -94,9 +94,12 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
 /**
  * @brief Pick the rung, direction and content a tile can draw at this size
  *
- * Content is surrendered in a fixed order, and only when nothing at any rung
- * can keep it: the target half first, then the label. Within each step the
- * largest rung that fits wins, so a tile grows its glyph rather than its text.
+ * Down to @p authored_rung, content is surrendered in a fixed order and only
+ * when nothing at those rungs can keep it: the target half first, then the
+ * label. Within each step the largest rung that fits wins, so a roomy tile
+ * grows its glyph and keeps its text. Below the authored rung the glyph is what
+ * gives way last: a tile drops its text before it shrinks the icon every other
+ * tile draws at, and only a box that cannot hold that icon at all shrinks it.
  * Column is preferred and Row is the fallback for a box too short to stack, so
  * direction follows fit rather than aspect ratio.
  *
@@ -111,10 +114,11 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
  * @param rungs          measured metrics, one per rung, smallest first
  * @param has_value      false for a tile that shows only an icon and a label
  * @param labels_enabled the user setting; size may hide a label, never show one
+ * @param authored_rung  the rung the tier draws a tile's icon at by default
  */
 inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
                                       const TileRungMetrics rungs[kTileRungs], bool has_value,
-                                      bool labels_enabled) {
+                                      bool labels_enabled, int authored_rung = 0) {
     using detail::TileCandidate;
 
     // Ordered by what the tile gives up, most complete first. A tile that has
@@ -126,19 +130,36 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
     const int candidate_count = labels_enabled ? 3 : 2;
 
     const TileDirection directions[] = {TileDirection::Column, TileDirection::Row};
+    const int floor_rung = std::clamp(authored_rung, 0, kTileRungs - 1);
 
+    auto verdict_for = [&](int r, int c, TileDirection dir) {
+        TileVerdict v;
+        v.icon_rung = r;
+        v.label = candidates[c].label ? TileLabelRung::Label : TileLabelRung::None;
+        v.direction = dir;
+        v.show_target = has_value && candidates[c].target;
+        v.fits = true;
+        return v;
+    };
+
+    // At or above the authored rung: keep content, grow the glyph into room.
     for (int c = 0; c < candidate_count; ++c) {
         for (TileDirection dir : directions) {
-            for (int r = kTileRungs - 1; r >= 0; --r) {
+            for (int r = kTileRungs - 1; r >= floor_rung; --r) {
                 if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value, avail_w,
                                                 avail_h, gap_px)) {
-                    TileVerdict v;
-                    v.icon_rung = r;
-                    v.label = candidates[c].label ? TileLabelRung::Label : TileLabelRung::None;
-                    v.direction = dir;
-                    v.show_target = has_value && candidates[c].target;
-                    v.fits = true;
-                    return v;
+                    return verdict_for(r, c, dir);
+                }
+            }
+        }
+    }
+    // Below it: the glyph shrinks one rung at a time, keeping what content fits.
+    for (int r = floor_rung - 1; r >= 0; --r) {
+        for (int c = 0; c < candidate_count; ++c) {
+            for (TileDirection dir : directions) {
+                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value, avail_w,
+                                                avail_h, gap_px)) {
+                    return verdict_for(r, c, dir);
                 }
             }
         }

@@ -171,3 +171,25 @@ TEST_CASE("a box nothing fits in still stacks along its long axis", "[tile][layo
     CHECK_FALSE(wide.fits);
     CHECK(wide.direction == TileDirection::Row);
 }
+
+TEST_CASE("a tile gives up text before shrinking its glyph below the authored rung",
+          "[tile][layout][1559]") {
+    // 80x108: rung 3 needs 85px of width for the target half, so keeping the
+    // target means dropping to rung 2. Dropping the target keeps rung 3.
+    const TileVerdict authored_lg = decide_tile_layout(80, 108, kGap, kMedium, true, true, 3);
+    CHECK(authored_lg.fits);
+    CHECK(authored_lg.icon_rung == 3);
+    CHECK_FALSE(authored_lg.show_target);
+    CHECK(authored_lg.label == TileLabelRung::Label);
+
+    // Below the authored rung, content is what is kept: with no authored rung
+    // to protect, the target survives at the smaller glyph.
+    const TileVerdict no_floor = decide_tile_layout(80, 108, kGap, kMedium, true, true, 0);
+    CHECK(no_floor.icon_rung == 2);
+    CHECK(no_floor.show_target);
+
+    // A box that cannot hold the authored glyph at all still shrinks it.
+    const TileVerdict tight = decide_tile_layout(40, 40, kGap, kMedium, true, false, 3);
+    CHECK(tight.fits);
+    CHECK(tight.icon_rung < 3);
+}

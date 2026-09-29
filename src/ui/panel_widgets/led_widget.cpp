@@ -164,8 +164,12 @@ std::string LedWidget::overlay_device() const {
 
 void LedWidget::on_size_changed(int colspan, int rowspan, int width_px, int height_px) {
     (void)rowspan;
-    sizing_.measure_and_publish(width_px, height_px);
-    lv_subject_set_int(&wide_subject_, light_tile_is_wide(colspan) ? 1 : 0);
+    // A wide tile gives at least #button_height of its width to the › zone, so
+    // the bulb and its name draw in what is left.
+    const bool wide = light_tile_is_wide(colspan);
+    const int chevron_w = wide ? theme_manager_get_spacing("button_height") : 0;
+    sizing_.measure_and_publish(width_px - chevron_w, height_px);
+    lv_subject_set_int(&wide_subject_, wide ? 1 : 0);
 }
 
 void LedWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {

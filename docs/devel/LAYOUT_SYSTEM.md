@@ -672,15 +672,17 @@ centred-icon tiles - the three heater tiles, `network`, `led`, `filament`, `fan`
 of cells - `humidity`, `width_sensor`, `control_buttons` - where the intermediate size
 buys whitespace and nothing else, and costs a drag snap twice as fussy on a 34px track.
 
-**A tile's floor is half a cell wide and a whole cell tall.** Height carries the glyph, its
-reading and its label stacked, and no measurement recovers a 31px stack, so the row floor
-is a whole cell for every widget. Width is different: a tile that measures itself can be
-narrower than a cell, because it can refuse a box it cannot draw. It says so through
+**A tile's floor is half a cell on both axes.** A tile that measures itself can be smaller
+than a cell, because it can refuse a box it cannot draw. It says so through
 `PanelWidget::fits_at()`, and `helix::grow_span_to_fit()` (`include/grid_layout.h`) lifts
 the span back above the floor - the same refusal path the resize clamp and the anchored
-load path both take, so those two cannot disagree. Auto-placement seats a widget at its
-authored default without asking, which is safe only because every definition holds that
-default at or above its own minimum.
+load path both take, so those two cannot disagree. A box too short to stack the glyph over
+its reading and label lays them side by side instead (`decide_tile_layout()` answers
+`TileDirection::Row`, and the tile binds `styles.tile_row`), so a whole cell wide by half a
+cell tall is a real size, not a clipped one. Auto-placement seats a widget at its authored
+default without asking, which is safe only because every definition holds that default at
+or above its own minimum. A widget authored around whole cells keeps a whole-cell floor on
+both axes.
 
 Half a cell is declined outright at the micro and tiny tiers, where a track is 31-40px and
 the glyph already fills it, and a tile of one cell or less is capped to the authored face

@@ -1722,6 +1722,9 @@
         "size_target_subject": {
           "type": "string"
         },
+        "rung_subject": {
+          "type": "string"
+        },
         "bind_current": {
           "type": "string"
         },

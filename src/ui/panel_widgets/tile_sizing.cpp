@@ -77,6 +77,15 @@ TileSizing::~TileSizing() {
 }
 
 TileVerdict TileSizing::decide(int width_px, int height_px) const {
+    int badge_w = 0;
+    int badge_h = 0;
+    if (!content_.icon_badge.empty()) {
+        const lv_font_t* badge_face = theme_manager_get_font("font_body_bold");
+        badge_w = ui::text_width(content_.icon_badge.c_str(), badge_face) +
+                  theme_manager_get_spacing("space_xxs");
+        badge_h = line_height_of(badge_face);
+    }
+
     TileRungMetrics rungs[kTileRungs];
     for (int r = 0; r < kTileRungs; ++r) {
         const lv_font_t* icon_face =
@@ -86,8 +95,8 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
         const lv_font_t* label_face =
             theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Label, r));
 
-        rungs[r].icon_w = ui::text_width(kIconGlyph, icon_face);
-        rungs[r].icon_h = line_height_of(icon_face);
+        rungs[r].icon_w = ui::text_width(kIconGlyph, icon_face) + badge_w;
+        rungs[r].icon_h = std::max(line_height_of(icon_face), badge_h);
         rungs[r].value_full_w = ui::text_width(content_.widest_value.c_str(), value_face);
         rungs[r].value_current_w = ui::text_width(content_.widest_current.c_str(), value_face);
         rungs[r].value_h = line_height_of(value_face);
@@ -98,8 +107,9 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     const int gap = theme_manager_get_spacing("space_xs");
 
     // The chrome between the tile's outer box and the box its content draws in:
-    // the padding of every container between them, and the flex gap each one
-    // puts between its children.
+    // the padding of every container between them, and the flex gap of the one
+    // that holds the content. A container with a single child draws no gap, so
+    // its gap is not chrome.
     // Measured from the tree wherever there is one, because container padding
     // is a theme value that varies by widget and by breakpoint; a constant
     // guess is either too small, and the glyph spills out of its container, or
@@ -116,12 +126,12 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     if (content_root_) {
         for (lv_obj_t* o = content_root_; o != nullptr; o = lv_obj_get_child(o, 0)) {
             chrome_w += static_cast<int>(lv_obj_get_style_pad_left(o, LV_PART_MAIN)) +
-                        static_cast<int>(lv_obj_get_style_pad_right(o, LV_PART_MAIN)) +
-                        static_cast<int>(lv_obj_get_style_pad_column(o, LV_PART_MAIN));
+                        static_cast<int>(lv_obj_get_style_pad_right(o, LV_PART_MAIN));
             chrome_h += static_cast<int>(lv_obj_get_style_pad_top(o, LV_PART_MAIN)) +
-                        static_cast<int>(lv_obj_get_style_pad_bottom(o, LV_PART_MAIN)) +
-                        static_cast<int>(lv_obj_get_style_pad_row(o, LV_PART_MAIN));
+                        static_cast<int>(lv_obj_get_style_pad_bottom(o, LV_PART_MAIN));
             if (lv_obj_get_child_count(o) != 1) {
+                chrome_w += static_cast<int>(lv_obj_get_style_pad_column(o, LV_PART_MAIN));
+                chrome_h += static_cast<int>(lv_obj_get_style_pad_row(o, LV_PART_MAIN));
                 break; // past the single-child chrome and into the content
             }
         }
@@ -131,7 +141,7 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     const int avail_h = std::max(height_px - chrome_h, 1);
 
     TileVerdict verdict = decide_tile_layout(avail_w, avail_h, gap, rungs, content_.has_value,
-                                             !content_.label.empty());
+                                             !content_.label.empty(), authored_rung());
 
     // At micro and tiny a whole cell is barely wider than the glyph itself, so
     // a tile of one cell or less keeps the authored rung those screens were

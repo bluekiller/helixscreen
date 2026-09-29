@@ -531,6 +531,7 @@ TEST_CASE("PanelWidgetDef: a sub-cell floor belongs only to a widget that can de
     // enough to lose its stack lays its glyph beside its text instead.
     constexpr int cell = GridLayout::TRACKS_PER_CELL;
     int sub_cell_cols = 0;
+    int sub_cell_rows = 0;
     // The factories are filled in by registration, not by the static table.
     helix::init_widget_registrations();
     for (const auto& def : helix::get_all_widget_defs()) {
@@ -546,6 +547,7 @@ TEST_CASE("PanelWidgetDef: a sub-cell floor belongs only to a widget that can de
             CHECK(def.supports_half_col);
         }
         if (short_) {
+            ++sub_cell_rows;
             CHECK(def.supports_half_row);
         }
         // ...and be able to refuse one.
@@ -567,6 +569,8 @@ TEST_CASE("PanelWidgetDef: a sub-cell floor belongs only to a widget that can de
     // having checked none of this.
     INFO("widgets authored below a whole cell wide");
     CHECK(sub_cell_cols > 0);
+    INFO("widgets authored below a whole cell tall");
+    CHECK(sub_cell_rows > 0);
 }
 
 TEST_CASE("PanelWidgetDef: half-cell defaults to off", "[widget_def][half_cell]") {

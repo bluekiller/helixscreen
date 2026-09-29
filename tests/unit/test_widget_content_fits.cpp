@@ -184,14 +184,9 @@ const std::vector<KnownClip> kKnownClipping = {
     {"control_buttons",  "1080x2400"},
 
     // Whole-widget: does not fit at its minimum on any shipping panel.
-    {"clog_detection",   "*"},
-    {"lock",             "*"},
     {"preheat",          "*"},
     {"print_status",     "*"},
     {"printer_image",    "*"},
-    {"shutdown",         "*"},
-    {"temp_stack",       "*"},
-    {"temperature",      "*"},
 
     // Geometry-specific.
     {"active_spool",     "1024x600"}, {"active_spool",     "272x480"},
@@ -216,10 +211,6 @@ const std::vector<KnownClip> kKnownClipping = {
     {"control_buttons",  "480x800"},  {"control_buttons",  "800x480"},
 
     {"favorite_macro",   "272x480"},  {"favorite_macro",   "480x272"},
-
-    // Not the badge any more (that was ui_button padding, now zeroed) — the
-    // "Restart" caption below it, 1px, on the two smallest panels only.
-    {"firmware_restart", "272x480"},  {"firmware_restart", "480x272"},
 
     // Below the ladder's floor: at the authored minimum tile these
     // geometries cannot hold the stack (the two smallest panels are narrower
@@ -556,6 +547,13 @@ TEST_CASE_METHOD(ContentFitsFixture,
             if (def.factory) {
                 auto probe = def.factory(def.id);
                 if (probe) {
+                    // PanelWidgetManager hands every tile the live tracks before
+                    // it asks fits_at; the nominal tier cell is larger than the
+                    // track some panels build, and would refuse a span the
+                    // runtime accepts.
+                    if (TileSizing* sizing = probe->tile_sizing()) {
+                        sizing->set_cell_metrics(m);
+                    }
                     const auto [fit_c, fit_r] = grow_span_to_fit(
                         [&probe](int w, int h) { return probe->fits_at(w, h); }, min_c, min_r,
                         def.effective_max_colspan(), def.effective_max_rowspan(),

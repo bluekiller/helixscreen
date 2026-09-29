@@ -26,7 +26,7 @@ struct TileContentRow {
 };
 
 constexpr TileContentRow kPureXmlTiles[] = {
-    {"notifications", "", "", "Notifications", false},
+    {"notifications", "", "", "Alerts", false},
     {"firmware_restart", "", "", "Restart", false},
 };
 
