@@ -753,7 +753,10 @@ bool PrintStartController::apply_filament_remaps() {
         return false;
     }
 
-    // Snapshot current firmware mapping BEFORE sending any remaps
+    // Snapshot current firmware mapping BEFORE sending any remaps. This print's
+    // snapshot replaces a retained one, and a retry still armed for that one
+    // would replay it over the remaps sent below.
+    backend_retry_observer_.reset();
     saved_tool_mapping_ = backend->get_tool_mapping();
     saved_backend_index_ = backend_idx;
 

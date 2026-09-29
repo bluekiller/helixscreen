@@ -17,6 +17,7 @@
  * print, which is exactly when restore runs — so this was not a rare path.
  */
 
+#include "ui_print_select_detail_view.h"
 #include "ui_print_start_controller.h"
 #include "ui_update_queue.h"
 
@@ -293,6 +294,44 @@ TEST_CASE("remap restore: a refused record retries once the backend accepts it",
         CHECK(be.backend->calls.size() == 4);
         CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
     }
+}
+
+TEST_CASE("remap restore: a new print's snapshot disarms the retained retry",
+          "[remap-restore][1684]") {
+    LVGLTestFixture fx;
+    ConfigDirGuard config_dir{"remap_retry_new_print"};
+    ScopedCountingBackend be{{1, 2}};
+    be.backend->reported_slots = 2;
+    Harness h;
+    h.set_klippy(KlippyState::READY);
+
+    // Print A's restore is refused, and its retry is armed.
+    PrintStartControllerTestAccess::seed_saved_mapping(h.controller, {2, 1}, 0);
+    PrintStartControllerTestAccess::restore(h.controller);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(be.backend->calls.size() == 2);
+
+    // Print B starts with an explicit remap while the lanes are back, still at
+    // Idle: apply_filament_remaps runs before the print is prepared.
+    be.backend->reported_slots = 4;
+    helix::ui::PrintSelectDetailView view;
+    h.controller.set_detail_view(&view);
+    helix::ToolMapping remap;
+    remap.tool_index = 0;
+    remap.mapped_slot = 3;
+    remap.mapped_backend = 0;
+    view.set_filament_mappings({remap});
+    REQUIRE(PrintStartControllerTestAccess::apply_remaps(h.controller));
+    REQUIRE(be.backend->calls.size() == 3);
+    CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller) == std::vector<int>{1, 2});
+
+    // B's remap lands and bumps the data revision. A's snapshot is gone, and so
+    // is its retry: nothing may be sent over B's mapping.
+    be.backend->firmware_reports({3, 2});
+    Harness::ams_data_tick();
+    CHECK(be.backend->calls.size() == 3);
+    CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller) == std::vector<int>{1, 2});
+    h.controller.set_detail_view(nullptr);
 }
 
 namespace {
