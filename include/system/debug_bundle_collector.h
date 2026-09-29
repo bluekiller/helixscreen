@@ -115,7 +115,7 @@ class DebugBundleCollector {
     /// string through sanitize_value(). Pure, so both are testable against a
     /// synthetic snapshot.
     static nlohmann::json collect_system_info(const diagnostics::Diagnostics& diag,
-                                              const helix::diag::HostCensus& census = {});
+                                              const helix::diag::HostCensus& census);
 
     /**
      * @brief The resolved paths, identity, machine and log facts.

@@ -74,7 +74,11 @@ bool is_helix_line(const std::string& line) {
 
 } // namespace
 
-std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_view source_tag) {
+std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_view source_tag,
+                             int* exit_status) {
+    if (exit_status) {
+        *exit_status = -1;
+    }
     FILE* pipe = ::popen(cmd.c_str(), "r");
     if (!pipe) {
         spdlog::debug("[Logs] popen failed for {}: {}", source_tag, cmd);
@@ -99,6 +103,9 @@ std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_
     }
 
     int rc = ::pclose(pipe);
+    if (exit_status) {
+        *exit_status = rc;
+    }
     if (rc != 0) {
         spdlog::debug("[Logs] {} exited non-zero (rc={})", source_tag, rc);
     }

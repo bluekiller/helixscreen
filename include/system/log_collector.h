@@ -54,7 +54,9 @@ std::string tail_journal(int num_lines);
 
 /// Run @p cmd through popen and return its stdout, keeping the last
 /// @p max_lines lines. Append "2>/dev/null" to @p cmd to silence stderr.
-std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_view source_tag);
+/// @p exit_status, when given, receives pclose()'s status (-1 if popen failed).
+std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_view source_tag,
+                             int* exit_status = nullptr);
 
 /// Cascade: the app's own resolved log file (logging::effective_log_file_path)
 /// first, then the default file search (freshest wins), then syslog, then

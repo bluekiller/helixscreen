@@ -118,18 +118,50 @@ TEST_CASE("census_processes stops at its cap", "[bundle][1692]") {
     CHECK(helix::diag::census_processes((box.root / "proc").string(), 4).size() == 4);
 }
 
-TEST_CASE("collect_host_census degrades on a box with no systemctl", "[bundle][1692]") {
+TEST_CASE("collect_host_census reads the distro and leaves failed units unknown off-box",
+          "[bundle][1692]") {
     FakeRoot box;
     box.write("etc/os-release", "PRETTY_NAME=\"Tina Linux\"\n");
 
-    auto census = helix::diag::collect_host_census(box.root.string());
+    const auto census = helix::diag::collect_host_census(box.root.string());
     CHECK(census.os_pretty_name == "Tina Linux");
-    CHECK_FALSE(census.has_systemctl);
-    CHECK(census.failed_units.empty());
+    CHECK_FALSE(census.failed_units.has_value());
+}
 
+TEST_CASE("systemd_is_init needs the running-systemd marker, not just the binary",
+          "[bundle][1692]") {
+    FakeRoot box;
     box.write("usr/bin/systemctl", "");
-    census = helix::diag::collect_host_census(box.root.string());
-    CHECK(census.has_systemctl);
+    CHECK_FALSE(helix::diag::systemd_is_init(box.root.string()));
+
+    fs::create_directories(box.root / "run" / "systemd" / "system");
+    CHECK(helix::diag::systemd_is_init(box.root.string()));
+}
+
+TEST_CASE("failed_units_from treats a silent failure as no answer", "[bundle][1692]") {
+    CHECK_FALSE(helix::diag::failed_units_from(1, "").has_value());
+    CHECK_FALSE(helix::diag::failed_units_from(127 << 8, "").has_value());
+    REQUIRE(helix::diag::failed_units_from(0, "").has_value());
+    CHECK(helix::diag::failed_units_from(0, "")->empty());
+    CHECK(*helix::diag::failed_units_from(0, "a.service loaded failed failed A\n") ==
+          std::vector<std::string>{"a.service"});
+}
+
+TEST_CASE("census_processes skips an fd table it cannot read", "[bundle][1692]") {
+    FakeRoot box;
+    box.process(100, "/usr/bin/guppyscreen" + NUL, {"/dev/fb0"});
+    box.process(200, "/usr/bin/weston" + NUL, {"/dev/dri/card0"});
+    const fs::path locked = box.root / "proc" / "100" / "fd";
+    fs::permissions(locked, fs::perms::none);
+
+    const auto procs = helix::diag::census_processes((box.root / "proc").string(), 32);
+    fs::permissions(locked, fs::perms::owner_all);
+
+    // The unreadable table costs that process its holder evidence, nothing else.
+    REQUIRE(box.find(procs, 100) != nullptr);
+    CHECK(box.find(procs, 100)->reasons.front() == "competing_ui:guppyscreen");
+    REQUIRE(box.find(procs, 200) != nullptr);
+    CHECK(box.find(procs, 200)->reasons == std::vector<std::string>{"/dev/dri/card0"});
 }
 
 TEST_CASE("competing_ui_names matches the installer's COMPETING_UIS", "[bundle][1692]") {

@@ -139,8 +139,7 @@ TEST_CASE("The host census ships process names, never their arguments",
           "[debug-bundle][security][1692]") {
     helix::diag::HostCensus census;
     census.os_pretty_name = "Vendor Linux built by builder@example.com";
-    census.has_systemctl = true;
-    census.failed_units = {"lightdm.service"};
+    census.failed_units = std::vector<std::string>{"lightdm.service"};
 
     const std::string serial = "SN-9f3e7ab21c";
     const auto root = std::filesystem::temp_directory_path() / "helix_census_no_secrets";
@@ -164,8 +163,8 @@ TEST_CASE("The host census ships process names, never their arguments",
     CHECK(sys.at("display_processes").at(0).at("name") == json("guppyscreen"));
     CHECK(sys.at("failed_units") == json::array({"lightdm.service"}));
 
-    SECTION("a box with no systemctl reports no failed-unit list at all") {
-        census.has_systemctl = false;
+    SECTION("a box where systemd gave no answer reports no failed-unit list at all") {
+        census.failed_units.reset();
         CHECK_FALSE(
             helix::DebugBundleCollector::collect_system_info({}, census).contains("failed_units"));
     }

@@ -340,9 +340,10 @@ std::vector<ProcMatch> read_process_table(const std::string& proc_root) {
     if (!fs::is_directory(proc_root, ec))
         return candidates;
 
-    for (const auto& entry : fs::directory_iterator(proc_root, ec)) {
-        if (ec)
-            break;
+    // increment(ec), never ++: a process exiting mid-walk makes the next readdir
+    // fail, and operator++ reports that by throwing filesystem_error.
+    for (fs::directory_iterator it(proc_root, ec), end; !ec && it != end; it.increment(ec)) {
+        const fs::directory_entry& entry = *it;
         const std::string name = entry.path().filename().string();
         if (name.empty() ||
             !std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isdigit(c); }))

@@ -378,11 +378,11 @@ json DebugBundleCollector::collect_system_info(const diagnostics::Diagnostics& d
     if (!census.os_pretty_name.empty()) {
         sys["os_pretty_name"] = sanitize_value(census.os_pretty_name);
     }
-    // Absent, not empty, where there is no systemctl: an empty list would claim
-    // nothing failed on a box that cannot say.
-    if (census.has_systemctl) {
+    // Absent, not empty, where systemd gave no answer: an empty list would
+    // claim nothing failed on a box that cannot say.
+    if (census.failed_units) {
         json units = json::array();
-        for (const auto& unit : census.failed_units) {
+        for (const auto& unit : *census.failed_units) {
             units.push_back(sanitize_value(unit));
         }
         sys["failed_units"] = std::move(units);

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -26,8 +27,9 @@ struct CensusProcess {
 
 struct HostCensus {
     std::string os_pretty_name; ///< /etc/os-release PRETTY_NAME, "" when absent
-    bool has_systemctl = false; ///< false on BusyBox/SysV boxes: failed_units is unknown
-    std::vector<std::string> failed_units;
+    /// Unset when unknown: no systemd, or systemctl gave no answer. Empty means
+    /// systemd said nothing failed.
+    std::optional<std::vector<std::string>> failed_units;
     std::vector<CensusProcess> processes;
 };
 
@@ -41,7 +43,17 @@ std::string os_release_pretty_name(const std::string& os_release);
 /// Unit names from `systemctl list-units --plain --no-legend` output.
 std::vector<std::string> parse_failed_units(const std::string& list_units_output);
 
-/// Competing UIs and /dev/fb* or /dev/dri/* holders under @p proc_root, at most @p cap.
+/// The failed-unit answer from one systemctl run: unset when it exited
+/// non-zero and printed nothing, since that is no answer at all.
+std::optional<std::vector<std::string>> failed_units_from(int exit_status,
+                                                          const std::string& output);
+
+/// True when systemd is the running init under @p root: a systemctl binary
+/// alone is not enough, since chroots, containers and SysV boxes ship one.
+bool systemd_is_init(const std::string& root);
+
+/// Competing UIs and /dev/fb* or /dev/dri/* holders under @p proc_root, at most
+/// @p cap. A process that vanishes mid-walk is skipped; nothing here throws.
 std::vector<CensusProcess> census_processes(const std::string& proc_root, size_t cap);
 
 /// The census of the machine under @p root ("" = this one). systemctl is only

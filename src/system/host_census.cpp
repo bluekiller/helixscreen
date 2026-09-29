@@ -7,6 +7,8 @@
 #include "system/moonraker_local_probe.h"
 #include "text_io.h"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <filesystem>
 #include <sstream>
@@ -27,6 +29,37 @@ bool is_display_device(const std::string& target) {
 std::string argv0_basename(const std::string& cmdline) {
     const std::string argv0 = cmdline.substr(0, cmdline.find(' '));
     return fs::path(argv0).filename().string();
+}
+
+/// Absolute path of @p name in the usual bin dirs under @p root, or "".
+std::string find_binary(const std::string& root, const char* name) {
+    std::error_code ec;
+    for (const char* dir : {"/usr/bin", "/bin", "/usr/sbin", "/sbin"}) {
+        const std::string path = std::string(dir) + "/" + name;
+        if (fs::exists(root + path, ec)) {
+            return path;
+        }
+    }
+    return {};
+}
+
+/// Display devices @p pid holds open. Reading another user's fd table needs
+/// root; without it the process is simply not seen as a holder.
+std::vector<std::string> held_display_devices(const std::string& proc_root, long pid) {
+    std::vector<std::string> held;
+    std::error_code ec;
+    const fs::path fd_dir = fs::path(proc_root) / std::to_string(pid) / "fd";
+    // increment(ec), never ++: the process can exit mid-walk, and operator++
+    // reports that by throwing.
+    for (fs::directory_iterator it(fd_dir, ec), end; !ec && it != end; it.increment(ec)) {
+        std::error_code link_ec;
+        const std::string target = fs::read_symlink(it->path(), link_ec).string();
+        if (!link_ec && is_display_device(target) &&
+            std::find(held.begin(), held.end(), target) == held.end()) {
+            held.push_back(target);
+        }
+    }
+    return held;
 }
 
 } // namespace
@@ -68,37 +101,47 @@ std::vector<std::string> parse_failed_units(const std::string& list_units_output
     return units;
 }
 
+std::optional<std::vector<std::string>> failed_units_from(int exit_status,
+                                                          const std::string& output) {
+    if (exit_status != 0 && output.empty()) {
+        return std::nullopt;
+    }
+    return parse_failed_units(output);
+}
+
+bool systemd_is_init(const std::string& root) {
+    std::error_code ec;
+    return fs::is_directory(root + "/run/systemd/system", ec) &&
+           !find_binary(root, "systemctl").empty();
+}
+
 std::vector<CensusProcess> census_processes(const std::string& proc_root, size_t cap) {
     std::vector<CensusProcess> out;
-    for (const auto& proc : read_process_table(proc_root)) {
-        if (out.size() >= cap) {
-            break;
-        }
-        CensusProcess entry;
-        entry.pid = proc.pid;
-        entry.name = argv0_basename(proc.cmdline);
-        for (const auto& needle : competing_ui_names()) {
-            if (proc.cmdline.find(needle) != std::string::npos) {
-                entry.reasons.push_back("competing_ui:" + needle);
+    // A partial census is the useful answer: the caller's section also carries
+    // the platform, CPU and uptime, and one throw would cost all of it.
+    try {
+        for (const auto& proc : read_process_table(proc_root)) {
+            if (out.size() >= cap) {
                 break;
             }
-        }
-        // Reading another user's fd table needs root; without it the process is
-        // simply not seen as a holder.
-        std::error_code ec;
-        const fs::path fd_dir = fs::path(proc_root) / std::to_string(proc.pid) / "fd";
-        for (const auto& fd : fs::directory_iterator(fd_dir, ec)) {
-            std::error_code link_ec;
-            const std::string target = fs::read_symlink(fd.path(), link_ec).string();
-            if (!link_ec && is_display_device(target) &&
-                std::find(entry.reasons.begin(), entry.reasons.end(), target) ==
-                    entry.reasons.end()) {
-                entry.reasons.push_back(target);
+            CensusProcess entry;
+            entry.pid = proc.pid;
+            entry.name = argv0_basename(proc.cmdline);
+            for (const auto& needle : competing_ui_names()) {
+                if (proc.cmdline.find(needle) != std::string::npos) {
+                    entry.reasons.push_back("competing_ui:" + needle);
+                    break;
+                }
+            }
+            for (auto& device : held_display_devices(proc_root, proc.pid)) {
+                entry.reasons.push_back(std::move(device));
+            }
+            if (!entry.reasons.empty()) {
+                out.push_back(std::move(entry));
             }
         }
-        if (!entry.reasons.empty()) {
-            out.push_back(std::move(entry));
-        }
+    } catch (const std::exception& e) {
+        spdlog::debug("[HostCensus] process walk stopped early: {}", e.what());
     }
     return out;
 }
@@ -112,19 +155,16 @@ HostCensus collect_host_census(const std::string& root) {
         }
     }
 
-    std::error_code ec;
-    for (const char* dir : {"/usr/bin", "/bin", "/usr/sbin", "/sbin"}) {
-        if (fs::exists(root + dir + "/systemctl", ec)) {
-            census.has_systemctl = true;
-            break;
-        }
-    }
-    if (census.has_systemctl && root.empty()) {
+    // Run only against the live machine; a test root has nothing to run.
+    if (root.empty() && systemd_is_init(root)) {
         // `timeout` keeps a wedged systemd from stalling the bundle upload.
-        census.failed_units = parse_failed_units(helix::logs::run_capture_tail(
-            "timeout 5 systemctl list-units --state=failed --plain --no-legend --no-pager "
-            "2>/dev/null",
-            MAX_FAILED_UNITS, "systemctl"));
+        const std::string timeout = find_binary(root, "timeout");
+        int status = -1;
+        const std::string output = helix::logs::run_capture_tail(
+            (timeout.empty() ? "" : timeout + " 5 ") +
+                "systemctl list-units --state=failed --plain --no-legend --no-pager 2>/dev/null",
+            MAX_FAILED_UNITS, "systemctl", &status);
+        census.failed_units = failed_units_from(status, output);
     }
 
     census.processes = census_processes(root.empty() ? "/proc" : root + "/proc", MAX_PROCESSES);
