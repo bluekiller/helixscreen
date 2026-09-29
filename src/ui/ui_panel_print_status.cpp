@@ -3285,10 +3285,8 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
         spdlog::debug("[{}] Print cancelled at progress: {}%", get_name(), lifecycle_.progress());
     }
 
-    // The e-stop is the estop_fab at the panel root, bound to the estop_visible
-    // subject in XML; the header owns only the estop_slot gutter now. Nothing
-    // here touches the header's action_button: this panel never configures one,
-    // so un-hiding it renders an empty primary-colored pill.
+    // Nothing here touches the header's action_button: this panel never
+    // configures one, so un-hiding it renders an empty primary-colored pill.
 }
 
 void PrintStatusPanel::on_print_filename_changed(const char* filename) {

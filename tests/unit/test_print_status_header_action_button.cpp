@@ -8,9 +8,7 @@
  * The header carries exactly one configured action: the secondary button
  * (folder icon, on_print_status_files) that opens print select during an active
  * print, where starting a print stays blocked by print_select_can_print
- * (prestonbrown/helixscreen#1395). The primary action button stays unconfigured;
- * the e-stop is the estop_fab at the panel root, bound to the estop_visible
- * subject (prestonbrown/helixscreen#1204).
+ * (prestonbrown/helixscreen#1395). The primary action button stays unconfigured.
  *
  * An unconfigured primary shown during a print is an empty primary-coloured
  * pill, so the tests drive the real panel through every print state and
@@ -43,8 +41,8 @@ namespace {
 ///
 /// LVGLUITestFixture registers every production XML component and the event
 /// callbacks, which is what lets lv_xml_create() resolve the whole
-/// print_status_panel tree (header_bar, ui_card, the gcode viewer widget, the
-/// estop_fab). XMLTestFixture cannot: register_component() loads one file and
+/// print_status_panel tree (header_bar, ui_card, the gcode viewer widget).
+/// XMLTestFixture cannot: register_component() loads one file and
 /// resolves no dependencies.
 struct PrintStatusHeaderFixture : public LVGLUITestFixture {
     PrintStatusHeaderFixture() {
@@ -95,8 +93,7 @@ struct PrintStatusHeaderFixture : public LVGLUITestFixture {
     lv_obj_t* root_ = nullptr;
 };
 
-/// Read a UI XML file whole. Mirrors the text-pinning case in
-/// test_header_bar_estop_slot.cpp.
+/// Read a UI XML file whole.
 std::string read_xml(const std::string& path) {
     std::ifstream file(path);
     REQUIRE(file.is_open());
@@ -144,38 +141,6 @@ TEST_CASE_METHOD(PrintStatusHeaderFixture,
     }
 }
 
-TEST_CASE_METHOD(PrintStatusHeaderFixture,
-                 "PrintStatusPanel: estop_fab at the panel root is what estop_visible drives",
-                 "[print_status][header_bar][1204]") {
-    REQUIRE(root_ != nullptr);
-
-    // The FAB is a direct child of the panel root, not of the header - that is
-    // what keeps it from clipping against header_height.
-    lv_obj_t* fab = lv_obj_find_by_name(root_, "estop_fab");
-    REQUIRE(fab != nullptr);
-    REQUIRE(lv_obj_get_parent(fab) == root_);
-
-    lv_subject_t* visible = lv_xml_get_subject(nullptr, "estop_visible");
-    REQUIRE(visible != nullptr);
-
-    lv_subject_set_int(visible, 0);
-    UpdateQueue::instance().drain();
-    REQUIRE(lv_obj_has_flag(fab, LV_OBJ_FLAG_HIDDEN));
-
-    lv_subject_set_int(visible, 1);
-    UpdateQueue::instance().drain();
-    CHECK_FALSE(lv_obj_has_flag(fab, LV_OBJ_FLAG_HIDDEN));
-
-    // The e-stop showing must not drag the header's action button along with it.
-    lv_obj_t* action = action_button();
-    REQUIRE(action != nullptr);
-    CHECK(lv_obj_has_flag(action, LV_OBJ_FLAG_HIDDEN));
-
-    lv_subject_set_int(visible, 0);
-    UpdateQueue::instance().drain();
-    CHECK(lv_obj_has_flag(fab, LV_OBJ_FLAG_HIDDEN));
-}
-
 TEST_CASE("print_status_panel.xml passes no action-button props to header_bar",
           "[print_status][header_bar][1204][1395]") {
     // Structural companion to the behavioural test above. The PRIMARY slot stays
@@ -208,9 +173,6 @@ TEST_CASE("print_status_panel.xml passes no action-button props to header_bar",
         CHECK(tag.find("hide_action_button_2=\"false\"") != std::string::npos);
         CHECK(tag.find("action_button_2_icon=\"folder\"") != std::string::npos);
         CHECK(tag.find("action_button_2_callback=\"on_print_status_files\"") != std::string::npos);
-
-        // And the panel keeps its own root-level FAB rather than a header button.
-        CHECK(xml.find("name=\"estop_fab\"") != std::string::npos);
     }
 }
 

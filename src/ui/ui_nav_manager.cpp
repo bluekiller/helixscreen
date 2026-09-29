@@ -835,6 +835,30 @@ void NavigationManager::handle_klippy_state_change(int state) {
 // EVENT CALLBACKS
 // ============================================================================
 
+lv_obj_t* NavigationManager::navbar_target_at(lv_obj_t* navbar, const lv_point_t& point) {
+    if (!navbar) {
+        return nullptr;
+    }
+    // The panel buttons, plus the E-stop the rail carries while a job holds
+    // the machine: under an overlay the rail is only a snapshot, and a tap on
+    // that E-stop must still stop the printer.
+    static constexpr const char* kTargets[] = {
+        "nav_btn_home",     "nav_btn_print_select", "nav_btn_controls", "nav_btn_filament",
+        "nav_btn_settings", "nav_btn_advanced",     "nav_btn_estop"};
+    for (const char* name : kTargets) {
+        lv_obj_t* btn = lv_obj_find_by_name(navbar, name);
+        if (!btn || lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN)) {
+            continue;
+        }
+        lv_area_t area;
+        lv_obj_get_coords(btn, &area);
+        if (point.x >= area.x1 && point.x <= area.x2 && point.y >= area.y1 && point.y <= area.y2) {
+            return btn;
+        }
+    }
+    return nullptr;
+}
+
 void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
     lv_obj_t* current = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -885,30 +909,12 @@ void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
 
         if (click_point.x >= navbar_area.x1 && click_point.x <= navbar_area.x2 &&
             click_point.y >= navbar_area.y1 && click_point.y <= navbar_area.y2) {
-            // Click is in navbar area - find which button and trigger navigation
-            const char* button_names[] = {"nav_btn_home",     "nav_btn_print_select",
-                                          "nav_btn_controls", "nav_btn_filament",
-                                          "nav_btn_settings", "nav_btn_advanced"};
-
-            for (int i = 0; i < UI_PANEL_COUNT; i++) {
-                lv_obj_t* btn = lv_obj_find_by_name(mgr.navbar_widget_, button_names[i]);
-                if (!btn) {
-                    continue;
-                }
-
-                // Check if click point is inside this button
-                lv_area_t btn_area;
-                lv_obj_get_coords(btn, &btn_area);
-
-                // Simple bounds check (point in rectangle)
-                if (click_point.x >= btn_area.x1 && click_point.x <= btn_area.x2 &&
-                    click_point.y >= btn_area.y1 && click_point.y <= btn_area.y2) {
-                    spdlog::trace(
-                        "[NavigationManager] Backdrop click forwarded to navbar button {}", i);
-                    // Simulate the navbar button click by sending a clicked event
-                    lv_obj_send_event(btn, LV_EVENT_CLICKED, nullptr);
-                    return;
-                }
+            if (lv_obj_t* target = navbar_target_at(mgr.navbar_widget_, click_point)) {
+                spdlog::trace("[NavigationManager] Backdrop click forwarded to navbar '{}'",
+                              lv_obj_get_name(target) ? lv_obj_get_name(target) : "?");
+                // Simulate the navbar button click by sending a clicked event
+                lv_obj_send_event(target, LV_EVENT_CLICKED, nullptr);
+                return;
             }
 
             // Click was in navbar area but not on a button - just close overlay
@@ -1293,6 +1299,16 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         SettingsManager::instance().subject_show_printer_switcher(), this,
         [](NavigationManager* mgr, int /* shown */) { mgr->refresh_overlay_backdrop(); },
         SettingsManager::instance().get_subjects_lifetime());
+
+    // The rail's E-stop appears when a job takes the machine, which can happen
+    // while an overlay is up and the rail is only the backdrop's snapshot.
+    auto& estop = EmergencyStopOverlay::instance();
+    if (lv_subject_t* estop_visible = estop.get_estop_visible_subject()) {
+        estop_visible_observer_ = observe_int_sync<NavigationManager>(
+            estop_visible, this,
+            [](NavigationManager* mgr, int /* visible */) { mgr->refresh_overlay_backdrop(); },
+            estop.get_subjects_lifetime());
+    }
 
     spdlog::trace(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");

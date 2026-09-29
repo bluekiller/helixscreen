@@ -32,19 +32,12 @@
   <view name="print_status_panel"
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_bg_opa="255"
         style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" flex_flow="column" clickable="true">
-    <!-- Header Bar with the dedicated E-Stop slot. The slot floats the e-stop
-         circle (ignore_layout) and reserves a horizontal gutter so any future
-         action button shifts left rather than sitting under it. The circle
-         overflows header_height at micro/tiny (prestonbrown/helixscreen#1204);
-         the slot handles that itself, so this panel no longer needs a standalone
-         floating FAB. estop_visible_subject gates it to active prints.
-         The Files action button opens print select mid-print so files can be
-         browsed and managed; the estop gutter keeps it clear of the FAB
-         (prestonbrown/helixscreen#1395). -->
+    <!-- The Files action button opens print select mid-print so files can be
+         browsed and managed (prestonbrown/helixscreen#1395). The E-stop lives
+         on the navigation rail. -->
     <header_bar name="overlay_header"
-                title="Print Status" title_tag="Print Status" estop_visible_subject="estop_visible"
-                hide_action_button_2="false" action_button_2_icon="folder" action_button_2_icon_size="sm"
-                action_button_2_bg_color="#elevated_bg" action_button_2_radius="9999"
+                title="Print Status" title_tag="Print Status" hide_action_button_2="false" action_button_2_icon="folder"
+                action_button_2_icon_size="sm" action_button_2_bg_color="#elevated_bg" action_button_2_radius="9999"
                 action_button_2_width="#button_height_sm" action_button_2_min_width="0"
                 action_button_2_callback="on_print_status_files"/>
     <!-- Content Area (two columns: viewer left, controls right) -->
@@ -221,19 +214,5 @@
         </lv_obj>
       </lv_obj>
     </lv_obj>
-
-    <!-- E-Stop FAB — child of the panel ROOT (full-height), not the header, so
-         it never clips and stays fully hit-testable regardless of header_height
-         (prestonbrown/helixscreen#1204). The header_bar above reserves a spacer
-         gutter (estop_visible_subject) so the title never runs under this FAB.
-         estop_visible covers PRINTING + PAUSED + the preparing phase. Declared
-         last so it draws above the content it overlaps. -->
-    <lv_button name="estop_fab"
-               width="44" height="44" ignore_layout="true" align="top_right" style_translate_y="#space_sm"
-               style_radius="9999" style_bg_color="#danger" style_pad_all="0" hidden="true">
-      <bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
-      <icon src="alert_octagon" size="md" color="#text" align="center"/>
-      <event_cb trigger="clicked" callback="emergency_stop_clicked"/>
-    </lv_button>
   </view>
 </component>

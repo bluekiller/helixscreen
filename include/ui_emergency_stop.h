@@ -80,10 +80,10 @@ static constexpr uint32_t RESTART_FLAG_TIMEOUT = EXTRA;
 /**
  * @brief Emergency stop visibility coordinator
  *
- * Manages the estop_visible subject that drives contextual E-Stop buttons
- * embedded in home_panel, controls_panel, and print_status_panel.
- * Buttons are automatically shown during active prints (PRINTING or PAUSED)
- * via XML subject binding. The button triggers an M112 emergency stop
+ * Manages the estop_visible subject that drives the E-Stop button on the
+ * navigation rail, plus the ones on screens that cover the rail (lock screen,
+ * fullscreen camera). Buttons are shown while a job holds the machine, via
+ * XML subject binding. The button triggers an M112 emergency stop
  * command via Moonraker.
  *
  * Features:
@@ -137,8 +137,8 @@ class EmergencyStopOverlay {
      * @brief Initialize visibility coordination
      *
      * Sets up observers to update the estop_visible subject based on print
-     * state. E-Stop buttons embedded in panels (home, controls, print_status)
-     * bind to this subject for reactive visibility.
+     * state. The rail's E-Stop and the ones on rail-covering screens bind to
+     * this subject for reactive visibility.
      *
      * Must be called after:
      * - init() with valid dependencies
@@ -154,6 +154,16 @@ class EmergencyStopOverlay {
      * called manually if needed.
      */
     void update_visibility();
+
+    /// The estop_visible subject (1 while a job holds the machine), or nullptr
+    /// before init_subjects().
+    [[nodiscard]] lv_subject_t* get_estop_visible_subject() {
+        return subjects_initialized_ ? &estop_visible_ : nullptr;
+    }
+
+    [[nodiscard]] SubjectLifetime get_subjects_lifetime() const {
+        return subjects_.get_subjects_lifetime();
+    }
 
     /**
      * @brief Set whether confirmation dialog is required

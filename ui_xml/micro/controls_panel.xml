@@ -134,17 +134,10 @@
                             moves_machine="true" disabled_cond="motors_enabled eq 0"/>
         </lv_obj>
       </ui_card>
-      <!-- Right section: E-Stop banner + Temps + Cooling -->
+      <!-- Right section: Temps + Cooling -->
       <lv_obj height="100%"
               flex_grow="2" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xs" style_pad_row="0"
               scrollable="false">
-        <!-- Emergency Stop Banner (conditional, compact) -->
-        <ui_button name="estop_button_controls"
-                   width="100%" height="#button_height_sm" hidden="true" variant="danger" icon="alert_octagon"
-                   text="Emergency Stop" translation_tag="Emergency Stop">
-          <bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
-          <event_cb trigger="clicked" callback="emergency_stop_clicked"/>
-        </ui_button>
         <!-- Temps + Cooling row (always visible) -->
         <lv_obj width="100%"
                 flex_grow="1" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs" scrollable="false">

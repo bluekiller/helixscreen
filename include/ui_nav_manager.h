@@ -145,6 +145,11 @@ class NavigationManager {
      */
     void wire_events(lv_obj_t* navbar);
 
+    /// The navbar button under @p point, or nullptr: a panel button, or the
+    /// E-stop while it is shown. How a tap on the backdrop's snapshot of the
+    /// rail reaches the live rail underneath an overlay.
+    [[nodiscard]] static lv_obj_t* navbar_target_at(lv_obj_t* navbar, const lv_point_t& point);
+
     /**
      * @brief Wire up status icons in navbar
      *
@@ -796,6 +801,7 @@ class NavigationManager {
     ObserverGuard klippy_state_observer_;
     ObserverGuard printer_dot_observer_;
     ObserverGuard printer_switcher_observer_;
+    ObserverGuard estop_visible_observer_;
 
     // Printer connection status dot widget
     lv_obj_t* printer_dot_widget_ = nullptr;

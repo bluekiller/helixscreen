@@ -83,9 +83,6 @@
          the empty default (see its comment for why not a constant). -->
     <prop name="action_button_2_hidden_cond" type="string" default=""/>
     <prop name="action_button_2_disabled_subject" type="string" default=""/>
-    <!-- Dedicated E-Stop spacer (rightmost). Mirrors the base header_bar; see
-         its comment. The floating circle lives at the panel root, not here. -->
-    <prop name="estop_visible_subject" type="string" default=""/>
   </api>
   <view extends="lv_obj"
         width="100%" height="40" style_pad_left="0" style_pad_right="#space_xl" style_pad_top="0" style_pad_bottom="0"
@@ -165,16 +162,5 @@
       <bind_flag_if_eq subject="z_offset_save_available" flag="hidden" ref_value="0"/>
       <event_cb trigger="clicked" callback="on_header_save_z_offset"/>
     </ui_button>
-    <!-- E-Stop spacer: rightmost reserved gutter — NO button inside. The
-         floating circle lives at the panel root; this just keeps the title and
-         any action button clear of it. See base header_bar for full design. -->
-    <!-- SIZE_OK: 48 matches estop_slot_width_micro in the base file's ladder
-         (FAB 44 + 4px margin). Micro override has no <consts> block by
-         convention; a token would not resolve to 48 at this tier anyway. -->
-    <lv_obj name="estop_slot"
-            width="48" height="100%" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
-            clickable="false" hidden="true">
-      <bind_flag_if_eq subject="$estop_visible_subject" flag="hidden" ref_value="0"/>
-    </lv_obj>
   </view>
 </component>

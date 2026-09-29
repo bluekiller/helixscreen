@@ -24,6 +24,17 @@
     <string name="icon_size_nav_inactive_large" value="md"/>
     <string name="icon_size_nav_inactive_xlarge" value="md"/>
     <string name="icon_size_nav_inactive_xxlarge" value="md"/>
+
+    <!-- Rail E-stop diameter: the larger of #button_height and 44px, so the
+         target never shrinks below the circles it stands in for. micro is
+         capped at the 42px rail width. -->
+    <px name="nav_estop_size_micro" value="42"/>
+    <px name="nav_estop_size_tiny" value="44"/>
+    <px name="nav_estop_size_small" value="48"/>
+    <px name="nav_estop_size_medium" value="52"/>
+    <px name="nav_estop_size_large" value="72"/>
+    <px name="nav_estop_size_xlarge" value="80"/>
+    <px name="nav_estop_size_xxlarge" value="96"/>
   </consts>
   <styles>
     <!-- One bar, two axes. Each pair is bound complementarily on ui_is_portrait
@@ -238,6 +249,17 @@
                 width="8" height="8" style_radius="4" style_bg_opa="255" style_bg_color="#success" align="top_right"
                 clickable="false" event_bubble="true"/>
       </lv_obj>
+    </ui_button>
+    <!-- Emergency stop: the one E-stop every panel and overlay can reach while a
+         job holds the machine. Last in the bar, so it sits at the bottom of the
+         rail and at the end of the portrait bar. Under an overlay the backdrop
+         forwards a tap here (NavigationManager). -->
+    <ui_button name="nav_btn_estop"
+               width="#nav_estop_size" height="#nav_estop_size" style_radius="9999" variant="danger" focusable="false"
+               hidden="true">
+      <bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
+      <icon src="alert_octagon" size="sm" variant="text" align="center" clickable="false" event_bubble="true"/>
+      <event_cb trigger="clicked" callback="emergency_stop_clicked"/>
     </ui_button>
   </view>
 </component>

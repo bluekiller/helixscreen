@@ -1,0 +1,177 @@
+// Copyright (C) 2025-2026 356C LLC
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+/**
+ * @file test_nav_rail_estop.cpp
+ * @brief The navigation rail carries the one E-stop while a job holds the machine.
+ *
+ * Every panel and overlay sits beside the rail, so the rail's E-stop is on
+ * screen for all of them; under an overlay the backdrop forwards a tap on the
+ * rail's snapshot to it. Screens that cover the rail carry their own.
+ *
+ * Run with: ./build/bin/helix-tests "[estop_rail]"
+ */
+
+#include "ui_nav_manager.h"
+#include "ui_update_queue.h"
+
+#include "../lvgl_ui_test_fixture.h"
+#include "helix-xml/src/xml/lv_xml.h"
+#include "theme_manager.h"
+
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <string>
+
+#include "../catch_amalgamated.hpp"
+
+namespace {
+
+std::string read_xml(const std::string& path) {
+    std::ifstream file(path);
+    REQUIRE(file.is_open());
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+/// Whether @p xml has an element bound to estop_visible that fires the E-stop.
+bool has_estop_button(const std::string& xml) {
+    return xml.find("subject=\"estop_visible\"") != std::string::npos &&
+           xml.find("callback=\"emergency_stop_clicked\"") != std::string::npos;
+}
+
+lv_point_t center_of(lv_obj_t* obj) {
+    lv_area_t a;
+    lv_obj_get_coords(obj, &a);
+    return {(a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2};
+}
+
+struct RailFixture : public LVGLUITestFixture {
+    RailFixture() {
+        estop_visible_ = lv_xml_get_subject(nullptr, "estop_visible");
+        REQUIRE(estop_visible_ != nullptr);
+        saved_ = lv_subject_get_int(estop_visible_);
+        navbar_ = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "navigation_bar", nullptr));
+        REQUIRE(navbar_ != nullptr);
+        estop_ = lv_obj_find_by_name(navbar_, "nav_btn_estop");
+        REQUIRE(estop_ != nullptr);
+    }
+    ~RailFixture() override {
+        lv_subject_set_int(estop_visible_, saved_);
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    void set_visible(int v) {
+        lv_subject_set_int(estop_visible_, v);
+        helix::ui::UpdateQueue::instance().drain();
+        lv_obj_update_layout(navbar_);
+    }
+
+    lv_subject_t* estop_visible_ = nullptr;
+    int saved_ = 0;
+    lv_obj_t* navbar_ = nullptr;
+    lv_obj_t* estop_ = nullptr;
+};
+
+} // namespace
+
+TEST_CASE_METHOD(RailFixture, "rail E-stop is shown exactly while estop_visible is set",
+                 "[estop_rail][navigation]") {
+    set_visible(0);
+    CHECK(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    set_visible(1);
+    CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+    set_visible(0);
+    CHECK(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(RailFixture, "rail E-stop fires the emergency stop callback",
+                 "[estop_rail][navigation]") {
+    lv_event_cb_t estop_cb = lv_xml_get_event_cb(nullptr, "emergency_stop_clicked");
+    REQUIRE(estop_cb != nullptr);
+    bool wired = false;
+    for (uint32_t i = 0; i < lv_obj_get_event_count(estop_); ++i) {
+        lv_event_dsc_t* dsc = lv_obj_get_event_dsc(estop_, i);
+        if (lv_event_dsc_get_cb(dsc) == estop_cb) {
+            wired = true;
+        }
+    }
+    CHECK(wired);
+}
+
+TEST_CASE_METHOD(RailFixture, "a tap on the rail under an overlay reaches the E-stop",
+                 "[estop_rail][navigation]") {
+    set_visible(1);
+    const lv_point_t at_estop = center_of(estop_);
+    CHECK(NavigationManager::navbar_target_at(navbar_, at_estop) == estop_);
+
+    // The panel buttons still forward as before.
+    lv_obj_t* home = lv_obj_find_by_name(navbar_, "nav_btn_home");
+    REQUIRE(home != nullptr);
+    CHECK(NavigationManager::navbar_target_at(navbar_, center_of(home)) == home);
+
+    // Hidden, the E-stop is not a target: a tap there must not stop a printer
+    // that is idle.
+    set_visible(0);
+    CHECK(NavigationManager::navbar_target_at(navbar_, at_estop) != estop_);
+}
+
+TEST_CASE_METHOD(RailFixture, "rail E-stop is no smaller than the circles it stands in for",
+                 "[estop_rail][navigation]") {
+    set_visible(1);
+    const int32_t size = lv_obj_get_width(estop_);
+    const int32_t rail = lv_obj_get_width(navbar_);
+    const int32_t fab = std::max<int32_t>(44, theme_manager_get_spacing("button_height"));
+    // A landscape rail narrower than the old circle caps the target at the rail.
+    CHECK(size >= std::min(fab, rail));
+    CHECK(lv_obj_get_height(estop_) == size);
+}
+
+TEST_CASE("every overlay leaves the rail and its E-stop on screen", "[estop_rail][navigation]") {
+    // Panels live beside the rail in app_layout; overlays are sized by these two
+    // classes. Neither may reach into the rail's strip, or the E-stop under it
+    // would be covered.
+    struct Geometry {
+        int32_t w, h, nav_width, nav_height;
+    };
+    const Geometry geometries[] = {
+        {480, 272, 42, 34},    {480, 320, 54, 40},    {800, 480, 104, 70},
+        {1024, 600, 132, 96},  {1280, 720, 148, 112}, {1920, 1080, 176, 128},
+        {1920, 480, 176, 112}, {480, 800, 104, 70},   {1080, 2400, 176, 128},
+    };
+    for (const auto& g : geometries) {
+        INFO(g.w << "x" << g.h);
+        const auto widths = helix::compute_overlay_widths(g.w, g.h, g.nav_width, 16);
+        const auto heights = helix::compute_overlay_heights(g.w, g.h, g.nav_height, 16);
+        const bool portrait = g.h > g.w;
+        if (portrait) {
+            CHECK(heights.transient <= g.h - g.nav_height);
+            CHECK(heights.destination <= g.h - g.nav_height);
+        } else {
+            CHECK(widths.transient <= g.w - g.nav_width);
+            CHECK(widths.destination <= g.w - g.nav_width);
+        }
+    }
+}
+
+TEST_CASE("the rail is the one E-stop where the rail shows, and screens that cover it keep one",
+          "[estop_rail][navigation]") {
+    CHECK(has_estop_button(read_xml("ui_xml/navigation_bar.xml")));
+
+    // These cover the rail, so they carry their own.
+    for (const char* path :
+         {"ui_xml/components/lock_screen.xml", "ui_xml/components/camera_fullscreen.xml"}) {
+        INFO(path);
+        CHECK(has_estop_button(read_xml(path)));
+    }
+
+    // These sit beside the rail and drew a second E-stop over their content.
+    for (const char* path :
+         {"ui_xml/home_panel.xml", "ui_xml/controls_panel.xml", "ui_xml/micro/controls_panel.xml",
+          "ui_xml/print_status_panel.xml", "ui_xml/portrait/print_status_panel.xml"}) {
+        INFO(path);
+        CHECK(read_xml(path).find("estop_visible") == std::string::npos);
+    }
+}
