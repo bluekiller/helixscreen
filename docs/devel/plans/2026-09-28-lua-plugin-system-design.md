@@ -1,6 +1,6 @@
 # Lua Plugin System Design
 
-**Status:** design approved in brainstorming, awaiting spec review
+**Status:** Phase 1 (runtime) implemented on feature/lua-plugins; Phases 2 to 5 not started.
 **Replaces:** the `dlopen` C++ plugin system in `src/plugin/` and `docs/devel/PLUGIN_DEVELOPMENT.md`
 
 ## Why
