@@ -295,7 +295,10 @@ void install_ui_bindings(PluginContext& ctx) {
     lua_rawsetp(L, LUA_REGISTRYINDEX, &kUiStateKey);
     ctx.rt.on_close([state] {
         for (auto& s : state->subjects) {
-            lv_xml_unregister_subject(nullptr, s->full_name.c_str());
+            // A later registration under the same name replaced the record's pointer, so
+            // only a record still pointing at this subject is the plugin's to remove.
+            if (lv_xml_get_subject(nullptr, s->full_name.c_str()) == &s->subject)
+                lv_xml_unregister_subject(nullptr, s->full_name.c_str());
             lv_subject_deinit(&s->subject); // also removes every observer on it
         }
         delete state;

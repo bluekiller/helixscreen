@@ -144,6 +144,20 @@ TEST_CASE_METHOD(LVGLUITestFixture, "helix.ui.confirm allows one open dialog per
     REQUIRE(ModalStack::instance().top_dialog());
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "runtime close leaves an app subject that took the name",
+                 "[plugin][bindings][ui]") {
+    lv_subject_t app_subject;
+    {
+        BoundRuntime b({&install_ui_bindings});
+        REQUIRE(b.t.run(R"(helix.subject.int("x", 1))"));
+        lv_subject_init_int(&app_subject, 5);
+        lv_xml_register_subject(nullptr, "test-plugin_x", &app_subject);
+    }
+    CHECK(lv_xml_get_subject(nullptr, "test-plugin_x") == &app_subject);
+    lv_xml_unregister_subject(nullptr, "test-plugin_x");
+    lv_subject_deinit(&app_subject);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "ui.on handlers dispatch with an argument",
                  "[plugin][bindings][ui]") {
     BoundRuntime b({&install_ui_bindings});
