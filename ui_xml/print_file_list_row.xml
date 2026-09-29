@@ -14,6 +14,7 @@
         style_radius="#space_xs" style_border_width="0" style_pad_top="#space_md" style_pad_bottom="#space_md"
         style_pad_left="#space_md" style_pad_right="#space_md" flex_flow="row" style_flex_main_place="start"
         style_flex_cross_place="center" clickable="true">
+    <style name="styles.press_wash" selector="pressed"/>
     <!-- Filename (flex-grow, left-aligned) -->
     <text_small name="row_filename"
                 text="$filename" style_text_align="left" long_mode="dots" flex_grow="1"
