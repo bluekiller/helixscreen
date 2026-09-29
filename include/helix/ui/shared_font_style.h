@@ -17,10 +17,10 @@ namespace helix::ui {
  * resolve in addition order. An inline style_text_font attribute stays local
  * and keeps outranking both, which is declarative rule 6.
  *
- * Append-only: one entry per compiled face any caller has ever asked for, so a
- * fixed table is enough and nothing here needs the heap. The returned pointer
- * lives for the life of the process and is shared by every object using that
- * face, so callers must not mutate it.
+ * Append-only: one entry per compiled face any caller has ever asked for, at
+ * most every face the build links. The returned pointer lives for the life of
+ * the process and is shared by every object using that face, so callers must
+ * not mutate it.
  */
 lv_style_t* shared_font_style(const lv_font_t* font);
 
