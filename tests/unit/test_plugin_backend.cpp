@@ -45,22 +45,43 @@ TEST_CASE("app backend rejects roots other than gcodes and config", "[plugin][ba
     CHECK_FALSE(down.ok);
 }
 
-TEST_CASE("url_host extracts the host of a web URL", "[plugin][backend]") {
-    CHECK(url_host("http://127.0.0.1:7125/x") == "127.0.0.1");
-    CHECK(url_host("https://[::1]/") == "::1");
-    CHECK(url_host("http://Example.com:80/a?b") == "Example.com");
-    CHECK(url_host("http://u:p@h/") == "h");
-    CHECK(url_host("not a url").empty());
+TEST_CASE("plan_http_target refuses every spelling of this machine", "[plugin][backend]") {
+    const std::vector<std::string> none;
+    for (const char* url :
+         {"http://:7125/x", "http:///x", "http://evil.com?@127.0.0.1:7125/x",
+          "http://evil.com#@127.0.0.1:7125/x", "http://0.0.0.0:7125/x", "http://[::]:7125/x",
+          "http://127.1/x", "http://2130706433/x", "http://[::1]/x", "http://[::ffff:127.0.0.1]/x",
+          "http://localhost:7125/x", "https://127.0.0.1/"}) {
+        INFO(url);
+        HttpTarget t = plan_http_target(url, none);
+        CHECK_FALSE(t.ok);
+        CHECK(t.error.find("printer host") != std::string::npos);
+    }
 }
 
-TEST_CASE("is_forbidden_http_target refuses loopback and the printer host", "[plugin][backend]") {
-    const std::vector<std::string> printer{"192.168.1.50"};
-    CHECK(is_forbidden_http_target({"127.0.0.1"}, printer));
-    CHECK(is_forbidden_http_target({"127.5.5.5"}, printer));
-    CHECK(is_forbidden_http_target({"::1"}, printer));
-    CHECK(is_forbidden_http_target({"::ffff:127.0.0.1"}, printer));
-    CHECK(is_forbidden_http_target({"192.168.1.50"}, printer));
-    CHECK_FALSE(is_forbidden_http_target({"93.184.216.34"}, printer));
+TEST_CASE("plan_http_target refuses an address in the forbidden list", "[plugin][backend]") {
+    HttpTarget t = plan_http_target("http://93.184.216.34/x", {"10.0.0.2", "93.184.216.34"});
+    CHECK_FALSE(t.ok);
+    CHECK(t.error.find("printer host") != std::string::npos);
+}
+
+TEST_CASE("plan_http_target pins a plain http connect to the checked address",
+          "[plugin][backend]") {
+    HttpTarget t = plan_http_target("http://93.184.216.34:8080/a?b=1", {"10.0.0.2"});
+    REQUIRE(t.ok);
+    CHECK(t.connect_url == "http://93.184.216.34:8080/a?b=1");
+    CHECK(t.host_header == "93.184.216.34:8080");
+
+    HttpTarget v6 = plan_http_target("http://[2606:4700::1111]/p", {});
+    REQUIRE(v6.ok);
+    CHECK(v6.connect_url == "http://[2606:4700::1111]:80/p");
+}
+
+TEST_CASE("plan_http_target leaves an https URL unpinned", "[plugin][backend]") {
+    HttpTarget t = plan_http_target("https://93.184.216.34/x", {});
+    REQUIRE(t.ok);
+    CHECK(t.connect_url == "https://93.184.216.34/x");
+    CHECK(t.host_header.empty());
 }
 
 TEST_CASE("app backend http refuses the printer's own host", "[plugin][backend]") {

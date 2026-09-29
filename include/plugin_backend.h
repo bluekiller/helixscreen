@@ -52,14 +52,18 @@ struct PluginBackend {
 
 PluginBackend make_app_backend();
 
-/// The host of `scheme://[user[:password]@]host[:port]/...`, without the port and without
-/// IPv6 brackets. Empty when the URL has no authority.
-std::string url_host(const std::string& url);
+/// Where a plugin HTTP request may connect.
+struct HttpTarget {
+    bool ok = false;
+    std::string error;
+    std::string connect_url; ///< the URL to request; for http, its host is the checked address
+    std::string host_header; ///< the original Host for a pinned http connect; empty for https
+};
 
-/// True when any resolved target address is loopback (127.0.0.0/8, ::1, ::ffff:127.x) or
-/// equals a resolved address of the printer's own host: those addresses carry the control
-/// that the gcode/moonraker_write permissions gate, so plugin http may never reach them.
-bool is_forbidden_http_target(const std::vector<std::string>& resolved_ips,
-                              const std::vector<std::string>& printer_ips);
+/// Parses `url` exactly as libhv's client does, resolves its host, and refuses the request
+/// when any address is loopback, unspecified, or in `forbidden_ips` (this machine's own
+/// interfaces and the printer host): those carry the control the gcode and moonraker_write
+/// permissions gate. Blocks on DNS, so call it off the main thread.
+HttpTarget plan_http_target(const std::string& url, const std::vector<std::string>& forbidden_ips);
 
 } // namespace helix::plugin

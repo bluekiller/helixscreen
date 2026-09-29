@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <ifaddrs.h>
 #include <memory>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -39,11 +40,22 @@ bool is_transfer_root(const std::string& root) {
 constexpr const char* kNotConnected = "Moonraker is not connected";
 constexpr const char* kPrinterHostRefused = "requests to the printer host are not allowed";
 
-bool is_loopback_ip(const std::string& ip) {
-    return ip.rfind("127.", 0) == 0 || ip == "::1" || ip.rfind("::ffff:127.", 0) == 0;
+/// `ip` in the form addresses are compared in: an IPv4-mapped IPv6 address as plain IPv4,
+/// with no IPv6 zone suffix.
+std::string canonical_ip(std::string ip) {
+    if (auto pct = ip.find('%'); pct != std::string::npos)
+        ip.resize(pct);
+    if (ip.rfind("::ffff:", 0) == 0 && ip.find('.') != std::string::npos)
+        ip.erase(0, 7);
+    return ip;
 }
 
-/// Every address `host` resolves to, in numeric form; empty when it does not resolve.
+/// Loopback, or an unspecified address, which Linux connects to the local host.
+bool is_this_host_ip(const std::string& ip) {
+    return ip.rfind("127.", 0) == 0 || ip.rfind("0.", 0) == 0 || ip == "::1" || ip == "::";
+}
+
+/// Every address `host` resolves to, canonical numeric form; empty when it does not resolve.
 std::vector<std::string> resolve_host_ips(const std::string& host) {
     std::vector<std::string> ips;
     if (host.empty())
@@ -54,13 +66,35 @@ std::vector<std::string> resolve_host_ips(const std::string& host) {
     addrinfo* result = nullptr;
     if (getaddrinfo(host.c_str(), nullptr, &hints, &result) != 0)
         return ips;
-    char buf[INET6_ADDRSTRLEN];
+    char buf[NI_MAXHOST];
     for (addrinfo* ai = result; ai; ai = ai->ai_next) {
         if (getnameinfo(ai->ai_addr, ai->ai_addrlen, buf, sizeof(buf), nullptr, 0,
                         NI_NUMERICHOST) == 0)
-            ips.emplace_back(buf);
+            ips.push_back(canonical_ip(buf));
     }
     freeaddrinfo(result);
+    return ips;
+}
+
+/// Every address assigned to one of this machine's interfaces. Moonraker listens on all
+/// of them, so the printer's LAN address reaches it as surely as loopback does.
+std::vector<std::string> local_interface_ips() {
+    std::vector<std::string> ips;
+    ifaddrs* list = nullptr;
+    if (getifaddrs(&list) != 0)
+        return ips;
+    char buf[NI_MAXHOST];
+    for (ifaddrs* ifa = list; ifa; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr)
+            continue;
+        int family = ifa->ifa_addr->sa_family;
+        if (family != AF_INET && family != AF_INET6)
+            continue;
+        socklen_t len = family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+        if (getnameinfo(ifa->ifa_addr, len, buf, sizeof(buf), nullptr, 0, NI_NUMERICHOST) == 0)
+            ips.push_back(canonical_ip(buf));
+    }
+    freeifaddrs(list);
     return ips;
 }
 
@@ -72,40 +106,41 @@ std::string configured_moonraker_host() {
 
 } // namespace
 
-std::string url_host(const std::string& url) {
-    auto scheme_end = url.find("://");
-    if (scheme_end == std::string::npos)
-        return {};
-    size_t authority = scheme_end + 3;
-    size_t end = url.find_first_of("/?#", authority);
-    std::string host_port =
-        url.substr(authority, end == std::string::npos ? std::string::npos : end - authority);
-    if (auto at = host_port.rfind('@'); at != std::string::npos)
-        host_port = host_port.substr(at + 1);
-    if (host_port.empty())
-        return {};
-    if (host_port.front() == '[') {
-        auto close = host_port.find(']');
-        if (close == std::string::npos)
-            return {};
-        return host_port.substr(1, close - 1);
+HttpTarget plan_http_target(const std::string& url, const std::vector<std::string>& forbidden_ips) {
+    HttpTarget t;
+    // The client re-parses the URL at send time; parsing it the same way here is what makes
+    // the checked host the connected one. An empty host parses as libhv's 127.0.0.1.
+    HttpRequest probe;
+    probe.url = url;
+    probe.ParseUrl();
+    std::vector<std::string> ips = resolve_host_ips(probe.host);
+    if (ips.empty()) {
+        t.error = "cannot resolve " + probe.host;
+        return t;
     }
-    if (auto colon = host_port.find(':'); colon != std::string::npos)
-        host_port = host_port.substr(0, colon);
-    return host_port;
-}
-
-bool is_forbidden_http_target(const std::vector<std::string>& resolved_ips,
-                              const std::vector<std::string>& printer_ips) {
-    for (const auto& ip : resolved_ips) {
-        if (is_loopback_ip(ip))
-            return true;
-        for (const auto& p : printer_ips) {
-            if (ip == p)
-                return true;
+    for (const auto& ip : ips) {
+        bool forbidden = is_this_host_ip(ip);
+        for (const auto& f : forbidden_ips)
+            forbidden = forbidden || ip == canonical_ip(f);
+        if (forbidden) {
+            t.error = kPrinterHostRefused;
+            return t;
         }
     }
-    return false;
+    t.ok = true;
+    if (probe.IsHttps()) {
+        // ponytail: an https host is not pinned, so a DNS answer that changes between this
+        // check and the connect (rebinding) still reaches this machine; Moonraker speaks plain
+        // HTTP and cannot complete a TLS handshake. Pin with SNI kept on the name if a local
+        // TLS service ever needs protecting.
+        t.connect_url = url;
+        return t;
+    }
+    const std::string& ip = ips.front();
+    std::string literal = ip.find(':') != std::string::npos ? "[" + ip + "]" : ip;
+    t.connect_url = probe.scheme + "://" + literal + ":" + std::to_string(probe.port) + probe.path;
+    t.host_header = probe.headers["Host"];
+    return t;
 }
 
 PluginBackend make_app_backend() {
@@ -159,16 +194,23 @@ PluginBackend make_app_backend() {
     // huge response never occupies a worker for the full transfer.
     b.http = [](const std::string& method, const std::string& url, const std::string& body,
                 const json& headers, uint32_t timeout_ms, size_t max_body, RpcCallback cb) {
+        // Config belongs to the main thread, which is where the binding calls this.
+        std::string printer_host = configured_moonraker_host();
         http::HttpExecutor::slow().submit([=]() {
-            // Resolving both hosts blocks on DNS, so the check runs here, off the main thread.
-            // A followed redirect would land on a host this check never saw, so the plugin's
-            // requests do not follow redirects.
-            if (is_forbidden_http_target(resolve_host_ips(url_host(url)),
-                                         resolve_host_ips(configured_moonraker_host())))
-                return cb(failure(kPrinterHostRefused));
+            // Resolving blocks on DNS, so the check runs here, off the main thread. A followed
+            // redirect would land on a host this check never saw, so the plugin's requests do
+            // not follow redirects.
+            std::vector<std::string> forbidden = local_interface_ips();
+            for (auto& ip : resolve_host_ips(printer_host))
+                forbidden.push_back(std::move(ip));
+            HttpTarget t = plan_http_target(url, forbidden);
+            if (!t.ok)
+                return cb(failure(t.error));
             auto req = std::make_shared<HttpRequest>();
             req->method = method == "POST" ? HTTP_POST : HTTP_GET;
-            req->url = url;
+            req->url = t.connect_url;
+            if (!t.host_header.empty())
+                req->headers["Host"] = t.host_header;
             req->timeout = static_cast<int>((timeout_ms + 999) / 1000);
             req->body = body;
             req->redirect = 0;
