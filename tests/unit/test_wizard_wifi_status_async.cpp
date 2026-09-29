@@ -11,14 +11,17 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/wizard_wifi_test_access.h"
+#include "async_lifetime_guard.h"
 #include "http_executor.h"
 #include "runtime_config.h"
 #include "wifi_backend_mock.h"
 #include "wifi_manager.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -78,6 +81,41 @@ class WizardWifiStatusFixture : public LVGLUITestFixture {
         return true;
     }
 
+    /// Answers are delivered in the order they were read, so once a probe
+    /// issued now is answered, every earlier answer has been applied.
+    void await_earlier_answers() {
+        auto delivered = std::make_shared<bool>(false);
+        manager_->get_status_async(
+            probe_guard_.token(),
+            [delivered](const WifiBackend::ConnectionStatus&) { *delivered = true; });
+        REQUIRE(wait_until([&]() { return *delivered; }));
+    }
+
+    /// Stands in for the XML dialog: the widgets the connect handler looks up.
+    lv_obj_t* make_modal() {
+        lv_obj_t* modal = lv_obj_create(test_screen());
+        REQUIRE(modal != nullptr);
+        lv_obj_t* input = lv_textarea_create(modal);
+        lv_obj_set_name(input, "password_input");
+        lv_textarea_set_text(input, "some-password");
+        lv_obj_t* status = lv_label_create(modal);
+        lv_obj_set_name(status, "modal_status");
+        return modal;
+    }
+
+    /// A network the mock stocks, so its join stays in flight for the mock's
+    /// 2-3s connect delay instead of being refused on the spot.
+    std::string stocked_ssid() {
+        std::vector<WiFiNetwork> networks;
+        REQUIRE(wifi->get_scan_results(networks).success());
+        REQUIRE_FALSE(networks.empty());
+        const auto strongest =
+            std::max_element(networks.begin(), networks.end(), [](const auto& a, const auto& b) {
+                return a.signal_strength < b.signal_strength;
+            });
+        return strongest->ssid;
+    }
+
     bool shows_connection() {
         return names(Access::status(step_), kSsid) && Access::ip(step_) == kIp &&
                Access::mac(step_) == kMockMac;
@@ -86,6 +124,7 @@ class WizardWifiStatusFixture : public LVGLUITestFixture {
   private:
     WizardWifiStep step_;
     std::shared_ptr<helix::WiFiManager> manager_;
+    helix::AsyncLifetimeGuard probe_guard_;
 };
 
 } // namespace
@@ -127,13 +166,22 @@ TEST_CASE_METHOD(WizardWifiStatusFixture,
 }
 
 TEST_CASE_METHOD(WizardWifiStatusFixture,
-                 "wizard wifi: a connection read landing after WiFi is turned off is ignored",
+                 "wizard wifi: a status answer landing after a join starts keeps the join's status",
                  "[wizard_wifi][wifi_status_async]") {
+    // The apply's read takes "connected to HomeNet", then parks.
     wifi->hold_next_status();
     Access::apply_backend_state(step());
     REQUIRE(wait_until([&]() { return !wifi->status_callers().empty(); }));
 
-    lv_subject_set_int(&Access::wifi_enabled(step()), 0);
+    const std::string joining = stocked_ssid();
+    REQUIRE(joining != kSsid);
+    Access::set_current_ssid(step(), joining);
+    Access::password_modal(step()) = make_modal();
+    Access::password_connect_clicked(step());
+    const std::string connecting = Access::status(step());
+    REQUIRE(names(connecting, joining));
+
     wifi->release_held_status();
-    CHECK_FALSE(wait_until([&]() { return names(Access::status(step()), kSsid); }, 300));
+    await_earlier_answers();
+    CHECK(Access::status(step()) == connecting);
 }

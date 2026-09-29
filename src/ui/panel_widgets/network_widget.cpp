@@ -73,6 +73,7 @@ NetworkWidget::~NetworkWidget() {
 void NetworkWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
+    active_ = true;
 
     // Set user_data on the root lv_obj, NOT on the ui_button child.
     // ui_button allocates its own UiButtonData in user_data — overwriting it
@@ -149,7 +150,8 @@ void NetworkWidget::on_hooked_root_deleted() {
 }
 
 void NetworkWidget::ensure_signal_poll_timer() {
-    if (signal_poll_timer_ || current_network_ != NetworkType::Wifi) {
+    // A WiFi answer can land after on_deactivate(); a hidden tile never polls.
+    if (!active_ || signal_poll_timer_ || current_network_ != NetworkType::Wifi) {
         return;
     }
     signal_poll_timer_ = lv_timer_create(signal_poll_timer_cb, SIGNAL_POLL_INTERVAL_MS, this);
@@ -185,6 +187,7 @@ void NetworkWidget::detach() {
 }
 
 void NetworkWidget::on_activate() {
+    active_ = true;
     // Re-detect network type in case it changed while on another panel
     detect_network_type();
 
@@ -193,6 +196,7 @@ void NetworkWidget::on_activate() {
 }
 
 void NetworkWidget::on_deactivate() {
+    active_ = false;
     // Stop signal polling timer when panel is hidden (saves CPU)
     if (signal_poll_timer_) {
         cancel_signal_poll_timer();

@@ -235,7 +235,11 @@ void WizardWifiStep::announce_connected() {
     update_wifi_status(msg);
     if (wifi_manager_) {
         wifi_manager_->get_status_async(
-            lifetime_.token(), [this](const WifiBackend::ConnectionStatus& status) {
+            lifetime_.token(),
+            [this, gen = status_generation_](const WifiBackend::ConnectionStatus& status) {
+                if (gen != status_generation_) {
+                    return;
+                }
                 update_wifi_ip(status.ip_address.c_str(), status.mac_address);
             });
     }
@@ -247,13 +251,14 @@ void WizardWifiStep::refresh_network_list() {
         populate_network_list(cached_networks_, WifiBackend::ConnectionStatus{});
         return;
     }
-    wifi_manager_->get_status_async(lifetime_.token(),
-                                    [this](const WifiBackend::ConnectionStatus& status) {
-                                        if (cleanup_called_ || !screen_root_) {
-                                            return;
-                                        }
-                                        populate_network_list(cached_networks_, status);
-                                    });
+    wifi_manager_->get_status_async(
+        lifetime_.token(),
+        [this, gen = status_generation_](const WifiBackend::ConnectionStatus& status) {
+            if (gen != status_generation_ || cleanup_called_ || !screen_root_) {
+                return;
+            }
+            populate_network_list(cached_networks_, status);
+        });
 }
 
 void WizardWifiStep::update_ethernet_status() {
@@ -576,6 +581,7 @@ void WizardWifiStep::handle_wifi_toggle_changed(lv_event_t* e) {
 
     bool checked = lv_obj_get_state(toggle) & LV_STATE_CHECKED;
     spdlog::debug("[{}] WiFi toggle changed: {}", get_name(), checked ? "ON" : "OFF");
+    ++status_generation_;
 
     lv_subject_set_int(&wifi_enabled_, checked ? 1 : 0);
 
@@ -673,6 +679,7 @@ void WizardWifiStep::handle_network_item_clicked(lv_event_t* e) {
     strncpy(current_ssid_, network.ssid.c_str(), sizeof(current_ssid_) - 1);
     current_ssid_[sizeof(current_ssid_) - 1] = '\0';
     current_network_is_secured_ = network.is_secured;
+    ++status_generation_;
 
     char status_buf[128];
     snprintf(status_buf, sizeof(status_buf), "%s%s", get_status_text("connecting"),
@@ -713,6 +720,7 @@ void WizardWifiStep::handle_network_item_clicked(lv_event_t* e) {
 
 void WizardWifiStep::handle_modal_cancel_clicked() {
     spdlog::debug("[{}] Password modal cancel clicked", get_name());
+    ++status_generation_;
 
     if (wifi_manager_) {
         wifi_manager_->disconnect();
@@ -753,6 +761,7 @@ void WizardWifiStep::handle_modal_connect_clicked() {
                   helix::redact::ssid(current_ssid_));
 
     lv_subject_set_int(&wifi_connecting_, 1);
+    ++status_generation_;
 
     lv_obj_t* connect_btn = lv_obj_find_by_name(password_modal_, "modal_connect_btn");
     if (connect_btn) {
@@ -1012,9 +1021,9 @@ void WizardWifiStep::apply_wifi_backend_state() {
 
         // Check if already connected
         wifi_manager_->get_status_async(
-            lifetime_.token(), [this](const WifiBackend::ConnectionStatus& status) {
-                // The user can turn WiFi off before the read lands.
-                if (lv_subject_get_int(&wifi_enabled_) == 0) {
+            lifetime_.token(),
+            [this, gen = status_generation_](const WifiBackend::ConnectionStatus& status) {
+                if (gen != status_generation_) {
                     return;
                 }
                 if (status.connected) {
@@ -1154,6 +1163,7 @@ void WizardWifiStep::cleanup() {
     // Mark as cleaned up FIRST to invalidate any pending async callbacks
     cleanup_called_ = true;
     lifetime_.invalidate(); // Expire all outstanding tokens
+    ++status_generation_;
 
     if (wifi_manager_) {
         spdlog::debug("[{}] Stopping scan", get_name());

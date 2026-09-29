@@ -9,6 +9,7 @@
 #include "../test_helpers/network_widget_test_access.h"
 #include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/wifi_manager_test_access.h"
+#include "async_lifetime_guard.h"
 #include "ethernet_backend_mock.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "http_executor.h"
@@ -68,6 +69,18 @@ struct NetworkWidgetStatusFixture : LVGLUITestFixture {
     static int icon() {
         return lv_subject_get_int(lv_xml_get_subject(nullptr, "home_network_icon_state"));
     }
+
+    /// Answers are delivered in the order they were read, so once a probe
+    /// issued now is answered, every earlier answer has been applied.
+    void await_earlier_answers() {
+        auto delivered = std::make_shared<bool>(false);
+        helix::get_wifi_manager()->get_status_async(
+            probe_guard_.token(),
+            [delivered](const WifiBackend::ConnectionStatus&) { *delivered = true; });
+        REQUIRE(wait_until([&]() { return *delivered; }));
+    }
+
+    helix::AsyncLifetimeGuard probe_guard_;
 
     bool no_read_on_this_thread() {
         const auto callers = wifi->status_callers();
@@ -133,5 +146,35 @@ TEST_CASE_METHOD(EthernetUpFixture,
     REQUIRE(wait_until([&]() { return !wifi->status_callers().empty(); }));
 
     wifi->release_held_status();
-    CHECK_FALSE(wait_until([&]() { return icon() != kIconEthernet; }, 300));
+    await_earlier_answers();
+    CHECK(icon() == kIconEthernet);
+}
+
+TEST_CASE_METHOD(NetworkWidgetStatusFixture,
+                 "network tile: a WiFi answer landing after on_deactivate starts no poll timer",
+                 "[network_widget]") {
+    wifi->set_connected_state(true, "HomeNet", "192.168.1.100", 80);
+    wifi->clear_status_callers();
+    wifi->hold_next_status();
+
+    attach();
+    REQUIRE(wait_until([&]() { return !wifi->status_callers().empty(); }));
+    widget->on_deactivate();
+
+    wifi->release_held_status();
+    await_earlier_answers();
+    REQUIRE(icon() == 4); // the answer was applied
+    CHECK(NetworkWidgetTestAccess::signal_poll_timer(*widget) == nullptr);
+}
+
+TEST_CASE_METHOD(NetworkWidgetStatusFixture,
+                 "network tile: a DISCONNECTED event on a tile showing WiFi reaches Disconnected",
+                 "[network_widget][1059]") {
+    wifi->set_connected_state(true, "HomeNet", "192.168.1.100", 80);
+    attach();
+    REQUIRE(wait_until([&]() { return icon() == 4; }));
+
+    // Clears the mock's link, then fires the event exactly as the backend does.
+    helix::WiFiManagerTestAccess::fire_disconnected(*helix::get_wifi_manager());
+    CHECK(wait_until([&]() { return icon() == 0; }));
 }

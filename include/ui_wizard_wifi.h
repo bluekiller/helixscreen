@@ -221,6 +221,10 @@ class WizardWifiStep : public helix::wizard::Step {
     // state change via add_state_observer(). Non-blocking: never calls
     // set_enabled(). Runs on the UI thread (state observer defers via token).
     void apply_wifi_backend_state();
+    // Bumped (main thread) on every user-initiated change to the connection
+    // state: toggle, connect start, disconnect, cleanup. A status answer issued
+    // under an older value describes a state the user has since replaced.
+    uint32_t status_generation_ = 0;
     // Repopulates from cached_networks_ once an async status read says which
     // network is connected. A status read can block for seconds on
     // wpa_supplicant, so none happens on the UI thread.
