@@ -1933,6 +1933,16 @@ class AmsBackend {
     AmsError set_tool_mapping(int tool_number, int slot_index);
 
     /**
+     * @brief Whether set_tool_mapping() would refuse this assignment.
+     *
+     * The checks a backend's mapping verb makes before it sends anything, run
+     * without sending. Every set_tool_mapping_impl() starts from this, so the
+     * answer is the refusal itself rather than a guess at it. Success means
+     * this side would send the verb, not that the printer will accept it.
+     */
+    [[nodiscard]] virtual AmsError can_set_tool_mapping(int tool_number, int slot_index) const = 0;
+
+    /**
      * @brief What stands behind the routing get_tool_mapping() reports.
      *
      * The default composes the two things the base class can already see: a

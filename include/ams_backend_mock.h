@@ -216,6 +216,9 @@ class AmsBackendMock : public AmsBackend {
     /// behind a slot, so an edit and a sync differ only in what the caller
     /// says the values are.
     AmsError sync_external_identity(int slot_index, const SlotInfo& info) override;
+    [[nodiscard]] AmsError can_set_tool_mapping(int tool_number, int slot_index) const override;
+    /// can_set_tool_mapping() for a caller that holds mutex_.
+    [[nodiscard]] AmsError can_set_tool_mapping_locked(int tool_number, int slot_index) const;
     AmsError set_tool_mapping_impl(int tool_number, int slot_index) override;
 
     /// The mock keeps no override records to erase - its slot table is written

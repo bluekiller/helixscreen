@@ -85,6 +85,10 @@ class PrintStartControllerTestAccess {
         c.restore_filament_mapping();
     }
 
+    static bool apply_remaps(helix::ui::PrintStartController& c) {
+        return c.apply_filament_remaps();
+    }
+
     /// Register the restore observer the way execute_print_start() does right
     /// after apply_filament_remaps() sends remaps, which is BEFORE start_now
     /// calls begin_preparing(), while the wire may still report the previous

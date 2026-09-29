@@ -270,6 +270,10 @@ class PrintStartController {
     // for Klipper to come back (see observe_klippy_state_for_restore).
     ObserverGuard klippy_state_observer_;
 
+    // Armed while a record the backend refused is retained; retries once the
+    // backend would accept every refused entry (see observe_backend_for_retry).
+    ObserverGuard backend_retry_observer_;
+
     // Armed only between sending a restore and the firmware confirming it.
     ObserverGuard ams_data_observer_;
     bool awaiting_restore_confirmation_ = false;
@@ -314,6 +318,19 @@ class PrintStartController {
      * pending_remap.json. Idempotent: a second deferral does not stack observers.
      */
     void observe_klippy_state_for_restore();
+
+    /**
+     * @brief Retry a restore the backend refused, once it would accept it.
+     *
+     * Watches AmsState's data revision and retries when every entry that still
+     * differs passes AmsBackend::can_set_tool_mapping(), never while a job holds
+     * the machine (prestonbrown/helixscreen#1684). Idempotent.
+     */
+    void observe_backend_for_retry();
+
+    /// True when the backend has reported its lanes and would send every saved
+    /// entry that differs from its current mapping.
+    [[nodiscard]] bool retained_restore_sendable() const;
 
     /**
      * @brief Clear the restore snapshot and the on-disk recovery record.

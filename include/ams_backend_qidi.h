@@ -188,6 +188,7 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
     AmsError sync_external_identity(int slot_index, const SlotInfo& info) override;
     void update_slot_weight_impl(int slot_index, float remaining_weight_g, float total_weight_g,
                                  bool persist) override;
+    [[nodiscard]] AmsError can_set_tool_mapping(int tool_number, int slot_index) const override;
     AmsError set_tool_mapping_impl(int tool_number, int slot_index) override;
     void clear_slot_override(int slot_index) override;
 

@@ -3,6 +3,7 @@
 
 #include "helix_test_fixture.h"
 
+#include "ui_animations_pref.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_test_utils.h"
@@ -439,10 +440,18 @@ void HelixTestFixture::reset_all() {
     // test that pumps less than 150ms starts reading the OUTGOING dialog —
     // lv_obj_find_by_name() returns the stale subtree because it is still parented
     // to the screen (test_afc_fault_path_modal.cpp read a previous fault's text).
-    helix::DisplaySettingsManager::instance().init_subjects();
-    if (lv_subject_t* anim = lv_xml_get_subject(nullptr, "settings_animations_enabled")) {
-        lv_subject_set_int(anim, 0);
-    }
+    //
+    // The name is re-pointed at the manager's own subject rather than looked up:
+    // a fixture that publishes its own subject under this global name and
+    // withdraws it on teardown (test_label_scroll_motion.cpp does) leaves the
+    // name unregistered, and init_subjects() is a no-op for a manager that is
+    // already up, so nothing else would ever publish it again. Every later
+    // animations_pref_subject() then reads null.
+    auto& display_settings = helix::DisplaySettingsManager::instance();
+    display_settings.init_subjects();
+    lv_subject_t* anim = display_settings.subject_animations_enabled();
+    lv_xml_register_subject(nullptr, helix::ui::ANIMATIONS_SUBJECT_NAME, anim);
+    lv_subject_set_int(anim, 0);
 
     // Same restore for the other two settings sub-managers a test can tear down.
     //

@@ -65,13 +65,14 @@ PrintStartController::~PrintStartController() {
                      saved_tool_mapping_.size(), saved_backend_index_);
     }
 
-    // Clear observers before modal cleanup. All three must be reset here, not
+    // Clear observers before modal cleanup. All four must be reset here, not
     // just the print-state one: each holds a context pointing at this object,
     // and the klippy/AMS guards stay armed across a whole deferred-restore wait
     // (ObserverGuard, never release() — #579).
     print_state_observer_.reset();
     klippy_state_observer_.reset();
     ams_data_observer_.reset();
+    backend_retry_observer_.reset();
 
     // Clean up an open gate dialog - only if LVGL is still initialized
     // (destructor may be called after lv_deinit() during shutdown)
@@ -752,7 +753,10 @@ bool PrintStartController::apply_filament_remaps() {
         return false;
     }
 
-    // Snapshot current firmware mapping BEFORE sending any remaps
+    // Snapshot current firmware mapping BEFORE sending any remaps. This print's
+    // snapshot replaces a retained one, and a retry still armed for that one
+    // would replay it over the remaps sent below.
+    backend_retry_observer_.reset();
     saved_tool_mapping_ = backend->get_tool_mapping();
     saved_backend_index_ = backend_idx;
 
@@ -918,7 +922,9 @@ void PrintStartController::restore_filament_mapping() {
         int saved_slot = saved_tool_mapping_[i];
         int current_slot = (i < current_mapping.size()) ? current_mapping[i] : -1;
 
-        if (saved_slot != current_slot) {
+        // A tool that was unmapped before the print has no lane to go back to;
+        // every backend refuses slot -1.
+        if (saved_slot >= 0 && saved_slot != current_slot) {
             spdlog::info("[PrintStartController] Restoring T{}: slot {} -> slot {}", i,
                          current_slot, saved_slot);
             auto err = backend->set_tool_mapping(static_cast<int>(i), saved_slot);
@@ -936,10 +942,11 @@ void PrintStartController::restore_filament_mapping() {
 
     // A refused entry names a lane the backend does not currently report —
     // typically a unit that detached since the snapshot was taken. Keep the
-    // snapshot and pending_remap.json: the next startup's replay skips the
-    // entries that took and retries the refused ones, so a reattached unit
-    // gets its routing back. Finishing here would turn a temporary detach
-    // into a permanent loss of the pre-print mapping.
+    // snapshot and pending_remap.json: the next replay (once the backend would
+    // accept every entry, or at the next startup) skips the entries that took
+    // and retries the refused ones, so a reattached unit gets its routing back.
+    // Finishing here would turn a temporary detach into a permanent loss of the
+    // pre-print mapping.
     //
     // Retention has no clock, but it is bounded: the record ends when a
     // replay delivers the refused entries, or when a later print start
@@ -952,12 +959,13 @@ void PrintStartController::restore_filament_mapping() {
     //
     // A replay reverts a remap the user made by hand after the refusal. That
     // is the feature's contract — put the mapping back the way it was before
-    // the print — and it happens at most once per boot, since this path arms
-    // no observer.
+    // the print — and it happens when the backend's lanes come back or at
+    // startup, never while a job holds the machine.
     if (restores_refused > 0) {
         spdlog::warn("[PrintStartController] {} restore command(s) refused — snapshot and "
-                     "pending_remap.json retained for replay on next startup",
+                     "pending_remap.json retained for replay once the backend accepts them",
                      restores_refused);
+        observe_backend_for_retry();
         return;
     }
 
@@ -986,9 +994,65 @@ void PrintStartController::restore_filament_mapping() {
     observe_ams_data_for_confirmation();
 }
 
+bool PrintStartController::retained_restore_sendable() const {
+    auto* backend = AmsState::instance().get_backend(saved_backend_index_);
+    if (!backend || saved_tool_mapping_.empty()) {
+        return false;
+    }
+    // Before a backend's first report its bounds are not the printer's: CFS
+    // accepts any encodable bay until a box frame says how many units exist.
+    // Nothing is replayed until the lane set has actually been reported.
+    if (backend->get_system_info().total_slots <= 0) {
+        return false;
+    }
+    const auto current = backend->get_tool_mapping();
+    for (size_t i = 0; i < saved_tool_mapping_.size(); ++i) {
+        const int want = saved_tool_mapping_[i];
+        const int have = (i < current.size()) ? current[i] : -1;
+        if (want >= 0 && want != have &&
+            !backend->can_set_tool_mapping(static_cast<int>(i), want).success()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void PrintStartController::observe_backend_for_retry() {
+    // Refused although the backend would take every entry now: the refusal came
+    // from past the precondition, and retrying on each data tick would repeat it
+    // forever. Startup replays it.
+    if (retained_restore_sendable()) {
+        spdlog::warn("[PrintStartController] Backend accepts the refused entries yet refused "
+                     "them — no in-session retry; pending_remap.json replays on next startup");
+        return;
+    }
+    if (backend_retry_observer_) {
+        return;
+    }
+    auto* subject = AmsState::instance().get_ams_data_revision_subject();
+    if (!subject) {
+        return;
+    }
+    backend_retry_observer_ = observe_int_sync<PrintStartController>(
+        subject, this,
+        [](PrintStartController* self, int) {
+            // A remap mid-job re-routes the tools of the print in progress.
+            if (job_holds_machine(self->printer_state_.get_print_lifecycle()) ||
+                !self->retained_restore_sendable()) {
+                return;
+            }
+            spdlog::info("[PrintStartController] Backend now accepts the retained mapping — "
+                         "retrying restore");
+            self->backend_retry_observer_.reset();
+            self->restore_filament_mapping();
+        },
+        AmsState::instance().get_subjects_lifetime());
+}
+
 void PrintStartController::finish_restore() {
     awaiting_restore_confirmation_ = false;
     ams_data_observer_.reset();
+    backend_retry_observer_.reset();
     saved_tool_mapping_.clear();
     saved_backend_index_ = -1;
     clear_persisted_remap_state();

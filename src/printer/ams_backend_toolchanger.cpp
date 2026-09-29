@@ -1486,6 +1486,22 @@ AmsError AmsBackendToolChanger::assign_tool(const std::string& physical_tool_nam
     return execute_gcode(fmt::format("ASSIGN_TOOL TOOL={} N={}", physical_tool_name, tool_number));
 }
 
+AmsError AmsBackendToolChanger::can_set_tool_mapping(int tool_number, int slot_index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return can_set_tool_mapping_locked(tool_number, slot_index);
+}
+
+AmsError AmsBackendToolChanger::can_set_tool_mapping_locked(int tool_number, int slot_index) const {
+    const int tool_count = static_cast<int>(tool_names_.size());
+    if (tool_number < 0 || tool_number >= tool_count) {
+        return AmsErrorHelper::tool_out_of_range(tool_number);
+    }
+    if (slot_index < 0 || slot_index >= tool_count) {
+        return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, tool_count - 1);
+    }
+    return AmsErrorHelper::success();
+}
+
 AmsError AmsBackendToolChanger::set_tool_mapping_impl(int tool_number, int slot_index) {
     // Remap G-code tool number to a different physical tool via klipper-toolchanger's
     // ASSIGN_TOOL command. This makes Klipper's T<tool_number> command activate the
@@ -1497,12 +1513,8 @@ AmsError AmsBackendToolChanger::set_tool_mapping_impl(int tool_number, int slot_
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
-        int tool_count = static_cast<int>(tool_names_.size());
-        if (tool_number < 0 || tool_number >= tool_count) {
-            return AmsErrorHelper::tool_out_of_range(tool_number);
-        }
-        if (slot_index < 0 || slot_index >= tool_count) {
-            return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, tool_count - 1);
+        if (auto err = can_set_tool_mapping_locked(tool_number, slot_index); !err.success()) {
+            return err;
         }
 
         // The physical tool to assign (slot_index maps to tool_names_[slot_index])
