@@ -70,7 +70,8 @@ struct PrinterField {
 /// The stable table from the spec's "Printer state" section.
 const std::vector<PrinterField>& printer_fields();
 
-/// Objects and arrays become tables; null becomes nil.
+/// Objects and arrays become tables; null becomes nil. Never raises: nesting deeper
+/// than 64 levels becomes nil.
 void push_json(lua_State* L, const json& j);
 
 /// Raises a Lua error for functions, userdata, cycles, non-string object keys and nesting

@@ -38,6 +38,35 @@ TEST_CASE_METHOD(LVGLTestFixture, "helix.json.encode refuses what JSON cannot ho
     CHECK_FALSE(b.t.run("helix.json.encode({ [true] = 1 })"));
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "json.decode refuses deep nesting", "[plugin][bindings][core]") {
+    BoundRuntime b;
+    REQUIRE(b.t.run(R"(v, err = helix.json.decode(string.rep("[", 200) .. string.rep("]", 200)))"));
+    CHECK(b.t.global("v") == "nil");
+    CHECK(b.t.global("err").find("deeply") != std::string::npos);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "push_json caps nesting instead of crashing",
+                 "[plugin][bindings][core]") {
+    // Built by wrapping, not parsing, and unwrapped the same way: nlohmann's destructor
+    // would recurse one frame per level.
+    constexpr int kDepth = 1000000;
+    json j = json::array();
+    for (int i = 0; i < kDepth; ++i) {
+        json outer = json::array();
+        outer.push_back(std::move(j));
+        j = std::move(outer);
+    }
+    BoundRuntime b;
+    lua_State* L = b.t.rt->state();
+    int top = lua_gettop(L);
+    push_json(L, j);
+    CHECK(lua_gettop(L) == top + 1);
+    lua_pop(L, 1);
+    while (j.is_array() && !j.empty())
+        j = std::move(j.front());
+    SUCCEED(); // surviving the push is the assertion
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "helix.timer.after fires once and cancel stops it",
                  "[plugin][bindings][core]") {
     BoundRuntime b;

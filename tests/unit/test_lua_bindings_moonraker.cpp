@@ -104,6 +104,36 @@ TEST_CASE_METHOD(LVGLTestFixture, "download refuses a body over the plugin memor
     CHECK_FALSE(w.t.rt->faulted());
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "call results larger than the cap return an error",
+                 "[plugin][bindings][moonraker]") {
+    BoundRuntime b({&install_moonraker_bindings});
+    REQUIRE(b.t.run(R"(r, err = helix.moonraker.call("server.info", {}))"));
+    REQUIRE(b.fake.requests.size() == 1);
+    b.fake.requests[0].reply(RpcResult{true, json{{"blob", std::string(4 << 20, 'x')}}, {}});
+    drain();
+    CHECK(b.t.global("r") == "nil");
+    CHECK(b.t.global("err").find("memory cap") != std::string::npos);
+    CHECK_FALSE(b.t.rt->faulted());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "agent event data over the cap arrives as nil",
+                 "[plugin][bindings][moonraker]") {
+    BoundRuntime b({&install_moonraker_bindings});
+    REQUIRE(b.t.run(R"(
+        seen = {}
+        helix.moonraker.on_agent_event("x", function(agent, data)
+            seen[#seen + 1] = agent .. ":" .. tostring(data)
+        end)
+    )"));
+    b.fake.notify[0].second(json{
+        {"params",
+         {{{"agent", "a"}, {"event", "x"}, {"data", {{"blob", std::string(4 << 20, 'x')}}}}}}});
+    drain();
+    REQUIRE(b.t.run("r = table.concat(seen, ',')"));
+    CHECK(b.t.global("r") == "a:nil");
+    CHECK_FALSE(b.t.rt->faulted());
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "agent events are filtered by event name",
                  "[plugin][bindings][moonraker]") {
     BoundRuntime b({&install_moonraker_bindings});

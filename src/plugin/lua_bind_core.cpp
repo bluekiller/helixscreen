@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace helix::plugin {
 
@@ -212,11 +214,89 @@ int json_encode(lua_State* L) {
     return 1;
 }
 
+// Nesting beyond this depth becomes nil. A hostile payload can nest arbitrarily deep,
+// and push_json runs in host pushes (async results, agent events) no protected call
+// would catch a raise or a C++ stack overflow from.
+constexpr int kJsonPushMaxDepth = 64;
+
+// Every call pushes exactly one value, even when the depth cap or a failed
+// lua_checkstack stops the descent, so callers' stack arithmetic holds.
+void push_json_impl(lua_State* L, const json& j, int depth) {
+    if (depth >= kJsonPushMaxDepth) {
+        lua_pushnil(L);
+        return;
+    }
+    switch (j.type()) {
+    case json::value_t::boolean:
+        lua_pushboolean(L, j.get<bool>());
+        break;
+    case json::value_t::number_integer:
+    case json::value_t::number_unsigned:
+        lua_pushinteger(L, j.get<lua_Integer>());
+        break;
+    case json::value_t::number_float:
+        lua_pushnumber(L, j.get<double>());
+        break;
+    case json::value_t::string: {
+        const auto& s = j.get_ref<const std::string&>();
+        lua_pushlstring(L, s.data(), s.size());
+        break;
+    }
+    case json::value_t::array:
+    case json::value_t::object:
+        // Descending needs a slot for the child about to be pushed; without that room
+        // the subtree becomes one nil in the slot the caller reserved.
+        if (!lua_checkstack(L, 3)) {
+            lua_pushnil(L);
+            return;
+        }
+        if (j.is_array()) {
+            lua_createtable(L, static_cast<int>(j.size()), 0);
+            for (size_t i = 0; i < j.size(); ++i) {
+                push_json_impl(L, j[i], depth + 1);
+                lua_rawseti(L, -2, static_cast<lua_Integer>(i + 1));
+            }
+        } else {
+            lua_createtable(L, 0, static_cast<int>(j.size()));
+            for (auto it = j.begin(); it != j.end(); ++it) {
+                push_json_impl(L, it.value(), depth + 1);
+                lua_setfield(L, -2, it.key().c_str());
+            }
+        }
+        break;
+    default: // null, discarded, binary
+        lua_pushnil(L);
+        break;
+    }
+}
+
+// Deepest run of containers, counted from 1 at the root. Iterative: the documents it
+// measures are deep enough to overflow the C++ stack if walked recursively.
+size_t json_depth(const json& j) {
+    size_t max_depth = 0;
+    std::vector<std::pair<const json*, size_t>> pending{{&j, 1}};
+    while (!pending.empty()) {
+        auto [node, depth] = pending.back();
+        pending.pop_back();
+        if (!node->is_structured())
+            continue;
+        max_depth = std::max(max_depth, depth);
+        for (const auto& child : *node)
+            pending.push_back({&child, depth + 1});
+    }
+    return max_depth;
+}
+
 int json_decode(lua_State* L) {
     json j = json::parse(luaL_checkstring(L, 1), nullptr, false);
     if (j.is_discarded()) {
         lua_pushnil(L);
         lua_pushstring(L, "invalid JSON");
+        return 2;
+    }
+    if (json_depth(j) > kJsonPushMaxDepth) {
+        lua_pushnil(L);
+        lua_pushstring(L, "JSON nested too deeply");
         return 2;
     }
     push_json(L, j);
@@ -239,41 +319,7 @@ void add_module(lua_State* L, const char* name, const luaL_Reg* fns) {
 } // namespace
 
 void push_json(lua_State* L, const json& j) {
-    luaL_checkstack(L, 3, "json nested too deeply");
-    switch (j.type()) {
-    case json::value_t::boolean:
-        lua_pushboolean(L, j.get<bool>());
-        break;
-    case json::value_t::number_integer:
-    case json::value_t::number_unsigned:
-        lua_pushinteger(L, j.get<lua_Integer>());
-        break;
-    case json::value_t::number_float:
-        lua_pushnumber(L, j.get<double>());
-        break;
-    case json::value_t::string: {
-        const auto& s = j.get_ref<const std::string&>();
-        lua_pushlstring(L, s.data(), s.size());
-        break;
-    }
-    case json::value_t::array:
-        lua_createtable(L, static_cast<int>(j.size()), 0);
-        for (size_t i = 0; i < j.size(); ++i) {
-            push_json(L, j[i]);
-            lua_rawseti(L, -2, static_cast<lua_Integer>(i + 1));
-        }
-        break;
-    case json::value_t::object:
-        lua_createtable(L, 0, static_cast<int>(j.size()));
-        for (auto it = j.begin(); it != j.end(); ++it) {
-            push_json(L, it.value());
-            lua_setfield(L, -2, it.key().c_str());
-        }
-        break;
-    default: // null, discarded, binary
-        lua_pushnil(L);
-        break;
-    }
+    push_json_impl(L, j, 0);
 }
 
 json to_json(lua_State* L, int index) {

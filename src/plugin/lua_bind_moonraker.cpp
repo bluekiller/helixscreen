@@ -6,6 +6,8 @@
 #include "json_utils.h"
 #include "lua_bindings.h"
 
+#include <spdlog/spdlog.h>
+
 namespace helix::plugin {
 
 void require_permission(lua_State* L, Permission p, const char* call) {
@@ -26,20 +28,33 @@ RpcCallback make_resolver(LuaRuntime::Pending p, PushRpc on_ok) {
     };
 }
 
+namespace {
+
+// Room left before the runtime's post-push check would fault the plugin.
+size_t memory_remaining(const LuaRuntime& rt) {
+    size_t cap = rt.memory_cap(), used = rt.memory_used();
+    return cap > used ? cap - used : 0;
+}
+
+// What a pushed json value costs the Lua state: its own bytes for a string, its
+// serialized form for anything else.
+size_t pushed_bytes(const json& v) {
+    return v.is_string() ? v.get_ref<const std::string&>().size() : v.dump().size();
+}
+
+} // namespace
+
 int push_rpc_true(lua_State* co, const RpcResult&) {
     lua_pushboolean(co, 1);
     return 1;
 }
 
 int push_rpc_value(lua_State* co, const RpcResult& r) {
-    push_json(co, r.value);
-    return 1;
+    return push_rpc_capped_body(co, r.value, pushed_bytes(r.value));
 }
 
 int push_rpc_capped_body(lua_State* co, const json& value, size_t body_bytes) {
-    LuaRuntime& rt = LuaRuntime::from(co);
-    size_t remaining = rt.memory_cap() > rt.memory_used() ? rt.memory_cap() - rt.memory_used() : 0;
-    if (body_bytes > remaining) {
+    if (body_bytes > memory_remaining(LuaRuntime::from(co))) {
         lua_pushnil(co);
         lua_pushliteral(co, "response larger than the plugin memory cap");
         return 2;
@@ -148,8 +163,20 @@ int on_agent_event(lua_State* L) {
                 return;
             std::string agent = helix::json_util::safe_string(p0, "agent", "");
             json data = p0.contains("data") ? p0["data"] : json();
-            token.defer("plugin_agent_event", [rtp, ref, agent, data]() {
-                rtp->invoke(ref, [agent, data](lua_State* co) {
+            size_t bytes = pushed_bytes(data);
+            token.defer("plugin_agent_event", [rtp, ref, agent, data, bytes]() {
+                if (bytes > memory_remaining(*rtp)) {
+                    spdlog::warn("[plugin {}] agent event data over the memory cap; "
+                                 "handler saw nil",
+                                 rtp->plugin_id());
+                    rtp->invoke(ref, [agent](lua_State* co) {
+                        lua_pushlstring(co, agent.data(), agent.size());
+                        lua_pushnil(co);
+                        return 2;
+                    });
+                    return;
+                }
+                rtp->invoke(ref, [agent, &data](lua_State* co) {
                     lua_pushlstring(co, agent.data(), agent.size());
                     push_json(co, data);
                     return 2;
