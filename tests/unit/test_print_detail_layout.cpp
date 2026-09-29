@@ -75,8 +75,8 @@ TEST_CASE("portrait preview: rows fit under base, edge already mid-tile is left 
 
 TEST_CASE("portrait preview: rows fit, edge in a grid gap is nudged mid-tile",
           "[print_detail_layout]") {
-    // Edge 224 is 2px past row 2's end, inside the gap.
-    const int avail = BASE + GRID_TOP + 2 * PITCH + 2;
+    // Edge 225 is 3px before row 3's start, inside the gap.
+    const int avail = BASE + GRID_TOP + 2 * PITCH - 3;
     const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
     CHECK(h < BASE);
     CHECK(BASE - h <= GAP + TILE / 2);
@@ -85,11 +85,12 @@ TEST_CASE("portrait preview: rows fit, edge in a grid gap is nudged mid-tile",
 
 TEST_CASE("portrait preview: rows fit, edge in row 3's top outer quarter is nudged",
           "[print_detail_layout]") {
-    const int avail = BASE + GRID_TOP + 2 * PITCH + 2;
-    const int h = decide_detail_portrait_preview(W, avail + 6, 1000, GRID_TOP, TILE, GAP);
+    // Edge 236 is 8px into row 3 (its top outer quarter).
+    const int avail = BASE + GRID_TOP + 2 * PITCH + 8;
+    const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
     CHECK(h < BASE);
     CHECK(BASE - h <= GAP + TILE / 2);
-    CHECK(mid_tile(edge_for(avail + 6, h)));
+    CHECK(mid_tile(edge_for(avail, h)));
 }
 
 TEST_CASE("portrait preview: rows fit, edge in a tile's bottom outer quarter is nudged",

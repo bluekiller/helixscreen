@@ -106,13 +106,13 @@ function:
 
 ```
 int decide_detail_portrait_preview(int width, int avail_h, int content_h,
-                                   int row_pitch, int min_h);
+                                   int grid_top, int tile_h, int gap);
 ```
 
 - `width`: preview card width. `avail_h`: height the preview and the scroll area share.
-  `content_h`: the scroll area's full content height. `row_pitch`: tile height + grid gap.
-  The caller also knows where the tile grid starts inside the scroll content; pass it as
-  `grid_top` (add the parameter) so the rule can tell a tile edge from space above the grid.
+  `content_h`: the scroll area's full content height. `grid_top`: where the tile grid
+  starts inside the scroll content, so the rule can tell a tile edge from space above the
+  grid. `tile_h` + `gap`: one grid pitch.
 - `min_h = width / 3`: below that the preview stops reading as a model.
 - Base height = `width / 2` (2:1).
 - If `content_h <= avail_h - base`, return base (everything fits, no cue).

@@ -332,6 +332,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     // without any scrolling (option tiles or filament rows arriving after the
     // view is built), which scroll/size events alone would miss.
     options_scroll_ = lv_obj_find_by_name(overlay_root_, "detail_options_scroll");
+    detail_card_ = lv_obj_find_by_name(overlay_root_, "detail_card");
     if (options_scroll_) {
         for (lv_event_code_t code : {LV_EVENT_SCROLL, LV_EVENT_SCROLL_END, LV_EVENT_SIZE_CHANGED,
                                      LV_EVENT_LAYOUT_CHANGED}) {
@@ -994,10 +995,12 @@ void PrintSelectDetailView::on_ui_destroyed() {
     // their observers were attached to the now-deleted row widgets, so
     // dropping the subjects here is safe.
     pre_print_options_container_ = nullptr;
-    // The scroll area and the content container (whose LAYOUT_CHANGED feeds
-    // fit_portrait_preview) were children of overlay_root_, already destroyed
-    // by the base class; their event callbacks died with them.
+    // The scroll area, the preview card and the content container (whose
+    // LAYOUT_CHANGED feeds fit_portrait_preview) were children of
+    // overlay_root_, already destroyed by the base class; their event
+    // callbacks died with them.
     options_scroll_ = nullptr;
+    detail_card_ = nullptr;
     option_rows_renderer_.clear();
     last_rendered_printer_type_.clear();
     // A seed that never reached a render dies with the view it was meant
@@ -2561,7 +2564,7 @@ void PrintSelectDetailView::update_options_more_below() {
 }
 
 void PrintSelectDetailView::fit_portrait_preview() {
-    lv_obj_t* card = overlay_root_ ? lv_obj_find_by_name(overlay_root_, "detail_card") : nullptr;
+    lv_obj_t* card = detail_card_;
     if (!card || !options_scroll_) {
         return;
     }

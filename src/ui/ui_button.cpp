@@ -458,33 +458,9 @@ lv_obj_t* create_button_icon(lv_obj_t* btn, const char* icon_name,
 void* ui_button_create(lv_xml_parser_state_t* state, const char** attrs) {
     lv_obj_t* parent = static_cast<lv_obj_t*>(lv_xml_state_get_parent(state));
 
-    // Create button with default height from theme system. The default rides
-    // an added style, not a local property: a local prop outranks every bound
-    // XML style, so an orientation- or breakpoint-conditional height could
-    // never override it. The tier is responsive, so the styles are cached per
-    // resolved value (a handful of tiers over the process lifetime).
+    // Create button with default height from theme system
     lv_obj_t* btn = lv_button_create(parent);
-    static lv_style_t default_height_styles[4];
-    static int32_t default_height_values[4] = {0};
-    static size_t default_height_count = 0;
-    const int32_t default_height = theme_manager_get_spacing("button_height");
-    lv_style_t* default_height_style = nullptr;
-    for (size_t i = 0; i < default_height_count; ++i) {
-        if (default_height_values[i] == default_height) {
-            default_height_style = &default_height_styles[i];
-            break;
-        }
-    }
-    if (default_height_style == nullptr && default_height_count < 4) {
-        default_height_style = &default_height_styles[default_height_count];
-        default_height_values[default_height_count] = default_height;
-        lv_style_init(default_height_style);
-        lv_style_set_height(default_height_style, default_height);
-        ++default_height_count;
-    }
-    if (default_height_style != nullptr) {
-        lv_obj_add_style(btn, default_height_style, LV_PART_MAIN);
-    }
+    lv_obj_set_height(btn, theme_manager_get_spacing("button_height"));
 
     // If focusable="false", remove from default input group
     // This prevents keyboard Tab navigation focus (and focus ring)

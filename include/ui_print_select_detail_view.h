@@ -809,8 +809,10 @@ class PrintSelectDetailView : public OverlayBase {
     lv_obj_t* pre_print_options_container_ = nullptr;
     // The scroll area wrapping the four option cards; owns the scroll cue's
     // data (see detail_options_more_below_) and half of the portrait preview
-    // measurement (see fit_portrait_preview()).
+    // measurement (see fit_portrait_preview()). The card is the other half of
+    // that measurement; both are children of overlay_root_ and die with it.
     lv_obj_t* options_scroll_ = nullptr;
+    lv_obj_t* detail_card_ = nullptr;
     std::string last_rendered_printer_type_;
 
     // States handed over by seed_option_states(), applied over the freshly
