@@ -14,6 +14,7 @@
   <view name="panel_widget_thermistor"
         extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" scrollable="false" flex_flow="column"
         style_flex_main_place="center" style_flex_cross_place="center" style_flex_track_place="center" clickable="true">
+    <style name="styles.press_wash" selector="pressed"/>
     <bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
     <event_cb trigger="clicked" callback="thermistor_clicked_cb"/>
     <!-- Top row: icon + temperature. Tighter gap than the sibling widgets use:

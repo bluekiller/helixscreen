@@ -34,6 +34,7 @@
           <lv_obj name="pm_image_container"
                   width="#pm_image_size" height="#pm_image_size" scrollable="false" clickable="true" style_bg_opa="0"
                   style_border_width="0" style_pad_all="0">
+            <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_change_printer_image_clicked"/>
             <lv_image name="pm_printer_image"
                       width="100%" height="100%" inner_align="contain" style_radius="#border_radius" clickable="false"
@@ -52,6 +53,7 @@
                   width="100%" height="content" flex_flow="row" style_pad_gap="#space_xs"
                   style_flex_cross_place="center" style_flex_main_place="center" scrollable="false" style_bg_opa="0"
                   style_border_width="0" style_pad_all="0" clickable="true">
+            <style name="styles.press_wash" selector="pressed"/>
             <bind_flag_if_eq subject="pm_name_editing" flag="hidden" ref_value="1"/>
             <event_cb trigger="clicked" callback="pm_printer_name_clicked"/>
             <text_heading name="pm_printer_name"
@@ -72,6 +74,7 @@
                   width="100%" height="content" flex_flow="row" style_pad_gap="#space_xs"
                   style_flex_cross_place="center" style_flex_main_place="center" scrollable="false" style_bg_opa="0"
                   style_border_width="0" style_pad_all="0" clickable="true">
+            <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_change_printer_model_clicked"/>
             <text_muted name="pm_printer_model"
                         width="content" bind_text="printer_manager_model" style_text_align="center" clickable="false"
@@ -121,6 +124,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_bed_mesh" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_bed_mesh_clicked"/>
           <icon src="grid_large" size="xs" variant="success"/>
@@ -144,6 +148,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_led" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_leds_clicked"/>
           <icon src="lightbulb_on" size="xs" variant="success"/>
@@ -156,6 +161,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_accelerometer" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_adxl_clicked"/>
           <icon src="vibrate" size="xs" variant="success"/>
@@ -190,6 +196,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_firmware_retraction" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_retraction_clicked"/>
           <icon src="arrow_up_right" size="xs" variant="success"/>
@@ -202,6 +209,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_spoolman" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_spoolman_clicked"/>
           <icon src="database" size="xs" variant="success"/>
@@ -214,6 +222,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_timelapse" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_timelapse_clicked"/>
           <icon src="camera_timer" size="xs" variant="success"/>
@@ -226,6 +235,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_screws_tilt" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_screws_tilt_clicked"/>
           <icon src="rotate_left" size="xs" variant="success"/>
@@ -249,6 +259,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="ams_type" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_ams_clicked"/>
           <icon src="source_branch" size="xs" variant="success"/>
@@ -261,6 +272,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_extra_fans" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_fans_clicked"/>
           <icon src="fan" size="xs" variant="success"/>
@@ -273,6 +285,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="power_device_count" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_power_clicked"/>
           <icon src="power_plug" size="xs" variant="success"/>
@@ -296,6 +309,7 @@
                 style_pad_top="#space_xs" style_pad_bottom="#space_xs" style_pad_left="#space_sm"
                 style_pad_right="#space_sm" flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center"
                 scrollable="false" style_border_width="0" clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_eq subject="printer_has_speaker" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="pm_chip_speaker_clicked"/>
           <icon src="volume_high" size="xs" variant="success"/>
