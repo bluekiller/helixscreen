@@ -38,6 +38,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "emergency_stop_and_restart sends M112 then a 
     MoonrakerAPIMock api(client, state);
     REQUIRE(client.get_klippy_state() == MoonrakerClientMock::KlippyState::READY);
     REQUIRE(client.get_print_phase() == MoonrakerClientMock::MockPrintPhase::IDLE);
+    // The mock's M112 lands on the global state; its subjects must exist, and
+    // READY is 0, so an uninitialised subject would pass the check below.
+    get_printer_state().init_subjects(false);
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
     REQUIRE(static_cast<helix::KlippyState>(lv_subject_get_int(
                 get_printer_state().get_klippy_state_subject())) == helix::KlippyState::READY);
