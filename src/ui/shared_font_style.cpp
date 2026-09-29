@@ -3,8 +3,6 @@
 
 #include "helix/ui/shared_font_style.h"
 
-#include <spdlog/spdlog.h>
-
 #include <deque>
 
 namespace helix::ui {
