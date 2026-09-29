@@ -828,12 +828,12 @@ Unrecognized values are not rejected — they land in the generic `probe` bucket
 
 ### `HELIX_MOCK_KINEMATICS`
 
-Override the kinematics string the mock reports in `configfile.config.printer.kinematics`. Bed-moves detection (which drives bed-slinger vs. CoreXY UI decisions) reads this.
+Override the kinematics string the mock reports in `configfile.config.printer.kinematics`. Bed-moves detection (which drives bed-slinger vs. CoreXY UI decisions) and the Belt Tension Start gate (which requires CoreXY) read this.
 
 | Property | Value |
 |----------|-------|
 | **Values** | Any Klipper kinematics name (e.g. `corexy`, `cartesian`, `delta`, `corexz`) |
-| **Default** | Derived from the mock printer type: `corexy` for Voron 2.4, Voron Trident and Creality K1; `delta` for `delta`; `cartesian` for everything else |
+| **Default** | Derived from the mock printer type: `corexy` for Voron 2.4, Voron Trident, Creality K1/K1 Max, FlashForge Creator 5 (both variants) and `generic_corexy`; `delta` for `delta`; `cartesian` for everything else |
 | **File** | `src/api/moonraker_client_mock.cpp` |
 
 ```bash

@@ -583,6 +583,7 @@
   <translation tag="Command failed" de="Befehl fehlgeschlagen" en="Command failed" es="El comando falló" fr="Échec de la commande" it="Comando non riuscito" ja="コマンドに失敗しました" pt="O comando falhou" ru="Ошибка команды" zh="命令失败"/>
   <translation tag="Communication Test" de="Kommunikationstest" en="Communication Test" es="Prueba de comunicación" fr="Test de communication" it="Test di comunicazione" ja="通信テスト" pt="Teste de comunicação" ru="Проверка связи" zh="通信测试"/>
   <translation tag="Compact" de="Kompakt" en="Compact" es="Compacto" fr="Compact" it="Compatto" ja="コンパクト" pt="Compacto" ru="Компактный" zh="紧凑"/>
+  <translation tag="Compare belt paths with a resonance sweep" en="Compare belt paths with a resonance sweep"/>
   <translation tag="Compare your belt paths" de="Riemenpfade vergleichen" en="Compare your belt paths" es="Compara las rutas de tus correas" fr="Comparez vos chemins de courroie" it="Confronta i percorsi delle cinghie" ja="ベルト経路を比較" pt="Compare os caminhos das correias" ru="Сравните пути ремней" zh="比较皮带路径"/>
   <translation tag="Complete" de="Abgeschlossen" en="Complete" es="Completo" fr="Terminé" it="Completato" ja="完了" pt="Concluído" ru="Завершено" zh="完成"/>
   <translation tag="Complete!" de="Abgeschlossen!" en="Complete!" es="¡Completo!" fr="Terminé !" it="Completato!" ja="完了！" pt="Concluído!" ru="Готово!" zh="完成！"/>

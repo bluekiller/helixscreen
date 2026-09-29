@@ -2666,9 +2666,9 @@ bool show_demo_overlay(const std::string& name) {
     }
 
     if (name == "belt-tension") {
-        // The Advanced panel row is gone until the resonance-compare UI ships,
-        // so the only mock-mode way in is here. Same lazy-create-plus-show the
-        // row click performs.
+        // Opens the panel directly, skipping the Advanced row's beta and
+        // accelerometer gates, for screenshots and ctl runs. Same
+        // lazy-create-plus-show the row click performs.
         auto& panel = get_global_belt_tension_panel();
         if (!panel.get_root()) {
             panel.set_api(get_moonraker_client(), get_moonraker_api());
