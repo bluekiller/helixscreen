@@ -19,6 +19,8 @@
 #include "overlay_base.h"
 #include "ui/ui_lazy_panel_helper.h"
 
+#include <vector>
+
 #include "../catch_amalgamated.hpp"
 
 using helix::PanelId;
@@ -143,4 +145,95 @@ TEST_CASE_METHOD(StaleCacheFixture,
     nav.go_back();
     settle();
     g_lazy_overlay = nullptr;
+}
+
+TEST_CASE_METHOD(StaleCacheFixture, "A root cached by its caller reopens with zoom after a rebuild",
+                 "[1729][navigation][overlay][hot_reload]") {
+    auto& nav = NavigationManager::instance();
+    CachedOverlay overlay;
+    overlay.init_subjects();
+    lv_obj_t* cached = overlay.create(test_screen());
+    nav.register_overlay_instance(cached, &overlay);
+    nav.push_overlay(cached);
+    settle();
+
+    close_and_rebuild(overlay);
+
+    nav.register_overlay_instance(cached, &overlay);
+    nav.push_overlay_zoom_from(cached, lv_area_t{10, 10, 60, 60});
+    settle();
+
+    CHECK(nav.is_panel_on_top(overlay.get_root()));
+
+    nav.go_back();
+    settle();
+}
+
+TEST_CASE_METHOD(StaleCacheFixture, "A push queued before a rebuild opens the rebuilt root",
+                 "[1729][navigation][overlay][hot_reload]") {
+    auto& nav = NavigationManager::instance();
+    CachedOverlay overlay;
+    overlay.init_subjects();
+    lv_obj_t* cached = overlay.create(test_screen());
+    nav.register_overlay_instance(cached, &overlay);
+
+    // The push is queued, and the rebuild runs before it drains.
+    nav.push_overlay(cached);
+    nav.rebuild_active_views();
+    // The replaced root awaits its deferred delete: still a valid object.
+    REQUIRE(overlay.get_root() != cached);
+    REQUIRE(lv_obj_is_valid(cached));
+    settle();
+
+    CHECK(nav.is_panel_on_top(overlay.get_root()));
+
+    nav.go_back();
+    settle();
+}
+
+TEST_CASE_METHOD(StaleCacheFixture,
+                 "A later object at a replaced root's address is never forwarded to its successor",
+                 "[1729][navigation][overlay][hot_reload]") {
+    auto& nav = NavigationManager::instance();
+    CachedOverlay overlay;
+    overlay.init_subjects();
+    lv_obj_t* cached = overlay.create(test_screen());
+    nav.register_overlay_instance(cached, &overlay);
+    nav.push_overlay(cached);
+    settle();
+    lv_obj_t* stale = close_and_rebuild(overlay);
+
+    // Another overlay's root allocated at the freed address.
+    lv_obj_t* tenant = nullptr;
+    std::vector<lv_obj_t*> spare;
+    for (int i = 0; i < 64 && !tenant; ++i) {
+        lv_obj_t* obj = lv_obj_create(test_screen());
+        if (obj == stale) {
+            tenant = obj;
+        } else {
+            spare.push_back(obj);
+        }
+    }
+    for (lv_obj_t* obj : spare) {
+        lv_obj_delete(obj);
+    }
+    REQUIRE(tenant != nullptr);
+    lv_obj_add_flag(tenant, LV_OBJ_FLAG_HIDDEN);
+
+    nav.register_overlay_instance(tenant, nullptr);
+    nav.push_overlay(tenant);
+    settle();
+    REQUIRE(nav.is_panel_on_top(tenant));
+    nav.go_back();
+    settle();
+
+    // The tenant is freed too, and its cache pushed: nothing opens, least of
+    // all the rebuilt overlay that once lived at this address.
+    lv_obj_delete(tenant);
+    settle();
+    nav.push_overlay(tenant);
+    settle();
+
+    CHECK_FALSE(nav.is_panel_on_top(overlay.get_root()));
+    CHECK_FALSE(nav.is_panel_in_stack(overlay.get_root()));
 }
