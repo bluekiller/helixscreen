@@ -3,8 +3,12 @@
 #pragma once
 
 #include "ams_backend.h"
+#include "gcode_tool_remapper.h"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
 
 /**
  * @file ams_remap.h
@@ -152,6 +156,25 @@ enum class RemapBlock : uint8_t {
 [[nodiscard]] inline bool can_write_mapping_table(const AmsBackend& backend) {
     return backend.get_remap_strategy() == AmsBackend::RemapStrategy::Native &&
            backend.remap_ready();
+}
+
+/**
+ * @brief The tool-naming start macro parameters this route's remap leaves as sliced.
+ *
+ * Only GcodeRewrite edits the job file, so only it can leave a stale tool
+ * number behind in the file: a PRINT_START that heats EXTRUDER_TEMP's tool
+ * while the rewritten body selects another prints from a cold head.
+ *
+ * @param start_line The job's PRINT_START/START_PRINT line, or empty when none
+ *        was scanned for this file.
+ * @return Parameter keys to warn about; empty when there is nothing to say.
+ */
+[[nodiscard]] inline std::vector<std::string>
+start_params_remap_leaves(AmsBackend::RemapStrategy strategy, std::string_view start_line) {
+    if (strategy != AmsBackend::RemapStrategy::GcodeRewrite || start_line.empty()) {
+        return {};
+    }
+    return GcodeToolRemapper::unremapped_tool_params(start_line);
 }
 
 } // namespace printer

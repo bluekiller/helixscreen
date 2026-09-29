@@ -4,13 +4,15 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 namespace helix {
 
 class GcodeToolRemapper {
   public:
     // remap: logical tool index -> physical head index.
     //
-    // Rewrites all three command families. Every line is transformed from its
+    // Rewrites all four command families. Every line is transformed from its
     // OWN original text, so a swap (1<->2) does not chain and no line needs to
     // see any other. That is what lets the same rule run file to file.
     //
@@ -27,6 +29,13 @@ class GcodeToolRemapper {
     // The whole-content form of apply_to_file(), for callers that already hold
     // the content. A file being printed goes file to file instead.
     static std::string apply_to_string(const std::string& gcode, const std::map<int, int>& remap);
+
+    // The keys of the tool-naming KEY=VALUE parameters on `line` that a remap
+    // leaves unchanged, in line order: any key containing EXTRUDER or TOOL, or a
+    // T<digits> key, except INITIAL_TOOL, which the rewrite handles. Their
+    // meaning is the user's own macro convention (is EXTRUDER_TEMP tool 0, or the
+    // active tool?), so they are reported rather than guessed at.
+    static std::vector<std::string> unremapped_tool_params(std::string_view line);
 };
 
 } // namespace helix

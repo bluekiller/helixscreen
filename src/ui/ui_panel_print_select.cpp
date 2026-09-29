@@ -3194,7 +3194,34 @@ void PrintSelectPanel::open_remap_modal() {
     remap_modal_.set_mappings(mappings);
     remap_modal_.set_on_mappings_updated(
         [this](std::vector<helix::ToolMapping> updated) { apply_remap(updated); });
+    remap_modal_.set_start_macro_note(start_macro_remap_note(*backend));
     remap_modal_.show(lv_screen_active());
+}
+
+// A rewrite that moves the body's tool changes but not a start macro's own
+// per-tool values can select a head the macro never heated. The line comes
+// from the ops scan the detail view runs on every file it opens.
+std::string PrintSelectPanel::start_macro_remap_note(const AmsBackend& backend) const {
+    auto* prep = detail_view_ ? detail_view_->get_prep_manager() : nullptr;
+    const std::string filename(selected_filename_buffer_);
+    if (!prep || !prep->has_scan_result_for(filename)) {
+        return {};
+    }
+    const auto& start = prep->get_scan_result()->print_start;
+    const auto keys = helix::printer::start_params_remap_leaves(
+        backend.get_remap_strategy(),
+        start.found ? std::string_view(start.raw_line) : std::string_view{});
+    if (keys.empty()) {
+        return {};
+    }
+    std::string key_list;
+    for (const auto& key : keys) {
+        key_list += (key_list.empty() ? "" : ", ") + key;
+    }
+    return fmt::format(fmt::runtime(lv_tr("Your {} line passes per-tool settings that remapping "
+                                          "does not change ({}). A remapped tool may not be "
+                                          "heated. See Tool Mapping in the user guide.")),
+                       start.macro_name, key_list);
 }
 
 // Strategy-dispatched APPLY — the ONLY place the backends diverge in the UI.
@@ -3206,9 +3233,9 @@ void PrintSelectPanel::apply_remap(const std::vector<helix::ToolMapping>& update
 
     switch (backend->get_remap_strategy()) {
     case AmsBackend::RemapStrategy::GcodeRewrite: {
-        // Rewrite the Tx / ACTIVATE_EXTRUDER / SET_GCODE_VARIABLE lines in the
-        // gcode and print the modified copy via the HelixPrint plugin (history
-        // stays under the original filename). Plugin presence was already guarded
+        // Rewrite the job's tool numbers (the families GcodeToolRemapper lists)
+        // and print the modified copy via the HelixPrint plugin (history stays
+        // under the original filename). Plugin presence was already guarded
         // in open_remap_modal(). Taken by a tool changer driving swaps with its
         // own T<n> macros rather than klipper-toolchanger; ACE will take it once
         // its ACE_CHANGE_TOOL family lands, until then ACE stays None.

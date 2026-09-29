@@ -597,6 +597,8 @@ class PrintSelectPanel : public PanelBase {
     // branch: GcodeRewrite rewrites + prints; Native / PrePrintSend push to
     // the shared card store (backend-specific send happens at print-start).
     void apply_remap(const std::vector<helix::ToolMapping>& updated);
+    /// The Filament Mapping dialog's warning for the selected file, or empty.
+    [[nodiscard]] std::string start_macro_remap_note(const helix::AmsBackend& backend) const;
 
     //
     // === Constants ===

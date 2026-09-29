@@ -601,3 +601,18 @@ TEST_CASE("remap_block_name covers every rung", "[ams][strategy][block]") {
         CHECK(std::string(remap_block_name(block)) != "unknown");
     }
 }
+
+TEST_CASE("Only a file rewrite reports start macro params it leaves alone", "[ams][strategy]") {
+    using helix::printer::start_params_remap_leaves;
+    using S = AmsBackend::RemapStrategy;
+    const std::string_view line = "PRINT_START INITIAL_TOOL=0 EXTRUDER1_TEMP=0 BED_TEMP=60";
+
+    CHECK(start_params_remap_leaves(S::GcodeRewrite, line) ==
+          std::vector<std::string>{"EXTRUDER1_TEMP"});
+    // No start line scanned for this file: nothing to say.
+    CHECK(start_params_remap_leaves(S::GcodeRewrite, "").empty());
+    // The other routes never rewrite the file, so the rewrite's blind spots are not theirs.
+    CHECK(start_params_remap_leaves(S::Native, line).empty());
+    CHECK(start_params_remap_leaves(S::PrePrintSend, line).empty());
+    CHECK(start_params_remap_leaves(S::None, line).empty());
+}

@@ -2,13 +2,19 @@
 //
 // Pure gcode tool remapper for Snapmaker U1 / ACE.
 //
-// On the U1 the logical->physical tool mapping is IDENTITY-baked across three
-// command families in a sliced file. A remap of logical tool a -> physical head
-// b must rewrite ALL THREE consistently:
+// A sliced file bakes the logical->physical tool mapping into four command
+// families. A remap of logical tool a -> physical head b must rewrite ALL FOUR
+// consistently:
 //   1. Prestart:  SM_PRINT_AUTO_FEED / SM_PRINT_EXTRUDER_PREHEAT /
-//                 SM_PRINT_FLOW_CALIBRATE  with  EXTRUDER=<n>
+//                 SM_PRINT_FLOW_CALIBRATE  with  EXTRUDER=<n>  (Snapmaker U1)
 //   2. Body:      a bare "T<n>" toolchange line
 //   3. Temps:     M104 / M109 lines carrying a "T<n>" tool token
+//   4. Start:     an INITIAL_TOOL=<n> parameter on any command line, the name
+//                 of the slicer placeholder a start macro is handed the first
+//                 tool by
+//
+// Any other tool-naming parameter a start macro takes is the user's own
+// convention; unremapped_tool_params() reports those instead of guessing.
 //
 // Matching is deliberately conservative so comment lines and unrelated commands
 // are never touched. Each line is transformed from its ORIGINAL text only, so a
@@ -20,6 +26,7 @@
 
 #include "text_io.h"
 
+#include <algorithm>
 #include <cctype>
 #include <string_view>
 
@@ -145,6 +152,81 @@ bool try_temp(const std::string& line, const std::map<int, int>& remap, std::str
     return false;
 }
 
+// --- Family 4: "INITIAL_TOOL=<digits>" parameter, key case-insensitive ---
+constexpr std::string_view INITIAL_TOOL_KEY = "INITIAL_TOOL";
+
+bool iequals(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::toupper(static_cast<unsigned char>(a[i])) !=
+            std::toupper(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool icontains(std::string_view haystack, std::string_view needle) {
+    for (size_t i = 0; i + needle.size() <= haystack.size(); ++i) {
+        if (iequals(haystack.substr(i, needle.size()), needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Visits each whitespace-delimited KEY=VALUE token before any ';' comment.
+// `key_begin` is the token's offset in `line`.
+template <typename Visit> void for_each_param(std::string_view line, Visit&& visit) {
+    const size_t end = std::min(line.find(';'), line.size());
+    size_t i = 0;
+    while (i < end) {
+        while (i < end && std::isspace(static_cast<unsigned char>(line[i]))) {
+            ++i;
+        }
+        const size_t token_begin = i;
+        while (i < end && !std::isspace(static_cast<unsigned char>(line[i]))) {
+            ++i;
+        }
+        const std::string_view token = line.substr(token_begin, i - token_begin);
+        const size_t eq = token.find('=');
+        if (eq != std::string_view::npos && eq > 0) {
+            visit(token.substr(0, eq), token.substr(eq + 1), token_begin);
+        }
+    }
+}
+
+bool try_initial_tool(const std::string& line, const std::map<int, int>& remap, std::string& out) {
+    // The command word itself is never a parameter.
+    const size_t first_space = line.find_first_of(" \t");
+    if (line.empty() || line[0] == ';' || first_space == std::string::npos) {
+        return false;
+    }
+    bool changed = false;
+    for_each_param(std::string_view(line).substr(first_space),
+                   [&](std::string_view key, std::string_view value, size_t key_begin) {
+                       if (changed || !iequals(key, INITIAL_TOOL_KEY) || value.empty() ||
+                           !std::isdigit(static_cast<unsigned char>(value[0]))) {
+                           return;
+                       }
+                       const size_t value_begin = first_space + key_begin + key.size() + 1;
+                       size_t pos = value_begin;
+                       int idx = parse_uint(line, pos);
+                       if (pos != value_begin + value.size()) {
+                           return; // "INITIAL_TOOL=1x" is not a tool number
+                       }
+                       int m = mapped(idx, remap);
+                       if (m == idx) {
+                           return;
+                       }
+                       out = line.substr(0, value_begin) + std::to_string(m) + line.substr(pos);
+                       changed = true;
+                   });
+    return changed;
+}
+
 // Shared per-line transform. Returns the rewritten line, or `line` unchanged.
 // `line` must NOT contain a trailing '\n' (callers split on newlines first).
 std::string transform_line(const std::string& line, const std::map<int, int>& remap) {
@@ -156,6 +238,9 @@ std::string transform_line(const std::string& line, const std::map<int, int>& re
         return out;
     }
     if (try_temp(line, remap, out)) {
+        return out;
+    }
+    if (try_initial_tool(line, remap, out)) {
         return out;
     }
     return line;
@@ -241,6 +326,27 @@ std::string GcodeToolRemapper::apply_to_string(const std::string& gcode,
         },
         [&](std::string_view piece) { out.append(piece); }, remap);
     return out;
+}
+
+std::vector<std::string> GcodeToolRemapper::unremapped_tool_params(std::string_view line) {
+    std::vector<std::string> keys;
+    for_each_param(line, [&](std::string_view key, std::string_view, size_t) {
+        if (iequals(key, INITIAL_TOOL_KEY)) {
+            return;
+        }
+        const bool t_numbered = key.size() >= 2 && (key[0] == 'T' || key[0] == 't') &&
+                                std::isdigit(static_cast<unsigned char>(key[1]));
+        size_t after_digits = 1;
+        while (t_numbered && after_digits < key.size() &&
+               std::isdigit(static_cast<unsigned char>(key[after_digits]))) {
+            ++after_digits;
+        }
+        const bool t_key = t_numbered && (after_digits == key.size() || key[after_digits] == '_');
+        if (t_key || icontains(key, "EXTRUDER") || icontains(key, "TOOL")) {
+            keys.emplace_back(key);
+        }
+    });
+    return keys;
 }
 
 } // namespace helix

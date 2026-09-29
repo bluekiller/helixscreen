@@ -149,3 +149,36 @@ TEST_CASE_METHOD(MappingCancelFixture, "Cancel without touching the toggle chang
 
     CHECK(persisted());
 }
+
+// The start-macro note is not part of Cancel, but it shares this fixture: the
+// modal needs every XML component registered to build at all.
+TEST_CASE_METHOD(MappingCancelFixture,
+                 "The start macro note shows only for the show it was set for",
+                 "[filament_mapping][modal][note]") {
+    auto find = [](FilamentMappingModal& modal, const char* name) {
+        lv_obj_t* obj = lv_obj_find_by_name(modal.dialog(), name);
+        REQUIRE(obj != nullptr);
+        return obj;
+    };
+
+    {
+        FilamentMappingModal modal;
+        seed(modal);
+        modal.set_start_macro_note("Your PRINT_START line passes EXTRUDER1_TEMP");
+        REQUIRE(modal.show(test_screen()));
+        CHECK_FALSE(lv_obj_has_flag(find(modal, "start_macro_note_row"), LV_OBJ_FLAG_HIDDEN));
+        CHECK(std::string(lv_label_get_text(find(modal, "start_macro_note"))) ==
+              "Your PRINT_START line passes EXTRUDER1_TEMP");
+        FilamentMappingModalTestAccess::cancel(modal);
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    // A second caller that never sets a note must not inherit the first one's:
+    // the subjects behind the label are shared by every instance.
+    FilamentMappingModal other;
+    seed(other);
+    REQUIRE(other.show(test_screen()));
+    CHECK(lv_obj_has_flag(find(other, "start_macro_note_row"), LV_OBJ_FLAG_HIDDEN));
+    FilamentMappingModalTestAccess::cancel(other);
+    helix::ui::UpdateQueue::instance().drain();
+}
