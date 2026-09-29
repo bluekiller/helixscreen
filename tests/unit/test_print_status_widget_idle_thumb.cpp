@@ -716,7 +716,7 @@ TEST_CASE_METHOD(
 
     // The fixture's API has no HTTP base URL, so the refetch fails; the log
     // line is the witness that it ran and failed.
-    LogCapture log;
+    ExclusiveLogCapture log;
     set_moonraker_api(api_.get());
     PrintStatusWidgetTestAccess::reset_to_idle(widget);
     settle_thumb([&log]() { return log.count_containing("Idle thumbnail fetch failed") > 0; });
@@ -787,7 +787,7 @@ TEST_CASE_METHOD(PrintStatusIdleThumbHistoryFixture,
 
     // Evicted, and the refetch fails: no HTTP base URL on the fixture's API.
     cache.invalidate(key);
-    LogCapture log;
+    ExclusiveLogCapture log;
     set_moonraker_api(api_.get());
     PrintStatusWidgetTestAccess::reset_to_idle(widget);
     settle_thumb([&log]() { return log.count_containing("Idle thumbnail fetch failed") > 0; });
