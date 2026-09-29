@@ -1571,12 +1571,30 @@ void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new
 
     std::replace(panel_stack_.begin(), panel_stack_.end(), old_widget, new_widget);
 
+    // Roots cached before this or an earlier rebuild now resolve to new_widget.
+    for (auto& [freed, successor] : rebuilt_overlays_) {
+        if (successor == old_widget) {
+            successor = new_widget;
+        }
+    }
+    rebuilt_overlays_[old_widget] = new_widget;
+
     // The new widget needs its own delete hook — the old widget's hook does not
     // transfer (it fires for the old object only).
     ensure_delete_hook(new_widget);
 
     spdlog::debug("[NavigationManager] Rekeyed overlay widget {} → {}", (void*)old_widget,
                   (void*)new_widget);
+}
+
+lv_obj_t* NavigationManager::resolve_rebuilt(lv_obj_t* widget) const {
+    // A live widget is never forwarded: a freed root's address can be reused by
+    // an unrelated object, and lv_obj_is_valid() reads no freed memory.
+    if (!widget || lv_obj_is_valid(widget)) {
+        return widget;
+    }
+    auto it = rebuilt_overlays_.find(widget);
+    return it != rebuilt_overlays_.end() ? it->second : widget;
 }
 
 void NavigationManager::set_overlay_width_unmanaged(lv_obj_t* overlay) {
@@ -1672,6 +1690,10 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
                        panel_stack_.end());
 
     delete_hooked_.erase(widget);
+    // Keyed by freed roots on purpose; only a dead successor ends an entry.
+    for (auto it = rebuilt_overlays_.begin(); it != rebuilt_overlays_.end();) {
+        it = it->second == widget ? rebuilt_overlays_.erase(it) : std::next(it);
+    }
 
     spdlog::trace("[NavigationManager] Scrubbed deleted widget {} from nav bookkeeping",
                   (void*)widget);
@@ -1864,6 +1886,7 @@ void NavigationManager::resume_active() {
 
 void NavigationManager::register_overlay_instance(lv_obj_t* widget, IPanelLifecycle* overlay,
                                                   bool persistent) {
+    widget = resolve_rebuilt(widget);
     if (!widget) {
         spdlog::error("[NavigationManager] Cannot register overlay with NULL widget");
         return;
@@ -1910,6 +1933,7 @@ IPanelLifecycle* NavigationManager::resolve_overlay_lifecycle(lv_obj_t* overlay_
 }
 
 void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous) {
+    overlay_panel = resolve_rebuilt(overlay_panel);
     if (!overlay_panel) {
         spdlog::error("[NavigationManager] Cannot push NULL overlay panel");
         return;
@@ -2171,6 +2195,7 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
 
 void NavigationManager::register_overlay_close_callback(lv_obj_t* overlay_panel,
                                                         OverlayCloseCallback callback) {
+    overlay_panel = resolve_rebuilt(overlay_panel);
     if (!overlay_panel || !callback) {
         return;
     }
@@ -2519,6 +2544,7 @@ void NavigationManager::deinit_subjects() {
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
     delete_hooked_.clear();
+    rebuilt_overlays_.clear();
     panel_stack_.clear();
     app_layout_widget_ = nullptr;
     if (overlay_backdrop_) {
