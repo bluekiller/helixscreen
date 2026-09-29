@@ -6,9 +6,9 @@
 using helix::ui::decide_detail_portrait_preview;
 
 namespace {
-// 480x800 portrait numbers: preview 452 wide -> base 282 (16:10).
+// 480x800 portrait numbers: preview 452 wide -> base 226 (2:1).
 constexpr int W = 452;
-constexpr int BASE = W * 10 / 16;
+constexpr int BASE = W / 2;
 constexpr int TILE = 48;
 constexpr int GAP = 6;
 constexpr int GRID_TOP = 120; // tile grid starts 120px into the scroll content
@@ -26,7 +26,7 @@ bool mid_tile(int edge) {
 }
 } // namespace
 
-TEST_CASE("portrait preview: content fits -> 16:10 base, no nudge", "[print_detail_layout]") {
+TEST_CASE("portrait preview: content fits -> 2:1 base, no nudge", "[print_detail_layout]") {
     const int avail = BASE + 300;
     CHECK(decide_detail_portrait_preview(W, avail, 250, GRID_TOP, TILE, GAP) == BASE);
 }
@@ -73,10 +73,10 @@ TEST_CASE("portrait preview: edge above the tile grid is left alone", "[print_de
 }
 
 TEST_CASE("portrait preview: shrink stops at the width / 3 floor", "[print_detail_layout]") {
-    // 80 wide: base 50, floor 26. An edge on the first pixel past a tile's
-    // middle half wants a 29px shrink (to 21), past the floor.
+    // 80 wide: base 40, floor 26. An edge on the first pixel past a tile's
+    // middle half wants a 29px shrink (to 11), past the floor.
     const int w = 80;
-    const int base = w * 10 / 16;
+    const int base = w / 2;
     const int floor = w / 3;
     const int in_row = TILE - TILE / 4 + 1;
     const int shift = TILE + GAP + TILE / 4 - in_row;
@@ -86,7 +86,8 @@ TEST_CASE("portrait preview: shrink stops at the width / 3 floor", "[print_detai
 }
 
 TEST_CASE("portrait preview: never below width / 3", "[print_detail_layout]") {
-    // 272x480: 256 wide, base 160, floor 85. An edge in a gap right at the floor.
+    // 272x480: 256 wide, base 128, floor 85. An edge past the grid that
+    // lands mid-tile returns the base; the floor still bounds everything.
     const int w = 256;
     const int floor = w / 3;
     const int h =

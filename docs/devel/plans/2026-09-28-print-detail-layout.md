@@ -52,9 +52,9 @@
 using helix::ui::decide_detail_portrait_preview;
 
 namespace {
-// 480x800 portrait numbers: preview 452 wide -> base 282 (16:10).
+// 480x800 portrait numbers: preview 452 wide -> base 226 (2:1).
 constexpr int W = 452;
-constexpr int BASE = W * 10 / 16;
+constexpr int BASE = W / 2;
 constexpr int TILE = 48;
 constexpr int GAP = 6;
 constexpr int GRID_TOP = 120; // tile grid starts 120px into the scroll content
@@ -72,7 +72,7 @@ bool mid_tile(int edge) {
 }
 } // namespace
 
-TEST_CASE("portrait preview: content fits -> 16:10 base, no nudge", "[print_detail_layout]") {
+TEST_CASE("portrait preview: content fits -> 2:1 base, no nudge", "[print_detail_layout]") {
     const int avail = BASE + 300;
     CHECK(decide_detail_portrait_preview(W, avail, 250, GRID_TOP, TILE, GAP) == BASE);
 }
@@ -135,7 +135,7 @@ namespace helix::ui {
 
 /// Portrait preview card height for the print file detail view.
 ///
-/// The preview is 16:10 of its width. When the options below it overflow,
+/// The preview is half its width (2:1). When the options below it overflow,
 /// the scroll area's visible bottom edge should cut a tile through its middle
 /// half, so part of a tile shows under the fade cue: an edge in a grid gap or
 /// a tile's outer quarter shrinks the preview until it does. Edges above the
@@ -143,7 +143,7 @@ namespace helix::ui {
 /// where the preview stops reading as a model.
 inline int decide_detail_portrait_preview(int width, int avail_h, int content_h, int grid_top,
                                           int tile_h, int gap) {
-    const int base = width * 10 / 16;
+    const int base = width / 2;
     const int min_h = width / 3;
     if (content_h <= avail_h - base) {
         return std::max(base, min_h);
@@ -693,7 +693,7 @@ void PrintSelectDetailView::fit_portrait_preview() {
 Run: `make t F='[print_select]'` and `make t F='[print_detail_layout]'`
 Expected: all pass.
 
-- [ ] **Step 7: Look at it** with `HELIX_MOCK_PRINTER=snapmaker_u1` at 480x800, 272x480 and 600x1024 (portrait) and 800x480 (landscape unchanged from Task 4). Screenshot each and open them. Portrait: preview on top at ~16:10, tiles below, pinned Print row, fade + chevron only where content is hidden; at 272x480 the strip shows filename + one stats line. Resize across the portrait boundary is not reachable with `-s`; skip it here, Task 6's test covers the restyle.
+- [ ] **Step 7: Look at it** with `HELIX_MOCK_PRINTER=snapmaker_u1` at 480x800, 272x480 and 600x1024 (portrait) and 800x480 (landscape unchanged from Task 4). Screenshot each and open them. Portrait: preview on top at ~2:1, tiles below, pinned Print row, fade + chevron only where content is hidden; at 272x480 the strip shows filename + one stats line. Resize across the portrait boundary is not reachable with `-s`; skip it here, Task 6's test covers the restyle.
 
 - [ ] **Step 8: Commit**
 

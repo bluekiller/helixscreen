@@ -114,7 +114,7 @@ int decide_detail_portrait_preview(int width, int avail_h, int content_h,
   The caller also knows where the tile grid starts inside the scroll content; pass it as
   `grid_top` (add the parameter) so the rule can tell a tile edge from space above the grid.
 - `min_h = width / 3`: below that the preview stops reading as a model.
-- Base height = `width * 10 / 16`.
+- Base height = `width / 2` (2:1).
 - If `content_h <= avail_h - base`, return base (everything fits, no cue).
 - Otherwise the scroll area overflows. If the visible edge lands above `grid_top`, return base
   (the cue alone carries it). If it lands in the middle half of a tile, return base. If it lands
