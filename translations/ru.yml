@@ -335,6 +335,7 @@ translations:
   Before starting: 'Перед началом'
   Belt Tension: Натяжение ремня
   Belt Tension Check: Проверка натяжения ремня
+  Belt Tension needs a CoreXY printer. This one is {}.: 'Для натяжения ремня нужен принтер CoreXY. Этот принтер: {}.'
   Beta: Бета
   'Beta features: OFF': 'Beta-функции: ВЫКЛ'
   'Beta features: ON': 'Beta-функции: ВКЛ'

@@ -328,6 +328,7 @@ translations:
   Before starting: Before starting
   Belt Tension: Belt Tension
   Belt Tension Check: Belt Tension Check
+  Belt Tension needs a CoreXY printer. This one is {}.: Belt Tension needs a CoreXY printer. This one is {}.
   Beta: Beta
   'Beta features: OFF': 'Beta features: OFF'
   'Beta features: ON': 'Beta features: ON'

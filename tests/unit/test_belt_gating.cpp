@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "belt_gating.h"
+#include "printer_state.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -91,4 +92,27 @@ TEST_CASE("gate inputs assembled at panel entry reflect a fresh connection",
     in.klippy_socket_reachable = true;
     in.print_active = false;
     CHECK(evaluate_belt_gate(in) == BeltGate::NO_ACCELEROMETER);
+}
+
+TEST_CASE("belt_path_kinematics matches only the kinematics whose diagonals are belt paths",
+          "[belt][kinematics]") {
+    using helix::belt_path_kinematics;
+    // Klipper names are lowercase; no case folding.
+    CHECK(belt_path_kinematics("corexy"));
+    CHECK(belt_path_kinematics("limited_corexy"));
+
+    CHECK_FALSE(belt_path_kinematics("corexz"));
+    CHECK_FALSE(belt_path_kinematics("limited_corexz"));
+    CHECK_FALSE(belt_path_kinematics("hybrid_corexy"));
+    CHECK_FALSE(belt_path_kinematics("hybrid_corexz"));
+    CHECK_FALSE(belt_path_kinematics("cartesian"));
+    CHECK_FALSE(belt_path_kinematics("limited_cartesian"));
+    CHECK_FALSE(belt_path_kinematics("delta"));
+    CHECK_FALSE(belt_path_kinematics("rotary_delta"));
+    CHECK_FALSE(belt_path_kinematics("deltesian"));
+    CHECK_FALSE(belt_path_kinematics("polar"));
+    CHECK_FALSE(belt_path_kinematics("winch"));
+    CHECK_FALSE(belt_path_kinematics("none"));
+    CHECK_FALSE(belt_path_kinematics(""));
+    CHECK_FALSE(belt_path_kinematics("CoreXY"));
 }

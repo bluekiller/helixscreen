@@ -346,6 +346,7 @@ translations:
   Before starting: 'Vor dem Start'
   Belt Tension: Riemenspannung
   Belt Tension Check: Riemenspannungsprüfung
+  Belt Tension needs a CoreXY printer. This one is {}.: 'Die Riemenspannung benötigt einen CoreXY-Drucker. Dieser Drucker ist {}.'
   Beta: Beta
   'Beta features: OFF': 'Beta-Funktionen: AUS'
   'Beta features: ON': 'Beta-Funktionen: EIN'

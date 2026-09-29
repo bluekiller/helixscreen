@@ -879,8 +879,18 @@ void BeltTensionPanel::refresh_gate() {
         calibrator_->get_state() == helix::calibration::BeltTensionCalibrator::State::IDLE;
     lv_subject_set_int(&can_start_subject_,
                        gate == helix::calibration::BeltGate::OK && calibrator_idle ? 1 : 0);
-    lv_subject_copy_string(&gate_message_subject_,
-                           lv_tr(helix::calibration::belt_gate_message(gate)));
+    if (gate == helix::calibration::BeltGate::NOT_COREXY && !detected_hw_.kinematics_name.empty()) {
+        // Name what the printer is, so the user can tell a wrong machine from
+        // a missing detection.
+        lv_subject_copy_string(&gate_message_subject_,
+                               fmt::format(lv_tr("Belt Tension needs a CoreXY printer. "
+                                                 "This one is {}."),
+                                           detected_hw_.kinematics_name)
+                                   .c_str());
+    } else {
+        lv_subject_copy_string(&gate_message_subject_,
+                               lv_tr(helix::calibration::belt_gate_message(gate)));
+    }
     spdlog::debug("[BeltTension] gate = {}", helix::calibration::belt_gate_message(gate));
 
     // A precondition that fails mid-measurement ends the measurement. The case

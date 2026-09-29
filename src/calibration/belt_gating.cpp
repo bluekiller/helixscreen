@@ -27,7 +27,7 @@ const char* belt_gate_message(BeltGate gate) {
     case BeltGate::NO_ACCELEROMETER:
         return "No accelerometer found in your Klipper config";
     case BeltGate::NOT_COREXY:
-        return "Belt tuning is only available on CoreXY printers";
+        return "Belt Tension needs a CoreXY printer.";
     case BeltGate::NOT_COLOCATED:
         return "This needs HelixScreen running on the printer itself";
     case BeltGate::PRINTING:

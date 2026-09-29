@@ -315,6 +315,7 @@ translations:
   Before starting: '开始之前'
   Belt Tension: 皮带张力
   Belt Tension Check: 皮带张力检查
+  Belt Tension needs a CoreXY printer. This one is {}.: '皮带张力需要 CoreXY 打印机。此打印机为{}。'
   Beta: 测试版
   'Beta features: OFF': '测试版功能: 关'
   'Beta features: ON': '测试版功能: 开'

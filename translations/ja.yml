@@ -316,6 +316,7 @@ translations:
   Before starting: '開始前に'
   Belt Tension: ベルトテンション
   Belt Tension Check: ベルトテンション確認
+  Belt Tension needs a CoreXY printer. This one is {}.: 'ベルトテンションには CoreXY プリンターが必要です。このプリンターは{}です。'
   Beta: ベータ
   'Beta features: OFF': 'ベータ機能: OFF'
   'Beta features: ON': 'ベータ機能: ON'

@@ -1135,6 +1135,10 @@ void PrinterState::set_kinematics(const std::string& kinematics) {
     // On delta printers, axes cannot be homed individually.
     capabilities_state_.set_has_individual_xyz_homing(!circular_bed_kinematics(kinematics));
 
+    // Belt Tension compares the two CoreXY diagonals, so only a belt-path
+    // kinematics gets the feature.
+    capabilities_state_.set_supports_belt_compare(belt_path_kinematics(kinematics));
+
     // Determine if the bed moves on Z based on kinematics type:
     // - CoreXY: bed typically moves on Z (Voron 0/Trident, Bambu, AD5M, etc.)
     //   Exception: Voron 2.4 and similar with quad_gantry_level have gantry-Z

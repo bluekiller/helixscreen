@@ -256,7 +256,10 @@
                               label="Belt Tension" label_tag="Belt Tension" icon="vibrate"
                               description="Compare belt paths with a resonance sweep"
                               description_tag="Compare belt paths with a resonance sweep">
-            <bind_flag_if_eq subject="printer_has_accelerometer" flag="hidden" ref_value="0"/>
+            <!-- One binding, both conditions (two flag bindings on a widget
+                 fight): an accelerometer, and a kinematics whose two diagonals
+                 are the two belt paths (corexy, limited_corexy). -->
+            <bind_flag_if cond="printer_has_accelerometer eq 0 or printer_supports_belt_compare eq 0" flag="hidden"/>
             <event_cb trigger="clicked" callback="on_belt_tension_row_clicked"/>
           </setting_action_row>
         </beta_feature>

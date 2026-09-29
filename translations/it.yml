@@ -341,6 +341,7 @@ translations:
   Before starting: 'Prima di iniziare'
   Belt Tension: Tensione cinghia
   Belt Tension Check: Controllo tensione cinghia
+  Belt Tension needs a CoreXY printer. This one is {}.: 'La tensione cinghia richiede una stampante CoreXY. Questa è {}.'
   Beta: Beta
   'Beta features: OFF': 'Funzioni Beta: OFF'
   'Beta features: ON': 'Funzioni Beta: ON'

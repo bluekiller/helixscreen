@@ -27,6 +27,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
+#include "../test_helpers/mock_kinematics_env.h"
 #include "../test_helpers/printer_state_test_access.h"
 #include "app_globals.h"
 #include "belt_tension_types.h"
@@ -373,6 +374,30 @@ TEST_CASE("Start stays disabled while klippy is not ready", "[belt][panel][gatin
     fx.set_klippy_ready(true);
     INFO("gate message after re-ready: " << fx.text("bt_gate_message"));
     CHECK(fx.state_int("bt_can_start") == 1);
+}
+
+TEST_CASE("a CoreXZ reports a closed gate naming its kinematics", "[belt][panel][gating]") {
+    // The persona must be in place before the fixture's on_activate fires the
+    // hardware detect, and the mock reads the env at query time.
+    helix_test::MockKinematicsEnv corexz("corexz");
+    BeltPanelFixture fx;
+
+    // Wait for detection to land: bt_hw_kinematics leaves "Detecting..." and
+    // shows the raw name (an UNKNOWN kinematics has no friendly label).
+    bool detected = false;
+    for (uint32_t t = 0; t < 10000 && !detected; t += 100) {
+        detected = fx.text("bt_hw_kinematics") == "corexz";
+        if (!detected) {
+            fx.pump_ms(100);
+        }
+    }
+    REQUIRE(detected);
+
+    CHECK(fx.state_int("bt_can_start") == 0);
+    const std::string message = fx.text("bt_gate_message");
+    INFO("gate message: " << message);
+    CHECK(message.find("CoreXY") != std::string::npos);
+    CHECK(message.find("corexz") != std::string::npos);
 }
 
 TEST_CASE("a path with no peak is an error naming it", "[belt][panel]") {

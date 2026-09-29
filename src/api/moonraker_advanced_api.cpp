@@ -3242,9 +3242,12 @@ void MoonrakerAdvancedAPI::detect_belt_hardware(BeltHardwareCallback on_complete
                             }
                             hw.kinematics_name = kinematics.get<std::string>();
 
-                            if (hw.kinematics_name == "corexy" || hw.kinematics_name == "corexz") {
+                            // COREXY only where the two diagonals are the two
+                            // belt paths the comparison sweeps.
+                            if (belt_path_kinematics(hw.kinematics_name)) {
                                 hw.kinematics = helix::calibration::KinematicsType::COREXY;
-                            } else if (hw.kinematics_name == "cartesian") {
+                            } else if (hw.kinematics_name == "cartesian" ||
+                                       hw.kinematics_name == "limited_cartesian") {
                                 hw.kinematics = helix::calibration::KinematicsType::CARTESIAN;
                             } else {
                                 hw.kinematics = helix::calibration::KinematicsType::UNKNOWN;
