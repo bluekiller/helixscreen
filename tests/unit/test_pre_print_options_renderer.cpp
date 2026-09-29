@@ -8,6 +8,7 @@
 #include "macro_param_cache.h"
 #include "pre_print_option.h"
 #include "printer_detector.h"
+#include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -743,14 +744,28 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(tile != nullptr);
     lv_obj_t* tab = lv_obj_find_by_name(tile, "check_tab");
     lv_obj_t* label = lv_obj_find_by_name(tile, "label");
+    lv_obj_t* icon = lv_obj_find_by_name(tile, "icon");
     REQUIRE(tab != nullptr);
     REQUIRE(label != nullptr);
+    REQUIRE(icon != nullptr);
     CHECK(lv_obj_has_state(tile, LV_STATE_CHECKED)); // subject observer applied it
     CHECK(lv_obj_has_state(tab, LV_STATE_CHECKED));  // state_trickle
     CHECK(std::string(lv_label_get_text(label)) == "Auto Bed Mesh");
+
+    // Resolved styles, not just state flags: the tile's look rides
+    // state-selector styles, which silently no-op if the selector spelling
+    // drifts.
+    CHECK(lv_obj_get_style_opa(tab, LV_PART_MAIN) == 255);
+    CHECK(lv_color_eq(lv_obj_get_style_border_color(tile, LV_PART_MAIN),
+                      theme_manager_get_color("primary")));
+    const lv_color_t icon_checked = lv_obj_get_style_text_color(icon, LV_PART_MAIN);
 
     renderer.set_state("bed_mesh", 0);
     process_lvgl(10);
     CHECK_FALSE(lv_obj_has_state(tile, LV_STATE_CHECKED));
     CHECK_FALSE(lv_obj_has_state(tab, LV_STATE_CHECKED));
+    CHECK(lv_obj_get_style_opa(tab, LV_PART_MAIN) == 0);
+    CHECK(lv_color_eq(lv_obj_get_style_border_color(tile, LV_PART_MAIN),
+                      theme_manager_get_color("border")));
+    CHECK_FALSE(lv_color_eq(lv_obj_get_style_text_color(icon, LV_PART_MAIN), icon_checked));
 }

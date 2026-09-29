@@ -31,18 +31,15 @@
                 width="100%" height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_sm"
                 scrollable="false">
           <!-- Home Button -->
-          <!-- SIZE_OK: 44px button height, coincides with #option_tile_height by chance -->
           <ui_button name="btn_home" height="44" icon="home" text="Home" translation_tag="Home" flex_grow="1">
             <event_cb trigger="clicked" callback="on_ams_device_ops_home"/>
           </ui_button>
           <!-- Recover Button -->
-          <!-- SIZE_OK: 44px button height, coincides with #option_tile_height by chance -->
           <ui_button name="btn_recover"
                      height="44" icon="refresh" text="Recover" translation_tag="Recover" flex_grow="1">
             <event_cb trigger="clicked" callback="on_ams_device_ops_recover"/>
           </ui_button>
           <!-- Abort Button -->
-          <!-- SIZE_OK: 44px button height, coincides with #option_tile_height by chance -->
           <ui_button name="btn_abort" height="44" icon="stop" text="Abort" translation_tag="Abort" flex_grow="1">
             <bind_state_if_eq subject="ams_device_ops_can_abort" state="disabled" ref_value="0"/>
             <event_cb trigger="clicked" callback="on_ams_device_ops_abort"/>

@@ -26,7 +26,6 @@
     <!-- Uses MDI target icon (U+F04FE) via icon_target constant -->
     <!-- Visual indicator only - touch capture is handled by overlay above -->
     <!-- floating=true takes it out of flex layout for absolute positioning -->
-    <!-- SIZE_OK: 50px target icon, coincides with #option_tile_label_max_h by chance -->
     <lv_label name="crosshair"
               width="50" height="50" text="#icon_target" style_text_font="mdi_icons_48" style_text_color="#primary"
               style_text_align="center" align="top_left" floating="true" hidden="true"/>

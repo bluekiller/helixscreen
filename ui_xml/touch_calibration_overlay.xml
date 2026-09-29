@@ -32,7 +32,6 @@
       <!-- Crosshair target - positioned dynamically by C++ code -->
       <!-- Uses MDI target icon (U+F04FE) via icon_target constant -->
       <!-- Visible only during POINT_1, POINT_2, POINT_3 (states 1, 2, 3) -->
-      <!-- SIZE_OK: 50px target icon, coincides with #option_tile_label_max_h by chance -->
       <lv_label name="crosshair"
                 width="50" height="50" text="#icon_target" style_text_font="mdi_icons_48" style_text_color="#primary"
                 style_text_align="center" align="top_left">
