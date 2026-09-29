@@ -74,6 +74,9 @@ class WifiBackendMock : public WifiBackend {
     ConnectionStatus get_status() override;
     bool supports_5ghz() const override;
     WiFiError forget_network(const std::string& ssid) override;
+    bool supports_forget() const override {
+        return true;
+    }
     std::optional<helix::wifi::WifiInterface> resolved_interface() const override;
 
     // Test helpers — allow test code to drive state directly without going

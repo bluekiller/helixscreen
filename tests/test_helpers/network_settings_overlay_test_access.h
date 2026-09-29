@@ -3,8 +3,11 @@
 
 #include "ui_overlay_network_settings.h"
 
+#include "wifi_backend.h"
+
 #include <cstring>
 #include <string>
+#include <vector>
 
 /**
  * @brief Reaches the overlay's cached modal pointers.
@@ -57,9 +60,36 @@ class NetworkSettingsOverlayTestAccess {
     static void hidden_connect_clicked(NetworkSettingsOverlay& o) {
         o.handle_hidden_connect_clicked();
     }
-    /// Build the scan rows exactly as a completed scan does — the click
+    /// Build the scan rows synchronously, with no network connected — the click
     /// handler reads per-row data only this path attaches.
     static void populate(NetworkSettingsOverlay& o, const std::vector<WiFiNetwork>& networks) {
+        o.build_network_list(networks, WifiBackend::ConnectionStatus{});
+    }
+    /// What a completed scan does: the rows are built once the connection
+    /// read lands.
+    static void scan_completed(NetworkSettingsOverlay& o,
+                               const std::vector<WiFiNetwork>& networks) {
         o.populate_network_list(networks);
+    }
+    static void update_wifi_status(NetworkSettingsOverlay& o) {
+        o.update_wifi_status();
+    }
+    static void forget_clicked(NetworkSettingsOverlay& o) {
+        o.handle_network_settings_forget();
+    }
+    static const std::string& pending_forget_ssid(NetworkSettingsOverlay& o) {
+        return o.pending_forget_ssid_;
+    }
+    static std::string ssid(NetworkSettingsOverlay& o) {
+        return o.ssid_buffer_;
+    }
+    static std::string ip(NetworkSettingsOverlay& o) {
+        return o.ip_buffer_;
+    }
+    static std::string mac(NetworkSettingsOverlay& o) {
+        return o.mac_buffer_;
+    }
+    static lv_obj_t* networks_list(NetworkSettingsOverlay& o) {
+        return o.networks_list_;
     }
 };

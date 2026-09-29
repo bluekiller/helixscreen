@@ -60,6 +60,7 @@
 #include "network_tester.h"
 #include "overlay_base.h"
 #include "subject_managed_panel.h"
+#include "wifi_backend.h"
 
 #include <memory>
 #include <string>
@@ -195,7 +196,9 @@ class NetworkSettingsOverlay : public OverlayBase {
     lv_subject_t wifi_hardware_available_; // 0=unavailable, 1=available
     lv_subject_t wifi_enabled_;
     lv_subject_t wifi_connected_;
-    lv_subject_t wifi_only_24ghz_; // 1 if hardware only supports 2.4GHz
+    lv_subject_t wifi_only_24ghz_;       // 1 if hardware only supports 2.4GHz
+    lv_subject_t wifi_can_forget_;       // 1 if the backend can forget a saved network
+    lv_subject_t wifi_can_toggle_radio_; // 1 if the backend can move the radio
     lv_subject_t connected_ssid_;
     lv_subject_t ip_address_;
     lv_subject_t mac_address_;
@@ -264,6 +267,15 @@ class NetworkSettingsOverlay : public OverlayBase {
     // Cached networks for async UI update
     std::vector<WiFiNetwork> cached_networks_;
 
+    // Bumped (main thread) on toggle, connect start, forget and cleanup. A
+    // status answer issued under an older value describes a state the user has
+    // since replaced, so it is dropped.
+    uint32_t status_generation_ = 0;
+    // A Forget tap's status read is in flight: further taps issue none, so one
+    // tap opens at most one confirm dialog. Cleared by the answer, and by
+    // on_activate() since deactivation drops an answer still in flight.
+    bool forget_read_pending_ = false;
+
     // Event handler implementations
     void handle_wlan_toggle_changed(lv_event_t* e);
     // Dispatches the radio on/off request (post no-strand confirmation, if one
@@ -310,7 +322,14 @@ class NetworkSettingsOverlay : public OverlayBase {
     bool eth_refresh_in_flight_ = false;
     bool eth_refresh_trailing_ = false;
     void update_test_state(NetworkTester::TestState state, const NetworkTester::TestResult& result);
+    // Caches the scan and rebuilds the rows once an async status read says
+    // which network is connected: a status read can block for seconds on
+    // wpa_supplicant, so none happens on the UI thread.
     void populate_network_list(const std::vector<WiFiNetwork>& networks);
+    void build_network_list(const std::vector<WiFiNetwork>& networks,
+                            const WifiBackend::ConnectionStatus& status);
+    void apply_wifi_status(const WifiBackend::ConnectionStatus& status);
+    void confirm_forget(const std::string& ssid);
     void clear_network_list();
     void show_placeholder(bool show);
     void update_signal_icons(lv_obj_t* item, int icon_state);

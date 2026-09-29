@@ -1571,12 +1571,46 @@ void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new
 
     std::replace(panel_stack_.begin(), panel_stack_.end(), old_widget, new_widget);
 
+    // Roots cached before this or an earlier rebuild now resolve to new_widget.
+    for (auto& [freed, successor] : rebuilt_overlays_) {
+        if (successor == old_widget) {
+            successor = new_widget;
+        }
+    }
+    rebuilt_overlays_[old_widget] = new_widget;
+    // Its delete must be seen, to tell it from a later object at its address.
+    if (lv_obj_is_valid(old_widget)) {
+        condemned_roots_.insert(old_widget);
+        ensure_delete_hook(old_widget);
+    }
+
     // The new widget needs its own delete hook — the old widget's hook does not
     // transfer (it fires for the old object only).
     ensure_delete_hook(new_widget);
 
     spdlog::debug("[NavigationManager] Rekeyed overlay widget {} → {}", (void*)old_widget,
                   (void*)new_widget);
+}
+
+lv_obj_t* NavigationManager::resolve_rebuilt(lv_obj_t* widget) const {
+    auto it = widget ? rebuilt_overlays_.find(widget) : rebuilt_overlays_.end();
+    if (it == rebuilt_overlays_.end()) {
+        return widget;
+    }
+    // A live object that is not the condemned root is a new object reusing a
+    // freed root's address. lv_obj_is_valid() reads no freed memory.
+    if (condemned_roots_.count(widget) || !lv_obj_is_valid(widget)) {
+        return it->second;
+    }
+    return widget;
+}
+
+lv_obj_t* NavigationManager::resolve_arriving(lv_obj_t* widget) {
+    lv_obj_t* resolved = resolve_rebuilt(widget);
+    if (resolved == widget && widget) {
+        rebuilt_overlays_.erase(widget);
+    }
+    return resolved;
 }
 
 void NavigationManager::set_overlay_width_unmanaged(lv_obj_t* overlay) {
@@ -1672,6 +1706,15 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
                        panel_stack_.end());
 
     delete_hooked_.erase(widget);
+    // A replaced root's own deferred delete keeps its forwarding entry: that
+    // key is the address callers still hold. Any other object deleted at a key
+    // is a later tenant of the address, and a dead successor ends its entries.
+    if (condemned_roots_.erase(widget) == 0) {
+        rebuilt_overlays_.erase(widget);
+    }
+    for (auto it = rebuilt_overlays_.begin(); it != rebuilt_overlays_.end();) {
+        it = it->second == widget ? rebuilt_overlays_.erase(it) : std::next(it);
+    }
 
     spdlog::trace("[NavigationManager] Scrubbed deleted widget {} from nav bookkeeping",
                   (void*)widget);
@@ -1864,6 +1907,7 @@ void NavigationManager::resume_active() {
 
 void NavigationManager::register_overlay_instance(lv_obj_t* widget, IPanelLifecycle* overlay,
                                                   bool persistent) {
+    widget = resolve_arriving(widget);
     if (!widget) {
         spdlog::error("[NavigationManager] Cannot register overlay with NULL widget");
         return;
@@ -1884,6 +1928,7 @@ void NavigationManager::register_overlay_instance(lv_obj_t* widget, IPanelLifecy
 }
 
 void NavigationManager::unregister_overlay_instance(lv_obj_t* widget) {
+    widget = resolve_rebuilt(widget);
     auto it = overlay_instances_.find(widget);
     if (it != overlay_instances_.end()) {
         spdlog::trace("[NavigationManager] Unregistered overlay instance for widget {}",
@@ -1917,7 +1962,10 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
 
     // Always queue - this is the safest pattern for overlay operations
     // which can be triggered from various contexts (events, observers, etc.)
-    helix::ui::queue_update([overlay_panel, hide_previous]() {
+    helix::ui::queue_update([overlay_panel, hide_previous]() mutable {
+        // Resolved when the push runs, on the UI thread: a rebuild can land
+        // between the queueing and now.
+        overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
         // The captured overlay_panel is a raw lv_obj_t* — it can be destroyed
         // between queue time and now (rapid push→teardown, e.g. a print that
         // fails Klipper config validation and immediately tears its status
@@ -2069,7 +2117,8 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
     }
 
     // Queue the push operation (same pattern as push_overlay)
-    helix::ui::queue_update([overlay_panel, source_rect]() {
+    helix::ui::queue_update([overlay_panel, source_rect]() mutable {
+        overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
         // See push_overlay() above: the captured raw pointer can be freed
         // before this deferred lambda drains. Bail before any deref. (MBUX7WUN)
         if (!lv_obj_is_valid(overlay_panel)) {
@@ -2171,6 +2220,7 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
 
 void NavigationManager::register_overlay_close_callback(lv_obj_t* overlay_panel,
                                                         OverlayCloseCallback callback) {
+    overlay_panel = resolve_arriving(overlay_panel);
     if (!overlay_panel || !callback) {
         return;
     }
@@ -2358,6 +2408,7 @@ bool NavigationManager::go_back() {
 }
 
 bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
+    panel = resolve_rebuilt(panel);
     if (!panel) {
         return false;
     }
@@ -2365,6 +2416,7 @@ bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
 }
 
 bool NavigationManager::is_panel_on_top(lv_obj_t* panel) const {
+    panel = resolve_rebuilt(panel);
     if (!panel || panel_stack_.empty()) {
         return false;
     }
@@ -2519,6 +2571,8 @@ void NavigationManager::deinit_subjects() {
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
     delete_hooked_.clear();
+    rebuilt_overlays_.clear();
+    condemned_roots_.clear();
     panel_stack_.clear();
     app_layout_widget_ = nullptr;
     if (overlay_backdrop_) {
