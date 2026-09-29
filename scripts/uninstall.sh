@@ -5693,8 +5693,20 @@ has_update_manager_section() {
     grep -q '^\[update_manager helixscreen\]' "$conf" 2>/dev/null
 }
 
+# The channel Moonraker's type:web updater should follow. Moonraker accepts
+# only stable and beta here; the dev channel has no Moonraker lane and rides
+# beta, the closest published feed.
+update_manager_web_channel() {
+    case "${R2_CHANNEL:-stable}" in
+        beta | dev) echo "beta" ;;
+        *) echo "stable" ;;
+    esac
+}
+
 # Generate update_manager configuration block
 generate_update_manager_config() {
+    local web_channel
+    web_channel=$(update_manager_web_channel)
     cat << EOF
 
 # HelixScreen Update Manager
@@ -5704,7 +5716,7 @@ generate_update_manager_config() {
 # A systemd path unit handles service restart after Moonraker extracts the update.
 [update_manager helixscreen]
 type: web
-channel: stable
+channel: ${web_channel}
 repo: prestonbrown/helixscreen
 path: ${INSTALL_DIR}
 EOF
@@ -5972,6 +5984,44 @@ sync_update_manager_path() {
     ' "$conf" > "${conf}.tmp" && $fs mv "${conf}.tmp" "$conf"
 
     log_success "update_manager path now names ${INSTALL_DIR}"
+}
+
+# Point an existing stanza's `channel:` at the channel this install resolved.
+# The value is interpolated when the section is first added and nothing
+# revisits it, so a user who switches the app to beta keeps being offered
+# stable from Mainsail/Fluidd until the stanza is rewritten.
+# Args: $1 = moonraker.conf path
+sync_update_manager_channel() {
+    local conf="$1"
+    local current want
+
+    want=$(update_manager_web_channel)
+
+    current=$(awk '
+        /^\[update_manager helixscreen\]/ { found=1; next }
+        found && /^\[/ { exit }
+        found && /^channel:/ { sub(/^channel:[[:space:]]*/, ""); print; exit }
+    ' "$conf" 2>/dev/null)
+
+    # A stanza without a channel line (hand-written) is Moonraker's default
+    # stable; leave it to the operator rather than inserting one.
+    if [ -z "$current" ] || [ "$current" = "$want" ]; then
+        return 0
+    fi
+
+    log_info "Updating update_manager channel: ${current} -> ${want}"
+    local fs
+    fs=$(file_sudo "$conf")
+    $fs cp "$conf" "${conf}.bak.helixscreen" 2>/dev/null || true
+
+    $fs awk -v want="$want" '
+        /^\[update_manager helixscreen\]/ { in_section=1 }
+        in_section && /^\[/ && !/^\[update_manager helixscreen\]/ { in_section=0 }
+        in_section && /^channel:/ { print "channel: " want; next }
+        { print }
+    ' "$conf" > "${conf}.tmp" && $fs mv "${conf}.tmp" "$conf"
+
+    log_success "update_manager channel now ${want}"
 }
 
 cleanup_unsupported_options() {
@@ -6423,6 +6473,8 @@ configure_moonraker_updates() {
         # path: is only ever written when the section is first added, so an
         # install that has moved leaves it naming the tree we left behind.
         sync_update_manager_path "$conf"
+        # channel: likewise — rewrite it to whatever this update resolved to.
+        sync_update_manager_channel "$conf"
         # Remove options not supported by type: web (persistent_files,
         # managed_services, install_script) that cause Moonraker warnings.
         cleanup_unsupported_options "$conf"
