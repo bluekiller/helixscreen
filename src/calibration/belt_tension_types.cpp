@@ -5,7 +5,8 @@
  * @brief Implementation of belt tension analysis functions
  *
  * Provides PSD computation via DFT, CSV parsing for Klipper accelerometer
- * data, Pearson correlation for belt path similarity, and status evaluation.
+ * data, Pearson correlation for belt path similarity, and two-path curve
+ * comparison with a provisional verdict.
  */
 
 #include "belt_tension_types.h"
@@ -24,122 +25,39 @@
 namespace helix::calibration {
 
 // ============================================================================
-// belt_status_to_string()
+// belt_verdict_for() / compare_belt_paths()
 // ============================================================================
 
-const char* belt_status_to_string(BeltStatus status) {
-    switch (status) {
-    case BeltStatus::GOOD:
-        return "Good";
-    case BeltStatus::WARNING:
-        return "Needs adjustment";
-    case BeltStatus::BAD:
-        return "Out of range";
-    }
-    return "";
+BeltVerdict belt_verdict_for(float delta_hz, float similarity_percent) {
+    using namespace belt_verdict;
+    const float d = std::abs(delta_hz);
+    auto delta_tier = d <= MATCHED_DELTA_HZ ? BeltVerdict::MATCHED
+                      : d <= CLOSE_DELTA_HZ ? BeltVerdict::CLOSE
+                                            : BeltVerdict::ADJUST;
+    auto sim_tier = similarity_percent >= MATCHED_SIMILARITY ? BeltVerdict::MATCHED
+                    : similarity_percent >= CLOSE_SIMILARITY ? BeltVerdict::CLOSE
+                                                             : BeltVerdict::ADJUST;
+    // Enum order runs best to worst, so the larger value is the worse tier.
+    return std::max(delta_tier, sim_tier);
 }
 
-// ============================================================================
-// evaluate_belt_status()
-// ============================================================================
-
-BeltStatus evaluate_belt_status(float measured_hz, float target_hz, float tolerance_hz) {
-    float delta = std::abs(measured_hz - target_hz);
-
-    if (delta <= tolerance_hz) {
-        return BeltStatus::GOOD;
-    } else if (delta <= 2.0f * tolerance_hz) {
-        return BeltStatus::WARNING;
-    }
-    return BeltStatus::BAD;
-}
-
-// ============================================================================
-// BeltTensionResult::overall_status()
-// ============================================================================
-
-BeltStatus BeltTensionResult::overall_status() const {
-    if (!is_complete()) {
-        return BeltStatus::GOOD; // No data yet, neutral status
-    }
-
-    // Large A/B delta is always BAD regardless of individual status
-    if (frequency_delta > tolerance * 1.5f) {
-        return BeltStatus::BAD;
-    }
-
-    BeltStatus status_a = evaluate_belt_status(path_a.peak_frequency, target_frequency, tolerance);
-    BeltStatus status_b = evaluate_belt_status(path_b.peak_frequency, target_frequency, tolerance);
-
-    // Return the worse of the two
-    if (status_a == BeltStatus::BAD || status_b == BeltStatus::BAD) {
-        return BeltStatus::BAD;
-    }
-    if (status_a == BeltStatus::WARNING || status_b == BeltStatus::WARNING) {
-        return BeltStatus::WARNING;
-    }
-    return BeltStatus::GOOD;
-}
-
-// ============================================================================
-// BeltTensionResult::recommendation()
-// ============================================================================
-
-std::string BeltTensionResult::recommendation() const {
-    if (!is_complete()) {
-        return "Run a measurement to get recommendations.";
-    }
-
-    float freq_a = path_a.peak_frequency;
-    float freq_b = path_b.peak_frequency;
-    float delta = std::abs(freq_a - freq_b);
-
-    BeltStatus status_a = evaluate_belt_status(freq_a, target_frequency, tolerance);
-    BeltStatus status_b = evaluate_belt_status(freq_b, target_frequency, tolerance);
-
-    bool a_low = freq_a < (target_frequency - tolerance);
-    bool b_low = freq_b < (target_frequency - tolerance);
-    bool a_high = freq_a > (target_frequency + tolerance);
-    bool b_high = freq_b > (target_frequency + tolerance);
-
-    // Both good and similar frequencies
-    if (status_a == BeltStatus::GOOD && status_b == BeltStatus::GOOD && delta <= tolerance) {
-        return "Belt tension looks good!";
-    }
-
-    // Both low
-    if (a_low && b_low) {
-        return "Both belts need tightening.";
-    }
-
-    // Both high
-    if (a_high && b_high) {
-        return "Both belts are overtightened.";
-    }
-
-    // Frequencies differ significantly
-    if (delta > tolerance) {
-        if (freq_a < freq_b) {
-            return "Tighten Path A belt to match Path B.";
-        }
-        return "Tighten Path B belt to match Path A.";
-    }
-
-    // One is off, the other is fine
-    if (status_a != BeltStatus::GOOD && status_b == BeltStatus::GOOD) {
-        if (a_low) {
-            return "Tighten Path A belt.";
-        }
-        return "Loosen Path A belt.";
-    }
-    if (status_b != BeltStatus::GOOD && status_a == BeltStatus::GOOD) {
-        if (b_low) {
-            return "Tighten Path B belt.";
-        }
-        return "Loosen Path B belt.";
-    }
-
-    return "Adjust belt tension toward the target frequency.";
+BeltComparison compare_belt_paths(const BeltCurve& a, const BeltCurve& b) {
+    BeltComparison out;
+    if (a.empty() || b.empty())
+        return out;
+    const auto peak_a = find_peak_frequency(a, belt_verdict::PEAK_MIN_HZ, a.back().first);
+    const auto peak_b = find_peak_frequency(b, belt_verdict::PEAK_MIN_HZ, b.back().first);
+    out.peak_a_found = peak_a.found;
+    out.peak_b_found = peak_b.found;
+    out.peak_a_hz = peak_a.frequency;
+    out.peak_b_hz = peak_b.frequency;
+    if (!peak_a.found || !peak_b.found)
+        return out;
+    out.delta_hz = peak_a.frequency - peak_b.frequency;
+    out.similarity_percent = calculate_similarity(a, b);
+    out.verdict = belt_verdict_for(out.delta_hz, out.similarity_percent);
+    out.valid = true;
+    return out;
 }
 
 // ============================================================================

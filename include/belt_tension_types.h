@@ -31,8 +31,6 @@ namespace helix::calibration {
 enum class BeltPath {
     PATH_A, ///< CoreXY diagonal A (1,1)
     PATH_B, ///< CoreXY diagonal B (1,-1)
-    X_AXIS, ///< Cartesian X
-    Y_AXIS, ///< Cartesian Y
 };
 
 /// Kinematics type detected from printer
@@ -41,20 +39,6 @@ enum class KinematicsType {
     COREXY,
     CARTESIAN,
 };
-
-// ============================================================================
-// Status Evaluation
-// ============================================================================
-
-/// Status thresholds for belt tension
-enum class BeltStatus {
-    GOOD,    ///< Within +/-tolerance of target
-    WARNING, ///< 1-2x tolerance from target
-    BAD,     ///< >2x tolerance from target
-};
-
-/// Convert BeltStatus to user-facing display string
-const char* belt_status_to_string(BeltStatus status);
 
 // ============================================================================
 // Hardware Detection
@@ -68,54 +52,45 @@ struct BeltTensionHardware {
 };
 
 // ============================================================================
-// Measurement Results
+// Path Comparison
 // ============================================================================
 
-/// Result for a single belt path measurement
-struct BeltMeasurement {
-    BeltPath path = BeltPath::PATH_A;
-    float peak_frequency = 0.0f; ///< Detected resonant frequency (Hz)
-    float peak_amplitude = 0.0f; ///< PSD amplitude at peak
-    BeltStatus status = BeltStatus::GOOD;
-    std::vector<std::pair<float, float>> freq_response; ///< (freq_hz, psd)
+/// One path's response: (frequency Hz, psd_xyz) pairs, ascending frequency.
+using BeltCurve = std::vector<std::pair<float, float>>;
 
-    [[nodiscard]] bool is_valid() const {
-        return peak_frequency > 0.0f;
-    }
+enum class BeltVerdict { MATCHED, CLOSE, ADJUST };
+
+/// Provisional: measured on no real printer yet. Replace from captures before
+/// the verdict gains directional advice (prestonbrown/helixscreen#1721).
+namespace belt_verdict {
+inline constexpr float MATCHED_DELTA_HZ = 3.0f;
+inline constexpr float CLOSE_DELTA_HZ = 8.0f;
+inline constexpr float MATCHED_SIMILARITY = 90.0f;
+inline constexpr float CLOSE_SIMILARITY = 75.0f;
+inline constexpr float PEAK_MIN_HZ = 20.0f;
+} // namespace belt_verdict
+
+struct BeltComparison {
+    bool valid = false; ///< false when either path has no peak above PEAK_MIN_HZ
+    bool peak_a_found = false;
+    bool peak_b_found = false;
+    float peak_a_hz = 0.0f;
+    float peak_b_hz = 0.0f;
+    float delta_hz = 0.0f; ///< peak_a_hz - peak_b_hz, signed: positive = A higher
+    float similarity_percent = 0.0f;
+    BeltVerdict verdict = BeltVerdict::ADJUST;
 };
 
-/// Complete belt tension results
-struct BeltTensionResult {
-    BeltMeasurement path_a;
-    BeltMeasurement path_b;
-    float similarity_percent = 0.0f; ///< Pearson correlation * 100
-    float frequency_delta = 0.0f;    ///< |A - B| in Hz
-    float target_frequency = 110.0f; ///< Target Hz
-    float tolerance = 10.0f;         ///< +/-Hz tolerance
+/// Compare two belt-path resonance curves: peaks, signed delta, similarity and
+/// provisional verdict. Invalid when either curve has no peak above PEAK_MIN_HZ.
+[[nodiscard]] BeltComparison compare_belt_paths(const BeltCurve& a, const BeltCurve& b);
 
-    [[nodiscard]] bool has_path_a() const {
-        return path_a.is_valid();
-    }
-    [[nodiscard]] bool has_path_b() const {
-        return path_b.is_valid();
-    }
-    [[nodiscard]] bool is_complete() const {
-        return has_path_a() && has_path_b();
-    }
-
-    /// Evaluate overall status based on thresholds
-    [[nodiscard]] BeltStatus overall_status() const;
-
-    /// Generate user-facing recommendation string
-    [[nodiscard]] std::string recommendation() const;
-};
+/// Tier from |delta_hz| and similarity_percent; the worse of the two tiers.
+[[nodiscard]] BeltVerdict belt_verdict_for(float delta_hz, float similarity_percent);
 
 // ============================================================================
 // Analysis Functions
 // ============================================================================
-
-/// Evaluate belt status from frequency vs target
-BeltStatus evaluate_belt_status(float measured_hz, float target_hz, float tolerance_hz);
 
 /// Calculate Pearson correlation between two PSD curves (returns 0-100)
 float calculate_similarity(const std::vector<std::pair<float, float>>& curve_a,
@@ -165,8 +140,6 @@ PeakResult find_peak_frequency(const std::vector<std::pair<float, float>>& psd,
 
 using BeltHardwareDetectCallback = std::function<void(const BeltTensionHardware&)>;
 using BeltProgressCallback = std::function<void(int percent)>;
-using BeltMeasurementCallback = std::function<void(const BeltMeasurement&)>;
-using BeltResultCallback = std::function<void(const BeltTensionResult&)>;
 using BeltErrorCallback = std::function<void(const std::string& message)>;
 
 } // namespace helix::calibration

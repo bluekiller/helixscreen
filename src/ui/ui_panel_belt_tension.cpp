@@ -936,20 +936,8 @@ void BeltTensionPanel::populate_comparison(float a_hz, float b_hz) {
     snprintf(result_b_freq_buf_, sizeof(result_b_freq_buf_), "%.0f Hz", static_cast<double>(b_hz));
     lv_subject_notify(&result_b_freq_subject_);
 
-    // An absolute GOOD/WARNING/BAD verdict only means something when the span
-    // is known, because the target frequency is a property of the span. With
-    // no measured span offset for this model the panel does matching only, and
-    // an absolute verdict would be an invention.
     const char* a_status = "";
     const char* b_status = "";
-    if (have_target) {
-        a_status =
-            helix::calibration::belt_status_to_string(helix::calibration::evaluate_belt_status(
-                a_hz, target_frequency_hz_, TARGET_TOLERANCE_HZ));
-        b_status =
-            helix::calibration::belt_status_to_string(helix::calibration::evaluate_belt_status(
-                b_hz, target_frequency_hz_, TARGET_TOLERANCE_HZ));
-    }
     snprintf(result_a_status_buf_, sizeof(result_a_status_buf_), "%s", a_status);
     lv_subject_notify(&result_a_status_subject_);
     snprintf(result_b_status_buf_, sizeof(result_b_status_buf_), "%s", b_status);
