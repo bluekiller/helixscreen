@@ -340,3 +340,41 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
           ui::tile_rung_face(ui::TileLadder::Value, large).font);
     CHECK(std::string(lv_label_get_text(label)) == ToolState::instance().tools()[0].display_label);
 }
+
+TEST_CASE_METHOD(ToolSwitcherFixture,
+                 "tool_switcher: tools arriving after the last size change re-measure the tile",
+                 "[widget_size][tool_switcher][tile]") {
+    // The compact label is budgeted at the widest tool label. Tools discovered
+    // after the tile was sized must re-budget it, or the tile keeps a rung sized
+    // for labels it no longer draws.
+    // Narrow and tall, so the label's width is what limits the rung.
+    auto rung_for = [&](int tools, int px) {
+        configure_tools(tools);
+        PanelWidgetHarness<ToolSwitcherWidget> h(test_screen(), state());
+        process_lvgl(30);
+        h.resize(1, 1, px, 60);
+        process_lvgl(30);
+        return lv_subject_get_int(lv_xml_get_subject(nullptr, "tool_switcher_tile_icon"));
+    };
+    // A box where one short label and a dozen tools' widest label pick
+    // different rungs; its existence is the premise, the size is this tier's.
+    int px = -1;
+    for (int p = 20; p <= 160 && px < 0; ++p) {
+        if (rung_for(1, p) != rung_for(12, p)) {
+            px = p;
+        }
+    }
+    INFO("no box where one tool and twelve pick different compact rungs");
+    REQUIRE(px > 0);
+    const int expected = rung_for(12, px);
+
+    // Sized with one tool, then eleven more arrive with no size change.
+    configure_tools(1);
+    PanelWidgetHarness<ToolSwitcherWidget> h(test_screen(), state());
+    process_lvgl(30);
+    h.resize(1, 1, px, 60);
+    process_lvgl(30);
+    update_tools(12, 0);
+    process_lvgl(30);
+    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "tool_switcher_tile_icon")) == expected);
+}

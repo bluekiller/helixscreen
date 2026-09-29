@@ -146,11 +146,9 @@ void ToolSwitcherWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         [token](ToolSwitcherWidget* self, int /*count*/) {
             if (token.expired())
                 return;
-            if (self->is_compact_size()) {
-                self->rebuild_compact();
-            } else {
-                self->rebuild_pills();
-            }
+            // New tools change the widest label the tile is budgeted for, so
+            // re-measure at the size it holds before rebuilding either form.
+            self->on_size_changed(0, 0, self->current_width_px_, self->current_height_px_);
         },
         tool_state.get_subjects_lifetime());
 
