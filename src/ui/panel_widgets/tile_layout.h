@@ -104,6 +104,11 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
  * Column is preferred and Row is the fallback for a box too short to stack, so
  * direction follows fit rather than aspect ratio.
  *
+ * A label that is the tile's identity (which fan, which sensor: the only thing
+ * telling two such tiles apart) is surrendered last instead: the glyph shrinks
+ * all the way down with the label kept, and only a box that cannot hold the
+ * label at the smallest rung drops it.
+ *
  * `fits` is false only when even the smallest rung, with everything optional
  * surrendered, cannot draw the icon and the widest value. It is MONOTONIC in
  * both axes by construction: it is a disjunction over a fixed candidate set,
@@ -117,11 +122,12 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
  * @param labels_enabled the user setting; size may hide a label, never show one
  * @param authored_rung  the rung the tier draws a tile's icon at by default
  * @param row_inset      width a row gives to its side insets, which a column does not
+ * @param label_is_identity the label says which tile this is, so it outlasts the glyph
  */
 inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
                                       const TileRungMetrics rungs[kTileRungs], bool has_value,
-                                      bool labels_enabled, int authored_rung = 0,
-                                      int row_inset = 0) {
+                                      bool labels_enabled, int authored_rung = 0, int row_inset = 0,
+                                      bool label_is_identity = false) {
     using detail::TileCandidate;
 
     // Ordered by what the tile gives up, most complete first. A tile that has
@@ -148,24 +154,37 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
         return v;
     };
 
-    // At or above the authored rung: keep content, grow the glyph into room.
-    for (int c = 0; c < candidate_count; ++c) {
-        for (TileDirection dir : directions) {
-            for (int r = kTileRungs - 1; r >= floor_rung; --r) {
-                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
-                                                width_for(dir), avail_h, gap_px)) {
-                    return verdict_for(r, c, dir);
+    // Candidates [first, last) are tried over every rung before any later one:
+    // an identity label splits them into those that keep it (a prefix, by the
+    // order above) and those that do not, everything else is one group.
+    int kept = candidate_count;
+    if (label_is_identity) {
+        kept = 0;
+        while (kept < candidate_count && candidates[kept].label) {
+            ++kept;
+        }
+    }
+    const int groups[][2] = {{0, kept}, {kept, candidate_count}};
+    for (const auto& [first, last] : groups) {
+        // At or above the authored rung: keep content, grow the glyph into room.
+        for (int c = first; c < last; ++c) {
+            for (TileDirection dir : directions) {
+                for (int r = kTileRungs - 1; r >= floor_rung; --r) {
+                    if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
+                                                    width_for(dir), avail_h, gap_px)) {
+                        return verdict_for(r, c, dir);
+                    }
                 }
             }
         }
-    }
-    // Below it: the glyph shrinks one rung at a time, keeping what content fits.
-    for (int r = floor_rung - 1; r >= 0; --r) {
-        for (int c = 0; c < candidate_count; ++c) {
-            for (TileDirection dir : directions) {
-                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
-                                                width_for(dir), avail_h, gap_px)) {
-                    return verdict_for(r, c, dir);
+        // Below it: the glyph shrinks one rung at a time, keeping what content fits.
+        for (int r = floor_rung - 1; r >= 0; --r) {
+            for (int c = first; c < last; ++c) {
+                for (TileDirection dir : directions) {
+                    if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
+                                                    width_for(dir), avail_h, gap_px)) {
+                        return verdict_for(r, c, dir);
+                    }
                 }
             }
         }

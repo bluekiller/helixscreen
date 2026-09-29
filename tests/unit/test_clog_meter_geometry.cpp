@@ -256,6 +256,17 @@ TEST_CASE("clog_bar_geometry: Flowguard shades both ends", "[clog][bar][1017]") 
     CHECK(g.danger_lo_w == g.danger_hi_w);
 }
 
+TEST_CASE("clog_bar_geometry: Flowguard shades both ends alike on an odd track",
+          "[clog][bar][1017]") {
+    for (int track : {199, 201, 97, 3}) {
+        INFO("track " << track);
+        auto g = clog_bar_geometry(kMode_Flowguard, 0, /*danger=*/80, 0, track);
+        CHECK(g.danger_lo_w == g.danger_hi_w);
+        // The high zone still runs to the track's far edge.
+        CHECK(g.danger_hi_x + g.danger_hi_w == track);
+    }
+}
+
 TEST_CASE("clog_bar_geometry: the Flowguard peak follows the side in fault", "[clog][bar][1017]") {
     // peak_pct is max(|clog|, |tangle|) — a magnitude with no side of its own,
     // so it is drawn on the side the current reading leans toward.

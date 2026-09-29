@@ -394,6 +394,67 @@ jobs:
         echo "Event loop tests passed"
 
   # ===========================================================================
+  # Slow out-of-process UI tests (pytest -m slow): whole-app screen sweeps
+  # too long for build.yml's UI step.
+  # ===========================================================================
+  test-ui-slow:
+    name: Slow UI Tests (pytest)
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+
+    - name: Initialize submodules
+      uses: ./.github/actions/init-submodules
+
+    - name: Prepare apt
+      uses: ./.github/actions/apt-prepare
+
+    - name: Install runtime deps
+      run: |
+        sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
+        sudo apt-get update
+        sudo apt-get install -y libsdl2-dev libfmt-dev libcairo2 libpango-1.0-0 libpng16-16 libjpeg8 libnl-3-200 libnl-genl-3-200
+
+    - name: Download build
+      uses: actions/download-artifact@v8
+      with:
+        name: nightly-build
+        path: build/bin/
+
+    - name: Fix permissions
+      run: chmod +x build/bin/helix-screen
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install Python test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Run slow UI tests
+      timeout-minutes: 15
+      run: pytest tests/ui/ -v -m slow
+
+    - name: Upload UI failure artifacts
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: ui-slow-artifacts-${{ github.run_id }}
+        path: ui-artifacts/
+        if-no-files-found: ignore
+        retention-days: 7
+
+  # ===========================================================================
   # Shell / BATS tests (installer, service, platform scripts)
   # ===========================================================================
   test-shell:
@@ -988,7 +1049,7 @@ jobs:
   nightly-status:
     name: Nightly Status
     runs-on: ubuntu-latest
-    needs: [build, test-all, test-eventloop, test-shell, test-asan, test-tsan, test-python, test-macos, test-unsharded-leaks, suite-report, test-quality-gates]
+    needs: [build, test-all, test-eventloop, test-ui-slow, test-shell, test-asan, test-tsan, test-python, test-macos, test-unsharded-leaks, suite-report, test-quality-gates]
     if: always()
 
     steps:
@@ -997,6 +1058,7 @@ jobs:
         echo "=== Nightly Test Results ==="
         echo "All C++ tests:    ${{ needs.test-all.result }}"
         echo "Event loop:       ${{ needs.test-eventloop.result }}"
+        echo "Slow UI:          ${{ needs.test-ui-slow.result }}"
         echo "Shell (BATS):     ${{ needs.test-shell.result }}"
         echo "ASAN:             ${{ needs.test-asan.result }}"
         echo "TSAN:             ${{ needs.test-tsan.result }}"
@@ -1009,12 +1071,13 @@ jobs:
         echo "==========================="
 
         FAILED=0
-        for job in test-all test-eventloop test-shell test-asan test-tsan test-python test-macos test-unsharded-leaks suite-report test-quality-gates; do
+        for job in test-all test-eventloop test-ui-slow test-shell test-asan test-tsan test-python test-macos test-unsharded-leaks suite-report test-quality-gates; do
           result="${{ needs[job].result }}" 2>/dev/null || result="unknown"
         done
 
         if [ "${{ needs.test-all.result }}" != "success" ] || \
            [ "${{ needs.test-eventloop.result }}" != "success" ] || \
+           [ "${{ needs.test-ui-slow.result }}" != "success" ] || \
            [ "${{ needs.test-shell.result }}" != "success" ] || \
            [ "${{ needs.test-asan.result }}" != "success" ] || \
            [ "${{ needs.test-tsan.result }}" != "success" ] || \

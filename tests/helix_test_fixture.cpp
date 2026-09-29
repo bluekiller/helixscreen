@@ -230,45 +230,7 @@ HelixTestFixture::~HelixTestFixture() {
     reset_all();
 }
 
-void HelixTestFixture::reset_all() {
-    // LVGL + UpdateQueue must be up before we touch any subject-backed state.
-    // lv_init_safe() is idempotent and also re-arms the UpdateQueue if a prior
-    // fixture's destructor shut it down. Safe to call from non-LVGL tests.
-    lv_init_safe();
-
-    // A display with no flush callback latches disp->flushing on its first
-    // refresh and never clears it; lv_refr.c then busy-waits on that flag for
-    // the rest of the process. Several test translation units create the
-    // process's default display that way in a static initialiser, so this has
-    // to be re-asserted from a place every test passes through rather than at
-    // any one creation site.
-    ensure_displays_never_block_on_flush();
-
-    // BEFORE the drain, not after: EmergencyStopOverlay is a process-wide
-    // singleton holding raw init() pointers to a PrinterState that in tests is a
-    // stack local or fixture member. By the time a fixture destructor reaches
-    // here the test body's locals are already gone, so draining first would run
-    // a queued update_recovery_dialog_content() straight into the freed object.
-    // Nulled, its `if (printer_state_ && ...)` guard makes that callback a no-op.
-    EmergencyStopOverlay& estop = EmergencyStopOverlay::instance();
-    EmergencyStopOverlayTestAccess::reset_dependencies(estop);
-
-    // The same singleton also carries two wall-clock deadlines — the suppression
-    // window and the user-restart window — and the reason a window is holding
-    // back. Production arms those for 10-30s while a test advances lv_tick by
-    // tens of milliseconds, so one armed window outlives every test that follows
-    // it in this binary and gates whether a recovery dialog may appear at all.
-    // The latched reason goes with them: left set, it surfaces a dialog inside a
-    // later test. Cleared centrally for the reason reset_dependencies() is — a
-    // test that arms one cannot be relied on to unwind it past a failed
-    // assertion, which unwinds straight past any trailing cleanup.
-    EmergencyStopOverlayTestAccess::reset_suppression(estop);
-    EmergencyStopOverlayTestAccess::set_restart_in_progress(estop, false);
-    EmergencyStopOverlayTestAccess::reset_pending_recovery_reason(estop);
-
-    // Drain any callbacks queued by a prior test before we touch state they read.
-    helix::ui::UpdateQueue::instance().drain();
-
+void HelixTestFixture::reset_printer_state() {
     // Clear every plain (non-subject) data member on the GLOBAL PrinterState.
     //
     // PrinterState is a Meyers singleton (get_printer_state()) that lives for the
@@ -309,6 +271,48 @@ void HelixTestFixture::reset_all() {
             helix::ui::UpdateQueue::instance().drain();
         }
     }
+}
+
+void HelixTestFixture::reset_all() {
+    // LVGL + UpdateQueue must be up before we touch any subject-backed state.
+    // lv_init_safe() is idempotent and also re-arms the UpdateQueue if a prior
+    // fixture's destructor shut it down. Safe to call from non-LVGL tests.
+    lv_init_safe();
+
+    // A display with no flush callback latches disp->flushing on its first
+    // refresh and never clears it; lv_refr.c then busy-waits on that flag for
+    // the rest of the process. Several test translation units create the
+    // process's default display that way in a static initialiser, so this has
+    // to be re-asserted from a place every test passes through rather than at
+    // any one creation site.
+    ensure_displays_never_block_on_flush();
+
+    // BEFORE the drain, not after: EmergencyStopOverlay is a process-wide
+    // singleton holding raw init() pointers to a PrinterState that in tests is a
+    // stack local or fixture member. By the time a fixture destructor reaches
+    // here the test body's locals are already gone, so draining first would run
+    // a queued update_recovery_dialog_content() straight into the freed object.
+    // Nulled, its `if (printer_state_ && ...)` guard makes that callback a no-op.
+    EmergencyStopOverlay& estop = EmergencyStopOverlay::instance();
+    EmergencyStopOverlayTestAccess::reset_dependencies(estop);
+
+    // The same singleton also carries two wall-clock deadlines — the suppression
+    // window and the user-restart window — and the reason a window is holding
+    // back. Production arms those for 10-30s while a test advances lv_tick by
+    // tens of milliseconds, so one armed window outlives every test that follows
+    // it in this binary and gates whether a recovery dialog may appear at all.
+    // The latched reason goes with them: left set, it surfaces a dialog inside a
+    // later test. Cleared centrally for the reason reset_dependencies() is — a
+    // test that arms one cannot be relied on to unwind it past a failed
+    // assertion, which unwinds straight past any trailing cleanup.
+    EmergencyStopOverlayTestAccess::reset_suppression(estop);
+    EmergencyStopOverlayTestAccess::set_restart_in_progress(estop, false);
+    EmergencyStopOverlayTestAccess::reset_pending_recovery_reason(estop);
+
+    // Drain any callbacks queued by a prior test before we touch state they read.
+    helix::ui::UpdateQueue::instance().drain();
+
+    reset_printer_state();
 
     // SystemSettingsManager language back to "en" (matches config default).
     // init_subjects() is idempotent — first call creates the subjects, later
@@ -413,6 +417,13 @@ void HelixTestFixture::reset_all() {
     // only exchanges the atomic and clears a plain int high-water mark - no
     // subject writes - so it is safe to call unconditionally here.
     helix::AmsState::instance().set_active_step_operation(helix::StepOperationType::LOAD_SWAP);
+
+    // A backend a test installs on the AmsState singleton outlives it, and a
+    // later test that expects no filament system reads its slots: the active
+    // spool widget draws the mock's loaded lane instead of "No Spool".
+    if (helix::AmsState::instance().get_backend() != nullptr) {
+        helix::AmsState::instance().set_backend(nullptr);
+    }
     helix::AmsStateTestAccess::clear_narration(helix::AmsState::instance());
 
     // DisplaySettingsManager's animations_enabled is a process-global subject

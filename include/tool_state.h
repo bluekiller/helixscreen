@@ -125,6 +125,10 @@ class ToolState {
     void deinit_subjects();
 
     void init_tools(const helix::PrinterDiscovery& hardware);
+
+    /// Re-render every tool's translated display label ("Tool 2") in the
+    /// current language and bump tools_version so consumers redraw.
+    void refresh_display_labels();
     void update_from_status(const nlohmann::json& status);
 
     /// Push AMS-backend-derived topology. Overrides extruder-based init. Idempotent:

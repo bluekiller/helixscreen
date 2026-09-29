@@ -854,6 +854,18 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                       get_name());
     }
 
+    // The detail view shows each file's cached layer count and height, whose
+    // words are lv_tr()'d when the metadata lands; a new language formats them again.
+    language_observer_ = helix::ui::observe_language_change(this, [](PrintSelectPanel* self) {
+        for (auto& file : self->file_list_) {
+            if (!file.metadata_fetched) {
+                continue; // metadata not in yet; it formats in the current language
+            }
+            file.layer_count_str = format_layer_count(file.layer_count);
+            file.print_height_str = format_print_height(file.object_height, /*tall_suffix=*/true);
+        }
+    });
+
     spdlog::trace("[{}] Setup complete", get_name());
 }
 

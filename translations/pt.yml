@@ -52,6 +52,8 @@ translations:
   0 slots: '{0} Slots'
   '0.4-2mm direct drive, 4-6mm bowden': '0.4-2mm direct drive, 4-6mm bowden'
   '0°': '0°'
+  1 Hardware Issue: '1 problema de hardware'
+  1 Issue Detected: '1 problema detectado'
   '1 day ago': 'há 1 dia'
   1 event queued: 1 evento na fila
   1 hour ago: há 1 hora
@@ -195,10 +197,13 @@ translations:
   Alerts and messages waiting for you: Alertas e mensagens pendentes
   All: Todos
   All Devices: Todos os Dispositivos
+  All Healthy: 'Tudo em ordem'
   All axes homed: Todos os eixos referenciados
+  All configured hardware detected: 'Todo o hardware configurado detectado'
   All fields are required: Todos os campos são obrigatórios
   All healthy: Tudo em ordem
   All lights: Todas as luzes
+  All time: 'Todo o período'
   Allow: 'Permitir'
   Allow Home Screen Editing: 'Permitir a edição da tela inicial'
   Allow cold load/unload: Permitir carregar/descarregar a frio
@@ -693,6 +698,10 @@ translations:
   Configure timelapse recording: Configurar gravação de timelapse
   Configure your printer's cooling fans: Configure as ventoinhas de resfriamento da
     sua impressora
+  Configured LED strip not found: 'Fita de LED configurada não encontrada'
+  Configured aux fan not found: 'Ventoinha auxiliar configurada não encontrada'
+  Configured filament sensor not found: 'Sensor de filamento configurado não encontrado'
+  Configured hardware no longer present: 'O hardware configurado não está mais presente'
   Configured in the backup-spool package, not from here: Configurado no plugin de carretel de reserva, não aqui
   Configuring Moonraker...: Configurando Moonraker...
   Confirm PIN: Confirmar PIN
@@ -1233,6 +1242,7 @@ translations:
   Fan Calibration: Calibração da Ventoinha
   Fan Speeds: 'Velocidades das ventoinhas'
   Fan Transfer: Transferência da Ventoinha
+  Fan available but not assigned to any role: 'Ventoinha disponível, mas sem função atribuída'
   'Fan control failed: {}': 'Falha no controle da ventoinha: {}'
   FanSelect: Selecionar Ventoinha
   Fans: Ventoinhas
@@ -1310,6 +1320,7 @@ translations:
   Filament saved: Filamento salvo
   Filament sensor available for runout detection: Sensor de filamento disponível para
     detecção de fim de filamento
+  Filament sensor available. Add to config for runout detection?: 'Sensor de filamento disponível. Adicionar à configuração para detectar o fim do filamento?'
   Filament snapped inside CFS: O filamento partiu dentro do CFS
   Filament stalled between CFS hub and extruder sensor: O filamento parou entre o hub do CFS e o sensor do extrusor
   Filament stuck in connector during unload: Filamento preso no conector durante a descarga
@@ -1351,6 +1362,7 @@ translations:
   Flowguard: Proteção de Fluxo
   Flushing Filament...: Purgando filamento...
   Flying Toasters: Torradeiras Voadoras
+  Focused: 'Focado'
   Follow active tool: Seguir ferramenta ativa
   Follow graph screen: Acompanhar tela do gráfico
   Force/weight sensors: 'Sensores de força/peso'
@@ -1409,13 +1421,14 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: Hardware
   Hardware Health: Saúde do Hardware
-  Hardware Keyboard: ''
+  Hardware Keyboard: Teclado Físico
   Hardware Name: Nome do Hardware
   Hardware Profile: Perfil de Hardware
   Hardware is validated on startup and reconnection: O hardware é validado na inicialização
     e reconexão
   Hardware marked as optional: Hardware marcado como opcional
   Hardware saved to config: Hardware salvo na configuração
+  Hardware was present in previous session but is now missing: 'O hardware estava presente na sessão anterior, mas agora está ausente'
   Have a piece of paper ready.: Tenha uma folha de papel pronta.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
     adjusted with                              thumb wheels or some other built-in
@@ -1424,6 +1437,7 @@ translations:
     se sua mesa não for ajustada com                              rodas manuais ou
     algum outro mecanismo embutido.
   Heading: Título
+  Healthy: 'Em ordem'
   Heat Capacity: Capacidade Calorífica
   Heat Soak: Aquecimento Prolongado
   Heat Soaking...: Aquecimento prolongado...
@@ -1484,7 +1498,7 @@ translations:
   Helper macros are up to date: 'As macros de ajuda estão atualizadas'
   Hide Firmware Noise: Ocultar Ruído do Firmware
   Hide Temperature Reports: Ocultar Relatórios de Temperatura
-  Hide the on-screen keyboard while a USB keyboard is attached: ''
+  Hide the on-screen keyboard while a USB keyboard is attached: Ocultar o teclado na tela enquanto um teclado USB estiver conectado
   High Water Mark: Marca de Pico
   Hold anywhere to cancel: Segure em qualquer lugar para cancelar
   Hold still: Não se mexa
@@ -1698,6 +1712,7 @@ translations:
   LED on at Start: LED Ligado ao Iniciar
   LED strip available for lighting control: Fita de LED disponível para controle de
     iluminação
+  LED strip available. Add to config for lighting control?: 'Fita de LED disponível. Adicionar à configuração para controlar a iluminação?'
   LEDs: LEDs
   LOAD CELLS: 'CÉLULAS DE CARGA'
   LOADED: CARREGADO
@@ -1716,6 +1731,9 @@ translations:
   Language & Time: Idioma e hora
   Last: Última
   # Source: history_dashboard_panel.xml:114
+  Last 12 months: 'Últimos 12 meses'
+  Last 24 hours: 'Últimas 24 horas'
+  Last 30 days: 'Últimos 30 dias'
   Last 7 days: 'Últimos 7 dias'
   Last measured: 'Última medição'
   Last print cancelled: Última impressão cancelada
@@ -2015,6 +2033,7 @@ translations:
   No Bluetooth printers found: Nenhuma impressora Bluetooth encontrada
   No Camera: Sem câmera
   No Filament Detected: Filamento Não Detectado
+  No Hardware Issues: 'Nenhum problema de hardware'
   No History: Sem Histórico
   No LED macros detected on your printer. Add Klipper macros for LED control first.: Nenhuma
     macro de LED detectada na sua impressora. Adicione macros Klipper para controle
@@ -2046,6 +2065,7 @@ translations:
     para melhores resultados.
   No effects available: Nenhum efeito disponível
   No events queued: Nenhum evento na fila
+  No extruder heater found. Check [extruder] in printer.cfg: 'Aquecedor da extrusora não encontrado. Verifique [extruder] no printer.cfg'
   No fans detected: Nenhuma ventoinha detectada
   No filament: Sem filamento
   No filament environment sensors: Nenhum sensor ambiental de filamento
@@ -2324,6 +2344,8 @@ translations:
   'Pre-print command failed: {}': 'Falha no comando pré-impressão: {}'
   Pre-print homing...: Posicionamento pré-impressão...
   Preheat: 'Pré-aquecer'
+  Preheat %s: 'Pré-aquecer %s'
+  Preheat %s (%d/%d): 'Pré-aquecer %s (%d/%d)'
   Preheat Macro: Macro de Pré-aquecimento
   Preheat PLA: Pré-aquecer PLA
   Preheat cancelled: Pré-aquecimento cancelado
@@ -2366,6 +2388,7 @@ translations:
   Print Failed: Impressão Falhou
   Print File: Arquivo de Impressão
   Print Files: Arquivos de Impressão
+  Print Head: 'Cabeçote de impressão'
   Print History: Histórico de Impressão
   Print Hours: Horas de Impressão
   Print Label: Imprimir Etiqueta
@@ -2530,6 +2553,7 @@ translations:
   Quick Button 3: Botão Rápido 3
   Quick Button 4: Botão Rápido 4
   Quick actions, calibration, speed: Ações rápidas, calibração, velocidade
+  Quiet: 'Silencioso'
   RFCOMM connect failed: Falha ao conectar RFCOMM
   'RFCOMM connect failed: ': 'Falha ao conectar RFCOMM: '
   RFID reader malfunction (left): Falha do leitor RFID (esquerdo)
@@ -3605,6 +3629,7 @@ translations:
     entrada de texto
   Use G10/G11 firmware retraction: Usar retração de firmware G10/G11
   Use Unload before Eject: 'Use Descarregar antes de Ejetar'
+  Use first HID scanner found: 'Usar o primeiro leitor HID encontrado'
   Use printer type to select image: Usar tipo de impressora para selecionar imagem
   User intervention required: 'Intervenção manual necessária'
   VM Peak: Pico de VM
@@ -3864,14 +3889,18 @@ translations:
   v{} installed! Restarting...: v{} instalado! Reiniciando...
   v{} is available. Tap to update.: v{} disponível. Toque para atualizar.
   you have: você tem
+  '{} Hardware Issues': '{} problemas de hardware'
+  '{} Issues Detected': '{} problemas detectados'
   '{} LED strips available': '{} fitas de LED disponíveis'
   '{} and {} are both mapped here': '{} e {} estão ambos atribuídos aqui'
   '{} available': '{} disponível'
   '{} axis homed': Eixo {} referenciado
+  '{} changed': '{} alterado(s)'
   '{} command timed out': Comando {} expirou
   '{} complete': '{} concluído'
   '{} configured item not found': '{} item configurado não encontrado'
   '{} configured items not found': '{} itens configurados não encontrados'
+  '{} critical': '{} crítico(s)'
   '{} critical hardware issues': '{} problemas críticos de hardware'
   '{} disabled': '{} desabilitado'
   '{} enabled': '{} habilitado'
@@ -3891,8 +3920,10 @@ translations:
   '{} matches.': '{} corresponde.'
   '{} may cause unintended changes. Are you sure?': '{} pode causar alterações não
     intencionais. Tem certeza?'
+  '{} missing': '{} ausente(s)'
   '{} more taps to {} beta features': Mais {} toques para {} recursos beta
   '{} needs the HelixPrint plugin. Printing original file.': '{} precisa do plugin HelixPrint. Imprimindo o arquivo original.'
+  '{} new': '{} novo(s)'
   '{} new hardware available': '{} novo hardware disponível'
   '{} preset{}': '{} predefinição{}'
   '{} set to {}': '{} definido para {}'

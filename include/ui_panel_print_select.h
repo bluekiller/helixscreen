@@ -813,6 +813,7 @@ class PrintSelectPanel : public PanelBase {
         print_in_progress_observer_; ///< Observes workflow in-progress for immediate disable
     ObserverGuard print_lifecycle_observer_; ///< Observes the lifecycle the button decision reads
     ObserverGuard helix_plugin_observer_;    ///< Observes plugin status for install prompt
+    ObserverGuard language_observer_;        ///< Re-formats card metadata on a switch
 
     /// Observer for PrintHistoryManager - updates file status when history changes
     helix::HistoryChangedCallback history_observer_;

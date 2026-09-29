@@ -819,6 +819,56 @@ TEST_CASE("a tile measures its label in the language it draws", "[widget_size][t
     CHECK(de_first > en_first);
 }
 
+TEST_CASE("fan and sensor tiles keep their name while the glyph shrinks",
+          "[widget_size][tile][identity]") {
+    // Two fan tiles differ only by name, so where a tile would drop its label
+    // to keep its glyph, these shrink the glyph and keep the name. The same
+    // content without that flag is the control.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    for (const char* id : {"fan", "thermistor"}) {
+        INFO(id);
+        const auto* def = find_widget_def(id);
+        REQUIRE(def != nullptr);
+        auto instance = def->factory(id);
+        REQUIRE(instance != nullptr);
+        lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+            fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+        REQUIRE(root != nullptr);
+        instance->attach(root, fixture.test_screen());
+        helix::TileSizing* sizing = instance->tile_sizing();
+        REQUIRE(sizing != nullptr);
+        REQUIRE(sizing->content().label_is_identity);
+
+        helix::TileSizing::Content plain = sizing->content();
+        plain.label_is_identity = false;
+        helix::TileSizing twin(std::string(id) + "_twin", plain);
+        twin.set_content_root(sizing->content_root());
+
+        auto get = [](const std::string& name) {
+            return lv_subject_get_int(lv_xml_get_subject(nullptr, name.c_str()));
+        };
+        const std::string named = std::string(id) + "_tile_";
+        const std::string control = std::string(id) + "_twin_tile_";
+        int kept_where_control_dropped = 0;
+        for (int px = 40; px <= 200; px += 2) {
+            INFO(px << "px square");
+            instance->notify_size_changed(2, 2, px, px);
+            twin.measure_and_publish(px, px);
+            // Never fewer labels than the control, and only ever by giving up glyph.
+            CHECK(get(named + "label") >= get(control + "label"));
+            if (get(named + "label") > get(control + "label")) {
+                CHECK(get(named + "icon") < get(control + "icon"));
+                ++kept_where_control_dropped;
+            }
+        }
+        CHECK(kept_where_control_dropped > 0);
+        twin.set_content_root(nullptr);
+        instance->detach();
+        lv_obj_delete(root);
+    }
+}
+
 TEST_CASE("a wide light tile reserves the chevron zone it draws", "[widget_size][tile][led]") {
     // The › zone is at least #button_height wide, and wider when its glyph is,
     // so the bulb must be measured in what that zone actually leaves.

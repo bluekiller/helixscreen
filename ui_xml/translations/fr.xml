@@ -51,6 +51,8 @@
   <translation tag="0 slots" fr="0 emplacements"/>
   <translation tag="0.4-2mm direct drive, 4-6mm bowden" fr="0.4-2mm entraînement direct, 4-6mm bowden"/>
   <translation tag="0°" fr="0°"/>
+  <translation tag="1 Hardware Issue" fr="1 problème matériel"/>
+  <translation tag="1 Issue Detected" fr="1 problème détecté"/>
   <translation tag="1 day ago" fr="il y a 1 jour"/>
   <translation tag="1 event queued" fr="1 événement en attente"/>
   <translation tag="1 hour ago" fr="il y a 1 heure"/>
@@ -183,10 +185,13 @@
   <translation tag="Alerts and messages waiting for you" fr="Alertes et messages en attente"/>
   <translation tag="All" fr="Tous"/>
   <translation tag="All Devices" fr="Tous les appareils"/>
+  <translation tag="All Healthy" fr="Tout est en ordre"/>
   <translation tag="All axes homed" fr="Tous les axes référencés"/>
+  <translation tag="All configured hardware detected" fr="Tout le matériel configuré est détecté"/>
   <translation tag="All fields are required" fr="Tous les champs sont requis"/>
   <translation tag="All healthy" fr="Tout va bien"/>
   <translation tag="All lights" fr="Toutes les lumières"/>
+  <translation tag="All time" fr="Depuis toujours"/>
   <translation tag="Allow" fr="Autoriser"/>
   <translation tag="Allow Home Screen Editing" fr="Autoriser la modification de l&apos;écran d&apos;accueil"/>
   <translation tag="Allow cold load/unload" fr="Autoriser le chargement/déchargement à froid"/>
@@ -617,6 +622,10 @@
   <translation tag="Configure quick buttons and standard macros" fr="Configurer les boutons rapides et les macros standard"/>
   <translation tag="Configure timelapse recording" fr="Configurer l&apos;enregistrement timelapse"/>
   <translation tag="Configure your printer&apos;s cooling fans" fr="Configurer les ventilateurs de refroidissement de votre imprimante"/>
+  <translation tag="Configured LED strip not found" fr="Bandeau LED configuré introuvable"/>
+  <translation tag="Configured aux fan not found" fr="Ventilateur auxiliaire configuré introuvable"/>
+  <translation tag="Configured filament sensor not found" fr="Capteur de filament configuré introuvable"/>
+  <translation tag="Configured hardware no longer present" fr="Le matériel configuré n&apos;est plus présent"/>
   <translation tag="Configured in the backup-spool package, not from here" fr="Se configure dans le plugin de bobine de secours, pas ici"/>
   <translation tag="Configuring Moonraker..." fr="Configuration de Moonraker..."/>
   <translation tag="Confirm PIN" fr="Confirmer le code PIN"/>
@@ -1111,6 +1120,7 @@
   <translation tag="Fan Calibration" fr="Calibration du ventilateur"/>
   <translation tag="Fan Speeds" fr="Vitesses des ventilateurs"/>
   <translation tag="Fan Transfer" fr="Transfert ventilateur"/>
+  <translation tag="Fan available but not assigned to any role" fr="Ventilateur disponible mais attribué à aucun rôle"/>
   <translation tag="Fan control failed: {}" fr="Échec du contrôle ventilateur : {}"/>
   <translation tag="FanSelect" fr="Sélection du ventilateur"/>
   <translation tag="Fans" fr="Ventilateurs"/>
@@ -1181,6 +1191,7 @@
   <translation tag="Filament runout and motion detection sensors" fr="Capteurs de fin de filament et de détection de mouvement"/>
   <translation tag="Filament saved" fr="Filament enregistré"/>
   <translation tag="Filament sensor available for runout detection" fr="Capteur de filament disponible pour la détection de fin de filament"/>
+  <translation tag="Filament sensor available. Add to config for runout detection?" fr="Capteur de filament disponible. L&apos;ajouter à la configuration pour détecter la fin du filament ?"/>
   <translation tag="Filament snapped inside CFS" fr="Le filament s&apos;est cassé dans le CFS"/>
   <translation tag="Filament stalled between CFS hub and extruder sensor" fr="Le filament est bloqué entre le hub CFS et le capteur d&apos;extrudeur"/>
   <translation tag="Filament stuck in connector during unload" fr="Filament coincé dans le connecteur pendant le déchargement"/>
@@ -1219,6 +1230,7 @@
   <translation tag="Flowguard" fr="Flowguard"/>
   <translation tag="Flushing Filament..." fr="Purge du filament..."/>
   <translation tag="Flying Toasters" fr="Flying Toasters"/>
+  <translation tag="Focused" fr="Concentré"/>
   <translation tag="Follow active tool" fr="Suivre l&apos;outil actif"/>
   <translation tag="Follow graph screen" fr="Suivre l&apos;écran du graphique"/>
   <translation tag="Force/weight sensors" fr="Capteurs de force/poids"/>
@@ -1274,15 +1286,17 @@
   <translation tag="Happy Hare MMU" fr="Happy Hare MMU"/>
   <translation tag="Hardware" fr="Matériel"/>
   <translation tag="Hardware Health" fr="État du matériel"/>
-  <translation tag="Hardware Keyboard"/>
+  <translation tag="Hardware Keyboard" fr="Clavier physique"/>
   <translation tag="Hardware Name" fr="Nom du matériel"/>
   <translation tag="Hardware Profile" fr="Profil matériel"/>
   <translation tag="Hardware is validated on startup and reconnection" fr="Le matériel est validé au démarrage et à la reconnexion"/>
   <translation tag="Hardware marked as optional" fr="Matériel marqué comme optionnel"/>
   <translation tag="Hardware saved to config" fr="Matériel enregistré dans la config"/>
+  <translation tag="Hardware was present in previous session but is now missing" fr="Matériel présent lors de la session précédente mais désormais absent"/>
   <translation tag="Have a piece of paper ready." fr="Préparez une feuille de papier."/>
   <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
   <translation tag="Heading" fr="Titre"/>
+  <translation tag="Healthy" fr="En ordre"/>
   <translation tag="Heat Capacity" fr="Capacité thermique"/>
   <translation tag="Heat Soak" fr="Stabilisation thermique"/>
   <translation tag="Heat Soaking..." fr="Stabilisation thermique..."/>
@@ -1337,7 +1351,7 @@
   <translation tag="Helper macros are up to date" fr="Les macros d&apos;aide sont à jour"/>
   <translation tag="Hide Firmware Noise" fr="Masquer le bruit du firmware"/>
   <translation tag="Hide Temperature Reports" fr="Masquer les rapports de température"/>
-  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached"/>
+  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached" fr="Masquer le clavier à l&apos;écran lorsqu&apos;un clavier USB est branché"/>
   <translation tag="High Water Mark" fr="Pic d&apos;utilisation"/>
   <translation tag="Hold anywhere to cancel" fr="Maintenez n&apos;importe où pour annuler"/>
   <translation tag="Hold still" fr="Ne bougez pas"/>
@@ -1514,6 +1528,7 @@
   <translation tag="LED Strip" fr="Bandeau LED"/>
   <translation tag="LED on at Start" fr="LED allumée au démarrage"/>
   <translation tag="LED strip available for lighting control" fr="Bandeau LED disponible pour le contrôle de l&apos;éclairage"/>
+  <translation tag="LED strip available. Add to config for lighting control?" fr="Bandeau LED disponible. L&apos;ajouter à la configuration pour contrôler l&apos;éclairage ?"/>
   <translation tag="LEDs" fr="LEDs"/>
   <translation tag="LOAD CELLS" fr="CELLULES DE CHARGE"/>
   <translation tag="LOADED" fr="CHARGÉ"/>
@@ -1531,6 +1546,9 @@
   <translation tag="Language" fr="Langue"/>
   <translation tag="Language &amp; Time" fr="Langue et heure"/>
   <translation tag="Last" fr="Dernière"/>
+  <translation tag="Last 12 months" fr="12 derniers mois"/>
+  <translation tag="Last 24 hours" fr="24 dernières heures"/>
+  <translation tag="Last 30 days" fr="30 derniers jours"/>
   <translation tag="Last 7 days" fr="7 derniers jours"/>
   <translation tag="Last measured" fr="Dernière mesure"/>
   <translation tag="Last print cancelled" fr="Dernière impression annulée"/>
@@ -1809,6 +1827,7 @@
   <translation tag="No Bluetooth printers found" fr="Aucune imprimante Bluetooth trouvée"/>
   <translation tag="No Camera" fr="Aucune caméra"/>
   <translation tag="No Filament Detected" fr="Aucun filament détecté"/>
+  <translation tag="No Hardware Issues" fr="Aucun problème matériel"/>
   <translation tag="No History" fr="Pas d&apos;historique"/>
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." fr="Aucune macro LED détectée sur votre imprimante. Ajoutez d&apos;abord des macros Klipper pour le contrôle des LEDs."/>
   <translation tag="No LED macros detected. Type a macro name below." fr="Aucune macro LED détectée. Saisissez un nom de macro ci-dessous."/>
@@ -1834,6 +1853,7 @@
   <translation tag="No dryer available. Store filament in a sealed dry box with desiccant for best results." fr="Aucun sécheur disponible. Stockez le filament dans une boîte étanche avec du dessiccant pour de meilleurs résultats."/>
   <translation tag="No effects available" fr="Aucun effet disponible"/>
   <translation tag="No events queued" fr="Aucun événement en file"/>
+  <translation tag="No extruder heater found. Check [extruder] in printer.cfg" fr="Aucune chauffe d&apos;extrudeur trouvée. Vérifiez [extruder] dans printer.cfg"/>
   <translation tag="No fans detected" fr="Aucun ventilateur détecté"/>
   <translation tag="No filament" fr="Pas de filament"/>
   <translation tag="No filament environment sensors" fr="Aucun capteur d&apos;environnement de filament"/>
@@ -2092,6 +2112,8 @@
   <translation tag="Pre-print command failed: {}" fr="Échec de la commande pré-impression : {}"/>
   <translation tag="Pre-print homing..." fr="Référence pré-impression..."/>
   <translation tag="Preheat" fr="Préchauffage"/>
+  <translation tag="Preheat %s" fr="Préchauffage %s"/>
+  <translation tag="Preheat %s (%d/%d)" fr="Préchauffage %s (%d/%d)"/>
   <translation tag="Preheat Macro" fr="Macro de préchauffage"/>
   <translation tag="Preheat PLA" fr="Préchauffer PLA"/>
   <translation tag="Preheat cancelled" fr="Préchauffage annulé"/>
@@ -2133,6 +2155,7 @@
   <translation tag="Print Failed" fr="Impression échouée"/>
   <translation tag="Print File" fr="Fichier d&apos;impression"/>
   <translation tag="Print Files" fr="Fichiers d&apos;impression"/>
+  <translation tag="Print Head" fr="Tête d&apos;impression"/>
   <translation tag="Print History" fr="Historique d&apos;impression"/>
   <translation tag="Print Hours" fr="Heures d&apos;impression"/>
   <translation tag="Print Label" fr="Imprimer l&apos;étiquette"/>
@@ -2280,6 +2303,7 @@
   <translation tag="Quick Button 3" fr="Bouton rapide 3"/>
   <translation tag="Quick Button 4" fr="Bouton rapide 4"/>
   <translation tag="Quick actions, calibration, speed" fr="Actions rapides, calibration, vitesse"/>
+  <translation tag="Quiet" fr="Silencieux"/>
   <translation tag="RFCOMM connect failed" fr="Échec de la connexion RFCOMM"/>
   <translation tag="RFCOMM connect failed: " fr="Échec de la connexion RFCOMM : "/>
   <translation tag="RFID reader malfunction (left)" fr="Dysfonctionnement du lecteur RFID (gauche)"/>
@@ -3192,6 +3216,7 @@
   <translation tag="Use Android native keyboard for text input" fr="Utiliser le clavier natif Android pour la saisie de texte"/>
   <translation tag="Use G10/G11 firmware retraction" fr="Utiliser la rétraction firmware G10/G11"/>
   <translation tag="Use Unload before Eject" fr="Utilisez Décharger avant Éjecter"/>
+  <translation tag="Use first HID scanner found" fr="Utiliser le premier scanner HID trouvé"/>
   <translation tag="Use printer type to select image" fr="Utiliser le type d&apos;imprimante pour sélectionner l&apos;image"/>
   <translation tag="User intervention required" fr="Intervention manuelle requise"/>
   <translation tag="VM Peak" fr="Pic de mémoire virtuelle"/>
@@ -3421,14 +3446,18 @@
   <translation tag="v{} installed! Restarting..." fr="v{} installée ! Redémarrage..."/>
   <translation tag="v{} is available. Tap to update." fr="v{} est disponible. Appuyez pour mettre à jour."/>
   <translation tag="you have" fr="vous avez"/>
+  <translation tag="{} Hardware Issues" fr="{} problèmes matériels"/>
+  <translation tag="{} Issues Detected" fr="{} problèmes détectés"/>
   <translation tag="{} LED strips available" fr="{} bandeaux LED disponibles"/>
   <translation tag="{} and {} are both mapped here" fr="{} et {} sont tous deux affectés ici"/>
   <translation tag="{} available" fr="{} disponible"/>
   <translation tag="{} axis homed" fr="Axe {} référencé"/>
+  <translation tag="{} changed" fr="{} modifié(s)"/>
   <translation tag="{} command timed out" fr="Délai d&apos;attente dépassé pour la commande {}"/>
   <translation tag="{} complete" fr="{} terminé"/>
   <translation tag="{} configured item not found" fr="{} élément configuré introuvable"/>
   <translation tag="{} configured items not found" fr="{} éléments configurés introuvables"/>
+  <translation tag="{} critical" fr="{} critique(s)"/>
   <translation tag="{} critical hardware issues" fr="{} problèmes de matériel critique"/>
   <translation tag="{} disabled" fr="{} désactivé"/>
   <translation tag="{} enabled" fr="{} activé"/>
@@ -3447,8 +3476,10 @@
   <translation tag="{} macro not configured" fr="Macro {} non configurée"/>
   <translation tag="{} matches." fr="{} correspond."/>
   <translation tag="{} may cause unintended changes. Are you sure?" fr="{} peut entraîner des modifications non souhaitées. Êtes-vous sûr ?"/>
+  <translation tag="{} missing" fr="{} manquant(s)"/>
   <translation tag="{} more taps to {} beta features" fr="{} appuis supplémentaires pour {} les fonctionnalités bêta"/>
   <translation tag="{} needs the HelixPrint plugin. Printing original file." fr="{} nécessite le plugin HelixPrint. Impression du fichier original."/>
+  <translation tag="{} new" fr="{} nouveau(x)"/>
   <translation tag="{} new hardware available" fr="{} nouveau matériel disponible"/>
   <translation tag="{} preset{}" fr="{} préréglage{}"/>
   <translation tag="{} set to {}" fr="{} réglé sur {}"/>

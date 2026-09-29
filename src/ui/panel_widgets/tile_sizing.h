@@ -57,6 +57,9 @@ class TileSizing {
         /// The glyph animates, so it is measured and drawn unscaled
         /// (kTileAnimatedMaxScale).
         bool icon_animates = false;
+        /// The label is the only thing telling this tile from its siblings
+        /// (which fan, which sensor), so the glyph shrinks before it goes.
+        bool label_is_identity = false;
     };
 
     explicit TileSizing(const std::string& instance_id);
@@ -90,6 +93,10 @@ class TileSizing {
     /// Forgotten when the root is deleted, since a deferred re-measure can run
     /// after the tree is gone.
     void set_content_root(lv_obj_t* root);
+
+    const Content& content() const {
+        return content_;
+    }
 
     lv_obj_t* content_root() const {
         return content_root_;

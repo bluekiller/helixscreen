@@ -1059,7 +1059,7 @@ check), or report that it matches no reachable state of the submodule.
 - `⚠ <label> is not verifiable in place` - Neither check passes and the marker table has no row for the patch, so the verdict stays hedged; run `make reapply-patches` to judge from clean
 - `⚠ <submodule> is not pristine, so this run cannot judge patches from clean` - `HELIX_PATCHES_FROM_CLEAN=1` was set but the submodule already carries changes (the state `make clean` leaves), so the fatal verdict is not available and every patch is judged in place; run `make reapply-patches` to reset and judge from clean
 - `✗ <label> does not apply to a clean checkout` - The patch and the submodule disagree, on a run verified to have started from pristine submodules; regenerate the patch
-- `✗ <patch> ... Its marker is missing from <file>` - The patch's one distinctive line is absent from the checkout, so the build stops before compiling against unpatched code; run `make reapply-patches`. The marker check is a text search that needs no git, so it also fires in docker builds rsynced from worktrees. Companion messages name a changed patch file (`make regen-patch-markers`) and a wired stanza with no marker row.
+- `✗ <patch> ... Its marker is missing from <file>` - One of the patch's distinctive lines (there is one per file it touches) is absent from the checkout, so the build stops before compiling against unpatched code; run `make reapply-patches`. The marker check is a text search that needs no git, so it also fires in docker builds rsynced from worktrees. Companion messages name a changed patch file (`make regen-patch-markers`) and a wired stanza with no marker row.
 
 ### Adding New Patches
 
@@ -1104,8 +1104,8 @@ regression-tested in `tests/shell/test_libhv_dns_resolver_patch.bats`.
    `hsocket.c` — the resolver compiles but is **never called**. Both layers in
    `mk/patches.mk` answer this now: every stanza routes through the
    `$(APPLY_PATCH)` verdict helper (which resets nothing and never assumes),
-   and `mk/patch-markers.tsv` fails the build when the patch's one distinctive
-   line is absent from the file it edits — on every build, docker trees
+   and `mk/patch-markers.tsv` fails the build when a distinctive line the
+   patch adds is absent from any file it edits — on every build, docker trees
    included.
 
 2. **A patched file compiled into a static `.a` must invalidate that `.a`.**

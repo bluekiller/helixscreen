@@ -148,6 +148,10 @@ void PreheatWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             self->update_heater_state();
         },
         bed_target_lifetime_);
+    language_obs_ = helix::ui::observe_language_change(this, [](PreheatWidget* self) {
+        self->update_button_label();
+        self->update_tool_target_label();
+    });
 
     spdlog::debug("[PreheatWidget] Attached (material={}, tool_target={})",
                   presets::name(selected_material_), tool_target_);
@@ -165,6 +169,7 @@ void PreheatWidget::detach() {
     extruder_target_obs_.reset();
     bed_target_lifetime_.reset();
     bed_target_obs_.reset();
+    language_obs_.reset();
 
     if (split_btn_) {
         lv_obj_set_user_data(split_btn_, nullptr);
@@ -200,7 +205,7 @@ PreheatWidget::PreheatTargets PreheatWidget::targets_for_slot(int slot) {
 
 std::string PreheatWidget::label_for_slot(int slot, bool heaters_active, int32_t width_px) {
     if (heaters_active) {
-        return "Cool Down";
+        return lv_tr("Cool Down");
     }
 
     const std::string material_name = presets::name(slot);
@@ -212,10 +217,10 @@ std::string PreheatWidget::label_for_slot(int slot, bool heaters_active, int32_t
         std::snprintf(label, sizeof(label), "%s", material_name.c_str());
     } else if (t.nozzle > 0 && t.bed > 0) {
         // Wide (3-col+): material + target temps
-        std::snprintf(label, sizeof(label), "Preheat %s (%d/%d)", material_name.c_str(), t.nozzle,
-                      t.bed);
+        std::snprintf(label, sizeof(label), lv_tr("Preheat %s (%d/%d)"), material_name.c_str(),
+                      t.nozzle, t.bed);
     } else {
-        std::snprintf(label, sizeof(label), "Preheat %s", material_name.c_str());
+        std::snprintf(label, sizeof(label), lv_tr("Preheat %s"), material_name.c_str());
     }
     return label;
 }
@@ -251,7 +256,8 @@ void PreheatWidget::update_tool_target_label() {
         // The number of nozzles "All" will heat, which is what
         // collect_preheat_heaters() resolves to once lanes sharing a heater
         // collapse, not the lane count.
-        std::snprintf(label, sizeof(label), "All (%d)", ToolState::instance().extruder_count());
+        std::snprintf(label, sizeof(label), "%s (%d)", lv_tr("All"),
+                      ToolState::instance().extruder_count());
     } else if (tool_target_ >= 0 && tool_target_ < static_cast<int>(tools.size())) {
         std::snprintf(label, sizeof(label), "%s", tools[tool_target_].display_label.c_str());
     } else {
