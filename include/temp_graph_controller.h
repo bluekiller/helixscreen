@@ -238,6 +238,9 @@ class TempGraphController {
      */
     int series_id_for(const std::string& klipper_name) const;
 
+    /// Rename the series for @p klipper_name in the legend; no-op when absent.
+    void set_series_name(const std::string& klipper_name, const std::string& display_name);
+
   private:
     friend class TempGraphControllerTestAccess;
 

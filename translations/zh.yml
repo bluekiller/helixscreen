@@ -51,6 +51,8 @@ translations:
   0 slots: '{0} 个槽位'
   '0.4-2mm direct drive, 4-6mm bowden': '直驱 0.4-2mm，远程挤出 4-6mm'
   '0°': '0°'
+  1 Hardware Issue: '1 个硬件问题'
+  1 Issue Detected: '检测到 1 个问题'
   '1 day ago': '1天前'
   1 event queued: 1 个事件排队中
   1 hour ago: 1小时前
@@ -183,10 +185,13 @@ translations:
   Alerts and messages waiting for you: 待查看的提醒和消息
   All: 全部
   All Devices: 所有设备
+  All Healthy: '一切正常'
   All axes homed: 所有轴已归位
+  All configured hardware detected: '已检测到所有已配置的硬件'
   All fields are required: 所有字段均为必填项
   All healthy: 一切正常
   All lights: 全部灯光
+  All time: '全部时间'
   Allow: '允许'
   Allow Home Screen Editing: '允许编辑主屏幕'
   Allow cold load/unload: 允许冷态加载/卸载
@@ -629,6 +634,10 @@ translations:
   Configure quick buttons and standard macros: 配置快捷按钮和标准宏
   Configure timelapse recording: 配置延时录像
   Configure your printer's cooling fans: 配置打印机的冷却风扇
+  Configured LED strip not found: '未找到已配置的 LED 灯带'
+  Configured aux fan not found: '未找到已配置的辅助风扇'
+  Configured filament sensor not found: '未找到已配置的耗材传感器'
+  Configured hardware no longer present: '已配置的硬件已不存在'
   Configured in the backup-spool package, not from here: 在备用料盘插件中配置，而非此处
   Configuring Moonraker...: 正在配置 Moonraker...
   Confirm PIN: 确认 PIN 码
@@ -1144,6 +1153,7 @@ translations:
   Fan Calibration: 风扇校准
   Fan Speeds: '风扇速度'
   Fan Transfer: 风扇传热
+  Fan available but not assigned to any role: '风扇可用，但未分配任何角色'
   'Fan control failed: {}': '风扇控制失败: {}'
   FanSelect: 选择风扇
   Fans: 风扇
@@ -1218,6 +1228,7 @@ translations:
   Filament runout and motion detection sensors: 耗材用尽和运动检测传感器
   Filament saved: 耗材已保存
   Filament sensor available for runout detection: 耗材传感器可用于耗尽检测
+  Filament sensor available. Add to config for runout detection?: '检测到耗材传感器。添加到配置中以检测断料？'
   Filament snapped inside CFS: 耗材在 CFS 内断裂
   Filament stalled between CFS hub and extruder sensor: 耗材停滞在 CFS 集线器与挤出机传感器之间
   Filament stuck in connector during unload: 退料时耗材卡在接头内
@@ -1257,6 +1268,7 @@ translations:
   Flowguard: 流量保护
   Flushing Filament...: 正在冲洗耗材...
   Flying Toasters: 飞行烤面包机
+  Focused: '专注'
   Follow active tool: 跟随当前工具
   Follow graph screen: 跟随图表屏幕
   Force/weight sensors: '力/重量传感器'
@@ -1315,18 +1327,20 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: 硬件
   Hardware Health: 硬件状态
-  Hardware Keyboard: ''
+  Hardware Keyboard: 硬件键盘
   Hardware Name: 硬件名称
   Hardware Profile: 硬件配置
   Hardware is validated on startup and reconnection: 硬件在启动和重新连接时进行验证
   Hardware marked as optional: 硬件已标记为可选
   Hardware saved to config: 硬件已保存到配置
+  Hardware was present in previous session but is now missing: '硬件在上次会话中存在，但现在缺失'
   Have a piece of paper ready.: 请准备好一张纸。
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
     adjusted with                              thumb wheels or some other built-in
     mechanism.
   : 如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。
   Heading: 标题
+  Healthy: '正常'
   Heat Capacity: 热容量
   Heat Soak: 预热浸泡
   Heat Soaking...: 正在预热浸泡...
@@ -1382,7 +1396,7 @@ translations:
   Helper macros are up to date: '帮助宏已是最新版本'
   Hide Firmware Noise: 隐藏固件噪声
   Hide Temperature Reports: 隐藏温度报告
-  Hide the on-screen keyboard while a USB keyboard is attached: ''
+  Hide the on-screen keyboard while a USB keyboard is attached: 连接 USB 键盘时隐藏屏幕键盘
   High Water Mark: 峰值标记
   Hold anywhere to cancel: 长按任意位置取消
   Hold still: 请保持静止
@@ -1571,6 +1585,7 @@ translations:
   LED Strip: LED 灯带
   LED on at Start: 启动时开启 LED
   LED strip available for lighting control: LED 灯带可用于照明控制
+  LED strip available. Add to config for lighting control?: '检测到 LED 灯带。添加到配置中以控制照明？'
   LEDs: LED
   LOAD CELLS: '称重传感器'
   LOADED: 已加载
@@ -1589,6 +1604,9 @@ translations:
   Language & Time: 语言与时间
   Last: 最近
   # Source: history_dashboard_panel.xml:114
+  Last 12 months: '最近 12 个月'
+  Last 24 hours: '最近 24 小时'
+  Last 30 days: '最近 30 天'
   Last 7 days: '最近 7 天'
   Last measured: '上次测量'
   Last print cancelled: 上次打印已取消
@@ -1873,6 +1891,7 @@ translations:
   No Bluetooth printers found: 未找到蓝牙打印机
   No Camera: 无摄像头
   No Filament Detected: 未检测到耗材
+  No Hardware Issues: '无硬件问题'
   No History: 无历史记录
   No LED macros detected on your printer. Add Klipper macros for LED control first.: 未在打印机上检测到
     LED 宏。请先添加用于 LED 控制的 Klipper 宏。
@@ -1900,6 +1919,7 @@ translations:
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: 无可用烘干机。建议将耗材存放在带干燥剂的密封干燥箱中。
   No effects available: 无可用特效
   No events queued: 无排队事件
+  No extruder heater found. Check [extruder] in printer.cfg: '未找到挤出机加热器。请检查 printer.cfg 中的 [extruder]'
   No fans detected: 未检测到风扇
   No filament: 无耗材
   No filament environment sensors: 无耗材环境传感器
@@ -2169,6 +2189,8 @@ translations:
   'Pre-print command failed: {}': '打印前命令失败: {}'
   Pre-print homing...: 打印前归位...
   Preheat: '预热'
+  Preheat %s: '预热 %s'
+  Preheat %s (%d/%d): '预热 %s (%d/%d)'
   Preheat Macro: 预热宏
   Preheat PLA: 预热 PLA
   Preheat cancelled: 预热已取消
@@ -2210,6 +2232,7 @@ translations:
   Print Failed: 打印失败
   Print File: 打印文件
   Print Files: 打印文件
+  Print Head: '打印头'
   Print History: 打印历史
   Print Hours: 打印时长
   Print Label: 打印标签
@@ -2362,6 +2385,7 @@ translations:
   Quick Button 3: 快捷按钮 3
   Quick Button 4: 快捷按钮 4
   Quick actions, calibration, speed: 快捷操作、校准、速度
+  Quiet: '安静'
   RFCOMM connect failed: RFCOMM 连接失败
   'RFCOMM connect failed: ': 'RFCOMM 连接失败: '
   RFID reader malfunction (left): RFID 读取器故障（左）
@@ -3341,6 +3365,7 @@ translations:
   Use Android native keyboard for text input: 使用 Android 原生键盘进行文本输入
   Use G10/G11 firmware retraction: 使用 G10/G11 固件回抽
   Use Unload before Eject: '请先使用“卸载”，再使用“弹出”'
+  Use first HID scanner found: '使用找到的第一个 HID 扫描器'
   Use printer type to select image: 使用打印机类型选择图片
   User intervention required: '需要手动干预'
   VM Peak: 虚拟内存峰值
@@ -3583,14 +3608,18 @@ translations:
   v{} installed! Restarting...: 已安装 v{}！正在重启...
   v{} is available. Tap to update.: v{} 可用。点击以更新。
   you have: 您有
+  '{} Hardware Issues': '{} 个硬件问题'
+  '{} Issues Detected': '检测到 {} 个问题'
   '{} LED strips available': '{} 条 LED 灯带可用'
   '{} and {} are both mapped here': '{} 和 {} 都映射到这里'
   '{} available': '{} 可用'
   '{} axis homed': '{} 轴已归位'
+  '{} changed': '{} 个已更改'
   '{} command timed out': '{} 命令超时'
   '{} complete': '{} 完成'
   '{} configured item not found': 未找到 {} 个已配置的项目
   '{} configured items not found': 未找到 {} 个已配置的项目
+  '{} critical': '{} 个严重'
   '{} critical hardware issues': '{} 个关键硬件问题'
   '{} disabled': '已停用{}'
   '{} enabled': '已启用{}'
@@ -3609,8 +3638,10 @@ translations:
   '{} macro not configured': '{} 宏未配置'
   '{} matches.': '{} 匹配。'
   '{} may cause unintended changes. Are you sure?': '{} 可能导致意外更改。确定吗？'
+  '{} missing': '{} 个缺失'
   '{} more taps to {} beta features': 再点击 {} 次以{}测试功能
   '{} needs the HelixPrint plugin. Printing original file.': '{} 需要 HelixPrint 插件。将打印原始文件。'
+  '{} new': '{} 个新增'
   '{} new hardware available': '{} 个新硬件可用'
   '{} preset{}': '{} 个预设{}'
   '{} set to {}': '{} 已设为 {}'

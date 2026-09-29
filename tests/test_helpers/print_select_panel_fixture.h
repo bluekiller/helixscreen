@@ -24,6 +24,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "moonraker_api.h"
 #include "moonraker_client_mock.h"
+#include "planted_gcode.h"
 #include "print_state_test_drivers.h"
 #include "printer_state.h"
 #include "printer_state_test_access.h"
@@ -53,75 +54,6 @@ struct PrintSelectGlobalStateReset {
         }
         helix::test::set_wire_state(ps, PrintJobState::STANDBY);
     }
-};
-
-/// A .gcode planted in the mock's virtual gcodes root for one test.
-///
-/// MoonrakerClientMock backs the gcodes root with assets/test_gcodes on disk
-/// (scan_mock_gcode_files() is a real directory scan), so what is on disk is
-/// what the next get_directory reports: a delete driven through the mock
-/// removes the real file, and remove_from_disk() stands in for an operation
-/// that already happened on the printer's storage. Plant one nothing else
-/// depends on and take it back out however the test ends.
-class PlantedGcode {
-  public:
-    /// @param name File name; @param subdir Optional directory relative to
-    /// the gcodes root, created when absent and removed on destruction.
-    explicit PlantedGcode(const std::string& name, const std::string& subdir = "") {
-        for (const auto* prefix : {"", "../", "../../"}) {
-            std::string dir = std::string(prefix) + "assets/test_gcodes";
-            if (std::filesystem::is_directory(dir)) {
-                path_ = dir + "/" + name;
-                root_ = dir;
-                break;
-            }
-        }
-        REQUIRE_FALSE(path_.empty());
-        if (!subdir.empty()) {
-            subdir_ = subdir;
-            std::filesystem::create_directories(root_ + "/" + subdir);
-            path_ = root_ + "/" + subdir + "/" + name;
-        }
-        std::ofstream out(path_, std::ios::trunc);
-        out << "; planted for a print-select test\nG28\n";
-    }
-
-    ~PlantedGcode() {
-        std::remove(path_.c_str());
-        if (!subdir_.empty()) {
-            std::filesystem::remove(root_ + "/" + subdir_); // empty now; leave parents alone
-        }
-    }
-
-    PlantedGcode(const PlantedGcode&) = delete;
-    PlantedGcode& operator=(const PlantedGcode&) = delete;
-
-    bool on_disk() const {
-        return std::filesystem::exists(path_);
-    }
-
-    /// Take the file off disk behind the panel's back, so only a notification
-    /// can tell it the listing is stale. The dtor's remove() tolerates the file
-    /// already being gone.
-    bool remove_from_disk() {
-        return std::remove(path_.c_str()) == 0;
-    }
-
-    /// The basename, the way a listing of the file's directory reports it.
-    std::string name() const {
-        return std::filesystem::path(path_).filename().string();
-    }
-
-    /// The path relative to the gcodes root — the form Moonraker's queue
-    /// addresses the file by.
-    std::string relative() const {
-        return subdir_.empty() ? name() : subdir_ + "/" + name();
-    }
-
-  private:
-    std::string path_;
-    std::string root_;
-    std::string subdir_;
 };
 
 /// Whether the fixture hands the panel its API again after setup().

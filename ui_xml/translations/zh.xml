@@ -51,6 +51,8 @@
   <translation tag="0 slots" zh="{0} 个槽位"/>
   <translation tag="0.4-2mm direct drive, 4-6mm bowden" zh="直驱 0.4-2mm，远程挤出 4-6mm"/>
   <translation tag="0°" zh="0°"/>
+  <translation tag="1 Hardware Issue" zh="1 个硬件问题"/>
+  <translation tag="1 Issue Detected" zh="检测到 1 个问题"/>
   <translation tag="1 day ago" zh="1天前"/>
   <translation tag="1 event queued" zh="1 个事件排队中"/>
   <translation tag="1 hour ago" zh="1小时前"/>
@@ -183,10 +185,13 @@
   <translation tag="Alerts and messages waiting for you" zh="待查看的提醒和消息"/>
   <translation tag="All" zh="全部"/>
   <translation tag="All Devices" zh="所有设备"/>
+  <translation tag="All Healthy" zh="一切正常"/>
   <translation tag="All axes homed" zh="所有轴已归位"/>
+  <translation tag="All configured hardware detected" zh="已检测到所有已配置的硬件"/>
   <translation tag="All fields are required" zh="所有字段均为必填项"/>
   <translation tag="All healthy" zh="一切正常"/>
   <translation tag="All lights" zh="全部灯光"/>
+  <translation tag="All time" zh="全部时间"/>
   <translation tag="Allow" zh="允许"/>
   <translation tag="Allow Home Screen Editing" zh="允许编辑主屏幕"/>
   <translation tag="Allow cold load/unload" zh="允许冷态加载/卸载"/>
@@ -617,6 +622,10 @@
   <translation tag="Configure quick buttons and standard macros" zh="配置快捷按钮和标准宏"/>
   <translation tag="Configure timelapse recording" zh="配置延时录像"/>
   <translation tag="Configure your printer&apos;s cooling fans" zh="配置打印机的冷却风扇"/>
+  <translation tag="Configured LED strip not found" zh="未找到已配置的 LED 灯带"/>
+  <translation tag="Configured aux fan not found" zh="未找到已配置的辅助风扇"/>
+  <translation tag="Configured filament sensor not found" zh="未找到已配置的耗材传感器"/>
+  <translation tag="Configured hardware no longer present" zh="已配置的硬件已不存在"/>
   <translation tag="Configured in the backup-spool package, not from here" zh="在备用料盘插件中配置，而非此处"/>
   <translation tag="Configuring Moonraker..." zh="正在配置 Moonraker..."/>
   <translation tag="Confirm PIN" zh="确认 PIN 码"/>
@@ -1111,6 +1120,7 @@
   <translation tag="Fan Calibration" zh="风扇校准"/>
   <translation tag="Fan Speeds" zh="风扇速度"/>
   <translation tag="Fan Transfer" zh="风扇传热"/>
+  <translation tag="Fan available but not assigned to any role" zh="风扇可用，但未分配任何角色"/>
   <translation tag="Fan control failed: {}" zh="风扇控制失败: {}"/>
   <translation tag="FanSelect" zh="选择风扇"/>
   <translation tag="Fans" zh="风扇"/>
@@ -1181,6 +1191,7 @@
   <translation tag="Filament runout and motion detection sensors" zh="耗材用尽和运动检测传感器"/>
   <translation tag="Filament saved" zh="耗材已保存"/>
   <translation tag="Filament sensor available for runout detection" zh="耗材传感器可用于耗尽检测"/>
+  <translation tag="Filament sensor available. Add to config for runout detection?" zh="检测到耗材传感器。添加到配置中以检测断料？"/>
   <translation tag="Filament snapped inside CFS" zh="耗材在 CFS 内断裂"/>
   <translation tag="Filament stalled between CFS hub and extruder sensor" zh="耗材停滞在 CFS 集线器与挤出机传感器之间"/>
   <translation tag="Filament stuck in connector during unload" zh="退料时耗材卡在接头内"/>
@@ -1219,6 +1230,7 @@
   <translation tag="Flowguard" zh="流量保护"/>
   <translation tag="Flushing Filament..." zh="正在冲洗耗材..."/>
   <translation tag="Flying Toasters" zh="飞行烤面包机"/>
+  <translation tag="Focused" zh="专注"/>
   <translation tag="Follow active tool" zh="跟随当前工具"/>
   <translation tag="Follow graph screen" zh="跟随图表屏幕"/>
   <translation tag="Force/weight sensors" zh="力/重量传感器"/>
@@ -1274,15 +1286,17 @@
   <translation tag="Happy Hare MMU" zh="Happy Hare MMU"/>
   <translation tag="Hardware" zh="硬件"/>
   <translation tag="Hardware Health" zh="硬件状态"/>
-  <translation tag="Hardware Keyboard"/>
+  <translation tag="Hardware Keyboard" zh="硬件键盘"/>
   <translation tag="Hardware Name" zh="硬件名称"/>
   <translation tag="Hardware Profile" zh="硬件配置"/>
   <translation tag="Hardware is validated on startup and reconnection" zh="硬件在启动和重新连接时进行验证"/>
   <translation tag="Hardware marked as optional" zh="硬件已标记为可选"/>
   <translation tag="Hardware saved to config" zh="硬件已保存到配置"/>
+  <translation tag="Hardware was present in previous session but is now missing" zh="硬件在上次会话中存在，但现在缺失"/>
   <translation tag="Have a piece of paper ready." zh="请准备好一张纸。"/>
   <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." zh="如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。"/>
   <translation tag="Heading" zh="标题"/>
+  <translation tag="Healthy" zh="正常"/>
   <translation tag="Heat Capacity" zh="热容量"/>
   <translation tag="Heat Soak" zh="预热浸泡"/>
   <translation tag="Heat Soaking..." zh="正在预热浸泡..."/>
@@ -1337,7 +1351,7 @@
   <translation tag="Helper macros are up to date" zh="帮助宏已是最新版本"/>
   <translation tag="Hide Firmware Noise" zh="隐藏固件噪声"/>
   <translation tag="Hide Temperature Reports" zh="隐藏温度报告"/>
-  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached"/>
+  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached" zh="连接 USB 键盘时隐藏屏幕键盘"/>
   <translation tag="High Water Mark" zh="峰值标记"/>
   <translation tag="Hold anywhere to cancel" zh="长按任意位置取消"/>
   <translation tag="Hold still" zh="请保持静止"/>
@@ -1514,6 +1528,7 @@
   <translation tag="LED Strip" zh="LED 灯带"/>
   <translation tag="LED on at Start" zh="启动时开启 LED"/>
   <translation tag="LED strip available for lighting control" zh="LED 灯带可用于照明控制"/>
+  <translation tag="LED strip available. Add to config for lighting control?" zh="检测到 LED 灯带。添加到配置中以控制照明？"/>
   <translation tag="LEDs" zh="LED"/>
   <translation tag="LOAD CELLS" zh="称重传感器"/>
   <translation tag="LOADED" zh="已加载"/>
@@ -1531,6 +1546,9 @@
   <translation tag="Language" zh="语言"/>
   <translation tag="Language &amp; Time" zh="语言与时间"/>
   <translation tag="Last" zh="最近"/>
+  <translation tag="Last 12 months" zh="最近 12 个月"/>
+  <translation tag="Last 24 hours" zh="最近 24 小时"/>
+  <translation tag="Last 30 days" zh="最近 30 天"/>
   <translation tag="Last 7 days" zh="最近 7 天"/>
   <translation tag="Last measured" zh="上次测量"/>
   <translation tag="Last print cancelled" zh="上次打印已取消"/>
@@ -1809,6 +1827,7 @@
   <translation tag="No Bluetooth printers found" zh="未找到蓝牙打印机"/>
   <translation tag="No Camera" zh="无摄像头"/>
   <translation tag="No Filament Detected" zh="未检测到耗材"/>
+  <translation tag="No Hardware Issues" zh="无硬件问题"/>
   <translation tag="No History" zh="无历史记录"/>
   <translation tag="No LED macros detected on your printer. Add Klipper macros for LED control first." zh="未在打印机上检测到 LED 宏。请先添加用于 LED 控制的 Klipper 宏。"/>
   <translation tag="No LED macros detected. Type a macro name below." zh="未检测到 LED 宏。请在下方输入宏名称。"/>
@@ -1834,6 +1853,7 @@
   <translation tag="No dryer available. Store filament in a sealed dry box with desiccant for best results." zh="无可用烘干机。建议将耗材存放在带干燥剂的密封干燥箱中。"/>
   <translation tag="No effects available" zh="无可用特效"/>
   <translation tag="No events queued" zh="无排队事件"/>
+  <translation tag="No extruder heater found. Check [extruder] in printer.cfg" zh="未找到挤出机加热器。请检查 printer.cfg 中的 [extruder]"/>
   <translation tag="No fans detected" zh="未检测到风扇"/>
   <translation tag="No filament" zh="无耗材"/>
   <translation tag="No filament environment sensors" zh="无耗材环境传感器"/>
@@ -2092,6 +2112,8 @@
   <translation tag="Pre-print command failed: {}" zh="打印前命令失败: {}"/>
   <translation tag="Pre-print homing..." zh="打印前归位..."/>
   <translation tag="Preheat" zh="预热"/>
+  <translation tag="Preheat %s" zh="预热 %s"/>
+  <translation tag="Preheat %s (%d/%d)" zh="预热 %s (%d/%d)"/>
   <translation tag="Preheat Macro" zh="预热宏"/>
   <translation tag="Preheat PLA" zh="预热 PLA"/>
   <translation tag="Preheat cancelled" zh="预热已取消"/>
@@ -2133,6 +2155,7 @@
   <translation tag="Print Failed" zh="打印失败"/>
   <translation tag="Print File" zh="打印文件"/>
   <translation tag="Print Files" zh="打印文件"/>
+  <translation tag="Print Head" zh="打印头"/>
   <translation tag="Print History" zh="打印历史"/>
   <translation tag="Print Hours" zh="打印时长"/>
   <translation tag="Print Label" zh="打印标签"/>
@@ -2280,6 +2303,7 @@
   <translation tag="Quick Button 3" zh="快捷按钮 3"/>
   <translation tag="Quick Button 4" zh="快捷按钮 4"/>
   <translation tag="Quick actions, calibration, speed" zh="快捷操作、校准、速度"/>
+  <translation tag="Quiet" zh="安静"/>
   <translation tag="RFCOMM connect failed" zh="RFCOMM 连接失败"/>
   <translation tag="RFCOMM connect failed: " zh="RFCOMM 连接失败: "/>
   <translation tag="RFID reader malfunction (left)" zh="RFID 读取器故障（左）"/>
@@ -3192,6 +3216,7 @@
   <translation tag="Use Android native keyboard for text input" zh="使用 Android 原生键盘进行文本输入"/>
   <translation tag="Use G10/G11 firmware retraction" zh="使用 G10/G11 固件回抽"/>
   <translation tag="Use Unload before Eject" zh="请先使用“卸载”，再使用“弹出”"/>
+  <translation tag="Use first HID scanner found" zh="使用找到的第一个 HID 扫描器"/>
   <translation tag="Use printer type to select image" zh="使用打印机类型选择图片"/>
   <translation tag="User intervention required" zh="需要手动干预"/>
   <translation tag="VM Peak" zh="虚拟内存峰值"/>
@@ -3420,14 +3445,18 @@
   <translation tag="v{} installed! Restarting..." zh="已安装 v{}！正在重启..."/>
   <translation tag="v{} is available. Tap to update." zh="v{} 可用。点击以更新。"/>
   <translation tag="you have" zh="您有"/>
+  <translation tag="{} Hardware Issues" zh="{} 个硬件问题"/>
+  <translation tag="{} Issues Detected" zh="检测到 {} 个问题"/>
   <translation tag="{} LED strips available" zh="{} 条 LED 灯带可用"/>
   <translation tag="{} and {} are both mapped here" zh="{} 和 {} 都映射到这里"/>
   <translation tag="{} available" zh="{} 可用"/>
   <translation tag="{} axis homed" zh="{} 轴已归位"/>
+  <translation tag="{} changed" zh="{} 个已更改"/>
   <translation tag="{} command timed out" zh="{} 命令超时"/>
   <translation tag="{} complete" zh="{} 完成"/>
   <translation tag="{} configured item not found" zh="未找到 {} 个已配置的项目"/>
   <translation tag="{} configured items not found" zh="未找到 {} 个已配置的项目"/>
+  <translation tag="{} critical" zh="{} 个严重"/>
   <translation tag="{} critical hardware issues" zh="{} 个关键硬件问题"/>
   <translation tag="{} disabled" zh="已停用{}"/>
   <translation tag="{} enabled" zh="已启用{}"/>
@@ -3446,8 +3475,10 @@
   <translation tag="{} macro not configured" zh="{} 宏未配置"/>
   <translation tag="{} matches." zh="{} 匹配。"/>
   <translation tag="{} may cause unintended changes. Are you sure?" zh="{} 可能导致意外更改。确定吗？"/>
+  <translation tag="{} missing" zh="{} 个缺失"/>
   <translation tag="{} more taps to {} beta features" zh="再点击 {} 次以{}测试功能"/>
   <translation tag="{} needs the HelixPrint plugin. Printing original file." zh="{} 需要 HelixPrint 插件。将打印原始文件。"/>
+  <translation tag="{} new" zh="{} 个新增"/>
   <translation tag="{} new hardware available" zh="{} 个新硬件可用"/>
   <translation tag="{} preset{}" zh="{} 个预设{}"/>
   <translation tag="{} set to {}" zh="{} 已设为 {}"/>

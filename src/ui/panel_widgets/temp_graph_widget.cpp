@@ -129,11 +129,18 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
                 [initial_version](TempGraphWidget* self, int version) {
                     if (version == initial_version)
                         return; // Series were built against this version already
+                    // A rediscovery can rename an extruder ("Nozzle" to "Nozzle 1");
+                    // so does a language switch, which bumps this version too.
+                    self->refresh_series_names();
                     self->schedule_discovery_rebuild();
                 },
                 ps.get_subjects_lifetime());
         }
     }
+
+    // Bed and chamber are named here, not by the printer layer.
+    language_observer_ = helix::ui::observe_language_change(
+        this, [](TempGraphWidget* self) { self->refresh_series_names(); });
 
     // The graph is `merges_into_card = false` — it reads as its own panel, not
     // as one tile in a fused run — so it supplies its own surface. Use the
@@ -150,6 +157,7 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 void TempGraphWidget::detach() {
     cancel_discovery_rebuild();
     extruder_version_observer_.reset();
+    language_observer_.reset();
     controller_.reset();
 
     if (widget_obj_) {
@@ -182,6 +190,18 @@ void TempGraphWidget::on_activate() {
 }
 
 void TempGraphWidget::on_deactivate() {}
+
+void TempGraphWidget::refresh_series_names() {
+    if (!controller_ || !config_.contains("sensors") || !config_["sensors"].is_array()) {
+        return;
+    }
+    for (const auto& entry : config_["sensors"]) {
+        if (entry.contains("name") && entry["name"].is_string()) {
+            const std::string name = entry["name"].get<std::string>();
+            controller_->set_series_name(name, TempGraphConfigModal::sensor_display_name(name));
+        }
+    }
+}
 
 void TempGraphWidget::rebuild_in_place() {
     // Snapshot the *current* widget pointers before detach() nulls them. They

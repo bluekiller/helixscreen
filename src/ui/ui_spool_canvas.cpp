@@ -163,31 +163,48 @@ static SpoolCanvasData* get_data(lv_obj_t* obj) {
     return (it != s_registry.end()) ? it->second : nullptr;
 }
 
-// Draw ellipse with vertical gradient (top_color at top, bottom_color at bottom)
-// Includes coverage-based anti-aliasing at left/right edges
-// A canvas layer that is finished and reopened every FILL_BATCH fills. The
-// spool is drawn as one fill per row span, hundreds per render, and LVGL checks
-// each queued draw task against every earlier overlapping one before dispatch:
-// letting them pile up cost ~1s per 64px spool on an ESP32-S3. Batches keep
-// the queue short; they run in order, so the pixels are the same.
+// The spool is drawn as one fill per row span, hundreds per render. They are
+// blended straight into the canvas's ARGB8888 buffer with the arithmetic of
+// LVGL's software fill: queued as LVGL draw tasks, each one is checked against
+// every earlier overlapping task before dispatch, which cost ~30ms per 64px
+// spool on an ESP32-S3.
 namespace {
 struct SpoolLayer {
-    lv_obj_t* canvas;
-    lv_layer_t layer;
-    int pending = 0;
+    lv_draw_buf_t* buf;
 };
-constexpr int FILL_BATCH = 32;
 } // namespace
 
+// lv_color_32_32_mix() from LVGL's ARGB8888 blender, which is file-static there.
+static inline lv_color32_t spool_blend(lv_color32_t fg, lv_color32_t bg) {
+    if (fg.alpha >= LV_OPA_MAX || bg.alpha <= LV_OPA_MIN)
+        return fg;
+    if (bg.alpha == 255)
+        return lv_color_mix32(fg, bg);
+    uint8_t res_alpha = 255 - LV_OPA_MIX2(255 - fg.alpha, 255 - bg.alpha);
+    fg.alpha = static_cast<uint8_t>((static_cast<uint32_t>(fg.alpha) * 255) / res_alpha);
+    lv_color32_t res = lv_color_mix32(fg, bg);
+    res.alpha = res_alpha;
+    return res;
+}
+
 static void spool_fill(SpoolLayer* l, const lv_draw_fill_dsc_t* dsc, const lv_area_t* area) {
-    lv_draw_fill(&l->layer, dsc, area);
-    if (++l->pending >= FILL_BATCH) {
-        lv_canvas_finish_layer(l->canvas, &l->layer);
-        lv_canvas_init_layer(l->canvas, &l->layer);
-        l->pending = 0;
+    if (dsc->opa <= LV_OPA_MIN)
+        return;
+    const lv_image_header_t& h = l->buf->header;
+    int32_t x1 = LV_MAX(area->x1, 0);
+    int32_t x2 = LV_MIN(area->x2, static_cast<int32_t>(h.w) - 1);
+    int32_t y1 = LV_MAX(area->y1, 0);
+    int32_t y2 = LV_MIN(area->y2, static_cast<int32_t>(h.h) - 1);
+    lv_color32_t fg = lv_color_to_32(dsc->color, dsc->opa >= LV_OPA_MAX ? LV_OPA_COVER : dsc->opa);
+    for (int32_t y = y1; y <= y2; y++) {
+        auto* row = reinterpret_cast<lv_color32_t*>(l->buf->data + y * h.stride);
+        for (int32_t x = x1; x <= x2; x++)
+            row[x] = spool_blend(fg, row[x]);
     }
 }
 
+// Draw ellipse with vertical gradient (top_color at top, bottom_color at bottom)
+// Includes coverage-based anti-aliasing at left/right edges
 static void draw_gradient_ellipse(SpoolLayer* layer, int32_t cx, int32_t cy, int32_t rx, int32_t ry,
                                   lv_color_t top_color, lv_color_t bottom_color) {
     lv_draw_fill_dsc_t fill_dsc;
@@ -323,8 +340,7 @@ static void render_spool_pixels(SpoolCanvasData* data) {
     // Clear canvas
     lv_canvas_fill_bg(data->canvas, lv_color_black(), LV_OPA_TRANSP);
 
-    SpoolLayer layer{data->canvas, {}};
-    lv_canvas_init_layer(data->canvas, &layer.layer);
+    SpoolLayer layer{data->draw_buf};
 
     // ========================================
     // STEP 1: Draw BACK FLANGE (left side) with gradient + edge highlight
@@ -391,7 +407,7 @@ static void render_spool_pixels(SpoolCanvasData* data) {
         theme_manager_get_color("spool_hub_bottom"); // Noticeably lighter at bottom (light hits it)
     draw_gradient_ellipse(&layer, right_x, cy, hub_rx, hub_ry, hub_top, hub_bottom);
 
-    lv_canvas_finish_layer(data->canvas, &layer.layer);
+    lv_obj_invalidate(data->canvas);
 
     spdlog::trace("[SpoolCanvas] Redrawn: size={}, fill={:.0f}%", size, fill * 100.0f);
 }

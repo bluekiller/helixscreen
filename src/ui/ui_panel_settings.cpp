@@ -270,9 +270,6 @@ void SettingsPanel::init_subjects() {
         return;
     }
 
-    // Initialize settings subjects across all domain managers (for reactive binding)
-    SettingsManager::instance().init_subjects();
-
     // Note: LED config loading moved to MoonrakerManager::create_api() for centralized init
 
     // Initialize info row subjects that remain in SettingsPanel
@@ -332,12 +329,8 @@ void SettingsPanel::init_subjects() {
                            (install_suppressed && !externally_managed) ? 1 : 0,
                            "updates_unavailable", subjects_);
 
-    // Touch calibration status - show "Calibrated" or "Not calibrated" in row description
-    Config* config = Config::get_instance();
-    bool is_calibrated =
-        config && config->get<bool>(config->df() + "input/calibration/valid", false);
-    const char* status_text = is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated");
-    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, status_text,
+    // Touch calibration status, filled by refresh_status_lines().
+    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, "",
                               "touch_cal_status", subjects_);
 
     // Live status line under each stateful root row; refresh_status_lines()
@@ -532,6 +525,14 @@ std::string status_string_subject(const char* name, const char* fallback) {
 
 void SettingsPanel::refresh_status_lines() {
     using namespace helix::settings::status;
+
+    // Formatted here rather than once at init, so it is in the language of the
+    // latest return to the settings root.
+    Config* config = Config::get_instance();
+    const bool is_calibrated =
+        config && config->get<bool>(config->df() + "input/calibration/valid", false);
+    lv_subject_copy_string(&touch_cal_status_subject_,
+                           is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated"));
 
     lv_subject_copy_string(&settings_status_display_subject_,
                            display(status_int_subject("settings_brightness", 0),

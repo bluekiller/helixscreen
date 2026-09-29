@@ -58,6 +58,8 @@ class CameraWidget : public PanelWidget {
     void resync_source();
     void update_stream_fps(); // Re-evaluate and set max_fps based on current state
     void set_status_text(const char* text);
+    /// Show the translation of @p key, a string literal, and keep it translated.
+    void set_status_key(const char* key);
     void destroy_fullscreen(); // Synchronous cleanup of fullscreen overlay
     /// Create the fullscreen overlay on the active screen and push it, unless
     /// another widget already owns one. The caller has already started the stream.
@@ -98,6 +100,7 @@ class CameraWidget : public PanelWidget {
     ObserverGuard webcam_list_observer_;
     // Observer for home edit mode — throttles camera fps during editing
     ObserverGuard edit_mode_observer_;
+    ObserverGuard language_observer_;
 
     // The feed the running stream shows: its Moonraker flip flags and fps are
     // this camera's, not necessarily the auto-pick's.

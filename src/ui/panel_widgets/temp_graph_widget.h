@@ -125,6 +125,10 @@ class TempGraphWidget : public PanelWidget {
     /// never seen. A widget attached at app startup (before the WebSocket
     /// connects) otherwise renders with no nozzle series until the next launch.
     ObserverGuard extruder_version_observer_;
+    ObserverGuard language_observer_;
+
+    /// Rename every series to its display name in the current language.
+    void refresh_series_names();
 
     /// Coalesces repeated version bumps into a single queued rebuild.
     bool discovery_rebuild_pending_ = false;

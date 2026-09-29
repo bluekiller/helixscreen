@@ -224,7 +224,7 @@ class MotionPanel : public OverlayBase {
     char pos_x_buf_[32];
     char pos_y_buf_[32];
     char pos_z_buf_[32];
-    char z_axis_label_buf_[16];
+    char z_axis_label_buf_[64];
     char z_up_icon_buf_[24];
     char z_down_icon_buf_[24];
     char z_large_label_buf_[8];

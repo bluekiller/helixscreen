@@ -20,6 +20,7 @@
 #include "static_subject_registry.h"
 #include "subject_debug_registry.h"
 #include "system/telemetry_manager.h"
+#include "translation_loader.h"
 #include "ui/ui_cleanup_helpers.h"
 
 #include <spdlog/spdlog.h>
@@ -33,6 +34,9 @@
 static lv_subject_t s_camera_status_subject;
 static char s_camera_status_buffer[64];
 static bool s_subjects_initialized = false;
+// The translation key the status text was produced from, so a language switch
+// can render it again; nullptr while it shows text that is not a key.
+static const char* s_camera_status_key = TR_NOOP("No Camera");
 
 static void camera_widget_init_subjects() {
     if (s_subjects_initialized) {
@@ -40,7 +44,7 @@ static void camera_widget_init_subjects() {
     }
 
     lv_subject_init_string(&s_camera_status_subject, s_camera_status_buffer, nullptr,
-                           sizeof(s_camera_status_buffer), lv_tr("No Camera"));
+                           sizeof(s_camera_status_buffer), lv_tr(s_camera_status_key));
     lv_xml_register_subject(nullptr, "camera_status_text", &s_camera_status_subject);
     SubjectDebugRegistry::instance().register_subject(
         &s_camera_status_subject, "camera_status_text", LV_SUBJECT_TYPE_STRING, __FILE__, __LINE__);
@@ -130,6 +134,12 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     lv_obj_set_user_data(widget_obj_, this);
 
+    language_observer_ = helix::ui::observe_language_change(this, [](CameraWidget* self) {
+        if (s_camera_status_key) {
+            self->set_status_key(s_camera_status_key);
+        }
+    });
+
     if (std::find(s_attached_widgets.begin(), s_attached_widgets.end(), this) ==
         s_attached_widgets.end()) {
         s_attached_widgets.push_back(this);
@@ -147,7 +157,7 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
                     if (self->compact_) {
                         // Compact mode: icon only, status text already hidden
                     } else {
-                        self->set_status_text(lv_tr("Connecting Camera..."));
+                        self->set_status_key(TR_NOOP("Connecting Camera..."));
                         if (self->active_) {
                             self->start_stream();
                         }
@@ -160,7 +170,7 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
                     // open — the stream must keep running for the fullscreen view.
                     if (!self->active_ && !self->fullscreen_overlay_) {
                         self->stop_stream();
-                        self->set_status_text(lv_tr("No Camera"));
+                        self->set_status_key(TR_NOOP("No Camera"));
                     }
                 }
             },
@@ -198,6 +208,7 @@ void CameraWidget::detach() {
     webcam_observer_.reset();
     webcam_list_observer_.reset();
     edit_mode_observer_.reset();
+    language_observer_.reset();
     if (fps_recheck_timer_) {
         lv_timer_delete(fps_recheck_timer_);
         fps_recheck_timer_ = nullptr;
@@ -386,7 +397,7 @@ void CameraWidget::start_stream() {
         target_fps_ = 15;
     update_stream_fps();
 
-    set_status_text(lv_tr("Connecting Camera..."));
+    set_status_key(TR_NOOP("Connecting Camera..."));
 
     // Unhide the overlay so the user sees "Connecting Camera..." instead of
     // a bare gray rectangle. The overlay was hidden when the previous stream's
@@ -508,7 +519,7 @@ void CameraWidget::resync_source() {
     bool keep_running = fullscreen_overlay_ || (active_ && !compact_);
     stop_stream();
     if (!feed) {
-        set_status_text(lv_tr("No Camera"));
+        set_status_key(TR_NOOP("No Camera"));
         return;
     }
     if (keep_running) {
@@ -606,9 +617,15 @@ void CameraWidget::update_stream_fps() {
 }
 
 void CameraWidget::set_status_text(const char* text) {
+    s_camera_status_key = nullptr;
     if (s_subjects_initialized) {
         lv_subject_copy_string(&s_camera_status_subject, text);
     }
+}
+
+void CameraWidget::set_status_key(const char* key) {
+    set_status_text(lv_tr(key));
+    s_camera_status_key = key;
 }
 
 void CameraWidget::open_fullscreen() {

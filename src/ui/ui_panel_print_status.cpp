@@ -582,8 +582,8 @@ void PrintStatusPanel::init_subjects() {
 
     // Initialize all subjects with default values
     // Note: Display filename is now handled by ActivePrintMediaManager via print_display_filename
-    UI_MANAGED_SUBJECT_STRING(layer_text_subject_, layer_text_buf_, "Layer 0 / 0",
-                              "print_layer_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(layer_text_subject_, layer_text_buf_, "0 / 0", "print_layer_text",
+                              subjects_);
     UI_MANAGED_SUBJECT_STRING(filament_used_text_subject_, filament_used_text_buf_, "",
                               "print_filament_used_text", subjects_);
     UI_MANAGED_SUBJECT_STRING(elapsed_subject_, elapsed_buf_, "0h 00m", "print_elapsed", subjects_);
