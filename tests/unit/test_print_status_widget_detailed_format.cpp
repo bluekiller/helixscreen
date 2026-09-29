@@ -311,7 +311,6 @@ PrintHistoryJob make_history_job(const char* filename, bool exists, double ended
     job.end_time = now - ended_secs_ago;
     job.print_duration = 3600.0;
     job.filament_used = 12500.0;
-    job.duration_str = "1h 00m";
     job.filament_str = "12.5m";
     return job;
 }
@@ -404,7 +403,7 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter re-renders its text on a l
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
     REQUIRE(subject_text("print_status_layer_text") == "Layer 7");
     REQUIRE(subject_text("print_status_idle_when") == "Completed 2h ago");
-    REQUIRE(subject_text("print_status_idle_meta") == "12.5m filament • 1h 00m");
+    REQUIRE(subject_text("print_status_idle_meta") == "12.5m filament • 1h");
     REQUIRE(subject_text("print_status_filament_text") == "Filament: 1.5m");
 
     auto& settings = SystemSettingsManager::instance();
@@ -417,7 +416,8 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter re-renders its text on a l
     CHECK(subject_text("print_status_layer_text") == std::string(lv_tr("Layer")) + " 7");
     CHECK(subject_text("print_status_idle_when") == fmt::format(lv_tr("Completed {}h ago"), 2));
     CHECK(subject_text("print_status_idle_meta") ==
-          fmt::format(lv_tr("{} filament • {}"), "12.5m", "1h 00m"));
+          fmt::format(lv_tr("{} filament • {}"), "12.5m", helix::format::duration(3600)));
+    CHECK(helix::format::duration(3600) != "1h");
     CHECK(subject_text("print_status_filament_text") == std::string(lv_tr("Filament")) + ": 1.5m");
 
     settings.set_language("en");
@@ -443,7 +443,6 @@ PrintHistoryJob job_with(PrintJobStatus status, double start_time, double end_ti
     job.status = status;
     job.start_time = start_time;
     job.end_time = end_time;
-    job.duration_str = "0s";
     job.filament_str = "0mm";
     return job;
 }
@@ -507,7 +506,6 @@ TEST_CASE("describe_last_print: zero filament and duration hide the meta line",
     REQUIRE(describe_last_print(job, kNow).meta.empty());
 
     job.print_duration = 5400.0;
-    job.duration_str = "1h 30m";
     REQUIRE(describe_last_print(job, kNow).meta == "1h 30m");
 
     job.filament_used = 2500.0;
@@ -549,7 +547,6 @@ TEST_CASE("describe_last_print: under a second of time hides the meta line",
     job.end_time = 0.0;
     job.print_duration = 0.0;
     job.total_duration = 0.8278;
-    job.duration_str = "0s";
     job.filament_str = "0mm";
 
     const double now = job.start_time + 600.0;

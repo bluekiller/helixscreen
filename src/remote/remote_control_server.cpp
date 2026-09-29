@@ -1611,11 +1611,16 @@ nlohmann::json RemoteControlServer::handle_click(const nlohmann::json& params) {
             result["candidates"] = cands; // clicked the container; @path one of these
         }
 
-        // A synthetic CLICKED does not flip a switch/checkbox (LVGL toggles those
-        // on the indev press/release). Toggle the state explicitly and notify, so
-        // `click <switch>` behaves like a real tap.
-        if (lv_obj_check_type(widget, &lv_switch_class) ||
-            lv_obj_check_type(widget, &lv_checkbox_class)) {
+        // A synthetic CLICKED does not flip a switch/checkbox/checkable object
+        // (LVGL toggles those on the indev press/release). Toggle the state
+        // explicitly and notify, so `click <switch>` and
+        // `click <option_tile_*>` behave like a real tap. An object that is
+        // only CHECKABLE (a tile, a checkable button) still gets CLICKED after
+        // the toggle: a real tap delivers both, and checkable buttons act on
+        // CLICKED (extruder selector, gcode test Travels).
+        bool toggle_class = lv_obj_check_type(widget, &lv_switch_class) ||
+                            lv_obj_check_type(widget, &lv_checkbox_class);
+        if (toggle_class || lv_obj_has_flag(widget, LV_OBJ_FLAG_CHECKABLE)) {
             bool now = !lv_obj_has_state(widget, LV_STATE_CHECKED);
             if (now) {
                 lv_obj_add_state(widget, LV_STATE_CHECKED);
@@ -1623,6 +1628,9 @@ nlohmann::json RemoteControlServer::handle_click(const nlohmann::json& params) {
                 lv_obj_remove_state(widget, LV_STATE_CHECKED);
             }
             lv_obj_send_event(widget, LV_EVENT_VALUE_CHANGED, nullptr);
+            if (!toggle_class) {
+                lv_obj_send_event(widget, LV_EVENT_CLICKED, nullptr);
+            }
             result["toggled_to"] = now ? 1 : 0;
             return result;
         }

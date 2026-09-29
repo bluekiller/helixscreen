@@ -9,10 +9,19 @@
   <translation tag="%d feeders" ru="%d фидеров"/>
   <translation tag="%d gates" ru="%d шлюзов"/>
   <translation tag="%d lanes" ru="%d каналов"/>
+  <translation tag="%d min" ru="%d мин"/>
+  <translation tag="%d min left" ru="осталось %d мин"/>
   <translation tag="%d more sensors" ru="Ещё %d датчиков"/>
   <translation tag="%d slots" ru="%d слотов"/>
   <translation tag="%d toolheads" ru="%d печатающих головок"/>
   <translation tag="%d tools" ru="%d инструментов"/>
+  <translation tag="%d:%02d left" ru="осталось %d:%02d"/>
+  <translation tag="%dh" ru="%d ч"/>
+  <translation tag="%dh %02dm" ru="%d ч %02d мин"/>
+  <translation tag="%dh %dm" ru="%d ч %d мин"/>
+  <translation tag="%dm" ru="%d мин"/>
+  <translation tag="%dm %02ds" ru="%d мин %02d с"/>
+  <translation tag="%ds" ru="%d с"/>
   <translation tag="%lu days ago" ru="%lu дн. назад"/>
   <translation tag="%lu hours ago" ru="%lu ч. назад"/>
   <translation tag="%lu min ago" ru="%lu мин. назад"/>
@@ -134,6 +143,7 @@
   <translation tag="AMS" ru="AMS"/>
   <translation tag="AMS Active: " ru="AMS активен: "/>
   <translation tag="AMS is busy" ru="AMS занят"/>
+  <translation tag="AMS/MMU system not detected" ru="Система AMS/MMU не обнаружена"/>
   <translation tag="API not available" ru="API недоступен"/>
   <translation tag="APPEARANCE" ru="ВНЕШНИЙ ВИД"/>
   <translation tag="AUTO FANS" ru="АВТО ВЕНТИЛЯТОРЫ"/>

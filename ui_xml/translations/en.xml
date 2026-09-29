@@ -9,10 +9,19 @@
   <translation tag="%d feeders" en="%d feeders"/>
   <translation tag="%d gates" en="%d gates"/>
   <translation tag="%d lanes" en="%d lanes"/>
+  <translation tag="%d min" en="%d min"/>
+  <translation tag="%d min left" en="%d min left"/>
   <translation tag="%d more sensors" en="%d more sensors"/>
   <translation tag="%d slots" en="%d slots"/>
   <translation tag="%d toolheads" en="%d toolheads"/>
   <translation tag="%d tools" en="%d tools"/>
+  <translation tag="%d:%02d left" en="%d:%02d left"/>
+  <translation tag="%dh" en="%dh"/>
+  <translation tag="%dh %02dm" en="%dh %02dm"/>
+  <translation tag="%dh %dm" en="%dh %dm"/>
+  <translation tag="%dm" en="%dm"/>
+  <translation tag="%dm %02ds" en="%dm %02ds"/>
+  <translation tag="%ds" en="%ds"/>
   <translation tag="%lu days ago" en="%lu days ago"/>
   <translation tag="%lu hours ago" en="%lu hours ago"/>
   <translation tag="%lu min ago" en="%lu min ago"/>
@@ -134,6 +143,7 @@
   <translation tag="AMS" en="AMS"/>
   <translation tag="AMS Active: " en="AMS Active: "/>
   <translation tag="AMS is busy" en="AMS is busy"/>
+  <translation tag="AMS/MMU system not detected" en="AMS/MMU system not detected"/>
   <translation tag="API not available" en="API not available"/>
   <translation tag="APPEARANCE" en="APPEARANCE"/>
   <translation tag="AUTO FANS" en="AUTO FANS"/>

@@ -58,7 +58,6 @@ struct PrintHistoryJob {
     double modified = 0.0;
 
     // Pre-formatted strings for display (set during parsing)
-    std::string duration_str; ///< "2h 15m"
     std::string date_str;     ///< "Dec 1, 14:30"
     std::string filament_str; ///< "12.5m"
 

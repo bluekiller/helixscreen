@@ -1097,7 +1097,8 @@ void HistoryListPanel::update_detail_subjects(const PrintHistoryJob& job) {
         lv_subject_copy_string(&detail_end_time_, "-");
     }
 
-    lv_subject_copy_string(&detail_duration_, job.duration_str.c_str());
+    lv_subject_copy_string(&detail_duration_,
+                           helix::format::duration(static_cast<int>(job.print_duration)).c_str());
 
     // Format layers
     char layers_buf[32];

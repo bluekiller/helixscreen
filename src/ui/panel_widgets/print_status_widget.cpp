@@ -2056,10 +2056,10 @@ LastPrintText describe_last_print(const PrintHistoryJob& job, double now_s) {
 
     // Durations format in whole seconds, so anything under one reads "0s": no
     // time recorded, which the card hides like a zero.
-    const std::string duration = job.print_duration >= 1 ? job.duration_str
-                                 : job.total_duration >= 1
-                                     ? helix::format::duration(static_cast<int>(job.total_duration))
-                                     : "";
+    const std::string duration =
+        job.print_duration >= 1   ? helix::format::duration(static_cast<int>(job.print_duration))
+        : job.total_duration >= 1 ? helix::format::duration(static_cast<int>(job.total_duration))
+                                  : "";
     const bool has_filament = job.filament_used > 0 && !job.filament_str.empty();
     if (has_filament && !duration.empty()) {
         text.meta = fmt::format(lv_tr("{} filament • {}"), job.filament_str, duration);

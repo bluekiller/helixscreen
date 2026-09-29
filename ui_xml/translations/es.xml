@@ -9,10 +9,19 @@
   <translation tag="%d feeders" es="%d alimentadores"/>
   <translation tag="%d gates" es="%d Gates"/>
   <translation tag="%d lanes" es="%d carriles"/>
+  <translation tag="%d min" es="%d min"/>
+  <translation tag="%d min left" es="quedan %d min"/>
   <translation tag="%d more sensors" es="%d sensores más"/>
   <translation tag="%d slots" es="%d ranuras"/>
   <translation tag="%d toolheads" es="%d cabezales"/>
   <translation tag="%d tools" es="%d herramientas"/>
+  <translation tag="%d:%02d left" es="quedan %d:%02d"/>
+  <translation tag="%dh" es="%d h"/>
+  <translation tag="%dh %02dm" es="%d h %02d min"/>
+  <translation tag="%dh %dm" es="%d h %d min"/>
+  <translation tag="%dm" es="%d min"/>
+  <translation tag="%dm %02ds" es="%d min %02d s"/>
+  <translation tag="%ds" es="%d s"/>
   <translation tag="%lu days ago" es="hace %lu días"/>
   <translation tag="%lu hours ago" es="hace %lu horas"/>
   <translation tag="%lu min ago" es="hace %lu min"/>
@@ -134,6 +143,7 @@
   <translation tag="AMS" es="AMS"/>
   <translation tag="AMS Active: " es="AMS activo: "/>
   <translation tag="AMS is busy" es="El AMS está ocupado"/>
+  <translation tag="AMS/MMU system not detected" es="No se detectó el sistema AMS/MMU"/>
   <translation tag="API not available" es="API no disponible"/>
   <translation tag="APPEARANCE" es="APARIENCIA"/>
   <translation tag="AUTO FANS" es="VENTILADORES AUTO"/>

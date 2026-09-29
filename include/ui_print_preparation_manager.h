@@ -469,8 +469,9 @@ class PrintPreparationManager {
     /**
      * @brief Get the pre-print time estimate subject (seconds)
      *
-     * Updated by recalculate_estimate() whenever checkbox toggles change.
-     * Value is total estimated seconds for all enabled pre-print operations.
+     * Updated by recalculate_estimate() on open and whenever checkbox toggles
+     * change. Value is total estimated seconds for all enabled pre-print
+     * operations.
      */
     lv_subject_t* get_preprint_estimate_subject();
 
@@ -716,8 +717,9 @@ class PrintPreparationManager {
     /**
      * @brief Lazy-initialize the prep-time estimate subject.
      *
-     * Called from get_preprint_estimate_subject(); ensures the subject is
-     * ready before any observer wires up.
+     * Called from get_preprint_estimate_subject() and
+     * recalculate_estimate(); ensures the subject is ready before any
+     * observer wires up.
      */
     void ensure_estimate_subject_initialized();
 

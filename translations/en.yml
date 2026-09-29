@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d feeders'
   '%d gates': '%d gates'
   '%d lanes': '%d lanes'
+  '%d min': '%d min'
+  '%d min left': '%d min left'
   '%d more sensors': '%d more sensors'
   '%d slots': '%d slots'
   '%d toolheads': '%d toolheads'
   '%d tools': '%d tools'
+  '%d:%02d left': '%d:%02d left'
+  '%dh': '%dh'
+  '%dh %02dm': '%dh %02dm'
+  '%dh %dm': '%dh %dm'
+  '%dm': '%dm'
+  '%dm %02ds': '%dm %02ds'
+  '%ds': '%ds'
   '%lu days ago': '%lu days ago'
   '%lu hours ago': '%lu hours ago'
   '%lu min ago': '%lu min ago'
@@ -136,6 +145,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS Active: '
   AMS is busy: AMS is busy
+  AMS/MMU system not detected: AMS/MMU system not detected
   API not available: API not available
   APPEARANCE: APPEARANCE
   AUTO FANS: AUTO FANS

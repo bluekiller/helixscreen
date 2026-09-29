@@ -14,6 +14,7 @@
 #include "../test_helpers/update_queue_test_access.h"
 #include "ams_state.h"
 #include "config.h"
+#include "format_utils.h"
 #include "hardware_validator.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -167,4 +168,15 @@ TEST_CASE_METHOD(PrintSelectPanelFixture,
 
     SystemSettingsManager::instance().set_language("en");
     drain();
+}
+
+TEST_CASE_METHOD(RussianFixture, "Durations are formatted in the current language",
+                 "[i18n][format_utils]") {
+    REQUIRE(helix::format::duration_from_minutes(65) == "1h 5m");
+
+    SystemSettingsManager::instance().set_language("ru");
+    char want[64];
+    std::snprintf(want, sizeof(want), lv_tr("%dh %dm"), 1, 5);
+    REQUIRE(std::string(want) != "1h 5m");
+    CHECK(helix::format::duration_from_minutes(65) == want);
 }

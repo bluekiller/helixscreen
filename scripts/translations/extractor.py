@@ -589,7 +589,9 @@ def extract_strings_from_cpp(cpp_path: Path) -> Set[str]:
     for pattern in CPP_TRANSLATABLE_PATTERNS:
         if pattern.startswith("return") and cpp_path.suffix == ".h":
             continue
-        is_lv_tr = "lv_tr" in pattern
+        # lv_tr() and TR_NOOP() are both explicit marks: the heuristics below
+        # (a format string, a short unit) do not second-guess them.
+        is_lv_tr = "lv_tr" in pattern or "TR_NOOP" in pattern
         is_adjacent = ADJACENT_LITERALS_GROUP in pattern
         for match in re.finditer(pattern, content):
             # The key must equal what the compiler produces, not the source form.

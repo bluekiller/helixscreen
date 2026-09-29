@@ -1245,6 +1245,16 @@ One centred icon over one label, filling its cell (`ui_xml/components/home_actio
 | `button_name`, `icon_name` | `home_action_tile_button`, `home_action_tile_icon` | Names C++ looks up; keep the one the owning class already finds |
 | `tile_icon_subject`, `tile_label_subject` | empty | Per-instance size rung from a home tile; empty keeps `#icon_size` |
 
+#### option_tile
+
+One pre-print option as a checkable tile: an icon and a two-line label in an outline, with a corner check tab that appears only while checked (`ui_xml/components/option_tile.xml`). The whole tile is the tap target. Its view sets `state_trickle`, so the tile's checked state reaches the children and each child styles itself with a `-checked` state style (the border turns `#primary`, the icon tints, the tab's `style_opa` goes 255). You do not instantiate it from XML: `PrePrintOptionsRenderer` creates one tile per option and binds the option's subject to the tile's checked state (`src/ui/ui_pre_print_options_renderer.cpp`). The tile height and the tab's negative lift come from the `option_tile_height_*` / `option_tile_tab_lift_*` token ladders in `ui_xml/globals.xml`.
+
+| Prop | Default | Purpose |
+|------|---------|---------|
+| `label`, `label_tag` | `Option`, empty | The label and its translation tag |
+| `icon` | `tune` | The glyph |
+| `callback` | empty | `value_changed` callback; the renderer wires the toggle |
+
 #### setting_group
 
 A card of settings rows under a `setting_group_header`. When every row in it is hidden, the group hides its header and collapses (the `LV_STATE_USER_1` style zeroes its margin, border and background), and it comes back when a row shows again. LVGL sends no event when a child's hidden flag changes, but any row appearing or disappearing changes the group's height, so the check runs on `LV_EVENT_SIZE_CHANGED` (`src/ui/setting_group.cpp#setting_group_sync_header`). A row counts when it is visible with a non-zero height, so a wrapper that groups gated rows must have `style_pad_all="0"`: padding gives an empty wrapper height, and its header would stay.

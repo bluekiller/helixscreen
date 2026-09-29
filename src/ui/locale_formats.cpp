@@ -6,6 +6,7 @@
 #include "ui_format_utils.h"
 
 #include "format_utils.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 
 #include <spdlog/spdlog.h>
 
@@ -163,6 +164,7 @@ static std::string get_month_name(const struct tm* tm_info) {
 // ---------------------------------------------------------------------------
 
 void locale_set_language(const std::string& lang_code) {
+    helix::format::set_translator(lv_translation_get);
     s_current_lang = lang_code;
     s_use_system_locale = false;
 

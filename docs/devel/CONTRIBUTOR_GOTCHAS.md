@@ -69,6 +69,22 @@ Do not move it into `globals.xml` instead: that file parses before theme init, s
 
 ---
 
+### My `style_*:checked` (colon) state style does nothing.
+
+**Cause:** The engine reads state and part selectors only in dash form. `lv_xml_style_string_process` (`lib/helix-xml/src/xml/lv_xml_style.c`) splits every style attribute name on `-`, so `style_opa-checked` is property `style_opa` with selector `checked`. The colon form never splits: `style_opa:checked` stays one property name, matches nothing in the property table, and the attribute is dropped. Nothing logs.
+
+**Fix:** Write the dash form:
+
+```xml
+<!-- ✗ Dropped: the colon form never splits -->
+<lv_obj style_opa:checked="255"/>
+
+<!-- ✓ Parsed as style_opa with a checked selector -->
+<lv_obj style_opa-checked="255"/>
+```
+
+---
+
 ### My subject binding is stuck at the default value. Updates in C++ don't show up.
 
 **Cause:** The XML `<subjects>` block declared a subject with the same name as a C++-registered subject. XML component-scoped subjects shadow global subjects — your bindings resolve to the local XML subject (default-initialized), not the C++ one that's actually getting updates.
@@ -267,6 +283,18 @@ Reference: lesson **L008**.
 **Fix:** Move the declarations to `ui_xml/globals.xml` (or another top-level token file) and keep the `#reference` where it was — referencing a global token from a variant file is exactly what variants are for. Recursing into subdirectories is not the fix: discovery is alphabetical last-wins, so a portrait-only `nav_width_small` would shadow the base token globally instead of only while the portrait variant is active.
 
 Gate: `scripts/check_responsive_token_scope.py` (prestonbrown/helixscreen#1211).
+
+---
+
+### An attribute like `y="-#space_md"` resolves to 0.
+
+**Cause:** The const resolver substitutes only values that start with `#`: `resolve_consts` (`lib/helix-xml/src/xml/lv_xml.c`) checks `value[0] == '#'` before it looks a token up. `-#space_md` fails that check, so the raw string reaches the number parser, which stops after the sign and yields 0. Neither side warns.
+
+**Fix:** Give the token the negative value and reference it bare. `ui_xml/globals.xml` does this with a per-breakpoint ladder, and the XML says `y="#option_tile_tab_lift"`:
+
+```xml
+<px name="option_tile_tab_lift_large" value="-6"/>
+```
 
 ---
 

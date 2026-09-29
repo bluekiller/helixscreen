@@ -695,6 +695,30 @@ TEST_CASE_METHOD(HelixTestFixture,
     }
 }
 
+TEST_CASE_METHOD(
+    HelixTestFixture,
+    "PrintPreparationManager: recalculate before any getter still computes an estimate",
+    "[print_preparation][estimate]") {
+    // The detail view's first open calls recalculate_estimate() before
+    // anything has fetched the estimate subject, so the recalculation must
+    // initialize the subject itself rather than read back the initial 0.
+    lv_init_safe();
+    PrinterState& printer_state = get_printer_state();
+    PrinterStateTestAccess::reset(printer_state);
+    printer_state.init_subjects(false);
+
+    PrintPreparationManager manager;
+    manager.set_dependencies(nullptr, &printer_state);
+
+    PreprintConfigScope config;
+    manager.recalculate_estimate();
+
+    lv_subject_t* const estimate = manager.get_preprint_estimate_subject();
+    const int homing = static_cast<int>(helix::PrintStartPhase::HOMING);
+    REQUIRE(lv_subject_get_int(estimate) ==
+            helix::PreprintPredictor::default_phase_durations().at(homing));
+}
+
 TEST_CASE_METHOD(HelixTestFixture,
                  "PrintPreparationManager: capabilities update when PrinterState type changes",
                  "[print_preparation][capabilities][lt1]") {
