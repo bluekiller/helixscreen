@@ -84,7 +84,7 @@ TEST_CASE("portrait preview: overflow with edge in a grid gap is nudged mid-tile
     const int avail = BASE + edge;
     const int h = decide_detail_portrait_preview(W, avail, 1000, GRID_TOP, TILE, GAP);
     CHECK(h < BASE);
-    CHECK(BASE - h <= GAP + TILE / 4);
+    CHECK(BASE - h <= GAP + TILE / 2);
     CHECK(mid_tile(edge_for(avail, h)));
 }
 

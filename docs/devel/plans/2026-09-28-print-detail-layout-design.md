@@ -119,9 +119,7 @@ int decide_detail_portrait_preview(int width, int avail_h, int content_h,
 - Otherwise the scroll area overflows. If the visible edge lands above `grid_top`, return base
   (the cue alone carries it). If it lands in the middle half of a tile, return base. If it lands
   in a grid gap or in either outer quarter of a tile, shrink the preview by the smallest amount
-  that puts the edge in the middle half of a tile. That amount is at most `gap + tile / 4`,
-  which is under half a `row_pitch` at every tier because the grid gap is a spacing token far
-  smaller than a tile.
+  that puts the edge in the middle half of a tile. That amount is at most `gap + tile / 2`.
 - Never return less than `min_h`.
 
 Lives in a header with no LVGL dependency so the rule is unit-tested without a display.
