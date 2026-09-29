@@ -1435,7 +1435,7 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: Matériel
   Hardware Health: État du matériel
-  Hardware Keyboard: ''
+  Hardware Keyboard: Clavier physique
   Hardware Name: Nom du matériel
   Hardware Profile: Profil matériel
   Hardware is validated on startup and reconnection: Le matériel est validé au démarrage
@@ -1510,7 +1510,7 @@ translations:
   Helper macros are up to date: 'Les macros d''aide sont à jour'
   Hide Firmware Noise: Masquer le bruit du firmware
   Hide Temperature Reports: Masquer les rapports de température
-  Hide the on-screen keyboard while a USB keyboard is attached: ''
+  Hide the on-screen keyboard while a USB keyboard is attached: Masquer le clavier à l'écran lorsqu'un clavier USB est branché
   High Water Mark: Pic d'utilisation
   Hold anywhere to cancel: Maintenez n'importe où pour annuler
   Hold still: Ne bougez pas

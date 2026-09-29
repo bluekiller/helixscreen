@@ -1405,7 +1405,7 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: Оборудование
   Hardware Health: Состояние оборудования
-  Hardware Keyboard: ''
+  Hardware Keyboard: Аппаратная клавиатура
   Hardware Name: Название оборудования
   Hardware Profile: Профиль оборудования
   Hardware is validated on startup and reconnection: Оборудование проверяется при
@@ -1479,7 +1479,7 @@ translations:
   Helper macros are up to date: 'Вспомогательные макросы актуальны'
   Hide Firmware Noise: Скрыть служебные сообщения прошивки
   Hide Temperature Reports: Скрыть отчёты о температуре
-  Hide the on-screen keyboard while a USB keyboard is attached: ''
+  Hide the on-screen keyboard while a USB keyboard is attached: Скрывать экранную клавиатуру, пока подключена USB-клавиатура
   High Water Mark: Пиковое значение
   Hold anywhere to cancel: Удерживайте в любом месте для отмены
   Hold still: Не двигайтесь
