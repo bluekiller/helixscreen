@@ -309,8 +309,6 @@
   <translation tag="Bed temp must be 0-%d°C" ru="Температура стола должна быть 0-%d°C"/>
   <translation tag="Bed warming timed out" ru="Нагрев стола — время ожидания истекло"/>
   <translation tag="Before starting" ru="Перед началом"/>
-  <translation tag="Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A." ru="Ремень A (спереди справа) туже на %.0f Гц. Подтяните ремень B спереди слева или ослабьте ремень A."/>
-  <translation tag="Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B." ru="Ремень B (спереди слева) туже на %.0f Гц. Подтяните ремень A спереди справа или ослабьте ремень B."/>
   <translation tag="Belt Tension" ru="Натяжение ремня"/>
   <translation tag="Belt Tension Check" ru="Проверка натяжения ремня"/>
   <translation tag="Beta" ru="Бета"/>
@@ -334,10 +332,6 @@
   <translation tag="Border Width" ru="Толщина границы"/>
   <translation tag="Border transparency (0 = invisible, 255 = solid)" ru="Прозрачность границы (0 = невидимая, 255 = сплошная)"/>
   <translation tag="Both" ru="Оба"/>
-  <translation tag="Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both." ru="Оба ремня выше целевых %.0f Гц - A на %.0f Гц, B на %.0f Гц. Ослабьте оба."/>
-  <translation tag="Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more." ru="Оба ремня ниже целевых %.0f Гц - A на %.0f Гц, B на %.0f Гц. Подтяните оба, ещё %s."/>
-  <translation tag="Both belts are on the %.0f Hz target and match each other. Nothing to adjust." ru="Оба ремня на целевых %.0f Гц и совпадают друг с другом. Регулировка не требуется."/>
-  <translation tag="Both belts read the same to within what this measurement can resolve. Nothing to adjust." ru="Оба ремня показывают одинаковое значение в пределах точности этого измерения. Регулировка не требуется."/>
   <translation tag="Bouncing Printer" ru="Прыгающий принтер"/>
   <translation tag="Bowden Length" ru="Длина боудена"/>
   <translation tag="Bowden tube length from hub to toolhead" ru="Длина боуден-трубки от хаба до печатающей головки"/>
@@ -689,7 +683,6 @@
   <translation tag="Could not forget device" ru="Не удалось забыть устройство"/>
   <translation tag="Could not load printer database" ru="Не удалось загрузить базу данных принтеров"/>
   <translation tag="Could not move the plate" ru="Не удалось переместить стол"/>
-  <translation tag="Could not open Klipper&apos;s accelerometer stream. Check that Klipper is running, then retry." ru="Не удалось открыть поток акселерометра Klipper. Убедитесь, что Klipper запущен, и повторите попытку."/>
   <translation tag="Could not parse tips database" ru="Не удалось разобрать базу данных советов"/>
   <translation tag="Could not reach Spoolman at" ru="Не удалось связаться со Spoolman по адресу"/>
   <translation tag="Could not read the screw adjustments from the printer" ru="Не удалось получить данные регулировки винтов от принтера"/>
@@ -1231,7 +1224,6 @@
   <translation tag="Found %zu printers" ru="Найдено %zu принтеров"/>
   <translation tag="Found 1 printer" ru="Найден 1 принтер"/>
   <translation tag="Framerate" ru="Частота кадров"/>
-  <translation tag="Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.&#10;&#10;Match: How close the two belts are, as a percentage of belt A&apos;s frequency. Above 95% is excellent; below 90% is worth adjusting." ru="Разница частот: разница между путями A и B. Значения менее 2 Гц ниже точности этого измерения, поэтому считаются совпадением.&#10;&#10;Совпадение: насколько близки два ремня, в процентах от частоты ремня A. Выше 95% — отлично; ниже 90% стоит отрегулировать."/>
   <translation tag="From Buffer" ru="Из буфера"/>
   <translation tag="From Version" ru="С версии"/>
   <translation tag="Front" ru="Спереди"/>
@@ -1693,7 +1685,6 @@
   <translation tag="Maximum acceleration (mm/s²)" ru="Максимальное ускорение (мм/с²)"/>
   <translation tag="Maximum toolhead speed (mm/s)" ru="Максимальная скорость печатающей головки (мм/с)"/>
   <translation tag="Measure" ru="Измерить"/>
-  <translation tag="Measure and compare belt path frequencies" ru="Измерить и сравнить частоты путей ремня"/>
   <translation tag="Measure every tool&apos;s XYZ offset automatically" ru="Автоматически измеряет смещение XYZ каждого инструмента"/>
   <translation tag="Measure pressure advance automatically" ru="Автоматически измеряет Pressure Advance"/>
   <translation tag="Measured (shaper off)" ru="Измерено (шейпер выключен)"/>
@@ -1811,7 +1802,6 @@
   <translation tag="No Spools" ru="Нет катушек"/>
   <translation tag="No USB printer detected" ru="USB-принтер не обнаружен"/>
   <translation tag="No USB printers found" ru="USB-принтеры не найдены"/>
-  <translation tag="No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry." ru="Поток акселерометра недоступен. Убедитесь, что Klipper запущен и акселерометр настроен, затем повторите попытку."/>
   <translation tag="No automatic backup-spool package is installed" ru="Плагин автоматической резервной катушки не установлен"/>
   <translation tag="No buffer data available" ru="Данные буфера недоступны"/>
   <translation tag="No camera — use USB barcode scanner" ru="Нет камеры — используйте USB сканер штрих-кодов"/>
@@ -1970,7 +1960,6 @@
   <translation tag="Or Enter Manually" ru="Или введите вручную"/>
   <translation tag="Or instead of turning the others" ru="Или вместо вращения остальных винтов"/>
   <translation tag="Oscillating... cycle %d/%d" ru="Осцилляция... цикл %d/%d"/>
-  <translation tag="Out of range" ru="Вне диапазона"/>
   <translation tag="Outcome" ru="Результат"/>
   <translation tag="Output Device" ru="Устройство вывода"/>
   <translation tag="Output Mode" ru="Режим вывода"/>
@@ -2897,7 +2886,6 @@
   <translation tag="The CFS odometer hardware is faulty and needs repair or replacement" ru="Оборудование одометра CFS неисправно и требует ремонта или замены"/>
   <translation tag="The HelixPrint plugin enables fast G-code modifications directly on your printer—like skipping bed mesh for quick reprints." ru="Плагин HelixPrint позволяет быстро модифицировать G-code прямо на принтере — например, пропускать сетку стола для быстрых перепечаток."/>
   <translation tag="The Spoolman spool currently loaded" ru="Текущая катушка Spoolman"/>
-  <translation tag="The accelerometer stream stopped: %s. Check that Klipper is running, then retry." ru="Поток акселерометра остановлен: %s. Убедитесь, что Klipper запущен, и повторите попытку."/>
   <translation tag="The animated screensaver has been turned off on this device to prevent it from interfering with prints. You can re-enable it in Settings &gt; Display." ru="Анимированная заставка была отключена на данном устройстве, чтобы она не мешала печати. Вы можете снова включить её в Настройки &gt; Дисплей."/>
   <translation tag="The bed has cooled. Take the spools off the plate, then confirm." ru="Стол остыл. Снимите катушки со стола, затем подтвердите."/>
   <translation tag="The bed turns off. The spools stay latched on the bed until you confirm they are off." ru="Стол выключится. Катушки считаются лежащими на столе, пока вы не подтвердите, что сняли их."/>
@@ -3111,7 +3099,6 @@
   <translation tag="Unavailable" ru="Недоступно"/>
   <translation tag="Unavailable on this printer" ru="Недоступно на этом принтере"/>
   <translation tag="Undo" ru="Шаг назад"/>
-  <translation tag="Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.&#10;&#10;Pluck each belt by hand and this tool listens through the accelerometer to measure the belt&apos;s frequency. Matched frequencies mean balanced tension.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." ru="Неравномерное натяжение ремня вызывает дефекты печати, такие как смещения слоёв, VFA (вертикальные мелкие артефакты) и ringing.&#10;&#10;Дёрните каждый ремень рукой, и этот инструмент измерит частоту ремня с помощью акселерометра. Совпадающие частоты означают сбалансированное натяжение.&#10;&#10;Для CoreXY ремни A и B должны отличаться на несколько Гц."/>
   <translation tag="Uninstall" ru="Удалить"/>
   <translation tag="Uninstall HelixPrint Plugin" ru="Удалить плагин HelixPrint"/>
   <translation tag="Uninstall HelixPrint Plugin?" ru="Удалить плагин HelixPrint?"/>

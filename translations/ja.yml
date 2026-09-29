@@ -314,8 +314,6 @@ translations:
   Bed temp must be 0-%d°C: ベッド温度は 0〜%d°C にしてください
   Bed warming timed out: ベッド加熱がタイムアウトしました
   Before starting: '開始前に'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: ベルトA（フロント右）が %.0f Hz 張りすぎています。フロント左のベルトBを張るか、ベルトAを緩めてください。
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: ベルトB（フロント左）が %.0f Hz 張りすぎています。フロント右のベルトAを張るか、ベルトBを緩めてください。
   Belt Tension: ベルトテンション
   Belt Tension Check: ベルトテンション確認
   Beta: ベータ
@@ -339,10 +337,6 @@ translations:
   Border Width: 境界線の幅
   Border transparency (0 = invisible, 255 = solid): 境界線の透明度 (0 = 透明、255 = 不透明)
   Both: 両方
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: 両方のベルトが目標の %.0f Hz を上回っています - Aは %.0f Hz、Bは %.0f Hz。両方とも緩めてください。
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: 両方のベルトが目標の %.0f Hz を下回っています - Aは %.0f Hz、Bは %.0f Hz。両方とも %s 分張ってください。
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: 両方のベルトが目標の %.0f Hz に合っており、互いに一致しています。調整の必要はありません。
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: 両方のベルトは、この測定の分解能内で同じ値を示しています。調整の必要はありません。
   Bouncing Printer: バウンドプリンター
   Bowden Length: 'ボーデン長'
   Bowden tube length from hub to toolhead: 'ハブからツールヘッドまでのボーデンチューブ長'
@@ -708,7 +702,6 @@ translations:
   Could not load printer database: プリンターデータベースを読み込めませんでした
   Could not move the plate: ベッドを動かせませんでした
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Klipperの加速度センサーストリームを開けませんでした。Klipperが実行中か確認してから再試行してください。
   Could not parse tips database: ヒントデータベースを解析できませんでした
   Could not reach Spoolman at: 'Spoolman に接続できません:'
   Could not read the screw adjustments from the printer: プリンターからネジ調整を読み取れませんでした
@@ -1273,8 +1266,6 @@ translations:
   Found %zu printers: '%zu台のプリンターを検出'
   Found 1 printer: プリンター1台を検出
   Framerate: フレームレート
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "周波数差: パス A と B の差。2 Hz 未満はこの測定の分解能を下回るため、一致とみなされます。\n\n一致度: 2つのベルトの周波数がどれだけ近いかを、ベルトAの周波数に対する割合で示したもの。95% を超えれば優秀で、90% を下回ると調整が必要です。"
   From Buffer: バッファから
   From Version: 更新前バージョン
   Front: '手前'
@@ -1760,7 +1751,6 @@ translations:
   Maximum acceleration (mm/s²): 最大加速度 (mm/s²)
   Maximum toolhead speed (mm/s): ツールヘッドの最大速度 (mm/s)
   Measure: '測定'
-  Measure and compare belt path frequencies: ベルトパスの周波数を測定・比較
   Measure every tool's XYZ offset automatically: 各ツールの XYZ オフセットを自動で測定します
   Measure pressure advance automatically: 'Pressure Advance を自動で測定します'
   Measured (shaper off): 測定値（シェーパーオフ時）
@@ -1883,7 +1873,6 @@ translations:
   No Spools: スプールなし
   No USB printer detected: USB プリンターが検出されません
   No USB printers found: USBプリンターが見つかりません
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: 利用可能な加速度センサーストリームがありません。Klipperが実行中で加速度センサーが設定されているか確認してから再試行してください。
   No automatic backup-spool package is installed: 自動バックアップスプール用プラグインが未インストールです
   No buffer data available: バッファーデータがありません
   No camera — use USB barcode scanner: カメラなし — USB バーコードスキャナーを使用してください
@@ -2048,7 +2037,6 @@ translations:
   Or Enter Manually: または手動で入力
   Or instead of turning the others: 他のネジを回す代わりに
   Oscillating... cycle %d/%d: 振動中... サイクル %d/%d
-  Out of range: 範囲外
   Outcome: 結果
   Output Device: 出力デバイス
   Output Mode: 出力モード
@@ -3021,7 +3009,6 @@ translations:
     skipping bed mesh for quick reprints.
   : HelixPrint プラグインは、クイック再印刷のためのベッドメッシュスキップなど、プリンター上で直接高速 G-code 修正を可能にします。
   The Spoolman spool currently loaded: 現在装填中の Spoolman スプール
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': '加速度センサーストリームが停止しました: %s。Klipperが実行中か確認してから再試行してください。'
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : アニメーション付きスクリーンセーバーが印刷に干渉しないよう、このデバイスではオフになっています。設定 > ディスプレイで再度有効にできます。
@@ -3269,8 +3256,6 @@ translations:
   Unavailable: 利用不可
   Unavailable on this printer: このプリンターでは利用できません
   Undo: 元に戻す
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "ベルト張力が不均一だと、レイヤーシフトや VFA(垂直微細アーティファクト)、リンギングなどの印刷不良が発生します。\n\n各ベルトを手ではじくと、このツールが加速度センサーでベルトの周波数を測定します。周波数が一致していれば張力が均等であることを意味します。\n\nCoreXY では、ベルト A と B は数 Hz 以内に収まっている必要があります。"
   Uninstall: アンインストール
   Uninstall HelixPrint Plugin: HelixPrint プラグインをアンインストール
   Uninstall HelixPrint Plugin?: HelixPrint プラグインをアンインストールしますか？

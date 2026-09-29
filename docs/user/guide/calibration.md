@@ -212,7 +212,7 @@ For CoreXY printers: compares the tension of the two belt paths by driving each 
 The row appears under **Advanced > Calibration** once [beta features are enabled](beta-features.md), and only when your Klipper config has an accelerometer. **Start check** stays disabled until all of these hold:
 
 - A **CoreXY** printer. The check compares the two diagonals only a CoreXY has, so it is unavailable on other kinematics
-- An **accelerometer** configured in Klipper, and exactly one. With more than one accelerometer reporting, Klipper cannot attribute the readings to the toolhead, and the check refuses to run
+- An **accelerometer** configured in Klipper, and exactly one. When more than one accelerometer reports during the sweep, the check stops with a message rather than guess which one to compare
 - **HelixScreen running on the printer's own computer.** Klipper writes its measurements to a file as it sweeps; only a HelixScreen installed on the same machine can read it. A remote session from another computer cannot run the check
 - Klipper ready, and **no print running**. The toolhead has to be free to move
 
@@ -223,7 +223,7 @@ The row appears under **Advanced > Calibration** once [beta features are enabled
 3. Tap **Start check**. The printer homes first if it needs to, then sweeps each belt path in turn: the toolhead moves back and forth along one diagonal while the accelerometer listens, then the other. Two full sweeps take about 5 minutes at Klipper's default settings - keep clear of the printer while it moves
 4. Both curves appear on one chart, each path in its own color, with the peak of each marked
 
-**Stop** aborts the run with an emergency stop followed by a firmware restart: a sweep cannot be paused partway, and the restart clears the movement state it left behind. Use it only when something is actually wrong.
+**Stop** aborts the run with an emergency stop followed by a firmware restart: a sweep cannot be paused or cancelled partway. Use it only when something is actually wrong.
 
 ### Reading the Results
 

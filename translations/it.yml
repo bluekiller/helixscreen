@@ -339,8 +339,6 @@ translations:
   Bed temp must be 0-%d°C: La temperatura del piano deve essere 0-%d°C
   Bed warming timed out: Riscaldamento piano — tempo scaduto
   Before starting: 'Prima di iniziare'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: La cinghia A (anteriore destra) è più tesa di %.0f Hz. Tendere la cinghia B, sulla sinistra anteriore, oppure allentare la cinghia A.
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: La cinghia B (anteriore sinistra) è più tesa di %.0f Hz. Tendere la cinghia A, sulla destra anteriore, oppure allentare la cinghia B.
   Belt Tension: Tensione cinghia
   Belt Tension Check: Controllo tensione cinghia
   Beta: Beta
@@ -366,10 +364,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Trasparenza bordo (0 = invisibile,
     255 = solido)
   Both: Entrambi
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Entrambe le cinghie superano l'obiettivo di %.0f Hz - A di %.0f Hz, B di %.0f Hz. Allentare entrambe.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Entrambe le cinghie sono sotto l'obiettivo di %.0f Hz - A di %.0f Hz, B di %.0f Hz. Tendere entrambe, %s in più.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Entrambe le cinghie sono sull'obiettivo di %.0f Hz e corrispondono tra loro. Niente da regolare.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Entrambe le cinghie misurano lo stesso valore, entro la risoluzione di questa misurazione. Niente da regolare.
   Bouncing Printer: Stampante rimbalzante
   Bowden Length: 'Lunghezza del bowden'
   Bowden tube length from hub to toolhead: 'Lunghezza del tubo bowden dall''hub alla testina'
@@ -772,7 +766,6 @@ translations:
   Could not load printer database: Impossibile caricare il database della stampante
   Could not move the plate: Impossibile spostare il piano
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Impossibile aprire lo stream dell'accelerometro di Klipper. Verifica che Klipper sia in esecuzione, poi riprova.
   Could not parse tips database: Impossibile analizzare il database dei suggerimenti
   Could not reach Spoolman at: Impossibile raggiungere Spoolman a
   Could not read the screw adjustments from the printer: Impossibile leggere le regolazioni delle viti dalla stampante
@@ -1361,8 +1354,6 @@ translations:
   Found %zu printers: '%zu stampanti trovate'
   Found 1 printer: 1 stampante trovata
   Framerate: Frequenza fotogrammi
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Differenza di frequenza: differenza tra il Percorso A e B. Qualsiasi valore sotto i 2 Hz è al di sotto di quanto questa misurazione può risolvere, quindi conta come corrispondente.\n\nCorrispondenza: quanto sono vicine le due cinghie, in percentuale della frequenza della cinghia A. Sopra il 95% è eccellente; sotto il 90% vale la pena regolare."
   From Buffer: Dal buffer
   From Version: Dalla versione
   Front: 'Davanti'
@@ -1887,8 +1878,6 @@ translations:
   Maximum acceleration (mm/s²): Accelerazione massima (mm/s²)
   Maximum toolhead speed (mm/s): Velocità massima testina (mm/s)
   Measure: 'Misura'
-  Measure and compare belt path frequencies: Misura e confronta le frequenze dei percorsi
-    cinghia
   Measure every tool's XYZ offset automatically: Misura automaticamente l'offset XYZ di ogni strumento
   Measure pressure advance automatically: 'Misura automaticamente il Pressure Advance'
   Measured (shaper off): Misurato (shaper disattivato)
@@ -2016,7 +2005,6 @@ translations:
   No Spools: Nessuna bobina
   No USB printer detected: Nessuna stampante USB rilevata
   No USB printers found: Nessuna stampante USB trovata
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: Nessuno stream dell'accelerometro disponibile. Verifica che Klipper sia in esecuzione e che sia configurato un accelerometro, poi riprova.
   No automatic backup-spool package is installed: Nessun plugin per bobina di riserva automatica installato
   No buffer data available: Nessun dato buffer disponibile
   No camera — use USB barcode scanner: Nessuna telecamera — usa scanner USB per codici
@@ -2188,7 +2176,6 @@ translations:
   Or Enter Manually: Oppure inserisci manualmente
   Or instead of turning the others: Oppure, invece di ruotare le altre
   Oscillating... cycle %d/%d: Oscillazione... ciclo %d/%d
-  Out of range: Fuori intervallo
   Outcome: Esito
   Output Device: Dispositivo di uscita
   Output Mode: Modalità uscita
@@ -3231,7 +3218,6 @@ translations:
   : Il plugin HelixPrint abilita modifiche G-code rapide direttamente sulla stampante,
     come saltare la mesh piano per ristampe veloci.
   The Spoolman spool currently loaded: La bobina Spoolman caricata
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': "Lo stream dell'accelerometro si è interrotto: %s. Verifica che Klipper sia in esecuzione, poi riprova."
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : Il salvaschermo animato è stato disattivato su questo dispositivo per evitare
@@ -3514,8 +3500,6 @@ translations:
   Unavailable: Non disponibile
   Unavailable on this printer: Non disponibile su questa stampante
   Undo: Indietro
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Una tensione non uniforme della cinghia causa artefatti di stampa come spostamenti di strato, VFA (artefatti verticali fini) e ringing.\n\nPizzica ogni cinghia a mano e questo strumento ascolta tramite l'accelerometro per misurare la frequenza della cinghia. Frequenze corrispondenti indicano una tensione bilanciata.\n\nPer CoreXY, le cinghie A e B dovrebbero differire di pochi Hz."
   Uninstall: Disinstalla
   Uninstall HelixPrint Plugin: Disinstalla plugin HelixPrint
   Uninstall HelixPrint Plugin?: Disinstallare il plugin HelixPrint?

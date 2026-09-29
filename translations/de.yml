@@ -344,8 +344,6 @@ translations:
   Bed temp must be 0-%d°C: Betttemperatur muss 0-%d°C betragen
   Bed warming timed out: Bettaufheizung Zeitüberschreitung
   Before starting: 'Vor dem Start'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: Riemen A (vorne rechts) ist um %.0f Hz stärker gespannt. Spannen Sie Riemen B, vorne links, oder lockern Sie Riemen A.
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: Riemen B (vorne links) ist um %.0f Hz stärker gespannt. Spannen Sie Riemen A, vorne rechts, oder lockern Sie Riemen B.
   Belt Tension: Riemenspannung
   Belt Tension Check: Riemenspannungsprüfung
   Beta: Beta
@@ -372,10 +370,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Rahmentransparenz (0 = unsichtbar,
     255 = solid)
   Both: Beide
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Beide Riemen liegen über dem %.0f-Hz-Ziel - A um %.0f Hz, B um %.0f Hz. Beide lockern.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Beide Riemen liegen unter dem %.0f-Hz-Ziel - A um %.0f Hz, B um %.0f Hz. Beide spannen, %s mehr.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Beide Riemen liegen auf dem %.0f-Hz-Ziel und stimmen überein. Nichts anzupassen.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Beide Riemen sind innerhalb der Auflösung dieser Messung gleich. Nichts anzupassen.
   Bouncing Printer: Bouncing Printer
   Bowden Length: 'Bowden-Länge'
   Bowden tube length from hub to toolhead: 'Länge des Bowdenschlauchs vom Hub zum Werkzeugkopf'
@@ -780,7 +774,6 @@ translations:
   Could not load printer database: Druckerdatenbank konnte nicht geladen werden
   Could not move the plate: Heizbett konnte nicht bewegt werden
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Der Beschleunigungssensor-Stream von Klipper konnte nicht geöffnet werden. Prüfen Sie, ob Klipper läuft, und versuchen Sie es erneut.
   Could not parse tips database: Tipps-Datenbank konnte nicht ausgelesen werden
   Could not reach Spoolman at: 'Spoolman nicht erreichbar unter:'
   Could not read the screw adjustments from the printer: Schraubeneinstellungen konnten nicht vom Drucker gelesen werden
@@ -1373,8 +1366,6 @@ translations:
   Found %zu printers: '%zu Drucker gefunden'
   Found 1 printer: 1 Drucker gefunden
   Framerate: Bildrate
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Frequenzdelta: Unterschied zwischen Pfad A und B. Alles unter 2 Hz liegt unterhalb der Auflösung dieser Messung und zählt daher als übereinstimmend.\n\nÜbereinstimmung: Wie nah die beiden Riemen beieinander liegen, als Prozentsatz der Frequenz von Riemen A. Über 95% ist ausgezeichnet; unter 90% lohnt sich eine Anpassung."
   From Buffer: Aus Puffer
   From Version: Von Version
   Front: 'Vorne'
@@ -1897,7 +1888,6 @@ translations:
   Maximum acceleration (mm/s²): Maximale Beschleunigung (mm/s²)
   Maximum toolhead speed (mm/s): Maximale Werkzeugkopfgeschwindigkeit (mm/s)
   Measure: 'Messen'
-  Measure and compare belt path frequencies: Riemenpfad-Frequenzen messen und vergleichen
   Measure every tool's XYZ offset automatically: Misst den XYZ-Offset jedes Werkzeugs automatisch
   Measure pressure advance automatically: 'Misst Pressure Advance automatisch'
   Measured (shaper off): Gemessen (Shaper aus)
@@ -2025,7 +2015,6 @@ translations:
   No Spools: Keine Spulen
   No USB printer detected: Kein USB-Drucker erkannt
   No USB printers found: Keine USB-Drucker gefunden
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: Kein Beschleunigungssensor-Stream verfügbar. Prüfen Sie, ob Klipper läuft und ein Beschleunigungssensor konfiguriert ist, und versuchen Sie es erneut.
   No automatic backup-spool package is installed: Kein Plugin für automatische Reserve-Spule installiert
   No buffer data available: Keine Pufferdaten verfügbar
   No camera — use USB barcode scanner: Keine Kamera — USB-Barcode-Scanner verwenden
@@ -2196,7 +2185,6 @@ translations:
   Or Enter Manually: Oder manuell eingeben
   Or instead of turning the others: Oder statt die anderen zu drehen
   Oscillating... cycle %d/%d: Oszilliert... Zyklus %d/%d
-  Out of range: Außerhalb des Bereichs
   Outcome: Ergebnis
   Output Device: Ausgabegerät
   Output Mode: Ausgabemodus
@@ -3238,7 +3226,6 @@ translations:
   : Das HelixPrint-Plugin ermöglicht schnelle G-Code-Modifikationen direkt auf Ihrem
     Drucker – wie das Überspringen des Bettnetzes für schnelle Neudrucke.
   The Spoolman spool currently loaded: Aktuell geladene Spoolman-Spule
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 'Der Beschleunigungssensor-Stream wurde beendet: %s. Prüfen Sie, ob Klipper läuft, und versuchen Sie es erneut.'
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : Der animierte Bildschirmschoner wurde auf diesem Gerät ausgeschaltet, um zu verhindern,
@@ -3522,8 +3509,6 @@ translations:
   Unavailable: Nicht verfügbar
   Unavailable on this printer: Auf diesem Drucker nicht verfügbar
   Undo: Rückgängig
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Ungleichmäßige Riemenspannung verursacht Druckartefakte wie Schichtverschiebungen, VFAs (vertikale feine Artefakte) und Ringing.\n\nZupfen Sie jeden Riemen von Hand an, und dieses Werkzeug misst über den Beschleunigungssensor die Frequenz des Riemens. Übereinstimmende Frequenzen bedeuten ausgewogene Spannung.\n\nBei CoreXY sollten die Riemen A und B nur wenige Hz voneinander entfernt sein."
   Uninstall: Deinstallieren
   Uninstall HelixPrint Plugin: HelixPrint-Plugin deinstallieren
   Uninstall HelixPrint Plugin?: HelixPrint-Plugin deinstallieren?

@@ -333,8 +333,6 @@ translations:
   Bed temp must be 0-%d°C: Температура стола должна быть 0-%d°C
   Bed warming timed out: Нагрев стола — время ожидания истекло
   Before starting: 'Перед началом'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: Ремень A (спереди справа) туже на %.0f Гц. Подтяните ремень B спереди слева или ослабьте ремень A.
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: Ремень B (спереди слева) туже на %.0f Гц. Подтяните ремень A спереди справа или ослабьте ремень B.
   Belt Tension: Натяжение ремня
   Belt Tension Check: Проверка натяжения ремня
   Beta: Бета
@@ -360,10 +358,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Прозрачность границы (0 = невидимая,
     255 = сплошная)
   Both: Оба
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Оба ремня выше целевых %.0f Гц - A на %.0f Гц, B на %.0f Гц. Ослабьте оба.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Оба ремня ниже целевых %.0f Гц - A на %.0f Гц, B на %.0f Гц. Подтяните оба, ещё %s.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Оба ремня на целевых %.0f Гц и совпадают друг с другом. Регулировка не требуется.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Оба ремня показывают одинаковое значение в пределах точности этого измерения. Регулировка не требуется.
   Bouncing Printer: Прыгающий принтер
   Bowden Length: 'Длина боудена'
   Bowden tube length from hub to toolhead: 'Длина боуден-трубки от хаба до печатающей головки'
@@ -765,7 +759,6 @@ translations:
   Could not load printer database: Не удалось загрузить базу данных принтеров
   Could not move the plate: Не удалось переместить стол
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Не удалось открыть поток акселерометра Klipper. Убедитесь, что Klipper запущен, и повторите попытку.
   Could not parse tips database: Не удалось разобрать базу данных советов
   Could not reach Spoolman at: Не удалось связаться со Spoolman по адресу
   Could not read the screw adjustments from the printer: Не удалось получить данные регулировки винтов от принтера
@@ -1347,8 +1340,6 @@ translations:
   Found %zu printers: Найдено %zu принтеров
   Found 1 printer: Найден 1 принтер
   Framerate: Частота кадров
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Разница частот: разница между путями A и B. Значения менее 2 Гц ниже точности этого измерения, поэтому считаются совпадением.\n\nСовпадение: насколько близки два ремня, в процентах от частоты ремня A. Выше 95% — отлично; ниже 90% стоит отрегулировать."
   From Buffer: Из буфера
   From Version: С версии
   Front: 'Спереди'
@@ -1869,7 +1860,6 @@ translations:
   Maximum acceleration (mm/s²): Максимальное ускорение (мм/с²)
   Maximum toolhead speed (mm/s): Максимальная скорость печатающей головки (мм/с)
   Measure: 'Измерить'
-  Measure and compare belt path frequencies: Измерить и сравнить частоты путей ремня
   Measure every tool's XYZ offset automatically: Автоматически измеряет смещение XYZ каждого инструмента
   Measure pressure advance automatically: 'Автоматически измеряет Pressure Advance'
   Measured (shaper off): Измерено (шейпер выключен)
@@ -1996,7 +1986,6 @@ translations:
   No Spools: Нет катушек
   No USB printer detected: USB-принтер не обнаружен
   No USB printers found: USB-принтеры не найдены
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: Поток акселерометра недоступен. Убедитесь, что Klipper запущен и акселерометр настроен, затем повторите попытку.
   No automatic backup-spool package is installed: Плагин автоматической резервной катушки не установлен
   No buffer data available: Данные буфера недоступны
   No camera — use USB barcode scanner: Нет камеры — используйте USB сканер штрих-кодов
@@ -2166,7 +2155,6 @@ translations:
   Or Enter Manually: Или введите вручную
   Or instead of turning the others: Или вместо вращения остальных винтов
   Oscillating... cycle %d/%d: Осцилляция... цикл %d/%d
-  Out of range: Вне диапазона
   Outcome: Результат
   Output Device: Устройство вывода
   Output Mode: Режим вывода
@@ -3201,7 +3189,6 @@ translations:
   : Плагин HelixPrint позволяет быстро модифицировать G-code прямо на принтере — например,
     пропускать сетку стола для быстрых перепечаток.
   The Spoolman spool currently loaded: Текущая катушка Spoolman
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 'Поток акселерометра остановлен: %s. Убедитесь, что Klipper запущен, и повторите попытку.'
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : Анимированная заставка была отключена на данном устройстве, чтобы она не мешала
@@ -3474,8 +3461,6 @@ translations:
   Unavailable: Недоступно
   Unavailable on this printer: Недоступно на этом принтере
   Undo: Шаг назад
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Неравномерное натяжение ремня вызывает дефекты печати, такие как смещения слоёв, VFA (вертикальные мелкие артефакты) и ringing.\n\nДёрните каждый ремень рукой, и этот инструмент измерит частоту ремня с помощью акселерометра. Совпадающие частоты означают сбалансированное натяжение.\n\nДля CoreXY ремни A и B должны отличаться на несколько Гц."
   Uninstall: Удалить
   Uninstall HelixPrint Plugin: Удалить плагин HelixPrint
   Uninstall HelixPrint Plugin?: Удалить плагин HelixPrint?

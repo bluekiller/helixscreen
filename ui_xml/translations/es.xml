@@ -309,8 +309,6 @@
   <translation tag="Bed temp must be 0-%d°C" es="La temperatura de la cama debe ser 0-%d°C"/>
   <translation tag="Bed warming timed out" es="Calentamiento de cama — tiempo de espera agotado"/>
   <translation tag="Before starting" es="Antes de empezar"/>
-  <translation tag="Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A." es="La correa A (delantera derecha) está %.0f Hz más tensa. Tensar la correa B, en la delantera izquierda, o aflojar la correa A."/>
-  <translation tag="Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B." es="La correa B (delantera izquierda) está %.0f Hz más tensa. Tensar la correa A, en la delantera derecha, o aflojar la correa B."/>
   <translation tag="Belt Tension" es="Tensión de correa"/>
   <translation tag="Belt Tension Check" es="Verificación de tensión de correa"/>
   <translation tag="Beta" es="Beta"/>
@@ -334,10 +332,6 @@
   <translation tag="Border Width" es="Ancho del Borde"/>
   <translation tag="Border transparency (0 = invisible, 255 = solid)" es="Transparencia del borde (0 = invisible, 255 = sólido)"/>
   <translation tag="Both" es="Ambos"/>
-  <translation tag="Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both." es="Ambas correas superan el objetivo de %.0f Hz - A por %.0f Hz, B por %.0f Hz. Aflojar ambas."/>
-  <translation tag="Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more." es="Ambas correas están por debajo del objetivo de %.0f Hz - A por %.0f Hz, B por %.0f Hz. Tensar ambas, %s más."/>
-  <translation tag="Both belts are on the %.0f Hz target and match each other. Nothing to adjust." es="Ambas correas están en el objetivo de %.0f Hz y coinciden entre sí. Nada que ajustar."/>
-  <translation tag="Both belts read the same to within what this measurement can resolve. Nothing to adjust." es="Ambas correas leen igual, dentro de lo que esta medición puede resolver. Nada que ajustar."/>
   <translation tag="Bouncing Printer" es="Bouncing Printer"/>
   <translation tag="Bowden Length" es="Longitud del bowden"/>
   <translation tag="Bowden tube length from hub to toolhead" es="Longitud del tubo bowden del hub al cabezal"/>
@@ -689,7 +683,6 @@
   <translation tag="Could not forget device" es="No se pudo olvidar el dispositivo"/>
   <translation tag="Could not load printer database" es="No se pudo cargar la base de datos de impresoras"/>
   <translation tag="Could not move the plate" es="No se pudo mover la cama"/>
-  <translation tag="Could not open Klipper&apos;s accelerometer stream. Check that Klipper is running, then retry." es="No se pudo abrir el flujo del acelerómetro de Klipper. Compruebe que Klipper esté en ejecución y vuelva a intentarlo."/>
   <translation tag="Could not parse tips database" es="No se pudo analizar la base de datos de consejos"/>
   <translation tag="Could not reach Spoolman at" es="No se pudo conectar a Spoolman en"/>
   <translation tag="Could not read the screw adjustments from the printer" es="No se pudieron leer los ajustes de los tornillos desde la impresora"/>
@@ -1231,7 +1224,6 @@
   <translation tag="Found %zu printers" es="%zu impresoras encontradas"/>
   <translation tag="Found 1 printer" es="1 impresora encontrada"/>
   <translation tag="Framerate" es="Cuadros por segundo"/>
-  <translation tag="Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.&#10;&#10;Match: How close the two belts are, as a percentage of belt A&apos;s frequency. Above 95% is excellent; below 90% is worth adjusting." es="Delta de frecuencia: diferencia entre la trayectoria A y la B. Cualquier valor por debajo de 2 Hz está por debajo de lo que esta medición puede resolver, así que se considera coincidente.&#10;&#10;Coincidencia: qué tan cerca están las dos correas, como porcentaje de la frecuencia de la correa A. Por encima del 95% es excelente; por debajo del 90% vale la pena ajustar."/>
   <translation tag="From Buffer" es="Desde búfer"/>
   <translation tag="From Version" es="Desde la versión"/>
   <translation tag="Front" es="Delante"/>
@@ -1693,7 +1685,6 @@
   <translation tag="Maximum acceleration (mm/s²)" es="Aceleración máxima (mm/s²)"/>
   <translation tag="Maximum toolhead speed (mm/s)" es="Velocidad máxima del cabezal (mm/s)"/>
   <translation tag="Measure" es="Medir"/>
-  <translation tag="Measure and compare belt path frequencies" es="Medir y comparar frecuencias de rutas de correa"/>
   <translation tag="Measure every tool&apos;s XYZ offset automatically" es="Mide el offset XYZ de cada herramienta automáticamente"/>
   <translation tag="Measure pressure advance automatically" es="Mide el Pressure Advance automáticamente"/>
   <translation tag="Measured (shaper off)" es="Medición (moldeador desactivado)"/>
@@ -1811,7 +1802,6 @@
   <translation tag="No Spools" es="Sin Bobinas"/>
   <translation tag="No USB printer detected" es="No se detectó impresora USB"/>
   <translation tag="No USB printers found" es="No se encontraron impresoras USB"/>
-  <translation tag="No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry." es="No hay flujo del acelerómetro disponible. Compruebe que Klipper esté en ejecución y que haya un acelerómetro configurado, y vuelva a intentarlo."/>
   <translation tag="No automatic backup-spool package is installed" es="No hay plugin de bobina de respaldo automática instalado"/>
   <translation tag="No buffer data available" es="Sin datos de búfer disponibles"/>
   <translation tag="No camera — use USB barcode scanner" es="Sin cámara — use un escáner de código de barras USB"/>
@@ -1970,7 +1960,6 @@
   <translation tag="Or Enter Manually" es="O Ingrese Manualmente"/>
   <translation tag="Or instead of turning the others" es="O en lugar de girar los demás"/>
   <translation tag="Oscillating... cycle %d/%d" es="Oscilando... ciclo %d/%d"/>
-  <translation tag="Out of range" es="Fuera de rango"/>
   <translation tag="Outcome" es="Resultado"/>
   <translation tag="Output Device" es="Dispositivo de salida"/>
   <translation tag="Output Mode" es="Modo de Salida"/>
@@ -2897,7 +2886,6 @@
   <translation tag="The CFS odometer hardware is faulty and needs repair or replacement" es="El hardware del odómetro del CFS está averiado y necesita reparación o sustitución"/>
   <translation tag="The HelixPrint plugin enables fast G-code modifications directly on your printer—like skipping bed mesh for quick reprints." es="El plugin HelixPrint permite modificaciones rápidas de G-code directamente en su impresora, como omitir la malla de cama para reimpresiones rápidas."/>
   <translation tag="The Spoolman spool currently loaded" es="La bobina de Spoolman cargada ahora"/>
-  <translation tag="The accelerometer stream stopped: %s. Check that Klipper is running, then retry." es="El flujo del acelerómetro se detuvo: %s. Compruebe que Klipper esté en ejecución y vuelva a intentarlo."/>
   <translation tag="The animated screensaver has been turned off on this device to prevent it from interfering with prints. You can re-enable it in Settings &gt; Display." es="El salvapantallas animado se ha desactivado en este dispositivo para evitar que interfiera con las impresiones. Puede volver a activarlo en Ajustes &gt; Pantalla."/>
   <translation tag="The bed has cooled. Take the spools off the plate, then confirm." es="La cama se ha enfriado. Quita las bobinas de la cama y luego confirma."/>
   <translation tag="The bed turns off. The spools stay latched on the bed until you confirm they are off." es="La cama se apaga. Las bobinas siguen registradas en la cama hasta que confirmes que las has quitado."/>
@@ -3111,7 +3099,6 @@
   <translation tag="Unavailable" es="No disponible"/>
   <translation tag="Unavailable on this printer" es="No disponible en esta impresora"/>
   <translation tag="Undo" es="Deshacer"/>
-  <translation tag="Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.&#10;&#10;Pluck each belt by hand and this tool listens through the accelerometer to measure the belt&apos;s frequency. Matched frequencies mean balanced tension.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." es="La tensión desigual de la correa causa defectos de impresión como desplazamientos de capa, VFA (artefactos verticales finos) y ringing.&#10;&#10;Pulsa cada correa con la mano y esta herramienta escucha a través del acelerómetro para medir la frecuencia de la correa. Frecuencias iguales significan tensión equilibrada.&#10;&#10;Para CoreXY, las correas A y B deben estar a pocos Hz entre sí."/>
   <translation tag="Uninstall" es="Desinstalar"/>
   <translation tag="Uninstall HelixPrint Plugin" es="Desinstalar Plugin HelixPrint"/>
   <translation tag="Uninstall HelixPrint Plugin?" es="¿Desinstalar Plugin HelixPrint?"/>

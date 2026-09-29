@@ -309,8 +309,6 @@
   <translation tag="Bed temp must be 0-%d°C" fr="La température du plateau doit être entre 0 et %d°C"/>
   <translation tag="Bed warming timed out" fr="Préchauffage du plateau — délai dépassé"/>
   <translation tag="Before starting" fr="Avant de commencer"/>
-  <translation tag="Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A." fr="La courroie A (avant droite) est plus tendue de %.0f Hz. Tendez la courroie B, à l&apos;avant gauche, ou détendez la courroie A."/>
-  <translation tag="Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B." fr="La courroie B (avant gauche) est plus tendue de %.0f Hz. Tendez la courroie A, à l&apos;avant droite, ou détendez la courroie B."/>
   <translation tag="Belt Tension" fr="Tension de courroie"/>
   <translation tag="Belt Tension Check" fr="Vérification de tension de courroie"/>
   <translation tag="Beta" fr="Bêta"/>
@@ -334,10 +332,6 @@
   <translation tag="Border Width" fr="Largeur de la bordure"/>
   <translation tag="Border transparency (0 = invisible, 255 = solid)" fr="Transparence de la bordure (0 = invisible, 255 = solide)"/>
   <translation tag="Both" fr="Les deux"/>
-  <translation tag="Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both." fr="Les deux courroies dépassent la cible de %.0f Hz - A de %.0f Hz, B de %.0f Hz. Détendez les deux."/>
-  <translation tag="Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more." fr="Les deux courroies sont en dessous de la cible de %.0f Hz - A de %.0f Hz, B de %.0f Hz. Tendez les deux, %s de plus."/>
-  <translation tag="Both belts are on the %.0f Hz target and match each other. Nothing to adjust." fr="Les deux courroies sont sur la cible de %.0f Hz et correspondent l&apos;une à l&apos;autre. Rien à ajuster."/>
-  <translation tag="Both belts read the same to within what this measurement can resolve. Nothing to adjust." fr="Les deux courroies affichent la même valeur, à la résolution de cette mesure près. Rien à ajuster."/>
   <translation tag="Bouncing Printer" fr="Bouncing Printer"/>
   <translation tag="Bowden Length" fr="Longueur du bowden"/>
   <translation tag="Bowden tube length from hub to toolhead" fr="Longueur du tube bowden du hub à la tête d&apos;outil"/>
@@ -689,7 +683,6 @@
   <translation tag="Could not forget device" fr="Impossible d&apos;oublier l&apos;appareil"/>
   <translation tag="Could not load printer database" fr="Impossible de charger la base de données d&apos;imprimantes"/>
   <translation tag="Could not move the plate" fr="Impossible de déplacer le plateau"/>
-  <translation tag="Could not open Klipper&apos;s accelerometer stream. Check that Klipper is running, then retry." fr="Impossible d&apos;ouvrir le flux de l&apos;accéléromètre de Klipper. Vérifiez que Klipper est en cours d&apos;exécution, puis réessayez."/>
   <translation tag="Could not parse tips database" fr="Impossible d&apos;analyser la base de données de conseils"/>
   <translation tag="Could not reach Spoolman at" fr="Impossible de joindre Spoolman à"/>
   <translation tag="Could not read the screw adjustments from the printer" fr="Impossible de lire les ajustements des vis du plateau depuis l&apos;imprimante"/>
@@ -1231,7 +1224,6 @@
   <translation tag="Found %zu printers" fr="%zu imprimantes trouvées"/>
   <translation tag="Found 1 printer" fr="1 imprimante trouvée"/>
   <translation tag="Framerate" fr="Fréquence d&apos;images"/>
-  <translation tag="Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.&#10;&#10;Match: How close the two belts are, as a percentage of belt A&apos;s frequency. Above 95% is excellent; below 90% is worth adjusting." fr="Delta de fréquence : différence entre les chemins A et B. Tout écart inférieur à 2 Hz est en dessous de la résolution de cette mesure, donc il compte comme correspondant.&#10;&#10;Correspondance : à quel point les deux courroies sont proches, en pourcentage de la fréquence de la courroie A. Au-dessus de 95 % c&apos;est excellent ; en dessous de 90 %, un ajustement est utile."/>
   <translation tag="From Buffer" fr="Depuis tampon"/>
   <translation tag="From Version" fr="Depuis la version"/>
   <translation tag="Front" fr="Avant"/>
@@ -1693,7 +1685,6 @@
   <translation tag="Maximum acceleration (mm/s²)" fr="Accélération maximale (mm/s²)"/>
   <translation tag="Maximum toolhead speed (mm/s)" fr="Vitesse maximale de la tête d&apos;outil (mm/s)"/>
   <translation tag="Measure" fr="Mesurer"/>
-  <translation tag="Measure and compare belt path frequencies" fr="Mesurer et comparer les fréquences des chemins de courroie"/>
   <translation tag="Measure every tool&apos;s XYZ offset automatically" fr="Mesure automatiquement l&apos;offset XYZ de chaque outil"/>
   <translation tag="Measure pressure advance automatically" fr="Mesure automatiquement le Pressure Advance"/>
   <translation tag="Measured (shaper off)" fr="Mesuré (shaper désactivé)"/>
@@ -1811,7 +1802,6 @@
   <translation tag="No Spools" fr="Aucune bobine"/>
   <translation tag="No USB printer detected" fr="Aucune imprimante USB détectée"/>
   <translation tag="No USB printers found" fr="Aucune imprimante USB trouvée"/>
-  <translation tag="No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry." fr="Aucun flux d&apos;accéléromètre disponible. Vérifiez que Klipper est en cours d&apos;exécution et qu&apos;un accéléromètre est configuré, puis réessayez."/>
   <translation tag="No automatic backup-spool package is installed" fr="Aucun plugin de bobine de secours automatique installé"/>
   <translation tag="No buffer data available" fr="Aucune donnée de tampon disponible"/>
   <translation tag="No camera — use USB barcode scanner" fr="Aucune caméra — utilisez un scanner de code-barres USB"/>
@@ -1970,7 +1960,6 @@
   <translation tag="Or Enter Manually" fr="Ou entrer manuellement"/>
   <translation tag="Or instead of turning the others" fr="Ou, au lieu de tourner les autres"/>
   <translation tag="Oscillating... cycle %d/%d" fr="Oscillation... cycle %d/%d"/>
-  <translation tag="Out of range" fr="Hors plage"/>
   <translation tag="Outcome" fr="Résultat"/>
   <translation tag="Output Device" fr="Périphérique de sortie"/>
   <translation tag="Output Mode" fr="Mode de sortie"/>
@@ -2897,7 +2886,6 @@
   <translation tag="The CFS odometer hardware is faulty and needs repair or replacement" fr="Le matériel d&apos;odométrie du CFS est défectueux et doit être réparé ou remplacé"/>
   <translation tag="The HelixPrint plugin enables fast G-code modifications directly on your printer—like skipping bed mesh for quick reprints." fr="Le plugin HelixPrint permet des modifications rapides du G-code directement sur votre imprimante—comme ignorer le maillage du plateau pour des réimpressions rapides."/>
   <translation tag="The Spoolman spool currently loaded" fr="La bobine Spoolman actuellement chargée"/>
-  <translation tag="The accelerometer stream stopped: %s. Check that Klipper is running, then retry." fr="Le flux de l&apos;accéléromètre s&apos;est arrêté : %s. Vérifiez que Klipper est en cours d&apos;exécution, puis réessayez."/>
   <translation tag="The animated screensaver has been turned off on this device to prevent it from interfering with prints. You can re-enable it in Settings &gt; Display." fr="L&apos;économiseur d&apos;écran animé a été désactivé sur cet appareil pour éviter qu&apos;il n&apos;interfère avec les impressions. Vous pouvez le réactiver dans Paramètres &gt; Affichage et son."/>
   <translation tag="The bed has cooled. Take the spools off the plate, then confirm." fr="Le plateau a refroidi. Retirez les bobines du plateau, puis confirmez."/>
   <translation tag="The bed turns off. The spools stay latched on the bed until you confirm they are off." fr="Le plateau s&apos;éteint. Les bobines restent signalées sur le plateau jusqu&apos;à ce que vous confirmiez les avoir retirées."/>
@@ -3111,7 +3099,6 @@
   <translation tag="Unavailable" fr="Indisponible"/>
   <translation tag="Unavailable on this printer" fr="Non disponible sur cette imprimante"/>
   <translation tag="Undo" fr="Défaire"/>
-  <translation tag="Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.&#10;&#10;Pluck each belt by hand and this tool listens through the accelerometer to measure the belt&apos;s frequency. Matched frequencies mean balanced tension.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." fr="Une tension de courroie inégale provoque des défauts d&apos;impression comme des décalages de couches, des VFA (défauts verticaux fins) et du ringing.&#10;&#10;Pincez chaque courroie à la main et cet outil écoute via l&apos;accéléromètre pour mesurer la fréquence de la courroie. Des fréquences identiques signifient une tension équilibrée.&#10;&#10;Pour le CoreXY, les courroies A et B devraient être à quelques Hz l&apos;une de l&apos;autre."/>
   <translation tag="Uninstall" fr="Désinstaller"/>
   <translation tag="Uninstall HelixPrint Plugin" fr="Désinstaller le plugin HelixPrint"/>
   <translation tag="Uninstall HelixPrint Plugin?" fr="Désinstaller le plugin HelixPrint ?"/>

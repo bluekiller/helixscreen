@@ -313,8 +313,6 @@ translations:
   Bed temp must be 0-%d°C: 热床温度必须为 0-%d°C
   Bed warming timed out: 热床加热超时
   Before starting: '开始之前'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: 皮带 A（前右）偏紧 %.0f Hz。请拉紧前左的皮带 B，或松开皮带 A。
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: 皮带 B（前左）偏紧 %.0f Hz。请拉紧前右的皮带 A，或松开皮带 B。
   Belt Tension: 皮带张力
   Belt Tension Check: 皮带张力检查
   Beta: 测试版
@@ -338,10 +336,6 @@ translations:
   Border Width: 边框宽度
   Border transparency (0 = invisible, 255 = solid): 边框透明度（0 = 不可见，255 = 实心）
   Both: 两者
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: 两条皮带都高于 %.0f Hz 目标 - A 高 %.0f Hz，B 高 %.0f Hz。请两条都松开。
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: 两条皮带都低于 %.0f Hz 目标 - A 低 %.0f Hz，B 低 %.0f Hz。请两条都拉紧，其中 %s 需要更多。
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: 两条皮带都处于 %.0f Hz 目标，且彼此匹配。无需调整。
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: 两条皮带的读数在此测量的分辨能力范围内一致。无需调整。
   Bouncing Printer: 弹跳打印机
   Bowden Length: '波顿管长度'
   Bowden tube length from hub to toolhead: '从集线器到工具头的波顿管长度'
@@ -706,7 +700,6 @@ translations:
   Could not load printer database: 无法加载打印机数据库
   Could not move the plate: 无法移动热床
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: 无法打开 Klipper 的加速度计数据流。请检查 Klipper 是否正在运行，然后重试。
   Could not parse tips database: 无法解析提示数据库
   Could not reach Spoolman at: 无法连接 Spoolman：
   Could not read the screw adjustments from the printer: 无法从打印机读取螺丝调整数据
@@ -1269,8 +1262,6 @@ translations:
   Found %zu printers: 找到 %zu 台打印机
   Found 1 printer: 找到 1 台打印机
   Framerate: 帧率
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "频率差: 路径 A 与 B 之间的差异。低于 2 Hz 的差异超出此测量的分辨能力，因此视为匹配。\n\n匹配度: 两条皮带的接近程度，以皮带 A 频率的百分比表示。高于 95% 为优秀;低于 90% 则值得调整。"
   From Buffer: 来自缓冲区
   From Version: 起始版本
   Front: '前'
@@ -1754,7 +1745,6 @@ translations:
   Maximum acceleration (mm/s²): 最大加速度 (mm/s²)
   Maximum toolhead speed (mm/s): 打印头最大速度 (mm/s)
   Measure: '测量'
-  Measure and compare belt path frequencies: 测量和比较皮带路径频率
   Measure every tool's XYZ offset automatically: 自动测量每个工具的 XYZ 偏移
   Measure pressure advance automatically: '自动测量压力提前'
   Measured (shaper off): 实测（关闭整形）
@@ -1876,7 +1866,6 @@ translations:
   No Spools: 无料盘
   No USB printer detected: 未检测到 USB 打印机
   No USB printers found: 未找到 USB 打印机
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: 没有可用的加速度计数据流。请检查 Klipper 是否正在运行，以及是否已配置加速度计，然后重试。
   No automatic backup-spool package is installed: 未安装自动备用料盘插件
   No buffer data available: 无可用缓冲区数据
   No camera — use USB barcode scanner: 无摄像头 — 请使用 USB 条码扫描器
@@ -2041,7 +2030,6 @@ translations:
   Or Enter Manually: 或手动输入
   Or instead of turning the others: 或者，无需转动其他螺丝
   Oscillating... cycle %d/%d: 振荡中... 循环 %d/%d
-  Out of range: 超出范围
   Outcome: 结果
   Output Device: 输出设备
   Output Mode: 输出模式
@@ -3012,7 +3000,6 @@ translations:
     skipping bed mesh for quick reprints.
   : HelixPrint 插件可在打印机上直接进行快速 G-code 修改——例如跳过热床网格以快速重新打印。
   The Spoolman spool currently loaded: 当前装载的 Spoolman 料盘
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 加速度计数据流已停止：%s。请检查 Klipper 是否正在运行，然后重试。
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : 为防止动画屏保干扰打印，已在此设备上将其关闭。您可以在设置 > 显示中重新启用。
@@ -3259,8 +3246,6 @@ translations:
   Unavailable: 不可用
   Unavailable on this printer: 此打印机上不可用
   Undo: 撤销
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "皮带张力不均会导致层错位、VFA(垂直细纹)和振纹等打印瑕疵。\n\n用手拨动每条皮带，此工具会通过加速度传感器测量皮带的频率。频率匹配意味着张力均衡。\n\n对于 CoreXY,皮带 A 与 B 应相差在几 Hz 以内。"
   Uninstall: 卸载
   Uninstall HelixPrint Plugin: 卸载 HelixPrint 插件
   Uninstall HelixPrint Plugin?: 卸载 HelixPrint 插件？

@@ -343,8 +343,6 @@ translations:
   Bed temp must be 0-%d°C: La température du plateau doit être entre 0 et %d°C
   Bed warming timed out: Préchauffage du plateau — délai dépassé
   Before starting: 'Avant de commencer'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: La courroie A (avant droite) est plus tendue de %.0f Hz. Tendez la courroie B, à l'avant gauche, ou détendez la courroie A.
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: La courroie B (avant gauche) est plus tendue de %.0f Hz. Tendez la courroie A, à l'avant droite, ou détendez la courroie B.
   Belt Tension: Tension de courroie
   Belt Tension Check: Vérification de tension de courroie
   Beta: Bêta
@@ -371,10 +369,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Transparence de la bordure (0
     = invisible, 255 = solide)
   Both: Les deux
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Les deux courroies dépassent la cible de %.0f Hz - A de %.0f Hz, B de %.0f Hz. Détendez les deux.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Les deux courroies sont en dessous de la cible de %.0f Hz - A de %.0f Hz, B de %.0f Hz. Tendez les deux, %s de plus.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Les deux courroies sont sur la cible de %.0f Hz et correspondent l'une à l'autre. Rien à ajuster.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Les deux courroies affichent la même valeur, à la résolution de cette mesure près. Rien à ajuster.
   Bouncing Printer: Bouncing Printer
   Bowden Length: 'Longueur du bowden'
   Bowden tube length from hub to toolhead: 'Longueur du tube bowden du hub à la tête d''outil'
@@ -782,7 +776,6 @@ translations:
   Could not load printer database: Impossible de charger la base de données d'imprimantes
   Could not move the plate: Impossible de déplacer le plateau
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Impossible d'ouvrir le flux de l'accéléromètre de Klipper. Vérifiez que Klipper est en cours d'exécution, puis réessayez.
   Could not parse tips database: Impossible d'analyser la base de données de conseils
   Could not reach Spoolman at: Impossible de joindre Spoolman à
   Could not read the screw adjustments from the printer: Impossible de lire les ajustements des vis du plateau depuis l'imprimante
@@ -1377,8 +1370,6 @@ translations:
   Found %zu printers: '%zu imprimantes trouvées'
   Found 1 printer: 1 imprimante trouvée
   Framerate: Fréquence d'images
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Delta de fréquence : différence entre les chemins A et B. Tout écart inférieur à 2 Hz est en dessous de la résolution de cette mesure, donc il compte comme correspondant.\n\nCorrespondance : à quel point les deux courroies sont proches, en pourcentage de la fréquence de la courroie A. Au-dessus de 95 % c'est excellent ; en dessous de 90 %, un ajustement est utile."
   From Buffer: Depuis tampon
   From Version: Depuis la version
   Front: 'Avant'
@@ -1902,8 +1893,6 @@ translations:
   Maximum acceleration (mm/s²): Accélération maximale (mm/s²)
   Maximum toolhead speed (mm/s): Vitesse maximale de la tête d'outil (mm/s)
   Measure: 'Mesurer'
-  Measure and compare belt path frequencies: Mesurer et comparer les fréquences des
-    chemins de courroie
   Measure every tool's XYZ offset automatically: Mesure automatiquement l'offset XYZ de chaque outil
   Measure pressure advance automatically: 'Mesure automatiquement le Pressure Advance'
   Measured (shaper off): Mesuré (shaper désactivé)
@@ -2031,7 +2020,6 @@ translations:
   No Spools: Aucune bobine
   No USB printer detected: Aucune imprimante USB détectée
   No USB printers found: Aucune imprimante USB trouvée
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: Aucun flux d'accéléromètre disponible. Vérifiez que Klipper est en cours d'exécution et qu'un accéléromètre est configuré, puis réessayez.
   No automatic backup-spool package is installed: Aucun plugin de bobine de secours automatique installé
   No buffer data available: Aucune donnée de tampon disponible
   No camera — use USB barcode scanner: Aucune caméra — utilisez un scanner de code-barres
@@ -2203,7 +2191,6 @@ translations:
   Or Enter Manually: Ou entrer manuellement
   Or instead of turning the others: Ou, au lieu de tourner les autres
   Oscillating... cycle %d/%d: Oscillation... cycle %d/%d
-  Out of range: Hors plage
   Outcome: Résultat
   Output Device: Périphérique de sortie
   Output Mode: Mode de sortie
@@ -3256,7 +3243,6 @@ translations:
   : Le plugin HelixPrint permet des modifications rapides du G-code directement sur
     votre imprimante—comme ignorer le maillage du plateau pour des réimpressions rapides.
   The Spoolman spool currently loaded: La bobine Spoolman actuellement chargée
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': "Le flux de l'accéléromètre s'est arrêté : %s. Vérifiez que Klipper est en cours d'exécution, puis réessayez."
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : L'économiseur d'écran animé a été désactivé sur cet appareil pour éviter qu'il
@@ -3545,8 +3531,6 @@ translations:
   Unavailable: Indisponible
   Unavailable on this printer: Non disponible sur cette imprimante
   Undo: Défaire
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Une tension de courroie inégale provoque des défauts d'impression comme des décalages de couches, des VFA (défauts verticaux fins) et du ringing.\n\nPincez chaque courroie à la main et cet outil écoute via l'accéléromètre pour mesurer la fréquence de la courroie. Des fréquences identiques signifient une tension équilibrée.\n\nPour le CoreXY, les courroies A et B devraient être à quelques Hz l'une de l'autre."
   Uninstall: Désinstaller
   Uninstall HelixPrint Plugin: Désinstaller le plugin HelixPrint
   Uninstall HelixPrint Plugin?: Désinstaller le plugin HelixPrint ?

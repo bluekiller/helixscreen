@@ -309,8 +309,6 @@
   <translation tag="Bed temp must be 0-%d°C" ja="ベッド温度は 0〜%d°C にしてください"/>
   <translation tag="Bed warming timed out" ja="ベッド加熱がタイムアウトしました"/>
   <translation tag="Before starting" ja="開始前に"/>
-  <translation tag="Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A." ja="ベルトA（フロント右）が %.0f Hz 張りすぎています。フロント左のベルトBを張るか、ベルトAを緩めてください。"/>
-  <translation tag="Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B." ja="ベルトB（フロント左）が %.0f Hz 張りすぎています。フロント右のベルトAを張るか、ベルトBを緩めてください。"/>
   <translation tag="Belt Tension" ja="ベルトテンション"/>
   <translation tag="Belt Tension Check" ja="ベルトテンション確認"/>
   <translation tag="Beta" ja="ベータ"/>
@@ -334,10 +332,6 @@
   <translation tag="Border Width" ja="境界線の幅"/>
   <translation tag="Border transparency (0 = invisible, 255 = solid)" ja="境界線の透明度 (0 = 透明、255 = 不透明)"/>
   <translation tag="Both" ja="両方"/>
-  <translation tag="Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both." ja="両方のベルトが目標の %.0f Hz を上回っています - Aは %.0f Hz、Bは %.0f Hz。両方とも緩めてください。"/>
-  <translation tag="Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more." ja="両方のベルトが目標の %.0f Hz を下回っています - Aは %.0f Hz、Bは %.0f Hz。両方とも %s 分張ってください。"/>
-  <translation tag="Both belts are on the %.0f Hz target and match each other. Nothing to adjust." ja="両方のベルトが目標の %.0f Hz に合っており、互いに一致しています。調整の必要はありません。"/>
-  <translation tag="Both belts read the same to within what this measurement can resolve. Nothing to adjust." ja="両方のベルトは、この測定の分解能内で同じ値を示しています。調整の必要はありません。"/>
   <translation tag="Bouncing Printer" ja="バウンドプリンター"/>
   <translation tag="Bowden Length" ja="ボーデン長"/>
   <translation tag="Bowden tube length from hub to toolhead" ja="ハブからツールヘッドまでのボーデンチューブ長"/>
@@ -689,7 +683,6 @@
   <translation tag="Could not forget device" ja="デバイスの登録を解除できませんでした"/>
   <translation tag="Could not load printer database" ja="プリンターデータベースを読み込めませんでした"/>
   <translation tag="Could not move the plate" ja="ベッドを動かせませんでした"/>
-  <translation tag="Could not open Klipper&apos;s accelerometer stream. Check that Klipper is running, then retry." ja="Klipperの加速度センサーストリームを開けませんでした。Klipperが実行中か確認してから再試行してください。"/>
   <translation tag="Could not parse tips database" ja="ヒントデータベースを解析できませんでした"/>
   <translation tag="Could not reach Spoolman at" ja="Spoolman に接続できません:"/>
   <translation tag="Could not read the screw adjustments from the printer" ja="プリンターからネジ調整を読み取れませんでした"/>
@@ -1231,7 +1224,6 @@
   <translation tag="Found %zu printers" ja="%zu台のプリンターを検出"/>
   <translation tag="Found 1 printer" ja="プリンター1台を検出"/>
   <translation tag="Framerate" ja="フレームレート"/>
-  <translation tag="Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.&#10;&#10;Match: How close the two belts are, as a percentage of belt A&apos;s frequency. Above 95% is excellent; below 90% is worth adjusting." ja="周波数差: パス A と B の差。2 Hz 未満はこの測定の分解能を下回るため、一致とみなされます。&#10;&#10;一致度: 2つのベルトの周波数がどれだけ近いかを、ベルトAの周波数に対する割合で示したもの。95% を超えれば優秀で、90% を下回ると調整が必要です。"/>
   <translation tag="From Buffer" ja="バッファから"/>
   <translation tag="From Version" ja="更新前バージョン"/>
   <translation tag="Front" ja="手前"/>
@@ -1693,7 +1685,6 @@
   <translation tag="Maximum acceleration (mm/s²)" ja="最大加速度 (mm/s²)"/>
   <translation tag="Maximum toolhead speed (mm/s)" ja="ツールヘッドの最大速度 (mm/s)"/>
   <translation tag="Measure" ja="測定"/>
-  <translation tag="Measure and compare belt path frequencies" ja="ベルトパスの周波数を測定・比較"/>
   <translation tag="Measure every tool&apos;s XYZ offset automatically" ja="各ツールの XYZ オフセットを自動で測定します"/>
   <translation tag="Measure pressure advance automatically" ja="Pressure Advance を自動で測定します"/>
   <translation tag="Measured (shaper off)" ja="測定値（シェーパーオフ時）"/>
@@ -1811,7 +1802,6 @@
   <translation tag="No Spools" ja="スプールなし"/>
   <translation tag="No USB printer detected" ja="USB プリンターが検出されません"/>
   <translation tag="No USB printers found" ja="USBプリンターが見つかりません"/>
-  <translation tag="No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry." ja="利用可能な加速度センサーストリームがありません。Klipperが実行中で加速度センサーが設定されているか確認してから再試行してください。"/>
   <translation tag="No automatic backup-spool package is installed" ja="自動バックアップスプール用プラグインが未インストールです"/>
   <translation tag="No buffer data available" ja="バッファーデータがありません"/>
   <translation tag="No camera — use USB barcode scanner" ja="カメラなし — USB バーコードスキャナーを使用してください"/>
@@ -1970,7 +1960,6 @@
   <translation tag="Or Enter Manually" ja="または手動で入力"/>
   <translation tag="Or instead of turning the others" ja="他のネジを回す代わりに"/>
   <translation tag="Oscillating... cycle %d/%d" ja="振動中... サイクル %d/%d"/>
-  <translation tag="Out of range" ja="範囲外"/>
   <translation tag="Outcome" ja="結果"/>
   <translation tag="Output Device" ja="出力デバイス"/>
   <translation tag="Output Mode" ja="出力モード"/>
@@ -2897,7 +2886,6 @@
   <translation tag="The CFS odometer hardware is faulty and needs repair or replacement" ja="CFS の走行距離計ハードウェアが故障しています。修理または交換が必要です"/>
   <translation tag="The HelixPrint plugin enables fast G-code modifications directly on your printer—like skipping bed mesh for quick reprints." ja="HelixPrint プラグインは、クイック再印刷のためのベッドメッシュスキップなど、プリンター上で直接高速 G-code 修正を可能にします。"/>
   <translation tag="The Spoolman spool currently loaded" ja="現在装填中の Spoolman スプール"/>
-  <translation tag="The accelerometer stream stopped: %s. Check that Klipper is running, then retry." ja="加速度センサーストリームが停止しました: %s。Klipperが実行中か確認してから再試行してください。"/>
   <translation tag="The animated screensaver has been turned off on this device to prevent it from interfering with prints. You can re-enable it in Settings &gt; Display." ja="アニメーション付きスクリーンセーバーが印刷に干渉しないよう、このデバイスではオフになっています。設定 &gt; ディスプレイで再度有効にできます。"/>
   <translation tag="The bed has cooled. Take the spools off the plate, then confirm." ja="ベッドが冷えました。スプールをベッドから取り出してから確認してください。"/>
   <translation tag="The bed turns off. The spools stay latched on the bed until you confirm they are off." ja="ベッドをオフにします。取り出したことを確認するまで、スプールはベッド上にあるものとして扱われます。"/>
@@ -3111,7 +3099,6 @@
   <translation tag="Unavailable" ja="利用不可"/>
   <translation tag="Unavailable on this printer" ja="このプリンターでは利用できません"/>
   <translation tag="Undo" ja="元に戻す"/>
-  <translation tag="Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.&#10;&#10;Pluck each belt by hand and this tool listens through the accelerometer to measure the belt&apos;s frequency. Matched frequencies mean balanced tension.&#10;&#10;On CoreXY, belts A and B should be within a few Hz of each other." ja="ベルト張力が不均一だと、レイヤーシフトや VFA(垂直微細アーティファクト)、リンギングなどの印刷不良が発生します。&#10;&#10;各ベルトを手ではじくと、このツールが加速度センサーでベルトの周波数を測定します。周波数が一致していれば張力が均等であることを意味します。&#10;&#10;CoreXY では、ベルト A と B は数 Hz 以内に収まっている必要があります。"/>
   <translation tag="Uninstall" ja="アンインストール"/>
   <translation tag="Uninstall HelixPrint Plugin" ja="HelixPrint プラグインをアンインストール"/>
   <translation tag="Uninstall HelixPrint Plugin?" ja="HelixPrint プラグインをアンインストールしますか？"/>

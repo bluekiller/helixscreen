@@ -326,8 +326,6 @@ translations:
   Bed temp must be 0-%d°C: Bed temp must be 0-%d°C
   Bed warming timed out: Bed warming timed out
   Before starting: Before starting
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.
   Belt Tension: Belt Tension
   Belt Tension Check: Belt Tension Check
   Beta: Beta
@@ -353,10 +351,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Border transparency (0 = invisible,
     255 = solid)
   Both: Both
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Both belts are on the %.0f Hz target and match each other. Nothing to adjust.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Both belts read the same to within what this measurement can resolve. Nothing to adjust.
   Bouncing Printer: Bouncing Printer
   Bowden Length: Bowden Length
   Bowden tube length from hub to toolhead: Bowden tube length from hub to toolhead
@@ -747,7 +741,6 @@ translations:
   Could not forget device: Could not forget device
   Could not load printer database: Could not load printer database
   Could not move the plate: Could not move the plate
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.
   Could not parse tips database: Could not parse tips database
   Could not reach Spoolman at: Could not reach Spoolman at
   Could not read the screw adjustments from the printer: Could not read the screw adjustments from the printer
@@ -1315,8 +1308,6 @@ translations:
   Found %zu printers: Found %zu printers
   Found 1 printer: Found 1 printer
   Framerate: Framerate
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
   From Buffer: From Buffer
   From Version: From Version
   Front: Front
@@ -1824,7 +1815,6 @@ translations:
   Maximum acceleration (mm/s²): Maximum acceleration (mm/s²)
   Maximum toolhead speed (mm/s): Maximum toolhead speed (mm/s)
   Measure: Measure
-  Measure and compare belt path frequencies: Measure and compare belt path frequencies
   Measure every tool's XYZ offset automatically: Measure every tool's XYZ offset automatically
   Measure pressure advance automatically: Measure pressure advance automatically
   Measured (shaper off): Measured (shaper off)
@@ -1953,7 +1943,6 @@ translations:
   No Spools: No Spools
   No USB printer detected: No USB printer detected
   No USB printers found: No USB printers found
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.
   No automatic backup-spool package is installed: No automatic backup-spool package is installed
   No buffer data available: No buffer data available
   No camera — use USB barcode scanner: No camera — use USB barcode scanner
@@ -2119,7 +2108,6 @@ translations:
   Or Enter Manually: Or Enter Manually
   Or instead of turning the others: Or instead of turning the others
   Oscillating... cycle %d/%d: Oscillating... cycle %d/%d
-  Out of range: Out of range
   Outcome: Outcome
   Output Device: Output Device
   Output Mode: Output Mode
@@ -3135,7 +3123,6 @@ translations:
   : The HelixPrint plugin enables fast G-code modifications directly on your printer—like
     skipping bed mesh for quick reprints.
   The Spoolman spool currently loaded: The Spoolman spool currently loaded
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.'
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : The animated screensaver has been turned off on this device to prevent it from
@@ -3402,8 +3389,6 @@ translations:
   Unavailable: Unavailable
   Unavailable on this printer: Unavailable on this printer
   Undo: Undo
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
   Uninstall: Uninstall
   Uninstall HelixPrint Plugin: Uninstall HelixPrint Plugin
   Uninstall HelixPrint Plugin?: Uninstall HelixPrint Plugin?

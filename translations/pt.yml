@@ -338,8 +338,6 @@ translations:
   Bed temp must be 0-%d°C: A temperatura da mesa deve ser 0-%d°C
   Bed warming timed out: Aquecimento da mesa — tempo esgotado
   Before starting: 'Antes de começar'
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: A correia A (dianteira direita) está mais apertada por %.0f Hz. Tensione a correia B, na dianteira esquerda, ou afrouxe a correia A.
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: A correia B (dianteira esquerda) está mais apertada por %.0f Hz. Tensione a correia A, na dianteira direita, ou afrouxe a correia B.
   Belt Tension: Tensão da correia
   Belt Tension Check: Verificação de tensão da correia
   Beta: Beta
@@ -365,10 +363,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Transparência da borda (0 = invisível,
     255 = sólido)
   Both: Ambos
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Ambas as correias estão acima do alvo de %.0f Hz - A por %.0f Hz, B por %.0f Hz. Afrouxe ambas.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Ambas as correias estão abaixo do alvo de %.0f Hz - A por %.0f Hz, B por %.0f Hz. Tensione ambas, %s mais.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Ambas as correias estão no alvo de %.0f Hz e correspondem entre si. Nada a ajustar.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Ambas as correias apresentam a mesma leitura, dentro do que esta medição consegue resolver. Nada a ajustar.
   Bouncing Printer: Impressora Saltitante
   Bowden Length: 'Comprimento do bowden'
   Bowden tube length from hub to toolhead: 'Comprimento do tubo bowden do hub ao cabeçote'
@@ -777,7 +771,6 @@ translations:
   Could not load printer database: Não foi possível carregar o banco de dados de impressoras
   Could not move the plate: Não foi possível mover a mesa
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Não foi possível abrir a transmissão do acelerômetro do Klipper. Verifique se o Klipper está em execução e tente novamente.
   Could not parse tips database: Não foi possível analisar o banco de dados de dicas
   Could not reach Spoolman at: Não foi possível alcançar o Spoolman em
   Could not read the screw adjustments from the printer: Não foi possível ler os ajustes dos parafusos da impressora
@@ -1363,8 +1356,6 @@ translations:
   Found %zu printers: '%zu impressoras encontradas'
   Found 1 printer: 1 impressora encontrada
   Framerate: Taxa de Quadros
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Delta de Frequência: Diferença entre o Caminho A e B. Qualquer valor abaixo de 2 Hz está fora do que esta medição consegue resolver, portanto conta como correspondente.\n\nCorrespondência: O quão próximas as duas correias estão, como uma porcentagem da frequência da correia A. Acima de 95% é excelente; abaixo de 90% vale a pena ajustar."
   From Buffer: Do buffer
   From Version: Da Versão
   Front: 'Frente'
@@ -1890,8 +1881,6 @@ translations:
   Maximum acceleration (mm/s²): Aceleração máxima (mm/s²)
   Maximum toolhead speed (mm/s): Velocidade máxima do cabeçote (mm/s)
   Measure: 'Medir'
-  Measure and compare belt path frequencies: Medir e comparar frequências dos caminhos
-    de correia
   Measure every tool's XYZ offset automatically: Mede o offset XYZ de cada ferramenta automaticamente
   Measure pressure advance automatically: 'Mede o Pressure Advance automaticamente'
   Measured (shaper off): Medido (shaper desligado)
@@ -2019,7 +2008,6 @@ translations:
   No Spools: Sem Carretéis
   No USB printer detected: Nenhuma impressora USB detectada
   No USB printers found: Nenhuma impressora USB encontrada
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: Nenhuma transmissão do acelerômetro disponível. Verifique se o Klipper está em execução e se um acelerômetro está configurado, e tente novamente.
   No automatic backup-spool package is installed: Nenhum plugin de carretel de reserva automático instalado
   No buffer data available: Nenhum dado de buffer disponível
   No camera — use USB barcode scanner: Sem câmera — use leitor de código de barras
@@ -2191,7 +2179,6 @@ translations:
   Or Enter Manually: Ou Digite Manualmente
   Or instead of turning the others: Ou, em vez de girar os outros
   Oscillating... cycle %d/%d: Oscilando... ciclo %d/%d
-  Out of range: Fora do intervalo
   Outcome: Resultado
   Output Device: Dispositivo de Saída
   Output Mode: Modo de Saída
@@ -3238,7 +3225,6 @@ translations:
   : O plugin HelixPrint permite modificações rápidas de G-code diretamente na sua
     impressora—como pular malha da mesa para reimpressões rápidas.
   The Spoolman spool currently loaded: O carretel do Spoolman em uso
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 'A transmissão do acelerômetro parou: %s. Verifique se o Klipper está em execução e tente novamente.'
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : O protetor de tela animado foi desativado neste dispositivo para evitar que interfira
@@ -3519,8 +3505,6 @@ translations:
   Unavailable: Indisponível
   Unavailable on this printer: Não disponível nesta impressora
   Undo: Desfazer
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "A tensão desigual da correia causa artefatos de impressão como deslocamentos de camada, VFAs (artefatos verticais finos) e ringing.\n\nBelisque cada correia com a mão e esta ferramenta escuta pelo acelerômetro para medir a frequência da correia. Frequências coincidentes significam tensão equilibrada.\n\nPara CoreXY, as correias A e B devem estar a poucos Hz uma da outra."
   Uninstall: Desinstalar
   Uninstall HelixPrint Plugin: Desinstalar Plugin HelixPrint
   Uninstall HelixPrint Plugin?: Desinstalar Plugin HelixPrint?
