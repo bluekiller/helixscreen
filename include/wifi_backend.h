@@ -512,6 +512,15 @@ class WifiBackend {
         return true;
     }
 
+    /// Whether forget_network() can remove a saved network at all.
+    ///
+    /// The UI hides its Forget control when this is false rather than offering
+    /// one that can only answer NOT_SUPPORTED. Must agree with forget_network():
+    /// a backend that overrides forget_network() overrides this to true.
+    virtual bool supports_forget() const {
+        return false;
+    }
+
     /// Whether joining a Wi-Fi network right now would take the link away
     /// from a wired transport that currently holds it.
     ///

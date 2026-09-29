@@ -85,6 +85,7 @@
                 width="100%" height="content" style_pad_left="#space_md" style_pad_right="#space_md" style_pad_top="0"
                 flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false"
                 clickable="true">
+          <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if cond="ui_breakpoint lt 3" flag="hidden"/>
           <event_cb trigger="clicked" callback="on_print_status_units_toggle"/>
           <text_small text="Speed" clickable="false" event_bubble="true"/>

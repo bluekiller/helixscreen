@@ -23,6 +23,7 @@
       <icon name="status_notification_icon"
             src="notifications" size="#icon_size" variant="secondary" align="center" clickable="true"
             click_focusable="false">
+        <style name="styles.press_wash" selector="pressed"/>
         <bind_style_if_eq name="styles.tile_icon_xs" subject="$tile_icon_subject" ref_value="0"/>
         <bind_style_if_eq name="styles.tile_icon_sm" subject="$tile_icon_subject" ref_value="1"/>
         <bind_style_if_eq name="styles.tile_icon_md" subject="$tile_icon_subject" ref_value="2"/>

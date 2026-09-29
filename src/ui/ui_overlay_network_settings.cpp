@@ -177,6 +177,8 @@ void NetworkSettingsOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_INT(wifi_only_24ghz_, 1, "wifi_only_24ghz",
                            subjects_); // Default: assume 2.4GHz only
     UI_MANAGED_SUBJECT_INT(wifi_scanning_, 0, "wifi_scanning", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_can_forget_, 0, "wifi_can_forget", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_can_toggle_radio_, 0, "wifi_can_toggle_radio", subjects_);
 
     // WiFi string subjects
     UI_MANAGED_SUBJECT_STRING(connected_ssid_, ssid_buffer_, "", "connected_ssid", subjects_);
@@ -365,6 +367,7 @@ void NetworkSettingsOverlay::hide() {
 void NetworkSettingsOverlay::on_activate() {
     // Call base class first
     OverlayBase::on_activate();
+    forget_read_pending_ = false;
 
     spdlog::debug("[NetworkSettingsOverlay] on_activate()");
 
@@ -385,12 +388,15 @@ void NetworkSettingsOverlay::on_activate() {
                                           [this]() { refresh_transport_status(); });
     }
 
-    // Update band capability indicator (show "Only 2.4GHz" if 5GHz not supported)
+    // Backend capabilities: the 2.4GHz-only indicator, and the Forget and
+    // radio-toggle controls, which are hidden where the backend cannot act.
     if (wifi_manager_) {
         bool only_24ghz = !wifi_manager_->supports_5ghz();
         lv_subject_set_int(&wifi_only_24ghz_, only_24ghz ? 1 : 0);
         spdlog::debug("[NetworkSettingsOverlay] WiFi band capability: {}",
                       only_24ghz ? "2.4GHz only" : "2.4GHz + 5GHz");
+        lv_subject_set_int(&wifi_can_forget_, wifi_manager_->supports_forget() ? 1 : 0);
+        lv_subject_set_int(&wifi_can_toggle_radio_, wifi_manager_->supports_radio_toggle() ? 1 : 0);
     }
 
     // Start scanning if WiFi enabled
@@ -442,6 +448,7 @@ void NetworkSettingsOverlay::cleanup() {
 
     // Call base class to set cleanup_called_ flag
     OverlayBase::cleanup();
+    ++status_generation_;
 
     cancel_wlan_toggle_backstop();
 
@@ -484,16 +491,30 @@ void NetworkSettingsOverlay::update_wifi_status() {
         return;
     }
 
+    // is_enabled() reads the backend's cached flags; the connection itself
+    // is a status read that can block, so it lands asynchronously.
     bool enabled = wifi_manager_->is_enabled();
-    bool connected = wifi_manager_->is_connected();
-
     lv_subject_set_int(&wifi_enabled_, enabled ? 1 : 0);
+
+    wifi_manager_->get_status_async(
+        lifetime_.token(),
+        [this, gen = status_generation_](const WifiBackend::ConnectionStatus& status) {
+            if (gen != status_generation_) {
+                return;
+            }
+            apply_wifi_status(status);
+            update_any_network_connected();
+        });
+}
+
+void NetworkSettingsOverlay::apply_wifi_status(const WifiBackend::ConnectionStatus& status) {
+    const bool connected = status.connected;
     lv_subject_set_int(&wifi_connected_, connected ? 1 : 0);
 
     if (connected) {
-        std::string ssid = wifi_manager_->get_connected_ssid();
-        std::string ip = wifi_manager_->get_ip_address();
-        std::string mac = wifi_manager_->get_mac_address();
+        const std::string& ssid = status.ssid;
+        const std::string& ip = status.ip_address;
+        const std::string& mac = status.mac_address;
 
         strncpy(ssid_buffer_, ssid.c_str(), sizeof(ssid_buffer_) - 1);
         ssid_buffer_[sizeof(ssid_buffer_) - 1] = '\0';
@@ -625,6 +646,23 @@ void NetworkSettingsOverlay::update_test_state(NetworkTester::TestState state,
 }
 
 void NetworkSettingsOverlay::populate_network_list(const std::vector<WiFiNetwork>& networks) {
+    cached_networks_ = networks;
+    if (!wifi_manager_) {
+        build_network_list(cached_networks_, WifiBackend::ConnectionStatus{});
+        return;
+    }
+    wifi_manager_->get_status_async(
+        lifetime_.token(),
+        [this, gen = status_generation_](const WifiBackend::ConnectionStatus& status) {
+            if (gen != status_generation_) {
+                return;
+            }
+            build_network_list(cached_networks_, status);
+        });
+}
+
+void NetworkSettingsOverlay::build_network_list(const std::vector<WiFiNetwork>& networks,
+                                                const WifiBackend::ConnectionStatus& status) {
     if (!networks_list_) {
         spdlog::error("[NetworkSettingsOverlay] Cannot populate: networks_list is null");
         return;
@@ -652,11 +690,8 @@ void NetworkSettingsOverlay::populate_network_list(const std::vector<WiFiNetwork
                   return a.signal_strength > b.signal_strength;
               });
 
-    // Get connected network SSID
-    std::string connected_ssid;
-    if (wifi_manager_) {
-        connected_ssid = wifi_manager_->get_connected_ssid();
-    }
+    // Connected network SSID
+    const std::string& connected_ssid = status.ssid;
 
     // Band badges only earn their pixels when the scan actually spans bands —
     // on a 2.4GHz-only radio every row would read "2.4G" (helixscreen#1189).
@@ -843,6 +878,7 @@ void NetworkSettingsOverlay::handle_wlan_toggle_changed(lv_event_t* e) {
 
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     spdlog::info("[NetworkSettingsOverlay] WiFi toggle: {}", enabled ? "ON" : "OFF");
+    ++status_generation_;
 
     if (!wifi_manager_) {
         spdlog::error("[NetworkSettingsOverlay] WiFiManager not initialized");
@@ -1301,6 +1337,7 @@ void NetworkSettingsOverlay::handle_hidden_connect_clicked() {
     }
 
     std::string ssid_str(ssid);
+    ++status_generation_;
     auto token = lifetime_.token();
 
     wifi_manager_->connect(
@@ -1346,6 +1383,8 @@ void NetworkSettingsOverlay::handle_hidden_connect_clicked() {
                             lv_obj_remove_flag(error_label, LV_OBJ_FLAG_HIDDEN);
                         }
                     }
+                    // The join's start dropped any status answer in flight.
+                    update_wifi_status();
                 }
             });
         },
@@ -1399,6 +1438,7 @@ void NetworkSettingsOverlay::handle_network_item_clicked(lv_event_t* e) {
             return;
         }
 
+        ++status_generation_;
         auto token = lifetime_.token();
         wifi_manager_->connect(
             item_data->ssid, "",
@@ -1418,6 +1458,8 @@ void NetworkSettingsOverlay::handle_network_item_clicked(lv_event_t* e) {
                         NOTIFY_ERROR("{}", helix::connect_failure_message(
                                                result, error,
                                                lv_tr("Connection failed. Check credentials.")));
+                        // The join's start dropped any status answer in flight.
+                        update_wifi_status();
                     }
                 });
             });
@@ -1430,9 +1472,25 @@ void NetworkSettingsOverlay::handle_network_settings_forget() {
         return;
     }
 
+    if (forget_read_pending_) {
+        return;
+    }
+    forget_read_pending_ = true;
+
     // Fresh read, not the cached connected_ssid_ subject — the confirmation
     // dialog acts on whatever is actually associated right now.
-    std::string ssid = wifi_manager_->get_connected_ssid();
+    wifi_manager_->get_status_async(
+        lifetime_.token(),
+        [this, gen = status_generation_](const WifiBackend::ConnectionStatus& status) {
+            forget_read_pending_ = false;
+            if (gen != status_generation_) {
+                return;
+            }
+            confirm_forget(status.ssid);
+        });
+}
+
+void NetworkSettingsOverlay::confirm_forget(const std::string& ssid) {
     if (ssid.empty()) {
         spdlog::debug("[NetworkSettingsOverlay] Forget clicked with no connected network");
         return;
@@ -1456,6 +1514,7 @@ void NetworkSettingsOverlay::handle_network_settings_forget() {
 }
 
 void NetworkSettingsOverlay::handle_network_forget_confirm() {
+    ++status_generation_;
     std::string ssid = pending_forget_ssid_;
     pending_forget_ssid_.clear();
 
@@ -1620,6 +1679,7 @@ void NetworkSettingsOverlay::hide_password_modal() {
 void NetworkSettingsOverlay::handle_password_cancel_clicked() {
     spdlog::debug("[NetworkSettingsOverlay] Password cancel clicked");
     hide_password_modal();
+    update_wifi_status();
 }
 
 void NetworkSettingsOverlay::handle_password_connect_clicked() {
@@ -1662,6 +1722,7 @@ void NetworkSettingsOverlay::handle_password_connect_clicked() {
     // Capture password for lambda
     std::string pwd(password);
     std::string ssid(current_ssid_);
+    ++status_generation_;
     auto token = lifetime_.token();
 
     wifi_manager_->connect(
@@ -1707,6 +1768,8 @@ void NetworkSettingsOverlay::handle_password_connect_clicked() {
                             lv_obj_remove_flag(modal_status, LV_OBJ_FLAG_HIDDEN);
                         }
                     }
+                    // The join's start dropped any status answer in flight.
+                    update_wifi_status();
                 }
             });
         });
