@@ -95,6 +95,7 @@
 #include "ui_icon.h"
 #include "ui_icon_loader.h"
 #include "ui_keyboard_manager.h"
+#include "ui_language_refresh.h"
 #include "ui_lock_screen.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
@@ -1954,6 +1955,10 @@ bool Application::init_core_subjects() {
     // ams_current_tool_text — without this observer the lane label stays at
     // its default "---" until a user navigates into an AMS panel.
     helix::ui::init_ams_tool_text_observers();
+
+    // Tool and extruder names are translated where the printer layer discovers
+    // them; this re-renders them when the language changes.
+    helix::ui::init_language_refresh();
 
     // Bring LedController up with no API yet so its `led_controllable` subject
     // is registered for XML before the home/print-status panels instantiate.

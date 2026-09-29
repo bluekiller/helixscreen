@@ -351,6 +351,14 @@ void TempGraphController::reattach_observers() {
                     [this]() { suppress_attach_fire_ = false; });
 }
 
+void TempGraphController::set_series_name(const std::string& klipper_name,
+                                          const std::string& display_name) {
+    const int id = series_id_for(klipper_name);
+    if (graph_ && id >= 0) {
+        temp_graph_set_series_name(graph_, id, display_name.c_str());
+    }
+}
+
 int TempGraphController::series_id_for(const std::string& klipper_name) const {
     for (const auto& s : series_) {
         if (s.klipper_name == klipper_name) {

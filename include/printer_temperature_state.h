@@ -102,6 +102,10 @@ class PrinterTemperatureState {
      */
     void init_extruders(const std::vector<std::string>& heaters);
 
+    /// Re-render each extruder's translated display name ("Nozzle 2") in the
+    /// current language and bump extruder_version so consumers redraw.
+    void refresh_display_names();
+
     // Active extruder subjects (decidegrees: value * 10)
     // These track whichever extruder is currently active (set via set_active_extruder)
     lv_subject_t* get_active_extruder_temp_subject() {

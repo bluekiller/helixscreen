@@ -134,6 +134,13 @@ void ToolState::deinit_subjects() {
     subjects_initialized_ = false;
 }
 
+void ToolState::refresh_display_labels() {
+    for (auto& tool : tools_) {
+        tool.display_label = helix::ui::lane_label(helix::ui::active_tool_noun(), tool.index);
+    }
+    lv_subject_set_int(&tools_version_, lv_subject_get_int(&tools_version_) + 1);
+}
+
 void ToolState::init_tools(const helix::PrinterDiscovery& hardware) {
     // Clear existing tools
     tools_.clear();

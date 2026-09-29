@@ -326,6 +326,11 @@ class PrinterState {
         temperature_state_.init_extruders(heaters);
     }
 
+    /// Re-render extruder display names in the current language.
+    void refresh_extruder_display_names() {
+        temperature_state_.refresh_display_names();
+    }
+
     // Per-extruder subject access (returns nullptr if not found)
     // Prefer the overloads with SubjectLifetime when creating observers!
     lv_subject_t* get_extruder_temp_subject(const std::string& name) {
