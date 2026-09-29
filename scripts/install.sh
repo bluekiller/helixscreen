@@ -427,6 +427,31 @@ error_handler() {
 }
 
 # ---------------------------------------------------------------------------
+# Filesystem measurement helpers
+#
+# Every free-space and same-filesystem question the installer asks goes
+# through these two, so the df parse lives in one place.
+#
+# `-P` is load-bearing, not decoration: without it BusyBox df wraps a long
+# device name onto its own line, so the last line's $1 is a BLOCK COUNT and its
+# $4 is Use% ("44%"), which then fails every integer test. POSIX output is one
+# line per filesystem.
+#
+# `-P` alone reports 512-byte blocks, so pair it with `-k` to get the 1K units
+# the arithmetic below assumes. Verified on BusyBox 1.29.3 and 1.33.2.
+
+# Echo the filesystem identity for a path (df's device column). Two paths with
+# the same value are on one filesystem, so a mv between them is a rename.
+_fs_id() {
+    df -kP "$1" 2>/dev/null | tail -1 | awk '{print $1}'
+}
+
+# Echo free space in MB on the filesystem holding a path.
+_fs_free_mb() {
+    df -kP "$1" 2>/dev/null | tail -1 | awk '{print int($4/1024)}'
+}
+
+# ---------------------------------------------------------------------------
 # User-supplied path guards
 #
 # TMP_DIR and INSTALL_DIR are both documented, user-settable overrides — the
@@ -1995,9 +2020,8 @@ detect_tmp_dir() {
             continue
         fi
 
-        # Check free space (BusyBox df: KB in $4)
         local available_mb
-        available_mb=$(df "$check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        available_mb=$(_fs_free_mb "$check_dir")
         if [ -z "$available_mb" ] || [ "$available_mb" -lt "$required_mb" ]; then
             continue
         fi
@@ -3294,16 +3318,7 @@ check_disk_space() {
     # point df at)
     local available_mb=""
     if [ "$check_dir" != "/" ]; then
-        case "$platform" in
-            ad5m|ad5x|k1|k2)
-                # BusyBox df: blocks are in KB by default
-                available_mb=$(df "$check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
-                ;;
-            *)
-                # GNU df with -m flag outputs in MB
-                available_mb=$(df -m "$check_dir" 2>/dev/null | tail -1 | awk '{print $4}')
-                ;;
-        esac
+        available_mb=$(_fs_free_mb "$check_dir")
     fi
 
     if [ -z "$available_mb" ]; then
@@ -7103,29 +7118,8 @@ validate_binary_architecture() {
 # Used when the install partition is too tight to hold the old + new install
 # at once (e.g. K2 /opt: ~240MB, ~81MB free). Relocating the old install to a
 # roomy partition frees the install fs so the new tree can move in, and the
-# off-partition copy serves as the rollback source on failure.
-#
-# --- Filesystem measurement helpers -----------------------------------------
-#
-# `-P` is load-bearing, not decoration: without it df wraps a long device name
-# onto its own line, and `tail -1 | awk '{print $1}'` then returns a BLOCK COUNT
-# where the caller expects a device. Two filesystems would compare unequal by
-# accident and a rename would be mistaken for a copy. POSIX output is one line
-# per filesystem, which is why detect_rollback_dir already uses it.
-#
-# `-P` alone reports 512-byte blocks, so pair it with `-k` to get the 1K units
-# the arithmetic below assumes. Verified on BusyBox 1.29.3 and 1.33.2.
-
-# Echo the filesystem identity for a path (df's device column). Two paths with
-# the same value are on one filesystem, so a mv between them is a rename.
-_fs_id() {
-    df -kP "$1" 2>/dev/null | tail -1 | awk '{print $1}'
-}
-
-# Echo free space in MB on the filesystem holding a path.
-_fs_free_mb() {
-    df -kP "$1" 2>/dev/null | tail -1 | awk '{print int($4/1024)}'
-}
+# off-partition copy serves as the rollback source on failure. Free space and
+# filesystem identity come from _fs_free_mb / _fs_id in common.sh.
 
 # Echo the size of a directory tree in MB.
 #
@@ -7254,7 +7248,7 @@ detect_rollback_dir() {
 
     # Filesystem device backing the install partition — candidates on the same
     # device free no space when we relocate there.
-    _install_dev=$(df -P "$install_parent" 2>/dev/null | tail -1 | awk '{print $1}')
+    _install_dev=$(_fs_id "$install_parent")
 
     for _cand in $_candidates; do
         [ -d "$_cand" ] || continue
@@ -7268,13 +7262,13 @@ detect_rollback_dir() {
             continue
         fi
 
-        _dev=$(df -P "$_cand" 2>/dev/null | tail -1 | awk '{print $1}')
+        _dev=$(_fs_id "$_cand")
         # Skip tmpfs — volatile RAM, a reboot mid-update loses the rollback.
         [ "$_dev" = "tmpfs" ] && continue
         # Skip same filesystem as the install — relocating there frees nothing.
         [ "$_dev" = "$_install_dev" ] && continue
 
-        _free=$(df "$_cand" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        _free=$(_fs_free_mb "$_cand")
         if [ -n "$_free" ] && [ "$_free" -ge $(( needed_mb + 20 )) ]; then
             echo "$_cand"
             return 0
@@ -7435,7 +7429,7 @@ extract_release() {
     while [ ! -d "$tmp_check_dir" ] && [ "$tmp_check_dir" != "/" ]; do
         tmp_check_dir=$(dirname "$tmp_check_dir")
     done
-    tmp_available_mb=$(df "$tmp_check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+    tmp_available_mb=$(_fs_free_mb "$tmp_check_dir")
 
     if [ -n "$tmp_available_mb" ] && [ "$tmp_available_mb" -lt "$extract_required_mb" ]; then
         log_error "Not enough space in temp directory for extraction."
@@ -7492,10 +7486,10 @@ extract_release() {
 
     if [ "$extract_ok" = false ]; then
         local post_mb
-        post_mb=$(df "$tmp_check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        post_mb=$(_fs_free_mb "$tmp_check_dir")
         if [ -n "$post_mb" ] && [ "$post_mb" -lt 5 ]; then
             log_error "Failed to extract archive: no space left on device."
-            log_error "Filesystem $(df "$tmp_check_dir" | tail -1 | awk '{print $1}') is full."
+            log_error "Filesystem $(_fs_id "$tmp_check_dir") is full."
             log_error "Try: TMP_DIR=/path/with/space sh install.sh ..."
         else
             log_error "Failed to extract archive."
@@ -7693,7 +7687,7 @@ extract_release() {
         while [ ! -d "$install_parent" ] && [ "$install_parent" != "/" ]; do
             install_parent=$(dirname "$install_parent")
         done
-        install_free_mb=$(df "$install_parent" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        install_free_mb=$(_fs_free_mb "$install_parent")
         [ -z "$install_free_mb" ] && install_free_mb=0
 
         swap_margin_mb=10

@@ -906,9 +906,8 @@ detect_tmp_dir() {
             continue
         fi
 
-        # Check free space (BusyBox df: KB in $4)
         local available_mb
-        available_mb=$(df "$check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        available_mb=$(_fs_free_mb "$check_dir")
         if [ -z "$available_mb" ] || [ "$available_mb" -lt "$required_mb" ]; then
             continue
         fi
