@@ -58,12 +58,19 @@ class CountingAfcBackend : public AmsBackendAfc {
   public:
     CountingAfcBackend() : AmsBackendAfc(nullptr, nullptr) {}
 
-    AmsError set_tool_mapping_impl(int tool_number, int slot_index) override {
-        calls.push_back({tool_number, slot_index});
+    AmsError can_set_tool_mapping(int, int slot_index) const override {
         if (refuse_remaps) {
             return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, 3);
         }
+        if (reported_slots >= 0 && slot_index >= reported_slots) {
+            return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, reported_slots - 1);
+        }
         return AmsErrorHelper::success();
+    }
+
+    AmsError set_tool_mapping_impl(int tool_number, int slot_index) override {
+        calls.push_back({tool_number, slot_index});
+        return can_set_tool_mapping(tool_number, slot_index);
     }
 
     std::vector<int> get_tool_mapping() const override {
@@ -100,6 +107,7 @@ class CountingAfcBackend : public AmsBackendAfc {
     std::vector<Call> calls;
     std::vector<int> current;
     bool refuse_remaps = false;
+    int reported_slots = -1; ///< lanes past this are refused, as a detached unit's are
     bool echoes_firmware = false;
     uint64_t generation = 0;
 };
@@ -228,6 +236,124 @@ TEST_CASE("remap restore: refused sends retain the record for replay", "[remap-r
     CHECK_FALSE(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
     CHECK(PrintStartControllerTestAccess::saved_backend_index(h.controller) == 0);
     CHECK(std::filesystem::exists(record));
+}
+
+// A retained record retries once the backend would accept every refused entry,
+// which is when a reattached unit's lanes are reported again. Klipper READY
+// alone comes before that report, and a job holding the machine must not have
+// its tools re-routed under it.
+TEST_CASE("remap restore: a refused record retries once the backend accepts it",
+          "[remap-restore][1684]") {
+    LVGLTestFixture fx;
+    ConfigDirGuard config_dir{"remap_retry_accepts"};
+    ScopedCountingBackend be{{1, 2}};
+    be.backend->reported_slots = 2; // the unit carrying lane 2 is detached
+    Harness h;
+    h.set_klippy(KlippyState::READY);
+
+    PrintStartControllerTestAccess::seed_saved_mapping(h.controller, {2, 1}, 0);
+    PrintStartControllerTestAccess::restore(h.controller);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(be.backend->calls.size() == 2); // T0->2 refused, T1->1 sent
+    REQUIRE_FALSE(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
+
+    SECTION("a Klipper restart and data that leaves the lanes alone retry nothing") {
+        h.set_klippy(KlippyState::STARTUP);
+        h.set_klippy(KlippyState::READY);
+        Harness::ams_data_tick();
+        CHECK(be.backend->calls.size() == 2);
+
+        be.backend->reported_slots = 4;
+        Harness::ams_data_tick();
+        CHECK(be.backend->calls.size() == 4);
+        CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
+    }
+
+    SECTION("the lanes returning mid-print wait for the job to end") {
+        h.report("printing", "benchy.gcode");
+        be.backend->reported_slots = 4;
+        Harness::ams_data_tick();
+        CHECK(be.backend->calls.size() == 2);
+
+        h.report("paused", "benchy.gcode");
+        Harness::ams_data_tick();
+        CHECK(be.backend->calls.size() == 2);
+
+        h.report("complete", "benchy.gcode");
+        Harness::ams_data_tick();
+        CHECK(be.backend->calls.size() == 4);
+        CHECK(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
+    }
+}
+
+namespace {
+
+/// A CFS backend whose gcode is captured instead of sent.
+class CapturingCfsBackend : public helix::printer::AmsBackendCfs {
+  public:
+    CapturingCfsBackend() : AmsBackendCfs(nullptr, nullptr) {}
+    AmsError execute_gcode(const std::string& gcode) override {
+        sent.push_back(gcode);
+        return AmsErrorHelper::success();
+    }
+    std::vector<std::string> sent;
+};
+
+nlohmann::json cfs_unit() {
+    return {{"state", "connect"},   {"filament", "None"},    {"vender", {"none"}},
+            {"remain_len", {"-1"}}, {"color_value", {"-1"}}, {"material_type", {"-1"}}};
+}
+
+/// A stock box frame reporting units T1..T<units>, T0 routed to T1A.
+nlohmann::json cfs_box_frame(int units) {
+    nlohmann::json box = {{"state", "connect"},
+                          {"filament", 0},
+                          {"enable", 1},
+                          {"filament_useup", 0},
+                          {"map", {{"T1A", "T1A"}}}};
+    for (int u = 1; u <= units; ++u) {
+        box["T" + std::to_string(u)] = cfs_unit();
+    }
+    return {{"params", nlohmann::json::array({nlohmann::json{{"box", box}}, 0})}};
+}
+
+} // namespace
+
+// CFS refuses a bay past the attached units. A restore aimed at the second
+// unit's T2B is refused while the box reports one unit and goes out on the
+// frame that reports the second.
+TEST_CASE("remap restore: CFS retries when the box reports the refused bay's unit",
+          "[remap-restore][1684]") {
+    LVGLTestFixture fx;
+    ConfigDirGuard config_dir{"remap_retry_cfs"};
+    AmsState::instance().init_subjects(true);
+    auto owned = std::make_unique<CapturingCfsBackend>();
+    CapturingCfsBackend* cfs = owned.get();
+    AmsState::instance().set_backend(std::move(owned));
+    Harness h;
+    h.set_klippy(KlippyState::READY);
+
+    CfsTestAccess::handle_status(*cfs, cfs_box_frame(1));
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(cfs->get_system_info().total_slots == 4);
+    REQUIRE_FALSE(cfs->can_set_tool_mapping(0, 5).success());
+
+    PrintStartControllerTestAccess::seed_saved_mapping(h.controller, {5}, 0);
+    PrintStartControllerTestAccess::restore(h.controller);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(cfs->sent.empty());
+    REQUIRE_FALSE(PrintStartControllerTestAccess::saved_mapping(h.controller).empty());
+
+    CfsTestAccess::handle_status(*cfs, cfs_box_frame(1));
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(cfs->sent.empty());
+
+    CfsTestAccess::handle_status(*cfs, cfs_box_frame(2));
+    helix::ui::UpdateQueue::instance().drain();
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(cfs->sent == std::vector<std::string>{"BOX_MODIFY_TN T1A=T2B"});
+
+    AmsState::instance().set_backend(nullptr);
 }
 
 TEST_CASE("remap restore: klippy ERROR and STARTUP are also not delivery",

@@ -323,6 +323,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                              float total_weight_g) override;
     void persist_external_identity_impl(int slot_index,
                                         const helix::ams::Observation& spoolman) override;
+    [[nodiscard]] AmsError can_set_tool_mapping(int tool_number, int slot_index) const override;
     AmsError set_tool_mapping_impl(int tool_number, int slot_index) override;
 
     // Explicit user-initiated override clear (e.g. "Clear slot metadata" button

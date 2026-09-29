@@ -462,6 +462,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // user's material on every 60 s consumption persist (#981).
     void update_slot_weight_impl(int slot_index, float remaining_weight_g, float total_weight_g,
                                  bool persist) override;
+    [[nodiscard]] AmsError can_set_tool_mapping(int tool_number, int slot_index) const override;
     AmsError set_tool_mapping_impl(int tool_number, int slot_index) override;
 
     // Restore the module's identity tool map (T<n> -> lane n+1). The wire

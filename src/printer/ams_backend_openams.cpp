@@ -934,10 +934,12 @@ void AmsBackendOpenAms::clear_slot_override(int slot_index) {
 // Tool mapping and bypass
 // ============================================================================
 
-AmsError AmsBackendOpenAms::set_tool_mapping_impl(int tool_number, int slot_index) {
-    (void)tool_number;
-    (void)slot_index;
+AmsError AmsBackendOpenAms::can_set_tool_mapping(int /*tool_number*/, int /*slot_index*/) const {
     return AmsErrorHelper::not_supported("OpenAMS tool mapping");
+}
+
+AmsError AmsBackendOpenAms::set_tool_mapping_impl(int tool_number, int slot_index) {
+    return can_set_tool_mapping(tool_number, slot_index);
 }
 
 std::vector<int> AmsBackendOpenAms::get_tool_mapping() const {

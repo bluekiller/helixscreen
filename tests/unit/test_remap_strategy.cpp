@@ -115,6 +115,9 @@ class BaseProbe : public AmsBackend {
     AmsError sync_external_identity(int, const helix::SlotInfo&) override {
         return AmsErrorHelper::success();
     }
+    AmsError can_set_tool_mapping(int, int) const override {
+        return AmsErrorHelper::success();
+    }
     AmsError set_tool_mapping_impl(int, int) override {
         return AmsErrorHelper::success();
     }
