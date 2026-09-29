@@ -154,8 +154,9 @@ lv_subject_t* PrintPreparationManager::get_preprint_estimate_subject() {
 }
 
 void PrintPreparationManager::recalculate_estimate() {
-    if (!estimate_subject_initialized_)
-        return;
+    // Callers reach this before any getter fetch (the detail view computes
+    // the estimate on open), so the subject is initialised here.
+    ensure_estimate_subject_initialized();
 
     if (!printer_state_)
         return;
