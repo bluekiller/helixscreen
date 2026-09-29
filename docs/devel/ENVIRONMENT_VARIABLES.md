@@ -1326,6 +1326,21 @@ SCREWS_AUTO_START=1 ./build/bin/helix-screen --test &
 
 ## Development
 
+### `HELIX_PLUGIN_DIR`
+
+Directory of Lua plugins, one subdirectory per plugin. Unset: no plugins load. A development
+override until the Moonraker plugin folder lands.
+
+| Property | Value |
+|----------|-------|
+| **Values** | Any readable directory path holding `<id>/manifest.json` subdirectories |
+| **Default** | Unset (no plugins load) |
+| **File** | `src/application/application.cpp` (`init_plugins`), `src/plugin/plugin_host.cpp` |
+
+```bash
+HELIX_PLUGIN_DIR=$PWD/tests/fixtures/plugins ./build/bin/helix-screen --test -vv
+```
+
 ### `HELIX_USB_AUTOMOUNT`
 
 Disable the in-app fallback USB mounter. When nothing else on the device mounts USB sticks

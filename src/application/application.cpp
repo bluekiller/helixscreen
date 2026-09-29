@@ -222,6 +222,9 @@
 #include "moonraker_client.h"
 #include "moonraker_performance_source.h"
 #include "performance_state.h"
+#if HELIX_HAS_PLUGINS
+#include "plugin_host.h"
+#endif
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "splash_screen.h"
@@ -1004,6 +1007,12 @@ int Application::run(int argc, char** argv) {
             // default layout reflects currently-connected hardware.
             get_global_home_panel().finalize_setup();
         }
+
+        // Phase 14: Load plugins (a no-op until HELIX_PLUGIN_DIR is set; the
+        // Moonraker plugin folder arrives in a later phase)
+#if HELIX_HAS_PLUGINS
+        init_plugins();
+#endif
 
         // Banner: Safe Mode — UI is up, so this is the earliest the user can
         // see why the printer connection didn't come up. Sticky (no auto-dismiss)
@@ -2209,6 +2218,27 @@ bool Application::init_moonraker() {
     helix::MemoryMonitor::log_now("after_moonraker_init");
     return true;
 }
+
+#if HELIX_HAS_PLUGINS
+void Application::init_plugins() {
+    const char* dir = std::getenv("HELIX_PLUGIN_DIR");
+    if (!dir || !*dir)
+        return; // the Moonraker plugin folder arrives in a later phase
+    helix::plugin::PluginHost::Deps deps;
+    deps.backend = helix::plugin::make_app_backend();
+    deps.read_block = [this] { return m_config->get<json>("/plugins", json::object()); };
+    deps.write_block = [this](const json& j) {
+        m_config->set<json>("/plugins", j);
+        m_config->save();
+    };
+    deps.settings_path = m_config->get_path();
+    deps.helix_version = HELIX_VERSION;
+    deps.memory_budget = helix::plugin::plugin_memory_budget(helix::plugin::read_mem_total());
+    helix::plugin::register_plugin_event_callback();
+    m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
+    m_plugin_host->load_from(dir);
+}
+#endif
 
 bool Application::run_wizard() {
     bool wizard_required =
@@ -4797,6 +4827,16 @@ void Application::tear_down_printer_state() {
     // 3. Stop UpdateChecker auto-check timer (fires API calls on background thread)
     UpdateChecker::instance().stop_auto_check();
 
+    // 4. Unload plugins. Plugin closers remove printer-subject observers and
+    //    Moonraker notify handlers, so they must run while the subjects (deinit
+    //    at step 16) and the client (destroyed at step 18) are still alive.
+#if HELIX_HAS_PLUGINS
+    if (m_plugin_host) {
+        m_plugin_host->unload_all();
+        m_plugin_host.reset();
+    }
+#endif
+
     // 5. Freeze update queue to prevent new callbacks during teardown
     auto queue_freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
 
@@ -5022,6 +5062,11 @@ void Application::init_printer_state() {
         get_global_home_panel().finalize_setup();
     }
 
+    // 8. Reload plugins against the new printer's state
+#if HELIX_HAS_PLUGINS
+    init_plugins();
+#endif
+
     // 9. Connect to new printer's Moonraker
     if (!connect_moonraker()) {
         spdlog::warn("[Application] Running without printer connection after switch");
@@ -5129,6 +5174,17 @@ void Application::shutdown() {
 
     // Shutdown PostOpCooldownManager (cancel pending cooldown timers)
     PostOpCooldownManager::instance().shutdown();
+
+    // Unload plugins before destroying managers they depend on: plugin closers
+    // remove printer-subject observers and Moonraker notify handlers, so they
+    // must run while the subjects (deinit_all below) and the Moonraker client
+    // (m_moonraker.reset below) are still alive.
+#if HELIX_HAS_PLUGINS
+    if (m_plugin_host) {
+        m_plugin_host->unload_all();
+        m_plugin_host.reset();
+    }
+#endif
 
     // Reset managers in reverse order (MoonrakerManager handles print_start_collector cleanup)
     // History managers MUST be reset before moonraker (use client for unregistration).
