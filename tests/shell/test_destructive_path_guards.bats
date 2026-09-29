@@ -297,6 +297,38 @@ _seed_root() {
     [ "$output" = "/opt/helixscreen $root" ]
 }
 
+@test "uninstall sweep: a root whose path holds a space is left alone" {
+    # The sweeps iterate the list unquoted: "/mnt/usb drive/helixscreen" would
+    # split, and rm -rf would reach "/mnt/usb".
+    _load_uninstall
+    local root="$BATS_TEST_TMPDIR/mnt/usb drive/helixscreen"
+    _seed_root "$root"
+    INSTALL_DIR="$root"
+    run helix_install_dirs_for_run
+    [ "$output" = "/opt/helixscreen" ]
+}
+
+@test "uninstall sweep: a root whose path holds a glob character is left alone" {
+    _load_uninstall
+    local root="$BATS_TEST_TMPDIR/mnt/usb*/helixscreen"
+    _seed_root "$root"
+    INSTALL_DIR="$root"
+    run helix_install_dirs_for_run
+    [ "$output" = "/opt/helixscreen" ]
+}
+
+@test "uninstall sweep: a root the fixed list already reaches through a symlink is not repeated" {
+    _load_uninstall
+    local root="$BATS_TEST_TMPDIR/home/pi/helixscreen"
+    _seed_root "$root"
+    mkdir -p "$BATS_TEST_TMPDIR/opt"
+    ln -s "$root" "$BATS_TEST_TMPDIR/opt/helixscreen"
+    HELIX_INSTALL_DIRS="$BATS_TEST_TMPDIR/opt/helixscreen"
+    INSTALL_DIR="$root"
+    run helix_install_dirs_for_run
+    [ "$output" = "$BATS_TEST_TMPDIR/opt/helixscreen" ]
+}
+
 @test "uninstall sweep: a root without our binary is left alone" {
     _load_uninstall
     INSTALL_DIR="$BATS_TEST_TMPDIR/home/pi/helixscreen"

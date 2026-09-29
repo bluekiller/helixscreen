@@ -490,7 +490,9 @@ restore_previous_ui_platform() {
 }
 
 # Whether $1, the run's own install root, may join the uninstall sweep, which
-# rm -rf's every entry. All must hold: an absolute path, not a firmware-mod
+# rm -rf's every entry. The sweeps iterate the list unquoted, so whitespace or a
+# glob character would split one entry into several paths. All must hold: no
+# whitespace or glob characters, an absolute path, not a firmware-mod
 # host (an unarmed run leaves the mod's payload root alone), not a symlink and
 # reached through none (its resolved path is the path as given), named exactly
 # "helixscreen", neither "/", $HOME nor $KLIPPER_HOME, and our binary inside.
@@ -505,6 +507,7 @@ _uninstall_own_root_ok() {
     esac
     case "$_uor" in
         *..*) return 1 ;;
+        *[[:space:]]* | *[*?[]*) return 1 ;;
     esac
     [ -z "${HOST_MOD_ROOT:-}" ] && [ -z "${HOST_MOD_CHROOT:-}" ] || return 1
     [ -d "$_uor" ] && [ ! -L "$_uor" ] || return 1

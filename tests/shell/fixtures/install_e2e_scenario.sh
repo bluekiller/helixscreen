@@ -23,6 +23,7 @@
 #   install        fresh install of release 1
 #   seed-user      edit settings.json and helixscreen.env the way a user would
 #   customize-unit add a local line to the installed systemd unit
+#   clean-install  --clean --yes install of release 2
 #   update         --update to release 2
 #   self-update    --update to release 2 under HELIX_SELF_UPDATE=1
 #   uninstall      --uninstall
@@ -108,6 +109,9 @@ for step in "$@"; do
         self-update)
             (export HELIX_SELF_UPDATE=1
              run_installer --update --local /mnt/release-2/helixscreen-x86-v1.0.1.tar.gz) || rc=$?
+            ;;
+        clean-install)
+            run_installer --clean --yes --local /mnt/release-2/helixscreen-x86-v1.0.1.tar.gz || rc=$?
             ;;
         uninstall)
             run_installer --uninstall || rc=$?

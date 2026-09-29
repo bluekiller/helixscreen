@@ -77,8 +77,12 @@ _make_release() {
 setup() {
     load helpers
     command -v unshare >/dev/null 2>&1 || skip "unshare not available"
-    unshare --user --map-root-user --mount true 2>/dev/null \
-        || skip "user+mount namespaces not permitted"
+    # Real root keeps real root inside the namespace, and the uninstall sweep
+    # names host paths outside the tmpfs set (/srv, /usr/data, /mnt/UDISK).
+    [ "$(id -u)" -ne 0 ] || skip "refuses to run as real root"
+    # The same namespaces the run asks for, so a host that permits fewer skips.
+    unshare --user --map-root-user --mount --pid --fork true 2>/dev/null \
+        || skip "user+mount+pid namespaces not permitted"
     [ -x /usr/bin/systemctl ] || [ -x /bin/systemctl ] || [ -x /usr/sbin/systemctl ] \
         || skip "no systemctl to bind the stub over"
     [ -d /mnt ] || skip "no /mnt to reach the work dir through"
@@ -220,4 +224,17 @@ snap_resolve() {
     [ ! -e "$s/var/lib/helixscreen" ] || fail "state dir left in /var/lib"
     [ -z "$(ls "$s/etc/systemd/system" | grep -i helixscreen)" ] \
         || fail "helixscreen units left in /etc/systemd/system"
+}
+
+@test "install.sh e2e: --clean over a home-directory install wipes it, config included" {
+    # --clean shares uninstall's sweep list, so a $KLIPPER_HOME/helixscreen
+    # install is wiped the same way an /opt one always was.
+    run_scenario install seed-user clean-install
+    local s
+    s=$(snap 3-clean-install)
+
+    contains "Removing $INST..." "$output"
+    [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.0.1" ]
+    ! grep -q "e2e_user_value" "$(snap_resolve "$s" "$INST/config/settings.json")" \
+        || fail "--clean kept the old settings.json"
 }
