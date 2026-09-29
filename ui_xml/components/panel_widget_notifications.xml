@@ -17,7 +17,7 @@
     <style name="badge_error" bg_color="#danger"/>
   </styles>
   <view name="panel_widget_notifications"
-        extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" style_pad_gap="#space_xxs" scrollable="false">
+        extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" style_pad_gap="#space_xxs" scrollable="false">
     <style name="styles.tile_column"/>
     <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
     <lv_obj name="status_notification_container" width="content" height="content" style_pad_all="0">

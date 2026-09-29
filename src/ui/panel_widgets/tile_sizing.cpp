@@ -139,12 +139,20 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     // container that is not on the single-child chain, so the reservation is
     // deliberately generous. It errs toward a smaller rung, never toward one
     // that overflows.
+    // styles.tile_row pads each side by #space_sm.
+    const int row_inset = 2 * theme_manager_get_spacing("space_sm");
     int chrome_w = 2 * gap;
     int chrome_h = 2 * gap;
     if (content_root_) {
         for (lv_obj_t* o = content_root_; o != nullptr; o = lv_obj_get_child(o, 0)) {
-            chrome_w += static_cast<int>(lv_obj_get_style_pad_left(o, LV_PART_MAIN)) +
-                        static_cast<int>(lv_obj_get_style_pad_right(o, LV_PART_MAIN));
+            int side_pads = static_cast<int>(lv_obj_get_style_pad_left(o, LV_PART_MAIN)) +
+                            static_cast<int>(lv_obj_get_style_pad_right(o, LV_PART_MAIN));
+            // A row's side inset is charged to row candidates alone (row_inset
+            // below), so it counts the same whichever direction is drawn now.
+            if (lv_obj_get_style_flex_flow(o, LV_PART_MAIN) == LV_FLEX_FLOW_ROW) {
+                side_pads -= std::min(side_pads, row_inset);
+            }
+            chrome_w += side_pads;
             chrome_h += static_cast<int>(lv_obj_get_style_pad_top(o, LV_PART_MAIN)) +
                         static_cast<int>(lv_obj_get_style_pad_bottom(o, LV_PART_MAIN));
             if (lv_obj_get_child_count(o) != 1) {
@@ -159,7 +167,7 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     const int avail_h = std::max(height_px - chrome_h, 1);
 
     TileVerdict verdict = decide_tile_layout(avail_w, avail_h, gap, rungs, content_.has_value,
-                                             label_drawn(), authored_rung());
+                                             label_drawn(), authored_rung(), row_inset);
 
     // At micro and tiny a whole cell is barely wider than the glyph itself, so
     // a tile of one cell or less keeps the authored rung those screens were

@@ -12,7 +12,7 @@
     <prop name="tile_target_subject" type="string" default=""/>
   </api>
   <view name="panel_widget_thermistor"
-        extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" style_pad_gap="#space_xxs" scrollable="false"
+        extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" style_pad_gap="#space_xxs" scrollable="false"
         clickable="true">
     <bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
     <event_cb trigger="clicked" callback="thermistor_clicked_cb"/>

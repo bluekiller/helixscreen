@@ -19,7 +19,7 @@
         extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" style_pad_gap="0" scrollable="false"
         flex_flow="row">
     <ui_button name="light_button"
-               width="0" height="100%" flex_grow="1" style_pad_all="0" variant="ghost" style_border_width="0"
+               width="0" height="100%" flex_grow="1" style_pad_ver="0" variant="ghost" style_border_width="0"
                focusable="false">
       <style name="styles.tile_column"/>
       <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>

@@ -12,7 +12,7 @@
     <prop name="tile_target_subject" type="string" default=""/>
   </api>
   <view name="panel_widget_filament"
-        extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" style_pad_gap="#space_xxs" scrollable="false"
+        extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" style_pad_gap="#space_xxs" scrollable="false"
         clickable="true">
     <style name="styles.tile_column"/>
     <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>

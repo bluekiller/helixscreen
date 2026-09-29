@@ -195,3 +195,14 @@ TEST_CASE("a tile gives up text before shrinking its glyph below the authored ru
     CHECK(tight.fits);
     CHECK(tight.icon_rung < 3);
 }
+
+TEST_CASE("a row gives up its side inset before it draws", "[tile][layout][1559]") {
+    // A row tile insets its sides (styles.tile_row), so a row that fits the
+    // bare box by less than the inset must not be chosen.
+    // Rung 1 row with no label: 24 + 4 + 26 = 54 wide, 24 tall.
+    const TileVerdict bare = decide_tile_layout(60, 30, kGap, kMedium, true, false, 0, 0);
+    REQUIRE(bare.fits);
+    CHECK(bare.direction == TileDirection::Row);
+    const TileVerdict inset = decide_tile_layout(60, 30, kGap, kMedium, true, false, 0, 20);
+    CHECK_FALSE((inset.fits && inset.direction == TileDirection::Row && inset.icon_rung >= 1));
+}

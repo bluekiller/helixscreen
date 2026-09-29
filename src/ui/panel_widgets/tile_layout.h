@@ -116,10 +116,12 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
  * @param has_value      false for a tile that shows only an icon and a label
  * @param labels_enabled the user setting; size may hide a label, never show one
  * @param authored_rung  the rung the tier draws a tile's icon at by default
+ * @param row_inset      width a row gives to its side insets, which a column does not
  */
 inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
                                       const TileRungMetrics rungs[kTileRungs], bool has_value,
-                                      bool labels_enabled, int authored_rung = 0) {
+                                      bool labels_enabled, int authored_rung = 0,
+                                      int row_inset = 0) {
     using detail::TileCandidate;
 
     // Ordered by what the tile gives up, most complete first. A tile that has
@@ -132,6 +134,9 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
 
     const TileDirection directions[] = {TileDirection::Column, TileDirection::Row};
     const int floor_rung = std::clamp(authored_rung, 0, kTileRungs - 1);
+    auto width_for = [&](TileDirection dir) {
+        return dir == TileDirection::Row ? avail_w - row_inset : avail_w;
+    };
 
     auto verdict_for = [&](int r, int c, TileDirection dir) {
         TileVerdict v;
@@ -147,8 +152,8 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
     for (int c = 0; c < candidate_count; ++c) {
         for (TileDirection dir : directions) {
             for (int r = kTileRungs - 1; r >= floor_rung; --r) {
-                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value, avail_w,
-                                                avail_h, gap_px)) {
+                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
+                                                width_for(dir), avail_h, gap_px)) {
                     return verdict_for(r, c, dir);
                 }
             }
@@ -158,8 +163,8 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
     for (int r = floor_rung - 1; r >= 0; --r) {
         for (int c = 0; c < candidate_count; ++c) {
             for (TileDirection dir : directions) {
-                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value, avail_w,
-                                                avail_h, gap_px)) {
+                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
+                                                width_for(dir), avail_h, gap_px)) {
                     return verdict_for(r, c, dir);
                 }
             }
@@ -168,11 +173,13 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
 
     // Nothing draws here. Report the most forgiving arrangement so a caller
     // that renders anyway clips as little as possible: the smallest glyph,
-    // stacked along whichever axis the box has more of.
+    // stacked along whichever axis the box has more of once a row's inset is
+    // paid.
     TileVerdict v;
     v.icon_rung = 0;
     v.label = TileLabelRung::None;
-    v.direction = avail_h >= avail_w ? TileDirection::Column : TileDirection::Row;
+    v.direction =
+        avail_h >= width_for(TileDirection::Row) ? TileDirection::Column : TileDirection::Row;
     v.show_target = false;
     v.fits = false;
     return v;

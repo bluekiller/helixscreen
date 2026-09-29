@@ -15,7 +15,7 @@
        its reading and caption, or beside them when the box is too short to
        stack: the two shapes TileSizing measures. -->
   <view name="panel_widget_width_sensor"
-        extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" style_pad_gap="#space_xxs" scrollable="false">
+        extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" style_pad_gap="#space_xxs" scrollable="false">
     <style name="styles.tile_column"/>
     <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
     <icon name="width_sensor_icon" src="ruler" size="sm" variant="secondary" clickable="false" event_bubble="true">
