@@ -87,7 +87,7 @@ ALLOWED_OMISSIONS: dict[str, dict[str, dict[str, str]]] = {
     },
     "ui_xml/portrait/print_status_panel.xml": {
         "subject": {
-            "ui_breakpoint": "the base hides speed_flow_row at breakpoints 1-2 because the "
+            "ui_breakpoint": "the base hides speed_flow_row below MEDIUM (breakpoints 0-2) because the "
             "landscape controls column has no room for it. Portrait merged Speed/Flow and the "
             "filament+AMS cluster into ONE row that fits at every portrait width, so there is "
             "nothing left to hide — the row is rendered unconditionally, not dropped.",

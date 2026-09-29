@@ -1307,7 +1307,7 @@ def _infer_cpp_attr_type(source: str, attr_name: str) -> dict[str, Any]:
         "max_length", "sv_size", "hue_height", "gap",
         "slot_index", "fill_level", "slot_count", "active_slot",
         "unit_count", "active_unit", "slot_width", "knob_pad",
-        "label_hidden_if_bp_eq", "anim_progress",
+        "label_hidden_if_bp_eq", "stacked_if_bp_lte", "anim_progress",
     }
     if attr_name in int_attrs or attr_name.endswith("_length") or attr_name.endswith("_count"):
         return {"type": "int"}
