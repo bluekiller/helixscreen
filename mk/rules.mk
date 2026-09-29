@@ -452,7 +452,7 @@ $(OBJ_DIR)/quirc/%.o: $(QUIRC_DIR)/%.c
 	$(call emit-compile-command,$(CC),$(SUBMODULE_CFLAGS) $(INCLUDES),$<,$@)
 
 # Compile Lua sources (vendored C compiled as C++ so a Lua error unwinds as an exception)
-$(OBJ_DIR)/lua/%.o: $(LUA_DIR)/%.c
+$(OBJ_DIR)/lua/%.o: $(LUA_DIR)/%.c $(ABI_STAMP) $(FLAGS_STAMP)
 	$(Q)mkdir -p $(dir $@)
 	$(ECHO) "$(CYAN)[CC]$(RESET) $<"
 	$(Q)$(CXX) -x c++ $(SUBMODULE_CXXFLAGS) $(INCLUDES) -c $< -o $@ || { \
