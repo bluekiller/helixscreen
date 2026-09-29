@@ -334,13 +334,13 @@ std::vector<ProcMatch> select_moonraker_processes(const std::vector<ProcMatch>& 
     return out;
 }
 
-std::vector<ProcMatch> find_moonraker_processes() {
+std::vector<ProcMatch> read_process_table(const std::string& proc_root) {
     std::vector<ProcMatch> candidates;
     std::error_code ec;
-    if (!fs::is_directory("/proc", ec))
+    if (!fs::is_directory(proc_root, ec))
         return candidates;
 
-    for (const auto& entry : fs::directory_iterator("/proc", ec)) {
+    for (const auto& entry : fs::directory_iterator(proc_root, ec)) {
         if (ec)
             break;
         const std::string name = entry.path().filename().string();
@@ -369,8 +369,11 @@ std::vector<ProcMatch> find_moonraker_processes() {
         m.pid = std::strtol(name.c_str(), nullptr, 10);
         candidates.push_back(std::move(m));
     }
+    return candidates;
+}
 
-    return select_moonraker_processes(candidates);
+std::vector<ProcMatch> find_moonraker_processes() {
+    return select_moonraker_processes(read_process_table());
 }
 
 LocalIncludePlan plan_local_include(const std::vector<ProcMatch>& procs,

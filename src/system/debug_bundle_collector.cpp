@@ -88,7 +88,7 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
     }
 
     try {
-        bundle["system"] = collect_system_info(diag);
+        bundle["system"] = collect_system_info(diag, helix::diag::collect_host_census());
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect system info: {}", e.what());
         bundle["system"] = json{{"error", e.what()}};
@@ -365,7 +365,8 @@ json DebugBundleCollector::build_touch_info(const TouchRangeDiagnostics& diag) {
     return touch;
 }
 
-json DebugBundleCollector::collect_system_info(const diagnostics::Diagnostics& diag) {
+json DebugBundleCollector::collect_system_info(const diagnostics::Diagnostics& diag,
+                                               const helix::diag::HostCensus& census) {
     json sys;
 
     sys["platform"] = diag.identity.platform_key;
@@ -373,6 +374,29 @@ json DebugBundleCollector::collect_system_info(const diagnostics::Diagnostics& d
     sys["total_ram_mb"] = diag.machine.mem_total_kb / 1024;
     sys["cpu_cores"] = diag.machine.cpu_cores;
     sys["uptime_seconds"] = static_cast<int>(diag.machine.uptime_seconds);
+
+    if (!census.os_pretty_name.empty()) {
+        sys["os_pretty_name"] = sanitize_value(census.os_pretty_name);
+    }
+    // Absent, not empty, where there is no systemctl: an empty list would claim
+    // nothing failed on a box that cannot say.
+    if (census.has_systemctl) {
+        json units = json::array();
+        for (const auto& unit : census.failed_units) {
+            units.push_back(sanitize_value(unit));
+        }
+        sys["failed_units"] = std::move(units);
+    }
+    json procs = json::array();
+    for (const auto& proc : census.processes) {
+        json reasons = json::array();
+        for (const auto& reason : proc.reasons) {
+            reasons.push_back(sanitize_value(reason));
+        }
+        procs.push_back(
+            json{{"pid", proc.pid}, {"name", sanitize_value(proc.name)}, {"why", reasons}});
+    }
+    sys["display_processes"] = std::move(procs);
 
     return sys;
 }

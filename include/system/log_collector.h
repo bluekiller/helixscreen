@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 /// Unified log-tail collection for crash reporter and debug bundle.
@@ -50,6 +51,10 @@ std::string tail_syslog_from(const std::vector<std::string>& paths, int num_line
 /// is empty for this identifier, or the call fails. The `-b 0` flag restricts
 /// to the current boot so we don't drag in old noise.
 std::string tail_journal(int num_lines);
+
+/// Run @p cmd through popen and return its stdout, keeping the last
+/// @p max_lines lines. Append "2>/dev/null" to @p cmd to silence stderr.
+std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_view source_tag);
 
 /// Cascade: the app's own resolved log file (logging::effective_log_file_path)
 /// first, then the default file search (freshest wins), then syslog, then

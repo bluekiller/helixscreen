@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -126,5 +127,46 @@ TEST_CASE("Bundled DB namespaces stay an allowlist of filament overrides",
                 CHECK(ns.find(bad) == std::string::npos);
             }
         }
+    }
+}
+
+/**
+ * The host census reports which processes contend for the display. A process's
+ * arguments carry paths, device serials and addresses, so only argv[0]'s name
+ * leaves, and every census string goes through sanitize_value().
+ */
+TEST_CASE("The host census ships process names, never their arguments",
+          "[debug-bundle][security][1692]") {
+    helix::diag::HostCensus census;
+    census.os_pretty_name = "Vendor Linux built by builder@example.com";
+    census.has_systemctl = true;
+    census.failed_units = {"lightdm.service"};
+
+    const std::string serial = "SN-9f3e7ab21c";
+    const auto root = std::filesystem::temp_directory_path() / "helix_census_no_secrets";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "proc" / "42");
+    {
+        std::ofstream cmd(root / "proc" / "42" / "cmdline", std::ios::binary);
+        cmd << "/usr/bin/guppyscreen" << '\0' << "--camera" << '\0' << "/dev/v4l/by-id/usb-Cam_"
+            << serial << '\0';
+    }
+    census.processes = helix::diag::census_processes((root / "proc").string(), 32);
+    std::filesystem::remove_all(root);
+    REQUIRE(census.processes.size() == 1);
+
+    const json sys = helix::DebugBundleCollector::collect_system_info({}, census);
+    const std::string serialized = sys.dump();
+
+    CHECK(serialized.find(serial) == std::string::npos);
+    CHECK(serialized.find("--camera") == std::string::npos);
+    CHECK(serialized.find("builder@example.com") == std::string::npos);
+    CHECK(sys.at("display_processes").at(0).at("name") == json("guppyscreen"));
+    CHECK(sys.at("failed_units") == json::array({"lightdm.service"}));
+
+    SECTION("a box with no systemctl reports no failed-unit list at all") {
+        census.has_systemctl = false;
+        CHECK_FALSE(
+            helix::DebugBundleCollector::collect_system_info({}, census).contains("failed_units"));
     }
 }

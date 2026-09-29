@@ -72,8 +72,8 @@ bool is_helix_line(const std::string& line) {
            line.find("helix-splash") != std::string::npos;
 }
 
-/// Run a command via popen and return its stdout, capped at `max_lines` lines.
-/// Stderr is silenced by the caller (append "2>/dev/null" to `cmd`).
+} // namespace
+
 std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_view source_tag) {
     FILE* pipe = ::popen(cmd.c_str(), "r");
     if (!pipe) {
@@ -108,8 +108,6 @@ std::string run_capture_tail(const std::string& cmd, int max_lines, std::string_
     spdlog::debug("[Logs] Captured {} lines from {}", lines.size(), source_tag);
     return join_lines(lines);
 }
-
-} // namespace
 
 std::vector<std::string> default_file_paths(const std::string& probe_root) {
     // Every place an app log has ever been found, for the case where the live
