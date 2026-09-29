@@ -93,8 +93,9 @@ ToolSwitcherWidget::PillGrid ToolSwitcherWidget::pill_grid_at(int width_px, int 
                                     static_cast<int>(face ? lv_font_get_line_height(face) : 0) +
                                         2 * resolve_space_token("space_xxs", 4) + 2);
     const int gap = resolve_space_token("space_xs", 4);
-    const int avail_w = width_px - 2 * gap; // tool_switcher_container pads by #space_xs
-    const int avail_h = height_px - 2 * gap;
+    const int inset = resolve_space_token("space_md", 10); // tool_switcher_container's padding
+    const int avail_w = width_px - 2 * inset;
+    const int avail_h = height_px - 2 * inset;
 
     // Of the arrangements whose equal cells each hold a legible pill, the one
     // with the squarest cells: a row in a wide box, a column in a tall one, a
@@ -292,11 +293,16 @@ void ToolSwitcherWidget::rebuild_pills() {
     const int space_xs = resolve_space_token("space_xs", 4);
     const int btn_min_h = resolve_space_token("space_xl", 24);
 
-    // An even grid of equal pills from the granted size: every cell the same
-    // width, each pill centred in its row at one button's height.
+    // An even grid of equal pills from the granted size: every pill fills its
+    // cell's width and as much of its height as a large button takes, and the
+    // grid sits centred in the tile.
     const PillGrid grid = pill_grid_at(current_width_px_, current_height_px_);
     const int cols = std::max(grid.cols, 1);
     const int rows = std::max(grid.rows, 1);
+    const int inset = resolve_space_token("space_md", 10);
+    const int cell_h = (current_height_px_ - 2 * inset - (rows - 1) * space_xs) / rows;
+    const int pill_h = std::clamp(cell_h, btn_min_h,
+                                  std::max(btn_min_h, resolve_space_token("button_height_lg", 56)));
     grid_col_dsc_.assign(static_cast<size_t>(cols), LV_GRID_FR(1));
     grid_col_dsc_.push_back(LV_GRID_TEMPLATE_LAST);
     grid_row_dsc_.assign(static_cast<size_t>(rows), LV_GRID_CONTENT);
@@ -309,7 +315,10 @@ void ToolSwitcherWidget::rebuild_pills() {
 
         // Equal buttons, the active one highlighted; the variant carries the look
         const char* variant = is_active ? "primary" : "secondary";
-        const char* attrs[] = {"variant", variant, "text", tools[i].display_label.c_str(), nullptr};
+        const std::string name = "tool_pill_" + std::to_string(i);
+        const char* attrs[] = {"name",  name.c_str(), "variant",
+                               variant, "text",       tools[i].display_label.c_str(),
+                               nullptr};
         lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(container, "ui_button", attrs));
         if (!btn) {
             spdlog::error("[ToolSwitcher] lv_xml_create('ui_button') returned NULL for pill '{}'",
@@ -319,9 +328,8 @@ void ToolSwitcherWidget::rebuild_pills() {
 
         lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_STRETCH, static_cast<int>(i) % cols, 1,
                              LV_GRID_ALIGN_CENTER, static_cast<int>(i) / cols, 1);
-        lv_obj_set_height(btn, LV_SIZE_CONTENT);
-        lv_obj_set_style_min_height(btn, btn_min_h, 0);
-        lv_obj_set_style_radius(btn, btn_min_h / 2, 0);
+        lv_obj_set_height(btn, pill_h);
+        lv_obj_set_style_radius(btn, pill_h / 2, 0);
         lv_obj_set_style_pad_ver(btn, resolve_space_token("space_xxs", 4), 0);
         lv_obj_set_style_pad_hor(btn, resolve_space_token("space_sm", 8), 0);
 

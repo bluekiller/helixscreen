@@ -155,6 +155,22 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
     CHECK(std::abs(lv_obj_get_width(lv_obj_get_child(container, 0)) -
                    lv_obj_get_width(lv_obj_get_child(container, 1))) <= 1);
 
+    // The pills fill their cells up to a large button's height, and the grid
+    // they make sits centred in the tile.
+    lv_area_t tile;
+    lv_obj_get_coords(h.root(), &tile);
+    lv_area_t box{INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN};
+    for (uint32_t i = 0; i < lv_obj_get_child_count(container); ++i) {
+        lv_area_t a;
+        lv_obj_get_coords(lv_obj_get_child(container, i), &a);
+        box = {std::min(box.x1, a.x1), std::min(box.y1, a.y1), std::max(box.x2, a.x2),
+               std::max(box.y2, a.y2)};
+    }
+    CHECK(std::abs((box.x1 + box.x2) - (tile.x1 + tile.x2)) <= 4);
+    CHECK(std::abs((box.y1 + box.y2) - (tile.y1 + tile.y2)) <= 4);
+    CHECK(lv_obj_get_height(lv_obj_get_child(container, 0)) ==
+          resolve_space_token("button_height_lg", 0));
+
     // fits_at follows the same measurement: a box with no legible pill
     // arrangement is sized by the compact form alone.
     CHECK(h.widget().fits_at(230, 230));
