@@ -259,7 +259,7 @@ void BarcodeScannerSettingsOverlay::on_deactivating(DeactivateReason) {
 void BarcodeScannerSettingsOverlay::refresh_current_selection_label() {
     auto id = helix::SettingsManager::instance().get_scanner_device_id();
     auto name = helix::SettingsManager::instance().get_scanner_device_name();
-    const char* text = id.empty() ? "Auto-detect" : name.c_str();
+    const char* text = id.empty() ? lv_tr("Auto-detect") : name.c_str();
     lv_subject_copy_string(&current_device_label_subject_, text);
 }
 
@@ -316,7 +316,7 @@ void BarcodeScannerSettingsOverlay::add_auto_detect_row(lv_obj_t* container) {
 
     const char* attrs[] = {
         "row_icon",     "magnify",
-        "row_label",    "Auto-detect",
+        "row_label",    lv_tr("Auto-detect"),
         "row_sublabel", "Use first HID scanner found",
         "hide_check",   selected ? "false" : "true",
         "hide_forget",  "true",

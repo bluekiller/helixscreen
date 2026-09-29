@@ -37,6 +37,7 @@ void init_language_refresh() {
     s_language_observer = observe_language_change(&ToolState::instance(), [](ToolState* tools) {
         tools->refresh_display_labels();
         get_printer_state().refresh_extruder_display_names();
+        get_printer_state().refresh_fan_display_names();
         refresh_ams_tool_text();
         // AmsState formats its status texts (clog meter, dryer, loaded
         // lane) as it syncs from the backend.

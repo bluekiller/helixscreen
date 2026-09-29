@@ -219,6 +219,20 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         helix::ToolState::instance().get_subjects_lifetime());
     update_nozzle_label();
 
+    // The status line, nozzle label and warnings are formatted here with
+    // lv_tr(); a new language formats them again. The tool caption follows the
+    // extruder dropdown, which repopulates when ToolState relabels its tools.
+    language_observer_ = helix::ui::observe_language_change(this, [](FilamentPanel* self) {
+        self->last_status_branch_ = StatusBranch::None;
+        self->update_status();
+        self->update_nozzle_label();
+        self->update_warning_text();
+        std::snprintf(self->safety_warning_text_buf_, sizeof(self->safety_warning_text_buf_),
+                      lv_tr("Heat to at least %d°C for filament operations"),
+                      self->min_extrude_temp_);
+        lv_subject_copy_string(&self->safety_warning_text_subject_, self->safety_warning_text_buf_);
+    });
+
     // Re-evaluate Load/Unload/Purge gating whenever live AMS load state changes
     // (Task 5): the aggregate filament_loaded flag and the active-slot index.
     // Both are static AmsState subjects — no SubjectLifetime token needed.

@@ -384,6 +384,7 @@ class FilamentPanel : public PanelBase {
     lv_subject_t nozzle_label_subject_;
     char nozzle_label_buf_[32] = {};
     ObserverGuard active_tool_observer_;
+    ObserverGuard language_observer_;
     void update_nozzle_label();
 
     // Tool selector caption (the active backend's noun: "Tool", "Toolhead").
