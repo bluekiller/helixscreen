@@ -502,12 +502,7 @@ bool DisplayManager::init(const Config& config) {
     }
 
     // Create keyboard input device (optional)
-    m_keyboard = m_backend->create_input_keyboard();
-    if (m_keyboard) {
-        watch_keyboard();
-        setup_keyboard_group();
-        spdlog::trace("[DisplayManager] Physical keyboard input enabled");
-    }
+    create_keyboard_input();
 
     // Refresh pacing overrides, now that the refresh, animation, input and update-queue
     // timers they set all exist.
@@ -894,17 +889,24 @@ void DisplayManager::rebuild_input_after_backend_swap() {
         configure_pointer(m_scroll_throw, m_scroll_limit);
     }
 
-    m_keyboard = m_backend->create_input_keyboard();
-    if (m_keyboard) {
-        watch_keyboard();
-        setup_keyboard_group();
-    }
+    create_keyboard_input();
 
     // The new devices, and a display the swap recreated, start at LVGL's default periods.
     helix::apply_refresh_timing(m_refresh_timing);
 
     spdlog::info("[DisplayManager] Input rebuilt after backend swap (pointer={}, keyboard={})",
                  m_pointer ? "ok" : "null", m_keyboard ? "ok" : "null");
+}
+
+void DisplayManager::create_keyboard_input() {
+    m_keyboard = m_backend->create_input_keyboard();
+    DisplaySettingsManager::instance().set_hardware_keyboard_present(
+        m_backend->has_hardware_keyboard());
+    if (m_keyboard) {
+        watch_keyboard();
+        setup_keyboard_group();
+        spdlog::trace("[DisplayManager] Keyboard input enabled");
+    }
 }
 
 void DisplayManager::setup_keyboard_group() {

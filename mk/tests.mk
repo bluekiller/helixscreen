@@ -1317,6 +1317,19 @@ TEST_TSAN_BIN := $(BIN_DIR)/helix-tests-tsan
 # variable discards every makefile assignment to it without the keyword.
 $(TEST_BIN): override CXXFLAGS += -DHELIX_HAS_ACE=1 -DHELIX_HAS_QIDI=1 -DHELIX_HAS_SNAPMAKER=1
 
+# Run a sanitizer binary in Catch2 shards, $(3) at a time, each into
+# $$shard_dir/<i>.log with its exit status in <i>.exit. The caller creates
+# $$shard_dir and judges the results.
+# Args: $(1) = env + binary, $(2) = test filter, $(3) = shard count, $(4) = concurrency.
+define launch_sanitizer_shards
+	for i in $$(seq 0 $$(($(3)-1))); do \
+		while [ "$$(jobs -rp | wc -l)" -ge $(4) ]; do sleep 1; done; \
+		( $(1) "$(2)" --shard-count $(3) --shard-index $$i > "$$shard_dir/$$i.log" 2>&1; \
+		  echo $$? > "$$shard_dir/$$i.exit" ) & \
+	done; \
+	wait
+endef
+
 # Build and run tests with AddressSanitizer
 # The sanitizer build alone. CI runs this as its own step so a slow build
 # cannot eat the test budget, and a timeout names the phase that died.
@@ -1329,11 +1342,32 @@ test-tsan-build:
 	@$(MAKE) $(TSAN_MAKE_OVERRIDES) TEST_BIN=$(TEST_TSAN_BIN) $(TEST_TSAN_BIN)
 
 
+# Sharded so a fatal report (a use-after-free aborts whatever halt_on_error says)
+# costs its own shard, not every case ordered after it (prestonbrown/helixscreen#1728).
+# The count also decides which tests share a process, and so which test first
+# allocates a process-scoped leak: scripts/asan_leak_baseline.txt is keyed to it.
+ASAN_SHARDS ?= 16
+# Each ASAN process carries its own shadow memory, as TSAN's do.
+ASAN_SHARD_JOBS ?= $(shell n=$$(nproc 2>/dev/null || echo 4); if [ $$n -gt 16 ]; then echo 16; else echo $$n; fi)
+ASAN_FILTER ?= ~[.]
+
 test-asan: test-asan-build
-	$(ECHO) "$(CYAN)$(BOLD)Running tests with AddressSanitizer...$(RESET)"
-	@set -o pipefail; \
-	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) LSAN_OPTIONS=$(LSAN_RUN_OPTIONS) \
-	  $(TEST_ASAN_BIN) "~[.]" 2>&1 | tee /tmp/asan_output.txt; \
+	$(ECHO) "$(CYAN)$(BOLD)Running tests with AddressSanitizer ($(ASAN_SHARDS) shards, $(ASAN_SHARD_JOBS) at a time, filter: $(ASAN_FILTER))...$(RESET)"
+	@shard_dir=$$(mktemp -d "$(SHARD_ARTIFACT_ROOT)/asan-shards-XXXXXX"); \
+	$(call launch_sanitizer_shards,ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) LSAN_OPTIONS=$(LSAN_RUN_OPTIONS) $(TEST_ASAN_BIN),$(ASAN_FILTER),$(ASAN_SHARDS),$(ASAN_SHARD_JOBS)); \
+	rc=0; \
+	for i in $$(seq 0 $$(($(ASAN_SHARDS)-1))); do \
+		ec=$$(cat "$$shard_dir/$$i.exit" 2>/dev/null | tr -d '[:space:]'); \
+		echo "shard $$i: $$(grep -hE 'All tests passed|^test cases:' "$$shard_dir/$$i.log" | tail -1)"; \
+		if [ "$$ec" != "0" ]; then \
+			echo "$(RED)$(BOLD)✗ ASAN shard $$i exited $${ec:-nothing}$(RESET)"; \
+			echo "  reproduce: $(TEST_ASAN_BIN) \"$(ASAN_FILTER)\" --shard-count $(ASAN_SHARDS) --shard-index $$i"; \
+			rc=1; \
+		fi; \
+	done; \
+	cat "$$shard_dir"/*.log > /tmp/asan_output.txt 2>/dev/null; \
+	rm -rf "$$shard_dir"; \
+	( exit $$rc ); \
 	$(call report_sanitizer_result,ASAN,/tmp/asan_output.txt,$(ASAN_REPORT_RE))
 	@python3 scripts/check_asan_leaks.py \
 	  --baseline scripts/asan_leak_baseline.txt /tmp/asan_output.txt
@@ -1365,13 +1399,7 @@ test-tsan: test-tsan-build
 	$(ECHO) "$(CYAN)$(BOLD)Running tests with ThreadSanitizer ($(TSAN_SHARDS) shards, $(TSAN_SHARD_JOBS) at a time, filter: $(TSAN_FILTER))...$(RESET)"
 	@shard_dir=$$(mktemp -d "$(SHARD_ARTIFACT_ROOT)/tsan-shards-XXXXXX"); \
 	inconclusive=""; \
-	for i in $$(seq 0 $$(($(TSAN_SHARDS)-1))); do \
-		while [ "$$(jobs -rp | wc -l)" -ge $(TSAN_SHARD_JOBS) ]; do sleep 1; done; \
-		( TSAN_OPTIONS="$(TSAN_RUN_OPTIONS)" $(TEST_TSAN_BIN) "$(TSAN_FILTER)" \
-			--shard-count $(TSAN_SHARDS) --shard-index $$i > "$$shard_dir/$$i.log" 2>&1; \
-		  echo $$? > "$$shard_dir/$$i.exit" ) & \
-	done; \
-	wait; \
+	$(call launch_sanitizer_shards,TSAN_OPTIONS="$(TSAN_RUN_OPTIONS)" $(TEST_TSAN_BIN),$(TSAN_FILTER),$(TSAN_SHARDS),$(TSAN_SHARD_JOBS)); \
 	rc=0; \
 	for i in $$(seq 0 $$(($(TSAN_SHARDS)-1))); do \
 		ec=$$(cat "$$shard_dir/$$i.exit" 2>/dev/null | tr -d '[:space:]'); \
@@ -1688,10 +1716,17 @@ test-order-dependence: suite-report
 .PHONY: check-tautology
 check-tautology:
 	$(Q)python3 scripts/check_test_tautology.py --max-allowed $(TAUTOLOGY_MAX)
-	$(Q)python3 scripts/check_test_mirrors.py --max-allowed $(MIRROR_MAX)
+	$(Q)python3 scripts/check_test_mirrors.py $(MIRROR_MAX_ARGS)
 
 TAUTOLOGY_MAX ?= 3
-MIRROR_MAX ?= 17
+# One ratchet per signal, so fixing one kind cannot buy slack for another. Each
+# may fall, never rise; an unnamed signal (shadow-include, mirror-comment)
+# allows 0. stub-logic is tests/ui_test_utils.cpp standing in for app_globals.o,
+# ui_notification.o and ui_toast_manager.o.
+MIRROR_MAX_REDEFINED_SYMBOL ?= 17
+MIRROR_MAX_STUB_LOGIC ?= 30
+MIRROR_MAX_ARGS = --max redefined-symbol=$(MIRROR_MAX_REDEFINED_SYMBOL) \
+	--max stub-logic=$(MIRROR_MAX_STUB_LOGIC)
 
 # ---- diff coverage ---------------------------------------------------------
 # Its own object tree, so this never disturbs the normal build.

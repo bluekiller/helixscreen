@@ -48,7 +48,7 @@ setup() {
 
     # Mock df to report space based on directory
     mock_command_script "df" "
-case \"\$1\" in
+case \"\$*\" in
     *data*)
         echo 'Filesystem  1K-blocks  Used Available Use% Mounted on'
         echo '/dev/sda1   1048576  0  512000  0% /data'
@@ -282,4 +282,26 @@ echo '/dev/sda1   1048576  0  512000  0% /'
     run platform_branch k2 "$WORKTREE_ROOT/scripts/lib/installer/platform.sh"
     [ "$status" -eq 0 ]
     echo "$output" | grep -q 'TMP_DIR_PREFERRED=.*/mnt/UDISK'
+}
+
+@test "detect_tmp_dir: BusyBox df wrapping a long device name still parses" {
+    mkdir -p "$BATS_TEST_TMPDIR/data"
+    mock_command_script "df" "
+case \"\$1\" in
+  -kP|-P)
+    echo 'Filesystem 1024-blocks Used Available Capacity Mounted on'
+    echo '/dev/disk/by-partlabel/userdata 1048576 0 512000 44% /data'
+    ;;
+  *)
+    echo 'Filesystem 1K-blocks Used Available Use% Mounted on'
+    echo '/dev/disk/by-partlabel/userdata'
+    echo '  1048576 0 512000 44% /data'
+    ;;
+esac
+"
+    export TMP_DIR=""
+    export TMP_DIR_PREFERRED="$BATS_TEST_TMPDIR/data/helixscreen-install"
+    run detect_tmp_dir
+    [[ "$output" != *"bad number"* ]] || fail "$output"
+    [[ "$output" == *"(500MB free)"* ]] || fail "$output"
 }

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -81,5 +82,13 @@ class UpdateCheckerTestAccess {
     static void finish_install_and_restart(UpdateChecker& c, const std::string& install_root,
                                            const std::string& version) {
         c.finish_install_and_restart(install_root, version);
+    }
+
+    /// Land a check result the way the worker does; its subject writes are
+    /// deferred, so drain the UpdateQueue before reading them.
+    static void report_result(UpdateChecker& c, UpdateChecker::Status status,
+                              std::optional<UpdateChecker::ReleaseInfo> info,
+                              const std::string& error = "") {
+        c.report_result(status, std::move(info), error);
     }
 };

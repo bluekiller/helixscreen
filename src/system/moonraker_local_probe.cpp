@@ -334,15 +334,16 @@ std::vector<ProcMatch> select_moonraker_processes(const std::vector<ProcMatch>& 
     return out;
 }
 
-std::vector<ProcMatch> find_moonraker_processes() {
+std::vector<ProcMatch> read_process_table(const std::string& proc_root) {
     std::vector<ProcMatch> candidates;
     std::error_code ec;
-    if (!fs::is_directory("/proc", ec))
+    if (!fs::is_directory(proc_root, ec))
         return candidates;
 
-    for (const auto& entry : fs::directory_iterator("/proc", ec)) {
-        if (ec)
-            break;
+    // increment(ec), never ++: a process exiting mid-walk makes the next readdir
+    // fail, and operator++ reports that by throwing filesystem_error.
+    for (fs::directory_iterator it(proc_root, ec), end; !ec && it != end; it.increment(ec)) {
+        const fs::directory_entry& entry = *it;
         const std::string name = entry.path().filename().string();
         if (name.empty() ||
             !std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isdigit(c); }))
@@ -369,8 +370,11 @@ std::vector<ProcMatch> find_moonraker_processes() {
         m.pid = std::strtol(name.c_str(), nullptr, 10);
         candidates.push_back(std::move(m));
     }
+    return candidates;
+}
 
-    return select_moonraker_processes(candidates);
+std::vector<ProcMatch> find_moonraker_processes() {
+    return select_moonraker_processes(read_process_table());
 }
 
 LocalIncludePlan plan_local_include(const std::vector<ProcMatch>& procs,

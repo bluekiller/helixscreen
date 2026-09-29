@@ -47,6 +47,22 @@ using namespace helix;
 
 using json = nlohmann::json;
 
+namespace {
+
+/// The backend's action with @p id. get_device_actions() builds a fresh vector
+/// on every call, so the action comes back by value: a pointer into that vector
+/// dangles as soon as the call's full-expression ends.
+std::optional<DeviceAction> find_action(AmsBackendCfs& b, const char* id) {
+    for (auto& a : b.get_device_actions()) {
+        if (a.id == id) {
+            return a;
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
 // Friend-class shim for FilamentSlotOverrideStore — same idiom as IFS /
 // Snapmaker / ACE tests. Lets us redirect the store's on-disk read-cache to a
 // per-test tmp dir so save_async doesn't pollute the developer's real
@@ -469,30 +485,21 @@ TEST_CASE("CFS auto-refill device action sends an explicit ENABLE", "[ams][cfs]"
 }
 
 TEST_CASE("CFS calibration section and actions are K1-stock only (#1282)", "[ams][cfs][calib]") {
-    auto find_action = [](AmsBackendCfs& b, const char* id) -> const helix::printer::DeviceAction* {
-        for (const auto& a : b.get_device_actions()) {
-            if (a.id == id) {
-                return &a;
-            }
-        }
-        return nullptr;
-    };
-
     SECTION("K1 dialect exposes both calibration actions in one section") {
         CfsK1RemapHelper backend;
         const auto sections = backend.get_device_sections();
         REQUIRE(std::any_of(sections.begin(), sections.end(),
                             [](const auto& s) { return s.id == "calibration"; }));
 
-        const auto* cutter = find_action(backend, "calibrate_cutter");
-        REQUIRE(cutter != nullptr);
+        const auto cutter = find_action(backend, "calibrate_cutter");
+        REQUIRE(cutter.has_value());
         CHECK(cutter->type == helix::printer::ActionType::BUTTON);
         CHECK(cutter->section == "calibration");
         CHECK(cutter->enabled);
         CHECK(cutter->disable_reason.empty());
 
-        const auto* chute = find_action(backend, "calibrate_purge_chute");
-        REQUIRE(chute != nullptr);
+        const auto chute = find_action(backend, "calibrate_purge_chute");
+        REQUIRE(chute.has_value());
         CHECK(chute->section == "calibration");
         CHECK(chute->enabled);
     }
@@ -503,8 +510,8 @@ TEST_CASE("CFS calibration section and actions are K1-stock only (#1282)", "[ams
         for (const auto& s : backend.get_device_sections()) {
             CHECK(s.id != "calibration");
         }
-        CHECK(find_action(backend, "calibrate_cutter") == nullptr);
-        CHECK(find_action(backend, "calibrate_purge_chute") == nullptr);
+        CHECK_FALSE(find_action(backend, "calibrate_cutter").has_value());
+        CHECK_FALSE(find_action(backend, "calibrate_purge_chute").has_value());
     }
 
     SECTION("Kalico Fork has no calibration surface") {
@@ -513,8 +520,8 @@ TEST_CASE("CFS calibration section and actions are K1-stock only (#1282)", "[ams
         for (const auto& s : backend.get_device_sections()) {
             CHECK(s.id != "calibration");
         }
-        CHECK(find_action(backend, "calibrate_cutter") == nullptr);
-        CHECK(find_action(backend, "calibrate_purge_chute") == nullptr);
+        CHECK_FALSE(find_action(backend, "calibrate_cutter").has_value());
+        CHECK_FALSE(find_action(backend, "calibrate_purge_chute").has_value());
     }
 }
 
@@ -712,29 +719,21 @@ TEST_CASE("CFS calibration refuses while a print owns the machine (#1282)", "[am
 TEST_CASE("CFS calibration actions grey out while a print owns the machine (#1282)",
           "[ams][cfs][calib]") {
     CfsCalibHelper backend;
-    auto find_action = [](AmsBackendCfs& b, const char* id) -> const helix::printer::DeviceAction* {
-        for (const auto& a : b.get_device_actions()) {
-            if (a.id == id) {
-                return &a;
-            }
-        }
-        return nullptr;
-    };
 
-    const auto* cutter = find_action(backend, "calibrate_cutter");
-    REQUIRE(cutter != nullptr);
+    auto cutter = find_action(backend, "calibrate_cutter");
+    REQUIRE(cutter.has_value());
     CHECK(cutter->enabled);
     CHECK(cutter->disable_reason.empty());
 
     helix::test::set_wire_state(backend.state, helix::PrintJobState::PRINTING);
     helix::ui::UpdateQueue::instance().drain();
     cutter = find_action(backend, "calibrate_cutter");
-    REQUIRE(cutter != nullptr);
+    REQUIRE(cutter.has_value());
     CHECK_FALSE(cutter->enabled);
     CHECK_FALSE(cutter->disable_reason.empty());
 
-    const auto* chute = find_action(backend, "calibrate_purge_chute");
-    REQUIRE(chute != nullptr);
+    const auto chute = find_action(backend, "calibrate_purge_chute");
+    REQUIRE(chute.has_value());
     CHECK_FALSE(chute->enabled);
     CHECK_FALSE(chute->disable_reason.empty());
 }

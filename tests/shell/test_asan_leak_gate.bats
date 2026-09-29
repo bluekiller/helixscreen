@@ -211,6 +211,20 @@ gcc_ui_button_log() {
     [[ "$output" == *'exceeds the baseline ceiling'* ]]
 }
 
+@test "a sharded log is held to the ceilings by the sum of its shards" {
+    clang_ui_button_log
+    run python3 "$GATE" --write-baseline "$BASE" "$LOG"
+    grep -q '^max-leaked-bytes: 7168$' "$BASE" || fail "$(cat "$BASE")"
+
+    # Two shards, each under the ceiling on its own, together over it.
+    : > "$LOG"
+    clang_ui_button_log
+    clang_ui_button_log
+    run_gate
+    [ "$status" -ne 0 ] || fail "$output"
+    [[ "$output" == *'exceeds the baseline ceiling'* ]] || fail "$output"
+}
+
 # --- parser safety rails ----------------------------------------------------
 
 @test "system paths that merely contain a tree-root segment stay foreign" {

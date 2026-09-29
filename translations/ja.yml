@@ -1319,6 +1319,7 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: ハードウェア
   Hardware Health: ハードウェア状態
+  Hardware Keyboard: ''
   Hardware Name: ハードウェア名
   Hardware Profile: ハードウェアプロファイル
   Hardware is validated on startup and reconnection: ハードウェアは起動時と再接続時に検証されます
@@ -1385,6 +1386,7 @@ translations:
   Helper macros are up to date: 'ヘルパーマクロは最新です'
   Hide Firmware Noise: ファームウェアノイズを非表示
   Hide Temperature Reports: 温度レポートを非表示
+  Hide the on-screen keyboard while a USB keyboard is attached: ''
   High Water Mark: 最大値
   Hold anywhere to cancel: どこかを長押ししてキャンセル
   Hold still: 動かないでください

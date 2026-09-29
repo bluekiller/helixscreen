@@ -27,8 +27,8 @@ void set_speed_percent(IMoonrakerAPI* api, int pct);
 void set_flow_percent(IMoonrakerAPI* api, int pct);
 
 /// Volumetric flow for a live extruder velocity given in centi-mm/s, the unit
-/// PrinterState publishes it in.
-double volumetric_flow_mm3_s(int extruder_velocity_centimm_s);
+/// PrinterState publishes it in, through filament of the given diameter.
+double volumetric_flow_mm3_s(int extruder_velocity_centimm_s, float filament_diameter_mm);
 
 struct SpeedFlowText {
     std::string speed;
@@ -40,6 +40,7 @@ struct SpeedFlowText {
 /// speed, because the commanded feed rate holds its last value while the
 /// toolhead sits still.
 SpeedFlowText status_speed_flow_text(bool physical_units, int speed_pct, int flow_pct,
-                                     int live_velocity_mm_s, int extruder_velocity_centimm_s);
+                                     int live_velocity_mm_s, int extruder_velocity_centimm_s,
+                                     float filament_diameter_mm);
 
 } // namespace helix::tune

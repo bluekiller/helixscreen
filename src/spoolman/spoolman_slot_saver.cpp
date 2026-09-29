@@ -27,7 +27,8 @@ std::string to_lower(std::string s) {
 
 } // namespace
 
-SpoolmanSlotSaver::SpoolmanSlotSaver(IMoonrakerAPI* api) : api_(api) {}
+SpoolmanSlotSaver::SpoolmanSlotSaver(IMoonrakerAPI* api, float filament_diameter_mm)
+    : api_(api), filament_diameter_mm_(filament_diameter_mm) {}
 
 MissingFilamentFields SpoolmanSlotSaver::missing_filament_fields(const SlotInfo& slot) {
     MissingFilamentFields missing;
@@ -487,11 +488,11 @@ void SpoolmanSlotSaver::find_or_create_filament(int vendor_id, const std::string
             payload["name"] = filament_name.empty() ? material : filament_name;
             // density and diameter are REQUIRED by Spoolman (no defaults in their API).
             // Look up density from the material database; fall back to 1.24 g/cm³ (PLA).
-            // Diameter defaults to 1.75 mm — correct for ~99% of hobbyist setups.
+            // Diameter is the printer's, which the owner passes in.
             auto mat_info = filament::find_material(material);
             payload["density"] =
                 (mat_info && mat_info->density_g_cm3 > 0.0f) ? mat_info->density_g_cm3 : 1.24;
-            payload["diameter"] = 1.75;
+            payload["diameter"] = filament_diameter_mm_;
             spdlog::info("[SpoolmanSlotSaver] Creating filament "
                          "(vendor={}, material={}, color={})",
                          vendor_id, material, needle_color);

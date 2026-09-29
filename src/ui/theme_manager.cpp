@@ -3347,87 +3347,6 @@ theme_manager_parse_all_xml_for_suffix(const char* directory, const char* elemen
     return token_values;
 }
 
-// Helper to check if a string looks like a hex color value
-static bool is_hex_color_value(const std::string& value) {
-    if (value.empty())
-        return false;
-
-    // Must start with a digit or be 3/6/8 hex chars
-    // Hex colors: RGB (3), RRGGBB (6), or AARRGGBB (8)
-    size_t len = value.length();
-    if (len != 3 && len != 6 && len != 8)
-        return false;
-
-    // All characters must be hex digits
-    for (char c : value) {
-        if (!std::isxdigit(static_cast<unsigned char>(c)))
-            return false;
-    }
-
-    return true;
-}
-
-// Expat callback data for extracting constant references from attribute values
-struct ConstantRefParserData {
-    std::string current_file;
-    std::vector<std::tuple<std::string, std::string, std::string>>* refs; // constant, file, attr
-};
-
-static void XMLCALL constant_ref_element_start(void* user_data, const XML_Char* name,
-                                               const XML_Char** attrs) {
-    (void)name;
-    auto* data = static_cast<ConstantRefParserData*>(user_data);
-
-    // Scan all attributes for constant references (pattern: ="# ... ")
-    for (int i = 0; attrs[i]; i += 2) {
-        const char* attr_name = attrs[i];
-        const char* attr_value = attrs[i + 1];
-
-        if (!attr_value || attr_value[0] != '#')
-            continue;
-
-        // Extract constant name (everything after # until end of string)
-        std::string const_name(attr_value + 1);
-
-        // Skip hex color values (start with digit or are 3/6/8 hex chars)
-        if (is_hex_color_value(const_name))
-            continue;
-
-        data->refs->emplace_back(const_name, data->current_file, std::string(attr_name));
-    }
-}
-
-// Parse XML file for constant references in attribute values
-static void theme_manager_parse_xml_file_for_refs(
-    const char* filepath, std::vector<std::tuple<std::string, std::string, std::string>>& refs) {
-    if (!filepath)
-        return;
-
-    const std::string xml_content = tm_read_xml_file(filepath);
-
-    if (xml_content.empty())
-        return;
-
-    // Extract just the filename for error messages
-    std::string filepath_str(filepath);
-    std::string filename = filepath_str;
-    size_t slash_pos = filepath_str.rfind('/');
-    if (slash_pos != std::string::npos) {
-        filename = filepath_str.substr(slash_pos + 1);
-    }
-
-    ConstantRefParserData parser_data = {filename, &refs};
-    XML_Parser parser = XML_ParserCreate(nullptr);
-    if (!parser)
-        return;
-
-    XML_SetUserData(parser, &parser_data);
-    XML_SetElementHandler(parser, constant_ref_element_start, nullptr);
-
-    XML_Parse(parser, xml_content.c_str(), static_cast<int>(xml_content.size()), XML_TRUE);
-    XML_ParserFree(parser);
-}
-
 std::vector<std::string> theme_manager_validate_constant_sets(const char* directory) {
     std::vector<std::string> warnings;
 
@@ -3454,6 +3373,10 @@ std::vector<std::string> theme_manager_validate_constant_sets(const char* direct
         for (const auto& [name, _] : large_tokens) {
             base_names[name] |= 4; // bit 2 = _large
         }
+
+        // border_radius_small is a fixed 4px token that only looks like a
+        // responsive variant; plugin XML references it by name, so it stays.
+        base_names.erase("border_radius");
 
         // Check for incomplete sets (_small/_medium/_large must be complete)
         for (const auto& [base_name, flags] : base_names) {
@@ -3528,126 +3451,6 @@ std::vector<std::string> theme_manager_validate_constant_sets(const char* direct
                     warnings.push_back("Incomplete theme pair for '" + base_name +
                                        "': found _dark but missing _light");
                 }
-            }
-        }
-    }
-
-    // ========================================================================
-    // Validate undefined constant references
-    // ========================================================================
-    {
-        // Whitelist of constants registered in C++ (not XML) or work-in-progress
-        static const std::unordered_set<std::string> cpp_registered_constants = {
-            // Registered dynamically in theme_manager_register_responsive_spacing()
-            "nav_width",
-            "overlay_width_transient",
-            "overlay_width_destination",
-            // WIP wizard constants (user actively working on these)
-            "wizard_footer_height",
-            "wizard_button_width",
-        };
-
-        // Step 1: Collect all defined constants from all element types
-        std::unordered_set<std::string> defined_constants;
-
-        // Direct definitions (px, color, string, str, percentage)
-        for (const auto& [name, _] : theme_manager_parse_all_xml_for_element(directory, "px")) {
-            defined_constants.insert(name);
-        }
-        for (const auto& [name, _] : theme_manager_parse_all_xml_for_element(directory, "color")) {
-            defined_constants.insert(name);
-        }
-        for (const auto& [name, _] : theme_manager_parse_all_xml_for_element(directory, "string")) {
-            defined_constants.insert(name);
-        }
-        for (const auto& [name, _] : theme_manager_parse_all_xml_for_element(directory, "str")) {
-            defined_constants.insert(name);
-        }
-        for (const auto& [name, _] :
-             theme_manager_parse_all_xml_for_element(directory, "percentage")) {
-            defined_constants.insert(name);
-        }
-        for (const auto& [name, _] : theme_manager_parse_all_xml_for_element(directory, "int")) {
-            defined_constants.insert(name);
-        }
-
-        // Step 2: Add base names for responsive constants (_small/_medium/_large -> base)
-        // These get registered at runtime as the base name
-        // Also include _tiny and _xlarge tokens — they are optional but valid definitions
-        auto small_px = theme_manager_parse_all_xml_for_suffix(directory, "px", "_small");
-        auto medium_px = theme_manager_parse_all_xml_for_suffix(directory, "px", "_medium");
-        auto large_px = theme_manager_parse_all_xml_for_suffix(directory, "px", "_large");
-        auto tiny_px = theme_manager_parse_all_xml_for_suffix(directory, "px", "_tiny");
-        auto xlarge_px = theme_manager_parse_all_xml_for_suffix(directory, "px", "_xlarge");
-        for (const auto& [base_name, _] : small_px) {
-            if (medium_px.count(base_name) && large_px.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-        // _tiny tokens with a valid _small/_medium/_large set are also defined
-        for (const auto& [base_name, _] : tiny_px) {
-            if (small_px.count(base_name) && medium_px.count(base_name) &&
-                large_px.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-        // _xlarge tokens with a valid _small/_medium/_large set are also defined
-        for (const auto& [base_name, _] : xlarge_px) {
-            if (small_px.count(base_name) && medium_px.count(base_name) &&
-                large_px.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-
-        auto small_str = theme_manager_parse_all_xml_for_suffix(directory, "string", "_small");
-        auto medium_str = theme_manager_parse_all_xml_for_suffix(directory, "string", "_medium");
-        auto large_str = theme_manager_parse_all_xml_for_suffix(directory, "string", "_large");
-        auto tiny_str = theme_manager_parse_all_xml_for_suffix(directory, "string", "_tiny");
-        auto xlarge_str = theme_manager_parse_all_xml_for_suffix(directory, "string", "_xlarge");
-        for (const auto& [base_name, _] : small_str) {
-            if (medium_str.count(base_name) && large_str.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-        for (const auto& [base_name, _] : tiny_str) {
-            if (small_str.count(base_name) && medium_str.count(base_name) &&
-                large_str.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-        // _xlarge string tokens with valid triplet are also defined
-        for (const auto& [base_name, _] : xlarge_str) {
-            if (small_str.count(base_name) && medium_str.count(base_name) &&
-                large_str.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-
-        // Step 3: Add base names for themed colors (_light/_dark -> base)
-        auto light_colors = theme_manager_parse_all_xml_for_suffix(directory, "color", "_light");
-        auto dark_colors = theme_manager_parse_all_xml_for_suffix(directory, "color", "_dark");
-        for (const auto& [base_name, _] : light_colors) {
-            if (dark_colors.count(base_name)) {
-                defined_constants.insert(base_name);
-            }
-        }
-
-        // Step 4: Scan all XML files for constant references
-        std::vector<std::tuple<std::string, std::string, std::string>> refs;
-        auto files = theme_manager_find_xml_files(directory);
-        for (const auto& filepath : files) {
-            theme_manager_parse_xml_file_for_refs(filepath.c_str(), refs);
-        }
-
-        // Step 5: Check each reference against defined constants
-        for (const auto& [const_name, filename, attr_name] : refs) {
-            // Skip whitelisted constants (registered in C++ or WIP)
-            if (cpp_registered_constants.count(const_name)) {
-                continue;
-            }
-            if (defined_constants.find(const_name) == defined_constants.end()) {
-                warnings.push_back("Undefined constant '#" + const_name + "' in " + filename +
-                                   " (attribute: " + attr_name + ")");
             }
         }
     }

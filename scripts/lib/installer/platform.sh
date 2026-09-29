@@ -906,9 +906,8 @@ detect_tmp_dir() {
             continue
         fi
 
-        # Check free space (BusyBox df: KB in $4)
         local available_mb
-        available_mb=$(df "$check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        available_mb=$(_fs_free_mb "$check_dir")
         if [ -z "$available_mb" ] || [ "$available_mb" -lt "$required_mb" ]; then
             continue
         fi
@@ -1216,9 +1215,22 @@ set_install_paths() {
         _install_dir_from_detection=1
     fi
 
+    # Only the detection branch above and a mod host (below) honour an explicit
+    # INSTALL_DIR; a fixed-root platform installs at its own root regardless.
+    # An override that is ignored must not switch off the migration or the
+    # existing-install check either (prestonbrown/helixscreen#1674).
+    local user_install_dir="${_USER_INSTALL_DIR:-}"
+    if [ -n "$user_install_dir" ] && [ "${_install_dir_from_detection:-0}" != "1" ] \
+       && [ -z "${HOST_INSTALL_ROOT:-}" ]; then
+        if [ "$user_install_dir" != "$INSTALL_DIR" ]; then
+            log_warn "Ignoring INSTALL_DIR=${user_install_dir}: this platform installs at its own root"
+        fi
+        user_install_dir=""
+    fi
+
     # A root the platform declares superseded is migrated, never adopted, so the
-    # fleet converges on one layout. An explicit INSTALL_DIR still outranks it.
-    if [ -n "${PREVIOUS_INSTALL_DIR:-}" ] && [ -z "${_USER_INSTALL_DIR:-}" ] \
+    # fleet converges on one layout. An honoured INSTALL_DIR still outranks it.
+    if [ -n "${PREVIOUS_INSTALL_DIR:-}" ] && [ -z "$user_install_dir" ] \
        && [ "$PREVIOUS_INSTALL_DIR" != "$INSTALL_DIR" ]; then
         MIGRATE_FROM_DIR=$(_find_superseded_install) || MIGRATE_FROM_DIR=""
         if [ -n "$MIGRATE_FROM_DIR" ]; then
@@ -1232,8 +1244,8 @@ set_install_paths() {
     # move: the payload lands at the new prefix while the init script still
     # names the old one, so the device reboots into the old binary with two
     # copies on disk. detect_pi_install_dir already did this for its own branch,
-    # and an explicit INSTALL_DIR is a deliberate choice that outranks it.
-    if [ "${_install_dir_from_detection:-0}" != "1" ] && [ -z "${_USER_INSTALL_DIR:-}" ]; then
+    # and an honoured INSTALL_DIR is a deliberate choice that outranks it.
+    if [ "${_install_dir_from_detection:-0}" != "1" ] && [ -z "$user_install_dir" ]; then
         _existing_install_dir=$(_detect_existing_install_dir) || _existing_install_dir=""
         if [ -n "$_existing_install_dir" ] && [ "$_existing_install_dir" != "$INSTALL_DIR" ] \
            && [ "$_existing_install_dir" != "${MIGRATE_FROM_DIR:-}" ]; then

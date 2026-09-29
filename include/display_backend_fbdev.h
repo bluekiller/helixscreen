@@ -60,6 +60,9 @@ class DisplayBackendFbdev : public DisplayBackend {
     // Input device creation
     lv_indev_t* create_input_pointer() override;
     lv_indev_t* create_input_keyboard() override;
+    bool has_hardware_keyboard() const override {
+        return keyboard_ != nullptr;
+    }
 
     // Backend info
     DisplayBackendType type() const override {

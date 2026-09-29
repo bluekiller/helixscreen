@@ -105,14 +105,46 @@ use_sandbox_dirs() {
         fail "u1 init script is '$INIT_SCRIPT_DEST', not inside the adopted tree"
 }
 
-@test "an explicit INSTALL_DIR outranks a tree on disk" {
+@test "an INSTALL_DIR a fixed-root platform ignores does not orphan the tree on disk" {
+    # These platforms install at their own root whatever INSTALL_DIR says, so
+    # the override must not switch off adoption either (prestonbrown/helixscreen#1674).
+    use_sandbox_dirs
+    export AD5M_GCODES_ROOT="$FAKE_ROOT/data"
+    local existing platform
+    existing="$(seed_install /srv/helixscreen)"
+    for platform in k2 ad5m k1 cc1 snapmaker-u1; do
+        _USER_INSTALL_DIR="$FAKE_ROOT/custom/helixscreen"
+        INSTALL_DIR="$_USER_INSTALL_DIR"
+
+        set_install_paths "$platform" >/dev/null
+        [ "$INSTALL_DIR" = "$existing" ] || \
+            fail "$platform chose '$INSTALL_DIR', orphaning the tree at '$existing'"
+    done
+}
+
+@test "ad5x: an ignored INSTALL_DIR does not orphan the tree on disk" {
+    # ad5x's own root is /srv, so its tree on disk has to sit elsewhere.
+    use_sandbox_dirs
+    local existing
+    existing="$(seed_install /opt/helixscreen)"
+    _USER_INSTALL_DIR="$FAKE_ROOT/custom/helixscreen"
+    INSTALL_DIR="$_USER_INSTALL_DIR"
+
+    set_install_paths ad5x >/dev/null
+    [ "$INSTALL_DIR" = "$existing" ] || fail "ad5x chose '$INSTALL_DIR'"
+}
+
+@test "a mod host still honours an explicit INSTALL_DIR over a tree on disk" {
     use_sandbox_dirs
     seed_install /srv/helixscreen >/dev/null
+    HOST_INSTALL_ROOT="$FAKE_ROOT/mod/helixscreen"
     _USER_INSTALL_DIR="$FAKE_ROOT/custom/helixscreen"
+    host_refuse_mod_owned() { :; }
+    validate_install_dir() { :; }
 
-    set_install_paths k2
-    [ "$INSTALL_DIR" != "$FAKE_ROOT/srv/helixscreen" ] || \
-        fail "an explicit request was overridden by a tree found on disk"
+    set_install_paths k2 >/dev/null
+    [ "$INSTALL_DIR" = "$_USER_INSTALL_DIR" ] || \
+        fail "a mod host dropped the explicit request for '$INSTALL_DIR'"
 }
 
 @test "a directory without the binary is not an install" {

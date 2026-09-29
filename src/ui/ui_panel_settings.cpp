@@ -208,6 +208,16 @@ static void on_system_keyboard_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
+static void on_hide_keyboard_with_hardware_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_hide_keyboard_with_hardware_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    spdlog::info("[SettingsPanel] Hide keyboard with hardware keyboard toggled: {}",
+                 enabled ? "ON" : "OFF");
+    DisplaySettingsManager::instance().set_hide_keyboard_with_hardware(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 static void on_keep_navbar_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_keep_navbar_changed");
     auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -359,6 +369,7 @@ void SettingsPanel::init_subjects() {
         {"on_home_edit_mode_changed", on_home_edit_mode_changed},
         {"on_scroll_guard_changed", on_scroll_guard_changed},
         {"on_system_keyboard_changed", on_system_keyboard_changed},
+        {"on_hide_keyboard_with_hardware_changed", on_hide_keyboard_with_hardware_changed},
         {"on_keep_navbar_changed", on_keep_navbar_changed},
         {"on_page_scroll_buttons_changed", on_page_scroll_buttons_changed},
 

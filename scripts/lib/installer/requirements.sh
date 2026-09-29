@@ -201,16 +201,7 @@ check_disk_space() {
     # point df at)
     local available_mb=""
     if [ "$check_dir" != "/" ]; then
-        case "$platform" in
-            ad5m|ad5x|k1|k2)
-                # BusyBox df: blocks are in KB by default
-                available_mb=$(df "$check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
-                ;;
-            *)
-                # GNU df with -m flag outputs in MB
-                available_mb=$(df -m "$check_dir" 2>/dev/null | tail -1 | awk '{print $4}')
-                ;;
-        esac
+        available_mb=$(_fs_free_mb "$check_dir")
     fi
 
     if [ -z "$available_mb" ]; then

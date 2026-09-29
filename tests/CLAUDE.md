@@ -228,6 +228,14 @@ Prefer extracting the rule as a **pure function** and testing that without LVGL 
 separately (`test_overlay_width_push.cpp`). Pure-logic tests are fast, total, and survive
 refactors of the widget layer.
 
+**A test double may be inert, or it may be the real object; it may not be a copy of the
+logic.** `mk/tests.mk` filters a few objects out of the test link (`TEST_APP_OBJS`), and
+`tests/ui_test_utils.cpp` stands in for them. A stand-in with an empty body or a single
+return cannot lie. One that branches is a second implementation the tests exercise instead
+of production's, and it drifts silently. `scripts/check_test_mirrors.py` flags it as
+`stub-logic` against the `MIRROR_MAX` ratchet (prestonbrown/helixscreen#1220). To test the
+logic, link the real object: drop it from the filter list.
+
 ### Proving a test can fail
 
 "A test must FAIL if the feature is removed" is the rule, and a green suite is not

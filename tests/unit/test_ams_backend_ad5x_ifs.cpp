@@ -11644,6 +11644,48 @@ TEST_CASE("clearing an AD5X port takes the linked spool's brand off it",
     CHECK(after.spoolman_id == 0);
 }
 
+TEST_CASE("an AD5X slot edit paints the edit's values, not the pre-edit ones",
+          "[ams][ad5x_ifs][lane][1647]") {
+    // The lane already carries a person's earlier edit when the next one lands,
+    // so any paint that resolves before the new declaration is filed lays the
+    // earlier values back over the new ones.
+    Ad5xIfsTmpCacheDir tmp("edit_paints_edit");
+    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
+    helix::PrinterState state;
+    state.init_subjects(false);
+    MoonrakerAPIMock api(client, state);
+
+    helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
+    AmsBackendAd5xIfs& backend = *backend_reg;
+    auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "ifs");
+    FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
+    Ad5xIfsTestAccess::inject_override_store(backend, std::move(store));
+
+    SlotInfo first = backend.get_slot_info(0);
+    first.material = "PLA";
+    first.color_rgb = 0xFF0000;
+    first.color_name = "Old Red";
+    first.brand = "OldBrand";
+    helix::test::edit_slot_as_user(backend, 0, first);
+    REQUIRE(backend.get_slot_info(0).brand == "OldBrand");
+    REQUIRE(backend.get_slot_info(0).color_name == "Old Red");
+
+    SlotInfo second = backend.get_slot_info(0);
+    second.material = "PETG";
+    second.color_rgb = 0x0000FF;
+    second.color_name = "New Blue";
+    second.brand = "NewBrand";
+    helix::test::edit_slot_as_user(backend, 0, second);
+
+    const SlotInfo painted = backend.get_slot_info(0);
+    CHECK(painted.brand == "NewBrand");
+    CHECK(painted.color_name == "New Blue");
+    CHECK((painted.color_rgb & 0xFFFFFF) == 0x0000FF);
+    CHECK(painted.material == "PETG");
+
+    helix::ui::UpdateQueue::instance().drain();
+}
+
 TEST_CASE("a spool Spoolman denies keeps the AD5X port's brand as remembered",
           "[ams][ad5x_ifs][lane][1672]") {
     // A spool deleted in Spoolman is bookkeeping, not a spool change: the port

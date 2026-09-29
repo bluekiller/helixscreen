@@ -516,9 +516,12 @@ def parse(streams):
                 continue
             m = SUMMARY_RE.search(line)
             if m:
+                # A sharded run concatenates one SUMMARY per shard process; the
+                # ceilings are for the run as a whole.
                 report.saw_leak_block = True
-                report.summary_bytes = int(m.group('bytes'))
-                report.summary_allocations = int(m.group('allocations'))
+                report.summary_bytes = (report.summary_bytes or 0) + int(m.group('bytes'))
+                report.summary_allocations = ((report.summary_allocations or 0) +
+                                              int(m.group('allocations')))
                 continue
             m = LEAK_BLOCK_RE.match(line)
             if m:

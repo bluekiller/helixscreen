@@ -372,40 +372,45 @@ inline std::optional<DryingPreset> get_drying_preset_for_material(std::string_vi
     return std::nullopt;
 }
 
+/// Filament diameter assumed when the printer has not reported its own
+/// ([extruder] filament_diameter).
+// NAMESPACE_OK: extends filament::, the material table's existing namespace
+inline constexpr float DEFAULT_DIAMETER_MM = 1.75f;
+
+/// Filament cross-section in mm², pi * (d/2)^2
+// NAMESPACE_OK: extends filament::, the material table's existing namespace
+inline float cross_section_mm2(float diameter_mm) {
+    const float radius_mm = diameter_mm / 2.0f;
+    return static_cast<float>(M_PI) * radius_mm * radius_mm;
+}
+
 /**
  * @brief Calculate filament length from weight
  * @param weight_g Weight in grams
  * @param density Material density in g/cm³
- * @param diameter_mm Filament diameter in mm (default 1.75)
+ * @param diameter_mm Filament diameter in mm
  * @return Length in meters
  */
-inline float weight_to_length_m(float weight_g, float density, float diameter_mm = 1.75f) {
-    // Volume = mass / density (in cm³)
-    float volume_cm3 = weight_g / density;
-
-    // Cross-sectional area in cm² (diameter in mm -> radius in cm)
-    float radius_cm = (diameter_mm / 2.0f) / 10.0f;
-    float area_cm2 = static_cast<float>(M_PI) * radius_cm * radius_cm;
-
-    // Length = volume / area (in cm, then convert to m)
-    float length_cm = volume_cm3 / area_cm2;
-    return length_cm / 100.0f;
+inline float weight_to_length_m(float weight_g, float density,
+                                float diameter_mm = DEFAULT_DIAMETER_MM) {
+    // mass / density is cm³; x1000 is mm³, / area is mm of filament
+    const float length_mm = (weight_g / density) * 1000.0f / cross_section_mm2(diameter_mm);
+    return length_mm / 1000.0f;
 }
 
 /**
  * @brief Calculate filament weight in grams from length
  * @param length_mm Length in millimeters
  * @param density Material density in g/cm³
- * @param diameter_mm Filament diameter in mm (default 1.75)
+ * @param diameter_mm Filament diameter in mm
  * @return Mass in grams, or 0 if density or length is not positive
  */
-inline float length_to_weight_g(float length_mm, float density, float diameter_mm = 1.75f) {
+inline float length_to_weight_g(float length_mm, float density,
+                                float diameter_mm = DEFAULT_DIAMETER_MM) {
     if (density <= 0.0f || length_mm <= 0.0f) {
         return 0.0f;
     }
-    float radius_mm = diameter_mm / 2.0f;
-    float area_mm2 = static_cast<float>(M_PI) * radius_mm * radius_mm;
-    float volume_mm3 = length_mm * area_mm2;
+    const float volume_mm3 = length_mm * cross_section_mm2(diameter_mm);
     return (volume_mm3 / 1000.0f) * density;
 }
 
