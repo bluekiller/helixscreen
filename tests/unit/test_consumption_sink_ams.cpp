@@ -125,6 +125,37 @@ TEST_CASE_METHOD(AmsSlotSinkFixture, "AmsSlotSink: apply_delta decrements remain
     REQUIRE(after.remaining_weight_g > 496.0f);
 }
 
+TEST_CASE_METHOD(AmsSlotSinkFixture, "consumption sinks meter at the printer's filament diameter",
+                 "[consumption_sink][filament_diameter]") {
+    helix::PrinterDiscovery hw;
+    hw.parse_filament_diameter(nlohmann::json{{"extruder", {{"filament_diameter", 2.85}}}});
+    get_printer_state().set_hardware(hw);
+
+    // 1000mm of 2.85mm PLA at 1.24 g/cm^3 is 6.379 cm^3, 7.91 g.
+    SECTION("AMS slot") {
+        AmsSlotSink sink(backend_idx, 0);
+        sink.snapshot(0.0f);
+        sink.apply_delta(1000.0f);
+        CHECK(mock->get_slot_info(0).remaining_weight_g ==
+              Catch::Approx(500.0f - 7.91f).epsilon(1e-3));
+    }
+    SECTION("external spool") {
+        helix::SlotInfo info;
+        info.material = "PLA";
+        info.remaining_weight_g = 500.0f;
+        info.total_weight_g = 1000.0f;
+        helix::AmsState::instance().set_external_spool_info_in_memory(info);
+
+        helix::ExternalSpoolSink sink;
+        sink.snapshot(0.0f);
+        sink.apply_delta(1000.0f);
+        auto after = helix::AmsState::instance().get_external_spool_info();
+        REQUIRE(after.has_value());
+        CHECK(after->remaining_weight_g == Catch::Approx(500.0f - 7.91f).epsilon(1e-3));
+        helix::AmsState::instance().clear_external_spool_info();
+    }
+}
+
 TEST_CASE_METHOD(AmsSlotSinkFixture, "AmsSlotSink: apply_delta clamps remaining at zero",
                  "[consumption_sink][ams]") {
     helix::SlotInfo seed = mock->get_slot_info(0);

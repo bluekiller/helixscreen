@@ -96,6 +96,10 @@ class SettingsManager {
      */
     void deinit_subjects();
 
+    [[nodiscard]] bool are_subjects_initialized() const {
+        return subjects_initialized_;
+    }
+
     /**
      * @brief Set Moonraker client reference for remote commands
      *
@@ -194,7 +198,7 @@ class SettingsManager {
     void set_toolhead_style(ToolheadStyle style);
 
     /** @brief Get dropdown options string */
-    static const char* get_toolhead_style_options();
+    static std::string get_toolhead_style_options();
 
     /** @brief Convert toolhead style to dropdown index (native styles map to 0/Auto) */
     static int toolhead_style_to_dropdown_index(ToolheadStyle style);

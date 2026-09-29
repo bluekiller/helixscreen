@@ -4,8 +4,8 @@
 # Meta-tests for scripts/check_responsive_token_scope.py — the responsive-token
 # location gate.
 #
-# theme_manager_find_xml_files() skips subdirectories outright
-# (src/ui/theme_manager.cpp: `if (entry->d_type == DT_DIR) continue;`), so token
+# Token discovery calls theme_manager_find_xml_files() with recursive=false,
+# which skips subdirectories outright (src/ui/theme_manager.cpp), so token
 # auto-discovery reads only the top-level ui_xml/*.xml. A responsive token
 # declared in ui_xml/components/, ui_xml/portrait/, ui_xml/micro/ — anywhere but
 # the top level — is never registered, and every `#token` referencing it

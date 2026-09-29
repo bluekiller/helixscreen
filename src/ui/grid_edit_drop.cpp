@@ -43,15 +43,50 @@ DropResolution resolve_drop(const DropInput& in, const GridLayout& occupancy) {
     // A page change is itself a move, even onto the origin cell's coordinates.
     const bool moved = in.target_col != in.origin_col || in.target_row != in.origin_row ||
                        in.page_index != in.origin_page;
-    if (in.target_col < 0 || in.target_row < 0 || !moved ||
-        !occupancy.can_place(in.target_col, in.target_row, in.colspan, in.rowspan)) {
+    if (in.target_col < 0 || in.target_row < 0 || !moved) {
         return nothing;
     }
-    DropResolution move;
-    move.outcome = DropOutcome::Move;
-    move.col = in.target_col;
-    move.row = in.target_row;
-    return move;
+    if (occupancy.can_place(in.target_col, in.target_row, in.colspan, in.rowspan)) {
+        DropResolution move;
+        move.outcome = DropOutcome::Move;
+        move.col = in.target_col;
+        move.row = in.target_row;
+        return move;
+    }
+    // The occupant's new cell is the origin, which only the origin page has free.
+    if (in.page_index != in.origin_page) {
+        return nothing;
+    }
+    const GridPlacement* occupant = nullptr;
+    for (const GridPlacement& p : occupancy.placements()) {
+        const bool overlaps =
+            p.col < in.target_col + in.colspan && in.target_col < p.col + p.colspan &&
+            p.row < in.target_row + in.rowspan && in.target_row < p.row + p.rowspan;
+        if (!overlaps) {
+            continue;
+        }
+        if (occupant) {
+            return nothing;
+        }
+        occupant = &p;
+    }
+    if (!occupant) {
+        return nothing;
+    }
+    DropResolution swap;
+    swap.outcome = DropOutcome::Swap;
+    swap.col = occupant->col;
+    swap.row = occupant->row;
+    swap.swapped = {occupant->widget_id, in.origin_col, in.origin_row, occupant->colspan,
+                    occupant->rowspan};
+    GridLayout after = occupancy;
+    after.remove(occupant->widget_id);
+    if (!after.place({"", swap.col, swap.row, in.colspan, in.rowspan}) ||
+        !after.can_place(swap.swapped.col, swap.swapped.row, swap.swapped.colspan,
+                         swap.swapped.rowspan)) {
+        return nothing;
+    }
+    return swap;
 }
 
 } // namespace helix

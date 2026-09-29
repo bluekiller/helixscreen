@@ -74,9 +74,10 @@ struct PanelWidgetDef {
     /// for a widget authored around a fixed number of cells, where the finer
     /// drag snap costs real precision at a 34px track and buys nothing.
     ///
-    /// This only ever ADDS sizes above the minimum; the floor on every axis
-    /// stays a whole cell, because a one-track minimum clips the icon and the
-    /// caption on every shipping geometry.
+    /// A minimum below a whole cell on an axis additionally needs this flag on
+    /// that axis AND a widget that can refuse a box it cannot draw
+    /// (PanelWidget::fits_at), because a one-track span clips any layout
+    /// authored around whole cells. The rule is the same for columns and rows.
     bool supports_half_col = false;
     bool supports_half_row = false;
 

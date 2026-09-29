@@ -51,6 +51,8 @@ translations:
   0 slots: 0 slots
   '0.4-2mm direct drive, 4-6mm bowden': '0.4-2mm direct drive, 4-6mm bowden'
   '0°': '0°'
+  1 Hardware Issue: 1 Hardware Issue
+  1 Issue Detected: 1 Issue Detected
   '1 day ago': '1 day ago'
   1 event queued: 1 event queued
   1 hour ago: 1 hour ago
@@ -189,10 +191,13 @@ translations:
   Alerts and messages waiting for you: Alerts and messages waiting for you
   All: All
   All Devices: All Devices
+  All Healthy: All Healthy
   All axes homed: All axes homed
+  All configured hardware detected: All configured hardware detected
   All fields are required: All fields are required
   All healthy: All healthy
   All lights: All lights
+  All time: All time
   Allow: Allow
   Allow Home Screen Editing: Allow Home Screen Editing
   Allow cold load/unload: Allow cold load/unload
@@ -667,6 +672,10 @@ translations:
     macros
   Configure timelapse recording: Configure timelapse recording
   Configure your printer's cooling fans: Configure your printer's cooling fans
+  Configured LED strip not found: Configured LED strip not found
+  Configured aux fan not found: Configured aux fan not found
+  Configured filament sensor not found: Configured filament sensor not found
+  Configured hardware no longer present: Configured hardware no longer present
   Configured in the backup-spool package, not from here: Configured in the backup-spool package, not from here
   Configuring Moonraker...: Configuring Moonraker...
   Confirm PIN: Confirm PIN
@@ -1189,6 +1198,7 @@ translations:
   Fan Calibration: Fan Calibration
   Fan Speeds: Fan Speeds
   Fan Transfer: Fan Transfer
+  Fan available but not assigned to any role: Fan available but not assigned to any role
   'Fan control failed: {}': 'Fan control failed: {}'
   FanSelect: FanSelect
   Fans: Fans
@@ -1265,6 +1275,7 @@ translations:
   Filament saved: Filament saved
   Filament sensor available for runout detection: Filament sensor available for runout
     detection
+  Filament sensor available. Add to config for runout detection?: Filament sensor available. Add to config for runout detection?
   Filament snapped inside CFS: Filament snapped inside CFS
   Filament stalled between CFS hub and extruder sensor: Filament stalled between CFS hub and extruder sensor
   Filament stuck in connector during unload: Filament stuck in connector during unload
@@ -1303,6 +1314,7 @@ translations:
   Flowguard: Flowguard
   'Flushing Filament...': 'Flushing Filament...'
   Flying Toasters: Flying Toasters
+  Focused: Focused
   Follow active tool: Follow active tool
   Follow graph screen: Follow graph screen
   Force/weight sensors: Force/weight sensors
@@ -1360,12 +1372,14 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: Hardware
   Hardware Health: Hardware Health
+  Hardware Keyboard: Hardware Keyboard
   Hardware Name: Hardware Name
   Hardware Profile: Hardware Profile
   Hardware is validated on startup and reconnection: Hardware is validated on startup
     and reconnection
   Hardware marked as optional: Hardware marked as optional
   Hardware saved to config: Hardware saved to config
+  Hardware was present in previous session but is now missing: Hardware was present in previous session but is now missing
   Have a piece of paper ready.: Have a piece of paper ready.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
     adjusted with                              thumb wheels or some other built-in
@@ -1374,6 +1388,7 @@ translations:
     adjusted with                              thumb wheels or some other built-in
     mechanism.
   Heading: Heading
+  Healthy: Healthy
   Heat Capacity: Heat Capacity
   Heat Soak: Heat Soak
   Heat Soaking...: Heat Soaking...
@@ -1431,6 +1446,7 @@ translations:
   Helper macros are up to date: Helper macros are up to date
   Hide Firmware Noise: Hide Firmware Noise
   Hide Temperature Reports: Hide Temperature Reports
+  Hide the on-screen keyboard while a USB keyboard is attached: Hide the on-screen keyboard while a USB keyboard is attached
   High Water Mark: High Water Mark
   Hold anywhere to cancel: Hold anywhere to cancel
   Hold still: Hold still
@@ -1635,6 +1651,7 @@ translations:
   LED Strip: LED Strip
   LED on at Start: LED on at Start
   LED strip available for lighting control: LED strip available for lighting control
+  LED strip available. Add to config for lighting control?: LED strip available. Add to config for lighting control?
   LEDs: LEDs
   LOAD CELLS: LOAD CELLS
   LOADED: LOADED
@@ -1653,6 +1670,9 @@ translations:
   Language & Time: Language & Time
   Last: Last
   # Source: history_dashboard_panel.xml:114
+  Last 12 months: Last 12 months
+  Last 24 hours: Last 24 hours
+  Last 30 days: Last 30 days
   Last 7 days: Last 7 days
   Last measured: Last measured
   Last print cancelled: Last print cancelled
@@ -1948,6 +1968,7 @@ translations:
   No Bluetooth printers found: No Bluetooth printers found
   No Camera: No Camera
   No Filament Detected: No Filament Detected
+  No Hardware Issues: No Hardware Issues
   No History: No History
   No LED macros detected on your printer. Add Klipper macros for LED control first.: No
     LED macros detected on your printer. Add Klipper macros for LED control first.
@@ -1976,6 +1997,7 @@ translations:
     dryer available. Store filament in a sealed dry box with desiccant for best results.
   No effects available: No effects available
   No events queued: No events queued
+  No extruder heater found. Check [extruder] in printer.cfg: No extruder heater found. Check [extruder] in printer.cfg
   No fans detected: No fans detected
   No filament: No filament
   No filament environment sensors: No filament environment sensors
@@ -2251,6 +2273,8 @@ translations:
   'Pre-print command failed: {}': 'Pre-print command failed: {}'
   'Pre-print homing...': 'Pre-print homing...'
   Preheat: Preheat
+  Preheat %s: Preheat %s
+  Preheat %s (%d/%d): Preheat %s (%d/%d)
   Preheat Macro: Preheat Macro
   Preheat PLA: Preheat PLA
   Preheat cancelled: Preheat cancelled
@@ -2292,6 +2316,7 @@ translations:
   Print Failed: Print Failed
   Print File: Print File
   Print Files: Print Files
+  Print Head: Print Head
   Print History: Print History
   Print Hours: Print Hours
   Print Label: Print Label
@@ -2450,6 +2475,7 @@ translations:
   Quick Button 3: Quick Button 3
   Quick Button 4: Quick Button 4
   Quick actions, calibration, speed: Quick actions, calibration, speed
+  Quiet: Quiet
   RFCOMM connect failed: RFCOMM connect failed
   'RFCOMM connect failed: ': 'RFCOMM connect failed: '
   RFID reader malfunction (left): RFID reader malfunction (left)
@@ -3485,6 +3511,7 @@ translations:
     input
   Use G10/G11 firmware retraction: Use G10/G11 firmware retraction
   Use Unload before Eject: Use Unload before Eject
+  Use first HID scanner found: Use first HID scanner found
   Use printer type to select image: Use printer type to select image
   User intervention required: User intervention required
   VM Peak: VM Peak
@@ -3635,6 +3662,8 @@ translations:
   Your printer has an automatic filament changer: Your printer has an automatic filament
     changer
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: Your printer was offline during setup, so hardware options were skipped. Set them up now?
+  ? Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide.
+  : Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide.
   Z: Z
   Z Calibration: Z Calibration
   Z Movement: Z Movement
@@ -3735,14 +3764,18 @@ translations:
   v{} installed! Restarting...: v{} installed! Restarting...
   v{} is available. Tap to update.: v{} is available. Tap to update.
   you have: you have
+  '{} Hardware Issues': '{} Hardware Issues'
+  '{} Issues Detected': '{} Issues Detected'
   '{} LED strips available': '{} LED strips available'
   '{} and {} are both mapped here': '{} and {} are both mapped here'
   '{} available': '{} available'
   '{} axis homed': '{} axis homed'
+  '{} changed': '{} changed'
   '{} command timed out': '{} command timed out'
   '{} complete': '{} complete'
   '{} configured item not found': '{} configured item not found'
   '{} configured items not found': '{} configured items not found'
+  '{} critical': '{} critical'
   '{} critical hardware issues': '{} critical hardware issues'
   '{} disabled': '{} disabled'
   '{} enabled': '{} enabled'
@@ -3762,8 +3795,10 @@ translations:
   '{} matches.': '{} matches.'
   '{} may cause unintended changes. Are you sure?': '{} may cause unintended changes.
     Are you sure?'
+  '{} missing': '{} missing'
   '{} more taps to {} beta features': '{} more taps to {} beta features'
   '{} needs the HelixPrint plugin. Printing original file.': '{} needs the HelixPrint plugin. Printing original file.'
+  '{} new': '{} new'
   '{} new hardware available': '{} new hardware available'
   '{} preset{}': '{} preset{}'
   '{} set to {}': '{} set to {}'

@@ -170,6 +170,23 @@ void darken_argb8888_inplace(uint8_t* data, int width, int height, int stride,
     }
 }
 
+void darken_rgb565_inplace(uint8_t* data, int width, int height, int stride, lv_opa_t dim_opacity) {
+    if (!data || width < 1 || height < 1) {
+        return;
+    }
+    const uint32_t scale = 255 - dim_opacity;
+    for (int y = 0; y < height; y++) {
+        auto* row = reinterpret_cast<uint16_t*>(data + y * stride);
+        for (int x = 0; x < width; x++) {
+            const uint32_t px = row[x];
+            const uint32_t r = (((px >> 11) & 0x1F) * scale) / 255;
+            const uint32_t g = (((px >> 5) & 0x3F) * scale) / 255;
+            const uint32_t b = ((px & 0x1F) * scale) / 255;
+            row[x] = static_cast<uint16_t>((r << 11) | (g << 5) | b);
+        }
+    }
+}
+
 } // namespace detail
 
 // ============================================================================
@@ -795,7 +812,13 @@ lv_obj_t* create_darkened_backdrop(lv_obj_t* parent, lv_opa_t dim_opacity) {
         return nullptr;
     }
 
-    lv_draw_buf_t* snapshot = lv_snapshot_take(screen, LV_COLOR_FORMAT_ARGB8888);
+    // A 16-bit display snapshots in its own format: half the memory of ARGB8888
+    // (768KB rather than 1.5MB at 800x480) and a plain copy to draw. The
+    // snapshot buffer itself becomes the image source.
+    lv_display_t* disp = lv_obj_get_display(screen);
+    const bool rgb565 = disp && lv_display_get_color_format(disp) == LV_COLOR_FORMAT_RGB565;
+    lv_draw_buf_t* snapshot =
+        lv_snapshot_take(screen, rgb565 ? LV_COLOR_FORMAT_RGB565 : LV_COLOR_FORMAT_ARGB8888);
     if (!snapshot) {
         spdlog::warn("[Backdrop Darken] Snapshot failed");
         return nullptr;
@@ -806,39 +829,18 @@ lv_obj_t* create_darkened_backdrop(lv_obj_t* parent, lv_opa_t dim_opacity) {
     auto* snap_data = static_cast<uint8_t*>(snapshot->data);
     int snap_stride = static_cast<int>(snapshot->header.stride);
 
-    spdlog::debug("[Backdrop Darken] Snapshot {}x{} (stride={})", snap_w, snap_h, snap_stride);
+    spdlog::debug("[Backdrop Darken] Snapshot {}x{} (stride={}, {})", snap_w, snap_h, snap_stride,
+                  rgb565 ? "RGB565" : "ARGB8888");
 
     // Step 2: Darken the snapshot pixels in-place
-    detail::darken_argb8888_inplace(snap_data, snap_w, snap_h, snap_stride, dim_opacity);
-
-    // Step 3: Create lv_draw_buf and copy (row-by-row for stride alignment)
-    lv_draw_buf_t* result_buf = lv_draw_buf_create(
-        static_cast<uint32_t>(snap_w), static_cast<uint32_t>(snap_h), LV_COLOR_FORMAT_ARGB8888, 0);
-    if (!result_buf) {
-        spdlog::warn("[Backdrop Darken] Failed to allocate result buffer");
-        lv_draw_buf_destroy(snapshot);
-        return nullptr;
+    if (rgb565) {
+        detail::darken_rgb565_inplace(snap_data, snap_w, snap_h, snap_stride, dim_opacity);
+    } else {
+        detail::darken_argb8888_inplace(snap_data, snap_w, snap_h, snap_stride, dim_opacity);
     }
+    lv_draw_buf_t* result_buf = snapshot;
 
-    {
-        uint32_t src_stride = static_cast<uint32_t>(snap_stride);
-        uint32_t dst_stride = result_buf->header.stride;
-        uint32_t row_bytes = static_cast<uint32_t>(snap_w) * 4;
-        auto* dst = static_cast<uint8_t*>(result_buf->data);
-
-        if (src_stride == dst_stride) {
-            std::memcpy(dst, snap_data, static_cast<size_t>(dst_stride) * snap_h);
-        } else {
-            for (int y = 0; y < snap_h; y++) {
-                std::memcpy(dst + y * dst_stride, snap_data + y * src_stride, row_bytes);
-            }
-        }
-    }
-
-    // Done with snapshot
-    lv_draw_buf_destroy(snapshot);
-
-    // Step 4: Create image widget
+    // Step 3: Create image widget
     lv_obj_t* img = lv_image_create(parent);
     lv_obj_set_size(img, LV_PCT(100), LV_PCT(100));
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);

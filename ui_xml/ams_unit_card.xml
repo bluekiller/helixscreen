@@ -22,6 +22,7 @@
         style_pad_all="#space_sm" style_pad_gap="#space_xs" style_border_width="1" style_border_color="#border"
         style_border_opa="80" style_min_width="#ams_card_min_width" style_max_width="#ams_card_max_width"
         clickable="true">
+    <style name="styles.press_wash" selector="pressed"/>
     <!-- Unit header: logo + name (clickable=false + event_bubble so clicks reach card) -->
     <lv_obj width="100%"
             height="content" scrollable="false" clickable="false" event_bubble="true" flex_flow="row"

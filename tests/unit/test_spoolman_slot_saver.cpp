@@ -833,6 +833,24 @@ TEST_CASE("SpoolmanSlotSaver find_or_create_filament: mismatched material -> cre
     REQUIRE(payload["name"] == "PETG");
 }
 
+TEST_CASE("SpoolmanSlotSaver find_or_create_filament: a created filament carries the printer's "
+          "diameter",
+          "[spoolman][slot_saver][filament][filament_diameter]") {
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+    api.spoolman_mock().get_mock_spools().clear();
+    api.spoolman_mock().next_created_filament_id = 101;
+
+    SpoolmanSlotSaver saver(&api, 2.85f);
+    saver.find_or_create_filament(
+        7, "PETG", "FF0000", /*filament_name*/ "", [](int) {}, [](const MoonrakerError&) {});
+
+    REQUIRE(api.spoolman_mock().created_filaments.size() == 1);
+    CHECK(api.spoolman_mock().created_filaments[0]["diameter"].get<float>() ==
+          Catch::Approx(2.85f));
+}
+
 TEST_CASE("SpoolmanSlotSaver find_or_create_filament: mismatched color -> creates new",
           "[spoolman][slot_saver][filament]") {
     PrinterState state;

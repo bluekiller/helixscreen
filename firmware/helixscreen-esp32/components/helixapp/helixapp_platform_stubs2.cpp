@@ -255,7 +255,8 @@ void SpoolmanManager::refresh_spool(int) {}
 // these, but reaches them only from the Spoolman-gated save path. "No change"
 // and "not complete" are the answers that make that path a no-op if entered.
 namespace helix {
-SpoolmanSlotSaver::SpoolmanSlotSaver(IMoonrakerAPI* api) : api_(api) {}
+SpoolmanSlotSaver::SpoolmanSlotSaver(IMoonrakerAPI* api, float filament_diameter_mm)
+    : api_(api), filament_diameter_mm_(filament_diameter_mm) {}
 
 ChangeSet SpoolmanSlotSaver::detect_changes(const SlotInfo&, const SlotInfo&) {
     return ChangeSet{};
@@ -493,6 +494,7 @@ UpdateChecker& UpdateChecker::instance() {
     return checker;
 }
 UpdateChecker::~UpdateChecker() = default;
+void UpdateChecker::on_language_changed() {}
 void UpdateChecker::clear_cache() {}
 void UpdateChecker::start_download() {}
 void UpdateChecker::cancel_download() {}

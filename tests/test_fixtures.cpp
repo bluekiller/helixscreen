@@ -13,6 +13,7 @@
 #include "ui_temp_display.h"
 #include "ui_text.h"
 #include "ui_text_input.h"
+#include "ui_tile_rung.h"
 
 #include "material_settings_manager.h"
 #include "preset_materials.h"
@@ -202,13 +203,14 @@ void XMLTestFixture::setup_global_xml_registrations_once() {
     lv_xml_register_component_from_file("A:ui_xml/styles.xml");
 
     // 4. Register custom widgets (must be done before loading components that use them)
-    helix::ui::icon::register_widget(); // icon component
-    ui_text_init();                     // text_heading, text_body, text_small, text_xs
-    ui_text_input_init();               // text_input (textarea with bind_text support)
-    ui_button_init();                   // ui_button with bind_icon support
-    ui_progress_bar_init();             // progress_bar (print progress, preview card)
-    ui_card_register();                 // ui_card
-    ui_temp_display_init();             // temp_display
+    helix::ui::icon::register_widget();      // icon component
+    helix::ui::register_tile_rung_binding(); // <bind_tile_rung>
+    ui_text_init();                          // text_heading, text_body, text_small, text_xs
+    ui_text_input_init();                    // text_input (textarea with bind_text support)
+    ui_button_init();                        // ui_button with bind_icon support
+    ui_progress_bar_init();                  // progress_bar (print progress, preview card)
+    ui_card_register();                      // ui_card
+    ui_temp_display_init();                  // temp_display
 
     // 5. Register no-op callbacks for event handlers in XML components
     lv_xml_register_event_cb(nullptr, "", xml_test_noop_event_callback);

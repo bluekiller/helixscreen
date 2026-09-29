@@ -17,6 +17,6 @@
                       height="100%" icon="led_strip" icon_variant="muted" label="LEDs" label_tag="LEDs"
                       callback="on_led_controls_clicked" button_name="led_controls_button" icon_name="led_controls_icon"
                       tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
-                      disabled_cond="printer_connection_state ne 2"/>
+                      tile_dir_subject="$tile_dir_subject" disabled_cond="printer_connection_state ne 2"/>
   </view>
 </component>

@@ -84,7 +84,9 @@ class PanelWidgetManager {
     // -- Per-panel rebuild callbacks --
     using RebuildCallback = std::function<void()>;
     void register_rebuild_callback(const std::string& panel_id, RebuildCallback cb);
-    void unregister_rebuild_callback(const std::string& panel_id);
+    /// Teardown entry point, safe to call after the manager is destroyed: a
+    /// process-lifetime panel can outlive this function-local static at exit.
+    static void unregister_rebuild_callback(const std::string& panel_id);
     void notify_config_changed(const std::string& panel_id);
 
     // -- Widget subjects --
@@ -142,8 +144,10 @@ class PanelWidgetManager {
     /// the widget catalog) holds its own under a distinct key.
     void setup_gate_observers(const std::string& panel_id, RebuildCallback rebuild_cb);
 
-    /// Release gate observers for a panel (call during deinit/shutdown).
-    void clear_gate_observers(const std::string& panel_id);
+    /// Release gate observers for a panel (call during deinit/shutdown). Safe to
+    /// call after the manager is destroyed: a process-lifetime panel can outlive
+    /// this function-local static at exit, and then there is nothing to release.
+    static void clear_gate_observers(const std::string& panel_id);
 
     /// Clear cached widget config for a panel, forcing a full rebuild on the
     /// next populate_widgets() call. Use when the panel is destroyed or when

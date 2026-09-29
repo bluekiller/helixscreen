@@ -42,7 +42,14 @@ class EthernetBackendMock : public EthernetBackend {
         connected_ = connected;
     }
 
+    /// Test helper — the link state mocks constructed from now on start with,
+    /// for owners that build their EthernetManager and probe it at once.
+    static void set_default_connected(bool connected) {
+        default_connected_ = connected;
+    }
+
   private:
     std::string real_mac_; ///< Real MAC from system for realistic demo display
-    bool connected_ = true;
+    static inline bool default_connected_ = true;
+    bool connected_ = default_connected_;
 };

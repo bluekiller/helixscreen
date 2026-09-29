@@ -6,10 +6,12 @@
 #include "ams_backend.h"
 #include "ams_state.h"
 #include "ams_types.h"
+#include "app_globals.h"
 #include "filament_database.h"
 #include "lane_source_store.h"
 #include "load_cell_manager.h"
 #include "lvgl/lvgl.h"
+#include "printer_state.h"
 
 #include <spdlog/spdlog.h>
 
@@ -22,9 +24,12 @@ namespace {
 constexpr uint32_t PERSIST_INTERVAL_MS = 60'000;
 constexpr float DELTA_WRITE_THRESHOLD_G = 0.05f;
 constexpr float REBASELINE_THRESHOLD_G = 0.5f;
-// TODO(#1504): neither SlotInfo nor the external spool carries a diameter, so
-// every gram here assumes 1.75 mm; 2.85 mm machines under-count by 2.65x.
-constexpr float DEFAULT_DIAMETER_MM = 1.75f;
+
+// Neither SlotInfo nor the external spool carries a diameter, so every spool is
+// metered at the diameter the printer's extruder is configured for.
+float printer_filament_diameter_mm() {
+    return get_printer_state().get_discovery().filament_diameter_mm();
+}
 
 // The counted weight files as the bypass lane's Metered record so resolve()
 // ranks a live meter above the weight a manual edit left - the same source
@@ -84,7 +89,7 @@ void ExternalSpoolSink::snapshot(float filament_used_mm) {
         return;
     }
     density_g_cm3_ = material->density_g_cm3;
-    diameter_mm_ = DEFAULT_DIAMETER_MM;
+    diameter_mm_ = printer_filament_diameter_mm();
     snapshot_mm_ = filament_used_mm;
     snapshot_weight_g_ = info.remaining_weight_g;
     last_written_weight_g_ = info.remaining_weight_g;
@@ -246,7 +251,7 @@ void AmsSlotSink::snapshot(float filament_used_mm) {
         return;
     }
     density_g_cm3_ = material->density_g_cm3;
-    diameter_mm_ = DEFAULT_DIAMETER_MM;
+    diameter_mm_ = printer_filament_diameter_mm();
     snapshot_mm_ = filament_used_mm;
     snapshot_weight_g_ = info.remaining_weight_g;
     last_written_weight_g_ = info.remaining_weight_g;

@@ -208,6 +208,16 @@ static void on_system_keyboard_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
+static void on_hide_keyboard_with_hardware_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_hide_keyboard_with_hardware_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    spdlog::info("[SettingsPanel] Hide keyboard with hardware keyboard toggled: {}",
+                 enabled ? "ON" : "OFF");
+    DisplaySettingsManager::instance().set_hide_keyboard_with_hardware(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 static void on_keep_navbar_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_keep_navbar_changed");
     auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -259,9 +269,6 @@ void SettingsPanel::init_subjects() {
         spdlog::warn("[{}] init_subjects() called twice - ignoring", get_name());
         return;
     }
-
-    // Initialize settings subjects across all domain managers (for reactive binding)
-    SettingsManager::instance().init_subjects();
 
     // Note: LED config loading moved to MoonrakerManager::create_api() for centralized init
 
@@ -322,12 +329,8 @@ void SettingsPanel::init_subjects() {
                            (install_suppressed && !externally_managed) ? 1 : 0,
                            "updates_unavailable", subjects_);
 
-    // Touch calibration status - show "Calibrated" or "Not calibrated" in row description
-    Config* config = Config::get_instance();
-    bool is_calibrated =
-        config && config->get<bool>(config->df() + "input/calibration/valid", false);
-    const char* status_text = is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated");
-    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, status_text,
+    // Touch calibration status, filled by refresh_status_lines().
+    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, "",
                               "touch_cal_status", subjects_);
 
     // Live status line under each stateful root row; refresh_status_lines()
@@ -359,6 +362,7 @@ void SettingsPanel::init_subjects() {
         {"on_home_edit_mode_changed", on_home_edit_mode_changed},
         {"on_scroll_guard_changed", on_scroll_guard_changed},
         {"on_system_keyboard_changed", on_system_keyboard_changed},
+        {"on_hide_keyboard_with_hardware_changed", on_hide_keyboard_with_hardware_changed},
         {"on_keep_navbar_changed", on_keep_navbar_changed},
         {"on_page_scroll_buttons_changed", on_page_scroll_buttons_changed},
 
@@ -521,6 +525,14 @@ std::string status_string_subject(const char* name, const char* fallback) {
 
 void SettingsPanel::refresh_status_lines() {
     using namespace helix::settings::status;
+
+    // Formatted here rather than once at init, so it is in the language of the
+    // latest return to the settings root.
+    Config* config = Config::get_instance();
+    const bool is_calibrated =
+        config && config->get<bool>(config->df() + "input/calibration/valid", false);
+    lv_subject_copy_string(&touch_cal_status_subject_,
+                           is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated"));
 
     lv_subject_copy_string(&settings_status_display_subject_,
                            display(status_int_subject("settings_brightness", 0),

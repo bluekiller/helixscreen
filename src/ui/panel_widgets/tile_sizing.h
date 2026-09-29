@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "ui_observer_guard.h"
+
 #include "grid_layout.h"
 #include "helix/ui/text_metrics.h"
 #include "src/ui/panel_widgets/tile_layout.h"
@@ -31,6 +33,8 @@ namespace helix {
  */
 class TileSizing {
   public:
+    enum class IconBox { Glyph, Square, Disc };
+
     /// What this tile draws. The two value strings are WORST CASES, never a
     /// live reading: a size accepted while the tile reads 95 must still draw
     /// 888.
@@ -39,6 +43,23 @@ class TileSizing {
         std::string widest_current; ///< widest current half alone
         std::string label;
         bool has_value = false;
+        /// Text drawn beside the glyph in #font_body_bold at every rung, such
+        /// as a tool digit. It widens the glyph's box rather than scaling.
+        std::string icon_badge;
+        /// True for a label that names what the tile reads (a fan, a sensor)
+        /// and is drawn whatever show_widget_labels says. Every other label
+        /// follows the setting, and is measured only while it is on.
+        bool label_always_drawn = false;
+        /// What the icon occupies at a rung: the glyph itself, a square one
+        /// line of the face tall (a canvas sized from the face, such as the
+        /// spool), or the disc a badged glyph sits in (tile_badge.xml).
+        IconBox icon_box = IconBox::Glyph;
+        /// The glyph animates, so it is measured and drawn unscaled
+        /// (kTileAnimatedMaxScale).
+        bool icon_animates = false;
+        /// The label is the only thing telling this tile from its siblings
+        /// (which fan, which sensor), so the glyph shrinks before it goes.
+        bool label_is_identity = false;
     };
 
     explicit TileSizing(const std::string& instance_id);
@@ -52,10 +73,6 @@ class TileSizing {
     TileSizing(const TileSizing&) = delete;
     TileSizing& operator=(const TileSizing&) = delete;
 
-    /// Refuse anything narrower than a whole cell, whatever the measurement
-    /// says. For a tile whose glyph sits in a fixed-size badge: the disc does
-    /// not shrink with the box, so half a cell spills the badge rather than
-    /// drawing a smaller one.
     /// The live track geometry, so the half-cell floor is measured against the
     /// cell this grid actually built rather than the nominal edge for the tier.
     /// A grid whose content box forces a smaller track would otherwise never
@@ -63,10 +80,6 @@ class TileSizing {
     void set_cell_metrics(const CellMetrics& metrics) {
         cell_metrics_ = metrics;
         has_cell_metrics_ = true;
-    }
-
-    void require_whole_cell() {
-        whole_cell_only_ = true;
     }
 
     void set_content(Content content) {
@@ -77,8 +90,16 @@ class TileSizing {
     /// the content actually draws in, which is the outer box less whatever
     /// padding the containers between them consume; estimating that instead of
     /// measuring it picks a rung that spills out of the tile's own container.
-    void set_content_root(lv_obj_t* root) {
-        content_root_ = root;
+    /// Forgotten when the root is deleted, since a deferred re-measure can run
+    /// after the tree is gone.
+    void set_content_root(lv_obj_t* root);
+
+    const Content& content() const {
+        return content_;
+    }
+
+    lv_obj_t* content_root() const {
+        return content_root_;
     }
 
     /// Measure at this pixel box and publish the verdict.
@@ -97,31 +118,61 @@ class TileSizing {
         return const_cast<const char**>(attrs_.data());
     }
 
+    /// One whole cell on this grid, in px: the live track geometry when the
+    /// grid has reported it, the tier's nominal cell until then.
+    int whole_cell_px() const;
+
+    /// Pass one more subject name to this tile's component, as prop @p prop.
+    /// Call from the widget's constructor, before the component is parsed.
+    void add_subject_attr(const char* prop, const std::string& subject_name);
+
     const std::string& icon_subject_name() const {
         return icon_name_;
     }
 
+    /// The rung the glyph draws at (ui::tile_drawn_rung()), for a part sized
+    /// off the glyph. Not passed by default; add_subject_attr() it.
+    const std::string& drawn_subject_name() const {
+        return drawn_name_;
+    }
+
+    /// The icon rung last published.
+    int icon_rung() const {
+        return lv_subject_get_int(const_cast<lv_subject_t*>(&icon_rung_subject_));
+    }
+
   private:
     TileVerdict decide(int width_px, int height_px) const;
+    void rebuild_attrs();
+    static void on_content_root_deleted(lv_event_t* e);
+    /// Whether the label, if this tile has one, is drawn at all.
+    bool label_drawn() const;
+    /// Re-measure at the last box whenever show_widget_labels moves, since the
+    /// label's presence is part of the measurement.
+    void follow_label_setting();
 
     std::string icon_name_;
     std::string label_name_;
     std::string dir_name_;
     std::string target_name_;
+    std::string drawn_name_;
     std::vector<std::string> attr_storage_;
     std::vector<const char*> attrs_;
 
     Content content_;
     lv_obj_t* content_root_ = nullptr;
-    bool whole_cell_only_ = false;
     CellMetrics cell_metrics_{};
     bool has_cell_metrics_ = false;
+    int last_width_px_ = -1;
+    int last_height_px_ = -1;
 
     lv_subject_t icon_rung_subject_{};
     lv_subject_t label_subject_{};
     lv_subject_t direction_subject_{};
     lv_subject_t show_target_subject_{};
+    lv_subject_t drawn_rung_subject_{};
     SubjectManager subjects_;
+    ObserverGuard label_setting_observer_;
 };
 
 } // namespace helix

@@ -43,6 +43,15 @@ static void update_tool_badge(helix::ToolState* ts) {
     }
 }
 
+static void update_current_tool_text(helix::AmsState* a, int tool) {
+    if (tool >= 0) {
+        const std::string label = helix::ui::lane_label(helix::ui::active_tool_noun(), tool);
+        lv_subject_copy_string(a->get_current_tool_text_subject(), label.c_str());
+    } else {
+        lv_subject_copy_string(a->get_current_tool_text_subject(), "---");
+    }
+}
+
 static void update_toolchange_text(helix::AmsState* a) {
     int total = lv_subject_get_int(a->get_ams_number_of_toolchanges_subject());
     if (total > 0) {
@@ -99,15 +108,7 @@ void init_ams_tool_text_observers() {
     // ("Tool 1", or "Toolhead 1" where the backend names the printing end) or "---"
     s_tool_text_observer = observe_int_sync<AmsState>(
         ams.get_current_tool_subject(), &ams,
-        [](AmsState* a, int tool) {
-            if (tool >= 0) {
-                const std::string label =
-                    helix::ui::lane_label(helix::ui::active_tool_noun(), tool);
-                lv_subject_copy_string(a->get_current_tool_text_subject(), label.c_str());
-            } else {
-                lv_subject_copy_string(a->get_current_tool_text_subject(), "---");
-            }
-        },
+        [](AmsState* a, int tool) { update_current_tool_text(a, tool); },
         ams.get_subjects_lifetime());
 
     // Two observers for toolchange text: one on total, one on current index
@@ -159,6 +160,14 @@ void init_ams_tool_text_observers() {
     });
 
     spdlog::debug("[AmsToolText] Tool text observers initialized");
+}
+
+void refresh_ams_tool_text() {
+    if (!s_initialized) {
+        return;
+    }
+    auto& ams = AmsState::instance();
+    update_current_tool_text(&ams, lv_subject_get_int(ams.get_current_tool_subject()));
 }
 
 } // namespace helix::ui

@@ -40,6 +40,17 @@ struct PrintSelectPanelTestAccess {
         return nullptr;
     }
 
+    /// Return a listed file to its state before its metadata arrived.
+    static void forget_metadata(PrintSelectPanel& panel, const std::string& filename) {
+        for (auto& file : panel.file_list_) {
+            if (file.filename == filename) {
+                file.metadata_fetched = false;
+                file.layer_count_str.clear();
+                file.print_height_str.clear();
+            }
+        }
+    }
+
     /// Feed @p metadata through the panel's metadata apply for a listed file.
     static void apply_metadata(PrintSelectPanel& panel, const std::string& filename,
                                const FileMetadata& metadata) {

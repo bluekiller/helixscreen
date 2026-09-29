@@ -205,7 +205,7 @@ void AppearanceSettingsOverlay::init_toolhead_style_dropdown() {
 
     lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
     if (dropdown) {
-        lv_dropdown_set_options(dropdown, SettingsManager::get_toolhead_style_options());
+        lv_dropdown_set_options(dropdown, SettingsManager::get_toolhead_style_options().c_str());
         auto style = SettingsManager::instance().get_toolhead_style();
         lv_dropdown_set_selected(
             dropdown,

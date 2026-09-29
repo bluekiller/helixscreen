@@ -76,7 +76,7 @@ CatalogState g_catalog_state;
 /// callback twice or leave half the state behind.
 void release_catalog_state() {
     // First, so no queued gate rebuild can reach the rows of a closing catalog.
-    PanelWidgetManager::instance().clear_gate_observers(kGateObserverKey);
+    PanelWidgetManager::clear_gate_observers(kGateObserverKey);
     // Defer backdrop deletion — every path into here can run from inside
     // LV_EVENT_CLICKED / LV_EVENT_DELETE processing, and a synchronous delete
     // there corrupts LVGL's event linked list.

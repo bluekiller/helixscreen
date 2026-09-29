@@ -5737,16 +5737,24 @@ void AmsBackendAfc::persist_slot_weight(int slot_index, float remaining_weight_g
     }
 }
 
+AmsError AmsBackendAfc::can_set_tool_mapping(int tool_number, int slot_index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return can_set_tool_mapping_locked(tool_number, slot_index);
+}
+
+AmsError AmsBackendAfc::can_set_tool_mapping_locked(int tool_number, int slot_index) const {
+    if (tool_number < 0 || tool_number >= slots_.slot_count()) {
+        return AmsErrorHelper::tool_out_of_range(tool_number);
+    }
+    return validate_slot_index_locked(slot_index);
+}
+
 AmsError AmsBackendAfc::set_tool_mapping_impl(int tool_number, int slot_index) {
     std::string lane_name; // Declare outside lock for use after release
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
-        if (tool_number < 0 || tool_number >= slots_.slot_count()) {
-            return AmsErrorHelper::tool_out_of_range(tool_number);
-        }
-
-        if (auto err = validate_slot_index_locked(slot_index); !err.success()) {
+        if (auto err = can_set_tool_mapping_locked(tool_number, slot_index); !err.success()) {
             return err;
         }
 

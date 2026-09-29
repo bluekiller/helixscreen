@@ -394,7 +394,7 @@ static void filament_path_xml_apply(lv_xml_parser_state_t* state, const char** a
     }
 
     if (needs_redraw) {
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -429,7 +429,7 @@ void ui_filament_path_canvas_set_topology(lv_obj_t* obj, int topology) {
     if (!data || data->topology == topology)
         return;
     data->topology = topology;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_hub_on_toolhead(lv_obj_t* obj, bool on_toolhead) {
@@ -437,7 +437,7 @@ void ui_filament_path_canvas_set_hub_on_toolhead(lv_obj_t* obj, bool on_toolhead
     if (!data || data->hub_on_toolhead == on_toolhead)
         return;
     data->hub_on_toolhead = on_toolhead;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_slot_count(lv_obj_t* obj, int count) {
@@ -448,7 +448,7 @@ void ui_filament_path_canvas_set_slot_count(lv_obj_t* obj, int count) {
     if (data->slot_count == clamped)
         return;
     data->slot_count = clamped;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_slot_overlap(lv_obj_t* obj, int32_t overlap) {
@@ -460,7 +460,7 @@ void ui_filament_path_canvas_set_slot_overlap(lv_obj_t* obj, int32_t overlap) {
         return;
     data->slot_overlap = clamped;
     spdlog::trace("[FilamentPath] Slot overlap set to {}px", data->slot_overlap);
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_slot_width(lv_obj_t* obj, int32_t width) {
@@ -472,7 +472,7 @@ void ui_filament_path_canvas_set_slot_width(lv_obj_t* obj, int32_t width) {
         return;
     data->slot_width = clamped;
     spdlog::trace("[FilamentPath] Slot width set to {}px", data->slot_width);
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_slot_grid(lv_obj_t* obj, lv_obj_t* slot_grid) {
@@ -518,7 +518,7 @@ void ui_filament_path_canvas_set_active_slot(lv_obj_t* obj, int slot) {
         start_output_x_animation(obj, data, old_x, new_x);
     }
 
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_filament_segment(lv_obj_t* obj, int segment) {
@@ -559,7 +559,7 @@ void ui_filament_path_canvas_set_filament_segment(lv_obj_t* obj, int segment) {
         }
     }
 
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_error_segment(lv_obj_t* obj, int segment) {
@@ -586,7 +586,7 @@ void ui_filament_path_canvas_set_error_segment(lv_obj_t* obj, int segment) {
         spdlog::debug("[FilamentPath] Error cleared - stopping pulse");
     }
 
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_anim_progress(lv_obj_t* obj, int progress) {
@@ -597,7 +597,7 @@ void ui_filament_path_canvas_set_anim_progress(lv_obj_t* obj, int progress) {
     if (data->anim.progress == clamped)
         return;
     data->anim.progress = clamped;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_filament_color(lv_obj_t* obj, uint32_t color) {
@@ -605,11 +605,11 @@ void ui_filament_path_canvas_set_filament_color(lv_obj_t* obj, uint32_t color) {
     if (!data || data->filament_color == color)
         return;
     data->filament_color = color;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_refresh(lv_obj_t* obj) {
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_slot_callback(lv_obj_t* obj, filament_path_slot_cb_t cb,
@@ -660,7 +660,7 @@ void ui_filament_path_canvas_stop_animations(lv_obj_t* obj) {
     stop_error_pulse(obj, data);
     stop_flow_animation(obj, data);
     stop_heat_pulse(obj, data);
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_slot_filament(lv_obj_t* obj, int slot_index, int segment,
@@ -677,7 +677,7 @@ void ui_filament_path_canvas_set_slot_filament(lv_obj_t* obj, int slot_index, in
         state.color = color;
         spdlog::trace("[FilamentPath] Slot {} filament: segment={}, color=0x{:06X}", slot_index,
                       segment, color);
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -695,7 +695,7 @@ void ui_filament_path_canvas_set_slot_prep_sensor(lv_obj_t* obj, int slot, bool 
     if (data->slot_has_prep_sensor[slot] != has_sensor) {
         data->slot_has_prep_sensor[slot] = has_sensor;
         spdlog::trace("[FilamentPath] Slot {} prep sensor: {}", slot, has_sensor);
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -705,7 +705,7 @@ void ui_filament_path_canvas_set_slot_mapped_tool(lv_obj_t* obj, int slot, int t
         return;
     if (data->mapped_tool[slot] != tool) {
         data->mapped_tool[slot] = tool;
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -748,7 +748,7 @@ void ui_filament_path_canvas_set_extruder_tools(lv_obj_t* obj, const int* tools,
     }
     data->use_extruder_identity = complete;
     if (changed) {
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -758,7 +758,7 @@ void ui_filament_path_canvas_set_slot_hub_routed(lv_obj_t* obj, int slot, bool i
         return;
     if (data->slot_is_hub_routed[slot] != is_hub) {
         data->slot_is_hub_routed[slot] = is_hub;
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -785,7 +785,7 @@ void ui_filament_path_canvas_clear_slot_filaments(lv_obj_t* obj) {
 
     if (changed) {
         spdlog::trace("[FilamentPath] Cleared all slot filament states");
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -797,7 +797,7 @@ void ui_filament_path_canvas_set_show_bypass(lv_obj_t* obj, bool show) {
     if (data->show_bypass != show) {
         data->show_bypass = show;
         spdlog::debug("[FilamentPath] Show bypass: {}", show ? "yes" : "no");
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -809,7 +809,7 @@ void ui_filament_path_canvas_set_bypass_active(lv_obj_t* obj, bool active) {
     if (data->bypass_active != active) {
         data->bypass_active = active;
         spdlog::debug("[FilamentPath] Bypass mode: {}", active ? "active" : "inactive");
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -839,7 +839,7 @@ void ui_filament_path_canvas_set_hub_only(lv_obj_t* obj, bool hub_only) {
     if (data->hub_only != hub_only) {
         data->hub_only = hub_only;
         spdlog::debug("[FilamentPath] Hub-only mode: {}", hub_only ? "on" : "off");
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -859,7 +859,7 @@ void ui_filament_path_canvas_set_heat_active(lv_obj_t* obj, bool active) {
             spdlog::debug("[FilamentPath] Heat glow: inactive");
         }
 
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -871,7 +871,7 @@ void ui_filament_path_canvas_set_buffer_fault_state(lv_obj_t* obj, int state) {
     if (data->buffer_fault_state != state) {
         data->buffer_fault_state = state;
         spdlog::debug("[FilamentPath] Buffer fault state: {}", state);
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -891,7 +891,7 @@ void ui_filament_path_canvas_set_buffer_info(lv_obj_t* obj, bool present, int st
         data->buffer_label = label;
         spdlog::debug("[FilamentPath] Buffer info: present={}, state={}, label={}", present, state,
                       label);
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -899,7 +899,7 @@ void ui_filament_path_canvas_set_buffer_bias(lv_obj_t* obj, float bias) {
     auto* data = get_data(obj);
     if (data) {
         data->buffer_bias = bias;
-        layered_mark_dirty(obj, true, true);
+        layered_mark_dirty(obj);
     }
 }
 
@@ -908,7 +908,7 @@ void ui_filament_path_canvas_set_bypass_color(lv_obj_t* obj, uint32_t color) {
     if (!data || data->bypass_color == color)
         return;
     data->bypass_color = color;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_bypass_has_spool(lv_obj_t* obj, bool has_spool) {
@@ -916,7 +916,7 @@ void ui_filament_path_canvas_set_bypass_has_spool(lv_obj_t* obj, bool has_spool)
     if (!data || data->bypass_has_spool == has_spool)
         return;
     data->bypass_has_spool = has_spool;
-    layered_mark_dirty(obj, true, true);
+    layered_mark_dirty(obj);
 }
 
 bool ui_filament_path_canvas_get_bypass_merge_pos(lv_obj_t* obj, int32_t* cx_out, int32_t* cy_out) {

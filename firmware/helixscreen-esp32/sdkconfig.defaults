@@ -110,6 +110,14 @@ CONFIG_ESP_PHY_REDUCE_TX_POWER=y
 # longer, more efficient PSRAM bursts for the framebuffer reads.)
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 
+# 32KB instruction cache. With 16KB the hot UI code thrashes it: panel builds,
+# XML registration and full-screen renders ran 30-40% slower, and an unrelated
+# code-layout shift could swing them 25%. The larger cache takes all of SRAM0,
+# so its IRAM code moves into shared DIRAM; FreeRTOS's non-ISR functions go to
+# flash to pay for most of that (ISR-safe ones stay in IRAM).
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
+
 # RESTART_IN_VSYNC must stay OFF (measured 2026-08-14, IDF v5.5.5 driver bug):
 # the bounce refill targets bounce_buffer[bb_eof_count % 2], and the driver
 # resets bb_eof_count each vsync ONLY in the non-RESTART_IN_VSYNC branch. With

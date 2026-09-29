@@ -448,9 +448,10 @@ Color variants: `text`, `muted`, `primary`, `secondary`, `tertiary`, `success`, 
 ```
 
 An icon's font face is applied as a shared style, so a bound style can retier it; this is
-how a home tile scales its glyph with its size. The rung styles `styles.tile_icon_xs` ..
-`styles.tile_icon_xl` live in `ui_xml/styles.xml`, each naming an `#icon_font_*` token
-rather than a literal face (a literal face a platform did not link renders tofu). An
+how a home tile scales its glyph with its size, through
+`<bind_tile_rung ladder="icon" subject="..."/>` (`include/ui_tile_rung.h`). Each rung
+names an `#icon_font_*` token rather than a literal face (a literal face a platform did
+not link renders tofu). An
 inline `style_text_font` attribute still outranks a bound style (see
 `LVGL9_XML_GUIDE.md` § Conditional Style Bindings).
 

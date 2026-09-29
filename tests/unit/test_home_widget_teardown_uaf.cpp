@@ -573,7 +573,7 @@ void record_layout_at_delete(lv_event_t* e) {
 // condemnation today (ui_panel_home.cpp:83, 367, 461), but that is a property of
 // the callers, not of the widget: PanelWidgetManager::populate_page() reaches
 // safe_clean_children() with no detach of its own, and the raw-delete path
-// (on_hooked_root_deleted -> forget_tile_widgets) nulls size_watch_container_
+// (on_hooked_root_deleted -> forget_tile_widgets) nulls pill_container_
 // without touching the layout, leaving a condemned container in LV_LAYOUT_GRID
 // still pointed at the widget's descriptor buffers. Stripping it where the
 // pointer is dropped covers both paths and removes the reasoning dependency.

@@ -74,7 +74,7 @@ static void (*s_ui_tick)(void);
 
 // Two-hop staging band, INTERNAL DRAM. UI_BAND_LINES full-width rows (mirrors
 // the 10-line RGB bounce granularity). Allocated at display init AFTER the two
-// boot heap gates (48KB UI stack, 32KB bounce) have already passed, so it can't
+// boot heap gates (40KB UI stack, 32KB bounce) have already passed, so it can't
 // threaten them; a failed alloc falls back to the direct PSRAM->PSRAM blit.
 // Drop to 8 lines if internal DRAM proves tight.
 #define UI_BAND_LINES 10
@@ -163,7 +163,7 @@ static bool on_frame_buf_complete(esp_lcd_panel_handle_t panel,
 // into these). Static (link-time reserved, no runtime fragmentation lottery).
 // Internal (not PSRAM) so LVGL's blends don't contend with scan-out. 12-line
 // pair (2x19.2KB) double-buffers render N+1 while N is staged, at half the
-// internal cost of the 24-line pair — the 48KB UI stack and 32KB RGB bounce DMA
+// internal cost of the 24-line pair — the 40KB UI stack and 32KB RGB bounce DMA
 // must still find contiguous internal blocks (see the boot heap-gate logs).
 /* One 24-line buffer instead of the earlier 12-line double-buffer pair — SAME
  * 38.4KB internal total. Rationale: every chunk re-walks the widget tree and
@@ -177,11 +177,13 @@ static bool on_frame_buf_complete(esp_lcd_panel_handle_t panel,
 #define UI_DRAW_BUF_BYTES (BOARD_LCD_H_RES * UI_DRAW_BUF_LINES * (int)FB_BPP)
 LV_ATTRIBUTE_MEM_ALIGN static uint8_t s_draw_buf1[UI_DRAW_BUF_BYTES];
 
-// XML/expat parsing recurses deeply during component registration and layout;
-// the audit ran the full app slice on a 32KB pthread stack. 48KB gives margin
-// for the real bring-up + panel construction. Kept INTERNAL (not PSRAM) — the
-// UI thread does settings→flash writes, which cannot run from a PSRAM stack.
-#define UI_THREAD_STACK_BYTES (48 * 1024)
+// XML/expat parsing recurses deeply during component registration and layout.
+// Boot, the home page and the controls, filament and settings builds peak at
+// ~15KB, so 40KB keeps ~25KB of margin; internal RAM is the scarce resource
+// (the WebSocket task needs an 8KB block while WiFi is associating). Kept
+// INTERNAL (not PSRAM) — the UI thread does settings→flash writes, which cannot
+// run from a PSRAM stack.
+#define UI_THREAD_STACK_BYTES (40 * 1024)
 // Presenter: tiny body (union read + banded blit). 4KB internal stack, high
 // priority so it preempts to blit at the vsync boundary. No affinity — the
 // external-RAM cache is shared across cores, so shadow reads are coherent
@@ -483,7 +485,7 @@ static void* ui_thread_main(void* arg) {
     s_shadow_lock = xSemaphoreCreateMutex();
 
     // Two-hop blit staging band (INTERNAL DRAM). Allocated HERE — after the boot
-    // heap gates (48KB UI stack, 32KB bounce) have already passed — so it cannot
+    // heap gates (40KB UI stack, 32KB bounce) have already passed — so it cannot
     // push them over. Non-fatal: on failure present_blit falls back to the direct
     // PSRAM->PSRAM blit (slower, but correct).
     s_band = heap_caps_aligned_alloc(16, UI_BAND_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -598,8 +600,8 @@ void lvgl_glue_start(void (*ui_build)(void), void (*ui_tick)(void)) {
         ESP_LOGE(TAG, "esp_pthread_set_cfg failed: %s", esp_err_to_name(cfg_err));
     }
 
-    // Allocation gate #1 (one-shot, every boot): the 48KB UI stack must fit in
-    // `largest`. Below ~48KB, pthread_create fails with ENOMEM (errno 12). The
+    // Allocation gate #1 (one-shot, every boot): the UI stack must fit in
+    // `largest`, or pthread_create fails with ENOMEM (errno 12). The
     // matching gate #2 (RGB bounce DMA) logs inside board_display_init.
     ESP_LOGI(TAG, "heap before pthread: free=%u largest=%u need=%u",
              heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

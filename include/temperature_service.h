@@ -330,6 +330,7 @@ class TemperatureService {
     // ── Multi-extruder support (nozzle-specific) ────────────────────────
     std::string active_extruder_name_ = "extruder";
     ObserverGuard extruder_version_observer_;
+    ObserverGuard language_observer_;
     ObserverGuard active_tool_observer_;
 
     void select_extruder(const std::string& name);

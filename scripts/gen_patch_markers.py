@@ -7,7 +7,8 @@ git is not - a docker build rsynced from a worktree has no readable submodule
 repository, but it still has the files, and "is this line in the file" does
 not need anything else.
 
-Derivation rules:
+Derivation rules, applied to every file each patch touches (one row per
+file, so a half-applied patch cannot pass on the file that did apply):
   - candidates are the patch's added lines, newest first (a regenerated patch
     appends hunks, so the last line is the one an older revision lacks), then
     its removed lines, newest first;
@@ -83,6 +84,15 @@ def parse_patch(path):
                 yield ("-", current, line[1:].strip())
 
 
+def touched_files(path):
+    """Files the patch changes, in patch order, excluding deletions."""
+    files = []
+    for _, name, _ in parse_patch(path):
+        if name not in files:
+            files.append(name)
+    return files
+
+
 def working(submodule, path):
     try:
         with open(f"{submodule}/{path}", encoding="utf-8", errors="replace") as fh:
@@ -153,22 +163,27 @@ def main():
         for cand in set(cands):
             owners.setdefault(cand, set()).add(name)
 
+    # One marker per file the patch touches: a single marker proves only its
+    # own file, so a half-applied patch whose other files were reverted would
+    # read as applied (prestonbrown/helixscreen#1681).
     rows, refused = [], []
     for var, name, label, note in wired:
-        pick = next((c for c in by_patch[name] if len(owners[c]) == 1), None)
-        if pick is None:
-            refused.append(name)
-            continue
-        kind, path, text = pick
-        digest = hashlib.sha256(
-            open(f"{args.patch_dir}/{name}", "rb").read()).hexdigest()
-        rows.append([digest, name, kind, var, path, text, label, note])
+        patch_path = f"{args.patch_dir}/{name}"
+        digest = hashlib.sha256(open(patch_path, "rb").read()).hexdigest()
+        for path in touched_files(patch_path):
+            pick = next((c for c in by_patch[name]
+                         if c[1] == path and len(owners[c]) == 1), None)
+            if pick is None:
+                refused.append(f"{name} ({path})")
+                continue
+            kind, _, text = pick
+            rows.append([digest, name, kind, var, path, text, label, note])
 
     if refused:
         sys.exit(
             "no eligible marker for: "
             + ", ".join(refused)
-            + "\nEach needs one line of at least "
+            + "\nEach file a patch touches needs one line of at least "
             f"{MIN_MARKER_LEN} characters that upstream does not contain."
         )
 

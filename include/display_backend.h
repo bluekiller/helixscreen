@@ -312,6 +312,16 @@ class DisplayBackend {
         return nullptr;
     }
 
+    /**
+     * @brief Whether create_input_keyboard() opened a physical keyboard device.
+     *
+     * A backend whose keyboard indev exists without one (the SDL window
+     * keyboard) answers false, so the indev pointer is never a presence test.
+     */
+    virtual bool has_hardware_keyboard() const {
+        return false;
+    }
+
     // ========================================================================
     // Backend Information
     // ========================================================================

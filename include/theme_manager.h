@@ -1002,12 +1002,16 @@ void theme_manager_parse_xml_file_for_suffix(
  * Files are sorted alphabetically to ensure deterministic processing order
  * (important for last-wins precedence).
  *
- * Does NOT recurse into subdirectories.
+ * Recurses into subdirectories only when @p recursive is set. Token discovery
+ * never does: it is last-wins across files, so a variant directory's token
+ * would shadow the base one globally.
  *
  * @param directory Directory path to search
+ * @param recursive Also collect *.xml from every subdirectory
  * @return Sorted vector of full file paths, empty if directory doesn't exist
  */
-std::vector<std::string> theme_manager_find_xml_files(const char* directory);
+std::vector<std::string> theme_manager_find_xml_files(const char* directory,
+                                                      bool recursive = false);
 
 /**
  * @brief Parse all XML files in a directory for constants with a specific suffix
@@ -1046,6 +1050,9 @@ theme_manager_parse_all_xml_for_element(const char* directory, const char* eleme
  * Checks for incomplete sets:
  * - Responsive px: If ANY of foo_small, foo_medium, foo_large exist but NOT ALL -> warn
  * - Themed colors: If ONLY bar_light OR ONLY bar_dark exists -> warn
+ *
+ * Undefined `#name` references are `make lint-xml`'s check (unknown-const-ref),
+ * which also knows the theme tokens and the constants registered from C++.
  *
  * This function is useful for:
  * - Unit tests to catch incomplete constant sets

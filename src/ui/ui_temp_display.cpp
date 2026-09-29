@@ -6,6 +6,7 @@
 #include "ui_breakpoint.h"
 #include "ui_fonts.h"
 #include "ui_temperature_utils.h"
+#include "ui_tile_rung.h"
 
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_parser.h"
@@ -529,6 +530,23 @@ static void* ui_temp_display_create_cb(lv_xml_parser_state_t* state, const char*
                          size_subject_name);
         }
     }
+    // A sizing tile's rung retiers all four labels together, so the reading
+    // grows and shrinks with the glyph beside it in the face the tile measured.
+    const char* rung_subject_name = lv_xml_get_value_of(attrs, "rung_subject");
+    if (rung_subject_name && rung_subject_name[0] != '\0') {
+        lv_subject_t* rung_subj = lv_xml_get_subject(nullptr, rung_subject_name);
+        if (rung_subj) {
+            for (lv_obj_t* label : {registered->current_label, registered->separator_label,
+                                    registered->target_label, registered->unit_label}) {
+                helix::ui::bind_tile_rung(label, rung_subj, helix::ui::TileLadder::Value);
+            }
+        } else {
+            spdlog::warn("[temp_display] rung_subject '{}' does not exist; the face stays as "
+                         "authored",
+                         rung_subject_name);
+        }
+    }
+
     // Seed visibility from the initial state — with hide_target_when_off that
     // means starting hidden, since target_temp is 0 until the first update.
     apply_target_visibility(registered);

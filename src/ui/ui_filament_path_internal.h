@@ -14,14 +14,13 @@
  * through the C setters in ui_filament_path_canvas.h. All per-widget state
  * lives in one FilamentPathData, owned by a registry keyed on the lv_obj_t*.
  *
- * Rendering is split across three layers so per-frame animation never repaints
+ * Rendering is split across two layers so per-frame animation never repaints
  * the expensive tube geometry:
- *   1. static canvas  — lv_canvas child, reserved for state-independent content
- *   2. overlay canvas — lv_canvas child; the full topology render (lanes, hub,
+ *   1. overlay canvas — lv_canvas child; the full topology render (lanes, hub,
  *      sensors, nozzle) painted by the active topology renderer
- *   3. DRAW_POST pass — flow dots / heat glow / moving filament tip, drawn
- *      directly every frame on top of the cached canvases
- * Setters call layered_mark_dirty() which flags the canvases and schedules an
+ *   2. DRAW_POST pass — flow dots / heat glow / moving filament tip, drawn
+ *      directly every frame on top of the cached canvas
+ * Setters call layered_mark_dirty() which flags the canvas and schedules an
  * async repaint (ui_filament_path_layers.cpp). Animation ticks only invalidate
  * the widget, re-running the cheap DRAW_POST pass.
  *
@@ -188,15 +187,12 @@ struct AnimState {
     bool output_x_active = false;
 };
 
-// Layered renderer state. The widget hosts two lv_canvas children backed by
-// ARGB8888 draw_bufs; LVGL composites them natively under a DRAW_POST
-// animation pass. Managed by ui_filament_path_layers.cpp.
+// Layered renderer state. The widget hosts one lv_canvas child backed by an
+// ARGB8888 draw_buf; LVGL composites it natively under a DRAW_POST animation
+// pass. Managed by ui_filament_path_layers.cpp.
 struct LayerState {
-    lv_obj_t* static_canvas = nullptr;
     lv_obj_t* overlay_canvas = nullptr;
-    lv_draw_buf_t* static_buf = nullptr;
     lv_draw_buf_t* overlay_buf = nullptr;
-    bool static_dirty = true;  // canvas needs repaint of idle topology
     bool overlay_dirty = true; // canvas needs repaint of state-tied content
     int32_t canvas_w = 0;      // current canvas buffer size — tracks widget resize
     int32_t canvas_h = 0;
@@ -476,7 +472,7 @@ bool layered_setup_canvases(lv_obj_t* obj, FilamentPathData* data);
 
 /// Mark which layered surfaces need a repaint and schedule an async refresh.
 /// Use this from setters instead of bare lv_obj_invalidate().
-void layered_mark_dirty(lv_obj_t* obj, bool static_dirty, bool overlay_dirty);
+void layered_mark_dirty(lv_obj_t* obj);
 
 /// LV_EVENT_SIZE_CHANGED handler — re-schedules the refresh once layout
 /// assigns a real size (the create-time refresh may have bailed pre-layout).

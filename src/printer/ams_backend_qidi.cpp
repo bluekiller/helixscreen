@@ -1745,17 +1745,18 @@ void AmsBackendQidi::update_slot_weight_impl(int /*slot_index*/, float /*remaini
     // filed the reading on the lane.
 }
 
-AmsError AmsBackendQidi::set_tool_mapping_impl(int tool_number, int slot_index) {
-    spdlog::info("{} set_tool_mapping(tool={}, slot={})", backend_log_tag(), tool_number,
-                 slot_index);
+AmsError AmsBackendQidi::can_set_tool_mapping(int tool_number, int slot_index) const {
     if (tool_number < 0) {
         return AmsErrorHelper::not_supported("QIDI Box: tool number out of range");
     }
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (auto err = validate_slot_index_locked(slot_index); !err.success()) {
-            return err;
-        }
+    return validate_slot_index(slot_index);
+}
+
+AmsError AmsBackendQidi::set_tool_mapping_impl(int tool_number, int slot_index) {
+    spdlog::info("{} set_tool_mapping(tool={}, slot={})", backend_log_tag(), tool_number,
+                 slot_index);
+    if (auto err = can_set_tool_mapping(tool_number, slot_index); !err.success()) {
+        return err;
     }
     // box_extras.py stores `value_t<N> = "slot<M>"` — same shape we parse on
     // the read-path. Quote the value to match Klipper's SAVE_VARIABLE syntax

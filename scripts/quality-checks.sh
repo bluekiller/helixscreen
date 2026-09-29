@@ -261,10 +261,9 @@ echo ""
 # a skip: a validator that silently doesn't exist is a validator that silently
 # passes.
 #
-# validate-xml-constants is not built here while qc_xml_const is paused
-# (prestonbrown/helixscreen#1698): it links the whole app, which on a cold CI
-# runner is a full build that cannot finish inside the step's time limit.
-# Add it back to this make line when enforcement returns.
+# validate-xml-constants is not built here: it links the whole app, which on
+# a cold CI runner is a full build that cannot finish inside the step's time
+# limit. Its check runs in the unit suite instead (see qc_xml_const).
 qc_xml_tools() {
   local EXIT_CODE=0
   # Same bounded share the build-verification phase uses: this is a real make
@@ -293,12 +292,12 @@ qc_xml_const() {
   local EXIT_CODE=0
 echo "🔤 XML constant set gate..."
 
-# Not enforced while the validator cannot resolve theme tokens: every
-# constant defined in assets/config/themes reads as undefined, so enforcing
-# would fail every XML-touching commit on false positives, and a wall of
-# noise nobody reads is worse than an honest pause. Enforcement returns
-# with prestonbrown/helixscreen#1698.
-echo "⏸️  validate-xml-constants not enforced - it cannot resolve theme tokens yet (prestonbrown/helixscreen#1698)"
+# Nothing runs here. Incomplete responsive and light/dark sets fail the unit
+# test "ui_xml has no incomplete constant sets" ([ui_theme][validation]), and
+# undefined #constant references fail qc_xml_linter (unknown-const-ref), so
+# neither needs the app-linking validator binary in the hook
+# (prestonbrown/helixscreen#1698).
+echo "ℹ️  XML constant sets are enforced by the unit suite; undefined #refs by the XML linter (prestonbrown/helixscreen#1698)"
 
 echo ""
 
@@ -1862,7 +1861,7 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2216 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2215 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out
@@ -2197,6 +2196,29 @@ else
   section_time $SECTION_START
   echo ""
   echo "⚠️  check_json_dump_utf8.py not found — skipping"
+fi
+
+SECTION_START=$(date +%s)
+echo -n "🧵 Checking AMS backends reconcile lane bindings..."
+
+if [ -f "scripts/check_lane_binding_reconcile.py" ]; then
+  # A backend whose firmware states a spool id must call reconcile_lane_binding()
+  # where it parses it, or a lane re-bound behind the app's back keeps painting
+  # the old spool forever (prestonbrown/helixscreen#1645).
+  if python3 scripts/check_lane_binding_reconcile.py >/tmp/lane_binding_reconcile.out 2>&1; then
+    section_time $SECTION_START
+    echo ""
+    tail -1 /tmp/lane_binding_reconcile.out
+  else
+    section_time $SECTION_START
+    echo ""
+    cat /tmp/lane_binding_reconcile.out
+    EXIT_CODE=1
+  fi
+else
+  section_time $SECTION_START
+  echo ""
+  echo "⚠️  check_lane_binding_reconcile.py not found — skipping"
 fi
 
 SECTION_START=$(date +%s)
@@ -2691,15 +2713,19 @@ echo -n "🪞 Checking for mirror tests..."
 
 if [ -f "scripts/check_test_mirrors.py" ]; then
   # Ratchet, not a clean-tree assertion. Signals 1 and 2 (shadow-include,
-  # mirror-comment) are at 0 and must stay there. Signal 3 (redefined-symbol)
-  # arrived with pre-existing findings; the number may fall, never rise.
+  # mirror-comment) are at 0 and must stay there. Signals 3 (redefined-symbol)
+  # and 4 (stub-logic) carry pre-existing findings, each with its own ceiling;
+  # each may fall, never rise.
   #
   # Read from mk/tests.mk rather than repeated here. A second hand-written copy
   # of the same threshold is how it goes stale: main rewrote
   # test_update_checker.cpp, the real count fell 18 -> 17, and a duplicated
   # constant would have kept passing at 18 with a regression's worth of slack.
-  MIRROR_MAX=$(sed -n 's/^MIRROR_MAX ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
-  if python3 scripts/check_test_mirrors.py --summary --max-allowed "${MIRROR_MAX:-0}" >/tmp/test_mirrors.out 2>&1; then
+  MIRROR_MAX_REDEFINED=$(sed -n 's/^MIRROR_MAX_REDEFINED_SYMBOL ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+  MIRROR_MAX_STUB=$(sed -n 's/^MIRROR_MAX_STUB_LOGIC ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+  if python3 scripts/check_test_mirrors.py --summary \
+       --max "redefined-symbol=${MIRROR_MAX_REDEFINED:-0}" \
+       --max "stub-logic=${MIRROR_MAX_STUB:-0}" >/tmp/test_mirrors.out 2>&1; then
     section_time $SECTION_START
     echo ""
     cat /tmp/test_mirrors.out
@@ -2943,9 +2969,10 @@ qc_translation_coverage() {
 # The dry run proves a KEY exists, nothing more: `make translation-sync` writes
 # a brand-new key as an EMPTY placeholder, and an empty value renders as empty
 # text in that locale (lv_translation_get() only falls back on a MISSING key).
-# So the second half runs the same pytest CI's Code Quality job runs,
-# tests/python/test_cpp_translation_coverage.py, which fails on empty values -
-# reusing that scan rather than restating the rule here.
+# So the second half runs the same pytests CI's Code Quality job runs,
+# tests/python/test_cpp_translation_coverage.py and test_explicit_tag_coverage.py
+# (XML label_tag/description_tag keys), which fail on empty values - reusing
+# those scans rather than restating the rule here.
 #
 # --dry-run is load-bearing: a bare `sync` REWRITES all nine catalogs, and a
 # check that edits the tree it is inspecting would stage catalog churn behind
@@ -2957,7 +2984,7 @@ if [ -x "$VENV_PYTHON" ] && [ -f "scripts/translation_sync.py" ]; then
   if "$VENV_PYTHON" scripts/translation_sync.py sync --dry-run >/tmp/trans_cov.out 2>&1 \
      && grep -q "All XML strings already in YAML files" /tmp/trans_cov.out; then
     if "$VENV_PYTHON" -m pytest -q tests/python/test_cpp_translation_coverage.py \
-       >/tmp/trans_empty.out 2>&1; then
+       tests/python/test_explicit_tag_coverage.py >/tmp/trans_empty.out 2>&1; then
       section_time $SECTION_START
       echo ""
       echo "✅ Every user-facing string has a translated value in every locale"
@@ -3477,7 +3504,49 @@ echo ""
   return $EXIT_CODE
 }
 
-QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert"
+# ====================================================================
+# Python script tests
+# ====================================================================
+qc_python_tests() {
+  local EXIT_CODE=0
+# CI's Code Quality job runs tests/python/ as its own step, outside this
+# script, so without this gate nothing local ran it and a push could turn that
+# job red. ~20s. Skipped on GitHub Actions, where that step already ran.
+SECTION_START=$(date +%s)
+echo -n "🐍 Running Python script tests..."
+
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+  section_time $SECTION_START
+  echo ""
+  echo "⏭️  CI runs tests/python/ as its own step"
+elif [ -x "$VENV_PYTHON" ]; then
+  # Git exports GIT_INDEX_FILE and friends to hooks; a test that builds a
+  # throwaway repo would otherwise read this commit's index.
+  if ( for v in $(compgen -e); do case "$v" in GIT_*) unset "$v" ;; esac; done
+       "$VENV_PYTHON" -m pytest -q -p no:cacheprovider tests/python/ ) \
+     >"$QC_TMP/python_tests.log" 2>&1; then
+    section_time $SECTION_START
+    echo ""
+    echo "✅ $(tail -1 "$QC_TMP/python_tests.log")"
+  else
+    section_time $SECTION_START
+    echo ""
+    grep -E "^(FAILED|ERROR) " "$QC_TMP/python_tests.log" | head -20
+    tail -1 "$QC_TMP/python_tests.log"
+    echo "   Reproduce: .venv/bin/pytest tests/python/"
+    EXIT_CODE=1
+  fi
+else
+  section_time $SECTION_START
+  echo ""
+  echo "⚠️  .venv not set up - skipping (run 'make venv-setup')"
+fi
+
+echo ""
+  return $EXIT_CODE
+}
+
+QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
 
 QC_PARALLEL=""
 for fn in $QC_ALL; do
@@ -3508,7 +3577,7 @@ qc_trigger_re() {
     qc_mem_safety|qc_null_safety|qc_l081|qc_net_pii|qc_decl_ui|qc_namespace|qc_spdlog_only)
                         echo '\.(cpp|c|h|mm)$' ;;
     qc_design_tokens)   echo '\.(cpp|h|xml)$' ;;
-    qc_test_mirrors)    echo '^tests/|^scripts/check_test_mirrors\.py$' ;;
+    qc_test_mirrors)    echo '^tests/|^mk/tests\.mk$|^scripts/check_test_mirrors\.py$' ;;
     qc_test_tautology)  echo '^tests/|^include/|^src/|^scripts/check_test_tautology\.py$' ;;
     qc_test_widget_registry)
                         echo '^tests/|^src/|^scripts/check_test_widget_registry\.py$' ;;
@@ -3534,6 +3603,7 @@ qc_trigger_re() {
     qc_workflow_submodules)
                         echo '^\.github/workflows/|^\.github/actions/|check_workflow_submodules\.py$' ;;
     qc_ams_xml_mirror)  echo '^src/printer/ams_state\.cpp$|^include/state/subject_macros\.h$|check_ams_xml_mirror\.py$' ;;
+    qc_python_tests)    echo '\.py$|^tests/python/' ;;
     *)                  echo '' ;;
   esac
 }

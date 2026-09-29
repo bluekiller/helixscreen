@@ -243,3 +243,37 @@ EOF
     [ "$gate_line" -gt "$last_stanza" ]
     [ "$stamp_line" -gt "$gate_line" ]
 }
+
+# A patch touching a header and a source file, applied, then one file reverted
+# while the other keeps its change: the half-applied lv_obj flag guard shape
+# (prestonbrown/helixscreen#1681). git diff lists src/obj.c first, so obj.c is
+# where a one-marker-per-patch table would look; the header is the file
+# reverted, which only a per-file row can see.
+@test "a half-applied two-file patch fails on the file that lost its change" {
+    printf '%s\n' 'void obj_add_flag(obj_t* obj);' > "$LV/src/obj.h"
+    printf '%s\n' 'void obj_add_flag(obj_t* obj) {' '    mark_dirty(parent(obj));' '}' \
+        > "$LV/src/obj.c"
+    git -C "$LV" add src/obj.h src/obj.c
+    git -C "$LV" commit -qm "pristine obj"
+
+    printf '%s\n' '/*obj_add_flag tolerates a parentless object (a screen)*/' \
+        'void obj_add_flag(obj_t* obj);' > "$LV/src/obj.h"
+    printf '%s\n' 'void obj_add_flag(obj_t* obj) {' \
+        '    if(parent(obj)) mark_dirty(parent(obj));' '}' > "$LV/src/obj.c"
+    git -C "$LV" diff -- src/obj.h src/obj.c > "$P/guard.patch"
+    printf '%s\n' $'\t$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/guard.patch "screen parent guard patch"' \
+        >> "$MK"
+
+    gen --write >/dev/null
+    [ "$(grep -c $'\tguard.patch\t' "$TSV")" -eq 2 ] || fail "$(cat "$TSV")"
+    run check
+    [ "$status" -eq 0 ] || fail "$output"
+
+    git -C "$LV" checkout -- src/obj.h
+    run check
+    [ "$status" -eq 1 ] || fail "expected the half-applied patch to fail: $output"
+    [[ "$output" == *"guard.patch"*"src/obj.h"* ]] || fail "$output"
+    run python3 "$CHECK" --mk "$MK" --tsv "$TSV" --patch-dir "$P" --lvgl "$LV" --libhv "$HV" \
+        --only guard.patch
+    [ "$status" -eq 1 ] || fail "--only must report the patch absent, got $status"
+}

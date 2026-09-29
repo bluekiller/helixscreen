@@ -26,12 +26,13 @@
 #include "../../include/printer_state.h"
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/history_call_counting_api.h"
+#include "../test_helpers/planted_gcode.h"
 #include "../test_helpers/print_history_manager_test_access.h"
 #include "src/ui/panel_widgets/print_stats_widget.h"
 
 #include <atomic>
-#include <ctime>
 #include <cstdio>
+#include <ctime>
 #include <memory>
 #include <string>
 
@@ -123,6 +124,17 @@ class PrintStatsLifetimeFixture : public LVGLTestFixture {
 };
 
 } // namespace
+
+// The mock derives its totals from the shipped gcodes directory, and other
+// test processes plant files for their own cases while these run.
+TEST_CASE_METHOD(PrintStatsLifetimeFixture,
+                 "A planted G-code never reaches the mock's history totals",
+                 "[print_stats][history][1272]") {
+    const PrintHistoryTotals before = fetch_server_totals();
+    PlantedGcode planted("history_totals_planted.gcode");
+    REQUIRE(planted.on_disk());
+    CHECK(fetch_server_totals().total_jobs == before.total_jobs);
+}
 
 TEST_CASE_METHOD(PrintStatsLifetimeFixture,
                  "print_stats lifetime totals come from the server, not the capped job cache",
@@ -253,8 +265,8 @@ TEST_CASE_METHOD(PrintStatsLifetimeFixture,
     lv_subject_set_int(printer_state_.get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::CONNECTED));
     process_lvgl(20);
-    helix::PrintHistoryManagerTestAccess::set_loaded_jobs(
-        *manager_, page, HistoryScope::RECENT, PrintHistoryManager::kRecentJobLimit);
+    helix::PrintHistoryManagerTestAccess::set_loaded_jobs(*manager_, page, HistoryScope::RECENT,
+                                                          PrintHistoryManager::kRecentJobLimit);
     REQUIRE_FALSE(manager_->covers_since(now - 7 * 24 * 3600));
 
     PrintStatsWidget widget;

@@ -1199,9 +1199,12 @@ AmsError AmsBackendMock::write_slot(int slot_index, const SlotInfo& info) {
     return AmsErrorHelper::success();
 }
 
-AmsError AmsBackendMock::set_tool_mapping_impl(int tool_number, int slot_index) {
+AmsError AmsBackendMock::can_set_tool_mapping(int tool_number, int slot_index) const {
     std::lock_guard<std::mutex> lock(mutex_);
+    return can_set_tool_mapping_locked(tool_number, slot_index);
+}
 
+AmsError AmsBackendMock::can_set_tool_mapping_locked(int tool_number, int slot_index) const {
     // Tools can have a higher index than the number of slots — multi-tool
     // slicer files often reference T0..T7 even when only 4 lanes exist. The
     // sentinel for "too large" is arbitrary; 64 is generous and matches the
@@ -1210,10 +1213,18 @@ AmsError AmsBackendMock::set_tool_mapping_impl(int tool_number, int slot_index) 
     if (tool_number < 0 || tool_number >= MAX_TOOL_INDEX) {
         return AmsErrorHelper::tool_out_of_range(tool_number);
     }
-
     if (!slots_.is_valid_index(slot_index)) {
         return AmsErrorHelper::invalid_slot(lane_noun_locked(), slot_index,
                                             slots_.slot_count() - 1);
+    }
+    return AmsErrorHelper::success();
+}
+
+AmsError AmsBackendMock::set_tool_mapping_impl(int tool_number, int slot_index) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (auto err = can_set_tool_mapping_locked(tool_number, slot_index); !err.success()) {
+        return err;
     }
 
     // Get current tool map and grow it if needed so the new tool index fits.

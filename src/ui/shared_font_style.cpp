@@ -3,36 +3,37 @@
 
 #include "helix/ui/shared_font_style.h"
 
-#include <spdlog/spdlog.h>
-
-#include <cstdlib>
+#include <deque>
 
 namespace helix::ui {
 
 namespace {
 
-// Append-only: one entry per compiled face a caller has ever resolved to (at
-// most one per tier per role), so a fixed table is enough and nothing here
-// needs the heap.
-constexpr size_t MAX_FACES = 32;
-const lv_font_t* g_faces[MAX_FACES] = {};
-lv_style_t g_styles[MAX_FACES];
+/// One entry per face any caller has ever asked for, which is at most every
+/// face the build links. A deque, so each style keeps its address as entries
+/// are added: objects hold pointers to them.
+struct FaceStyle {
+    const lv_font_t* font;
+    lv_style_t style;
+};
+std::deque<FaceStyle>& face_styles() {
+    static std::deque<FaceStyle> styles;
+    return styles;
+}
 
 } // namespace
 
 lv_style_t* shared_font_style(const lv_font_t* font) {
-    for (size_t i = 0; i < MAX_FACES; ++i) {
-        if (g_faces[i] == font)
-            return &g_styles[i];
-        if (g_faces[i] == nullptr) {
-            g_faces[i] = font;
-            lv_style_init(&g_styles[i]);
-            lv_style_set_text_font(&g_styles[i], font);
-            return &g_styles[i];
-        }
+    auto& styles = face_styles();
+    for (auto& entry : styles) {
+        if (entry.font == font)
+            return &entry.style;
     }
-    spdlog::critical("[ui] FATAL: shared font style table full ({} faces)", MAX_FACES);
-    std::exit(EXIT_FAILURE);
+    FaceStyle& entry = styles.emplace_back();
+    entry.font = font;
+    lv_style_init(&entry.style);
+    lv_style_set_text_font(&entry.style, font);
+    return &entry.style;
 }
 
 void apply_font_style(lv_obj_t* obj, const lv_font_t* font) {
@@ -45,10 +46,9 @@ void apply_font_style(lv_obj_t* obj, const lv_font_t* font) {
     // be recomputed from its size rung: a breakpoint change re-points the
     // icon_font_* tokens, so the rung names a different face than the one the
     // object is carrying.
-    // Removing a style the object does not carry is a no-op, and the loop
-    // stops at the first unused slot.
-    for (size_t i = 0; i < MAX_FACES && g_faces[i] != nullptr; ++i) {
-        lv_obj_remove_style(obj, &g_styles[i], LV_PART_MAIN);
+    // Removing a style the object does not carry is a no-op.
+    for (auto& entry : face_styles()) {
+        lv_obj_remove_style(obj, &entry.style, LV_PART_MAIN);
     }
     lv_obj_add_style(obj, shared_font_style(font), LV_PART_MAIN);
 }

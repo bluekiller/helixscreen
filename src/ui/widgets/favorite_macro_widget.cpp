@@ -4,7 +4,6 @@
 #include "favorite_macro_widget.h"
 
 #include "ui_event_safety.h"
-#include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
 #include "ui_modal.h"
@@ -22,7 +21,6 @@
 #include "panel_widget_config.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
-#include "panel_widget_size.h"
 #include "printer_state.h"
 #include "safety_settings_manager.h"
 #include "theme_manager.h"
@@ -183,34 +181,6 @@ void FavoriteMacroWidget::detach() {
     spdlog::debug("[FavoriteMacroWidget] Detached");
 }
 
-void FavoriteMacroWidget::on_size_changed(int /*colspan*/, int /*rowspan*/, int width_px,
-                                          int height_px) {
-    if (!widget_obj_)
-        return;
-
-    bool tall = (height_px >= widget_size::h_tall());
-    bool wide = (width_px >= widget_size::w_normal());
-
-    // Scale badge and icon: 48px/md at 1×1, 64px/lg when tall or 2×2
-    int badge_size = tall ? 64 : 48;
-    if (icon_badge_) {
-        lv_obj_set_size(icon_badge_, badge_size, badge_size);
-        lv_obj_set_style_radius(icon_badge_, badge_size / 2, 0);
-    }
-    if (icon_label_) {
-        const lv_font_t* icon_font = tall ? &mdi_icons_48 : &mdi_icons_32;
-        lv_obj_set_style_text_font(icon_label_, icon_font, 0);
-    }
-
-    // Scale text: font_xs at 1×1, font_small when tall or wide
-    if (name_label_) {
-        const char* font_token = (tall || wide) ? "font_small" : "font_xs";
-        const lv_font_t* text_font = theme_manager_get_font(font_token);
-        if (text_font)
-            lv_obj_set_style_text_font(name_label_, text_font, 0);
-    }
-}
-
 bool FavoriteMacroWidget::on_edit_configure() {
     open_config_modal();
     return false;
@@ -247,7 +217,8 @@ void FavoriteMacroWidget::update_display() {
 
     if (name_label_) {
         if (unconfigured) {
-            lv_label_set_text(name_label_, lv_tr("Configure"));
+            // A tag, not lv_tr() text: the label then re-translates itself.
+            lv_label_set_translation_tag(name_label_, "Configure");
         } else {
             std::string display = helix::get_display_name(macro_name_, helix::DeviceType::MACRO);
             lv_label_set_text(name_label_, display.c_str());

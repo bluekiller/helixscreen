@@ -402,9 +402,9 @@ to another font, and an inline `style_text_font` attribute still beats both, exa
 the `bg_color` rule above. This is the supported way to swap a text widget's font from a
 width-band or mode subject without touching C++. An `<icon>`'s face and `temp_display`'s
 four labels sit in the same notch (`helix::ui::apply_font_style`): a bound style can
-retier them too, which is how the home tiles scale their glyph. The tile rung styles
-`styles.tile_icon_xs` .. `styles.tile_icon_xl` live in `ui_xml/styles.xml` and each
-name an `#icon_font_*` token.
+retier them too. The home tiles scale their glyph, value and label through
+`<bind_tile_rung ladder="icon|value|label" subject="..."/>` (`include/ui_tile_rung.h`),
+which applies the face its rung names through the same shared style.
 
 **Rule:** When using `bind_style` for reactive visual changes, do NOT set inline style attributes for the properties you want to change reactively.
 
@@ -984,9 +984,9 @@ Font-based icons using Material Design Icons (MDI):
 **Variants:** `primary`, `secondary`, `accent`, `disabled`, `warning`
 
 **Bindable face:** the icon's font is applied as a shared style, so `bind_style_if_*` can
-retier it - the home tiles bind `styles.tile_icon_xs` .. `styles.tile_icon_xl` from
-`ui_xml/styles.xml` to scale a tile's glyph with its size. An inline `style_text_font`
-attribute still outranks a bound style.
+retier it - the home tiles scale a glyph with its tile through
+`<bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>` (`include/ui_tile_rung.h`).
+An inline `style_text_font` attribute still outranks both.
 
 **Adding Icons:**
 1. Find icon at [Pictogrammers MDI](https://pictogrammers.com/library/mdi/)
@@ -1093,17 +1093,28 @@ Both `text="@subject"` and `bind_text="subject"` produce identical reactive bind
 
 When bound to a subject, the button label updates automatically, and a deferred invalidation ensures the button background repaints correctly (avoids partial-redraw artifacts).
 
-**Icon-only collapse:** the button's internal label can be hidden by an int subject, which an XML child binding cannot reach:
+**Breakpoint-conditional attributes:**
+
+Two `ui_button` attributes react to the `ui_breakpoint` subject, for the two ways a
+button outgrows a small panel. Both need the button to carry an icon and a label.
 
 ```xml
-<!-- Hide the label while my_labels_subject == 0 -->
-<ui_button icon="stop" text="Stop" label_hidden_subject="my_labels_subject" label_hidden_if_eq="0"/>
+<!-- Icon over label on tiny and micro panels (ui_breakpoint <= 1), row layout above.
+     From ui_xml/print_status_panel.xml: a stacked button fills its growable row. -->
+<ui_button name="btn_tune" flex_grow="1" icon="tune" text="Tune"
+           translation_tag="Tune" stacked_if_bp_lte="1"/>
 
-<!-- Shorthand for label_hidden_subject="ui_breakpoint" -->
+<!-- Icon-only while ui_breakpoint == 1 -->
 <ui_button icon="stop" text="Stop" label_hidden_if_bp_eq="1"/>
 ```
 
-An empty `label_hidden_subject` installs no binding. Give each label one writer: a widget that also measures whether its label fits should fold the breakpoint rule into its own subject rather than set both attributes.
+| Attr | Effect |
+|------|--------|
+| `stacked_if_bp_lte="N"` | While `ui_breakpoint <= N`, restacks the button icon-over-label - the create-time `icon_position="top"` recipe - and sets its height to 100% of its parent, so a stacked button fills the growable row it lives in. Above `N` the button returns to the row layout and fixed `button_height` it declared at create time. |
+| `label_hidden_if_bp_eq="N"` | Hides the button's label while `ui_breakpoint == N`, collapsing it to icon-only; every other rung shows the label. The `ui_breakpoint` spelling of the pair below. |
+| `label_hidden_subject="S"` + `label_hidden_if_eq="N"` | Hides the label while int subject `S` equals `N`. An empty `S` installs no binding. From ui_xml/components/panel_widget_control_buttons.xml, where the widget folds the breakpoint rule into its own measured subject. |
+
+Give each label one writer: a widget that measures whether its label fits should fold the breakpoint rule into its own subject rather than set both attributes.
 
 #### divider_vertical / divider_horizontal
 

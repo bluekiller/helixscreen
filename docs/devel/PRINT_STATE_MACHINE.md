@@ -269,6 +269,27 @@ value internally but return `false`. This signals the UI that the preprint obser
 owns the time display, not the normal print timer. Preprint time is updated
 separately via `on_preprint_elapsed_changed()` and `on_preprint_remaining_changed()`.
 
+### Current-layer lag guard
+
+Three kinds of source write the current layer (`include/printer_print_state.h#LayerSource`),
+and they are not equally trustworthy:
+
+- `Echo` - the gcode-response path (`SET_PRINT_STATS_INFO`, `;LAYER:N`), written by
+  `set_print_layer_current()`
+- `Reported` - status fields (`print_stats.info`, `virtual_sdcard.layer`)
+- `Estimate` - fabricated values (progress-fraction and Z-height derivations)
+
+Every source routes through
+`src/printer/printer_print_state.cpp#apply_layer_current`, the sole writer of the
+current-layer subject besides `reset_for_new_print()`. A `Reported` value lower than
+the current one is refused while a print is active and the value in the subject came
+from an `Echo`: a status frame generated before the newest echo can carry an older
+number, and accepting it bounces the layer 1 -> 0 -> 1 at print start, which downstream
+consumers read as a new print. `Echo` writes are always accepted (sequential
+one-object-at-a-time prints restart `;LAYER:N` per object), a status decrease against a
+status-sourced value stands, and the first real value supersedes an estimate even when
+it is lower. `reset_for_new_print()` resets the tracked source back to `Estimate`.
+
 ### Always accepted
 
 These are never guarded and update in all states:

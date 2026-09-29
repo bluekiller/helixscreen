@@ -4,8 +4,9 @@
 /**
  * @file test_grid_edit_drop.cpp
  * @brief How a released home-grid edit drag resolves: move its widget, create
- * a page before the first or past the last one, return to its origin page, or
- * snap back (prestonbrown/helixscreen#1638).
+ * a page before the first or past the last one, swap it with the widget it
+ * lands on, return to its origin page, or snap back
+ * (prestonbrown/helixscreen#1638, prestonbrown/helixscreen#1503).
  */
 
 #include "grid_edit_drop.h"
@@ -103,12 +104,6 @@ TEST_CASE("a release on a config page moves its widget, snaps back or returns ho
         {"a free cell on the origin page", release_on(0, 6, 2), {fan}, DropOutcome::Move, 6, 2},
         {"the origin cell on the origin page",
          release_on(0, 0, 0),
-         {fan},
-         DropOutcome::Cancel,
-         -1,
-         -1},
-        {"a cell another widget holds, on the origin page",
-         release_on(0, 4, 0),
          {fan},
          DropOutcome::Cancel,
          -1,
@@ -287,4 +282,96 @@ TEST_CASE("a release past the first page's left border creates a page before it"
     CHECK(append.outcome == DropOutcome::CreatePage);
     CHECK_FALSE(append.prepend_page);
     CHECK(append.col == COLS - SPAN);
+}
+
+TEST_CASE("a release onto one other widget on the origin page swaps the two", "[1503][grid_edit]") {
+    // The dragged entry sits at (0,0), SPAN x SPAN, and lands on the occupant's
+    // cell; the occupant takes the dragged entry's origin cell.
+    const GridPlacement fan{"fan", 4, 0, SPAN, SPAN};
+    const GridPlacement wide{"wide", 4, 0, 2 * SPAN, SPAN};
+    const GridPlacement tall{"tall", 4, 0, SPAN, 2 * SPAN};
+    struct SwapRow {
+        const char* what;
+        DropInput in;
+        std::vector<GridPlacement> occupants;
+        int col;
+        int row;
+        GridPlacement swapped;
+    };
+    DropInput from_low_row = release_on(0, 4, 0);
+    from_low_row.origin_row = 2;
+    const SwapRow rows[] = {
+        {"a same-span widget, on its cell",
+         release_on(0, 4, 0),
+         {fan},
+         4,
+         0,
+         {"fan", 0, 0, SPAN, SPAN}},
+        {"a same-span widget the preview only overlaps",
+         release_on(0, 3, 1),
+         {fan},
+         4,
+         0,
+         {"fan", 0, 0, SPAN, SPAN}},
+        {"a wider widget with room at the origin",
+         release_on(0, 4, 0),
+         {wide},
+         4,
+         0,
+         {"wide", 0, 0, 2 * SPAN, SPAN}},
+        {"a taller widget with room at the origin",
+         from_low_row,
+         {tall},
+         4,
+         0,
+         {"tall", 0, 2, SPAN, 2 * SPAN}},
+    };
+    for (const SwapRow& row : rows) {
+        INFO(row.what);
+        const DropResolution drop = resolve_drop(row.in, occupied_by(row.occupants));
+        REQUIRE(drop.outcome == DropOutcome::Swap);
+        CHECK(drop.col == row.col);
+        CHECK(drop.row == row.row);
+        CHECK(drop.swapped.widget_id == row.swapped.widget_id);
+        CHECK(drop.swapped.col == row.swapped.col);
+        CHECK(drop.swapped.row == row.swapped.row);
+        CHECK(drop.swapped.colspan == row.swapped.colspan);
+        CHECK(drop.swapped.rowspan == row.swapped.rowspan);
+    }
+}
+
+TEST_CASE("a swap that does not fit both ways commits nothing", "[1503][grid_edit]") {
+    const GridPlacement fan{"fan", 4, 0, SPAN, SPAN};
+    const GridPlacement lamp{"lamp", 2, 0, SPAN, SPAN};
+    const GridPlacement wide{"wide", 4, 0, 2 * SPAN, SPAN};
+    const GridPlacement near_wide{"wide", 2, 0, 2 * SPAN, SPAN};
+    const GridPlacement tall{"tall", 4, 0, SPAN, 2 * SPAN};
+    DropInput from_bottom = release_on(0, 4, 0);
+    from_bottom.origin_row = ROWS - SPAN;
+    check_rows({
+        {"a wider widget whose origin landing overlaps the dragged one's",
+         release_on(0, 2, 0),
+         {near_wide},
+         DropOutcome::Cancel,
+         -1,
+         -1},
+        {"a wider widget whose origin landing overlaps a third widget",
+         release_on(0, 4, 0),
+         {wide, lamp},
+         DropOutcome::Cancel,
+         -1,
+         -1},
+        {"a taller widget that would overhang the grid from the origin",
+         from_bottom,
+         {tall},
+         DropOutcome::Cancel,
+         -1,
+         -1},
+        {"a preview over two widgets",
+         release_on(0, 3, 0),
+         {fan, lamp},
+         DropOutcome::Cancel,
+         -1,
+         -1},
+    });
 }

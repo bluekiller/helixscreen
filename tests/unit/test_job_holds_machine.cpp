@@ -443,6 +443,7 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/components/panel_widget_temperature.xml",
     "ui_xml/components/panel_widget_thermistor.xml",
     "ui_xml/components/panel_widget_tips.xml",
+    "ui_xml/components/panel_widget_tool_switcher.xml",
     "ui_xml/components/pin_entry_modal.xml",
     "ui_xml/components/preflight_check_modal.xml",
     "ui_xml/components/print_status_detailed_active.xml",

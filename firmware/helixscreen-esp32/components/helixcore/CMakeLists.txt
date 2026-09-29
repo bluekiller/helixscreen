@@ -69,14 +69,18 @@ idf_component_register(
         ${REPO_ROOT}/lib/helix-xml     # helix_xml.h
     PRIV_REQUIRES pthread esp_timer)
 
-# Render hot path at -O2. The image ships -Os globally (a global -O2 measured
-# +1.4MB over BOTH ota slots — a hard overflow), but the software renderer's
-# blend/fill/glyph loops are where full-screen repaint time goes (measured
-# ~183ms/frame at -Os on the S3), so only lib/lvgl/src/draw/** gets -O2.
-# GCC honors the last -O flag, so appending -O2 per-source overrides the
-# global -Os for exactly these files.
+# UI hot paths at -O2. The image ships -Os globally (a global -O2 measured
+# +1.4MB over BOTH ota slots — a hard overflow). The software renderer's
+# blend/fill/glyph loops (lib/lvgl/src/draw/**), LVGL's object, style, event
+# and layout core, and the XML engine with expat are where panel builds and
+# repaints spend their time; together they cost ~35KB at -O2 and make K-Touch
+# full-screen renders 10-18% and panel builds 4-6% faster. GCC honors the last
+# -O flag, so appending -O2 per-source overrides the global -Os for exactly
+# these files.
 file(GLOB_RECURSE LVGL_DRAW_SRCS ${REPO_ROOT}/lib/lvgl/src/draw/*.c)
-set_source_files_properties(${LVGL_DRAW_SRCS} PROPERTIES COMPILE_OPTIONS "-O2")
+file(GLOB_RECURSE LVGL_CORE_SRCS ${REPO_ROOT}/lib/lvgl/src/core/*.c ${REPO_ROOT}/lib/lvgl/src/misc/*.c
+     ${REPO_ROOT}/lib/lvgl/src/layouts/*.c)
+set_source_files_properties(${LVGL_DRAW_SRCS} ${LVGL_CORE_SRCS} ${HELIX_XML_SRCS} PROPERTIES COMPILE_OPTIONS "-O2")
 
 # LV_KCONFIG_IGNORE: helix-xml ships lv_conf_internal.h without the sibling
 # lv_conf_kconfig.h; we configure via lv_conf.h, not ESP-IDF Kconfig.

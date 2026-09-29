@@ -114,6 +114,19 @@ void ui_button_set_icon(lv_obj_t* btn, const char* icon_name);
 void ui_button_set_label_hidden(lv_obj_t* btn, bool hidden);
 
 /**
+ * @brief Restack a ui_button icon-over-label (or back to icon-beside-label)
+ *
+ * stacked=true applies the create-time icon_position="top" recipe: column flex,
+ * icon first, small label with a space_xxs pad_top, and the button's height set
+ * to 100% of its parent (a stacked button lives in a growable row).
+ * stacked=false restores the row layout and fixed button_height. Safe to call
+ * on any lv_obj; returns silently if not a ui_button or if the button has no
+ * icon or label.
+ */
+// NAMESPACE_OK: joins this header's global ui_button_* free-function API
+void ui_button_set_stacked(lv_obj_t* btn, bool stacked);
+
+/**
  * @brief Get the internal icon glyph label of a ui_button
  *
  * Returns the lv_label that renders the button's MDI icon glyph, or nullptr if

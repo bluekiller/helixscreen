@@ -18,6 +18,8 @@
 #include "../../lvgl_test_fixture.h"
 #include "observer_factory.h"
 #include "runtime_config.h"
+#include "settings_manager.h"
+#include "subject_initializer.h"
 
 #include <atomic>
 #include <string>
@@ -237,4 +239,18 @@ TEST_CASE_METHOD(LVGLTestFixture, "ObserverGuard move semantics transfer ownersh
     REQUIRE(callback_count.load() == 0); // No callback after reset
 
     lv_subject_deinit(&subject);
+}
+
+// Panels built by init_panels() observe the language subject from their
+// constructors, and LVGL refuses an observer on a subject not yet initialised.
+TEST_CASE_METHOD(LVGLTestFixture, "Settings subjects are live once core and state subjects are",
+                 "[application][subjects][i18n]") {
+    auto& settings = helix::SettingsManager::instance();
+    settings.deinit_subjects();
+    REQUIRE_FALSE(settings.are_subjects_initialized());
+
+    SubjectInitializer subjects;
+    subjects.init_core_and_state();
+
+    CHECK(settings.are_subjects_initialized());
 }
