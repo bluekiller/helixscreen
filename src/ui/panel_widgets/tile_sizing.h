@@ -104,6 +104,10 @@ class TileSizing {
         return const_cast<const char**>(attrs_.data());
     }
 
+    /// Pass one more subject name to this tile's component, as prop @p prop.
+    /// Call from the widget's constructor, before the component is parsed.
+    void add_subject_attr(const char* prop, const std::string& subject_name);
+
     const std::string& icon_subject_name() const {
         return icon_name_;
     }
@@ -115,6 +119,7 @@ class TileSizing {
 
   private:
     TileVerdict decide(int width_px, int height_px) const;
+    void rebuild_attrs();
     /// Whether the label, if this tile has one, is drawn at all.
     bool label_drawn() const;
     /// Re-measure at the last box whenever show_widget_labels moves, since the

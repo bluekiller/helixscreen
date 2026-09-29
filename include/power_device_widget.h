@@ -132,14 +132,26 @@ class PowerDeviceWidget : public PanelWidget {
 
     friend struct PowerDeviceWidgetTestAccess;
 
+    /// Measure the state line only while there is one: an unconfigured tile
+    /// shows none, and reserving it would leave the badge above an empty gap.
+    void apply_status_presence();
+
     /// Built with the widget so its subjects exist before the manager parses
     /// this tile's component; a binding whose subject is missing at parse time
     /// is dropped permanently. The state is the reading ("LOCKED" is the
     /// widest), the device name the label, drawn whatever show_widget_labels
     /// says, and the glyph sits in a disc that scales with it.
-    TileSizing sizing_{instance_id_.c_str(),
-                       TileSizing::Content{"LOCKED", "LOCKED", "Power", true, "",
-                                           /*label_always_drawn=*/true, TileSizing::IconBox::Disc}};
+    TileSizing sizing_{instance_id_.c_str(), status_content(false)};
+    /// 1 while a device is configured, so the state line is drawn.
+    lv_subject_t has_status_subject_{};
+    std::string has_status_name_ = instance_id_ + "_has_status";
+    SubjectManager subjects_;
+
+    static TileSizing::Content status_content(bool has_status) {
+        return TileSizing::Content{
+            has_status ? "LOCKED" : "",  has_status ? "LOCKED" : "", "Power", has_status, "",
+            /*label_always_drawn=*/true, TileSizing::IconBox::Disc};
+    }
 };
 
 } // namespace helix

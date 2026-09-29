@@ -656,3 +656,34 @@ TEST_CASE("the xxl rung scales the largest linked face up to its size, at most 2
     lv_obj_delete(icon);
     lv_subject_deinit(&rung);
 }
+
+TEST_CASE("an unconfigured power tile reserves no state line", "[widget_size][tile][badge]") {
+    // With no device there is no ON/OFF/LOCKED to draw, so the line is hidden
+    // and not measured: the badge and name centre instead of sitting above an
+    // empty gap, and the badge may take the room.
+    LVGLUITestFixture fixture;
+    helix::init_widget_registrations();
+    const auto* def = find_widget_def("power_device");
+    REQUIRE(def != nullptr);
+    auto instance = def->factory("power_device:7");
+    REQUIRE(instance != nullptr);
+    instance->set_config(nlohmann::json::object());
+    lv_obj_t* root = static_cast<lv_obj_t*>(lv_xml_create(
+        fixture.test_screen(), instance->get_component_name().c_str(), instance->xml_attrs()));
+    REQUIRE(root != nullptr);
+    lv_obj_t* status = lv_obj_find_by_name(root, "power_device_status");
+    REQUIRE(status != nullptr);
+    lv_subject_t* rung = lv_xml_get_subject(nullptr, "power_device:7_tile_icon");
+    REQUIRE(rung != nullptr);
+
+    instance->notify_size_changed(2, 2, 110, 90);
+    CHECK(lv_obj_has_flag(status, LV_OBJ_FLAG_HIDDEN));
+    const int unconfigured = lv_subject_get_int(rung);
+
+    instance->set_config(nlohmann::json{{"device", "printer_psu"}});
+    CHECK_FALSE(lv_obj_has_flag(status, LV_OBJ_FLAG_HIDDEN));
+    const int configured = lv_subject_get_int(rung);
+    INFO("rung " << unconfigured << " unconfigured, " << configured << " with a state line");
+    CHECK(unconfigured > configured);
+    lv_obj_delete(root);
+}

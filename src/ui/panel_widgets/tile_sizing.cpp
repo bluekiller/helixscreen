@@ -65,6 +65,17 @@ TileSizing::TileSizing(const std::string& instance_id)
 
     attr_storage_ = {"tile_icon_subject", icon_name_, "tile_label_subject",  label_name_,
                      "tile_dir_subject",  dir_name_,  "tile_target_subject", target_name_};
+    rebuild_attrs();
+}
+
+void TileSizing::add_subject_attr(const char* prop, const std::string& subject_name) {
+    attr_storage_.emplace_back(prop);
+    attr_storage_.push_back(subject_name);
+    rebuild_attrs();
+}
+
+void TileSizing::rebuild_attrs() {
+    attrs_.clear();
     attrs_.reserve(attr_storage_.size() + 1);
     for (const auto& s : attr_storage_) {
         attrs_.push_back(s.c_str());
