@@ -1274,6 +1274,7 @@
   <translation tag="Happy Hare MMU" es="Happy Hare MMU"/>
   <translation tag="Hardware" es="Hardware"/>
   <translation tag="Hardware Health" es="Estado del Hardware"/>
+  <translation tag="Hardware Keyboard"/>
   <translation tag="Hardware Name" es="Nombre del Hardware"/>
   <translation tag="Hardware Profile" es="Perfil de hardware"/>
   <translation tag="Hardware is validated on startup and reconnection" es="El hardware se valida al inicio y reconexión"/>
@@ -1336,6 +1337,7 @@
   <translation tag="Helper macros are up to date" es="Las macros de ayuda están actualizadas"/>
   <translation tag="Hide Firmware Noise" es="Ocultar Ruido del Firmware"/>
   <translation tag="Hide Temperature Reports" es="Ocultar Reportes de Temperatura"/>
+  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached"/>
   <translation tag="High Water Mark" es="Marca de máximo histórico"/>
   <translation tag="Hold anywhere to cancel" es="Mantén pulsado en cualquier lugar para cancelar"/>
   <translation tag="Hold still" es="No moverse"/>

@@ -1274,6 +1274,7 @@
   <translation tag="Happy Hare MMU" zh="Happy Hare MMU"/>
   <translation tag="Hardware" zh="硬件"/>
   <translation tag="Hardware Health" zh="硬件状态"/>
+  <translation tag="Hardware Keyboard"/>
   <translation tag="Hardware Name" zh="硬件名称"/>
   <translation tag="Hardware Profile" zh="硬件配置"/>
   <translation tag="Hardware is validated on startup and reconnection" zh="硬件在启动和重新连接时进行验证"/>
@@ -1336,6 +1337,7 @@
   <translation tag="Helper macros are up to date" zh="帮助宏已是最新版本"/>
   <translation tag="Hide Firmware Noise" zh="隐藏固件噪声"/>
   <translation tag="Hide Temperature Reports" zh="隐藏温度报告"/>
+  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached"/>
   <translation tag="High Water Mark" zh="峰值标记"/>
   <translation tag="Hold anywhere to cancel" zh="长按任意位置取消"/>
   <translation tag="Hold still" zh="请保持静止"/>

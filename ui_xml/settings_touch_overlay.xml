@@ -57,6 +57,16 @@
                             subject="settings_use_system_keyboard" callback="on_system_keyboard_changed">
           <bind_flag_if_eq subject="settings_is_android" flag="hidden" ref_value="0"/>
         </setting_toggle_row>
+        <!-- Hide the on-screen keyboard while a hardware keyboard is attached
+             (shown only when the display backend opened one) -->
+        <setting_toggle_row name="row_hide_keyboard_with_hardware"
+                            label="Hardware Keyboard" label_tag="Hardware Keyboard" icon="keyboard"
+                            description="Hide the on-screen keyboard while a USB keyboard is attached"
+                            description_tag="Hide the on-screen keyboard while a USB keyboard is attached"
+                            subject="settings_hide_keyboard_with_hardware"
+                            callback="on_hide_keyboard_with_hardware_changed">
+          <bind_flag_if_eq subject="settings_hardware_keyboard_present" flag="hidden" ref_value="0"/>
+        </setting_toggle_row>
         <!-- Keep Navigation Bar (Android only — hidden on other platforms, issue #908) -->
         <setting_toggle_row name="row_keep_navbar"
                             label="Keep Navigation Bar" label_tag="Keep Navigation Bar" icon="eye"

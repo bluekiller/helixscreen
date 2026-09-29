@@ -295,6 +295,15 @@ void DisplaySettingsManager::init_subjects() {
     UI_MANAGED_SUBJECT_INT(use_system_keyboard_subject_, sys_kb ? 1 : 0,
                            "settings_use_system_keyboard", subjects_);
 
+    // Hide the on-screen keyboard while a hardware keyboard is attached (default:
+    // off). An unlisted barcode scanner is a HID keyboard too, so this is opt-in.
+    bool hide_kb = config->get<bool>("/display/hide_keyboard_with_hardware", false);
+    UI_MANAGED_SUBJECT_INT(hide_keyboard_with_hardware_subject_, hide_kb ? 1 : 0,
+                           "settings_hide_keyboard_with_hardware", subjects_);
+    // Presence is ephemeral: it is whatever the display backend opened this run.
+    UI_MANAGED_SUBJECT_INT(hardware_keyboard_present_subject_, hardware_keyboard_present_ ? 1 : 0,
+                           "settings_hardware_keyboard_present", subjects_);
+
     // Page-scroll buttons. Desktop/embedded-Linux default: off (opt-in). ESP32
     // default: on — finger-drag scrolling is too slow on that panel, so the
     // buttons are the usable path. An explicit user setting always wins.
@@ -803,6 +812,34 @@ void DisplaySettingsManager::set_use_system_keyboard(bool enabled) {
     Config* config = Config::get_instance();
     config->set<bool>("/display/use_system_keyboard", enabled);
     config->save();
+}
+
+bool DisplaySettingsManager::get_hide_keyboard_with_hardware() const {
+    return lv_subject_get_int(const_cast<lv_subject_t*>(&hide_keyboard_with_hardware_subject_)) !=
+           0;
+}
+
+void DisplaySettingsManager::set_hide_keyboard_with_hardware(bool enabled) {
+    spdlog::info("[DisplaySettingsManager] set_hide_keyboard_with_hardware({})", enabled);
+
+    lv_subject_set_int(&hide_keyboard_with_hardware_subject_, enabled ? 1 : 0);
+
+    Config* config = Config::get_instance();
+    config->set<bool>("/display/hide_keyboard_with_hardware", enabled);
+    config->save();
+}
+
+void DisplaySettingsManager::set_hardware_keyboard_present(bool present) {
+    spdlog::info("[DisplaySettingsManager] Hardware keyboard {}",
+                 present ? "attached" : "not attached");
+    hardware_keyboard_present_ = present;
+    if (subjects_initialized_) {
+        lv_subject_set_int(&hardware_keyboard_present_subject_, present ? 1 : 0);
+    }
+}
+
+bool DisplaySettingsManager::soft_keyboard_suppressed() const {
+    return subjects_initialized_ && hardware_keyboard_present_ && get_hide_keyboard_with_hardware();
 }
 
 bool DisplaySettingsManager::get_page_scroll_buttons() const {

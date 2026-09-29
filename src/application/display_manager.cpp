@@ -503,6 +503,8 @@ bool DisplayManager::init(const Config& config) {
 
     // Create keyboard input device (optional)
     m_keyboard = m_backend->create_input_keyboard();
+    DisplaySettingsManager::instance().set_hardware_keyboard_present(
+        m_backend->has_hardware_keyboard());
     if (m_keyboard) {
         watch_keyboard();
         setup_keyboard_group();
@@ -895,6 +897,8 @@ void DisplayManager::rebuild_input_after_backend_swap() {
     }
 
     m_keyboard = m_backend->create_input_keyboard();
+    DisplaySettingsManager::instance().set_hardware_keyboard_present(
+        m_backend->has_hardware_keyboard());
     if (m_keyboard) {
         watch_keyboard();
         setup_keyboard_group();
