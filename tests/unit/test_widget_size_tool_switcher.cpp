@@ -360,6 +360,6 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
     REQUIRE(large > small);
     CHECK(lv_obj_get_style_text_font(icon, LV_PART_MAIN) != small_face);
     CHECK(lv_obj_get_style_text_font(label, LV_PART_MAIN) ==
-          theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Value, large)));
+          ui::tile_rung_face(ui::TileLadder::Value, large).font);
     CHECK(std::string(lv_label_get_text(label)) == ToolState::instance().tools()[0].display_label);
 }

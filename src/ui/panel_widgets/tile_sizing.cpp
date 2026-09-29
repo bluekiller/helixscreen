@@ -90,15 +90,13 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
 
     TileRungMetrics rungs[kTileRungs];
     for (int r = 0; r < kTileRungs; ++r) {
-        const lv_font_t* icon_face =
-            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Icon, r));
-        const lv_font_t* value_face =
-            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Value, r));
-        const lv_font_t* label_face =
-            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Label, r));
+        const ui::TileFace icon_face = ui::tile_rung_face(ui::TileLadder::Icon, r);
+        const lv_font_t* value_face = ui::tile_rung_face(ui::TileLadder::Value, r).font;
+        const lv_font_t* label_face = ui::tile_rung_face(ui::TileLadder::Label, r).font;
 
-        int glyph_w = ui::text_width(kIconGlyph, icon_face);
-        int glyph_h = line_height_of(icon_face);
+        // The glyph occupies its face's box at the scale it is drawn at.
+        int glyph_w = icon_face.px(ui::text_width(kIconGlyph, icon_face.font));
+        int glyph_h = icon_face.px(line_height_of(icon_face.font));
         if (content_.icon_box == IconBox::Square) {
             glyph_w = glyph_h;
         } else if (content_.icon_box == IconBox::Disc) {

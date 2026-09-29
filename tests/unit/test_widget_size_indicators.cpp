@@ -36,9 +36,9 @@ void check_faces_follow_pixels(PanelWidgetHarness<Widget>& h, const char* id,
     auto faces_match_rung = [&] {
         const int r = lv_subject_get_int(rung);
         CHECK(lv_obj_get_style_text_font(value, LV_PART_MAIN) ==
-              theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Value, r)));
+              ui::tile_rung_face(ui::TileLadder::Value, r).font);
         CHECK(lv_obj_get_style_text_font(icon, LV_PART_MAIN) ==
-              theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Icon, r)));
+              ui::tile_rung_face(ui::TileLadder::Icon, r).font);
         return r;
     };
 

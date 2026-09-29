@@ -131,6 +131,10 @@ On the XML side, every part of a tile binds its face with
 (`include/ui_tile_rung.h`). The ladders there are the one table TileSizing measures in
 and the binding draws in, and each rung names a TOKEN (`#icon_font_*`, `font_*`), never a
 literal face, because a literal face a platform did not link renders tofu.
+The icon's top rung, xxl, is a size rather than a token (`#tile_icon_xxl_size`, twice the
+tier's xl): it draws in the largest MDI face the build links at or below that size and scales
+it up to reach it, at most 2x (`ui::TileFace`), so a tile grows past a cell and a half on every
+platform. Which boards link the larger faces is decided in `mk/fonts.mk`.
 `styles.tile_column` / `styles.tile_row` in `ui_xml/styles.xml` carry the direction. The seven single-icon action tiles share
 `ui_xml/components/home_action_tile.xml`, whose `tile_icon_subject` prop installs the
 per-instance rung binding (empty installs none). The Controls panel's calibration cells and

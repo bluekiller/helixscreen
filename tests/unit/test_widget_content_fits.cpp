@@ -309,13 +309,14 @@ struct Rendered {
     bool built = false;
     OverflowReport report;
     int icon_rung = -1; ///< the tile's published rung; -1 for a widget that does not size itself
+    int icon_h = 0;     ///< the named icon's drawn height, when one is asked for
 };
 
 /// Build @p def through its registry factory, size it to @p c x @p r tracks of
 /// grid @p m with the arithmetic PanelWidgetManager applies (truncation
 /// included), and measure what spills.
-Rendered render_at(lv_obj_t* screen, const PanelWidgetDef& def, const CellMetrics& m, int c,
-                   int r) {
+Rendered render_at(lv_obj_t* screen, const PanelWidgetDef& def, const CellMetrics& m, int c, int r,
+                   const char* icon_name = nullptr) {
     Rendered out;
     {
         RegistryWidgetHarness h(screen, def, &m);
@@ -334,6 +335,10 @@ Rendered render_at(lv_obj_t* screen, const PanelWidgetDef& def, const CellMetric
         if (lv_subject_t* rung =
                 lv_xml_get_subject(nullptr, (std::string(def.id) + "_tile_icon").c_str())) {
             out.icon_rung = lv_subject_get_int(rung);
+        }
+        if (lv_obj_t* icon = icon_name ? lv_obj_find_by_name(h.root(), icon_name) : nullptr) {
+            // The layout box, which a glyph drawn above its face's size fills.
+            out.icon_h = lv_obj_get_height(icon);
         }
     }
     // Anything the widget queued on its way out must run while the objects it
@@ -745,37 +750,51 @@ TEST_CASE_METHOD(ContentFitsFixture, "every icon tile renders its content grown 
 }
 
 TEST_CASE_METHOD(ContentFitsFixture,
-                 "a one-cell action tile grows its glyph when given two cells on a small panel",
+                 "a one-cell action tile draws a bigger glyph when given two cells",
                  "[content_fits][growth]") {
     // At the tiny tier a one-cell tile keeps the rung the screen was designed
-    // with, and anything bigger has room that rung would leave empty.
+    // with, and anything bigger has room that rung would leave empty. At the
+    // medium tier a cell already draws the tier's largest authored face, so
+    // two cells take the xxl rung, drawn from a larger face or scaled up.
     lv_display_t* disp = lv_display_get_default();
     REQUIRE(disp != nullptr);
     TestModeGuard test_mode_guard(get_runtime_config());
     PanelWidgetManager::instance().init_widget_subjects();
     require_font_tokens_distinct();
 
-    const auto g = std::find_if(kShipping.begin(), kShipping.end(),
-                                [](const Geometry& x) { return std::string(x.name) == "480x320"; });
-    REQUIRE(g != kShipping.end());
-    ScopedResolution res(disp, g->panel_w, g->panel_h);
-    theme_manager_refresh_layout_constants(disp);
-    const UiBreakpoint bp = breakpoint_for(std::min(g->panel_w, g->panel_h));
-    REQUIRE(bp == UiBreakpoint::Tiny);
-    const GridDimensions dims = GridLayout::get_dimensions(bp, g->content_w, g->content_h);
-    const CellMetrics m =
-        grid_cell_metrics(g->content_w, g->content_h, dims.cols, dims.rows, g->gutter);
+    for (const char* geometry : {"480x320", "800x480"}) {
+        const auto g = std::find_if(kShipping.begin(), kShipping.end(), [&](const Geometry& x) {
+            return std::string(x.name) == geometry;
+        });
+        REQUIRE(g != kShipping.end());
+        ScopedResolution res(disp, g->panel_w, g->panel_h);
+        theme_manager_refresh_layout_constants(disp);
+        const UiBreakpoint bp = breakpoint_for(std::min(g->panel_w, g->panel_h));
+        const GridDimensions dims = GridLayout::get_dimensions(bp, g->content_w, g->content_h);
+        const CellMetrics m =
+            grid_cell_metrics(g->content_w, g->content_h, dims.cols, dims.rows, g->gutter);
 
-    constexpr int kCell = GridLayout::TRACKS_PER_CELL;
-    // The tiles drawn by home_action_tile.
-    for (const char* id :
-         {"motion", "shutdown", "macros", "led_controls", "firmware_restart", "lock"}) {
-        const PanelWidgetDef* def = find_widget_def(id);
-        REQUIRE(def != nullptr);
-        const Rendered one = render_at(test_screen(), *def, m, kCell, kCell);
-        const Rendered two = render_at(test_screen(), *def, m, 2 * kCell, 2 * kCell);
-        INFO(id << ": rung " << one.icon_rung << " at one cell, " << two.icon_rung << " at two");
-        REQUIRE(one.icon_rung >= 0);
-        CHECK(two.icon_rung > one.icon_rung);
+        constexpr int kCell = GridLayout::TRACKS_PER_CELL;
+        // The tiles drawn by home_action_tile, and the icon each names.
+        const std::pair<const char*, const char*> kTiles[] = {
+            {"motion", "motion_icon"},
+            {"shutdown", "shutdown_icon"},
+            {"macros", "macros_icon"},
+            {"led_controls", "led_controls_icon"},
+            {"firmware_restart", "firmware_restart_icon"},
+            {"lock", "lock_icon_closed"}};
+        for (const auto& [id, icon] : kTiles) {
+            const PanelWidgetDef* def = find_widget_def(id);
+            REQUIRE(def != nullptr);
+            const Rendered one = render_at(test_screen(), *def, m, kCell, kCell, icon);
+            const Rendered two = render_at(test_screen(), *def, m, 2 * kCell, 2 * kCell, icon);
+            INFO(geometry << " " << id << ": rung " << one.icon_rung << " / " << one.icon_h
+                          << "px at one cell, " << two.icon_rung << " / " << two.icon_h
+                          << "px at two");
+            REQUIRE(one.icon_rung >= 0);
+            REQUIRE(one.icon_h > 0);
+            CHECK(two.icon_rung > one.icon_rung);
+            CHECK(two.icon_h > one.icon_h);
+        }
     }
 }

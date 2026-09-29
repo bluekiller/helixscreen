@@ -36,12 +36,11 @@ TEST_CASE_METHOD(LVGLUITestFixture, "favorite_macro badge/icon/name follow pixel
 
     auto check_faces = [&] {
         const int r = lv_subject_get_int(rung);
-        const lv_font_t* icon_face =
-            theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Icon, r));
-        CHECK(lv_obj_get_style_text_font(icon, LV_PART_MAIN) == icon_face);
+        const ui::TileFace icon_face = ui::tile_rung_face(ui::TileLadder::Icon, r);
+        CHECK(lv_obj_get_style_text_font(icon, LV_PART_MAIN) == icon_face.font);
         CHECK(lv_obj_get_width(badge) == ui::tile_disc_edge(icon_face));
         CHECK(lv_obj_get_style_text_font(name, LV_PART_MAIN) ==
-              theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Label, r)));
+              ui::tile_rung_face(ui::TileLadder::Label, r).font);
         return r;
     };
 

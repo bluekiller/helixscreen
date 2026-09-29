@@ -672,6 +672,17 @@
     <string name="icon_font_xl_xlarge" value="mdi_icons_80"/>
     <string name="icon_font_xl_xxlarge" value="mdi_icons_96"/>
     <!-- NO BASE icon_font_xl - registered at runtime -->
+    <!-- tile_icon_xxl_size: the home tiles' top icon rung, twice the tier's xl
+         glyph, so a tile only reaches it past a cell and a half. It names a
+         size, not a face: src/ui/ui_tile_rung.cpp draws it in the largest MDI
+         face this build links at or below it, scaled up to at most 2x. -->
+    <px name="tile_icon_xxl_size_micro" value="64"/>
+    <px name="tile_icon_xxl_size_tiny" value="96"/>
+    <px name="tile_icon_xxl_size_small" value="128"/>
+    <px name="tile_icon_xxl_size_medium" value="128"/>
+    <px name="tile_icon_xxl_size_large" value="128"/>
+    <px name="tile_icon_xxl_size_xlarge" value="160"/>
+    <px name="tile_icon_xxl_size_xxlarge" value="192"/>
     <!-- icon_font_hero: Card-filling empty-state icons (thumbnail placeholders etc.) -->
     <!-- mdi_icons_96/128 live only in the xxlarge font tier (mk/fonts.mk). On -->
     <!-- devices whose FONT_TIERS excludes xxlarge (CC1 = micro+tiny, AD5M = -->

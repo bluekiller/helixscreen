@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 namespace helix::ui {
@@ -29,11 +30,52 @@ namespace {
 /// draws a one-cell tile at, so a tile at its natural size keeps its authored
 /// caption and only a tile given more room than that grows it. font_small is
 /// the larger step because it is the same light weight as font_xs.
+///
+/// Only the glyph grows past xl: the value and label hold their xl faces.
 constexpr const char* kLadders[3][kTileRungs] = {
-    {"icon_font_xs", "icon_font_sm", "icon_font_md", "icon_font_lg", "icon_font_xl"},
-    {"font_xs", "font_xs", "font_small", "font_body", "font_heading"},
-    {"font_xs", "font_xs", "font_xs", "font_xs", "font_small"},
+    {"icon_font_xs", "icon_font_sm", "icon_font_md", "icon_font_lg", "icon_font_xl",
+     "icon_font_xl"},
+    {"font_xs", "font_xs", "font_small", "font_body", "font_heading", "font_heading"},
+    {"font_xs", "font_xs", "font_xs", "font_xs", "font_small", "font_small"},
 };
+constexpr int kXxl = kTileRungs - 1;
+
+/// The icon's xxl rung: the largest linked MDI face at or below the tier's
+/// #tile_icon_xxl_size, scaled to reach it.
+TileFace xxl_icon_face() {
+    const TileFace xl{theme_manager_get_font("icon_font_xl"), LV_SCALE_NONE};
+    const int target = theme_manager_get_spacing("tile_icon_xxl_size");
+    static constexpr int kSizes[] = {128, 96, 80, 64, 48, 32};
+    for (int size : kSizes) {
+        if (size > target) {
+            continue;
+        }
+        char name[16];
+        std::snprintf(name, sizeof(name), "mdi_icons_%d", size);
+        const lv_font_t* font = lv_xml_get_font_silent(nullptr, name);
+        // A stand-in registered under an MDI name but drawn smaller (the ESP32
+        // image aliases the faces it does not carry) is not that face.
+        if (!font || static_cast<int>(lv_font_get_line_height(font)) < size) {
+            continue;
+        }
+        const int32_t scale = std::min<int32_t>(target * LV_SCALE_NONE / size, kTileMaxScale);
+        return TileFace{font, scale};
+    }
+    return xl;
+}
+
+/// Draw @p obj's glyph at @p face's scale. Padding grows its layout box by the
+/// difference, so the flex parent spaces the glyph at the size it is drawn, and
+/// the transform scales the whole box about its centre to fill it. A transform
+/// renders the object through a layer; at 1x there is none.
+/// DECLARATIVE_OK: the scale is computed from which faces this build links.
+void apply_face_scale(lv_obj_t* obj, const TileFace& face) {
+    const int h = static_cast<int>(lv_font_get_line_height(face.font));
+    lv_obj_set_style_pad_all(obj, (face.px(h) - h) / 2, LV_PART_MAIN);
+    lv_obj_set_style_transform_scale(obj, face.scale, LV_PART_MAIN);
+    lv_obj_set_style_transform_pivot_x(obj, lv_pct(50), LV_PART_MAIN);
+    lv_obj_set_style_transform_pivot_y(obj, lv_pct(50), LV_PART_MAIN);
+}
 
 /// The ladder, offset and one-line flag ride in the observer's user data, so a
 /// binding needs no allocation and nothing to free when its object goes away.
@@ -50,15 +92,21 @@ void rung_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     const auto ladder = static_cast<TileLadder>((packed & ~kOneLineBit) / 256);
     const int offset = packed % 256 - 128;
     auto* obj = static_cast<lv_obj_t*>(lv_observer_get_target(observer));
-    const char* token = tile_rung_font_token(ladder, lv_subject_get_int(subject) + offset);
-    const lv_font_t* font = theme_manager_get_font(token);
+    const TileFace face = tile_rung_face(ladder, lv_subject_get_int(subject) + offset);
+    const lv_font_t* font = face.font;
+    if (!font) {
+        return;
+    }
     if (ladder == TileLadder::Disc) {
         // DECLARATIVE_OK: measured from the computed face, which XML cannot name.
-        const int edge = tile_disc_edge(font);
+        const int edge = tile_disc_edge(face);
         lv_obj_set_size(obj, edge, edge);
         return;
     }
     apply_font_style(obj, font);
+    if (ladder == TileLadder::Icon) {
+        apply_face_scale(obj, face);
+    }
     // A dotted label ellipsizes only at a fixed height; at content height it
     // wraps instead. One line of the face it now draws in is that height.
     // DECLARATIVE_OK: measured from the computed face, which XML cannot name.
@@ -113,10 +161,21 @@ const char* tile_rung_font_token(TileLadder ladder, int rung) {
     return kLadders[row][std::clamp(rung, 0, kTileRungs - 1)];
 }
 
-int tile_disc_edge(const lv_font_t* icon_face) {
+TileFace tile_rung_face(TileLadder ladder, int rung) {
+    rung = std::clamp(rung, 0, kTileRungs - 1);
+    const bool icon = ladder == TileLadder::Icon || ladder == TileLadder::Disc;
+    if (icon && rung == kXxl) {
+        return xxl_icon_face();
+    }
+    return TileFace{theme_manager_get_font(tile_rung_font_token(ladder, rung)), LV_SCALE_NONE};
+}
+
+int tile_disc_edge(const TileFace& icon_face) {
     // Half again the glyph's line height: the proportion #icon_badge_size
     // holds to the md glyph on the tiers that author it.
-    return icon_face ? static_cast<int>(lv_font_get_line_height(icon_face)) * 3 / 2 : 0;
+    return icon_face.font
+               ? icon_face.px(static_cast<int>(lv_font_get_line_height(icon_face.font))) * 3 / 2
+               : 0;
 }
 
 void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset,

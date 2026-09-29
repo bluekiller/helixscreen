@@ -170,10 +170,9 @@ void ActiveSpoolWidget::resize_spool_canvases() {
     if (spool_wide_)
         ui_spool_canvas_set_size(spool_wide_, wide_spool_edge());
     if (spool_compact_) {
-        const lv_font_t* face = theme_manager_get_font(
-            ui::tile_rung_font_token(ui::TileLadder::Icon, sizing_.icon_rung()));
-        if (face)
-            ui_spool_canvas_set_size(spool_compact_, lv_font_get_line_height(face));
+        const ui::TileFace face = ui::tile_rung_face(ui::TileLadder::Icon, sizing_.icon_rung());
+        if (face.font)
+            ui_spool_canvas_set_size(spool_compact_, face.px(lv_font_get_line_height(face.font)));
     }
 }
 

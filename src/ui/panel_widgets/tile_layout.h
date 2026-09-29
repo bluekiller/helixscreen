@@ -16,10 +16,11 @@
 
 namespace helix {
 
-/// Rungs on the icon ladder: xs, sm, md, lg, xl. The same index selects the
-/// value and label faces the tile pairs with that rung, so one number drives
-/// every face on the tile and the ladders cannot drift apart.
-inline constexpr int kTileRungs = 5;
+/// Rungs on the icon ladder: xs, sm, md, lg, xl, and xxl above the tier's
+/// authored faces. The same index selects the value and label faces the tile
+/// pairs with that rung, so one number drives every face on the tile and the
+/// ladders cannot drift apart.
+inline constexpr int kTileRungs = 6;
 
 enum class TileDirection : int {
     Column = 0, ///< icon above the value

@@ -10,6 +10,7 @@
  * Run with: ./build/bin/helix-tests "[widget_size][tile]"
  */
 
+#include "ui_tile_rung.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -592,4 +593,66 @@ TEST_CASE("a sensor tile's name stays one line however narrow the tile",
         CHECK(lv_obj_get_height(name) == lv_font_get_line_height(face));
         lv_obj_delete(root);
     }
+}
+
+namespace {
+
+/// Point #tile_icon_xxl_size at @p px for one scope, restoring it after.
+class ScopedXxlSize {
+  public:
+    explicit ScopedXxlSize(int px) {
+        const char* v = lv_xml_get_const_silent(nullptr, "tile_icon_xxl_size");
+        REQUIRE(v != nullptr);
+        saved_ = v;
+        lv_xml_set_const(nullptr, "tile_icon_xxl_size", std::to_string(px).c_str());
+    }
+    ~ScopedXxlSize() {
+        lv_xml_set_const(nullptr, "tile_icon_xxl_size", saved_.c_str());
+    }
+
+  private:
+    std::string saved_;
+};
+
+} // namespace
+
+TEST_CASE("the xxl rung scales the largest linked face up to its size, at most 2x",
+          "[widget_size][tile][xxl]") {
+    // A build whose largest linked face is below the tier's xxl size draws that
+    // face scaled up, so a tile grows on every platform, but never past 2x.
+    LVGLUITestFixture fixture;
+    const lv_font_t* largest = lv_xml_get_font_silent(nullptr, "mdi_icons_128");
+    REQUIRE(largest != nullptr);
+
+    {
+        ScopedXxlSize size(160);
+        const auto face = helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, 5);
+        CHECK(face.font == largest);
+        CHECK(face.scale == 160 * LV_SCALE_NONE / 128);
+    }
+    {
+        ScopedXxlSize size(400);
+        CHECK(helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, 5).scale ==
+              helix::ui::kTileMaxScale);
+    }
+
+    // The binding draws it: the transform carries the scale, and the layout box
+    // the parent spaces is the scaled size.
+    ScopedXxlSize size(160);
+    lv_subject_t rung;
+    lv_subject_init_int(&rung, 0);
+    lv_obj_t* icon = lv_label_create(fixture.test_screen());
+    lv_label_set_text(icon, "\xF3\xB0\x90\xA5");
+    helix::ui::bind_tile_rung(icon, &rung, helix::ui::TileLadder::Icon);
+    lv_obj_update_layout(fixture.test_screen());
+    CHECK(lv_obj_get_style_transform_scale_x(icon, LV_PART_MAIN) == LV_SCALE_NONE);
+
+    lv_subject_set_int(&rung, 5);
+    lv_obj_update_layout(fixture.test_screen());
+    CHECK(lv_obj_get_style_transform_scale_x(icon, LV_PART_MAIN) == 160 * LV_SCALE_NONE / 128);
+    const int face_h = lv_font_get_line_height(largest);
+    CHECK(lv_obj_get_height(icon) >= face_h * 160 / 128 - 1);
+
+    lv_obj_delete(icon);
+    lv_subject_deinit(&rung);
 }

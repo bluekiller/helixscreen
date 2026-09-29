@@ -28,12 +28,34 @@ enum class TileLadder : int {
     Disc = 3,
 };
 
-/// Edge of the disc a badged glyph in @p icon_face sits in, in px.
-int tile_disc_edge(const lv_font_t* icon_face);
+/// The face a tile part draws in at a rung, and the scale it is drawn at.
+///
+/// Every rung but the icon's xxl is a theme token at 1x. The icon's xxl rung is
+/// a size (#tile_icon_xxl_size): it draws in the largest MDI face this build
+/// links at or below that size, scaled up to reach it, never past kTileMaxScale.
+struct TileFace {
+    const lv_font_t* font = nullptr;
+    int32_t scale = LV_SCALE_NONE;
 
-/// The theme font token @p ladder names at @p rung. Out-of-range rungs clamp to
-/// the ladder's ends.
+    /// @p unscaled px at this face's scale.
+    int px(int unscaled) const {
+        return static_cast<int>(unscaled * scale / LV_SCALE_NONE);
+    }
+};
+
+/// A bitmap glyph drawn past twice its size stops reading as the glyph.
+inline constexpr int32_t kTileMaxScale = 2 * LV_SCALE_NONE;
+
+/// The face @p ladder draws in at @p rung. Out-of-range rungs clamp to the
+/// ladder's ends.
+TileFace tile_rung_face(TileLadder ladder, int rung);
+
+/// The theme font token @p ladder names at @p rung; for the icon's xxl rung,
+/// the xl token it grows from.
 const char* tile_rung_font_token(TileLadder ladder, int rung);
+
+/// Edge of the disc a badged glyph in @p icon_face sits in, in px.
+int tile_disc_edge(const TileFace& icon_face);
 
 /// Keep @p obj's face on @p ladder at the rung @p subject holds, shifted by
 /// @p offset rungs. The face is resolved from the current tier's token each
