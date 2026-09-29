@@ -1286,7 +1286,7 @@
   <translation tag="Happy Hare MMU" ru="Happy Hare MMU"/>
   <translation tag="Hardware" ru="Оборудование"/>
   <translation tag="Hardware Health" ru="Состояние оборудования"/>
-  <translation tag="Hardware Keyboard"/>
+  <translation tag="Hardware Keyboard" ru="Аппаратная клавиатура"/>
   <translation tag="Hardware Name" ru="Название оборудования"/>
   <translation tag="Hardware Profile" ru="Профиль оборудования"/>
   <translation tag="Hardware is validated on startup and reconnection" ru="Оборудование проверяется при запуске и переподключении"/>
@@ -1351,7 +1351,7 @@
   <translation tag="Helper macros are up to date" ru="Вспомогательные макросы актуальны"/>
   <translation tag="Hide Firmware Noise" ru="Скрыть служебные сообщения прошивки"/>
   <translation tag="Hide Temperature Reports" ru="Скрыть отчёты о температуре"/>
-  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached"/>
+  <translation tag="Hide the on-screen keyboard while a USB keyboard is attached" ru="Скрывать экранную клавиатуру, пока подключена USB-клавиатура"/>
   <translation tag="High Water Mark" ru="Пиковое значение"/>
   <translation tag="Hold anywhere to cancel" ru="Удерживайте в любом месте для отмены"/>
   <translation tag="Hold still" ru="Не двигайтесь"/>
