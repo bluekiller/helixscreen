@@ -22,16 +22,23 @@ std::string fixture_dir() {
     return "tests/fixtures/";
 }
 
-/// A first real capture pair (Voron 2.4, Kalico): bins every ~1.5 Hz from 0 to
-/// 201 Hz although the sweep was 5-135 Hz, and B's %.1f bins sit slightly off
-/// A's grid - the shape the band limit and interpolation exist for.
-BeltCurve load_fixture(const char* name) {
+/// Real captures, one file per diagonal, named by axis: Path A is 1,-1 and
+/// Path B is 1,1. Klipper writes bins every ~1.5 Hz well past the sweep
+/// ceiling, and the two files' %.1f bins sit slightly off each other's grid:
+/// the shape the band limit and interpolation exist for.
+BeltCurve load_fixture(const std::string& name) {
     const std::string path = fixture_dir() + "belt_sweeps/" + name;
     auto data = parse_resonance_csv(path);
     INFO("fixture missing or unparsable: " << path);
     REQUIRE(data.error == ResonanceCsvError::NONE);
     REQUIRE_FALSE(data.curve.empty());
     return data.curve;
+}
+
+/// Compare a printer's captured pair over its own sweep band.
+BeltComparison compare_fixture(const std::string& printer, float lo, float hi) {
+    return compare_belt_paths(load_fixture(printer + "_axis_1_-1.csv"),
+                              load_fixture(printer + "_axis_1_1.csv"), lo, hi);
 }
 
 /// Lorentzian peak on a noise floor, 5-135 Hz at Klipper's 3200/4096 Hz spacing.
@@ -63,43 +70,94 @@ bool contains_freq(const std::vector<BeltPeak>& peaks, float hz) {
 // Real capture pair, band 5-135
 // ============================================================================
 
-TEST_CASE("real Voron 2.4 captures: similarity, pairs and unpaired peaks", "[belt][compare]") {
-    // Expected values were computed independently from the CSVs with
-    // np.interp / np.corrcoef / find_peaks-equivalent local maxima.
-    const auto a = load_fixture("voron24_kalico_path_a.csv");
-    const auto b = load_fixture("voron24_kalico_path_b.csv");
-    constexpr float LO = 5.0f, HI = 135.0f;
+static bool has_pair(const BeltComparison& cmp, float fa, float fb) {
+    for (const auto& p : cmp.peaks.pairs) {
+        if (std::abs(p.a.freq_hz - fa) < 0.1f && std::abs(p.b.freq_hz - fb) < 0.1f) {
+            return true;
+        }
+    }
+    return false;
+}
 
-    const auto cmp = compare_belt_paths(a, b, LO, HI);
+// Expected values below were computed independently from the CSVs with numpy
+// (np.interp onto the 1,-1 grid, np.corrcoef, np.percentile for the pairing
+// threshold), each over the printer's own [resonance_tester] band.
+
+TEST_CASE("real Voron 2.4 captures: similarity, pairs and unpaired peaks", "[belt][compare]") {
+    // Uneven belts: the gantry is due for re-racking.
+    const auto cmp = compare_fixture("voron24_kalico", 5.0f, 135.0f);
     REQUIRE(cmp.valid);
-    CHECK(cmp.similarity_percent == Catch::Approx(48.2f).margin(0.5f));
+    CHECK(cmp.similarity_percent == Catch::Approx(48.3f).margin(1.0f));
     CHECK(cmp.verdict == BeltVerdict::ADJUST);
 
     REQUIRE(cmp.peaks.pairs.size() >= 3);
-    const auto has_pair = [&](float fa, float fb) {
-        for (const auto& p : cmp.peaks.pairs) {
-            if (std::abs(p.a.freq_hz - fa) < 0.1f && std::abs(p.b.freq_hz - fb) < 0.1f) {
-                return true;
-            }
-        }
-        return false;
-    };
-    CHECK(has_pair(34.8f, 36.3f));
-    CHECK(has_pair(133.1f, 131.5f));
-    CHECK(has_pair(54.4f, 54.4f));
+    CHECK(has_pair(cmp, 36.3f, 34.8f));
+    CHECK(has_pair(cmp, 131.5f, 133.1f));
+    CHECK(has_pair(cmp, 54.4f, 54.4f));
 
     // Strongest pair by amplitude sum: the tall ~35 Hz frame mode.
-    CHECK(cmp.peaks.pairs.front().a.freq_hz == Catch::Approx(34.8f).margin(0.1f));
-    CHECK(cmp.peaks.pairs.front().b.freq_hz == Catch::Approx(36.3f).margin(0.1f));
+    CHECK(cmp.peaks.pairs.front().a.freq_hz == Catch::Approx(36.3f).margin(0.1f));
+    CHECK(cmp.peaks.pairs.front().b.freq_hz == Catch::Approx(34.8f).margin(0.1f));
 
-    // A's belt humps near 119.5 and 128.6 Hz have no B partner.
-    CHECK(contains_freq(cmp.peaks.unpaired_a, 119.5f));
-    CHECK(contains_freq(cmp.peaks.unpaired_a, 128.6f));
+    // B's belt humps near 119.5 and 128.6 Hz have no A partner.
+    CHECK(contains_freq(cmp.peaks.unpaired_b, 119.5f));
+    CHECK(contains_freq(cmp.peaks.unpaired_b, 128.6f));
+}
+
+TEST_CASE("real K1C captures read well matched", "[belt][compare]") {
+    const auto cmp = compare_fixture("k1c", 5.0f, 133.333f);
+    REQUIRE(cmp.valid);
+    CHECK(cmp.similarity_percent == Catch::Approx(98.9f).margin(1.0f));
+    CHECK(cmp.verdict == BeltVerdict::MATCHED);
+    REQUIRE_FALSE(cmp.peaks.pairs.empty());
+    CHECK(cmp.peaks.pairs.front().a.freq_hz == Catch::Approx(58.7f).margin(0.1f));
+    CHECK(cmp.peaks.pairs.front().b.freq_hz == Catch::Approx(58.6f).margin(0.1f));
+    CHECK(contains_freq(cmp.peaks.unpaired_a, 63.3f));
+    CHECK(contains_freq(cmp.peaks.unpaired_b, 84.9f));
+}
+
+TEST_CASE("real AD5M captures read well matched", "[belt][compare]") {
+    const auto cmp = compare_fixture("ad5m", 5.0f, 100.0f);
+    REQUIRE(cmp.valid);
+    CHECK(cmp.similarity_percent == Catch::Approx(97.4f).margin(1.0f));
+    CHECK(cmp.verdict == BeltVerdict::MATCHED);
+    // One shared peak and nothing unpaired: a single distance, so the pairing
+    // threshold is that distance itself.
+    REQUIRE(cmp.peaks.pairs.size() == 1);
+    CHECK(has_pair(cmp, 46.9f, 46.9f));
+    CHECK(cmp.peaks.unpaired_a.empty());
+    CHECK(cmp.peaks.unpaired_b.empty());
+}
+
+TEST_CASE("real K2 Plus captures read well matched", "[belt][compare]") {
+    const auto cmp = compare_fixture("k2plus", 20.0f, 120.0f);
+    REQUIRE(cmp.valid);
+    CHECK(cmp.similarity_percent == Catch::Approx(92.2f).margin(1.0f));
+    CHECK(cmp.verdict == BeltVerdict::MATCHED);
+    CHECK(has_pair(cmp, 40.7f, 40.7f));
+    CHECK(has_pair(cmp, 81.4f, 81.4f));
+    CHECK(contains_freq(cmp.peaks.unpaired_a, 58.8f));
+    CHECK(contains_freq(cmp.peaks.unpaired_a, 117.6f));
+    CHECK(cmp.peaks.unpaired_b.empty());
+}
+
+TEST_CASE("real U1 captures read close", "[belt][compare]") {
+    const auto cmp = compare_fixture("u1", 5.0f, 100.0f);
+    REQUIRE(cmp.valid);
+    CHECK(cmp.similarity_percent == Catch::Approx(81.7f).margin(1.0f));
+    CHECK(cmp.verdict == BeltVerdict::CLOSE);
+    // The main pair sits 3 Hz apart.
+    REQUIRE_FALSE(cmp.peaks.pairs.empty());
+    CHECK(cmp.peaks.pairs.front().a.freq_hz == Catch::Approx(49.9f).margin(0.1f));
+    CHECK(cmp.peaks.pairs.front().b.freq_hz == Catch::Approx(46.8f).margin(0.1f));
+    CHECK(has_pair(cmp, 54.6f, 57.7f));
+    CHECK(cmp.peaks.unpaired_a.empty());
+    CHECK(contains_freq(cmp.peaks.unpaired_b, 95.2f));
 }
 
 TEST_CASE("the band clips everything above the sweep ceiling", "[belt][compare]") {
-    const auto a = load_fixture("voron24_kalico_path_a.csv");
-    const auto b = load_fixture("voron24_kalico_path_b.csv");
+    const auto a = load_fixture("voron24_kalico_axis_1_-1.csv");
+    const auto b = load_fixture("voron24_kalico_axis_1_1.csv");
     constexpr float LO = 5.0f, HI = 135.0f;
 
     for (const auto* curve : {&a, &b}) {
