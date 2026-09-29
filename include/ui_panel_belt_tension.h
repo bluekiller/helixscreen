@@ -41,7 +41,7 @@ class BeltPanelFixture;
  * the resulting curves. Four view states drive one XML layout:
  * - START: gate result + hardware summary + start button
  * - RUNNING: one sweep at a time, live chart cursor + elapsed time
- * - RESULTS: both peaks, verdict, delta rail, ghost of the previous run
+ * - RESULTS: strongest peak pair, verdict, similarity, ghost of the previous run
  * - ERROR: the failure, with retry
  *
  * START's action is gated on `bt_can_start`, which is driven solely by
@@ -146,8 +146,8 @@ class BeltTensionPanel : public OverlayBase {
     void on_sweep_error(const std::string& message);
     /// The stall guard fired: no progress line for STALL_TIMEOUT_MS.
     void on_stall();
-    /// Queue empty: compare the runs and populate RESULTS, or name the path
-    /// whose sweep produced no peak.
+    /// Queue empty: compare the runs and populate RESULTS, or error when a
+    /// sweep returned too little in-band frequency data to compare.
     void finish_run();
     void populate_results(const helix::calibration::BeltComparison& cmp);
     /// Cancel the sweep, the stall guard, the elapsed timer and the queue.

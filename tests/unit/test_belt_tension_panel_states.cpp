@@ -8,7 +8,8 @@
  * transcript and asserts on the bt_* subjects the XML binds:
  *
  * 1. Start queues both paths, runs them in order and lands on RESULTS with
- *    peaks, verdict and rail derived from compare_belt_paths().
+ *    paired peaks, similarity verdict and rail derived from
+ *    compare_belt_paths() over the printer's sweep range.
  * 2. Re-test keeps the sibling path's run and ghosts the re-measured path's
  *    previous curve.
  * 3. Every mock failure mode and a silent sweep reach ERROR; a path whose
@@ -17,8 +18,8 @@
  * 5. Start is disabled while klippy is not READY, and re-arms.
  * 6. EMBEDDED tier never creates a chart.
  *
- * The XML side (containers, buttons, rail band widths tied to the verdict
- * constants) is pinned in the container/binding/rail cases below.
+ * The XML side (containers, buttons, subject bindings) is pinned in the
+ * container/binding cases below.
  */
 
 #include "ui_belt_path_sketch.h"
@@ -238,29 +239,6 @@ TEST_CASE("belt tension panel binds only subjects that exist", "[belt][panel][xm
     }
 }
 
-TEST_CASE("the rail bands in XML match the verdict constants", "[belt][panel][xml]") {
-    // A dangling bind fails silently; a band width that drifted from the
-    // constants the C++ verdict uses fails here, by reading the XML text.
-    REQUIRE(helix::calibration::belt_verdict::MATCHED_DELTA_HZ == 3.0f);
-    REQUIRE(helix::calibration::belt_verdict::CLOSE_DELTA_HZ == 8.0f);
-
-    std::ifstream f("ui_xml/panel_belt_tension.xml");
-    REQUIRE(f.is_open());
-    std::string xml((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-
-    REQUIRE(xml.find("name=\"bt_rail\"") != std::string::npos);
-    const int matched_pct =
-        static_cast<int>(std::lround(helix::calibration::belt_verdict::MATCHED_DELTA_HZ /
-                                     BeltTensionPanel::RAIL_SPAN_HZ * 100.0f));
-    const int close_pct =
-        static_cast<int>(std::lround(helix::calibration::belt_verdict::CLOSE_DELTA_HZ /
-                                     BeltTensionPanel::RAIL_SPAN_HZ * 100.0f));
-    INFO("matched band width \"" << matched_pct << "%\" not in XML");
-    REQUIRE(xml.find("width=\"" + std::to_string(matched_pct) + "%\"") != std::string::npos);
-    INFO("close band width \"" << close_pct << "%\" not in XML");
-    REQUIRE(xml.find("width=\"" + std::to_string(close_pct) + "%\"") != std::string::npos);
-}
-
 // ============================================================================
 // Run flow
 // ============================================================================
@@ -273,16 +251,16 @@ TEST_CASE("Start runs A then B and lands on RESULTS", "[belt][panel]") {
     fx.panel().handle_start_clicked();
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
 
+    // Peak labels carry the strongest pair's frequencies.
     CHECK(fx.text("bt_peak_a") == "104");
     CHECK(fx.text("bt_peak_b") == "98");
     CHECK(fx.state_int("bt_verdict") == static_cast<int>(helix::calibration::BeltVerdict::CLOSE));
     CHECK(fx.text("bt_verdict_text").empty() == false);
-    CHECK(fx.text("bt_facts").find("6 Hz apart") != std::string::npos);
+    CHECK(fx.text("bt_facts").find("Similarity") != std::string::npos);
 
-    // Rail is the signed A-minus-B delta in tenths of a Hz: 104 - 98 = 6.0 Hz.
-    const int rail = fx.state_int("bt_rail_value");
-    CHECK(rail > 52);
-    CHECK(rail < 68);
+    // The rail parks at centre: no signed direction signal until real captures
+    // show one.
+    CHECK(fx.state_int("bt_rail_value") == 0);
 }
 
 TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
@@ -290,13 +268,17 @@ TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
     REQUIRE(fx.wait_gate_open());
     fx.panel().handle_start_clicked();
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
-    REQUIRE(fx.text("bt_peak_a") == "110");
+    // 110 and 98 sit 12 Hz apart, past the 10 Hz pairing cap, so the only pair
+    // the defaults form is the ~42 Hz rig peak both curves share.
+    REQUIRE(fx.text("bt_peak_a") == "42");
+    REQUIRE(fx.text("bt_peak_b") == "42");
 
     fx.panel().handle_retest_clicked(helix::calibration::BeltPath::PATH_A);
     REQUIRE(fx.state_int("belt_tension_state") ==
             static_cast<int>(BeltTensionPanel::ViewState::RUNNING));
     CHECK(fx.text("bt_run_title") == "Re-measuring Path A");
-    // A re-measure walks A toward B by at most 4 Hz: 110 -> 106.
+    // A re-measure walks A toward B by at most 4 Hz: 110 -> 106, now 8 Hz from
+    // B, inside the cap: the belt-hump pair outranks the 42 Hz one.
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
     CHECK(fx.text("bt_peak_a") == "106");
     CHECK(fx.text("bt_note_a").find("was 110") != std::string::npos);
@@ -400,15 +382,15 @@ TEST_CASE("a CoreXZ reports a closed gate naming its kinematics", "[belt][panel]
     CHECK(message.find("corexz") != std::string::npos);
 }
 
-TEST_CASE("a path with no peak is an error naming it", "[belt][panel]") {
+TEST_CASE("a sweep with too few frequency bins is an error", "[belt][panel]") {
     BeltPanelFixture fx;
-    // The whole sweep sits below the peak floor, so find_peak_frequency()
-    // returns nothing for Path A.
-    fx.mock().set_resonance_sweep_range(5.0, 18.0);
+    // A 5-6 Hz sweep writes only two bins; the comparison needs at least three
+    // in-band bins per curve to say anything.
+    fx.mock().set_resonance_sweep_range(5.0, 6.0);
     REQUIRE(fx.wait_gate_open());
     fx.panel().handle_start_clicked();
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::ERROR)));
-    CHECK(fx.text("bt_error_message").find("Path A") != std::string::npos);
+    CHECK(fx.text("bt_error_message").find("Not enough frequency data") != std::string::npos);
 }
 
 TEST_CASE("EMBEDDED tier creates no chart", "[belt][panel][chart]") {

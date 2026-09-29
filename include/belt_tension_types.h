@@ -60,33 +60,67 @@ using BeltCurve = std::vector<std::pair<float, float>>;
 
 enum class BeltVerdict { MATCHED, CLOSE, ADJUST };
 
-/// Provisional: measured on no real printer yet. Replace from captures before
-/// the verdict gains directional advice (prestonbrown/helixscreen#1721).
+/// Provisional: from one real capture pair so far. Replace from more captures
+/// before the verdict gains directional advice (prestonbrown/helixscreen#1721).
 namespace belt_verdict {
-inline constexpr float MATCHED_DELTA_HZ = 3.0f;
-inline constexpr float CLOSE_DELTA_HZ = 8.0f;
+inline constexpr float PEAK_THRESHOLD_FRACTION = 0.10f; ///< of the in-band maximum
+inline constexpr float PAIR_MAX_HZ = 10.0f;             ///< pairing distance ceiling
 inline constexpr float MATCHED_SIMILARITY = 90.0f;
 inline constexpr float CLOSE_SIMILARITY = 75.0f;
-inline constexpr float PEAK_MIN_HZ = 20.0f;
 } // namespace belt_verdict
 
-struct BeltComparison {
-    bool valid = false; ///< false when either path has no peak above PEAK_MIN_HZ
-    bool peak_a_found = false;
-    bool peak_b_found = false;
-    float peak_a_hz = 0.0f;
-    float peak_b_hz = 0.0f;
-    float delta_hz = 0.0f; ///< peak_a_hz - peak_b_hz, signed: positive = A higher
-    float similarity_percent = 0.0f;
-    BeltVerdict verdict = BeltVerdict::ADJUST;
+/// One local maximum of a curve inside the analysis band.
+struct BeltPeak {
+    float freq_hz = 0.0f;
+    float amplitude = 0.0f;
 };
 
-/// Compare two belt-path resonance curves: peaks, signed delta, similarity and
-/// provisional verdict. Invalid when either curve has no peak above PEAK_MIN_HZ.
-[[nodiscard]] BeltComparison compare_belt_paths(const BeltCurve& a, const BeltCurve& b);
+/// A peak from each curve the pairing judged the same resonance.
+struct BeltPeakPair {
+    BeltPeak a;
+    BeltPeak b;
+};
 
-/// Tier from |delta_hz| and similarity_percent; the worse of the two tiers.
-[[nodiscard]] BeltVerdict belt_verdict_for(float delta_hz, float similarity_percent);
+/// Peaks of two curves paired by frequency, Shake&Tune's _pair_peaks.
+struct BeltPeakPairing {
+    std::vector<BeltPeakPair> pairs;  ///< sorted by a.amplitude + b.amplitude, descending
+    std::vector<BeltPeak> unpaired_a; ///< A peaks with no B partner within threshold_hz
+    std::vector<BeltPeak> unpaired_b;
+    float threshold_hz = 0.0f;
+};
+
+struct BeltComparison {
+    bool valid = false; ///< false when either curve has < 3 in-band bins
+    float similarity_percent = 0.0f;
+    BeltVerdict verdict = BeltVerdict::ADJUST; ///< from similarity only
+    BeltPeakPairing peaks;
+};
+
+/// Pearson correlation x100 of the two curves inside the band, clamped to 0..100.
+/// B is linearly interpolated onto A's in-band frequencies. Returns 0 when either
+/// curve has fewer than 3 in-band bins or zero variance.
+[[nodiscard]] float band_similarity(const BeltCurve& a, const BeltCurve& b, float band_min_hz,
+                                    float band_max_hz);
+
+/// Local maxima inside the band: value > left neighbour, value >= right neighbour,
+/// value >= PEAK_THRESHOLD_FRACTION * the in-band maximum. Ascending frequency.
+[[nodiscard]] std::vector<BeltPeak> detect_belt_peaks(const BeltCurve& curve, float band_min_hz,
+                                                      float band_max_hz);
+
+/// Greedy closest-first pairing of two peak lists. The distance threshold is
+/// min(median + 1.5 * IQR over all |fa - fb|, PAIR_MAX_HZ) - PAIR_MAX_HZ when
+/// there are no distances at all.
+[[nodiscard]] BeltPeakPairing pair_belt_peaks(const std::vector<BeltPeak>& a,
+                                              const std::vector<BeltPeak>& b);
+
+/// Tier from similarity_percent alone.
+[[nodiscard]] BeltVerdict verdict_for_similarity(float similarity_percent);
+
+/// Compare two belt-path resonance curves inside the printer's sweep range:
+/// band-limited similarity (the headline) and paired peaks. Invalid when either
+/// curve has < 3 in-band bins.
+[[nodiscard]] BeltComparison compare_belt_paths(const BeltCurve& a, const BeltCurve& b,
+                                                float band_min_hz, float band_max_hz);
 
 // ============================================================================
 // Analysis Functions

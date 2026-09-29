@@ -678,17 +678,18 @@ void BeltTensionPanel::finish_run() {
         return;
     }
 
-    const auto cmp = helix::calibration::compare_belt_paths(a.curve, b.curve);
+    const auto cmp = helix::calibration::compare_belt_paths(a.curve, b.curve, sweep_cfg_.min_freq,
+                                                            sweep_cfg_.max_freq);
     if (!cmp.valid) {
-        const char* path_name = cmp.peak_a_found ? "Path B" : "Path A";
-        on_error(fmt::format(lv_tr("No resonance peak found for {}"), lv_tr(path_name)));
+        on_error(lv_tr("Not enough frequency data from the sweeps. Try again."));
         return;
     }
 
     populate_results(cmp);
     set_view_state(ViewState::RESULTS);
-    spdlog::info("[BeltTension] Results: A={:.0f} Hz B={:.0f} Hz delta={:+.1f} Hz verdict={}",
-                 cmp.peak_a_hz, cmp.peak_b_hz, cmp.delta_hz, static_cast<int>(cmp.verdict));
+    spdlog::info("[BeltTension] Results: similarity={:.0f}% verdict={} pairs={} unpaired={}/{}",
+                 cmp.similarity_percent, static_cast<int>(cmp.verdict), cmp.peaks.pairs.size(),
+                 cmp.peaks.unpaired_a.size(), cmp.peaks.unpaired_b.size());
 }
 
 void BeltTensionPanel::populate_results(const helix::calibration::BeltComparison& cmp) {
@@ -708,29 +709,35 @@ void BeltTensionPanel::populate_results(const helix::calibration::BeltComparison
     lv_subject_copy_string(&verdict_text_subject_, verdict_text_buf_);
 
     snprintf(facts_buf_, sizeof(facts_buf_), "%s",
-             fmt::format(lv_tr("{:.0f} Hz apart · similarity {:.0f}%"), std::abs(cmp.delta_hz),
-                         cmp.similarity_percent)
-                 .c_str());
+             fmt::format(lv_tr("Similarity {:.0f}%"), cmp.similarity_percent).c_str());
     lv_subject_copy_string(&facts_subject_, facts_buf_);
 
-    // Rail: signed A-minus-B delta in tenths of a Hz, clamped to the rail.
-    const int rail = static_cast<int>(std::clamp(std::lround(cmp.delta_hz * 10.0f), -150L, 150L));
-    lv_subject_set_int(&rail_value_subject_, rail);
+    // The direction rail is parked at centre until real captures show a
+    // dependable signed signal.
+    lv_subject_set_int(&rail_value_subject_, 0);
 
-    if (chart_) {
-        const auto mark = [this](int idx, float hz) {
-            const auto& run = runs_[idx];
-            const auto peak = helix::calibration::find_peak_frequency(
-                run.curve, calibration::belt_verdict::PEAK_MIN_HZ, 1000.0f);
-            if (peak.found) {
-                ui_frequency_response_chart_mark_peak(chart_, series_[idx], hz, peak.amplitude);
-            }
-        };
-        mark(0, cmp.peak_a_hz);
-        mark(1, cmp.peak_b_hz);
+    if (chart_ && !cmp.peaks.pairs.empty()) {
+        const auto& strongest = cmp.peaks.pairs.front();
+        ui_frequency_response_chart_mark_peak(chart_, series_[0], strongest.a.freq_hz,
+                                              strongest.a.amplitude);
+        ui_frequency_response_chart_mark_peak(chart_, series_[1], strongest.b.freq_hz,
+                                              strongest.b.amplitude);
     }
 
     refresh_peaks_and_notes();
+
+    // The peak labels show the strongest pair's frequencies, not each curve's
+    // own tallest bin: an unpaired peak is exactly what the numbers must not
+    // quietly imply is comparable.
+    const bool paired = !cmp.peaks.pairs.empty();
+    const std::string peak_a =
+        paired ? fmt::format("{:.0f}", cmp.peaks.pairs.front().a.freq_hz) : "--";
+    const std::string peak_b =
+        paired ? fmt::format("{:.0f}", cmp.peaks.pairs.front().b.freq_hz) : "--";
+    snprintf(peak_a_buf_, sizeof(peak_a_buf_), "%s", peak_a.c_str());
+    lv_subject_copy_string(&peak_a_subject_, peak_a_buf_);
+    snprintf(peak_b_buf_, sizeof(peak_b_buf_), "%s", peak_b.c_str());
+    lv_subject_copy_string(&peak_b_subject_, peak_b_buf_);
 }
 
 void BeltTensionPanel::cancel_run() {
@@ -775,7 +782,7 @@ void BeltTensionPanel::refresh_peaks_and_notes() {
             note = lv_tr("sweeping");
         } else if (run.has) {
             const auto peak_hz = helix::calibration::find_peak_frequency(
-                run.curve, calibration::belt_verdict::PEAK_MIN_HZ, 1000.0f);
+                run.curve, sweep_cfg_.min_freq, sweep_cfg_.max_freq);
             if (peak_hz.found) {
                 peak = fmt::format("{:.0f}", peak_hz.frequency);
             }
@@ -784,7 +791,7 @@ void BeltTensionPanel::refresh_peaks_and_notes() {
         }
         if (run.has_previous) {
             const auto prev_hz = helix::calibration::find_peak_frequency(
-                run.previous, calibration::belt_verdict::PEAK_MIN_HZ, 1000.0f);
+                run.previous, sweep_cfg_.min_freq, sweep_cfg_.max_freq);
             if (prev_hz.found) {
                 note += fmt::format(lv_tr(" · was {:.0f}"), prev_hz.frequency);
             }

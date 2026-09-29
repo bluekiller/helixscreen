@@ -11,10 +11,10 @@ accelerometer stream) is `BELT_TUNER.md`.
 ## Overview
 
 The check runs Klipper's `TEST_RESONANCES` down each belt path, reads the CSV Klipper
-writes, and overlays both frequency responses. Each path's peak frequency is reported with
-a signed delta, a curve-shape similarity, a verdict, and a rail showing which path peaks
-higher. A re-test sweeps one path and keeps the other, ghosting the replaced curve so an
-adjustment's direction and size are visible.
+writes, and overlays both frequency responses. The two curves are compared the way
+Shake&Tune compares belts: a band-limited Pearson similarity as the headline verdict, plus
+each path's peaks paired by frequency with unpaired peaks flagged. A re-test sweeps one
+path and keeps the other, ghosting the replaced curve.
 
 Start is gated, in `src/calibration/belt_gating.cpp#evaluate_belt_gate`:
 
@@ -41,7 +41,7 @@ Z belts are deliberately unsupported; see the header comment on
 | `src/ui/ui_panel_belt_tension.cpp`, `include/ui_panel_belt_tension.h`, `ui_xml/panel_belt_tension.xml` | The panel: four view states (START, RUNNING, RESULTS, ERROR), subjects, gate wiring, run queue, re-test and ghost bookkeeping |
 | `src/ui/ui_belt_path_sketch.cpp` | The START-screen sketch widget drawing the two diagonals |
 | `src/calibration/belt_tension_calibrator.cpp` | Measures one path per call: home if needed, sweep, cancel, `emergency_abort()` |
-| `src/calibration/belt_tension_types.cpp` | `compare_belt_paths` (peaks, signed delta, Pearson similarity) and `belt_verdict_for` (tier from both) |
+| `src/calibration/belt_tension_types.cpp` | `compare_belt_paths` (band similarity, paired peaks) with `band_similarity` / `detect_belt_peaks` / `pair_belt_peaks` / `verdict_for_similarity` |
 | `src/calibration/resonance_console.cpp` | `[resonance_tester]` config query and console-line parsing shared with input shaper |
 | `src/calibration/shaper_csv_parser.cpp` | `parse_resonance_csv`: reads the CSV, returns `(freq, psd_xyz)` pairs or a classified error |
 | `src/api/moonraker_advanced_api.cpp` | `BeltResonanceCollector` (console follow + CSV read) and `test_belt_resonance` (entry point); `detect_belt_hardware` for kinematics |
@@ -75,8 +75,8 @@ parse_resonance_csv(path)                              shaper_csv_parser.cpp
 BeltTensionPanel::on_sweep_complete -> next path, then finish_run()
   |
   v
-compare_belt_paths(curve_a, curve_b)                   belt_tension_types.cpp
-  -> BeltComparison -> populate_results(): verdict chip, facts line, rail, ghosts
+compare_belt_paths(curve_a, curve_b, sweep min, sweep max)  belt_tension_types.cpp
+  -> BeltComparison -> populate_results(): verdict chip, facts line, ghosts
 ```
 
 Two threading rules shape the middle of that flow. Every collector callback arrives on the
@@ -120,25 +120,28 @@ clear the movement state the aborted sweep left behind.
 
 ## Verdicts, and why provisional
 
-`include/belt_tension_types.h` (`belt_verdict` namespace):
+`include/belt_tension_types.h` (`belt_verdict` namespace). Every calculation uses only
+bins inside the printer's `[resonance_tester]` sweep range: Klipper and Kalico write bins
+past the sweep ceiling, and those carry no excitation.
 
-| Verdict | Condition (the worse of the two tiers) |
-|---------|----------------------------------------|
-| MATCHED ("Well matched") | \|delta\| <= 3 Hz AND similarity >= 90% |
-| CLOSE ("Close") | \|delta\| <= 8 Hz AND similarity >= 75% |
+| Verdict | Condition |
+|---------|-----------|
+| MATCHED ("Well matched") | similarity >= 90% |
+| CLOSE ("Close") | similarity >= 75% |
 | ADJUST ("Adjust needed") | anything worse |
 
-`belt_verdict_for` computes a tier from each input and keeps the worse one, so a small
-delta over dissimilar curves still reads CLOSE/ADJUST rather than MATCHED. Peaks below
-`PEAK_MIN_HZ` (20 Hz) count as no peak, which makes the comparison invalid and names the
-path whose sweep produced nothing.
+Similarity is the Pearson correlation of the two in-band PSDs (B interpolated onto A's
+bins) x100, clamped to 0..100. Alongside it the comparison pairs local maxima by
+frequency, Shake&Tune's `_pair_peaks`: a pair forms when two peaks sit within
+min(median + 1.5 * IQR of all peak distances, 10 Hz), greedily closest-first, and a peak
+with no partner is reported unpaired rather than differenced against the other path's
+tallest peak: the two tallest peaks can be different modes entirely (a frame mode on one
+path, a belt hump on the other).
 
-The constants are provisional: they were chosen from synthetic curves, not captures from
-real machines, and the user guide says so. Replace them from real captures before the
-verdict gains directional advice (#1721). The RESULTS rail sizes its MATCHED/CLOSE bands
-from the same constants over `BeltTensionPanel::RAIL_SPAN_HZ` (+/-15 Hz, in tenths of a Hz
-on the slider's -150..150 range); `ui_xml/panel_belt_tension.xml` carries a comment tying
-those widths to the constants, and the panel test pins them.
+The comparison is invalid when either curve has fewer than three in-band bins. The
+constants are provisional: the similarity tiers are from one real capture pair so far,
+and the user guide says so. Replace them from more captures before the verdict gains
+directional advice (#1721). The RESULTS rail is parked at centre until then.
 
 ## Mock knobs
 
@@ -160,7 +163,7 @@ one `###` entry per variable.
 |------|--------|
 | `tests/unit/test_belt_tension_calibrator.cpp` | The calibrator: homing order, sweep lifecycle, cancel-mid-run generation guard, emergency abort |
 | `tests/unit/test_belt_tension_panel_states.cpp` | Panel view states, gate-to-button binding, verdict/rail population, ghost series on re-test |
-| `tests/unit/test_belt_compare.cpp` | `compare_belt_paths` / `belt_verdict_for` tier boundaries, invalid-peak cases |
+| `tests/unit/test_belt_compare.cpp` | `compare_belt_paths` / `pair_belt_peaks` / `band_similarity` against a real capture pair (`tests/fixtures/belt_sweeps/`) and synthetic curves |
 | `tests/unit/test_belt_gating.cpp` | Every gate leg of `evaluate_belt_gate` |
 | `tests/unit/test_mock_test_resonances.cpp` | The mock's sweep simulation, including each `HELIX_MOCK_BELT_FAIL` mode |
 | `tests/unit/test_frequency_response_chart_style.cpp` (`[belt]` cases) | Series styling, muted ghost, sweep cursor |

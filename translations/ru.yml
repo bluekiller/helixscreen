@@ -2077,6 +2077,7 @@ translations:
   Not connected to printer.: Нет подключения к принтеру.
   Not connected to the printer: Нет подключения к принтеру
   Not detected: Не обнаружено
+  Not enough frequency data from the sweeps. Try again.: 'Недостаточно данных о частоте по результатам измерений. Попробуйте снова.'
   Not in your spools? Set it up: Нет в ваших катушках? Настроить
   Not now: Не сейчас
   Not yet available on this display: 'Пока недоступно на этом дисплее'
@@ -2933,6 +2934,7 @@ translations:
   Shutting down...: Выключение...
   Signal: Сигнал
   'Signal #': Сигнал №
+  Similarity {:.0f}%: 'Схожесть {:.0f}%'
   Single toggle macro. State is not tracked.: Один макрос переключения. Состояние
     не отслеживается.
   Size: Размер

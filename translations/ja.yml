@@ -1960,6 +1960,7 @@ translations:
   Not connected to printer.: プリンターに未接続です。
   Not connected to the printer: プリンターに未接続
   Not detected: 検出されません
+  Not enough frequency data from the sweeps. Try again.: '測定から十分な周波数データが得られませんでした。再試行してください。'
   Not in your spools? Set it up: スプールにない？登録する
   Not now: 後で
   Not yet available on this display: 'このディスプレイではまだ利用できません'
@@ -2768,6 +2769,7 @@ translations:
   Shutting down...: シャットダウン中...
   Signal: 信号
   'Signal #': 信号番号
+  Similarity {:.0f}%: '類似度{:.0f}%'
   Single toggle macro. State is not tracked.: 単一のトグルマクロ。状態は追跡されません。
   Size: サイズ
   Skip: スキップ

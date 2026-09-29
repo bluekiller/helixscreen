@@ -1885,6 +1885,7 @@
   <translation tag="Not connected to printer." en="Not connected to printer."/>
   <translation tag="Not connected to the printer" en="Not connected to the printer"/>
   <translation tag="Not detected" en="Not detected"/>
+  <translation tag="Not enough frequency data from the sweeps. Try again." en="Not enough frequency data from the sweeps. Try again."/>
   <translation tag="Not in your spools? Set it up" en="Not in your spools? Set it up"/>
   <translation tag="Not now" en="Not now"/>
   <translation tag="Not yet available on this display" en="Not yet available on this display"/>
@@ -2661,6 +2662,7 @@
   <translation tag="Shutting down..." en="Shutting down..."/>
   <translation tag="Signal" en="Signal"/>
   <translation tag="Signal #" en="Signal #"/>
+  <translation tag="Similarity {:.0f}%" en="Similarity {:.0f}%"/>
   <translation tag="Single toggle macro. State is not tracked." en="Single toggle macro. State is not tracked."/>
   <translation tag="Size" en="Size"/>
   <translation tag="Skip" en="Skip"/>

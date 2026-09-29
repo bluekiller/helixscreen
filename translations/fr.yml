@@ -2112,6 +2112,7 @@ translations:
   Not connected to printer.: Non connecté à l'imprimante.
   Not connected to the printer: Non connecté à l'imprimante
   Not detected: Non détecté
+  Not enough frequency data from the sweeps. Try again.: 'Pas assez de données de fréquence après les balayages. Réessayez.'
   Not in your spools? Set it up: Pas dans vos bobines ? Configurez-la
   Not now: Pas maintenant
   Not yet available on this display: 'Pas encore disponible sur cet écran'
@@ -2984,6 +2985,7 @@ translations:
   Shutting down...: Arrêt en cours...
   Signal: Signal
   'Signal #': Signal n°
+  Similarity {:.0f}%: 'Similitude {:.0f} %'
   Single toggle macro. State is not tracked.: Macro à bascule unique. L'état n'est
     pas suivi.
   Size: Taille

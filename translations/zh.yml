@@ -1953,6 +1953,7 @@ translations:
   Not connected to printer.: 未连接到打印机。
   Not connected to the printer: 未连接到打印机
   Not detected: 未检测到
+  Not enough frequency data from the sweeps. Try again.: '扫频得到的频率数据不足，请重试。'
   'Not in your spools? Set it up': 不在您的料盘中？立即设置
   Not now: 暂不
   Not yet available on this display: '此屏幕暂不支持'
@@ -2759,6 +2760,7 @@ translations:
   Shutting down...: 正在关机...
   Signal: 信号
   'Signal #': '信号 #'
+  Similarity {:.0f}%: '相似度 {:.0f}%'
   Single toggle macro. State is not tracked.: 单个切换宏。不跟踪状态。
   Size: 大小
   Skip: 跳过

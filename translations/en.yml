@@ -2031,6 +2031,7 @@ translations:
   Not connected to printer.: Not connected to printer.
   Not connected to the printer: Not connected to the printer
   Not detected: Not detected
+  Not enough frequency data from the sweeps. Try again.: 'Not enough frequency data from the sweeps. Try again.'
   Not in your spools? Set it up: Not in your spools? Set it up
   Not now: Not now
   Not yet available on this display: Not yet available on this display
@@ -2873,6 +2874,7 @@ translations:
   Shutting down...: Shutting down...
   Signal: Signal
   'Signal #': 'Signal #'
+  Similarity {:.0f}%: 'Similarity {:.0f}%'
   Single toggle macro. State is not tracked.: Single toggle macro. State is not tracked.
   Size: Size
   Skip: Skip

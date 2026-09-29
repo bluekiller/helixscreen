@@ -1885,6 +1885,7 @@
   <translation tag="Not connected to printer." zh="未连接到打印机。"/>
   <translation tag="Not connected to the printer" zh="未连接到打印机"/>
   <translation tag="Not detected" zh="未检测到"/>
+  <translation tag="Not enough frequency data from the sweeps. Try again." zh="扫频得到的频率数据不足，请重试。"/>
   <translation tag="Not in your spools? Set it up" zh="不在您的料盘中？立即设置"/>
   <translation tag="Not now" zh="暂不"/>
   <translation tag="Not yet available on this display" zh="此屏幕暂不支持"/>
@@ -2661,6 +2662,7 @@
   <translation tag="Shutting down..." zh="正在关机..."/>
   <translation tag="Signal" zh="信号"/>
   <translation tag="Signal #" zh="信号 #"/>
+  <translation tag="Similarity {:.0f}%" zh="相似度 {:.0f}%"/>
   <translation tag="Single toggle macro. State is not tracked." zh="单个切换宏。不跟踪状态。"/>
   <translation tag="Size" zh="大小"/>
   <translation tag="Skip" zh="跳过"/>
