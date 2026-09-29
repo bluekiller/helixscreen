@@ -271,6 +271,10 @@ class NetworkSettingsOverlay : public OverlayBase {
     // status answer issued under an older value describes a state the user has
     // since replaced, so it is dropped.
     uint32_t status_generation_ = 0;
+    // A Forget tap's status read is in flight: further taps issue none, so one
+    // tap opens at most one confirm dialog. Cleared by the answer, and by
+    // on_activate() since deactivation drops an answer still in flight.
+    bool forget_read_pending_ = false;
 
     // Event handler implementations
     void handle_wlan_toggle_changed(lv_event_t* e);

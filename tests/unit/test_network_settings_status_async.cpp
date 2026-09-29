@@ -6,6 +6,7 @@
 // control-socket round trip that can wait 10s, so no path may make one on the
 // UI thread, and an answer the user has since overtaken must not land.
 
+#include "ui_modal.h"
 #include "ui_overlay_network_settings.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -183,4 +184,37 @@ TEST_CASE_METHOD(OverlayStatusFixture,
     await_earlier_answers();
     CHECK(lv_subject_get_int(&Access::wifi_connected(overlay())) == 0);
     CHECK(Access::ssid(overlay()).empty());
+}
+
+TEST_CASE_METHOD(OverlayStatusFixture,
+                 "network settings: Forget tapped twice during its read opens one dialog",
+                 "[network_settings][wifi_status_async]") {
+    wifi->hold_next_status();
+    Access::forget_clicked(overlay());
+    REQUIRE(wait_until([&]() { return !wifi->status_callers().empty(); }));
+    Access::forget_clicked(overlay());
+
+    wifi->release_held_status();
+    await_earlier_answers();
+    REQUIRE(Access::pending_forget_ssid(overlay()) == kSsid);
+
+    // Closing the top dialog must leave none: a second tap's dialog would sit
+    // beneath it.
+    lv_obj_t* dialog = ModalStack::instance().top_dialog();
+    REQUIRE(dialog != nullptr);
+    Modal::hide(dialog);
+    CHECK(ModalStack::instance().empty());
+}
+
+TEST_CASE_METHOD(OverlayStatusFixture, "network settings: a failed join reads the status again",
+                 "[network_settings][wifi_status_async]") {
+    // The join's start drops any answer in flight, so the failure has to ask
+    // again or the header keeps whatever it showed before.
+    REQUIRE(lv_subject_get_int(&Access::wifi_connected(overlay())) == 0);
+    Access::password_modal(overlay()) = make_password_modal();
+    Access::set_current_ssid(overlay(), "NoSuchNetwork"); // the mock refuses it at once
+    Access::password_connect_clicked(overlay());
+
+    REQUIRE(wait_until([&]() { return shows_connection(); }));
+    CHECK(no_read_on_this_thread());
 }
