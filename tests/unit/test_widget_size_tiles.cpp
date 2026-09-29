@@ -10,14 +10,18 @@
  * Run with: ./build/bin/helix-tests "[widget_size][tile]"
  */
 
+#include "ui_update_queue.h"
+
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "../test_helpers/scoped_breakpoint.h"
+#include "../test_helpers/update_queue_test_access.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "helix/ui/shared_font_style.h"
 #include "panel_widget.h"
 #include "panel_widget_registry.h"
+#include "settings_manager.h"
 #include "src/ui/panel_widgets/tile_sizing.h"
 #include "theme_manager.h"
 
@@ -478,4 +482,62 @@ TEST_CASE("every tile exposes its live instance to edit mode", "[widget_size][ti
     }
     INFO("these tiles are invisible to the resize clamp:" << joined);
     CHECK(unreachable.empty());
+}
+
+TEST_CASE("a hidden label costs a tile no glyph, and toggling it re-measures",
+          "[widget_size][tile][labels]") {
+    // The label is drawn only while show_widget_labels is on, so a tile that
+    // reserved room for it with the setting off would draw a smaller glyph
+    // than its box holds, and one that measured without it would spill once
+    // the setting came back on.
+    LVGLUITestFixture fixture;
+    helix::SettingsManager::instance().init_subjects();
+    lv_subject_t* shown = helix::SettingsManager::instance().subject_show_widget_labels();
+    const int original = lv_subject_get_int(shown);
+    auto drain = [] {
+        helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    };
+    auto rung = [] {
+        return lv_subject_get_int(lv_xml_get_subject(nullptr, "labeltest_tile_icon"));
+    };
+
+    helix::TileSizing sizing("labeltest", helix::TileSizing::Content{"", "", "Motion", false});
+
+    // Find a height where the label costs a rung. Its existence is the claim;
+    // the exact height is this tier's arithmetic.
+    int costly_h = -1;
+    int off_rung = -1;
+    int on_rung = -1;
+    for (int h = 30; h <= 200 && costly_h < 0; h += 2) {
+        lv_subject_set_int(shown, 0);
+        drain();
+        sizing.measure_and_publish(200, h);
+        const int off = rung();
+        lv_subject_set_int(shown, 1);
+        drain();
+        sizing.measure_and_publish(200, h);
+        const int on = rung();
+        if (off > on) {
+            costly_h = h;
+            off_rung = off;
+            on_rung = on;
+        }
+    }
+    INFO("no height between 30 and 200px where the label costs the glyph a rung");
+    REQUIRE(costly_h > 0);
+
+    // Measured once, then only the setting moves: the tile re-measures itself.
+    lv_subject_set_int(shown, 0);
+    drain();
+    sizing.measure_and_publish(200, costly_h);
+    CHECK(rung() == off_rung);
+    lv_subject_set_int(shown, 1);
+    drain();
+    CHECK(rung() == on_rung);
+    lv_subject_set_int(shown, 0);
+    drain();
+    CHECK(rung() == off_rung);
+
+    lv_subject_set_int(shown, original);
+    drain();
 }

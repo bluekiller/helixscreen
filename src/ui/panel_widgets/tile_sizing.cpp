@@ -7,7 +7,9 @@
 
 #include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "observer_factory.h"
 #include "panel_widget_size.h"
+#include "settings_manager.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -141,7 +143,7 @@ TileVerdict TileSizing::decide(int width_px, int height_px) const {
     const int avail_h = std::max(height_px - chrome_h, 1);
 
     TileVerdict verdict = decide_tile_layout(avail_w, avail_h, gap, rungs, content_.has_value,
-                                             !content_.label.empty(), authored_rung());
+                                             label_drawn(), authored_rung());
 
     // At micro and tiny a whole cell is barely wider than the glyph itself, so
     // a tile of one cell or less keeps the authored rung those screens were
@@ -183,7 +185,44 @@ bool TileSizing::fits(int width_px, int height_px) const {
     return decide(width_px, height_px).fits;
 }
 
+bool TileSizing::label_drawn() const {
+    if (content_.label.empty()) {
+        return false;
+    }
+    if (content_.label_always_drawn) {
+        return true;
+    }
+    // Absent only where no settings exist (a bare test fixture); a label that
+    // may be drawn is measured.
+    lv_subject_t* shown = lv_xml_get_subject(nullptr, "show_widget_labels");
+    return !shown || lv_subject_get_int(shown) != 0;
+}
+
+void TileSizing::follow_label_setting() {
+    if (label_setting_observer_ || content_.label.empty() || content_.label_always_drawn) {
+        return;
+    }
+    auto& settings = SettingsManager::instance();
+    lv_subject_t* shown = settings.subject_show_widget_labels();
+    // Observed only once SettingsManager has registered it, so the guard's
+    // lifetime is the owner's rather than a subject that never initialised.
+    if (lv_xml_get_subject(nullptr, "show_widget_labels") != shown) {
+        return;
+    }
+    label_setting_observer_ = ui::observe_int_sync<TileSizing>(
+        shown, this,
+        [](TileSizing* self, int /*shown*/) {
+            if (self->last_width_px_ >= 0) {
+                self->measure_and_publish(self->last_width_px_, self->last_height_px_);
+            }
+        },
+        settings.get_subjects_lifetime());
+}
+
 void TileSizing::measure_and_publish(int width_px, int height_px) {
+    last_width_px_ = width_px;
+    last_height_px_ = height_px;
+    follow_label_setting();
     const TileVerdict v = decide(width_px, height_px);
     lv_subject_set_int(&icon_rung_subject_, v.icon_rung);
     lv_subject_set_int(&label_subject_, static_cast<int>(v.label));

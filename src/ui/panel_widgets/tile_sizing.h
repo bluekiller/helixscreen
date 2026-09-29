@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "ui_observer_guard.h"
+
 #include "grid_layout.h"
 #include "helix/ui/text_metrics.h"
 #include "src/ui/panel_widgets/tile_layout.h"
@@ -42,6 +44,10 @@ class TileSizing {
         /// Text drawn beside the glyph in #font_body_bold at every rung, such
         /// as a tool digit. It widens the glyph's box rather than scaling.
         std::string icon_badge;
+        /// True for a label that names what the tile reads (a fan, a sensor)
+        /// and is drawn whatever show_widget_labels says. Every other label
+        /// follows the setting, and is measured only while it is on.
+        bool label_always_drawn = false;
     };
 
     explicit TileSizing(const std::string& instance_id);
@@ -106,6 +112,11 @@ class TileSizing {
 
   private:
     TileVerdict decide(int width_px, int height_px) const;
+    /// Whether the label, if this tile has one, is drawn at all.
+    bool label_drawn() const;
+    /// Re-measure at the last box whenever show_widget_labels moves, since the
+    /// label's presence is part of the measurement.
+    void follow_label_setting();
     /// One whole cell on this grid, in px: the live track geometry when the
     /// grid has reported it, the tier's nominal cell until then.
     int whole_cell_px() const;
@@ -122,12 +133,15 @@ class TileSizing {
     bool whole_cell_only_ = false;
     CellMetrics cell_metrics_{};
     bool has_cell_metrics_ = false;
+    int last_width_px_ = -1;
+    int last_height_px_ = -1;
 
     lv_subject_t icon_rung_subject_{};
     lv_subject_t label_subject_{};
     lv_subject_t direction_subject_{};
     lv_subject_t show_target_subject_{};
     SubjectManager subjects_;
+    ObserverGuard label_setting_observer_;
 };
 
 } // namespace helix
