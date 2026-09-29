@@ -384,6 +384,16 @@
     <px name="option_tile_tab_medium" value="16"/>
     <px name="option_tile_tab_large" value="18"/>
     <px name="option_tile_tab_xlarge" value="20"/>
+    <!-- The tab's lift off the tile's bottom border: -space_xs per tier. A
+         negated value, not a "-#space_xs" attribute (the const resolver only
+         substitutes values that START with '#', so a leading '-' would pass
+         the raw string through and silently resolve to 0). -->
+    <px name="option_tile_tab_lift_micro" value="-2"/>
+    <px name="option_tile_tab_lift_tiny" value="-2"/>
+    <px name="option_tile_tab_lift_small" value="-4"/>
+    <px name="option_tile_tab_lift_medium" value="-5"/>
+    <px name="option_tile_tab_lift_large" value="-6"/>
+    <px name="option_tile_tab_lift_xlarge" value="-8"/>
     <!-- Calibration tiles: the glyph a tile's share of the card holds above a
          one-line label -->
     <string name="calib_icon_size_micro" value="sm"/>

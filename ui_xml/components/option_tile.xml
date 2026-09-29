@@ -30,11 +30,13 @@
          label's box spans the full content height on the right, so any tab
          on the right edge would sit over its first line; the bottom of the
          icon column is the only band the label never enters. The row is
-         cross-place start so the icon clears the tab too. -->
+         cross-place start so the icon clears the tab too. The y offset lifts
+         it off the outline so it floats inside the border, not flush on it. -->
     <lv_obj name="check_tab"
-            width="#option_tile_tab" height="#option_tile_tab" align="bottom_left" ignore_layout="true"
-            style_radius="#border_radius" style_bg_color="#primary" style_bg_opa="255" style_border_width="0"
-            style_pad_all="0" style_opa="0" style_opa-checked="255" clickable="false" scrollable="false">
+            width="#option_tile_tab" height="#option_tile_tab" align="bottom_left" y="#option_tile_tab_lift"
+            ignore_layout="true" style_radius="#border_radius" style_bg_color="#primary" style_bg_opa="255"
+            style_border_width="0" style_pad_all="0" style_opa="0" style_opa-checked="255" clickable="false"
+            scrollable="false">
       <icon src="check" size="xs" variant="text" align="center" clickable="false"/>
     </lv_obj>
   </view>

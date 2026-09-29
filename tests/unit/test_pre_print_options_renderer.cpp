@@ -751,13 +751,24 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(icon != nullptr);
     lv_obj_update_layout(tile);
 
+    // All comparisons in screen coordinates: parent-relative getters would
+    // mix the tab's frame (the tile) with the tile's frame (the screen).
+    lv_area_t tile_a, tab_a, label_a, icon_a;
+    lv_obj_get_coords(tile, &tile_a);
+    lv_obj_get_coords(tab, &tab_a);
+    lv_obj_get_coords(label, &label_a);
+    lv_obj_get_coords(icon, &icon_a);
+
     // The tab lives at the bottom of the icon column, below the icon and
     // left of the label, so it can never sit over the label's first line.
-    CHECK(lv_obj_get_x(tab) + lv_obj_get_width(tab) <= lv_obj_get_x(label));
-    CHECK(lv_obj_get_y(icon) + lv_obj_get_height(icon) <= lv_obj_get_y(tab));
-    CHECK(lv_obj_get_x(tab) >= lv_obj_get_x(tile));
-    CHECK(lv_obj_get_y(tab) + lv_obj_get_height(tab) <=
-          lv_obj_get_y(tile) + lv_obj_get_height(tile));
+    CHECK(tab_a.x2 <= label_a.x1);
+    CHECK(icon_a.y2 <= tab_a.y1);
+
+    // It floats inside the outline: clear of the border on both sides it
+    // touches, by the border width plus at least a 2px gap.
+    const lv_coord_t inset = lv_obj_get_style_border_width(tile, LV_PART_MAIN) + 2;
+    CHECK(tab_a.x1 >= tile_a.x1 + inset);
+    CHECK(tab_a.y2 <= tile_a.y2 - inset);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
