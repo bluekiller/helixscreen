@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace helix::plugin {
 
@@ -36,6 +37,19 @@ void install_moonraker_bindings(PluginContext& ctx);
 void install_io_bindings(PluginContext& ctx);
 
 PluginContext& context(lua_State* L);
+
+/// How one row of the stable printer table converts its subject into a Lua value.
+enum class PrinterValueKind { Bool, String, Int, DeciDegrees };
+
+/// One Lua-facing printer name and the XML subject backing it.
+struct PrinterField {
+    const char* lua_name;
+    const char* subject;
+    PrinterValueKind kind;
+};
+
+/// The stable table from the spec's "Printer state" section.
+const std::vector<PrinterField>& printer_fields();
 
 /// Objects and arrays become tables; null becomes nil.
 void push_json(lua_State* L, const json& j);
