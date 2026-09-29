@@ -328,8 +328,8 @@ class PrintStartController {
      */
     void observe_backend_for_retry();
 
-    /// True when the backend would send every saved entry that differs from its
-    /// current mapping.
+    /// True when the backend has reported its lanes and would send every saved
+    /// entry that differs from its current mapping.
     [[nodiscard]] bool retained_restore_sendable() const;
 
     /**

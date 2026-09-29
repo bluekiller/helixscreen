@@ -994,6 +994,12 @@ bool PrintStartController::retained_restore_sendable() const {
     if (!backend || saved_tool_mapping_.empty()) {
         return false;
     }
+    // Before a backend's first report its bounds are not the printer's: CFS
+    // accepts any encodable bay until a box frame says how many units exist.
+    // Nothing is replayed until the lane set has actually been reported.
+    if (backend->get_system_info().total_slots <= 0) {
+        return false;
+    }
     const auto current = backend->get_tool_mapping();
     for (size_t i = 0; i < saved_tool_mapping_.size(); ++i) {
         const int want = saved_tool_mapping_[i];

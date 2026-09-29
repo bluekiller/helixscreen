@@ -73,6 +73,15 @@ class CountingAfcBackend : public AmsBackendAfc {
         return can_set_tool_mapping(tool_number, slot_index);
     }
 
+    // The lanes the backend reports, when a test sets reported_slots.
+    AmsSystemInfo get_system_info() const override {
+        AmsSystemInfo info = AmsBackendAfc::get_system_info();
+        if (reported_slots >= 0) {
+            info.total_slots = reported_slots;
+        }
+        return info;
+    }
+
     std::vector<int> get_tool_mapping() const override {
         return current;
     }
@@ -348,10 +357,35 @@ TEST_CASE("remap restore: CFS retries when the box reports the refused bay's uni
     helix::ui::UpdateQueue::instance().drain();
     CHECK(cfs->sent.empty());
 
-    CfsTestAccess::handle_status(*cfs, cfs_box_frame(2));
-    helix::ui::UpdateQueue::instance().drain();
-    helix::ui::UpdateQueue::instance().drain();
-    CHECK(cfs->sent == std::vector<std::string>{"BOX_MODIFY_TN T1A=T2B"});
+    SECTION("the box reporting the second unit lands the replay") {
+        CfsTestAccess::handle_status(*cfs, cfs_box_frame(2));
+        helix::ui::UpdateQueue::instance().drain();
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(cfs->sent == std::vector<std::string>{"BOX_MODIFY_TN T1A=T2B"});
+    }
+
+    SECTION("a backend with no box frame yet replays nothing") {
+        // A rebuilt backend reads total_slots 0, where CFS accepts any
+        // encodable bay: T2B passes the predicate, but nothing has said the
+        // second unit exists.
+        auto fresh_owned = std::make_unique<CapturingCfsBackend>();
+        CapturingCfsBackend* fresh = fresh_owned.get();
+        AmsState::instance().set_backend(std::move(fresh_owned));
+        REQUIRE(fresh->get_system_info().total_slots == 0);
+        REQUIRE(fresh->can_set_tool_mapping(0, 5).success());
+        Harness::ams_data_tick();
+        CHECK(fresh->sent.empty());
+
+        // The first frame shows one unit: still refused, still nothing sent.
+        CfsTestAccess::handle_status(*fresh, cfs_box_frame(1));
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fresh->sent.empty());
+
+        CfsTestAccess::handle_status(*fresh, cfs_box_frame(2));
+        helix::ui::UpdateQueue::instance().drain();
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fresh->sent == std::vector<std::string>{"BOX_MODIFY_TN T1A=T2B"});
+    }
 
     AmsState::instance().set_backend(nullptr);
 }
