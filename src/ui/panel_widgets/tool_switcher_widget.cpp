@@ -43,7 +43,24 @@ void register_tool_switcher_widget() {
 }
 
 ToolSwitcherWidget::ToolSwitcherWidget(PrinterState& printer_state)
-    : printer_state_(printer_state) {}
+    : printer_state_(printer_state) {
+    // Registered before the manager parses the component, which drops a
+    // binding whose subject is missing at parse time.
+    UI_MANAGED_SUBJECT_INT(compact_subject_, 0, "tool_switcher_compact", subjects_);
+    UI_MANAGED_SUBJECT_STRING(active_label_subject_, active_label_buf_, "",
+                              "tool_switcher_active_label", subjects_);
+    refresh_label_budget();
+}
+
+void ToolSwitcherWidget::refresh_label_budget() {
+    std::string widest;
+    for (const auto& tool : ToolState::instance().tools()) {
+        if (tool.display_label.size() > widest.size()) {
+            widest = tool.display_label;
+        }
+    }
+    sizing_.set_content({widest, widest, "", true});
+}
 
 ToolSwitcherWidget::~ToolSwitcherWidget() {
     if (s_active_instance == this) {
@@ -51,12 +68,13 @@ ToolSwitcherWidget::~ToolSwitcherWidget() {
     }
 }
 
-// Compact mode: too small on both axes for pills (was colspan==1 &&
-// rowspan==1). w_normal()/h_tall() are the pixel floors below which the old
-// predicate's colspan/rowspan==1 held.
 bool ToolSwitcherWidget::is_compact_size() const {
-    return current_width_px_ < widget_size::w_normal() &&
-           current_height_px_ < widget_size::h_tall();
+    return is_compact_at(current_width_px_, current_height_px_);
+}
+
+// Compact when the box is small on both axes; the pills need room on one.
+bool ToolSwitcherWidget::is_compact_at(int width_px, int height_px) {
+    return width_px < widget_size::w_normal() && height_px < widget_size::h_tall();
 }
 
 // Narrow but tall: single vertical column of pills (was colspan==1 &&
@@ -203,6 +221,9 @@ void ToolSwitcherWidget::on_size_changed(int /*colspan*/, int /*rowspan*/, int w
     current_width_px_ = width_px;
     current_height_px_ = height_px;
 
+    refresh_label_budget();
+    sizing_.measure_and_publish(width_px, height_px);
+
     if (!widget_obj_)
         return;
 
@@ -269,6 +290,7 @@ void ToolSwitcherWidget::rebuild_pills() {
 
     if (!widget_obj_)
         return;
+    lv_subject_set_int(&compact_subject_, 0);
 
     lv_obj_t* container = lv_obj_find_by_name(widget_obj_, "tool_switcher_container");
     if (!container) {
@@ -460,56 +482,20 @@ void ToolSwitcherWidget::rebuild_compact() {
     }
 
     helix::ui::safe_clean_children(container);
+    lv_subject_set_int(&compact_subject_, 1);
 
     auto& tool_state = ToolState::instance();
     int active = tool_state.active_tool_index();
     const auto& tools = tool_state.tools();
 
-    // Set container clickable for compact mode
-    lv_obj_add_flag(container, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(container, resolve_space_token("space_xxs", 2), 0);
-
-    // Swap icon above tool label
-    const char* icon_attrs[] = {"src",     "arrow_left_right", "size", "sm",
-                                "variant", "secondary",        nullptr};
-    auto* icon = static_cast<lv_obj_t*>(lv_xml_create(container, "icon", icon_attrs));
-    if (icon) {
-        lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
-    }
-
-    // Current tool label centered with larger font
-    lv_obj_t* label = lv_label_create(container);
     // An out-of-range active index has no position to name. "?" keeps the one
     // line this mode carries visibly occupied, where an empty label reads as a
     // widget that failed to draw.
     std::string tool_name = (active >= 0 && active < static_cast<int>(tools.size()))
                                 ? tools[active].display_label
                                 : "?";
-    lv_label_set_text(label, tool_name.c_str());
-    compact_label_ = label;
-    const lv_font_t* body_font = theme_manager_get_font("font_body");
-    if (body_font)
-        lv_obj_set_style_text_font(label, body_font, 0);
-    lv_obj_set_width(label, LV_PCT(100));
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_remove_flag(label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-    // Click opens picker
-    lv_obj_add_event_cb(
-        container,
-        [](lv_event_t* /*e*/) {
-            LVGL_SAFE_EVENT_CB_BEGIN("[ToolSwitcher] compact_click");
-            if (s_active_instance) {
-                s_active_instance->show_tool_picker();
-            }
-            LVGL_SAFE_EVENT_CB_END();
-        },
-        LV_EVENT_CLICKED, nullptr);
+    lv_subject_copy_string(&active_label_subject_, tool_name.c_str());
+    compact_label_ = lv_obj_find_by_name(widget_obj_, "tool_switcher_compact_label");
 
     // Sets the label colour (muted while a print blocks the change, normal
     // otherwise). Must run on every rebuild, not just on a state change.

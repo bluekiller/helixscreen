@@ -25,6 +25,8 @@
  * driving the real app.
  */
 
+#include "ui_tile_rung.h"
+
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "../test_helpers/tool_switcher_test_access.h"
@@ -118,9 +120,10 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
     h.resize(2, 2, w_normal() - 1, h_tall() - 1);
     process_lvgl(30);
 
-    CHECK(lv_obj_get_child_count(container) == 2); // icon + label
-    CHECK(lv_obj_has_flag(container, LV_OBJ_FLAG_CLICKABLE));
-    CHECK(lv_obj_get_style_flex_flow(container, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+    lv_obj_t* compact = h.child("tool_switcher_compact");
+    REQUIRE(compact != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(compact, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(container, LV_OBJ_FLAG_HIDDEN));
 
     // --- Pill row: width at/over the floor. Height is deliberately short
     // (well under two pill rows' worth of content height) so rebuild_pills()'s
@@ -133,6 +136,8 @@ TEST_CASE_METHOD(ToolSwitcherFixture,
 
     REQUIRE(lv_obj_get_child_count(container) == 3); // one ui_button per tool
     CHECK(lv_obj_get_style_flex_flow(container, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
+    CHECK_FALSE(lv_obj_has_flag(container, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(compact, LV_OBJ_FLAG_HIDDEN));
 
     // --- Pill column: narrow but tall — the legacy 1x2 vertical-stack shape
     // (tool_switcher_widget.cpp's rebuild_pills(), the current_rowspan_>=2
@@ -326,4 +331,35 @@ TEST_CASE_METHOD(ToolSwitcherFixture, "tool_switcher: compact mode marks an unkn
     label = ToolSwitcherTestAccess::compact_label(h.widget());
     REQUIRE(label != nullptr);
     CHECK(std::string(lv_label_get_text(label)) == "?");
+}
+
+TEST_CASE_METHOD(ToolSwitcherFixture,
+                 "tool_switcher: the compact form draws in the faces its box earns",
+                 "[widget_size][tool_switcher][tile]") {
+    // The compact glyph and tool label follow the tile's rung like every other
+    // sized tile, so a bigger compact box draws a bigger glyph and label.
+    configure_tools(3);
+    PanelWidgetHarness<ToolSwitcherWidget> h(test_screen(), state());
+    process_lvgl(30);
+    lv_obj_t* icon = h.child("tool_switcher_compact_icon");
+    lv_obj_t* label = h.child("tool_switcher_compact_label");
+    REQUIRE(icon != nullptr);
+    REQUIRE(label != nullptr);
+    lv_subject_t* rung = lv_xml_get_subject(nullptr, "tool_switcher_tile_icon");
+    REQUIRE(rung != nullptr);
+
+    h.resize(2, 2, 60, 60);
+    process_lvgl(30);
+    const int small = lv_subject_get_int(rung);
+    const lv_font_t* small_face = lv_obj_get_style_text_font(icon, LV_PART_MAIN);
+    h.resize(2, 2, w_normal() - 1, h_tall() - 1);
+    process_lvgl(30);
+    const int large = lv_subject_get_int(rung);
+
+    INFO("rung " << small << " at 60x60, " << large << " at the compact ceiling");
+    REQUIRE(large > small);
+    CHECK(lv_obj_get_style_text_font(icon, LV_PART_MAIN) != small_face);
+    CHECK(lv_obj_get_style_text_font(label, LV_PART_MAIN) ==
+          theme_manager_get_font(ui::tile_rung_font_token(ui::TileLadder::Value, large)));
+    CHECK(std::string(lv_label_get_text(label)) == ToolState::instance().tools()[0].display_label);
 }

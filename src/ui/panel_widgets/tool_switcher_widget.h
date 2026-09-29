@@ -7,6 +7,8 @@
 #include "ams_error.h"
 #include "async_lifetime_guard.h"
 #include "panel_widget.h"
+#include "src/ui/panel_widgets/tile_sizing.h"
+#include "subject_managed_panel.h"
 
 #include <cstdint>
 #include <memory>
@@ -28,6 +30,17 @@ class ToolSwitcherWidget : public PanelWidget {
         return "tool_switcher";
     }
     void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override;
+    /// Pills lay themselves out in any box they are given; the compact form
+    /// is a sized tile and refuses what TileSizing cannot draw.
+    bool fits_at(int width_px, int height_px) const override {
+        return !is_compact_at(width_px, height_px) || sizing_.fits(width_px, height_px);
+    }
+    const char** xml_attrs() const override {
+        return sizing_.subject_attrs();
+    }
+    TileSizing* tile_sizing() override {
+        return &sizing_;
+    }
     bool has_overlay_open() const override {
         return picker_.is_visible();
     }
@@ -102,6 +115,15 @@ class ToolSwitcherWidget : public PanelWidget {
     // returns.
     bool in_grid_size_refresh_ = false;
 
+    /// The compact form's value is the active tool's label, budgeted at the
+    /// widest label any tool carries (set on every size change).
+    TileSizing sizing_{"tool_switcher", TileSizing::Content{"", "", "", true}};
+    /// 1 while the compact form is shown; XML hides the other form.
+    lv_subject_t compact_subject_{};
+    lv_subject_t active_label_subject_{};
+    char active_label_buf_[32] = {};
+    SubjectManager subjects_;
+
     // MUST stay declared LAST: reverse-declaration destruction makes this the
     // first member torn down, invalidating every captured token before any
     // observer destructs. Without this, queued observer callbacks captured
@@ -126,6 +148,9 @@ class ToolSwitcherWidget : public PanelWidget {
     // that fire from on_size_changed() itself and the ones that fire later
     // from observers (tool_count_observer_, on_active_tool_changed()).
     bool is_compact_size() const;
+    static bool is_compact_at(int width_px, int height_px);
+    /// Budget the compact value at the widest label any tool carries.
+    void refresh_label_budget();
     bool is_narrow_tall_size() const;
     void on_active_tool_changed(int tool_index);
 
