@@ -12,7 +12,9 @@
 #include "moonraker_error.h"
 #include "plugin_backend.h"
 
+#include <algorithm>
 #include <atomic>
+#include <memory>
 #include <netdb.h>
 #include <sys/socket.h>
 
@@ -139,22 +141,25 @@ PluginBackend make_app_backend() {
             [cb](const MoonrakerError& e) { cb(failure(e.message)); });
     };
 
-    b.download = [](const std::string& root, const std::string& path, RpcCallback cb) {
+    b.download = [](const std::string& root, const std::string& path, size_t max_bytes,
+                    RpcCallback cb) {
         if (!is_transfer_root(root))
             return cb(failure("root must be 'gcodes' or 'config'"));
         auto* api = get_moonraker_api();
         if (!api)
             return cb(failure(kNotConnected));
-        api->transfers().download_file(
-            root, path, [cb](const std::string& body) { cb(success(json(body))); },
+        api->transfers().download_file_partial(
+            root, path, max_bytes, [cb](const std::string& body) { cb(success(json(body))); },
             [cb](const MoonrakerError& e) { cb(failure(e.message)); });
     };
 
-    // ponytail: one blocking libhv request per call on the fast pool; a streaming client when a
-    // plugin needs bodies too large to hold in memory.
+    // One blocking libhv request per call on the slow pool: a plugin body can be large and
+    // must never crowd Moonraker's own REST traffic. The body is streamed through http_cb
+    // and cut off at max_body, the same mid-body abort the partial download uses, so a
+    // huge response never occupies a worker for the full transfer.
     b.http = [](const std::string& method, const std::string& url, const std::string& body,
-                const json& headers, uint32_t timeout_ms, RpcCallback cb) {
-        http::HttpExecutor::fast().submit([=]() {
+                const json& headers, uint32_t timeout_ms, size_t max_body, RpcCallback cb) {
+        http::HttpExecutor::slow().submit([=]() {
             // Resolving both hosts blocks on DNS, so the check runs here, off the main thread.
             // A followed redirect would land on a host this check never saw, so the plugin's
             // requests do not follow redirects.
@@ -174,10 +179,23 @@ PluginBackend make_app_backend() {
                         req->headers[it.key()] = it.value().get<std::string>();
                 }
             }
+            auto out = std::make_shared<std::string>();
+            req->http_cb = [req, out, max_body](HttpMessage*, http_parser_state state,
+                                                const char* data, size_t size) {
+                if (state != HP_BODY || data == nullptr || size == 0)
+                    return;
+                if (out->size() >= max_body) { // keep the cancel armed on every later chunk
+                    req->Cancel();
+                    return;
+                }
+                out->append(data, std::min(size, max_body - out->size()));
+                if (out->size() >= max_body)
+                    req->Cancel();
+            };
             auto resp = requests::request(req);
             if (!resp)
                 return cb(failure("request to " + url + " failed"));
-            cb(success(json{{"status", resp->status_code}, {"body", resp->body}}));
+            cb(success(json{{"status", resp->status_code}, {"body", *out}}));
         });
     };
 

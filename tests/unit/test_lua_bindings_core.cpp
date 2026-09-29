@@ -117,6 +117,17 @@ TEST_CASE_METHOD(LVGLTestFixture, "timers and sleeps die with the runtime",
     SUCCEED(); // ASAN (Step 7) is what proves no timer outlived its state
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "helix.timer bounds live timers per plugin",
+                 "[plugin][bindings][core]") {
+    BoundRuntime b;
+    REQUIRE(b.t.run(R"(
+        for i = 1, 64 do helix.timer.after(100000, function() end) end
+        ok, err = pcall(helix.timer.after, 10, function() end)
+    )"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("at most 64 live timers") != std::string::npos);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "helix.log accepts every level", "[plugin][bindings][core]") {
     BoundRuntime b;
     CHECK(b.t.run(

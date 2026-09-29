@@ -24,7 +24,7 @@ TEST_CASE("app backend reports no connection instead of crashing", "[plugin][bac
     b.gcode("M117 hi", sink);
     b.call("server.info", json::object(), sink);
     b.upload("gcodes", "a.gcode", "G28", sink);
-    b.download("gcodes", "a.gcode", sink);
+    b.download("gcodes", "a.gcode", 1024, sink);
     REQUIRE(got.size() == 4);
     for (const auto& r : got) {
         CHECK_FALSE(r.ok);
@@ -39,7 +39,7 @@ TEST_CASE("app backend rejects roots other than gcodes and config", "[plugin][ba
     auto b = make_app_backend();
     RpcResult up, down;
     b.upload("logs", "x", "y", [&](RpcResult r) { up = std::move(r); });
-    b.download("../etc", "x", [&](RpcResult r) { down = std::move(r); });
+    b.download("../etc", "x", 1024, [&](RpcResult r) { down = std::move(r); });
     CHECK_FALSE(up.ok);
     CHECK(up.error.find("root") != std::string::npos);
     CHECK_FALSE(down.ok);
@@ -64,17 +64,17 @@ TEST_CASE("is_forbidden_http_target refuses loopback and the printer host", "[pl
 }
 
 TEST_CASE("app backend http refuses the printer's own host", "[plugin][backend]") {
-    helix::http::HttpExecutor::fast().start();
+    helix::http::HttpExecutor::slow().start();
     auto b = make_app_backend();
     std::promise<RpcResult> done;
     auto ready = done.get_future();
-    b.http("GET", "http://127.0.0.1:7125/x", "", json::object(), 5000,
+    b.http("GET", "http://127.0.0.1:7125/x", "", json::object(), 5000, 1024,
            [&done](RpcResult r) { done.set_value(std::move(r)); });
     REQUIRE(ready.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
     RpcResult r = ready.get();
     CHECK_FALSE(r.ok);
     CHECK(r.error.find("printer host") != std::string::npos);
-    helix::http::HttpExecutor::fast().stop();
+    helix::http::HttpExecutor::slow().stop();
 }
 
 #endif // HELIX_HAS_PLUGINS

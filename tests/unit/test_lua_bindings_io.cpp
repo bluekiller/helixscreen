@@ -68,6 +68,33 @@ TEST_CASE_METHOD(LVGLTestFixture, "an http body over the plugin memory cap is re
     CHECK_FALSE(h.t.rt->faulted());
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "helix.http bounds in-flight requests per plugin",
+                 "[plugin][bindings][io]") {
+    BoundRuntime h({&install_io_bindings}, {Permission::Http});
+    REQUIRE(h.t.run(R"(a = helix.http.get("https://example.com/1"))"));
+    REQUIRE(h.t.run(R"(b = helix.http.get("https://example.com/2"))"));
+    REQUIRE(h.fake.requests.size() == 2);
+    REQUIRE(h.t.run(R"(ok, err = pcall(helix.http.get, "https://example.com/3"))"));
+    CHECK(h.t.global("ok") == "false");
+    CHECK(h.t.global("err").find("2 requests in flight") != std::string::npos);
+    CHECK(h.fake.requests.size() == 2);
+
+    h.fake.requests[0].reply(RpcResult{true, json{{"status", 200}, {"body", "x"}}, {}});
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(h.t.run(R"(c = helix.http.get("https://example.com/4"))"));
+    CHECK(h.fake.requests.size() == 3);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "http asks for one byte more than the remaining cap",
+                 "[plugin][bindings][io]") {
+    BoundRuntime h({&install_io_bindings}, {Permission::Http});
+    REQUIRE(h.t.run(R"(r = helix.http.get("https://example.com/x"))"));
+    REQUIRE(h.fake.requests.size() == 1);
+    CHECK(h.fake.requests[0].cap == h.t.rt->memory_cap() - h.t.rt->memory_used() + 1);
+    h.fake.requests[0].reply(RpcResult{true, json{{"status", 200}, {"body", "x"}}, {}});
+    helix::ui::UpdateQueue::instance().drain();
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "storage persists across runtimes", "[plugin][bindings][io]") {
     TempDir dir;
     std::string path = dir.file("data/s.json");

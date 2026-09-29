@@ -156,6 +156,28 @@ TEST_CASE_METHOD(LVGLTestFixture, "agent events are filtered by event name",
     CHECK(b.t.global("r") == "orca=210");
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "download asks for one byte more than the remaining cap",
+                 "[plugin][bindings][moonraker]") {
+    BoundRuntime w({&install_moonraker_bindings}, {Permission::MoonrakerWrite});
+    REQUIRE(w.t.run(R"(body = helix.moonraker.download("gcodes", "a.gcode"))"));
+    REQUIRE(w.fake.requests.size() == 1);
+    CHECK(w.fake.requests[0].cap == w.t.rt->memory_cap() - w.t.rt->memory_used() + 1);
+    w.fake.requests[0].reply(RpcResult{true, json("x"), {}});
+    drain();
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "on_agent_event bounds handlers per plugin",
+                 "[plugin][bindings][moonraker]") {
+    BoundRuntime b({&install_moonraker_bindings});
+    REQUIRE(b.t.run(R"(
+        for i = 1, 16 do helix.moonraker.on_agent_event("evt", function() end) end
+        ok, err = pcall(helix.moonraker.on_agent_event, "evt", function() end)
+    )"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("at most 16") != std::string::npos);
+    CHECK(b.fake.notify.size() == 16);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "agent handlers unregister when the runtime closes",
                  "[plugin][bindings][moonraker]") {
     BoundRuntime b({&install_moonraker_bindings});

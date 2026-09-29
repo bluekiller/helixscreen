@@ -33,10 +33,15 @@ struct PluginBackend {
                        RpcCallback)>
         upload;
     /// `root` is `gcodes` or `config`; `value` is a JSON string holding the file content.
-    std::function<void(const std::string& root, const std::string& path, RpcCallback)> download;
-    /// `value` is `{"status": int, "body": string}`; `ok` is false only when no response arrived.
+    /// `max_bytes` caps the transfer: the fetch is stopped once that much body has arrived.
+    std::function<void(const std::string& root, const std::string& path, size_t max_bytes,
+                       RpcCallback)>
+        download;
+    /// `value` is `{"status": int, "body": string}`; `ok` is false only when no response
+    /// arrived. `max_body` caps the response body; the connection is cut once that much
+    /// has arrived.
     std::function<void(const std::string& method, const std::string& url, const std::string& body,
-                       const json& headers, uint32_t timeout_ms, RpcCallback)>
+                       const json& headers, uint32_t timeout_ms, size_t max_body, RpcCallback)>
         http;
     /// Registers a handler for a Moonraker notification method (it receives the whole
     /// message) and returns the function that unregisters it.

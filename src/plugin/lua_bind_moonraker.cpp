@@ -30,12 +30,6 @@ RpcCallback make_resolver(LuaRuntime::Pending p, PushRpc on_ok) {
 
 namespace {
 
-// Room left before the runtime's post-push check would fault the plugin.
-size_t memory_remaining(const LuaRuntime& rt) {
-    size_t cap = rt.memory_cap(), used = rt.memory_used();
-    return cap > used ? cap - used : 0;
-}
-
 // What a pushed json value costs the Lua state: its own bytes for a string, its
 // serialized form for anything else.
 size_t pushed_bytes(const json& v) {
@@ -43,6 +37,12 @@ size_t pushed_bytes(const json& v) {
 }
 
 } // namespace
+
+// Room left before the runtime's post-push check would fault the plugin.
+size_t memory_remaining(const LuaRuntime& rt) {
+    size_t cap = rt.memory_cap(), used = rt.memory_used();
+    return cap > used ? cap - used : 0;
+}
 
 int push_rpc_true(lua_State* co, const RpcResult&) {
     lua_pushboolean(co, 1);
@@ -64,6 +64,22 @@ int push_rpc_capped_body(lua_State* co, const json& value, size_t body_bytes) {
 }
 
 namespace {
+
+const char kMoonrakerStateKey = 0;
+constexpr size_t kMaxAgentHandlers = 16;
+
+// Every registered agent-event handler keeps a notify subscription alive, so their count
+// is bounded here rather than by the WebSocket's fan-out.
+struct MoonrakerBindState {
+    size_t agent_handlers = 0;
+};
+
+MoonrakerBindState& moonraker_state_of(lua_State* L) {
+    lua_rawgetp(L, LUA_REGISTRYINDEX, &kMoonrakerStateKey);
+    auto* s = static_cast<MoonrakerBindState*>(lua_touserdata(L, -1));
+    lua_pop(L, 1);
+    return *s;
+}
 
 // An empty Lua table converts to an array; Moonraker wants an object for params.
 json params_arg(lua_State* L, int index) {
@@ -139,15 +155,24 @@ int download(lua_State* L) {
     std::string root = luaL_checkstring(L, 1);
     std::string path = luaL_checkstring(L, 2);
     PluginBackend* backend = &context(L).backend;
-    return LuaRuntime::from(L).await_async(L, [backend, root, path](LuaRuntime::Pending p) {
-        backend->download(root, path, make_resolver(p, &push_rpc_download_body));
-    });
+    // One byte more than fits: a body that fills the ask is then refused by the memory-cap
+    // check as (nil, error) instead of faulting the runtime.
+    size_t max_bytes = memory_remaining(LuaRuntime::from(L)) + 1;
+    return LuaRuntime::from(L).await_async(
+        L, [backend, root, path, max_bytes](LuaRuntime::Pending p) {
+            backend->download(root, path, max_bytes, make_resolver(p, &push_rpc_download_body));
+        });
 }
 
 int on_agent_event(lua_State* L) {
     std::string event = luaL_checkstring(L, 1);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     auto& rt = LuaRuntime::from(L);
+    auto& mstate = moonraker_state_of(L);
+    if (mstate.agent_handlers >= kMaxAgentHandlers)
+        return luaL_error(L, "helix.moonraker.on_agent_event: at most %d handlers per plugin",
+                          static_cast<int>(kMaxAgentHandlers));
+    ++mstate.agent_handlers;
     int ref = rt.ref_value(L, 2);
     LuaRuntime* rtp = &rt;
     LifetimeToken token = rt.token();
@@ -191,6 +216,11 @@ int on_agent_event(lua_State* L) {
 
 void install_moonraker_bindings(PluginContext& ctx) {
     lua_State* L = ctx.rt.state();
+    auto* state = new MoonrakerBindState;
+    lua_pushlightuserdata(L, state);
+    lua_rawsetp(L, LUA_REGISTRYINDEX, &kMoonrakerStateKey);
+    ctx.rt.on_close([state] { delete state; });
+
     static const luaL_Reg fns[] = {{"call", &call},
                                    {"query", &query},
                                    {"upload", &upload},

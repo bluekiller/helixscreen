@@ -3,7 +3,11 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_modal.h"
+#include "ui_update_queue.h"
+
 #include "../lvgl_test_fixture.h"
+#include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/plugin_test_support.h"
 #include "lua_bindings.h"
 
@@ -80,6 +84,64 @@ TEST_CASE_METHOD(LVGLTestFixture, "subjects are unregistered when the runtime cl
         REQUIRE(lv_xml_get_subject(nullptr, "test-plugin_gone"));
     }
     CHECK(lv_xml_get_subject(nullptr, "test-plugin_gone") == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "helix.subject bounds subjects per plugin",
+                 "[plugin][bindings][ui]") {
+    BoundRuntime b({&install_ui_bindings});
+    REQUIRE(b.t.run(R"(
+        for i = 1, 128 do helix.subject.int("s" .. i, 0) end
+        ok, err = pcall(helix.subject.int, "one-too-many", 0)
+    )"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("at most 128 subjects") != std::string::npos);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "subject observe bounds live observers per plugin",
+                 "[plugin][bindings][ui]") {
+    BoundRuntime b({&install_ui_bindings});
+    REQUIRE(b.t.run(R"(
+        local s = helix.subject.int("n", 0)
+        for i = 1, 256 do s:observe(function() end) end
+        ok, err = pcall(s.observe, s, function() end)
+    )"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("at most 256") != std::string::npos);
+}
+
+namespace {
+/// Answers the open confirm dialog the way a user would; every close path releases the
+/// plugin's one dialog slot.
+void answer_open_confirm(LVGLTestFixture& fx, const char* target, bool backdrop) {
+    fx.process_lvgl(50); // the dialog's creation is queued; pump before reading the stack
+    helix::ui::UpdateQueue::instance().drain();
+    lv_obj_t* dialog = ModalStack::instance().top_dialog();
+    REQUIRE(dialog);
+    lv_obj_t* clicked = backdrop ? ModalStack::instance().backdrop_for(dialog)
+                                 : lv_obj_find_by_name(dialog, target);
+    REQUIRE(clicked);
+    lv_obj_send_event(clicked, LV_EVENT_CLICKED, nullptr);
+    fx.process_lvgl(50);
+    helix::ui::UpdateQueue::instance().drain();
+}
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture, "helix.ui.confirm allows one open dialog per plugin",
+                 "[plugin][bindings][ui]") {
+    BoundRuntime b({&install_ui_bindings});
+    REQUIRE(b.t.run(R"(helix.ui.confirm("One", "body"))"));
+    REQUIRE(b.t.run(R"(ok, err = pcall(helix.ui.confirm, "Two", "body"))"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("1 open dialog") != std::string::npos);
+
+    // each close path releases the slot: primary button, cancel button, backdrop dismissal
+    answer_open_confirm(*this, "btn_primary", false);
+    REQUIRE(b.t.run(R"(helix.ui.confirm("Three", "body", { on_cancel = function() end }))"));
+    answer_open_confirm(*this, "btn_secondary", false);
+    REQUIRE(b.t.run(R"(helix.ui.confirm("Four", "body"))"));
+    answer_open_confirm(*this, nullptr, true);
+    REQUIRE(b.t.run(R"(helix.ui.confirm("Five", "body"))"));
+    REQUIRE(ModalStack::instance().top_dialog());
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "ui.on handlers dispatch with an argument",

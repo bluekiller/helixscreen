@@ -10,7 +10,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <climits>
+#include <memory>
 #include <unordered_map>
 
 namespace helix::plugin {
@@ -20,6 +22,8 @@ namespace {
 const char kSubjectMeta[] = "helix.subject";
 const char kUiStateKey = 0;
 constexpr size_t kMaxString = 1024;
+constexpr size_t kMaxSubjects = 128;
+constexpr size_t kMaxOpenConfirms = 1;
 
 struct ObserverCtx {
     LuaRuntime* rt;
@@ -41,6 +45,7 @@ struct UiState {
     std::vector<std::unique_ptr<SubjectEntry>> subjects;
     std::vector<std::unique_ptr<ObserverCtx>> observers;
     std::unordered_map<std::string, int> handlers; ///< name -> fn ref
+    size_t open_confirms = 0;
 };
 
 UiState& ui_state(lua_State* L) {
@@ -109,6 +114,11 @@ int subject_observe(lua_State* L) {
     auto& s = check_subject(L);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     auto& rt = LuaRuntime::from(L);
+    if (!rt.add_observer_watch(kMaxObserverWatches))
+        return luaL_error(L,
+                          "helix.subject observe: at most %d live observers and printer "
+                          "watches per plugin",
+                          static_cast<int>(kMaxObserverWatches));
     auto& ui = ui_state(L);
     ui.observers.push_back(std::make_unique<ObserverCtx>(ObserverCtx{&rt, rt.ref_value(L, 2)}));
     ObserverCtx* ctx = ui.observers.back().get();
@@ -119,6 +129,9 @@ int subject_observe(lua_State* L) {
 
 int make_subject(lua_State* L, bool is_string) {
     auto& rt = LuaRuntime::from(L);
+    if (ui_state(L).subjects.size() >= kMaxSubjects)
+        return luaL_error(L, "helix.subject: at most %d subjects per plugin",
+                          static_cast<int>(kMaxSubjects));
     std::string name = luaL_checkstring(L, 1);
     if (!is_valid_local_name(name))
         return luaL_error(L, "subject name '%s' must be 1-48 of [a-z0-9_-]", name.c_str());
@@ -207,17 +220,36 @@ int ui_confirm(lua_State* L) {
         lua_pop(L, 1);
     }
     LuaRuntime* rtp = &rt;
+    auto& ui = ui_state(L);
+    if (ui.open_confirms >= kMaxOpenConfirms)
+        return luaL_error(L, "helix.ui.confirm: at most %d open dialog per plugin",
+                          static_cast<int>(kMaxOpenConfirms));
+    ++ui.open_confirms;
     auto run = [rtp](int ref) {
         if (ref != LUA_NOREF)
             rtp->invoke(ref);
     };
+    // The dialog's three close paths (confirm, cancel, dismissal) each release the slot
+    // exactly once; the shared flag makes a double close a no-op.
+    UiState* ui_ptr = &ui;
+    auto release = [ui_ptr, open = std::make_shared<std::atomic<bool>>(true)] {
+        if (open->exchange(false))
+            --ui_ptr->open_confirms;
+    };
     helix::ui::ConfirmOptions opts;
-    opts.on_cancel = [run, cancel_ref] { run(cancel_ref); };
+    opts.on_cancel = [run, cancel_ref, release] {
+        release();
+        run(cancel_ref);
+    };
     opts.on_dismiss = opts.on_cancel;
     opts.owner_token = rt.token();
     helix::ui::modal_confirm(
         title.c_str(), msg.c_str(), severity, confirm_text.c_str(),
-        [run, confirm_ref] { run(confirm_ref); }, opts);
+        [run, confirm_ref, release] {
+            release();
+            run(confirm_ref);
+        },
+        opts);
     return 0;
 }
 

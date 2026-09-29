@@ -22,6 +22,7 @@ namespace {
 const char kContextKey = 0;
 const char kTimersKey = 0;
 const char kTimerMeta[] = "helix.timer";
+constexpr size_t kMaxLiveTimers = 64;
 
 // A live timer or sleep. The TimerRegistry owns every TimerState, so an LVGL timer's user
 // data can be a plain pointer: a state outlives the timer that points at it.
@@ -106,6 +107,15 @@ int start_timer(lua_State* L, bool repeat) {
     lua_Integer ms = luaL_checkinteger(L, 1);
     luaL_argcheck(L, ms >= 1 && ms <= 24 * 3600 * 1000, 1, "interval must be 1 ms to 24 h");
     luaL_checktype(L, 2, LUA_TFUNCTION);
+
+    // Sleeps share the registry but not this limit: they hold no Lua reference and finish
+    // on their own, so only armed timers count.
+    size_t live = 0;
+    for (const auto& [id, s] : timers_of(L).timers)
+        live += s->live && !s->pending ? 1 : 0;
+    if (live >= kMaxLiveTimers)
+        return luaL_error(L, "helix.timer: at most %d live timers per plugin",
+                          static_cast<int>(kMaxLiveTimers));
 
     auto s = std::make_unique<TimerState>();
     s->rt = &rt;

@@ -49,6 +49,22 @@ TEST_CASE_METHOD(XMLTestFixture, "printer.watch reports changes in Lua units",
     CHECK(b.t.global("r") == "215.0");
 }
 
+TEST_CASE_METHOD(XMLTestFixture, "subject observers and printer watches share one quota",
+                 "[plugin][bindings][printer]") {
+    BoundRuntime b({&install_ui_bindings, &install_printer_bindings});
+    REQUIRE(b.t.run(R"(
+        local s = helix.subject.int("n", 0)
+        for i = 1, 255 do s:observe(function() end) end
+        helix.printer.watch("bed_temp", function() end)
+        ok1, e1 = pcall(s.observe, s, function() end)
+        ok2, e2 = pcall(helix.printer.watch, "bed_temp", function() end)
+    )"));
+    CHECK(b.t.global("ok1") == "false");
+    CHECK(b.t.global("e1").find("at most 256") != std::string::npos);
+    CHECK(b.t.global("ok2") == "false");
+    CHECK(b.t.global("e2").find("at most 256") != std::string::npos);
+}
+
 TEST_CASE_METHOD(XMLTestFixture, "printer watchers detach when the runtime closes",
                  "[plugin][bindings][printer]") {
     {

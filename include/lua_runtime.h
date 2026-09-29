@@ -99,6 +99,16 @@ class LuaRuntime {
         return guard_.token();
     }
 
+    /// Registers one subject observer or printer watch; false when that would exceed
+    /// `limit`. The ui and printer bindings share this quota so neither can exhaust it
+    /// alone. Counts only grow: both kinds live until the runtime closes.
+    bool add_observer_watch(size_t limit) {
+        if (observer_watches_ >= limit)
+            return false;
+        ++observer_watches_;
+        return true;
+    }
+
     /// Loads text and runs it as a new entry. False if it failed to load or raised.
     bool run_string(const std::string& code, const std::string& chunk_name);
     /// `run_string` on `<plugin_dir>/<relative_path>`.
@@ -154,6 +164,7 @@ class LuaRuntime {
     ErrorWindow errors_{3, std::chrono::seconds(60)};
 
     std::unordered_map<lua_State*, int> threads_; ///< live entry coroutine -> registry ref
+    size_t observer_watches_ = 0;
     std::vector<std::function<void()>> closers_;
     AsyncLifetimeGuard guard_;
 };

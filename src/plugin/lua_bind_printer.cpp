@@ -107,6 +107,11 @@ int printer_watch(lua_State* L) {
     if (!subject)
         return luaL_error(L, "printer field '%s' is not available yet", name.c_str());
     auto& rt = LuaRuntime::from(L);
+    if (!rt.add_observer_watch(kMaxObserverWatches))
+        return luaL_error(L,
+                          "helix.printer.watch: at most %d live observers and printer "
+                          "watches per plugin",
+                          static_cast<int>(kMaxObserverWatches));
     auto& state = printer_state_of(L);
     state.watches.push_back(std::make_unique<Watch>(Watch{&rt, rt.ref_value(L, 2), f}));
     Watch* w = state.watches.back().get();

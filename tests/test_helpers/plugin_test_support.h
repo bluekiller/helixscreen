@@ -53,6 +53,7 @@ struct FakeBackend {
         std::string c;    ///< upload content or HTTP body
         json params;      ///< call params or HTTP headers
         RpcCallback reply;
+        size_t cap = 0; ///< byte cap the binding asked for; downloads and http only
     };
     std::vector<Request> requests;
     std::vector<std::pair<std::string, std::function<void(const json&)>>> notify;
@@ -61,21 +62,22 @@ struct FakeBackend {
     PluginBackend backend() {
         PluginBackend b;
         b.gcode = [this](const std::string& s, RpcCallback cb) {
-            requests.push_back({"gcode", s, {}, {}, {}, std::move(cb)});
+            requests.push_back({"gcode", s, {}, {}, {}, std::move(cb), 0});
         };
         b.call = [this](const std::string& m, const json& p, RpcCallback cb) {
-            requests.push_back({"call", m, {}, {}, p, std::move(cb)});
+            requests.push_back({"call", m, {}, {}, p, std::move(cb), 0});
         };
         b.upload = [this](const std::string& r, const std::string& p, const std::string& c,
                           RpcCallback cb) {
-            requests.push_back({"upload", r, p, c, {}, std::move(cb)});
+            requests.push_back({"upload", r, p, c, {}, std::move(cb), 0});
         };
-        b.download = [this](const std::string& r, const std::string& p, RpcCallback cb) {
-            requests.push_back({"download", r, p, {}, {}, std::move(cb)});
+        b.download = [this](const std::string& r, const std::string& p, size_t cap,
+                            RpcCallback cb) {
+            requests.push_back({"download", r, p, {}, {}, std::move(cb), cap});
         };
         b.http = [this](const std::string& m, const std::string& u, const std::string& body,
-                        const json& h, uint32_t, RpcCallback cb) {
-            requests.push_back({"http", m, u, body, h, std::move(cb)});
+                        const json& h, uint32_t, size_t cap, RpcCallback cb) {
+            requests.push_back({"http", m, u, body, h, std::move(cb), cap});
         };
         b.on_notify = [this](const std::string& m, std::function<void(const json&)> h) {
             notify.emplace_back(m, std::move(h));

@@ -28,6 +28,10 @@ struct PluginContext {
 
 using Installer = void (*)(PluginContext&);
 
+/// Subject observers and printer watches share one quota (the ui and printer bindings
+/// both draw on it; the count lives on the runtime).
+constexpr size_t kMaxObserverWatches = 256;
+
 /// helix.log, helix.json, helix.timer, helix.sleep. Must run first: it registers the
 /// context that context() returns.
 void install_core_bindings(PluginContext& ctx);
@@ -37,6 +41,11 @@ void install_moonraker_bindings(PluginContext& ctx);
 void install_io_bindings(PluginContext& ctx);
 
 PluginContext& context(lua_State* L);
+
+/// Room left before the runtime's post-push check would fault the plugin. Download and
+/// http fetches ask for one byte more than this, so a body that fills the ask is refused
+/// by the cap check instead of landing whole in the Lua state.
+size_t memory_remaining(const LuaRuntime& rt);
 
 /// Raises "<call> needs the '<permission>' permission in manifest.json" unless granted.
 void require_permission(lua_State* L, Permission p, const char* call);
