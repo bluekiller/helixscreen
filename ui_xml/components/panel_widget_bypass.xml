@@ -20,6 +20,7 @@
         clickable="true" moves_machine="true">
     <style name="styles.tile_column"/>
     <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
+    <style name="styles.press_wash" selector="pressed"/>
     <event_cb trigger="clicked" callback="bypass_widget_clicked_cb"/>
     <!-- Whole tile dims + refuses while a job owns the toolhead. Same derived
          subject binding as controls_panel.xml's Save Z-Offset button; the

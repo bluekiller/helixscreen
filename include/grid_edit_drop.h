@@ -7,8 +7,8 @@
 /**
  * @file grid_edit_drop.h
  * @brief What a released home-grid edit drag does: move its widget, create a
- * page before the first or past the last one, go back to its origin page, or
- * snap back.
+ * page before the first or past the last one, swap it with the widget it lands
+ * on, go back to its origin page, or snap back.
  *
  * Free of live objects: GridEditMode gathers the release into a DropInput and
  * the scoped page's occupancy, and commits what resolve_drop() returns
@@ -34,19 +34,23 @@ struct DropInput {
 };
 
 enum class DropOutcome {
-    Move,           ///< The entry lands on the scoped page at the resolved cell
-    CreatePage,     ///< A page is added, and the entry lands on it
+    Move,       ///< The entry lands on the scoped page at the resolved cell
+    CreatePage, ///< A page is added, and the entry lands on it
+    Swap, ///< The entry lands on the scoped page at the resolved cell, and the widget there moves
+          ///< to the entry's origin cell
     ReturnToOrigin, ///< Nothing commits, and the drag goes back to its origin page first
     Cancel,         ///< Nothing commits, on the origin page: the widget snaps back
 };
 
 struct DropResolution {
     DropOutcome outcome = DropOutcome::Cancel;
-    int col = -1; ///< Landing cell for Move and CreatePage
+    int col = -1; ///< Landing cell for Move, CreatePage and Swap
     int row = -1;
     /// A CreatePage lands before the first page, in the leftmost columns its
     /// span allows, instead of past the last one.
     bool prepend_page = false;
+    /// For a Swap, the widget the entry lands on, at the cell it moves to.
+    GridPlacement swapped{};
 };
 
 /**
@@ -61,6 +65,9 @@ struct DropResolution {
  * - Otherwise, on a config page, it moves the entry to the previewed cell when
  *   that cell or the page differs from the origin and the span fits
  *   @p occupancy there.
+ * - On the origin page, a previewed cell that overlaps exactly one widget
+ *   swaps the two: the entry lands on that widget's cell and the widget on the
+ *   entry's origin cell, when both fit the page with each other in place.
  * - Anything else commits nothing: off the origin page the drag returns to it,
  *   on the origin page it snaps back.
  *

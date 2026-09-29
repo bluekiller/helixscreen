@@ -1342,6 +1342,22 @@ void KeyboardManager::show(lv_obj_t* textarea) {
     }
 #endif
 
+    // The hardware keyboard types into the focused textarea through the input
+    // group; the on-screen keyboard would only cover it. Checked after the
+    // Android system keyboard, which wins when both are on.
+    if (DisplaySettingsManager::instance().soft_keyboard_suppressed()) {
+        // A keyboard raised before suppression turned on must not stay up, linked
+        // to the field it was raised for.
+        if (is_visible()) {
+            hide();
+        }
+        spdlog::debug("[KeyboardManager] Hardware keyboard attached - on-screen keyboard "
+                      "suppressed for textarea: {}",
+                      (void*)textarea);
+        context_textarea_ = textarea;
+        return;
+    }
+
     lv_obj_t* screen = lv_screen_active();
     if (screen == nullptr) {
         spdlog::debug("[KeyboardManager] Skipping show - no active screen");
@@ -1461,6 +1477,12 @@ void KeyboardManager::hide() {
         SDL_StopTextInput();
     }
 #endif
+
+    // A suppressed show never raised the keyboard or moved the screen.
+    if (DisplaySettingsManager::instance().soft_keyboard_suppressed() && !is_visible()) {
+        lv_keyboard_set_textarea(keyboard_, nullptr);
+        return;
+    }
 
     // Cancel any in-progress show animation
     lv_anim_delete(keyboard_, nullptr);

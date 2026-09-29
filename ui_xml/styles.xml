@@ -41,6 +41,18 @@
     <style name="heater_duty_heating" text_color="#warning"/>
     <style name="heater_duty_muted" text_color="#text_muted"/>
 
+    <!-- The count-badge box paired with each tile icon rung: 2/5 of
+         the glyph (tile_badge_* tokens), the proportion the AMS lane badge
+         uses on its spool. Only the box rides here; the circle radius lives
+         on the badge widget's own default style, so it tracks whatever size
+         these land on. -->
+    <style name="tile_badge_xs" width="#tile_badge_xs" height="#tile_badge_xs"/>
+    <style name="tile_badge_sm" width="#tile_badge_sm" height="#tile_badge_sm"/>
+    <style name="tile_badge_md" width="#tile_badge_md" height="#tile_badge_md"/>
+    <style name="tile_badge_lg" width="#tile_badge_lg" height="#tile_badge_lg"/>
+    <style name="tile_badge_xl" width="#tile_badge_xl" height="#tile_badge_xl"/>
+    <style name="tile_badge_xxl" width="#tile_badge_xxl" height="#tile_badge_xxl"/>
+
     <!-- A style carrying flex_flow must also carry layout="flex": the inline
          attribute path sets both, the style path does not, and a container
          with no active layout piles every child onto the first while

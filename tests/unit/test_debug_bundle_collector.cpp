@@ -91,7 +91,7 @@ TEST_CASE("DebugBundleCollector: collect_system_info() projects its Diagnostics"
     diag.machine.mem_total_kb = 3ULL * 1024 * 1024;
     diag.machine.uptime_seconds = 3610.9;
 
-    json sys = helix::DebugBundleCollector::collect_system_info(diag);
+    json sys = helix::DebugBundleCollector::collect_system_info(diag, {});
 
     CHECK(sys.at("platform") == json("k1c-sim"));
     CHECK(sys.at("host_arch") == json("arm-sim"));
@@ -108,6 +108,11 @@ TEST_CASE("DebugBundleCollector: system section agrees with diagnostics section"
     REQUIRE(bundle.contains("diagnostics"));
     const json& sys = bundle["system"];
     const json& ident = bundle["diagnostics"]["identity"];
+
+    // collect() feeds the live host census into the same section.
+    if (std::filesystem::exists("/etc/os-release")) {
+        CHECK(sys.contains("os_pretty_name"));
+    }
     const json& mach = bundle["diagnostics"]["machine"];
 
     // Both sections come from one diagnostics::collect() call, so any

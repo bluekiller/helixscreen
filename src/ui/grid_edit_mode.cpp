@@ -1726,10 +1726,24 @@ void GridEditMode::update_drag_snap_target(lv_point_t widget_pos) {
 
     // The dragged widget is left out by id: after a flip the session reads the
     // landing page, where an index into the origin page names another entry.
-    const bool valid =
-        page_occupancy(dragged_id, Occupants::OnScreen)
-            .can_place(target_col, target_row, drag_orig_colspan_, drag_orig_rowspan_);
-    update_snap_preview(target_col, target_row, drag_orig_colspan_, drag_orig_rowspan_, valid);
+    const GridLayout occupancy = page_occupancy(dragged_id, Occupants::OnScreen);
+    bool valid =
+        occupancy.can_place(target_col, target_row, drag_orig_colspan_, drag_orig_rowspan_);
+    int preview_col = target_col;
+    int preview_row = target_row;
+    if (!valid) {
+        // A drop that swaps previews where the dragged widget lands.
+        helix::DropInput in = drop_input();
+        in.target_col = target_col;
+        in.target_row = target_row;
+        const helix::DropResolution drop = helix::resolve_drop(in, occupancy);
+        if (drop.outcome == helix::DropOutcome::Swap) {
+            valid = true;
+            preview_col = drop.col;
+            preview_row = drop.row;
+        }
+    }
+    update_snap_preview(preview_col, preview_row, drag_orig_colspan_, drag_orig_rowspan_, valid);
     snap_preview_col_ = target_col;
     snap_preview_row_ = target_row;
 }
@@ -1772,7 +1786,8 @@ int GridEditMode::commit_drop(const std::string& widget_id, const helix::DropRes
         }
         spdlog::info("[GridEditMode] Drop on a page border: created page {} at ({},{})", page,
                      drop.col, drop.row);
-    } else if (drop.outcome != helix::DropOutcome::Move) {
+    } else if (drop.outcome != helix::DropOutcome::Move &&
+               drop.outcome != helix::DropOutcome::Swap) {
         return -1;
     }
     spdlog::info("[GridEditMode] Moving '{}' from page {} ({},{}) to page {} ({},{})", widget_id,
@@ -1780,6 +1795,18 @@ int GridEditMode::commit_drop(const std::string& widget_id, const helix::DropRes
     if (config_->place_entry(widget_id, static_cast<size_t>(page), drop.col, drop.row,
                              drag_orig_colspan_, drag_orig_rowspan_) < 0) {
         return -1;
+    }
+    if (drop.outcome == helix::DropOutcome::Swap) {
+        const helix::GridPlacement& other = drop.swapped;
+        spdlog::info("[GridEditMode] Swapping '{}' to ({},{})", other.widget_id, other.col,
+                     other.row);
+        if (config_->place_entry(other.widget_id, static_cast<size_t>(page), other.col, other.row,
+                                 other.colspan, other.rowspan) < 0) {
+            // Never leave the page half-swapped: the dragged entry goes home.
+            config_->place_entry(widget_id, static_cast<size_t>(drag_orig_page_), drag_orig_col_,
+                                 drag_orig_row_, drag_orig_colspan_, drag_orig_rowspan_);
+            return -1;
+        }
     }
     return page;
 }

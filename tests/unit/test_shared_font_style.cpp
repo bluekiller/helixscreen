@@ -71,7 +71,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "every tier's tile ladders resolve through s
         ScopedResolution res(disp, edge * 5 / 3, edge);
         theme_manager_refresh_layout_constants(disp);
         for (auto ladder : {helix::ui::TileLadder::Icon, helix::ui::TileLadder::Value,
-                            helix::ui::TileLadder::Label, helix::ui::TileLadder::Pip}) {
+                            helix::ui::TileLadder::Label}) {
             for (int r = 0; r < helix::kTileRungs; ++r) {
                 const auto face = helix::ui::tile_rung_face(ladder, r);
                 REQUIRE(face.font != nullptr);

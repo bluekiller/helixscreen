@@ -11,6 +11,7 @@
  */
 
 #include "ams_types.h"
+#include "filament_database.h"
 #include "filament_mapper.h"
 #include "moonraker_types.h"
 
@@ -128,6 +129,7 @@ struct PrintStartContext {
     /// lanes; populated only when ams_manages_filament && has_active_backend.
     std::vector<std::pair<int, int>> empty_required_lanes;
     std::optional<SlotInfo> external_spool; ///< AmsState::get_external_spool_info()
+    float filament_diameter_mm = filament::DEFAULT_DIAMETER_MM; ///< [extruder] filament_diameter
 
     // ---- non-AMS aggregate runout fallback ----
     bool runout_enabled = false;

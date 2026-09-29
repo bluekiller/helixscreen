@@ -20,6 +20,7 @@
 #include "observer_factory.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
+#include "power_device_icon.h"
 #include "power_device_state.h"
 #include "printer_state.h"
 #include "sensor_state.h"
@@ -68,41 +69,6 @@ static const char* const POWER_ICONS[] = {
 static constexpr size_t POWER_ICON_COUNT = std::size(POWER_ICONS);
 static constexpr int ICON_CELL_SIZE = 36;
 static constexpr const char* DEFAULT_ICON = "power_cycle";
-
-// Icons with distinct on/off glyphs. Config always stores the ON variant;
-// resolve_icon_for_state() derives the OFF variant from this table.
-struct IconPair {
-    const char* on_icon;
-    const char* off_icon;
-};
-static const IconPair ICON_PAIRS[] = {
-    {"power_on", "power_off"},
-    {"power_plug", "power_plug_off"},
-    {"lightbulb_on", "lightbulb_outline"},
-    {"fan", "fan_off"},
-};
-
-/// Map an off-variant icon name to its on-variant (e.g., "fan_off" → "fan").
-/// Returns the input unchanged if it's not an off-variant.
-static const char* to_on_variant(const char* icon) {
-    for (const auto& pair : ICON_PAIRS) {
-        if (std::strcmp(icon, pair.off_icon) == 0)
-            return pair.on_icon;
-    }
-    return icon;
-}
-
-/// Return the icon to display for a given power status.
-/// For paired icons, returns the off-variant when the device is off/locked.
-static const char* resolve_icon_for_state(const char* base_icon, int status) {
-    if (status == 1)
-        return base_icon;
-    for (const auto& pair : ICON_PAIRS) {
-        if (std::strcmp(base_icon, pair.on_icon) == 0)
-            return pair.off_icon;
-    }
-    return base_icon;
-}
 
 /// Apply highlight styling to an icon grid cell.
 void apply_icon_cell_highlight(lv_obj_t* cell, bool selected) {
@@ -283,7 +249,7 @@ void PowerDeviceWidget::update_display(int status) {
     if (icon_obj_) {
         // Apply icon — for paired icons, toggle between on/off variants
         const char* base_icon = icon_name_.empty() ? DEFAULT_ICON : icon_name_.c_str();
-        const char* effective_icon = resolve_icon_for_state(base_icon, status);
+        const char* effective_icon = power_resolve_icon_for_state(base_icon, status);
         helix::ui::icon::set_source(icon_obj_, effective_icon);
 
         switch (status) {
@@ -897,7 +863,7 @@ void PowerDeviceWidget::select_device(const std::string& name) {
 
 void PowerDeviceWidget::select_icon(const std::string& name) {
     // Store the ON variant so update_display can derive the OFF icon from the pair table
-    std::string canonical(to_on_variant(name.c_str()));
+    std::string canonical(power_icon_to_on_variant(name.c_str()));
     icon_name_ = (canonical == DEFAULT_ICON) ? "" : canonical;
     save_config();
 
@@ -1038,7 +1004,7 @@ void PowerDeviceWidget::update_all_devices_display(bool any_on) {
 
     if (icon_obj_) {
         const char* base_icon = icon_name_.empty() ? DEFAULT_ICON : icon_name_.c_str();
-        const char* effective_icon = resolve_icon_for_state(base_icon, any_on ? 1 : 0);
+        const char* effective_icon = power_resolve_icon_for_state(base_icon, any_on ? 1 : 0);
         helix::ui::icon::set_source(icon_obj_, effective_icon);
         helix::ui::icon::set_variant(icon_obj_, any_on ? "danger" : "muted");
     }

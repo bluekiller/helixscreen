@@ -26,10 +26,6 @@ enum class TileLadder : int {
     /// The disc behind a badged glyph: the icon ladder, drawn as a square of
     /// tile_disc_edge() of that face instead of as a face.
     Disc = 3,
-    /// A count badge on a glyph's top-right shoulder (notification_badge):
-    /// sized from the icon face at the rung, its count drawn in its own row
-    /// of faces.
-    Pip = 4,
 };
 
 /// The face a tile part draws in at a rung, and the scale it is drawn at.
@@ -93,10 +89,6 @@ TileGlyphBox tile_glyph_box(const TileFace& face);
 /// Edge of the disc a badged glyph in @p icon_face sits in, in px.
 int tile_disc_edge(const TileFace& icon_face);
 
-/// Edge of the count badge on a glyph drawn in @p icon_face, holding a count in
-/// @p count_face.
-int tile_pip_edge(const TileFace& icon_face, const lv_font_t* count_face);
-
 /// Keep @p obj's face on @p ladder at the rung @p subject holds, shifted by
 /// @p offset rungs. The face is resolved from the current tier's token each
 /// time the rung changes. @p one_line also holds the object to one line of that
@@ -105,7 +97,7 @@ int tile_pip_edge(const TileFace& icon_face, const lv_font_t* count_face);
 void bind_tile_rung(lv_obj_t* obj, lv_subject_t* subject, TileLadder ladder, int offset = 0,
                     bool one_line = false, bool animated = false);
 
-/// Register `<bind_tile_rung ladder="icon|value|label|disc|pip" subject="..." offset="0"
+/// Register `<bind_tile_rung ladder="icon|value|label|disc" subject="..." offset="0"
 /// one_line="false" animated="false"/>`, a child element of any widget. An empty subject installs
 /// no binding, so a component used outside a sizing tile keeps its authored face.
 void register_tile_rung_binding();

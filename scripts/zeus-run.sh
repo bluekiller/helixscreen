@@ -4,7 +4,7 @@
 #
 #   scripts/zeus-run.sh mutate --tests '[1543]'     # the mutation gate
 #   scripts/zeus-run.sh asan '[1543]'               # AddressSanitizer, one tag
-#   scripts/zeus-run.sh asan                        # AddressSanitizer, full suite
+#   scripts/zeus-run.sh asan                        # AddressSanitizer, full suite, sharded as CI runs it
 #   scripts/zeus-run.sh test '[netd]'               # plain suite, one tag
 #   scripts/zeus-run.sh sweep                       # make unit-sweep, sharded
 #   scripts/zeus-run.sh asan-app help-qr --repeat 50  # the APP under ASAN
@@ -78,7 +78,13 @@ case "$WHAT" in
             # Trailing args become make overrides, so ASAN_RUN_OPTIONS can be
             # tuned per run (quarantine_size_mb keeps freed blocks poisoned, which
             # turns a recycled-memory SEGV into a heap-use-after-free report).
-            CMD='make test-asan-one TEST="'"$_tag"'" -j$HELIX_J '"$*" ; GB_PER_JOB=1.5 ;;
+            # No tag is the nightly's own sharded run, leak ratchet included.
+            if [ -z "$_tag" ]; then
+                CMD='make test-asan -j$HELIX_J '"$*"
+            else
+                CMD='make test-asan-one TEST="'"$_tag"'" -j$HELIX_J '"$*"
+            fi
+            GB_PER_JOB=1.5 ;;
     test)   CMD='make test -j$HELIX_J && ./build/bin/helix-tests "'"${1:-}"'"' ;;
     # Trailing args become make overrides, e.g. SHARD_CONCURRENCY=24.
     # NPROCS pins the shard count to thelio's 96. The count decides which tests

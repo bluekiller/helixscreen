@@ -1967,7 +1967,8 @@ void AmsEditOverlay::show_missing_filament_toast(const helix::MissingFilamentFie
 
 void AmsEditOverlay::do_spoolman_save(helix::SpoolmanSlotSaver::LinkIntent intent) {
     auto token = lifetime_.token();
-    auto saver = std::make_shared<helix::SpoolmanSlotSaver>(api_);
+    auto saver = std::make_shared<helix::SpoolmanSlotSaver>(
+        api_, get_printer_state().get_discovery().filament_diameter_mm());
     // One save at a time. The editor stays open while this runs, so a second
     // tap on Save is reachable until the answer arrives.
     save_in_flight_ = true;

@@ -207,7 +207,10 @@ void PanelWidgetManager::register_rebuild_callback(const std::string& panel_id,
 }
 
 void PanelWidgetManager::unregister_rebuild_callback(const std::string& panel_id) {
-    rebuild_callbacks_.erase(panel_id);
+    if (s_destroyed_) {
+        return;
+    }
+    instance().rebuild_callbacks_.erase(panel_id);
 }
 
 void PanelWidgetManager::notify_config_changed(const std::string& panel_id) {
@@ -1670,22 +1673,26 @@ void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
 }
 
 void PanelWidgetManager::clear_gate_observers(const std::string& panel_id) {
-    auto it = gate_observers_.find(panel_id);
-    if (it != gate_observers_.end()) {
+    if (s_destroyed_) {
+        return;
+    }
+    PanelWidgetManager& mgr = instance();
+    auto it = mgr.gate_observers_.find(panel_id);
+    if (it != mgr.gate_observers_.end()) {
         spdlog::debug("[PanelWidgetManager] Clearing {} gate observers for panel '{}'",
                       it->second.size(), panel_id);
-        gate_observers_.erase(it);
+        mgr.gate_observers_.erase(it);
     }
     // Cancel any in-flight async rebuild *before* destroying the slot it
     // points at. Without this, a rebuild queued via lv_async_call could fire
     // after the slot's storage is freed → UAF on ud / on the captured
     // rebuild_cb (which closes over the registering panel's `this`).
-    auto sit = gate_rebuild_slots_.find(panel_id);
-    if (sit != gate_rebuild_slots_.end()) {
+    auto sit = mgr.gate_rebuild_slots_.find(panel_id);
+    if (sit != mgr.gate_rebuild_slots_.end()) {
         lv_async_call_cancel(&PanelWidgetManager::gate_rebuild_trampoline, &sit->second);
-        gate_rebuild_slots_.erase(sit);
+        mgr.gate_rebuild_slots_.erase(sit);
     }
-    gate_rebuild_callbacks_.erase(panel_id);
+    mgr.gate_rebuild_callbacks_.erase(panel_id);
 }
 
 void PanelWidgetManager::gate_rebuild_trampoline(void* ud) {

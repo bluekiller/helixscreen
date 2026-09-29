@@ -196,12 +196,12 @@ run_check_requirements_with_path() {
 # check_disk_space
 # ===========================================================================
 
-@test "check_disk_space: succeeds with adequate space (GNU df)" {
+@test "check_disk_space: succeeds with adequate space (GNU df -kP)" {
     mkdir -p "$BATS_TEST_TMPDIR/opt"
 
     mock_command_script "df" '
-echo "Filesystem     1M-blocks  Used Available Use% Mounted on"
-echo "/dev/sda1          1000   900       100  90% /"
+echo "Filesystem     1K-blocks  Used Available Use% Mounted on"
+echo "/dev/sda1          1024000   921600       102400  90% /"
 '
 
     run check_disk_space "pi"
@@ -209,12 +209,12 @@ echo "/dev/sda1          1000   900       100  90% /"
     [[ "$output" == *"100MB available"* ]]
 }
 
-@test "check_disk_space: exits when space insufficient (GNU df)" {
+@test "check_disk_space: exits when space insufficient (GNU df -kP)" {
     mkdir -p "$BATS_TEST_TMPDIR/opt"
 
     mock_command_script "df" '
-echo "Filesystem     1M-blocks  Used Available Use% Mounted on"
-echo "/dev/sda1          1000   990        10  99% /"
+echo "Filesystem     1K-blocks  Used Available Use% Mounted on"
+echo "/dev/sda1          1024000   1013760       10240  99% /"
 '
 
     run check_disk_space "pi"
@@ -227,8 +227,8 @@ echo "/dev/sda1          1000   990        10  99% /"
     mkdir -p "$BATS_TEST_TMPDIR/opt"
 
     mock_command_script "df" '
-echo "Filesystem     1M-blocks  Used Available Use% Mounted on"
-echo "/dev/sda1          1000   800       200  80% /"
+echo "Filesystem     1K-blocks  Used Available Use% Mounted on"
+echo "/dev/sda1          1024000   819200       204800  80% /"
 '
 
     run check_disk_space "pi"
@@ -240,8 +240,8 @@ echo "/dev/sda1          1000   800       200  80% /"
     export INSTALL_DIR="$BATS_TEST_TMPDIR/a/b/c/d/helixscreen"
 
     mock_command_script "df" '
-echo "Filesystem     1M-blocks  Used Available Use% Mounted on"
-echo "/dev/sda1          1000   800       200  80% /"
+echo "Filesystem     1K-blocks  Used Available Use% Mounted on"
+echo "/dev/sda1          1024000   819200       204800  80% /"
 '
 
     run check_disk_space "pi"
@@ -287,12 +287,36 @@ echo "/dev/mmcblk0p1         1048576   1038336     10240  99% /"
     [[ "$output" == *"Insufficient disk space"* ]]
 }
 
+@test "check_disk_space: BusyBox df wrapping a long device name still parses" {
+    mkdir -p "$BATS_TEST_TMPDIR/opt"
+
+    # Without -P, BusyBox puts a long filesystem name on its own line and the
+    # numbers on the next, so that line's 4th field is Use%.
+    mock_command_script "df" '
+case "$1" in
+  -kP|-P)
+    echo "Filesystem           1024-blocks    Used Available Capacity Mounted on"
+    echo "/dev/disk/by-partlabel/userdata 1048576 945152 102400 90% /"
+    ;;
+  *)
+    echo "Filesystem           1K-blocks      Used Available Use% Mounted on"
+    echo "/dev/disk/by-partlabel/userdata"
+    echo "                       1048576    945152    102400  90% /"
+    ;;
+esac
+'
+
+    run check_disk_space "k2"
+    [ "$status" -eq 0 ] || fail "$output"
+    [[ "$output" == *"100MB available"* ]] || fail "$output"
+}
+
 @test "check_disk_space: uses default /opt/helixscreen when INSTALL_DIR unset" {
     unset INSTALL_DIR
 
     mock_command_script "df" '
-echo "Filesystem     1M-blocks  Used Available Use% Mounted on"
-echo "/dev/sda1          1000   800       200  80% /"
+echo "Filesystem     1K-blocks  Used Available Use% Mounted on"
+echo "/dev/sda1          1024000   819200       204800  80% /"
 '
 
     run check_disk_space "pi"
@@ -313,6 +337,10 @@ echo "/dev/sda1          1000   800       200  80% /"
     local data="$BATS_TEST_TMPDIR/usr/data"
     mkdir -p "$data"
     export HELIX_DATA_MOUNT_CANDIDATES="$data"
+    # The service definition lands somewhere writable, so the service-dest
+    # check that follows passes and only the disk-space verdict is under test.
+    mkdir -p "$BATS_TEST_TMPDIR/init.d"
+    export INIT_SCRIPT_DEST="$BATS_TEST_TMPDIR/init.d/S99helixscreen"
 
     # df answers "full" for "/" and roomy for everything else: if the check
     # df'd "/", it would refuse; measuring the data mount passes.
@@ -324,7 +352,7 @@ esac
 '
 
     run check_disk_space "ad5x"
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 0 ] || fail "$output"
     contains "${data}" "$output"      # measured the data mount
     [[ "$output" != *"Insufficient"* ]]
 }

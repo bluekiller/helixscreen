@@ -29,9 +29,9 @@ setup() {
 }
 
 # validate-xml-constants links the whole app; building it from the hook makes
-# the CI quality step a cold full build that overruns its time limit. It stays
-# out of the make line while its gate is paused (#1698).
-@test "tool-build gate does not build the paused constants validator" {
+# the CI quality step a cold full build that overruns its time limit. Its check
+# runs in the unit suite instead (#1698).
+@test "tool-build gate does not build the constants validator" {
     run bash -c "sed -n '/^qc_xml_tools() {/,/^}/p' scripts/quality-checks.sh | grep '^if make'"
     [ "$status" -eq 0 ] || fail "qc_xml_tools make line not found"
     lacks "validate-xml-constants" "$output"
@@ -44,12 +44,13 @@ setup() {
     contains '^tools/validate_xml' "$output"
 }
 
-# qc_xml_const runs neither red nor silently: while the validator cannot
-# resolve theme tokens, the hook must say so and name the follow-up. Delete
-# this pin together with the pause when #1698 restores enforcement.
-@test "constants gate states its non-enforcement reason while paused" {
+# qc_xml_const runs no binary, so it must name where the constants check is
+# enforced, and that test must exist, or the hook points at nothing.
+@test "constants gate names the unit test that enforces it" {
     run bash -c "sed -n '/^qc_xml_const() {/,/^}/p' scripts/quality-checks.sh"
     [ "$status" -eq 0 ] || fail "qc_xml_const not extractable"
-    contains 'not enforced' "$output"
-    contains 'helixscreen#1698' "$output"
+    contains 'ui_xml has no incomplete constant sets' "$output"
+    lacks 'not enforced' "$output"
+    run grep -q 'ui_xml has no incomplete constant sets' tests/unit/test_ui_theme_constants.cpp
+    [ "$status" -eq 0 ] || fail "the named unit test does not exist"
 }

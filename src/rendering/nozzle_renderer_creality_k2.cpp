@@ -100,19 +100,8 @@ void draw_nozzle_creality_k2(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color
             // Gradient from light at top to mid-tone at breakover
             lv_color_t base_color = nr_blend(front_light, front_mid, factor * 0.7f);
 
-            // Per-pixel horizontal shading for rounded bevel effect
-            for (int32_t x = cx - half_w; x <= cx + half_w; x++) {
-                float x_factor = (float)(x - cx) / (float)half_w;
-                lv_color_t pixel_color;
-                if (x_factor < 0) {
-                    pixel_color = nr_lighten(base_color, (int32_t)(-x_factor * 12));
-                } else {
-                    pixel_color = nr_darken(base_color, (int32_t)(x_factor * 12));
-                }
-                fill.color = pixel_color;
-                lv_area_t pixel = {x, y_row, x, y_row};
-                lv_draw_fill(layer, &fill, &pixel);
-            }
+            // Horizontal shading for rounded bevel effect
+            helix::nr_draw_bevel_row(layer, cx, half_w, y_row, base_color, 12);
         }
 
         // === TAPERED RIGHT SIDE ===

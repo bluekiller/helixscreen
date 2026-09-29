@@ -783,6 +783,23 @@ class NavigationManager {
     // widths, e.g. the 70% widget catalog). #1178
     std::unordered_set<lv_obj_t*> overlay_width_unmanaged_;
 
+    // Rebuilt overlays (replaced root -> its live successor). Callers cache an
+    // overlay's root and keep registering and pushing it after a hot-reload
+    // rebuild has freed it, so every widget-taking entry point resolves through
+    // this. An entry is dropped when its successor is deleted, and when a
+    // different object is deleted at, or arrives live at, its key's address.
+    std::unordered_map<lv_obj_t*, lv_obj_t*> rebuilt_overlays_;
+    // Replaced roots still awaiting their deferred delete. Still valid objects,
+    // but never handed back: they resolve to their successor.
+    std::unordered_set<lv_obj_t*> condemned_roots_;
+
+    /// @p widget, or the live overlay that replaced it when a rebuild replaced it.
+    lv_obj_t* resolve_rebuilt(lv_obj_t* widget) const;
+    /// resolve_rebuilt() for a widget arriving to be registered or pushed: a
+    /// live object at a replaced root's address is a new object there, so its
+    /// forwarding entry ends.
+    lv_obj_t* resolve_arriving(lv_obj_t* widget);
+
     // Widgets that already have the LV_EVENT_DELETE scrub hook attached.
     // Prevents double-registering the callback and is itself scrubbed on delete.
     std::unordered_set<lv_obj_t*> delete_hooked_;

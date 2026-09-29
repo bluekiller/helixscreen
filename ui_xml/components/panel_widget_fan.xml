@@ -13,6 +13,7 @@
   <view name="panel_widget_fan"
         extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" style_pad_gap="#space_xxs" scrollable="false"
         clickable="true">
+    <style name="styles.press_wash" selector="pressed"/>
     <bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
     <event_cb trigger="clicked" callback="fan_widget_clicked_cb"/>
     <!-- The glyph over its reading and name, or beside them when the box is

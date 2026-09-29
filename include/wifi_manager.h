@@ -232,6 +232,12 @@ class WiFiManager {
      */
     bool supports_5ghz();
 
+    /// Whether the backend can forget a saved network (WifiBackend::supports_forget()).
+    bool supports_forget();
+
+    /// Whether the backend can move the radio (WifiBackend::supports_radio_toggle()).
+    bool supports_radio_toggle();
+
     // ========================================================================
     // Hardware Detection (Legacy Compatibility)
     // ========================================================================

@@ -3,8 +3,12 @@
 
 #include "ui_wizard_wifi.h"
 
+#include "wifi_backend.h"
+
 #include <cstring>
 #include <string>
+#include <utility>
+#include <vector>
 
 /**
  * @brief Reaches the wizard WiFi step's password-modal handle.
@@ -40,6 +44,44 @@ class WizardWifiStepTestAccess {
     /// The production handler behind the password modal's Connect button.
     static void password_connect_clicked(WizardWifiStep& step) {
         step.handle_modal_connect_clicked();
+    }
+
+    /// The status-read paths: the backend-state apply, a list refresh after a
+    /// scan, and a join's success.
+    static void apply_backend_state(WizardWifiStep& step) {
+        step.apply_wifi_backend_state();
+    }
+    static void refresh_list(WizardWifiStep& step, std::vector<WiFiNetwork> networks) {
+        step.cached_networks_ = std::move(networks);
+        step.refresh_network_list();
+    }
+    static void announce_connected(WizardWifiStep& step) {
+        step.announce_connected();
+    }
+
+    static std::string text(lv_subject_t& subject) {
+        return lv_subject_get_string(&subject);
+    }
+    static std::string status(WizardWifiStep& step) {
+        return text(step.wifi_status_);
+    }
+    static std::string ip(WizardWifiStep& step) {
+        return text(step.wifi_ip_);
+    }
+    static std::string mac(WizardWifiStep& step) {
+        return text(step.wifi_mac_);
+    }
+    static lv_subject_t& wifi_enabled(WizardWifiStep& step) {
+        return step.wifi_enabled_;
+    }
+    static lv_obj_t* network_list(WizardWifiStep& step) {
+        return step.network_list_container_;
+    }
+
+    /// Publish the capability subjects from the manager set above, as
+    /// init_wifi_manager() does once it has obtained its manager.
+    static void publish_wifi_capabilities(WizardWifiStep& step) {
+        step.publish_wifi_capabilities();
     }
 
     /// Drive the production toggle handler for THIS step, from a switch left in

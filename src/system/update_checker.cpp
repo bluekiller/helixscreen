@@ -790,6 +790,7 @@ void UpdateChecker::init_subjects() {
     // empty default renders as a blank second line until the first check completes.
     // Seed it with the same "Version {}" idle text the settings root shows, reusing
     // that key rather than a printf-style duplicate.
+    shown_ = {};
     UI_MANAGED_SUBJECT_STRING(version_text_subject_, version_text_buf_,
                               fmt::format(lv_tr("Version {}"), HELIX_VERSION).c_str(),
                               "update_version_text", subjects_);
@@ -821,6 +822,40 @@ lv_subject_t* UpdateChecker::status_subject() {
 }
 lv_subject_t* UpdateChecker::version_text_subject() {
     return &version_text_subject_;
+}
+
+void UpdateChecker::render_version_text() {
+    switch (shown_.status) {
+    case Status::Checking:
+        lv_subject_copy_string(&version_text_subject_, lv_tr("Checking..."));
+        return;
+    case Status::UpdateAvailable:
+        // A downgrade is not "available" in the usual sense: say what it
+        // actually does, so the row does not read as a routine update when the
+        // channel is behind this install.
+        snprintf(version_text_buf_, sizeof(version_text_buf_),
+                 shown_.is_downgrade ? lv_tr("Switch to v%s") : lv_tr("v%s available"),
+                 shown_.version.c_str());
+        break;
+    case Status::UpToDate:
+        lv_subject_copy_string(&version_text_subject_, lv_tr("Up to date"));
+        return;
+    case Status::Error:
+        snprintf(version_text_buf_, sizeof(version_text_buf_), lv_tr("Error: %s"),
+                 shown_.error.c_str());
+        break;
+    case Status::Idle:
+        lv_subject_copy_string(&version_text_subject_,
+                               fmt::format(lv_tr("Version {}"), HELIX_VERSION).c_str());
+        return;
+    }
+    lv_subject_copy_string(&version_text_subject_, version_text_buf_);
+}
+
+void UpdateChecker::on_language_changed() {
+    if (subjects_initialized_) {
+        render_version_text();
+    }
 }
 lv_subject_t* UpdateChecker::new_version_subject() {
     return &new_version_subject_;
@@ -2617,7 +2652,8 @@ void UpdateChecker::check_for_updates(Callback callback) {
     if (subjects_initialized_) {
         async_lifetime_.defer("UpdateChecker::check_for_updates", [this]() {
             lv_subject_set_int(&status_subject_, static_cast<int>(Status::Checking));
-            lv_subject_copy_string(&version_text_subject_, lv_tr("Checking..."));
+            shown_.status = Status::Checking;
+            render_version_text();
         });
     }
 
@@ -3454,21 +3490,16 @@ void UpdateChecker::report_result(Status status, std::optional<ReleaseInfo> info
                 lv_subject_set_int(&status_subject_, static_cast<int>(status));
 
                 if (status == Status::UpdateAvailable && info) {
-                    // A downgrade is not "available" in the usual sense — say
-                    // what it actually does, so the row does not read as a
-                    // routine update when the channel is behind this install.
-                    snprintf(version_text_buf_, sizeof(version_text_buf_),
-                             info->is_downgrade ? lv_tr("Switch to v%s") : lv_tr("v%s available"),
-                             info->version.c_str());
-                    lv_subject_copy_string(&version_text_subject_, version_text_buf_);
+                    shown_ = {status, info->version, info->is_downgrade, ""};
+                    render_version_text();
                     lv_subject_copy_string(&new_version_subject_, info->version.c_str());
                 } else if (status == Status::UpToDate) {
-                    lv_subject_copy_string(&version_text_subject_, lv_tr("Up to date"));
+                    shown_ = {status, "", false, ""};
+                    render_version_text();
                     lv_subject_copy_string(&new_version_subject_, "");
                 } else if (status == Status::Error) {
-                    snprintf(version_text_buf_, sizeof(version_text_buf_), lv_tr("Error: %s"),
-                             error.c_str());
-                    lv_subject_copy_string(&version_text_subject_, version_text_buf_);
+                    shown_ = {status, "", false, error};
+                    render_version_text();
                     lv_subject_copy_string(&new_version_subject_, "");
                 }
             }

@@ -31,6 +31,7 @@
 #include <lvgl.h>
 #include <memory>
 #include <sstream>
+#include <string_view>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
@@ -531,6 +532,9 @@ void init_early() {
     auto logger = std::make_shared<spdlog::logger>("helix", sinks.begin(), sinks.end());
     logger->set_level(std::min(EARLY_CONSOLE_LEVEL, ring_level));
     spdlog::set_default_logger(logger);
+#ifndef HELIX_WATCHDOG
+    route_libhv_to_spdlog();
+#endif
 }
 
 StdoutKind classify_stdout() {
@@ -928,6 +932,43 @@ int to_hv_level(spdlog::level::level_enum level) {
 int libhv_level_for(spdlog::level::level_enum level) {
     return to_hv_level(std::max(level, spdlog::level::warn));
 }
+
+#ifndef HELIX_WATCHDOG
+namespace {
+void libhv_log_handler(int hv_level, const char* buf, int len) {
+    spdlog::level::level_enum level = spdlog::level::debug;
+    switch (hv_level) {
+    case LOG_LEVEL_INFO:
+        level = spdlog::level::info;
+        break;
+    case LOG_LEVEL_WARN:
+        level = spdlog::level::warn;
+        break;
+    case LOG_LEVEL_ERROR:
+        level = spdlog::level::err;
+        break;
+    case LOG_LEVEL_FATAL:
+        level = spdlog::level::critical;
+        break;
+    default:
+        break;
+    }
+    std::string_view text(buf, static_cast<size_t>(std::max(len, 0)));
+    while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
+        text.remove_suffix(1);
+    }
+    // Null after spdlog::shutdown(), while libhv threads may still be logging.
+    if (auto logger = spdlog::default_logger()) {
+        logger->log(level, "[libhv] {}", text);
+    }
+}
+} // namespace
+
+void route_libhv_to_spdlog() {
+    hlog_set_format("%s"); // message only: spdlog adds the timestamp and level
+    hlog_set_handler(libhv_log_handler);
+}
+#endif
 
 #ifndef HELIX_WATCHDOG
 void set_runtime_level(spdlog::level::level_enum level) {

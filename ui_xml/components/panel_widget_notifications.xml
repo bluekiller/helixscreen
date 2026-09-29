@@ -24,6 +24,7 @@
       <icon name="status_notification_icon"
             src="notifications" size="#icon_size" variant="secondary" align="center" clickable="true"
             click_focusable="false">
+        <style name="styles.press_wash" selector="pressed"/>
         <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
         <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
@@ -33,10 +34,17 @@
                           align="top_right" x="-#space_xxs" y="#space_xxs" hidden="true" clickable="true"
                           click_focusable="false" bind_text="notification_count_text">
         <bind_flag_if_eq subject="notification_count" flag="hidden" ref_value="0"/>
-        <bind_tile_rung ladder="pip" subject="$tile_icon_subject"/>
         <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
         <bind_style name="badge_warning" subject="notification_severity" ref_value="1"/>
         <bind_style name="badge_error" subject="notification_severity" ref_value="2"/>
+        <!-- The badge rides the same rung as the bell above it, so it stays
+             2/5 of the glyph instead of covering it on the small rungs. -->
+        <bind_style_if_eq name="styles.tile_badge_xs" subject="$tile_icon_subject" ref_value="0"/>
+        <bind_style_if_eq name="styles.tile_badge_sm" subject="$tile_icon_subject" ref_value="1"/>
+        <bind_style_if_eq name="styles.tile_badge_md" subject="$tile_icon_subject" ref_value="2"/>
+        <bind_style_if_eq name="styles.tile_badge_lg" subject="$tile_icon_subject" ref_value="3"/>
+        <bind_style_if_eq name="styles.tile_badge_xl" subject="$tile_icon_subject" ref_value="4"/>
+        <bind_style_if_eq name="styles.tile_badge_xxl" subject="$tile_icon_subject" ref_value="5"/>
         <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
       </notification_badge>
     </lv_obj>

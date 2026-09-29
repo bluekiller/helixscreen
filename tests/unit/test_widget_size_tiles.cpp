@@ -707,19 +707,10 @@ TEST_CASE("the alerts badge scales with the bell and hangs from its shoulder",
     lv_obj_t* bell = lv_obj_find_by_name(root, "status_notification_icon");
     REQUIRE(badge != nullptr);
     REQUIRE(bell != nullptr);
-    lv_subject_t* rung = lv_xml_get_subject(nullptr, "notifications_tile_icon");
-    REQUIRE(rung != nullptr);
-
     auto check_at = [&](int px) {
         lv_obj_set_size(root, px, px);
         instance->notify_size_changed(2, 2, px, px);
         lv_obj_update_layout(root);
-        const int r = lv_subject_get_int(rung);
-        const lv_font_t* count_face = helix::ui::tile_rung_face(helix::ui::TileLadder::Pip, r).font;
-        CHECK(lv_obj_get_width(badge) ==
-              helix::ui::tile_pip_edge(helix::ui::tile_rung_face(helix::ui::TileLadder::Icon, r),
-                                       count_face));
-        CHECK(lv_obj_get_style_text_font(lv_obj_get_child(badge, 0), LV_PART_MAIN) == count_face);
         // Hung from the glyph box's top-right corner, not the tile's.
         lv_area_t b, g;
         lv_obj_get_coords(badge, &b);

@@ -261,10 +261,9 @@ echo ""
 # a skip: a validator that silently doesn't exist is a validator that silently
 # passes.
 #
-# validate-xml-constants is not built here while qc_xml_const is paused
-# (prestonbrown/helixscreen#1698): it links the whole app, which on a cold CI
-# runner is a full build that cannot finish inside the step's time limit.
-# Add it back to this make line when enforcement returns.
+# validate-xml-constants is not built here: it links the whole app, which on
+# a cold CI runner is a full build that cannot finish inside the step's time
+# limit. Its check runs in the unit suite instead (see qc_xml_const).
 qc_xml_tools() {
   local EXIT_CODE=0
   # Same bounded share the build-verification phase uses: this is a real make
@@ -293,12 +292,12 @@ qc_xml_const() {
   local EXIT_CODE=0
 echo "🔤 XML constant set gate..."
 
-# Not enforced while the validator cannot resolve theme tokens: every
-# constant defined in assets/config/themes reads as undefined, so enforcing
-# would fail every XML-touching commit on false positives, and a wall of
-# noise nobody reads is worse than an honest pause. Enforcement returns
-# with prestonbrown/helixscreen#1698.
-echo "⏸️  validate-xml-constants not enforced - it cannot resolve theme tokens yet (prestonbrown/helixscreen#1698)"
+# Nothing runs here. Incomplete responsive and light/dark sets fail the unit
+# test "ui_xml has no incomplete constant sets" ([ui_theme][validation]), and
+# undefined #constant references fail qc_xml_linter (unknown-const-ref), so
+# neither needs the app-linking validator binary in the hook
+# (prestonbrown/helixscreen#1698).
+echo "ℹ️  XML constant sets are enforced by the unit suite; undefined #refs by the XML linter (prestonbrown/helixscreen#1698)"
 
 echo ""
 
@@ -1862,7 +1861,7 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2216 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2215 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out
@@ -2197,6 +2196,29 @@ else
   section_time $SECTION_START
   echo ""
   echo "⚠️  check_json_dump_utf8.py not found — skipping"
+fi
+
+SECTION_START=$(date +%s)
+echo -n "🧵 Checking AMS backends reconcile lane bindings..."
+
+if [ -f "scripts/check_lane_binding_reconcile.py" ]; then
+  # A backend whose firmware states a spool id must call reconcile_lane_binding()
+  # where it parses it, or a lane re-bound behind the app's back keeps painting
+  # the old spool forever (prestonbrown/helixscreen#1645).
+  if python3 scripts/check_lane_binding_reconcile.py >/tmp/lane_binding_reconcile.out 2>&1; then
+    section_time $SECTION_START
+    echo ""
+    tail -1 /tmp/lane_binding_reconcile.out
+  else
+    section_time $SECTION_START
+    echo ""
+    cat /tmp/lane_binding_reconcile.out
+    EXIT_CODE=1
+  fi
+else
+  section_time $SECTION_START
+  echo ""
+  echo "⚠️  check_lane_binding_reconcile.py not found — skipping"
 fi
 
 SECTION_START=$(date +%s)
@@ -2691,15 +2713,19 @@ echo -n "🪞 Checking for mirror tests..."
 
 if [ -f "scripts/check_test_mirrors.py" ]; then
   # Ratchet, not a clean-tree assertion. Signals 1 and 2 (shadow-include,
-  # mirror-comment) are at 0 and must stay there. Signal 3 (redefined-symbol)
-  # arrived with pre-existing findings; the number may fall, never rise.
+  # mirror-comment) are at 0 and must stay there. Signals 3 (redefined-symbol)
+  # and 4 (stub-logic) carry pre-existing findings, each with its own ceiling;
+  # each may fall, never rise.
   #
   # Read from mk/tests.mk rather than repeated here. A second hand-written copy
   # of the same threshold is how it goes stale: main rewrote
   # test_update_checker.cpp, the real count fell 18 -> 17, and a duplicated
   # constant would have kept passing at 18 with a regression's worth of slack.
-  MIRROR_MAX=$(sed -n 's/^MIRROR_MAX ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
-  if python3 scripts/check_test_mirrors.py --summary --max-allowed "${MIRROR_MAX:-0}" >/tmp/test_mirrors.out 2>&1; then
+  MIRROR_MAX_REDEFINED=$(sed -n 's/^MIRROR_MAX_REDEFINED_SYMBOL ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+  MIRROR_MAX_STUB=$(sed -n 's/^MIRROR_MAX_STUB_LOGIC ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+  if python3 scripts/check_test_mirrors.py --summary \
+       --max "redefined-symbol=${MIRROR_MAX_REDEFINED:-0}" \
+       --max "stub-logic=${MIRROR_MAX_STUB:-0}" >/tmp/test_mirrors.out 2>&1; then
     section_time $SECTION_START
     echo ""
     cat /tmp/test_mirrors.out
@@ -3508,7 +3534,7 @@ qc_trigger_re() {
     qc_mem_safety|qc_null_safety|qc_l081|qc_net_pii|qc_decl_ui|qc_namespace|qc_spdlog_only)
                         echo '\.(cpp|c|h|mm)$' ;;
     qc_design_tokens)   echo '\.(cpp|h|xml)$' ;;
-    qc_test_mirrors)    echo '^tests/|^scripts/check_test_mirrors\.py$' ;;
+    qc_test_mirrors)    echo '^tests/|^mk/tests\.mk$|^scripts/check_test_mirrors\.py$' ;;
     qc_test_tautology)  echo '^tests/|^include/|^src/|^scripts/check_test_tautology\.py$' ;;
     qc_test_widget_registry)
                         echo '^tests/|^src/|^scripts/check_test_widget_registry\.py$' ;;

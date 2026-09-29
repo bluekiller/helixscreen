@@ -37,6 +37,7 @@
         <lv_obj width="content"
                 height="content" style_pad_all="#space_xxs" flex_flow="row" style_flex_cross_place="center"
                 style_pad_gap="#space_xs" scrollable="false" clickable="true" style_radius="#border_radius">
+          <style name="styles.press_wash" selector="pressed"/>
           <text_small name="color_label" text="Black" style_text_color="#text_muted" clickable="false"/>
           <icon src="palette" size="xs" variant="muted" clickable="false"/>
           <event_cb trigger="clicked" callback="spoolman_edit_color_clicked_cb"/>
