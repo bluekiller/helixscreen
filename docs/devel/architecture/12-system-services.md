@@ -196,7 +196,6 @@ Read in this order; about 30 minutes total.
 8. [`include/system/telemetry_manager.h`](../../../include/system/telemetry_manager.h) — the block-comment architecture diagram (collect → persist → batch → POST) and the thread contract.
 9. [`include/post_op_cooldown_manager.h`](../../../include/post_op_cooldown_manager.h) — the entire header; the threading and opt-out rules are in the doc comments.
 10. [`src/application/application.cpp#run`](../../../src/application/application.cpp#L900) — the crash-dialog gate: the three suppression paths (post-update, unparseable, duplicate) before `CrashReportModal`.
-11. [`src/application/application.cpp#init_plugins`](../../../src/application/application.cpp#L2192) — `init_plugins()`: owned manager, service injection, the error toast with Disable action.
-12. [`src/print/print_history_manager.cpp#subscribe_to_notifications`](../../../src/print/print_history_manager.cpp#L290) — the `notify_history_changed` registration and `token.defer()` invalidation.
-13. [`src/printer/timelapse_state.cpp#handle_timelapse_event`](../../../src/printer/timelapse_state.cpp#L70) — `handle_timelapse_event()`: newframe/render branches and subject updates.
-14. [`include/ui_toast_manager.h`](../../../include/ui_toast_manager.h) — the stack semantics comment, then [`include/ui_notification_manager.h`](../../../include/ui_notification_manager.h) for the before/after-XML ordering contract.
+11. [`src/print/print_history_manager.cpp#subscribe_to_notifications`](../../../src/print/print_history_manager.cpp#L290) — the `notify_history_changed` registration and `token.defer()` invalidation.
+12. [`src/printer/timelapse_state.cpp#handle_timelapse_event`](../../../src/printer/timelapse_state.cpp#L70) — `handle_timelapse_event()`: newframe/render branches and subject updates.
+13. [`include/ui_toast_manager.h`](../../../include/ui_toast_manager.h) — the stack semantics comment, then [`include/ui_notification_manager.h`](../../../include/ui_notification_manager.h) for the before/after-XML ordering contract.

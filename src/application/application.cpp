@@ -887,6 +887,8 @@ int Application::run(int argc, char** argv) {
         return 1;
     }
 
+    // Post-UI safety net: phases 11-16b run finalize_setup,
+    // overlay construction, and the first synchronous render. Any std::exception
     // escaping here unwinds out of run() into main()'s catch and exits 134,
     // which the watchdog interprets as a deterministic crash and (after
     // CRASH_LOOP_MAX_CRASHES) shows the recovery dialog. main_loop()'s own
