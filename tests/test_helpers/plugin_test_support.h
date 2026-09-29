@@ -5,10 +5,13 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "lua_bindings.h"
 #include "lua_runtime.h"
 #include "plugin_backend.h"
 
+#include <filesystem>
 #include <memory>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -79,6 +82,52 @@ struct FakeBackend {
             return std::function<void()>([this] { ++notify_unregistered; });
         };
         return b;
+    }
+};
+
+/// A TestRuntime with a PluginContext and a fake backend, with core bindings installed plus
+/// whichever `installers` a test asks for.
+struct BoundRuntime {
+    FakeBackend fake;
+    PluginBackend backend = fake.backend();
+    Manifest manifest;
+    json settings = json::object();
+    int saves = 0;
+    std::string storage_path;
+    std::unique_ptr<PluginContext> ctx;
+    TestRuntime t; // last member: destroyed first, while ctx and fake still exist
+
+    explicit BoundRuntime(std::vector<Installer> installers = {}, PermissionSet perms = {},
+                          std::vector<SettingDecl> decls = {}, std::string storage = {})
+        : storage_path(std::move(storage)) {
+        manifest.id = "test-plugin";
+        manifest.name = "Test Plugin";
+        manifest.version = "1.0.0";
+        manifest.permissions = std::move(perms);
+        manifest.settings = std::move(decls);
+        ctx = std::make_unique<PluginContext>(
+            PluginContext{*t.rt, backend, manifest, &settings, [this] { ++saves; }, storage_path});
+        install_core_bindings(*ctx);
+        for (Installer install : installers)
+            install(*ctx);
+    }
+};
+
+/// A fresh directory under the system temp dir, removed with its contents on destruction.
+struct TempDir {
+    std::filesystem::path path;
+    TempDir() {
+        std::random_device rd;
+        path =
+            std::filesystem::temp_directory_path() / ("helix-plugin-test-" + std::to_string(rd()));
+        std::filesystem::create_directories(path);
+    }
+    ~TempDir() {
+        std::error_code ec;
+        std::filesystem::remove_all(path, ec);
+    }
+    std::string file(const std::string& name) const {
+        return (path / name).string();
     }
 };
 
