@@ -781,6 +781,10 @@ TEST_CASE("PanelWidgetRegistry: every category has at least one widget",
           "[panel_widget][widget_config]") {
     const auto& defs = get_all_widget_defs();
     for (const auto& cat : get_widget_categories()) {
+        // Plugins holds only runtime definitions, so a printer with no plugin
+        // widgets has an empty category; the catalog hides the row.
+        if (cat.id == WidgetCategory::Plugins)
+            continue;
         CAPTURE(cat.display_name);
         auto count = std::count_if(defs.begin(), defs.end(), [&cat](const PanelWidgetDef& def) {
             return def.category == cat.id;

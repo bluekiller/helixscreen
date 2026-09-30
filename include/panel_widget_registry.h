@@ -34,6 +34,8 @@ enum class WidgetCategory {
     Filament,
     Controls,
     System,
+    /// Runtime-added definitions (plugins). Last: reached for least.
+    Plugins,
 };
 
 struct WidgetCategoryDef {
@@ -133,6 +135,25 @@ const PanelWidgetDef* find_widget_def(std::string_view id);
 size_t widget_def_count();
 void register_widget_factory(std::string_view id, WidgetFactory factory);
 void register_widget_subjects(std::string_view id, SubjectInitFn init_fn);
+
+/// A widget definition added while the app runs. Spans are in grid tracks.
+struct RuntimeWidgetDef {
+    std::string id;
+    std::string display_name;
+    std::string icon;
+    std::string description;
+    int colspan = 2, rowspan = 2, max_colspan = 0, max_rowspan = 0;
+    WidgetFactory factory;
+};
+
+/// Adds, or replaces, a Plugins-category definition whose strings the registry
+/// owns. False when `def.id` is a built-in widget. A definition pointer from
+/// find_widget_def() or get_all_widget_defs() is valid until the next register
+/// or unregister call.
+bool register_runtime_widget_def(RuntimeWidgetDef def);
+/// Deactivates a runtime definition. The id's storage is kept so pointers
+/// handed to LVGL user_data stay readable until the rows using them rebuild.
+void unregister_runtime_widget_def(std::string_view id);
 // Internal — called once from PanelWidgetManager::init_widget_subjects().
 // Do not call directly; widget factories require runtime context (singletons, shared resources).
 void init_widget_registrations();

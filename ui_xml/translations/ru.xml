@@ -2092,6 +2092,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." ru="Плагин не отвечает после перезапуска.&#10;Возможно, ему нужно больше времени для загрузки."/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." ru="Плагин удалён. Конфигурационный файл требует внимания - подробности смотрите в журнале HelixScreen."/>
   <translation tag="Plugin uninstalled successfully." ru="Плагин успешно удалён."/>
+  <translation tag="Plugins" ru="Плагины"/>
   <translation tag="Point camera at QR code on spool" ru="Наведите камеру на QR-код на катушке"/>
   <translation tag="Polymaker" ru="Polymaker"/>
   <translation tag="Poor Accuracy" ru="Низкая точность"/>

@@ -2251,6 +2251,7 @@ translations:
   : "Plugin not responding after restart.\nIt may need more time to load."
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: Plugin removed. A config file needs attention - check the HelixScreen log for details.
   Plugin uninstalled successfully.: Plugin uninstalled successfully.
+  Plugins: Plugins
   Point camera at QR code on spool: Point camera at QR code on spool
   Polymaker: Polymaker
   Poor Accuracy: Poor Accuracy

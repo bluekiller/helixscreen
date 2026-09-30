@@ -2298,6 +2298,7 @@ translations:
   : "Плагин не отвечает после перезапуска.\nВозможно, ему нужно больше времени для загрузки."
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: Плагин удалён. Конфигурационный файл требует внимания - подробности смотрите в журнале HelixScreen.
   Plugin uninstalled successfully.: Плагин успешно удалён.
+  Plugins: Плагины
   Point camera at QR code on spool: Наведите камеру на QR-код на катушке
   Polymaker: Polymaker
   Poor Accuracy: Низкая точность

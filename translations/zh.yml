@@ -2168,6 +2168,7 @@ translations:
   : "重启后插件无响应。\n可能需要更多时间加载。"
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: 插件已移除。配置文件需要处理 - 请查看 HelixScreen 日志了解详情。
   Plugin uninstalled successfully.: 插件卸载成功。
+  Plugins: 插件
   Point camera at QR code on spool: 将摄像头对准料盘上的 QR 码
   Polymaker: Polymaker
   Poor Accuracy: 精度较差

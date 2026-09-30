@@ -2176,6 +2176,7 @@ translations:
   : "再起動後にプラグインが応答しません。\n読み込みに時間がかかる場合があります。"
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: プラグインを削除しました。設定ファイルに対応が必要です。詳細は HelixScreen のログを確認してください。
   Plugin uninstalled successfully.: プラグインが正常にアンインストールされました。
+  Plugins: プラグイン
   Point camera at QR code on spool: スプールの QR コードにカメラを向けてください
   Polymaker: Polymaker
   Poor Accuracy: 精度不良

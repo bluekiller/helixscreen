@@ -2092,6 +2092,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." en="Plugin not responding after restart.&#10;It may need more time to load."/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." en="Plugin removed. A config file needs attention - check the HelixScreen log for details."/>
   <translation tag="Plugin uninstalled successfully." en="Plugin uninstalled successfully."/>
+  <translation tag="Plugins" en="Plugins"/>
   <translation tag="Point camera at QR code on spool" en="Point camera at QR code on spool"/>
   <translation tag="Polymaker" en="Polymaker"/>
   <translation tag="Poor Accuracy" en="Poor Accuracy"/>

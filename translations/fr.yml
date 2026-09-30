@@ -2336,6 +2336,7 @@ translations:
   : "Le plugin ne répond pas après le redémarrage.\nIl peut avoir besoin de plus de temps."
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: Plugin supprimé. Un fichier de configuration nécessite votre attention – consultez le journal HelixScreen pour plus de détails.
   Plugin uninstalled successfully.: Plugin désinstallé avec succès.
+  Plugins: Plugins
   Point camera at QR code on spool: Pointez la caméra vers le QR code sur la bobine
   Polymaker: Polymaker
   Poor Accuracy: Faible précision
