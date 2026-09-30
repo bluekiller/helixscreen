@@ -28,8 +28,11 @@ class QidiBoxTestAccess {
     static void parse_vars(AmsBackendQidi& b, const json& v) {
         b.parse_save_variables(v);
     }
-    static void handle_status(AmsBackendQidi& b, const json& n) {
-        b.handle_status_update(n);
+    /// Feeds @p status the way the subscription delivers it: inside the
+    /// notify_status_update envelope.
+    static void handle_status(AmsBackendQidi& b, const json& status) {
+        b.handle_status_update(
+            json{{"method", "notify_status_update"}, {"params", json::array({status, 1.0})}});
     }
     static int filament_id(const AmsBackendQidi& b, int slot) {
         return b.slot_rfid_.at(static_cast<size_t>(slot)).filament_id;
