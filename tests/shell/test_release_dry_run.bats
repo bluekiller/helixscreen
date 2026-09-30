@@ -214,3 +214,59 @@ verify() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"x86 zip in $REL missing"* ]] || fail "$output"
 }
+
+# ------------------------------------------------------- symbol flattening
+
+# upload-symbols' "Flatten symbol files" step, run against a download laid out
+# the way actions/download-artifact leaves it.
+flatten_symbols() {
+    python3 - "$YML" > "$BATS_TEST_TMPDIR/flatten.sh" <<'PY'
+import sys, yaml
+with open(sys.argv[1]) as fh:
+    steps = yaml.safe_load(fh)["jobs"]["upload-symbols"]["steps"]
+print(next(s["run"] for s in steps if s.get("name") == "Flatten symbol files"))
+PY
+    local script="$BATS_TEST_TMPDIR/flatten.sh"
+    cd "$BATS_TEST_TMPDIR/ws" || return 1
+    run env PLATFORMS="$1" bash -e "$script"
+    cd - >/dev/null || return 1
+}
+
+# plant DIR: an x86-style artifact (drm + fbdev under a shared build/ root)
+plant_dual() {
+    mkdir -p "$1/x86/bin" "$1/x86-fbdev/bin"
+    touch "$1/x86/bin/helix-screen.sym" "$1/x86/bin/helix-screen.debug" \
+          "$1/x86-fbdev/bin/helix-screen.sym" "$1/x86-fbdev/bin/helix-screen.debug"
+}
+
+@test "symbol flattening handles a lone artifact extracted without its directory" {
+    mkdir -p "$BATS_TEST_TMPDIR/ws/artifacts"
+    plant_dual "$BATS_TEST_TMPDIR/ws/artifacts"
+    flatten_symbols "x86"
+    [ "$status" -eq 0 ] || fail "$output"
+    local f
+    for f in x86.sym x86.debug x86-fbdev.sym x86-fbdev.debug; do
+        [ -f "$BATS_TEST_TMPDIR/ws/symbol-files/$f" ] || fail "missing $f: $output"
+    done
+}
+
+@test "symbol flattening handles per-artifact directories from the full matrix" {
+    local ws="$BATS_TEST_TMPDIR/ws"
+    mkdir -p "$ws/artifacts/symbols-ad5m"
+    plant_dual "$ws/artifacts/symbols-x86"
+    touch "$ws/artifacts/symbols-ad5m/helix-screen.sym" "$ws/artifacts/symbols-ad5m/helix-screen.debug"
+    flatten_symbols "x86 ad5m"
+    [ "$status" -eq 0 ] || fail "$output"
+    local f
+    for f in x86.sym x86-fbdev.sym ad5m.sym ad5m.debug; do
+        [ -f "$ws/symbol-files/$f" ] || fail "missing $f: $output"
+    done
+}
+
+@test "symbol flattening refuses a flat download when plan built several platforms" {
+    mkdir -p "$BATS_TEST_TMPDIR/ws/artifacts"
+    plant_dual "$BATS_TEST_TMPDIR/ws/artifacts"
+    flatten_symbols "x86 ad5m"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not one platform"* ]] || fail "$output"
+}
