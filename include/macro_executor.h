@@ -5,7 +5,7 @@
 
 #include "filament_database.h"
 #include "macro_param_cache.h"
-#include "macro_param_modal.h"
+#include "macro_params.h"
 
 #include <functional>
 #include <map>

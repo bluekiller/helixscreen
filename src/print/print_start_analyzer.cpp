@@ -6,6 +6,7 @@
 #include "helix_regex.h"
 #include "i_moonraker_api.h"
 #include "klipper_config_includes.h"
+#include "macro_params.h"
 #include "moonraker_types.h"
 #include "operation_patterns.h"
 #include "text_io.h"
@@ -242,7 +243,9 @@ PrintStartAnalysis PrintStartAnalyzer::parse_macro(const std::string& macro_name
     result.is_controllable = (result.controllable_count > 0);
 
     // Extract known parameters
-    result.known_params = extract_parameters(gcode);
+    for (auto& param : parse_macro_params(gcode)) {
+        result.known_params.push_back(std::move(param.name));
+    }
 
     spdlog::debug("[PrintStartAnalyzer] Parsed {}: {} ops, {} controllable, {} params", macro_name,
                   result.total_ops_count, result.controllable_count, result.known_params.size());
@@ -411,28 +414,6 @@ bool PrintStartAnalyzer::detect_skip_conditional(const std::string& gcode,
     }
 
     return false;
-}
-
-std::vector<std::string> PrintStartAnalyzer::extract_parameters(const std::string& gcode) {
-    std::vector<std::string> params;
-
-    // Look for patterns like:
-    //   params.BED
-    //   params.EXTRUDER|default(...)
-    //   {% set BED = params.BED|default(60) %}
-
-    helix::Regex params_pattern(R"(params\.([A-Z_][A-Z0-9_]*))", helix::Regex::ICase);
-
-    for (helix::RegexIterator it(gcode, params_pattern), end; it != end; ++it) {
-        std::string param = to_upper((*it)[1].str());
-
-        // Avoid duplicates
-        if (std::find(params.begin(), params.end(), param) == params.end()) {
-            params.push_back(param);
-        }
-    }
-
-    return params;
 }
 
 } // namespace helix
