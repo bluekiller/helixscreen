@@ -78,23 +78,6 @@
         }                                                                                          \
     }
 
-/**
- * @brief Trampoline for singleton/global instance patterns
- *
- * For overlays using getter functions:
- *   DEFINE_SINGLETON_TRAMPOLINE(Overlay, on_click, get_overlay, handle_click)
- *
- * @param ClassName The class type (for documentation purposes)
- * @param callback_name Name for the static callback function
- * @param getter_func Function that returns reference to the singleton instance
- * @param handler_method Instance method to call (takes lv_event_t*)
- */
-#define DEFINE_SINGLETON_TRAMPOLINE(ClassName, callback_name, getter_func, handler_method)         \
-    static void callback_name(lv_event_t* e) {                                                     \
-        auto& self = getter_func();                                                                \
-        self.handler_method(e);                                                                    \
-    }
-
 // =============================================================================
 // PANEL TRAMPOLINE MACROS (with exception safety)
 // =============================================================================
