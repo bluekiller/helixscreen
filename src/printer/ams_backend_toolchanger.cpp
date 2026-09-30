@@ -41,6 +41,17 @@ AmsBackendToolChanger::AmsBackendToolChanger(IMoonrakerAPI* api, IMoonrakerClien
     spdlog::debug("[AMS ToolChanger] Backend created");
 }
 
+void AmsBackendToolChanger::set_discovery(const helix::PrinterDiscovery& discovery) {
+    namespace addon = helix::toolchanger_addon;
+    set_discovered_tools(discovery.tool_names());
+    set_feeder(addon::resolve_feeder(discovery,
+                                     helix::SettingsManager::instance().get_feeder_open_macro(),
+                                     helix::SettingsManager::instance().get_feeder_close_macro()));
+    set_tool_sensor(addon::resolve_tool_sensor(discovery));
+    set_tool_commands(addon::resolve_tool_commands(discovery));
+    set_material_source(addon::resolve_material_source(discovery));
+}
+
 void AmsBackendToolChanger::set_discovered_tools(std::vector<std::string> tool_names) {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -133,20 +144,6 @@ AmsSystemInfo AmsBackendToolChanger::get_system_info() const {
 
 AmsType AmsBackendToolChanger::get_type() const {
     return AmsType::TOOL_CHANGER;
-}
-
-SlotInfo AmsBackendToolChanger::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    const auto* slot = system_info_.get_slot_global(slot_index);
-    if (slot) {
-        return *slot;
-    }
-
-    // Return empty slot info for invalid index
-    SlotInfo empty;
-    empty.slot_index = -1;
-    return empty;
 }
 
 SlotInfo* AmsBackendToolChanger::cached_slot_locked(int slot_index) {
@@ -472,19 +469,7 @@ PathSegment AmsBackendToolChanger::infer_error_segment() const {
 // Moonraker Status Update Handling
 // ============================================================================
 
-void AmsBackendToolChanger::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendToolChanger::handle_status(const nlohmann::json& params) {
     bool state_changed = false;
 
     {
@@ -1399,38 +1384,16 @@ AmsError AmsBackendToolChanger::apply_user_edit(int slot_index, const SlotInfo& 
 void AmsBackendToolChanger::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-
-        // Blank the live slot itself: the store is the sole source of filament
-        // identity here, so no firmware update will ever restate these fields.
-        // A clear that only dropped the record would leave the picks painted
-        // until the next rediscovery.
-        if (SlotInfo* slot = system_info_.get_slot_global(slot_index)) {
-            slot->material.clear();
-            slot->color_rgb = AMS_DEFAULT_SLOT_COLOR;
-            slot->color_name.clear();
-            slot->multi_color_hexes.clear();
-            slot->brand.clear();
-            // The catalog pick names a product of the material cleared above.
-            slot->catalog_id.clear();
-            slot->product_name.clear();
-            slot->clear_spoolman_link();
-            slot->remaining_weight_g = -1.0f;
-            slot->total_weight_g = -1.0f;
-        }
+        clear_override_locked(slot_index, system_info_.get_slot_global(slot_index));
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        // Capture the tag by value: clear_async's callback can fire long after
-        // this returns, and must not touch `this`.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} Override clear failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
+}
+
+void AmsBackendToolChanger::clear_override_fields(SlotInfo& slot) const {
+    AmsSubscriptionBackend::clear_override_fields(slot);
+    slot.material.clear();
+    slot.color_rgb = AMS_DEFAULT_SLOT_COLOR;
+    slot.multi_color_hexes.clear();
 }
 
 AmsError AmsBackendToolChanger::sync_external_identity(int slot_index, const SlotInfo& info) {

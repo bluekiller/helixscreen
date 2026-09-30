@@ -655,7 +655,7 @@ then derives `AmsUnit::buffer_health` from `buffer_health_` plus `buffer_lane_na
 resolving the first lane that maps to a unit. Two invariants make that work:
 
 - **Unit objects must be parsed before anything that resolves a lane to a unit.**
-  `handle_status_update()` runs `AFC_BoxTurtle`/`AFC_OpenAMS`/`AFC_vivid` first, then
+  `handle_status()` runs `AFC_BoxTurtle`/`AFC_OpenAMS`/`AFC_vivid` first, then
   `AFC_buffer`. Those unit objects are what build the multi-unit layout
   (`parse_afc_unit_object` → `rebuild_unit_map_from_klipper` → `reorganize_slots`). With
   buffers parsed first, every buffer in the first frame resolved against the synthetic

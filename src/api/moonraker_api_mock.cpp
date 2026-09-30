@@ -6,6 +6,7 @@
 #include "ui_update_queue.h"
 
 #include "../tests/mocks/mock_printer_state.h"
+#include "env_knobs.h"
 #include "gcode_parser.h"
 #include "mock_planted_gcodes.h"
 #include "moonraker_client_mock.h"
@@ -966,10 +967,7 @@ void MoonrakerFileTransferAPIMock::download_thumbnail(const std::string& thumbna
     // download → HttpExecutor worker → decode → prescale → evict pipeline is
     // never executed under --test, which is the pipeline bundle 6F3QJLFG
     // implicates (#960). This is the only way to reach it without a printer.
-    static const bool remote_thumbs = [] {
-        const char* v = std::getenv("HELIX_MOCK_REMOTE_THUMBS");
-        return v && v[0] && std::string(v) != "0";
-    }();
+    static const bool remote_thumbs = [] { return helix::env_flag("HELIX_MOCK_REMOTE_THUMBS"); }();
     if (remote_thumbs) {
         MoonrakerFileTransferAPI::download_thumbnail(thumbnail_path, cache_path,
                                                      std::move(on_success), std::move(on_error));

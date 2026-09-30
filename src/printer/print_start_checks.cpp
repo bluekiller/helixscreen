@@ -507,7 +507,7 @@ PrinterStopCheck printer_stop_check_in(const std::string& content, size_t limit)
         check.state = PrinterStopCheck::State::Stops;
         check.command = hit->command;
         check.line_number = hit->line_number;
-        check.stop_message = commands.at(to_upper(hit->command));
+        check.stop_message = commands.at(helix::text_io::to_upper(hit->command));
     }
     return check;
 }

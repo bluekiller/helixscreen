@@ -5,7 +5,7 @@
 // answers AUTO_FEEDING with the channel_state sequence the feeder firmware
 // reports, so AmsBackendSnapmaker's status parse — and the batch cursor that
 // will be built on top of it — has real transitions to observe in a unit
-// test, through the same handle_status_update path the live WebSocket drives.
+// test, through the same handle_status() parse the live WebSocket drives.
 
 #include "ui_update_queue.h"
 

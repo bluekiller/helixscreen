@@ -15,6 +15,8 @@ A value holding `$VAR`, `$(...)`, `${...}` or a backtick is skipped with a warni
 exported, so a line written for the old shell-evaluated file (a generated token, say) never
 becomes a readable literal. Generate the value first and write the result into the file.
 
+A variable read as an on/off flag is on for `1`, `true`, `yes` or `on` (ASCII case-insensitive, surrounding whitespace ignored) and off for anything else, including `0`, `false`, `10` or an empty value (`include/env_knobs.h#env_truthy`).
+
 Some keys carry a stricter rule, because root acts on the value:
 
 | Key | Accepted value |
@@ -127,11 +129,11 @@ Resolve design-token lookups from the compiled token table (`src/generated/theme
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` (use the compiled table), any other value (use the live scanner) |
+| **Values** | `1`, `true`, `yes` or `on` uses the compiled table; any other value uses the live scanner |
 | **Default** | Unset - on for ESP32 builds (`ui_xml/` ships there as a read-only frogfs image) and cross-built release targets (`HELIX_RELEASE_BUILD`), off for native dev builds |
 | **File** | `src/ui/theme_token_table_runtime.cpp` |
 
-Only the first character matters: a value starting with `1` turns the table on, so `HELIX_TOKEN_TABLE=0` forces the live scanner back on - useful on a device to confirm an edited `ui_xml/` token still parses, and the only way to move tokens there without a rebuild. A build can also flip its default on by defining `HELIX_TOKEN_TABLE_DEFAULT_ON`, which nothing needs now that release builds default on.
+Set, the flag rule decides, so `HELIX_TOKEN_TABLE=0` forces the live scanner back on - useful on a device to confirm an edited `ui_xml/` token still parses, and the only way to move tokens there without a rebuild. A build can also flip its default on by defining `HELIX_TOKEN_TABLE_DEFAULT_ON`, which nothing needs now that release builds default on.
 
 The table exists because aggregating tokens live reopens every top-level `ui_xml` file once per aggregation call, ~28 times a boot. That scan is most of what `theme_manager_init` spends on a slow filesystem - 7.2s of a 16.8s splash on a 480x272 QIDI Q2.
 
@@ -1115,7 +1117,7 @@ Overrides the ALSA backend's idle-clock detection. Detection keeps the card cloc
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` (keep clock alive) / `0` (park when idle); any other non-empty value counts as `1` |
+| **Values** | `1`, `true`, `yes` or `on` keeps the clock alive; any other non-empty value parks it |
 | **Default** | unset - per-device detection |
 | **File** | `src/system/alsa_sound_backend.cpp`; detection in `include/alsa_clock_keepalive.h#device_needs_clock_keepalive` |
 
@@ -1663,7 +1665,7 @@ Deliberately segfault through a known call chain to verify that the crash handle
 
 | Property | Value |
 |----------|-------|
-| **Values** | Any non-empty value other than `0` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — no test crash |
 | **File** | `src/application/application.cpp` (calls `crash_handler::trigger_test_crash()`) |
 
@@ -1680,7 +1682,7 @@ Turn overlay-registration violations from a warning into a hard failure. Mirrors
 
 | Property | Value |
 |----------|-------|
-| **Values** | A value starting with `1`, `t`, `T`, `y`, or `Y` enables. Anything else leaves it off. |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Off |
 | **File** | `src/ui/ui_nav_manager.cpp` |
 
@@ -1699,7 +1701,7 @@ Abort instead of merely warning when the L081 `cluster:pstat-async-delete` Mecha
 
 | Property | Value |
 |----------|-------|
-| **Values** | A value starting with `1`, `t`, `T`, `y`, or `Y` enables. Anything else leaves it off. |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Off for a plain run; `HelixTestFixture` opts in via `set_strict_bg_check(true)` |
 | **File** | `src/system/async_lifetime_guard.cpp` |
 

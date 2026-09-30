@@ -6,8 +6,10 @@
 #include "ams_types.h"
 #include "bed_drying.h"
 #include "lvgl/lvgl.h"
+#include "persisted_setting.h"
 #include "subject_managed_panel.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -115,7 +117,9 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get Z movement style override (Auto/Bed Moves/Nozzle Moves) */
-    ZMovementStyle get_z_movement_style() const;
+    ZMovementStyle get_z_movement_style() const {
+        return static_cast<ZMovementStyle>(std::clamp(settings_.get(Key::ZMovementStyle), 0, 2));
+    }
 
     /** @brief Set Z movement style override and apply to printer state */
     void set_z_movement_style(ZMovementStyle style);
@@ -126,10 +130,13 @@ class SettingsManager {
 
     /// Enclosure override: Auto (printer database, else a chamber heater),
     /// Enclosed (marks a DIY enclosure) or Open.
-    helix::bed_drying::EnclosureStyle get_enclosure_style() const;
+    helix::bed_drying::EnclosureStyle get_enclosure_style() const {
+        return static_cast<helix::bed_drying::EnclosureStyle>(
+            std::clamp(settings_.get(Key::EnclosureStyle), 0, 2));
+    }
     void set_enclosure_style(helix::bed_drying::EnclosureStyle style);
     lv_subject_t* subject_enclosure_style() {
-        return &enclosure_style_subject_;
+        return settings_.subject(Key::EnclosureStyle);
     }
 
     /// The persisted bed-drying run; `latched` false when there is none.
@@ -181,7 +188,7 @@ class SettingsManager {
 
     /** @brief Z movement style subject (integer: 0=Auto, 1=Bed Moves, 2=Nozzle Moves) */
     lv_subject_t* subject_z_movement_style() {
-        return &z_movement_style_subject_;
+        return settings_.subject(Key::ZMovementStyle);
     }
 
     // =========================================================================
@@ -189,13 +196,17 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get toolhead rendering style */
-    ToolheadStyle get_toolhead_style() const;
+    ToolheadStyle get_toolhead_style() const {
+        return static_cast<ToolheadStyle>(std::clamp(settings_.get(Key::ToolheadStyle), 0, 7));
+    }
 
     /** @brief Get effective toolhead style (resolves AUTO using printer detection) */
     ToolheadStyle get_effective_toolhead_style() const;
 
     /** @brief Set toolhead rendering style and persist */
-    void set_toolhead_style(ToolheadStyle style);
+    void set_toolhead_style(ToolheadStyle style) {
+        settings_.set(Key::ToolheadStyle, static_cast<int>(style));
+    }
 
     /** @brief Get dropdown options string */
     static std::string get_toolhead_style_options();
@@ -209,7 +220,7 @@ class SettingsManager {
     /** @brief Toolhead style subject (integer: 0=Auto, 1=Stealthburner, 2=A4T, 3=AntHead,
      * 4=JabberWocky) */
     lv_subject_t* subject_toolhead_style() {
-        return &toolhead_style_subject_;
+        return settings_.subject(Key::ToolheadStyle);
     }
 
     // =========================================================================
@@ -217,14 +228,18 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get extrude/retract speed in mm/s (default 5, range 1-50) */
-    int get_extrude_speed() const;
+    int get_extrude_speed() const {
+        return settings_.get(Key::ExtrudeSpeed);
+    }
 
     /** @brief Set extrude/retract speed in mm/s (clamped 1-50, persisted) */
-    void set_extrude_speed(int mm_per_sec);
+    void set_extrude_speed(int mm_per_sec) {
+        settings_.set(Key::ExtrudeSpeed, mm_per_sec);
+    }
 
     /** @brief Extrude speed subject (integer: mm/s) for UI binding */
     lv_subject_t* subject_extrude_speed() {
-        return &extrude_speed_subject_;
+        return settings_.subject(Key::ExtrudeSpeed);
     }
 
     // =========================================================================
@@ -232,27 +247,39 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get XY jog feedrate in mm/min (default 6000, range 60-60000) */
-    int get_jog_speed_xy() const;
+    int get_jog_speed_xy() const {
+        return settings_.get(Key::JogSpeedXy);
+    }
 
     /** @brief Set XY jog feedrate in mm/min (clamped 60-60000, persisted) */
-    void set_jog_speed_xy(int mm_per_min);
+    void set_jog_speed_xy(int mm_per_min) {
+        settings_.set(Key::JogSpeedXy, mm_per_min);
+    }
 
     /** @brief Get Z jog feedrate in mm/min (default 600, range 60-60000) */
-    int get_jog_speed_z() const;
+    int get_jog_speed_z() const {
+        return settings_.get(Key::JogSpeedZ);
+    }
 
     /** @brief Set Z jog feedrate in mm/min (clamped 60-60000, persisted) */
-    void set_jog_speed_z(int mm_per_min);
+    void set_jog_speed_z(int mm_per_min) {
+        settings_.set(Key::JogSpeedZ, mm_per_min);
+    }
 
     /** @brief Get whether the motion readout shows actual (live) position
      *  (default false: commanded position) */
-    bool get_motion_show_actual_position() const;
+    bool get_motion_show_actual_position() const {
+        return settings_.get_bool(Key::MotionShowActualPosition);
+    }
 
     /** @brief Set whether the motion readout shows actual (live) position (persisted) */
-    void set_motion_show_actual_position(bool show);
+    void set_motion_show_actual_position(bool show) {
+        settings_.set(Key::MotionShowActualPosition, show);
+    }
 
     /** @brief Motion coordinate source subject (integer: 0=commanded, 1=actual) */
     lv_subject_t* subject_motion_show_actual_position() {
-        return &motion_show_actual_position_subject_;
+        return settings_.subject(Key::MotionShowActualPosition);
     }
 
     // =========================================================================
@@ -274,25 +301,33 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get QIDI Box eject distance magnitude in mm (default 878, range 100-2000) */
-    int get_qidi_eject_distance() const;
+    int get_qidi_eject_distance() const {
+        return settings_.get(Key::QidiEjectDistance);
+    }
 
     /** @brief Set QIDI Box eject distance magnitude in mm (clamped 100-2000, persisted) */
-    void set_qidi_eject_distance(int mm);
+    void set_qidi_eject_distance(int mm) {
+        settings_.set(Key::QidiEjectDistance, mm);
+    }
 
     /** @brief QIDI eject distance subject (integer: mm) for UI binding */
     lv_subject_t* subject_qidi_eject_distance() {
-        return &qidi_eject_distance_subject_;
+        return settings_.subject(Key::QidiEjectDistance);
     }
 
     /** @brief Get QIDI Box eject velocity in mm/s (default 100, range 10-300) */
-    int get_qidi_eject_velocity() const;
+    int get_qidi_eject_velocity() const {
+        return settings_.get(Key::QidiEjectVelocity);
+    }
 
     /** @brief Set QIDI Box eject velocity in mm/s (clamped 10-300, persisted) */
-    void set_qidi_eject_velocity(int mm_per_sec);
+    void set_qidi_eject_velocity(int mm_per_sec) {
+        settings_.set(Key::QidiEjectVelocity, mm_per_sec);
+    }
 
     /** @brief QIDI eject velocity subject (integer: mm/s) for UI binding */
     lv_subject_t* subject_qidi_eject_velocity() {
-        return &qidi_eject_velocity_subject_;
+        return settings_.subject(Key::QidiEjectVelocity);
     }
 
     // =========================================================================
@@ -325,14 +360,18 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get whether the navbar printer switcher icon is shown */
-    bool get_show_printer_switcher() const;
+    bool get_show_printer_switcher() const {
+        return settings_.get_bool(Key::ShowPrinterSwitcher);
+    }
 
     /** @brief Set whether the navbar printer switcher icon is shown */
-    void set_show_printer_switcher(bool show);
+    void set_show_printer_switcher(bool show) {
+        settings_.set(Key::ShowPrinterSwitcher, show);
+    }
 
     /** @brief Printer switcher visibility subject (integer: 0=hidden, 1=shown) */
     lv_subject_t* subject_show_printer_switcher() {
-        return &show_printer_switcher_subject_;
+        return settings_.subject(Key::ShowPrinterSwitcher);
     }
 
     /**
@@ -352,14 +391,18 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get whether icon-only widget labels are shown on the home screen */
-    bool get_show_widget_labels() const;
+    bool get_show_widget_labels() const {
+        return settings_.get_bool(Key::ShowWidgetLabels);
+    }
 
     /** @brief Set whether icon-only widget labels are shown on the home screen */
-    void set_show_widget_labels(bool show);
+    void set_show_widget_labels(bool show) {
+        settings_.set(Key::ShowWidgetLabels, show);
+    }
 
     /** @brief Widget label visibility subject (integer: 0=hidden, 1=shown) */
     lv_subject_t* subject_show_widget_labels() {
-        return &show_widget_labels_subject_;
+        return settings_.subject(Key::ShowWidgetLabels);
     }
 
     // =========================================================================
@@ -367,14 +410,18 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get whether filament mapping should auto-match by color */
-    bool get_auto_color_map() const;
+    bool get_auto_color_map() const {
+        return settings_.get_bool(Key::AutoColorMap);
+    }
 
     /** @brief Set whether filament mapping should auto-match by color */
-    void set_auto_color_map(bool enabled);
+    void set_auto_color_map(bool enabled) {
+        settings_.set(Key::AutoColorMap, enabled);
+    }
 
     /** @brief Auto color map subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_auto_color_map() {
-        return &auto_color_map_subject_;
+        return settings_.subject(Key::AutoColorMap);
     }
 
     // =========================================================================
@@ -389,14 +436,18 @@ class SettingsManager {
      * others leave it loaded. When enabled, the pre-print runout warning is
      * suppressed (an empty toolhead is expected, not a fault). Default false.
      */
-    bool get_afc_unload_after_print() const;
+    bool get_afc_unload_after_print() const {
+        return settings_.get_bool(Key::AfcUnloadAfterPrint);
+    }
 
     /** @brief Set whether AFC unloads filament from the toolhead after a print */
-    void set_afc_unload_after_print(bool enabled);
+    void set_afc_unload_after_print(bool enabled) {
+        settings_.set(Key::AfcUnloadAfterPrint, enabled);
+    }
 
     /** @brief AFC unload-after-print subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_afc_unload_after_print() {
-        return &afc_unload_after_print_subject_;
+        return settings_.subject(Key::AfcUnloadAfterPrint);
     }
 
     /**
@@ -408,14 +459,18 @@ class SettingsManager {
      * that have no bypass at all (#1229). The node is now hidden on AFC while
      * bypass is off; enable this to keep it visible anyway. Default false.
      */
-    bool get_ams_always_show_bypass_spool() const;
+    bool get_ams_always_show_bypass_spool() const {
+        return settings_.get_bool(Key::AmsAlwaysShowBypassSpool);
+    }
 
     /** @brief Set whether the bypass spool stays visible with bypass disengaged */
-    void set_ams_always_show_bypass_spool(bool enabled);
+    void set_ams_always_show_bypass_spool(bool enabled) {
+        settings_.set(Key::AmsAlwaysShowBypassSpool, enabled);
+    }
 
     /** @brief Always-show-bypass-spool subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_ams_always_show_bypass_spool() {
-        return &ams_always_show_bypass_spool_subject_;
+        return settings_.subject(Key::AmsAlwaysShowBypassSpool);
     }
 
     /**
@@ -428,14 +483,18 @@ class SettingsManager {
      * behavior, and disabling it starts an ejected lane fresh.
      * Per-printer setting.
      */
-    bool get_ams_keep_spool_info_on_eject() const;
+    bool get_ams_keep_spool_info_on_eject() const {
+        return settings_.get_bool(Key::AmsKeepSpoolInfoOnEject);
+    }
 
     /** @brief Set whether spool info survives a firmware-reported eject */
-    void set_ams_keep_spool_info_on_eject(bool enabled);
+    void set_ams_keep_spool_info_on_eject(bool enabled) {
+        settings_.set(Key::AmsKeepSpoolInfoOnEject, enabled);
+    }
 
     /** @brief Keep-spool-info-on-eject subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_ams_keep_spool_info_on_eject() {
-        return &ams_keep_spool_info_on_eject_subject_;
+        return settings_.subject(Key::AmsKeepSpoolInfoOnEject);
     }
 
     /**
@@ -449,10 +508,14 @@ class SettingsManager {
      * select_bypass() never consults has_bypass() — MMU_SELECT_BYPASS deselects
      * the gear steppers and reports gate -2 regardless. Default false.
      */
-    bool get_ams_force_bypass_controls() const;
+    bool get_ams_force_bypass_controls() const {
+        return settings_.get_bool(Key::AmsForceBypassControls);
+    }
 
     /** @brief Set whether bypass controls appear despite a firmware "no bypass" */
-    void set_ams_force_bypass_controls(bool enabled);
+    void set_ams_force_bypass_controls(bool enabled) {
+        settings_.set(Key::AmsForceBypassControls, enabled);
+    }
 
     /**
      * @brief Whether bypass was declared on a system with no firmware bypass
@@ -470,7 +533,7 @@ class SettingsManager {
 
     /** @brief Force-bypass-controls subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_ams_force_bypass_controls() {
-        return &ams_force_bypass_controls_subject_;
+        return settings_.subject(Key::AmsForceBypassControls);
     }
 
     // =========================================================================
@@ -486,14 +549,18 @@ class SettingsManager {
      * cooldown, so users on those need to turn ours off to avoid two
      * independent timers fighting over the heater.
      */
-    bool get_filament_auto_cooldown() const;
+    bool get_filament_auto_cooldown() const {
+        return settings_.get_bool(Key::FilamentAutoCooldown);
+    }
 
     /** @brief Set whether the nozzle cools down after a filament load/unload */
-    void set_filament_auto_cooldown(bool enabled);
+    void set_filament_auto_cooldown(bool enabled) {
+        settings_.set(Key::FilamentAutoCooldown, enabled);
+    }
 
     /** @brief Post-op cooldown subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_filament_auto_cooldown() {
-        return &filament_auto_cooldown_subject_;
+        return settings_.subject(Key::FilamentAutoCooldown);
     }
 
     // =========================================================================
@@ -501,21 +568,29 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get whether the temperature-report filter is enabled (default true) */
-    bool get_console_filter_temps() const;
+    bool get_console_filter_temps() const {
+        return settings_.get_bool(Key::ConsoleFilterTemps);
+    }
     /** @brief Set whether the temperature-report filter is enabled */
-    void set_console_filter_temps(bool enabled);
+    void set_console_filter_temps(bool enabled) {
+        settings_.set(Key::ConsoleFilterTemps, enabled);
+    }
     /** @brief Subject (0/1) for temperature-report filter */
     lv_subject_t* subject_console_filter_temps() {
-        return &console_filter_temps_subject_;
+        return settings_.subject(Key::ConsoleFilterTemps);
     }
 
     /** @brief Get whether the firmware-noise filter is enabled (default true) */
-    bool get_console_filter_firmware_noise() const;
+    bool get_console_filter_firmware_noise() const {
+        return settings_.get_bool(Key::ConsoleFilterFirmwareNoise);
+    }
     /** @brief Set whether the firmware-noise filter is enabled */
-    void set_console_filter_firmware_noise(bool enabled);
+    void set_console_filter_firmware_noise(bool enabled) {
+        settings_.set(Key::ConsoleFilterFirmwareNoise, enabled);
+    }
     /** @brief Subject (0/1) for firmware-noise filter */
     lv_subject_t* subject_console_filter_firmware_noise() {
-        return &console_filter_firmware_noise_subject_;
+        return settings_.subject(Key::ConsoleFilterFirmwareNoise);
     }
 
     /**
@@ -577,25 +652,33 @@ class SettingsManager {
     // =========================================================================
 
     /** @brief Get whether spaghetti detection is globally enabled (master toggle) */
-    bool get_detection_enabled() const;
+    bool get_detection_enabled() const {
+        return settings_.get_bool(Key::DetectionEnabled);
+    }
 
     /** @brief Set spaghetti detection master toggle and persist */
-    void set_detection_enabled(bool enabled);
+    void set_detection_enabled(bool enabled) {
+        settings_.set(Key::DetectionEnabled, enabled);
+    }
 
     /** @brief Detection enabled subject (integer: 0=off, 1=on) */
     lv_subject_t* subject_detection_enabled() {
-        return &detection_enabled_subject_;
+        return settings_.subject(Key::DetectionEnabled);
     }
 
     /** @brief Get whether a detection pauses the print (off = warn only) */
-    bool get_detection_pause_on_detect() const;
+    bool get_detection_pause_on_detect() const {
+        return settings_.get_bool(Key::DetectionPauseOnDetect);
+    }
 
     /** @brief Set whether a detection pauses the print and persist */
-    void set_detection_pause_on_detect(bool pause);
+    void set_detection_pause_on_detect(bool pause) {
+        settings_.set(Key::DetectionPauseOnDetect, pause);
+    }
 
     /** @brief Detection pause subject (integer: 0=warn only, 1=pause) */
     lv_subject_t* subject_detection_pause_on_detect() {
-        return &detection_pause_on_detect_subject_;
+        return settings_.subject(Key::DetectionPauseOnDetect);
     }
 
     /**
@@ -612,14 +695,18 @@ class SettingsManager {
      * @brief Get per-source policy for the Snapmaker U1 built-in detector
      *        0=Off, 1=NotifyOnly, 2=DeferToSource (default)
      */
-    int get_detection_policy_u1() const;
+    int get_detection_policy_u1() const {
+        return settings_.get(Key::DetectionPolicyU1);
+    }
 
     /** @brief Set per-source policy for the Snapmaker U1 built-in detector (clamped 0-2) */
-    void set_detection_policy_u1(int policy);
+    void set_detection_policy_u1(int policy) {
+        settings_.set(Key::DetectionPolicyU1, policy);
+    }
 
     /** @brief Detection policy subject for U1 (integer: 0=Off, 1=NotifyOnly, 2=DeferToSource) */
     lv_subject_t* subject_detection_policy_u1() {
-        return &detection_policy_u1_subject_;
+        return settings_.subject(Key::DetectionPolicyU1);
     }
 
     // =========================================================================
@@ -667,33 +754,37 @@ class SettingsManager {
     // Subject manager for RAII cleanup
     SubjectManager subjects_;
 
-    // LVGL subjects — only those owned by SettingsManager
-    lv_subject_t z_movement_style_subject_{};
-    lv_subject_t enclosure_style_subject_{};
-    lv_subject_t extrude_speed_subject_{};
-    lv_subject_t motion_show_actual_position_subject_{};
-    lv_subject_t jog_speed_xy_subject_{};
-    lv_subject_t jog_speed_z_subject_{};
+    enum class Key : uint8_t {
+        ZMovementStyle,
+        EnclosureStyle,
+        ExtrudeSpeed,
+        JogSpeedXy,
+        JogSpeedZ,
+        MotionShowActualPosition,
+        QidiEjectDistance,
+        QidiEjectVelocity,
+        ToolheadStyle,
+        ShowPrinterSwitcher,
+        ShowWidgetLabels,
+        AutoColorMap,
+        AfcUnloadAfterPrint,
+        AmsAlwaysShowBypassSpool,
+        AmsKeepSpoolInfoOnEject,
+        AmsForceBypassControls,
+        FilamentAutoCooldown,
+        ConsoleFilterTemps,
+        ConsoleFilterFirmwareNoise,
+        DetectionEnabled,
+        DetectionPauseOnDetect,
+        DetectionPolicyU1,
+        COUNT
+    };
+    settings::PersistedSettings<Key, static_cast<size_t>(Key::COUNT)> settings_;
+
     // Jog step distances in mm, [static_cast<int>(JogMode)][outer]. Cached
     // config values rather than subjects: read on every jog, not widget-bound.
     // Sized for the three JogMode values; static_assert in init_subjects().
     float jog_distances_[3][2]{};
-    lv_subject_t qidi_eject_distance_subject_{};
-    lv_subject_t qidi_eject_velocity_subject_{};
-    lv_subject_t toolhead_style_subject_{};
-    lv_subject_t show_printer_switcher_subject_{};
-    lv_subject_t show_widget_labels_subject_{};
-    lv_subject_t auto_color_map_subject_{};
-    lv_subject_t afc_unload_after_print_subject_{};
-    lv_subject_t ams_always_show_bypass_spool_subject_{};
-    lv_subject_t ams_keep_spool_info_on_eject_subject_{};
-    lv_subject_t ams_force_bypass_controls_subject_{};
-    lv_subject_t filament_auto_cooldown_subject_{};
-    lv_subject_t console_filter_temps_subject_{};
-    lv_subject_t console_filter_firmware_noise_subject_{};
-    lv_subject_t detection_enabled_subject_{};
-    lv_subject_t detection_pause_on_detect_subject_{};
-    lv_subject_t detection_policy_u1_subject_{};
 
     // External references
     IMoonrakerClient* moonraker_client_ = nullptr;

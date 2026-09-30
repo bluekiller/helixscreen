@@ -181,12 +181,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     AmsBackendAfc(IMoonrakerAPI* api, helix::IMoonrakerClient* client);
     ~AmsBackendAfc() override;
 
-    /// The resync files stored records through this backend's echo guard, the
-    /// same one its parses consult.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     /**
      * @brief Bare filament-sensor names AFC owns (no AMS keyword).
      *
@@ -237,7 +231,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     [[nodiscard]] bool manages_active_spool() const override {
         return true;
     }
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     /**
      * @brief Does this lane status payload prove AFC publishes the v1.2.0 field set?
@@ -511,9 +504,12 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
      * @param hub_names Hub names from PrinterCapabilities::get_afc_hub_names()
      */
     void set_discovered_lanes(const std::vector<std::string>& lane_names,
-                              const std::vector<std::string>& hub_names) override;
+                              const std::vector<std::string>& hub_names);
 
-    void set_discovered_sensors(const std::vector<std::string>& sensor_names) override;
+    void set_discovered_sensors(const std::vector<std::string>& sensor_names);
+
+    /// Lanes, hubs and filament sensors from discovery.
+    void set_discovery(const helix::PrinterDiscovery& discovery) override;
 
     // Device-Specific Actions
     /**
@@ -573,7 +569,11 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
 
     // --- AmsSubscriptionBackend hooks ---
     void on_started() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        const auto* entry = slots_.get(slot_index);
+        return entry ? &entry->info : nullptr;
+    }
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS AFC]";
     }
@@ -597,16 +597,15 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     // parse_afc_stepper honours AFC's clears: firmware truth clears, and the
     // override re-supplies the identity the user attached.
     static constexpr const char* OVERRIDE_NAMESPACE = "helix-screen-afc-overrides";
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
     /// Store on the SHARED lane_data namespace, used only by
     /// publish_external_spool_lane. AFC's plugin owns that namespace — our
     /// private override_store_ is deliberately NOT pointed at it.
     std::unique_ptr<helix::ams::FilamentSlotOverrideStore> lane_publish_store_;
-    /// Keyed by the lane's registry position (slots_ index), the one key every
-    /// per-lane store here shares: lane_id(), own-write expectations and
-    /// own_write_echoes_ all take it. Never a SlotInfo field: slot_index there
-    /// is unit-local, and global_index is a copy the registry stamps (#1644).
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+    // overrides_ is keyed by the lane's registry position (slots_ index), the
+    // one key every per-lane store here shares: lane_id(), own-write
+    // expectations and own_write_echoes_ all take it. Never a SlotInfo field:
+    // slot_index there is unit-local, and global_index is a copy the registry
+    // stamps (#1644).
     /// Layer the user override over firmware values. Callers hold mutex_.
     /// Build + persist an override from a user edit, recording what @p declared
     /// says the user moved. Callers hold mutex_.
@@ -615,9 +614,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     /// Put @p info's filament fields and tool mapping on @p slot, the half an
     /// edit and a sync share. Callers hold mutex_.
     void write_lane_locked(int slot_index, SlotInfo& slot, const SlotInfo& info);
-
-    /// Async callback safety guard. Tokens shared with AfcConfigManager instances.
-    helix::AsyncLifetimeGuard lifetime_;
 
     /**
      * @brief Parse AFC state from Moonraker JSON
@@ -1249,7 +1245,7 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     int message_drain_budget_ = 0;
 
     /// Set by parse_afc_state() while holding mutex_; consumed by
-    /// handle_status_update() after the lock is released. parse_afc_state() must
+    /// handle_status() after the lock is released. parse_afc_state() must
     /// never send gcode itself — same reason deferred_error_event exists.
     bool message_drain_pending_ = false;
 
@@ -1355,12 +1351,12 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     };
     std::unordered_map<std::string, LaneFirmwareReadings> lane_firmware_readings_;
 
-    /// What a user's edit declared and this backend wrote back, for the parse
-    /// to tell firmware repeating our own SET_COLOR / SET_MATERIAL from a
-    /// reading. Keyed by slot index like the guard's other users, and under
-    /// the same mutex_ discipline as lane_firmware_readings_ above: both parse
-    /// paths and apply_user_edit() run with the lock held.
-    ams::OwnWriteEchoes own_write_echoes_;
+    // The base's own_write_echoes_, on this backend:
+    // What a user's edit declared and this backend wrote back, for the parse
+    // to tell firmware repeating our own SET_COLOR / SET_MATERIAL from a
+    // reading. Keyed by slot index like the guard's other users, and under
+    // the same mutex_ discipline as lane_firmware_readings_ above: both parse
+    // paths and apply_user_edit() run with the lock held.
 
     /// Lanes last seen on each buffer, keyed by buffer name. AFC's buffer status
     /// arrives as a Moonraker delta, so a frame that changes only `state` omits

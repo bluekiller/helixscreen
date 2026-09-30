@@ -1691,7 +1691,7 @@ TEST_CASE("CFS change_tool selects load-vs-swap from filament_loaded (#968)", "[
 //
 // The push writes color_value always, and material_type ONLY when a code for
 // the user's pick exists in the firmware-observed vocabulary harvested by
-// handle_status_update (observed_material_*_). Codes are never synthesized —
+// handle_status (observed_material_*_). Codes are never synthesized —
 // a value the firmware never reported could poison the wrapper's material-DB
 // lookups (flush temps, same-material matching) and the stock LCD display.
 //
@@ -2714,7 +2714,7 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
     // Second parse: DIFFERENT fingerprint on slot 0 (material=102001, new
     // color) — physical swap detected.
     //
-    // Sequence inside handle_status_update for this slot:
+    // Sequence inside handle_status for this slot:
     //   1. check_hardware_event_clear fires clear_override_locked, which
     //      erases the user-set override (brand, spool_name, spoolman_id,
     //      material, color) AND deletes the lane_data record.
@@ -2789,6 +2789,8 @@ TEST_CASE("CFS clear_slot_override drops the whole Spoolman link",
     CfsTestAccess::handle_status(backend, make_cfs_notification(box));
     REQUIRE(CfsTestAccess::seed_live_spoolman_link(backend, 0, 42, 77, 3));
     REQUIRE(backend.get_slot_info(0).spoolman_filament_id == 77);
+    const SlotInfo before = backend.get_slot_info(0);
+    REQUIRE_FALSE(before.brand.empty());
 
     backend.clear_slot_override(0);
 
@@ -2801,6 +2803,10 @@ TEST_CASE("CFS clear_slot_override drops the whole Spoolman link",
     CHECK(info.spoolman_vendor_id == 0);
     CHECK(info.spoolman_filament_id == 0);
     CHECK(info.spool_name.empty());
+    // The RFID material database supplies these, so the clear keeps them.
+    CHECK(info.brand == before.brand);
+    CHECK(info.color_name == before.color_name);
+    CHECK(info.total_weight_g == before.total_weight_g);
 }
 
 TEST_CASE("CFS first RFID observation does NOT clear override",
@@ -5038,7 +5044,7 @@ TEST_CASE("CFS phase verify: a raised fault survives later status frames", "[ams
         {"params", nlohmann::json::array(
                        {{{"filament_switch_sensor filament_sensor", {{"filament_detected", false}}},
                          {"extruder", {{"temperature", 210.0}, {"target", 220.0}}}}})}};
-    CfsTestAccess::handle_status(backend, n["params"][0]);
+    CfsTestAccess::handle_status(backend, n);
 
     CHECK(backend.get_system_info().action == AmsAction::ERROR);
     CHECK(backend.current_error().has_value());

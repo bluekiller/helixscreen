@@ -1441,8 +1441,24 @@ jobs:
         path: artifacts
 
     - name: Flatten symbol files
+      env:
+        PLATFORMS: ${{ needs.plan.outputs.platforms }}
       run: |
         mkdir -p symbol-files
+        # download-artifact extracts straight into path, with no per-artifact
+        # directory, when its pattern matches exactly one artifact (a
+        # one-platform dry run). Put that lone artifact back under
+        # symbols-<platform>/ so the loop below sees one layout.
+        if ! compgen -G 'artifacts/symbols-*/' > /dev/null; then
+          read -ra plats <<< "$PLATFORMS"
+          if [ "${#plats[@]}" -ne 1 ]; then
+            echo "::error::no artifacts/symbols-*/ directories, and plan built '${PLATFORMS}', not one platform"
+            exit 1
+          fi
+          mkdir "artifacts/symbols-${plats[0]}"
+          find artifacts -mindepth 1 -maxdepth 1 ! -name "symbols-${plats[0]}" \
+            -exec mv -t "artifacts/symbols-${plats[0]}/" {} +
+        fi
         # mv (not cp) the selected symbol files into place: the source artifacts/
         # tree is discarded right after, and cp doubled ~6.7GB of debug symbols on
         # disk, which is what pushed the runner into ENOSPC (v0.99.80). Each source
