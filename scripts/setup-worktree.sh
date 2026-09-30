@@ -91,7 +91,7 @@ usage() {
 #
 # Nothing here may run while a build is in flight: pulling lib/ out from under a
 # compile fails it with missing headers, and re-linking mid-compile is no better.
-LIB_NON_SUBMODULE_ITEMS=("tuibox.h" "mdns")
+LIB_NON_SUBMODULE_ITEMS=("mdns")
 
 # Submodules that get a PRIVATE checkout per worktree instead of a symlink.
 #
@@ -1215,9 +1215,7 @@ mkdir -p "$(dirname "$EXCLUDE_FILE")"
 # negation does not apply, and lib/* keeps it hidden — otherwise every worktree
 # reports a permanent `?? lib/mdns` for a symlink this script created. That
 # stray entry is exactly what `git add -A` sweeps onto main as a blob
-# replacing the tracked directory. lib/tuibox.h needs no such care:
-# its symlink sits at the tracked path itself, and a path in the index is never
-# reported as untracked.
+# replacing the tracked directory.
 EXCLUDES=(
     "# HelixScreen worktree setup - auto-generated excludes"
     "lib/*"
@@ -1225,7 +1223,6 @@ EXCLUDES=(
     "!lib/mdns/"
     "!lib/minilzo"
     "!lib/quirc"
-    "!lib/tuibox.h"
     "node_modules"
     ".venv"
     "build/"
@@ -1266,7 +1263,6 @@ for submod in $SUBMODULES; do
 done
 
 # Mark other lib items
-git update-index --skip-worktree lib/tuibox.h 2>/dev/null || true
 # lib/mdns is a directory, not a submodule - mark its contents
 git update-index --skip-worktree lib/mdns/mdns.h 2>/dev/null || true
 
