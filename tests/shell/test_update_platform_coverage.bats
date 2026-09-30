@@ -34,10 +34,10 @@ RELEASE_YML="$WORKTREE_ROOT/.github/workflows/release.yml"
 PLATFORM_SH="$WORKTREE_ROOT/scripts/lib/installer/platform.sh"
 CRASH_WORKER_TS="$WORKTREE_ROOT/server/crash-worker/src/index.ts"
 
-# Space-separated release matrix platforms from release.yml.
+load helpers
+
 _release_matrix_platforms() {
-    grep -E 'platform: *\[' "$RELEASE_YML" | head -1 \
-        | sed -E 's/.*\[([^]]+)\].*/\1/' | tr ',' '\n' | tr -d ' '
+    release_matrix_platforms "$RELEASE_YML"
 }
 
 @test "every HELIX_PLATFORM_* in cross.mk has a branch in get_platform_key()" {
@@ -70,15 +70,8 @@ _release_matrix_platforms() {
 }
 
 @test "every release.yml platform has a known_platforms entry in the unit test" {
-    # Pull `platform: [...]` list from the release matrix.
-    local matrix_line
-    matrix_line=$(grep -E 'platform: *\[' "$RELEASE_YML" | head -1)
-    [ -n "$matrix_line" ]
-
-    # Strip everything outside the brackets, split on commas.
     local platforms
-    platforms=$(echo "$matrix_line" | sed -E 's/.*\[([^]]+)\].*/\1/' \
-                | tr ',' '\n' | tr -d ' ')
+    platforms=$(_release_matrix_platforms)
 
     [ -n "$platforms" ]
 
