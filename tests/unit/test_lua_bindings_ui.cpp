@@ -25,8 +25,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "subjects register under the plugin prefix",
         count = helix.subject.int("count", 3)
         label = helix.subject.string("label", "idle")
     )"));
-    lv_subject_t* c = lv_xml_get_subject(nullptr, "test-plugin_count");
-    lv_subject_t* l = lv_xml_get_subject(nullptr, "test-plugin_label");
+    lv_subject_t* c = lv_xml_get_subject(nullptr, "test-plugin__count");
+    lv_subject_t* l = lv_xml_get_subject(nullptr, "test-plugin__label");
     REQUIRE(c);
     REQUIRE(l);
     CHECK(lv_subject_get_int(c) == 3);
@@ -47,7 +47,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "observers see changes from C++ and Lua, not r
         s:observe(function(v) seen[#seen + 1] = v end)
         s:set(1)
     )"));
-    lv_subject_set_int(lv_xml_get_subject(nullptr, "test-plugin_n"), 2);
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "test-plugin__n"), 2);
     REQUIRE(b.t.run("result = table.concat(seen, ',')"));
     CHECK(b.t.global("result") == "1,2");
 }
@@ -60,7 +60,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "an observer setting its own subject stops at 
         s:observe(function(v) s:set(v + 1) end)
         s:set(1)
     )");
-    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "test-plugin_loop")) <= 10);
+    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "test-plugin__loop")) <= 10);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "subject names and sizes are validated",
@@ -83,9 +83,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "subjects are unregistered when the runtime cl
     {
         BoundRuntime b({&install_ui_bindings});
         REQUIRE(b.t.run(R"(helix.subject.int("gone", 1))"));
-        REQUIRE(lv_xml_get_subject(nullptr, "test-plugin_gone"));
+        REQUIRE(lv_xml_get_subject(nullptr, "test-plugin__gone"));
     }
-    CHECK(lv_xml_get_subject(nullptr, "test-plugin_gone") == nullptr);
+    CHECK(lv_xml_get_subject(nullptr, "test-plugin__gone") == nullptr);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "helix.subject bounds subjects per plugin",
@@ -153,10 +153,10 @@ TEST_CASE_METHOD(LVGLTestFixture, "runtime close leaves an app subject that took
         BoundRuntime b({&install_ui_bindings});
         REQUIRE(b.t.run(R"(helix.subject.int("x", 1))"));
         lv_subject_init_int(&app_subject, 5);
-        lv_xml_register_subject(nullptr, "test-plugin_x", &app_subject);
+        lv_xml_register_subject(nullptr, "test-plugin__x", &app_subject);
     }
-    CHECK(lv_xml_get_subject(nullptr, "test-plugin_x") == &app_subject);
-    lv_xml_unregister_subject(nullptr, "test-plugin_x");
+    CHECK(lv_xml_get_subject(nullptr, "test-plugin__x") == &app_subject);
+    lv_xml_unregister_subject(nullptr, "test-plugin__x");
     lv_subject_deinit(&app_subject);
 }
 
@@ -174,21 +174,23 @@ TEST_CASE_METHOD(LVGLTestFixture, "ui.on handlers dispatch with an argument",
 }
 
 TEST_CASE("plugin_event user_data parsing", "[plugin][bindings][ui]") {
-    auto t = parse_plugin_event("orca-cal_start");
+    auto t = parse_plugin_event("orca-cal__start");
     CHECK(t.id == "orca-cal");
     CHECK(t.name == "start");
     CHECK_FALSE(t.arg);
 
-    t = parse_plugin_event("orca-cal_pick:3:4");
+    t = parse_plugin_event("orca-cal__pick:3:4");
     CHECK(t.name == "pick");
     CHECK(t.arg == std::optional<std::string>("3:4"));
 
-    t = parse_plugin_event("orca-cal_my_handler");
+    t = parse_plugin_event("orca-cal__my_handler");
     CHECK(t.name == "my_handler");
 
     CHECK(parse_plugin_event("noowner").id.empty());
     CHECK(parse_plugin_event("_x").id.empty());
+    CHECK(parse_plugin_event("__x").id.empty());
     CHECK(parse_plugin_event("orca-cal_").id.empty());
+    CHECK(parse_plugin_event("orca-cal_x").id.empty());
     CHECK(parse_plugin_event("Bad_x").id.empty());
     CHECK(parse_plugin_event("").id.empty());
     CHECK(parse_plugin_event(":x").id.empty());

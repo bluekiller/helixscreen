@@ -2829,3 +2829,20 @@ EOF
     [ "$status" -eq 0 ]
     contains "validate_slot_index" "$output"
 }
+
+# --- ui_xml never uses the plugin name separator ---
+# `__` separates a plugin id from the rest of a name that plugin owns
+# (plugin_manifest.h kPluginNameSeparator). An app file name or app-bound
+# attribute value containing it would sit inside the plugin namespace, where
+# the ownership checks would read it as plugin-owned.
+
+@test "no ui_xml file name contains the plugin separator" {
+    run find ui_xml -name '*__*'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "no ui_xml name or subject attribute value contains the plugin separator" {
+    run grep -rEn '(name|[_a-z0-9]+_subject|bind_[_a-z0-9]+)="[^"]*__[^"]*"' ui_xml/
+    [ "$status" -eq 1 ]  # grep returns 1 when no matches found
+}

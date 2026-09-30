@@ -39,13 +39,20 @@ TEST_CASE("plugin ids", "[plugin][manifest]") {
     CHECK(is_valid_plugin_id(std::string(32, 'a')));
 }
 
-TEST_CASE("owned names need the id, an underscore and a rest", "[plugin][manifest]") {
-    CHECK(is_owned_name("orca-cal", "orca-cal_status"));
-    CHECK_FALSE(is_owned_name("orca-cal", "orca-cal_"));
-    CHECK_FALSE(is_owned_name("orca-cal", "orca-calx_status"));
-    CHECK_FALSE(is_owned_name("orca", "orca-cal_status"));
+TEST_CASE("owned names need the id, the separator and a rest", "[plugin][manifest]") {
+    CHECK(is_owned_name("orca-cal", "orca-cal__status"));
+    CHECK(is_owned_name("ams", "ams__x"));
+    // A single underscore is the app's namespace, not the plugin's.
+    CHECK_FALSE(is_owned_name("orca-cal", "orca-cal_status"));
+    CHECK_FALSE(is_owned_name("ams", "ams_device_operations"));
+    CHECK_FALSE(is_owned_name("extruder", "extruder_target"));
+    CHECK_FALSE(is_owned_name("orca-cal", "orca-cal__"));
+    CHECK_FALSE(is_owned_name("orca-cal", "orca-calx__status"));
+    CHECK_FALSE(is_owned_name("orca", "orca-cal__status"));
     CHECK_FALSE(is_owned_name("orca-cal", "status"));
-    CHECK(owner_of("orca-cal_my_status") == "orca-cal");
+    CHECK(plugin_owned_name("orca-cal", "status") == "orca-cal__status");
+    CHECK(owner_of("orca-cal__my_status") == "orca-cal");
+    CHECK(owner_of("orca-cal_status").empty());
     CHECK(owner_of("nounderscore").empty());
 }
 
@@ -61,12 +68,12 @@ TEST_CASE("a complete manifest parses", "[plugin][manifest]") {
         {"key": "ratio", "type": "float", "label": "Ratio", "min": 0.5, "max": 1.5, "default": 0.95},
         {"key": "test", "type": "enum", "label": "Test",
          "options": ["temperature", "flow"], "default": "flow"},
-        {"key": "ping", "type": "action", "label": "Ping", "callback": "orca-cal_ping"},
-        {"key": "state", "type": "info", "label": "State", "subject": "orca-cal_state"}
+        {"key": "ping", "type": "action", "label": "Ping", "callback": "orca-cal__ping"},
+        {"key": "state", "type": "info", "label": "State", "subject": "orca-cal__state"}
       ],
-      "settings_overlay": "orca-cal_settings",
-      "widgets": [{"id": "orca-cal_launch", "name": "Launch", "icon": "tune",
-                   "description": "Start", "component": "orca-cal_widget",
+      "settings_overlay": "orca-cal__settings",
+      "widgets": [{"id": "orca-cal__launch", "name": "Launch", "icon": "tune",
+                   "description": "Start", "component": "orca-cal__widget",
                    "colspan": 1, "rowspan": 1, "max_colspan": 2}]
     })");
     REQUIRE(r.errors.empty());
@@ -75,16 +82,16 @@ TEST_CASE("a complete manifest parses", "[plugin][manifest]") {
     CHECK(r.manifest->helix_version == ">=1.1");
     CHECK(r.manifest->memory_mb == 4);
     CHECK(r.manifest->permissions == PermissionSet{Permission::Gcode, Permission::MoonrakerWrite});
-    CHECK(r.manifest->settings_overlay == "orca-cal_settings");
+    CHECK(r.manifest->settings_overlay == "orca-cal__settings");
     REQUIRE(r.manifest->widgets.size() == 1);
-    CHECK(r.manifest->widgets[0].id == "orca-cal_launch");
+    CHECK(r.manifest->widgets[0].id == "orca-cal__launch");
     CHECK(r.manifest->widgets[0].max_colspan == 2);
     REQUIRE(r.manifest->settings.size() == 7);
     CHECK(r.manifest->settings[2].type == SettingType::Int);
     CHECK(r.manifest->settings[2].default_value == 5);
     CHECK(r.manifest->settings[3].max == 1.5);
     CHECK(r.manifest->settings[4].options == std::vector<std::string>{"temperature", "flow"});
-    CHECK(r.manifest->settings[5].callback == "orca-cal_ping");
+    CHECK(r.manifest->settings[5].callback == "orca-cal__ping");
 }
 
 TEST_CASE("memory_mb defaults to 2 and is bounded", "[plugin][manifest]") {
@@ -172,14 +179,14 @@ TEST_CASE("permissions", "[plugin][manifest]") {
 }
 
 TEST_CASE("manifest widgets parse with cell spans", "[plugin][manifest]") {
-    auto r = with_widgets(R"({"id":"ab_launch","name":"Launch","icon":"tune",
-        "description":"Start","component":"ab_widget","colspan":1,"rowspan":1,
+    auto r = with_widgets(R"({"id":"ab__launch","name":"Launch","icon":"tune",
+        "description":"Start","component":"ab__widget","colspan":1,"rowspan":1,
         "max_colspan":2,"max_rowspan":1})");
     REQUIRE(r.manifest);
     REQUIRE(r.manifest->widgets.size() == 1);
     const auto& w = r.manifest->widgets[0];
-    CHECK(w.id == "ab_launch");
-    CHECK(w.component == "ab_widget");
+    CHECK(w.id == "ab__launch");
+    CHECK(w.component == "ab__widget");
     CHECK(w.icon == "tune");
     CHECK(w.colspan == 1);
     CHECK(w.max_colspan == 2);
@@ -187,22 +194,23 @@ TEST_CASE("manifest widgets parse with cell spans", "[plugin][manifest]") {
 }
 
 TEST_CASE("manifest widgets reject bad names and spans", "[plugin][manifest]") {
-    CHECK(has_error_containing(with_widgets(R"({"id":"launch","name":"L","component":"ab_w"})"),
+    CHECK(has_error_containing(with_widgets(R"({"id":"launch","name":"L","component":"ab__w"})"),
                                "widgets[0]"));
-    CHECK(has_error_containing(with_widgets(R"({"id":"ab_l","name":"L","component":"w"})"),
+    CHECK(has_error_containing(with_widgets(R"({"id":"ab__l","name":"L","component":"w"})"),
                                "'component'"));
     CHECK(has_error_containing(
-        with_widgets(R"({"id":"ab_l","name":"L","component":"ab_w","colspan":9})"), "'colspan'"));
+        with_widgets(R"({"id":"ab__l","name":"L","component":"ab__w","colspan":9})"), "'colspan'"));
     CHECK(has_error_containing(
-        with_widgets(R"({"id":"ab_l","name":"L","component":"ab_w","colspan":2,"max_colspan":1})"),
+        with_widgets(
+            R"({"id":"ab__l","name":"L","component":"ab__w","colspan":2,"max_colspan":1})"),
         "'max_colspan'"));
-    CHECK(has_error_containing(with_widgets(R"({"id":"ab_l","name":"L","component":"ab_w"},
-                                               {"id":"ab_l","name":"M","component":"ab_w"})"),
+    CHECK(has_error_containing(with_widgets(R"({"id":"ab__l","name":"L","component":"ab__w"},
+                                               {"id":"ab__l","name":"M","component":"ab__w"})"),
                                "duplicate widget id"));
     std::string nine;
     for (int i = 0; i < 9; ++i)
-        nine += std::string(i ? "," : "") + R"({"id":"ab_w)" + std::to_string(i) +
-                R"(","name":"W","component":"ab_c"})";
+        nine += std::string(i ? "," : "") + R"({"id":"ab__w)" + std::to_string(i) +
+                R"(","name":"W","component":"ab__c"})";
     CHECK(has_error_containing(with_widgets(nine), "at most 8"));
 }
 

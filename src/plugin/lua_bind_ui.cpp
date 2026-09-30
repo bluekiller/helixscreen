@@ -135,7 +135,7 @@ int make_subject(lua_State* L, bool is_string) {
     std::string name = luaL_checkstring(L, 1);
     if (!is_valid_local_name(name))
         return luaL_error(L, "subject name '%s' must be 1-48 of [a-z0-9_-]", name.c_str());
-    std::string full = rt.plugin_id() + "_" + name;
+    std::string full = plugin_owned_name(rt.plugin_id(), name);
     if (lv_xml_get_subject(nullptr, full.c_str()))
         return luaL_error(L, "subject '%s' already exists", full.c_str());
 
@@ -266,10 +266,10 @@ PluginEventTarget parse_plugin_event(std::string_view user_data) {
         arg = std::string(user_data.substr(colon + 1));
     }
     std::string_view id = owner_of(head);
-    if (!is_valid_plugin_id(id) || head.size() <= id.size() + 1)
+    if (!is_valid_plugin_id(id) || head.size() <= id.size() + kPluginNameSeparator.size())
         return t;
     t.id = std::string(id);
-    t.name = std::string(head.substr(id.size() + 1));
+    t.name = std::string(head.substr(id.size() + kPluginNameSeparator.size()));
     t.arg = std::move(arg);
     return t;
 }

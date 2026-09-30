@@ -234,42 +234,50 @@ bool PluginHost::load(PluginInfo& info) {
     for (const auto& p : xmls) {
         if (!is_owned_name(id, p.stem().string())) {
             info.status = PluginStatus::Invalid;
-            info.reason = "component '" + p.stem().string() + "' must be named " + id + "_<name>";
+            info.reason = "component '" + p.stem().string() + "' must be named " + id + "__<name>";
             return false;
         }
     }
-    // An app callback or an app subject named here would bypass every permission, so the
-    // policy runs before anything is registered.
+    std::vector<std::string> stems;
+    std::vector<std::string> buffers;
+    stems.reserve(xmls.size());
+    buffers.reserve(xmls.size());
     for (const auto& p : xmls) {
-        std::string why = check_plugin_xml(id, read_file(p));
+        stems.push_back(p.stem().string());
+        buffers.push_back(read_file(p));
+    }
+    // An app callback or an app subject named here would bypass every permission, so the
+    // policy runs before anything is registered, and the bytes it checked are the bytes
+    // that get registered.
+    for (size_t i = 0; i < xmls.size(); ++i) {
+        std::string why = check_plugin_xml(id, stems, buffers[i]);
         if (!why.empty()) {
             info.status = PluginStatus::Invalid;
-            info.reason = p.filename().string() + ": " + why;
+            info.reason = xmls[i].filename().string() + ": " + why;
             return false;
         }
     }
     // A plugin registering an existing name would replace the app's component (and unloading
     // would then remove it), so nothing is registered until every stem is free.
-    for (const auto& p : xmls) {
-        if (lv_xml_component_get_scope(p.stem().string().c_str())) {
+    for (const auto& stem : stems) {
+        if (lv_xml_component_get_scope(stem.c_str())) {
             info.status = PluginStatus::Invalid;
-            info.reason = "component '" + p.stem().string() + "' already exists";
+            info.reason = "component '" + stem + "' already exists";
             return false;
         }
     }
 
     auto [it, inserted] = loaded_.try_emplace(id);
     Loaded& l = it->second;
-    for (const auto& p : xmls) {
-        std::string uri = "A:" + p.string();
-        if (lv_xml_register_component_from_file(uri.c_str()) != LV_RESULT_OK) {
+    for (size_t i = 0; i < xmls.size(); ++i) {
+        if (lv_xml_register_component_from_data(stems[i].c_str(), buffers[i].c_str()) !=
+            LV_RESULT_OK) {
             info.status = PluginStatus::Invalid;
-            info.reason = "cannot load " + p.filename().string();
+            info.reason = "cannot load " + xmls[i].filename().string();
             unload(id);
             return false;
         }
-        std::string name = p.stem().string();
-        l.components.emplace_back(name, lv_xml_component_get_scope(name.c_str()));
+        l.components.emplace_back(stems[i], lv_xml_component_get_scope(stems[i].c_str()));
     }
 
     json block = deps_.read_block();

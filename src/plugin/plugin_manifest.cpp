@@ -143,11 +143,11 @@ void parse_setting(const std::string& id, const json& s, size_t index, Manifest&
     } else if (type == SettingType::Action) {
         optional_string(s, "callback", d.callback, local);
         if (!is_owned_name(id, d.callback))
-            local.push_back("'callback' must be named " + id + "_<name>");
+            local.push_back("'callback' must be named " + id + "__<name>");
     } else if (type == SettingType::Info) {
         optional_string(s, "subject", d.subject, local);
         if (!is_owned_name(id, d.subject))
-            local.push_back("'subject' must be named " + id + "_<name>");
+            local.push_back("'subject' must be named " + id + "__<name>");
     }
 
     for (auto& e : local)
@@ -193,9 +193,9 @@ void parse_widgets(const json& arr, Manifest& m, std::vector<std::string>& error
         optional_string(w, "icon", d.icon, local);
         optional_string(w, "description", d.description, local);
         if (!d.id.empty() && !is_owned_name(m.id, d.id))
-            local.push_back("'id' must be named " + m.id + "_<name>");
+            local.push_back("'id' must be named " + m.id + "__<name>");
         if (!d.component.empty() && !is_owned_name(m.id, d.component))
-            local.push_back("'component' must be named " + m.id + "_<name>");
+            local.push_back("'component' must be named " + m.id + "__<name>");
         span_field(w, "colspan", d.colspan, 1, local);
         span_field(w, "rowspan", d.rowspan, 1, local);
         span_field(w, "max_colspan", d.max_colspan, 0, local);
@@ -223,11 +223,20 @@ bool is_valid_plugin_id(std::string_view id) {
 }
 
 bool is_owned_name(std::string_view id, std::string_view name) {
-    return name.size() > id.size() + 1 && name.substr(0, id.size()) == id && name[id.size()] == '_';
+    return name.size() > id.size() + kPluginNameSeparator.size() &&
+           name.substr(0, id.size()) == id &&
+           name.substr(id.size(), kPluginNameSeparator.size()) == kPluginNameSeparator;
+}
+
+std::string plugin_owned_name(std::string_view id, std::string_view rest) {
+    std::string name(id);
+    name += kPluginNameSeparator;
+    name += rest;
+    return name;
 }
 
 std::string_view owner_of(std::string_view name) {
-    auto pos = name.find('_');
+    auto pos = name.find(kPluginNameSeparator);
     return pos == std::string_view::npos ? std::string_view{} : name.substr(0, pos);
 }
 
@@ -288,7 +297,7 @@ ManifestParse parse_manifest(const std::string& text) {
 
     if (auto it = j.find("settings_overlay"); it != j.end() && !it->is_null()) {
         if (!it->is_string() || !is_owned_name(m.id, it->get<std::string>()))
-            r.errors.push_back("'settings_overlay' must be a component named " + m.id + "_<name>");
+            r.errors.push_back("'settings_overlay' must be a component named " + m.id + "__<name>");
         else
             m.settings_overlay = it->get<std::string>();
     }

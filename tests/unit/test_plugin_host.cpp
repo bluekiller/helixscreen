@@ -68,7 +68,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "plugins are disabled until enabled", "[plugin
     REQUIRE(rig.info("hello"));
     CHECK(rig.info("hello")->status == PluginStatus::Disabled);
     CHECK(rig.info("require-test") == nullptr); // no manifest: not a plugin
-    CHECK(lv_xml_get_subject(nullptr, "hello_status") == nullptr);
+    CHECK(lv_xml_get_subject(nullptr, "hello__status") == nullptr);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "an enabled plugin loads, binds and reacts", "[plugin][host]") {
@@ -76,18 +76,19 @@ TEST_CASE_METHOD(LVGLTestFixture, "an enabled plugin loads, binds and reacts", "
     rig.host->load_from("tests/fixtures/plugins");
     REQUIRE(rig.info("hello")->status == PluginStatus::Loaded);
 
-    lv_subject_t* status = lv_xml_get_subject(nullptr, "hello_status");
+    lv_subject_t* status = lv_xml_get_subject(nullptr, "hello__status");
     REQUIRE(status);
     CHECK(std::string(lv_subject_get_string(status)) == "hi");
 
-    auto* panel = static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "hello_panel", nullptr));
+    auto* panel =
+        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "hello__panel", nullptr));
     REQUIRE(panel);
     lv_obj_t* button = lv_obj_find_by_name(panel, "hello_button");
     REQUIRE(button);
     lv_obj_send_event(button, LV_EVENT_CLICKED, nullptr);
     CHECK(std::string(lv_subject_get_string(status)) == "pressed 7");
 
-    rig.host->dispatch_event("hello_home");
+    rig.host->dispatch_event("hello__home");
     REQUIRE(rig.fake.requests.size() == 1);
     CHECK(rig.fake.requests[0].a == "G28");
     rig.fake.requests[0].reply(RpcResult{true, {}, {}});
@@ -104,9 +105,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "unload runs on_unload and leaves nothing regi
     rig.host->unload_all();
     REQUIRE_FALSE(rig.fake.requests.empty());
     CHECK(rig.fake.requests.back().a == "server.info");
-    CHECK(lv_xml_get_subject(nullptr, "hello_status") == nullptr);
-    CHECK(lv_xml_create(lv_screen_active(), "hello_panel", nullptr) == nullptr);
-    rig.host->dispatch_event("hello_press");
+    CHECK(lv_xml_get_subject(nullptr, "hello__status") == nullptr);
+    CHECK(lv_xml_create(lv_screen_active(), "hello__panel", nullptr) == nullptr);
+    rig.host->dispatch_event("hello__press");
     rig.fake.requests.back().reply(RpcResult{true, {}, {}});
     drain();
 }
@@ -115,9 +116,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "events for other or unknown plugins are ignor
                  "[plugin][host]") {
     HostRig rig(enabled("hello", {"gcode"}));
     rig.host->load_from("tests/fixtures/plugins");
-    lv_subject_t* status = lv_xml_get_subject(nullptr, "hello_status");
+    lv_subject_t* status = lv_xml_get_subject(nullptr, "hello__status");
     rig.host->dispatch_event("other-plugin_press");
-    rig.host->dispatch_event("hello_nosuchhandler");
+    rig.host->dispatch_event("hello__nosuchhandler");
     rig.host->dispatch_event("garbage");
     rig.host->dispatch_event("");
     CHECK(std::string(lv_subject_get_string(status)) == "hi");
@@ -129,7 +130,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "fewer granted permissions than requested bloc
     rig.host->load_from("tests/fixtures/plugins");
     CHECK(rig.info("hello")->status == PluginStatus::NeedsApproval);
     CHECK(rig.info("hello")->reason.find("gcode") != std::string::npos);
-    CHECK(lv_xml_get_subject(nullptr, "hello_status") == nullptr);
+    CHECK(lv_xml_get_subject(nullptr, "hello__status") == nullptr);
 
     CHECK(rig.host->enable("hello"));
     CHECK(rig.info("hello")->status == PluginStatus::Loaded);
@@ -187,8 +188,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin that spins in main.lua faults and un
 TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app component is rejected",
                  "[plugin][host]") {
     REQUIRE(lv_xml_register_component_from_data(
-        "shadow_panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
-                        "<lv_label name=\"app_child\"/></view></component>"));
+        "shadow__panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
+                         "<lv_label name=\"app_child\"/></view></component>"));
     HostRig rig(enabled("shadow", {}));
     rig.host->load_from("tests/fixtures/plugins");
     REQUIRE(rig.info("shadow"));
@@ -197,11 +198,11 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app compon
     CHECK(rig.host->runtime("shadow") == nullptr);
 
     auto* panel =
-        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "shadow_panel", nullptr));
+        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "shadow__panel", nullptr));
     REQUIRE(panel);
     REQUIRE(lv_obj_find_by_name(panel, "app_child"));
     lv_obj_delete(panel);
-    lv_xml_component_unregister("shadow_panel");
+    lv_xml_component_unregister("shadow__panel");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the plugin's name",
@@ -210,15 +211,16 @@ TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the 
     rig.host->load_from("tests/fixtures/plugins");
     REQUIRE(rig.info("hello")->status == PluginStatus::Loaded);
     REQUIRE(lv_xml_register_component_from_data(
-        "hello_panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
-                       "<lv_label name=\"app_child\"/></view></component>"));
+        "hello__panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
+                        "<lv_label name=\"app_child\"/></view></component>"));
     rig.host->disable("hello");
 
-    auto* panel = static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "hello_panel", nullptr));
+    auto* panel =
+        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "hello__panel", nullptr));
     REQUIRE(panel);
     CHECK(lv_obj_find_by_name(panel, "app_child"));
     lv_obj_delete(panel);
-    lv_xml_component_unregister("hello_panel");
+    lv_xml_component_unregister("hello__panel");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "plugin XML naming an app callback is rejected at load",
@@ -229,7 +231,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "plugin XML naming an app callback is rejected
     REQUIRE(info);
     CHECK(info->status == PluginStatus::Invalid);
     CHECK(info->reason.find("on_estop_clicked") != std::string::npos);
-    CHECK(lv_xml_component_get_scope("app-callback_panel") == nullptr);
+    CHECK(lv_xml_component_get_scope("app-callback__panel") == nullptr);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "disable unloads and forgets consent", "[plugin][host]") {
@@ -238,7 +240,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "disable unloads and forgets consent", "[plugi
     rig.host->disable("hello");
     CHECK(rig.info("hello")->status == PluginStatus::Disabled);
     CHECK_FALSE(rig.block["enabled"].contains("hello"));
-    CHECK(lv_xml_get_subject(nullptr, "hello_status") == nullptr);
+    CHECK(lv_xml_get_subject(nullptr, "hello__status") == nullptr);
 }
 
 #endif // HELIX_HAS_PLUGINS

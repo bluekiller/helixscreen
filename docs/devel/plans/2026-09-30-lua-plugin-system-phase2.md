@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Plugin id `^[a-z][a-z0-9-]{1,31}$`. Every name a plugin registers, including widget ids and component names, is `<id>_<rest>`.
+- Plugin id `^[a-z][a-z0-9-]{1,31}$`. Every name a plugin registers, including widget ids and component names, is `<id>__<rest>`.
 - Plugin widgets are in the catalog category Plugins, never enabled by default, and single-instance.
 - Manifest spans are in **cells**, 1 to 8 on each axis. The registry stores tracks: `tracks = cells * GridLayout::TRACKS_PER_CELL` (2). Plugin widgets get no half-cell resolution.
 - `on_size(cols, rows, w, h)` gives Lua cells (tracks / 2) and pixels.
