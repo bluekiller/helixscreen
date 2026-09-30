@@ -1,8 +1,9 @@
 #!/usr/bin/env bats
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Pins the size-flag treatment the 128MB-class boards depend on: ENABLE_MOCKS=no,
-# -DNDEBUG, and -fno-rtti on our C++ but never on the submodules.
+# Pins the size-flag treatment the 128MB-class boards depend on: ENABLE_MOCKS=no
+# and -DNDEBUG. -fno-rtti reaches our C++ on every device target but never the
+# submodules, and packaged builds leave the mocks out on every target.
 #
 # On these boards helix-screen's file-backed text competes for page cache with
 # Klipper, and a Klipper stalled on flash IO is a "Timer too close". The flags
@@ -23,7 +24,8 @@ CONTROL_TARGET="pi"
 
 mkvar() {
     local target="$1" var="$2"
-    make -n PLATFORM_TARGET="$target" CROSS_COMPILE= CC=gcc CXX=g++ "print-var-$var" 2>/dev/null
+    shift 2
+    make -n PLATFORM_TARGET="$target" CROSS_COMPILE= CC=gcc CXX=g++ "$@" "print-var-$var" 2>/dev/null
 }
 
 @test "size flags: class targets build mock-free" {
@@ -57,7 +59,7 @@ mkvar() {
 }
 
 @test "size flags: -fno-rtti reaches our C++ but never the submodules" {
-    for t in $LEAN_TARGETS; do
+    for t in $LEAN_TARGETS $CONTROL_TARGET; do
         mkvar "$t" CXXFLAGS | grep -q 'fno-rtti' || {
             echo "$t is missing -fno-rtti in CXXFLAGS:"
             mkvar "$t" CXXFLAGS
@@ -80,9 +82,23 @@ mkvar() {
         mkvar "$CONTROL_TARGET" CXXFLAGS
         return 1
     }
-    mkvar "$CONTROL_TARGET" CXXFLAGS | grep -qE 'DNDEBUG|fno-rtti' && {
+    mkvar "$CONTROL_TARGET" CXXFLAGS | grep -q 'DNDEBUG' && {
         echo "$CONTROL_TARGET unexpectedly carries size flags:"
         mkvar "$CONTROL_TARGET" CXXFLAGS
+        return 1
+    }
+    mkvar native CXXFLAGS | grep -q 'fno-rtti' && {
+        echo "the native build must keep RTTI:"
+        mkvar native CXXFLAGS
+        return 1
+    }
+    return 0
+}
+
+@test "size flags: a packaged build leaves the mocks out on a roomy target" {
+    mkvar "$CONTROL_TARGET" CXXFLAGS HELIX_PACKAGING=1 | grep -q 'DHELIX_ENABLE_MOCKS' && {
+        echo "$CONTROL_TARGET still compiles the mocks under HELIX_PACKAGING=1:"
+        mkvar "$CONTROL_TARGET" CXXFLAGS HELIX_PACKAGING=1
         return 1
     }
     return 0
@@ -99,7 +115,7 @@ mkvar() {
     }
 
     for t in $all; do
-        if mkvar "$t" CXXFLAGS | grep -q 'fno-rtti'; then
+        if mkvar "$t" CXXFLAGS | grep -q 'DNDEBUG'; then
             found="$found $t"
         fi
     done

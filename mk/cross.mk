@@ -856,28 +856,33 @@ SUBMODULE_CFLAGS += -DHELIX_MAX_FONT_TIER=$(HELIX_MAX_FONT_TIER)
 SUBMODULE_CXXFLAGS += -DHELIX_MAX_FONT_TIER=$(HELIX_MAX_FONT_TIER)
 
 # =============================================================================
-# Size flags for the memory-constrained boards
+# Size flags for device builds
 # =============================================================================
-# On these devices helix-screen's file-backed text competes for page cache with
-# Klipper: measured on a CC1, Klipper takes 3675 major faults and Moonraker 5526
-# while helix-screen takes 68, because helix-screen's working set is what drives
-# the reclaim. A Klipper stalled on flash IO is a "Timer too close".
+# -fno-rtti  on every non-native target. The codebase is RTTI-free by policy
+#            and lint-enforced (tests/shell/test_code_lint.bats); a grep for
+#            non-comment typeid/dynamic_cast across src/ and include/ returns
+#            zero. The ESP32 firmware builds the same way via ESP-IDF's
+#            CONFIG_COMPILER_CXX_RTTI. Applied to our C++ only, NOT to
+#            SUBMODULE_CXXFLAGS -- libhv throws, and its catch clauses want
+#            typeinfo for the thrown types. Native host builds keep RTTI.
+ifneq ($(PLATFORM_TARGET),native)
+    CXXFLAGS += -fno-rtti
+endif
+
+# The memory-constrained boards also drop asserts. On these devices
+# helix-screen's file-backed text competes for page cache with Klipper: measured
+# on a CC1, Klipper takes 3675 major faults and Moonraker 5526 while helix-screen
+# takes 68, because helix-screen's working set is what drives the reclaim. A
+# Klipper stalled on flash IO is a "Timer too close".
 #
 # -DNDEBUG   drops assert() and nlohmann's JSON_ASSERT. LVGL's asserts are
 #            controlled separately by LV_USE_ASSERT_* and are unaffected.
-# -fno-rtti  the codebase is already RTTI-free by policy and lint-enforced
-#            (tests/shell/test_code_lint.bats); a grep for non-comment
-#            typeid/dynamic_cast across src/ and include/ returns zero. The
-#            ESP32 firmware already builds this way via ESP-IDF's
-#            CONFIG_COMPILER_CXX_RTTI. Applied to our C++ only, NOT to
-#            SUBMODULE_CXXFLAGS -- libhv throws, and its catch clauses want
-#            typeinfo for the thrown types.
 # ad5m-br is the same AD5M hardware built with the buildroot-provided
 # toolchain (kmod) rather than the Docker cross-toolchain, so it sits in the
 # same 110-128MB class as ad5m and cc1 and gets the same treatment.
 ifneq (,$(filter cc1 ad5m ad5m-br,$(PLATFORM_TARGET)))
     CFLAGS += -DNDEBUG
-    CXXFLAGS += -DNDEBUG -fno-rtti
+    CXXFLAGS += -DNDEBUG
     SUBMODULE_CFLAGS += -DNDEBUG
     SUBMODULE_CXXFLAGS += -DNDEBUG
 endif
