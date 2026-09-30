@@ -687,19 +687,21 @@ def test_wrapped_signature_resolves_against_the_repo_itself():
             if t.startswith("void PrinterState::update_from_status(")] == [line]
 
 
-def test_overload_set_with_a_wrapped_member_is_ambiguous_in_the_repo_itself():
+def test_overload_set_with_a_wrapped_member_is_ambiguous():
     # Both overloads must be visible. When only the single-line one is, the
     # citation answers confidently with that line instead of refusing, which
     # is a wrong answer rather than an error.
-    path = "src/printer/ams_backend.cpp"
+    lines = [
+        "std::unique_ptr<AmsBackend> AmsBackend::create(AmsType detected_type) {",
+        "}",
+        "",
+        "std::unique_ptr<AmsBackend> AmsBackend::create(AmsType detected_type, IMoonrakerAPI* api,",
+        "                                               IMoonrakerClient* client) {",
+        "}",
+    ]
     with pytest.raises(Ambiguous) as excinfo:
-        resolve(f"{path}#create", repo_root=REPO_ROOT)
-    hits = sorted(r.start + 1 for r in excinfo.value.candidates)
-    lines = _repo_lines(path)
-    assert len(hits) == 2, hits
-    assert all("AmsBackend::create(" in lines[n - 1] for n in hits), hits
-    assert lines[hits[0] - 1].rstrip().endswith("{")
-    assert not lines[hits[1] - 1].rstrip().endswith("{")
+        resolve_segments(lines, parse_citation("a.cpp#create").segments, ".cpp")
+    assert sorted(r.start for r in excinfo.value.candidates) == [0, 3]
 
 
 def test_resolve_returns_a_one_based_line(tmp_path):
