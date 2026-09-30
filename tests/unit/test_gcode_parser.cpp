@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <unistd.h>
 
@@ -1238,6 +1239,17 @@ TEST_CASE("get_best_thumbnail_from_content - Real-world format variations", "[gc
         REQUIRE(thumb.png_data.size() >= 8);
         REQUIRE(thumb.png_data[0] == 0x89);
     }
+}
+
+TEST_CASE("GCodeParser - a T with parameters is not a tool change", "[gcode][parser]") {
+    // Same rule as tool_index_for_line(), so the full parse and the streaming
+    // index agree on the tool set.
+    GCodeParser parser;
+    parser.parse_line("T0");
+    parser.parse_line("T1 X5");
+    parser.parse_line("G1 X10 Y10 E1");
+    auto file = parser.finalize();
+    CHECK(file.tools_used_indices == std::set<int>{0});
 }
 
 TEST_CASE("GCodeParser - Real 3DBenchy layer count", "[gcode][parser][layers][integration]") {

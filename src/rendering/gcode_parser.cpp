@@ -208,10 +208,8 @@ void GCodeParser::parse_line(const std::string& line) {
         return;
     }
 
-    // Check for tool changes (T0, T1, T2, etc.)
-    if (!trimmed.empty() && trimmed[0] == 'T') {
+    if (trimmed[0] == 'T') {
         parse_tool_change_command(trimmed);
-        // Continue processing - some G-code files have commands after tool changes
     }
 
     // Check for EXCLUDE_OBJECT commands first
@@ -775,36 +773,10 @@ void GCodeParser::parse_extruder_color_metadata(const std::string& line) {
 }
 
 void GCodeParser::parse_tool_change_command(const std::string& line) {
-    // Format: "T0", "T1", "T2", etc. (standalone line)
-    if (line.empty() || line[0] != 'T') {
+    const int tool_num = tool_index_for_line(line);
+    if (tool_num < 0) {
         return;
     }
-
-    // Check if it's JUST "T" + digits (no other commands on line)
-    if (line.length() < 2) {
-        return;
-    }
-
-    // Extract tool number
-    size_t i = 1;
-    while (i < line.length() && std::isdigit(line[i])) {
-        i++;
-    }
-
-    if (i == 1) {
-        return; // No digits after T
-    }
-    if (i < line.length() && !std::isspace(line[i])) {
-        return; // Not standalone
-    }
-
-    std::string tool_str = line.substr(1, i - 1);
-    // All digits, but a run long enough still overflows int.
-    const auto parsed_tool = helix::text_io::parse_leading<int>(tool_str);
-    if (!parsed_tool) {
-        return;
-    }
-    const int tool_num = *parsed_tool;
 
     current_tool_index_ = tool_num;
     tools_used_.insert(tool_num);
@@ -1877,7 +1849,7 @@ GCodeHeaderMetadata extract_header_metadata_from_content(const std::string& cont
 
 // Declared in gcode_parser.h — the single T-parse the whole tree shares. The
 // layer index used to carry its own looser copy (see the header's note).
-int tool_index_for_line(const std::string& raw) {
+int tool_index_for_line(const std::string& raw, std::pair<size_t, size_t>* digits) {
     // Strip comment (everything from the first ';').
     std::string_view sv(raw);
     size_t comment_pos = sv.find(';');
@@ -1916,6 +1888,10 @@ int tool_index_for_line(const std::string& raw) {
         if (value > 100000) {
             return -1; // implausible tool index — ignore rather than overflow
         }
+    }
+    if (digits) {
+        const size_t begin = static_cast<size_t>(sv.data() - raw.data()) + 1;
+        *digits = {begin, begin + sv.length() - 1};
     }
     return static_cast<int>(value);
 }

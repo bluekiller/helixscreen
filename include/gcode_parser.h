@@ -973,25 +973,23 @@ std::set<int> scan_tools_used_from_content(const std::string& content,
 /**
  * @brief Tool index of a standalone `Tn` line, or -1 when the line is not one.
  *
- * The single T-parse shared by every scan in the tree. Semantics mirror
- * GCodeParser::parse_tool_change_command(): strip a trailing `;` comment, trim
- * surrounding whitespace, then require exactly `T` followed by one or more
- * digits. `  T2 ; change` is a tool change; `T0 X1`, `TURN_OFF_HEATERS` and a
- * `Tn` inside a comment are not.
- *
- * Exposed because GCodeLayerIndex's scan needs the same answer and had grown a
- * looser copy of its own (`line[0] == 'T'` plus a digit run), which missed an
- * indented tool change and accepted `T0 X1`. The index and the full-file parser
- * disagreeing about what a tool change is puts the streamed and full-load
- * previews on different tool sets for the same file.
+ * The single T-parse shared by every scan in the tree: the full parser, the
+ * streaming layer index, the tools-used scans and the tool remapper. Strip a
+ * trailing `;` comment, trim surrounding whitespace, then require exactly `T`
+ * followed by one or more digits. `  T2 ; change` is a tool change; `T0 X1`,
+ * `TURN_OFF_HEATERS` and a `Tn` inside a comment are not. Scans disagreeing
+ * about what a tool change is put the streamed and full-load previews on
+ * different tool sets, and leave a remapped file on the original tool.
  *
  * Callers on a hot per-line path should pre-filter (first non-blank character
  * is `T`) before calling: this scans for `;` across the whole line.
  *
  * @param raw One raw G-code line, with or without a trailing `\r`.
+ * @param digits When non-null and @p raw is a tool change, receives the
+ *        [begin, end) offsets of the tool number within @p raw.
  * @return Tool index >= 0, or -1 if @p raw is not a standalone tool change.
  */
-int tool_index_for_line(const std::string& raw);
+int tool_index_for_line(const std::string& raw, std::pair<size_t, size_t>* digits = nullptr);
 
 /**
  * @brief Streaming, memory-safe variant of scan_tools_used_from_content() that
