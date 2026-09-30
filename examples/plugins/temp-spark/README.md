@@ -27,6 +27,7 @@ HELIX_PLUGIN_DIR=examples/plugins ./build/bin/helix-screen --test -vv
 
 Then Settings > Plugins > Temperature Sparkline > enable (it asks for no
 permission), and add the tile from the home panel's widget catalog.
+The 2x1 tile needs room: remove or shrink a stock widget first, then add it from the catalog's Plugins category.
 
 ## Layout
 

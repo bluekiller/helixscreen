@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <component>
   <!-- Home tile: current temperature above a 30-bar sparkline. The bars are
-       written out because the XML policy refuses $-prop indirection, so a
-       repeat over $i cannot name the subjects. -->
+       written out one per subject because <repeat> is not on the plugin
+       element allowlist, so the XML cannot loop over the 30 subjects. -->
   <view extends="lv_obj"
         width="100%" height="100%" clickable="true" style_pad_all="#space_sm" style_pad_gap="#space_xs"
         flex_flow="column" scrollable="false">
