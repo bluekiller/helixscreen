@@ -115,6 +115,20 @@ TEST_CASE_METHOD(LVGLTestFixture, "creating a plugin subject logs no missing-sub
     CHECK_FALSE(b.t.run(R"(helix.subject.int("taken", 1))"));
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "closing the runtime logs no missing-subject warning",
+                 "[plugin][lua_bindings_ui]") {
+    helix::logging::register_lvgl_log_handler();
+    helix::TextLogCapture cap;
+    {
+        BoundRuntime b({&install_ui_bindings});
+        REQUIRE(b.t.run(R"(helix.subject.int("x", 1))"));
+        // Take the name away before close: the teardown probe must treat a name
+        // that no longer resolves as normal, not warn about it.
+        lv_xml_unregister_subject(nullptr, "test-plugin__x");
+    }
+    CHECK_FALSE(cap.contains("No subject was found"));
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "helix.subject bounds subjects per plugin",
                  "[plugin][bindings][ui]") {
     BoundRuntime b({&install_ui_bindings});
