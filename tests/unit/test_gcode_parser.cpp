@@ -720,6 +720,14 @@ TEST_CASE("extract_header_metadata - slot-aligned colors and day-long times", "[
         CHECK(metadata.tool_colors[2] == "#0000FF");
     }
 
+    SECTION("A colon-separated color line fills the palette") {
+        auto metadata =
+            extract_header_metadata_from_content("; filament_colour: #FF0000;#00FF00\nG1 X10\n");
+        REQUIRE(metadata.tool_colors.size() == 2);
+        CHECK(metadata.tool_colors[0] == "#FF0000");
+        CHECK(metadata.tool_colors[1] == "#00FF00");
+    }
+
     SECTION("A print longer than a day keeps its days") {
         auto metadata = extract_header_metadata_from_content(
             "; estimated printing time (normal mode) = 1d 2h 3m 4s\nG1 X10\n");
