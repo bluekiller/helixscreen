@@ -14,14 +14,20 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "observer_factory.h"
+#include "print_lifecycle_state.h"
+#include "printer_state.h"
 
 #include <atomic>
 #include <cstring>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
 using namespace helix::ui;
 using namespace helix::ui;
+using helix::PrintJobState;
 using helix::ui::temperature::deci_to_degrees;
 
 // Helper to drain the update queue after subject changes.
@@ -448,4 +454,265 @@ TEST_CASE_METHOD(LVGLTestFixture, "Factory: observe_int_sync safe under observer
     inner_guard.release();
     lv_subject_deinit(&subject_a);
     lv_subject_deinit(&subject_b);
+}
+
+// ============================================================================
+// Dispatch and teardown contract, pinned for every family
+// ============================================================================
+
+namespace {
+bool queue_empty() {
+    return UpdateQueueTestAccess::queue_empty(helix::ui::UpdateQueue::instance());
+}
+
+struct Recorder {
+    std::vector<int> ints;
+    std::vector<std::string> strings;
+    int updates = 0;
+};
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "Factory: a guard reset before drain drops the queued call",
+                 "[factory][observer][safety]") {
+    static char buf[16] = "";
+    lv_subject_t int_subject;
+    lv_subject_t str_subject;
+    lv_subject_init_int(&int_subject, 0);
+    lv_subject_init_string(&str_subject, buf, nullptr, sizeof(buf), "");
+    Recorder rec;
+    ObserverGuard guard;
+
+    SECTION("observe_int_sync") {
+        guard = observe_int_sync<Recorder>(
+            &int_subject, &rec, [](Recorder* r, int v) { r->ints.push_back(v); },
+            subject_never_freed());
+    }
+    SECTION("observe_string") {
+        guard = observe_string<Recorder>(
+            &str_subject, &rec, [](Recorder* r, const char* s) { r->strings.push_back(s); },
+            subject_never_freed());
+    }
+    SECTION("observe_int_async update half") {
+        guard = observe_int_async<Recorder>(
+            &int_subject, &rec, [](Recorder*, int) {}, [](Recorder* r) { r->updates++; },
+            subject_never_freed());
+    }
+    SECTION("observe_print_state") {
+        guard = observe_print_state<Recorder>(
+            &int_subject, &rec,
+            [](Recorder* r, PrintJobState s) { r->ints.push_back(static_cast<int>(s)); },
+            subject_never_freed());
+    }
+    SECTION("observe_print_lifecycle") {
+        guard = observe_print_lifecycle<Recorder>(
+            &int_subject, &rec,
+            [](Recorder* r, PrintState s) { r->ints.push_back(static_cast<int>(s)); },
+            subject_never_freed());
+    }
+
+    REQUIRE(guard);
+    drain();
+    rec = Recorder{};
+
+    lv_subject_set_int(&int_subject, 2);
+    lv_subject_copy_string(&str_subject, "x");
+    guard.reset();
+    drain();
+
+    CHECK(rec.ints.empty());
+    CHECK(rec.strings.empty());
+    CHECK(rec.updates == 0);
+
+    lv_subject_deinit(&int_subject);
+    lv_subject_deinit(&str_subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Factory: deferred families deliver the value at notify time",
+                 "[factory][observer]") {
+    static char buf[16] = "";
+    lv_subject_t int_subject;
+    lv_subject_t str_subject;
+    lv_subject_init_int(&int_subject, 0);
+    lv_subject_init_string(&str_subject, buf, nullptr, sizeof(buf), "");
+    Recorder rec;
+
+    auto g1 = observe_int_sync<Recorder>(
+        &int_subject, &rec, [](Recorder* r, int v) { r->ints.push_back(v); },
+        subject_never_freed());
+    auto g2 = observe_string<Recorder>(
+        &str_subject, &rec, [](Recorder* r, const char* s) { r->strings.push_back(s); },
+        subject_never_freed());
+
+    // Subscription queues one call carrying the current value; nothing runs before drain.
+    CHECK(rec.ints.empty());
+    CHECK(rec.strings.empty());
+    CHECK_FALSE(queue_empty());
+    drain();
+    CHECK(rec.ints == std::vector<int>{0});
+    CHECK(rec.strings == std::vector<std::string>{""});
+
+    // Two notifications before one drain: each call sees its own value, in order, and the
+    // string is copied at notify time, not read back from the subject's buffer at drain.
+    lv_subject_set_int(&int_subject, 1);
+    lv_subject_set_int(&int_subject, 2);
+    lv_subject_copy_string(&str_subject, "a");
+    lv_subject_copy_string(&str_subject, "b");
+    CHECK(rec.ints.size() == 1);
+    drain();
+    CHECK(rec.ints == std::vector<int>{0, 1, 2});
+    CHECK(rec.strings == std::vector<std::string>{"", "a", "b"});
+
+    g1.reset();
+    g2.reset();
+    lv_subject_deinit(&int_subject);
+    lv_subject_deinit(&str_subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Factory: immediate families run inside the notification",
+                 "[factory][observer]") {
+    static char buf[16] = "";
+    lv_subject_t int_subject;
+    lv_subject_t str_subject;
+    lv_subject_init_int(&int_subject, 0);
+    lv_subject_init_string(&str_subject, buf, nullptr, sizeof(buf), "");
+    drain();
+    Recorder rec;
+
+    auto g1 = observe_int_immediate<Recorder>(
+        &int_subject, &rec, [](Recorder* r, int v) { r->ints.push_back(v); },
+        subject_never_freed());
+    auto g2 = observe_string_immediate<Recorder>(
+        &str_subject, &rec, [](Recorder* r, const char* s) { r->strings.push_back(s); },
+        subject_never_freed());
+    auto g3 = observe_print_state_immediate<Recorder>(
+        &int_subject, &rec,
+        [](Recorder* r, PrintJobState s) { r->ints.push_back(100 + static_cast<int>(s)); },
+        subject_never_freed());
+
+    // Subscription fires once, synchronously, and queues nothing.
+    CHECK(rec.ints == std::vector<int>{0, 100});
+    CHECK(rec.strings == std::vector<std::string>{""});
+    CHECK(queue_empty());
+
+    lv_subject_set_int(&int_subject, static_cast<int>(PrintJobState::PAUSED));
+    lv_subject_copy_string(&str_subject, "now");
+    CHECK(rec.ints == std::vector<int>{0, 100, 2, 102});
+    CHECK(rec.strings == std::vector<std::string>{"", "now"});
+    CHECK(queue_empty());
+
+    g1.reset();
+    g2.reset();
+    g3.reset();
+    lv_subject_deinit(&int_subject);
+    lv_subject_deinit(&str_subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Factory: observe_int_async runs the value half inline",
+                 "[factory][observer]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    drain();
+    Recorder rec;
+
+    auto guard = observe_int_async<Recorder>(
+        &subject, &rec, [](Recorder* r, int v) { r->ints.push_back(v); },
+        [](Recorder* r) { r->updates++; }, subject_never_freed());
+
+    CHECK(rec.ints == std::vector<int>{0});
+    CHECK(rec.updates == 0);
+    lv_subject_set_int(&subject, 5);
+    CHECK(rec.ints == std::vector<int>{0, 5});
+    CHECK(rec.updates == 0);
+    drain();
+    CHECK(rec.updates == 2);
+
+    guard.reset();
+    lv_subject_deinit(&subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Factory: handler captures are freed after reset and drain",
+                 "[factory][observer][raii]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    Recorder rec;
+    auto state = std::make_shared<int>(0);
+    std::weak_ptr<int> weak_state = state;
+    ObserverGuard guard;
+
+    SECTION("deferred") {
+        guard = observe_int_sync<Recorder>(
+            &subject, &rec, [state](Recorder*, int v) { *state = v; }, subject_never_freed());
+    }
+    SECTION("immediate") {
+        guard = observe_int_immediate<Recorder>(
+            &subject, &rec, [state](Recorder*, int v) { *state = v; }, subject_never_freed());
+    }
+    state.reset();
+    REQUIRE_FALSE(weak_state.expired());
+
+    // A notification may leave a queued call holding the handler; resetting the guard
+    // while it is pending must still free everything once the queue drains.
+    lv_subject_set_int(&subject, 3);
+    guard.reset();
+    drain();
+    CHECK(weak_state.expired());
+
+    lv_subject_deinit(&subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "Factory: a dead subject lifetime drops the queued call and frees the context",
+                 "[factory][observer][subject_lifetime]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    SubjectLifetime lifetime = std::make_shared<bool>(true);
+    Recorder rec;
+    auto state = std::make_shared<int>(0);
+    std::weak_ptr<int> weak_state = state;
+
+    auto guard = observe_int_sync<Recorder>(
+        &subject, &rec,
+        [state](Recorder* r, int v) {
+            r->ints.push_back(v);
+            *state = v;
+        },
+        lifetime);
+    state.reset();
+    drain();
+    rec = Recorder{};
+
+    lv_subject_set_int(&subject, 9);
+    // Owner teardown order: signal death, then deinit frees the observer node.
+    *lifetime = false;
+    lv_subject_deinit(&subject);
+    guard.reset(); // must not touch the freed observer (ASAN)
+    drain();
+
+    CHECK(rec.ints.empty());
+    CHECK(weak_state.expired());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Factory: null subject or owner returns an empty guard",
+                 "[factory][observer][edge]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 1);
+    int calls = 0;
+    auto h_int = [&calls](Recorder*, int) { calls++; };
+    auto h_str = [&calls](Recorder*, const char*) { calls++; };
+    Recorder rec;
+
+    CHECK_FALSE(observe_int_sync<Recorder>(nullptr, &rec, h_int, subject_never_freed()));
+    CHECK_FALSE(observe_int_sync<Recorder>(&subject, nullptr, h_int, subject_never_freed()));
+    CHECK_FALSE(observe_int_immediate<Recorder>(nullptr, &rec, h_int, subject_never_freed()));
+    CHECK_FALSE(observe_int_immediate<Recorder>(&subject, nullptr, h_int, subject_never_freed()));
+    CHECK_FALSE(
+        observe_int_async<Recorder>(nullptr, &rec, h_int, [](Recorder*) {}, subject_never_freed()));
+    CHECK_FALSE(observe_string<Recorder>(nullptr, &rec, h_str, subject_never_freed()));
+    CHECK_FALSE(observe_string_immediate<Recorder>(nullptr, &rec, h_str, subject_never_freed()));
+    CHECK_FALSE(observe_print_state<Recorder>(
+        nullptr, &rec, [](Recorder*, PrintJobState) {}, subject_never_freed()));
+    drain();
+    CHECK(calls == 0);
+
+    lv_subject_deinit(&subject);
 }
