@@ -8,6 +8,7 @@
 #include "lua_runtime.h"
 #include "plugin_backend.h"
 #include "plugin_manifest.h"
+#include "plugin_overlay_host.h"
 
 #include <cstdint>
 #include <functional>
@@ -80,6 +81,11 @@ class PluginHost {
     void disable(const std::string& id);
     LuaRuntime* runtime(const std::string& id);
 
+    /// The overlays every loaded plugin has on the navigation stack.
+    const PluginOverlayHost& overlays() const {
+        return overlays_;
+    }
+
     /// The body of the global `plugin_event` XML callback.
     void dispatch_event(std::string_view user_data);
 
@@ -88,6 +94,9 @@ class PluginHost {
         json settings;
         std::unique_ptr<PluginContext> ctx;
         std::unique_ptr<LuaRuntime> rt; ///< destroyed before ctx
+        /// The ui handle this plugin's bindings reach; binds `this` host, so it dies
+        /// with the record, before rt's state can call it again.
+        PluginUi ui;
         /// Each component this plugin registered, with the scope it created: an app that later
         /// registers the same name replaces the scope, and unload must then leave it alone.
         std::vector<std::pair<std::string, const void*>> components;
@@ -116,6 +125,7 @@ class PluginHost {
     /// Widget definitions changed since the last notify_widget_defs_changed(). Survives a
     /// bulk unload_all so load_from's single end-of-scan notify covers plugins that went.
     bool widget_defs_dirty_ = false;
+    PluginOverlayHost overlays_;
 };
 
 /// Registers the `plugin_event` XML callback once per process. It forwards to the live host.

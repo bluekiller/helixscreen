@@ -7,6 +7,8 @@
 #include "ui_toast_manager.h"
 
 #include "lua_bindings.h"
+#include "plugin_overlay_host.h"
+#include "plugin_xml_policy.h"
 
 #include <spdlog/spdlog.h>
 
@@ -48,6 +50,9 @@ struct UiState {
     std::vector<std::unique_ptr<ObserverCtx>> observers;
     std::unordered_map<std::string, int> handlers; ///< name -> fn ref
     size_t open_confirms = 0;
+    /// The dialog behind open_confirms, so the runtime closer can take a plugin's
+    /// still-unanswered question off screen. Nulled by every close path.
+    lv_obj_t* open_confirm = nullptr;
 };
 
 UiState& ui_state(lua_State* L) {
@@ -250,8 +255,10 @@ int ui_confirm(lua_State* L) {
     // exactly once; the shared flag makes a double close a no-op.
     UiState* ui_ptr = &ui;
     auto release = [ui_ptr, open = std::make_shared<std::atomic<bool>>(true)] {
-        if (open->exchange(false))
+        if (open->exchange(false)) {
+            ui_ptr->open_confirm = nullptr;
             --ui_ptr->open_confirms;
+        }
     };
     helix::ui::ConfirmOptions opts;
     opts.on_cancel = [run, cancel_ref, release] {
@@ -267,9 +274,84 @@ int ui_confirm(lua_State* L) {
             run(confirm_ref);
         },
         opts);
-    if (!dialog) // never shown, so no close path will release the slot
+    if (dialog)
+        ui.open_confirm = dialog;
+    else // never shown, so no close path will release the slot
         release();
     return 0;
+}
+
+int overlay_handle_close(lua_State* L) {
+    auto& ctx = context(L);
+    if (ctx.ui)
+        ctx.ui->close(static_cast<int>(lua_tointeger(L, lua_upvalueindex(1))));
+    return 0;
+}
+
+int ui_overlay(lua_State* L) {
+    auto& rt = LuaRuntime::from(L);
+    if (!context(L).ui)
+        return luaL_error(L, "helix.ui.overlay is not available here");
+    std::string component = luaL_checkstring(L, 1);
+    if (!is_owned_name(rt.plugin_id(), component))
+        return luaL_error(L, "helix.ui.overlay: component '%s' is not owned by this plugin",
+                          component.c_str());
+
+    int on_close_ref = LUA_NOREF;
+    PluginUi::Attrs attrs;
+    if (!lua_isnoneornil(L, 2)) {
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_getfield(L, 2, "on_close");
+        if (!lua_isnil(L, -1)) {
+            if (!lua_isfunction(L, -1)) {
+                lua_pop(L, 1);
+                return luaL_error(L, "helix.ui.overlay: on_close must be a function");
+            }
+            on_close_ref = rt.ref_value(L, -1);
+        }
+        lua_pop(L, 1);
+        // Every other string key is an attribute for lv_xml_create; anything else is
+        // a mistake Lua should hear about now rather than a widget silently ignoring.
+        std::string bad_value_key;
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0) {
+            if (lua_type(L, -2) == LUA_TSTRING && std::string(lua_tostring(L, -2)) != "on_close") {
+                if (lua_type(L, -1) != LUA_TSTRING)
+                    bad_value_key = lua_tostring(L, -2);
+                else
+                    attrs.emplace_back(lua_tostring(L, -2), lua_tostring(L, -1));
+            }
+            lua_pop(L, 1);
+        }
+        if (!bad_value_key.empty())
+            return luaL_error(L, "helix.ui.overlay: attribute '%s' must be a string",
+                              bad_value_key.c_str());
+    }
+    for (const auto& [name, value] : attrs) {
+        if (auto why = check_plugin_attr(rt.plugin_id(), name, value))
+            return luaL_error(L, "helix.ui.overlay: attribute '%s': %s", name.c_str(),
+                              why->c_str());
+    }
+
+    LuaRuntime* rtp = &rt;
+    int handle = context(L).ui->open(
+        component,
+        [rtp, on_close_ref, token = rt.token()] {
+            if (!token.expired() && on_close_ref != LUA_NOREF)
+                rtp->invoke(on_close_ref);
+        },
+        attrs);
+    if (handle == 0) {
+        if (on_close_ref != LUA_NOREF)
+            rt.unref(on_close_ref);
+        return luaL_error(L, "helix.ui.overlay: cannot open '%s'", component.c_str());
+    }
+
+    lua_newtable(L);
+    lua_pushinteger(L, handle);
+    lua_pushcclosure(L, &overlay_handle_close, 1);
+    lua_setfield(L, -2, "close");
+    return 1;
 }
 
 } // namespace
@@ -332,6 +414,10 @@ void install_ui_bindings(PluginContext& ctx) {
     lua_pushlightuserdata(L, state);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &kUiStateKey);
     ctx.rt.on_close([state] {
+        // The plugin is going away; take its still-unanswered question off screen. A
+        // dialog the user already closed cleared the pointer on its close path.
+        if (state->open_confirm)
+            Modal::hide(state->open_confirm);
         for (auto& o : state->observers) {
             if (o->handle)
                 lv_observer_remove(o->handle);
@@ -365,8 +451,11 @@ void install_ui_bindings(PluginContext& ctx) {
         {"int", [](lua_State* L) { return make_subject(L, false); }},
         {"string", [](lua_State* L) { return make_subject(L, true); }},
         {nullptr, nullptr}};
-    static const luaL_Reg ui_fns[] = {
-        {"on", &ui_on}, {"toast", &ui_toast}, {"confirm", &ui_confirm}, {nullptr, nullptr}};
+    static const luaL_Reg ui_fns[] = {{"on", &ui_on},
+                                      {"toast", &ui_toast},
+                                      {"confirm", &ui_confirm},
+                                      {"overlay", &ui_overlay},
+                                      {nullptr, nullptr}};
     lua_getglobal(L, "helix");
     lua_newtable(L);
     luaL_setfuncs(L, subject_fns, 0);

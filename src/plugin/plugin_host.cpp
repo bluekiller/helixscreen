@@ -326,6 +326,12 @@ bool PluginHost::load(PluginInfo& info) {
     l.ctx = std::make_unique<PluginContext>(
         PluginContext{*l.rt, deps_.backend, m, &l.settings, [this, id] { save_settings(id); },
                       plugin_storage_path(deps_.settings_path, id)});
+    l.ui.open = [this, id](const std::string& component, std::function<void()> on_closed,
+                           const PluginUi::Attrs& attrs) {
+        return overlays_.open(id, component, std::move(on_closed), attrs);
+    };
+    l.ui.close = [this](int handle) { overlays_.close(handle); };
+    l.ctx->ui = &l.ui;
     for (Installer install :
          {&install_core_bindings, &install_ui_bindings, &install_printer_bindings,
           &install_moonraker_bindings, &install_io_bindings, &install_widget_bindings})
@@ -387,6 +393,9 @@ void PluginHost::unload(const std::string& id) {
             lua_pop(L, 1);
         }
     }
+    // Overlays go before the runtime does too, and silently: the plugin's on_close
+    // hooks point at a Lua state that is about to close.
+    overlays_.close_all(id);
     // Widget definitions go before the runtime does: the async home rebuild this
     // schedules dereferences nothing of the plugin's, and the tiles it retires are
     // handed to deferred deletion while their subjects are still alive.

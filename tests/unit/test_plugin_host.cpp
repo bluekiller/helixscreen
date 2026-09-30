@@ -8,7 +8,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/home_panel_test_access.h"
-#include "../test_helpers/plugin_test_support.h"
+#include "../test_helpers/plugin_host_test_support.h"
 #include "config.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "misc/lv_timer_private.h"
@@ -22,47 +22,6 @@
 
 using namespace helix::plugin;
 using namespace helix::plugin::test;
-
-namespace {
-struct HostRig {
-    FakeBackend fake;
-    json block;
-    int writes = 0;
-    std::unique_ptr<PluginHost> host;
-
-    explicit HostRig(json initial = json::object(), size_t budget = size_t(64) << 20)
-        : block(std::move(initial)) {
-        PluginHost::Deps d;
-        d.backend = fake.backend();
-        d.read_block = [this] { return block; };
-        d.write_block = [this](const json& j) {
-            block = j;
-            ++writes;
-        };
-        d.settings_path = "/tmp/helix-plugin-host-test/settings.json";
-        d.helix_version = "1.1.0";
-        d.memory_budget = budget;
-        register_plugin_event_callback();
-        host = std::make_unique<PluginHost>(std::move(d));
-    }
-
-    const PluginInfo* info(const std::string& dir) {
-        for (const auto& p : host->plugins()) {
-            if (p.dir_name == dir)
-                return &p;
-        }
-        return nullptr;
-    }
-};
-
-json enabled(const std::string& id, std::vector<std::string> perms) {
-    return json{{"enabled", {{id, {{"version", "1.0.0"}, {"permissions", perms}}}}}};
-}
-
-void drain() {
-    helix::ui::UpdateQueue::instance().drain();
-}
-} // namespace
 
 TEST_CASE("memory budget", "[plugin][host]") {
     CHECK(plugin_memory_budget(uint64_t(128) << 20) == size_t(8) << 20);

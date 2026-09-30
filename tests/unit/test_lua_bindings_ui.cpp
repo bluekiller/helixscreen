@@ -13,6 +13,7 @@
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "layout_manager.h"
 #include "lua_bindings.h"
+#include "plugin_overlay_host.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -274,6 +275,81 @@ TEST_CASE_METHOD(LVGLTestFixture, "toast and confirm validate their arguments",
     )"));
     CHECK_FALSE(b.t.run(R"(helix.ui.toast("x", "loud"))"));
     CHECK_FALSE(b.t.run(R"(helix.ui.confirm("t", "m", { severity = "loud" }))"));
+}
+
+namespace {
+/// A PluginUi double recording opens and closes without touching navigation.
+struct FakeUi {
+    int opened = 0;
+    int closed = 0;
+    bool reject = false; ///< when set, open reports failure
+    std::string last_component;
+    PluginUi::Attrs last_attrs;
+
+    PluginUi ui{
+        [this](const std::string& component, std::function<void()>, const PluginUi::Attrs& attrs) {
+            if (reject)
+                return 0;
+            ++opened;
+            last_component = component;
+            last_attrs = attrs;
+            return 7;
+        },
+        [this](int handle) { closed += handle; }};
+};
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "helix.ui.overlay needs a host ui", "[plugin][lua_bindings_ui]") {
+    BoundRuntime b({&install_ui_bindings}); // no ctx->ui: no host provides overlays here
+    REQUIRE(b.t.run(R"(ok, err = pcall(helix.ui.overlay, "test-plugin__p"))"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("not available") != std::string::npos);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "helix.ui.overlay checks ownership, attributes and the handle",
+                 "[plugin][lua_bindings_ui]") {
+    FakeUi fake;
+    BoundRuntime b({&install_ui_bindings});
+    b.ctx->ui = &fake.ui;
+    REQUIRE(b.t.run(R"(
+        ok1, e1 = pcall(helix.ui.overlay, "other__panel")
+        ok2, e2 = pcall(helix.ui.overlay, "test-plugin__p", { bind_text = "other__s" })
+        ok3, e3 = pcall(helix.ui.overlay, "test-plugin__p", { title = 5 })
+        ok4, e4 = pcall(helix.ui.overlay, "test-plugin__p", { on_close = "no" })
+        h = helix.ui.overlay("test-plugin__p", { title = "Hi", on_close = function() end })
+        h:close()
+    )"));
+    CHECK(b.t.global("ok1") == "false"); // component not owned by this plugin
+    CHECK(b.t.global("e1").find("not owned") != std::string::npos);
+    CHECK(b.t.global("ok2") == "false"); // policy: bind_text must name an owned subject
+    CHECK(b.t.global("e2").find("subject") != std::string::npos);
+    CHECK(b.t.global("ok3") == "false"); // attribute values must be strings
+    CHECK(b.t.global("ok4") == "false"); // on_close must be a function
+    CHECK(fake.opened == 1);
+    CHECK(fake.last_component == "test-plugin__p");
+    REQUIRE(fake.last_attrs.size() == 1); // on_close is not an attribute
+    CHECK(fake.last_attrs[0].first == "title");
+    CHECK(fake.last_attrs[0].second == "Hi");
+    CHECK(fake.closed == 7);
+
+    fake.reject = true;
+    REQUIRE(b.t.run(R"(ok5, e5 = pcall(helix.ui.overlay, "test-plugin__p"))"));
+    CHECK(b.t.global("ok5") == "false");
+    CHECK(b.t.global("e5").find("cannot open") != std::string::npos);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "closing the runtime hides the plugin's open confirm dialog",
+                 "[plugin][lua_bindings_ui]") {
+    {
+        BoundRuntime b({&install_ui_bindings});
+        REQUIRE(b.t.run(R"(helix.ui.confirm("Q", "body"))"));
+        process_lvgl(50); // the dialog's creation is queued
+        helix::ui::UpdateQueue::instance().drain();
+        REQUIRE(ModalStack::instance().top_dialog());
+    } // the runtime closer hides the still-open dialog before the state goes
+    process_lvgl(50);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(ModalStack::instance().top_dialog() == nullptr);
 }
 
 #endif // HELIX_HAS_PLUGINS

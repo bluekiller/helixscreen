@@ -15,6 +15,8 @@
 
 namespace helix::plugin {
 
+struct PluginUi;
+
 /// What every binding of one plugin may reach. The owner keeps it alive until after the
 /// runtime is destroyed, because runtime closers may read it.
 struct PluginContext {
@@ -24,6 +26,8 @@ struct PluginContext {
     json* settings; ///< this plugin's /plugins/settings/<id> object
     std::function<void()> save_settings;
     std::string storage_path; ///< <dir of settings.json>/plugin-data/<id>.json
+    /// Overlay access; filled by PluginHost, null where no host provides it.
+    PluginUi* ui = nullptr;
 };
 
 using Installer = void (*)(PluginContext&);
