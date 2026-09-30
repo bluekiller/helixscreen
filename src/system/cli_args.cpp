@@ -9,6 +9,7 @@
 #include "logging_init.h"
 #include "mock_persona.h"
 #include "runtime_config.h"
+#include "text_io.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -238,17 +239,9 @@ static bool parse_camera_arg(const char* camera_str, RuntimeConfig& config) {
     return true;
 }
 
-/// ASCII-lowercase a copy of s, for matching values a user typed into a flag
-/// or an env file.
-static std::string ascii_lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-
 bool parse_screen_size_string(const char* size_str, int& out_width, int& out_height) {
     // Lowercasing also normalises the separator, so 1920X1080 parses.
-    const std::string size = ascii_lower(size_str);
+    const std::string size = helix::text_io::to_lower(size_str);
     if (size == "micro") {
         out_width = UI_SCREEN_MICRO_W;
         out_height = UI_SCREEN_MICRO_H;
@@ -736,7 +729,7 @@ bool parse_cli_args(int argc, char** argv, CliArgs& args, int& screen_width, int
     // printer env var instead; an explicit HELIX_MOCK_AMS still wins.
     if (config.test_mode && !config.use_real_ams) {
         if (const char* ams_env = std::getenv("HELIX_MOCK_AMS"); ams_env && ams_env[0]) {
-            const std::string mode = ascii_lower(ams_env);
+            const std::string mode = helix::text_io::to_lower(ams_env);
             if (mode == "medusahc" || mode == "medusa" || mode == "mhc" ||
                 mode == "medusahc-fork" || mode == "medusa-fork") {
                 config.use_real_ams = true;

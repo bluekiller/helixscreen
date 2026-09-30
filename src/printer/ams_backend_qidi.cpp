@@ -1470,24 +1470,15 @@ AmsError AmsBackendQidi::eject_lane(int slot_index) {
 
 // --- Configuration ---
 
-namespace {
-// Lowercase copy for case-insensitive comparisons.
-std::string to_lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-} // namespace
-
 int AmsBackendQidi::resolve_fila_id(const std::map<int, FilaProfile>& profiles,
                                     const std::string& material, const std::string& name) {
-    const std::string want_name = to_lower(name);
-    const std::string want_type = to_lower(material);
+    const std::string want_name = helix::text_io::to_lower(name);
+    const std::string want_type = helix::text_io::to_lower(material);
 
     // 1. Exact case-insensitive name match (e.g. "ABS Rapido").
     if (!want_name.empty()) {
         for (const auto& [id, p] : profiles) {
-            if (to_lower(p.name) == want_name) {
+            if (helix::text_io::to_lower(p.name) == want_name) {
                 return id;
             }
         }
@@ -1495,7 +1486,7 @@ int AmsBackendQidi::resolve_fila_id(const std::map<int, FilaProfile>& profiles,
     // 2. First profile whose type equals the requested material (e.g. "PLA").
     if (!want_type.empty()) {
         for (const auto& [id, p] : profiles) {
-            if (to_lower(p.type) == want_type) {
+            if (helix::text_io::to_lower(p.type) == want_type) {
                 return id;
             }
         }
@@ -1510,17 +1501,17 @@ int AmsBackendQidi::resolve_color_id(const std::map<int, std::uint32_t>& palette
 
 int AmsBackendQidi::resolve_vendor_id(const std::map<int, std::string>& vendors,
                                       const std::string& brand) {
-    const std::string want = to_lower(brand);
+    const std::string want = helix::text_io::to_lower(brand);
     if (!want.empty()) {
         for (const auto& [id, name] : vendors) {
-            if (to_lower(name) == want) {
+            if (helix::text_io::to_lower(name) == want) {
                 return id;
             }
         }
     }
     // Fall back to the "Generic" vendor when present.
     for (const auto& [id, name] : vendors) {
-        if (to_lower(name) == "generic") {
+        if (helix::text_io::to_lower(name) == "generic") {
             return id;
         }
     }

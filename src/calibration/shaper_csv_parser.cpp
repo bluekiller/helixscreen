@@ -16,20 +16,11 @@ namespace calibration {
 
 namespace {
 
-/// Trim leading and trailing whitespace from a string
-std::string trim(const std::string& s) {
-    auto start = s.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos)
-        return "";
-    auto end = s.find_last_not_of(" \t\r\n");
-    return s.substr(start, end - start + 1);
-}
-
 /// Split a CSV line into fields (simple comma-delimited, no quoting)
 std::vector<std::string> split_csv_line(const std::string& line) {
     std::vector<std::string> fields;
     for (std::string_view field : text_io::lines(line, ',')) {
-        fields.push_back(trim(std::string(field)));
+        fields.push_back(std::string(helix::text_io::trim(field)));
     }
     return fields;
 }
@@ -135,7 +126,7 @@ ShaperCsvData parse_shaper_csv(const std::string& csv_path, char axis) {
     // Parse data rows
     std::string line;
     while (file.next(line)) {
-        auto trimmed = trim(line);
+        const std::string trimmed(helix::text_io::trim(line));
         if (trimmed.empty())
             continue;
 
@@ -226,7 +217,7 @@ ResonanceCsvData parse_resonance_csv(const std::string& csv_path) {
 
     std::string line;
     while (file.next(line)) {
-        if (trim(line).empty())
+        if (helix::text_io::trim(line).empty())
             continue;
         auto fields = split_csv_line(line);
         if (fields.size() < headers.size())

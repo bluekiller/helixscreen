@@ -12,6 +12,7 @@
 #include "i_moonraker_api.h"
 #include "moonraker_error.h"
 #include "printer_discovery.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -48,18 +49,13 @@ const std::unordered_set<std::string> DANGEROUS_MACROS = [] {
     return all;
 }();
 
-std::string upper_copy(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
-    return s;
-}
-
 /// Does this error message name a Klippy disconnect?
 ///
 /// Moonraker's wording is "Klippy Disconnected"; matching the two words
 /// independently, uppercased, keeps a "klippy has disconnected" phrasing from
 /// slipping past while still refusing Klipper's own G-code complaints.
 bool contains_klippy_disconnect(const std::string& message) {
-    const std::string upper = upper_copy(message);
+    const std::string upper = helix::text_io::to_upper(message);
     return upper.find("KLIPPY") != std::string::npos &&
            upper.find("DISCONNECT") != std::string::npos;
 }
@@ -105,7 +101,7 @@ std::vector<std::string> command_tokens(const std::string& gcode) {
                    !std::isspace(static_cast<unsigned char>(gcode[tok_end]))) {
                 tok_end++;
             }
-            tokens.push_back(upper_copy(gcode.substr(pos, tok_end - pos)));
+            tokens.push_back(helix::text_io::to_upper(gcode.substr(pos, tok_end - pos)));
         }
         line_start = line_end + 1;
     }
@@ -272,7 +268,7 @@ analyze_macros_reaching(const nlohmann::json& config_settings,
         if (gcode == values.end() || !gcode->is_string()) {
             continue;
         }
-        std::string name = upper_copy(section.substr(PREFIX_LEN));
+        std::string name = helix::text_io::to_upper(section.substr(PREFIX_LEN));
         std::vector<std::string> tokens = command_tokens(gcode->get<std::string>());
         for (const auto& token : tokens) {
             if (seed.count(token) > 0) {
@@ -329,7 +325,7 @@ const std::unordered_set<std::string>& host_halting_command_names() {
 }
 
 bool is_dangerous_macro(const std::string& name) {
-    return DANGEROUS_MACROS.count(upper_copy(name)) > 0;
+    return DANGEROUS_MACROS.count(helix::text_io::to_upper(name)) > 0;
 }
 
 bool is_dangerous_macro(const std::string& name, const PrinterDiscovery& hw) {
@@ -425,7 +421,7 @@ MacroParamResult macro_param_result_from_values(const std::vector<MacroParam>& p
 }
 
 MacroHostEffect macro_host_effect(const std::string& name, const PrinterDiscovery& hw) {
-    const std::string upper = upper_copy(name);
+    const std::string upper = helix::text_io::to_upper(name);
     // Halts first: a macro reaching both leaves the host down, and that is the
     // answer the user has to be given.
     if (HALTING_MACROS.count(upper) > 0 || hw.macro_halts_host(name)) {

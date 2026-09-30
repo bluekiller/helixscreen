@@ -100,7 +100,7 @@ namespace {
 std::string extract_gcode_from_section(const std::string& content, const std::string& section_start,
                                        size_t section_pos) {
     // Find the gcode: line
-    std::string content_lower = to_lower(content);
+    std::string content_lower = helix::text_io::to_lower(content);
 
     size_t gcode_pos = content_lower.find("gcode:", section_pos);
     if (gcode_pos == std::string::npos) {
@@ -150,8 +150,8 @@ void PrintStartAnalyzer::analyze(const std::set<std::string>& active_files,
             std::string section = "[gcode_macro " + std::string(MACRO_NAMES[i]) + "]";
 
             if (contains_ci(content, section)) {
-                std::string content_lower = to_lower(content);
-                std::string section_lower = to_lower(section);
+                std::string content_lower = helix::text_io::to_lower(content);
+                std::string section_lower = helix::text_io::to_lower(section);
 
                 size_t section_pos = content_lower.find(section_lower);
                 std::string gcode = extract_gcode_from_section(content, section, section_pos);
@@ -359,11 +359,11 @@ bool PrintStartAnalyzer::detect_skip_conditional(const std::string& gcode,
     // Search up to 500 characters before the operation
     size_t search_start = (op_pos > 500) ? op_pos - 500 : 0;
     std::string context = gcode.substr(search_start, op_pos - search_start);
-    std::string context_lower = helix::to_lower(context);
+    std::string context_lower = helix::text_io::to_lower(context);
 
     // Helper lambda to check if a param is in an if statement or set statement
     auto check_param_in_context = [&](const std::string& param) -> bool {
-        std::string param_lower = helix::to_lower(param);
+        std::string param_lower = helix::text_io::to_lower(param);
 
         if (context_lower.find(param_lower) == std::string::npos) {
             return false;
@@ -424,7 +424,7 @@ std::vector<std::string> PrintStartAnalyzer::extract_parameters(const std::strin
     helix::Regex params_pattern(R"(params\.([A-Z_][A-Z0-9_]*))", helix::Regex::ICase);
 
     for (helix::RegexIterator it(gcode, params_pattern), end; it != end; ++it) {
-        std::string param = to_upper((*it)[1].str());
+        std::string param = helix::text_io::to_upper((*it)[1].str());
 
         // Avoid duplicates
         if (std::find(params.begin(), params.end(), param) == params.end()) {

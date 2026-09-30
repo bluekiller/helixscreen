@@ -8,6 +8,7 @@
 #include "display_backend_fbdev.h"
 
 #include "config.h"
+#include "env_knobs.h"
 #include "fbdev_size_helper.h"
 #include "input_device_scanner.h"
 #include "pending_startup_warnings.h"
@@ -189,7 +190,7 @@ lv_display_t* DisplayBackendFbdev::create_display(int width, int height) {
     // offsets. HELIX_COLOR_SWAP_RB=1 forces the swap on, =0 forces it off.
     const char* swap_rb_env = std::getenv("HELIX_COLOR_SWAP_RB");
     if (swap_rb_env != nullptr) {
-        bool force_swap = (strcmp(swap_rb_env, "1") == 0);
+        bool force_swap = helix::env_truthy(swap_rb_env);
         lv_linux_fbdev_set_swap_rb(display_, force_swap);
         spdlog::info("[Fbdev Backend] R/B channel swap {} (HELIX_COLOR_SWAP_RB={})",
                      force_swap ? "forced ON" : "forced OFF", swap_rb_env);
@@ -376,7 +377,7 @@ lv_indev_t* DisplayBackendFbdev::create_input_pointer() {
     // Check for touch axis configuration via environment variables
     // HELIX_TOUCH_SWAP_AXES=1 - swap X and Y axes
     const char* swap_axes = std::getenv("HELIX_TOUCH_SWAP_AXES");
-    if (swap_axes != nullptr && strcmp(swap_axes, "1") == 0) {
+    if (helix::env_truthy(swap_axes)) {
         spdlog::info("[Fbdev Backend] Touch axes swapped (HELIX_TOUCH_SWAP_AXES=1)");
         lv_evdev_set_swap_axes(touch_, true);
     }
@@ -521,7 +522,7 @@ lv_indev_t* DisplayBackendFbdev::create_input_pointer() {
         pipeline.stored = stored_range;
         // Mirrors the swap decision above: an environment variable that is present
         // at all holds the swap, even when it says 0.
-        pipeline.swap_axes = env_swap_override ? (strcmp(swap_axes, "1") == 0)
+        pipeline.swap_axes = env_swap_override ? helix::env_truthy(swap_axes)
                                                : (stored_range.valid && stored_range.swap_axes);
         if (env_range_override) {
             pipeline.source = helix::TouchRangeSource::Environment;

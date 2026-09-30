@@ -5,6 +5,7 @@
 #include "alsa_sound_backend.h"
 
 #include "alsa_clock_keepalive.h"
+#include "env_knobs.h"
 
 #include <spdlog/spdlog.h>
 
@@ -175,7 +176,7 @@ bool ALSASoundBackend::initialize(const std::string& device) {
     }
     keep_clock_alive_ = helix::audio::device_needs_clock_keepalive(device, pcm_name);
     if (const char* env = std::getenv("HELIX_ALSA_KEEPALIVE"); env && env[0] != '\0') {
-        const bool forced = (env[0] != '0');
+        const bool forced = helix::env_truthy(env);
         if (forced != keep_clock_alive_)
             spdlog::info("[ALSASound] HELIX_ALSA_KEEPALIVE={} overrides detection ({})", env,
                          keep_clock_alive_ ? "keep-alive" : "park");

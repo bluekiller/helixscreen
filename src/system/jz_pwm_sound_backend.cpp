@@ -2,6 +2,7 @@
 
 #include "jz_pwm_sound_backend.h"
 
+#include "env_knobs.h"
 #include "note_event.h"
 #include "platform_info.h"
 
@@ -428,8 +429,7 @@ bool JzPwmSoundBackend::initialize() {
     knobs_.carrier_hz = env_float("HELIX_JZ_CARRIER", knobs_.carrier_hz);
     set_voice_knobs(knobs_); /* apply clamps */
 
-    const char* log = getenv("HELIX_JZ_LOG_VOICE");
-    if (log && log[0] == '1') {
+    if (helix::env_flag("HELIX_JZ_LOG_VOICE")) {
         voice_log_ = fopen(kVoiceLog, "a");
         if (voice_log_) {
             voice_log_epoch_ = std::chrono::steady_clock::now();

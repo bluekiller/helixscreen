@@ -146,36 +146,42 @@ inline int detect_panel_orientation_from_cmdline() {
     return -1;
 }
 
+namespace helix {
+
 /**
- * @brief Read display rotation from settings.json
+ * @brief The first `"key": <value>` in the settings files, as the raw value token
  *
- * Searches standard config paths for the /display/rotate field.
- * Used by watchdog and splash binaries which don't use the full Config system.
+ * Searches settings.json in the config dir, then the legacy helixconfig.json
+ * locations, and returns the alphanumeric token after the colon (digits, `true`,
+ * `false`). The first occurrence anywhere in a file whose token `accept` takes
+ * wins, at any nesting depth, so a nested `"key": null` does not hide a real value
+ * later in the file. A plain scan, not a JSON parse: the splash and watchdog read
+ * their settings before anything else runs and link no regex code.
  *
- * @param default_value Fallback rotation in degrees (default: 0)
- * @return Rotation in degrees (0, 90, 180, 270)
+ * @param from If non-null, receives the path the value came from.
+ * @param accept If non-null, occurrences whose token it rejects are skipped.
  */
-inline int read_config_rotation(int default_value = 0) {
-    const std::string main_settings = helix::writable_path("settings.json");
-    const std::string main_legacy = helix::writable_path("helixconfig.json");
-    const std::string paths[] = {main_settings, main_legacy, "helixconfig.json",
+inline std::optional<std::string> read_settings_scalar(std::string_view key,
+                                                       std::string* from = nullptr,
+                                                       bool (*accept)(std::string_view) = nullptr) {
+    const std::string paths[] = {helix::writable_path("settings.json"),
+                                 helix::writable_path("helixconfig.json"), "helixconfig.json",
                                  "/opt/helixscreen/helixconfig.json"};
+    const std::string quoted = "\"" + std::string(key) + "\"";
+    auto is_space = [](char c) { return c == ' ' || (c >= '\t' && c <= '\r'); };
+    auto is_token = [](char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    };
 
     for (const auto& path : paths) {
         const std::optional<std::string> content = helix::text_io::read_file(path);
         if (!content) {
             continue;
         }
-
-        // The first `"rotate" : <digits>` anywhere in the file, the key the
-        // "display" section carries. A plain scan, not a JSON parse: splash and
-        // watchdog link no JSON or regex code.
-        auto is_space = [](char c) { return c == ' ' || (c >= '\t' && c <= '\r'); };
         const std::string_view text(*content);
-        const std::string_view key = "\"rotate\"";
-        for (size_t at = text.find(key); at != std::string_view::npos;
-             at = text.find(key, at + 1)) {
-            size_t i = at + key.size();
+        for (size_t at = text.find(quoted); at != std::string_view::npos;
+             at = text.find(quoted, at + 1)) {
+            size_t i = at + quoted.size();
             while (i < text.size() && is_space(text[i]))
                 ++i;
             if (i >= text.size() || text[i] != ':')
@@ -183,23 +189,72 @@ inline int read_config_rotation(int default_value = 0) {
             ++i;
             while (i < text.size() && is_space(text[i]))
                 ++i;
-            size_t digits_end = i;
-            while (digits_end < text.size() && text[digits_end] >= '0' && text[digits_end] <= '9')
-                ++digits_end;
-            if (digits_end == i)
+            size_t end = i;
+            while (end < text.size() && is_token(text[end]))
+                ++end;
+            if (end == i || (accept && !accept(text.substr(i, end - i))))
                 continue;
-            const int rotation =
-                helix::text_io::parse_int<int>(text.substr(i, digits_end - i)).value_or(0);
-            // Validate: only 0, 90, 180, 270 are valid
-            if (rotation == 90 || rotation == 180 || rotation == 270) {
-                return rotation;
+            if (from) {
+                *from = path;
             }
-            return 0; // Invalid value → no rotation
+            return std::string(text.substr(i, end - i));
         }
     }
-
-    return default_value;
+    return std::nullopt;
 }
+
+/// The first occurrence of `key` holding a non-negative integer.
+inline std::optional<int> read_settings_int(std::string_view key, std::string* from = nullptr) {
+    const auto token = read_settings_scalar(key, from, [](std::string_view t) {
+        return helix::text_io::parse_int<int>(t).has_value();
+    });
+    return token ? helix::text_io::parse_int<int>(*token) : std::nullopt;
+}
+
+/// The first occurrence of `key` holding `true` or `false`.
+inline std::optional<bool> read_settings_bool(std::string_view key, std::string* from = nullptr) {
+    const auto token = read_settings_scalar(
+        key, from, [](std::string_view t) { return t == "true" || t == "false"; });
+    return token ? std::optional<bool>(*token == "true") : std::nullopt;
+}
+
+} // namespace helix
+
+/**
+ * @brief Read display rotation from settings.json
+ *
+ * Used by watchdog and splash binaries which don't use the full Config system.
+ *
+ * @param default_value Fallback rotation in degrees when no setting exists
+ * @return Rotation in degrees (0, 90, 180, 270); 0 for an invalid value
+ */
+inline int read_config_rotation(int default_value = 0) {
+    const auto parsed = helix::read_settings_int("rotate");
+    if (!parsed) {
+        return default_value;
+    }
+    const int rotation = *parsed;
+    return (rotation == 90 || rotation == 180 || rotation == 270) ? rotation : 0;
+}
+
+namespace helix {
+
+/**
+ * @brief Rotation for the splash and the watchdog's crash dialog
+ *
+ * The CLI value, else the configured one, else the kernel's panel_orientation
+ * (informational only: the kernel does not rotate the framebuffer itself).
+ */
+inline int standalone_rotation(int cli_rotation) {
+    const int rotation = cli_rotation != 0 ? cli_rotation : read_config_rotation(0);
+    if (rotation != 0) {
+        return rotation;
+    }
+    const int kernel = detect_panel_orientation_from_cmdline();
+    return kernel > 0 ? kernel : 0;
+}
+
+} // namespace helix
 
 /**
  * @brief Abstract display backend interface

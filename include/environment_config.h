@@ -59,14 +59,6 @@ class EnvironmentConfig {
     static std::optional<int> get_int_scaled(const char* name, int min, int max, int divisor);
 
     /**
-     * @brief Check if environment variable equals "1"
-     *
-     * @param name Environment variable name
-     * @return true if value is exactly "1", false otherwise
-     */
-    static bool get_bool(const char* name);
-
-    /**
      * @brief Check if environment variable exists (regardless of value)
      *
      * @param name Environment variable name

@@ -29,6 +29,7 @@
 // set_moonraker_client().
 #include "moonraker_client_mock.h"
 #endif
+#include "env_knobs.h"
 #include "panel_widget_manager.h"
 #include "platform_info.h"
 #include "printer_state.h"
@@ -500,22 +501,8 @@ std::string app_get_config_dir() {
     return cached;
 }
 
-bool helix_parse_truthy_env(const char* value) {
-    if (!value || value[0] == '\0') {
-        return false;
-    }
-    std::string v(value);
-    // Trim surrounding whitespace (helixscreen.env values can carry a stray space).
-    auto not_space = [](unsigned char c) { return !std::isspace(c); };
-    v.erase(v.begin(), std::find_if(v.begin(), v.end(), not_space));
-    v.erase(std::find_if(v.rbegin(), v.rend(), not_space).base(), v.end());
-    std::transform(v.begin(), v.end(), v.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return v == "1" || v == "true" || v == "yes" || v == "on";
-}
-
 bool compute_updates_externally_managed(const char* disable_auto_updates, bool platform_default) {
-    // An explicit flag decides it, in either direction. helix_parse_truthy_env()
+    // An explicit flag decides it, in either direction. helix::env_truthy()
     // only answers "is this truthy", which cannot distinguish "0" from unset, so
     // presence is tested separately and a falsy value force-enables self-update
     // where the platform would otherwise default it off.
@@ -530,7 +517,7 @@ bool compute_updates_externally_managed(const char* disable_auto_updates, bool p
             ++p;
         }
         if (*p != '\0') {
-            return helix_parse_truthy_env(disable_auto_updates);
+            return helix::env_truthy(disable_auto_updates);
         }
     }
     return platform_default;

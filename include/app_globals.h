@@ -494,12 +494,6 @@ std::string app_get_runtime_dir();
 // Result is cached after first call.
 std::string app_get_config_dir();
 
-// Parses an environment-variable value as a boolean. Truthy values are
-// "1", "true", "yes", "on" (case-insensitive); everything else (including
-// nullptr, "", "0", "false") is false. Pure/side-effect-free so it can be
-// unit-tested without depending on the process environment.
-bool helix_parse_truthy_env(const char* value);
-
 // Pure predicate behind updates_externally_managed(), split out for testing so
 // both inputs can be exercised without mutating the process env or the platform.
 //

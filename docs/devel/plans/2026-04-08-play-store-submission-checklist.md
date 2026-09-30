@@ -98,8 +98,12 @@
 ## 8. Data Safety
 
 - [ ] Go to Policy > App content > Data safety
-- [ ] Does your app collect or share user data? **No** (if telemetry is opt-in and anonymized, you can declare no data collected since it's opt-in)
-- [ ] Or if declaring telemetry: Usage data (optional, not shared, anonymized)
+- [ ] Does your app collect or share user data? **Yes**: the Android build sends opt-in telemetry to telemetry.helixscreen.org (`TelemetryManager`, off until the user enables it)
+- [ ] Declare each type as collected, optional (opt-in), not shared, encrypted in transit, anonymized:
+  - **App activity / App interactions**: `session` (app version, platform, theme, locale, display and input type, host arch/CPU/RAM), `panel_usage` (panel and overlay visit counts and time), `feature_adoption`, `settings_snapshot` / `settings_changes` (setting values, no free text), `print_outcome` and `print_start_context` (outcome, duration, temperatures, filament type, slicer, file size bucket; no file names), `hardware_profile` (printer kinematics, build volume, extruder/fan/sensor/LED counts, Klipper/Moonraker versions)
+  - **App info and performance / Crash logs**: `crash` (signal, fault address, registers, backtrace addresses, executable memory map, app version, uptime)
+  - **App info and performance / Diagnostics**: `memory_snapshot`, `memory_warning`, `performance_snapshot`, `connection_stability`, `error_encountered`, `async_lifetime_skips`, `update_success` / `update_failed`
+  - **Device or other IDs**: `device_id`, a double SHA-256 hash of a random install UUID with a salt; not linked to the user
 - [ ] Submit data safety form
 
 ## 9. Create Release (Open Testing)

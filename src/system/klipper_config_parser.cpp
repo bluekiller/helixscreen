@@ -9,14 +9,6 @@
 #include <algorithm>
 #include <stdexcept>
 
-std::string KlipperConfigParser::trim(const std::string& s) {
-    auto start = s.find_first_not_of(" \t\r");
-    if (start == std::string::npos)
-        return "";
-    auto end = s.find_last_not_of(" \t\r");
-    return s.substr(start, end - start + 1);
-}
-
 bool KlipperConfigParser::parse(const std::string& content) {
     lines_.clear();
     section_map_.clear();
@@ -44,7 +36,7 @@ bool KlipperConfigParser::parse(const std::string& content) {
         Line line;
         line.raw = raw;
 
-        std::string trimmed = trim(raw);
+        std::string trimmed(helix::text_io::trim(raw));
 
         if (trimmed.empty()) {
             line.type = Line::BLANK;
@@ -96,14 +88,14 @@ bool KlipperConfigParser::parse(const std::string& content) {
             sep_pos = colon_pos;
             line.separator = ':';
             line.separator_ws = ": ";
-            line.key = trim(raw.substr(0, sep_pos));
-            line.value = trim(raw.substr(sep_pos + 2));
+            line.key = std::string(helix::text_io::trim(raw.substr(0, sep_pos)));
+            line.value = std::string(helix::text_io::trim(raw.substr(sep_pos + 2)));
         } else if (equals_pos != std::string::npos) {
             sep_pos = equals_pos;
             line.separator = '=';
             line.separator_ws = " = ";
-            line.key = trim(raw.substr(0, sep_pos));
-            line.value = trim(raw.substr(sep_pos + 3));
+            line.key = std::string(helix::text_io::trim(raw.substr(0, sep_pos)));
+            line.value = std::string(helix::text_io::trim(raw.substr(sep_pos + 3)));
         } else {
             // Try bare separators
             colon_pos = raw.find(':');
@@ -114,14 +106,14 @@ bool KlipperConfigParser::parse(const std::string& content) {
                 sep_pos = colon_pos;
                 line.separator = ':';
                 line.separator_ws = ":";
-                line.key = trim(raw.substr(0, sep_pos));
-                line.value = trim(raw.substr(sep_pos + 1));
+                line.key = std::string(helix::text_io::trim(raw.substr(0, sep_pos)));
+                line.value = std::string(helix::text_io::trim(raw.substr(sep_pos + 1)));
             } else if (equals_pos != std::string::npos) {
                 sep_pos = equals_pos;
                 line.separator = '=';
                 line.separator_ws = "=";
-                line.key = trim(raw.substr(0, sep_pos));
-                line.value = trim(raw.substr(sep_pos + 1));
+                line.key = std::string(helix::text_io::trim(raw.substr(0, sep_pos)));
+                line.value = std::string(helix::text_io::trim(raw.substr(sep_pos + 1)));
             } else {
                 // No separator found - treat as comment/unknown
                 spdlog::warn("KlipperConfigParser: unrecognized line: '{}'", raw);
@@ -156,7 +148,7 @@ std::string KlipperConfigParser::get_multiline_value(size_t key_line_idx) const 
         if (!result.empty()) {
             result += '\n';
         }
-        result += trim(lines_[ci].raw);
+        result += std::string(helix::text_io::trim(lines_[ci].raw));
     }
     return result;
 }

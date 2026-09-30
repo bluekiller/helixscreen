@@ -6,6 +6,7 @@
 #include "config.h"
 #include "filament_catalog.h"
 #include "json_utils.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -34,17 +35,12 @@ constexpr const char* KEY_MACRO_HEATS = "macro_handles_heating";
 constexpr const char* MANAGED_KEYS[] = {KEY_NOZZLE_MIN, KEY_NOZZLE_MAX, KEY_BED,
                                         KEY_CHAMBER,    KEY_MACRO,      KEY_MACRO_HEATS};
 
-std::string lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    return s;
-}
-
 /// The entry naming @p name (any case, aliases resolved), or end().
 std::vector<nlohmann::json>::iterator find_entry(std::vector<nlohmann::json>& entries,
                                                  const std::string& name) {
-    const std::string key = lower(std::string(filament::resolve_alias(name)));
+    const std::string key = helix::text_io::to_lower(std::string(filament::resolve_alias(name)));
     return std::find_if(entries.begin(), entries.end(), [&](const nlohmann::json& e) {
-        return lower(std::string(
+        return helix::text_io::to_lower(std::string(
                    filament::resolve_alias(helix::json_util::safe_string(e, "name")))) == key;
     });
 }
