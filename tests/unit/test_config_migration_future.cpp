@@ -159,8 +159,6 @@ json future_config(int version) {
 ///
 /// Several values are deliberately set to what a migration's trigger looks for,
 /// so a replay is visible rather than a no-op:
-///   brightness 50              — the v6→v7 / v8→v9 "still on the old default" bump
-///   toolhead_style 2 and 3     — POST-v8 values that the v7→v8 remap also matches
 ///   screensaver_type 1         — the v15→v16 Flying Toasters disable
 ///   sleep_backlight_off/hardware_blank — the v12→v13 / v14→v15 AD5X repair
 /// A user who deliberately chose any of these is indistinguishable, in the
@@ -451,6 +449,9 @@ TEST_CASE_METHOD(MigrationFutureFixture,
 // two months and to 8 within the last five, so the replay depths below are not
 // hypothetical.
 //
+// Stamps below MIN_MIGRATABLE_CONFIG_VERSION are not replayed at all: init()
+// sets the document aside and starts from defaults.
+//
 // Stamp 0 is deliberately excluded: config.cpp:1681 treats config_version == 0
 // as "tarball default" and replaces the whole document from backup before any
 // migration runs, so it is a different code path, not a replay.
@@ -460,7 +461,7 @@ TEST_CASE_METHOD(MigrationFutureFixture,
                  "[config][migration][roundtrip]") {
     const json baseline = boot(populated_config());
 
-    for (int stamp = CURRENT_CONFIG_VERSION - 1; stamp >= 1; --stamp) {
+    for (int stamp = CURRENT_CONFIG_VERSION - 1; stamp >= MIN_MIGRATABLE_CONFIG_VERSION; --stamp) {
         const json replayed = replay_from(baseline, stamp);
 
         // The replay must re-stamp to current; a config stuck at an old version
@@ -518,62 +519,6 @@ TEST_CASE_METHOD(MigrationFutureFixture,
 }
 
 TEST_CASE_METHOD(MigrationFutureFixture,
-                 "Config round trip: a rollback past v9 overwrites a deliberate brightness of 50",
-                 "[config][migration][roundtrip]") {
-    // FINDING. migrate_v6_to_v7() (config.cpp:446) and migrate_v8_to_v9()
-    // (config.cpp:488) both bump brightness 50 -> 80 on the assumption that 50
-    // can only be the old default. After a rollback that is no longer true: a
-    // user who chose 50 has it silently raised.
-    const json baseline = boot(populated_config());
-    REQUIRE(baseline["brightness"] == 50);
-
-    CHECK(replay_from(baseline, 9)["brightness"] == 50); // v8→v9 gate not crossed
-    CHECK(replay_from(baseline, 8)["brightness"] == 80);
-    CHECK(replay_from(baseline, 6)["brightness"] == 80);
-}
-
-TEST_CASE_METHOD(MigrationFutureFixture,
-                 "Config round trip: a rollback past v8 corrupts toolhead_style",
-                 "[config][migration][roundtrip]") {
-    // FINDING, and the worst of the four: migrate_v7_to_v8() (config.cpp:457)
-    // remaps the toolhead enum 2 -> 5 and 3 -> 2. The NEW values overlap the old
-    // ones, so the remap is not idempotent — it is a rotation. Replaying it
-    // turns an already-correct A4T (2) into Stealthburner (5) and an Anthead (3)
-    // into A4T (2), and a further replay would move them again.
-    //
-    // Unlike the other three this produces a value the user never chose and
-    // cannot be explained as "an old default got bumped".
-    const json baseline = boot(populated_config());
-    REQUIRE(baseline["printers"]["voronv2"]["appearance"]["toolhead_style"] == 2);
-    REQUIRE(baseline["printers"]["prusamk4"]["appearance"]["toolhead_style"] == 3);
-
-    const json safe = replay_from(baseline, 8); // v7→v8 gate not crossed
-    CHECK(safe["printers"]["voronv2"]["appearance"]["toolhead_style"] == 2);
-    CHECK(safe["printers"]["prusamk4"]["appearance"]["toolhead_style"] == 3);
-
-    const json replayed = replay_from(baseline, 7);
-    CHECK(replayed["printers"]["voronv2"]["appearance"]["toolhead_style"] == 5);
-    CHECK(replayed["printers"]["prusamk4"]["appearance"]["toolhead_style"] == 2);
-}
-
-TEST_CASE_METHOD(MigrationFutureFixture,
-                 "Config round trip: a rollback past v3 no longer rewrites jitter_threshold",
-                 "[config][migration][roundtrip]") {
-    // migrate_v2_to_v3() used to read 15 as "the old default" and drop it to 5,
-    // which was the narrowest of the four replay findings: 15 was the one value
-    // affected, and a user on a genuinely noisy panel is exactly who would have
-    // set it back. The setting it retuned never reached the input pipeline and
-    // has since been removed (prestonbrown/helixscreen#1358), so the step is now
-    // empty and a rollback past v3 leaves the stored value alone. The key itself
-    // is inert; what this pins is that the retired migration does not touch it.
-    const json baseline = boot(populated_config());
-    REQUIRE(baseline["input"]["jitter_threshold"] == 15);
-
-    CHECK(replay_from(baseline, 3)["input"]["jitter_threshold"] == 15);
-    CHECK(replay_from(baseline, 2)["input"]["jitter_threshold"] == 15);
-}
-
-TEST_CASE_METHOD(MigrationFutureFixture,
                  "Config round trip: a rollback past v16 re-disables the screensaver on a "
                  "constrained tier",
                  "[config][migration][roundtrip]") {
@@ -626,7 +571,7 @@ TEST_CASE_METHOD(MigrationFutureFixture,
 
     // The values they would have moved are already at their modern paths and
     // stay there across a replay of the full ladder.
-    const json replayed = replay_from(baseline, 1);
+    const json replayed = replay_from(baseline, MIN_MIGRATABLE_CONFIG_VERSION);
     CHECK(replayed["display"]["rotate"] == 0);
     CHECK(replayed["input"]["touch_device"] == "/dev/input/event3");
     CHECK(replayed["input"]["calibration"]["a"] == 1.0021);

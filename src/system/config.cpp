@@ -439,68 +439,9 @@ static helix::PlatformTier current_tier_for_migration() {
 }
 #endif
 
-/// Migration v0→v1: Sound support added — default sounds OFF for existing configs.
-/// Before sound actually worked, configs had sounds_enabled: true as a harmless default.
-/// Force it off so upgrading users don't get surprise beeps.
-static void migrate_v0_to_v1(json& config) {
-    if (config.contains("sounds_enabled")) {
-        config["sounds_enabled"] = false;
-        spdlog::info("[Config] Migration v1: disabled sounds_enabled for existing config");
-    }
-}
-
-/// Migration v1→v2: Multi-LED support — convert single LED string to array
-static void migrate_v1_to_v2(json& config) {
-    json::json_pointer strip_ptr("/printer/leds/strip");
-    json::json_pointer selected_ptr("/printer/leds/selected");
-
-    // If new array path already exists, nothing to do
-    if (config.contains(selected_ptr)) {
-        return;
-    }
-
-    auto write_selected = [&config](json value) {
-        const char* why = nullptr;
-        json* selected = node_for_write(config, "/printer/leds/selected", &why);
-        if (selected == nullptr) {
-            spdlog::warn("[Config] Migration v2: /printer/leds/selected not created: {}", why);
-            return false;
-        }
-        *selected = std::move(value);
-        return true;
-    };
-
-    // Convert old single string to array
-    if (config.contains(strip_ptr)) {
-        auto& strip_val = config[strip_ptr];
-        if (strip_val.is_string()) {
-            std::string led = strip_val.get<std::string>();
-            if (!led.empty()) {
-                if (write_selected(json::array({led}))) {
-                    spdlog::info("[Config] Migration v2: converted LED '{}' from "
-                                 "/printer/leds/strip to /printer/leds/selected array",
-                                 led);
-                }
-            } else if (write_selected(json::array())) {
-                spdlog::info(
-                    "[Config] Migration v2: empty LED strip, created empty selected array");
-            }
-        }
-        // Don't remove /printer/leds/strip - keep for wizard backward compat
-    } else if (write_selected(json::array())) {
-        // No LED configured at all - create empty array
-        spdlog::info("[Config] Migration v2: no LED configured, created empty selected array");
-    }
-}
-
-/// Migration v2→v3: retired. It retuned /input/jitter_threshold, a setting that
-/// never reached the input pipeline and has since been removed
-/// (prestonbrown/helixscreen#1358). The step stays so the version chain is
-/// unbroken - a v2 config still has to walk through 3 to reach the current
-/// version. Any /input/jitter_threshold left in an existing config is inert.
-static void migrate_v2_to_v3(json& /*config*/) {}
-
-/// Migration v3→v4: Restructure single /printer to multi-printer /printers map.
+/// Restructure single /printer to multi-printer /printers map. Only version 0
+/// reaches this below the floor: the shipped presets carry no config_version
+/// and still use the single /printer shape.
 /// Moves the old singular "printer" object under "printers/{slug}/" and sets active_printer_id.
 /// Also moves root-level "filament", "panel_widgets" under the printer entry.
 static void migrate_v3_to_v4(json& config) {
@@ -561,92 +502,6 @@ static void migrate_v3_to_v4(json& config) {
     }
 
     spdlog::info("[Config] Migration v4: restructured /printer to /printers/{}", slug);
-}
-
-/// Default show_printer_switcher to false for single-printer configs.
-/// Shared by v4→v5 and v5→v6 migrations (v6 re-runs for fresh v5 installs that had wrong default).
-static void default_printer_switcher_off(json& config, int target_version) {
-    if (config.contains("/printers/show_printer_switcher"_json_pointer)) {
-        return;
-    }
-
-    int printer_count = 0;
-    if (config.contains("printers") && config["printers"].is_object()) {
-        for (auto& [key, val] : config["printers"].items()) {
-            if (val.is_object()) {
-                printer_count++;
-            }
-        }
-    }
-
-    const char* why = nullptr;
-    json* flag = printer_count <= 1
-                     ? node_for_write(config, "/printers/show_printer_switcher", &why)
-                     : nullptr;
-    if (flag != nullptr) {
-        *flag = false;
-        spdlog::info(
-            "[Config] Migration v{}: disabled show_printer_switcher for single-printer config",
-            target_version);
-    }
-}
-
-static void migrate_v4_to_v5(json& config) {
-    default_printer_switcher_off(config, 5);
-}
-static void migrate_v5_to_v6(json& config) {
-    default_printer_switcher_off(config, 6);
-}
-
-/// Bump default brightness from 50% to 80% for users who never changed it.
-static void migrate_v6_to_v7(json& config) {
-    if (config.contains("brightness") && config["brightness"].is_number() &&
-        config["brightness"].get<int>() == 50) {
-        config["brightness"] = 80;
-        spdlog::info("[Config] Migration v7: updated default brightness from 50% to 80%");
-    }
-}
-
-/// Remap toolhead_style after alphabetical reorder of enum values.
-/// Old: AUTO=0, DEFAULT=1, STEALTHBURNER=2, A4T=3, JABBERWOCKY=4
-/// New: AUTO=0, DEFAULT=1, A4T=2, ANTHEAD=3, JABBERWOCKY=4, STEALTHBURNER=5
-static void migrate_v7_to_v8(json& config) {
-    auto remap_toolhead = [](json& printers_obj) {
-        for (auto& [id, printer] : printers_obj.items()) {
-            json::json_pointer ptr("/appearance/toolhead_style");
-            if (printer.contains(ptr) && printer[ptr].is_number_integer()) {
-                int old_val = printer[ptr].get<int>();
-                // Only 2 (old STEALTHBURNER) and 3 (old A4T) need remapping
-                if (old_val == 2) {
-                    printer[ptr] = 5; // STEALTHBURNER
-                    spdlog::info(
-                        "[Config] Migration v8: remapped toolhead_style 2→5 (Stealthburner) "
-                        "for printer {}",
-                        id);
-                } else if (old_val == 3) {
-                    printer[ptr] = 2; // A4T
-                    spdlog::info("[Config] Migration v8: remapped toolhead_style 3→2 (A4T) "
-                                 "for printer {}",
-                                 id);
-                }
-            }
-        }
-    };
-
-    if (config.contains("printers") && config["printers"].is_object()) {
-        remap_toolhead(config["printers"]);
-    }
-}
-
-/// Re-apply brightness 50->80 bump for users whose config was written with the
-/// old default of 50 after v7 migration already ran (the default in
-/// get_default_config() was still 50, so new installs after v7 got 50 again).
-static void migrate_v8_to_v9(json& config) {
-    if (config.contains("brightness") && config["brightness"].is_number() &&
-        config["brightness"].get<int>() == 50) {
-        config["brightness"] = 80;
-        spdlog::info("[Config] Migration v9: updated default brightness from 50% to 80%");
-    }
 }
 
 /// Consolidate "power" widget into "power_device" with __all__ sentinel.
@@ -1806,8 +1661,8 @@ static void run_versioned_migrations(json& config, const std::string& config_pat
     int version = 0;
     if (config.contains("config_version")) {
         const json& stamp = config["config_version"];
-        // Running the chain from 0 would replay non-idempotent steps (v8's
-        // toolhead remap) over a current document, so an unreadable stamp
+        // Running the chain from 0 would replay steps written for older shapes
+        // over a current document, so an unreadable stamp
         // leaves the document unmigrated and unstamped for the user to fix.
         if (!stamp.is_number() && !stamp.is_boolean()) {
             spdlog::error("[Config] Migration failed, continuing with un-migrated config: "
@@ -1844,24 +1699,8 @@ static void run_versioned_migrations(json& config, const std::string& config_pat
         return;
     }
 
-    if (version < 1)
-        migrate_v0_to_v1(config);
-    if (version < 2)
-        migrate_v1_to_v2(config);
-    if (version < 3)
-        migrate_v2_to_v3(config);
     if (version < 4)
         migrate_v3_to_v4(config);
-    if (version < 5)
-        migrate_v4_to_v5(config);
-    if (version < 6)
-        migrate_v5_to_v6(config);
-    if (version < 7)
-        migrate_v6_to_v7(config);
-    if (version < 8)
-        migrate_v7_to_v8(config);
-    if (version < 9)
-        migrate_v8_to_v9(config);
     if (version < 10)
         migrate_v9_to_v10(config);
     if (version < 11)
@@ -2071,28 +1910,11 @@ void Config::init(const std::string& config_path) {
     path = resolved_path;
     struct stat buffer;
 
-    // Migration: rename helixconfig.json -> settings.json if old name exists
+    // A Pi/SonicPad install may still reach its config through a
+    // helixconfig.json symlink into printer_data. Use it directly; the
+    // installer renames it on the next update.
     const std::string old_config = hfs::join_path(hfs::parent_path(path), "helixconfig.json");
-    if (stat(path.c_str(), &buffer) != 0 && hfs::exists(old_config) &&
-        !hfs::is_symlink(old_config)) {
-        spdlog::info("[Config] Migrating {} -> {}", old_config, path);
-        if (!hfs::rename(old_config, path)) {
-            spdlog::warn("[Config] Migration rename failed: {} — trying copy",
-                         std::strerror(errno));
-            if (hfs::copy_file(old_config, path)) {
-                hfs::remove(old_config);
-                spdlog::info("[Config] Migration complete (copy+remove)");
-            } else {
-                spdlog::error("[Config] Migration failed: {}",
-                              fmt::format("{}: {}", old_config, std::strerror(errno)));
-            }
-        } else {
-            spdlog::info("[Config] Migration complete");
-        }
-    } else if (stat(path.c_str(), &buffer) != 0 && hfs::is_symlink(old_config)) {
-        // Old config is a symlink (Pi/SonicPad: points to printer_data).
-        // Don't rename symlinks — the installer handles that. Just use the
-        // symlink path directly so we read/write the user's real config.
+    if (stat(path.c_str(), &buffer) != 0 && hfs::is_symlink(old_config)) {
         if (stat(old_config.c_str(), &buffer) == 0) {
             path = old_config;
             spdlog::info("[Config] {} is a symlink — using it directly, "
@@ -2101,58 +1923,9 @@ void Config::init(const std::string& config_path) {
         } else {
             spdlog::warn("[Config] {} is a dangling symlink", old_config);
         }
-    } else if (stat(path.c_str(), &buffer) == 0 && hfs::exists(old_config)) {
-        spdlog::warn("[Config] Both settings.json and helixconfig.json exist; "
-                     "using settings.json (old file left in place)");
     }
 
-    // Migrate test config unconditionally (has its own existence guard)
-    const std::string old_test = hfs::join_path(hfs::parent_path(path), "helixconfig-test.json");
-    const std::string new_test = hfs::join_path(hfs::parent_path(path), "settings-test.json");
-    if (hfs::exists(old_test) && !hfs::exists(new_test)) {
-        if (hfs::rename(old_test, new_test)) {
-            spdlog::info("[Config] Migrated test config: {} -> {}", old_test, new_test);
-        } else {
-            spdlog::warn("[Config] Test config migration failed: {}", std::strerror(errno));
-        }
-    }
-
-    // Migration: Check for legacy config at old location (helixconfig.json in app root)
-    // If new location doesn't exist but old location does, migrate it
-    // Note: use `path` (not `config_path`) — may have been redirected to symlink above
     if (stat(path.c_str(), &buffer) != 0) {
-        // Config doesn't exist - check for legacy locations
-        const std::vector<std::string> legacy_paths = {
-            "helixconfig.json",                  // Old location (app root)
-            "/opt/helixscreen/helixconfig.json", // Legacy embedded install
-        };
-
-        for (const auto& legacy_path : legacy_paths) {
-            if (stat(legacy_path.c_str(), &buffer) == 0) {
-                spdlog::info("[Config] Found legacy config at {}, migrating to {}", legacy_path,
-                             path);
-
-                // Ensure config/ directory exists
-                const std::string config_dir(hfs::parent_path(path));
-                if (!config_dir.empty() && !hfs::exists(config_dir)) {
-                    hfs::create_directories(config_dir);
-                }
-
-                // Copy legacy config to new location, then remove old file
-                if (hfs::copy_file(legacy_path, path)) {
-                    // Remove legacy file to avoid confusion
-                    hfs::remove(legacy_path);
-                    spdlog::info("[Config] Migration complete: {} -> {} (old file removed)",
-                                 legacy_path, path);
-                } else {
-                    spdlog::warn("[Config] Migration failed: {}",
-                                 fmt::format("{}: {}", path, std::strerror(errno)));
-                    // Fall through to create default config
-                }
-                break;
-            }
-        }
-
         // Recovery: restore config from rolling backups if missing.
         // Backups are maintained by Config::save() and survive Moonraker's
         // shutil.rmtree() wipe of the install directory.
@@ -2313,7 +2086,15 @@ void Config::init(const std::string& config_path) {
                     spdlog::warn("[Config] Could not save pre-migration copy to {}", snapshot);
                 }
             }
-            run_versioned_migrations(data, path);
+            if (version_before > 0 && version_before < MIN_MIGRATABLE_CONFIG_VERSION) {
+                spdlog::warn("[Config] config_version {} is older than this build migrates "
+                             "(oldest: {}); starting from defaults, previous config kept at {}",
+                             version_before, MIN_MIGRATABLE_CONFIG_VERSION, snapshot);
+                data = get_default_config("127.0.0.1", false);
+                config_modified = true;
+            } else {
+                run_versioned_migrations(data, path);
+            }
             // safe_int, not data["config_version"] — operator[] on the non-const
             // `data` VIVIFIES a null if a migration failed to stamp the version,
             // and .get<int>() then throws on it (#1129 is the same hazard).
