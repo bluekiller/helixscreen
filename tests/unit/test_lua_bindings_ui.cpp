@@ -9,6 +9,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/plugin_test_support.h"
+#include "../test_helpers/scope_exit.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "layout_manager.h"
@@ -151,15 +152,18 @@ TEST_CASE_METHOD(LVGLUITestFixture, "helix.ui.confirm allows one open dialog per
 TEST_CASE_METHOD(LVGLTestFixture, "runtime close leaves an app subject that took the name",
                  "[plugin][bindings][ui]") {
     lv_subject_t app_subject;
+    lv_subject_init_int(&app_subject, 5);
+    helix::test::ScopeExit cleanup([&app_subject] {
+        if (lv_xml_get_subject(nullptr, "test-plugin__x") == &app_subject)
+            lv_xml_unregister_subject(nullptr, "test-plugin__x");
+        lv_subject_deinit(&app_subject);
+    });
     {
         BoundRuntime b({&install_ui_bindings});
         REQUIRE(b.t.run(R"(helix.subject.int("x", 1))"));
-        lv_subject_init_int(&app_subject, 5);
         lv_xml_register_subject(nullptr, "test-plugin__x", &app_subject);
     }
     CHECK(lv_xml_get_subject(nullptr, "test-plugin__x") == &app_subject);
-    lv_xml_unregister_subject(nullptr, "test-plugin__x");
-    lv_subject_deinit(&app_subject);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "ui.on handlers dispatch with an argument",
@@ -226,6 +230,11 @@ TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime 
     sweep_retired_subjects();
     size_t before = retired_subject_count();
     lv_obj_t* root = nullptr;
+    helix::test::ScopeExit cleanup([&root] {
+        if (root && lv_obj_is_valid(root))
+            lv_obj_delete(root);
+        lv_xml_component_unregister("test-plugin__bindrow");
+    });
     {
         BoundRuntime b({&install_ui_bindings});
         REQUIRE(b.t.run(R"(s = helix.subject.string("status", "hi"))"));
@@ -249,9 +258,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime 
     CHECK(std::string(lv_label_get_text(label)) == "hi");
 
     lv_obj_delete(root); // detaches the bind record from a subject that must still be alive
+    root = nullptr;
     sweep_retired_subjects();
     CHECK(retired_subject_count() == before);
-    lv_xml_component_unregister("test-plugin__bindrow");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "an unobserved subject is freed at unload",

@@ -19,6 +19,7 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/config_test_access.h"
+#include "../test_helpers/scope_exit.h"
 #include "config.h"
 #include "display_settings_manager.h"
 #include "grid_layout.h"
@@ -1296,6 +1297,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     lv_obj_t* results = search_results();
     REQUIRE(results != nullptr);
     const uint32_t base_rows = child_count(results);
+    helix::test::ScopeExit cleanup([] { unregister_runtime_widget_def("rt-search-tile"); });
 
     // The count change alone rebuilds the rows; the search index is the half
     // that can go stale, so the assertions lean on the query, not the count.
@@ -1329,6 +1331,10 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
 TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
                  "Widget catalog: same-count def changes under it still rebuild",
                  "[widget_catalog][widget_registry]") {
+    helix::test::ScopeExit cleanup([] {
+        unregister_runtime_widget_def("rt-swap-a");
+        unregister_runtime_widget_def("rt-swap-b");
+    });
     // Registered before the open, so the rows were built listing it.
     REQUIRE(register_runtime_widget_def(make_runtime_def("rt-swap-a", "Swap Alpha")));
     open_catalog();
@@ -1374,6 +1380,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     RuntimeWidgetDef d = make_runtime_def("rt-span-tile", "Span Tile");
     d.colspan = 2;
     d.rowspan = 2;
+    helix::test::ScopeExit cleanup([] { unregister_runtime_widget_def("rt-span-tile"); });
     REQUIRE(register_runtime_widget_def(d));
     open_catalog();
     lv_obj_t* results = search_results();

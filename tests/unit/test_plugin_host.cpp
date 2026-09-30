@@ -9,6 +9,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/home_panel_test_access.h"
 #include "../test_helpers/plugin_host_test_support.h"
+#include "../test_helpers/scope_exit.h"
 #include "config.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "misc/lv_timer_private.h"
@@ -174,6 +175,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app compon
     REQUIRE(lv_xml_register_component_from_data(
         "shadow__panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
                          "<lv_label name=\"app_child\"/></view></component>"));
+    helix::test::ScopeExit cleanup([] { lv_xml_component_unregister("shadow__panel"); });
     HostRig rig(enabled("shadow", {}));
     rig.host->load_from("tests/fixtures/plugins");
     REQUIRE(rig.info("shadow"));
@@ -186,7 +188,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app compon
     REQUIRE(panel);
     REQUIRE(lv_obj_find_by_name(panel, "app_child"));
     lv_obj_delete(panel);
-    lv_xml_component_unregister("shadow__panel");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the plugin's name",
@@ -197,6 +198,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the 
     REQUIRE(lv_xml_register_component_from_data(
         "hello__panel", "<component><view extends=\"lv_obj\" width=\"content\" height=\"content\">"
                         "<lv_label name=\"app_child\"/></view></component>"));
+    helix::test::ScopeExit cleanup([] { lv_xml_component_unregister("hello__panel"); });
     rig.host->disable("hello");
 
     auto* panel =
@@ -204,7 +206,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the 
     REQUIRE(panel);
     CHECK(lv_obj_find_by_name(panel, "app_child"));
     lv_obj_delete(panel);
-    lv_xml_component_unregister("hello__panel");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "plugin XML naming an app callback is rejected at load",
