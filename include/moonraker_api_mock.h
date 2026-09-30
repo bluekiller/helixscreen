@@ -633,6 +633,18 @@ class MoonrakerFileTransferAPIMock : public MoonrakerFileTransferAPI {
     /// Note: Base directory is RuntimeConfig::TEST_GCODE_DIR (defined in runtime_config.h)
     static const std::vector<std::string> PATH_PREFIXES;
 
+    /// One config-root download lookup shared by the transfer entry points.
+    /// HELIX_MOCK_PLUGINS_DIR serves helixscreen/plugins/<rel> from a local folder; the
+    /// injected config root serves full paths from memory. `owned` false means neither
+    /// source claims the config root for this path and the caller keeps its normal
+    /// behaviour; `owned` true with no content is a known-absent path (not-found error).
+    struct ConfigRootFile {
+        bool owned = false;
+        std::optional<std::string> content;
+    };
+    [[nodiscard]] ConfigRootFile lookup_config_root(const std::string& root,
+                                                    const std::string& path) const;
+
     /// Injected config root: full relative path -> content. Empty = use disk.
     std::map<std::string, std::string> config_files_;
 
