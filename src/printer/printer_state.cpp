@@ -1108,7 +1108,7 @@ void PrinterState::set_kinematics(const std::string& kinematics) {
     bool is_corexy_family = (kinematics.find("corexy") != std::string::npos);
 
     // CoreXY with QGL = gantry moves on Z (e.g. Voron 2.4), otherwise bed moves
-    bool has_qgl = lv_subject_get_int(capabilities_state_.get_printer_has_qgl_subject()) != 0;
+    bool has_qgl = lv_subject_get_int(capabilities_state_.subject(Capability::HasQgl)) != 0;
     auto_detected_bed_moves_ = is_corexy_family && !has_qgl;
 
     // Apply with user override considered
@@ -1121,10 +1121,10 @@ void PrinterState::refresh_bed_drying_capability() {
     }
     const bool enclosed = bed_drying::is_enclosed(
         SettingsManager::instance().get_enclosure_style(), printer_db_enclosed_,
-        lv_subject_get_int(capabilities_state_.get_printer_has_chamber_heater_subject()) != 0);
+        lv_subject_get_int(capabilities_state_.subject(Capability::HasChamberHeater)) != 0);
     const AxisBounds bounds = motion_state_.get_axis_bounds();
     const bool can_dry = bed_drying::available(
-        lv_subject_get_int(capabilities_state_.get_printer_has_heater_bed_subject()) != 0, enclosed,
+        lv_subject_get_int(capabilities_state_.subject(Capability::HasHeaterBed)) != 0, enclosed,
         bounds.has_z, bounds.z_min, bounds.z_max);
     capabilities_state_.set_bed_drying(enclosed, can_dry);
 }
@@ -1394,7 +1394,7 @@ void PrinterState::apply_dynamic_options() {
     // These are NOT gcode lines — start_print() routes them to
     // `api_->timelapse().set_timelapse_enabled(...)`.
     if (!database_owns_timelapse &&
-        lv_subject_get_int(capabilities_state_.get_printer_has_timelapse_subject()) == 1) {
+        lv_subject_get_int(capabilities_state_.subject(Capability::HasTimelapse)) == 1) {
         PrePrintOption tl;
         tl.id = "timelapse";
         tl.label_key = "Timelapse";

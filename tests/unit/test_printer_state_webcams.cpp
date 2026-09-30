@@ -15,6 +15,7 @@
 
 #include "../catch_amalgamated.hpp"
 
+using helix::Capability;
 using helix::PrinterCapabilitiesState;
 using helix::ui::UpdateQueue;
 
@@ -53,14 +54,14 @@ TEST_CASE_METHOD(LVGLTestFixture,
     CHECK(caps.get_webcams()[0].unavailable_reason ==
           "service not running: crowsnest (failed/failed)");
     // The auto-pick skips the down camera and lands on Bed.
-    CHECK(lv_subject_get_int(caps.get_printer_has_webcam_subject()) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasWebcam)) == 1);
     CHECK(caps.get_webcam_stream_url() == "/bed/?action=stream");
     CHECK(caps.get_webcam_snapshot_url() == "/bed/?action=snapshot");
     CHECK(caps.get_webcam_flip_vertical());
     CHECK_FALSE(caps.get_webcam_flip_horizontal());
     CHECK(caps.get_webcam_target_fps() == 10);
     // Two named entries; the loopback one has no name to pick.
-    CHECK(lv_subject_get_int(caps.get_webcam_count_subject()) == 2);
+    CHECK(lv_subject_get_int(caps.subject(Capability::WebcamCount)) == 2);
 
     // Nothing usable: the list is still there for a picker, the feed is gone.
     cams[1].unavailable_reason = "unreachable at http://10.0.0.5/?action=snapshot";
@@ -68,9 +69,9 @@ TEST_CASE_METHOD(LVGLTestFixture,
     caps.set_webcams(cams);
     UpdateQueue::instance().drain();
     CHECK(caps.get_webcams().size() == 2);
-    CHECK(lv_subject_get_int(caps.get_printer_has_webcam_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasWebcam)) == 0);
     CHECK(caps.get_webcam_stream_url().empty());
-    CHECK(lv_subject_get_int(caps.get_webcam_count_subject()) == 2);
+    CHECK(lv_subject_get_int(caps.subject(Capability::WebcamCount)) == 2);
 
     caps.deinit_subjects();
 }
@@ -91,13 +92,13 @@ TEST_CASE_METHOD(LVGLTestFixture,
     CHECK(caps.get_webcam_snapshot_url() == "/webcam/?action=snapshot");
     CHECK(caps.get_webcam_flip_horizontal());
     CHECK(caps.get_webcam_target_fps() == 30);
-    CHECK(lv_subject_get_int(caps.get_printer_has_webcam_subject()) == 1);
-    CHECK(lv_subject_get_int(caps.get_webcam_count_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasWebcam)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::WebcamCount)) == 0);
 
     caps.set_webcam_available(false);
     UpdateQueue::instance().drain();
     CHECK(caps.get_webcams().empty());
-    CHECK(lv_subject_get_int(caps.get_printer_has_webcam_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasWebcam)) == 0);
 
     caps.deinit_subjects();
 }

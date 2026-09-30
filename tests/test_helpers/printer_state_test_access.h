@@ -130,7 +130,7 @@ class PrinterCapabilitiesStateTestAccess {
         // Values latched while subjects were down, replayed by the next
         // init_subjects(). Left behind, they re-seed the NEXT test's
         // capability subjects with the previous printer's answers.
-        s.pending_capability_values_.clear();
+        s.pending_capability_values_.fill(std::nullopt);
         s.stepper_z_endstop_microns_ = 0;
     }
 };
@@ -176,7 +176,7 @@ class PrinterStateTestAccess {
   public:
     /// printer_has_chamber_sensor: 1 while the resolved chamber sensor name is set.
     static lv_subject_t* has_chamber_sensor_subject(PrinterState& ps) {
-        return ps.capabilities_state_.get_printer_has_chamber_sensor_subject();
+        return ps.capabilities_state_.subject(Capability::HasChamberSensor);
     }
 
     /// Full teardown: clear the data AND tear the subjects down.

@@ -1790,7 +1790,7 @@ class PrinterState {
      * 0 = no power devices, used to hide/show power panel UI elements.
      */
     lv_subject_t* get_power_device_count_subject() {
-        return capabilities_state_.get_power_device_count_subject();
+        return capabilities_state_.subject(Capability::PowerDeviceCount);
     }
 
     /**
@@ -1809,7 +1809,7 @@ class PrinterState {
      * 0 = no sensors, used to hide/show sensor-related UI elements.
      */
     lv_subject_t* get_sensor_count_subject() {
-        return capabilities_state_.get_sensor_count_subject();
+        return capabilities_state_.subject(Capability::SensorCount);
     }
 
     /**
@@ -1842,7 +1842,7 @@ class PrinterState {
      * (reads a single int).
      */
     bool is_spoolman_available() const {
-        return lv_subject_get_int(capabilities_state_.get_printer_has_spoolman_subject()) == 1;
+        return lv_subject_get_int(capabilities_state_.subject(Capability::HasSpoolman)) == 1;
     }
 
     /**
@@ -1863,7 +1863,7 @@ class PrinterState {
      * thread (reads a single int).
      */
     bool is_job_queue_available() const {
-        return lv_subject_get_int(capabilities_state_.get_printer_has_job_queue_subject()) == 1;
+        return lv_subject_get_int(capabilities_state_.subject(Capability::HasJobQueue)) == 1;
     }
 
     /**
@@ -1900,12 +1900,12 @@ class PrinterState {
 
     /// Number of named webcams in the list (what a picker can offer)
     lv_subject_t* get_webcam_count_subject() const {
-        return capabilities_state_.get_webcam_count_subject();
+        return capabilities_state_.subject(Capability::WebcamCount);
     }
 
     /// True if at least one enabled webcam has been detected
     bool has_webcam() const {
-        return lv_subject_get_int(capabilities_state_.get_printer_has_webcam_subject()) == 1;
+        return lv_subject_get_int(capabilities_state_.subject(Capability::HasWebcam)) == 1;
     }
 
     /// Auto-pick MJPEG stream URL (empty if none)
@@ -2048,7 +2048,7 @@ class PrinterState {
      * Timelapse does not require helix_print plugin.
      */
     lv_subject_t* get_printer_has_timelapse_subject() {
-        return capabilities_state_.get_printer_has_timelapse_subject();
+        return capabilities_state_.subject(Capability::HasTimelapse);
     }
 
     /**
@@ -2061,14 +2061,14 @@ class PrinterState {
      * it misses *silently*, leaving the caller with no observer at all.
      */
     lv_subject_t* get_printer_has_spoolman_subject() {
-        return capabilities_state_.get_printer_has_spoolman_subject();
+        return capabilities_state_.subject(Capability::HasSpoolman);
     }
 
     /**
      * @brief Get capability subject for purge line (priming)
      */
     lv_subject_t* get_printer_has_purge_line_subject() {
-        return capabilities_state_.get_printer_has_purge_line_subject();
+        return capabilities_state_.subject(Capability::HasPurgeLine);
     }
 
     /**
@@ -2116,13 +2116,13 @@ class PrinterState {
      * Used for hiding redundant home buttons on deltas.
      */
     lv_subject_t* get_printer_has_individual_xyz_homing_subject() {
-        return capabilities_state_.get_printer_has_individual_xyz_homing_subject();
+        return capabilities_state_.subject(Capability::HasIndividualXyzHoming);
     }
 
     /// 1 if the printer's kinematics is one whose two belt paths the Belt
     /// Tension comparison can measure (corexy, limited_corexy), 0 otherwise.
     lv_subject_t* get_printer_supports_belt_compare_subject() {
-        return capabilities_state_.get_printer_supports_belt_compare_subject();
+        return capabilities_state_.subject(Capability::SupportsBeltCompare);
     }
 
     /**
@@ -2133,13 +2133,13 @@ class PrinterState {
      * Used for Z-offset UI to show appropriate directional icons.
      */
     lv_subject_t* get_printer_bed_moves_subject() {
-        return capabilities_state_.get_printer_bed_moves_subject();
+        return capabilities_state_.subject(Capability::BedMoves);
     }
     lv_subject_t* get_printer_is_enclosed_subject() {
-        return capabilities_state_.get_printer_is_enclosed_subject();
+        return capabilities_state_.subject(Capability::IsEnclosed);
     }
     lv_subject_t* get_printer_can_bed_dry_subject() {
-        return capabilities_state_.get_printer_can_bed_dry_subject();
+        return capabilities_state_.subject(Capability::CanBedDry);
     }
 
     /**
@@ -2150,7 +2150,7 @@ class PrinterState {
      * show/hide preset controls.
      */
     lv_subject_t* get_printer_has_chamber_heater_subject() {
-        return capabilities_state_.get_printer_has_chamber_heater_subject();
+        return capabilities_state_.subject(Capability::HasChamberHeater);
     }
 
     /**

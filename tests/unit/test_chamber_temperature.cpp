@@ -24,6 +24,7 @@
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
 
+using helix::Capability;
 using helix::PrinterCapabilitiesState;
 using helix::PrinterDiscovery;
 using helix::PrinterTemperatureState;
@@ -96,7 +97,7 @@ TEST_CASE("PrinterCapabilitiesState sets chamber sensor capability", "[capabilit
     caps.init_subjects(false);
 
     // Verify initial state before set_hardware()
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 0);
 
     PrinterDiscovery hardware;
     nlohmann::json objects = {"temperature_sensor chamber"};
@@ -105,7 +106,7 @@ TEST_CASE("PrinterCapabilitiesState sets chamber sensor capability", "[capabilit
     CapabilityOverrides overrides;
     caps.set_hardware(hardware, overrides);
 
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 1);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 1);
 }
 
 // 4. No chamber sensor - capability is 0
@@ -117,7 +118,7 @@ TEST_CASE("PrinterCapabilitiesState reports no chamber sensor when absent",
     caps.init_subjects(false);
 
     // Verify initial state before set_hardware()
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 0);
 
     PrinterDiscovery hardware;
     nlohmann::json objects = {"extruder", "heater_bed"}; // No chamber
@@ -126,7 +127,7 @@ TEST_CASE("PrinterCapabilitiesState reports no chamber sensor when absent",
     CapabilityOverrides overrides;
     caps.set_hardware(hardware, overrides);
 
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 0);
 }
 
 // 5. PrinterTemperatureState ignores chamber when sensor not configured
@@ -600,22 +601,22 @@ TEST_CASE("Manual chamber assignment enables capability flags", "[chamber][capab
     caps.set_hardware(hardware, overrides);
 
     // Capability flags are 0 from auto-detection
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 0);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_heater_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberHeater)) == 0);
 
     // Manual override sets capability flags
     caps.set_has_chamber_sensor(true);
     caps.set_has_chamber_heater(true);
 
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 1);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_heater_subject()) == 1);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 1);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberHeater)) == 1);
 
     // "none" clears them
     caps.set_has_chamber_sensor(false);
     caps.set_has_chamber_heater(false);
 
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_sensor_subject()) == 0);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_heater_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberHeater)) == 0);
 }
 
 // 13. PrinterDiscovery extracts chamber heater object name from heater_generic
