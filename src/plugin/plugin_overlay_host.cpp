@@ -16,6 +16,11 @@
 
 namespace helix::plugin {
 
+PluginOverlayHost::OverlayLifecycle& PluginOverlayHost::overlay_lifecycle() {
+    static OverlayLifecycle lifecycle;
+    return lifecycle;
+}
+
 int PluginOverlayHost::open(const std::string& plugin_id, const std::string& component,
                             std::function<void()> on_closed, const PluginUi::Attrs& attrs) {
     std::vector<const char*> pairs;
@@ -35,13 +40,11 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
     auto& rec = records_.emplace_back();
     rec.handle = next_handle_++;
     rec.plugin_id = plugin_id;
-    rec.name = component;
     rec.root = root;
     rec.on_closed = std::move(on_closed);
-    rec.lifecycle.name = rec.name.c_str();
 
     auto& nav = NavigationManager::instance();
-    nav.register_overlay_instance(root, &rec.lifecycle);
+    nav.register_overlay_instance(root, &overlay_lifecycle());
     // The navigation manager runs close callbacks deferred, after the slide-out, so
     // this is the one place the root's deletion is allowed to happen.
     lv_obj_t* closed_root = root;
@@ -62,44 +65,33 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
 void PluginOverlayHost::on_nav_closed(int handle) {
     auto it = find(handle);
     if (it == records_.end())
-        return; // close_all already finished this record
+        return; // the record already finished by an earlier callback
     // close_all empties on_closed of the records it silences; a user or Lua close
     // leaves it in place, and this is where it runs.
-    finish(it, /*run_on_closed=*/true);
+    finish(it);
 }
 
 void PluginOverlayHost::close(int handle) {
     auto it = find(handle);
-    if (it == records_.end() || it->closing)
+    if (it == records_.end())
         return;
-    if (NavigationManager::instance().is_panel_on_top(it->root)) {
-        it->closing = true;
-        NavigationManager::instance().go_back(); // the close callback finishes the job
-        return;
-    }
-    finish(it, /*run_on_closed=*/true);
+    // The on-top decision happens in queue order inside close_overlay, so a push
+    // queued ahead of this close (the wizard "open next, close current" pattern)
+    // is already on the stack when the decision is made.
+    NavigationManager::instance().close_overlay(it->root);
 }
 
 void PluginOverlayHost::close_all(const std::string& plugin_id) {
     auto& nav = NavigationManager::instance();
-    for (auto it = records_.begin(); it != records_.end();) {
-        if (it->plugin_id != plugin_id || it->closing) {
-            ++it;
+    // Newest first, matching pop order. Every record leaves through navigation: an
+    // on-top root needs go_back's restore path, a buried one is dropped by
+    // close_overlay itself, and either way the nav close callback finishes the
+    // record - even when the host is destroyed before the queued operations run.
+    for (auto it = records_.rbegin(); it != records_.rend(); ++it) {
+        if (it->plugin_id != plugin_id)
             continue;
-        }
-        if (nav.is_panel_on_top(it->root)) {
-            // Let the slide-out run: deleting an on-top root outright would skip the
-            // restore path that un-hides and re-activates the panel beneath.
-            it->on_closed = {}; // the plugin is unloading; its Lua is going away
-            it->closing = true;
-            // Drop the lifecycle before go_back's queued body runs: this record (and
-            // with it the lifecycle nav would dispatch to) dies with the host.
-            nav.unregister_overlay_instance(it->root);
-            nav.go_back();
-            ++it;
-            continue;
-        }
-        it = finish(it, /*run_on_closed=*/false);
+        it->on_closed = {}; // the plugin is unloading; its Lua is going away
+        nav.close_overlay(it->root);
     }
 }
 
@@ -115,8 +107,8 @@ std::list<PluginOverlayHost::Record>::iterator PluginOverlayHost::find(int handl
 }
 
 std::list<PluginOverlayHost::Record>::iterator
-PluginOverlayHost::finish(std::list<Record>::iterator it, bool run_on_closed) {
-    auto on_closed = run_on_closed ? std::move(it->on_closed) : std::function<void()>{};
+PluginOverlayHost::finish(std::list<Record>::iterator it) {
+    auto on_closed = std::move(it->on_closed);
     lv_obj_t* root = it->root;
     auto& nav = NavigationManager::instance();
     nav.unregister_overlay_close_callback(root);

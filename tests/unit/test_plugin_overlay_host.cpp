@@ -237,4 +237,91 @@ TEST_CASE_METHOD(OverlayFx,
     process_lvgl(500);
 }
 
+TEST_CASE_METHOD(OverlayFx, "closing a buried overlay pops it, not whatever is on top",
+                 "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(a = helix.ui.overlay("widget-demo__panel"))", "t"));
+    drain();
+    // The wizard pattern: open the next screen, then close the current one, in
+    // one handler. The close must pop A even though B's push is still queued
+    // ahead of it, and must not run B's on_close.
+    REQUIRE(rt->run_string(R"(
+        b_closed = false
+        b = helix.ui.overlay("widget-demo__panel", {on_close = function() b_closed = true end})
+        a:close())",
+                           "t"));
+    drain();
+    process_lvgl(500);
+    CHECK(rig.host->overlays().open_count("widget-demo") == 1);
+    CHECK(NavigationManager::instance().has_open_overlays());
+    lua_getglobal(rt->state(), "b_closed");
+    CHECK_FALSE(lua_toboolean(rt->state(), -1));
+    lua_pop(rt->state(), 1);
+
+    REQUIRE(rt->run_string("b:close()", "t"));
+    drain();
+    process_lvgl(500);
+    CHECK(rig.host->overlays().open_count("widget-demo") == 0);
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    lua_getglobal(rt->state(), "b_closed");
+    CHECK(lua_toboolean(rt->state(), -1));
+    lua_pop(rt->state(), 1);
+}
+
+TEST_CASE_METHOD(OverlayFx, "unload pops a buried overlay a close already claimed",
+                 "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(a = helix.ui.overlay("widget-demo__panel"))", "t"));
+    drain();
+    REQUIRE(rt->run_string(R"(
+        b = helix.ui.overlay("widget-demo__panel")
+        a:close())",
+                           "t"));
+    drain();
+    process_lvgl(500);
+
+    rig.host->disable("widget-demo");
+    drain();
+    process_lvgl(500);
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    CHECK(rig.host->overlays().open_count("widget-demo") == 0);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+}
+
+TEST_CASE_METHOD(OverlayFx, "a host destroyed over a claimed overlay leaves nothing to pop",
+                 "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(a = helix.ui.overlay("widget-demo__panel"))", "t"));
+    drain();
+    REQUIRE(rt->run_string(R"(
+        b = helix.ui.overlay("widget-demo__panel")
+        a:close())",
+                           "t"));
+    drain();
+    process_lvgl(500);
+
+    // A printer switch destroys the host; whatever the close claimed must leave
+    // the stack via navigation alone, so a later back press cannot reach plugin
+    // state through a stale lifecycle pointer.
+    rig.host.reset();
+    drain();
+    process_lvgl(500);
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+
+    NavigationManager::instance().go_back(); // the back press
+    drain();
+    process_lvgl(100);
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+}
+
 #endif // HELIX_HAS_PLUGINS

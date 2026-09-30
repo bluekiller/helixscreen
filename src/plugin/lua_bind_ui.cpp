@@ -301,17 +301,9 @@ int ui_overlay(lua_State* L) {
     PluginUi::Attrs attrs;
     if (!lua_isnoneornil(L, 2)) {
         luaL_checktype(L, 2, LUA_TTABLE);
-        lua_getfield(L, 2, "on_close");
-        if (!lua_isnil(L, -1)) {
-            if (!lua_isfunction(L, -1)) {
-                lua_pop(L, 1);
-                return luaL_error(L, "helix.ui.overlay: on_close must be a function");
-            }
-            on_close_ref = rt.ref_value(L, -1);
-        }
-        lua_pop(L, 1);
-        // Every other string key is an attribute for lv_xml_create; anything else is
-        // a mistake Lua should hear about now rather than a widget silently ignoring.
+        // Every string key but on_close is an attribute for lv_xml_create; anything
+        // else is a mistake Lua should hear about now rather than a widget
+        // silently ignoring.
         std::string bad_value_key;
         lua_pushnil(L);
         while (lua_next(L, 2) != 0) {
@@ -326,19 +318,32 @@ int ui_overlay(lua_State* L) {
         if (!bad_value_key.empty())
             return luaL_error(L, "helix.ui.overlay: attribute '%s' must be a string",
                               bad_value_key.c_str());
-    }
-    for (const auto& [name, value] : attrs) {
-        if (auto why = check_plugin_attr(rt.plugin_id(), name, value))
-            return luaL_error(L, "helix.ui.overlay: attribute '%s': %s", name.c_str(),
-                              why->c_str());
+        for (const auto& [name, value] : attrs) {
+            if (auto why = check_plugin_attr(rt.plugin_id(), name, value))
+                return luaL_error(L, "helix.ui.overlay: attribute '%s': %s", name.c_str(),
+                                  why->c_str());
+        }
+        // The ref is taken only once every error path is past: luaL_error unwinds
+        // without running anything that could release it.
+        lua_getfield(L, 2, "on_close");
+        if (!lua_isnil(L, -1)) {
+            if (!lua_isfunction(L, -1)) {
+                lua_pop(L, 1);
+                return luaL_error(L, "helix.ui.overlay: on_close must be a function");
+            }
+            on_close_ref = rt.ref_value(L, -1);
+        }
+        lua_pop(L, 1);
     }
 
     LuaRuntime* rtp = &rt;
     int handle = context(L).ui->open(
         component,
         [rtp, on_close_ref, token = rt.token()] {
-            if (!token.expired() && on_close_ref != LUA_NOREF)
+            if (on_close_ref != LUA_NOREF && !token.expired()) {
                 rtp->invoke(on_close_ref);
+                rtp->unref(on_close_ref);
+            }
         },
         attrs);
     if (handle == 0) {

@@ -496,6 +496,21 @@ class NavigationManager {
     bool go_back();
 
     /**
+     * @brief Pop a specific overlay, decided in queue order
+     *
+     * Like go_back(), the decision runs deferred, when the operation's turn in
+     * the UpdateQueue comes — by then other pushes may have landed on top of
+     * `overlay_panel`. If it is still on top it is popped with the normal
+     * back animation and restore path; if it is buried it is removed from the
+     * stack without disturbing what covers it; if it already left the stack
+     * (or was deleted) this is a no-op. Either removal path fires its
+     * registered close callback.
+     *
+     * @param overlay_panel the overlay root to remove
+     */
+    void close_overlay(lv_obj_t* overlay_panel);
+
+    /**
      * @brief Check if a panel is in the overlay stack
      *
      * Used to determine if a specific panel (like PrintStatusPanel) is currently
@@ -639,6 +654,11 @@ class NavigationManager {
 
     // Internal panel switch implementation (called via ui_queue_update)
     void switch_to_panel_impl(int panel_id);
+
+    // The body behind go_back()'s queued operation: pop panel_stack_.back()
+    // with the full deactivate/animate/restore sequence. Runs on the UI thread
+    // inside a queue callback (go_back, close_overlay).
+    void go_back_now();
 
     // Animation helpers
     void overlay_animate_slide_in(lv_obj_t* panel);

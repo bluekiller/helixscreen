@@ -2340,8 +2340,58 @@ void NavigationManager::unregister_overlay_close_callback(lv_obj_t* overlay_pane
 }
 
 bool NavigationManager::go_back() {
-    helix::ui::queue_update([]() {
+    helix::ui::queue_update([]() { NavigationManager::instance().go_back_now(); });
+    return true;
+}
+
+void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
+    if (!overlay_panel) {
+        spdlog::error("[NavigationManager] Cannot close NULL overlay panel");
+        return;
+    }
+    helix::ui::queue_update([overlay_panel]() {
+        // Decided here, in queue order: pushes queued ahead of this operation
+        // have landed by now, so "on top" means what the user actually sees,
+        // not what was on top when the caller asked.
+        lv_obj_t* root = NavigationManager::instance().resolve_rebuilt(overlay_panel);
+        if (!root || !lv_obj_is_valid(root)) {
+            return; // deleted before this operation ran
+        }
         auto& mgr = NavigationManager::instance();
+        auto it = std::find(mgr.panel_stack_.begin(), mgr.panel_stack_.end(), root);
+        if (it == mgr.panel_stack_.end()) {
+            return; // already left the stack some other way
+        }
+        for (int j = 0; j < UI_PANEL_COUNT; j++) {
+            if (mgr.panel_widgets_[j] == root) {
+                return; // a main panel is not an overlay to close
+            }
+        }
+        if (it == mgr.panel_stack_.end() - 1) {
+            mgr.go_back_now(); // on top: normal pop with restore path
+            return;
+        }
+        // Buried: drop it from the stack and fire its close callback without
+        // disturbing the overlay that covers it (it is already hidden).
+        mgr.panel_stack_.erase(it);
+        auto backdrop_it = mgr.overlay_backdrops_.find(root);
+        if (backdrop_it != mgr.overlay_backdrops_.end()) {
+            helix::ui::safe_delete_deferred(backdrop_it->second);
+            mgr.overlay_backdrops_.erase(backdrop_it);
+        }
+        mgr.zoom_source_rects_.erase(root);
+        auto cb_it = mgr.overlay_close_callbacks_.find(root);
+        if (cb_it != mgr.overlay_close_callbacks_.end()) {
+            auto callback = std::move(cb_it->second);
+            mgr.overlay_close_callbacks_.erase(cb_it);
+            callback();
+        }
+    });
+}
+
+void NavigationManager::go_back_now() {
+    auto& mgr = NavigationManager::instance();
+    {
         spdlog::trace("[NavigationManager] go_back executing, stack depth: {}",
                       mgr.panel_stack_.size());
         crash_handler::breadcrumb::note("nav", "go_back",
@@ -2505,8 +2555,7 @@ bool NavigationManager::go_back() {
         // lv_obj_is_valid check and the camera stayed dead until a tab
         // switch — #1245). The latch makes it exactly once per close.
         mgr.activate_restored_target();
-    });
-    return true;
+    }
 }
 
 bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {

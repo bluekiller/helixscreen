@@ -46,28 +46,25 @@ class PluginOverlayHost {
         void on_activate() override {}
         void on_deactivate(DeactivateReason) override {}
         const char* get_name() const override {
-            return name;
+            return "plugin-overlay";
         }
-        const char* name = "plugin-overlay";
     };
+    /// The single process-lifetime instance every record registers. Navigation
+    /// keeps these registrations for as long as the widget exists, which can
+    /// outlive this host (printer switch), so the object must outlive it too.
+    static OverlayLifecycle& overlay_lifecycle();
 
     struct Record {
         int handle = 0;
         std::string plugin_id;
-        std::string name; ///< the component, surfaced through the lifecycle's get_name()
         lv_obj_t* root = nullptr;
         std::function<void()> on_closed;
-        OverlayLifecycle lifecycle;
-        /// Popped via go_back and waiting for the navigation close callback; the
-        /// callback may have been silenced by close_all.
-        bool closing = false;
     };
 
     std::list<Record>::iterator find(int handle);
     /// Unregisters `it` from navigation, deferred-deletes its root and erases it,
-    /// returning the next record. Runs on_closed only when the plugin is still there
-    /// to receive it.
-    std::list<Record>::iterator finish(std::list<Record>::iterator it, bool run_on_closed);
+    /// returning the next record. Runs on_closed when the record still carries one.
+    std::list<Record>::iterator finish(std::list<Record>::iterator it);
     /// The navigation close callback: the overlay left the stack.
     void on_nav_closed(int handle);
 
