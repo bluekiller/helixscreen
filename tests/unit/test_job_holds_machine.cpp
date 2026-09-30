@@ -544,7 +544,6 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/restart_prompt_dialog.xml",
     "ui_xml/retraction_settings_overlay.xml",
     "ui_xml/runout_guidance_modal.xml",
-    "ui_xml/save_z_offset_modal.xml",
     "ui_xml/screws_tilt_panel.xml",
     "ui_xml/screws_tilt_share_modal.xml",
     "ui_xml/security_settings_overlay.xml",
