@@ -4,6 +4,7 @@
 #include "streaming_policy.h"
 
 #include "config.h"
+#include "env_knobs.h"
 #include "memory_utils.h"
 
 #include <spdlog/spdlog.h>
@@ -20,14 +21,10 @@ StreamingPolicy& StreamingPolicy::instance() {
 
 void StreamingPolicy::load_from_config() {
     // Priority 1: Environment variable (highest)
-    const char* force_env = std::getenv("HELIX_FORCE_STREAMING");
-    if (force_env != nullptr) {
-        std::string val(force_env);
-        if (val == "1" || val == "true" || val == "on") {
-            spdlog::info("[StreamingPolicy] Force streaming enabled via HELIX_FORCE_STREAMING");
-            force_streaming_.store(true);
-            return;
-        }
+    if (helix::env_flag("HELIX_FORCE_STREAMING")) {
+        spdlog::info("[StreamingPolicy] Force streaming enabled via HELIX_FORCE_STREAMING");
+        force_streaming_.store(true);
+        return;
     }
 
     // Priority 2: Config file

@@ -18,6 +18,7 @@
 #include "backdrop_blur.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "display_settings_manager.h"
+#include "env_knobs.h"
 #include "layout_manager.h"
 #include "observer_factory.h"
 #include "overlay_base.h"
@@ -132,9 +133,7 @@ bool overlay_registration_strict() {
     return false;
 #else
     if (!g_overlay_strict_env_read.load(std::memory_order_acquire)) {
-        if (const char* v = std::getenv("HELIX_STRICT_OVERLAY_CHECK");
-            v != nullptr &&
-            (v[0] == '1' || v[0] == 't' || v[0] == 'T' || v[0] == 'y' || v[0] == 'Y')) {
+        if (helix::env_flag("HELIX_STRICT_OVERLAY_CHECK")) {
             g_overlay_strict.store(true, std::memory_order_release);
         }
         g_overlay_strict_env_read.store(true, std::memory_order_release);

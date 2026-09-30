@@ -14,6 +14,7 @@
 #include "application.h"
 
 #include "detect_printer_cmd.h"
+#include "env_knobs.h"
 
 // Private LVGL header needed to read display->flush_cb for splash no-op swap
 #include "ui_overlay_timelapse_videos.h"
@@ -553,7 +554,7 @@ int Application::run(int argc, char** argv) {
     // HELIX_CRASH_TEST=1 intentionally segfaults through a known call chain
     // to verify the signal handler's unwind on real hardware. Must run AFTER
     // install() so the generated crash.txt exercises the real handler.
-    if (const char* t = std::getenv("HELIX_CRASH_TEST"); t && *t && std::string(t) != "0") {
+    if (helix::env_flag("HELIX_CRASH_TEST")) {
         crash_handler::trigger_test_crash();
     }
 

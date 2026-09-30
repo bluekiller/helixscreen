@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "env_knobs.h"
 #include "gcode_parser.h"
 #include "mock_planted_gcodes.h"
 #include "moonraker_client_mock_internal.h"
@@ -265,10 +266,7 @@ static json build_mock_file_metadata_response(const std::string& filename) {
     // straight to the prescaler and the HTTP download is never exercised. That
     // is why --test could not reach the cold-fetch pipeline that bundle
     // 6F3QJLFG implicates (#960). MockHttpFileServer serves these.
-    static const bool remote_thumbs = [] {
-        const char* v = std::getenv("HELIX_MOCK_REMOTE_THUMBS");
-        return v && v[0] && std::string(v) != "0";
-    }();
+    static const bool remote_thumbs = [] { return helix::env_flag("HELIX_MOCK_REMOTE_THUMBS"); }();
     if (remote_thumbs && !thumbnail_path.empty()) {
         std::string base = filename;
         const size_t dot = base.rfind('.');
@@ -340,10 +338,7 @@ namespace mock_internal {
 /// file-not-found for every file, the behaviour of vendor Moonraker forks that
 /// never populate their metadata DB (e.g. Qidi Q2).
 static bool metadata_404_enabled() {
-    static const bool enabled = [] {
-        const char* v = std::getenv("HELIX_MOCK_METADATA_404");
-        return v && v[0] && std::string(v) != "0";
-    }();
+    static const bool enabled = [] { return helix::env_flag("HELIX_MOCK_METADATA_404"); }();
     return enabled;
 }
 

@@ -4,6 +4,7 @@
 #include "memory_utils.h"
 
 #include "app_globals.h"
+#include "env_knobs.h"
 #include "gcode_layer_cache.h"
 #include "gcode_layer_index.h"
 #include "platform_capabilities.h"
@@ -183,8 +184,7 @@ MemoryInfo get_system_memory_info() {
 bool is_gcode_3d_render_safe(size_t file_size_bytes) {
     // Environment variable to force memory failure for testing
     // Usage: HELIX_FORCE_GCODE_MEMORY_FAIL=1 ./helix-screen --test
-    const char* force_fail = std::getenv("HELIX_FORCE_GCODE_MEMORY_FAIL");
-    if (force_fail && force_fail[0] == '1') {
+    if (helix::env_flag("HELIX_FORCE_GCODE_MEMORY_FAIL")) {
         spdlog::debug(
             "[memory_utils] HELIX_FORCE_GCODE_MEMORY_FAIL=1 - forcing memory check failure");
         return false;
@@ -256,8 +256,7 @@ bool is_gcode_2d_streaming_safe_impl(size_t file_size_bytes, size_t available_kb
 
 bool is_gcode_2d_streaming_safe(size_t file_size_bytes) {
     // Environment variable to force memory failure for testing
-    const char* force_fail = std::getenv("HELIX_FORCE_GCODE_MEMORY_FAIL");
-    if (force_fail && force_fail[0] == '1') {
+    if (helix::env_flag("HELIX_FORCE_GCODE_MEMORY_FAIL")) {
         spdlog::debug(
             "[memory_utils] HELIX_FORCE_GCODE_MEMORY_FAIL=1 - forcing memory check failure");
         return false;
