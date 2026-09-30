@@ -24,9 +24,6 @@ using namespace helix;
 
 using json = nlohmann::json;
 
-// Config path for pre-print prediction history
-static constexpr const char* PREPRINT_HISTORY_PATH = "/print_start_history/entries";
-
 namespace {
 /// Strip trailing "..." / spaces from a status message so the displayed
 /// "(N/M)" suffix doesn't read "Pre-scanning Bed... (3)". Returns the
@@ -2574,47 +2571,17 @@ void PrintStartCollector::save_prediction_entry() {
     entry.temp_bucket = (start_bed_temp_ >= 40) ? 2 : 1;
     entry.window = window_;
 
-    std::vector<helix::PreprintEntry> bucket_entries;
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         predictor_.add_entry(entry);
-        bucket_entries = predictor_.get_entries();
     }
 
-    // Persist to config: merge bucket entries with entries from other buckets
-    int temp_bucket = entry.temp_bucket;
-    helix::ui::queue_update([bucket_entries, temp_bucket]() {
-        // Load all existing entries, keep those from OTHER buckets
-        auto all_entries = helix::PreprintPredictor::load_entries_from_config();
-        std::vector<helix::PreprintEntry> merged;
-        for (const auto& e : all_entries) {
-            if (e.temp_bucket != temp_bucket) {
-                merged.push_back(e);
-            }
-        }
-        // Add current bucket's entries
-        for (const auto& e : bucket_entries) {
-            merged.push_back(e);
-        }
-        // Cap total stored entries to prevent unbounded growth
-        constexpr size_t MAX_TOTAL_ENTRIES = 15;
-        while (merged.size() > MAX_TOTAL_ENTRIES) {
-            merged.erase(merged.begin());
-        }
-        auto entries = std::move(merged);
+    helix::ui::queue_update([entry]() {
         auto* cfg = Config::get_instance();
-
-        if (entries.size() > 1000) {
-            spdlog::warn("[PrintStartCollector] Suspiciously large entry count ({}), skipping save",
-                         entries.size());
-            return;
-        }
-
-        cfg->set<json>(PREPRINT_HISTORY_PATH, helix::PreprintPredictor::entries_to_json(entries));
+        helix::PreprintPredictor::append_to_config(entry);
         ThermalRateManager::instance().save_to_config(*cfg);
         cfg->save();
-
-        spdlog::debug("[PrintStartCollector] Saved prediction history ({} entries)",
-                      entries.size());
+        spdlog::debug("[PrintStartCollector] Saved prediction history entry ({}s)",
+                      entry.total_seconds);
     });
 }
