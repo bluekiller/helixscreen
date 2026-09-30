@@ -473,12 +473,6 @@ AmsSystemInfo AmsBackendOpenAms::get_system_info() const {
     return system_info_;
 }
 
-SlotInfo AmsBackendOpenAms::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const SlotInfo* slot = system_info_.get_slot_global(slot_index);
-    return slot ? *slot : SlotInfo{};
-}
-
 SlotInfo* AmsBackendOpenAms::cached_slot_locked(int slot_index) {
     return system_info_.get_slot_global(slot_index);
 }

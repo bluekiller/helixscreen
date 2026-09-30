@@ -43,7 +43,6 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
         return AmsType::OPENAMS;
     }
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     [[nodiscard]] PathTopology get_topology() const override;
     [[nodiscard]] PathTopology get_unit_topology(int unit_index) const override;

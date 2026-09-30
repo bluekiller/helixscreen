@@ -1779,15 +1779,6 @@ AmsSystemInfo AmsBackendAd5xIfs::get_system_info() const {
     return info;
 }
 
-SlotInfo AmsBackendAd5xIfs::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto* entry = slots_.get(slot_index);
-    if (!entry) {
-        return SlotInfo{};
-    }
-    return entry->info;
-}
-
 bool AmsBackendAd5xIfs::is_bypass_active() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return external_mode_;

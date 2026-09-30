@@ -82,7 +82,6 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     // ========================================================================
 
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // ========================================================================
     // Path Visualization

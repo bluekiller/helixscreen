@@ -151,7 +151,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
 
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // Path visualization
     [[nodiscard]] PathTopology get_topology() const override {

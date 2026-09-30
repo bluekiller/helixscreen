@@ -289,21 +289,6 @@ bool AmsBackendHappyHare::manages_active_spool() const {
     return system_info_.spoolman_mode != SpoolmanMode::OFF;
 }
 
-SlotInfo AmsBackendHappyHare::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    const auto* entry = slots_.get(slot_index);
-    if (entry) {
-        return entry->info;
-    }
-
-    // Return empty slot info for invalid index
-    SlotInfo empty;
-    empty.slot_index = -1;
-    empty.global_index = -1;
-    return empty;
-}
-
 SlotInfo* AmsBackendHappyHare::cached_slot_locked(int slot_index) {
     // A repaint needs no refresh_gate_statuses_locked() after it. The lane's
     // presence is the sensed record this backend files from gate_status_raw_,

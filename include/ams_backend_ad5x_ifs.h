@@ -218,7 +218,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     [[nodiscard]] helix::FirmwareRouting firmware_default_routing() const override;
 
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
     [[nodiscard]] bool is_bypass_active() const override;
 
     // Unload-action gate (also suppresses Load for the same slot). Keeps the
@@ -597,6 +596,10 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     }
 
     SlotInfo* cached_slot_locked(int slot_index) override;
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        const auto* entry = slots_.get(slot_index);
+        return entry ? &entry->info : nullptr;
+    }
 
     /// IFS firmware states colour, material, presence and the tool map, and
     /// nothing else on the resolver-owned identity: brand, spool name, colour

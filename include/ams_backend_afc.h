@@ -231,7 +231,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     [[nodiscard]] bool manages_active_spool() const override {
         return true;
     }
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     /**
      * @brief Does this lane status payload prove AFC publishes the v1.2.0 field set?
@@ -567,6 +566,10 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
 
     // --- AmsSubscriptionBackend hooks ---
     void on_started() override;
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        const auto* entry = slots_.get(slot_index);
+        return entry ? &entry->info : nullptr;
+    }
     void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS AFC]";

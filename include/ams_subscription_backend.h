@@ -70,6 +70,7 @@ class AmsSubscriptionBackend : public AmsBackend {
     [[nodiscard]] int get_current_tool() const final;
     [[nodiscard]] int get_current_slot() const final;
     [[nodiscard]] bool is_filament_loaded() const final;
+    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // --- Filament operations (final -- derived backends implement do_*) ---
     //
@@ -228,6 +229,13 @@ class AmsSubscriptionBackend : public AmsBackend {
     virtual void prepare_lane_repaint_locked(int slot_index, SlotInfo& slot) {
         (void)slot_index;
         (void)slot;
+    }
+
+    /// The SlotInfo get_slot_info() copies for @p slot_index, or nullptr when
+    /// there is none. The default reads system_info_; a backend keeping its
+    /// slots in a SlotRegistry answers from that. Caller holds mutex_.
+    [[nodiscard]] virtual const SlotInfo* slot_info_locked(int slot_index) const {
+        return system_info_.get_slot_global(slot_index);
     }
 
     /// Called after subscription is established and running_ is set.

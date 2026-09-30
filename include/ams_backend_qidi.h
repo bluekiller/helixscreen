@@ -102,7 +102,6 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
     [[nodiscard]] bool owns_tool_mapping_table() const override {
         return true;
     }
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
     [[nodiscard]] bool is_bypass_active() const override;
 
     /// The Box publishes a per-slot state word (save_variables slot<N>, where 2

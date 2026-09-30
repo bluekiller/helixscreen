@@ -79,7 +79,6 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
     [[nodiscard]] AmsType get_type() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     /// The material list the firmware itself validates against, once a frame
     /// has carried it. nullopt until then, or when the firmware states no such

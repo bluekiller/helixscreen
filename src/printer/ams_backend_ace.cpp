@@ -252,26 +252,6 @@ AmsSystemInfo AmsBackendAce::get_system_info() const {
     return system_info_;
 }
 
-SlotInfo AmsBackendAce::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (system_info_.units.empty()) {
-        SlotInfo empty;
-        empty.slot_index = -1;
-        empty.global_index = -1;
-        return empty;
-    }
-
-    const auto& unit = system_info_.units[0];
-    if (slot_index < 0 || slot_index >= static_cast<int>(unit.slots.size())) {
-        SlotInfo empty;
-        empty.slot_index = -1;
-        empty.global_index = -1;
-        return empty;
-    }
-    return unit.slots[static_cast<size_t>(slot_index)];
-}
-
 // ============================================================================
 // Path Visualization
 // ============================================================================

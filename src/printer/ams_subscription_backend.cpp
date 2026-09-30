@@ -93,6 +93,12 @@ AmsError AmsSubscriptionBackend::start() {
     return AmsErrorHelper::success();
 }
 
+SlotInfo AmsSubscriptionBackend::get_slot_info(int slot_index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const SlotInfo* slot = slot_info_locked(slot_index);
+    return slot ? *slot : SlotInfo{};
+}
+
 void AmsSubscriptionBackend::handle_status_update(const nlohmann::json& notification) {
     auto params = notification.find("params");
     if (params == notification.end() || !params->is_array() || params->empty() ||

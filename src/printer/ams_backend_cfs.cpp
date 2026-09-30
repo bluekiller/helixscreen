@@ -1902,15 +1902,6 @@ AmsSystemInfo AmsBackendCfs::get_system_info() const {
     return system_info_;
 }
 
-SlotInfo AmsBackendCfs::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto* slot = system_info_.get_slot_global(slot_index);
-    if (slot) {
-        return *slot;
-    }
-    return SlotInfo{};
-}
-
 int AmsBackendCfs::slot_index_bound_locked() const {
     return slot_index_ceiling(system_info_.total_slots);
 }

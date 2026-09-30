@@ -101,7 +101,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
         return info.sync_feedback_bias > -1.5f;
     }
     [[nodiscard]] bool manages_active_spool() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // Path visualization
     [[nodiscard]] int get_bowden_progress() const override {
@@ -376,6 +375,10 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
         return "[AMS HappyHare]";
     }
     SlotInfo* cached_slot_locked(int slot_index) override;
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        const auto* entry = slots_.get(slot_index);
+        return entry ? &entry->info : nullptr;
+    }
 
     /// The gate map states colour, material, the spool id and the gate name,
     /// and nothing else on the resolver-owned identity: brand, the catalog

@@ -556,21 +556,6 @@ void AmsBackendAfc::maybe_drain_message_queue() {
     clear_message_queue();
 }
 
-SlotInfo AmsBackendAfc::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    const auto* entry = slots_.get(slot_index);
-    if (entry) {
-        return entry->info;
-    }
-
-    // Return empty slot info for invalid index
-    SlotInfo empty;
-    empty.slot_index = -1;
-    empty.global_index = -1;
-    return empty;
-}
-
 SlotInfo* AmsBackendAfc::cached_slot_locked(int slot_index) {
     auto* entry = slots_.get_mut(slot_index);
     return entry ? &entry->info : nullptr;
