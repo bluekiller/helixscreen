@@ -9,6 +9,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/plugin_test_support.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "layout_manager.h"
 #include "lua_bindings.h"
@@ -223,22 +224,33 @@ TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime 
                  "[plugin][lua_bindings_ui]") {
     sweep_retired_subjects();
     size_t before = retired_subject_count();
-    lv_obj_t* label = nullptr;
+    lv_obj_t* root = nullptr;
     {
         BoundRuntime b({&install_ui_bindings});
         REQUIRE(b.t.run(R"(s = helix.subject.string("status", "hi"))"));
-        label = lv_label_create(lv_screen_active());
-        lv_subject_t* subj = lv_xml_get_subject(nullptr, "test-plugin__status");
-        REQUIRE(subj);
-        lv_label_bind_text(label, subj, nullptr);
-    } // runtime destroyed while the label still observes the subject
+        // Bind through helix-xml, whose bind record keeps the observer handle and detaches
+        // it on the widget's delete event; that record is the reference that must outlive
+        // the runtime.
+        REQUIRE(lv_xml_register_component_from_data(
+                    "test-plugin__bindrow",
+                    "<component><view extends=\"lv_obj\">"
+                    "<lv_label name=\"bound_label\" bind_text=\"test-plugin__status\"/>"
+                    "</view></component>") == LV_RESULT_OK);
+        const char* attrs[] = {nullptr};
+        root = static_cast<lv_obj_t*>(
+            lv_xml_create(lv_screen_active(), "test-plugin__bindrow", attrs));
+        REQUIRE(root);
+    } // runtime destroyed while the label's bind record still observes the subject
+    lv_obj_t* label = lv_obj_find_by_name(root, "bound_label");
+    REQUIRE(label);
     CHECK(lv_xml_get_subject(nullptr, "test-plugin__status") == nullptr);
     CHECK(retired_subject_count() == before + 1);
     CHECK(std::string(lv_label_get_text(label)) == "hi");
 
-    lv_obj_delete(label); // detaches from a subject that must still be alive
+    lv_obj_delete(root); // detaches the bind record from a subject that must still be alive
     sweep_retired_subjects();
     CHECK(retired_subject_count() == before);
+    lv_xml_component_unregister("test-plugin__bindrow");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "an unobserved subject is freed at unload",

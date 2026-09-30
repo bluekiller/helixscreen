@@ -59,8 +59,10 @@ UiState& ui_state(lua_State* L) {
 
 // A process-lifetime list, never destroyed: an object deleted during process teardown still
 // finds its subject alive. LVGL deletes a parent before its children, so no root-level delete
-// hook can tell when a bound subtree is gone; retiring until the observer list empties is the
-// only point at which freeing is provably safe.
+// hook can tell when a bound subtree is gone. Every reference a widget may hold to a plugin
+// subject is observer-bound (helix-xml bind records and Lua observers alike; the XML policy
+// bans the raw-pointer subject_*_event elements), so an empty observer list means nothing
+// can reach the subject any more and freeing it is safe.
 std::vector<std::unique_ptr<SubjectEntry>>& retired_subjects() {
     static auto* list = new std::vector<std::unique_ptr<SubjectEntry>>();
     return *list;

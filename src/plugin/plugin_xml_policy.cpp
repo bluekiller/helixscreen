@@ -55,9 +55,11 @@ bool is_allowed_element(const Walk& w, std::string_view el) {
         return true;
     if (starts_with(el, "lv_"))
         return true;
+    // No subject_*_event here: it stores a raw subject pointer as event user_data with
+    // no observer, so a plugin object could write into a subject its runtime already
+    // freed. plugin_event plus s:set in Lua reaches the same effect by name.
     if (el == "event_cb" || el == "style" || el == "play_timeline_event" ||
-        starts_with(el, "bind_") || starts_with(el, "remove_style") ||
-        (starts_with(el, "subject_") && ends_with(el, "_event")))
+        starts_with(el, "bind_") || starts_with(el, "remove_style"))
         return true;
     if (is_allowlisted_app_component(el))
         return true;

@@ -156,4 +156,21 @@ TEST_CASE("check_plugin_attr is the one attribute rule", "[plugin][xml_policy]")
     CHECK(check_plugin_attr("ab", "title", "anything") == std::nullopt);
 }
 
+TEST_CASE("plugin XML may not write subjects through subject_*_event elements",
+          "[plugin][xml_policy]") {
+    // A subject_*_event stores a raw subject pointer as event user_data and adds no
+    // observer, so the writing object can outlive a subject freed at unload. A plugin
+    // reaches the same effect safely through plugin_event plus s:set in Lua.
+    const char* forms[] = {
+        R"(<lv_obj-subject_set_int_event subject="ab__n" value="1"/>)",
+        R"(<lv_obj-subject_set_float_event subject="ab__n" value="1"/>)",
+        R"(<lv_obj-subject_set_string_event subject="ab__s" value="x"/>)",
+        R"(<lv_obj-subject_increment_event subject="ab__n"/>)",
+        R"(<lv_obj-subject_toggle_event subject="ab__flag"/>)",
+        R"(<subject_toggle_event subject="ab__flag"/>)",
+    };
+    for (const char* f : forms)
+        CHECK_FALSE(check_plugin_xml("ab", {}, view_with(f)).empty());
+}
+
 #endif // HELIX_HAS_PLUGINS
