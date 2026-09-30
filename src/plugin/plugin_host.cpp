@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <sstream>
 
 namespace helix::plugin {
@@ -64,18 +63,6 @@ void register_plugin_event_callback() {
 
 size_t plugin_memory_budget(uint64_t mem_total_bytes) {
     return static_cast<size_t>(std::min<uint64_t>(mem_total_bytes / 16, uint64_t(64) << 20));
-}
-
-uint64_t read_mem_total() {
-    std::ifstream in("/proc/meminfo");
-    std::string key;
-    uint64_t kb = 0;
-    while (in >> key >> kb) {
-        if (key == "MemTotal:")
-            return kb * 1024;
-        in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    }
-    return 0;
 }
 
 const char* plugin_status_name(PluginStatus s) {

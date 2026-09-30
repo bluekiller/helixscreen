@@ -2232,7 +2232,8 @@ void Application::init_plugins() {
     };
     deps.settings_path = m_config->get_path();
     deps.helix_version = HELIX_VERSION;
-    deps.memory_budget = helix::plugin::plugin_memory_budget(helix::plugin::read_mem_total());
+    deps.memory_budget = helix::plugin::plugin_memory_budget(
+        uint64_t{helix::get_system_memory_info().total_kb} * 1024);
     helix::plugin::register_plugin_event_callback();
     m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
     m_plugin_host->load_from(dir);
