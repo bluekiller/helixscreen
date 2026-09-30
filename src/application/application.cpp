@@ -2172,9 +2172,8 @@ bool Application::init_moonraker() {
     // Register MoonrakerManager globally (for Advanced panel access to MacroModificationManager)
     set_moonraker_manager(m_moonraker.get());
 
-    // Set up discovery callbacks on client (must be after API creation since API constructor
-    // also sets these callbacks - we intentionally overwrite with combined callbacks that
-    // both update the API's hardware_ and perform Application-level initialization)
+    // Discovery callbacks on the client update the API's hardware_ and run
+    // Application-level initialization.
     setup_discovery_callbacks();
 
     // Create print history manager (shared cache for history panels and file status indicators)
