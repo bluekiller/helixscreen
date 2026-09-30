@@ -79,12 +79,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
 
     ~AmsBackendSnapmaker() override;
 
-    /// The resync files stored records through this backend's echo guard, the
-    /// same one its status responses consult.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     [[nodiscard]] AmsType get_type() const override {
         return AmsType::SNAPMAKER;
     }
@@ -694,13 +688,10 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     void check_hardware_event_clear(SlotInfo& slot, int slot_index,
                                     const helix::ams::SpoolEvidence& observed);
 
-    // Shared helper used by every override-clear path (hardware event and
-    // explicit user request). Caller must hold mutex_. Erases
-    // overrides_[slot_index], resets strictly override-exclusive fields on
-    // the provided SlotInfo (spool_name, spoolman_*, remaining_weight_g), and
-    // fires clear_async. Brand / color_name / total_weight_g are preserved —
-    // firmware populates them from the RFID tag.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
+    /// Brand / spool_name / total_weight_g are kept: firmware populates them
+    /// from the RFID tag. The tag has no colour-name field, so color_name is
+    /// override-exclusive and goes.
+    void clear_override_fields(SlotInfo& slot) const override;
 
     /// Whether the connected firmware ships the AUTO_FEEDING_BATCH macro,
     /// cached from the discovery set_discovery() handed over before start().
@@ -722,13 +713,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// Source of BatchPlan::dispatch_id; monotonic per backend. Under mutex_.
     uint64_t next_batch_dispatch_id_ = 1;
 
-    // Persistent per-slot overrides. Writers (on_started bulk load,
-    // apply_user_edit, check_hardware_event_clear) all hold mutex_.
-    // Reads happen inside the parse path's lane_data mirror and the clear
-    // helpers, all of which also hold mutex_.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
-
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
     helix::ams::FilamentSlotOverrideStore* lane_record_store() override {
@@ -741,22 +725,22 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     // access under mutex_.
     helix::ams::SlotFingerprintTracker rfid_tracker_;
 
-    /// What the user declared in their last edit of a channel, out of the
-    /// fields apply_user_edit actually sent to /printer/filament_detect/set.
-    ///
-    /// The write target is filament_detect.info, the same object
-    /// parse_rfid_info reads, and VENDOR / MAIN_TYPE / SUB_TYPE are spelled
-    /// identically on both sides, so firmware reports a user's declaration
-    /// back through the RFID path where it is indistinguishable by value from
-    /// a tag reading.
-    ///
-    /// The boundary is the tag's CARD_UID, taken from rfid_tracker_: a
-    /// hardware identifier the edit UI cannot set, so a change is
-    /// unambiguously a different physical spool. It is the same signal
-    /// check_hardware_event_clear() trusts to delete the user's override, so
-    /// the suppression and the clear end together and neither can expose what
-    /// the other still holds. All access under mutex_.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
+    // The base's own_write_echoes_, on this backend:
+    // What the user declared in their last edit of a channel, out of the
+    // fields apply_user_edit actually sent to /printer/filament_detect/set.
+    //
+    // The write target is filament_detect.info, the same object
+    // parse_rfid_info reads, and VENDOR / MAIN_TYPE / SUB_TYPE are spelled
+    // identically on both sides, so firmware reports a user's declaration
+    // back through the RFID path where it is indistinguishable by value from
+    // a tag reading.
+    //
+    // The boundary is the tag's CARD_UID, taken from rfid_tracker_: a
+    // hardware identifier the edit UI cannot set, so a change is
+    // unambiguously a different physical spool. It is the same signal
+    // check_hardware_event_clear() trusts to delete the user's override, so
+    // the suppression and the clear end together and neither can expose what
+    // the other still holds. All access under mutex_.
 };
 
 } // namespace helix

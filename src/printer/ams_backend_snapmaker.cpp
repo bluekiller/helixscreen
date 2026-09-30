@@ -2485,57 +2485,19 @@ void AmsBackendSnapmaker::check_hardware_event_clear(SlotInfo& slot, int slot_in
     // hardware-event clears and user-initiated clears share one field-reset
     // policy. Caller already holds mutex_.
     (void)ovr_it; // erased inside clear_override_locked
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
 }
 
-void AmsBackendSnapmaker::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets STRICTLY
-    // override-exclusive fields on the live SlotInfo so the cleared state is
-    // visible in the very next get_slot_info() read.
-    //
-    // Snapmaker field policy: brand / spool_name / total_weight_g come from
-    // the RFID tag in handle_status_update — we must NOT zero those here or
-    // we'd wipe newly-parsed firmware metadata. The override's copies of
-    // those fields disappear with the erase; firmware's copies stay.
-    // (color_name is not firmware-populated for Snapmaker — RFID has no
-    // color-name field — so it's override-exclusive and gets cleared.)
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-    // The echo guard goes with them: it was suspending readings of an
-    // identity this clear just removed, on a lane whose next frame is the
-    // machine's own state. Covers both callers - the Clear Spool gesture and
-    // the RFID swap, whose differing tag would disarm at withhold() anyway.
-    own_write_echoes_.abandon(slot_index);
-
-    // All three Spoolman handles die with the override. The full
-    // SlotInfo::clear_spoolman_link() is withheld here: it also zeroes
-    // spool_name, which Snapmaker RFID firmware owns and re-supplies.
+void AmsBackendSnapmaker::clear_override_fields(SlotInfo& slot) const {
+    // All three Spoolman handles go. The full SlotInfo::clear_spoolman_link()
+    // is withheld: it also zeroes spool_name, which the RFID tag re-supplies.
     slot.spoolman_id = 0;
     slot.spoolman_vendor_id = 0;
     slot.spoolman_filament_id = 0;
     slot.remaining_weight_g = -1.0f;
     slot.color_name.clear();
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
     slot.catalog_id.clear();
     slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value only — clear_async's Moonraker callback can fire
-        // after this function returns (MR tracker ~60s) and potentially
-        // after the backend itself is gone. Same rationale as save_async.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
 }
 
 void AmsBackendSnapmaker::clear_slot_override(int slot_index) {
@@ -2554,7 +2516,7 @@ void AmsBackendSnapmaker::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, *slot);
+        clear_override_locked(slot_index, slot);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));

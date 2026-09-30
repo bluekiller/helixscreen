@@ -891,37 +891,16 @@ void AmsBackendOpenAms::persist_external_identity_impl(int slot_index,
 void AmsBackendOpenAms::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-
-        // OpenAMS states no identity of its own, so nothing would restate
-        // these fields; a clear that left them would show the old spool until
-        // the next frame.
-        if (SlotInfo* slot = system_info_.get_slot_global(slot_index)) {
-            slot->material.clear();
-            slot->color_rgb = AMS_DEFAULT_SLOT_COLOR;
-            slot->color_name.clear();
-            slot->multi_color_hexes.clear();
-            slot->brand.clear();
-            slot->catalog_id.clear();
-            slot->product_name.clear();
-            slot->spool_name.clear();
-            slot->clear_spoolman_link();
-            slot->remaining_weight_g = -1.0f;
-            slot->total_weight_g = -1.0f;
-        }
+        clear_override_locked(slot_index, system_info_.get_slot_global(slot_index));
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        // The record may have been written by another lane_data author, so
-        // the delete goes out whether or not this session loaded one.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} Override clear failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
+}
+
+void AmsBackendOpenAms::clear_override_fields(SlotInfo& slot) const {
+    AmsSubscriptionBackend::clear_override_fields(slot);
+    slot.material.clear();
+    slot.color_rgb = AMS_DEFAULT_SLOT_COLOR;
+    slot.multi_color_hexes.clear();
 }
 
 // ============================================================================

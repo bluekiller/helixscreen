@@ -4970,33 +4970,8 @@ void AmsBackendAfc::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         lane_name = slots_.name_of(slot_index);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-        // The clear is deliberate: any echo guard this slot still holds was
-        // suspending readings of an identity the user just removed, so it
-        // ends here rather than suppressing the next frame.
-        own_write_echoes_.abandon(slot_index);
-
-        // Also reset the override-exclusive fields on the live slot, so the
-        // clear shows up in the very next get_slot_info(). AFC has no concept
-        // of brand / spool_name / total weight / colour name, so no firmware
-        // update will ever clear them for us; dropping only the store entry
-        // would leave the previous spool's identity on screen indefinitely.
-        // colour and material come from the parse, and the writes below empty
-        // them in firmware.
-        if (helix::printer::SlotEntry* entry = slots_.get_mut(slot_index)) {
-            entry->info.brand.clear();
-            entry->info.clear_spoolman_link();
-            entry->info.remaining_weight_g = -1.0f;
-            entry->info.total_weight_g = -1.0f;
-            entry->info.color_name.clear();
-            // The catalog pick is override-exclusive on every backend — no AMS
-            // firmware carries a branded product id — so a clear always drops it.
-            // Leaving it would re-navigate the editor to the removed spool's
-            // product on the next open.
-            entry->info.catalog_id.clear();
-            entry->info.product_name.clear();
-        }
+        helix::printer::SlotEntry* entry = slots_.get_mut(slot_index);
+        clear_override_locked(slot_index, entry ? &entry->info : nullptr);
     }
     // An empty SET_SPOOL_ID only runs AFC's clear_values() when AFC has
     // Spoolman configured and the lane does not remember its spool, so an
@@ -5010,13 +4985,6 @@ void AmsBackendAfc::clear_slot_override(int slot_index) {
         execute_gcode(fmt::format("SET_WEIGHT LANE={} WEIGHT=0", lane_name));
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        override_store_->clear_async(slot_index, [slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("[AMS AFC] override clear failed for slot {}: {}", slot_index, err);
-            }
-        });
-    }
 }
 
 void AmsBackendAfc::publish_external_spool_lane(const SlotInfo* spool) {

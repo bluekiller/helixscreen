@@ -4454,7 +4454,7 @@ bool AmsBackendCfs::check_hardware_event_clear(SlotInfo& slot, int slot_index,
     // hardware-event clears and user-initiated clears share one field-reset
     // policy. Caller already holds mutex_.
     (void)ovr_it;
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
     return true;
 }
 
@@ -4504,7 +4504,7 @@ bool AmsBackendCfs::clear_stale_override_on_removal_locked(SlotInfo& slot, int s
     // the empty bay would go on ghosting.
     spdlog::info("{} Slot {} reads EMPTY — clearing auto-mirrored override for the removed spool",
                  backend_log_tag(), slot_index);
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
     return true;
 }
 
@@ -4526,7 +4526,7 @@ bool AmsBackendCfs::judge_insert_locked(SlotInfo& slot, int slot_index,
         spdlog::info("{} Slot {} insert carries a different spool's reading - dropping what "
                      "described the previous one",
                      backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, slot);
+        clear_override_locked(slot_index, &slot);
         return true;
     case helix::ams::InsertVerdict::NoEvidence:
         // Keep everything and ask. The notice is self-gating, so a lane with
@@ -4661,46 +4661,11 @@ bool AmsBackendCfs::note_insert_edge_locked(SlotInfo& slot, int slot_index) {
     return false;
 }
 
-void AmsBackendCfs::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets STRICTLY
-    // override-exclusive fields on the live SlotInfo so the cleared state is
-    // visible in the very next get_slot_info() read.
-    //
-    // CFS field policy: brand / color_name / total_weight_g come from the
-    // RFID material database (FilamentCatalog::resolve_code lookup in
-    // parse_box_status) — the parse has already written firmware truth for
-    // the current spool, so
-    // we must NOT re-zero those fields. The override's copies disappear with
-    // the erase; firmware's copies stay. Matches Snapmaker policy.
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-    // The echo suppression goes too: the user just disowned the write, so
-    // what firmware repeats from here on is its own word again.
-    own_write_echoes_.abandon(slot_index);
-
+void AmsBackendCfs::clear_override_fields(SlotInfo& slot) const {
     slot.clear_spoolman_link();
     slot.remaining_weight_g = -1.0f;
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
     slot.catalog_id.clear();
     slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value — clear_async's Moonraker callback may fire after
-        // this returns (MR tracker ~60s) and potentially after the backend
-        // itself is gone. Same rationale as save_async.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
 }
 
 void AmsBackendCfs::update_runout_episode_locked() {
@@ -4823,7 +4788,7 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, *slot);
+        clear_override_locked(slot_index, slot);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));

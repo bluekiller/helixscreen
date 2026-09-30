@@ -621,14 +621,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
                                                 const std::string& catalog_id, uint32_t color_rgb,
                                                 const helix::ams::Observation* declared = nullptr);
 
-    /// Both CFS write paths (BOX_MODIFY_TN_DATA, the fork's _BOX_SLOT_SET)
-    /// are republished by firmware through the same material_type /
-    /// color_value fields a real RFID read uses, so this backend's parses
-    /// filter their own writes through this guard.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
   private:
     friend class helix::CfsTestAccess;
 
@@ -805,13 +797,9 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// Returns true iff the override was cleared.
     [[nodiscard]] bool clear_stale_override_on_removal_locked(SlotInfo& slot, int slot_index);
 
-    // Shared helper used by every override-clear path (hardware event and
-    // explicit user request). Caller must hold mutex_. Erases
-    // overrides_[slot_index], resets strictly override-exclusive fields on
-    // the provided SlotInfo (spool_name, spoolman_*, remaining_weight_g), and
-    // fires clear_async. Brand / color_name / total_weight_g are preserved —
-    // firmware populates them from the RFID material database.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
+    /// Brand / color_name / total_weight_g are kept: firmware populates them
+    /// from the RFID material database.
+    void clear_override_fields(SlotInfo& slot) const override;
 
     /// Runout-episode bookkeeping (#1390). filament_runout is a box-wide
     /// STICKY latch (set by "spool used up", cleared only by a successful
@@ -870,13 +858,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // not a bay and has no lane override.
     int runout_lane_ = -1;
 
-    // Persistent per-slot overrides. Writers (on_started bulk load,
-    // apply_user_edit, check_hardware_event_clear) all hold
-    // mutex_. Reads happen inside the parse path's lane_data mirror and the
-    // clear helpers, which are also called under mutex_.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
-
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
     helix::ams::FilamentSlotOverrideStore* lane_record_store() override {
@@ -889,12 +870,12 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // other RFID-fingerprint backend (Snapmaker). All access under mutex_.
     helix::ams::SlotFingerprintTracker rfid_tracker_;
 
+    // The base's own_write_echoes_, on this backend:
     // What the user declared in an edit of each bay, staged against the
     // write so this backend does not file its own write-back echo as the
     // box's RFID reading. The suppression ends when the user disowns the
     // write (Clear Spool) or the fingerprint's own swap detection fires.
     // All access under mutex_.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
 
     // Insert-edge bookkeeping for docs/specs/filament_slots.md §6: the last
     // presence this backend derived for each bay, and the tag evidence it

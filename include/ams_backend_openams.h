@@ -181,8 +181,9 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
     std::vector<Group> groups_;
     std::unordered_map<std::string, std::string> commands_;
 
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+    /// OpenAMS states no identity of its own, so a clear blanks every
+    /// identity field: nothing will restate them.
+    void clear_override_fields(SlotInfo& slot) const override;
 };
 
 } // namespace helix

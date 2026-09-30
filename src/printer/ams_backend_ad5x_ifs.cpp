@@ -1546,48 +1546,6 @@ bool AmsBackendAd5xIfs::sync_override_to_firmware_locked(int slot_index, uint32_
     return true;
 }
 
-void AmsBackendAd5xIfs::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets
-    // override-exclusive fields on the live SlotInfo (so the next
-    // get_slot_info sees cleared state), and fires the async store delete.
-    // Firmware-sourced
-    // fields (color_rgb, material, mapped_tool, status) are left alone —
-    // update_slot_from_state has already refreshed them.
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-    // The echo suppression goes too: the user just disowned the write, so
-    // what firmware repeats from here on is its own word again.
-    own_write_echoes_.abandon(slot_index);
-
-    slot.brand.clear();
-    slot.clear_spoolman_link();
-    slot.remaining_weight_g = -1.0f;
-    slot.total_weight_g = -1.0f;
-    slot.color_name.clear();
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
-    slot.catalog_id.clear();
-    slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value only — clear_async's Moonraker callback can fire
-        // long after this function returns (MR tracker ~60s timeout) and
-        // after the backend itself may be gone. Same pattern as the
-        // save_async site in apply_user_edit().
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
-}
-
 void AmsBackendAd5xIfs::retract_lane_declaration_locked(int slot_index, RetractedFields fields) {
     // Caller holds mutex_. See the header for why both stores have to move
     // together.
@@ -1693,7 +1651,7 @@ void AmsBackendAd5xIfs::release_locked_override_keep_identity_locked(int slot_in
     if (!has_identity) {
         // Nothing firmware-uncarryable to keep — behave exactly like the
         // pre-existing #981 clear so those tests still see a clean wipe.
-        clear_override_locked(slot_index, slot);
+        clear_override_locked(slot_index, &slot);
         return;
     }
 
@@ -1757,7 +1715,7 @@ void AmsBackendAd5xIfs::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, entry->info);
+        clear_override_locked(slot_index, &entry->info);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));

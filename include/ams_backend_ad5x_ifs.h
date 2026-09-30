@@ -106,14 +106,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     AmsBackendAd5xIfs(IMoonrakerAPI* api, helix::IMoonrakerClient* client);
     ~AmsBackendAd5xIfs() override;
 
-    /// The write target (IFS_SET_MATERIAL / Adventurer5M.json / _IFS_VARS) is
-    /// republished through the same ffmColor/ffmType fields a real reading
-    /// uses, so this backend's parses filter their own writes through this
-    /// guard.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     static constexpr int NUM_PORTS = 4;
     static constexpr int TOOL_MAP_SIZE = 16;
     static constexpr int UNMAPPED_PORT = 5;
@@ -808,13 +800,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // changed (i.e. save_async was issued); false on the in-sync short-circuit.
     bool sync_override_to_firmware_locked(int slot_index, uint32_t firmware_color,
                                           const std::string& firmware_material);
-    // Shared helper for every override-clear path (eject detected in
-    // parse_adventurer_json and explicit user request via clear_slot_override).
-    // Caller must hold mutex_. Erases overrides_[slot_index], resets
-    // override-exclusive fields on the provided SlotInfo (brand, spool_name,
-    // spoolman_*, weights, color_name), and fires clear_async on the override
-    // store. Firmware-sourced fields are left untouched.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
     // External-CHANGE_ZCOLOR counterpart to clear_override_locked. Caller must
     // hold mutex_. An external CHANGE_ZCOLOR is a deliberate firmware edit of
     // color/material — firmware truth must win for THOSE fields — but brand /
@@ -1242,13 +1227,13 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // Guarded by mutex_.
     std::array<bool, NUM_PORTS> identity_statement_fresh_{};
 
+    // The base's own_write_echoes_, on this backend:
     // What the user declared in an edit of each port, staged against the
     // write's boundary so this backend does not file its own write-back echo
     // (IFS_SET_MATERIAL / Adventurer5M.json / _IFS_VARS all re-publish through
     // the ffmColor/ffmType fields a real reading uses). The boundary is
     // presence itself: a transition names a different physical occupant, which
     // is the only token this hardware offers. All access under mutex_.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
 
     // Presence-edge bookkeeping shared by every presence source (per-port
     // sensors, IFS_STATUS Ports, GET_ZCOLOR slot lines, the pre-SILENT JSON
@@ -1592,24 +1577,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     /// Give up a Z-Mod change's SELECTING: action back to IDLE, channel
     /// ignored until it reads idle again. Caller holds mutex_.
     void release_zmod_change_locked(const char* reason);
-
-    // User-provided per-slot metadata (brand, spool name, spoolman IDs, remaining
-    // weight, etc.) layered over firmware-reported state.
-    //
-    // Write paths (both hold mutex_):
-    //   - on_started(): initial bulk load from Moonraker DB lane_data.
-    //     Swap happens under mutex_ so a concurrent status notification can
-    //     never see a torn map.
-    //   - apply_user_edit(): the user's edit is staged here and
-    //     persisted. What the slot shows comes from the lane, not from this
-    //     map: AmsBackend::commit_user_edit() files the declaration once
-    //     apply_user_edit() returns, then repaint_slot_from_lane() repaints.
-    //
-    // Read under mutex_ by the persist, firmware-mirror and lock-release
-    // paths. The paint path (apply_resolved_lane) reads the lane source store
-    // and never this map.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
 
     // Resolved on-disk path of Adventurer5M.json when helix-screen runs on the
     // same host as Moonraker. Empty string means "fall back to Moonraker HTTP

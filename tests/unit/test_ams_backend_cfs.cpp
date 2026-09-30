@@ -2789,6 +2789,8 @@ TEST_CASE("CFS clear_slot_override drops the whole Spoolman link",
     CfsTestAccess::handle_status(backend, make_cfs_notification(box));
     REQUIRE(CfsTestAccess::seed_live_spoolman_link(backend, 0, 42, 77, 3));
     REQUIRE(backend.get_slot_info(0).spoolman_filament_id == 77);
+    const SlotInfo before = backend.get_slot_info(0);
+    REQUIRE_FALSE(before.brand.empty());
 
     backend.clear_slot_override(0);
 
@@ -2801,6 +2803,10 @@ TEST_CASE("CFS clear_slot_override drops the whole Spoolman link",
     CHECK(info.spoolman_vendor_id == 0);
     CHECK(info.spoolman_filament_id == 0);
     CHECK(info.spool_name.empty());
+    // The RFID material database supplies these, so the clear keeps them.
+    CHECK(info.brand == before.brand);
+    CHECK(info.color_name == before.color_name);
+    CHECK(info.total_weight_g == before.total_weight_g);
 }
 
 TEST_CASE("CFS first RFID observation does NOT clear override",

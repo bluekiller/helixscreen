@@ -1770,7 +1770,7 @@ void AmsBackendQidi::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, *slot);
+        clear_override_locked(slot_index, slot);
 
         // The zero writes below echo back as fingerprint changes; without an
         // expectation of our own they would read as a spool swap. Same shape
@@ -1875,7 +1875,7 @@ bool AmsBackendQidi::check_hardware_event_clear(SlotInfo& slot, int slot_index,
     // Delegate erase + field reset + clear_async to the shared helper so
     // hardware-event clears and user-initiated clears share one field-reset
     // policy. Caller already holds mutex_.
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
     return true;
 }
 
@@ -1922,43 +1922,12 @@ AmsBackendQidi::fingerprint_evidence_locked(const std::string& fingerprint) cons
     return evidence;
 }
 
-void AmsBackendQidi::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Qidi field policy: the clear blanks everything
-    // the slot showed so it reads as no identity the moment the request lands;
-    // the parse's paint (or its else-arms, once the zero writes echo back)
-    // restates whatever the Box still reports.
-    overrides_.erase(slot_index);
-    // What the Box states from here on is its own word: both the user's clear
-    // and the fingerprint-change swap funnel land here before this frame's
-    // cache files, so a swap's identity is not withheld as a lingering echo.
-    own_write_echoes_.abandon(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-
+void AmsBackendQidi::clear_override_fields(SlotInfo& slot) const {
+    AmsSubscriptionBackend::clear_override_fields(slot);
     slot.material.clear();
     slot.color_rgb = 0;
     slot.nozzle_temp_min = 0;
     slot.nozzle_temp_max = 0;
-    slot.brand.clear();
-    slot.clear_spoolman_link();
-    slot.remaining_weight_g = -1.0f;
-    slot.total_weight_g = -1.0f;
-    slot.color_name.clear();
-    slot.catalog_id.clear();
-    slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value: clear_async's Moonraker callback can fire after
-        // this returns and after the backend itself is gone.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
 }
 
 std::vector<std::string>

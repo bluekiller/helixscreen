@@ -549,22 +549,6 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     bool rdm_sensor_ = false;
     bool toolhead_sensor_ = false;
 
-    // Shared helper used by every override-clear path (hardware event and
-    // explicit user request). Caller must hold mutex_. Erases
-    // overrides_[slot_index], resets override-exclusive fields on the
-    // provided SlotInfo (brand, spool_name, spoolman_*, weights, color_name),
-    // and fires clear_async. Color/material stay untouched — firmware owns
-    // them for ACE and the parse has just refreshed them.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
-
-    // User-provided per-slot metadata (brand, spool name, spoolman IDs,
-    // remaining weight, etc.) layered over firmware-reported state.
-    // Both writers (on_started initial load, apply_user_edit) hold
-    // mutex_; so do the readers (apply_user_edit's re-read of the staged record,
-    // clear_override_locked).
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
-
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
     helix::ams::FilamentSlotOverrideStore* lane_record_store() override {

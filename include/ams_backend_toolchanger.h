@@ -517,13 +517,9 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// a firmware reading, and initialize_tools() resets colour to default grey
     /// on every rediscovery - which is exactly what used to wipe the user's edit.
 
-    /// Per-slot user metadata, keyed by slot index. Written and read only under
-    /// mutex_.
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
-
-    /// Moonraker-DB-backed store. Null until additional_start_checks() builds it
-    /// (needs api_), and on backends constructed without an API in tests.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
+    /// The store is the sole source of filament identity here, so a clear
+    /// blanks every identity field: nothing will restate them.
+    void clear_override_fields(SlotInfo& slot) const override;
 
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.

@@ -192,12 +192,6 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
     AmsError set_tool_mapping_impl(int tool_number, int slot_index) override;
     void clear_slot_override(int slot_index) override;
 
-    /// The resync files stored records through this backend's echo guard,
-    /// the same one its parses consult.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     AmsError enable_bypass() override;
     AmsError disable_bypass() override;
 
@@ -383,15 +377,10 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
                                                             const std::vector<int>& fila_vals,
                                                             const std::vector<int>& color_vals);
 
-    /// Erase the slot's override in both stores (the in-memory map and the
-    /// persisted record) and reset the override-exclusive fields on the live
-    /// slot. Caller must hold mutex_.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
-
-    // Persistent per-slot overrides. Writers (on_started bulk load,
-    // apply_user_edit, check_hardware_event_clear) all hold mutex_.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+    /// Blanks everything the slot showed, material and colour included, so it
+    /// reads as no identity the moment the clear lands; the parse restates
+    /// whatever the Box still reports.
+    void clear_override_fields(SlotInfo& slot) const override;
 
     // Per-slot last-observed tag fingerprint (the composite of the three
     // save_variable table indices), plus the pending expected fingerprints for
@@ -399,14 +388,14 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
     // (CFS, Snapmaker). All access under mutex_.
     helix::ams::SlotFingerprintTracker rfid_tracker_;
 
-    /// What the user's own SAVE_VARIABLE push declared, so the ids echoing
-    /// back through save_variables are not filed as the Box's reading. The
-    /// ids name table rows rather than spelling the values, so the staged
-    /// declaration is relocated to what the rows resolve to. No boundary
-    /// token exists for this lane: suppression ends on a value the write did
-    /// not carry, or with the override at the fingerprint-change clear, which
-    /// is the Box's own spool-swap signal.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
+    // The base's own_write_echoes_, on this backend:
+    // What the user's own SAVE_VARIABLE push declared, so the ids echoing
+    // back through save_variables are not filed as the Box's reading. The
+    // ids name table rows rather than spelling the values, so the staged
+    // declaration is relocated to what the rows resolve to. No boundary
+    // token exists for this lane: suppression ends on a value the write did
+    // not carry, or with the override at the fingerprint-change clear, which
+    // is the Box's own spool-swap signal.
 };
 
 } // namespace helix

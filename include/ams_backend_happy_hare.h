@@ -278,12 +278,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// Delete this gate's user override ("Clear Spool").
     void clear_slot_override(int slot_index) override;
 
-    /// The resync files stored records through this backend's echo guard, the
-    /// same one its parses consult.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     /// Publish the external spool as lane{N+1} in the SHARED lane_data
     /// namespace — Happy Hare's plugin never publishes its bypass/external
     /// spool (verified: push_lane_data iterates gates only), and its boot-time
@@ -406,11 +400,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // AFC. See AmsBackendAfc for the full rationale.
     //
     static constexpr const char* OVERRIDE_NAMESPACE = "helix-screen-hh-overrides";
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
     /// Store on the SHARED lane_data namespace, used only by
     /// publish_external_spool_lane. Happy Hare's plugin owns that namespace.
     std::unique_ptr<helix::ams::FilamentSlotOverrideStore> lane_publish_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
     void persist_override(int slot_index, const SlotInfo& info,
                           const helix::ams::Observation& declared);
     /// Put @p info's filament fields and tool mapping on @p slot, the half an
@@ -595,12 +587,12 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// remembers.
     std::map<int, helix::ams::Observation> gate_readings_;
 
-    /// What the user's own MMU_GATE_MAP write declared, so the gate map
-    /// echoing it back through printer.mmu is not filed as firmware's reading.
-    /// The gate map is user-maintained, so no tag names the spool a write was
-    /// made against: suppression ends on a differing value, a key published
-    /// empty, the re-bind verdict in the gate_spool_id parse, or a clear.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
+    // The base's own_write_echoes_, on this backend:
+    // What the user's own MMU_GATE_MAP write declared, so the gate map
+    // echoing it back through printer.mmu is not filed as firmware's reading.
+    // The gate map is user-maintained, so no tag names the spool a write was
+    // made against: suppression ends on a differing value, a key published
+    // empty, the re-bind verdict in the gate_spool_id parse, or a clear.
 
     // Path visualization state
     int filament_pos_{0};     ///< Happy Hare filament_pos value

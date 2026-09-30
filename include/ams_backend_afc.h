@@ -181,12 +181,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     AmsBackendAfc(IMoonrakerAPI* api, helix::IMoonrakerClient* client);
     ~AmsBackendAfc() override;
 
-    /// The resync files stored records through this backend's echo guard, the
-    /// same one its parses consult.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     /**
      * @brief Bare filament-sensor names AFC owns (no AMS keyword).
      *
@@ -597,16 +591,15 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     // parse_afc_stepper honours AFC's clears: firmware truth clears, and the
     // override re-supplies the identity the user attached.
     static constexpr const char* OVERRIDE_NAMESPACE = "helix-screen-afc-overrides";
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
     /// Store on the SHARED lane_data namespace, used only by
     /// publish_external_spool_lane. AFC's plugin owns that namespace — our
     /// private override_store_ is deliberately NOT pointed at it.
     std::unique_ptr<helix::ams::FilamentSlotOverrideStore> lane_publish_store_;
-    /// Keyed by the lane's registry position (slots_ index), the one key every
-    /// per-lane store here shares: lane_id(), own-write expectations and
-    /// own_write_echoes_ all take it. Never a SlotInfo field: slot_index there
-    /// is unit-local, and global_index is a copy the registry stamps (#1644).
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+    // overrides_ is keyed by the lane's registry position (slots_ index), the
+    // one key every per-lane store here shares: lane_id(), own-write
+    // expectations and own_write_echoes_ all take it. Never a SlotInfo field:
+    // slot_index there is unit-local, and global_index is a copy the registry
+    // stamps (#1644).
     /// Layer the user override over firmware values. Callers hold mutex_.
     /// Build + persist an override from a user edit, recording what @p declared
     /// says the user moved. Callers hold mutex_.
@@ -1352,12 +1345,12 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     };
     std::unordered_map<std::string, LaneFirmwareReadings> lane_firmware_readings_;
 
-    /// What a user's edit declared and this backend wrote back, for the parse
-    /// to tell firmware repeating our own SET_COLOR / SET_MATERIAL from a
-    /// reading. Keyed by slot index like the guard's other users, and under
-    /// the same mutex_ discipline as lane_firmware_readings_ above: both parse
-    /// paths and apply_user_edit() run with the lock held.
-    ams::OwnWriteEchoes own_write_echoes_;
+    // The base's own_write_echoes_, on this backend:
+    // What a user's edit declared and this backend wrote back, for the parse
+    // to tell firmware repeating our own SET_COLOR / SET_MATERIAL from a
+    // reading. Keyed by slot index like the guard's other users, and under
+    // the same mutex_ discipline as lane_firmware_readings_ above: both parse
+    // paths and apply_user_edit() run with the lock held.
 
     /// Lanes last seen on each buffer, keyed by buffer name. AFC's buffer status
     /// arrives as a Moonraker delta, so a frame that changes only `state` omits

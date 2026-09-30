@@ -2731,39 +2731,10 @@ void AmsBackendHappyHare::persist_override(int slot_index, const SlotInfo& info,
 void AmsBackendHappyHare::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-        // The Clear Spool gesture: the lane is being emptied deliberately, so
-        // the gate map's next frame is the machine's own reading, not an echo
-        // of the cleared edit.
-        own_write_echoes_.abandon(slot_index);
-
-        // Reset the override-exclusive fields on the live slot too: Happy Hare's
-        // gate map has no concept of brand / spool_name / total weight / colour
-        // name, so no firmware update will ever clear them.
-        if (helix::printer::SlotEntry* entry = slots_.get_mut(slot_index)) {
-            entry->info.brand.clear();
-            entry->info.clear_spoolman_link();
-            entry->info.remaining_weight_g = -1.0f;
-            entry->info.total_weight_g = -1.0f;
-            entry->info.color_name.clear();
-            // The catalog pick is override-exclusive on every backend — no AMS
-            // firmware carries a branded product id — so a clear always drops it.
-            // Leaving it would re-navigate the editor to the removed spool's
-            // product on the next open.
-            entry->info.catalog_id.clear();
-            entry->info.product_name.clear();
-        }
+        helix::printer::SlotEntry* entry = slots_.get_mut(slot_index);
+        clear_override_locked(slot_index, entry ? &entry->info : nullptr);
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        override_store_->clear_async(slot_index, [slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("[AMS HappyHare] override clear failed for gate {}: {}", slot_index,
-                             err);
-            }
-        });
-    }
 }
 
 void AmsBackendHappyHare::publish_external_spool_lane(const SlotInfo* spool) {

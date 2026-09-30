@@ -10,18 +10,17 @@
 #include "filament_slot_override_store.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
+#include "lane_echo.h"
 
 #include <spdlog/spdlog.h>
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
 namespace helix {
-
-namespace ams {
-class OwnWriteEchoes;
-}
 
 /// Base class for AMS backends that use Moonraker subscription-based status updates.
 /// Extracts common lifecycle, event, and state query logic from AFC/HappyHare/ToolChanger.
@@ -98,6 +97,18 @@ class AmsSubscriptionBackend : public AmsBackend {
     /// the base not_supported refusal.
     AmsError load_filament_batch(const std::vector<int>& slots) final;
     AmsError unload_filament_batch(const std::vector<int>& slots) final;
+
+    /// This backend's echo guard. A store other writers co-author can hold
+    /// the mirror of the backend's own write, so the resync strips from those
+    /// records any field still equal to a standing declaration. A backend
+    /// that never writes identity back to firmware never stages into it, and
+    /// an empty guard strips nothing.
+    ///
+    /// The guard stays under this backend's mutex_ discipline; the resync
+    /// takes the lock around its consult.
+    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() {
+        return &own_write_echoes_;
+    }
 
     // --- Shared utilities (public for AmsState and tests) ---
     void emit_event(const std::string& event, const std::string& data = "");
@@ -374,16 +385,21 @@ class AmsSubscriptionBackend : public AmsBackend {
         return nullptr;
     }
 
-    /// This backend's echo guard, or nullptr when it does not write identity
-    /// back to firmware. A store other writers co-author can hold the mirror
-    /// of the backend's own write, so the resync strips from those records
-    /// any field still equal to a standing declaration.
+    /// Clear @p slot_index's user override from every store holding it: the
+    /// in-memory map, the lane's records, the echo guard and the persisted
+    /// record. @p slot, when non-null, also loses clear_override_fields().
+    /// Caller holds mutex_.
+    void clear_override_locked(int slot_index, SlotInfo* slot);
+
+    /// Blank on @p slot the fields a user override supplies and this
+    /// backend's firmware never restates, so a clear shows in the very next
+    /// get_slot_info(). Fields firmware reports are left for the parse.
     ///
-    /// The returned guard stays under this backend's mutex_ discipline; the
-    /// resync takes the lock around its consult.
-    [[nodiscard]] virtual helix::ams::OwnWriteEchoes* own_write_echoes() {
-        return nullptr;
-    }
+    /// The default fits firmware that reports colour and material but no
+    /// brand, spool name, weights, colour name, Spoolman link or catalog pick.
+    /// The catalog pick is override-exclusive on every backend: no AMS
+    /// firmware carries a branded product id.
+    virtual void clear_override_fields(SlotInfo& slot) const;
 
     /// commit_user_edit()'s refusal hooks: a dispatch that failed outright
     /// wrote nothing firmware can echo, so the staging it created cancels
@@ -403,6 +419,16 @@ class AmsSubscriptionBackend : public AmsBackend {
     /// subscription lambda are expired when the backend is destroyed, preventing
     /// use-after-free when WebSocket dispatch races with clear_backends() (#621).
     helix::AsyncLifetimeGuard lifetime_;
+
+    /// The user's per-slot overrides and the Moonraker-DB store that persists
+    /// them, keyed by global slot index. Null store until the backend builds
+    /// it (it needs api_). Both under mutex_.
+    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
+    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+
+    /// What the user's own write-back declared per slot, so firmware echoing
+    /// it is not filed as a reading. Under mutex_.
+    helix::ams::OwnWriteEchoes own_write_echoes_;
 
   private:
     /// The four gated operations, so motion can be classified per METHOD in one
