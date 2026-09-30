@@ -191,6 +191,7 @@ TEST_CASE_METHOD(RootFixture, "settings root: tapping Plugins opens the plugins 
     helix::ui::UpdateQueue::instance().drain();
     process_lvgl(100); // deferred deletes
     DisplaySettingsManager::instance().set_animations_enabled(true);
+    helix::ui::UpdateQueue::instance().drain();
     CHECK(NavigationManager::instance().overlay_stack_names().empty());
 }
 #endif
