@@ -32,8 +32,7 @@
     <lv_obj width="0"
             height="content" style_pad_all="0" flex_flow="column" style_pad_gap="#space_sm" flex_grow="1"
             scrollable="false">
-      <text_body name="label"
-                 width="100%" text="$label" translation_tag="$label_tag" long_mode="wrap" style_text_color="#text"/>
+      <text_body name="label" width="100%" text="$label" translation_tag="$label_tag" long_mode="wrap"/>
       <!-- Description wrapper: collapsed entirely when no description (parse-time,
            so it doesn't fight the reactive breakpoint bind below). With no
            description the column holds only the label, which then centers

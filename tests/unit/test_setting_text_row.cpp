@@ -40,6 +40,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "setting_text_row shows its value and report
     g_text_row_fired = 0;
     lv_obj_send_event(input, LV_EVENT_READY, nullptr);
     CHECK(g_text_row_fired == 1);
+    lv_obj_send_event(input, LV_EVENT_DEFOCUSED, nullptr);
+    CHECK(g_text_row_fired == 2);
 
     lv_obj_delete(row);
 }
