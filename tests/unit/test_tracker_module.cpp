@@ -191,3 +191,5 @@ TEST_CASE("TrackerModule: pattern data integrity — row 1 is empty", "[tracker]
         REQUIRE(note.effect_data == 0);
     }
 }
+
+#endif // HELIX_HAS_TRACKER
