@@ -70,6 +70,7 @@ int verify_cb(int ok, X509_STORE_CTX* store) {
         spdlog::error("[TLS] Certificate does not match host '{}'", host);
         return 0;
     }
+    spdlog::debug("[TLS] Verified certificate for '{}'", host);
     return 1;
 }
 #endif
@@ -141,6 +142,8 @@ HttpResponsePtr trusted_request(const HttpRequestPtr& req, void* ssl_ctx) {
             return resp;
         req->url = location;
         req->ParseUrl();
+        // The host only: a redirect URL can carry a signed, short-lived download token.
+        spdlog::debug("[TLS] Following redirect to {}", req->host);
         req->headers["Host"] = req->host;
         resp->Reset();
     }
