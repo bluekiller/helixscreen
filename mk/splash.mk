@@ -76,6 +76,7 @@ $(BUILD_DIR)/splash/%.o: src/%.cpp $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(ABI_STAMP
 # dependency-free modules that can be linked into splash as extra objects.
 SPLASH_EXTRA_OBJS := \
     $(BUILD_DIR)/splash/config.o \
+    $(BUILD_DIR)/splash/config_migrations.o \
     $(BUILD_DIR)/splash/config_backup.o \
     $(BUILD_DIR)/splash/config_storage_file.o \
     $(BUILD_DIR)/splash/backlight_backend.o \
@@ -95,6 +96,11 @@ SPLASH_EXTRA_OBJS := \
 
 # Compile config for splash (with HELIX_SPLASH_ONLY to guard get_runtime_config dependency)
 $(BUILD_DIR)/splash/config.o: src/system/config.cpp $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(ABI_STAMP) | $(BUILD_DIR)/splash
+	@echo "[CXX] $< (splash)"
+	$(Q)$(CXX) $(SPLASH_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Compile config_migrations for splash (config.cpp runs the migration ladder)
+$(BUILD_DIR)/splash/config_migrations.o: src/system/config_migrations.cpp $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(ABI_STAMP) | $(BUILD_DIR)/splash
 	@echo "[CXX] $< (splash)"
 	$(Q)$(CXX) $(SPLASH_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 

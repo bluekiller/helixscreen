@@ -19,7 +19,8 @@ Key properties:
 | File | Purpose |
 |------|---------|
 | `include/config.h` | Config class: `df()`, CRUD methods, `slugify()`, `CURRENT_CONFIG_VERSION` |
-| `src/system/config.cpp` | Config v4 schema, `migrate_v3_to_v4()`, multi-printer CRUD |
+| `src/system/config.cpp` | Config v4 schema, multi-printer CRUD |
+| `src/system/config_migrations.cpp` | `normalize_versionless_document()` |
 | `include/application.h` | `switch_printer()`, `add_printer_via_wizard()`, `cancel_add_printer_wizard()`, soft restart state |
 | `src/application/application.cpp` | Soft restart lifecycle: `tear_down_printer_state()`, `init_printer_state()` |
 | `include/ui_printer_switch_menu.h` | `PrinterSwitchMenu` context menu (extends `ContextMenu`) |
@@ -172,7 +173,7 @@ Device-level settings include: WiFi, display, input/touch calibration, language,
 
 ### Migration v3 to v4
 
-`migrate_v3_to_v4()` restructures legacy single-printer configs:
+`normalize_versionless_document()` restructures versionless single-printer configs (the shipped presets):
 
 1. Reads the old `/printer` object
 2. Generates a slug ID from the printer name (e.g., "Voron 2.4" becomes "voron-2-4") via `Config::slugify()`

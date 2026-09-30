@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "../test_helpers/config_test_access.h"
+#include "../test_helpers/log_capture.h"
 #include "../test_helpers/scoped_runtime_config.h"
 #include "app_constants.h"
 #include "config.h"
@@ -9,6 +10,7 @@
 #include "runtime_config.h"
 #include "static_subject_registry.h"
 #include "test_helpers/unique_temp_dir.h"
+#include "text_io.h"
 #include "wizard_config_paths.h"
 
 #include <cstdlib>
@@ -1547,67 +1549,61 @@ struct BackupGuard {
     }
 };
 
-TEST_CASE_METHOD(ConfigTestFixture,
-                 "Config: v0 config with sounds_enabled=true gets migrated to false",
-                 "[core][config][migration][versioning]") {
-    // Simulate an existing config from before sound support (no config_version)
-    set_data_for_plural_test(
-        {{"sounds_enabled", true},
-         {"brightness", 50},
-         {"printer", {{"moonraker_host", "192.168.1.100"}, {"moonraker_port", 7125}}}});
-
-    // No config_version means v0
-    REQUIRE_FALSE(data_contains("config_version"));
-    REQUIRE(config.get<bool>("/sounds_enabled") == true);
-
-    // Run init on a temp file to trigger migrations
-    std::string temp_dir = helix::test::unique_temp_dir("helix_migration_test");
+TEST_CASE_METHOD(
+    ConfigTestFixture,
+    "Config: a config below the migration floor is kept aside and replaced by defaults",
+    "[core][config][migration][versioning]") {
+    std::string temp_dir = helix::test::unique_temp_dir("helix_floor_test");
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    // Write v0 config to disk
+    json v5_config = {{"config_version", 5},
+                      {"brightness", 50},
+                      {"active_printer_id", "ender3"},
+                      {"printers", {{"ender3", {{"moonraker_host", "192.168.1.100"}}}}}};
     {
         std::ofstream o(temp_path);
-        o << get_data().dump(2);
+        o << v5_config.dump(2);
     }
 
-    // Run init which triggers migrations
     BackupGuard guard;
+    helix::LogCapture log;
     Config test_config;
     test_config.init(temp_path);
 
-    // Verify migration ran
-    REQUIRE(test_config.get<bool>("/sounds_enabled") == false);
     REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get_active_printer_id() == "default");
+    REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") == "192.168.1.100");
+    REQUIRE_FALSE(test_config.exists("/printers/ender3"));
+    REQUIRE(log.count_containing("config_version 5") == 1);
+
+    auto kept = json::parse(std::ifstream(temp_path + ".pre-migration"));
+    REQUIRE(kept == v5_config);
 
     std::filesystem::remove_all(temp_dir);
 }
 
-TEST_CASE_METHOD(ConfigTestFixture,
-                 "Config: config already at version 1 does NOT get sounds flipped",
+TEST_CASE_METHOD(ConfigTestFixture, "Config: a config at the migration floor is migrated",
                  "[core][config][migration][versioning]") {
-    // Config that was already migrated — user may have re-enabled sounds
-    std::string temp_dir = helix::test::unique_temp_dir("helix_migration_test");
+    std::string temp_dir = helix::test::unique_temp_dir("helix_floor_v9_test");
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    json v1_config = {{"config_version", 1},
-                      {"sounds_enabled", true},
-                      {"brightness", 50},
-                      {"printer", {{"moonraker_host", "192.168.1.100"}, {"moonraker_port", 7125}}}};
-
+    json v9_config = {{"config_version", MIN_MIGRATABLE_CONFIG_VERSION},
+                      {"active_printer_id", "ender3"},
+                      {"printers", {{"ender3", {{"moonraker_host", "192.168.1.100"}}}}}};
     {
         std::ofstream o(temp_path);
-        o << v1_config.dump(2);
+        o << v9_config.dump(2);
     }
 
     BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
-    // sounds_enabled should still be true — migration should NOT re-run
-    REQUIRE(test_config.get<bool>("/sounds_enabled") == true);
     REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get_active_printer_id() == "ender3");
+    REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") == "192.168.1.100");
 
     std::filesystem::remove_all(temp_dir);
 }
@@ -1745,19 +1741,95 @@ TEST_CASE_METHOD(ConfigTestFixture, "Config: factory reset removes rolling backu
 }
 
 // ============================================================================
-// v3→v4 migration: Multi-printer support
+// Versionless (version 0) documents: the single /printer shape
 // ============================================================================
 
-TEST_CASE("Config: v3→v4 migration restructures single printer to multi-printer",
+TEST_CASE("Config: every shipped preset loads as a fresh install in the /printers shape",
+          "[core][config][migration][preset]") {
+    namespace fs = std::filesystem;
+    std::string src = __FILE__;
+    // __FILE__ is repo-relative or absolute; either way the prefix is the root.
+    const std::string presets_dir =
+        src.substr(0, src.rfind("tests/unit/")) + "assets/config/presets";
+
+    int checked = 0;
+    for (const auto& entry : fs::directory_iterator(presets_dir)) {
+        if (entry.path().extension() != ".json") {
+            continue;
+        }
+        const std::string name = entry.path().filename().string();
+        INFO("preset " << name);
+        const json preset = json::parse(std::ifstream(entry.path()));
+        REQUIRE_FALSE(preset.contains("config_version"));
+        const json& legacy_printer = preset.at("printer");
+
+        std::string temp_dir = helix::test::unique_temp_dir("helix_preset_load");
+        fs::create_directories(temp_dir);
+        std::string temp_path = temp_dir + "/settings.json";
+        fs::copy_file(entry.path(), temp_path);
+
+        BackupGuard guard;
+        Config test_config;
+        test_config.init(temp_path);
+        const json doc = test_config.get<json>("", json());
+
+        REQUIRE(doc.at("config_version") == CURRENT_CONFIG_VERSION);
+        REQUIRE_FALSE(doc.contains("printer"));
+
+        std::string slug = "default";
+        for (const char* key : {"printer_name", "name"}) {
+            if (legacy_printer.contains(key)) {
+                slug = Config::slugify(legacy_printer.at(key).get<std::string>());
+                break;
+            }
+        }
+        REQUIRE(test_config.get_active_printer_id() == slug);
+        const json& printer = doc.at("printers").at(slug);
+
+        if (legacy_printer.contains("heaters")) {
+            CHECK(printer.at("heaters") == legacy_printer.at("heaters"));
+        }
+        if (preset.contains("preset")) {
+            CHECK(printer.at("preset") == preset.at("preset"));
+        }
+
+        const json legacy_leds = legacy_printer.value("leds", json::object());
+        const std::string strip = legacy_leds.value("strip", "");
+        CHECK(printer.at("leds").at("selected") ==
+              (strip.empty() ? json::array() : json::array({strip})));
+        if (legacy_leds.contains("selected_strips")) {
+            CHECK(printer.at("leds").at("selected_strips") == legacy_leds.at("selected_strips"));
+        }
+
+        json rotate;
+        if (preset.contains("display") && preset.at("display").contains("rotate")) {
+            rotate = preset.at("display").at("rotate");
+        } else if (preset.contains("display_rotate")) {
+            rotate = preset.at("display_rotate");
+        }
+        if (!rotate.is_null()) {
+            CHECK(doc.at("display").at("rotate") == rotate);
+        }
+        CHECK_FALSE(doc.contains("display_rotate"));
+        CHECK(doc.at("printers").at("show_printer_switcher") == false);
+
+        CHECK(test_config.is_wizard_required() != preset.value("wizard_completed", false));
+
+        fs::remove_all(temp_dir);
+        ++checked;
+    }
+    REQUIRE(checked >= 20);
+}
+
+TEST_CASE("Config: version-0 migration restructures single printer to multi-printer",
           "[core][config][migration][v4]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v3_to_v4");
     std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    // Write a v3 config with single /printer section (pre-multi-printer schema)
+    // A version-0 document in the single /printer shape the shipped presets use
     json v3_config = {
-        {"config_version", 3},
         {"dark_mode", true},
         {"wizard_completed", true},
         {"printer",
@@ -1775,10 +1847,10 @@ TEST_CASE("Config: v3→v4 migration restructures single printer to multi-printe
         o << v3_config.dump(2);
     }
 
+    BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
-    // Should have migrated to v4
     REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
 
     // /printer should be gone, /printers should exist
@@ -1797,8 +1869,8 @@ TEST_CASE("Config: v3→v4 migration restructures single printer to multi-printe
     REQUIRE(test_config.get<int>(test_config.df() + "filament/extrude_speed") == 10);
 
     // Panel widgets should have moved under printer entry. This drives the whole
-    // migration chain, so the v22 step has since lifted the legacy flat array
-    // into the multi-page shape — the widget set and its order are what v3->v4
+    // migration chain, so the v22 step lifts the legacy flat array
+    // into the multi-page shape — the widget set and its order are what the versionless step
     // is responsible for carrying across, not the container.
     auto pw = test_config.get<json>(test_config.df() + "panel_widgets/home", json());
     REQUIRE(pw.is_object());
@@ -1818,21 +1890,21 @@ TEST_CASE("Config: v3→v4 migration restructures single printer to multi-printe
     std::filesystem::remove_all(temp_dir);
 }
 
-TEST_CASE("Config: v3→v4 migration uses 'default' when printer has no name",
+TEST_CASE("Config: version-0 migration uses 'default' when printer has no name",
           "[core][config][migration][v4]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v3_to_v4_noname");
     std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    json v3_config = {{"config_version", 3},
-                      {"printer", {{"moonraker_host", "10.0.0.5"}, {"moonraker_port", 7125}}}};
+    json v3_config = {{"printer", {{"moonraker_host", "10.0.0.5"}, {"moonraker_port", 7125}}}};
 
     {
         std::ofstream o(temp_path);
         o << v3_config.dump(2);
     }
 
+    BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
@@ -1842,16 +1914,15 @@ TEST_CASE("Config: v3→v4 migration uses 'default' when printer has no name",
     std::filesystem::remove_all(temp_dir);
 }
 
-TEST_CASE("Config: v3→v4 migration skips if /printers already exists",
+TEST_CASE("Config: version-0 migration skips if /printers already exists",
           "[core][config][migration][v4]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v3_skip");
     std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    // Already v3 format
-    json v3_config = {{"config_version", 3},
-                      {"active_printer_id", "ender3"},
+    // Already in the /printers shape
+    json v3_config = {{"active_printer_id", "ender3"},
                       {"printers",
                        {{"ender3",
                          {{"moonraker_host", "192.168.1.50"},
@@ -1863,6 +1934,7 @@ TEST_CASE("Config: v3→v4 migration skips if /printers already exists",
         o << v3_config.dump(2);
     }
 
+    BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
@@ -1872,16 +1944,15 @@ TEST_CASE("Config: v3→v4 migration skips if /printers already exists",
     std::filesystem::remove_all(temp_dir);
 }
 
-TEST_CASE("Config: v3→v4 migration moves printer_image to per-printer path",
+TEST_CASE("Config: version-0 migration moves printer_image to per-printer path",
           "[core][config][migration][v4]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v3_to_v4_printer_image");
     std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    // Write a v3 config with /display/printer_image (pre-multi-printer schema)
+    // A version-0 document in the single /printer shape, with /display/printer_image
     json v3_config = {
-        {"config_version", 3},
         {"printer",
          {{"name", "My Printer"}, {"moonraker_host", "192.168.1.100"}, {"moonraker_port", 7125}}},
         {"display", {{"printer_image", "shipped:voron-v2"}, {"rotate", 0}}}};
@@ -1891,10 +1962,10 @@ TEST_CASE("Config: v3→v4 migration moves printer_image to per-printer path",
         o << v3_config.dump(2);
     }
 
+    BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
-    // Should have migrated to v4
     REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
 
     // printer_image should be at per-printer path, not under /display
@@ -1910,11 +1981,7 @@ TEST_CASE("Config: v3→v4 migration moves printer_image to per-printer path",
     std::filesystem::remove_all(temp_dir);
 }
 
-// ============================================================================
-// v4→v5 migration: show_printer_switcher default for single-printer configs
-// ============================================================================
-
-TEST_CASE("Config: v4→v5 migration disables printer switcher for single-printer config",
+TEST_CASE("Config: version-0 migration disables printer switcher for single-printer config",
           "[core][config][migration][v5]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_single");
     std::filesystem::remove_all(temp_dir);
@@ -1922,7 +1989,6 @@ TEST_CASE("Config: v4→v5 migration disables printer switcher for single-printe
     std::string temp_path = temp_dir + "/test_config.json";
 
     json v4_config = {
-        {"config_version", 4},
         {"active_printer_id", "ender3"},
         {"printers", {{"ender3", {{"moonraker_host", "192.168.1.50"}, {"moonraker_port", 7125}}}}}};
 
@@ -1931,6 +1997,7 @@ TEST_CASE("Config: v4→v5 migration disables printer switcher for single-printe
         o << v4_config.dump(2);
     }
 
+    BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
@@ -1940,15 +2007,14 @@ TEST_CASE("Config: v4→v5 migration disables printer switcher for single-printe
     std::filesystem::remove_all(temp_dir);
 }
 
-TEST_CASE("Config: v4→v5 migration skips when multiple printers configured",
+TEST_CASE("Config: version-0 migration skips when multiple printers configured",
           "[core][config][migration][v5]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_multi");
     std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(temp_dir);
     std::string temp_path = temp_dir + "/test_config.json";
 
-    json v4_config = {{"config_version", 4},
-                      {"active_printer_id", "ender3"},
+    json v4_config = {{"active_printer_id", "ender3"},
                       {"printers",
                        {{"ender3", {{"moonraker_host", "192.168.1.50"}}},
                         {"voron", {{"moonraker_host", "192.168.1.51"}}}}}};
@@ -1958,12 +2024,41 @@ TEST_CASE("Config: v4→v5 migration skips when multiple printers configured",
         o << v4_config.dump(2);
     }
 
+    BackupGuard guard;
     Config test_config;
     test_config.init(temp_path);
 
     REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
     // Migration should NOT have written the key for multi-printer configs
     REQUIRE_FALSE(test_config.exists("/printers/show_printer_switcher"));
+
+    std::filesystem::remove_all(temp_dir);
+}
+
+TEST_CASE("Config: version-0 migration preserves explicit show_printer_switcher setting",
+          "[core][config][migration][v5]") {
+    std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_explicit");
+    std::filesystem::remove_all(temp_dir);
+    std::filesystem::create_directories(temp_dir);
+    std::string temp_path = temp_dir + "/test_config.json";
+
+    json v4_config = {
+        {"active_printer_id", "ender3"},
+        {"printers",
+         {{"show_printer_switcher", true}, {"ender3", {{"moonraker_host", "192.168.1.50"}}}}}};
+
+    {
+        std::ofstream o(temp_path);
+        o << v4_config.dump(2);
+    }
+
+    BackupGuard guard;
+    Config test_config;
+    test_config.init(temp_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    // Should NOT override the explicit true setting
+    REQUIRE(test_config.get<bool>("/printers/show_printer_switcher") == true);
 
     std::filesystem::remove_all(temp_dir);
 }
@@ -2312,34 +2407,6 @@ TEST_CASE_METHOD(ConfigTestFixture, "Config: v14→v15 does not affect non-AD5X 
 
     REQUIRE(test_config.get<int>("/display/hardware_blank") == 0);
     REQUIRE(test_config.get<bool>("/display/sleep_backlight_off") == false);
-
-    std::filesystem::remove_all(temp_dir);
-}
-
-TEST_CASE("Config: v4→v5 migration preserves explicit show_printer_switcher setting",
-          "[core][config][migration][v5]") {
-    std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_explicit");
-    std::filesystem::remove_all(temp_dir);
-    std::filesystem::create_directories(temp_dir);
-    std::string temp_path = temp_dir + "/test_config.json";
-
-    json v4_config = {
-        {"config_version", 4},
-        {"active_printer_id", "ender3"},
-        {"printers",
-         {{"show_printer_switcher", true}, {"ender3", {{"moonraker_host", "192.168.1.50"}}}}}};
-
-    {
-        std::ofstream o(temp_path);
-        o << v4_config.dump(2);
-    }
-
-    Config test_config;
-    test_config.init(temp_path);
-
-    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
-    // Should NOT override the explicit true setting
-    REQUIRE(test_config.get<bool>("/printers/show_printer_switcher") == true);
 
     std::filesystem::remove_all(temp_dir);
 }
@@ -2989,30 +3056,6 @@ TEST_CASE_METHOD(ConfigTestFixture, "save works normally with regular file (no s
     fs::remove_all(tmp);
 }
 
-TEST_CASE("Config::init migrates helixconfig.json to settings.json", "[config]") {
-    auto tmp = std::filesystem::path(helix::test::unique_temp_dir("test_config_migration"));
-    std::filesystem::remove_all(tmp);
-    std::filesystem::create_directories(tmp / "config");
-
-    std::string old_path = (tmp / "config" / "helixconfig.json").string();
-    std::string new_path = (tmp / "config" / "settings.json").string();
-    {
-        std::ofstream f(old_path);
-        f << R"({"config_version": 8, "printers": [{"name": "test", "moonraker_address": "127.0.0.1"}]})";
-    }
-
-    REQUIRE(std::filesystem::exists(old_path));
-    REQUIRE_FALSE(std::filesystem::exists(new_path));
-
-    auto config = Config::get_instance();
-    config->init(new_path);
-
-    REQUIRE_FALSE(std::filesystem::exists(old_path));
-    REQUIRE(std::filesystem::exists(new_path));
-
-    std::filesystem::remove_all(tmp);
-}
-
 // ============================================================================
 // RAII guard for HOME — moved here so corruption tests can also use it.
 // ============================================================================
@@ -3429,6 +3472,85 @@ TEST_CASE("Config::init() keeps tarball default when backup is corrupt",
     Config test_config;
     test_config.init(env.config_path);
 
+    REQUIRE(test_config.is_wizard_required());
+}
+
+namespace {
+
+/// A below-floor document of a remote-UI install: its printer lives on another host.
+json below_floor_backup() {
+    return {{"config_version", 5},
+            {"wizard_completed", true},
+            {"active_printer_id", "voron"},
+            {"printers",
+             {{"voron",
+               {{"moonraker_host", "192.168.1.77"},
+                {"moonraker_port", 7126},
+                {"wizard_completed", true}}}}}};
+}
+
+json read_json_file(const std::string& file) {
+    return json::parse(helix::text_io::read_file(file).value_or(""), nullptr, false);
+}
+
+} // namespace
+
+TEST_CASE("Config::init() keeps a below-floor backup restored over a tarball default",
+          "[core][config][moonraker-update][migration]") {
+    TarballTestEnv env("floor_tarball_backup");
+    env.write_config({{"preset", "ad5m"},
+                      {"wizard_completed", false},
+                      {"printer", {{"moonraker_host", "127.0.0.1"}}}});
+    env.write_backup(below_floor_backup());
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get_active_printer_id() == "default");
+    REQUIRE(read_json_file(env.config_path + ".pre-migration") == below_floor_backup());
+    REQUIRE(read_json_file(env.backup_dir + "/settings.json.backup") == below_floor_backup());
+}
+
+TEST_CASE("Config::init() keeps a below-floor backup restored over a corrupt config",
+          "[core][config][migration]") {
+    TarballTestEnv env("floor_corrupt_backup");
+    {
+        std::ofstream o(env.config_path);
+        o << "{{{{ not valid json";
+    }
+    env.write_backup(below_floor_backup());
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get_active_printer_id() == "default");
+    REQUIRE(read_json_file(env.config_path + ".pre-migration") == below_floor_backup());
+    REQUIRE(read_json_file(env.backup_dir + "/settings.json.backup") == below_floor_backup());
+}
+
+TEST_CASE("Config::init() carries the Moonraker connection across the migration floor",
+          "[core][config][migration]") {
+    TarballTestEnv env("floor_connection");
+
+    SECTION("printers map") {
+        env.write_config(below_floor_backup());
+    }
+    SECTION("single /printer object") {
+        env.write_config({{"config_version", 3},
+                          {"printer",
+                           {{"moonraker_host", "192.168.1.77"},
+                            {"moonraker_port", 7126},
+                            {"moonraker_api_key", "abc123"}}}});
+    }
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") == "192.168.1.77");
+    REQUIRE(test_config.get<int>(test_config.df() + "moonraker_port") == 7126);
     REQUIRE(test_config.is_wizard_required());
 }
 

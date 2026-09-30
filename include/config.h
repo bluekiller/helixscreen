@@ -139,6 +139,10 @@ bool is_default_cooldown_gcode(const std::string& gcode);
  */
 /// Current config schema version — bump when adding new migrations
 static constexpr int CURRENT_CONFIG_VERSION = 26;
+/// Oldest config_version still migrated. Config::init() sets a document stamped
+/// 1 .. MIN_MIGRATABLE_CONFIG_VERSION-1 aside and starts from defaults; version 0
+/// is a shipped preset and is still migrated.
+static constexpr int MIN_MIGRATABLE_CONFIG_VERSION = 9;
 
 class Config {
   private:

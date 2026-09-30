@@ -1898,7 +1898,10 @@ If your config is lost or corrupted:
    from the rolling backup on the next start
 
 ### If you have a helixconfig.json
-HelixScreen renames it to `settings.json` on startup — no manual action needed.
+Installing or updating HelixScreen renames it to `settings.json`. Until then
+HelixScreen still reads it when it is the symlink into `printer_data` that older
+Raspberry Pi installs made. A plain helixconfig.json comes from a release older
+than v0.99.4, too old to migrate, so HelixScreen starts from defaults.
 
 ---
 
