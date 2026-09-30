@@ -3,7 +3,7 @@ translations:
   ' (timed out)': ' (délai dépassé)'
   ' frames': ' images'
   ' left': ' restant'
-  ' · was {:.0f}': ' · était {:.0f}'
+  ' · was {:.0f}%': ' · était {:.0f}%'
   '"%s" failed to load': '"%s" n''a pas pu se charger'
   '%d additional fan%s': '%d ventilateur%s supplémentaire'
   '%d feeders': '%d alimentateurs'

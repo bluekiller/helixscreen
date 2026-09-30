@@ -3,7 +3,7 @@ translations:
   ' (timed out)': ' (tempo esgotado)'
   ' frames': ' quadros'
   ' left': ' restante'
-  ' · was {:.0f}': ' · era {:.0f}'
+  ' · was {:.0f}%': ' · era {:.0f}%'
   '"%s" failed to load': '"%s" falhou ao carregar'
   '%d additional fan%s': '%d ventoinha%s adicional'
   '%d feeders': '%d alimentadores'

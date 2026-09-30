@@ -3,7 +3,7 @@ translations:
   ' (timed out)': （タイムアウト）
   ' frames': ' フレーム'
   ' left': ' 残り'
-  ' · was {:.0f}': ' · 以前は {:.0f}'
+  ' · was {:.0f}%': ' · 以前は {:.0f}%'
   '"%s" failed to load': '"%s" の読み込みに失敗しました'
   '%d additional fan%s': 追加ファン %d 個%s
   '%d feeders': '%d フィーダー'

@@ -3,7 +3,7 @@
   <translation tag=" (timed out)" zh="（超时）"/>
   <translation tag=" frames" zh=" 帧"/>
   <translation tag=" left" zh=" 剩余"/>
-  <translation tag=" · was {:.0f}" zh=" · 原为 {:.0f}"/>
+  <translation tag=" · was {:.0f}%" zh=" · 原为 {:.0f}%"/>
   <translation tag="&quot;%s&quot; failed to load" zh="&quot;%s&quot; 加载失败"/>
   <translation tag="%d additional fan%s" zh="%d 个额外风扇%s"/>
   <translation tag="%d feeders" zh="%d 个送料器"/>

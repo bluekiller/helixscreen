@@ -3,7 +3,7 @@ translations:
   ' (timed out)': （超时）
   ' frames': ' 帧'
   ' left': ' 剩余'
-  ' · was {:.0f}': ' · 原为 {:.0f}'
+  ' · was {:.0f}%': ' · 原为 {:.0f}%'
   '"%s" failed to load': '"%s" 加载失败'
   '%d additional fan%s': '%d 个额外风扇%s'
   '%d feeders': '%d 个送料器'

@@ -163,10 +163,10 @@ class BeltTensionPanel : public OverlayBase {
     // === Subject refresh ===
     //
 
-    /// bt_peak_* / bt_note_* from the runs. Notes read "sweeping" for the
-    /// running path, an age ("just now", "3 min ago") plus " · was N" when a
-    /// previous curve exists.
-    void refresh_peaks_and_notes();
+    /// bt_note_* from the runs. Notes read "sweeping" for the running path, an
+    /// age ("just now", "3 min ago") plus " · was N%" when a previous curve
+    /// exists.
+    void refresh_notes();
     void refresh_run_detail();
     void start_elapsed_timer();
     void cancel_elapsed_timer();
@@ -226,10 +226,6 @@ class BeltTensionPanel : public OverlayBase {
     char run_detail_buf_[96] = {};
     lv_subject_t running_path_subject_{};
 
-    lv_subject_t peak_a_subject_{};
-    char peak_a_buf_[16] = {};
-    lv_subject_t peak_b_subject_{};
-    char peak_b_buf_[16] = {};
     lv_subject_t note_a_subject_{};
     char note_a_buf_[64] = {};
     lv_subject_t note_b_subject_{};
@@ -287,11 +283,11 @@ class BeltTensionPanel : public OverlayBase {
 
     // Run state
     PathRun runs_[2];
-    // Each path's number in the hero row: its peak in the strongest pair of the
-    // latest comparison, 0 when there is none. was_peak_hz_ is the number a
-    // re-tested path showed before its re-measure.
-    float shown_peak_hz_[2] = {0.0f, 0.0f};
-    float was_peak_hz_[2] = {0.0f, 0.0f};
+    // The similarity of the latest comparison, and the one a single-path
+    // re-test is measuring against: the re-tested path's note reads
+    // " · was N%" from it.
+    float similarity_percent_ = 0.0f;
+    float was_similarity_percent_ = 0.0f;
     std::optional<size_t> ram_mb_override_;
     lv_obj_t* low_ram_dialog_ = nullptr;
     std::vector<helix::calibration::BeltPath> queue_;

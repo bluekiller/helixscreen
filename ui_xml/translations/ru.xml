@@ -3,7 +3,7 @@
   <translation tag=" (timed out)" ru=" (время ожидания истекло)"/>
   <translation tag=" frames" ru=" кадров"/>
   <translation tag=" left" ru=" осталось"/>
-  <translation tag=" · was {:.0f}" ru=" · было {:.0f}"/>
+  <translation tag=" · was {:.0f}%" ru=" · было {:.0f}%"/>
   <translation tag="&quot;%s&quot; failed to load" ru="Не удалось загрузить «%s»"/>
   <translation tag="%d additional fan%s" ru="%d дополнительный вентилятор%s"/>
   <translation tag="%d feeders" ru="%d фидеров"/>

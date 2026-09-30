@@ -185,8 +185,9 @@ correlates only the swept band.
 ## The RESULTS screen
 
 - Centre: `bt_similarity` ("48%") and the verdict chip.
-- Sides: `bt_peak_a` / `bt_peak_b`, each path's frequency in the strongest pair ("--" when
-  nothing pairs); after a re-test the note carries the number the path showed before.
+- Sides: the path labels with their `bt_note_a` / `bt_note_b` status ("just now", "sweeping",
+  "N min ago"); after a single-path re-test the note carries the similarity the comparison
+  showed before (" · was 48%").
 - Under the chart: `bt_facts`, up to `MAX_LISTED_PEAKS` pairs strongest first as A/B
   ("Peaks 36/35 · 132/133 Hz"), and `bt_unpaired` ("Only on B: 120, 129 Hz"), hidden by
   `bt_has_unpaired` when empty.

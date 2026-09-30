@@ -3,7 +3,7 @@
   <translation tag=" (timed out)" es=" (tiempo agotado)"/>
   <translation tag=" frames" es=" fotogramas"/>
   <translation tag=" left" es=" restante"/>
-  <translation tag=" · was {:.0f}" es=" · era {:.0f}"/>
+  <translation tag=" · was {:.0f}%" es=" · era {:.0f}%"/>
   <translation tag="&quot;%s&quot; failed to load" es="&quot;%s&quot; no se pudo cargar"/>
   <translation tag="%d additional fan%s" es="%d ventilador%s adicional"/>
   <translation tag="%d feeders" es="%d alimentadores"/>

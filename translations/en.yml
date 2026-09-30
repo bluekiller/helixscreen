@@ -3,7 +3,7 @@ translations:
   ' (timed out)': ' (timed out)'
   ' frames': ' frames'
   ' left': ' left'
-  ' · was {:.0f}': ' · was {:.0f}'
+  ' · was {:.0f}%': ' · was {:.0f}%'
   '"%s" failed to load': '"%s" failed to load'
   '%d additional fan%s': '%d additional fan%s'
   '%d feeders': '%d feeders'

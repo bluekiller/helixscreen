@@ -3,7 +3,7 @@
   <translation tag=" (timed out)" ja="（タイムアウト）"/>
   <translation tag=" frames" ja=" フレーム"/>
   <translation tag=" left" ja=" 残り"/>
-  <translation tag=" · was {:.0f}" ja=" · 以前は {:.0f}"/>
+  <translation tag=" · was {:.0f}%" ja=" · 以前は {:.0f}%"/>
   <translation tag="&quot;%s&quot; failed to load" ja="&quot;%s&quot; の読み込みに失敗しました"/>
   <translation tag="%d additional fan%s" ja="追加ファン %d 個%s"/>
   <translation tag="%d feeders" ja="%d フィーダー"/>

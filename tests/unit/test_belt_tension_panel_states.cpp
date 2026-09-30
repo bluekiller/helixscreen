@@ -228,6 +228,10 @@ TEST_CASE("belt tension panel has a container for every view state", "[belt][pan
     // The direction rail is gone until real captures show a dependable
     // signed signal.
     CHECK(lv_obj_find_by_name(fx.view(), "bt_rail") == nullptr);
+    // The per-path hero numbers are gone: the strongest pair's frequencies say
+    // the least about the belts, so similarity is the only headline number.
+    CHECK(lv_obj_find_by_name(fx.view(), "bt_peak_a") == nullptr);
+    CHECK(lv_obj_find_by_name(fx.view(), "bt_peak_b") == nullptr);
 }
 
 TEST_CASE("belt tension panel binds only subjects that exist", "[belt][panel][xml]") {
@@ -235,11 +239,9 @@ TEST_CASE("belt tension panel binds only subjects that exist", "[belt][panel][xm
 
     for (const char* name :
          {"belt_tension_state", "bt_can_start", "bt_gate_message", "bt_hw_kinematics",
-          "bt_hw_accel",        "bt_hw_sweep",  "bt_run_title",    "bt_run_detail",
-          "bt_running_path",    "bt_peak_a",    "bt_peak_b",       "bt_note_a",
-          "bt_note_b",          "bt_verdict",   "bt_verdict_text", "bt_similarity",
-          "bt_facts",           "bt_unpaired",  "bt_has_unpaired", "bt_chart_available",
-          "bt_error_message"}) {
+          "bt_hw_accel", "bt_hw_sweep", "bt_run_title", "bt_run_detail", "bt_running_path",
+          "bt_note_a", "bt_note_b", "bt_verdict", "bt_verdict_text", "bt_similarity", "bt_facts",
+          "bt_unpaired", "bt_has_unpaired", "bt_chart_available", "bt_error_message"}) {
         INFO("subject not registered: " << name);
         CHECK(lv_xml_get_subject(nullptr, name) != nullptr);
     }
@@ -264,9 +266,9 @@ TEST_CASE("Start runs A then B and lands on RESULTS", "[belt][panel]") {
     fx.panel().handle_start_clicked();
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
 
-    // Peak labels carry the strongest pair's frequencies.
-    CHECK(fx.text("bt_peak_a") == "104");
-    CHECK(fx.text("bt_peak_b") == "98");
+    // With no previous run the note names the age and nothing else.
+    CHECK(fx.text("bt_note_a") == "just now");
+    CHECK(fx.text("bt_note_b") == "just now");
     CHECK(fx.state_int("bt_verdict") == static_cast<int>(helix::calibration::BeltVerdict::CLOSE));
     CHECK(fx.text("bt_verdict_text") == "Fair match");
 
@@ -296,8 +298,8 @@ TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
     // 110 and 98 sit 12 Hz apart, past the 10 Hz pairing cap, so the only pair
     // the defaults form is the ~42 Hz rig peak both curves share, and each
     // belt peak is listed as unpaired.
-    REQUIRE(fx.text("bt_peak_a") == "42");
-    REQUIRE(fx.text("bt_peak_b") == "42");
+    const std::string similarity_before = fx.text("bt_similarity");
+    REQUIRE(similarity_before.back() == '%');
     CHECK(fx.state_int("bt_has_unpaired") == 1);
     CHECK(fx.text("bt_unpaired").find("Only on A: 110") != std::string::npos);
     CHECK(fx.text("bt_unpaired").find("Only on B: 98") != std::string::npos);
@@ -309,10 +311,8 @@ TEST_CASE("Re-test A keeps B and ghosts the old A", "[belt][panel][chart]") {
     // A re-measure walks A toward B by at most 4 Hz: 110 -> 106, now 8 Hz from
     // B, inside the cap: the belt-hump pair outranks the 42 Hz one.
     REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
-    CHECK(fx.text("bt_peak_a") == "106");
-    // "was" repeats the number the path showed before its re-measure.
-    CHECK(fx.text("bt_note_a").find("was 42") != std::string::npos);
-    CHECK(fx.text("bt_peak_b") == "98");
+    // "was" repeats the similarity the comparison showed before the re-measure.
+    CHECK(fx.text("bt_note_a").find("was " + similarity_before) != std::string::npos);
     CHECK(fx.state_int("bt_has_unpaired") == 0);
 
     auto* chart = fx.panel_chart();

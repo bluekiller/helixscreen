@@ -24,9 +24,10 @@
             style_pad_right="#space_lg" style_pad_gap="#space_sm" scrollable="false" flex_flow="column">
       <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
       <!-- ============================================================ -->
-      <!-- HERO ROW - shared by RUNNING and RESULTS. Each side is a path's -->
-      <!-- peak in the strongest pair; the centre is the run status while -->
-      <!-- measuring and the similarity once both paths are in. -->
+      <!-- HERO ROW - shared by RUNNING and RESULTS. Each side carries -->
+      <!-- its path label above the status note; the centre is the run -->
+      <!-- status while measuring and the similarity once both paths -->
+      <!-- are in. The peaks live on the chart and in the facts line. -->
       <!-- ============================================================ -->
       <lv_obj name="hero_row"
               width="100%" height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="space_between"
@@ -38,9 +39,6 @@
             <style name="path_a_text"/>
             <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
           </text_small>
-          <lv_label name="bt_peak_a" bind_text="bt_peak_a" style_text_font="#font_xl">
-            <style name="path_a_text"/>
-          </lv_label>
           <text_small width="100%" bind_text="bt_note_a" style_text_color="#text_muted" long_mode="dots"/>
         </lv_obj>
         <!-- Centre: run status while measuring, similarity once both paths are in -->
@@ -90,9 +88,6 @@
             <style name="path_b_text"/>
             <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
           </text_small>
-          <lv_label name="bt_peak_b" bind_text="bt_peak_b" style_text_font="#font_xl">
-            <style name="path_b_text"/>
-          </lv_label>
           <text_small width="100%"
                       bind_text="bt_note_b" style_text_align="right" style_text_color="#text_muted" long_mode="dots"/>
         </lv_obj>

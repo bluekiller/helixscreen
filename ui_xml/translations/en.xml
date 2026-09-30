@@ -3,7 +3,7 @@
   <translation tag=" (timed out)" en=" (timed out)"/>
   <translation tag=" frames" en=" frames"/>
   <translation tag=" left" en=" left"/>
-  <translation tag=" · was {:.0f}" en=" · was {:.0f}"/>
+  <translation tag=" · was {:.0f}%" en=" · was {:.0f}%"/>
   <translation tag="&quot;%s&quot; failed to load" en="&quot;%s&quot; failed to load"/>
   <translation tag="%d additional fan%s" en="%d additional fan%s"/>
   <translation tag="%d feeders" en="%d feeders"/>

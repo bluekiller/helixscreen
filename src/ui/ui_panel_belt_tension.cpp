@@ -189,8 +189,6 @@ void BeltTensionPanel::init_subjects() {
     UI_MANAGED_SUBJECT_INT(running_path_subject_, 0, "bt_running_path", subjects_);
 
     // Results
-    UI_MANAGED_SUBJECT_STRING(peak_a_subject_, peak_a_buf_, "--", "bt_peak_a", subjects_);
-    UI_MANAGED_SUBJECT_STRING(peak_b_subject_, peak_b_buf_, "--", "bt_peak_b", subjects_);
     UI_MANAGED_SUBJECT_STRING(note_a_subject_, note_a_buf_, "", "bt_note_a", subjects_);
     UI_MANAGED_SUBJECT_STRING(note_b_subject_, note_b_buf_, "", "bt_note_b", subjects_);
     UI_MANAGED_SUBJECT_INT(verdict_subject_, 0, "bt_verdict", subjects_);
@@ -317,7 +315,7 @@ void BeltTensionPanel::on_activate() {
     spdlog::debug("[BeltTension] on_activate()");
 
     set_view_state(ViewState::START);
-    refresh_peaks_and_notes();
+    refresh_notes();
 
     // Re-evaluate the gate on every entry, and probe co-location once here
     // rather than on each gate refresh - the gate recomputes on every subject
@@ -501,13 +499,12 @@ void BeltTensionPanel::handle_retest_clicked(helix::calibration::BeltPath path) 
         auto& run = runs_[idx];
 
         // The curve being replaced becomes the ghost this run compares against,
-        // and the number it showed becomes the note's "was".
+        // and the similarity the last comparison showed becomes the note's "was".
         run.previous = std::move(run.curve);
         run.curve.clear();
         run.has_previous = run.has;
         run.has = false;
-        was_peak_hz_[idx] = shown_peak_hz_[idx];
-        shown_peak_hz_[idx] = 0.0f;
+        was_similarity_percent_ = similarity_percent_;
 
         begin_run({path}, /*clear_previous=*/false);
     });
@@ -574,8 +571,7 @@ void BeltTensionPanel::begin_run(const std::vector<helix::calibration::BeltPath>
             run.previous.clear();
             run.has_previous = false;
         }
-        shown_peak_hz_[0] = shown_peak_hz_[1] = 0.0f;
-        was_peak_hz_[0] = was_peak_hz_[1] = 0.0f;
+        was_similarity_percent_ = 0.0f;
     }
 
     // Markers belong to the comparison being replaced.
@@ -591,7 +587,7 @@ void BeltTensionPanel::begin_run(const std::vector<helix::calibration::BeltPath>
     run_active_ = true;
 
     chart_to_running_host();
-    refresh_peaks_and_notes();
+    refresh_notes();
     set_view_state(ViewState::RUNNING);
     start_elapsed_timer();
     start_next_measurement();
@@ -612,7 +608,7 @@ void BeltTensionPanel::start_next_measurement() {
     lv_subject_copy_string(&run_title_subject_,
                            fmt::format(fmt::runtime(title), static_cast<char>('A' + idx)).c_str());
     refresh_run_detail();
-    refresh_peaks_and_notes();
+    refresh_notes();
 
     // One guard spans the whole queue: every progress line re-arms it, so it
     // measures silence, not sweep length.
@@ -665,7 +661,7 @@ void BeltTensionPanel::on_sweep_complete(helix::calibration::BeltPath path,
         queue_.erase(queue_.begin());
     }
 
-    refresh_peaks_and_notes();
+    refresh_notes();
 
     if (queue_.empty()) {
         finish_run();
@@ -732,6 +728,7 @@ void BeltTensionPanel::populate_results(const helix::calibration::BeltComparison
     snprintf(similarity_buf_, sizeof(similarity_buf_), "%.0f%%",
              static_cast<double>(cmp.similarity_percent));
     lv_subject_copy_string(&similarity_subject_, similarity_buf_);
+    similarity_percent_ = cmp.similarity_percent;
 
     // Paired peaks, strongest first: "Peaks 35/36 · 133/132 Hz" (A/B).
     const auto& pairs = cmp.peaks.pairs;
@@ -779,14 +776,8 @@ void BeltTensionPanel::populate_results(const helix::calibration::BeltComparison
     lv_subject_copy_string(&unpaired_subject_, unpaired_buf_);
     lv_subject_set_int(&has_unpaired_subject_, unpaired.empty() ? 0 : 1);
 
-    // The hero numbers are the strongest pair's frequencies, not each curve's
-    // own tallest bin: an unpaired peak is exactly what they must not imply is
-    // comparable.
-    shown_peak_hz_[0] = pairs.empty() ? 0.0f : pairs.front().a.freq_hz;
-    shown_peak_hz_[1] = pairs.empty() ? 0.0f : pairs.front().b.freq_hz;
-
     push_chart_markers(cmp);
-    refresh_peaks_and_notes();
+    refresh_notes();
 }
 
 void BeltTensionPanel::push_chart_markers(const helix::calibration::BeltComparison& cmp) {
@@ -841,19 +832,15 @@ void BeltTensionPanel::back_to_start() {
 // SUBJECT REFRESH
 // ============================================================================
 
-void BeltTensionPanel::refresh_peaks_and_notes() {
+void BeltTensionPanel::refresh_notes() {
     const bool running =
         static_cast<ViewState>(lv_subject_get_int(&s_belt_tension_state)) == ViewState::RUNNING;
 
     for (int idx = 0; idx < 2; ++idx) {
         const auto& run = runs_[idx];
-        auto& peak_subject = idx == 0 ? peak_a_subject_ : peak_b_subject_;
         auto& note_subject = idx == 0 ? note_a_subject_ : note_b_subject_;
         auto& note_buf = idx == 0 ? note_a_buf_ : note_b_buf_;
-        auto& peak_buf = idx == 0 ? peak_a_buf_ : peak_b_buf_;
 
-        const std::string peak =
-            shown_peak_hz_[idx] > 0.0f ? fmt::format("{:.0f}", shown_peak_hz_[idx]) : "--";
         std::string note = "--";
         if (running && !queue_.empty() &&
             (queue_.front() == (idx == 0 ? helix::calibration::BeltPath::PATH_A
@@ -864,13 +851,10 @@ void BeltTensionPanel::refresh_peaks_and_notes() {
             note = age_s < 60 ? lv_tr("just now")
                               : fmt::format(fmt::runtime(lv_tr("{} min ago")), age_s / 60);
         }
-        if (run.has_previous && was_peak_hz_[idx] > 0.0f) {
-            note += fmt::format(fmt::runtime(lv_tr(" · was {:.0f}")), was_peak_hz_[idx]);
+        if (run.has_previous) {
+            note += fmt::format(fmt::runtime(lv_tr(" · was {:.0f}%")), was_similarity_percent_);
         }
 
-        snprintf(peak_buf, idx == 0 ? sizeof(peak_a_buf_) : sizeof(peak_b_buf_), "%s",
-                 peak.c_str());
-        lv_subject_copy_string(&peak_subject, peak_buf);
         snprintf(note_buf, idx == 0 ? sizeof(note_a_buf_) : sizeof(note_b_buf_), "%s",
                  note.c_str());
         lv_subject_copy_string(&note_subject, note_buf);
