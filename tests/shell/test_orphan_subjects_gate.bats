@@ -440,6 +440,28 @@ EOF
     contains "2 of 2 registered" "$output"
 }
 
+@test "a bound member in one class does not clear a same-named member in another" {
+    # Members are only unique within their owner: status_subject_ is a common
+    # spelling, so binding one class's must say nothing about another's.
+    cat > "$ROOT/src/alpha.cpp" <<'EOF'
+void Alpha::init_subjects() {
+    lv_xml_register_subject(nullptr, "alpha_status", &status_subject_);
+}
+EOF
+    cat > "$ROOT/src/beta.cpp" <<'EOF'
+void Beta::init_subjects() {
+    lv_xml_register_subject(nullptr, "beta_status", &status_subject_);
+}
+EOF
+    cat > "$ROOT/ui_xml/alpha.xml" <<'EOF'
+<component><view><lv_label bind_text="alpha_status"/></view></component>
+EOF
+    run_gate
+    contains "beta_status" "$output"
+    lacks "alpha_status" "$output"
+    contains "1 of 2 registered" "$output"
+}
+
 # ------------------------------------------------------ the accepted-debt list
 #
 # The gate keys on NAMES, not on a count, so it also catches a swap: one orphan
