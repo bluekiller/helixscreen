@@ -149,6 +149,11 @@ class PrinterCapabilitiesState {
      */
     void set_has_individual_xyz_homing(bool has_individual_xyz_homing);
 
+    /// 1 when the kinematics is a CoreXY whose two diagonals are the two belt
+    /// paths (corexy, limited_corexy) - what Belt Tension measures. Set from
+    /// PrinterState::set_kinematics.
+    void set_supports_belt_compare(bool supports);
+
     /**
      * @brief Set bed moves on Z axis (from kinematics detection)
      *
@@ -304,6 +309,11 @@ class PrinterCapabilitiesState {
     /// 1 if XYZ axes can be homed individually, 0 otherwise
     lv_subject_t* get_printer_has_individual_xyz_homing_subject() const {
         return const_cast<lv_subject_t*>(&printer_has_individual_xyz_homing_);
+    }
+
+    /// 1 if the kinematics is a belt-path CoreXY (corexy, limited_corexy)
+    lv_subject_t* get_printer_supports_belt_compare_subject() const {
+        return const_cast<lv_subject_t*>(&printer_supports_belt_compare_);
     }
 
     /// 1 if bed moves on Z axis, 0 if gantry moves
@@ -508,6 +518,8 @@ class PrinterCapabilitiesState {
     lv_subject_t printer_has_pa_cal_{};              // firmware measures pressure advance
     // 0 on deltas: every axis homes together
     lv_subject_t printer_has_individual_xyz_homing_{};
+    // 1 only on corexy/limited_corexy: the two diagonals are the two belt paths
+    lv_subject_t printer_supports_belt_compare_{};
     lv_subject_t
         printer_has_chamber_heater_diagnostics_{};    // chamber heater exposes backend diagnostics
     lv_subject_t printer_has_chamber_filter_fan_{};   // chamber filter fan (output_pin)

@@ -189,6 +189,13 @@ constexpr bool circular_bed_kinematics(std::string_view kinematics) {
     return kinematics == "delta" || kinematics == "rotary_delta";
 }
 
+/// Whether a kinematics string is a CoreXY whose two diagonals are the two belt
+/// paths, which is what the Belt Tension comparison measures. CoreXZ,
+/// hybrid_corexy/hybrid_corexz, cartesian, delta and the rest are not.
+constexpr bool belt_path_kinematics(std::string_view kinematics) {
+    return kinematics == "corexy" || kinematics == "limited_corexy";
+}
+
 /**
  * @brief Printer state manager with LVGL 9 reactive subjects
  *
@@ -2096,6 +2103,12 @@ class PrinterState {
      */
     lv_subject_t* get_printer_has_individual_xyz_homing_subject() {
         return capabilities_state_.get_printer_has_individual_xyz_homing_subject();
+    }
+
+    /// 1 if the printer's kinematics is one whose two belt paths the Belt
+    /// Tension comparison can measure (corexy, limited_corexy), 0 otherwise.
+    lv_subject_t* get_printer_supports_belt_compare_subject() {
+        return capabilities_state_.get_printer_supports_belt_compare_subject();
     }
 
     /**

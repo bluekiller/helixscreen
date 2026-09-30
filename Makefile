@@ -1164,9 +1164,8 @@ endif
 # Capture-control (settings, render, save-frames) is plain JSON-RPC and is NOT
 # gated — printers keep capturing timelapses even where the screen can't view them.
 HELIX_HAS_TIMELAPSE_VIEWER ?= 1
-# Compile-out gate for the belt-tuning UI. It needs klippy's UDS accelerometer
-# stream, so it only works co-located with klippy, and its widgets are dropped
-# from builds that cannot reach one.
+# Compile-out gate for the Belt Tension panel. It reads Klipper's /tmp results,
+# so it only works co-located with Klipper.
 HELIX_HAS_BELT_TUNER ?= 1
 # Compile-out gate for the font rungs above the authored tier ladder. Only the
 # high-DPI UI scale factor reaches them, so a platform with a fixed panel and no

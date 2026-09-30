@@ -152,14 +152,8 @@ static json build_mock_file_list_response(const std::string& root, const std::st
         return response;
     }
 
-    // Mock accelerometer CSV data files for belt tension / input shaper calibration
+    // Mock accelerometer CSV data files for input shaper calibration
     if (root == "config" && path == "data_store") {
-        result_array.push_back({{"path", "raw_data_belt_path_a-20260310_120000.csv"},
-                                {"size", 2048},
-                                {"modified", 1773158400.0}});
-        result_array.push_back({{"path", "raw_data_belt_path_b-20260310_120001.csv"},
-                                {"size", 2048},
-                                {"modified", 1773158401.0}});
         result_array.push_back({{"path", "raw_data_x-20260310_115000.csv"},
                                 {"size", 4096},
                                 {"modified", 1773154800.0}});

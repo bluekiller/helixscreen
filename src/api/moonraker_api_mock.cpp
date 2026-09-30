@@ -18,6 +18,11 @@
 
 #include <spdlog/spdlog.h>
 
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 // Alias for cleaner code - use shared constant from RuntimeConfig
 #define TEST_GCODE_DIR RuntimeConfig::TEST_GCODE_DIR
 
@@ -1326,6 +1331,10 @@ void MoonrakerRestAPIMock::wled_get_status(RestCallback on_success, ErrorCallbac
     }
 }
 
+namespace {
+const char* mock_klippy_uds_address(); // defined below, beside its socket setup
+}
+
 void MoonrakerRestAPIMock::get_server_config(RestCallback on_success, ErrorCallback /*on_error*/) {
     spdlog::info("[MoonrakerAPIMock] get_server_config");
 
@@ -1336,13 +1345,62 @@ void MoonrakerRestAPIMock::get_server_config(RestCallback on_success, ErrorCallb
         resp.data = {
             {"result",
              {{"config",
-               {{"wled printer_led",
+               {{"server", {{"klippy_uds_address", mock_klippy_uds_address()}}},
+                {"wled printer_led",
                  {{"type", "http"}, {"address", "192.168.1.50"}, {"initial_preset", -1}}},
                 {"wled enclosure_led",
                  {{"type", "http"}, {"address", "192.168.1.51"}, {"initial_preset", -1}}}}}}}};
         on_success(resp);
     }
 }
+
+// ============================================================================
+// Mock klippy UDS
+// ============================================================================
+
+namespace {
+
+/// Owns the mock klippy socket; unlinks the path at process exit.
+struct SocketGuard {
+    std::string path;
+    int fd;
+    ~SocketGuard() {
+        ::unlink(path.c_str());
+        ::close(fd);
+    }
+};
+
+/// A process-lifetime listening unix socket standing in for klippy's UDS.
+/// Co-location checks connect() to the address Moonraker reports, so the mock
+/// must name a socket that accepts a connection. Created once per process on
+/// first use and unlinked at exit.
+const char* mock_klippy_uds_address() {
+    static const std::string path = [] {
+        const std::string p = "/tmp/helix-mock-klippy-" + std::to_string(getpid()) + ".sock";
+        ::unlink(p.c_str());
+        const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd >= 0) {
+            sockaddr_un addr{};
+            addr.sun_family = AF_UNIX;
+            std::strncpy(addr.sun_path, p.c_str(), sizeof(addr.sun_path) - 1);
+            // SOMAXCONN, never 1: connect_uds() blocks on a full backlog, and
+            // nothing ever accepts here - a tiny backlog would wedge the
+            // second co-location probe for the process lifetime.
+            if (::bind(fd, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) == 0 &&
+                ::listen(fd, SOMAXCONN) == 0) {
+                static_cast<void>(fcntl(fd, F_SETFD, FD_CLOEXEC));
+                // Local static: its destructor unlinks at process exit.
+                static const SocketGuard guard{p, fd};
+                return p;
+            }
+            ::close(fd);
+        }
+        return std::string("/nonexistent/mock-klippy.sock");
+    }();
+    return path.c_str();
+}
+
+} // namespace
 
 // ============================================================================
 // Shared State Methods

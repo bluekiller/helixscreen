@@ -47,6 +47,7 @@ void PrinterCapabilitiesState::init_subjects(bool register_xml) {
     INIT_SUBJECT_INT(printer_has_purge_line, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(printer_has_firmware_retraction, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(printer_has_individual_xyz_homing, 1, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_supports_belt_compare, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(printer_bed_moves, 0, subjects_, register_xml); // 0=gantry moves, 1=bed moves
     INIT_SUBJECT_INT(printer_is_enclosed, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(printer_can_bed_dry, 0, subjects_, register_xml);
@@ -302,6 +303,14 @@ void PrinterCapabilitiesState::set_has_individual_xyz_homing(bool has_individual
         lv_subject_set_int(&printer_has_individual_xyz_homing_, new_value);
         spdlog::info("[PrinterCapabilitiesState] Has individual XYZ homing: {}",
                      has_individual_xyz_homing);
+    }
+}
+
+void PrinterCapabilitiesState::set_supports_belt_compare(bool supports) {
+    int new_value = supports ? 1 : 0;
+    if (lv_subject_get_int(&printer_supports_belt_compare_) != new_value) {
+        lv_subject_set_int(&printer_supports_belt_compare_, new_value);
+        spdlog::info("[PrinterCapabilitiesState] Supports belt compare: {}", supports);
     }
 }
 

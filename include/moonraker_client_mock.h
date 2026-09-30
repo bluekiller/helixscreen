@@ -49,6 +49,17 @@ using MethodHandler =
                        std::function<void(const MoonrakerError&)>)>;
 } // namespace mock_internal
 
+/// Failure modes the TEST_RESONANCES simulation can be switched to.
+enum class BeltMockFailure { // NAMESPACE_OK: sits beside MoonrakerClientMock, this header's
+                             // global-scope mock API
+    NONE,                    ///< Normal sweep: console lines plus a written CSV
+    STALL,                   ///< Sweep dies at its midpoint; no file is ever reported
+    NOFILE,                  ///< Terminal line names a path that was never written
+    MULTICHIP,               ///< CSV carries per-chip columns instead of a summed psd_xyz
+    ERROR,                   ///< Sweep dies after 3 lines with an adxl345 id mismatch
+    KALICO,                  ///< Kalico dialect: two-part axis names, extra accel_per_hz column
+};
+
 /**
  * @brief Mock Moonraker client for testing without real printer connection
  *
@@ -709,6 +720,14 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
         resonance_max_freq_ = max_freq;
     }
 
+    /// Same, also setting [resonance_tester] hz_per_sec: how many Hz of sweep
+    /// one simulated second covers, which sets the line cadence below.
+    void set_resonance_sweep_range(double min_freq, double max_freq, double hz_per_sec) {
+        resonance_min_freq_ = min_freq;
+        resonance_max_freq_ = max_freq;
+        resonance_hz_per_sec_ = hz_per_sec;
+    }
+
     [[nodiscard]] double get_resonance_min_freq() const {
         return resonance_min_freq_;
     }
@@ -716,6 +735,48 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     [[nodiscard]] double get_resonance_max_freq() const {
         return resonance_max_freq_;
     }
+
+    [[nodiscard]] double get_resonance_hz_per_sec() const {
+        return resonance_hz_per_sec_;
+    }
+
+    /**
+     * @name TEST_RESONANCES belt simulation
+     * @{
+     */
+
+    /// Current simulated peak for a path ('A' or 'B').
+    [[nodiscard]] float belt_peak_hz(char path) const;
+
+    /// Seed both paths' simulated peaks. Re-testing a path walks its peak
+    /// toward the other path's, so the defaults start with a visible delta.
+    void set_belt_peaks_hz(float a_hz, float b_hz);
+
+    /// Switch the next TEST_RESONANCES to a failure mode (NONE = normal).
+    void set_belt_failure(BeltMockFailure f) {
+        belt_failure_ = f;
+    }
+
+    /// Milliseconds between "Testing frequency" lines; 0 = derive from
+    /// hz_per_sec and sim speed. Tests set a small value.
+    void set_belt_line_interval_ms(uint32_t ms) {
+        belt_line_interval_ms_ = ms;
+    }
+
+    /**
+     * @brief Path the next TEST_RESONANCES for @p name writes
+     *
+     * PID-scoped for the same reason as shaper_csv_path(): sharded test
+     * processes must not delete each other's fixtures. Callers only ever use
+     * the path from the console line, so it must match exactly.
+     */
+    [[nodiscard]] static std::string belt_csv_path(const std::string& axis_name,
+                                                   const std::string& name);
+
+    /// Delete every belt CSV this process wrote.
+    static void remove_belt_csvs();
+
+    /** @} */
 
     /**
      * @brief Report stepper_z position_endstop as JSON null
@@ -1438,6 +1499,16 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     void dispatch_shaper_calibrate_response(char axis);
 
     /**
+     * @brief Dispatch TEST_RESONANCES response sequence
+     *
+     * Simulates Klipper's TEST_RESONANCES AXIS=<1,1|1,-1> OUTPUT=resonances
+     * NAME=<name>: one "Testing frequency" line per whole Hz, then the CSV
+     * write line the belt-tension collector terminates on. Failure modes
+     * (set_belt_failure) reproduce the ways a real run goes wrong.
+     */
+    void dispatch_test_resonances_response(const std::string& gcode);
+
+    /**
      * @brief Dispatch MEASURE_AXES_NOISE response
      *
      * Simulates the G-code response output from Klipper's MEASURE_AXES_NOISE
@@ -1940,7 +2011,17 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     json object_status_overrides_ = json::object(); ///< set_object_status() statuses
     double resonance_min_freq_{5.0};   ///< [resonance_tester] min_freq the mock reports/sweeps
     double resonance_max_freq_{135.0}; ///< [resonance_tester] max_freq the mock reports/sweeps
-    bool mmu_enabled_{true};           ///< MMU available (default true for existing tests)
+    double resonance_hz_per_sec_{1.0}; ///< [resonance_tester] hz_per_sec the mock reports/sweeps
+    /// Simulated belt peaks, index 0 = path A ('1,1'), 1 = path B ('1,-1').
+    float belt_peaks_hz_[2]{110.0f, 98.0f};
+    /// Measurements taken per path; every one after the first walks that
+    /// path's peak toward the other's, so repeated tuning converges.
+    int belt_measure_count_[2]{0, 0};
+    BeltMockFailure belt_failure_{BeltMockFailure::NONE};
+    /// 0 = derive the line interval from hz_per_sec and the sim speed.
+    uint32_t belt_line_interval_ms_{0};
+
+    bool mmu_enabled_{true}; ///< MMU available (default true for existing tests)
 
     // --- MedusaHC swap simulation -------------------------------------------
     // Driven from gcode_script() (SELECT_TOOL / UNSELECT_TOOL / the feeder

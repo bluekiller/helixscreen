@@ -83,6 +83,20 @@ class TestProjectRegistryFromFiles:
         registry = ProjectRegistry.from_files([xml])
         assert "space_md" in registry.const_names
 
+    def test_light_dark_pair_registers_its_base_name(self, tmp_path: Path) -> None:
+        """A _light/_dark pair makes its base name a valid # reference."""
+        xml = tmp_path / "globals.xml"
+        xml.write_text(
+            '<component><consts><color name="accent_light" value="#111111"/>'
+            '<color name="accent_dark" value="#eeeeee"/>'
+            '<color name="lonely_light" value="#222222"/></consts>'
+            '<view extends="lv_obj"/></component>',
+            encoding="utf-8",
+        )
+        registry = ProjectRegistry.from_files([xml])
+        assert "accent" in registry.const_names
+        assert "lonely" not in registry.const_names
+
     def test_collects_subjects_from_file(self, tmp_path: Path) -> None:
         """from_files collects subject names from all files."""
         xml = tmp_path / "subs.xml"

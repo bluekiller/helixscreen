@@ -489,8 +489,10 @@ class MoonrakerAdvancedAPI : public IAdvancedAPI {
     // Belt Tension Operations
     // ========================================================================
 
-    /// Callback for belt resonance test completion (returns output name for CSV lookup)
-    using BeltResonanceCallback = std::function<void(const std::string& csv_path)>;
+    /// Mirrors IAdvancedAPI (contracts live there).
+    using BeltSweepProgressCallback = IAdvancedAPI::BeltSweepProgressCallback;
+    using BeltCurveCallback = IAdvancedAPI::BeltCurveCallback;
+    using BeltRunCancel = IAdvancedAPI::BeltRunCancel;
 
     /// Callback for belt hardware detection
     using BeltHardwareCallback =
@@ -511,47 +513,23 @@ class MoonrakerAdvancedAPI : public IAdvancedAPI {
     /**
      * @brief Run TEST_RESONANCES for belt tension measurement
      *
-     * Executes TEST_RESONANCES with OUTPUT=raw_data to produce a CSV file
-     * of accelerometer data for belt tension analysis.
+     * Executes TEST_RESONANCES with OUTPUT=resonances and SWEEPING_PERIOD=0
+     * (pulse-only excitation) and collects the console sweep, then reads the
+     * CSV Klipper names in its "Resonances data written to" line and hands
+     * back the parsed curve.
      *
-     * @param axis_param Axis parameter: "1,1" for CoreXY Path A, "1,-1" for Path B, "X"/"Y" for
-     * Cartesian
+     * @param axis_param Axis parameter: "1,-1" for CoreXY Path A, "1,1" for Path B
      * @param output_name Name for the CSV output file
-     * @param on_progress Called with progress percentage (0-100)
-     * @param on_complete Called with output name on success
+     * @param on_progress Called with progress percentage (0-100) and current frequency
+     * @param on_complete Called with the parsed curve on success
      * @param on_error Called on failure
+     * @return Cancel handle; stops listening and suppresses every later callback
      */
-    void test_belt_resonance(const std::string& axis_param, const std::string& output_name,
-                             helix::AdvancedProgressCallback on_progress,
-                             BeltResonanceCallback on_complete, ErrorCallback on_error) override;
-
-    /**
-     * @brief Run TEST_RESONANCES at a fixed frequency
-     *
-     * Holds near freq_hz for ~5 seconds by using a narrow frequency band
-     * (FREQ_START=F FREQ_END=F+0.5 HZ_PER_SEC=0.1).
-     *
-     * @param axis_param Axis parameter (same as test_belt_resonance)
-     * @param freq_hz Frequency to excite at
-     * @param on_complete Called when excitation completes
-     * @param on_error Called on failure
-     */
-    void excite_belt_at_frequency(const std::string& axis_param, float freq_hz,
-                                  SuccessCallback on_complete, ErrorCallback on_error) override;
-
-    /**
-     * @brief Download raw accelerometer CSV from Klipper data store
-     *
-     * Retrieves the raw resonance CSV file produced by TEST_RESONANCES.
-     * The file is typically at /tmp/raw_data_<name>*.csv on the printer host.
-     *
-     * @param filename CSV filename to download
-     * @param on_complete Called with raw CSV data on success
-     * @param on_error Called on failure
-     */
-    void download_accel_csv(const std::string& filename,
-                            std::function<void(const std::string& csv_data)> on_complete,
-                            ErrorCallback on_error) override;
+    [[nodiscard]] BeltRunCancel test_belt_resonance(const std::string& axis_param,
+                                                    const std::string& output_name,
+                                                    BeltSweepProgressCallback on_progress,
+                                                    BeltCurveCallback on_complete,
+                                                    ErrorCallback on_error) override;
 
   protected:
     helix::IMoonrakerClient& client_;

@@ -10,6 +10,7 @@
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
+#include "calibration_abort.h"
 #include "format_utils.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -416,20 +417,7 @@ bool ToolOffsetCalibrationPanel::abort_in_progress_calibration() {
     lv_subject_set_int(&active_, 0);
     lv_subject_copy_string(&status_, lv_tr("Stopped"));
 
-    if (api) {
-        api->emergency_stop(
-            [api]() {
-                spdlog::debug("[ToolOffsetCal] M112 sent, restarting firmware");
-                api->restart_firmware(
-                    []() {},
-                    [](const MoonrakerError& err) {
-                        spdlog::error("[ToolOffsetCal] Firmware restart failed: {}", err.message);
-                    });
-            },
-            [](const MoonrakerError& err) {
-                spdlog::error("[ToolOffsetCal] Emergency stop failed: {}", err.message);
-            });
-    }
+    helix::emergency_stop_and_restart(api, "ToolOffsetCal");
     return true;
 }
 

@@ -3,8 +3,8 @@ translations:
   ' (timed out)': （超时）
   ' frames': ' 帧'
   ' left': ' 剩余'
+  ' · was {:.0f}%': ' · 原为 {:.0f}%'
   '"%s" failed to load': '"%s" 加载失败'
-  '%.0f Hz difference': '%.0f Hz 差异'
   '%d additional fan%s': '%d 个额外风扇%s'
   '%d feeders': '%d 个送料器'
   '%d gates': '%d 个通道'
@@ -124,6 +124,7 @@ translations:
   A print is in progress - restart still pending: '打印进行中 - 重启待执行'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: 此通道正在打印中。HelixScreen 已清除本地副本；打印结束后请再次清空。
   A spool may be tangled or the drive gear is jammed: 料盘可能缠绕，或驱动齿轮卡住
+  A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: 加速度计
   ACE Moonraker bridge not found. Install ace_status.py for full support.: 未找到 ACE Moonraker 桥接。请安装 ace_status.py 以获得完整支持。
@@ -216,7 +217,6 @@ translations:
   An app on your network is asking to connect to this printer.: '网络中的某个应用请求连接到此打印机。'
   An error occurred during calibration.: 校准过程中发生错误。
   An error occurred during filament loading.: 装载耗材时发生错误。
-  An error occurred during measurement.: 测量时发生错误。
   An error occurred during probing.: 探测过程中发生错误。
   An error occurred while loading filament.: 加载耗材时发生错误。
   # Source: probe_accuracy_modal.xml:90
@@ -280,7 +280,8 @@ translations:
   Available networks: 可用网络
   Average: 平均值
   Axis limits unknown: 轴限位未知
-  B: B
+  B · 1,1: "B · 1,1"
+  BACK: 后侧
   BEACON: BEACON
   BETA: 测试版
   'BLE connect failed: {}': 'BLE 连接失败: {}'
@@ -324,13 +325,9 @@ translations:
   Bed temp must be 0-%d°C: 热床温度必须为 0-%d°C
   Bed warming timed out: 热床加热超时
   Before starting: '开始之前'
-  Belt A: 皮带 A
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: 皮带 A（前右）偏紧 %.0f Hz。请拉紧前左的皮带 B，或松开皮带 A。
-  Belt B: 皮带 B
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: 皮带 B（前左）偏紧 %.0f Hz。请拉紧前右的皮带 A，或松开皮带 B。
   Belt Tension: 皮带张力
   Belt Tension Check: 皮带张力检查
-  Belt tension looks good!: 皮带张力良好！
+  Belt Tension needs a CoreXY printer. This one is {}.: '皮带张力需要 CoreXY 打印机。此打印机为{}。'
   Beta: 测试版
   'Beta features: OFF': '测试版功能: 关'
   'Beta features: ON': '测试版功能: 开'
@@ -352,12 +349,6 @@ translations:
   Border Width: 边框宽度
   Border transparency (0 = invisible, 255 = solid): 边框透明度（0 = 不可见，255 = 实心）
   Both: 两者
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: 两条皮带都高于 %.0f Hz 目标 - A 高 %.0f Hz，B 高 %.0f Hz。请两条都松开。
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: 两条皮带都低于 %.0f Hz 目标 - A 低 %.0f Hz，B 低 %.0f Hz。请两条都拉紧，其中 %s 需要更多。
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: 两条皮带都处于 %.0f Hz 目标，且彼此匹配。无需调整。
-  Both belts are overtightened.: 两条皮带都过紧。
-  Both belts need tightening.: 两条皮带都需要拉紧。
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: 两条皮带的读数在此测量的分辨能力范围内一致。无需调整。
   Bouncing Printer: 弹跳打印机
   Bowden Length: '波顿管长度'
   Bowden tube length from hub to toolhead: '从集线器到工具头的波顿管长度'
@@ -611,8 +602,8 @@ translations:
   Command failed: 命令失败
   Communication Test: '通信测试'
   Compact: 紧凑
-  Compare: 比较
-  Comparison: 比较
+  Compare belt paths with a resonance sweep: "用共振扫频比较皮带路径"
+  Compare your belt paths: 比较皮带路径
   Complete: 完成
   Complete!: 完成！
   Completed: 已完成
@@ -726,7 +717,6 @@ translations:
   Could not load printer database: 无法加载打印机数据库
   Could not move the plate: 无法移动热床
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: 无法打开 Klipper 的加速度计数据流。请检查 Klipper 是否正在运行，然后重试。
   Could not parse tips database: 无法解析提示数据库
   Could not reach Spoolman at: 无法连接 Spoolman：
   Could not read the screw adjustments from the printer: 无法从打印机读取螺丝调整数据
@@ -1159,6 +1149,7 @@ translations:
   : "更新 moonraker.conf 失败。\n请检查打印机连接。"
   'Failed to upload modified G-code: {}': '上传修改后的 G-code 失败: {}'
   'Failed to upload remapped G-code: {}': 上传重新映射的 G-code 失败：{}
+  Fair match: "匹配中等"
   Fan: 风扇
   Fan Calibration: 风扇校准
   Fan Speeds: '风扇速度'
@@ -1292,9 +1283,6 @@ translations:
   Found %zu printers: 找到 %zu 台打印机
   Found 1 printer: 找到 1 台打印机
   Framerate: 帧率
-  Frequency Delta: 频率差
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "频率差: 路径 A 与 B 之间的差异。低于 2 Hz 的差异超出此测量的分辨能力，因此视为匹配。\n\n匹配度: 两条皮带的接近程度，以皮带 A 频率的百分比表示。高于 95% 为优秀;低于 90% 则值得调整。"
   From Buffer: 来自缓冲区
   From Version: 起始版本
   Front: '前'
@@ -1319,6 +1307,7 @@ translations:
   Global: 全局
   Good: 良好
   Good Accuracy: 精度良好
+  Good match: "匹配良好"
   Got it: 知道了
   Gray: 灰色
   Grip filament: 夹持耗材
@@ -1409,7 +1398,6 @@ translations:
   Hide the on-screen keyboard while a USB keyboard is attached: 连接 USB 键盘时隐藏屏幕键盘
   High Water Mark: 峰值标记
   Hold anywhere to cancel: 长按任意位置取消
-  Hold still: 请保持静止
   Holding nozzle at {}°C to purge previous filament.: 将喷嘴保持在 {}°C 以清洗之前的耗材。
   Home: 归位
   Home & Continue: 归位并继续
@@ -1565,6 +1553,7 @@ translations:
   Keep Printing: 继续打印
   Keep Required: 保持必需
   Keep Spool Info on Eject: 弹出时保留料盘信息
+  Keep clear of the printer while the toolhead is moving: 工具头移动时请远离打印机
   Keep current: 保留当前
   Keep hands clear. The printer moves on its own.: 请勿将手靠近。打印机会自行移动。
 
@@ -1582,6 +1571,7 @@ translations:
     已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper 将 'default' 保留用于新的校准。请选择其他名称。"
   Klipper restarting - macros activating: '正在重启 Klipper - 正在启用宏'
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存；请重启 Klipper 后重试。"
   Klipper will restart to apply changes: Klipper 将重启以应用更改
   Klipper will restart to apply changes.: Klipper 将重启以应用更改。
   Klipper will restart to apply new settings.: Klipper 将重启以应用新设置。
@@ -1647,7 +1637,6 @@ translations:
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: '第 {} 行调用 {}，此打印机将其视为紧急停止。请使用为此打印机制作的配置重新切片该文件。'
   Listen to all theme sounds: 试听所有主题声音
-  Listening: 正在监听
   Live view from your webcam: 摄像头实时画面
   Load: 加载
   Load Cell: '称重传感器'
@@ -1693,8 +1682,6 @@ translations:
   'Long-press any tile to enter edit mode — rearrange, resize, remove, or add widgets, and add extra pages for your preferred layout.': 长按任意磁贴进入编辑模式 — 重新排列、调整大小、移除或添加小组件，并为您喜欢的布局添加额外页面。
   Long-press the home grid to rearrange widgets (turn off if it triggers by accident): '长按主屏幕网格可重新排列小组件（若误触请关闭）'
   Longest Disconnect: 最长断开时长
-  Loosen Path A belt.: 松开路径A的皮带。
-  Loosen Path B belt.: 松开路径B的皮带。
   Lost connection during print — try again: 打印过程中连接丢失 — 请重试
   Lost connection to CFS unit: 与 CFS 单元的连接已断开
   'Lot # (optional)': 批号（可选）
@@ -1771,8 +1758,6 @@ translations:
   Mark a printer you enclosed yourself: 将自行加装机箱的打印机标记为封闭
 
   Master volume level: 主音量
-  Match: 匹配度
-  Match to belt A: 匹配皮带 A
   Match your typical print fan speed: 匹配您常用的打印风扇速度
   Matching printers: 匹配的打印机
   Material: 材料
@@ -1790,19 +1775,17 @@ translations:
   Maximum acceleration (mm/s²): 最大加速度 (mm/s²)
   Maximum toolhead speed (mm/s): 打印头最大速度 (mm/s)
   Measure: '测量'
-  Measure and compare belt path frequencies: 测量和比较皮带路径频率
-  Measure belt path frequencies: 测量皮带路径频率
   Measure every tool's XYZ offset automatically: 自动测量每个工具的 XYZ 偏移
   Measure pressure advance automatically: '自动测量压力提前'
   Measured (shaper off): 实测（关闭整形）
   Measured filament diameter: 测量的耗材直径
   Measured pressure advance: '测得的压力提前'
-  Measurement Failed: 测量失败
+  Measurement incomplete. Try again.: 测量未完成。请重试。
   Measuring: '测量中'
+  Measuring Path {}: 正在测量路径 {}
   Measuring accelerometer noise...: '正在测量加速度计噪声...'
   Measuring vibrations... {}%: '正在测量振动... {}%'
   Measuring wheel error: 计量轮错误
-  Median %.0f Hz: 中值 %.0f Hz
   Memory: 内存
   Memory (MB): 内存 (MB)
   Memory Snapshot: 内存快照
@@ -1843,7 +1826,6 @@ translations:
   ? Moves the print head to measure vibration frequencies on each axis. Takes 2-3
     minutes. The printer will make noise — this is normal.
   : 移动打印头以测量每个轴上的振动频率。需要 2-3 分钟。打印机会发出噪音——这是正常的。
-  Moving gantry: 正在移动龙门
   Moving lane: 正在移动耗材通道
   Moving the plate...: 正在移动热床...
 
@@ -1868,7 +1850,6 @@ translations:
   Name (optional): 名称（可选）
   'Name:': '名称:'
   Named actions in the LED Controls widget. Not shown under LED selection.: 在 LED 控制小组件中显示为命名操作。不会出现在 LED 选择中。
-  Needs adjustment: 需要调整
   Needs attention: 需要处理
   Needs the {} package to switch spools: '切换料盘需要 {} 插件'
   Net Weight (g): 净重（克）
@@ -1892,7 +1873,6 @@ translations:
   New printer successfully added: 新打印机已成功添加
   New profile name: 新配置名称
   Next: 下一步
-  Next belt: 下一条皮带
   Niimbot (Bluetooth): Niimbot（蓝牙）
   'No': 否
   No AMS Detected: '未检测到 AMS'
@@ -1917,7 +1897,6 @@ translations:
   No Spools: 无料盘
   No USB printer detected: 未检测到 USB 打印机
   No USB printers found: 未找到 USB 打印机
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: 没有可用的加速度计数据流。请检查 Klipper 是否正在运行，以及是否已配置加速度计，然后重试。
   No automatic backup-spool package is installed: 未安装自动备用料盘插件
   No buffer data available: 无可用缓冲区数据
   No camera — use USB barcode scanner: 无摄像头 — 请使用 USB 条码扫描器
@@ -1968,6 +1947,7 @@ translations:
   No prints yet: 暂无打印记录
   No profiles available: 无可用配置
   No sensors detected: 未检测到传感器
+  No shared peaks: "无共同峰值"
   No slot currently matches.: '当前没有匹配的槽位。'
   No spool assigned: 未分配料盘
   No spools found — tap to retry: 未找到料盘 - 点击重试
@@ -2005,6 +1985,7 @@ translations:
   Not connected to printer.: 未连接到打印机。
   Not connected to the printer: 未连接到打印机
   Not detected: 未检测到
+  Not enough frequency data from the sweeps. Try again.: '扫频得到的频率数据不足，请重试。'
   'Not in your spools? Set it up': 不在您的料盘中？立即设置
   Not now: 暂不
   Not yet available on this display: '此屏幕暂不支持'
@@ -2062,6 +2043,8 @@ translations:
   On/Off (state-aware): 开/关（状态跟踪）
   'On:': '开:'
   One tap runs this macro. Dangerous macros still ask.: '单击即可运行此宏。危险宏仍会询问。'
+  'Only on A: {} Hz': "仅 A：{} Hz"
+  'Only on B: {} Hz': "仅 B：{} Hz"
   Ooze Reduction: '减少渗漏'
   Open: 打开
   Open Source Licenses: 开源许可证
@@ -2083,7 +2066,6 @@ translations:
   Or Enter Manually: 或手动输入
   Or instead of turning the others: 或者，无需转动其他螺丝
   Oscillating... cycle %d/%d: 振荡中... 循环 %d/%d
-  Out of range: 超出范围
   Outcome: 结果
   Output Device: 输出设备
   Output Mode: 输出模式
@@ -2096,6 +2078,8 @@ translations:
     'chamber'，可覆盖自动检测。
   P: 件
   PA: PA
+  PATH A · 1,-1: "路径 A · 1,-1"
+  PATH B · 1,1: "路径 B · 1,1"
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN 码必须为 4-6 位数字
@@ -2136,8 +2120,8 @@ translations:
   Password: 密码
   Password cannot be empty: 密码不能为空
   Password is required for secured networks: 加密网络需要密码
-  Path A: 路径 A
-  Path B: 路径 B
+  Path {}: 路径 {}
+  Path {} before: 路径 {}（之前）
   Pause: 暂停
   Pause macro not configured: 暂停宏未配置
   Pause on Detection: 检测到故障时暂停
@@ -2149,6 +2133,7 @@ translations:
   Pausing...: 暂停中...
   Peak Freq: 峰值频率
   'Peak:': 峰值：
+  Peaks {} Hz: "峰值 {} Hz"
   Performance: 性能
   Phomemo (Bluetooth): Phomemo（蓝牙）
   Phomemo M110: Phomemo M110
@@ -2174,8 +2159,6 @@ translations:
   Please wait while the printer homes and moves to the start position.: 请等待打印机归零并移动到起始位置。
   Please wait while the printer homes and probes.: 请等待打印机归位和探测。
   Please wait while the printer probes each screw position.: 请等待打印机探测每个螺丝位置。
-  Pluck the front belt on the left: 拨动前左皮带
-  Pluck the front belt on the right: 拨动前右皮带
   Plugin already installed: 插件已安装
   Plugin disabled: 插件已禁用
   Plugin installed successfully: 插件安装成功
@@ -2188,9 +2171,9 @@ translations:
   Point camera at QR code on spool: 将摄像头对准料盘上的 QR 码
   Polymaker: Polymaker
   Poor Accuracy: 精度较差
+  Poor match: "匹配较差"
   Port: 端口
   Position: 位置
-  Position the gantry yourself, then continue: 请手动移动龙门，然后继续
   Post-Sensor Clear: '传感器触发后额外移动'
   Power: 电源
   Power Devices: 电源设备
@@ -2409,16 +2392,18 @@ translations:
   Raspberry Pi (32-bit): Raspberry Pi (32-bit)
   Re-identify: 重新识别
   Re-measure: '重新测量'
+  Re-measuring Path {}: 正在重新测量路径 {}
   Re-probe: 重新探测
   Re-read spool RFID tags and remaining length: '重新读取料盘 RFID 标签与剩余长度'
   Re-seat the Bowden tube connector on the CFS unit: 请重新插紧 CFS 单元上的鲍登管接头
   Re-syncs Happy Hare's tracked state with the hardware.: 将 Happy Hare 跟踪的状态与硬件重新同步。
+  Re-test A: 重新测试 A
+  Re-test B: 重新测试 B
   Readings from extra temperature sensors: 额外温度传感器的读数
   Ready: 就绪
   Ready for filament operations: 可进行耗材操作
   Ready to Apply: 准备应用
   Ready to calibrate: 准备校准
-  Ready to pluck: 准备拨动
   Rear: '后'
   Rear Left: '左后'
   Rear Right: '右后'
@@ -2783,6 +2768,7 @@ translations:
   Setup Timelapse: 设置延时摄影
   Several printers match - choose yours: 多台打印机匹配 - 请选择您的打印机
   Shadow Intensity: 阴影强度
+  Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together.: 沿每条对角线振动工具头，并同时显示两条响应曲线。张力一致的皮带峰值重合。
   Share Usage Data: 共享使用数据
   Share anonymous usage statistics to help us make HelixScreen better. No personal data is ever collected.: 分享匿名使用统计数据，帮助我们改进
     HelixScreen。绝不会收集任何个人数据。
@@ -2812,6 +2798,7 @@ translations:
   Shutting down...: 正在关机...
   Signal: 信号
   'Signal #': '信号 #'
+  Similarity: "相似度"
   Single toggle macro. State is not tracked.: 单个切换宏。不跟踪状态。
   Size: 大小
   Skip: 跳过
@@ -2900,18 +2887,16 @@ translations:
   Start: 开始
   Start Anyway: 仍然开始
   Start Calibration: 开始校准
-  Start Check: 开始检查
   Start Drying: 开始烘干
-  Start Listening: 开始监听
   Start Print: 开始打印
   Start Probing: 开始探测
   Start anyway?: '仍要开始吗？'
   Start at: 从第
+  Start check: 开始检查
   Start drying: 开始烘干
 
   Start failed: 启动失败
   'Start next: {}': '开始下一个：{}'
-  Start over: 重新开始
   Start print anyway?: 仍要开始打印吗？
   Started: 已开始
   Starting Print...: 正在启动打印...
@@ -2937,6 +2922,7 @@ translations:
   Stop failed: 停止失败
   ? "Stop printing \"{}\"?\n\nThis cannot be undone after 5 seconds."
   : "停止打印 \"{}\"？\n\n5秒后将无法撤销。"
+  Stop the check?: 停止检查？
   Stopped: 已停止
   Stopped between Hub and Toolhead: 停在集线器与工具头之间
   Stopped between Lane and Hub: 停在耗材通道与集线器之间
@@ -2952,6 +2938,7 @@ translations:
   Suppress periodic temperature status lines: 抑制周期性温度状态行
   Suppress raw debug output from printer firmware modules: 抑制打印机固件模块的原始调试输出
   Surfaces inherit app background tokens for light and dark modes.: 表面继承应用背景色用于浅色和深色模式。
+  Sweep: 扫频
   Switch Printer: 切换打印机
   Switch a power device on or off: 开启或关闭电源设备
   Switch Sensors: 开关传感器
@@ -3005,10 +2992,8 @@ translations:
   Tap the part cooling fan: 点击零件冷却风扇
   Tap to assign: 点击分配
   Target: '目标'
-  Target Frequency: 目标频率
   Target Temperature: 目标温度
   Target Version: 目标版本
-  Target is %.0f Hz. Tighten belt %s and loosen belt %s.: 目标为 %.0f Hz。请拉紧 %s 皮带，松开 %s 皮带。
   Telemetry: 遥测
   Telemetry Data: 遥测数据
   Telemetry Disabled: 遥测已禁用
@@ -3040,6 +3025,7 @@ translations:
   Test RS-485 link to CFS units: '测试与 CFS 单元的 RS-485 链路'
   Test Screensaver: 测试屏保
   Test Tracker: 测试追踪器
+  Test both: 测试两者
   Test label printed: 测试标签已打印
   'Testing rotation: %d° (%d/%d) - %ds remaining': '测试旋转: %d° (%d/%d)
     - 剩余%ds'
@@ -3047,7 +3033,6 @@ translations:
   Thanks! Anonymous usage data helps improve HelixScreen.: 感谢！匿名使用数据有助于改进 HelixScreen。
   Thanks! TOTALLY anonymous usage data helps improve HelixScreen.: 感谢！完全匿名的使用数据有助于改进
     HelixScreen。
-  That did not sound like a pluck - try again: 听起来不像拨动声 - 请重试
   'That setting cannot be changed while a print is running': '打印进行中无法更改该设置'
   That slot cannot stand in for this one: 该槽位无法替代当前槽位
   That tool is already loaded: 该工具已加载耗材
@@ -3056,7 +3041,6 @@ translations:
     skipping bed mesh for quick reprints.
   : HelixPrint 插件可在打印机上直接进行快速 G-code 修改——例如跳过热床网格以快速重新打印。
   The Spoolman spool currently loaded: 当前装载的 Spoolman 料盘
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 加速度计数据流已停止：%s。请检查 Klipper 是否正在运行，然后重试。
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : 为防止动画屏保干扰打印，已在此设备上将其关闭。您可以在设置 > 显示中重新启用。
@@ -3137,6 +3121,8 @@ translations:
     Z 偏移。
   This cannot be undone.: 此操作无法撤销。
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: '此通道提供 v{}，早于已安装的 v{}。此后新增的内容都将被移除。'
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "此检查会沿每条皮带路径运行 Klipper 的共振测试，并比较两个响应。平衡的皮带会给出形状相同、峰值位于相同频率的曲线。\n\n每次扫频需要几分钟并会移动工具头；运行期间请远离打印机。"
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: '这会清除每个料盘的备用分配。在重新设置之前，耗材用尽时打印将停止。'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: 此设备没有有线网络连接。关闭 WiFi 后，只能在此界面重新开启。
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3152,6 +3138,7 @@ translations:
   ? This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes.
   : '这会在打印机上安装 HelixScreen 帮助宏并添加到 printer.cfg。当前正在打印，Klipper 将在打印结束后重启。'
   This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper.: '这会在打印机上安装 HelixScreen 帮助宏，添加到 printer.cfg，并重启 Klipper。'
+  'This is an emergency stop: the printer halts and Klipper restarts.': 这是紧急停止：打印机将停机并重启 Klipper。
   This is exactly the data that will be sent: 这正是将要发送的数据
   This is what data would be sent if enabled: 这是启用后将发送的数据
   This may take up to 30 seconds: 这可能需要 30 秒
@@ -3196,8 +3183,6 @@ translations:
   Thorough: 全面
   Thumbnail Only: 仅缩略图
   'Thumbnail: ': '缩略图: '
-  Tighten Path A belt.: 拉紧路径A的皮带。
-  Tighten Path B belt.: 拉紧路径B的皮带。
   Time: 时间
   Time Format: 时间格式
   Time to wait before escalating to emergency stop: 升级为紧急停止前的等待时间
@@ -3231,7 +3216,6 @@ translations:
   Toggle toolhead LED for an extruder: '切换某个挤出机的工具头 LED'
   'Toggle:': '切换:'
   Too humid: 湿度过高
-  Too soft - pluck harder: 力度太轻 - 请用力拨动
   Tool: 工具
   Tool Change Failed: '工具切换失败'
   Tool Changer: 换刀器
@@ -3302,10 +3286,7 @@ translations:
   USB printer access denied — check permissions: USB 打印机访问被拒绝 — 请检查权限
   Unavailable: 不可用
   Unavailable on this printer: 此打印机上不可用
-  Understanding Results: 了解结果
   Undo: 撤销
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "皮带张力不均会导致层错位、VFA(垂直细纹)和振纹等打印瑕疵。\n\n用手拨动每条皮带，此工具会通过加速度传感器测量皮带的频率。频率匹配意味着张力均衡。\n\n对于 CoreXY,皮带 A 与 B 应相差在几 Hz 以内。"
   Uninstall: 卸载
   Uninstall HelixPrint Plugin: 卸载 HelixPrint 插件
   Uninstall HelixPrint Plugin?: 卸载 HelixPrint 插件？
@@ -3480,7 +3461,6 @@ translations:
   Wifi: Wi-Fi
   Will not switch spools on runout: 耗材用尽时不会切换料盘
   Wipe nozzle on silicone cleaning strip: '在硅胶清洁条上擦拭喷嘴'
-  Within measurement resolution: 在此测量的分辨能力范围内
   Wizard Error: 向导错误
   Working...: 处理中...
   Write failed at chunk {}: 区块 {} 写入失败
@@ -3583,10 +3563,12 @@ translations:
   'helixscreen.env ignored: {}': '已忽略 helixscreen.env：{}'
   idle: 空闲
   in unit {} slot {}: 在单元 {} 槽位 {}
+  just now: 刚刚
   layers: 层
   left: 剩余
   loaded: '已加载'
   locked: '已锁定'
+  matched: 匹配
   mm before clog: 毫米后堵料
   needs: 需要
   never sleeps: 从不休眠
@@ -3613,6 +3595,7 @@ translations:
   slots): 个槽位)
   started: 已启动
   steppers: 步进电机
+  sweeping: 测量中
   tall: 高
   target {}°: '目标 {}°'
   tool(s): 工具
@@ -3621,6 +3604,7 @@ translations:
   v{} installed! Restarting...: 已安装 v{}！正在重启...
   v{} is available. Tap to update.: v{} 可用。点击以更新。
   you have: 您有
+  '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · 约 {} 分钟'
   '{} Hardware Issues': '{} 个硬件问题'
   '{} Issues Detected': '检测到 {} 个问题'
   '{} LED strips available': '{} 条 LED 灯带可用'
@@ -3651,6 +3635,7 @@ translations:
   '{} macro not configured': '{} 宏未配置'
   '{} matches.': '{} 匹配。'
   '{} may cause unintended changes. Are you sure?': '{} 可能导致意外更改。确定吗？'
+  '{} min ago': '{} 分钟前'
   '{} missing': '{} 个缺失'
   '{} more taps to {} beta features': 再点击 {} 次以{}测试功能
   '{} needs the HelixPrint plugin. Printing original file.': '{} 需要 HelixPrint 插件。将打印原始文件。'
@@ -3669,3 +3654,4 @@ translations:
   : '{} 将切换到耗材类型与颜色都与当前料盘一致、且其端口传感器检测到有耗材的槽位。'
   '{} — response timed out': '{} — 响应超时'
   '{} → {}: no filament loaded.': '{} → {}: 未加载耗材。'
+  '{}:{:02} elapsed': 已用时 {}:{:02}

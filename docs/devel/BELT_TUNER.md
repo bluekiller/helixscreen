@@ -4,9 +4,7 @@ Developer guide for the live belt-tension tuner: the user plucks a belt by hand,
 listens on Klipper's live accelerometer stream, and reports the belt's fundamental
 frequency.
 
-**Panel**: Belt Tension (`panel_belt_tension`) - compiled in, but no UI row reaches it. It
-was withdrawn after its first real-hardware test (below); the belt check in the UI is
-planned as a `TEST_RESONANCES` path comparison instead (prestonbrown/helixscreen#1721).
+**Panel**: none. These libraries back no UI; Belt Tension is `BELT_TENSION.md`.
 **User guide**: `../user/guide/calibration.md` § Belt Tension
 
 ---

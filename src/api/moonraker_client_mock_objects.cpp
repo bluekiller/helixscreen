@@ -308,7 +308,13 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
 
                 status_obj["configfile"] = {
                     {"settings",
-                     {{"printer", {{"max_velocity", 500.0}, {"max_accel", 10000.0}}},
+                     {{"printer",
+                       {{"max_velocity", 500.0},
+                        {"max_accel", 10000.0},
+                        // Same kinematics the config payload reports, so a
+                        // settings reader (belt hardware detect) and a config
+                        // reader (bed moves detection) see the same machine.
+                        {"kinematics", mock_kinematics(self->get_printer_type())}}},
                       {"stepper_x",
                        {{"position_min", MOCK_BED_X_MIN}, {"position_max", MOCK_BED_X_MAX}}},
                       {"stepper_y",
@@ -322,7 +328,7 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                        {{"min_freq", self->get_resonance_min_freq()},
                         {"max_freq", self->get_resonance_max_freq()},
                         {"accel_per_hz", 75.0},
-                        {"hz_per_sec", 1.0}}},
+                        {"hz_per_sec", self->get_resonance_hz_per_sec()}}},
                       // Bed screw geometry — the screws-tilt panel reads
                       // screw_thread from here to size its level tolerance.
                       {"screws_tilt_adjust",
@@ -823,7 +829,13 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
 
                 status_obj["configfile"] = {
                     {"settings",
-                     {{"printer", {{"max_velocity", 500.0}, {"max_accel", 10000.0}}},
+                     {{"printer",
+                       {{"max_velocity", 500.0},
+                        {"max_accel", 10000.0},
+                        // Same kinematics the config payload reports, so a
+                        // settings reader (belt hardware detect) and a config
+                        // reader (bed moves detection) see the same machine.
+                        {"kinematics", mock_kinematics(self->get_printer_type())}}},
                       {"stepper_x",
                        {{"position_min", MOCK_BED_X_MIN}, {"position_max", MOCK_BED_X_MAX}}},
                       {"stepper_y",
@@ -837,7 +849,7 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                        {{"min_freq", self->get_resonance_min_freq()},
                         {"max_freq", self->get_resonance_max_freq()},
                         {"accel_per_hz", 75.0},
-                        {"hz_per_sec", 1.0}}},
+                        {"hz_per_sec", self->get_resonance_hz_per_sec()}}},
                       {"heater_bed",
                        {{"min_temp", 0.0},
                         {"max_temp", 120.0},

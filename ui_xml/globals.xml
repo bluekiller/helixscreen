@@ -797,6 +797,12 @@
     <string name="icon_font_hero_xxlarge" value="mdi_icons_128"/>
     <!-- NO BASE icon_font_hero - registered at runtime -->
 
+    <!-- Belt Tension path colors: Path A and Path B wherever the panel names them
+         (sketch arrows, chart curves, hero numbers), so the two stay recognisable. -->
+    <color name="belt_path_a_dark" value="#4FA3F7"/>
+    <color name="belt_path_a_light" value="#1F6FC5"/>
+    <color name="belt_path_b_dark" value="#F2994A"/>
+    <color name="belt_path_b_light" value="#C0601A"/>
     <!-- Step progress colors (wizard steps) -->
     <color name="step_pending" value="#4c566a"/>
     <!-- nord3 -->

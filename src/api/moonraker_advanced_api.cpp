@@ -19,6 +19,7 @@
 #include "operation_timeout_guard.h"
 #include "printer_state.h"
 #include "probe_preparation.h"
+#include "resonance_console.h"
 #include "screws_tilt_dialect.h"
 #include "screws_tilt_parser.h"
 #include "shaper_csv_parser.h"
@@ -1689,13 +1690,8 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
     }
 
     void parse_sweep_line(const std::string& line) {
-        static const helix::Regex freq_regex(R"(Testing frequency ([\d.]+) Hz)");
-        helix::RegexMatch match;
-        if (helix::regex_search(line, match, freq_regex) && match.size() == 2) {
-            const auto parsed_freq = text_io::parse_leading<float>(match[1].str());
-            if (!parsed_freq) {
-                return;
-            }
+        const auto parsed_freq = calibration::parse_testing_frequency(line);
+        if (parsed_freq) {
             float freq = *parsed_freq;
             last_sweep_freq_.store(freq);
 
@@ -1721,11 +1717,10 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
             // 100 until it ends. That is still honest — the
             // phase stays Sweeping, so the UI keeps saying "measuring"
             // rather than claiming the analysis has started.
-            const float min_freq = min_freq_.load();
-            const float range = max_freq_.load() - min_freq;
-            const float progress_frac = (range > 0) ? (freq - min_freq) / range : 0.0f;
-            int percent = static_cast<int>(std::lround(progress_frac * 100.0f));
-            percent = std::clamp(percent, 0, 100);
+            calibration::ResonanceTesterConfig range;
+            range.min_freq = min_freq_.load();
+            range.max_freq = max_freq_.load();
+            const int percent = calibration::sweep_percent(freq, range);
 
             char status[64];
             snprintf(status, sizeof(status), "Testing frequency %.0f Hz", freq);
@@ -1833,10 +1828,8 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
     }
 
     void parse_csv_path(const std::string& line) {
-        static const helix::Regex csv_regex(R"(calibration data written to (\S+\.csv))");
-        helix::RegexMatch match;
-        if (helix::regex_search(line, match, csv_regex) && match.size() == 2) {
-            csv_path_ = match[1].str();
+        if (const auto path = calibration::parse_written_csv_path(line)) {
+            csv_path_ = *path;
             spdlog::info("[InputShaperCollector] CSV path: {}", csv_path_);
         }
     }
@@ -1972,6 +1965,152 @@ class InputShaperCollector : public std::enable_shared_from_this<InputShaperColl
     float recommended_freq_ = 0.0f;
     /// Set by the copy_TestAxis_y_to_x marker line (see on_gcode_response).
     bool x_overwritten_by_firmware_ = false;
+};
+} // namespace helix
+
+namespace helix {
+/**
+ * @brief State machine for one TEST_RESONANCES OUTPUT=resonances run
+ *
+ * Follows Klipper's console through a belt-path sweep: "Testing frequency"
+ * lines carry progress, and the terminal "Resonances data written to <path>
+ * file" line names the CSV this collector reads the curve from. The file is
+ * only ever read from a path announced to THIS collector, so a stale file
+ * left by an earlier run cannot be mistaken for this run's result.
+ *
+ * There is no overall deadline: a sweep takes minutes, and the caller owns
+ * stall detection and cancels through the returned handle.
+ */
+class BeltResonanceCollector : public std::enable_shared_from_this<BeltResonanceCollector> {
+  public:
+    BeltResonanceCollector(IMoonrakerClient& client,
+                           MoonrakerAdvancedAPI::BeltSweepProgressCallback on_progress,
+                           MoonrakerAdvancedAPI::BeltCurveCallback on_success,
+                           MoonrakerAdvancedAPI::ErrorCallback on_error)
+        : core_(client, "belt_resonance_collector_"), on_progress_(std::move(on_progress)),
+          on_success_(std::move(on_success)), on_error_(std::move(on_error)) {}
+
+    void start() {
+        auto self = shared_from_this();
+        core_.start(self, [self](const json& msg) { self->on_gcode_response(msg); });
+        spdlog::debug("[BeltResonanceCollector] Started collecting responses");
+    }
+
+    /// Adopt this printer's [resonance_tester] range, from the configfile query
+    /// issued alongside the sweep. Progress is held until this has run: the
+    /// query reply can land after the first sweep lines, and a percent computed
+    /// against the default range would misreport the sweep's start.
+    void set_config(const calibration::ResonanceTesterConfig& cfg) {
+        cfg_ = cfg;
+        config_received_.store(true);
+    }
+
+    /// Stop listening and suppress every later callback. Idempotent.
+    void cancel() {
+        core_.mark_completed();
+        core_.unregister();
+    }
+
+    /// Terminal path for RPC errors the transport did not cause.
+    void complete_error(const std::string& message) {
+        auto keepalive = shared_from_this();
+        if (!core_.try_complete()) {
+            return;
+        }
+        spdlog::error("[BeltResonanceCollector] Error: {}", message);
+        core_.unregister();
+        if (on_error_) {
+            on_error_(MoonrakerError::json_rpc_error("TEST_RESONANCES", message));
+        }
+    }
+
+    void on_gcode_response(const json& msg) {
+        if (core_.completed()) {
+            return;
+        }
+        if (!msg.contains("params") || !msg["params"].is_array() || msg["params"].empty() ||
+            !msg["params"][0].is_string()) {
+            return;
+        }
+
+        const std::string& line = msg["params"][0].get_ref<const std::string&>();
+        spdlog::trace("[BeltResonanceCollector] Received: {}", line);
+
+        if (line.rfind("!! ", 0) == 0 || line.rfind("Error: ", 0) == 0) {
+            complete_error(line);
+            return;
+        }
+
+        if (line.find("Unknown command") != std::string::npos &&
+            line.find("TEST_RESONANCES") != std::string::npos) {
+            complete_error("TEST_RESONANCES requires [resonance_tester] and an accelerometer in "
+                           "printer.cfg");
+            return;
+        }
+
+        if (const auto freq = calibration::parse_testing_frequency(line)) {
+            // Lines before the config reply are dropped rather than reported
+            // against a guessed range; set_config() always runs, so the hold
+            // is finite.
+            if (config_received_.load() && on_progress_) {
+                on_progress_(calibration::sweep_percent(*freq, cfg_), *freq);
+            }
+            return;
+        }
+
+        if (const auto path = calibration::parse_written_csv_path(line)) {
+            read_result(*path);
+        }
+    }
+
+  private:
+    /// Read the file this run announced and complete the run on what it holds.
+    void read_result(const std::string& path) {
+        const calibration::ResonanceCsvData data = calibration::parse_resonance_csv(path);
+        switch (data.error) {
+        case calibration::ResonanceCsvError::NONE:
+            complete_success(data.curve);
+            return;
+        case calibration::ResonanceCsvError::MISSING:
+            complete_error(fmt::format(
+                "Klipper reported {} but it cannot be read here. HelixScreen must run on the "
+                "printer's own computer.",
+                path));
+            return;
+        case calibration::ResonanceCsvError::MULTI_CHIP:
+            complete_error("More than one accelerometer reported. Belt Tension supports one.");
+            return;
+        case calibration::ResonanceCsvError::EMPTY:
+        case calibration::ResonanceCsvError::NO_PSD_COLUMN:
+            complete_error(fmt::format("Klipper's results file {} has no usable data.", path));
+            return;
+        }
+    }
+
+    void complete_success(const calibration::BeltCurve& curve) {
+        // unregister() below drops the client handler map's reference, which is
+        // the collector's only strong owner. Pin the object for the rest of the
+        // callback chain (prestonbrown/helixscreen#1543).
+        auto keepalive = shared_from_this();
+        if (!core_.try_complete()) {
+            return;
+        }
+        spdlog::info("[BeltResonanceCollector] Complete with {} curve points", curve.size());
+        core_.unregister();
+        if (on_success_) {
+            on_success_(curve);
+        }
+    }
+
+    CalibrationCollectorCore core_;
+    MoonrakerAdvancedAPI::BeltSweepProgressCallback on_progress_;
+    MoonrakerAdvancedAPI::BeltCurveCallback on_success_;
+    MoonrakerAdvancedAPI::ErrorCallback on_error_;
+
+    /// Written once by set_config() on the RPC path, read on the notification
+    /// path; the seq-cst flag below orders the two.
+    calibration::ResonanceTesterConfig cfg_{};
+    std::atomic<bool> config_received_{false};
 };
 } // namespace helix
 
@@ -2483,49 +2622,16 @@ void MoonrakerAdvancedAPI::start_resonance_test(char axis, ShaperProgressCallbac
         std::make_shared<InputShaperCollector>(client_, axis, on_progress, on_complete, on_error);
     collector->start();
 
-    // Ask the printer what range it will actually sweep. Klipper's default
-    // ceiling is 133.33 Hz and Kalico's is 135, and [resonance_tester] can set
-    // anything — assuming 100 Hz made progress saturate a third of the way
-    // from the end and the UI call it "analyzing" while the toolhead was still
-    // moving. Fire-and-forget: the reply lands in milliseconds while
-    // SHAPER_CALIBRATE still has to home and travel to the probe point, and if
-    // it never lands the collector keeps its defaults.
-    json range_params = {{"objects", json::object({{"configfile", json::array({"settings"})}})}};
-    client_.send_jsonrpc("printer.objects.query", range_params, [collector](const json& response) {
-        if (!response.contains("result") || !response["result"].contains("status") ||
-            !response["result"]["status"].contains("configfile") ||
-            !response["result"]["status"]["configfile"].contains("settings")) {
-            return;
-        }
-        const json& settings = response["result"]["status"]["configfile"]["settings"];
-        if (!settings.contains("resonance_tester") || !settings["resonance_tester"].is_object()) {
-            return;
-        }
-        const json& rt = settings["resonance_tester"];
-        // configfile reports numbers, but forks have been seen echoing
-        // strings — accept both rather than silently keeping defaults.
-        auto read = [&rt](const char* key, float fallback) -> std::optional<float> {
-            if (!rt.contains(key)) {
-                return fallback;
+    // Ask the printer what range it will actually sweep. Fire-and-forget: the
+    // reply lands in milliseconds while SHAPER_CALIBRATE still has to home
+    // and travel to the probe point, and if it never lands the collector
+    // keeps its defaults.
+    calibration::query_resonance_tester_config(
+        client_, [collector](calibration::ResonanceTesterConfig cfg) {
+            if (cfg.from_printer) {
+                collector->set_sweep_range(cfg.min_freq, cfg.max_freq);
             }
-            const json& v = rt[key];
-            if (v.is_number()) {
-                return v.get<float>();
-            }
-            if (v.is_string()) {
-                return text_io::parse_leading<float>(v.get<std::string>());
-            }
-            return fallback;
-        };
-        const auto min_freq = read("min_freq", InputShaperCollector::DEFAULT_MIN_FREQ);
-        const auto max_freq = read("max_freq", InputShaperCollector::DEFAULT_MAX_FREQ);
-        if (min_freq && max_freq) {
-            collector->set_sweep_range(*min_freq, *max_freq);
-        } else {
-            spdlog::debug("[Moonraker API] Could not read resonance_tester range: unparseable "
-                          "value");
-        }
-    });
+        });
 
     // Send the G-code command
     // SHAPER_CALIBRATE sweeps the configured range (~2 min at the 5-135 Hz
@@ -3136,9 +3242,12 @@ void MoonrakerAdvancedAPI::detect_belt_hardware(BeltHardwareCallback on_complete
                             }
                             hw.kinematics_name = kinematics.get<std::string>();
 
-                            if (hw.kinematics_name == "corexy" || hw.kinematics_name == "corexz") {
+                            // COREXY only where the two diagonals are the two
+                            // belt paths the comparison sweeps.
+                            if (belt_path_kinematics(hw.kinematics_name)) {
                                 hw.kinematics = helix::calibration::KinematicsType::COREXY;
-                            } else if (hw.kinematics_name == "cartesian") {
+                            } else if (hw.kinematics_name == "cartesian" ||
+                                       hw.kinematics_name == "limited_cartesian") {
                                 hw.kinematics = helix::calibration::KinematicsType::CARTESIAN;
                             } else {
                                 hw.kinematics = helix::calibration::KinematicsType::UNKNOWN;
@@ -3165,157 +3274,54 @@ void MoonrakerAdvancedAPI::detect_belt_hardware(BeltHardwareCallback on_complete
         });
 }
 
-void MoonrakerAdvancedAPI::test_belt_resonance(const std::string& axis_param,
-                                               const std::string& output_name,
-                                               AdvancedProgressCallback on_progress,
-                                               BeltResonanceCallback on_complete,
-                                               ErrorCallback on_error) {
+MoonrakerAdvancedAPI::BeltRunCancel MoonrakerAdvancedAPI::test_belt_resonance(
+    const std::string& axis_param, const std::string& output_name,
+    BeltSweepProgressCallback on_progress, BeltCurveCallback on_complete, ErrorCallback on_error) {
     spdlog::info("[MoonrakerAPI] Starting belt resonance test: axis={}, name={}", axis_param,
                  output_name);
 
-    // Build G-code: TEST_RESONANCES AXIS=<param> OUTPUT=raw_data NAME=<name>
-    std::string gcode =
-        fmt::format("TEST_RESONANCES AXIS={} OUTPUT=raw_data NAME={}", axis_param, output_name);
+    auto collector = std::make_shared<BeltResonanceCollector>(
+        client_, std::move(on_progress), std::move(on_complete), std::move(on_error));
+    collector->start();
 
-    // Captured before the forwarding wrapper below, which is non-null on every
-    // call. Reading it after would report our own logging as a caller promise
-    // and silence GcodeErrorRouter's `!!` copy of the same rejection.
-    const bool caller_surfaces = (on_error != nullptr);
+    // Ask the printer what range it will sweep, so progress is scaled by the
+    // printer's own [resonance_tester] rather than a guess. The reply always
+    // arrives (defaults on error), so the collector's progress hold is finite.
+    calibration::query_resonance_tester_config(
+        client_,
+        [collector](calibration::ResonanceTesterConfig cfg) { collector->set_config(cfg); });
 
+    // SWEEPING_PERIOD=0 forces the pulse-only excitation on firmware whose
+    // [resonance_tester] defaults to sweeping: the slow sweep smooths over the
+    // mechanical faults a belt comparison looks for. Firmware without the
+    // parameter ignores it.
+    const std::string gcode =
+        fmt::format("TEST_RESONANCES AXIS={} OUTPUT=resonances NAME={} SWEEPING_PERIOD=0",
+                    axis_param, output_name);
+    // A sweep takes minutes, so the request rides the long calibration timeout
+    // rather than the tracker default. A transport loss only means the RPC
+    // reply vanished - Klipper keeps sweeping and the console lines keep
+    // arriving, so the collector stays registered and the run finishes on its
+    // terminal line. Anything else is Moonraker refusing the script.
     api_.execute_gcode(
-        gcode,
-        [output_name, on_complete]() {
-            spdlog::info("[MoonrakerAPI] Belt resonance test complete for {}", output_name);
-            // The CSV file will be at /tmp/raw_data_<name>*.csv
-            if (on_complete)
-                on_complete(output_name);
-        },
-        [on_error](const MoonrakerError& err) {
-            spdlog::error("[MoonrakerAPI] Belt resonance test failed: {}", err.message);
-            if (on_error)
-                on_error(err);
-        },
-        BELT_TENSION_TIMEOUT_MS, /*silent=*/false, /*on_queued=*/nullptr,
-        /*caller_surfaces_errors=*/caller_surfaces);
-}
-
-void MoonrakerAdvancedAPI::excite_belt_at_frequency(const std::string& axis_param, float freq_hz,
-                                                    SuccessCallback on_complete,
-                                                    ErrorCallback on_error) {
-    spdlog::info("[MoonrakerAPI] Exciting belt at {:.1f} Hz, axis={}", freq_hz, axis_param);
-
-    // Narrow frequency band: holds near freq_hz for ~5 seconds
-    // FREQ_START=F FREQ_END=F+0.5 HZ_PER_SEC=0.1 -> 5 seconds of excitation
-    std::string gcode = fmt::format(
-        "TEST_RESONANCES AXIS={} FREQ_START={:.1f} FREQ_END={:.1f} HZ_PER_SEC=0.1 OUTPUT=raw_data",
-        axis_param, freq_hz, freq_hz + 0.5f);
-
-    // Captured before the forwarding wrapper below — see start_belt_resonance_test().
-    const bool caller_surfaces = (on_error != nullptr);
-
-    api_.execute_gcode(
-        gcode,
-        [on_complete]() {
-            spdlog::debug("[MoonrakerAPI] Belt excitation complete");
-            if (on_complete)
-                on_complete();
-        },
-        [on_error](const MoonrakerError& err) {
-            spdlog::error("[MoonrakerAPI] Belt excitation failed: {}", err.message);
-            if (on_error)
-                on_error(err);
-        },
-        30000, // 30 second timeout for fixed-freq excitation
-        /*silent=*/false, /*on_queued=*/nullptr, /*caller_surfaces_errors=*/caller_surfaces);
-}
-
-void MoonrakerAdvancedAPI::download_accel_csv(const std::string& name,
-                                              std::function<void(const std::string&)> on_complete,
-                                              ErrorCallback on_error) {
-    spdlog::debug("[MoonrakerAPI] Downloading accel CSV for: {}", name);
-
-    // List files in data_store directory to find the CSV.
-    // Klipper stores TEST_RESONANCES OUTPUT=raw_data files in the data directory,
-    // accessible via Moonraker's file API under the 'config' root.
-    json params;
-    params["path"] = "data_store";
-    params["root"] = "config";
-
-    client_.send_jsonrpc(
-        "server.files.list", params,
-        [this, name, on_complete, on_error](const json& response) {
-            std::string target_prefix = "raw_data_" + name;
-            std::string best_file;
-
-            if (!response.contains("result")) {
-                spdlog::error("[MoonrakerAPI] File list response missing 'result' field");
-                if (on_error)
-                    on_error(MoonrakerError::json_rpc_error(
-                        "", "File list response missing 'result' field"));
+        gcode, []() {},
+        [collector](const MoonrakerError& err) {
+            if (err.is_transport_loss()) {
+                spdlog::debug("[MoonrakerAPI] TEST_RESONANCES RPC lost to the transport ({}); "
+                              "collector still listening - the sweep may still be running",
+                              err.message);
                 return;
             }
-            const auto& result = response["result"];
-            if (!result.is_array()) {
-                spdlog::error("[MoonrakerAPI] File list 'result' is not an array");
-                if (on_error)
-                    on_error(
-                        MoonrakerError::json_rpc_error("", "File list 'result' is not an array"));
-                return;
-            }
-            for (const auto& file : result) {
-                std::string filename = json_util::safe_string(file, "path");
-                if (filename.find(target_prefix) != std::string::npos &&
-                    filename.find(".csv") != std::string::npos) {
-                    if (filename > best_file) {
-                        best_file = filename;
-                    }
-                }
-            }
-
-            if (best_file.empty()) {
-                spdlog::error("[MoonrakerAPI] No CSV file found matching: {}", target_prefix);
-                if (on_error)
-                    on_error(
-                        MoonrakerError::json_rpc_error("", "No accelerometer data file found"));
-                return;
-            }
-
-            spdlog::info("[MoonrakerAPI] Found CSV file: {}", best_file);
-
-            // Download the CSV file content
-            json dl_params;
-            dl_params["filename"] = "data_store/" + best_file;
-            dl_params["root"] = "config";
-            client_.send_jsonrpc(
-                "server.files.get_file", dl_params,
-                [on_complete, on_error](const json& file_response) {
-                    std::string csv_data;
-                    if (file_response.contains("result")) {
-                        const auto& result = file_response["result"];
-                        if (result.is_string()) {
-                            csv_data = result.get<std::string>();
-                        } else {
-                            csv_data = json_util::safe_dump(result);
-                        }
-                    } else if (file_response.is_string()) {
-                        csv_data = file_response.get<std::string>();
-                    } else {
-                        csv_data = json_util::safe_dump(file_response);
-                    }
-                    if (on_complete)
-                        on_complete(csv_data);
-                },
-                [on_error](const MoonrakerError& err) {
-                    spdlog::error("[MoonrakerAPI] Failed to download CSV: {}", err.message);
-                    if (on_error)
-                        on_error(err);
-                });
+            collector->complete_error(err.message);
         },
-        [on_error](const MoonrakerError& err) {
-            spdlog::error("[MoonrakerAPI] Failed to list data files: {}", err.message);
-            if (on_error)
-                on_error(err);
-        });
+        IAdvancedAPI::SHAPER_TIMEOUT_MS, /*silent=*/false, /*on_queued=*/nullptr,
+        /*caller_surfaces_errors=*/true);
+
+    return [weak = std::weak_ptr(collector)]() {
+        if (auto c = weak.lock()) {
+            c->cancel();
+        }
+    };
 }
 
 // ============================================================================

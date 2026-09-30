@@ -67,8 +67,6 @@ TEST_CASE("Moonraker sub-API classes satisfy their interfaces", "[compile][drift
     static_assert(MoonrakerAdvancedAPI::PID_TIMEOUT_MS == IAdvancedAPI::PID_TIMEOUT_MS);
     static_assert(MoonrakerAdvancedAPI::MPC_TIMEOUT_MS == IAdvancedAPI::MPC_TIMEOUT_MS);
     static_assert(MoonrakerAdvancedAPI::PROBING_TIMEOUT_MS == IAdvancedAPI::PROBING_TIMEOUT_MS);
-    static_assert(MoonrakerAdvancedAPI::BELT_TENSION_TIMEOUT_MS ==
-                  IAdvancedAPI::BELT_TENSION_TIMEOUT_MS);
 
     static_assert(std::is_base_of_v<IRestAPI, MoonrakerRestAPI>,
                   "MoonrakerRestAPI must derive from IRestAPI");

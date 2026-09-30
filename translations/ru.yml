@@ -3,8 +3,8 @@ translations:
   ' (timed out)': ' (время ожидания истекло)'
   ' frames': ' кадров'
   ' left': ' осталось'
+  ' · was {:.0f}%': ' · было {:.0f}%'
   '"%s" failed to load': Не удалось загрузить «%s»
-  '%.0f Hz difference': Разница %.0f Гц
   '%d additional fan%s': '%d дополнительный вентилятор%s'
   '%d feeders': '%d фидеров'
   '%d gates': '%d шлюзов'
@@ -128,6 +128,7 @@ translations:
   A print is in progress - restart still pending: 'Идёт печать - перезапуск ещё отложен'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: На этом шлюзе идёт печать. HelixScreen очистил свою копию; после окончания печати очистите его снова.
   A spool may be tangled or the drive gear is jammed: Катушка может быть запутана или заклинило приводную шестерню
+  A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: АКСЕЛЕРОМЕТРЫ
   ACE Moonraker bridge not found. Install ace_status.py for full support.: Мост ACE Moonraker не найден. Установите ace_status.py для полной поддержки.
@@ -228,7 +229,6 @@ translations:
   An app on your network is asking to connect to this printer.: 'Приложение в вашей сети запрашивает подключение к этому принтеру.'
   An error occurred during calibration.: Во время калибровки произошла ошибка.
   An error occurred during filament loading.: Произошла ошибка при загрузке филамента.
-  An error occurred during measurement.: Произошла ошибка при измерении.
   An error occurred during probing.: Во время зондирования произошла ошибка.
   An error occurred while loading filament.: Во время загрузки филамента произошла
     ошибка.
@@ -300,7 +300,8 @@ translations:
   Available networks: Доступные сети
   Average: Среднее
   Axis limits unknown: Границы оси неизвестны
-  B: B
+  B · 1,1: "B · 1,1"
+  BACK: ЗАД
   BEACON: BEACON
   BETA: БЕТА
   'BLE connect failed: {}': 'Не удалось подключиться по BLE: {}'
@@ -344,13 +345,9 @@ translations:
   Bed temp must be 0-%d°C: Температура стола должна быть 0-%d°C
   Bed warming timed out: Нагрев стола — время ожидания истекло
   Before starting: 'Перед началом'
-  Belt A: Ремень A
-  Belt A (front right) is tighter by %.0f Hz. Tighten belt B, on the front left, or loosen belt A.: Ремень A (спереди справа) туже на %.0f Гц. Подтяните ремень B спереди слева или ослабьте ремень A.
-  Belt B: Ремень B
-  Belt B (front left) is tighter by %.0f Hz. Tighten belt A, on the front right, or loosen belt B.: Ремень B (спереди слева) туже на %.0f Гц. Подтяните ремень A спереди справа или ослабьте ремень B.
   Belt Tension: Натяжение ремня
   Belt Tension Check: Проверка натяжения ремня
-  Belt tension looks good!: Натяжение ремня в норме!
+  Belt Tension needs a CoreXY printer. This one is {}.: 'Для натяжения ремня нужен принтер CoreXY. Этот принтер: {}.'
   Beta: Бета
   'Beta features: OFF': 'Beta-функции: ВЫКЛ'
   'Beta features: ON': 'Beta-функции: ВКЛ'
@@ -374,12 +371,6 @@ translations:
   Border transparency (0 = invisible, 255 = solid): Прозрачность границы (0 = невидимая,
     255 = сплошная)
   Both: Оба
-  Both belts are above the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Loosen both.: Оба ремня выше целевых %.0f Гц - A на %.0f Гц, B на %.0f Гц. Ослабьте оба.
-  Both belts are below the %.0f Hz target - A by %.0f Hz, B by %.0f Hz. Tighten both, %s more.: Оба ремня ниже целевых %.0f Гц - A на %.0f Гц, B на %.0f Гц. Подтяните оба, ещё %s.
-  Both belts are on the %.0f Hz target and match each other. Nothing to adjust.: Оба ремня на целевых %.0f Гц и совпадают друг с другом. Регулировка не требуется.
-  Both belts are overtightened.: Оба ремня перетянуты.
-  Both belts need tightening.: Оба ремня нужно подтянуть.
-  Both belts read the same to within what this measurement can resolve. Nothing to adjust.: Оба ремня показывают одинаковое значение в пределах точности этого измерения. Регулировка не требуется.
   Bouncing Printer: Прыгающий принтер
   Bowden Length: 'Длина боудена'
   Bowden tube length from hub to toolhead: 'Длина боуден-трубки от хаба до печатающей головки'
@@ -662,8 +653,8 @@ translations:
   Command failed: Ошибка команды
   Communication Test: 'Проверка связи'
   Compact: Компактный
-  Compare: Сравнить
-  Comparison: Сравнение
+  Compare belt paths with a resonance sweep: "Сравнение путей ремней резонансным свипом"
+  Compare your belt paths: Сравните пути ремней
   Complete: Завершено
   Complete!: Готово!
   Completed: Завершено
@@ -785,7 +776,6 @@ translations:
   Could not load printer database: Не удалось загрузить базу данных принтеров
   Could not move the plate: Не удалось переместить стол
 
-  Could not open Klipper's accelerometer stream. Check that Klipper is running, then retry.: Не удалось открыть поток акселерометра Klipper. Убедитесь, что Klipper запущен, и повторите попытку.
   Could not parse tips database: Не удалось разобрать базу данных советов
   Could not reach Spoolman at: Не удалось связаться со Spoolman по адресу
   Could not read the screw adjustments from the printer: Не удалось получить данные регулировки винтов от принтера
@@ -1235,6 +1225,7 @@ translations:
     {}'
   'Failed to upload remapped G-code: {}': 'Не удалось загрузить переназначенный G-code:
     {}'
+  Fair match: "Среднее совпадение"
   Fan: Вентилятор
   Fan Calibration: Калибровка вентилятора
   Fan Speeds: 'Скорости вентиляторов'
@@ -1370,9 +1361,6 @@ translations:
   Found %zu printers: Найдено %zu принтеров
   Found 1 printer: Найден 1 принтер
   Framerate: Частота кадров
-  Frequency Delta: Разница частот
-  ? "Frequency Delta: Difference between Path A and B. Anything under 2 Hz is below what this measurement can resolve, so it counts as matched.\n\nMatch: How close the two belts are, as a percentage of belt A's frequency. Above 95% is excellent; below 90% is worth adjusting."
-  : "Разница частот: разница между путями A и B. Значения менее 2 Гц ниже точности этого измерения, поэтому считаются совпадением.\n\nСовпадение: насколько близки два ремня, в процентах от частоты ремня A. Выше 95% — отлично; ниже 90% стоит отрегулировать."
   From Buffer: Из буфера
   From Version: С версии
   Front: 'Спереди'
@@ -1397,6 +1385,7 @@ translations:
   Global: Общий
   Good: Хорошо
   Good Accuracy: Хорошая точность
+  Good match: "Хорошее совпадение"
   Got it: Понятно
   Gray: Серый
   Grip filament: Зажать филамент
@@ -1492,7 +1481,6 @@ translations:
   Hide the on-screen keyboard while a USB keyboard is attached: Скрывать экранную клавиатуру, пока подключена USB-клавиатура
   High Water Mark: Пиковое значение
   Hold anywhere to cancel: Удерживайте в любом месте для отмены
-  Hold still: Не двигайтесь
   Holding nozzle at {}°C to purge previous filament.: Удержание сопла при {}°C для очистки от предыдущего филамента.
   Home: Главная
   Home & Continue: Запарковать и продолжить
@@ -1665,6 +1653,7 @@ translations:
   Keep Printing: Продолжить печать
   Keep Required: Оставить обязательным
   Keep Spool Info on Eject: Сохранять данные катушки при извлечении
+  Keep clear of the printer while the toolhead is moving: Не приближайтесь к принтеру, пока перемещается печатающая головка
   Keep current: Оставить текущую
   Keep hands clear. The printer moves on its own.: Держите руки подальше. Принтер двигается сам.
 
@@ -1685,6 +1674,7 @@ translations:
     разгоном или ошибкой конфигурации.
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper резервирует 'default' для новых калибровок. Выберите другое имя."
   Klipper restarting - macros activating: 'Перезапуск Klipper - активация макросов'
+  Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper перестал сообщать о ходе. На небольших принтерах его анализу может не хватить памяти; перезапустите Klipper и повторите попытку."
   Klipper will restart to apply changes: Klipper перезапустится для применения изменений
   Klipper will restart to apply changes.: Klipper перезапустится для применения изменений.
   Klipper will restart to apply new settings.: Klipper перезапустится для применения
@@ -1756,7 +1746,6 @@ translations:
 
   Line {} calls {}, which this printer treats as an emergency stop. Re-slice the file with a profile made for this printer.: 'Строка {} вызывает {}, что этот принтер считает аварийной остановкой. Нарежьте файл заново с профилем для этого принтера.'
   Listen to all theme sounds: Прослушать все звуки темы
-  Listening: Прослушивание
   Live view from your webcam: Прямая трансляция с веб-камеры
   Load: Загрузить
   Load Cell: 'Тензодатчик'
@@ -1803,8 +1792,6 @@ translations:
   'Long-press any tile to enter edit mode — rearrange, resize, remove, or add widgets, and add extra pages for your preferred layout.': 'Долгое нажатие на любую плитку переводит в режим редактирования — переставляйте, изменяйте размер, удаляйте или добавляйте виджеты, а также добавляйте дополнительные страницы под свой макет.'
   Long-press the home grid to rearrange widgets (turn off if it triggers by accident): 'Долгое нажатие на сетку главного экрана переставляет виджеты (отключите, если срабатывает случайно)'
   Longest Disconnect: Самое долгое отключение
-  Loosen Path A belt.: Ослабьте ремень Пути A.
-  Loosen Path B belt.: Ослабьте ремень Пути B.
   Lost connection during print — try again: Потеряно соединение во время печати —
     попробуйте снова
   Lost connection to CFS unit: Потеряна связь с блоком CFS
@@ -1886,8 +1873,6 @@ translations:
   Mark a printer you enclosed yourself: Отметить принтер, который вы закрыли сами
 
   Master volume level: Основной уровень громкости
-  Match: Совпадение
-  Match to belt A: Совпадение с ремнём A
   Match your typical print fan speed: Настройте типичную скорость вентилятора печати
   Matching printers: Подходящие принтеры
   Material: Материал
@@ -1905,19 +1890,17 @@ translations:
   Maximum acceleration (mm/s²): Максимальное ускорение (мм/с²)
   Maximum toolhead speed (mm/s): Максимальная скорость печатающей головки (мм/с)
   Measure: 'Измерить'
-  Measure and compare belt path frequencies: Измерить и сравнить частоты путей ремня
-  Measure belt path frequencies: Измерить частоты путей ремня
   Measure every tool's XYZ offset automatically: Автоматически измеряет смещение XYZ каждого инструмента
   Measure pressure advance automatically: 'Автоматически измеряет Pressure Advance'
   Measured (shaper off): Измерено (шейпер выключен)
   Measured filament diameter: Измеренный диаметр филамента
   Measured pressure advance: 'Измеренный Pressure Advance'
-  Measurement Failed: Измерение не удалось
+  Measurement incomplete. Try again.: Измерение не завершено. Повторите попытку.
   Measuring: 'Измерение'
+  Measuring Path {}: Измерение Пути {}
   Measuring accelerometer noise...: 'Измерение шума акселерометра...'
   Measuring vibrations... {}%: 'Измерение вибраций... {}%'
   Measuring wheel error: Ошибка измерительного колеса
-  Median %.0f Hz: Медиана %.0f Гц
   Memory: Память
   Memory (MB): Память (МБ)
   Memory Snapshot: Снимок памяти
@@ -1961,7 +1944,6 @@ translations:
     minutes. The printer will make noise — this is normal.
   : Перемещает печатающую головку для измерения частот вибрации по каждой оси. Занимает
     2-3 минуты. Принтер будет шуметь — это нормально.
-  Moving gantry: Перемещение портала
   Moving lane: Перемещение канала
   Moving the plate...: Перемещение стола...
 
@@ -1986,7 +1968,6 @@ translations:
   Name (optional): Название (необязательно)
   'Name:': 'Имя:'
   Named actions in the LED Controls widget. Not shown under LED selection.: Именованные действия в виджете «Управление LED». Не отображаются в разделе «Выбор LED».
-  Needs adjustment: Требуется регулировка
   Needs attention: Требует внимания
   Needs the {} package to switch spools: 'Для смены катушки нужен плагин {}'
   Net Weight (g): Вес нетто (г)
@@ -2010,7 +1991,6 @@ translations:
   New printer successfully added: Новый принтер успешно добавлен
   New profile name: Новое имя профиля
   Next: Далее
-  Next belt: Следующий ремень
   Niimbot (Bluetooth): Niimbot (Bluetooth)
   'No': Нет
   No AMS Detected: 'AMS не обнаружен'
@@ -2037,7 +2017,6 @@ translations:
   No Spools: Нет катушек
   No USB printer detected: USB-принтер не обнаружен
   No USB printers found: USB-принтеры не найдены
-  No accelerometer stream available. Check that Klipper is running and an accelerometer is configured, then retry.: Поток акселерометра недоступен. Убедитесь, что Klipper запущен и акселерометр настроен, затем повторите попытку.
   No automatic backup-spool package is installed: Плагин автоматической резервной катушки не установлен
   No buffer data available: Данные буфера недоступны
   No camera — use USB barcode scanner: Нет камеры — используйте USB сканер штрих-кодов
@@ -2092,6 +2071,7 @@ translations:
   No prints yet: Нет печатей
   No profiles available: Профили недоступны
   No sensors detected: Датчики не обнаружены
+  No shared peaks: "Нет общих пиков"
   No slot currently matches.: 'Сейчас нет подходящего слота.'
   No spool assigned: Катушка не назначена
   No spools found — tap to retry: Катушки не найдены — нажмите для повтора
@@ -2129,6 +2109,7 @@ translations:
   Not connected to printer.: Нет подключения к принтеру.
   Not connected to the printer: Нет подключения к принтеру
   Not detected: Не обнаружено
+  Not enough frequency data from the sweeps. Try again.: 'Недостаточно данных о частоте по результатам измерений. Попробуйте снова.'
   Not in your spools? Set it up: Нет в ваших катушках? Настроить
   Not now: Не сейчас
   Not yet available on this display: 'Пока недоступно на этом дисплее'
@@ -2186,6 +2167,8 @@ translations:
   On/Off (state-aware): Вкл/Выкл (с отслеживанием)
   'On:': 'Вкл:'
   One tap runs this macro. Dangerous macros still ask.: 'Один тап запускает этот макрос. Опасные макросы всё равно запрашивают подтверждение.'
+  'Only on A: {} Hz': "Только на A: {} Гц"
+  'Only on B: {} Hz': "Только на B: {} Гц"
   Ooze Reduction: 'Снижение подтекания'
   Open: Открыть
   Open Source Licenses: Лицензии с открытым кодом
@@ -2208,7 +2191,6 @@ translations:
   Or Enter Manually: Или введите вручную
   Or instead of turning the others: Или вместо вращения остальных винтов
   Oscillating... cycle %d/%d: Осцилляция... цикл %d/%d
-  Out of range: Вне диапазона
   Outcome: Результат
   Output Device: Устройство вывода
   Output Mode: Режим вывода
@@ -2221,6 +2203,8 @@ translations:
     автоопределение, если датчик или нагреватель камеры не называется 'chamber'.
   P: Д
   PA: PA
+  PATH A · 1,-1: "ПУТЬ A · 1,-1"
+  PATH B · 1,1: "ПУТЬ B · 1,1"
   PETG: PETG
   PID: PID
   PIN must be 4-6 digits: PIN должен содержать 4-6 цифр
@@ -2262,8 +2246,8 @@ translations:
   Password: Пароль
   Password cannot be empty: Пароль не может быть пустым
   Password is required for secured networks: Для защищённых сетей требуется пароль
-  Path A: Путь A
-  Path B: Путь B
+  Path {}: Путь {}
+  Path {} before: Путь {} раньше
   Pause: Пауза
   Pause macro not configured: Макрос паузы не настроен
   Pause on Detection: Пауза при обнаружении
@@ -2275,6 +2259,7 @@ translations:
   Pausing...: Приостановка...
   Peak Freq: Пиковая частота
   'Peak:': 'Пик:'
+  Peaks {} Hz: "Пики {} Гц"
   Performance: Производительность
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
@@ -2303,8 +2288,6 @@ translations:
     паркуется и зондирует.
   Please wait while the printer probes each screw position.: Пожалуйста, подождите,
     пока принтер возьмет пробу на позиции каждого винта.
-  Pluck the front belt on the left: Щипните передний ремень слева
-  Pluck the front belt on the right: Щипните передний ремень справа
   Plugin already installed: Плагин уже установлен
   Plugin disabled: Плагин отключен
   Plugin installed successfully: Плагин успешно установлен
@@ -2318,9 +2301,9 @@ translations:
   Point camera at QR code on spool: Наведите камеру на QR-код на катушке
   Polymaker: Polymaker
   Poor Accuracy: Низкая точность
+  Poor match: "Плохое совпадение"
   Port: Порт
   Position: Позиция
-  Position the gantry yourself, then continue: Расположите портал самостоятельно, затем продолжите
   Post-Sensor Clear: 'Догон после датчика'
   Power: Питание
   Power Devices: Устройства питания
@@ -2550,17 +2533,19 @@ translations:
   Raspberry Pi (32-bit): Raspberry Pi (32-bit)
   Re-identify: Определить снова
   Re-measure: 'Измерить снова'
+  Re-measuring Path {}: Повторное измерение Пути {}
   Re-probe: Перепроверить
   Re-read spool RFID tags and remaining length: 'Перечитать RFID-метки катушек и остаток'
   Re-seat the Bowden tube connector on the CFS unit: Переустановите разъём трубки Боудена на блоке CFS
   Re-syncs Happy Hare's tracked state with the hardware.: Повторно синхронизирует
     отслеживаемое состояние Happy Hare с оборудованием.
+  Re-test A: Повторный тест A
+  Re-test B: Повторный тест B
   Readings from extra temperature sensors: Показания доп. датчиков температуры
   Ready: Готов
   Ready for filament operations: Готово к операциям с филаментом
   Ready to Apply: Готово к применению
   Ready to calibrate: Готов к калибровке
-  Ready to pluck: Готово к щипку
   Rear: 'Сзади'
   Rear Left: 'Сзади слева'
   Rear Right: 'Сзади справа'
@@ -2952,6 +2937,7 @@ translations:
   Setup Timelapse: Настроить таймлапс
   Several printers match - choose yours: Подходят несколько принтеров - выберите свой
   Shadow Intensity: Интенсивность тени
+  Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together.: Раскачивает печатающую головку вдоль каждой диагонали и накладывает два отклика. У одинаково натянутых ремней пики совпадают.
   Share Usage Data: Делиться данными использования
   Share anonymous usage statistics to help us make HelixScreen better. No personal data is ever collected.: Делитесь
     анонимной статистикой использования, чтобы помочь нам улучшить HelixScreen. Персональные
@@ -2986,6 +2972,7 @@ translations:
   Shutting down...: Выключение...
   Signal: Сигнал
   'Signal #': Сигнал №
+  Similarity: "Схожесть"
   Single toggle macro. State is not tracked.: Один макрос переключения. Состояние
     не отслеживается.
   Size: Размер
@@ -3080,18 +3067,16 @@ translations:
   Start: Старт
   Start Anyway: Начать всё равно
   Start Calibration: Начать калибровку
-  Start Check: Начать проверку
   Start Drying: Начать сушку
-  Start Listening: Начать прослушивание
   Start Print: Начать печать
   Start Probing: Начать зондирование
   Start anyway?: 'Всё равно начать?'
   Start at: Начать с
+  Start check: Начать проверку
   Start drying: Начать сушку
 
   Start failed: Ошибка запуска
   'Start next: {}': 'Запустить следующую: {}'
-  Start over: Начать заново
   Start print anyway?: Всё равно начать печать?
   Started: Начато
   Starting Print...: Запуск печати...
@@ -3117,6 +3102,7 @@ translations:
   Stop failed: Ошибка остановки
   ? "Stop printing \"{}\"?\n\nThis cannot be undone after 5 seconds."
   : "Остановить печать \"{}\"?\n\nЭто нельзя будет отменить через 5 секунд."
+  Stop the check?: Остановить проверку?
   Stopped: Остановлено
   Stopped between Hub and Toolhead: Остановка между хабом и печатающей головкой
   Stopped between Lane and Hub: Остановка между каналом и хабом
@@ -3136,6 +3122,7 @@ translations:
     модулей прошивки принтера
   Surfaces inherit app background tokens for light and dark modes.: Поверхности наследуют
     токены фона приложения для светлого и тёмного режимов.
+  Sweep: Свип
   Switch Printer: Переключить принтер
   Switch a power device on or off: Включить или выключить питание
   Switch Sensors: Датчики-переключатели
@@ -3191,10 +3178,8 @@ translations:
   Tap the part cooling fan: Нажмите на вентилятор охлаждения детали
   Tap to assign: Нажмите для назначения
   Target: 'Цель'
-  Target Frequency: Целевая частота
   Target Temperature: Целевая температура
   Target Version: Целевая версия
-  Target is %.0f Hz. Tighten belt %s and loosen belt %s.: Целевая частота %.0f Гц. Подтяните ремень %s и ослабьте ремень %s.
   Telemetry: Телеметрия
   Telemetry Data: Данные телеметрии
   Telemetry Disabled: Телеметрия отключена
@@ -3227,6 +3212,7 @@ translations:
   Test RS-485 link to CFS units: 'Проверить связь RS-485 с блоками CFS'
   Test Screensaver: Проверить заставку
   Test Tracker: Трекер тестов
+  Test both: Тест обоих
   Test label printed: Тестовая этикетка напечатана
   'Testing rotation: %d° (%d/%d) - %ds remaining': 'Тест поворота: %d°
     (%d/%d) - осталось %ds'
@@ -3235,7 +3221,6 @@ translations:
     использования помогают улучшить HelixScreen.
   Thanks! TOTALLY anonymous usage data helps improve HelixScreen.: Спасибо! ПОЛНОСТЬЮ
     анонимные данные использования помогают улучшить HelixScreen.
-  That did not sound like a pluck - try again: Это не было похоже на щипок - попробуйте снова
   'That setting cannot be changed while a print is running': 'Этот параметр нельзя изменить во время печати'
   That slot cannot stand in for this one: Этот слот не может заменить текущий
   That tool is already loaded: Этот инструмент уже загружен
@@ -3245,7 +3230,6 @@ translations:
   : Плагин HelixPrint позволяет быстро модифицировать G-code прямо на принтере — например,
     пропускать сетку стола для быстрых перепечаток.
   The Spoolman spool currently loaded: Текущая катушка Spoolman
-  'The accelerometer stream stopped: %s. Check that Klipper is running, then retry.': 'Поток акселерометра остановлен: %s. Убедитесь, что Klipper запущен, и повторите попытку.'
   ? The animated screensaver has been turned off on this device to prevent it from
     interfering with prints. You can re-enable it in Settings > Display.
   : Анимированная заставка была отключена на данном устройстве, чтобы она не мешала
@@ -3337,6 +3321,8 @@ translations:
     использует метод трения бумаги об сопло для установки Z-смещения.
   This cannot be undone.: Это действие нельзя отменить.
   This channel offers v{}, older than the installed v{}. Anything added since then will be removed.: 'Этот канал предлагает v{}, старее установленной v{}. Всё добавленное с тех пор будет удалено.'
+  ? "This check runs Klipper's resonance test along each belt path and compares the two responses. Balanced belts give curves of the same shape, with peaks at the same frequencies.\n\nEach sweep takes a few minutes and moves the toolhead; keep clear of the printer while it runs."
+  : "Эта проверка запускает резонансный тест Klipper по каждому пути ремня и сравнивает два отклика. Сбалансированные ремни дают кривые одинаковой формы с пиками на одних и тех же частотах.\n\nКаждый свип занимает несколько минут и перемещает печатающую головку; держитесь подальше от принтера во время работы."
   This clears every spool's failover assignment. The print will stop on runout until you set up failover again.: 'Это очистит назначение резервной катушки для всех катушек. Печать будет останавливаться при окончании филамента, пока вы не настроите их заново.'
   This device has no wired network connection. If you turn WiFi off, it can only be turned back on from this screen.: У этого устройства нет проводного подключения к сети. Если выключить WiFi, включить его обратно можно будет только с этого экрана.
   ? This device has only {} MB of RAM. Resonance calibration is memory-intensive and can make the printer firmware report a "Timer Too Close" error or restart mid-test. Continue anyway?
@@ -3353,6 +3339,7 @@ translations:
   ? This installs the HelixScreen helper macros on the printer and adds them to printer.cfg. A print is running, so Klipper restarts after it finishes.
   : 'Это установит вспомогательные макросы HelixScreen на принтер и добавит их в printer.cfg. Идёт печать, поэтому Klipper перезапустится после её завершения.'
   This installs the HelixScreen helper macros on the printer, adds them to printer.cfg, and restarts Klipper.: 'Это установит вспомогательные макросы HelixScreen на принтер, добавит их в printer.cfg и перезапустит Klipper.'
+  'This is an emergency stop: the printer halts and Klipper restarts.': 'Это аварийный останов: принтер останавливается, и Klipper перезапускается.'
   This is exactly the data that will be sent: Это именно те данные, которые будут
     отправлены
   This is what data would be sent if enabled: Эти данные были бы отправлены при включении
@@ -3408,8 +3395,6 @@ translations:
   Thorough: Тщательно
   Thumbnail Only: Только миниатюра
   'Thumbnail: ': 'Миниатюра: '
-  Tighten Path A belt.: Подтяните ремень Пути A.
-  Tighten Path B belt.: Подтяните ремень Пути B.
   Time: Время
   Time Format: Формат времени
   Time to wait before escalating to emergency stop: Время ожидания перед эскалацией
@@ -3444,7 +3429,6 @@ translations:
   Toggle toolhead LED for an extruder: 'Переключить LED печатающей головки для экструдера'
   'Toggle:': 'Переключить:'
   Too humid: Слишком влажно
-  Too soft - pluck harder: Слишком слабо - щипните сильнее
   Tool: Инструмент
   Tool Change Failed: 'Ошибка смены инструмента'
   Tool Changer: Сменщик инструментов
@@ -3517,10 +3501,7 @@ translations:
     проверьте разрешения
   Unavailable: Недоступно
   Unavailable on this printer: Недоступно на этом принтере
-  Understanding Results: Понимание результатов
   Undo: Шаг назад
-  ? "Uneven belt tension causes print artifacts like layer shifts, VFAs (vertical fine artifacts), and ringing.\n\nPluck each belt by hand and this tool listens through the accelerometer to measure the belt's frequency. Matched frequencies mean balanced tension.\n\nOn CoreXY, belts A and B should be within a few Hz of each other."
-  : "Неравномерное натяжение ремня вызывает дефекты печати, такие как смещения слоёв, VFA (вертикальные мелкие артефакты) и ringing.\n\nДёрните каждый ремень рукой, и этот инструмент измерит частоту ремня с помощью акселерометра. Совпадающие частоты означают сбалансированное натяжение.\n\nДля CoreXY ремни A и B должны отличаться на несколько Гц."
   Uninstall: Удалить
   Uninstall HelixPrint Plugin: Удалить плагин HelixPrint
   Uninstall HelixPrint Plugin?: Удалить плагин HelixPrint?
@@ -3703,7 +3684,6 @@ translations:
   Wifi: Wi-Fi
   Will not switch spools on runout: При обрыве катушка не переключится
   Wipe nozzle on silicone cleaning strip: 'Очистить сопло о силиконовую полоску'
-  Within measurement resolution: В пределах точности измерения
   Wizard Error: Ошибка мастера
   Working...: Выполнение...
   Write failed at chunk {}: Не удалось записать в блоке {}
@@ -3812,10 +3792,12 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env проигнорирован: {}'
   idle: простой
   in unit {} slot {}: 'в блоке {} слот {}'
+  just now: только что
   layers: слои
   left: осталось
   loaded: 'загружен'
   locked: 'заблокировано'
+  matched: совпадают
   mm before clog: мм до засора
   needs: требуется
   never sleeps: никогда не спит
@@ -3842,6 +3824,7 @@ translations:
   slots): слотов)
   started: запущено
   steppers: шаговые двигатели
+  sweeping: идёт измерение
   tall: высотой
   target {}°: 'цель {}°'
   tool(s): инструмент(ы)
@@ -3850,6 +3833,7 @@ translations:
   v{} installed! Restarting...: v{} установлена! Перезапуск...
   v{} is available. Tap to update.: v{} доступна. Нажмите для обновления.
   you have: у вас
+  '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Гц · примерно {} мин'
   '{} Hardware Issues': 'Проблем с оборудованием: {}'
   '{} Issues Detected': 'Обнаружено проблем: {}'
   '{} LED strips available': 'Доступно светодиодных лент: {}'
@@ -3881,6 +3865,7 @@ translations:
   '{} matches.': '{} подходит.'
   '{} may cause unintended changes. Are you sure?': '{} может привести к непреднамеренным
     изменениям. Вы уверены?'
+  '{} min ago': '{} мин. назад'
   '{} missing': 'отсутствует: {}'
   '{} more taps to {} beta features': '{} нажатий до {} бета-функций'
   '{} needs the HelixPrint plugin. Printing original file.': 'Для {} нужен плагин HelixPrint. Печатается исходный файл.'
@@ -3899,3 +3884,4 @@ translations:
   : '{} переключится на слот, у которого тип филамента И цвет совпадают с активной катушкой, а собственный датчик порта видит филамент.'
   '{} — response timed out': '{} — время ожидания ответа истекло'
   '{} → {}: no filament loaded.': '{} → {}: филамент не загружен.'
+  '{}:{:02} elapsed': прошло {}:{:02}

@@ -1324,6 +1324,33 @@ TEST_CASE("PrinterState: set_kinematics handles kinematics variations", "[state]
     }
 }
 
+TEST_CASE("PrinterState: set_kinematics gates belt compare on true CoreXY", "[state][kinematics]") {
+    lv_init_safe();
+
+    PrinterState& state = get_printer_state();
+    PrinterStateTestAccess::reset(state);
+    state.init_subjects(false);
+
+    REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 0);
+
+    SECTION("corexz never arms it") {
+        state.set_kinematics("corexz");
+        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 0);
+    }
+
+    SECTION("corexy arms it and cartesian clears it") {
+        state.set_kinematics("corexy");
+        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 1);
+        state.set_kinematics("cartesian");
+        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 0);
+    }
+
+    SECTION("limited_corexy arms it") {
+        state.set_kinematics("limited_corexy");
+        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 1);
+    }
+}
+
 TEST_CASE("PrinterState: Update kinematics from toolhead notification", "[state][kinematics][ui]") {
     lv_init_safe();
 

@@ -21,6 +21,7 @@
 #include "sensor_state.h"
 #include "shaper_response.h"
 #include "simulated_clock.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -30,6 +31,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
 #include <fstream>
 #include <iomanip>
 #include <map>
@@ -202,6 +204,58 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor
     if (!mock_webcams_.empty()) {
         spdlog::info("[MoonrakerClientMock] {} mock webcam(s) via HELIX_MOCK_WEBCAMS",
                      mock_webcams_.size());
+    }
+
+    // HELIX_MOCK_BELT_A_HZ / HELIX_MOCK_BELT_B_HZ — the two belt paths'
+    // simulated resonance peaks. Defaults (110/98) sit in "Poor match"
+    // territory so the tuning loop is visible from the first sweep.
+    if (const char* a_env = std::getenv("HELIX_MOCK_BELT_A_HZ")) {
+        if (auto v = text_io::parse_leading<float>(a_env); v && *v > 0.0f) {
+            belt_peaks_hz_[0] = *v;
+        }
+    }
+    if (const char* b_env = std::getenv("HELIX_MOCK_BELT_B_HZ")) {
+        if (auto v = text_io::parse_leading<float>(b_env); v && *v > 0.0f) {
+            belt_peaks_hz_[1] = *v;
+        }
+    }
+
+    // HELIX_MOCK_BELT_RANGE=<min>-<max> — the [resonance_tester] sweep range
+    // the mock reports and sweeps, so a real capture fed through
+    // HELIX_MOCK_BELT_CSV_A/_B is analysed over the band it was measured in.
+    if (const char* range_env = std::getenv("HELIX_MOCK_BELT_RANGE")) {
+        const std::string range(range_env);
+        const auto dash = range.find('-', 1);
+        const auto lo = text_io::parse_leading<double>(range.substr(0, dash));
+        const auto hi = dash == std::string::npos
+                            ? std::nullopt
+                            : text_io::parse_leading<double>(range.substr(dash + 1));
+        if (lo && hi && *lo > 0.0 && *hi > *lo) {
+            resonance_min_freq_ = *lo;
+            resonance_max_freq_ = *hi;
+        }
+    }
+
+    // HELIX_MOCK_BELT_FAIL — reproduce a run that stalls, loses its CSV, uses
+    // per-chip output, dies on an adxl345 error, or speaks Kalico's dialect.
+    if (const char* fail_env = std::getenv("HELIX_MOCK_BELT_FAIL")) {
+        const std::string fail(fail_env);
+        if (fail == "stall") {
+            belt_failure_ = BeltMockFailure::STALL;
+        } else if (fail == "nofile") {
+            belt_failure_ = BeltMockFailure::NOFILE;
+        } else if (fail == "multichip") {
+            belt_failure_ = BeltMockFailure::MULTICHIP;
+        } else if (fail == "error") {
+            belt_failure_ = BeltMockFailure::ERROR;
+        } else if (fail == "kalico") {
+            belt_failure_ = BeltMockFailure::KALICO;
+        }
+        if (belt_failure_ != BeltMockFailure::NONE) {
+            spdlog::info("[MoonrakerClientMock] TEST_RESONANCES failure mode '{}' via "
+                         "HELIX_MOCK_BELT_FAIL",
+                         fail);
+        }
     }
 
     // HELIX_MOCK_EXCLUDE_OBJECTS=<n>|1 — publish a synthetic multi-object plate at
@@ -806,6 +860,32 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     return 0; // Success
 }
 
+namespace mock_internal {
+
+// NAMESPACE_OK: mock_internal sits at global scope with the mock's other helpers
+std::string mock_kinematics(MoonrakerClientMock::PrinterType type) {
+    // HELIX_MOCK_KINEMATICS overrides; otherwise the default matches the type.
+    const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS");
+    if (kin_env && kin_env[0])
+        return kin_env;
+    switch (type) {
+    case MoonrakerClientMock::PrinterType::VORON_24:
+    case MoonrakerClientMock::PrinterType::VORON_TRIDENT:
+    case MoonrakerClientMock::PrinterType::CREALITY_K1:
+    case MoonrakerClientMock::PrinterType::CREALITY_K1_MAX:
+    case MoonrakerClientMock::PrinterType::FLASHFORGE_CREATOR5:
+    case MoonrakerClientMock::PrinterType::FLASHFORGE_CREATOR5_ZMOD:
+    case MoonrakerClientMock::PrinterType::GENERIC_COREXY:
+        return "corexy";
+    case MoonrakerClientMock::PrinterType::DELTA:
+        return "delta";
+    default:
+        return "cartesian";
+    }
+}
+
+} // namespace mock_internal
+
 void MoonrakerClientMock::populate_capabilities() {
     // Held for the whole body: the simulation thread may already be running (connect()
     // starts it before discover_printer() calls this) and iterates these same lists.
@@ -1191,29 +1271,7 @@ void MoonrakerClientMock::populate_capabilities() {
                                          {"speed", "50"},
                                          {"horizontal_move_z", "10"}};
     // Provide kinematics so bed_moves detection works
-    // HELIX_MOCK_KINEMATICS overrides; otherwise default matches printer type
-    const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS");
-    std::string default_kinematics;
-    switch (printer_type_) {
-    case PrinterType::VORON_24:
-    case PrinterType::VORON_TRIDENT:
-        default_kinematics = "corexy";
-        break;
-    case PrinterType::CREALITY_K1:
-    case PrinterType::CREALITY_K1_MAX:
-    case PrinterType::FLASHFORGE_CREATOR5:
-    case PrinterType::FLASHFORGE_CREATOR5_ZMOD:
-        default_kinematics = "corexy";
-        break;
-    case PrinterType::DELTA:
-        default_kinematics = "delta";
-        break;
-    default:
-        default_kinematics = "cartesian";
-        break;
-    }
-    std::string mock_kinematics = (kin_env && kin_env[0]) ? kin_env : default_kinematics;
-    mock_config["printer"] = {{"kinematics", mock_kinematics}};
+    mock_config["printer"] = {{"kinematics", mock_internal::mock_kinematics(printer_type_)}};
     // Add gcode_macro entries for param detection (shared with configfile.config response)
     mock_config.merge_patch(mock_internal::get_mock_gcode_macro_config());
     // Probe section — shared with the configfile.config query/subscribe responses
@@ -1241,7 +1299,7 @@ void MoonrakerClientMock::populate_capabilities() {
     helix::MacroParamCache::instance().populate_from_configfile(mock_config, macros_snapshot);
 
     spdlog::debug("[MoonrakerClientMock] Mock config: adxl345, resonance_tester, kinematics={}",
-                  mock_kinematics);
+                  mock_internal::mock_kinematics(printer_type_));
 
     // Populate printer objects for hardware discovery
     std::vector<std::string> all_objects;
@@ -3745,6 +3803,13 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
         }
         spdlog::info("[MoonrakerClientMock] SHAPER_CALIBRATE AXIS={}", axis);
         dispatch_shaper_calibrate_response(axis);
+    }
+
+    // Belt tension measurement - TEST_RESONANCES AXIS=<1,1|1,-1> OUTPUT=resonances
+    // NAME=<name>. Its own block: no other substring check in this chain
+    // matches TEST_RESONANCES, and vice versa.
+    if (gcode.find("TEST_RESONANCES") != std::string::npos) {
+        dispatch_test_resonances_response(gcode);
     }
 
     // SET_INPUT_SHAPER - Apply shaper settings (command handled via execute_gcode success callback)
@@ -6664,6 +6729,63 @@ void write_mock_shaper_csv(const std::string& path, char axis) {
     spdlog::info("[MoonrakerClientMock] Wrote mock shaper CSV to {}", path);
 }
 
+/**
+ * @brief Write a mock TEST_RESONANCES OUTPUT=resonances CSV for one belt path
+ *
+ * Bins at Klipper's raw-PSD resolution (3200 Hz / 4096 samples), with a
+ * Lorentzian at the path's simulated peak over a noise floor plus the
+ * ~42 Hz peak every belt rig shows.
+ */
+void write_mock_belt_csv(const std::string& path, char path_letter, float peak_hz, double max_freq,
+                         BeltMockFailure mode) {
+    FILE* f = std::fopen(path.c_str(), "w");
+    if (!f) {
+        spdlog::warn("[MoonrakerClientMock] Failed to write mock belt CSV to {}", path);
+        return;
+    }
+
+    if (mode == BeltMockFailure::MULTICHIP) {
+        std::fprintf(f, "freq,adxl345,adxl345_hotend\n");
+    } else {
+        std::fprintf(f, "freq,psd_x,psd_y,psd_z,psd_xyz");
+        if (mode == BeltMockFailure::KALICO) {
+            std::fprintf(f, ",accel_per_hz");
+        }
+        std::fprintf(f, "\n");
+    }
+
+    std::mt19937 rng(7 + static_cast<unsigned>(path_letter));
+    std::uniform_real_distribution<float> noise_dist(0.9f, 1.1f);
+
+    constexpr float PEAK_HEIGHT = 3e4f;
+    constexpr float SECONDARY_HEIGHT = 0.22f * PEAK_HEIGHT;
+    constexpr double BIN_STEP = 3200.0 / 4096.0;
+    // HWHM of 10 Hz (Q ~ 5 at 100 Hz), the width a real belt rig shows. A
+    // spike much narrower than that tanks the curve-similarity leg of
+    // compare_belt_paths() for peak pairs a real printer scores as close.
+    constexpr float MAIN_HALF_WIDTH_SQ = 100.0f;
+    for (double freq = 5.0; freq <= max_freq + 1e-9; freq += BIN_STEP) {
+        const float df = static_cast<float>(freq) - peak_hz;
+        const float main = PEAK_HEIGHT / (1.0f + (df * df) / MAIN_HALF_WIDTH_SQ);
+        const float ds = static_cast<float>(freq) - 42.0f;
+        const float secondary = SECONDARY_HEIGHT / (1.0f + (ds * ds) / 20.25f);
+        const float psd_xyz = 150.0f * noise_dist(rng) + main + secondary;
+
+        if (mode == BeltMockFailure::MULTICHIP) {
+            std::fprintf(f, "%.1f,%.3e,%.3e\n", freq, psd_xyz, psd_xyz * 0.97f);
+        } else {
+            std::fprintf(f, "%.1f,%.3e,%.3e,%.3e,%.3e", freq, psd_xyz * 0.45f, psd_xyz * 0.45f,
+                         psd_xyz * 0.10f, psd_xyz);
+            if (mode == BeltMockFailure::KALICO) {
+                std::fprintf(f, ",%.1f", 60.0);
+            }
+            std::fprintf(f, "\n");
+        }
+    }
+    std::fclose(f);
+    spdlog::info("[MoonrakerClientMock] Wrote mock belt CSV to {}", path);
+}
+
 } // anonymous namespace
 
 std::string MoonrakerClientMock::shaper_csv_path(char axis_lower) {
@@ -6677,6 +6799,41 @@ std::string MoonrakerClientMock::shaper_csv_path(char axis_lower) {
 void MoonrakerClientMock::remove_shaper_csvs() {
     std::remove(shaper_csv_path('x').c_str());
     std::remove(shaper_csv_path('y').c_str());
+}
+
+float MoonrakerClientMock::belt_peak_hz(char path) const {
+    return belt_peaks_hz_[(path == 'A' || path == 'a') ? 0 : 1];
+}
+
+void MoonrakerClientMock::set_belt_peaks_hz(float a_hz, float b_hz) {
+    belt_peaks_hz_[0] = a_hz;
+    belt_peaks_hz_[1] = b_hz;
+}
+
+std::string MoonrakerClientMock::belt_csv_path(const std::string& axis_name,
+                                               const std::string& name) {
+    // PID-scoped for the same reason as shaper_csv_path(): sharded test
+    // processes sharing /tmp must not read or delete each other's fixtures.
+    return "/tmp/resonances_" + axis_name + "_" + name + "_mock_" +
+           std::to_string(static_cast<long>(::getpid())) + ".csv";
+}
+
+void MoonrakerClientMock::remove_belt_csvs() {
+    // The axis/name parts come from the G-code, so match the fixed prefix and
+    // this process' PID suffix rather than enumerating paths.
+    const std::string prefix = "resonances_";
+    const std::string suffix = "_mock_" + std::to_string(static_cast<long>(::getpid())) + ".csv";
+    if (DIR* dir = opendir("/tmp")) {
+        while (struct dirent* entry = readdir(dir)) {
+            const std::string file(entry->d_name);
+            if (file.size() > prefix.size() + suffix.size() &&
+                file.compare(0, prefix.size(), prefix) == 0 &&
+                file.compare(file.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                std::remove(("/tmp/" + file).c_str());
+            }
+        }
+        closedir(dir);
+    }
 }
 
 json MoonrakerClientMock::build_input_shaper_config() const {
@@ -6813,6 +6970,155 @@ void MoonrakerClientMock::dispatch_shaper_calibrate_response(char axis) {
     spdlog::info("[MoonrakerClientMock] Started SHAPER_CALIBRATE timer for axis {} ({:.0f}-{:.0f} "
                  "Hz sweep)",
                  axis, min_freq, max_freq);
+}
+
+void MoonrakerClientMock::dispatch_test_resonances_response(const std::string& gcode) {
+    // AXIS= names a belt diagonal in Klipper's XY-vector form. Path A is
+    // 1,-1 and Path B is 1,1, the Voron motor names Shake&Tune uses.
+    // Anything else cannot be swept.
+    std::string axis_value;
+    if (auto axis_pos = gcode.find("AXIS="); axis_pos != std::string::npos) {
+        const size_t start = axis_pos + 5;
+        const size_t end = gcode.find_first_of(" \t", start);
+        axis_value = gcode.substr(start, end == std::string::npos ? end : end - start);
+    }
+    const bool is_a = axis_value == "1,-1";
+    const bool is_b = axis_value == "1,1";
+    if (!is_a && !is_b) {
+        dispatch_gcode_response("!! Unsupported axis");
+        spdlog::warn("[MoonrakerClientMock] TEST_RESONANCES unsupported axis '{}'", axis_value);
+        return;
+    }
+    const int idx = is_a ? 0 : 1;
+    const char path_letter = is_a ? 'A' : 'B';
+
+    std::string name = "adxl345"; // Klipper's NAME= default
+    if (auto name_pos = gcode.find("NAME="); name_pos != std::string::npos) {
+        const size_t start = name_pos + 5;
+        const size_t end = gcode.find_first_of(" \t", start);
+        name = gcode.substr(start, end == std::string::npos ? end : end - start);
+    }
+
+    // Each re-measurement after the first walks this path's peak toward the
+    // other's by at most 4 Hz: tightening a belt moves its resonance, and the
+    // clamp keeps the walk from ever overshooting past equal.
+    if (belt_measure_count_[idx] > 0) {
+        const float step = std::clamp(belt_peaks_hz_[1 - idx] - belt_peaks_hz_[idx], -4.0f, 4.0f);
+        belt_peaks_hz_[idx] += step;
+    }
+    ++belt_measure_count_[idx];
+
+    const bool kalico = belt_failure_ == BeltMockFailure::KALICO;
+    const std::string axis_name =
+        kalico ? (is_a ? "axis=1.000,-1.000" : "axis=1.000,1.000")
+               : (is_a ? "axis=1.000,-1.000,0.000" : "axis=1.000,1.000,0.000");
+
+    // Whole-Hz console lines across the configured [resonance_tester] range.
+    std::vector<std::string> lines;
+    char buf[256];
+    for (double freq = std::ceil(resonance_min_freq_); freq <= resonance_max_freq_ + 1e-9;
+         freq += 1.0) {
+        snprintf(buf, sizeof(buf), "Testing frequency %.0f Hz", freq);
+        lines.emplace_back(buf);
+    }
+    if (belt_failure_ == BeltMockFailure::STALL) {
+        lines.resize(lines.size() / 2);
+    } else if (belt_failure_ == BeltMockFailure::ERROR) {
+        lines.resize(3);
+        lines.emplace_back("!! Invalid adxl345 id (got 0 vs e5).");
+    }
+
+    const bool has_terminal =
+        belt_failure_ != BeltMockFailure::STALL && belt_failure_ != BeltMockFailure::ERROR;
+    const bool write = belt_failure_ == BeltMockFailure::NONE ||
+                       belt_failure_ == BeltMockFailure::MULTICHIP || kalico;
+    const std::string csv_path = belt_csv_path(axis_name, name);
+    std::string final_line;
+    if (has_terminal) {
+        snprintf(buf, sizeof(buf), "Resonances data written to %s file", csv_path.c_str());
+        final_line = buf;
+    }
+
+    struct BeltSimState {
+        MoonrakerClientMock* mock;
+        std::vector<std::string> lines;
+        std::string final_line;
+        std::string csv_path;
+        char path_letter;
+        float peak_hz;
+        double max_freq;
+        bool write;
+        BeltMockFailure mode;
+        size_t index;
+    };
+    auto* sim = new BeltSimState{this,
+                                 std::move(lines),
+                                 std::move(final_line),
+                                 csv_path,
+                                 path_letter,
+                                 belt_peaks_hz_[idx],
+                                 resonance_max_freq_,
+                                 write,
+                                 belt_failure_,
+                                 0};
+
+    const uint32_t interval = belt_line_interval_ms_ != 0
+                                  ? belt_line_interval_ms_
+                                  : static_cast<uint32_t>(std::max(
+                                        1, sim_speed().shorten_wait_ms(static_cast<int>(
+                                               1000.0 / std::max(1.0, resonance_hz_per_sec_)))));
+
+    lv_timer_t* timer = lv_timer_create(
+        [](lv_timer_t* t) {
+            auto* s = static_cast<BeltSimState*>(lv_timer_get_user_data(t));
+
+            if (s->index < s->lines.size()) {
+                s->mock->dispatch_gcode_response(s->lines[s->index]);
+                s->index++;
+                return;
+            }
+
+            if (!s->final_line.empty()) {
+                if (s->write) {
+                    // HELIX_MOCK_BELT_CSV_A/_B replay a real capture for that
+                    // path instead of the synthetic curve.
+                    const char* replay = std::getenv(
+                        s->path_letter == 'A' ? "HELIX_MOCK_BELT_CSV_A" : "HELIX_MOCK_BELT_CSV_B");
+                    std::ifstream src(replay ? replay : "");
+                    if (src && s->mode == BeltMockFailure::NONE) {
+                        std::ofstream(s->csv_path) << src.rdbuf();
+                        spdlog::info("[MoonrakerClientMock] Replayed belt CSV {} to {}", replay,
+                                     s->csv_path);
+                    } else {
+                        write_mock_belt_csv(s->csv_path, s->path_letter, s->peak_hz, s->max_freq,
+                                            s->mode);
+                    }
+                } else {
+                    // No file may survive at the path the terminal line names,
+                    // or a caller would read stale data as this run's result.
+                    std::remove(s->csv_path.c_str());
+                }
+                s->mock->dispatch_gcode_response(s->final_line);
+            }
+
+            spdlog::info("[MoonrakerClientMock] Dispatched TEST_RESONANCES response for belt "
+                         "path {}",
+                         s->path_letter);
+            auto& timers = s->mock->calibration_timers_;
+            timers.erase(std::remove_if(timers.begin(), timers.end(),
+                                        [t](const CalibrationTimer& ct) { return ct.timer == t; }),
+                         timers.end());
+            delete s;
+            lv_timer_delete(t);
+        },
+        interval, sim);
+
+    lv_timer_set_repeat_count(timer, static_cast<int32_t>(sim->lines.size()) + 1);
+    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+
+    spdlog::info("[MoonrakerClientMock] Started TEST_RESONANCES timer for belt path {} "
+                 "({:.0f}-{:.0f} Hz sweep, name '{}')",
+                 path_letter, resonance_min_freq_, resonance_max_freq_, name);
 }
 
 void MoonrakerClientMock::dispatch_measure_axes_noise_response() {

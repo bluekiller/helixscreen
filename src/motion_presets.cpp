@@ -3,8 +3,6 @@
 
 #include "motion_presets.h"
 
-#include "belt_gating.h"
-
 #include <algorithm>
 #include <cmath>
 
@@ -18,6 +16,16 @@ constexpr double PRESET_INSET_FRACTION = 0.1;
 
 /// Circular beds: rim presets sit at this fraction of the inscribed radius.
 constexpr double PRESET_RADIUS_FRACTION = 0.9;
+
+/// Midpoint of one axis's kinematic range. A range the printer has not sent
+/// yet has no midpoint, and a caller that guesses one aims machine motion at
+/// fabricated coordinates.
+std::optional<float> axis_center(bool known, float lo, float hi) {
+    if (!known || lo >= hi) {
+        return std::nullopt;
+    }
+    return (lo + hi) / 2.0f;
+}
 
 /// Where a preset sits on the grid: -1 min side, 0 centre, 1 max side.
 struct GridPosition {
@@ -69,10 +77,8 @@ AxisBounds preset_area(const AxisBounds& machine_travel, const AxisBounds& gcode
 
 std::optional<AxisTarget> motion_preset_target(MotionPreset preset, const AxisBounds& gcode_bounds,
                                                bool circular_bed) {
-    const auto center_x =
-        calibration::axis_center(gcode_bounds.has_x, gcode_bounds.x_min, gcode_bounds.x_max);
-    const auto center_y =
-        calibration::axis_center(gcode_bounds.has_y, gcode_bounds.y_min, gcode_bounds.y_max);
+    const auto center_x = axis_center(gcode_bounds.has_x, gcode_bounds.x_min, gcode_bounds.x_max);
+    const auto center_y = axis_center(gcode_bounds.has_y, gcode_bounds.y_min, gcode_bounds.y_max);
     if (!center_x || !center_y) {
         return std::nullopt;
     }
@@ -109,8 +115,8 @@ std::optional<AxisTarget> motion_preset_target(MotionPreset preset, const AxisBo
 }
 
 std::optional<AxisTarget> plate_rear_park(const AxisBounds& area) {
-    const auto center_x = calibration::axis_center(area.has_x, area.x_min, area.x_max);
-    const auto center_y = calibration::axis_center(area.has_y, area.y_min, area.y_max);
+    const auto center_x = axis_center(area.has_x, area.x_min, area.x_max);
+    const auto center_y = axis_center(area.has_y, area.y_min, area.y_max);
     if (!center_x || !center_y) {
         return std::nullopt;
     }

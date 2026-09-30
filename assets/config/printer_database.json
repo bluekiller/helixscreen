@@ -842,9 +842,6 @@
         "CLEANING": 20,
         "PURGING": 15
       },
-      "calibration": {
-        "belt_span_offset_mm": 35.0
-      },
       "heuristics": [
         {
           "type": "object_exists",

@@ -1927,19 +1927,11 @@
       },
       "inherits": "lv_obj"
     },
-    "belt_trace": {
-      "attributes": {
-        "mode": {
-          "type": "string"
-        }
-      },
-      "inherits": "lv_obj"
-    },
-    "leader_line": {
+    "belt_path_sketch": {
       "attributes": {},
       "inherits": "lv_obj"
     },
-    "pluck_animation": {
+    "leader_line": {
       "attributes": {},
       "inherits": "lv_obj"
     },
@@ -2913,9 +2905,8 @@
     "setting_group",
     "ams_lane_bar",
     "ams_lane_spool",
-    "belt_trace",
+    "belt_path_sketch",
     "leader_line",
-    "pluck_animation",
     "lv_obj-bind_tile_rung"
   ],
   "runtime_constants": [
@@ -3031,6 +3022,10 @@
     "bed_mesh_profile_row_height_micro",
     "bed_mesh_profile_row_height_small",
     "bed_mesh_profile_row_height_tiny",
+    "belt_path_a_dark",
+    "belt_path_a_light",
+    "belt_path_b_dark",
+    "belt_path_b_light",
     "border",
     "border_opacity",
     "border_radius",

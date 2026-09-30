@@ -73,6 +73,7 @@ All developer documentation lives here. When working on features, look up the re
 | `TOOL_ABSTRACTION.md` | ToolState singleton, ToolInfo, tool-to-backend mapping, DetectState |
 | `INPUT_SHAPER.md` | Calibration panels, frequency response charts, CSV parser, PID |
 | `BELT_TUNER.md` | Pluck-based belt tension tuner: Klipper UDS accel stream, pluck detection, harmonic pitch estimation. **Read its Validation status section first - the feature is green in CI and has never measured a real belt, and its thresholds are circular** |
+| `BELT_TENSION.md` | Belt Tension check: two `TEST_RESONANCES` sweeps compared as curves, the Start gate, provisional verdict constants, mock knobs |
 | `PREPRINT_PREDICTION.md` | ETA prediction engine, phase timing, weighted history |
 | `EXCLUDE_OBJECTS.md` | Object exclusion, per-object thumbnails, slicer setup |
 | `PRINT_STATE_MACHINE.md` | Print lifecycle state machine: states, transitions, guards, resource lifecycle |
