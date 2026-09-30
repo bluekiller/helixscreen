@@ -2908,8 +2908,8 @@ const std::vector<std::string> kZmodDiagnosticFiles = {
 constexpr uint8_t ELF32 = 1, ELF64 = 2, LE = 1;
 constexpr uint16_t EM_ARM_ = 0x28, EM_AARCH64_ = 0xB7, EM_X86_64_ = 0x3E, EM_MIPS_ = 0x08;
 
-// Rows mirror the toolchains in mk/cross.mk. "ad5x" is a retired key that
-// binaries in the field still report.
+// Rows mirror the toolchains in mk/cross.mk. "ad5x" and "k1" name the board
+// behind the unified "mips" key.
 const std::vector<UpdateChecker::PlatformInfo> kPlatforms = {
     {"pi", "Raspberry Pi", ELF64, LE, EM_AARCH64_, {}},
     {"pi32", "Raspberry Pi (32-bit)", ELF32, LE, EM_ARM_, {}},
