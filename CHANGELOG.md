@@ -5,6 +5,126 @@ All notable changes to HelixScreen will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.3] - 2026-09-29
+
+<!-- whatsnew
+The third beta of 1.1.
+
+- Installing the HelixPrint plugin from the screen works again
+- Updates stay on the beta channel
+- E-stop on the navigation bar during a print
+- Smoother 3D preview on slower boards like the Pi 3
+- Home screen tiles size down to half a cell and up past one
+- Changing the language updates the whole screen
+-->
+
+The third beta of 1.1. It fixes two problems that beta.2 testers hit: installing the HelixPrint
+plugin from the screen, and updates that ignored the beta channel. It also puts the E-stop
+on the navigation bar, makes the 3D preview usable on slower graphics chips, and gives home
+screen tiles a wider range of sizes. Changing the language now updates text that used to
+stay in the old language until a restart.
+
+**Upgrading from beta.2?**
+
+- **Installing the HelixPrint plugin from the screen works.** In beta.2, every install from a release
+  failed with "Install script not found". Try it again after you update.
+- **Updates follow your update channel.** The install script and Moonraker's update manager
+  now read the channel set in Settings > Updates. Before, they always picked the latest
+  stable release, so an update could take a beta tester back to 1.0.
+- **The E-stop moved to the navigation bar.** While a print is running, it sits at the end of
+  the bar on every screen, including over dialogs and number pads. The separate E-stop
+  buttons on Home, Controls and Print Status are gone.
+
+### Added
+
+**Printing**
+
+- **E-stop on the navigation bar** - shown whenever a job holds the machine, and kept above
+  screens, dialogs and number pads. The lock screen and fullscreen camera keep their own.
+- **The print file screen has a portrait layout** - options scroll above a Delete/Print row
+  that stays put, and pre-print options are checkable tiles in two columns, so long labels
+  wrap instead of running under a switch.
+- **Bed drying heats a plain chamber heater too** - on a printer with a chamber heater and no
+  dryer, the drying run holds the chamber at the material's air temperature and turns it off
+  when the run ends.
+- **Tool remapping rewrites `TOOL=` and `INITIAL_TOOL`** in the print file, and warns about
+  start-macro values it leaves alone. The warning appears only when your picks move a tool.
+
+**3D preview on slower boards**
+
+- **The 3D preview no longer stalls the screen on a slow graphics chip** - still frames are
+  drawn in slices, and a lighter view is drawn while your finger is down. Walls are shaded
+  as smooth surfaces, and still frames are sharper.
+- **Large files stay in 3D** - a file with too many triangles for the graphics chip gets a
+  simplified 3D view instead of dropping to 2D.
+- **Small files follow the print in 3D on low-memory boards** - a Pi 3 now loads a Benchy-size
+  file fully during a print instead of always streaming it.
+
+**Home screen**
+
+- **Tiles size more freely** - most tiles shrink to half a cell, and grow past a cell and a
+  half with a larger icon. Fan and sensor tiles keep their name and shrink the icon instead.
+  The print controls tile stacks when tall and drops its labels when narrow.
+- **G-code console widget** - at two cells tall it shows the printer's latest output.
+- **Drop a widget on another to swap them** (#1503) while editing the home screen.
+
+**Other**
+
+- **Hide the on-screen keyboard while a USB keyboard is attached** (#1572) - the Hardware
+  Keyboard setting in Settings > Touch & Input.
+- **Debug bundles describe the host** (#1692) - the Linux distribution, failed services, and
+  other programs that might be fighting over the display.
+- **Pressed feedback** on the cards and rows that showed none (#1297).
+
+### Fixed
+
+**Installing and updating**
+
+- **Plugin install from the screen** - release builds now include the plugin's install
+  script.
+- **Updates stay on your channel** - beta and dev installs update to beta releases instead of
+  the latest stable one.
+- **`--uninstall` removes a home-directory install** (#1600), and refuses an install folder it
+  cannot safely delete.
+- **Free-space checks work on BusyBox systems**, and a printer that ignores a custom install
+  folder still migrates an existing install (#1674).
+
+**Changing the language**
+
+- **The whole screen follows a language change** - home widgets, tool, filament system,
+  temperature graph and preheat text, Check for Updates status and the timelapse button
+  update right away instead of after a restart.
+- **Durations use the current language**, and capitalized labels work for Cyrillic, Greek and
+  accented Latin text.
+
+**Filament**
+
+- **Filament diameter comes from your printer** (#1504) instead of assuming 1.75mm, including
+  for filaments HelixScreen creates in Spoolman.
+- **Restoring a tool remap after a print is more reliable** (#1684) - if the filament system
+  refuses the restore, it is retried once it will accept it, never during a print, and a tool
+  that was unmapped before the print stays unmapped.
+
+**Screen and touch**
+
+- **The screen no longer freezes while Wi-Fi status is read** (#1023) - Settings, the network
+  tile, the setup wizard and the Network screen read it in the background. Each read could
+  block the screen for up to 10 seconds.
+- **Forget and the Wi-Fi on/off switch are hidden** on systems that cannot do them (#1429).
+- **The touchscreen is detected properly on the Snapmaker U1** and other boards whose build has
+  no libinput, so touch calibration detection runs.
+- **The layer counter no longer jumps back** at the start of a print.
+- **The last print card** keeps its thumbnail, retries it when you come back to Home, and
+  never shows a picture for a file that is gone.
+- **Print Status at 480x272** keeps both icon and label on its action buttons.
+- **The prep-time estimate appears the first time** you open a file's details.
+
+### Changed
+
+- **Faster drawing** - the toolhead, spool, filament path and darkened backdrop draw with less
+  work, and the screen redraws only when something changed.
+- **Network library messages appear in HelixScreen's log** (#1317), tagged `[libhv]`.
+
 ## [1.1.0-beta.2] - 2026-09-28
 
 <!-- whatsnew
@@ -7815,6 +7935,7 @@ Initial tagged release. Foundation for all subsequent development.
 - Automated GitHub Actions release pipeline
 - One-liner installation script with platform auto-detection
 
+[1.1.0-beta.3]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.2...v1.1.0-beta.3
 [1.1.0-beta.2]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.1...v1.1.0-beta.2
 [1.1.0-beta.1]: https://github.com/prestonbrown/helixscreen/compare/v1.0.2...v1.1.0-beta.1
 [1.0.2]: https://github.com/prestonbrown/helixscreen/compare/v1.0.1...v1.0.2
