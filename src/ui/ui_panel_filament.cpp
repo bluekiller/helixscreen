@@ -190,12 +190,9 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         printer_state_.get_subjects_lifetime());
 
     // Subscribe to active tool changes for dynamic nozzle label + dropdown sync.
-    // Also rebind TemperatureService to the new tool's extruder — otherwise
-    // the mini graph stays glued to whatever extruder was active when
-    // TemperatureService::setup_panel last ran (typically T0, since the
-    // temperature overlay panel is rarely created on startup). #9 — without
-    // this re-bind the Snapmaker U1 user sees T0's cold-baseline plot while
-    // the actively-heating T1 ramps invisibly.
+    // TemperatureService binds the mini graph to one extruder, so rebind it
+    // when the active tool changes, or the graph plots an idle extruder while
+    // the active one heats (#9).
     active_tool_observer_ = observe_int_sync<FilamentPanel>(
         helix::ToolState::instance().get_active_tool_subject(), this,
         [](FilamentPanel* self, int tool_idx) {
