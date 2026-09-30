@@ -23,26 +23,21 @@ namespace helix::ui {
 /**
  * @brief Open a global overlay through OverlayBase::show()
  *
- * The overlay object owns its root; @p cached_panel is written with it after
- * the push for callers that still read their copy, and is never read here.
- * Whether the tree is freed on close is the overlay's destroy_on_close().
+ * The overlay object owns its root; callers keep no copy of it, because a
+ * destroy_on_close() overlay frees its tree on every close.
  *
  * @param getter Returns the global overlay instance
- * @param cached_panel Caller's copy of the root, overwritten on return
  * @param parent_screen Screen to build on
  * @param panel_display_name Human-readable name for logging
  * @param caller_name Name of the calling panel (for logging)
  * @return true if the overlay was pushed
  */
 template <typename PanelType, typename Getter>
-bool lazy_create_and_push_overlay(Getter getter, lv_obj_t*& cached_panel, lv_obj_t* parent_screen,
+bool lazy_create_and_push_overlay(Getter getter, lv_obj_t* parent_screen,
                                   const char* panel_display_name, const char* caller_name) {
     spdlog::debug("[{}] {} clicked - opening panel", caller_name, panel_display_name);
-    PanelType& panel = getter();
     // Qualified: some overlays declare a show() of their own that hides this one.
-    bool ok = panel.OverlayBase::show(parent_screen);
-    cached_panel = panel.get_root();
-    return ok;
+    return getter().OverlayBase::show(parent_screen);
 }
 
 /**

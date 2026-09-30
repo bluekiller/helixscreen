@@ -69,7 +69,6 @@ class GCodeConsoleWidget : public PanelWidget {
     lv_obj_t* parent_screen_ = nullptr;
 
     // Static: multiple widget instances share the same global ConsolePanel singleton
-    static inline lv_obj_t* console_panel_ = nullptr;
 
     void handle_click();
 

@@ -140,7 +140,6 @@ class QrScannerOverlay : public OverlayBase {
     char status_buf_[128]{};
 
     // Cached widget pointers
-    lv_obj_t* cached_overlay_ = nullptr;
     lv_obj_t* viewfinder_ = nullptr;
     lv_obj_t* status_text_ = nullptr;
     lv_obj_t* success_flash_ = nullptr;

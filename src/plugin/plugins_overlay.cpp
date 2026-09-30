@@ -23,24 +23,21 @@ namespace helix::plugin {
 namespace {
 
 std::unique_ptr<PluginsOverlay> g_plugins_overlay;
-lv_obj_t* g_plugins_panel_cache = nullptr;
 
 } // namespace
 
 PluginsOverlay& get_plugins_overlay() {
     if (!g_plugins_overlay) {
         g_plugins_overlay = std::make_unique<PluginsOverlay>();
-        StaticPanelRegistry::instance().register_destroy("PluginsOverlay", []() {
-            g_plugins_overlay.reset();
-            g_plugins_panel_cache = nullptr;
-        });
+        StaticPanelRegistry::instance().register_destroy("PluginsOverlay",
+                                                         []() { g_plugins_overlay.reset(); });
     }
     return *g_plugins_overlay;
 }
 
 void show_plugins_overlay(lv_obj_t* parent, const char* caller) {
-    helix::ui::lazy_create_and_push_overlay<PluginsOverlay>(
-        get_plugins_overlay, g_plugins_panel_cache, parent, "Plugins", caller);
+    helix::ui::lazy_create_and_push_overlay<PluginsOverlay>(get_plugins_overlay, parent, "Plugins",
+                                                            caller);
 }
 
 void PluginsOverlay::init_subjects() {

@@ -133,24 +133,23 @@ void AdvancedPanel::on_activate() {
 // ============================================================================
 
 void AdvancedPanel::handle_spoolman_clicked() {
-    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(
-        get_global_spoolman_panel, spoolman_panel_, parent_screen_, "Spoolman", get_name());
+    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(get_global_spoolman_panel,
+                                                           parent_screen_, "Spoolman", get_name());
 }
 
 void AdvancedPanel::handle_macros_clicked() {
-    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(get_global_macros_panel, macros_panel_,
-                                                         parent_screen_, "Macros", get_name());
+    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(get_global_macros_panel, parent_screen_,
+                                                         "Macros", get_name());
 }
 
 void AdvancedPanel::handle_console_clicked() {
-    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, console_panel_,
-                                                          parent_screen_, "Console", get_name());
+    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, parent_screen_,
+                                                          "Console", get_name());
 }
 
 void AdvancedPanel::handle_history_clicked() {
     helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
-        get_global_history_dashboard_panel, history_dashboard_panel_, parent_screen_,
-        "Print History", get_name());
+        get_global_history_dashboard_panel, parent_screen_, "Print History", get_name());
 }
 
 void AdvancedPanel::handle_configure_print_start_clicked() {

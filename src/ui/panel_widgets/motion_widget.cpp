@@ -7,7 +7,6 @@
 #include "ui_panel_motion.h"
 
 #include "panel_widget_registry.h"
-#include "printer_cache_registry.h"
 #include "ui/ui_lazy_panel_helper.h"
 
 #include <spdlog/spdlog.h>
@@ -21,15 +20,7 @@ void register_motion_widget() {
     lv_xml_register_event_cb(nullptr, "motion_widget_clicked_cb", MotionWidget::clicked_cb);
 }
 
-MotionWidget::MotionWidget() {
-    // motion_panel_ is a static, so it survives the printer switch that
-    // destroys the MotionPanel object - and teardown frees the orphaned
-    // overlay widget, which would leave the cache dangling. Every
-    // active-printer change fires this before teardown, so the cache never
-    // outlives its widget.
-    PrinterCacheRegistry::instance().register_invalidator("MotionWidget",
-                                                          []() { motion_panel_ = nullptr; });
-}
+MotionWidget::MotionWidget() {}
 
 MotionWidget::~MotionWidget() {
     detach();
@@ -56,8 +47,8 @@ void MotionWidget::detach() {
 }
 
 void MotionWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel, motion_panel_,
-                                                         parent_screen_, "Motion", "MotionWidget");
+    helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel, parent_screen_,
+                                                         "Motion", "MotionWidget");
 }
 
 void MotionWidget::clicked_cb(lv_event_t* e) {

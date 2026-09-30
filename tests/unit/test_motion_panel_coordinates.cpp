@@ -96,7 +96,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "coordinate readouts follow the commanded/ac
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     lv_obj_t* root = get_global_motion_panel().get_root();
@@ -171,7 +172,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "motion bounds follow the gcode origin, not 
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();

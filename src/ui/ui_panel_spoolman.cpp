@@ -752,8 +752,8 @@ void SpoolmanPanel::on_add_spool_clicked(lv_event_t* /*e*/) {
     wizard.set_completion_callback([]() { get_global_spoolman_panel().refresh_spools(); });
 
     helix::ui::lazy_create_and_push_overlay<SpoolWizardOverlay>(
-        get_global_spool_wizard, panel.wizard_panel_, lv_display_get_screen_active(nullptr),
-        "Spool Wizard", "SpoolmanPanel");
+        get_global_spool_wizard, lv_display_get_screen_active(nullptr), "Spool Wizard",
+        "SpoolmanPanel");
 }
 
 void SpoolmanPanel::on_scroll(lv_event_t* e) {

@@ -140,7 +140,6 @@ class SpoolmanPanel : public OverlayBase {
     // === Label Printing ===
 
     // === Spool Wizard ===
-    lv_obj_t* wizard_panel_ = nullptr;
 
     // ========== Static Event Callbacks ==========
     static void on_spool_row_clicked(lv_event_t* e);
