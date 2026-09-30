@@ -1784,7 +1784,7 @@ void show_consent(const Manifest& m, const std::vector<Permission>& grown,
 }
 ```
 
-Consent lines (Preston reviews the wording before this task is implemented):
+Consent lines (wording approved by Preston 2026-09-29; use verbatim). Settings → Plugins stays hidden until a plugin host exists (approved):
 
 | Permission | Line |
 |---|---|
