@@ -39,13 +39,13 @@ int get_setting(const PersistedSetting& s, const lv_subject_t& subject) {
 
 void set_setting(const PersistedSetting& s, lv_subject_t& subject, int value) {
     value = normalize(s, value);
-    spdlog::info("[Settings] {} = {}", s.json_path, value);
+    Config* config = Config::get_instance();
+    const std::string path = path_of(s, *config);
+    spdlog::debug("[Settings] {} = {}", path, value);
 
     const int old_value = lv_subject_get_int(&subject);
     lv_subject_set_int(&subject, value);
 
-    Config* config = Config::get_instance();
-    const std::string path = path_of(s, *config);
     if (s.is_bool) {
         config->set<bool>(path, value != 0);
     } else {
