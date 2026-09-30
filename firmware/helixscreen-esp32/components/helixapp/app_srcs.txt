@@ -245,6 +245,7 @@ src/system/network_tester.cpp
 src/system/panel_widget_config.cpp
 src/system/pending_startup_warnings.cpp
 src/system/performance_state.cpp
+src/system/persisted_setting.cpp
 src/system/platform_capabilities.cpp
 src/system/post_op_cooldown_manager.cpp
 src/system/log_redact.cpp
