@@ -15,6 +15,8 @@ setup() {
     ROOT="${BATS_TEST_TMPDIR:-$(mktemp -d)}/tree"
     mkdir -p "$ROOT/src" "$ROOT/include" "$ROOT/ui_xml/components" "$ROOT/ui_xml/portrait" \
         "$ROOT/ui_xml/micro_portrait"
+    # The variant chains come from the app's own LayoutManager.
+    cp src/layout_manager.cpp "$ROOT/src/layout_manager.cpp"
     cat > "$ROOT/src/demo.cpp" <<'CPP'
 lv_obj_t* Demo::create(lv_obj_t* p) { return create_overlay_from_xml(p, "demo_overlay"); }
 void Demo::before_show() {
@@ -110,6 +112,21 @@ void f(const char* n) {
 CPP
     run python3 "$GATE" --repo-root "$ROOT"
     [ "$status" -eq 0 ]
+}
+
+@test "the variant chains are read from LayoutManager, and a missing one fails closed" {
+    # A chain the app adds is checked without touching the gate.
+    sed -i 's/return {"tiny"};/return {"tiny", "portrait"};/' "$ROOT/src/layout_manager.cpp"
+    echo '<component><view><demo_row name="row_volume_p"/></view></component>' \
+        > "$ROOT/ui_xml/portrait/demo_overlay.xml"
+    run python3 "$GATE" --repo-root "$ROOT"
+    [ "$status" -eq 1 ]
+    contains ", tiny)" "$output"
+
+    rm "$ROOT/src/layout_manager.cpp"
+    run python3 "$GATE" --repo-root "$ROOT"
+    [ "$status" -ne 0 ]
+    contains "variant_chain" "$output"
 }
 
 @test "this tree holds its baseline" {

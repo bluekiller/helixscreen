@@ -17,8 +17,8 @@ under include/) it collects:
 
 Each name must appear as name="..." in one of those components, or in a
 component it instantiates (transitively), under every layout the app can
-resolve: the base files and each LayoutManager variant chain
-(src/layout_manager.cpp#variant_chain), where a variant file shadows the base
+resolve: the base files and each LayoutManager variant chain, parsed from
+src/layout_manager.cpp#variant_chain itself, where a variant file shadows the base
 file of the same relative path.
 
 When the component is chosen at runtime (a row whose component depends on the
@@ -47,18 +47,22 @@ import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-# Mirrors src/layout_manager.cpp#variant_chain; the empty chain is the base
-# (standard) layout.
-VARIANT_CHAINS = {
-    "standard": [],
-    "micro_portrait": ["micro_portrait", "portrait"],
-    "tiny_portrait": ["tiny_portrait", "portrait"],
-    "portrait": ["portrait"],
-    "ultrawide": ["ultrawide"],
-    "micro": ["micro"],
-    "tiny": ["tiny"],
-}
-VARIANT_DIRS = {d for chain in VARIANT_CHAINS.values() for d in chain}
+def variant_chains(root: Path) -> dict[str, list[str]]:
+    """Layout name -> variant directory chain, read from
+    src/layout_manager.cpp#variant_chain so the gate cannot drift from the app.
+    The empty chain is the base (standard) layout."""
+    text = (root / "src" / "layout_manager.cpp").read_text()
+    m = re.search(r"LayoutManager::variant_chain\(\)\s*const\s*\{(.*?)\n\}", text, re.S)
+    if not m:
+        sys.exit("check_required_names: cannot find LayoutManager::variant_chain()")
+    chains = {}
+    for body in re.findall(r"return\s*\{([^}]*)\};", m.group(1)):
+        chain = re.findall(r'"(\w+)"', body)
+        chains[chain[0] if chain else "standard"] = chain
+    if "standard" not in chains or len(chains) < 2:
+        sys.exit("check_required_names: variant_chain() did not parse into layouts")
+    return chains
+
 
 # Elements whose name= declares something other than a widget.
 DECLARATION_TAGS = {"style", "px", "percentage", "const", "color", "string", "prop", "subject",
@@ -112,19 +116,20 @@ def strip_comments(text: str) -> str:
 
 
 class XmlTree:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, chains: dict[str, list[str]]):
         self.ui_xml = root / "ui_xml"
+        variant_dirs = {d for chain in chains.values() for d in chain}
         # component name -> path relative to ui_xml (base location)
         self.components: dict[str, str] = {}
         for p in sorted(self.ui_xml.rglob("*.xml")):
             rel = p.relative_to(self.ui_xml)
-            if rel.parts[0] in VARIANT_DIRS or rel.parts[0] == "translations":
+            if rel.parts[0] in variant_dirs or rel.parts[0] == "translations":
                 continue
             self.components.setdefault(p.stem, str(rel))
         # Variant-only components still resolve inside their own chain.
         for p in sorted(self.ui_xml.rglob("*.xml")):
             rel = p.relative_to(self.ui_xml)
-            if rel.parts[0] in VARIANT_DIRS and len(rel.parts) > 1:
+            if rel.parts[0] in variant_dirs and len(rel.parts) > 1:
                 self.components.setdefault(p.stem, str(Path(*rel.parts[1:])))
         self._parsed: dict[Path, tuple[set[str], set[str]]] = {}
 
@@ -197,7 +202,8 @@ def cpp_units(root: Path):
 
 def check(root: Path) -> list[tuple[str, str, str]]:
     """(site, name, reason) for every miss."""
-    xml = XmlTree(root)
+    chains = variant_chains(root)
+    xml = XmlTree(root, chains)
     misses = []
     for cpp, files in cpp_units(root):
         raw = {f: f.read_text(errors="replace") for f in files}
@@ -230,7 +236,7 @@ def check(root: Path) -> list[tuple[str, str, str]]:
                         annotation = m.group(1).split()
             if annotation:
                 for comp in annotation:
-                    for variant, chain in VARIANT_CHAINS.items():
+                    for variant, chain in chains.items():
                         found = xml.names(comp, chain)
                         if found is None:
                             misses.append((site, name, f"annotated component '{comp}' has no XML"))
@@ -245,7 +251,7 @@ def check(root: Path) -> list[tuple[str, str, str]]:
             ok = False
             missing_in = []
             for comp in sorted(created):
-                absent = [v for v, chain in VARIANT_CHAINS.items()
+                absent = [v for v, chain in chains.items()
                           if name not in (xml.names(comp, chain) or set())]
                 if not absent:
                     ok = True
