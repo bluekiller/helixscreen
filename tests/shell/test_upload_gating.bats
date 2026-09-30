@@ -52,15 +52,16 @@ PY
 @test "every container make invocation forwards the upload default" {
     # HELIX_PACKAGING is a target-specific variable and never crosses the
     # `docker run` boundary, so each inner make must be handed the resolved
-    # ENABLE_DIAGNOSTIC_UPLOADS the same way it is handed remote control.
+    # ENABLE_DIAGNOSTIC_UPLOADS and ENABLE_MOCKS the same way it is handed
+    # remote control.
     run python3 - <<'PY'
 import sys
 bad = [line.rstrip() for line in open("mk/cross.mk")
        if "$(DOCKER_REMOTE_CONTROL)" in line
-       and "$(DOCKER_DIAG_UPLOADS)" not in line
+       and ("$(DOCKER_DIAG_UPLOADS)" not in line or "$(DOCKER_MOCKS)" not in line)
        and line.lstrip().startswith("make ")]
 if bad:
-    print("docker make lines without the upload default:")
+    print("docker make lines without the upload or mock default:")
     print("\n".join(bad))
     sys.exit(1)
 PY

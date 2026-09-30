@@ -470,8 +470,14 @@ ifneq ($(ENABLE_SCREENSAVER),yes)
 else ifneq ($(filter $(PLATFORM_TARGET),$(SCREENSAVER_16BPP_TARGETS)),)
     APP_SRCS := $(filter-out $(SCREENSAVER_32BPP_ONLY_SRCS),$(APP_SRCS))
 endif
-# Mock backends (enabled by default, disable with ENABLE_MOCKS=no for production)
-ENABLE_MOCKS ?= yes
+# Mock backends (the --test simulator). Dev/test scaffolding: ON for every developer
+# build, OFF under HELIX_PACKAGING=1 so released binaries do not carry it. Targets
+# in mk/cross.mk that set ENABLE_MOCKS := no keep it off for dev builds too.
+ifeq ($(HELIX_PACKAGING),1)
+    ENABLE_MOCKS ?= no
+else
+    ENABLE_MOCKS ?= yes
+endif
 
 # PWM sysfs buzzer backend — ad5m/ad5m-br only.
 #
@@ -515,6 +521,7 @@ ifneq ($(ENABLE_MOCKS),yes)
     APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/api/*_mock*.cpp),$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/printer/ams_backend_mock.cpp,$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/api/moonraker_api_mock.cpp,$(APP_SRCS))
+    APP_SRCS := $(filter-out $(SRC_DIR)/system/mock_performance_source.cpp,$(APP_SRCS))
 endif
 
 # Remote-control subsystem (helixctl server + socket/HTTP transport + the folded

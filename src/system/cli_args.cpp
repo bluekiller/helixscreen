@@ -404,6 +404,11 @@ bool parse_cli_args(int argc, char** argv, CliArgs& args, int& screen_width, int
         // Test mode flags
         else if (strcmp(argv[i], "--test") == 0) {
             config.test_mode = true;
+#ifndef HELIX_ENABLE_MOCKS
+            // Stays a warning: perf-farm-check.sh runs --test idle on mockless builds.
+            spdlog::warn("[CLI] --test: this build has no mock backends (ENABLE_MOCKS=no); "
+                         "connecting to the real Moonraker instead");
+#endif
         } else if (strcmp(argv[i], "--skip-splash") == 0) {
             config.skip_splash = true;
         } else if (strncmp(argv[i], "--splash-pid=", 13) == 0) {

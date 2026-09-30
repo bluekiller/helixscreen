@@ -1080,6 +1080,11 @@ DOCKER_SCREENSAVER = $(if $(filter command line,$(origin ENABLE_SCREENSAVER)),EN
 CROSS_DIAG_UPLOADS_DEFAULT = $(if $(filter 1,$(HELIX_PACKAGING)),yes,no)
 DOCKER_DIAG_UPLOADS = ENABLE_DIAGNOSTIC_UPLOADS=$(if $(filter-out default file undefined,$(origin ENABLE_DIAGNOSTIC_UPLOADS)),$(ENABLE_DIAGNOSTIC_UPLOADS),$(CROSS_DIAG_UPLOADS_DEFAULT))
 
+# Same forwarding for the mock backends, which packaged builds leave out. Only
+# a "no" (or the caller's own value) crosses: a command-line ENABLE_MOCKS=yes
+# would beat the `ENABLE_MOCKS := no` the lean targets above set for dev builds.
+DOCKER_MOCKS = $(if $(filter-out default file undefined,$(origin ENABLE_MOCKS)),ENABLE_MOCKS=$(ENABLE_MOCKS),$(if $(filter 1,$(HELIX_PACKAGING)),ENABLE_MOCKS=no))
+
 # SKIP_COMPILE_COMMANDS: the container's fragments name /src, so a merge there
 # writes a tree-root compile_commands.json the host's syntax check cannot use.
 DOCKER_HOST_CONTEXT = $(DOCKER_WORKTREE_MOUNT) $(DOCKER_GIT_HASH_ENV) -e SKIP_COMPILE_COMMANDS=1
@@ -1210,7 +1215,7 @@ pi-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi) helixscreen/toolchain-pi \
-		make PLATFORM_TARGET=pi SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 # AddressSanitizer build for the Pi (DRM). Output lands in build/pi-asan/.
@@ -1225,7 +1230,7 @@ pi-asan-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi-asan)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi-asan) helixscreen/toolchain-pi \
-		make PLATFORM_TARGET=pi SANITIZE=address SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi SANITIZE=address SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 pi-fbdev-docker: ensure-docker
@@ -1236,7 +1241,7 @@ pi-fbdev-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi-fbdev)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi-fbdev) helixscreen/toolchain-pi \
-		make PLATFORM_TARGET=pi-fbdev SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi-fbdev SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 pi-all-docker: ensure-docker
@@ -1247,7 +1252,7 @@ pi-all-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi) helixscreen/toolchain-pi \
-		make PLATFORM_TARGET=pi-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 pi32-docker: ensure-docker
@@ -1258,7 +1263,7 @@ pi32-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi32)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi32) helixscreen/toolchain-pi32 \
-		make PLATFORM_TARGET=pi32 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi32 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 # AddressSanitizer build for the Pi 32-bit (DRM). Output lands in build/pi32-asan/.
@@ -1273,7 +1278,7 @@ pi32-asan-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi32-asan)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi32-asan) helixscreen/toolchain-pi32 \
-		make PLATFORM_TARGET=pi32 SANITIZE=address SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi32 SANITIZE=address SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 pi32-fbdev-docker: ensure-docker
@@ -1284,7 +1289,7 @@ pi32-fbdev-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi32-fbdev)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi32-fbdev) helixscreen/toolchain-pi32 \
-		make PLATFORM_TARGET=pi32-fbdev SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi32-fbdev SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 pi32-all-docker: ensure-docker
@@ -1295,7 +1300,7 @@ pi32-all-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,pi32)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,pi32) helixscreen/toolchain-pi32 \
-		make PLATFORM_TARGET=pi32-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=pi32-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 ad5m-docker: ensure-docker
@@ -1306,7 +1311,7 @@ ad5m-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,ad5m)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,ad5m) helixscreen/toolchain-ad5m \
-		make PLATFORM_TARGET=ad5m SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_SCREENSAVER) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=ad5m SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) $(DOCKER_SCREENSAVER) -j$(NPROC_DOCKER_RUN)
 	@# Extract CA certificates from Docker image for HTTPS verification on device
 	@mkdir -p build/ad5m/certs
 	@docker run --rm helixscreen/toolchain-ad5m cat /etc/ssl/certs/ca-certificates.crt > build/ad5m/certs/ca-certificates.crt 2>/dev/null \
@@ -1330,7 +1335,7 @@ cc1-docker: ensure-docker
 	@$(MAKE) --no-print-directory PLATFORM_TARGET=cc1 $(TRANS_XML)
 	$(call ensure-ccache-dir,cc1)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,cc1) helixscreen/toolchain-cc1 \
-		make PLATFORM_TARGET=cc1 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_SCREENSAVER) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=cc1 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) $(DOCKER_SCREENSAVER) -j$(NPROC_DOCKER_RUN)
 	@# Extract CA certificates from Docker image for HTTPS verification on device
 	@mkdir -p build/cc1/certs
 	@docker run --rm helixscreen/toolchain-cc1 cat /etc/ssl/certs/ca-certificates.crt > build/cc1/certs/ca-certificates.crt 2>/dev/null \
@@ -1355,7 +1360,7 @@ mips-docker: ensure-docker
 	# toolchain image is the one that builds the unified binary, so its ccache
 	# dir is the one with hits in it.
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -e MAKEFLAGS= -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,mips) helixscreen/toolchain-mips \
-		make PLATFORM_TARGET=mips SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=mips SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@# Extract CA certificates from Docker image for HTTPS verification on device
 	@mkdir -p build/mips/certs
 	@docker run --rm helixscreen/toolchain-mips cat /etc/ssl/certs/ca-certificates.crt > build/mips/certs/ca-certificates.crt 2>/dev/null \
@@ -1375,7 +1380,7 @@ k1-dynamic-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,k1-dynamic)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,k1-dynamic) helixscreen/toolchain-k1-dynamic \
-		make PLATFORM_TARGET=k1-dynamic SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=k1-dynamic SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 k2-docker: ensure-docker
@@ -1386,7 +1391,7 @@ k2-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,k2)
 	$(Q)scripts/cross-compile-lock.sh docker run --platform linux/amd64 --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,k2) helixscreen/toolchain-k2 \
-		make PLATFORM_TARGET=k2 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=k2 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 # Cross-build the static armv7 ustreamer (MJPEG camera server) for K2.
@@ -1413,7 +1418,7 @@ snapmaker-u1-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,snapmaker-u1)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,snapmaker-u1) helixscreen/toolchain-snapmaker-u1 \
-		make PLATFORM_TARGET=snapmaker-u1 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=snapmaker-u1 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@# Extract CA certificates from Docker image for HTTPS verification on device
 	@mkdir -p build/snapmaker-u1/certs
 	@docker run --rm helixscreen/toolchain-snapmaker-u1 cat /etc/ssl/certs/ca-certificates.crt > build/snapmaker-u1/certs/ca-certificates.crt 2>/dev/null \
@@ -1429,7 +1434,7 @@ x86-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,x86)
 	$(Q)scripts/cross-compile-lock.sh docker run --platform linux/amd64 --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,x86) helixscreen/toolchain-x86 \
-		make PLATFORM_TARGET=x86 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=x86 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 x86-fbdev-docker: ensure-docker
@@ -1440,7 +1445,7 @@ x86-fbdev-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,x86-fbdev)
 	$(Q)scripts/cross-compile-lock.sh docker run --platform linux/amd64 --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,x86-fbdev) helixscreen/toolchain-x86 \
-		make PLATFORM_TARGET=x86-fbdev SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=x86-fbdev SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 x86-all-docker: ensure-docker
@@ -1451,7 +1456,7 @@ x86-all-docker: ensure-docker
 	fi
 	$(call ensure-ccache-dir,x86)
 	$(Q)scripts/cross-compile-lock.sh docker run --platform linux/amd64 --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,x86) helixscreen/toolchain-x86 \
-		make PLATFORM_TARGET=x86-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) -j$(NPROC_DOCKER_RUN)
+		make PLATFORM_TARGET=x86-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 # Stop Colima after build to free up RAM (macOS only)
