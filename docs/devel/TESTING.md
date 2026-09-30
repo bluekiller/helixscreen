@@ -112,20 +112,9 @@ These validate fundamental functionality:
 
 ### By Feature
 
-| Target | Tags |
-|--------|------|
-| `make test-core` | `[core]` |
-| `make test-connection` | `[connection]` |
-| `make test-state` | `[state]` |
-| `make test-print` | `[print]` |
-| `make test-gcode` | `[gcode]` |
-| `make test-moonraker` | `[api]` |
-| `make test-ui` | `[ui]` |
-| `make test-network` | `[network]` |
-| `make test-ams` | `[ams]` |
-| `make test-calibration` | `[calibration]` |
-| `make test-filament` | `[filament]` |
-| `make test-security` | `[security]` |
+Run one area by its tag: `make t F='[ams]'` (also `[core]`, `[connection]`, `[state]`,
+`[print]`, `[gcode]`, `[api]`, `[network]`, `[calibration]`, `[filament]`, `[security]`).
+`make test-ui` runs `[navigation],[theme],[wizard]`.
 
 ### Sanitizers
 
