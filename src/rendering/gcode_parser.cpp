@@ -15,9 +15,11 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string_view>
 #include <sys/stat.h>
 #include <system_error>
+#include <utility>
 
 namespace {
 
@@ -38,6 +40,75 @@ inline helix::DecimalParseResult parse_gcode_decimal(const char* first, const ch
         return {first, std::errc::invalid_argument};
     }
     return helix::parse_decimal(after_sign, last, value);
+}
+
+std::string_view trim_ws(std::string_view s) {
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
+        s.remove_prefix(1);
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back())))
+        s.remove_suffix(1);
+    return s;
+}
+
+/// Split a slicer comment ("; key = value" or ";key: value") into its trimmed
+/// key and value. The separator is whichever of '=' and ':' comes first, so a
+/// value holding a colon ("1h: 20m") stays whole behind an '=' key.
+std::optional<std::pair<std::string_view, std::string_view>>
+split_comment_kv(std::string_view line) {
+    if (line.empty() || line[0] != ';')
+        return std::nullopt;
+    line.remove_prefix(1);
+    const size_t sep = line.find_first_of("=:");
+    if (sep == std::string_view::npos)
+        return std::nullopt;
+    std::string_view key = trim_ws(line.substr(0, sep));
+    if (key.empty())
+        return std::nullopt;
+    return std::make_pair(key, trim_ws(line.substr(sep + 1)));
+}
+
+/// Seconds in a slicer duration such as "1d 2h 3m 4s", "36m 25s" or "45s".
+/// Every number must carry a d/h/m/s unit; anything else is not a duration.
+std::optional<double> parse_slicer_duration(std::string_view s) {
+    double total = 0.0;
+    bool any = false;
+    const char* p = s.data();
+    const char* end = s.data() + s.size();
+    while (p != end) {
+        if (std::isspace(static_cast<unsigned char>(*p))) {
+            ++p;
+            continue;
+        }
+        float v = 0.0f;
+        auto [next, ec] = helix::parse_decimal(p, end, v);
+        if (ec != std::errc{})
+            return std::nullopt;
+        p = next;
+        while (p != end && *p == ' ')
+            ++p;
+        if (p == end)
+            return std::nullopt;
+        switch (*p++) {
+        case 'd':
+            total += v * 86400.0;
+            break;
+        case 'h':
+            total += v * 3600.0;
+            break;
+        case 'm':
+            total += v * 60.0;
+            break;
+        case 's':
+            total += v;
+            break;
+        default:
+            return std::nullopt;
+        }
+        any = true;
+    }
+    if (!any)
+        return std::nullopt;
+    return total;
 }
 
 } // namespace
@@ -523,45 +594,14 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
         }
     }
 
-    // Use trimmed_content (already stripped ';' and leading whitespace)
-    std::string content(trimmed_content);
-
-    // Look for '=' or ':' separator (support both OrcaSlicer and PrusaSlicer formats)
-    size_t eq_pos = content.find('=');
-    size_t colon_pos = content.find(':');
-    size_t sep_pos = std::string::npos;
-
-    // Prefer '=' if present and before any ':', otherwise use ':'
-    if (eq_pos != std::string::npos && (colon_pos == std::string::npos || eq_pos < colon_pos)) {
-        sep_pos = eq_pos;
-    } else if (colon_pos != std::string::npos) {
-        sep_pos = colon_pos;
-    }
-
-    if (sep_pos == std::string::npos) {
+    const auto kv = split_comment_kv(line_sv);
+    if (!kv) {
         return;
     }
-
-    // Extract key and value
-    std::string key = content.substr(0, sep_pos);
-    std::string value = content.substr(sep_pos + 1);
-
-    // Trim whitespace from key and value using erase instead of substr
-    auto trim = [](std::string& s) {
-        size_t end = s.length();
-        while (end > 0 && std::isspace(s[end - 1]))
-            end--;
-        s.erase(end);
-        size_t start = 0;
-        while (start < s.length() && std::isspace(s[start]))
-            start++;
-        s.erase(0, start);
-    };
-    trim(key);
-    trim(value);
+    const std::string value(kv->second);
 
     // Convert key to lowercase for case-insensitive matching
-    std::string key_lower = key;
+    std::string key_lower(kv->first);
     std::transform(key_lower.begin(), key_lower.end(), key_lower.begin(), ::tolower);
 
     // Helper to check if key contains all substrings (fuzzy match)
@@ -1731,40 +1771,12 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
     // ====================
     // Standard key=value or key: value format (OrcaSlicer/PrusaSlicer)
     // ====================
-    // Need at least "; k" (3 chars) for a valid comment with key
-    if (line.length() < 3) {
+    const auto kv = split_comment_kv(line);
+    if (!kv) {
         return false;
     }
-
-    // Parse comment metadata
-    // OrcaSlicer format: "; key = value" or "; key: value"
-    size_t eq_pos = line.find('=');
-    size_t colon_pos = line.find(':');
-    size_t sep_pos = std::string::npos;
-
-    if (eq_pos != std::string::npos && (colon_pos == std::string::npos || eq_pos < colon_pos)) {
-        sep_pos = eq_pos;
-    } else if (colon_pos != std::string::npos) {
-        sep_pos = colon_pos;
-    }
-
-    if (sep_pos == std::string::npos || sep_pos < 2) {
-        return false;
-    }
-
-    // Extract key and value
-    std::string key = line.substr(2, sep_pos - 2);
-    std::string value = line.substr(sep_pos + 1);
-
-    // Trim whitespace
-    while (!key.empty() && std::isspace(key.back()))
-        key.pop_back();
-    while (!key.empty() && std::isspace(key.front()))
-        key.erase(0, 1);
-    while (!value.empty() && std::isspace(value.back()))
-        value.pop_back();
-    while (!value.empty() && std::isspace(value.front()))
-        value.erase(0, 1);
+    const std::string_view key = kv->first;
+    const std::string value(kv->second);
 
     // Map known keys to metadata fields
     if (key == "generated by" || key == "slicer") {
@@ -1772,38 +1784,8 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
     } else if (key == "slicer_version") {
         metadata.slicer_version = value;
     } else if (key == "estimated printing time" || key == "estimated printing time (normal mode)") {
-        // Parse time string like "2h 30m 15s", "36m 25s", or "45s"
-        // Use explicit pattern matching based on what's in the string
-        int hours = 0, minutes = 0, seconds = 0;
-        bool parsed = false;
-
-        // Check which format we have by looking for unit markers
-        bool has_h = (value.find('h') != std::string::npos);
-        bool has_m = (value.find('m') != std::string::npos);
-        bool has_s = (value.find('s') != std::string::npos);
-
-        if (has_h && has_m && has_s) {
-            // Format: "Nh NNm NNs"
-            parsed = (sscanf(value.c_str(), "%dh %dm %ds", &hours, &minutes, &seconds) == 3);
-        } else if (has_h && has_m) {
-            // Format: "Nh NNm"
-            parsed = (sscanf(value.c_str(), "%dh %dm", &hours, &minutes) == 2);
-        } else if (has_m && has_s) {
-            // Format: "NNm NNs"
-            parsed = (sscanf(value.c_str(), "%dm %ds", &minutes, &seconds) == 2);
-        } else if (has_h) {
-            // Format: "Nh"
-            parsed = (sscanf(value.c_str(), "%dh", &hours) == 1);
-        } else if (has_m) {
-            // Format: "NNm"
-            parsed = (sscanf(value.c_str(), "%dm", &minutes) == 1);
-        } else if (has_s) {
-            // Format: "NNs"
-            parsed = (sscanf(value.c_str(), "%ds", &seconds) == 1);
-        }
-
-        if (parsed) {
-            metadata.estimated_time_seconds = hours * 3600.0 + minutes * 60.0 + seconds;
+        if (const auto seconds = parse_slicer_duration(value)) {
+            metadata.estimated_time_seconds = *seconds;
         }
     } else if (key == "total filament used [g]" || key == "filament used [g]" ||
                key == "total filament weight") {
@@ -1874,36 +1856,9 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
         // Preserve full string for per-tool material matching
         metadata.filament_type = value;
     } else if (key == "extruder_colour" || key == "filament_colour") {
-        // Parse multi-tool colors: "#ED1C24;#00C1AE;#F4E2C1;#000000"
-        // May also have spaces: "#AA0000 ; #00BB00 ; #0000CC"
-        metadata.tool_colors.clear();
-        std::string color;
-        bool in_color = false;
-
-        for (char c : value) {
-            if (c == '#') {
-                if (!color.empty() && color[0] == '#') {
-                    // Save previous color
-                    metadata.tool_colors.push_back(color);
-                }
-                color = "#";
-                in_color = true;
-            } else if (in_color) {
-                if (std::isxdigit(c)) {
-                    color += c;
-                } else if (c == ';' || c == ' ' || c == ',') {
-                    // End of this color
-                    if (color.length() >= 4) { // At least #RGB
-                        metadata.tool_colors.push_back(color);
-                    }
-                    color.clear();
-                    in_color = false;
-                }
-            }
-        }
-        // Don't forget the last color
-        if (!color.empty() && color[0] == '#' && color.length() >= 4) {
-            metadata.tool_colors.push_back(color);
+        std::vector<std::string> palette;
+        if (helix::gcode::parse_filament_color_palette(line, palette)) {
+            metadata.tool_colors = std::move(palette);
         }
     }
 

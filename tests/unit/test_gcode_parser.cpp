@@ -709,6 +709,28 @@ TEST_CASE("extract_header_metadata - Cura format parsing", "[gcode][metadata]") 
     }
 }
 
+TEST_CASE("extract_header_metadata - slot-aligned colors and day-long times", "[gcode][metadata]") {
+    SECTION("An empty color slot keeps later tools on their own index") {
+        auto metadata =
+            extract_header_metadata_from_content("; extruder_colour = #FF0000;;#0000FF\nG1 X10\n");
+        REQUIRE(metadata.tool_colors.size() == 3);
+        CHECK(metadata.tool_colors[0] == "#FF0000");
+        CHECK(metadata.tool_colors[1].empty());
+        CHECK(metadata.tool_colors[2] == "#0000FF");
+    }
+
+    SECTION("A print longer than a day keeps its days") {
+        auto metadata = extract_header_metadata_from_content(
+            "; estimated printing time (normal mode) = 1d 2h 3m 4s\nG1 X10\n");
+        CHECK(metadata.estimated_time_seconds == Approx(93784.0));
+    }
+
+    SECTION("A key with no space after the semicolon keeps its first letter") {
+        auto metadata = extract_header_metadata_from_content(";layer_height = 0.16\nG1 X10\n");
+        CHECK(metadata.layer_height == Approx(0.16));
+    }
+}
+
 TEST_CASE("extract_header_metadata - Real OrcaSlicer file", "[gcode][metadata][integration]") {
     // Test with actual test gcode file if it exists
     std::string test_file = "assets/test_gcodes/3DBenchy.gcode";
