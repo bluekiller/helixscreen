@@ -1252,6 +1252,20 @@ TEST_CASE("GCodeParser - a T with parameters is not a tool change", "[gcode][par
     CHECK(file.tools_used_indices == std::set<int>{0});
 }
 
+TEST_CASE("get_best_thumbnail - real file picks the largest block", "[gcode][thumbnail]") {
+    // 3DBenchy embeds a 48x48 and a 300x300 thumbnail, in that order
+    const std::string test_file = "assets/test_gcodes/3DBenchy.gcode";
+    if (!std::ifstream(test_file).good()) {
+        SKIP("Test G-code file not found: " << test_file);
+    }
+    auto thumb = get_best_thumbnail(test_file);
+    REQUIRE(thumb.width == 300);
+    REQUIRE(thumb.height == 300);
+    REQUIRE(thumb.png_data.size() > 1000);
+    REQUIRE(thumb.png_data[0] == 0x89);
+    REQUIRE(thumb.png_data[1] == 'P');
+}
+
 TEST_CASE("GCodeParser - Real 3DBenchy layer count", "[gcode][parser][layers][integration]") {
     // Integration test with real test file
     std::string test_file = "assets/test_gcodes/3DBenchy.gcode";
