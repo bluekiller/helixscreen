@@ -1754,30 +1754,11 @@ bool UpdateChecker::validate_elf_architecture(const std::string& tarball_path) {
     // Use the compile-time platform key to determine expected architecture.
     // uname().machine is unreliable: Pi4 with 64-bit kernel + 32-bit userspace
     // reports "aarch64" even though only 32-bit ARM binaries can execute.
-    std::string platform = get_platform_key();
+    const std::string platform = get_platform_key();
     spdlog::info("[UpdateChecker] Platform key: {}", platform);
 
-    uint8_t expected_class = 0;
-    uint16_t expected_machine = 0;
-    std::string expected_arch_name;
-
-    if (platform == "pi32" || platform == "ad5m") {
-        expected_class = 1;      // ELFCLASS32
-        expected_machine = 0x28; // EM_ARM
-        expected_arch_name = "ARM 32-bit";
-    } else if (platform == "pi") {
-        expected_class = 2;      // ELFCLASS64
-        expected_machine = 0xB7; // EM_AARCH64
-        expected_arch_name = "AARCH64 64-bit";
-    } else if (platform == "x86") {
-        expected_class = 2;      // ELFCLASS64
-        expected_machine = 0x3E; // EM_X86_64
-        expected_arch_name = "x86_64 64-bit";
-    } else if (platform == "k1" || platform == "ad5x") {
-        expected_class = 1;      // ELFCLASS32
-        expected_machine = 0x08; // EM_MIPS
-        expected_arch_name = "MIPS 32-bit";
-    } else {
+    const PlatformInfo* expected = find_platform(platform);
+    if (!expected || expected->elf_class == 0) {
         spdlog::info("[UpdateChecker] Platform '{}' — skipping ELF validation", platform);
         return true;
     }
@@ -1829,34 +1810,16 @@ bool UpdateChecker::validate_elf_architecture(const std::string& tarball_path) {
         return false;
     }
 
-    // Check ELF magic: 0x7f 'E' 'L' 'F'
-    if (header[0] != 0x7f || header[1] != 'E' || header[2] != 'L' || header[3] != 'F') {
-        spdlog::error("[UpdateChecker] Downloaded binary is not a valid ELF file");
+    if (!elf_header_matches(*expected, header)) {
+        spdlog::error(
+            "[UpdateChecker] Architecture mismatch! Runtime is {} (class={}, data={}, "
+            "machine=0x{:x}) but binary has class={}, data={}, machine bytes {:02x}{:02x}",
+            platform, expected->elf_class, expected->elf_data, expected->elf_machine, header[4],
+            header[5], header[18], header[19]);
         return false;
     }
 
-    // Check class (byte 4): 1=32-bit, 2=64-bit
-    uint8_t elf_class = header[4];
-
-    // Check machine type (bytes 18-19, little-endian): 0x28=ARM, 0xB7=AARCH64
-    uint16_t elf_machine =
-        static_cast<uint16_t>(header[18]) | (static_cast<uint16_t>(header[19]) << 8);
-
-    const char* class_name = (elf_class == 1) ? "32-bit" : (elf_class == 2) ? "64-bit" : "unknown";
-    const char* machine_name = (elf_machine == 0x28)   ? "ARM"
-                               : (elf_machine == 0xB7) ? "AARCH64"
-                                                       : "unknown";
-
-    spdlog::info("[UpdateChecker] Binary: {} {} (class={}, machine=0x{:x})", machine_name,
-                 class_name, elf_class, elf_machine);
-
-    if (elf_class != expected_class || elf_machine != expected_machine) {
-        spdlog::error("[UpdateChecker] Architecture mismatch! Runtime is {} but binary is {} {}",
-                      expected_arch_name, machine_name, class_name);
-        return false;
-    }
-
-    spdlog::info("[UpdateChecker] Architecture validation passed ({})", expected_arch_name);
+    spdlog::info("[UpdateChecker] Architecture validation passed ({})", platform);
     return true;
 }
 
@@ -2933,32 +2896,60 @@ std::string UpdateChecker::get_platform_key() {
 #endif
 }
 
+namespace {
+
+// FlashForge zmod config: IFS slot truth and user-defined filament types.
+// A 404 (non-zmod install, K1 series on the unified MIPS build) is skipped.
+const std::vector<std::string> kZmodDiagnosticFiles = {
+    "/server/files/config/Adventurer5M.json",
+    "/server/files/config/mod_data/user.cfg",
+};
+
+constexpr uint8_t ELF32 = 1, ELF64 = 2, LE = 1;
+constexpr uint16_t EM_ARM_ = 0x28, EM_AARCH64_ = 0xB7, EM_X86_64_ = 0x3E, EM_MIPS_ = 0x08;
+
+// Rows mirror the toolchains in mk/cross.mk. "ad5x" is a retired key that
+// binaries in the field still report.
+const std::vector<UpdateChecker::PlatformInfo> kPlatforms = {
+    {"pi", "Raspberry Pi", ELF64, LE, EM_AARCH64_, {}},
+    {"pi32", "Raspberry Pi (32-bit)", ELF32, LE, EM_ARM_, {}},
+    {"x86", "x86 Desktop", ELF64, LE, EM_X86_64_, {}},
+    {"ad5m", "FlashForge Adventurer 5M", ELF32, LE, EM_ARM_, kZmodDiagnosticFiles},
+    {"ad5x", "FlashForge Adventurer 5X", ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
+    {"mips", "MIPS (K1 series / AD5X)", ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
+    {"k1", "Creality K1", ELF32, LE, EM_MIPS_, {}},
+    {"k2", "Creality K2 Plus", ELF32, LE, EM_ARM_, {}},
+    {"cc1", "Elegoo Centauri Carbon", ELF32, LE, EM_ARM_, {}},
+    {"snapmaker-u1", "Snapmaker U1", ELF64, LE, EM_AARCH64_, {}},
+    // The K-Touch ships a firmware image, never an ELF release zip.
+    {"esp32", "BTT K-Touch", 0, 0, 0, {}},
+};
+
+} // namespace
+
+const UpdateChecker::PlatformInfo* UpdateChecker::find_platform(const std::string& key) {
+    for (const auto& p : kPlatforms) {
+        if (key == p.key) {
+            return &p;
+        }
+    }
+    return nullptr;
+}
+
 std::string UpdateChecker::get_platform_display_name(const std::string& key) {
-    // Keep in sync with get_platform_key() and the known_platforms test.
-    // debug_bundle_collector.cpp calls this; do NOT add a second copy there.
-    if (key == "pi")
-        return "Raspberry Pi";
-    if (key == "pi32")
-        return "Raspberry Pi (32-bit)";
-    if (key == "x86")
-        return "x86 Desktop";
-    if (key == "ad5m")
-        return "FlashForge Adventurer 5M";
-    if (key == "ad5x")
-        return "FlashForge Adventurer 5X";
-    if (key == "mips")
-        return "MIPS (K1 series / AD5X)";
-    if (key == "k1")
-        return "Creality K1";
-    if (key == "k2")
-        return "Creality K2 Plus";
-    if (key == "cc1")
-        return "Elegoo Centauri Carbon";
-    if (key == "snapmaker-u1")
-        return "Snapmaker U1";
-    if (key == "esp32")
-        return "BTT K-Touch";
-    return key;
+    const auto* p = find_platform(key);
+    return p ? p->display_name : key;
+}
+
+bool UpdateChecker::elf_header_matches(const PlatformInfo& platform, const uint8_t (&header)[20]) {
+    if (header[0] != 0x7f || header[1] != 'E' || header[2] != 'L' || header[3] != 'F') {
+        return false;
+    }
+    const uint16_t machine = header[5] == LE
+                                 ? static_cast<uint16_t>(header[18] | (header[19] << 8))
+                                 : static_cast<uint16_t>((header[18] << 8) | header[19]);
+    return header[4] == platform.elf_class && header[5] == platform.elf_data &&
+           machine == platform.elf_machine;
 }
 
 // ============================================================================
