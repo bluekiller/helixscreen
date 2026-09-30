@@ -10,7 +10,8 @@
  *
  * Each observer takes a lambda handler and comes in a deferred form (observe_int_sync,
  * observe_string), an immediate form (*_immediate) and, for ints, a value-now /
- * update-later form (observe_int_async). Domain helpers wrap them for print state and
+ * update-later form (observe_int_async). All of them forward to one type-erased
+ * detail::observe_core() per value type. Domain helpers wrap them for print state and
  * language changes.
  */
 
@@ -25,43 +26,37 @@
 #include "printer_state.h"         // PrintJobState
 #include "system_settings_manager.h"
 
+#include <cstdint>
+#include <functional>
 #include <memory>
-#include <string>
-#include <type_traits>
 
 namespace helix::ui {
 
-// ============================================================================
-// Lambda-based API
-// ============================================================================
+/// How an observer's handler runs relative to the subject notification.
+enum class Dispatch : uint8_t {
+    Deferred,  ///< From the UpdateQueue after the notification (observe_int_sync, observe_string)
+    Immediate, ///< Inside lv_subject notify (the *_immediate forms)
+};
 
 namespace detail {
 
-/**
- * @brief Context for lambda-based observers
- *
- * The `alive` token lets deferred lambdas (queued via queue_update) detect
- * when the observer has been destroyed between queueing and execution.
- * Without this, the copied panel pointer in the deferred lambda becomes
- * dangling if the panel is destroyed during a widget rebuild.
- * See issue #174: SEGV in LedWidget::update_light_icon() via stale pointer.
- */
-template <typename Panel, typename Handler> struct LambdaObserverContext {
-    Panel* panel;
-    Handler handler;
-    std::shared_ptr<bool> alive = std::make_shared<bool>(true);
-};
+// The observer machinery is compiled once per value type in src/ui/observer_factory.cpp.
+// Each call site only binds its owner into a std::function; see observe_core() there for
+// the context layout and the teardown invariant it depends on.
 
-/**
- * @brief Context for async lambda observers with update handler
- */
-template <typename Panel, typename ValueHandler, typename UpdateHandler>
-struct AsyncLambdaObserverContext {
-    Panel* panel;
-    ValueHandler value_handler;
-    UpdateHandler update_handler;
-    std::shared_ptr<bool> alive = std::make_shared<bool>(true);
-};
+/// @p then_deferred, when set, is queued after every Immediate call (observe_int_async).
+ObserverGuard observe_core(lv_subject_t* subject, const void* owner, std::function<void(int)> fn,
+                           Dispatch dispatch, const SubjectLifetime& lifetime,
+                           std::function<void()> then_deferred = nullptr);
+ObserverGuard observe_core(lv_subject_t* subject, const void* owner,
+                           std::function<void(const char*)> fn, Dispatch dispatch,
+                           const SubjectLifetime& lifetime);
+
+/// One handler instance serves every notification, so a `mutable` handler keeps its state.
+template <typename V, typename Panel, typename Handler>
+std::function<void(V)> bind_owner(Panel* panel, Handler&& handler) {
+    return [panel, h = std::forward<Handler>(handler)](V value) mutable { h(panel, value); };
+}
 
 } // namespace detail
 
@@ -80,61 +75,15 @@ struct AsyncLambdaObserverContext {
  * @param lifetime Death signal for @p subject. Required: pass the subject
  *        owner's get_subjects_lifetime(), or subject_never_freed() only when
  *        the subject genuinely cannot be freed before process exit.
- * @return ObserverGuard for RAII cleanup
+ * @return ObserverGuard for RAII cleanup; empty (with a warning) when @p subject
+ *         or @p panel is null
  */
 template <typename Panel, typename Handler>
 ObserverGuard observe_int_sync(lv_subject_t* subject, Panel* panel, Handler&& handler,
                                const SubjectLifetime& lifetime) {
-    if (!subject || !panel) {
-        return ObserverGuard();
-    }
-
-    using DecayedHandler = std::decay_t<Handler>;
-    auto* ctx = new detail::LambdaObserverContext<Panel, DecayedHandler>{
-        panel, std::forward<Handler>(handler)};
-
-    ObserverGuard guard(
-        subject,
-        [](lv_observer_t* obs, lv_subject_t* subj) {
-            auto* c = static_cast<detail::LambdaObserverContext<Panel, DecayedHandler>*>(
-                lv_observer_get_user_data(obs));
-            // LOAD-BEARING INVARIANT: this synchronous body has NO defense
-            // against a freed `c`. The `if (c && c->panel)` check is not one —
-            // freed-but-not-yet-reused heap still reads a plausible non-null
-            // panel, so we fall through and copy c->handler (a shared_ptr
-            // refcount bump) on freed memory → SIGSEGV in __aarch64_ldadd4 (the
-            // crash in bundles 449TVQ82/X3RA4252). The weak_alive/lifetime
-            // guards below protect only the DEFERRED lambda, not this copy.
-            // Safety therefore depends entirely on ObserverGuard::reset()
-            // removing this observer from the subject BEFORE freeing `c` (its
-            // `delete ctx` cleanup). reset() guarantees that ordering for any
-            // observer on a live subject; the per-creation invalidation epoch
-            // (ui_observer_guard.h) ensures an observer created during a
-            // printer-state reinit window is still removed rather than orphaned.
-            if (c && c->panel) {
-                int value = lv_subject_get_int(subj);
-                // Copy handler and panel pointer so the deferred lambda is
-                // self-contained and safe even if the observer context is
-                // destroyed before execution (the exact crash in issue #82).
-                // The weak alive token detects when the observer (and thus
-                // the panel) has been destroyed between queueing and
-                // execution (issue #174).
-                auto handler_copy = c->handler;
-                auto* panel_ptr = c->panel;
-                std::weak_ptr<bool> weak_alive = c->alive;
-                helix::ui::queue_update("observe_int_sync::apply",
-                                        [handler_copy, panel_ptr, value, weak_alive]() {
-                                            if (weak_alive.expired())
-                                                return;
-                                            handler_copy(panel_ptr, value);
-                                        });
-            }
-        },
-        ctx, [ctx]() { delete ctx; });
-    if (lifetime) {
-        guard.set_alive_token(lifetime);
-    }
-    return guard;
+    return detail::observe_core(subject, panel,
+                                detail::bind_owner<int>(panel, std::forward<Handler>(handler)),
+                                Dispatch::Deferred, lifetime);
 }
 
 /**
@@ -151,29 +100,9 @@ ObserverGuard observe_int_sync(lv_subject_t* subject, Panel* panel, Handler&& ha
 template <typename Panel, typename Handler>
 ObserverGuard observe_int_immediate(lv_subject_t* subject, Panel* panel, Handler&& handler,
                                     const SubjectLifetime& lifetime) {
-    if (!subject || !panel) {
-        return ObserverGuard();
-    }
-
-    using DecayedHandler = std::decay_t<Handler>;
-    auto* ctx = new detail::LambdaObserverContext<Panel, DecayedHandler>{
-        panel, std::forward<Handler>(handler)};
-
-    ObserverGuard guard(
-        subject,
-        [](lv_observer_t* obs, lv_subject_t* subj) {
-            auto* c = static_cast<detail::LambdaObserverContext<Panel, DecayedHandler>*>(
-                lv_observer_get_user_data(obs));
-            if (c && c->panel) {
-                int value = lv_subject_get_int(subj);
-                c->handler(c->panel, value);
-            }
-        },
-        ctx, [ctx]() { delete ctx; });
-    if (lifetime) {
-        guard.set_alive_token(lifetime);
-    }
-    return guard;
+    return detail::observe_core(subject, panel,
+                                detail::bind_owner<int>(panel, std::forward<Handler>(handler)),
+                                Dispatch::Immediate, lifetime);
 }
 
 /**
@@ -188,44 +117,10 @@ ObserverGuard observe_int_immediate(lv_subject_t* subject, Panel* panel, Handler
 template <typename Panel, typename ValueHandler, typename UpdateHandler>
 ObserverGuard observe_int_async(lv_subject_t* subject, Panel* panel, ValueHandler&& value_handler,
                                 UpdateHandler&& update_handler, const SubjectLifetime& lifetime) {
-    if (!subject || !panel) {
-        return ObserverGuard();
-    }
-
-    using DecayedValueHandler = std::decay_t<ValueHandler>;
-    using DecayedUpdateHandler = std::decay_t<UpdateHandler>;
-    auto* ctx =
-        new detail::AsyncLambdaObserverContext<Panel, DecayedValueHandler, DecayedUpdateHandler>{
-            panel, std::forward<ValueHandler>(value_handler),
-            std::forward<UpdateHandler>(update_handler)};
-
-    ObserverGuard guard(
-        subject,
-        [](lv_observer_t* obs, lv_subject_t* subj) {
-            auto* c = static_cast<detail::AsyncLambdaObserverContext<Panel, DecayedValueHandler,
-                                                                     DecayedUpdateHandler>*>(
-                lv_observer_get_user_data(obs));
-            if (c && c->panel) {
-                int value = lv_subject_get_int(subj);
-                c->value_handler(c->panel, value);
-
-                // Schedule async update with alive guard to prevent
-                // use-after-free if ObserverGuard is destroyed before execution
-                auto* panel_ptr = c->panel;
-                auto update_copy = c->update_handler;
-                std::weak_ptr<bool> weak_alive = c->alive;
-                helix::ui::queue_update([panel_ptr, update_copy, weak_alive]() {
-                    if (weak_alive.expired())
-                        return;
-                    update_copy(panel_ptr);
-                });
-            }
-        },
-        ctx, [ctx]() { delete ctx; });
-    if (lifetime) {
-        guard.set_alive_token(lifetime);
-    }
-    return guard;
+    return detail::observe_core(
+        subject, panel, detail::bind_owner<int>(panel, std::forward<ValueHandler>(value_handler)),
+        Dispatch::Immediate, lifetime,
+        [panel, u = std::forward<UpdateHandler>(update_handler)]() mutable { u(panel); });
 }
 
 /**
@@ -240,38 +135,9 @@ ObserverGuard observe_int_async(lv_subject_t* subject, Panel* panel, ValueHandle
 template <typename Panel, typename Handler>
 ObserverGuard observe_string(lv_subject_t* subject, Panel* panel, Handler&& handler,
                              const SubjectLifetime& lifetime) {
-    if (!subject || !panel) {
-        return ObserverGuard();
-    }
-
-    using DecayedHandler = std::decay_t<Handler>;
-    auto* ctx = new detail::LambdaObserverContext<Panel, DecayedHandler>{
-        panel, std::forward<Handler>(handler)};
-
-    ObserverGuard guard(
-        subject,
-        [](lv_observer_t* obs, lv_subject_t* subj) {
-            auto* c = static_cast<detail::LambdaObserverContext<Panel, DecayedHandler>*>(
-                lv_observer_get_user_data(obs));
-            if (c && c->panel) {
-                const char* str = lv_subject_get_string(subj);
-                std::string str_copy = str ? str : "";
-                auto handler_copy = c->handler;
-                auto* panel_ptr = c->panel;
-                std::weak_ptr<bool> weak_alive = c->alive;
-                helix::ui::queue_update("observe_string_sync::apply",
-                                        [handler_copy, panel_ptr, str_copy, weak_alive]() {
-                                            if (weak_alive.expired())
-                                                return;
-                                            handler_copy(panel_ptr, str_copy.c_str());
-                                        });
-            }
-        },
-        ctx, [ctx]() { delete ctx; });
-    if (lifetime) {
-        guard.set_alive_token(lifetime);
-    }
-    return guard;
+    return detail::observe_core(
+        subject, panel, detail::bind_owner<const char*>(panel, std::forward<Handler>(handler)),
+        Dispatch::Deferred, lifetime);
 }
 
 /**
@@ -286,31 +152,9 @@ ObserverGuard observe_string(lv_subject_t* subject, Panel* panel, Handler&& hand
 template <typename Panel, typename Handler>
 ObserverGuard observe_string_immediate(lv_subject_t* subject, Panel* panel, Handler&& handler,
                                        const SubjectLifetime& lifetime) {
-    if (!subject || !panel) {
-        return ObserverGuard();
-    }
-
-    using DecayedHandler = std::decay_t<Handler>;
-    auto* ctx = new detail::LambdaObserverContext<Panel, DecayedHandler>{
-        panel, std::forward<Handler>(handler)};
-
-    ObserverGuard guard(
-        subject,
-        [](lv_observer_t* obs, lv_subject_t* subj) {
-            auto* c = static_cast<detail::LambdaObserverContext<Panel, DecayedHandler>*>(
-                lv_observer_get_user_data(obs));
-            if (c && c->panel) {
-                const char* str = lv_subject_get_string(subj);
-                if (!str)
-                    str = "";
-                c->handler(c->panel, str);
-            }
-        },
-        ctx, [ctx]() { delete ctx; });
-    if (lifetime) {
-        guard.set_alive_token(lifetime);
-    }
-    return guard;
+    return detail::observe_core(
+        subject, panel, detail::bind_owner<const char*>(panel, std::forward<Handler>(handler)),
+        Dispatch::Immediate, lifetime);
 }
 
 // ============================================================================
@@ -333,7 +177,7 @@ template <typename Panel, typename OnChange>
 ObserverGuard observe_language_change(Panel* panel, OnChange&& on_change) {
     auto& settings = SystemSettingsManager::instance();
     lv_subject_t* language = settings.subject_language();
-    // Shared, because the factory copies the handler for each notification.
+    // Held by pointer so the non-mutable handler can update it.
     auto shown = std::make_shared<int>(lv_subject_get_int(language));
     return observe_int_sync<Panel>(
         language, panel,
