@@ -72,11 +72,22 @@ class PluginHost {
     void load_from(const std::string& dir);
     void unload_all();
 
+    /// Reloads, adds or removes only the named plugins: each id with a manifest
+    /// on disk is unloaded (when loaded), re-read and reconsidered; each id
+    /// whose manifest is gone is unloaded and dropped. Ids not named keep
+    /// their runtime and generation.
+    void rescan(const std::vector<std::string>& ids);
+
     /// The host the app runs, or nullptr.
     static PluginHost* live();
 
     const std::vector<PluginInfo>& plugins() const {
         return plugins_;
+    }
+
+    /// The directory the last load_from scanned.
+    const std::string& dir() const {
+        return dir_;
     }
 
     /// Grants the manifest's current permissions and loads the plugin.

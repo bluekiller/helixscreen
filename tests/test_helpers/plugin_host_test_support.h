@@ -54,6 +54,14 @@ inline json enabled(const std::string& id, std::vector<std::string> perms) {
     return json{{"enabled", {{id, {{"version", "1.0.0"}, {"permissions", perms}}}}}};
 }
 
+/// The /plugins settings block enabling every given id with its permissions.
+inline json enabled_all(std::vector<std::pair<std::string, std::vector<std::string>>> ids) {
+    json block = json{{"enabled", json::object()}};
+    for (auto& [id, perms] : ids)
+        block["enabled"][id] = enabled(id, std::move(perms))["enabled"][id];
+    return block;
+}
+
 inline void drain() {
     helix::ui::UpdateQueue::instance().drain();
 }

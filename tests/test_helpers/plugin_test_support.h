@@ -10,8 +10,10 @@
 #include "plugin_backend.h"
 
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <random>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -133,6 +135,14 @@ struct TempDir {
         return (path / name).string();
     }
 };
+
+/// A whole file as one string; empty when unreadable.
+inline std::string read_text(const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
 
 } // namespace helix::plugin::test
 
