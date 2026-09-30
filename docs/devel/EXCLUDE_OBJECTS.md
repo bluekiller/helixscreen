@@ -1,6 +1,6 @@
 # Exclude Objects (Developer Guide)
 
-How the Exclude Objects feature works, from Klipper integration to the UI interaction flow, per-object thumbnail rendering, and slicer configuration.
+How the Exclude Objects feature works, from Klipper integration to the UI interaction flow and slicer configuration.
 
 ---
 
@@ -63,11 +63,10 @@ UI entry points:
 | `include/ui_exclude_object_modal.h` | Confirmation dialog ("Exclude Object?") |
 | `ui_xml/exclude_object_modal.xml` | XML layout for the confirmation modal |
 | `include/ui_exclude_object_side_list.h` | Side list of all objects with status indicators |
-| `src/ui/ui_exclude_object_side_list.cpp` | List population, thumbnail integration, tap-to-exclude |
+| `src/ui/ui_exclude_object_side_list.cpp` | List population, tap-to-exclude |
 | `include/ui_exclude_object_map_view.h` | Object map view with 3D selection brackets |
 | `src/ui/ui_exclude_object_map_view.cpp` | Map rendering and hit-testing |
 | `include/gcode_renderer.h` | 2D renderer with excluded object visual style |
-| `include/gcode_object_thumbnail_renderer.h` | Per-object toolpath thumbnail renderer |
 | `src/api/moonraker_motion_api.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
 | `src/api/moonraker_client_mock.cpp` | Mock mode: EXCLUDE_OBJECT handling and status dispatch |
 
@@ -201,7 +200,6 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 
 `ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by `PrintStatusPanel`. Each row shows:
 
-- **Thumbnail** (40x40 per-object toolpath rendering, if available)
 - **Status dot** (green = idle/printing, red = excluded)
 - **Object name**
 - **Status text** ("Printing", "Excluded", or blank)
@@ -216,35 +214,6 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 ### XML Layout
 
 The side list is built from `ui_xml/components/exclude_object_side_list.xml`, the map from `ui_xml/components/exclude_object_map.xml`. Rows are populated dynamically in C++ because the object list is not known at compile time (this is an allowed exception to the "no `lv_obj_add_event_cb()`" rule noted in the code).
-
----
-
-## Per-Object GCode Toolpath Thumbnails
-
-`GCodeObjectThumbnailRenderer` generates small ARGB8888 thumbnails of each object's toolpath for display in the side list.
-
-### Rendering Pipeline
-
-1. **Bounding box extraction**: Each object's AABB is read from `ParsedGCodeFile::objects`
-2. **Projection setup**: FRONT isometric projection is configured per-object using `gcode_projection.h`
-3. **Single-pass rendering**: All layers and segments are iterated once. Each extrusion segment is dispatched to its object's pixel buffer based on `segment.object_name`. Travel moves are skipped.
-4. **Bresenham line drawing**: Lines are drawn directly to raw `uint8_t[]` pixel buffers using integer Bresenham's algorithm. No LVGL calls from the background thread.
-5. **Depth shading**: RGB channels are darkened based on Z-height for visual depth. Alpha is preserved at full opacity.
-6. **UI thread delivery**: Results are marshaled to the UI thread via `ui_queue_update()` and converted to `lv_draw_buf_t` for use in `lv_image` widgets.
-
-### Thread Safety
-
-The renderer runs in a background thread. Thread safety is maintained by:
-
-- Background thread only reads `ParsedGCodeFile` (immutable during print)
-- Raw pixel buffers use `std::make_unique` (no LVGL allocations from background thread)
-- Results are delivered to the UI thread via `ui_queue_update()`
-- Cancellation via `std::atomic<bool>` flag checked between layers
-- Cancelling waits for the background thread to join before proceeding
-
-### Thumbnail Sizing
-
-Default is 40x40 pixels (`kThumbnailSize` in the overlay source). Non-square sizes are supported. Each thumbnail is `width * height * 4` bytes (ARGB8888, no row padding).
 
 ---
 
@@ -264,8 +233,6 @@ The 2D layer renderer (`GCodeLayerRenderer`) is what the Auto render mode lands 
 
 In streaming mode (`GCodeStreamingController`), the layer renderer operates on per-layer segment data fetched on demand rather than the full parsed file. Streaming has no object list — `set_streaming_controller()` clears the full-file pointer (`src/rendering/gcode_layer_renderer.cpp#set_streaming_controller`) — so stage 1 of picking is skipped and the unfiltered downward segment walk runs against whatever the stream has cached. That walk is cache-only: `try_get_layer_segments()` returns cached layers and skips uncached ones, never seeking and parsing on a tap — a hit-test must not freeze the UI to load geometry (`src/rendering/gcode_layer_renderer.cpp#pick_object_at`; a mid-pick load froze the UI for seconds on a 2-core board).
 
-Note: Per-object thumbnails require `ParsedGCodeFile` segment data. In streaming mode, `ui_gcode_viewer_get_parsed_file()` returns `nullptr`, so thumbnails are not available and the side list displays rows without thumbnail images.
-
 ---
 
 ## GCode Parser Object Detection
@@ -278,7 +245,7 @@ The G-code parser (`GCodeParser`) processes `EXCLUDE_OBJECT_*` commands during p
 | `EXCLUDE_OBJECT_START NAME=...` | Sets `current_object_` so subsequent segments are tagged with this object name |
 | `EXCLUDE_OBJECT_END NAME=...` | Clears `current_object_` (segments after this point are untagged) |
 
-Each `ToolpathSegment` carries an `object_name` field. Segments without an object name (skirt, brim, purge line) are not pickable and are skipped by the thumbnail renderer.
+Each `ToolpathSegment` carries an `object_name` field. Segments without an object name (skirt, brim, purge line) are not pickable.
 
 Wipe tower segments are tagged with the special name `__WIPE_TOWER__`.
 
@@ -392,7 +359,6 @@ Tests are run with:
 ```bash
 ./build/bin/helix-tests "[exclude_object]"        # Exclusion state machine tests
 ./build/bin/helix-tests "[excluded_objects]"       # PrinterExcludedObjectsState tests
-./build/bin/helix-tests "[object-thumbnail]"       # Per-object thumbnail renderer tests
 ./build/bin/helix-tests "[security][injection]"    # G-code injection prevention tests
 ./build/bin/helix-tests "[mock][print]"            # Mock client exclude_object tests
 ```
@@ -405,7 +371,6 @@ Tests are run with:
 | `tests/unit/test_exclude_object_long_press_gate.cpp` | `[exclude_object]` | Long-press gate: pending object, timer arming, clear |
 | `tests/unit/test_excluded_objects_char.cpp` | `[excluded_objects]` | `PrinterExcludedObjectsState`: version subjects, set change detection, observer notification |
 | `tests/unit/test_moonraker_api_exclude_object.cpp` | `[security]`, `[mock]` | Input validation, injection prevention, mock client integration |
-| `tests/unit/test_gcode_object_thumbnail_renderer.cpp` | `[object-thumbnail]` | Thumbnail rendering: empty/single/multi object, sizing, cancellation, edge cases |
 
 ### Test G-code
 

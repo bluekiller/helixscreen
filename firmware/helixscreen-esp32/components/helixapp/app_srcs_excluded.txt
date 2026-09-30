@@ -125,7 +125,6 @@ src/rendering/gcode_gles_renderer.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_layer_cache.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_layer_index.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_layer_renderer.cpp  # not in the v1 Core+AMS cut
-src/rendering/gcode_object_thumbnail_renderer.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_projection.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_raster.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_renderer.cpp  # not in the v1 Core+AMS cut

@@ -881,7 +881,6 @@ large and grows. Known gaps:
 | Source | Where | Note |
 |---|---|---|
 | Raw `lv_async_call` | `panel_widget_manager.cpp` (home-panel widget-gate rebuild), `ui_nav_manager.cpp` (overlay-close), `ui_filament_path_layers.cpp`, `grid_edit_mode.cpp` | LVGL exposes only call/cancel — no count API |
-| Per-object thumbnail render thread | `gcode_object_thumbnail_renderer.cpp` | Own `std::thread`, not `HttpExecutor`. Distinct from `ThumbnailProcessor` (card thumbnails), which `wait_idle` now counts |
 | GCode geometry build | `ui_gcode_viewer.cpp` (`build_thread_`) | Same |
 | GCode layer/streaming | `gcode_layer_renderer.h`, `gcode_streaming_controller.h` | Same |
 | Mock backends | `moonraker_client_mock.cpp` (`simulation_thread_` + 3 timers), `moonraker_client_mock_print.cpp` (2 timers), `ams_backend_mock.cpp` (6 threads), `wifi_backend_mock.cpp` (2) | Mock mode **adds** nondeterminism |
