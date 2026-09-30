@@ -75,7 +75,8 @@ PanelWidgetConfig::PanelWidgetConfig(const std::string& panel_id, Config& config
     : panel_id_(panel_id), config_(config) {}
 
 std::vector<PanelWidgetEntry> PanelWidgetConfig::parse_widget_array(const nlohmann::json& arr,
-                                                                    bool append_registry_defaults) {
+                                                                    bool append_registry_defaults,
+                                                                    nlohmann::json* retained) {
     std::vector<PanelWidgetEntry> result;
     std::set<std::string> seen_ids;
 
@@ -123,9 +124,18 @@ std::vector<PanelWidgetEntry> PanelWidgetConfig::parse_widget_array(const nlohma
             continue;
         }
 
-        // Skip unknown widget IDs (not in registry)
+        // An id with no definition is either kept verbatim (a plugin widget
+        // while its plugin is absent, so the placement returns when it does)
+        // or dropped, when no destination was given. Recording the id here
+        // also collapses a duplicate unknown entry to its first copy.
+        seen_ids.insert(id);
         if (find_widget_def(id) == nullptr) {
-            spdlog::debug("[PanelWidgetConfig] Dropping unknown widget ID: {}", id);
+            if (retained) {
+                retained->push_back(item);
+                spdlog::debug("[PanelWidgetConfig] Keeping unknown widget ID: {}", id);
+            } else {
+                spdlog::debug("[PanelWidgetConfig] Dropping unknown widget ID: {}", id);
+            }
             continue;
         }
 
@@ -162,7 +172,6 @@ std::vector<PanelWidgetEntry> PanelWidgetConfig::parse_widget_array(const nlohma
             rowspan = item["rowspan"].get<int>();
         }
 
-        seen_ids.insert(id);
         result.push_back({id, enabled, widget_config, col, row_val, colspan, rowspan});
     }
 
@@ -286,7 +295,8 @@ void PanelWidgetConfig::load() {
                 // page). Keyed off pages_ rather than page_idx so a skipped
                 // leading entry doesn't cost the first real page its defaults.
                 bool append_defaults = pages_.empty();
-                page.widgets = parse_widget_array(page_json["widgets"], append_defaults);
+                page.widgets =
+                    parse_widget_array(page_json["widgets"], append_defaults, &page.retained);
             }
             pages_.push_back(std::move(page));
             ++page_idx;
@@ -420,7 +430,8 @@ bool PanelWidgetConfig::try_populate_from_preset_seed() {
         page.id = helix::json_util::safe_string(page_json, "id");
         if (page_json.contains("widgets") && page_json["widgets"].is_array()) {
             bool append_defaults = pages_.empty();
-            page.widgets = parse_widget_array(page_json["widgets"], append_defaults);
+            page.widgets =
+                parse_widget_array(page_json["widgets"], append_defaults, &page.retained);
         }
         pages_.push_back(std::move(page));
         ++page_idx;
@@ -459,6 +470,11 @@ nlohmann::json PanelWidgetConfig::serialize_pages() const {
             item["colspan"] = entry.colspan;
             item["rowspan"] = entry.rowspan;
             widgets_array.push_back(std::move(item));
+        }
+        // The saved entries no definition vouches for ride after the known
+        // ones, verbatim, so the layout keeps them until the definition returns.
+        for (const auto& item : page.retained) {
+            widgets_array.push_back(item);
         }
         page_obj["widgets"] = std::move(widgets_array);
         pages_json.push_back(std::move(page_obj));
@@ -747,11 +763,19 @@ bool PanelWidgetConfig::remove_page(size_t page_index) {
         return false;
     }
 
+    // A removed page's undefined-widget entries move to the main page rather
+    // than dying with it: the plugin they wait for is absent either way, and
+    // the main page is the one that survives every removal.
+    json retained = std::move(pages_[page_index].retained);
     pages_.erase(pages_.begin() + static_cast<ptrdiff_t>(page_index));
 
     // Adjust main_page_index
     if (main_page_index_ > page_index) {
         --main_page_index_;
+    }
+
+    for (const auto& item : retained) {
+        pages_[main_page_index_].retained.push_back(item);
     }
 
     return true;
@@ -1255,7 +1279,8 @@ void PanelWidgetConfig::restore_pages(const nlohmann::json& payload) {
             PageConfig page;
             page.id = helix::json_util::safe_string(page_json, "id");
             if (page_json.contains("widgets") && page_json["widgets"].is_array()) {
-                page.widgets = parse_widget_array(page_json["widgets"], pages_.empty());
+                page.widgets =
+                    parse_widget_array(page_json["widgets"], pages_.empty(), &page.retained);
             }
             pages_.push_back(std::move(page));
         }

@@ -143,7 +143,7 @@ void draw_parallel_slot(const RenderCtx& ctx, const SlotRenderStates& states, in
     }
 
     // Nozzle color — only show filament color when actually at nozzle
-    lv_color_t noz_color = s.is_mounted ? theme.color_nozzle : ph_darken(theme.color_nozzle, 60);
+    std::optional<lv_color_t> noz_color;
     if (s.at_nozzle) {
         noz_color = tool_color;
     }
@@ -332,7 +332,7 @@ void draw_mixed_shared_toolhead(const RenderCtx& ctx, const MixedFrame& f) {
 
     // Check if any hub lane has filament at nozzle
     bool any_hub_at_nozzle = false;
-    lv_color_t hub_nozzle_color = theme.color_nozzle;
+    lv_color_t hub_nozzle_color = theme.color_idle;
     int hub_tool = (f.first_hub_lane >= 0 && data->mapped_tool[f.first_hub_lane] >= 0)
                        ? data->mapped_tool[f.first_hub_lane]
                        : (f.first_hub_lane >= 0 ? f.first_hub_lane : 0);
@@ -364,7 +364,9 @@ void draw_mixed_shared_toolhead(const RenderCtx& ctx, const MixedFrame& f) {
     }
 
     // Shared hub nozzle — always "mounted" visually (it's a shared output)
-    lv_color_t noz_color = any_hub_at_nozzle ? hub_nozzle_color : theme.color_nozzle;
+    std::optional<lv_color_t> noz_color;
+    if (any_hub_at_nozzle)
+        noz_color = hub_nozzle_color;
     lv_opa_t hub_noz_opa = LV_OPA_COVER;
     draw_toolhead(ctx.layer, f.hub_cx, f.toolhead_y, noz_color, f.tool_scale, hub_noz_opa);
 
@@ -393,7 +395,7 @@ void draw_mixed_direct_lane(const RenderCtx& ctx, const MixedFrame& f, int i) {
     }
 
     // Direct nozzle
-    lv_color_t noz_color = s.is_mounted ? theme.color_nozzle : ph_darken(theme.color_nozzle, 60);
+    std::optional<lv_color_t> noz_color;
     if (s.at_nozzle) {
         noz_color = tool_color;
     }
@@ -491,7 +493,7 @@ struct LinearHubFrame {
     bool has_buffer = false;
 
     // Resolved colors
-    lv_color_t idle_color, bg_color, active_color, hub_bg, hub_border, nozzle_color;
+    lv_color_t idle_color, bg_color, active_color, hub_bg, hub_border;
     lv_color_t error_color; // error token blended with the pulse phase
 
     // Sizes
@@ -566,7 +568,6 @@ LinearHubFrame compute_linear_hub_frame(const RenderCtx& ctx) {
     f.active_color = lv_color_hex(data->filament_color);
     f.hub_bg = data->theme.color_hub_bg;
     f.hub_border = data->theme.color_hub_border;
-    f.nozzle_color = data->theme.color_nozzle;
 
     // Error color with pulse effect - blend toward idle based on opacity
     f.error_color = data->theme.color_error;
@@ -1250,7 +1251,7 @@ void draw_nozzle_section(const RenderCtx& ctx, LinearHubFrame& f) {
         return;
 
     int32_t extruder_half_height = data->theme.extruder_scale * 2; // Half of body_height
-    lv_color_t noz_color = f.nozzle_color;
+    lv_color_t noz_color = f.idle_color;
 
     // Bypass or normal slot active?
     if (data->bypass_active) {
@@ -1296,7 +1297,9 @@ void draw_nozzle_section(const RenderCtx& ctx, LinearHubFrame& f) {
     // animation DRAW_POST pass (see draw_animation_linear_hub) — not here.
 
     // Extruder/print head icon
-    draw_toolhead(ctx.layer, f.center_x, f.nozzle_y, noz_color, data->theme.extruder_scale);
+    draw_toolhead(ctx.layer, f.center_x, f.nozzle_y,
+                  nozzle_has_filament ? std::optional(noz_color) : std::nullopt,
+                  data->theme.extruder_scale);
 }
 
 // LINEAR/HUB renderer: one frame computation, then the phases in physical

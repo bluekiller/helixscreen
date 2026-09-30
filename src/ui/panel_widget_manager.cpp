@@ -1735,6 +1735,21 @@ void PanelWidgetManager::clear_gate_observers(const std::string& panel_id) {
     mgr.gate_rebuild_callbacks_.erase(panel_id);
 }
 
+void PanelWidgetManager::notify_widget_defs_changed() {
+    clear_all_panel_configs();
+    // Queue each registered gate panel's rebuild through its async slot, the
+    // same coalesced route a gate firing takes (see setup_gate_observers):
+    // this can run inside an UpdateQueue drain, where a synchronous rebuild
+    // would corrupt LVGL's event list.
+    for (auto& [panel_id, slot] : gate_rebuild_slots_) {
+        (void)panel_id;
+        if (slot.pending)
+            continue;
+        slot.pending = true;
+        lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &slot);
+    }
+}
+
 void PanelWidgetManager::gate_rebuild_trampoline(void* ud) {
     auto* slot = static_cast<GateRebuildSlot*>(ud);
     if (!slot || !slot->mgr) {

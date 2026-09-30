@@ -67,7 +67,6 @@
 #include "spoolman_manager.h"
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
-#include "streaming_policy.h"
 #include "subject_initializer.h"
 #include "temp_graph_controller.h"
 #include "temperature_history_manager.h"
@@ -1339,9 +1338,6 @@ bool Application::init_config() {
         spdlog::info("[Application] ToolState config dir: {}", env_dir);
     }
 
-    // Initialize streaming policy from config (auto-detects thresholds from RAM)
-    helix::StreamingPolicy::instance().load_from_config();
-
     // Load persisted thermal heating rates so estimates are available immediately
     ThermalRateManager::instance().load_from_config(*m_config);
 
@@ -2238,6 +2234,9 @@ void Application::init_plugins() {
     helix::plugin::register_plugin_event_callback();
     m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
     m_plugin_host->load_from(dir);
+    // Panels are up by now, so the visibility subject exists: unhide the row.
+    if (auto* subj = lv_xml_get_subject(nullptr, "settings_plugins_available"))
+        lv_subject_set_int(subj, 1);
 }
 #endif
 

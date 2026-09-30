@@ -7,6 +7,8 @@
 #include "ui_toast_manager.h"
 
 #include "lua_bindings.h"
+#include "plugin_overlay_host.h"
+#include "plugin_xml_policy.h"
 
 #include <spdlog/spdlog.h>
 
@@ -28,6 +30,8 @@ constexpr size_t kMaxOpenConfirms = 1;
 struct ObserverCtx {
     LuaRuntime* rt;
     int fn_ref;
+    lv_observer_t* handle =
+        nullptr; ///< set by subject_observe; the closer removes it before retiring the subject
     bool armed =
         false; ///< lv_subject_add_observer reports the current value at once; Lua sees changes only
 };
@@ -46,6 +50,9 @@ struct UiState {
     std::vector<std::unique_ptr<ObserverCtx>> observers;
     std::unordered_map<std::string, int> handlers; ///< name -> fn ref
     size_t open_confirms = 0;
+    /// The dialog behind open_confirms, so the runtime closer can take a plugin's
+    /// still-unanswered question off screen. Nulled by every close path.
+    lv_obj_t* open_confirm = nullptr;
 };
 
 UiState& ui_state(lua_State* L) {
@@ -53,6 +60,21 @@ UiState& ui_state(lua_State* L) {
     auto* s = static_cast<UiState*>(lua_touserdata(L, -1));
     lua_pop(L, 1);
     return *s;
+}
+
+// A process-lifetime list, never destroyed: an object deleted during process teardown still
+// finds its subject alive. LVGL deletes a parent before its children, so no root-level delete
+// hook can tell when a bound subtree is gone. Every reference a widget may hold to a plugin
+// subject is observer-bound (helix-xml bind records and Lua observers alike; the XML policy
+// bans the raw-pointer subject_*_event elements), so an empty observer list means nothing
+// can reach the subject any more and freeing it is safe.
+std::vector<std::unique_ptr<SubjectEntry>>& retired_subjects() {
+    static auto* list = new std::vector<std::unique_ptr<SubjectEntry>>();
+    return *list;
+}
+
+bool unobserved(lv_subject_t& s) {
+    return lv_ll_get_head(&s.subs_ll) == nullptr;
 }
 
 bool is_valid_local_name(std::string_view n) {
@@ -122,7 +144,7 @@ int subject_observe(lua_State* L) {
     auto& ui = ui_state(L);
     ui.observers.push_back(std::make_unique<ObserverCtx>(ObserverCtx{&rt, rt.ref_value(L, 2)}));
     ObserverCtx* ctx = ui.observers.back().get();
-    lv_subject_add_observer(&s.subject, &on_subject_change, ctx);
+    ctx->handle = lv_subject_add_observer(&s.subject, &on_subject_change, ctx);
     ctx->armed = true;
     return 0;
 }
@@ -135,7 +157,7 @@ int make_subject(lua_State* L, bool is_string) {
     std::string name = luaL_checkstring(L, 1);
     if (!is_valid_local_name(name))
         return luaL_error(L, "subject name '%s' must be 1-48 of [a-z0-9_-]", name.c_str());
-    std::string full = rt.plugin_id() + "_" + name;
+    std::string full = plugin_owned_name(rt.plugin_id(), name);
     if (lv_xml_get_subject(nullptr, full.c_str()))
         return luaL_error(L, "subject '%s' already exists", full.c_str());
 
@@ -190,6 +212,8 @@ int ui_toast(lua_State* L) {
 }
 
 int ui_confirm(lua_State* L) {
+    if (context(L).unloading)
+        return luaL_error(L, "helix.ui.confirm cannot open during on_unload");
     auto& rt = LuaRuntime::from(L);
     std::string title = luaL_checkstring(L, 1);
     std::string msg = luaL_checkstring(L, 2);
@@ -233,8 +257,10 @@ int ui_confirm(lua_State* L) {
     // exactly once; the shared flag makes a double close a no-op.
     UiState* ui_ptr = &ui;
     auto release = [ui_ptr, open = std::make_shared<std::atomic<bool>>(true)] {
-        if (open->exchange(false))
+        if (open->exchange(false)) {
+            ui_ptr->open_confirm = nullptr;
             --ui_ptr->open_confirms;
+        }
     };
     helix::ui::ConfirmOptions opts;
     opts.on_cancel = [run, cancel_ref, release] {
@@ -250,9 +276,91 @@ int ui_confirm(lua_State* L) {
             run(confirm_ref);
         },
         opts);
-    if (!dialog) // never shown, so no close path will release the slot
+    if (dialog)
+        ui.open_confirm = dialog;
+    else // never shown, so no close path will release the slot
         release();
     return 0;
+}
+
+int overlay_handle_close(lua_State* L) {
+    auto& ctx = context(L);
+    if (ctx.ui)
+        ctx.ui->close(static_cast<int>(lua_tointeger(L, lua_upvalueindex(1))));
+    return 0;
+}
+
+int ui_overlay(lua_State* L) {
+    auto& rt = LuaRuntime::from(L);
+    if (!context(L).ui)
+        return luaL_error(L, "helix.ui.overlay is not available here");
+    if (context(L).unloading)
+        return luaL_error(L, "helix.ui.overlay cannot open during on_unload");
+    std::string component = luaL_checkstring(L, 1);
+    if (!is_owned_name(rt.plugin_id(), component))
+        return luaL_error(L, "helix.ui.overlay: component '%s' is not owned by this plugin",
+                          component.c_str());
+
+    int on_close_ref = LUA_NOREF;
+    PluginUi::Attrs attrs;
+    if (!lua_isnoneornil(L, 2)) {
+        luaL_checktype(L, 2, LUA_TTABLE);
+        // Every string key but on_close is an attribute for lv_xml_create; anything
+        // else is a mistake Lua should hear about now rather than a widget
+        // silently ignoring.
+        std::string bad_value_key;
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0) {
+            if (lua_type(L, -2) == LUA_TSTRING && std::string(lua_tostring(L, -2)) != "on_close") {
+                if (lua_type(L, -1) != LUA_TSTRING)
+                    bad_value_key = lua_tostring(L, -2);
+                else
+                    attrs.emplace_back(lua_tostring(L, -2), lua_tostring(L, -1));
+            }
+            lua_pop(L, 1);
+        }
+        if (!bad_value_key.empty())
+            return luaL_error(L, "helix.ui.overlay: attribute '%s' must be a string",
+                              bad_value_key.c_str());
+        for (const auto& [name, value] : attrs) {
+            if (auto why = check_plugin_attr(rt.plugin_id(), name, value))
+                return luaL_error(L, "helix.ui.overlay: attribute '%s': %s", name.c_str(),
+                                  why->c_str());
+        }
+        // The ref is taken only once every error path is past: luaL_error unwinds
+        // without running anything that could release it.
+        lua_getfield(L, 2, "on_close");
+        if (!lua_isnil(L, -1)) {
+            if (!lua_isfunction(L, -1)) {
+                lua_pop(L, 1);
+                return luaL_error(L, "helix.ui.overlay: on_close must be a function");
+            }
+            on_close_ref = rt.ref_value(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+
+    LuaRuntime* rtp = &rt;
+    int handle = context(L).ui->open(
+        component,
+        [rtp, on_close_ref, token = rt.token()] {
+            if (on_close_ref != LUA_NOREF && !token.expired()) {
+                rtp->invoke(on_close_ref);
+                rtp->unref(on_close_ref);
+            }
+        },
+        attrs);
+    if (handle == 0) {
+        if (on_close_ref != LUA_NOREF)
+            rt.unref(on_close_ref);
+        return luaL_error(L, "helix.ui.overlay: cannot open '%s'", component.c_str());
+    }
+
+    lua_newtable(L);
+    lua_pushinteger(L, handle);
+    lua_pushcclosure(L, &overlay_handle_close, 1);
+    lua_setfield(L, -2, "close");
+    return 1;
 }
 
 } // namespace
@@ -266,10 +374,10 @@ PluginEventTarget parse_plugin_event(std::string_view user_data) {
         arg = std::string(user_data.substr(colon + 1));
     }
     std::string_view id = owner_of(head);
-    if (!is_valid_plugin_id(id) || head.size() <= id.size() + 1)
+    if (!is_valid_plugin_id(id) || head.size() <= id.size() + kPluginNameSeparator.size())
         return t;
     t.id = std::string(id);
-    t.name = std::string(head.substr(id.size() + 1));
+    t.name = std::string(head.substr(id.size() + kPluginNameSeparator.size()));
     t.arg = std::move(arg);
     return t;
 }
@@ -290,18 +398,48 @@ bool dispatch_ui_handler(LuaRuntime& rt, const std::string& name,
     return true;
 }
 
+// ponytail: retired subjects are freed at the next plugin load or unload rather than the
+// moment their last observer goes; a sweep on a timer is the upgrade if a device ever shows
+// the list growing.
+void sweep_retired_subjects() {
+    auto& list = retired_subjects();
+    for (auto it = list.begin(); it != list.end();) {
+        if (unobserved((*it)->subject)) {
+            lv_subject_deinit(&(*it)->subject);
+            it = list.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+size_t retired_subject_count() {
+    return retired_subjects().size();
+}
+
 void install_ui_bindings(PluginContext& ctx) {
     lua_State* L = ctx.rt.state();
     auto* state = new UiState;
     lua_pushlightuserdata(L, state);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &kUiStateKey);
     ctx.rt.on_close([state] {
+        // The plugin is going away; take its still-unanswered question off screen. A
+        // dialog the user already closed cleared the pointer on its close path.
+        if (state->open_confirm)
+            Modal::hide(state->open_confirm);
+        for (auto& o : state->observers) {
+            if (o->handle)
+                lv_observer_remove(o->handle);
+        }
         for (auto& s : state->subjects) {
             // A later registration under the same name replaced the record's pointer, so
             // only a record still pointing at this subject is the plugin's to remove.
             if (lv_xml_get_subject(nullptr, s->full_name.c_str()) == &s->subject)
                 lv_xml_unregister_subject(nullptr, s->full_name.c_str());
-            lv_subject_deinit(&s->subject); // also removes every observer on it
+            if (unobserved(s->subject))
+                lv_subject_deinit(&s->subject);
+            else
+                retired_subjects().push_back(std::move(s));
         }
         delete state;
     });
@@ -322,8 +460,11 @@ void install_ui_bindings(PluginContext& ctx) {
         {"int", [](lua_State* L) { return make_subject(L, false); }},
         {"string", [](lua_State* L) { return make_subject(L, true); }},
         {nullptr, nullptr}};
-    static const luaL_Reg ui_fns[] = {
-        {"on", &ui_on}, {"toast", &ui_toast}, {"confirm", &ui_confirm}, {nullptr, nullptr}};
+    static const luaL_Reg ui_fns[] = {{"on", &ui_on},
+                                      {"toast", &ui_toast},
+                                      {"confirm", &ui_confirm},
+                                      {"overlay", &ui_overlay},
+                                      {nullptr, nullptr}};
     lua_getglobal(L, "helix");
     lua_newtable(L);
     luaL_setfuncs(L, subject_fns, 0);

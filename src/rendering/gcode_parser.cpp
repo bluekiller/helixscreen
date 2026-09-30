@@ -15,9 +15,11 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string_view>
 #include <sys/stat.h>
 #include <system_error>
+#include <utility>
 
 namespace {
 
@@ -38,6 +40,75 @@ inline helix::DecimalParseResult parse_gcode_decimal(const char* first, const ch
         return {first, std::errc::invalid_argument};
     }
     return helix::parse_decimal(after_sign, last, value);
+}
+
+std::string_view trim_ws(std::string_view s) {
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
+        s.remove_prefix(1);
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back())))
+        s.remove_suffix(1);
+    return s;
+}
+
+/// Split a slicer comment ("; key = value" or ";key: value") into its trimmed
+/// key and value. The separator is whichever of '=' and ':' comes first, so a
+/// value holding a colon ("1h: 20m") stays whole behind an '=' key.
+std::optional<std::pair<std::string_view, std::string_view>>
+split_comment_kv(std::string_view line) {
+    if (line.empty() || line[0] != ';')
+        return std::nullopt;
+    line.remove_prefix(1);
+    const size_t sep = line.find_first_of("=:");
+    if (sep == std::string_view::npos)
+        return std::nullopt;
+    std::string_view key = trim_ws(line.substr(0, sep));
+    if (key.empty())
+        return std::nullopt;
+    return std::make_pair(key, trim_ws(line.substr(sep + 1)));
+}
+
+/// Seconds in a slicer duration such as "1d 2h 3m 4s", "36m 25s" or "45s".
+/// Every number must carry a d/h/m/s unit; anything else is not a duration.
+std::optional<double> parse_slicer_duration(std::string_view s) {
+    double total = 0.0;
+    bool any = false;
+    const char* p = s.data();
+    const char* end = s.data() + s.size();
+    while (p != end) {
+        if (std::isspace(static_cast<unsigned char>(*p))) {
+            ++p;
+            continue;
+        }
+        float v = 0.0f;
+        auto [next, ec] = helix::parse_decimal(p, end, v);
+        if (ec != std::errc{})
+            return std::nullopt;
+        p = next;
+        while (p != end && *p == ' ')
+            ++p;
+        if (p == end)
+            return std::nullopt;
+        switch (*p++) {
+        case 'd':
+            total += v * 86400.0;
+            break;
+        case 'h':
+            total += v * 3600.0;
+            break;
+        case 'm':
+            total += v * 60.0;
+            break;
+        case 's':
+            total += v;
+            break;
+        default:
+            return std::nullopt;
+        }
+        any = true;
+    }
+    if (!any)
+        return std::nullopt;
+    return total;
 }
 
 } // namespace
@@ -137,10 +208,8 @@ void GCodeParser::parse_line(const std::string& line) {
         return;
     }
 
-    // Check for tool changes (T0, T1, T2, etc.)
-    if (!trimmed.empty() && trimmed[0] == 'T') {
+    if (trimmed[0] == 'T') {
         parse_tool_change_command(trimmed);
-        // Continue processing - some G-code files have commands after tool changes
     }
 
     // Check for EXCLUDE_OBJECT commands first
@@ -523,45 +592,14 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
         }
     }
 
-    // Use trimmed_content (already stripped ';' and leading whitespace)
-    std::string content(trimmed_content);
-
-    // Look for '=' or ':' separator (support both OrcaSlicer and PrusaSlicer formats)
-    size_t eq_pos = content.find('=');
-    size_t colon_pos = content.find(':');
-    size_t sep_pos = std::string::npos;
-
-    // Prefer '=' if present and before any ':', otherwise use ':'
-    if (eq_pos != std::string::npos && (colon_pos == std::string::npos || eq_pos < colon_pos)) {
-        sep_pos = eq_pos;
-    } else if (colon_pos != std::string::npos) {
-        sep_pos = colon_pos;
-    }
-
-    if (sep_pos == std::string::npos) {
+    const auto kv = split_comment_kv(line_sv);
+    if (!kv) {
         return;
     }
-
-    // Extract key and value
-    std::string key = content.substr(0, sep_pos);
-    std::string value = content.substr(sep_pos + 1);
-
-    // Trim whitespace from key and value using erase instead of substr
-    auto trim = [](std::string& s) {
-        size_t end = s.length();
-        while (end > 0 && std::isspace(s[end - 1]))
-            end--;
-        s.erase(end);
-        size_t start = 0;
-        while (start < s.length() && std::isspace(s[start]))
-            start++;
-        s.erase(0, start);
-    };
-    trim(key);
-    trim(value);
+    const std::string value(kv->second);
 
     // Convert key to lowercase for case-insensitive matching
-    std::string key_lower = key;
+    std::string key_lower(kv->first);
     std::transform(key_lower.begin(), key_lower.end(), key_lower.begin(), ::tolower);
 
     // Helper to check if key contains all substrings (fuzzy match)
@@ -600,10 +638,10 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
                           metadata_filament_color_);
         } else if (std::string_view cleaned = helix::gcode::clean_color_hex(value);
                    !cleaned.empty()) {
-            // The list parser rejects this line (a colon-separated key form,
+            // The list parser rejects this key spelling ("filament colour",
             // say) but the value is still one real color token. Store the
-            // validated token — never the raw value, which is how a comma
-            // blob used to land here and paint everything in its first field.
+            // validated token, never the raw value: a comma blob stored raw
+            // paints everything in its first field.
             metadata_filament_color_ = std::string(cleaned);
             spdlog::trace("[GCode Parser] Parsed single filament color: {}",
                           metadata_filament_color_);
@@ -611,88 +649,11 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
     } else if (contains_all({"filament", "type"})) {
         metadata_filament_type_ = value;
         spdlog::trace("[GCode Parser] Parsed filament type: {}", value);
-    } else if (contains_all({"printer", "model"}) || contains_all({"printer", "name"})) {
-        metadata_printer_model_ = value;
-        spdlog::trace("[GCode Parser] Parsed printer model: {}", value);
     } else if (contains_all({"nozzle", "diameter"})) {
         if (const auto v = helix::text_io::parse_leading<float>(value)) {
             metadata_nozzle_diameter_ = *v;
             spdlog::trace("[GCode Parser] Parsed nozzle diameter: {}mm", metadata_nozzle_diameter_);
         }
-    } else if (contains_all({"filament"}) &&
-               (key_lower.find("[mm]") != std::string::npos || contains_all({"length"}))) {
-        if (const auto v = helix::text_io::parse_leading<float>(value)) {
-            metadata_filament_length_ = *v;
-            spdlog::trace("[GCode Parser] Parsed filament length: {}mm", metadata_filament_length_);
-        }
-    } else if (contains_all({"filament"}) &&
-               (key_lower.find("[g]") != std::string::npos || contains_all({"weight"}))) {
-        if (const auto v = helix::text_io::parse_leading<float>(value)) {
-            metadata_filament_weight_ = *v;
-            spdlog::trace("[GCode Parser] Parsed filament weight: {}g", metadata_filament_weight_);
-        }
-    } else if (contains_all({"filament", "cost"}) || contains_all({"material", "cost"})) {
-        if (const auto v = helix::text_io::parse_leading<float>(value)) {
-            metadata_filament_cost_ = *v;
-            spdlog::trace("[GCode Parser] Parsed filament cost: ${}", metadata_filament_cost_);
-        }
-    } else if (contains_all({"layer"}) && contains_all({"total"}) &&
-               (contains_all({"number"}) || contains_all({"count"}) ||
-                key_lower.find("total layer") != std::string::npos)) {
-        // Match "total layer number", "total layers count", but NOT "interlocking_beam_layer_count"
-        if (const auto v = helix::text_io::parse_leading<int>(value)) {
-            metadata_layer_count_ = *v;
-            spdlog::trace("[GCode Parser] Parsed total layer count: {}", metadata_layer_count_);
-        }
-    } else if ((contains_all({"time"}) &&
-                (contains_all({"print"}) || contains_all({"estimated"}))) ||
-               contains_all({"print", "time"})) {
-        // Parse various time formats: "29m 25s", "1h 23m", "45s", etc.
-        float minutes = 0.0f;
-        std::string_view val_sv(value);
-
-        // Helper to parse float from a range, skipping leading whitespace
-        auto parse_float = [](std::string_view sv) -> float {
-            size_t s = 0;
-            while (s < sv.size() && std::isspace(sv[s]))
-                s++;
-            if (s >= sv.size())
-                return 0.0f;
-            float v = 0.0f;
-            parse_gcode_decimal(sv.data() + s, sv.data() + sv.size(), v);
-            return v;
-        };
-
-        // Try to find hours
-        size_t h_pos = val_sv.find('h');
-        if (h_pos != std::string_view::npos) {
-            minutes += parse_float(val_sv.substr(0, h_pos)) * 60.0f;
-        }
-
-        // Try to find minutes
-        size_t m_pos = val_sv.find('m');
-        if (m_pos != std::string_view::npos) {
-            size_t start_pos = (h_pos != std::string_view::npos) ? h_pos + 1 : 0;
-            minutes += parse_float(val_sv.substr(start_pos, m_pos - start_pos));
-        }
-
-        // Try to find seconds
-        size_t s_pos = val_sv.find('s');
-        if (s_pos != std::string_view::npos) {
-            size_t start_pos = (m_pos != std::string_view::npos)   ? m_pos + 1
-                               : (h_pos != std::string_view::npos) ? h_pos + 1
-                                                                   : 0;
-            float seconds = parse_float(val_sv.substr(start_pos, s_pos - start_pos));
-            minutes += seconds / 60.0f;
-        }
-
-        if (minutes > 0.0f) {
-            metadata_print_time_ = minutes;
-            spdlog::trace("[GCode Parser] Parsed estimated time: {:.2f} minutes", minutes);
-        }
-    } else if (contains_all({"generated"}) || contains_all({"slicer"})) {
-        metadata_slicer_name_ = value;
-        spdlog::trace("[GCode Parser] Parsed slicer: {}", value);
     }
     // Parse layer height metadata (exact key match to avoid max_layer_height etc.)
     // OrcaSlicer/PrusaSlicer: "; layer_height = 0.2"
@@ -812,36 +773,10 @@ void GCodeParser::parse_extruder_color_metadata(const std::string& line) {
 }
 
 void GCodeParser::parse_tool_change_command(const std::string& line) {
-    // Format: "T0", "T1", "T2", etc. (standalone line)
-    if (line.empty() || line[0] != 'T') {
+    const int tool_num = tool_index_for_line(line);
+    if (tool_num < 0) {
         return;
     }
-
-    // Check if it's JUST "T" + digits (no other commands on line)
-    if (line.length() < 2) {
-        return;
-    }
-
-    // Extract tool number
-    size_t i = 1;
-    while (i < line.length() && std::isdigit(line[i])) {
-        i++;
-    }
-
-    if (i == 1) {
-        return; // No digits after T
-    }
-    if (i < line.length() && !std::isspace(line[i])) {
-        return; // Not standalone
-    }
-
-    std::string tool_str = line.substr(1, i - 1);
-    // All digits, but a run long enough still overflows int.
-    const auto parsed_tool = helix::text_io::parse_leading<int>(tool_str);
-    if (!parsed_tool) {
-        return;
-    }
-    const int tool_num = *parsed_tool;
 
     current_tool_index_ = tool_num;
     tools_used_.insert(tool_num);
@@ -1320,14 +1255,9 @@ ParsedGCodeFile GCodeParser::finalize(bool whole_file) {
     result.drawable_segments = drawable_segments_;
 
     // Transfer metadata
-    result.slicer_name = metadata_slicer_name_;
     result.filament_type = metadata_filament_type_;
     result.filament_color_hex = metadata_filament_color_;
-    result.printer_model = metadata_printer_model_;
     result.nozzle_diameter_mm = metadata_nozzle_diameter_;
-    result.total_filament_mm = metadata_filament_length_;
-    result.filament_weight_g = metadata_filament_weight_;
-    result.filament_cost = metadata_filament_cost_;
 
     // Transfer layer height + extrusion width metadata
     result.layer_height_mm = metadata_layer_height_;
@@ -1336,8 +1266,6 @@ ParsedGCodeFile GCodeParser::finalize(bool whole_file) {
     result.perimeter_extrusion_width_mm = metadata_perimeter_extrusion_width_;
     result.infill_extrusion_width_mm = metadata_infill_extrusion_width_;
     result.first_layer_extrusion_width_mm = metadata_first_layer_extrusion_width_;
-    result.estimated_print_time_minutes = metadata_print_time_;
-    result.total_layer_count = metadata_layer_count_;
 
     spdlog::debug("[GCode Parser] Layer height: {}mm, first layer: {}mm, extrusion width: {}mm",
                   result.layer_height_mm,
@@ -1391,7 +1319,9 @@ ParsedGCodeFile GCodeParser::finalize(bool whole_file) {
 // ============================================================================
 
 // Base64 decoding table
-static const unsigned char base64_decode_table[256] = {
+namespace {
+
+const unsigned char base64_decode_table[256] = {
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     255, 255, 255, 255, 255, 62,  255, 255, 255, 63,  52,  53,  54,  55,  56,  57,  58,  59,  60,
@@ -1436,222 +1366,98 @@ std::vector<uint8_t> base64_decode(const std::string& encoded) {
     return result;
 }
 
-std::vector<GCodeThumbnail> extract_thumbnails(const std::string& filepath) {
-    std::vector<GCodeThumbnail> thumbnails;
+/// Scan header comments for embedded thumbnails ("; thumbnail begin WxH SIZE",
+/// or Creality's "; png begin W*H SIZE") and decode only the largest.
+template <typename NextLine>
+GCodeThumbnail scan_best_thumbnail(NextLine next_line, std::string_view source) {
+    GCodeThumbnail best;
+    std::string best_base64;
+    int width = 0, height = 0;
+    std::string base64;
+    bool in_block = false;
+    std::string line;
+    int lines_read = 0;
+    constexpr int max_header_lines = 2000; // Thumbnails should be in first ~2000 lines
 
+    while (lines_read < max_header_lines && next_line(line)) {
+        lines_read++;
+
+        size_t begin_pos = line.find("; thumbnail begin ");
+        size_t png_begin_pos = line.find("; png begin ");
+        if (begin_pos != std::string::npos || png_begin_pos != std::string::npos) {
+            const bool creality = begin_pos == std::string::npos;
+            const char* dims = line.c_str() + (creality ? png_begin_pos + 12 : begin_pos + 18);
+            int w = 0, h = 0, size = 0;
+            if (sscanf(dims, creality ? "%d*%d %d" : "%dx%d %d", &w, &h, &size) >= 2 &&
+                (!creality || (w > 0 && h > 0))) {
+                width = w;
+                height = h;
+                base64.clear();
+                in_block = true;
+                spdlog::debug("[GCode Parser] Found {}thumbnail {}x{} in {}",
+                              creality ? "Creality " : "", w, h, source);
+            }
+            continue;
+        }
+
+        if (in_block && (line.find("; thumbnail end") != std::string::npos ||
+                         line.find("; png end") != std::string::npos)) {
+            if (!base64.empty() && width * height > best.pixel_count()) {
+                best.width = width;
+                best.height = height;
+                best_base64.swap(base64);
+            }
+            in_block = false;
+            continue;
+        }
+
+        // Accumulate base64 data (lines start with "; ")
+        if (in_block && line.size() > 2 && line[0] == ';' && line[1] == ' ') {
+            base64 += line.substr(2);
+        }
+
+        // Stop at the first G-code command: thumbnails live in the header
+        if (!line.empty() && (line[0] == 'G' || line[0] == 'M' || line[0] == 'T')) {
+            break;
+        }
+    }
+
+    if (!best_base64.empty()) {
+        best.png_data = base64_decode(best_base64);
+    }
+    if (best.png_data.empty()) {
+        best = GCodeThumbnail();
+    }
+    spdlog::debug("[GCode Parser] Best thumbnail {}x{} ({} bytes) from {}", best.width, best.height,
+                  best.png_data.size(), source);
+    return best;
+}
+
+} // namespace
+
+GCodeThumbnail get_best_thumbnail(const std::string& filepath) {
     helix::text_io::LineReader file(filepath);
     if (!file) {
         spdlog::warn("[GCode Parser] Cannot open G-code file for thumbnail extraction: {}",
                      filepath);
-        return thumbnails;
+        return {};
     }
-
-    std::string line;
-    GCodeThumbnail current_thumb;
-    std::string base64_data;
-    bool in_thumbnail_block = false;
-    int lines_read = 0;
-    constexpr int max_header_lines = 2000; // Thumbnails should be in first ~2000 lines
-
-    while (file.next(line) && lines_read < max_header_lines) {
-        lines_read++;
-
-        // Look for thumbnail begin marker
-        // Format: "; thumbnail begin WIDTHxHEIGHT SIZE"
-        size_t begin_pos = line.find("; thumbnail begin ");
-        if (begin_pos != std::string::npos) {
-            // Parse dimensions: "WIDTHxHEIGHT SIZE"
-            std::string dims = line.substr(begin_pos + 18);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%dx%d %d", &w, &h, &size) >= 2) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 +
-                                        100); // Estimate base64 size
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found thumbnail {}x{} in {}", w, h, filepath);
-            }
-            continue;
-        }
-
-        // Creality format: "; png begin W*H SIZE ..."
-        size_t png_begin_pos = line.find("; png begin ");
-        if (png_begin_pos != std::string::npos) {
-            std::string dims = line.substr(png_begin_pos + 12);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%d*%d %d", &w, &h, &size) >= 2 && w > 0 && h > 0) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 + 100);
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found Creality thumbnail {}x{} in {}", w, h,
-                              filepath);
-            }
-            continue;
-        }
-
-        // Creality end marker: "; png end"
-        if (in_thumbnail_block && line.find("; png end") != std::string::npos) {
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Look for thumbnail end marker
-        if (in_thumbnail_block && line.find("; thumbnail end") != std::string::npos) {
-            // Decode accumulated base64 data
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Accumulate base64 data (lines start with "; ")
-        if (in_thumbnail_block && line.size() > 2 && line[0] == ';' && line[1] == ' ') {
-            base64_data += line.substr(2);
-        }
-
-        // Stop if we hit actual G-code (not header comments)
-        if (!line.empty() && line[0] != ';' && line[0] != '\r' && line[0] != '\n') {
-            // Check if it's a G-code command
-            if (line[0] == 'G' || line[0] == 'M' || line[0] == 'T') {
-                break; // Past header, stop searching
-            }
-        }
-    }
-
-    // Sort by pixel count (largest first)
-    std::sort(thumbnails.begin(), thumbnails.end(),
-              [](const GCodeThumbnail& a, const GCodeThumbnail& b) {
-                  return a.pixel_count() > b.pixel_count();
-              });
-
-    spdlog::info("[GCode Parser] Extracted {} thumbnails from {}", thumbnails.size(), filepath);
-    return thumbnails;
+    return scan_best_thumbnail([&file](std::string& line) { return file.next(line); }, filepath);
 }
 
-std::vector<GCodeThumbnail> extract_thumbnails_from_content(const std::string& content) {
-    std::vector<GCodeThumbnail> thumbnails;
-
-    GCodeThumbnail current_thumb;
-    std::string base64_data;
-    bool in_thumbnail_block = false;
-    int lines_read = 0;
-    constexpr int max_header_lines = 2000; // Thumbnails should be in first ~2000 lines
-
-    for (std::string_view line_view : helix::text_io::lines(content)) {
-        if (lines_read >= max_header_lines) {
-            break;
-        }
-        const std::string line(line_view);
-        lines_read++;
-
-        // Look for thumbnail begin marker
-        // Format: "; thumbnail begin WIDTHxHEIGHT SIZE"
-        size_t begin_pos = line.find("; thumbnail begin ");
-        if (begin_pos != std::string::npos) {
-            // Parse dimensions: "WIDTHxHEIGHT SIZE"
-            std::string dims = line.substr(begin_pos + 18);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%dx%d %d", &w, &h, &size) >= 2) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 +
-                                        100); // Estimate base64 size
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found thumbnail {}x{} in content", w, h);
-            }
-            continue;
-        }
-
-        // Creality format: "; png begin W*H SIZE ..."
-        size_t png_begin_pos = line.find("; png begin ");
-        if (png_begin_pos != std::string::npos) {
-            std::string dims = line.substr(png_begin_pos + 12);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%d*%d %d", &w, &h, &size) >= 2 && w > 0 && h > 0) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 + 100);
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found Creality thumbnail {}x{} in content", w, h);
-            }
-            continue;
-        }
-
-        // Creality end marker: "; png end"
-        if (in_thumbnail_block && line.find("; png end") != std::string::npos) {
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Look for thumbnail end marker
-        if (in_thumbnail_block && line.find("; thumbnail end") != std::string::npos) {
-            // Decode accumulated base64 data
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Accumulate base64 data (lines start with "; ")
-        if (in_thumbnail_block && line.size() > 2 && line[0] == ';' && line[1] == ' ') {
-            base64_data += line.substr(2);
-        }
-
-        // Stop if we hit actual G-code (not header comments)
-        if (!line.empty() && line[0] != ';' && line[0] != '\r' && line[0] != '\n') {
-            // Check if it's a G-code command
-            if (line[0] == 'G' || line[0] == 'M' || line[0] == 'T') {
-                break; // Past header, stop searching
-            }
-        }
-    }
-
-    // Sort by pixel count (largest first)
-    std::sort(thumbnails.begin(), thumbnails.end(),
-              [](const GCodeThumbnail& a, const GCodeThumbnail& b) {
-                  return a.pixel_count() > b.pixel_count();
-              });
-
-    spdlog::info("[GCode Parser] Extracted {} thumbnails from content ({} lines)",
-                 thumbnails.size(), lines_read);
-    return thumbnails;
-}
-
-GCodeThumbnail get_best_thumbnail(const std::string& filepath) {
-    auto thumbnails = extract_thumbnails(filepath);
-    if (thumbnails.empty()) {
-        return GCodeThumbnail(); // Empty thumbnail
-    }
-    return std::move(thumbnails[0]); // Largest one (already sorted)
+GCodeThumbnail get_best_thumbnail_from_content(const std::string& content) {
+    auto records = helix::text_io::lines(content);
+    auto it = records.begin();
+    const auto end = records.end();
+    return scan_best_thumbnail(
+        [&](std::string& line) {
+            if (it == end)
+                return false;
+            line.assign(it->data(), it->size());
+            ++it;
+            return true;
+        },
+        "content");
 }
 
 bool save_thumbnail_to_file(const std::string& gcode_path, const std::string& output_path) {
@@ -1815,40 +1621,12 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
     // ====================
     // Standard key=value or key: value format (OrcaSlicer/PrusaSlicer)
     // ====================
-    // Need at least "; k" (3 chars) for a valid comment with key
-    if (line.length() < 3) {
+    const auto kv = split_comment_kv(line);
+    if (!kv) {
         return false;
     }
-
-    // Parse comment metadata
-    // OrcaSlicer format: "; key = value" or "; key: value"
-    size_t eq_pos = line.find('=');
-    size_t colon_pos = line.find(':');
-    size_t sep_pos = std::string::npos;
-
-    if (eq_pos != std::string::npos && (colon_pos == std::string::npos || eq_pos < colon_pos)) {
-        sep_pos = eq_pos;
-    } else if (colon_pos != std::string::npos) {
-        sep_pos = colon_pos;
-    }
-
-    if (sep_pos == std::string::npos || sep_pos < 2) {
-        return false;
-    }
-
-    // Extract key and value
-    std::string key = line.substr(2, sep_pos - 2);
-    std::string value = line.substr(sep_pos + 1);
-
-    // Trim whitespace
-    while (!key.empty() && std::isspace(key.back()))
-        key.pop_back();
-    while (!key.empty() && std::isspace(key.front()))
-        key.erase(0, 1);
-    while (!value.empty() && std::isspace(value.back()))
-        value.pop_back();
-    while (!value.empty() && std::isspace(value.front()))
-        value.erase(0, 1);
+    const std::string_view key = kv->first;
+    const std::string value(kv->second);
 
     // Map known keys to metadata fields
     if (key == "generated by" || key == "slicer") {
@@ -1856,38 +1634,8 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
     } else if (key == "slicer_version") {
         metadata.slicer_version = value;
     } else if (key == "estimated printing time" || key == "estimated printing time (normal mode)") {
-        // Parse time string like "2h 30m 15s", "36m 25s", or "45s"
-        // Use explicit pattern matching based on what's in the string
-        int hours = 0, minutes = 0, seconds = 0;
-        bool parsed = false;
-
-        // Check which format we have by looking for unit markers
-        bool has_h = (value.find('h') != std::string::npos);
-        bool has_m = (value.find('m') != std::string::npos);
-        bool has_s = (value.find('s') != std::string::npos);
-
-        if (has_h && has_m && has_s) {
-            // Format: "Nh NNm NNs"
-            parsed = (sscanf(value.c_str(), "%dh %dm %ds", &hours, &minutes, &seconds) == 3);
-        } else if (has_h && has_m) {
-            // Format: "Nh NNm"
-            parsed = (sscanf(value.c_str(), "%dh %dm", &hours, &minutes) == 2);
-        } else if (has_m && has_s) {
-            // Format: "NNm NNs"
-            parsed = (sscanf(value.c_str(), "%dm %ds", &minutes, &seconds) == 2);
-        } else if (has_h) {
-            // Format: "Nh"
-            parsed = (sscanf(value.c_str(), "%dh", &hours) == 1);
-        } else if (has_m) {
-            // Format: "NNm"
-            parsed = (sscanf(value.c_str(), "%dm", &minutes) == 1);
-        } else if (has_s) {
-            // Format: "NNs"
-            parsed = (sscanf(value.c_str(), "%ds", &seconds) == 1);
-        }
-
-        if (parsed) {
-            metadata.estimated_time_seconds = hours * 3600.0 + minutes * 60.0 + seconds;
+        if (const auto seconds = parse_slicer_duration(value)) {
+            metadata.estimated_time_seconds = *seconds;
         }
     } else if (key == "total filament used [g]" || key == "filament used [g]" ||
                key == "total filament weight") {
@@ -1958,36 +1706,9 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
         // Preserve full string for per-tool material matching
         metadata.filament_type = value;
     } else if (key == "extruder_colour" || key == "filament_colour") {
-        // Parse multi-tool colors: "#ED1C24;#00C1AE;#F4E2C1;#000000"
-        // May also have spaces: "#AA0000 ; #00BB00 ; #0000CC"
-        metadata.tool_colors.clear();
-        std::string color;
-        bool in_color = false;
-
-        for (char c : value) {
-            if (c == '#') {
-                if (!color.empty() && color[0] == '#') {
-                    // Save previous color
-                    metadata.tool_colors.push_back(color);
-                }
-                color = "#";
-                in_color = true;
-            } else if (in_color) {
-                if (std::isxdigit(c)) {
-                    color += c;
-                } else if (c == ';' || c == ' ' || c == ',') {
-                    // End of this color
-                    if (color.length() >= 4) { // At least #RGB
-                        metadata.tool_colors.push_back(color);
-                    }
-                    color.clear();
-                    in_color = false;
-                }
-            }
-        }
-        // Don't forget the last color
-        if (!color.empty() && color[0] == '#' && color.length() >= 4) {
-            metadata.tool_colors.push_back(color);
+        std::vector<std::string> palette;
+        if (helix::gcode::parse_filament_color_palette(line, palette)) {
+            metadata.tool_colors = std::move(palette);
         }
     }
 
@@ -2128,7 +1849,7 @@ GCodeHeaderMetadata extract_header_metadata_from_content(const std::string& cont
 
 // Declared in gcode_parser.h — the single T-parse the whole tree shares. The
 // layer index used to carry its own looser copy (see the header's note).
-int tool_index_for_line(const std::string& raw) {
+int tool_index_for_line(const std::string& raw, std::pair<size_t, size_t>* digits) {
     // Strip comment (everything from the first ';').
     std::string_view sv(raw);
     size_t comment_pos = sv.find(';');
@@ -2167,6 +1888,10 @@ int tool_index_for_line(const std::string& raw) {
         if (value > 100000) {
             return -1; // implausible tool index — ignore rather than overflow
         }
+    }
+    if (digits) {
+        const size_t begin = static_cast<size_t>(sv.data() - raw.data()) + 1;
+        *digits = {begin, begin + sv.length() - 1};
     }
     return static_cast<int>(value);
 }

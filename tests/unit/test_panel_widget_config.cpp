@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/config_test_access.h"
 #include "../test_helpers/scoped_breakpoint.h"
 #include "config.h"
@@ -781,6 +782,10 @@ TEST_CASE("PanelWidgetRegistry: every category has at least one widget",
           "[panel_widget][widget_config]") {
     const auto& defs = get_all_widget_defs();
     for (const auto& cat : get_widget_categories()) {
+        // Plugins holds only runtime definitions, so a printer with no plugin
+        // widgets has an empty category; the catalog hides the row.
+        if (cat.id == WidgetCategory::Plugins)
+            continue;
         CAPTURE(cat.display_name);
         auto count = std::count_if(defs.begin(), defs.end(), [&cat](const PanelWidgetDef& def) {
             return def.category == cat.id;
@@ -2722,4 +2727,117 @@ TEST_CASE_METHOD(PanelWidgetConfigFixture,
     // The rest of the node is still written, so the absence above is a dropped
     // key and not a save that did nothing.
     CHECK(get_saved_root().contains("pages"));
+}
+
+// ============================================================================
+// Unknown widget ids: a plugin's placement outlives the plugin
+// ============================================================================
+//
+// A plugin widget id (gone-plug__tile) has a definition only while its plugin
+// is loaded. The layout must keep the entry verbatim across any number of
+// saves, so the widget returns to its cell when the plugin comes back.
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "an unknown widget id survives load and save",
+                 "[panel_widget][widget_config]") {
+    json unknown = {{"id", "gone-plug__tile"},
+                    {"enabled", true},
+                    {"col", 2},
+                    {"row", 0},
+                    {"colspan", 2},
+                    {"rowspan", 2}};
+    setup_with_pages(
+        {{"main", json::array({{{"id", "print_status"}, {"enabled", true}}, unknown})}});
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    for (const auto& e : wc.page_entries(0))
+        CHECK(e.id != "gone-plug__tile"); // not rendered
+    wc.save();
+
+    const json& saved =
+        ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"];
+    bool kept = false;
+    for (const auto& item : saved["pages"][0]["widgets"])
+        kept = kept || item == unknown;
+    CHECK(kept);
+
+    PanelWidgetConfig again("home", config);
+    again.load();
+    again.save();
+    int count = 0;
+    for (const auto& item : ConfigTestAccess::data(
+             config)["printers"]["default"]["panel_widgets"]["home"]["pages"][0]["widgets"])
+        count += item["id"] == "gone-plug__tile";
+    CHECK(count == 1); // kept once, not duplicated per save
+}
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "removing a page keeps its unknown ids",
+                 "[panel_widget][widget_config]") {
+    json unknown = {{"id", "gone-plug__tile"}, {"enabled", true}, {"col", 0}, {"row", 0}};
+    setup_with_pages({{"main", json::array()}, {"extra", json::array({unknown})}});
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    REQUIRE(wc.remove_page(1));
+    wc.save();
+    bool kept = false;
+    for (const auto& page :
+         ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"]["pages"])
+        for (const auto& item : page["widgets"])
+            kept = kept || item["id"] == "gone-plug__tile";
+    CHECK(kept);
+}
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "restoring a parked layout keeps its unknown ids",
+                 "[panel_widget][widget_config]") {
+    json unknown = {{"id", "gone-plug__tile"},
+                    {"enabled", true},
+                    {"col", 2},
+                    {"row", 0},
+                    {"colspan", 2},
+                    {"rowspan", 2}};
+    setup_with_pages(
+        {{"main", json::array({{{"id", "print_status"}, {"enabled", true}}, unknown})}});
+    // Stamp the grid the layout was arranged on, or the first switch adopts it
+    // without parking anything.
+    ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"]["grid"] =
+        "24x12";
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    wc.switch_to_grid(12, 6);  // parks the 24x12 arrangement, seeds 12x6 from it
+    wc.switch_to_grid(24, 12); // restores the parked 24x12 arrangement
+    bool kept = false;
+    for (const auto& item : get_saved_page0_widgets())
+        kept = kept || item == unknown;
+    CHECK(kept);
+}
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "a preset seed keeps unknown ids",
+                 "[panel_widget][widget_config]") {
+    ConfigDirGuard guard("preset-retain");
+    json unknown = {{"id", "gone-plug__tile"},
+                    {"enabled", true},
+                    {"col", 2},
+                    {"row", 0},
+                    {"colspan", 2},
+                    {"rowspan", 2}};
+    json seed;
+    seed["pages"] = json::array(
+        {json{{"id", "main"},
+              {"widgets", json::array({{{"id", "print_status"}, {"enabled", true}}, unknown})}}});
+    seed["main_page_index"] = 0;
+    seed["next_page_id"] = 1;
+    std::filesystem::create_directories(guard.dir / "panel_widgets" / "testp");
+    {
+        std::ofstream out(guard.dir / "panel_widgets" / "testp" / "home.json");
+        out << seed.dump();
+    }
+    setup_empty_config();
+    ConfigTestAccess::data(config)["printers"]["default"]["preset"] = "testp";
+
+    PanelWidgetConfig wc("home", config);
+    wc.load(); // no saved layout: seeds from panel_widgets/testp/home.json and saves
+
+    bool kept = false;
+    for (const auto& item : get_saved_page0_widgets())
+        kept = kept || item == unknown;
+    CHECK(kept);
 }

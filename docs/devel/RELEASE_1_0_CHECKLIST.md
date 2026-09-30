@@ -207,18 +207,13 @@ while running 0.99.111):
       document**, and a sweep of 43 untargeted settings survives every rollback
       depth. Mutation-verified.
 
-      **Four migrations are NOT idempotent**, and are pinned as current behavior
-      rather than fixed: `src/system/config.cpp#migrate_v6_to_v7` and
-      `src/system/config.cpp#migrate_v8_to_v9` (brightness 50→80, below
-      v7/v9), `src/system/config.cpp#migrate_v7_to_v8` (toolhead_style 2→5/3→2, a rotation — below v8),
-      `src/system/config.cpp#migrate_v17_to_v18`
+      **One migration is NOT idempotent**, and is pinned as current behavior
+      rather than fixed: `src/system/config_migrations.cpp#migrate_v17_to_v18`
       (writes `recheck_pending` unconditionally, below v18; the flag can
       invalidate a captured touch calibration at boot via
-      `should_invalidate_legacy_calibration`). The jitter 15→5 retune that used to
-      make a fifth is gone: `migrate_v2_to_v3` is an empty step now
-      (`src/system/config.cpp#migrate_v2_to_v3`), kept only so a v2 config still walks the
-      version chain, because `/input/jitter_threshold` never reached the input
-      pipeline and was removed (#1358).
+      `should_invalidate_legacy_calibration`). Stamps below
+      `MIN_MIGRATABLE_CONFIG_VERSION` (9) are not replayed at all: `Config::init()`
+      sets the document aside and starts from defaults.
 
       **Why this is accepted, not a blocker:** every one of them requires rolling
       the stamp below config_version 18, i.e. below v0.99.80 (2026-06-18). The
@@ -229,7 +224,5 @@ while running 0.99.111):
       config being stamped down at all, and both 1.0 and 1.1 carry it.
 
       If a migration below v18 ever becomes reachable again,
-      `src/system/config.cpp#migrate_v17_to_v18` and `src/system/config.cpp#migrate_v7_to_v8`
-      are the two to fix first — `migrate_v7_to_v8` is a rotation and cannot be made
-      idempotent without a marker.
+      `src/system/config_migrations.cpp#migrate_v17_to_v18` is the one to fix.
 

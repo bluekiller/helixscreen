@@ -10,6 +10,8 @@
 
 #include "lvgl/lvgl.h"
 
+#include <optional>
+
 /// @brief The AntHead image (100x163 ARGB8888), decoded on first call
 /// @return nullptr if the asset could not be decoded. Not built for ESP32.
 const lv_draw_buf_t* anthead_image();
@@ -22,8 +24,9 @@ const lv_draw_buf_t* anthead_image();
 /// @param layer LVGL draw layer
 /// @param cx Center X position
 /// @param cy Center Y position
-/// @param filament_color Unused (image has fixed colors)
+/// @param filament Unused (image has fixed colors)
 /// @param scale_unit Base scaling unit (typically from theme space_md)
 /// @param opa Opacity (default LV_OPA_COVER)
-void draw_nozzle_anthead(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t filament_color,
-                         int32_t scale_unit, lv_opa_t opa = LV_OPA_COVER);
+void draw_nozzle_anthead(lv_layer_t* layer, int32_t cx, int32_t cy,
+                         std::optional<lv_color_t> filament, int32_t scale_unit,
+                         lv_opa_t opa = LV_OPA_COVER);

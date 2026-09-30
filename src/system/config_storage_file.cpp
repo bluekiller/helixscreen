@@ -18,10 +18,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <fcntl.h>
 #include <stdexcept>
 #include <sys/stat.h>
-#include <unistd.h>
 
 namespace hfs = helix::fs;
 
@@ -65,16 +63,16 @@ class FileConfigStorage : public ConfigStorage {
     }
 
     bool store(const std::string& bytes) override {
-        // Without the fsyncs a power cycle can leave settings.json empty on
-        // flash-backed filesystems (#943).
-        std::string target_path = helix::paths::write_target(path_);
+        // Symlink-resolved, and fsynced: without the fsyncs a power cycle can
+        // leave settings.json empty on flash-backed filesystems (#943).
+        const std::string target_path = helix::paths::write_target(path_);
         if (!helix::text_io::write_file_atomic(target_path, bytes,
                                                helix::text_io::Durability::Fsync)) {
             std::string reason = errno_reason(errno);
             NOTIFY_ERROR("Could not save settings: {}", reason);
-            LOG_ERROR_INTERNAL("Failed to write config to {}: {}", target_path, reason);
+            LOG_ERROR_INTERNAL("Failed to save config to {}: {}", target_path, reason);
             CONFIG_RECORD_ERROR("file_io", "config_write_failed",
-                                fmt::format("write failed: {}", reason));
+                                fmt::format("save failed: {}", reason));
             return false;
         }
 

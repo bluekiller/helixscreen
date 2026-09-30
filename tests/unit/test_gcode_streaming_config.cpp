@@ -164,6 +164,38 @@ TEST_CASE("Testable overload falls back for unknown available memory on 8GB devi
 }
 
 // ============================================================================
+// The "streaming" config section feeds the same decision
+// ============================================================================
+
+namespace {
+template <typename T> struct ScopedConfigValue {
+    const char* key;
+    T original;
+    ScopedConfigValue(const char* k, T value)
+        : key(k), original(helix::Config::get_instance()->get<T>(k, T{})) {
+        helix::Config::get_instance()->set<T>(key, value);
+    }
+    ~ScopedConfigValue() {
+        helix::Config::get_instance()->set<T>(key, original);
+    }
+};
+} // namespace
+
+TEST_CASE("force_streaming in the streaming section forces streaming mode", "[gcode][streaming]") {
+    ScopedConfigValue<std::string> mode("/gcode_viewer/streaming_mode", "auto");
+    ScopedConfigValue<bool> force("/streaming/force_streaming", true);
+    CHECK(get_gcode_streaming_mode() == GCodeStreamingMode::ON);
+}
+
+TEST_CASE("threshold_mb streams files above it even when RAM would allow a full load",
+          "[gcode][streaming]") {
+    ScopedConfigValue<int> threshold("/streaming/threshold_mb", 2);
+    auto mem = make_mem(8 * GB_KB, 4 * GB_KB); // RAM alone would full-load ~109MB
+    CHECK(should_use_gcode_streaming(3 * MB, mem));
+    CHECK_FALSE(should_use_gcode_streaming(1 * MB, mem));
+}
+
+// ============================================================================
 // A screen's streaming opt-out only counts when 3D exists to fall back on
 // ============================================================================
 

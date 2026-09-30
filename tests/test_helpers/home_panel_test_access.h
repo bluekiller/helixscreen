@@ -34,9 +34,27 @@ struct HomePanelTestAccess {
         panel.active_page_index_ = 0;
     }
 
+    /// Install one container per config page, standing in for the carousel
+    /// build when a test needs a multi-page layout.
+    static void set_page_containers(HomePanel& panel, const std::vector<lv_obj_t*>& containers) {
+        panel.pages_.clear();
+        for (lv_obj_t* c : containers) {
+            panel.pages_.emplace_back();
+            panel.pages_.back().container = c;
+        }
+        panel.active_page_index_ = 0;
+    }
+
     static void clear_page_containers(HomePanel& panel) {
         panel.pages_.clear();
         panel.active_page_index_ = 0;
+    }
+
+    /// Register the panel's real gate-observer rebuild slot, as finalize_setup
+    /// does, so a test can deliver notify_widget_defs_changed() down the
+    /// production async path.
+    static void setup_gate_observers(HomePanel& panel) {
+        panel.setup_widget_gate_observers();
     }
 
     static bool edit_mode_active(const HomePanel& panel) {

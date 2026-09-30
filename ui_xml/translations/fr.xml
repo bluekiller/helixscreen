@@ -497,6 +497,7 @@
   <translation tag="Change Tool" fr="Changer d&apos;outil"/>
   <translation tag="Change Tool While Paused" fr="Changer d&apos;outil en pause"/>
   <translation tag="Change heater control?" fr="Changer le contrôle du chauffage ?"/>
+  <translation tag="Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer&apos;s config folder." fr="Modifie les paramètres de l&apos;imprimante via Moonraker, y compris le téléversement, la réécriture et la suppression de fichiers dans le dossier de configuration de l&apos;imprimante."/>
   <translation tag="Change tool" fr="Changer d&apos;outil"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." fr="Les modifications s&apos;appliquent immédiatement. Ajustez pendant l&apos;impression pour le réglage."/>
   <translation tag="Changes are temporary and reset on printer reboot" fr="Les modifications sont temporaires et réinitialisées au redémarrage de l&apos;imprimante"/>
@@ -634,6 +635,7 @@
   <translation tag="Connect" fr="Connecter"/>
   <translation tag="Connect a USB label printer first" fr="Connectez d&apos;abord une imprimante d&apos;étiquettes USB"/>
   <translation tag="Connect an ADXL345 accelerometer to calibrate" fr="Connectez un accéléromètre ADXL345 pour calibrer"/>
+  <translation tag="Connect to servers on your network and the internet." fr="Se connecte aux serveurs de votre réseau et d&apos;Internet."/>
   <translation tag="Connect to your printer via SSH and run:" fr="Connectez-vous à votre imprimante via SSH et exécutez :"/>
   <translation tag="Connected" fr="Connecté"/>
   <translation tag="Connected (%s)" fr="Connecté (%s)"/>
@@ -918,10 +920,12 @@
   <translation tag="Enable brush wipe after purging" fr="Activer l&apos;essuyage par brosse après la purge"/>
   <translation tag="Enable feed assist for active slot during printing" fr="Activer l&apos;assistance d&apos;alimentation pour le slot actif pendant l&apos;impression"/>
   <translation tag="Enable or disable the hub cutter" fr="Activer ou désactiver le coupeur du hub"/>
+  <translation tag="Enable plugin?" fr="Activer le plugin ?"/>
   <translation tag="Enable purging during tool changes" fr="Activer la purge lors des changements d&apos;outil"/>
   <translation tag="Enable/disable automatic backup spool switching" fr="Activer/désactiver le passage automatique à la bobine de secours"/>
   <translation tag="Enable/disable quiet operation mode" fr="Activer/désactiver le mode de fonctionnement silencieux"/>
   <translation tag="Enabled" fr="Activé"/>
+  <translation tag="Enabled. Open its settings, or disable it?" fr="Activé. Ouvrir ses paramètres ou le désactiver ?"/>
   <translation tag="Enclosed" fr="Fermée"/>
   <translation tag="Enclosure" fr="Caisson"/>
   <translation tag="Encoder" fr="Encodeur"/>
@@ -1505,6 +1509,7 @@
   <translation tag="Keep clear of the printer while the toolhead is moving" fr="Restez à l&apos;écart de l&apos;imprimante pendant que la tête d&apos;outil se déplace"/>
   <translation tag="Keep current" fr="Garder l&apos;actuel"/>
   <translation tag="Keep hands clear. The printer moves on its own." fr="Tenez vos mains à distance. L&apos;imprimante bouge seule."/>
+  <translation tag="Keep its own data on this screen (up to 256 KB)." fr="Conserve ses propres données sur cet écran (jusqu&apos;à 256 Ko)."/>
   <translation tag="Keep the bypass spool visible when bypass is off" fr="Garder la bobine de bypass visible lorsque le bypass est désactivé"/>
   <translation tag="Kick away" fr="Éjecter"/>
   <translation tag="Kinematics" fr="Cinématique"/>
@@ -2092,6 +2097,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." fr="Le plugin ne répond pas après le redémarrage.&#10;Il peut avoir besoin de plus de temps."/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." fr="Plugin supprimé. Un fichier de configuration nécessite votre attention – consultez le journal HelixScreen pour plus de détails."/>
   <translation tag="Plugin uninstalled successfully." fr="Plugin désinstallé avec succès."/>
+  <translation tag="Plugins" fr="Plugins"/>
   <translation tag="Point camera at QR code on spool" fr="Pointez la caméra vers le QR code sur la bobine"/>
   <translation tag="Polymaker" fr="Polymaker"/>
   <translation tag="Poor Accuracy" fr="Faible précision"/>
@@ -2630,6 +2636,7 @@
   <translation tag="Self-Test" fr="Auto-test"/>
   <translation tag="Send G-code and read the replies" fr="Envoyer du G-code et lire les réponses"/>
   <translation tag="Send Report" fr="Envoyer le rapport"/>
+  <translation tag="Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable." fr="Envoie n&apos;importe quelle commande G-code. C&apos;est le contrôle total de l&apos;imprimante : chaque macro, y compris celles qui exécutent des commandes shell, est accessible."/>
   <translation tag="Send commands directly to printer" fr="Envoyer des commandes directement à l&apos;imprimante"/>
   <translation tag="Send this crash report to help improve HelixScreen." fr="Envoyez ce rapport de crash pour aider à améliorer HelixScreen."/>
   <translation tag="Sending..." fr="Envoi..."/>
@@ -3010,6 +3017,7 @@
   <translation tag="This is exactly the data that will be sent" fr="Voici exactement les données qui seront envoyées"/>
   <translation tag="This is what data would be sent if enabled" fr="Voici les données qui seraient envoyées si activé"/>
   <translation tag="This may take up to 30 seconds" fr="Cela peut prendre jusqu&apos;à 30 secondes"/>
+  <translation tag="This plugin asks for no special permissions." fr="Ce plugin ne demande aucune autorisation particulière."/>
   <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." fr="Ce plugin permet à HelixScreen de contrôler les options de démarrage d&apos;impression comme le maillage du plateau et QGL. Une fois installé, utilisez Configurer PRINT_START ci-dessous pour activer les étapes optionnelles."/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" fr="Cette impression nécessite environ %.0fg mais il reste environ %.0fg sur la bobine. Démarrer quand même ?"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" fr="Cette imprimante ne peut pas calibrer les offsets d&apos;outil automatiquement"/>
@@ -3021,6 +3029,7 @@
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." fr="Cela remplace les macros d&apos;aide de l&apos;imprimante par la version actuelle. Une impression est en cours, Klipper redémarrera une fois terminée."/>
   <translation tag="This system does not support bypass mode" fr="Ce système ne prend pas en charge le mode bypass"/>
   <translation tag="This tool probes each bed screw and tells you how much to adjust." fr="Cet outil palpe chaque vis du plateau et vous indique combien ajuster."/>
+  <translation tag="This update asks for new permissions:" fr="Cette mise à jour demande de nouvelles autorisations :"/>
   <translation tag="This will apply the Z-offset to your endstop and restart Klipper to save the configuration. The printer will briefly disconnect." fr="Cela appliquera le Z-offset à votre butée et redémarrera Klipper pour enregistrer la configuration. L&apos;imprimante se déconnectera brièvement."/>
   <translation tag="This will apply the Z-offset to your probe and restart Klipper to save the configuration. The printer will briefly disconnect." fr="Cela appliquera le Z-offset à votre sonde et redémarrera Klipper pour enregistrer la configuration. L&apos;imprimante se déconnectera brièvement."/>
   <translation tag="This will collect system info, logs, settings, and printer data to help diagnose issues. No passwords or sensitive data will be included." fr="Cela collectera les infos système, journaux, paramètres et données de l&apos;imprimante pour aider à diagnostiquer les problèmes. Aucun mot de passe ni donnée sensible ne sera inclus."/>
@@ -3374,6 +3383,7 @@
   <translation tag="attempt {}" fr="essai {}"/>
   <translation tag="bed" fr="plateau"/>
   <translation tag="busy" fr="occupé"/>
+  <translation tag="by" fr="par"/>
   <translation tag="by Preston Brown" fr="par Preston Brown"/>
   <translation tag="chamber heater" fr="chauffage du caisson"/>
   <translation tag="complete" fr="terminé"/>
@@ -3395,6 +3405,7 @@
   <translation tag="extruder(s)" fr="extrudeur(s)"/>
   <translation tag="extruders" fr="extrudeurs"/>
   <translation tag="fans" fr="ventilateurs"/>
+  <translation tag="faulted" fr="en erreur"/>
   <translation tag="feeder error" fr="erreur d&apos;alimentateur"/>
   <translation tag="feeder not in automatic mode" fr="alimentateur pas en mode automatique"/>
   <translation tag="filament sensor disabled" fr="capteur de filament désactivé"/>
@@ -3405,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" fr="helixscreen.env ignoré : {}"/>
   <translation tag="idle" fr="inactif"/>
   <translation tag="in unit {} slot {}" fr="dans l&apos;unité {} slot {}"/>
+  <translation tag="incompatible" fr="incompatible"/>
+  <translation tag="invalid" fr="non valide"/>
   <translation tag="just now" fr="à l&apos;instant"/>
   <translation tag="layers" fr="couches"/>
   <translation tag="left" fr="restant"/>
@@ -3413,6 +3426,7 @@
   <translation tag="matched" fr="équilibrées"/>
   <translation tag="mm before clog" fr="mm avant bouchon"/>
   <translation tag="needs" fr="nécessite"/>
+  <translation tag="needs approval" fr="approbation requise"/>
   <translation tag="never sleeps" fr="ne dort jamais"/>
   <translation tag="not detected" fr="non détecté"/>
   <translation tag="not loaded" fr="non chargé"/>
@@ -3421,6 +3435,7 @@
   <translation tag="off" fr="éteint"/>
   <translation tag="on unit {}" fr="sur l&apos;unité {}"/>
   <translation tag="or type a macro name" fr="ou saisissez un nom de macro"/>
+  <translation tag="over memory budget" fr="au-delà du budget mémoire"/>
   <translation tag="passive" fr="passif"/>
   <translation tag="printer default" fr="par défaut de l’imprimante"/>
   <translation tag="prints" fr="impressions"/>

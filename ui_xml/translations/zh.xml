@@ -497,6 +497,7 @@
   <translation tag="Change Tool" zh="切换工具"/>
   <translation tag="Change Tool While Paused" zh="暂停时切换工具"/>
   <translation tag="Change heater control?" zh="更改加热器控制？"/>
+  <translation tag="Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer&apos;s config folder." zh="通过Moonraker更改打印机设置，包括上传、改写和删除打印机配置文件夹中的文件。"/>
   <translation tag="Change tool" zh="切换工具"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." zh="更改立即生效。可在打印时调整进行调优。"/>
   <translation tag="Changes are temporary and reset on printer reboot" zh="更改是临时的，打印机重启后会重置"/>
@@ -634,6 +635,7 @@
   <translation tag="Connect" zh="连接"/>
   <translation tag="Connect a USB label printer first" zh="请先连接 USB 标签打印机"/>
   <translation tag="Connect an ADXL345 accelerometer to calibrate" zh="连接 ADXL345 加速度计以进行校准"/>
+  <translation tag="Connect to servers on your network and the internet." zh="连接到您网络及互联网上的服务器。"/>
   <translation tag="Connect to your printer via SSH and run:" zh="通过 SSH 连接到打印机并运行："/>
   <translation tag="Connected" zh="已连接"/>
   <translation tag="Connected (%s)" zh="已连接 (%s)"/>
@@ -918,10 +920,12 @@
   <translation tag="Enable brush wipe after purging" zh="排料后启用刷子擦拭"/>
   <translation tag="Enable feed assist for active slot during printing" zh="打印时为当前槽位启用送料辅助"/>
   <translation tag="Enable or disable the hub cutter" zh="启用或停用集线器切刀"/>
+  <translation tag="Enable plugin?" zh="启用插件？"/>
   <translation tag="Enable purging during tool changes" zh="在换工具时启用排料"/>
   <translation tag="Enable/disable automatic backup spool switching" zh="启用/停用自动切换备用料盘"/>
   <translation tag="Enable/disable quiet operation mode" zh="启用/停用静音运行模式"/>
   <translation tag="Enabled" zh="已启用"/>
+  <translation tag="Enabled. Open its settings, or disable it?" zh="已启用。打开其设置，或禁用？"/>
   <translation tag="Enclosed" zh="封闭"/>
   <translation tag="Enclosure" zh="机箱"/>
   <translation tag="Encoder" zh="编码器"/>
@@ -1505,6 +1509,7 @@
   <translation tag="Keep clear of the printer while the toolhead is moving" zh="工具头移动时请远离打印机"/>
   <translation tag="Keep current" zh="保留当前"/>
   <translation tag="Keep hands clear. The printer moves on its own." zh="请勿将手靠近。打印机会自行移动。"/>
+  <translation tag="Keep its own data on this screen (up to 256 KB)." zh="在此屏幕上保存自己的数据（最多256 KB）。"/>
   <translation tag="Keep the bypass spool visible when bypass is off" zh="旁路关闭时保持料盘可见"/>
   <translation tag="Kick away" zh="拨除废料"/>
   <translation tag="Kinematics" zh="运动学"/>
@@ -2092,6 +2097,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." zh="重启后插件无响应。&#10;可能需要更多时间加载。"/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." zh="插件已移除。配置文件需要处理 - 请查看 HelixScreen 日志了解详情。"/>
   <translation tag="Plugin uninstalled successfully." zh="插件卸载成功。"/>
+  <translation tag="Plugins" zh="插件"/>
   <translation tag="Point camera at QR code on spool" zh="将摄像头对准料盘上的 QR 码"/>
   <translation tag="Polymaker" zh="Polymaker"/>
   <translation tag="Poor Accuracy" zh="精度较差"/>
@@ -2630,6 +2636,7 @@
   <translation tag="Self-Test" zh="自检"/>
   <translation tag="Send G-code and read the replies" zh="发送 G-code 并查看回复"/>
   <translation tag="Send Report" zh="发送报告"/>
+  <translation tag="Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable." zh="发送任意G-code命令。这是对打印机的完全控制：包括运行shell命令在内的所有宏都可以被调用。"/>
   <translation tag="Send commands directly to printer" zh="直接向打印机发送命令"/>
   <translation tag="Send this crash report to help improve HelixScreen." zh="发送此崩溃报告以帮助改进 HelixScreen。"/>
   <translation tag="Sending..." zh="正在发送..."/>
@@ -3010,6 +3017,7 @@
   <translation tag="This is exactly the data that will be sent" zh="这正是将要发送的数据"/>
   <translation tag="This is what data would be sent if enabled" zh="这是启用后将发送的数据"/>
   <translation tag="This may take up to 30 seconds" zh="这可能需要 30 秒"/>
+  <translation tag="This plugin asks for no special permissions." zh="此插件不请求任何特殊权限。"/>
   <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." zh="此插件让 HelixScreen 控制打印启动选项，如热床网格和 QGL。安装后，使用下面的配置 PRINT_START 启用可选步骤。"/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" zh="本次打印需要约 %.0fg，但料盘仅剩约 %.0fg。仍要开始吗？"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" zh="此打印机无法自动校准工具偏移"/>
@@ -3021,6 +3029,7 @@
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." zh="这会将打印机的帮助宏替换为当前版本。当前正在打印，Klipper 将在打印结束后重启。"/>
   <translation tag="This system does not support bypass mode" zh="此系统不支持旁通模式"/>
   <translation tag="This tool probes each bed screw and tells you how much to adjust." zh="此工具探测每个热床螺丝并告诉您需要调整多少。"/>
+  <translation tag="This update asks for new permissions:" zh="此更新请求新的权限："/>
   <translation tag="This will apply the Z-offset to your endstop and restart Klipper to save the configuration. The printer will briefly disconnect." zh="这将把 Z-offset 应用到限位开关并重启 Klipper 以保存配置。打印机将短暂断开连接。"/>
   <translation tag="This will apply the Z-offset to your probe and restart Klipper to save the configuration. The printer will briefly disconnect." zh="这将把 Z-offset 应用到探针并重启 Klipper 以保存配置。打印机将短暂断开连接。"/>
   <translation tag="This will collect system info, logs, settings, and printer data to help diagnose issues. No passwords or sensitive data will be included." zh="将收集系统信息、日志、设置和打印机数据以帮助诊断问题。不会包含密码或敏感数据。"/>
@@ -3374,6 +3383,7 @@
   <translation tag="attempt {}" zh="第 {} 次尝试"/>
   <translation tag="bed" zh="热床"/>
   <translation tag="busy" zh="正忙"/>
+  <translation tag="by" zh="作者："/>
   <translation tag="by Preston Brown" zh="by Preston Brown"/>
   <translation tag="chamber heater" zh="腔体加热器"/>
   <translation tag="complete" zh="完成"/>
@@ -3395,6 +3405,7 @@
   <translation tag="extruder(s)" zh="挤出机"/>
   <translation tag="extruders" zh="挤出机"/>
   <translation tag="fans" zh="风扇"/>
+  <translation tag="faulted" zh="出错"/>
   <translation tag="feeder error" zh="送料器错误"/>
   <translation tag="feeder not in automatic mode" zh="送料器未处于自动模式"/>
   <translation tag="filament sensor disabled" zh="耗材传感器已禁用"/>
@@ -3405,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" zh="已忽略 helixscreen.env：{}"/>
   <translation tag="idle" zh="空闲"/>
   <translation tag="in unit {} slot {}" zh="在单元 {} 槽位 {}"/>
+  <translation tag="incompatible" zh="不兼容"/>
+  <translation tag="invalid" zh="无效"/>
   <translation tag="just now" zh="刚刚"/>
   <translation tag="layers" zh="层"/>
   <translation tag="left" zh="剩余"/>
@@ -3413,6 +3426,7 @@
   <translation tag="matched" zh="匹配"/>
   <translation tag="mm before clog" zh="毫米后堵料"/>
   <translation tag="needs" zh="需要"/>
+  <translation tag="needs approval" zh="需要批准"/>
   <translation tag="never sleeps" zh="从不休眠"/>
   <translation tag="not detected" zh="未检测到"/>
   <translation tag="not loaded" zh="未加载"/>
@@ -3421,6 +3435,7 @@
   <translation tag="off" zh="关闭"/>
   <translation tag="on unit {}" zh="在单元 {}"/>
   <translation tag="or type a macro name" zh="或输入宏名称"/>
+  <translation tag="over memory budget" zh="超出内存预算"/>
   <translation tag="passive" zh="被动"/>
   <translation tag="printer default" zh="打印机默认"/>
   <translation tag="prints" zh="打印次数"/>

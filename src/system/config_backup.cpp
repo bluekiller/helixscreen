@@ -30,10 +30,10 @@ bool write_backup_file(const std::string& src_path, const std::string& backup_pa
         }
     }
 
-    std::optional<std::string> bytes = helix::text_io::read_file(src_path);
-    if (!bytes || !helix::text_io::write_file_atomic(backup_path, *bytes)) {
-        // Debug only: write_rolling_backup() warns once if BOTH primary and
-        // fallback fail. A primary-only failure (typical in dev: /var/lib
+    const auto data = helix::text_io::read_file(src_path);
+    if (!data || !helix::text_io::write_file_atomic(backup_path, *data)) {
+        // Demoted to debug — write_rolling_backup() warns once if BOTH primary
+        // and fallback fail. A primary-only failure (typical in dev: /var/lib
         // not writable, $HOME fallback succeeds) is not noteworthy.
         spdlog::debug("[Config] Backup to {} failed: {}", backup_path, std::strerror(errno));
         return false;

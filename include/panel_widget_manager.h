@@ -167,6 +167,14 @@ class PanelWidgetManager {
     /// Main-thread only — no synchronization on the cache maps.
     void clear_all_panel_configs();
 
+    /// The set of definitions changed: reload every panel's layout and rebuild
+    /// every panel and catalog that lists widgets. Main thread. Each rebuild
+    /// is queued through that panel's gate-rebuild async slot, never run
+    /// inline, because a definitions change can arrive inside an UpdateQueue
+    /// drain (a plugin fault) where a synchronous rebuild corrupts LVGL's
+    /// event list.
+    void notify_widget_defs_changed();
+
     /// Get the PanelWidgetConfig for a panel (creates if needed).
     class PanelWidgetConfig& get_widget_config(const std::string& panel_id);
 

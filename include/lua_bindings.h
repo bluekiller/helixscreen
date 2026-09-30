@@ -15,6 +15,8 @@
 
 namespace helix::plugin {
 
+struct PluginUi;
+
 /// What every binding of one plugin may reach. The owner keeps it alive until after the
 /// runtime is destroyed, because runtime closers may read it.
 struct PluginContext {
@@ -24,6 +26,11 @@ struct PluginContext {
     json* settings; ///< this plugin's /plugins/settings/<id> object
     std::function<void()> save_settings;
     std::string storage_path; ///< <dir of settings.json>/plugin-data/<id>.json
+    /// Overlay access; filled by PluginHost, null where no host provides it.
+    PluginUi* ui = nullptr;
+    /// Set while on_unload runs: the plugin is leaving (at shutdown navigation is
+    /// already down), so it may not open overlays or dialogs.
+    bool unloading = false;
 };
 
 using Installer = void (*)(PluginContext&);
@@ -39,6 +46,8 @@ void install_ui_bindings(PluginContext& ctx);
 void install_printer_bindings(PluginContext& ctx);
 void install_moonraker_bindings(PluginContext& ctx);
 void install_io_bindings(PluginContext& ctx);
+/// helix.widget. BoundRuntime users may pass it in `installers`.
+void install_widget_bindings(PluginContext& ctx);
 
 PluginContext& context(lua_State* L);
 
@@ -90,6 +99,9 @@ json to_json(lua_State* L, int index);
 /// Stores `value` in the plugin's settings, saves, and runs its on_change handlers. False,
 /// with nothing stored, when `key` is undeclared or `value` does not fit its declaration.
 bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& value);
+/// The value to show for `d`: the stored value when it still fits its declaration,
+/// else the declaration's default. The rule helix.settings.get reads with.
+json effective_setting(const json& settings, const SettingDecl& d);
 /// <dir of settings_path>/plugin-data/<id>.json
 std::string plugin_storage_path(const std::string& settings_path, const std::string& id);
 
@@ -105,5 +117,20 @@ PluginEventTarget parse_plugin_event(std::string_view user_data);
 /// Runs the helix.ui.on handler `name` of `rt` with `arg` (or nil). False if there is none.
 bool dispatch_ui_handler(LuaRuntime& rt, const std::string& name,
                          const std::optional<std::string>& arg);
+
+/// One lifecycle hook a plugin may register on a widget it declares.
+enum class WidgetHook { Attach, Detach, Size, Activate, Deactivate };
+
+/// Runs the helix.widget hook `rt` registered for `widget_id` (the full id, with the
+/// plugin prefix). False when the plugin registered none for that hook.
+bool dispatch_widget_hook(LuaRuntime& rt, const std::string& widget_id, WidgetHook hook,
+                          const LuaRuntime::PushFn& args = {});
+
+/// Frees every retired plugin subject that no observer holds any more. Cheap; PluginHost
+/// calls it on every load and unload.
+void sweep_retired_subjects();
+
+/// Retired subjects still waiting for their observers to go.
+size_t retired_subject_count();
 
 } // namespace helix::plugin

@@ -1020,27 +1020,18 @@ void MoonrakerFileTransferAPIMock::download_thumbnail(const std::string& thumbna
     if (!gcode_filename.empty()) {
         std::string gcode_path = find_test_file(gcode_filename);
         if (!gcode_path.empty()) {
-            // Extract thumbnails from the G-code file
-            auto thumbnails = helix::gcode::extract_thumbnails(gcode_path);
-            if (!thumbnails.empty()) {
-                // Find the largest thumbnail (best quality)
-                const helix::gcode::GCodeThumbnail* best = &thumbnails[0];
-                for (const auto& thumb : thumbnails) {
-                    if (thumb.pixel_count() > best->pixel_count()) {
-                        best = &thumb;
-                    }
-                }
-
+            const auto thumb = helix::gcode::get_best_thumbnail(gcode_path);
+            if (!thumb.png_data.empty()) {
                 // Write the thumbnail to the cache path
                 std::ofstream file(cache_path, std::ios::binary);
                 if (file) {
-                    file.write(reinterpret_cast<const char*>(best->png_data.data()),
-                               static_cast<std::streamsize>(best->png_data.size()));
+                    file.write(reinterpret_cast<const char*>(thumb.png_data.data()),
+                               static_cast<std::streamsize>(thumb.png_data.size()));
                     file.close();
 
                     spdlog::info(
                         "[MoonrakerAPIMock] Extracted thumbnail {}x{} ({} bytes) from {} -> {}",
-                        best->width, best->height, best->png_data.size(), gcode_filename,
+                        thumb.width, thumb.height, thumb.png_data.size(), gcode_filename,
                         cache_path);
 
                     if (on_success) {

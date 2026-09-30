@@ -497,6 +497,7 @@
   <translation tag="Change Tool" ru="Сменить инструмент"/>
   <translation tag="Change Tool While Paused" ru="Смена инструмента при паузе"/>
   <translation tag="Change heater control?" ru="Изменить управление нагревателем?"/>
+  <translation tag="Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer&apos;s config folder." ru="Изменяет настройки принтера через Moonraker, включая загрузку, перезапись и удаление файлов в папке конфигурации принтера."/>
   <translation tag="Change tool" ru="Сменить инструмент"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." ru="Изменения применяются немедленно. Корректируйте во время печати."/>
   <translation tag="Changes are temporary and reset on printer reboot" ru="Изменения временные и сбрасываются при перезагрузке принтера"/>
@@ -634,6 +635,7 @@
   <translation tag="Connect" ru="Подключить"/>
   <translation tag="Connect a USB label printer first" ru="Сначала подключите USB-принтер этикеток"/>
   <translation tag="Connect an ADXL345 accelerometer to calibrate" ru="Подключите акселерометр ADXL345 для калибровки"/>
+  <translation tag="Connect to servers on your network and the internet." ru="Подключается к серверам в вашей сети и в интернете."/>
   <translation tag="Connect to your printer via SSH and run:" ru="Подключитесь к принтеру по SSH и выполните:"/>
   <translation tag="Connected" ru="Подключен"/>
   <translation tag="Connected (%s)" ru="Подключен (%s)"/>
@@ -918,10 +920,12 @@
   <translation tag="Enable brush wipe after purging" ru="Включить очистку щёткой после продувки"/>
   <translation tag="Enable feed assist for active slot during printing" ru="Включить помощь подачи для активного слота во время печати"/>
   <translation tag="Enable or disable the hub cutter" ru="Включить или выключить резак хаба"/>
+  <translation tag="Enable plugin?" ru="Включить плагин?"/>
   <translation tag="Enable purging during tool changes" ru="Включить продувку при смене инструмента"/>
   <translation tag="Enable/disable automatic backup spool switching" ru="Включить/выключить автопереключение на резервную катушку"/>
   <translation tag="Enable/disable quiet operation mode" ru="Включить/выключить тихий режим работы"/>
   <translation tag="Enabled" ru="Включено"/>
+  <translation tag="Enabled. Open its settings, or disable it?" ru="Включено. Открыть его настройки или отключить?"/>
   <translation tag="Enclosed" ru="Закрытый"/>
   <translation tag="Enclosure" ru="Корпус"/>
   <translation tag="Encoder" ru="Энкодер"/>
@@ -1505,6 +1509,7 @@
   <translation tag="Keep clear of the printer while the toolhead is moving" ru="Не приближайтесь к принтеру, пока перемещается печатающая головка"/>
   <translation tag="Keep current" ru="Оставить текущую"/>
   <translation tag="Keep hands clear. The printer moves on its own." ru="Держите руки подальше. Принтер двигается сам."/>
+  <translation tag="Keep its own data on this screen (up to 256 KB)." ru="Хранит собственные данные на этом экране (до 256 КБ)."/>
   <translation tag="Keep the bypass spool visible when bypass is off" ru="Показывать катушку байпаса, даже когда байпас выключен"/>
   <translation tag="Kick away" ru="Сброс остатка"/>
   <translation tag="Kinematics" ru="Кинематика"/>
@@ -2092,6 +2097,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." ru="Плагин не отвечает после перезапуска.&#10;Возможно, ему нужно больше времени для загрузки."/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." ru="Плагин удалён. Конфигурационный файл требует внимания - подробности смотрите в журнале HelixScreen."/>
   <translation tag="Plugin uninstalled successfully." ru="Плагин успешно удалён."/>
+  <translation tag="Plugins" ru="Плагины"/>
   <translation tag="Point camera at QR code on spool" ru="Наведите камеру на QR-код на катушке"/>
   <translation tag="Polymaker" ru="Polymaker"/>
   <translation tag="Poor Accuracy" ru="Низкая точность"/>
@@ -2630,6 +2636,7 @@
   <translation tag="Self-Test" ru="Самотестирование"/>
   <translation tag="Send G-code and read the replies" ru="Отправка G-code и чтение ответов"/>
   <translation tag="Send Report" ru="Отправить отчёт"/>
+  <translation tag="Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable." ru="Отправляет любые команды G-code. Это полный контроль над принтером: доступен каждый макрос, включая те, что выполняют команды оболочки."/>
   <translation tag="Send commands directly to printer" ru="Отправлять команды напрямую принтеру"/>
   <translation tag="Send this crash report to help improve HelixScreen." ru="Отправьте этот отчёт об ошибке, чтобы помочь улучшить HelixScreen."/>
   <translation tag="Sending..." ru="Отправка..."/>
@@ -3010,6 +3017,7 @@
   <translation tag="This is exactly the data that will be sent" ru="Это именно те данные, которые будут отправлены"/>
   <translation tag="This is what data would be sent if enabled" ru="Эти данные были бы отправлены при включении"/>
   <translation tag="This may take up to 30 seconds" ru="Это может занять до 30 секунд"/>
+  <translation tag="This plugin asks for no special permissions." ru="Этот плагин не запрашивает специальных разрешений."/>
   <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." ru="Этот плагин позволяет HelixScreen управлять опциями начала печати, такими как сетка стола и QGL. После установки используйте «Настроить PRINT_START» ниже для включения опциональных шагов."/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" ru="Для этой печати нужно около %.0fг, но на катушке осталось около %.0fг. Всё равно начать?"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" ru="Этот принтер не может калибровать смещения инструментов автоматически"/>
@@ -3021,6 +3029,7 @@
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." ru="Это заменит вспомогательные макросы принтера текущей версией. Идёт печать, поэтому Klipper перезапустится после её завершения."/>
   <translation tag="This system does not support bypass mode" ru="Эта система не поддерживает режим обхода"/>
   <translation tag="This tool probes each bed screw and tells you how much to adjust." ru="Этот инструмент проверяет каждый винт стола и показывает, насколько его нужно отрегулировать."/>
+  <translation tag="This update asks for new permissions:" ru="Это обновление запрашивает новые разрешения:"/>
   <translation tag="This will apply the Z-offset to your endstop and restart Klipper to save the configuration. The printer will briefly disconnect." ru="Z-offset будет применён к вашему концевику, и Klipper перезапустится для сохранения конфигурации. Принтер ненадолго отключится."/>
   <translation tag="This will apply the Z-offset to your probe and restart Klipper to save the configuration. The printer will briefly disconnect." ru="Z-offset будет применён к вашему зонду, и Klipper перезапустится для сохранения конфигурации. Принтер ненадолго отключится."/>
   <translation tag="This will collect system info, logs, settings, and printer data to help diagnose issues. No passwords or sensitive data will be included." ru="Будут собраны системная информация, логи, настройки и данные принтера для диагностики. Пароли и конфиденциальные данные включены не будут."/>
@@ -3374,6 +3383,7 @@
   <translation tag="attempt {}" ru="попытка {}"/>
   <translation tag="bed" ru="стол"/>
   <translation tag="busy" ru="занят"/>
+  <translation tag="by" ru="автор:"/>
   <translation tag="by Preston Brown" ru="от Preston Brown"/>
   <translation tag="chamber heater" ru="нагреватель камеры"/>
   <translation tag="complete" ru="завершено"/>
@@ -3395,6 +3405,7 @@
   <translation tag="extruder(s)" ru="экструдер(ы)"/>
   <translation tag="extruders" ru="экструдеры"/>
   <translation tag="fans" ru="вентиляторы"/>
+  <translation tag="faulted" ru="сбой"/>
   <translation tag="feeder error" ru="ошибка фидера"/>
   <translation tag="feeder not in automatic mode" ru="фидер не в автоматическом режиме"/>
   <translation tag="filament sensor disabled" ru="датчик филамента отключён"/>
@@ -3405,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" ru="helixscreen.env проигнорирован: {}"/>
   <translation tag="idle" ru="простой"/>
   <translation tag="in unit {} slot {}" ru="в блоке {} слот {}"/>
+  <translation tag="incompatible" ru="несовместим"/>
+  <translation tag="invalid" ru="недопустим"/>
   <translation tag="just now" ru="только что"/>
   <translation tag="layers" ru="слои"/>
   <translation tag="left" ru="осталось"/>
@@ -3413,6 +3426,7 @@
   <translation tag="matched" ru="совпадают"/>
   <translation tag="mm before clog" ru="мм до засора"/>
   <translation tag="needs" ru="требуется"/>
+  <translation tag="needs approval" ru="требует подтверждения"/>
   <translation tag="never sleeps" ru="никогда не спит"/>
   <translation tag="not detected" ru="не обнаружено"/>
   <translation tag="not loaded" ru="не загружен"/>
@@ -3421,6 +3435,7 @@
   <translation tag="off" ru="выкл"/>
   <translation tag="on unit {}" ru="на блоке {}"/>
   <translation tag="or type a macro name" ru="или введите название макроса"/>
+  <translation tag="over memory budget" ru="превышен бюджет памяти"/>
   <translation tag="passive" ru="пассивно"/>
   <translation tag="printer default" ru="по умолчанию для принтера"/>
   <translation tag="prints" ru="печатей"/>

@@ -222,6 +222,7 @@ src/system/audio_settings_manager.cpp
 src/system/capability_overrides.cpp
 src/system/cjk_font_manager.cpp
 src/system/config.cpp
+src/system/config_migrations.cpp
 src/system/config_trust.cpp
 src/system/config_backup.cpp
 src/system/diagnostics.cpp
@@ -631,6 +632,7 @@ src/system/config_storage_file.cpp
 src/rendering/nozzle_renderer_a4t.cpp
 src/rendering/nozzle_renderer_anthead.cpp
 src/rendering/nozzle_renderer_bambu.cpp
+src/rendering/nozzle_renderer_common.cpp
 src/rendering/nozzle_renderer_creality_k1.cpp
 src/rendering/nozzle_renderer_creality_k2.cpp
 src/rendering/nozzle_renderer_jabberwocky.cpp

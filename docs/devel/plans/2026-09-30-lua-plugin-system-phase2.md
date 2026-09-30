@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Plugin id `^[a-z][a-z0-9-]{1,31}$`. Every name a plugin registers, including widget ids and component names, is `<id>_<rest>`.
+- Plugin id `^[a-z][a-z0-9-]{1,31}$`. Every name a plugin registers, including widget ids and component names, is `<id>__<rest>`.
 - Plugin widgets are in the catalog category Plugins, never enabled by default, and single-instance.
 - Manifest spans are in **cells**, 1 to 8 on each axis. The registry stores tracks: `tracks = cells * GridLayout::TRACKS_PER_CELL` (2). Plugin widgets get no half-cell resolution.
 - `on_size(cols, rows, w, h)` gives Lua cells (tracks / 2) and pixels.
@@ -1116,7 +1116,7 @@ helix.ui.on("open", function() helix.ui.overlay("widget-demo_panel") end)
 <?xml version="1.0"?>
 <component>
   <view extends="lv_obj" width="100%" height="100%">
-    <lv_label name="widget-demo_size_label" bind_text="widget-demo_size"/>
+    <lv_label name="widget-demo__size_label" bind_text="widget-demo_size"/>
     <lv_button name="widget-demo_open_button">
       <event_cb trigger="clicked" callback="plugin_event" user_data="widget-demo_open"/>
     </lv_button>
@@ -1197,7 +1197,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     w->attach(root, lv_screen_active());
     w->notify_size_changed(4, 2, 200, 100);
     drain();
-    CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo_size_label"))) ==
+    CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo__size_label"))) ==
           "2x1");
 
     rig.host->disable("widget-demo");
@@ -1433,7 +1433,7 @@ Lua: `local h = helix.ui.overlay("widget-demo_panel", {on_close = fn})`; `h:clos
 <?xml version="1.0"?>
 <component>
   <view extends="overlay_panel" title="Demo" bg_color="#screen_bg">
-    <lv_label name="widget-demo_panel_status" bind_text="widget-demo_status"/>
+    <lv_label name="widget-demo__panel_status" bind_text="widget-demo_status"/>
   </view>
 </component>
 ```

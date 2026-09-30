@@ -7,6 +7,9 @@
 
 #include "lvgl/lvgl.h"
 
+#include <cstddef>
+#include <optional>
+
 // ============================================================================
 // Color Manipulation Helpers
 // ============================================================================
@@ -133,6 +136,55 @@ inline void nr_draw_bevel_row(lv_layer_t* layer, int32_t cx, int32_t half_w, int
     lv_area_t row = {cx - half_w, y, cx + half_w, y};
     lv_draw_fill(layer, &fill_dsc, &row);
 }
+
+/// @brief Blend a color toward black by @p opa (255 = unchanged)
+///
+/// Renderers pre-dim their colors instead of drawing with per-call alpha, which
+/// would let overlapping layers bleed through each other.
+inline lv_color_t nr_dim(lv_color_t c, lv_opa_t opa) {
+    if (opa >= LV_OPA_COVER)
+        return c;
+    float f = (float)opa / 255.0f;
+    return lv_color_make((uint8_t)(c.red * f), (uint8_t)(c.green * f), (uint8_t)(c.blue * f));
+}
+
+/// @brief One filled polygon of a traced toolhead, in design-space coordinates
+struct NrPolygon {
+    const lv_point_t* pts;
+    int cnt;
+    uint8_t color; ///< Index into the renderer's palette
+};
+
+template <size_t N> constexpr NrPolygon nr_poly(const lv_point_t (&pts)[N], uint8_t color) {
+    return {pts, (int)N, color};
+}
+
+/// @brief Fill a simple (convex or concave) polygon by ear-clipping triangulation
+void nr_draw_polygon(lv_layer_t* layer, const lv_point_t* pts, int cnt, lv_color_t color);
+
+/// @brief Fill @p polys in order, mapping @p design_center to (@p cx, @p cy)
+/// @param palette Colors indexed by NrPolygon::color
+void nr_draw_polygons(lv_layer_t* layer, const NrPolygon* polys, size_t count,
+                      const lv_color_t* palette, int32_t cx, int32_t cy, float scale,
+                      lv_point_t design_center);
+
+/// @brief Draw a metal nozzle tip with a white glint at its bottom
+///
+/// A loaded tip blends its @p left / @p right shading 40% toward the filament.
+/// @param filament Loaded filament color, or nullopt when unloaded
+/// @param opa Dims the filament color the way the body colors were dimmed
+/// @param glint_right Glint extent right of @p cx
+void nr_draw_tinted_tip(lv_layer_t* layer, int32_t cx, int32_t top_y, int32_t top_width,
+                        int32_t bottom_width, int32_t height, lv_color_t left, lv_color_t right,
+                        std::optional<lv_color_t> filament, lv_opa_t opa, int32_t glint_right = 1);
+
+/// @brief Draw a nozzle tip in the filament color, or charcoal metal when unloaded
+///
+/// Used by the vector-traced toolheads, whose body art has no metal tip of its own.
+/// @param filament Loaded filament color, or nullopt when unloaded
+void nr_draw_filament_tip(lv_layer_t* layer, int32_t cx, int32_t top_y, int32_t top_width,
+                          int32_t bottom_width, int32_t height, std::optional<lv_color_t> filament,
+                          lv_opa_t opa);
 
 } // namespace helix
 

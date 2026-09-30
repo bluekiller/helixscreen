@@ -4,9 +4,9 @@
 #include "gcode_file_modifier.h"
 
 #include "app_globals.h"
+#include "gcode_streaming_config.h"
 #include "helix_fs.h"
 #include "helix_regex.h"
-#include "streaming_policy.h"
 #include "text_io.h"
 
 #include <spdlog/spdlog.h>
@@ -199,13 +199,10 @@ ModificationResult GCodeFileModifier::apply(const std::string& filepath) {
         return result;
     }
 
-    // Use centralized policy for streaming decisions
-    // This ensures consistent threshold behavior across all file operations
     const auto file_size = *size;
-    if (helix::StreamingPolicy::instance().should_stream(file_size)) {
-        spdlog::info("[GCodeFileModifier] File {} ({} MB) - streaming mode (threshold={}MB)",
-                     std::string(helix::fs::filename(filepath)), file_size / (1024 * 1024),
-                     helix::StreamingPolicy::instance().get_threshold_bytes() / (1024 * 1024));
+    if (helix::should_use_gcode_streaming(file_size)) {
+        spdlog::info("[GCodeFileModifier] File {} ({} MB) - streaming mode",
+                     std::string(helix::fs::filename(filepath)), file_size / (1024 * 1024));
         return apply_streaming(filepath);
     }
 
