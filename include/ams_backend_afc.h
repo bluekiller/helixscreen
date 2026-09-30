@@ -573,7 +573,7 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
 
     // --- AmsSubscriptionBackend hooks ---
     void on_started() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS AFC]";
     }

@@ -1327,18 +1327,7 @@ std::optional<helix::ams::SpoolEvidence> evidence_from_fingerprint(const std::st
 // Status Update Handling
 // ============================================================================
 
-void AmsBackendSnapmaker::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update format: {"method":"notify_status_update","params":[{...}, timestamp]}
-    // Initial query responses send unwrapped status directly — handle both.
-    const nlohmann::json* status_ptr = &notification;
-    if (notification.contains("params") && notification["params"].is_array() &&
-        !notification["params"].empty()) {
-        status_ptr = &notification["params"][0];
-    }
-    const auto& status = *status_ptr;
-    if (!status.is_object())
-        return;
-
+void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     bool changed = false;
     // Set when the active-tool port-present flag changed this parse (#991), so
     // we publish to AmsState exactly once after releasing the mutex.

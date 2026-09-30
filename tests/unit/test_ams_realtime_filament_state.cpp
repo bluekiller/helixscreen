@@ -42,7 +42,7 @@ namespace helix {
 class SnapmakerRealtimeTestAccess {
   public:
     static void handle_status(AmsBackendSnapmaker& b, const json& n) {
-        b.handle_status_update(n);
+        b.handle_status(n);
     }
     static void set_sensor_present(AmsBackendSnapmaker& b, int slot_index, bool present) {
         std::lock_guard<std::mutex> lock(b.mutex_);

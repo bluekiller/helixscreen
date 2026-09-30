@@ -394,19 +394,7 @@ bool AmsBackendHappyHare::slot_has_prep_sensor(int slot_index) const {
 // Moonraker Status Update Handling
 // ============================================================================
 
-void AmsBackendHappyHare::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendHappyHare::handle_status(const nlohmann::json& params) {
     spdlog::trace("[AMS HappyHare] Received status update");
 
     // Parse MMU core state if present.

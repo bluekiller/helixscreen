@@ -231,7 +231,7 @@ CFS earns it differently, and the difference is worth naming: its firmware publi
 per-slot loaded flag at all. The seated bay is the intersection of two signals that arrive
 on separate notifications — the per-unit `T{n}.filament` letter ("A".."D") naming the
 engaged lane, and `filament_switch_sensor filament_sensor.filament_detected` at the
-toolhead. `handle_status_update()` derives `SlotStatus::LOADED` from that pair at the end
+toolhead. `handle_status()` derives `SlotStatus::LOADED` from that pair at the end
 of every frame, so the per-slot status can never disagree with the aggregate rather than
 being independently authoritative. That still buys the real fix: before it, CFS wrote only
 `AVAILABLE`/`EMPTY`, so `can_unload_from_toolhead()` — `status == LOADED` on a HUB
@@ -2343,7 +2343,7 @@ Pass `--real-ams` alongside `--test` to opt back out and drive a real backend (e
 
 **`--real-ams` seeds Happy Hare only and does not compose with `HELIX_MOCK_AMS`.** The backend comes from mock hardware discovery, not from `HELIX_MOCK_AMS` — that variable is read inside `AmsBackend::create()`'s mock branch (`src/printer/ams_backend.cpp`), which `--real-ams` bypasses entirely. So `HELIX_MOCK_AMS=toolchanger` combined with `--real-ams` still swaps in a real `AmsBackendToolChanger`, but with zero seeded state — a silently empty panel, not a toolchanger simulation.
 
-The seed also dispatches from the main thread (inside an `UpdateQueue` drain), while production delivers the same `mmu` payload from the libhv WebSocket event-loop thread. A threading bug in a backend's `handle_status_update` will not reproduce under `--real-ams`.
+The seed also dispatches from the main thread (inside an `UpdateQueue` drain), while production delivers the same `mmu` payload from the libhv WebSocket event-loop thread. A threading bug in a backend's `handle_status` will not reproduce under `--real-ams`.
 
 ```bash
 ./build/bin/helix-screen --test --real-ams -vv

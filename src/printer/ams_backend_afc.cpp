@@ -1143,19 +1143,7 @@ PathSegment AmsBackendAfc::compute_filament_segment_unlocked() const {
 // Moonraker Status Update Handling
 // ============================================================================
 
-void AmsBackendAfc::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendAfc::handle_status(const nlohmann::json& params) {
     bool state_changed = false;
     std::string deferred_error_event; // Collect error event to emit outside lock
 
@@ -3756,11 +3744,7 @@ void AmsBackendAfc::query_initial_state() {
                 // {"jsonrpc": "2.0", "result": {"eventtime": ..., "status": {...}}, "id": ...}
                 if (response.contains("result") && response["result"].contains("status") &&
                     response["result"]["status"].is_object()) {
-                    // The status object format is the same as notify_status_update params
-                    // Wrap it in a format that handle_status_update expects
-                    nlohmann::json notification = {
-                        {"params", nlohmann::json::array({response["result"]["status"]})}};
-                    handle_status_update(notification);
+                    handle_status(response["result"]["status"]);
                     spdlog::info("[AMS AFC] Initial state loaded");
                 } else {
                     spdlog::warn("[AMS AFC] Initial state query returned unexpected format");

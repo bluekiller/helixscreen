@@ -159,14 +159,8 @@ void AmsBackendOpenAms::on_started() {
     emit_event(EVENT_STATE_CHANGED);
 }
 
-void AmsBackendOpenAms::handle_status_update(const json& notification) {
-    const json* objects = &notification;
-    auto params = notification.find("params");
-    if (params != notification.end() && params->is_array() && !params->empty() &&
-        (*params)[0].is_object()) {
-        objects = &(*params)[0];
-    }
-    const json* update = object_member(*objects, openams::kManagerObject);
+void AmsBackendOpenAms::handle_status(const json& status) {
+    const json* update = object_member(status, openams::kManagerObject);
     if (!update) {
         return;
     }

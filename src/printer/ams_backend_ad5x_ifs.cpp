@@ -386,7 +386,7 @@ void AmsBackendAd5xIfs::on_started() {
                                     // !macro_exists: latch stays true
                                 }
 
-                                handle_status_update(status_copy);
+                                handle_status(status_copy);
                             }
 
                             // Log initial state after processing query response
@@ -485,18 +485,8 @@ void AmsBackendAd5xIfs::request_resync() {
 
 // --- Status parsing ---
 
-void AmsBackendAd5xIfs::handle_status_update(const json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    // Initial query response sends unwrapped status directly — handle both formats.
-    const json* status = &notification;
-    if (notification.contains("params") && notification["params"].is_array() &&
-        !notification["params"].empty()) {
-        status = &notification["params"][0];
-        if (!status->is_object()) {
-            return;
-        }
-    }
+void AmsBackendAd5xIfs::handle_status(const json& status_obj) {
+    const json* status = &status_obj;
 
     std::unique_lock<std::mutex> lock(mutex_);
 

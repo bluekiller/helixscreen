@@ -200,18 +200,11 @@ void AmsBackendAce::on_stopping() {
     lifetime_.invalidate();
 }
 
-void AmsBackendAce::handle_status_update(const json& notification) {
+void AmsBackendAce::handle_status(const json& status_obj) {
     if (use_rest_fallback_)
         return; // Using REST polling, ignore subscriptions
 
-    // notify_status_update format: {"params": [{...}, timestamp]}
-    const json* status = &notification;
-    if (notification.contains("params") && notification["params"].is_array() &&
-        !notification["params"].empty()) {
-        status = &notification["params"][0];
-    }
-    if (!status->is_object())
-        return;
+    const json* status = &status_obj;
 
     // Native Anycubic GoKlipper publishes under `filament_hub`; community
     // ValgACE under `ace`; the Kobra S1 mainline-Python fork under

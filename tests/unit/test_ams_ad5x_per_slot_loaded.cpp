@@ -50,7 +50,7 @@ class Ad5xPerSlotLoadedHelper : public AmsBackendAd5xIfs {
     }
 
     void feed(const json& status) {
-        handle_status_update(status);
+        handle_status(status);
     }
 };
 } // namespace helix

@@ -599,7 +599,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
   protected:
     void on_started() override;
     void on_stopping() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS AD5X-IFS]";
     }

@@ -33,8 +33,13 @@ namespace helix {
 // Test access helper — friend class for accessing internals
 class Ad5xIfsTestAccess {
   public:
+    /// Takes a notify frame or a bare status object (a query result).
     static void handle_status(AmsBackendAd5xIfs& b, const json& n) {
-        b.handle_status_update(n);
+        if (n.contains("params")) {
+            b.handle_status_update(n);
+        } else {
+            b.handle_status(n);
+        }
     }
     // Put a whole Spoolman link on the live slot — the shape a linked slot
     // carries. The persisted override record has no filament-id field, so

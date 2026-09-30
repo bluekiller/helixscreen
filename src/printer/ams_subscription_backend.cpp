@@ -93,6 +93,15 @@ AmsError AmsSubscriptionBackend::start() {
     return AmsErrorHelper::success();
 }
 
+void AmsSubscriptionBackend::handle_status_update(const nlohmann::json& notification) {
+    auto params = notification.find("params");
+    if (params == notification.end() || !params->is_array() || params->empty() ||
+        !(*params)[0].is_object()) {
+        return;
+    }
+    handle_status((*params)[0]);
+}
+
 void AmsSubscriptionBackend::stop() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!running_) {

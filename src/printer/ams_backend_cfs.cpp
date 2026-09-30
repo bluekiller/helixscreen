@@ -398,17 +398,15 @@ void AmsBackendCfs::on_started() {
             [this, token = lifetime_.token()](const nlohmann::json& response) {
                 if (response.contains("result") && response["result"].contains("status") &&
                     response["result"]["status"].is_object()) {
-                    // Wrap in notify_status_update format for handle_status_update
-                    nlohmann::json notification = {
-                        {"params", nlohmann::json::array({response["result"]["status"]})}};
                     // The response callback runs on the libhv WS thread; the
-                    // notify subscription defers handle_status_update to main,
-                    // and this entry point must match it (handle_status_update
-                    // reads LVGL subjects for the insert-probe gate).
-                    token.defer("AmsBackendCfs::initial_state", [this, notification]() {
-                        handle_status_update(notification);
-                        spdlog::info("[AMS CFS] Initial state loaded");
-                    });
+                    // notify subscription defers handle_status to main, and
+                    // this entry point must match it (handle_status reads
+                    // LVGL subjects for the insert-probe gate).
+                    token.defer("AmsBackendCfs::initial_state",
+                                [this, status = response["result"]["status"]]() {
+                                    handle_status(status);
+                                    spdlog::info("[AMS CFS] Initial state loaded");
+                                });
                 } else {
                     spdlog::warn("[AMS CFS] Initial state query returned unexpected format");
                 }
@@ -1246,18 +1244,7 @@ static std::string build_cfs_flat_slot_uid(const nlohmann::json& slot_json) {
 
 // --- handle_status_update ---
 
-void AmsBackendCfs::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update format: {"method": "notify_status_update", "params": [{...}, timestamp]}
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendCfs::handle_status(const nlohmann::json& params) {
     bool changed = false;
     // unit number -> bay bitmask, filled under mutex_ and dispatched after it.
     std::map<int, int> insert_probes;

@@ -5038,7 +5038,7 @@ TEST_CASE("CFS phase verify: a raised fault survives later status frames", "[ams
         {"params", nlohmann::json::array(
                        {{{"filament_switch_sensor filament_sensor", {{"filament_detected", false}}},
                          {"extruder", {{"temperature", 210.0}, {"target", 220.0}}}}})}};
-    CfsTestAccess::handle_status(backend, n["params"][0]);
+    CfsTestAccess::handle_status(backend, n);
 
     CHECK(backend.get_system_info().action == AmsAction::ERROR);
     CHECK(backend.current_error().has_value());

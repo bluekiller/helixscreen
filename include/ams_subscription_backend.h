@@ -28,7 +28,7 @@ class OwnWriteEchoes;
 ///
 /// Derived classes MUST implement:
 ///   - get_type() - return backend-specific AmsType
-///   - handle_status_update() - parse backend-specific JSON notifications
+///   - handle_status() - parse the backend-specific status object
 ///   - backend_log_tag() - return log prefix like "[AMS AFC]"
 ///
 /// Derived classes MAY override:
@@ -246,8 +246,14 @@ class AmsSubscriptionBackend : public AmsBackend {
         return AmsErrorHelper::success();
     }
 
-    /// Handle incoming Moonraker status notification. Called from background thread.
-    virtual void handle_status_update(const nlohmann::json& notification) = 0;
+    /// Unwrap a notify_status_update frame (`{"params": [{status}, eventtime]}`)
+    /// and hand its status object to handle_status(). Any other shape is ignored.
+    void handle_status_update(const nlohmann::json& notification);
+
+    /// Parse one status object, `{<object_name>: <fields>, ...}`, as a notify
+    /// frame or a printer.objects.query result carries it. Runs on the main
+    /// thread.
+    virtual void handle_status(const nlohmann::json& status) = 0;
 
     /// Return log tag like "[AMS AFC]" for log messages.
     virtual const char* backend_log_tag() const = 0;

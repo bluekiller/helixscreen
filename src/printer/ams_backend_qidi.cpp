@@ -401,24 +401,10 @@ void AmsBackendQidi::apply_query_response(const nlohmann::json& response) {
     if (status_it == result_it->end() || !status_it->is_object()) {
         return;
     }
-    // The status object has the same shape as a notify_status_update
-    // payload — both are `{<object_name>: <fields>, ...}` — so reuse
-    // the notification handler verbatim.
-    handle_status_update(*status_it);
+    handle_status(*status_it);
 }
 
-void AmsBackendQidi::handle_status_update(const nlohmann::json& envelope) {
-    // Subscription frames arrive as {"params": [{...}, timestamp]}; the startup
-    // query hands over the status object directly.
-    const nlohmann::json* status = &envelope;
-    if (envelope.contains("params") && envelope["params"].is_array() &&
-        !envelope["params"].empty()) {
-        status = &envelope["params"][0];
-    }
-    const auto& notification = *status;
-    if (!notification.is_object()) {
-        return;
-    }
+void AmsBackendQidi::handle_status(const nlohmann::json& notification) {
     // Moonraker delivers save_variables changes as
     // `{"save_variables": {"variables": {...}}}`. Unwrap and feed the inner
     // variables payload to parse_save_variables.

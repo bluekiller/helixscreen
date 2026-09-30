@@ -104,7 +104,7 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
     AmsError do_change_tool(int tool_number) override;
 
     void on_started() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS OpenAMS]";
     }

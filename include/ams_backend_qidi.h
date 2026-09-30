@@ -208,7 +208,7 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
 
   protected:
     void on_started() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS QIDI Box]";
     }
@@ -255,7 +255,7 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
     void apply_box_extras(const nlohmann::json& box_extras);
 
     /// Unwrap a printer.objects.query response (`result.status.{...}`)
-    /// and feed the inner object through handle_status_update so the
+    /// and feed the inner object through handle_status so the
     /// bootstrap fetch reuses every parser already exercised by the
     /// notification path.
     void apply_query_response(const nlohmann::json& response);

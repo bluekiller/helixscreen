@@ -472,19 +472,7 @@ PathSegment AmsBackendToolChanger::infer_error_segment() const {
 // Moonraker Status Update Handling
 // ============================================================================
 
-void AmsBackendToolChanger::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendToolChanger::handle_status(const nlohmann::json& params) {
     bool state_changed = false;
 
     {
