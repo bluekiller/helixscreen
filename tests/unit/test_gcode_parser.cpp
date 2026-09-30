@@ -1111,7 +1111,7 @@ TEST_CASE("GCodeParser - Z-hop handling", "[gcode][parser][layers][zhop]") {
 // Thumbnail Extraction from Content Tests
 // ============================================================================
 
-TEST_CASE("extract_thumbnails_from_content - Basic extraction", "[gcode][thumbnail]") {
+TEST_CASE("get_best_thumbnail_from_content - Basic extraction", "[gcode][thumbnail]") {
     SECTION("Extract thumbnail from minimal valid gcode content") {
         // Create minimal gcode with a tiny base64-encoded PNG
         // This is a minimal 1x1 PNG (smallest valid PNG)
@@ -1128,19 +1128,17 @@ TEST_CASE("extract_thumbnails_from_content - Basic extraction", "[gcode][thumbna
         gcode << "; thumbnail end\n";
         gcode << "G28 ; home\n";
 
-        auto thumbnails = extract_thumbnails_from_content(gcode.str());
+        auto thumb = get_best_thumbnail_from_content(gcode.str());
 
-        REQUIRE(thumbnails.size() == 1);
-        REQUIRE(thumbnails[0].width == 1);
-        REQUIRE(thumbnails[0].height == 1);
-        REQUIRE(!thumbnails[0].png_data.empty());
+        REQUIRE(thumb.width == 1);
+        REQUIRE(thumb.height == 1);
 
         // Verify PNG magic bytes
-        REQUIRE(thumbnails[0].png_data.size() >= 8);
-        REQUIRE(thumbnails[0].png_data[0] == 0x89);
-        REQUIRE(thumbnails[0].png_data[1] == 'P');
-        REQUIRE(thumbnails[0].png_data[2] == 'N');
-        REQUIRE(thumbnails[0].png_data[3] == 'G');
+        REQUIRE(thumb.png_data.size() >= 8);
+        REQUIRE(thumb.png_data[0] == 0x89);
+        REQUIRE(thumb.png_data[1] == 'P');
+        REQUIRE(thumb.png_data[2] == 'N');
+        REQUIRE(thumb.png_data[3] == 'G');
     }
 
     SECTION("Returns empty for gcode without thumbnails") {
@@ -1149,14 +1147,11 @@ TEST_CASE("extract_thumbnails_from_content - Basic extraction", "[gcode][thumbna
                             "G1 X10 Y10 Z0.2\n"
                             "G1 X20 Y20 E1.0\n";
 
-        auto thumbnails = extract_thumbnails_from_content(gcode);
-
-        REQUIRE(thumbnails.empty());
+        REQUIRE(get_best_thumbnail_from_content(gcode).png_data.empty());
     }
 
     SECTION("Returns empty for empty content") {
-        auto thumbnails = extract_thumbnails_from_content("");
-        REQUIRE(thumbnails.empty());
+        REQUIRE(get_best_thumbnail_from_content("").png_data.empty());
     }
 
     SECTION("Truncated thumbnail block emits nothing") {
@@ -1166,18 +1161,14 @@ TEST_CASE("extract_thumbnails_from_content - Basic extraction", "[gcode][thumbna
                             // Missing "thumbnail end" - the block never closes
                             "G28 ; home\n";
 
-        auto thumbnails = extract_thumbnails_from_content(gcode);
-
-        // The parser only pushes an entry from the "thumbnail end" / "png end"
-        // branches; hitting real gcode breaks out of the header scan with the
-        // block still open, so the accumulated base64 is dropped. That is the
-        // contract - a truncated block must NOT yield a half-decoded PNG that
-        // downstream image decoding would then choke on.
-        REQUIRE(thumbnails.empty());
+        // A block counts only once "thumbnail end" / "png end" closes it; real
+        // gcode ends the header scan with the block still open. A truncated
+        // block must NOT yield a half-decoded PNG that image decoding chokes on.
+        REQUIRE(get_best_thumbnail_from_content(gcode).png_data.empty());
     }
 }
 
-TEST_CASE("extract_thumbnails_from_content - Multiple thumbnails", "[gcode][thumbnail]") {
+TEST_CASE("get_best_thumbnail_from_content - Multiple thumbnails", "[gcode][thumbnail]") {
     // Real slicers often embed multiple sizes (e.g., 48x48 for LCD, 300x300 for web)
     std::string small_png_base64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAA"
@@ -1198,22 +1189,16 @@ TEST_CASE("extract_thumbnails_from_content - Multiple thumbnails", "[gcode][thum
     gcode << "; thumbnail end\n";
     gcode << "G28 ; home\n";
 
-    auto thumbnails = extract_thumbnails_from_content(gcode.str());
+    auto thumb = get_best_thumbnail_from_content(gcode.str());
 
-    REQUIRE(thumbnails.size() == 2);
-
-    // Should be sorted largest-first
-    REQUIRE(thumbnails[0].width >= thumbnails[1].width);
-
-    // Verify both have valid PNG data
-    for (const auto& thumb : thumbnails) {
-        REQUIRE(thumb.png_data.size() >= 8);
-        REQUIRE(thumb.png_data[0] == 0x89);
-        REQUIRE(thumb.png_data[1] == 'P');
-    }
+    // The largest wins regardless of order in the file
+    REQUIRE(thumb.width == 2);
+    REQUIRE(thumb.png_data.size() >= 8);
+    REQUIRE(thumb.png_data[0] == 0x89);
+    REQUIRE(thumb.png_data[1] == 'P');
 }
 
-TEST_CASE("extract_thumbnails_from_content - Real-world format variations", "[gcode][thumbnail]") {
+TEST_CASE("get_best_thumbnail_from_content - Real-world format variations", "[gcode][thumbnail]") {
     SECTION("Handles multi-line base64 (split across lines)") {
         // Real slicers split base64 into ~78 char lines
         std::string line1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk";
@@ -1225,12 +1210,11 @@ TEST_CASE("extract_thumbnails_from_content - Real-world format variations", "[gc
         gcode << "; " << line2 << "\n";
         gcode << "; thumbnail end\n";
 
-        auto thumbnails = extract_thumbnails_from_content(gcode.str());
+        auto thumb = get_best_thumbnail_from_content(gcode.str());
 
-        REQUIRE(thumbnails.size() == 1);
         // Should have decoded the concatenated base64
-        REQUIRE(thumbnails[0].png_data.size() >= 8);
-        REQUIRE(thumbnails[0].png_data[0] == 0x89);
+        REQUIRE(thumb.png_data.size() >= 8);
+        REQUIRE(thumb.png_data[0] == 0x89);
     }
 
     SECTION("Ignores non-thumbnail comments") {
@@ -1247,10 +1231,12 @@ TEST_CASE("extract_thumbnails_from_content - Real-world format variations", "[gc
         gcode << "; thumbnail end\n";
         gcode << "; total layer number: 240\n";
 
-        auto thumbnails = extract_thumbnails_from_content(gcode.str());
+        auto thumb = get_best_thumbnail_from_content(gcode.str());
 
-        // Should find exactly one thumbnail, not confuse other comments
-        REQUIRE(thumbnails.size() == 1);
+        // Other comments are not mistaken for thumbnail data
+        REQUIRE(thumb.width == 1);
+        REQUIRE(thumb.png_data.size() >= 8);
+        REQUIRE(thumb.png_data[0] == 0x89);
     }
 }
 

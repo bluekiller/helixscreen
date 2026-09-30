@@ -843,38 +843,27 @@ struct GCodeThumbnail {
 };
 
 /**
- * @brief Extract all thumbnails from G-code file header
+ * @brief Get the largest thumbnail embedded in a G-code file header
  *
  * Parses thumbnail blocks in the format:
  *   ; thumbnail begin WIDTHxHEIGHT SIZE
  *   ; <base64 data line 1>
- *   ; <base64 data line 2>
  *   ; ...
  *   ; thumbnail end
- *
- * @param filepath Path to the G-code file
- * @return Vector of thumbnails sorted largest-first. Empty if none found.
- */
-std::vector<GCodeThumbnail> extract_thumbnails(const std::string& filepath);
-
-/**
- * @brief Extract all thumbnails from G-code content string
- *
- * Same as extract_thumbnails() but works on string content instead of file.
- * Useful for processing downloaded gcode without writing to disk.
- *
- * @param content G-code content (typically first ~100KB of file header)
- * @return Vector of thumbnails sorted largest-first. Empty if none found.
- */
-std::vector<GCodeThumbnail> extract_thumbnails_from_content(const std::string& content);
-
-/**
- * @brief Get the largest thumbnail from a G-code file
+ * and Creality's "; png begin W*H SIZE" ... "; png end". Only the largest
+ * block is decoded.
  *
  * @param filepath Path to the G-code file
  * @return Largest thumbnail, or empty thumbnail if none found
  */
 GCodeThumbnail get_best_thumbnail(const std::string& filepath);
+
+/**
+ * @brief get_best_thumbnail() over G-code already in memory
+ *
+ * @param content G-code content (typically the first ~100KB of the file)
+ */
+GCodeThumbnail get_best_thumbnail_from_content(const std::string& content);
 
 /**
  * @brief Extract thumbnail and save to PNG file
@@ -898,14 +887,6 @@ bool save_thumbnail_to_file(const std::string& gcode_path, const std::string& ou
  * @return Path to cached PNG, or empty string if no thumbnail available
  */
 std::string get_cached_thumbnail(const std::string& gcode_path, const std::string& cache_dir);
-
-/**
- * @brief Decode base64 string to binary data
- *
- * @param encoded Base64 encoded string (may contain whitespace)
- * @return Decoded binary data
- */
-std::vector<uint8_t> base64_decode(const std::string& encoded);
 
 /**
  * @brief Basic metadata extracted from G-code header

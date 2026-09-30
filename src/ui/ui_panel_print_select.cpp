@@ -39,7 +39,7 @@
 #include "display_manager.h"
 #include "display_settings_manager.h"
 #include "format_utils.h"
-#include "gcode_parser.h" // For extract_thumbnails_from_content (USB thumbnail fallback)
+#include "gcode_parser.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix_fs.h"
 #include "i_moonraker_api.h"

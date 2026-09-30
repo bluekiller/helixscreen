@@ -1347,7 +1347,9 @@ ParsedGCodeFile GCodeParser::finalize(bool whole_file) {
 // ============================================================================
 
 // Base64 decoding table
-static const unsigned char base64_decode_table[256] = {
+namespace {
+
+const unsigned char base64_decode_table[256] = {
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     255, 255, 255, 255, 255, 62,  255, 255, 255, 63,  52,  53,  54,  55,  56,  57,  58,  59,  60,
@@ -1392,222 +1394,98 @@ std::vector<uint8_t> base64_decode(const std::string& encoded) {
     return result;
 }
 
-std::vector<GCodeThumbnail> extract_thumbnails(const std::string& filepath) {
-    std::vector<GCodeThumbnail> thumbnails;
+/// Scan header comments for embedded thumbnails ("; thumbnail begin WxH SIZE",
+/// or Creality's "; png begin W*H SIZE") and decode only the largest.
+template <typename NextLine>
+GCodeThumbnail scan_best_thumbnail(NextLine next_line, std::string_view source) {
+    GCodeThumbnail best;
+    std::string best_base64;
+    int width = 0, height = 0;
+    std::string base64;
+    bool in_block = false;
+    std::string line;
+    int lines_read = 0;
+    constexpr int max_header_lines = 2000; // Thumbnails should be in first ~2000 lines
 
+    while (lines_read < max_header_lines && next_line(line)) {
+        lines_read++;
+
+        size_t begin_pos = line.find("; thumbnail begin ");
+        size_t png_begin_pos = line.find("; png begin ");
+        if (begin_pos != std::string::npos || png_begin_pos != std::string::npos) {
+            const bool creality = begin_pos == std::string::npos;
+            const char* dims = line.c_str() + (creality ? png_begin_pos + 12 : begin_pos + 18);
+            int w = 0, h = 0, size = 0;
+            if (sscanf(dims, creality ? "%d*%d %d" : "%dx%d %d", &w, &h, &size) >= 2 &&
+                (!creality || (w > 0 && h > 0))) {
+                width = w;
+                height = h;
+                base64.clear();
+                in_block = true;
+                spdlog::debug("[GCode Parser] Found {}thumbnail {}x{} in {}",
+                              creality ? "Creality " : "", w, h, source);
+            }
+            continue;
+        }
+
+        if (in_block && (line.find("; thumbnail end") != std::string::npos ||
+                         line.find("; png end") != std::string::npos)) {
+            if (!base64.empty() && width * height > best.pixel_count()) {
+                best.width = width;
+                best.height = height;
+                best_base64.swap(base64);
+            }
+            in_block = false;
+            continue;
+        }
+
+        // Accumulate base64 data (lines start with "; ")
+        if (in_block && line.size() > 2 && line[0] == ';' && line[1] == ' ') {
+            base64 += line.substr(2);
+        }
+
+        // Stop at the first G-code command: thumbnails live in the header
+        if (!line.empty() && (line[0] == 'G' || line[0] == 'M' || line[0] == 'T')) {
+            break;
+        }
+    }
+
+    if (!best_base64.empty()) {
+        best.png_data = base64_decode(best_base64);
+    }
+    if (best.png_data.empty()) {
+        best = GCodeThumbnail();
+    }
+    spdlog::debug("[GCode Parser] Best thumbnail {}x{} ({} bytes) from {}", best.width, best.height,
+                  best.png_data.size(), source);
+    return best;
+}
+
+} // namespace
+
+GCodeThumbnail get_best_thumbnail(const std::string& filepath) {
     helix::text_io::LineReader file(filepath);
     if (!file) {
         spdlog::warn("[GCode Parser] Cannot open G-code file for thumbnail extraction: {}",
                      filepath);
-        return thumbnails;
+        return {};
     }
-
-    std::string line;
-    GCodeThumbnail current_thumb;
-    std::string base64_data;
-    bool in_thumbnail_block = false;
-    int lines_read = 0;
-    constexpr int max_header_lines = 2000; // Thumbnails should be in first ~2000 lines
-
-    while (file.next(line) && lines_read < max_header_lines) {
-        lines_read++;
-
-        // Look for thumbnail begin marker
-        // Format: "; thumbnail begin WIDTHxHEIGHT SIZE"
-        size_t begin_pos = line.find("; thumbnail begin ");
-        if (begin_pos != std::string::npos) {
-            // Parse dimensions: "WIDTHxHEIGHT SIZE"
-            std::string dims = line.substr(begin_pos + 18);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%dx%d %d", &w, &h, &size) >= 2) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 +
-                                        100); // Estimate base64 size
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found thumbnail {}x{} in {}", w, h, filepath);
-            }
-            continue;
-        }
-
-        // Creality format: "; png begin W*H SIZE ..."
-        size_t png_begin_pos = line.find("; png begin ");
-        if (png_begin_pos != std::string::npos) {
-            std::string dims = line.substr(png_begin_pos + 12);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%d*%d %d", &w, &h, &size) >= 2 && w > 0 && h > 0) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 + 100);
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found Creality thumbnail {}x{} in {}", w, h,
-                              filepath);
-            }
-            continue;
-        }
-
-        // Creality end marker: "; png end"
-        if (in_thumbnail_block && line.find("; png end") != std::string::npos) {
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Look for thumbnail end marker
-        if (in_thumbnail_block && line.find("; thumbnail end") != std::string::npos) {
-            // Decode accumulated base64 data
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Accumulate base64 data (lines start with "; ")
-        if (in_thumbnail_block && line.size() > 2 && line[0] == ';' && line[1] == ' ') {
-            base64_data += line.substr(2);
-        }
-
-        // Stop if we hit actual G-code (not header comments)
-        if (!line.empty() && line[0] != ';' && line[0] != '\r' && line[0] != '\n') {
-            // Check if it's a G-code command
-            if (line[0] == 'G' || line[0] == 'M' || line[0] == 'T') {
-                break; // Past header, stop searching
-            }
-        }
-    }
-
-    // Sort by pixel count (largest first)
-    std::sort(thumbnails.begin(), thumbnails.end(),
-              [](const GCodeThumbnail& a, const GCodeThumbnail& b) {
-                  return a.pixel_count() > b.pixel_count();
-              });
-
-    spdlog::info("[GCode Parser] Extracted {} thumbnails from {}", thumbnails.size(), filepath);
-    return thumbnails;
+    return scan_best_thumbnail([&file](std::string& line) { return file.next(line); }, filepath);
 }
 
-std::vector<GCodeThumbnail> extract_thumbnails_from_content(const std::string& content) {
-    std::vector<GCodeThumbnail> thumbnails;
-
-    GCodeThumbnail current_thumb;
-    std::string base64_data;
-    bool in_thumbnail_block = false;
-    int lines_read = 0;
-    constexpr int max_header_lines = 2000; // Thumbnails should be in first ~2000 lines
-
-    for (std::string_view line_view : helix::text_io::lines(content)) {
-        if (lines_read >= max_header_lines) {
-            break;
-        }
-        const std::string line(line_view);
-        lines_read++;
-
-        // Look for thumbnail begin marker
-        // Format: "; thumbnail begin WIDTHxHEIGHT SIZE"
-        size_t begin_pos = line.find("; thumbnail begin ");
-        if (begin_pos != std::string::npos) {
-            // Parse dimensions: "WIDTHxHEIGHT SIZE"
-            std::string dims = line.substr(begin_pos + 18);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%dx%d %d", &w, &h, &size) >= 2) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 +
-                                        100); // Estimate base64 size
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found thumbnail {}x{} in content", w, h);
-            }
-            continue;
-        }
-
-        // Creality format: "; png begin W*H SIZE ..."
-        size_t png_begin_pos = line.find("; png begin ");
-        if (png_begin_pos != std::string::npos) {
-            std::string dims = line.substr(png_begin_pos + 12);
-            int w = 0, h = 0, size = 0;
-            if (sscanf(dims.c_str(), "%d*%d %d", &w, &h, &size) >= 2 && w > 0 && h > 0) {
-                current_thumb = GCodeThumbnail();
-                current_thumb.width = w;
-                current_thumb.height = h;
-                base64_data.clear();
-                if (size > 0) {
-                    base64_data.reserve(static_cast<size_t>(size) * 4 / 3 + 100);
-                }
-                in_thumbnail_block = true;
-                spdlog::debug("[GCode Parser] Found Creality thumbnail {}x{} in content", w, h);
-            }
-            continue;
-        }
-
-        // Creality end marker: "; png end"
-        if (in_thumbnail_block && line.find("; png end") != std::string::npos) {
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Look for thumbnail end marker
-        if (in_thumbnail_block && line.find("; thumbnail end") != std::string::npos) {
-            // Decode accumulated base64 data
-            current_thumb.png_data = base64_decode(base64_data);
-            if (!current_thumb.png_data.empty()) {
-                thumbnails.push_back(std::move(current_thumb));
-            }
-            in_thumbnail_block = false;
-            continue;
-        }
-
-        // Accumulate base64 data (lines start with "; ")
-        if (in_thumbnail_block && line.size() > 2 && line[0] == ';' && line[1] == ' ') {
-            base64_data += line.substr(2);
-        }
-
-        // Stop if we hit actual G-code (not header comments)
-        if (!line.empty() && line[0] != ';' && line[0] != '\r' && line[0] != '\n') {
-            // Check if it's a G-code command
-            if (line[0] == 'G' || line[0] == 'M' || line[0] == 'T') {
-                break; // Past header, stop searching
-            }
-        }
-    }
-
-    // Sort by pixel count (largest first)
-    std::sort(thumbnails.begin(), thumbnails.end(),
-              [](const GCodeThumbnail& a, const GCodeThumbnail& b) {
-                  return a.pixel_count() > b.pixel_count();
-              });
-
-    spdlog::info("[GCode Parser] Extracted {} thumbnails from content ({} lines)",
-                 thumbnails.size(), lines_read);
-    return thumbnails;
-}
-
-GCodeThumbnail get_best_thumbnail(const std::string& filepath) {
-    auto thumbnails = extract_thumbnails(filepath);
-    if (thumbnails.empty()) {
-        return GCodeThumbnail(); // Empty thumbnail
-    }
-    return std::move(thumbnails[0]); // Largest one (already sorted)
+GCodeThumbnail get_best_thumbnail_from_content(const std::string& content) {
+    auto records = helix::text_io::lines(content);
+    auto it = records.begin();
+    const auto end = records.end();
+    return scan_best_thumbnail(
+        [&](std::string& line) {
+            if (it == end)
+                return false;
+            line.assign(it->data(), it->size());
+            ++it;
+            return true;
+        },
+        "content");
 }
 
 bool save_thumbnail_to_file(const std::string& gcode_path, const std::string& output_path) {
