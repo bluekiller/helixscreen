@@ -2838,10 +2838,17 @@ EOF
 own_endpoint_http_offenders() {
     local root="$1" f
     for f in update_checker telemetry_manager crash_reporter; do
-        grep -nE '^[^/]*requests::' "$root/src/system/$f.cpp" | sed "s|^|$f.cpp:|"
+        grep -nE '^[^/]*(requests::|HttpClient)' "$root/src/system/$f.cpp" | sed "s|^|$f.cpp:|"
+    done
+    # Any other file naming one of our hosts must reach it through trusted_*.
+    grep -rlE 'helixscreen\.org|api\.github\.com|github(usercontent)?\.com/prestonbrown' \
+        "$root/src" | while read -r f; do
+        if grep -qE '^[^/]*(requests::|HttpClient)' "$f" && ! grep -q 'tls::trusted_' "$f"; then
+            echo "${f#"$root"/}: names one of our hosts but sends without tls::trusted_*"
+        fi
     done
     awk '/= worker_url\(\);|= WORKER_URL;/ { on = 1; seen = 1 }
-         on && /^[^\/]*requests::/ { print "debug_bundle_collector.cpp:" FNR ": " $0 }
+         on && /^[^\/]*(requests::|HttpClient)/ { print "debug_bundle_collector.cpp:" FNR ": " $0 }
          on && /^}/ { on = 0 }
          END { if (!seen) print "debug_bundle_collector.cpp: upload to WORKER_URL not found" }' \
         "$root/src/system/debug_bundle_collector.cpp"
@@ -2858,13 +2865,22 @@ own_endpoint_http_offenders() {
     mkdir -p "$d"
     printf '    // requests::request is fine in a comment\n' > "$d/update_checker.cpp"
     printf '    auto r = requests::request(req);\n' > "$d/telemetry_manager.cpp"
-    : > "$d/crash_reporter.cpp"
+    printf '    hv::HttpClient cli;\n' > "$d/crash_reporter.cpp"
+    mkdir -p "$d/../ui"
+    printf 'auto u = "https://api.github.com/x";\nauto r = requests::get(u);\n' > "$d/../ui/rogue.cpp"
+    printf 'auto u = "https://helixscreen.org/x";\nauto r = helix::tls::trusted_request(q);\n' \
+        > "$d/../ui/fine.cpp"
+    printf 'auto u = "https://helixscreen.org/docs";\n' > "$d/../ui/link_only.cpp"
     printf 'int f() {\n    auto r = requests::request(req);\n}\nvoid up() {\n    const std::string url = worker_url();\n    auto r = requests::request(req);\n}\n' \
         > "$d/debug_bundle_collector.cpp"
     run own_endpoint_http_offenders "${BATS_TEST_TMPDIR}/offender"
     [ "$status" -eq 0 ]
     contains "telemetry_manager.cpp" "$output"
     contains "debug_bundle_collector.cpp:6" "$output"
+    contains "crash_reporter.cpp" "$output"
+    contains "src/ui/rogue.cpp" "$output"
+    lacks "fine.cpp" "$output"
+    lacks "link_only.cpp" "$output"
     lacks "update_checker.cpp" "$output"
     lacks "debug_bundle_collector.cpp:2" "$output"
 }

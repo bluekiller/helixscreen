@@ -52,6 +52,9 @@ size_t trusted_download(const std::string& url, const std::string& path,
                         const std::function<void(size_t received, size_t total)>& progress);
 
 namespace detail {
+/// `location` from a redirect response, resolved against the URL that returned it.
+std::string resolve_location(const std::string& current_url, const std::string& location);
+
 /// trusted_request() with an explicit context, for tests.
 HttpResponsePtr trusted_request(const HttpRequestPtr& req, void* ssl_ctx);
 } // namespace detail

@@ -10,6 +10,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <unistd.h>
 
 #ifdef WITH_OPENSSL
@@ -63,8 +64,9 @@ int verify_cb(int ok, X509_STORE_CTX* store) {
         return 1;
 
     X509* leaf = X509_STORE_CTX_get_current_cert(store);
-    const bool match = name ? X509_check_host(leaf, name, 0, 0, nullptr) == 1
-                            : !host.empty() && X509_check_ip_asc(leaf, host.c_str(), 0) == 1;
+    const bool match =
+        name ? X509_check_host(leaf, name, 0, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS, nullptr) == 1
+             : !host.empty() && X509_check_ip_asc(leaf, host.c_str(), 0) == 1;
     if (!match) {
         X509_STORE_CTX_set_error(store, X509_V_ERR_HOSTNAME_MISMATCH);
         spdlog::error("[TLS] Certificate does not match host '{}'", host);
@@ -82,7 +84,10 @@ CaStore find_ca_store(const std::vector<std::string>& system_files,
     CaStore env;
     if (const char* f = std::getenv("SSL_CERT_FILE"); readable(f))
         env.file = f;
-    if (const char* d = std::getenv("SSL_CERT_DIR"); readable(d))
+    // An empty directory trusts nothing, which would fail every request closed.
+    std::error_code ec;
+    if (const char* d = std::getenv("SSL_CERT_DIR");
+        readable(d) && !std::filesystem::is_empty(d, ec) && !ec)
         env.dir = d;
     if (!env.empty())
         return env;
@@ -125,6 +130,23 @@ void* make_client_ctx(const CaStore& store) {
 
 namespace detail {
 
+std::string resolve_location(const std::string& current_url, const std::string& location) {
+    if (location.find("://") != std::string::npos)
+        return location;
+    const size_t scheme_end = current_url.find("://");
+    if (scheme_end == std::string::npos)
+        return location;
+    if (location.rfind("//", 0) == 0)
+        return current_url.substr(0, scheme_end + 1) + location;
+    const size_t path_start = current_url.find_first_of("/?#", scheme_end + 3);
+    const std::string origin = current_url.substr(0, path_start);
+    if (location.rfind('/', 0) == 0)
+        return origin + location;
+    std::string path = path_start == std::string::npos ? "/" : current_url.substr(path_start);
+    path = path.substr(0, path.find_first_of("?#"));
+    return origin + path.substr(0, path.rfind('/') + 1) + location;
+}
+
 HttpResponsePtr trusted_request(const HttpRequestPtr& req, void* ssl_ctx) {
     // libhv follows a redirect on a fresh default client, which would drop the
     // verifying context, so redirects are followed here instead.
@@ -140,11 +162,23 @@ HttpResponsePtr trusted_request(const HttpRequestPtr& req, void* ssl_ctx) {
         const std::string location = resp->GetHeader("Location");
         if (!HTTP_STATUS_IS_REDIRECT(resp->status_code) || location.empty())
             return resp;
-        req->url = location;
+        const bool was_https = req->IsHttps();
+        const std::string old_origin =
+            req->scheme + "://" + req->host + ":" + std::to_string(req->port);
+        req->url = resolve_location(req->url, location);
+        req->headers.erase("Host"); // ParseUrl() refills it, with any non-default port
         req->ParseUrl();
+        if (was_https && !req->IsHttps()) {
+            spdlog::warn("[TLS] Refusing redirect from https to plain http ({})", req->host);
+            return nullptr;
+        }
+        // Credentials belong to the origin they were issued for, not to a redirect target.
+        if (req->scheme + "://" + req->host + ":" + std::to_string(req->port) != old_origin) {
+            for (const char* h : {"X-API-Key", "Authorization", "Cookie", "Proxy-Authorization"})
+                req->headers.erase(h);
+        }
         // The host only: a redirect URL can carry a signed, short-lived download token.
         spdlog::debug("[TLS] Following redirect to {}", req->host);
-        req->headers["Host"] = req->host;
         resp->Reset();
     }
     spdlog::warn("[TLS] Too many redirects fetching {}", req->url);
