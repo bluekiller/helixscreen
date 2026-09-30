@@ -66,7 +66,6 @@ UI entry points:
 | `src/ui/ui_exclude_object_side_list.cpp` | List population, tap-to-exclude |
 | `include/ui_exclude_object_map_view.h` | Object map view with 3D selection brackets |
 | `src/ui/ui_exclude_object_map_view.cpp` | Map rendering and hit-testing |
-| `include/gcode_renderer.h` | 2D renderer with excluded object visual style |
 | `src/api/moonraker_motion_api.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
 | `src/api/moonraker_client_mock.cpp` | Mock mode: EXCLUDE_OBJECT handling and status dispatch |
 

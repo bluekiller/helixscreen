@@ -41,8 +41,6 @@
 #include "gcode_gles_renderer.h"
 #define ENABLE_3D_RENDERER
 using GCode3DRenderer = helix::gcode::GCodeGLESRenderer;
-#else
-#include "gcode_renderer.h"
 #endif
 
 // FPS tracking constants (for diagnostic logging, not mode selection)
@@ -89,7 +87,6 @@ class GCodeViewerState {
         renderer_ = std::make_unique<GCode3DRenderer>();
         spdlog::debug("[GCode Viewer] 3D renderer available");
 #else
-        renderer_ = std::make_unique<helix::gcode::GCodeRenderer>();
         spdlog::debug("[GCode Viewer] Using LVGL 2D renderer (3D disabled)");
 #endif
 
@@ -254,8 +251,6 @@ class GCodeViewerState {
     std::unique_ptr<helix::gcode::GCodeCamera> camera_;
 #ifdef ENABLE_3D_RENDERER
     std::unique_ptr<GCode3DRenderer> renderer_;
-#else
-    std::unique_ptr<helix::gcode::GCodeRenderer> renderer_;
 #endif
 
     // Gesture state
@@ -418,15 +413,10 @@ class GCodeViewerState {
         return render_mode_ == GcodeViewerRenderMode::Layer2D || budget_forced_2d_ ||
                gpu_3d_blocked_;
 #else
-        // Without a 3D renderer there is no 3D mode, full stop.
-        //
-        // This used to read `render_mode_ != Render3D`, which left a hole: the
-        // settings UI removes the "3D View" option on these builds, but
-        // ui_gcode_viewer_set_render_mode() has no availability guard, so a
-        // stored display/gcode_render_mode of 1 - migrated, hand-edited, or
-        // copied from a device that does have GLES - still selected it. The
-        // fallback it reached was the legacy CPU wireframe, which no user has
-        // deliberately chosen in a long time.
+        // Without a 3D renderer there is no 3D mode, full stop. A stored
+        // display/gcode_render_mode of 3D (copied from a GLES device, or
+        // hand-edited) must still land here: ui_gcode_viewer_set_render_mode()
+        // has no availability guard.
         return true;
 #endif
     }
@@ -913,7 +903,9 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
                 state->ghost_progress_label_ = nullptr;
             });
         }
-    } else {
+    }
+#ifdef ENABLE_3D_RENDERER
+    else {
         // 3D GLES Renderer (isometric ribbon view)
         if (!st->gcode_file) {
             return; // No ParsedGCodeFile (streaming mode) — 3D renderer needs full geometry
@@ -922,7 +914,6 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
                                             lv_area_get_height(&widget_coords));
         st->renderer_->render(layer, *st->gcode_file, *st->camera_, &widget_coords);
 
-#ifdef ENABLE_3D_RENDERER
         // The GPU path is unusable on this device — either GL never came up, or
         // a draw batch returned a fatal error (out-of-memory /
         // invalid-operation) and continuing risks a driver crash. Degrade to the
@@ -961,8 +952,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
             helix::ui::async_call(
                 obj, [](void* data) { lv_obj_invalidate(static_cast<lv_obj_t*>(data)); }, obj);
         }
-#endif
     }
+#endif
 
     // Fire the one-shot first-frame callback once the viewer has real content
     // on its canvas (not during VBO upload, not on a skipped/failed frame).
@@ -988,8 +979,7 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
             }
         } else {
 #ifdef ENABLE_3D_RENDERER
-            // is_uploading() (VBO upload in progress) exists only on GCode3DRenderer;
-            // the non-GLES base GCodeRenderer has no such concept.
+            // is_uploading(): VBO upload in progress, no frame on the canvas yet.
             if (st->renderer_ && st->renderer_->is_uploading())
                 frame_complete = false;
 #endif
@@ -1136,9 +1126,11 @@ static void gcode_viewer_press_cb(lv_event_t* e) {
                   st->is_dragging);
 
     // Enter interaction mode for reduced resolution during drag
+#ifdef ENABLE_3D_RENDERER
     if (st->renderer_) {
         st->renderer_->set_interaction_mode(true);
     }
+#endif
 
     // Start long-press timer if callback is registered
     if (st->object_long_press_callback && has_gcode_data(st)) {
@@ -1335,9 +1327,11 @@ static void gcode_viewer_release_cb(lv_event_t* e) {
     st->is_dragging = false;
 
     // Exit interaction mode to restore full resolution for final frame
+#ifdef ENABLE_3D_RENDERER
     if (st->renderer_) {
         st->renderer_->set_interaction_mode(false);
     }
+#endif
 
     // Always render final frame on release to ensure camera settles at correct position
     // (throttling during drag may have skipped the last frame)
@@ -1412,7 +1406,9 @@ static void gcode_viewer_size_changed_cb(lv_event_t* e) {
 
     // Update camera and renderer viewport to match new size
     st->camera_->set_viewport_size(width, height);
+#ifdef ENABLE_3D_RENDERER
     st->renderer_->set_viewport_size(width, height);
+#endif
 
     // Also update 2D renderer if initialized
     if (st->layer_renderer_2d_) {
@@ -1640,7 +1636,9 @@ lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent) {
 
     if (width > 0 && height > 0) {
         st->camera_->set_viewport_size(width, height);
+#ifdef ENABLE_3D_RENDERER
         st->renderer_->set_viewport_size(width, height);
+#endif
         spdlog::debug("[GCode Viewer] INIT: viewport={}x{}, aspect={:.3f}", width, height,
                       (float)width / (float)height);
     } else {
@@ -2143,7 +2141,9 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     const auto file_colors = helix::gcode::classify_file_colors(
                         st->gcode_file->tool_color_palette, st->gcode_file->filament_color_hex);
                     if (st->has_external_color_override) {
+#ifdef ENABLE_3D_RENDERER
                         st->renderer_->set_extrusion_color(st->external_color_override);
+#endif
                         if (st->layer_renderer_2d_) {
                             st->layer_renderer_2d_->set_extrusion_color(
                                 st->external_color_override);
@@ -2154,7 +2154,9 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                         uint32_t rgb = 0;
                         if (helix::parse_hex_color(file_colors.single_color.c_str(), rgb)) {
                             const lv_color_t color = lv_color_hex(rgb);
+#ifdef ENABLE_3D_RENDERER
                             st->renderer_->set_extrusion_color(color);
+#endif
                             if (st->layer_renderer_2d_) {
                                 st->layer_renderer_2d_->set_extrusion_color(color);
                             }
@@ -2529,7 +2531,9 @@ void ui_gcode_viewer_set_show_travels(lv_obj_t* obj, bool show) {
     if (!st)
         return;
 
+#ifdef ENABLE_3D_RENDERER
     st->renderer_->set_show_travels(show);
+#endif
 
     // Also update 2D renderer if initialized
     if (st->layer_renderer_2d_) {
@@ -2545,7 +2549,9 @@ void ui_gcode_viewer_set_highlighted_objects(lv_obj_t* obj,
     if (!st)
         return;
 
+#ifdef ENABLE_3D_RENDERER
     st->renderer_->set_highlighted_objects(object_names);
+#endif
     if (st->layer_renderer_2d_) {
         st->layer_renderer_2d_->set_highlighted_objects(object_names);
     }
@@ -2564,7 +2570,9 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
     }
 
     st->excluded_objects = object_names;
+#ifdef ENABLE_3D_RENDERER
     st->renderer_->set_excluded_objects(object_names);
+#endif
     if (st->layer_renderer_2d_) {
         st->layer_renderer_2d_->set_excluded_objects(object_names);
     }
@@ -2609,7 +2617,9 @@ void ui_gcode_viewer_set_extrusion_color(lv_obj_t* obj, lv_color_t color) {
     st->has_external_color_override = true;
     st->external_color_override = color;
 
+#ifdef ENABLE_3D_RENDERER
     st->renderer_->set_extrusion_color(color);
+#endif
     if (st->layer_renderer_2d_) {
         st->layer_renderer_2d_->set_extrusion_color(color);
     }
@@ -2757,8 +2767,9 @@ void ui_gcode_viewer_set_print_progress(lv_obj_t* obj, int current_layer) {
         return;
     }
 
-    // Update 3D renderer
+#ifdef ENABLE_3D_RENDERER
     st->renderer_->set_print_progress_layer(current_layer);
+#endif
 
     // Note: 2D renderer's current_layer is set in the render callback
     // using print_progress_layer_, so we just need to invalidate.
@@ -2770,12 +2781,15 @@ void ui_gcode_viewer_set_ghost_mode(lv_obj_t* obj, int mode) {
     if (!st)
         return;
 
+#ifdef ENABLE_3D_RENDERER
     // Map int to enum (0=Dimmed, 1=Stipple)
     helix::gcode::GhostRenderMode render_mode = (mode == 1) ? helix::gcode::GhostRenderMode::Stipple
                                                             : helix::gcode::GhostRenderMode::Dimmed;
-
     st->renderer_->set_ghost_render_mode(render_mode);
     lv_obj_invalidate(obj);
+#else
+    (void)mode;
+#endif
 }
 
 /// Drop the reference when the strip is destroyed, so a later draw cannot
@@ -2895,8 +2909,11 @@ int ui_gcode_viewer_get_max_layer(lv_obj_t* obj) {
         return st->layer_renderer_2d_->get_layer_count() - 1;
     }
 
-    // Fallback to 3D renderer
+#ifdef ENABLE_3D_RENDERER
     return st->renderer_->get_max_layer_index();
+#else
+    return -1;
+#endif
 }
 
 // ==============================================
@@ -3060,11 +3077,14 @@ const char* ui_gcode_viewer_pick_object(lv_obj_t* obj, int x, int y) {
     // Use 2D renderer's pick_object_at in 2D mode
     if (st->is_using_2d_mode() && st->layer_renderer_2d_) {
         result = st->layer_renderer_2d_->pick_object_at(local_x, local_y);
-    } else if (st->renderer_ && st->gcode_file) {
+    }
+#ifdef ENABLE_3D_RENDERER
+    else if (st->renderer_ && st->gcode_file) {
         // 3D renderer path (requires full gcode file)
         result =
             st->renderer_->pick_object(glm::vec2(local_x, local_y), *st->gcode_file, *st->camera_);
     }
+#endif
 
     if (result) {
         // Store in static buffer (safe for single-threaded LVGL)

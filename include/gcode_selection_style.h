@@ -5,18 +5,13 @@
  * @file gcode_selection_style.h
  * @brief The single answer to "how does a selected or excluded object look".
  *
- * Three renderers draw G-code, and each one used to decide this for itself:
- *   - GCodeLayerRenderer  (2D isometric, all platforms)
+ * Two renderers draw G-code:
+ *   - GCodeLayerRenderer  (2D isometric, all platforms, and the only renderer on
+ *                          every non-GLES target: ad5m, ad5x, cc1, k1, k2, u1)
  *   - GCodeGLESRenderer   (3D, ENABLE_GLES_3D targets only: pi*, x86*)
- *   - GCodeRenderer       (3D CPU wireframe, every non-GLES target, which is
- *                          every embedded printer: ad5m, ad5x, cc1, k1, k2, u1)
  *
- * They disagreed: selection blue in the 2D cache path, theme "success" green in
- * the CPU wireframe, nothing at all in the GLES path, and a dead 1.8x brightness
- * bake in the geometry builder. Bracket color was 0xC0C0C0 in 2D and a
- * hand-written 0.75f in 3D under a comment claiming the two matched.
- *
- * This header owns the decision. Emission stays with each renderer, exactly like
+ * This header owns the decision, so both draw a selected or excluded object the
+ * same way. Emission stays with each renderer, exactly like
  * AABB::for_each_bracket_arm() owns the bracket geometry while the renderers
  * differ in how they draw the resulting segments.
  *
