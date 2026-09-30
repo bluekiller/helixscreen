@@ -71,8 +71,6 @@ static constexpr int ALL_UNITS = -1;
 
 // Logo path mapping moved to AmsState::get_logo_path()
 
-// Voron printer check moved to PrinterDetector::is_voron_printer()
-
 // Lazy registration flag - widgets and XML registered on first use
 static bool s_ams_widgets_registered = false;
 
