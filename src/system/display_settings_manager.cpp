@@ -176,12 +176,49 @@ static int validate_timeout_option(int value, const int (&options)[N], int defau
     return nearest;
 }
 
+// Page-scroll buttons: opt-in on desktop/embedded Linux; on by default on ESP32,
+// where finger-drag scrolling is too slow on that panel.
+#if defined(ESP_PLATFORM)
+static constexpr int PAGE_SCROLL_DEFAULT = 1;
+#else
+static constexpr int PAGE_SCROLL_DEFAULT = 0;
+#endif
+
+using settings::Scope;
+// Row order is DisplaySettingsManager::Key.
+static constexpr settings::PersistedSetting DISPLAY_SETTINGS[] = {
+    {"settings_sleep_while_printing", "/display/sleep_while_printing", Scope::Global, true, 1, 0, 1,
+     nullptr},
+    // Minimum 10% prevents a black screen; DisplayManager drives the hardware.
+    {"settings_brightness", "/brightness", Scope::Global, false, 80, 10, 100, nullptr},
+    {"settings_use_system_keyboard", "/display/use_system_keyboard", Scope::Global, true, 0, 0, 1,
+     nullptr},
+    // Opt-in: an unlisted barcode scanner is a HID keyboard too.
+    {"settings_hide_keyboard_with_hardware", "/display/hide_keyboard_with_hardware", Scope::Global,
+     true, 0, 0, 1, nullptr},
+    {"settings_page_scroll_buttons", "/display/page_scroll_buttons", Scope::Global, true,
+     PAGE_SCROLL_DEFAULT, 0, 1, nullptr},
+    {"settings_speed_flow_physical_units", "/display/speed_flow_physical_units", Scope::Global,
+     true, 0, 0, 1, nullptr},
+    // Android only (#908)
+    {"settings_keep_navbar_visible", "/display/keep_navbar_visible", Scope::Global, true, 0, 0, 1,
+     nullptr},
+    // 0=Auto, 1=3D, 2=2D
+    {"settings_bed_mesh_render_mode", "/display/bed_mesh_render_mode", Scope::Global, false, 0, 0,
+     2, nullptr},
+    // 0=Auto, 1=3D, 2=2D, 3=Thumbnail Only
+    {"settings_gcode_render_mode", "/display/gcode_render_mode", Scope::Global, false, 0, 0, 3,
+     nullptr},
+    // 0=12H, 1=24H
+    {"settings_time_format", "/display/time_format", Scope::Global, false, 0, 0, 1, nullptr},
+};
+
 DisplaySettingsManager& DisplaySettingsManager::instance() {
     static DisplaySettingsManager instance;
     return instance;
 }
 
-DisplaySettingsManager::DisplaySettingsManager() {
+DisplaySettingsManager::DisplaySettingsManager() : settings_(DISPLAY_SETTINGS) {
     spdlog::trace("[DisplaySettingsManager] Constructor");
 }
 
@@ -227,11 +264,7 @@ void DisplaySettingsManager::init_subjects() {
 
     UI_MANAGED_SUBJECT_INT(display_sleep_subject_, sleep_sec, "settings_display_sleep", subjects_);
 
-    // Brightness: Read from config (DisplayManager handles hardware)
-    int brightness = config->get<int>("/brightness", 80);
-    brightness = std::clamp(brightness, 10, 100);
-    UI_MANAGED_SUBJECT_INT(brightness_subject_, brightness, "settings_brightness", subjects_);
-    spdlog::debug("[DisplaySettingsManager] Brightness initialized to {}%", brightness);
+    settings_.init(subjects_);
 
     // Has backlight control subject (for UI visibility) - check DisplayManager
     bool has_backlight = false;
@@ -253,11 +286,6 @@ void DisplaySettingsManager::init_subjects() {
     // screensaver_type subject is initialized below — on no-backlight devices an
     // enabled screensaver requires the coupling too (#1049), and
     // should_couple_sleep_to_dim() reads that subject.
-
-    // Sleep while printing (default: true = allow sleep during prints)
-    bool sleep_while_printing = config->get<bool>("/display/sleep_while_printing", true);
-    UI_MANAGED_SUBJECT_INT(sleep_while_printing_subject_, sleep_while_printing ? 1 : 0,
-                           "settings_sleep_while_printing", subjects_);
 
     // Animations enabled. Default from platform tier, but software-rotated
     // displays (fbdev + rotation) can't animate smoothly, so the default is
@@ -290,44 +318,12 @@ void DisplaySettingsManager::init_subjects() {
         },
         get_subjects_lifetime());
 
-    // System keyboard preference (default: off — use built-in LVGL keyboard)
-    bool sys_kb = config->get<bool>("/display/use_system_keyboard", false);
-    UI_MANAGED_SUBJECT_INT(use_system_keyboard_subject_, sys_kb ? 1 : 0,
-                           "settings_use_system_keyboard", subjects_);
-
-    // Hide the on-screen keyboard while a hardware keyboard is attached (default:
-    // off). An unlisted barcode scanner is a HID keyboard too, so this is opt-in.
-    bool hide_kb = config->get<bool>("/display/hide_keyboard_with_hardware", false);
-    UI_MANAGED_SUBJECT_INT(hide_keyboard_with_hardware_subject_, hide_kb ? 1 : 0,
-                           "settings_hide_keyboard_with_hardware", subjects_);
     // Presence is ephemeral: it is whatever the display backend opened this run.
     UI_MANAGED_SUBJECT_INT(hardware_keyboard_present_subject_, hardware_keyboard_present_ ? 1 : 0,
                            "settings_hardware_keyboard_present", subjects_);
 
-    // Page-scroll buttons. Desktop/embedded-Linux default: off (opt-in). ESP32
-    // default: on — finger-drag scrolling is too slow on that panel, so the
-    // buttons are the usable path. An explicit user setting always wins.
-#if defined(ESP_PLATFORM)
-    constexpr bool page_scroll_default = true;
-#else
-    constexpr bool page_scroll_default = false;
-#endif
-    bool page_scroll = config->exists("/display/page_scroll_buttons")
-                           ? config->get<bool>("/display/page_scroll_buttons", page_scroll_default)
-                           : page_scroll_default;
-    UI_MANAGED_SUBJECT_INT(page_scroll_buttons_subject_, page_scroll ? 1 : 0,
-                           "settings_page_scroll_buttons", subjects_);
-
-    bool physical_units = config->get<bool>("/display/speed_flow_physical_units", false);
-    UI_MANAGED_SUBJECT_INT(speed_flow_physical_units_subject_, physical_units ? 1 : 0,
-                           "settings_speed_flow_physical_units", subjects_);
-
-    // Keep navbar onscreen preference (Android only, issue #908, default: off)
-    bool keep_navbar = config->get<bool>("/display/keep_navbar_visible", false);
-    UI_MANAGED_SUBJECT_INT(keep_navbar_visible_subject_, keep_navbar ? 1 : 0,
-                           "settings_keep_navbar_visible", subjects_);
 #ifdef __ANDROID__
-    android_set_navbar_always_visible(keep_navbar);
+    android_set_navbar_always_visible(get_keep_navbar_visible());
 #endif
 
     // Platform flag for XML conditional visibility (ephemeral, not persisted)
@@ -339,23 +335,6 @@ void DisplaySettingsManager::init_subjects() {
     // the dropdown is seeded from config when the overlay activates.
     UI_MANAGED_SUBJECT_INT(rotation_available_subject_, rotation_setting_available() ? 1 : 0,
                            "settings_rotation_available", subjects_);
-
-    // Bed mesh render mode (default: 0 = Auto)
-    int bed_mesh_mode = config->get<int>("/display/bed_mesh_render_mode", 0);
-    bed_mesh_mode = std::clamp(bed_mesh_mode, 0, 2);
-    UI_MANAGED_SUBJECT_INT(bed_mesh_render_mode_subject_, bed_mesh_mode,
-                           "settings_bed_mesh_render_mode", subjects_);
-
-    // G-code render mode (default: 0 = Auto)
-    int gcode_mode = config->get<int>("/display/gcode_render_mode", 0);
-    gcode_mode = std::clamp(gcode_mode, 0, 3);
-    UI_MANAGED_SUBJECT_INT(gcode_render_mode_subject_, gcode_mode, "settings_gcode_render_mode",
-                           subjects_);
-
-    // Time format (default: 0 = 12-hour)
-    int time_format = config->get<int>("/display/time_format", 0);
-    time_format = std::clamp(time_format, 0, 1);
-    UI_MANAGED_SUBJECT_INT(time_format_subject_, time_format, "settings_time_format", subjects_);
 
     // Timezone (default: "UTC")
     std::string tz = config->get<std::string>("/display/timezone", "UTC");
@@ -428,8 +407,8 @@ void DisplaySettingsManager::init_subjects() {
         "DisplaySettingsManager", []() { DisplaySettingsManager::instance().deinit_subjects(); });
 
     spdlog::debug("[DisplaySettingsManager] Subjects initialized: dark_mode={}, theme={}, "
-                  "dim={}s, sleep={}s, brightness={}, animations={}",
-                  dark_mode, get_theme_name(), dim_sec, sleep_sec, brightness, animations);
+                  "dim={}s, sleep={}s, animations={}",
+                  dark_mode, get_theme_name(), dim_sec, sleep_sec, animations);
 }
 
 void DisplaySettingsManager::deinit_subjects() {
@@ -639,15 +618,11 @@ void DisplaySettingsManager::set_display_sleep_sec(int seconds) {
     spdlog::debug("[DisplaySettingsManager] Display sleep set to {}s", seconds);
 }
 
-int DisplaySettingsManager::get_brightness() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&brightness_subject_));
-}
-
 int DisplaySettingsManager::preview_brightness(int percent) {
     // Clamp to valid range (10-100, minimum 10% to prevent black screen)
     int clamped = std::clamp(percent, 10, 100);
 
-    lv_subject_set_int(&brightness_subject_, clamped);
+    lv_subject_set_int(settings_.subject(Key::Brightness), clamped);
 
     if (auto* dm = DisplayManager::instance()) {
         dm->set_backlight_brightness(clamped);
@@ -660,12 +635,10 @@ int DisplaySettingsManager::preview_brightness(int percent) {
 }
 
 void DisplaySettingsManager::set_brightness(int percent) {
-    int clamped = preview_brightness(percent);
-    spdlog::info("[DisplaySettingsManager] set_brightness({})", clamped);
-
-    Config* config = Config::get_instance();
-    config->set<int>("/brightness", clamped);
-    config->save();
+    settings_.set(Key::Brightness, percent);
+    if (auto* dm = DisplayManager::instance()) {
+        dm->set_backlight_brightness(get_brightness());
+    }
 }
 
 bool DisplaySettingsManager::has_backlight_control() const {
@@ -695,20 +668,6 @@ bool DisplaySettingsManager::should_couple_sleep_to_dim() const {
     // backlight dim on dimming-capable devices, or — on no-backlight fbdev/DRM
     // devices — an enabled screensaver. Couple in either case (#1049).
     return has_dimming_control() || screensaver_enabled();
-}
-
-bool DisplaySettingsManager::get_sleep_while_printing() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&sleep_while_printing_subject_)) != 0;
-}
-
-void DisplaySettingsManager::set_sleep_while_printing(bool enabled) {
-    spdlog::info("[DisplaySettingsManager] set_sleep_while_printing({})", enabled);
-
-    lv_subject_set_int(&sleep_while_printing_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/display/sleep_while_printing", enabled);
-    config->save();
 }
 
 // =============================================================================
@@ -799,35 +758,6 @@ void DisplaySettingsManager::set_animations_enabled(bool enabled) {
     config->save();
 }
 
-bool DisplaySettingsManager::get_use_system_keyboard() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&use_system_keyboard_subject_)) != 0;
-}
-
-void DisplaySettingsManager::set_use_system_keyboard(bool enabled) {
-    spdlog::info("[DisplaySettingsManager] set_use_system_keyboard({})", enabled);
-
-    lv_subject_set_int(&use_system_keyboard_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/display/use_system_keyboard", enabled);
-    config->save();
-}
-
-bool DisplaySettingsManager::get_hide_keyboard_with_hardware() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&hide_keyboard_with_hardware_subject_)) !=
-           0;
-}
-
-void DisplaySettingsManager::set_hide_keyboard_with_hardware(bool enabled) {
-    spdlog::info("[DisplaySettingsManager] set_hide_keyboard_with_hardware({})", enabled);
-
-    lv_subject_set_int(&hide_keyboard_with_hardware_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/display/hide_keyboard_with_hardware", enabled);
-    config->save();
-}
-
 void DisplaySettingsManager::set_hardware_keyboard_present(bool present) {
     spdlog::info("[DisplaySettingsManager] Hardware keyboard {}",
                  present ? "attached" : "not attached");
@@ -841,46 +771,8 @@ bool DisplaySettingsManager::soft_keyboard_suppressed() const {
     return subjects_initialized_ && hardware_keyboard_present_ && get_hide_keyboard_with_hardware();
 }
 
-bool DisplaySettingsManager::get_page_scroll_buttons() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&page_scroll_buttons_subject_)) != 0;
-}
-
-void DisplaySettingsManager::set_page_scroll_buttons(bool enabled) {
-    spdlog::info("[DisplaySettingsManager] set_page_scroll_buttons({})", enabled);
-
-    lv_subject_set_int(&page_scroll_buttons_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/display/page_scroll_buttons", enabled);
-    config->save();
-}
-
-bool DisplaySettingsManager::get_speed_flow_physical_units() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&speed_flow_physical_units_subject_)) != 0;
-}
-
-void DisplaySettingsManager::set_speed_flow_physical_units(bool enabled) {
-    spdlog::info("[DisplaySettingsManager] set_speed_flow_physical_units({})", enabled);
-
-    lv_subject_set_int(&speed_flow_physical_units_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/display/speed_flow_physical_units", enabled);
-    config->save();
-}
-
-bool DisplaySettingsManager::get_keep_navbar_visible() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&keep_navbar_visible_subject_)) != 0;
-}
-
 void DisplaySettingsManager::set_keep_navbar_visible(bool enabled) {
-    spdlog::info("[DisplaySettingsManager] set_keep_navbar_visible({})", enabled);
-
-    lv_subject_set_int(&keep_navbar_visible_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/display/keep_navbar_visible", enabled);
-    config->save();
+    settings_.set(Key::KeepNavbarVisible, enabled);
 
 #ifdef __ANDROID__
     android_set_navbar_always_visible(enabled);
@@ -910,66 +802,15 @@ void DisplaySettingsManager::set_ui_scale_percent(int percent) {
                                                                 : std::to_string(stored) + "%");
 }
 
-int DisplaySettingsManager::get_bed_mesh_render_mode() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&bed_mesh_render_mode_subject_));
-}
-
-void DisplaySettingsManager::set_bed_mesh_render_mode(int mode) {
-    // Clamp to valid range (0=Auto, 1=3D, 2=2D)
-    int clamped = std::clamp(mode, 0, 2);
-    spdlog::info("[DisplaySettingsManager] set_bed_mesh_render_mode({})", clamped);
-
-    lv_subject_set_int(&bed_mesh_render_mode_subject_, clamped);
-
-    Config* config = Config::get_instance();
-    config->set<int>("/display/bed_mesh_render_mode", clamped);
-    config->save();
-
-    spdlog::debug("[DisplaySettingsManager] Bed mesh render mode set to {} ({})", clamped,
-                  clamped == 0 ? "Auto" : (clamped == 1 ? "3D" : "2D"));
-}
-
-int DisplaySettingsManager::get_gcode_render_mode() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&gcode_render_mode_subject_));
-}
-
 void DisplaySettingsManager::set_gcode_render_mode(int mode) {
-    // Clamp to valid range (0=Auto, 1=3D, 2=2D, 3=Thumbnail Only)
-    int clamped = std::clamp(mode, 0, 3);
-    spdlog::info("[DisplaySettingsManager] set_gcode_render_mode({})", clamped);
-
-    lv_subject_set_int(&gcode_render_mode_subject_, clamped);
-
-    Config* config = Config::get_instance();
-    config->set<int>("/display/gcode_render_mode", clamped);
-    // An explicit user render-mode pick re-enables the GPU path: clear the
+    // An explicit user render-mode pick re-enables the GPU paths: clear the
     // persistent crash-loop block (issues #966 / #1084 / #1085) so the user can
-    // retry 3D even after a prior driver crash promoted /display/gpu_3d_blocked.
-    config->set<bool>("/display/gpu_3d_blocked", false);
-    // Mirror for the 2D backdrop-blur block: a deliberate render-mode change is a
-    // clear signal the user wants GPU features retried, so clear the blur block too.
-    config->set<bool>("/display/gpu_blur_blocked", false);
-    config->save();
-
-    static const char* MODE_NAMES[] = {"Auto", "3D", "2D", "Thumbnail Only"};
-    spdlog::debug("[DisplaySettingsManager] G-code render mode set to {} ({})", clamped,
-                  MODE_NAMES[clamped]);
-}
-
-TimeFormat DisplaySettingsManager::get_time_format() const {
-    int val = lv_subject_get_int(const_cast<lv_subject_t*>(&time_format_subject_));
-    return static_cast<TimeFormat>(std::clamp(val, 0, 1));
-}
-
-void DisplaySettingsManager::set_time_format(TimeFormat format) {
-    int val = static_cast<int>(format);
-    spdlog::info("[DisplaySettingsManager] set_time_format({})", val == 0 ? "12H" : "24H");
-
-    lv_subject_set_int(&time_format_subject_, val);
-
+    // retry 3D after a driver crash promoted /display/gpu_3d_blocked, and the
+    // 2D backdrop-blur block with it. set() below saves all three.
     Config* config = Config::get_instance();
-    config->set<int>("/display/time_format", val);
-    config->save();
+    config->set<bool>("/display/gpu_3d_blocked", false);
+    config->set<bool>("/display/gpu_blur_blocked", false);
+    settings_.set(Key::GcodeRenderMode, mode);
 }
 
 // =============================================================================
