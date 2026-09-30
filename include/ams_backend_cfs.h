@@ -698,9 +698,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// holds mutex_.
     SlotInfo* bay_locked(int slot_index);
 
-    // Callback lifetime management
-    helix::AsyncLifetimeGuard lifetime_;
-
     /// Dispatch a load/unload/swap CR_BOX_* script with proper completion
     /// semantics: ensures the toolhead is homed, sends the gcode, and flips
     /// `system_info_.action` back to IDLE *only when Klipper finishes the

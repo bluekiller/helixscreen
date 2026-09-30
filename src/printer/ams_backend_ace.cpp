@@ -67,7 +67,6 @@ AmsBackendAce::AmsBackendAce(IMoonrakerAPI* api, IMoonrakerClient* client)
 }
 
 AmsBackendAce::~AmsBackendAce() {
-    // lifetime_ destructor calls invalidate() automatically
     stop_rest_fallback();
 }
 
@@ -121,7 +120,7 @@ void AmsBackendAce::on_started() {
         return;
     }
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     // Query all known Klipper object names directly (works if driver has
     // get_status()). Native Anycubic GoKlipper registers the object as
@@ -197,7 +196,7 @@ void AmsBackendAce::on_stopping() {
     // on_stopping() is called with mutex_ held — do NOT lock mutex_ here.
     // stop_rest_fallback uses its own rest_stop_mutex_, which is safe.
     stop_rest_fallback();
-    lifetime_.invalidate();
+    op_lifetime_.invalidate();
 }
 
 void AmsBackendAce::handle_status(const json& status_obj) {
@@ -360,7 +359,7 @@ AmsError AmsBackendAce::do_load_filament(int slot_index) {
     emit_event(EVENT_STATE_CHANGED);
 
     std::string gcode = "ACE_CHANGE_TOOL TOOL=" + std::to_string(slot_index);
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     return execute_gcode(
         gcode,
@@ -412,7 +411,7 @@ AmsError AmsBackendAce::do_unload_filament(int /*slot_index*/) {
     emit_event(EVENT_STATE_CHANGED);
 
     std::string gcode = "ACE_CHANGE_TOOL TOOL=-1";
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     return execute_gcode(
         gcode,
@@ -481,7 +480,7 @@ AmsError AmsBackendAce::cancel() {
 
     // Invalidate outstanding load/unload callbacks so they don't
     // overwrite state after cancel completes
-    lifetime_.invalidate();
+    op_lifetime_.invalidate();
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -1456,7 +1455,7 @@ void AmsBackendAce::poll_info() {
     };
     auto state = std::make_shared<SyncState>();
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     api_->rest().call_rest_get("/server/ace/info", [this, state, token](const RestResponse& resp) {
         // L081 Mechanism C: defer member access to main thread. The synchronous
@@ -1498,7 +1497,7 @@ void AmsBackendAce::poll_status() {
 
     spdlog::trace("[ACE] Polling /server/ace/status");
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     api_->rest().call_rest_get("/server/ace/status", [this, token](const RestResponse& resp) {
         // L081 Mechanism C: defer member access (parse_status_response,
@@ -1544,7 +1543,7 @@ void AmsBackendAce::poll_slots() {
 
     spdlog::trace("[ACE] Polling /server/ace/slots");
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     api_->rest().call_rest_get("/server/ace/slots", [this, token](const RestResponse& resp) {
         // L081 Mechanism C: defer member access (parse_slots_response,

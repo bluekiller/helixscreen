@@ -616,9 +616,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     /// edit and a sync share. Callers hold mutex_.
     void write_lane_locked(int slot_index, SlotInfo& slot, const SlotInfo& info);
 
-    /// Async callback safety guard. Tokens shared with AfcConfigManager instances.
-    helix::AsyncLifetimeGuard lifetime_;
-
     /**
      * @brief Parse AFC state from Moonraker JSON
      *

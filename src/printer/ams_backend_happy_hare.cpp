@@ -152,7 +152,9 @@ bool AmsBackendHappyHare::owns_filament_sensor(const std::string& bare_name,
 }
 
 AmsBackendHappyHare::~AmsBackendHappyHare() {
-    // lifetime_ destructor calls invalidate() automatically
+    // Expire queued callbacks before this class's members are destroyed; the
+    // base guard itself outlives them.
+    lifetime_.invalidate();
 }
 
 // ============================================================================

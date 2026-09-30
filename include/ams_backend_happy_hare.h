@@ -564,9 +564,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
 
     std::string selector_type_; ///< Selector type from config (e.g., "VirtualSelector" for Type B)
 
-    // Async callback safety guard
-    helix::AsyncLifetimeGuard lifetime_;
-
     // Cached MMU state
     helix::printer::SlotRegistry slots_;    ///< Single source of truth for per-slot state
     int num_units_{1};                      ///< Number of physical units (default 1)

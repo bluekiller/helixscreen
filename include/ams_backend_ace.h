@@ -428,8 +428,10 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     std::atomic<bool> rest_data_ok_{false};
     std::atomic<int> data_fetch_failures_{0};
 
-    // Callback lifetime management
-    helix::AsyncLifetimeGuard lifetime_;
+    /// Guards ACE's own RPC and REST callbacks. Separate from the base
+    /// lifetime_ because cancel() and on_stopping() expire these without
+    /// expiring the status subscription.
+    helix::AsyncLifetimeGuard op_lifetime_;
 
     // REST fallback state
     bool use_rest_fallback_{false};
