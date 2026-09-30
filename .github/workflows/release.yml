@@ -944,8 +944,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # The dry-run stand-in for the release above: the same file set, kept as a
-    # workflow artifact for dry-run-verify to compare against R2.
+    # The dry-run stand-in for the release above: the same file set less the
+    # AAB (only Play consumes it), kept as a workflow artifact for
+    # dry-run-verify to compare against R2.
     - name: Upload would-be release assets (dry run)
       if: env.RELEASE_MODE == 'dryrun'
       uses: actions/upload-artifact@v7
@@ -955,7 +956,6 @@ jobs:
           release-files/*.tar.gz
           release-files/*.zip
           release-files/*.apk
-          release-files/*.aab
           release-files/*.sym.zst
           release-files/install.sh
         if-no-files-found: error
@@ -1553,6 +1553,13 @@ jobs:
             "s3://${R2_BUCKET}/${R2_PREFIX}symbols/v${RELEASE_VERSION}/${platform}.sym.zst" \
             --content-type "application/zstd"
         done
+
+        # The .sym maps already exercise the upload path; a dry run skips the
+        # multi-GB debug info.
+        if [ "$RELEASE_MODE" != publish ]; then
+          echo "=== Dry run: skipping debug info upload ==="
+          exit 0
+        fi
 
         echo "=== Uploading debug info (zstd compressed) ==="
         # .sym files were zstd-compressed (--rm) above, so count the .sym.zst
