@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "ui_nav_manager.h"
 #include "ui_panel_settings.h"
 #include "ui_update_queue.h"
 
@@ -6,6 +7,7 @@
 #include "../test_helpers/application_test_access.h"
 #include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/ethernet_manager_test_access.h"
+#include "../test_helpers/plugin_host_test_support.h"
 #include "../test_helpers/scoped_env.h"
 #include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/settings_panel_test_access.h"
@@ -16,6 +18,7 @@
 #include "ethernet_backend_mock.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "platform_info.h"
+#include "plugins_overlay.h"
 #include "printer_state.h"
 #include "settings_manager.h"
 #include "system_settings_manager.h"
@@ -23,6 +26,7 @@
 #include "wifi_backend_mock.h"
 #include "wifi_manager.h"
 
+#include <array>
 #include <string>
 #include <thread>
 #include <vector>
@@ -151,6 +155,43 @@ TEST_CASE_METHOD(RootFixture, "settings root: Plugins stays hidden until a plugi
     ApplicationTestAccess::init_plugins(app);
     process_lvgl(5);
     CHECK_FALSE(lv_obj_has_flag(find("row_plugins"), LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(RootFixture, "settings root: tapping Plugins opens the plugins overlay",
+                 "[settings][settings_root]") {
+    DisplaySettingsManager::instance().set_animations_enabled(false);
+    std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
+    for (auto& p : panels)
+        p = lv_obj_create(lv_screen_active());
+    NavigationManager::instance().set_panels(panels.data());
+    {
+        helix::plugin::test::HostRig rig; // the host whose plugins get listed
+        // The click hands the overlay the panel's parent_screen_; the fixture
+        // builds the XML directly, so seed it the way DisplayManager does.
+        get_global_settings_panel().setup(root_, test_screen());
+        lv_obj_t* row = find("row_plugins");
+        REQUIRE(row);
+        lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+        helix::ui::UpdateQueue::instance().drain();
+        process_lvgl(50);
+        CHECK(helix::plugin::get_plugins_overlay().root() != nullptr);
+        REQUIRE(NavigationManager::instance().overlay_stack_names().size() == 1);
+        // The stack records the overlay root's XML component name.
+        CHECK(NavigationManager::instance().overlay_stack_names()[0] == "plugins_overlay");
+
+        NavigationManager::instance().go_back();
+        helix::ui::UpdateQueue::instance().drain();
+        process_lvgl(100);
+    } // the rig dies after the overlay it fed is closed
+    helix::plugin::PluginsOverlay& ov = helix::plugin::get_plugins_overlay();
+    if (lv_obj_t* r = ov.root()) {
+        lv_obj_t* held = r;
+        ov.destroy_overlay_ui(held);
+    }
+    helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(100); // deferred deletes
+    DisplaySettingsManager::instance().set_animations_enabled(true);
+    CHECK(NavigationManager::instance().overlay_stack_names().empty());
 }
 #endif
 
