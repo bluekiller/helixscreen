@@ -157,7 +157,7 @@ $(BUILD_DIR)/watchdog/platform_capabilities.o: src/system/platform_capabilities.
 	@echo "[CXX] $< (watchdog)"
 	$(Q)$(CXX) $(WATCHDOG_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Regex engine; platform_capabilities.cpp parses /proc/meminfo and /proc/cpuinfo with it.
+# Regex engine; platform_capabilities.cpp parses /proc/cpuinfo with it.
 $(BUILD_DIR)/watchdog/helix_regex.o: src/system/helix_regex.cpp $(ABI_STAMP) | $(BUILD_DIR)/watchdog
 	@echo "[CXX] $< (watchdog)"
 	$(Q)$(CXX) $(WATCHDOG_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
