@@ -78,7 +78,7 @@ void draw_nozzle_anthead(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t f
     lv_draw_image(layer, &dsc, &coords);
 }
 
-#else // HELIX_PLATFORM_ESP32 — AntHead image not shipped (see top of file)
+#else // HELIX_PLATFORM_ESP32 - AntHead image not shipped (see top of file)
 
 void draw_nozzle_anthead(lv_layer_t*, int32_t, int32_t, lv_color_t, int32_t, lv_opa_t) {}
 
