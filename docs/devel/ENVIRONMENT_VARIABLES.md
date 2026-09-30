@@ -1734,30 +1734,6 @@ HELIX_STRICT_BG_THREAD_CHECK=1 ./build/bin/helix-screen --test -vv
 
 **Release builds ignore the env var *and* compile out the abort branch.** Under `HELIX_RELEASE_BUILD` the detector still emits its telemetry anomaly and debug log, but never aborts: a Snapmaker U1 user (dev `6d10417c`, 2026-05-14) somehow had this set in their environment and hit a stray strict-mode abort (crash signature `307b6f48`). `set_strict_bg_check(true)` still flips the flag in any build — the release build simply has nothing to do with it. See `CLAUDE.md` § "Threading & Lifecycle".
 
-### Action-Prompt Stress Loop
-
-Reproducer harness for the `cluster:pstat-async-delete` crash (#906). Drives a continuous show/hide cycle of `action_prompt_modal` so the bug accumulates while a user sits on the Print Status panel. Transitions are gated on `ActionPromptManager::is_showing()` so the loop alternates cleanly instead of stacking modals when the exit animation runs slower than the period.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `HELIX_AUTO_STRESS_PROMPT` | Enable the loop. Any non-empty value except `0`. | Disabled |
-| `HELIX_STRESS_PROMPT_MS` | Show/hide period in milliseconds, floored at `100`. An unparseable value keeps the default. | `500` |
-| `HELIX_STRESS_START_DELAY_SEC` | Seconds to wait before the loop arms, floored at `0`. Unparseable values keep the default. | `30` |
-
-**Usage Notes:**
-- The code default for `HELIX_STRESS_PROMPT_MS` is **500 ms**. The comment above it says 250 ms (chosen to outpace the ~150 ms modal exit animation so consecutive deletes pile into the same async list) — the comment is stale; the literal in `application.cpp` is `500`. Pass `HELIX_STRESS_PROMPT_MS=250` explicitly if you want the documented-but-unimplemented cadence.
-- The start delay exists so you can navigate to Print Status before modals begin hijacking the screen.
-- Both timers are LVGL timers on the main thread: a one-shot kickoff after the delay, which then spawns the repeating stress timer.
-- Watch for `[ActionPrompt] HELIX_AUTO_STRESS_PROMPT=1 — will drive show/hide every <n>ms after <n>s delay` at startup and `[ActionPrompt] Stress timer ARMED` when it kicks in (both at WARN).
-
-**Example:**
-```bash
-# Arm after 5s, cycle every 200ms
-HELIX_AUTO_STRESS_PROMPT=1 HELIX_STRESS_PROMPT_MS=200 HELIX_STRESS_START_DELAY_SEC=5 \
-  HELIX_MOCK_AUTO_PRINT=1 ./build/bin/helix-screen --test --sim-speed 6 -vv &
-./build/bin/helix-screen ctl navigate print-status
-```
-
 ---
 
 ## Deployment
