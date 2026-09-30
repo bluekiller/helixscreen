@@ -556,6 +556,8 @@ translations:
   Change Tool: Werkzeug wechseln
   Change Tool While Paused: Werkzeug während Pause wechseln
   Change heater control?: Heizungsregelung ändern?
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : 'Ändert Druckereinstellungen über Moonraker, einschließlich Hochladen, Überschreiben und Löschen von Dateien im Konfigurationsordner des Druckers.'
   Change tool: Werkzeug wechseln
   Changes apply immediately. Adjust during print for tuning.: Änderungen werden sofort
     angewendet. Während des Drucks zur Feinabstimmung anpassen.
@@ -716,6 +718,7 @@ translations:
   Connect a USB label printer first: Zuerst einen USB-Etikettendrucker anschließen
   Connect an ADXL345 accelerometer to calibrate: ADXL345-Beschleunigungssensor zum
     Kalibrieren anschließen
+  Connect to servers on your network and the internet.: 'Verbindet sich mit Servern in deinem Netzwerk und im Internet.'
   'Connect to your printer via SSH and run:': 'Verbinden Sie sich per SSH mit Ihrem
     Drucker und führen Sie aus:'
   Connected: Verbunden
@@ -1026,10 +1029,12 @@ translations:
   Enable brush wipe after purging: 'Bürstenreinigung nach dem Entlüften aktivieren'
   Enable feed assist for active slot during printing: 'Vorschubunterstützung für den aktiven Slot während des Drucks aktivieren'
   Enable or disable the hub cutter: 'Den Hub-Schneider aktivieren oder deaktivieren'
+  Enable plugin?: 'Plugin aktivieren?'
   Enable purging during tool changes: 'Entlüften bei Werkzeugwechseln aktivieren'
   Enable/disable automatic backup spool switching: 'Automatischen Wechsel zur Ersatzspule aktivieren/deaktivieren'
   Enable/disable quiet operation mode: 'Leisen Betriebsmodus aktivieren/deaktivieren'
   Enabled: Aktiviert
+  Enabled. Open its settings, or disable it?: 'Aktiviert. Einstellungen öffnen oder deaktivieren?'
   Enclosed: Geschlossen
 
   Enclosure: Gehäuse
@@ -1684,6 +1689,7 @@ translations:
   Keep current: Aktuelle behalten
   Keep hands clear. The printer moves on its own.: Hände fernhalten. Der Drucker bewegt sich von selbst.
 
+  Keep its own data on this screen (up to 256 KB).: 'Speichert eigene Daten auf diesem Bildschirm (bis zu 256 KB).'
   Keep the bypass spool visible when bypass is off: Bypass-Spule sichtbar halten, wenn Bypass deaktiviert ist
   Kick away: 'Wegschieben'
   Kinematics: Kinematik
@@ -2330,6 +2336,7 @@ translations:
   : "Plugin antwortet nicht nach Neustart.\nBenötigt möglicherweise mehr Ladezeit."
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: Plugin entfernt. Eine Konfigurationsdatei erfordert Aufmerksamkeit – Details im HelixScreen-Protokoll.
   Plugin uninstalled successfully.: Plugin erfolgreich deinstalliert.
+  Plugins: Plugins
   Point camera at QR code on spool: Kamera auf QR-Code an Spule richten
   Polymaker: Polymaker
   Poor Accuracy: Schlechte Genauigkeit
@@ -2928,6 +2935,8 @@ translations:
   Self-Test: Selbsttest
   Send G-code and read the replies: G-Code senden und Antworten lesen
   Send Report: Bericht senden
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : 'Sendet beliebige G-code-Befehle. Das ist die volle Kontrolle über den Drucker: jedes Makro, auch solche, die Shell-Befehle ausführen, ist erreichbar.'
   Send commands directly to printer: Befehle direkt an Drucker senden
   Send this crash report to help improve HelixScreen.: Senden Sie diesen Absturzbericht,
     um HelixScreen zu verbessern.
@@ -3387,6 +3396,7 @@ translations:
     werden
   This is what data would be sent if enabled: Diese Daten würden bei Aktivierung gesendet
   This may take up to 30 seconds: Dies kann bis zu 30 Sekunden dauern
+  This plugin asks for no special permissions.: 'Dieses Plugin fragt nach keinen besonderen Berechtigungen.'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : Dieses Plugin ermöglicht HelixScreen die Steuerung von Druckstartoptionen wie
@@ -3408,6 +3418,7 @@ translations:
   This system does not support bypass mode: 'Dieses System unterstützt den Bypass-Modus nicht'
   This tool probes each bed screw and tells you how much to adjust.: Dieses Werkzeug
     tastet jede Bettschraube ab und zeigt Ihnen, wie viel Sie einstellen müssen.
+  'This update asks for new permissions:': 'Dieses Update fragt nach neuen Berechtigungen:'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : Dies wendet den Z-offset auf Ihren Endschalter an und startet Klipper neu, um
@@ -3814,6 +3825,7 @@ translations:
   attempt {}: 'Versuch {}'
   bed: Bett
   busy: 'belegt'
+  by: 'von'
   by Preston Brown: von Preston Brown
   chamber heater: Kammerheizung
   complete: abgeschlossen
@@ -3835,6 +3847,7 @@ translations:
   extruder(s): Extruder
   extruders: Extruder
   fans: Lüfter
+  faulted: fehlgeschlagen
   feeder error: 'Zuführungsfehler'
   feeder not in automatic mode: 'Zuführung nicht im Automatikmodus'
   filament sensor disabled: 'Filamentsensor deaktiviert'
@@ -3845,6 +3858,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env ignoriert: {}'
   idle: Leerlauf
   in unit {} slot {}: 'in Einheit {} Slot {}'
+  incompatible: inkompatibel
+  invalid: ungültig
   just now: gerade eben
   layers: Schichten
   left: übrig
@@ -3853,6 +3868,7 @@ translations:
   matched: abgestimmt
   mm before clog: mm vor Verstopfung
   needs: benötigt
+  needs approval: Genehmigung erforderlich
   never sleeps: schläft nie
   not detected: nicht erkannt
   not loaded: 'nicht geladen'
@@ -3866,6 +3882,7 @@ translations:
   Monitor for print abnormalities (camera-based): 'Überwacht auf Druckanomalien (kamerabasiert)'
   on unit {}: 'an Einheit {}'
   or type a macro name: oder Makronamen eingeben
+  over memory budget: über dem Speicherbudget
   passive: passiv
   printer default: Druckerstandard
   prints: Drucke

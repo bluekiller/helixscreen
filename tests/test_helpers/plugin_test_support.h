@@ -88,7 +88,8 @@ struct FakeBackend {
 };
 
 /// A TestRuntime with a PluginContext and a fake backend, with core bindings installed plus
-/// whichever `installers` a test asks for.
+/// whichever `installers` a test asks for (install_widget_bindings included: PluginHost's
+/// load path installs it, so a test driving helix.widget gets the same binding set).
 struct BoundRuntime {
     FakeBackend fake;
     PluginBackend backend = fake.backend();

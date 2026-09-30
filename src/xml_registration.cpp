@@ -656,10 +656,17 @@ void register_xml_components() {
     register_xml("setting_group_header.xml");
     register_xml("setting_section_header.xml");
     register_xml("setting_toggle_row.xml");
+    register_xml("setting_text_row.xml");
     register_xml("setting_dropdown_row.xml");
     register_xml("setting_action_row.xml");
     register_xml("setting_info_row.xml");
     register_xml("setting_slider_row.xml");
+#if HELIX_HAS_PLUGINS
+    // The generated plugin settings screen (rows built by PluginSettingsOverlay)
+    register_xml("plugin_settings_overlay.xml");
+    // Settings > Plugins (rows built by PluginsOverlay)
+    register_xml("plugins_overlay.xml");
+#endif
     register_xml("setting_value_field.xml");
     register_xml("setting_led_chip_row.xml");
     register_xml("setting_state_row.xml");

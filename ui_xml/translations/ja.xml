@@ -497,6 +497,7 @@
   <translation tag="Change Tool" ja="ツール交換"/>
   <translation tag="Change Tool While Paused" ja="一時停止中のツール交換"/>
   <translation tag="Change heater control?" ja="ヒーターの制御を変更しますか？"/>
+  <translation tag="Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer&apos;s config folder." ja="Moonrakerを通じてプリンターの設定を変更します。プリンターの設定フォルダー内のファイルのアップロード、書き換え、削除を含みます。"/>
   <translation tag="Change tool" ja="ツールを交換"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." ja="変更は即座に適用されます。印刷中に調整して最適化できます。"/>
   <translation tag="Changes are temporary and reset on printer reboot" ja="変更は一時的で、プリンター再起動時にリセットされます"/>
@@ -634,6 +635,7 @@
   <translation tag="Connect" ja="接続"/>
   <translation tag="Connect a USB label printer first" ja="先にUSBラベルプリンターを接続してください"/>
   <translation tag="Connect an ADXL345 accelerometer to calibrate" ja="キャリブレーションには ADXL345 加速度センサーを接続してください"/>
+  <translation tag="Connect to servers on your network and the internet." ja="ネットワークおよびインターネット上のサーバーに接続します。"/>
   <translation tag="Connect to your printer via SSH and run:" ja="SSHでプリンターに接続し、次を実行してください:"/>
   <translation tag="Connected" ja="接続済み"/>
   <translation tag="Connected (%s)" ja="接続済み (%s)"/>
@@ -918,10 +920,12 @@
   <translation tag="Enable brush wipe after purging" ja="パージ後のブラシワイプを有効化"/>
   <translation tag="Enable feed assist for active slot during printing" ja="印刷中、アクティブなスロットの送りアシストを有効化"/>
   <translation tag="Enable or disable the hub cutter" ja="ハブカッターの有効／無効"/>
+  <translation tag="Enable plugin?" ja="プラグインを有効化しますか？"/>
   <translation tag="Enable purging during tool changes" ja="ツール交換時のパージを有効化"/>
   <translation tag="Enable/disable automatic backup spool switching" ja="予備スプールへの自動切り替えの有効／無効"/>
   <translation tag="Enable/disable quiet operation mode" ja="静音動作モードの有効／無効"/>
   <translation tag="Enabled" ja="有効"/>
+  <translation tag="Enabled. Open its settings, or disable it?" ja="有効です。設定を開くか、無効化しますか？"/>
   <translation tag="Enclosed" ja="密閉"/>
   <translation tag="Enclosure" ja="筐体"/>
   <translation tag="Encoder" ja="エンコーダー"/>
@@ -1505,6 +1509,7 @@
   <translation tag="Keep clear of the printer while the toolhead is moving" ja="ツールヘッドが動いている間はプリンターから離れてください"/>
   <translation tag="Keep current" ja="現状維持"/>
   <translation tag="Keep hands clear. The printer moves on its own." ja="手を近づけないでください。プリンターは自動で動きます。"/>
+  <translation tag="Keep its own data on this screen (up to 256 KB)." ja="この画面に独自のデータを保存します（最大256 KB）。"/>
   <translation tag="Keep the bypass spool visible when bypass is off" ja="バイパスオフ時もバイパススプールの表示を維持"/>
   <translation tag="Kick away" ja="かき出し"/>
   <translation tag="Kinematics" ja="キネマティクス"/>
@@ -2092,6 +2097,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." ja="再起動後にプラグインが応答しません。&#10;読み込みに時間がかかる場合があります。"/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." ja="プラグインを削除しました。設定ファイルに対応が必要です。詳細は HelixScreen のログを確認してください。"/>
   <translation tag="Plugin uninstalled successfully." ja="プラグインが正常にアンインストールされました。"/>
+  <translation tag="Plugins" ja="プラグイン"/>
   <translation tag="Point camera at QR code on spool" ja="スプールの QR コードにカメラを向けてください"/>
   <translation tag="Polymaker" ja="Polymaker"/>
   <translation tag="Poor Accuracy" ja="精度不良"/>
@@ -2630,6 +2636,7 @@
   <translation tag="Self-Test" ja="セルフテスト"/>
   <translation tag="Send G-code and read the replies" ja="G-code を送信して応答を確認"/>
   <translation tag="Send Report" ja="レポートを送信"/>
+  <translation tag="Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable." ja="任意のG-codeコマンドを送信します。これはプリンターの完全な制御です。シェルコマンドを実行するものを含むすべてのマクロが実行可能になります。"/>
   <translation tag="Send commands directly to printer" ja="プリンターに直接コマンドを送信"/>
   <translation tag="Send this crash report to help improve HelixScreen." ja="HelixScreen の改善にこのクラッシュレポートを送信してください。"/>
   <translation tag="Sending..." ja="送信中..."/>
@@ -3010,6 +3017,7 @@
   <translation tag="This is exactly the data that will be sent" ja="これが送信されるデータです"/>
   <translation tag="This is what data would be sent if enabled" ja="これは有効にした場合に送信されるデータです"/>
   <translation tag="This may take up to 30 seconds" ja="最大30秒かかる場合があります"/>
+  <translation tag="This plugin asks for no special permissions." ja="このプラグインは特別な権限を要求しません。"/>
   <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." ja="このプラグインにより、HelixScreen がベッドメッシュや QGL などの印刷開始オプションを制御できます。インストール後、以下の「PRINT_START を設定」を使用してオプションの手順を有効にしてください。"/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" ja="この印刷には約 %.0fg 必要ですが、スプールの残量は約 %.0fg です。それでも開始しますか？"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" ja="このプリンターはツールオフセットを自動でキャリブレートできません"/>
@@ -3021,6 +3029,7 @@
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." ja="プリンターのヘルパーマクロを現在のバージョンに置き換えます。印刷中のため、Klipper は印刷完了後に再起動されます。"/>
   <translation tag="This system does not support bypass mode" ja="このシステムはバイパスモードに対応していません"/>
   <translation tag="This tool probes each bed screw and tells you how much to adjust." ja="このツールは各ベッドネジをプローブし、どのくらい調整が必要かを教えます。"/>
+  <translation tag="This update asks for new permissions:" ja="この更新は新しい権限を要求します："/>
   <translation tag="This will apply the Z-offset to your endstop and restart Klipper to save the configuration. The printer will briefly disconnect." ja="Z-offset をエンドストップに適用し、設定を保存するために Klipper を再起動します。プリンターは一時的に切断されます。"/>
   <translation tag="This will apply the Z-offset to your probe and restart Klipper to save the configuration. The printer will briefly disconnect." ja="Z-offset をプローブに適用し、設定を保存するために Klipper を再起動します。プリンターは一時的に切断されます。"/>
   <translation tag="This will collect system info, logs, settings, and printer data to help diagnose issues. No passwords or sensitive data will be included." ja="システム情報、ログ、設定、プリンターデータを収集して問題の診断に役立てます。パスワードや個人情報は含まれません。"/>
@@ -3374,6 +3383,7 @@
   <translation tag="attempt {}" ja="試行 {}"/>
   <translation tag="bed" ja="ベッド"/>
   <translation tag="busy" ja="ビジー状態"/>
+  <translation tag="by" ja="作成者:"/>
   <translation tag="by Preston Brown" ja="by Preston Brown"/>
   <translation tag="chamber heater" ja="チャンバーヒーター"/>
   <translation tag="complete" ja="完了"/>
@@ -3395,6 +3405,7 @@
   <translation tag="extruder(s)" ja="エクストルーダー"/>
   <translation tag="extruders" ja="エクストルーダー"/>
   <translation tag="fans" ja="ファン"/>
+  <translation tag="faulted" ja="エラー発生"/>
   <translation tag="feeder error" ja="フィーダーエラー"/>
   <translation tag="feeder not in automatic mode" ja="フィーダーが自動モードではありません"/>
   <translation tag="filament sensor disabled" ja="フィラメントセンサーが無効"/>
@@ -3405,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" ja="helixscreen.env は無視されました：{}"/>
   <translation tag="idle" ja="アイドル"/>
   <translation tag="in unit {} slot {}" ja="ユニット {} スロット {}"/>
+  <translation tag="incompatible" ja="互換性なし"/>
+  <translation tag="invalid" ja="不正"/>
   <translation tag="just now" ja="たった今"/>
   <translation tag="layers" ja="レイヤー"/>
   <translation tag="left" ja="残り"/>
@@ -3413,6 +3426,7 @@
   <translation tag="matched" ja="一致"/>
   <translation tag="mm before clog" ja="詰まりまでの距離 (mm)"/>
   <translation tag="needs" ja="必要"/>
+  <translation tag="needs approval" ja="承認が必要"/>
   <translation tag="never sleeps" ja="スリープしない"/>
   <translation tag="not detected" ja="未検出"/>
   <translation tag="not loaded" ja="未装填"/>
@@ -3421,6 +3435,7 @@
   <translation tag="off" ja="オフ"/>
   <translation tag="on unit {}" ja="ユニット {}"/>
   <translation tag="or type a macro name" ja="またはマクロ名を入力"/>
+  <translation tag="over memory budget" ja="メモリ予算超過"/>
   <translation tag="passive" ja="パッシブ"/>
   <translation tag="printer default" ja="プリンター既定"/>
   <translation tag="prints" ja="印刷"/>

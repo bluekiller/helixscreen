@@ -25,6 +25,18 @@ printer image's live callouts are a third instance
 | Registration | `register_<name>_widget()` | factory + `register_widget_subjects()` (see below) |
 | Placement | `assets/config/panel_widgets/<preset>/home.json` | per-printer-preset seeds; users rearrange at runtime |
 
+Not every definition is compiled in. A Lua plugin registers its widgets at load
+time as runtime definitions (`register_runtime_widget_def`,
+`include/panel_widget_registry.h`): they land in the catalog's Plugins category,
+are never enabled by default, and their ids carry the plugin's `<id>__` prefix.
+The saved layout keeps ids it has no definition for
+(`PanelWidgetConfig::parse_widget_array` in `src/system/panel_widget_config.cpp`),
+so a plugin widget's placement survives a disabled or absent plugin and returns
+when the definition is registered again. The registry bumps a generation counter
+on every runtime register and unregister (`runtime_widget_generation`), because a
+plugin reload re-registers the same ids while the factories now build widgets
+bound to a different runtime.
+
 ## The reference pattern: measure, decide, publish, bind
 
 A widget that sizes itself responsively is four layers with exactly one
