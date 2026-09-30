@@ -223,8 +223,7 @@ int settings_get(lua_State* L) {
     if (!d)
         return luaL_error(L, "helix.settings.get: '%s' is not declared in manifest.json",
                           key.c_str());
-    auto it = ctx.settings->find(key);
-    push_json(L, it != ctx.settings->end() && fits(*d, *it) ? *it : d->default_value);
+    push_json(L, effective_setting(*ctx.settings, *d));
     return 1;
 }
 
@@ -244,6 +243,13 @@ int settings_on_change(lua_State* L) {
 std::string plugin_storage_path(const std::string& settings_path, const std::string& id) {
     return (std::filesystem::path(settings_path).parent_path() / "plugin-data" / (id + ".json"))
         .string();
+}
+
+json effective_setting(const json& settings, const SettingDecl& d) {
+    auto it = settings.find(d.key);
+    if (it != settings.end() && fits(d, *it))
+        return *it;
+    return d.default_value;
 }
 
 bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& value) {

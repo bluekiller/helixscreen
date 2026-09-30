@@ -22,6 +22,8 @@
 
 namespace helix::plugin {
 
+class PluginSettingsOverlay;
+
 /// What all plugins together may allocate: min(MemTotal / 16, 64 MB).
 size_t plugin_memory_budget(uint64_t mem_total_bytes);
 
@@ -86,8 +88,21 @@ class PluginHost {
         return overlays_;
     }
 
+    /// Opens the plugin's settings: its settings_overlay component when the manifest
+    /// names one, else the generated screen. False when the plugin is not loaded, or
+    /// has neither settings nor an overlay.
+    bool open_settings(const std::string& id);
+    /// set_plugin_setting for the loaded plugin `id`: the same rule the Lua side
+    /// writes through. False when it is not loaded or the value does not fit.
+    bool set_setting(const std::string& id, const std::string& key, const json& value);
+    /// The generated settings screen currently showing `id`, or null.
+    PluginSettingsOverlay* settings_screen(const std::string& id);
+
     /// The body of the global `plugin_event` XML callback.
     void dispatch_event(std::string_view user_data);
+    /// Finds the row whose root carries a known binding (walking up from the event
+    /// target) and forwards to the screen that owns it.
+    void handle_setting_row_event(lv_event_t* e, bool action);
 
   private:
     struct Loaded {
@@ -113,6 +128,9 @@ class PluginHost {
     void save_settings(const std::string& id);
     json enabled_entry(const std::string& id) const;
     size_t memory_in_use() const;
+    /// Pops every generated settings screen showing `id` through navigation; each
+    /// screen's close callback erases it.
+    void close_settings_screens(const std::string& id);
 
     Deps deps_;
     std::string dir_;
@@ -126,6 +144,9 @@ class PluginHost {
     /// bulk unload_all so load_from's single end-of-scan notify covers plugins that went.
     bool widget_defs_dirty_ = false;
     PluginOverlayHost overlays_;
+    /// Generated settings screens currently open. More than one only while an
+    /// earlier one is still sliding out.
+    std::vector<std::unique_ptr<PluginSettingsOverlay>> settings_screens_;
 };
 
 /// Registers the `plugin_event` XML callback once per process. It forwards to the live host.

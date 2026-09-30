@@ -96,6 +96,9 @@ json to_json(lua_State* L, int index);
 /// Stores `value` in the plugin's settings, saves, and runs its on_change handlers. False,
 /// with nothing stored, when `key` is undeclared or `value` does not fit its declaration.
 bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& value);
+/// The value to show for `d`: the stored value when it still fits its declaration,
+/// else the declaration's default. The rule helix.settings.get reads with.
+json effective_setting(const json& settings, const SettingDecl& d);
 /// <dir of settings_path>/plugin-data/<id>.json
 std::string plugin_storage_path(const std::string& settings_path, const std::string& id);
 

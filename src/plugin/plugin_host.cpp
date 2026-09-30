@@ -5,7 +5,9 @@
 
 #include "plugin_host.h"
 
+#include "ui_nav_manager.h"
 #include "ui_toast_manager.h"
+#include "ui_utils.h"
 
 #include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
@@ -14,6 +16,7 @@
 #include "lvgl/lvgl.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
+#include "plugin_settings_overlay.h"
 #include "plugin_xml_policy.h"
 #include "version.h"
 
@@ -64,6 +67,7 @@ void register_plugin_event_callback() {
     if (registered)
         return;
     lv_xml_register_event_cb(nullptr, "plugin_event", &plugin_event_cb);
+    register_plugin_settings_callbacks();
     registered = true;
 }
 
@@ -396,6 +400,9 @@ void PluginHost::unload(const std::string& id) {
     // Overlays go before the runtime does too, and silently: the plugin's on_close
     // hooks point at a Lua state that is about to close.
     overlays_.close_all(id);
+    // Its generated settings screen leaves the same way, through navigation, so
+    // the close callback that erases it runs on every path.
+    close_settings_screens(id);
     // Widget definitions go before the runtime does: the async home rebuild this
     // schedules dereferences nothing of the plugin's, and the tiles it retires are
     // handed to deferred deletion while their subjects are still alive.
@@ -517,6 +524,91 @@ void PluginHost::dispatch_event(std::string_view user_data) {
     }
     if (!dispatch_ui_handler(*rt, target.name, target.arg))
         spdlog::debug("[PluginHost] plugin '{}' has no handler '{}'", target.id, target.name);
+}
+
+bool PluginHost::open_settings(const std::string& id) {
+    auto it = loaded_.find(id);
+    if (it == loaded_.end())
+        return false;
+    const Manifest& m = it->second.ctx->manifest;
+    if (!m.settings_overlay.empty())
+        return overlays_.open(id, m.settings_overlay, {}) != 0;
+    if (m.settings.empty())
+        return false;
+
+    auto screen = std::make_unique<PluginSettingsOverlay>(id, m, it->second.settings);
+    lv_obj_t* root = screen->create(lv_screen_active());
+    if (!root)
+        return false;
+    PluginSettingsOverlay* raw = screen.get();
+    settings_screens_.push_back(std::move(screen));
+
+    auto& nav = NavigationManager::instance();
+    nav.register_overlay_instance(root, raw);
+    // The navigation manager runs close callbacks deferred, after the slide-out,
+    // so this is the one place the screen's teardown may happen.
+    nav.register_overlay_close_callback(root, [this, raw, root, token = guard_.token()] {
+        if (token.expired()) {
+            // The host is gone and its screens with it. The root still belongs
+            // to the screen (a printer switch keeps the app running), so delete
+            // just that.
+            helix::ui::safe_delete_deferred_raw(root);
+            return;
+        }
+        raw->on_nav_closed();
+        for (auto it = settings_screens_.begin(); it != settings_screens_.end(); ++it) {
+            if (it->get() == raw) {
+                settings_screens_.erase(it);
+                break;
+            }
+        }
+    });
+    nav.push_overlay(root);
+    return true;
+}
+
+bool PluginHost::set_setting(const std::string& id, const std::string& key, const json& value) {
+    auto it = loaded_.find(id);
+    if (it == loaded_.end())
+        return false;
+    return set_plugin_setting(*it->second.ctx, key, value);
+}
+
+PluginSettingsOverlay* PluginHost::settings_screen(const std::string& id) {
+    for (auto& s : settings_screens_)
+        if (s->plugin_id() == id)
+            return s.get();
+    return nullptr;
+}
+
+void PluginHost::close_settings_screens(const std::string& id) {
+    auto& nav = NavigationManager::instance();
+    // Newest first, matching pop order. Every screen leaves through navigation:
+    // the on-top root takes go_back's restore path, a buried one is dropped by
+    // close_overlay itself, and either way the close callback erases the screen.
+    for (auto it = settings_screens_.rbegin(); it != settings_screens_.rend(); ++it) {
+        if ((*it)->plugin_id() != id)
+            continue;
+        nav.close_overlay((*it)->root());
+    }
+}
+
+void PluginHost::handle_setting_row_event(lv_event_t* e, bool action) {
+    lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+    for (lv_obj_t* obj = target; obj; obj = lv_obj_get_parent(obj)) {
+        void* ud = lv_obj_get_user_data(obj);
+        if (!ud)
+            continue;
+        for (auto& s : settings_screens_) {
+            if (auto* b = s->binding_at(ud)) {
+                if (action)
+                    s->on_row_action(*b);
+                else
+                    s->on_row_changed(*b, target);
+                return;
+            }
+        }
+    }
 }
 
 } // namespace helix::plugin

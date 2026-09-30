@@ -1,0 +1,286 @@
+// Copyright (C) 2025-2026 356C LLC
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#if HELIX_HAS_PLUGINS
+
+#include "ui_nav_manager.h"
+
+#include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/plugin_host_test_support.h"
+#include "config.h"
+#include "display_settings_manager.h"
+#include "lua_runtime.h"
+#include "plugin_settings_overlay.h"
+
+#include <string>
+
+#include "../catch_amalgamated.hpp"
+
+using namespace helix::plugin;
+using namespace helix::plugin::test;
+
+namespace {
+
+/// The attribute value `name`, or empty. Local helper for the mapping checks.
+std::string attr(const SettingRowSpec& spec, const std::string& name) {
+    for (const auto& [k, v] : spec.attrs)
+        if (k == name)
+            return v;
+    return "";
+}
+
+/// LVGLUITestFixture plus a deterministic navigation seed: animations off so the
+/// go_back close path runs inline, and panel_stack_[0] holding a stand-in base panel.
+class SettingsFx : public LVGLUITestFixture {
+  public:
+    std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
+
+    SettingsFx() {
+        DisplaySettingsManager::instance().set_animations_enabled(false);
+        for (auto& p : panels)
+            p = lv_obj_create(lv_screen_active());
+        NavigationManager::instance().set_panels(panels.data());
+    }
+    ~SettingsFx() override {
+        drain();
+        process_lvgl(100); // deferred overlay deletes
+        DisplaySettingsManager::instance().set_animations_enabled(true);
+    }
+};
+
+/// Reads a Lua global back as an integer.
+long long int_global(LuaRuntime* rt, const char* name) {
+    lua_getglobal(rt->state(), name);
+    long long v = lua_tointeger(rt->state(), -1);
+    lua_pop(rt->state(), 1);
+    return v;
+}
+
+/// The widget inside `row` that carries the row's value ("toggle", "slider",
+/// "dropdown" or "value_input").
+lv_obj_t* value_widget(lv_obj_t* row, const char* name) {
+    return lv_obj_find_by_name(row, name);
+}
+
+} // namespace
+
+TEST_CASE("each setting type maps to its row", "[plugin][plugin_settings]") {
+    SettingDecl b;
+    b.key = "on";
+    b.label = "On";
+    b.type = SettingType::Bool;
+    CHECK(setting_row_spec("p", b, true).component == "setting_toggle_row");
+    CHECK(attr(setting_row_spec("p", b, true), "callback") == "plugin_setting_changed");
+    SettingDecl i;
+    i.key = "n";
+    i.label = "N";
+    i.type = SettingType::Int;
+    i.min = 1;
+    i.max = 20;
+    auto si = setting_row_spec("p", i, 5);
+    CHECK(si.component == "setting_slider_row");
+    CHECK(attr(si, "min") == "1");
+    CHECK(attr(si, "max") == "20");
+    CHECK(attr(si, "value") == "5");
+    CHECK(attr(si, "trigger") == "released");
+    SettingDecl f;
+    f.key = "r";
+    f.label = "R";
+    f.type = SettingType::Float;
+    f.min = 0;
+    f.max = 1;
+    CHECK(setting_row_spec("p", f, 0.5).component == "setting_slider_row");
+    CHECK(attr(setting_row_spec("p", f, 0.5), "value") == "50");
+    CHECK(attr(setting_row_spec("p", f, 0.5), "min") == "0");
+    CHECK(attr(setting_row_spec("p", f, 0.5), "max") == "100");
+    SettingDecl e;
+    e.key = "m";
+    e.label = "M";
+    e.type = SettingType::Enum;
+    e.options = {"a", "b"};
+    CHECK(attr(setting_row_spec("p", e, "b"), "options") == "a\nb");
+    SettingDecl s;
+    s.key = "s";
+    s.label = "S";
+    s.type = SettingType::String;
+    CHECK(setting_row_spec("p", s, "x").component == "setting_text_row");
+    CHECK(attr(setting_row_spec("p", s, "x"), "value") == "x");
+    SettingDecl a;
+    a.key = "go";
+    a.label = "Go";
+    a.type = SettingType::Action;
+    a.callback = "p_go";
+    CHECK(setting_row_spec("p", a, nullptr).component == "setting_action_row");
+    CHECK(attr(setting_row_spec("p", a, nullptr), "callback") == "plugin_setting_action");
+    SettingDecl n;
+    n.key = "st";
+    n.label = "St";
+    n.type = SettingType::Info;
+    n.subject = "p__status";
+    CHECK(setting_row_spec("p", n, nullptr).component == "setting_info_row");
+    CHECK(attr(setting_row_spec("p", n, nullptr), "bind_value") == "p__status");
+}
+
+TEST_CASE_METHOD(SettingsFx, "the generated screen writes settings through the plugin's rule",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(seen = nil
+        helix.settings.on_change("step", function(v) seen = v end))",
+                           "t"));
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    CHECK(rig.host->set_setting("widget-demo", "step", 7));
+    CHECK_FALSE(rig.host->set_setting("widget-demo", "step", 99)); // outside [1, 20]
+    CHECK(rig.block["settings"]["widget-demo"]["step"] == json(7));
+    CHECK(int_global(rt, "seen") == 7);
+}
+
+TEST_CASE_METHOD(SettingsFx, "a released slider row writes its value through the plugin's rule",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(seen = nil
+        helix.settings.on_change("step", function(v) seen = v end))",
+                           "t"));
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* screen = rig.host->settings_screen("widget-demo");
+    REQUIRE(screen);
+    lv_obj_t* row = screen->row_for("step");
+    REQUIRE(row);
+    lv_obj_t* slider = value_widget(row, "slider");
+    REQUIRE(slider);
+    lv_slider_set_value(slider, 7, LV_ANIM_OFF);
+    lv_obj_send_event(slider, LV_EVENT_RELEASED, nullptr);
+    drain();
+    CHECK(rig.block["settings"]["widget-demo"]["step"] == json(7));
+    CHECK(int_global(rt, "seen") == 7);
+}
+
+TEST_CASE_METHOD(SettingsFx, "confirming a text row twice fires on_change once",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(count = 0
+        helix.settings.on_change("name", function(v) count = count + 1 end))",
+                           "t"));
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* screen = rig.host->settings_screen("widget-demo");
+    REQUIRE(screen);
+    lv_obj_t* input = value_widget(screen->row_for("name"), "value_input");
+    REQUIRE(input);
+    CHECK(std::string(lv_textarea_get_text(input)) == "x"); // default value shown
+
+    // The keyboard confirm path reports ready and then defocused.
+    lv_textarea_set_text(input, "y");
+    lv_obj_send_event(input, LV_EVENT_READY, nullptr);
+    lv_obj_send_event(input, LV_EVENT_DEFOCUSED, nullptr);
+    drain();
+    CHECK(rig.block["settings"]["widget-demo"]["name"] == json("y"));
+    CHECK(int_global(rt, "count") == 1);
+}
+
+TEST_CASE_METHOD(SettingsFx, "an out-of-range text write is refused and the row restored",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(count = 0
+        helix.settings.on_change("name", function(v) count = count + 1 end))",
+                           "t"));
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* screen = rig.host->settings_screen("widget-demo");
+    REQUIRE(screen);
+    lv_obj_t* input = value_widget(screen->row_for("name"), "value_input");
+    REQUIRE(input);
+
+    // Land an accepted value first so the restore has a real stored value.
+    lv_textarea_set_text(input, "ok");
+    lv_obj_send_event(input, LV_EVENT_READY, nullptr);
+    drain();
+    REQUIRE(rig.block["settings"]["widget-demo"]["name"] == json("ok"));
+
+    // kMaxSettingString is 1024; 1100 characters do not fit the declaration.
+    lv_textarea_set_text(input, std::string(1100, 'z').c_str());
+    lv_obj_send_event(input, LV_EVENT_READY, nullptr);
+    drain();
+    CHECK(std::string(lv_textarea_get_text(input)) == "ok");
+    CHECK(rig.block["settings"]["widget-demo"]["name"] == json("ok"));
+    CHECK(int_global(rt, "count") == 1);
+}
+
+TEST_CASE_METHOD(SettingsFx, "an action row runs the manifest's callback through the event path",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* screen = rig.host->settings_screen("widget-demo");
+    REQUIRE(screen);
+    lv_obj_t* row = screen->row_for("ping");
+    REQUIRE(row);
+    lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+    drain();
+    // The handler set the plugin's status subject to "pinged"; the info row is
+    // bound to it, so the binding is the observable.
+    lv_obj_t* info = screen->row_for("state");
+    REQUIRE(info);
+    lv_obj_t* value = lv_obj_find_by_name(info, "value");
+    REQUIRE(value);
+    CHECK(std::string(lv_label_get_text(value)) == "pinged");
+}
+
+TEST_CASE_METHOD(SettingsFx, "unloading a plugin closes its open settings screen",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    REQUIRE(NavigationManager::instance().has_open_overlays());
+    REQUIRE(rig.host->settings_screen("widget-demo"));
+
+    rig.host->disable("widget-demo");
+    drain(); // close_overlay queues go_back; its body runs on the next queue pass
+    process_lvgl(500);
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    CHECK(rig.host->settings_screen("widget-demo") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "settings_rows") == nullptr);
+}
+
+TEST_CASE_METHOD(SettingsFx, "a manifest settings_overlay replaces the generated screen",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("custom-settings", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.info("custom-settings")->status == PluginStatus::Loaded);
+    REQUIRE(rig.host->open_settings("custom-settings"));
+    drain();
+    CHECK(NavigationManager::instance().has_open_overlays());
+    CHECK(rig.host->overlays().open_count("custom-settings") == 1);
+    CHECK(rig.host->settings_screen("custom-settings") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "custom_settings_marker"));
+}
+
+TEST_CASE_METHOD(SettingsFx, "open_settings refuses nothing-to-show and unloaded plugins",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("shadow", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.info("shadow")->status == PluginStatus::Loaded);
+    drain();
+    CHECK_FALSE(rig.host->open_settings("shadow")); // no settings, no overlay
+    CHECK_FALSE(rig.host->open_settings("nosuch")); // not loaded
+    CHECK_FALSE(rig.host->set_setting("nosuch", "k", json(1)));
+    drain();
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+}
+
+#endif // HELIX_HAS_PLUGINS
