@@ -1,5 +1,6 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "ams_types.h"
 #include "filament_slot_override.h"
 #include "filament_slot_override_store.h"
@@ -25,23 +26,6 @@
 using helix::ams::FilamentSlotOverride;
 using helix::ams::FilamentSlotOverrideStore;
 using nlohmann::json;
-
-// Grants tests access to private tunables on FilamentSlotOverrideStore.
-// Declared friend in the header (per L065: prefer friend-class over test-only
-// public setters on production classes).
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_load_timeout(helix::ams::FilamentSlotOverrideStore& store,
-                                 std::chrono::milliseconds ms) {
-        store.load_timeout_ = ms;
-    }
-    // Redirect the read-cache to a per-test tmp dir so tests never touch the
-    // user's real config. Empty path restores the default (get_user_config_dir).
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 namespace {
 // Per-test isolation helper: returns a fresh tmp directory that is unique to

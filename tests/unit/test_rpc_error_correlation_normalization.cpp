@@ -37,6 +37,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/gcode_error_router_test_access.h"
 #include "../test_helpers/log_capture.h"
+#include "../test_helpers/moonraker_request_tracker_test_access.h"
 #include "gcode_error_router.h"
 #include "moonraker_request.h"
 #include "moonraker_request_tracker.h"
@@ -51,19 +52,6 @@
 #include "hv/json.hpp"
 
 using namespace helix;
-
-/// Friend-class test accessor (L065 / test_code_lint.bats). Definition is kept
-/// byte-identical to the one in test_moonraker_request_tracker_silent.cpp --
-/// the friend declaration in moonraker_request_tracker.h names this exact
-/// global-scope class, so it cannot live in an anonymous namespace.
-class MoonrakerRequestTrackerTestAccess {
-  public:
-    static void inject_request(MoonrakerRequestTracker& tracker, RequestId id,
-                               PendingRequest request) {
-        std::lock_guard<std::mutex> lock(tracker.requests_mutex_);
-        tracker.pending_requests_[id] = std::move(request);
-    }
-};
 
 namespace {
 

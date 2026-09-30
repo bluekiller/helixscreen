@@ -8,14 +8,6 @@
 
 using namespace helix;
 
-// Test helper for accessing private members
-class PrinterTemperatureStateTestAccess {
-  public:
-    static void reset(PrinterTemperatureState& state) {
-        state.deinit_subjects();
-    }
-};
-
 TEST_CASE("PrinterTemperatureState: active extruder defaults to 'extruder'",
           "[core][temperature][active-extruder]") {
     lv_init_safe();
@@ -24,7 +16,7 @@ TEST_CASE("PrinterTemperatureState: active extruder defaults to 'extruder'",
 
     REQUIRE(state.active_extruder_name() == "extruder");
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: set_active_extruder changes active name",
@@ -37,7 +29,7 @@ TEST_CASE("PrinterTemperatureState: set_active_extruder changes active name",
     state.set_active_extruder("extruder1");
     REQUIRE(state.active_extruder_name() == "extruder1");
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: set_active_extruder syncs current values",
@@ -61,7 +53,7 @@ TEST_CASE("PrinterTemperatureState: set_active_extruder syncs current values",
     REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2205);
     REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 2300);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: update_from_status updates active subjects",
@@ -87,7 +79,7 @@ TEST_CASE("PrinterTemperatureState: update_from_status updates active subjects",
     REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 1953);
     REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 2000);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: unknown extruder name stays on previous",
@@ -104,7 +96,7 @@ TEST_CASE("PrinterTemperatureState: unknown extruder name stays on previous",
     state.set_active_extruder("extruder99");
     REQUIRE(state.active_extruder_name() == "extruder1");
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: default active works with single extruder",
@@ -121,7 +113,7 @@ TEST_CASE("PrinterTemperatureState: default active works with single extruder",
     REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2050);
     REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 2100);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: load latch survives cooldown to 0",
@@ -141,7 +133,7 @@ TEST_CASE("PrinterTemperatureState: load latch survives cooldown to 0",
     REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 0);
     REQUIRE(state.get_active_extruder_last_nonzero_target() == Catch::Approx(250.0));
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: latch tracks the most recent non-zero target",
@@ -158,7 +150,7 @@ TEST_CASE("PrinterTemperatureState: latch tracks the most recent non-zero target
     state.update_from_status({{"extruder", {{"target", 210.0}}}});
     REQUIRE(state.get_active_extruder_last_nonzero_target() == Catch::Approx(210.0));
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: clear_load_latch resets the held target",
@@ -175,7 +167,7 @@ TEST_CASE("PrinterTemperatureState: clear_load_latch resets the held target",
     state.clear_load_latch();
     REQUIRE(state.get_active_extruder_last_nonzero_target() == Catch::Approx(0.0));
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: latch is per-extruder and honors the active one",
@@ -201,7 +193,7 @@ TEST_CASE("PrinterTemperatureState: latch is per-extruder and honors the active 
     state.set_active_extruder("extruder1");
     REQUIRE(state.get_active_extruder_last_nonzero_target() == Catch::Approx(210.0));
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: single extruder display_name is 'Nozzle'",
@@ -216,7 +208,7 @@ TEST_CASE("PrinterTemperatureState: single extruder display_name is 'Nozzle'",
     REQUIRE(it != exts.end());
     REQUIRE(it->second.display_name == "Nozzle");
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: multi-extruder display_name is 'Nozzle N'",
@@ -232,7 +224,7 @@ TEST_CASE("PrinterTemperatureState: multi-extruder display_name is 'Nozzle N'",
     REQUIRE(exts.find("extruder2")->second.display_name == "Nozzle 3");
     REQUIRE(exts.find("extruder3")->second.display_name == "Nozzle 4");
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: extruder names are sorted before labeling",
@@ -250,7 +242,7 @@ TEST_CASE("PrinterTemperatureState: extruder names are sorted before labeling",
     REQUIRE(exts.find("extruder2")->second.display_name == "Nozzle 3");
     REQUIRE(exts.find("extruder3")->second.display_name == "Nozzle 4");
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: heater power publishes as whole percent",
@@ -271,7 +263,7 @@ TEST_CASE("PrinterTemperatureState: heater power publishes as whole percent",
     CHECK(lv_subject_get_int(state.get_bed_power_subject()) == 100);
     CHECK(lv_subject_get_int(state.get_chamber_power_subject()) == 0);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: a heater reporting no power stays unknown",
@@ -292,7 +284,7 @@ TEST_CASE("PrinterTemperatureState: a heater reporting no power stays unknown",
     CHECK(lv_subject_get_int(state.get_chamber_power_subject()) == -1);
     CHECK(lv_subject_get_int(state.get_extruder_power_subject()) == -1);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: a frame omitting power leaves the last reading",
@@ -309,7 +301,7 @@ TEST_CASE("PrinterTemperatureState: a frame omitting power leaves the last readi
     state.update_from_status({{"heater_bed", {{"temperature", 60.5}}}});
     CHECK(lv_subject_get_int(state.get_bed_power_subject()) == 75);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: out-of-range duty is clamped", "[core][temperature][power]") {
@@ -322,7 +314,7 @@ TEST_CASE("PrinterTemperatureState: out-of-range duty is clamped", "[core][tempe
     state.update_from_status({{"heater_bed", {{"power", -0.2}}}});
     CHECK(lv_subject_get_int(state.get_bed_power_subject()) == 0);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: per-extruder power reaches its own subject",
@@ -343,7 +335,7 @@ TEST_CASE("PrinterTemperatureState: per-extruder power reaches its own subject",
     SubjectLifetime idle;
     CHECK(lv_subject_get_int(state.get_extruder_power_subject("extruder", idle)) == -1);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }
 
 TEST_CASE("PrinterTemperatureState: a toolchange resyncs active power",
@@ -362,5 +354,5 @@ TEST_CASE("PrinterTemperatureState: a toolchange resyncs active power",
     state.set_active_extruder("extruder1");
     CHECK(lv_subject_get_int(state.get_extruder_power_subject()) == 0);
 
-    PrinterTemperatureStateTestAccess::reset(state);
+    state.deinit_subjects();
 }

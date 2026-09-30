@@ -15,6 +15,7 @@
  * Both callbacks are now wrapped: any exception is logged and swallowed.
  */
 
+#include "../test_helpers/moonraker_request_tracker_test_access.h"
 #include "moonraker_request.h"
 #include "moonraker_request_tracker.h"
 
@@ -24,15 +25,6 @@
 #include "../catch_amalgamated.hpp"
 
 using namespace helix;
-
-class MoonrakerRequestTrackerTestAccess {
-  public:
-    static void inject_request(MoonrakerRequestTracker& tracker, RequestId id,
-                               PendingRequest request) {
-        std::lock_guard<std::mutex> lock(tracker.requests_mutex_);
-        tracker.pending_requests_[id] = std::move(request);
-    }
-};
 
 namespace {
 

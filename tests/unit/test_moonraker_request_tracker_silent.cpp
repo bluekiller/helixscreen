@@ -11,6 +11,7 @@
  * its own error UX. Non-silent requests must retain the existing toast behavior.
  */
 
+#include "../test_helpers/moonraker_request_tracker_test_access.h"
 #include "moonraker_request.h"
 #include "moonraker_request_tracker.h"
 #include "rpc_error_correlation.h"
@@ -22,17 +23,6 @@
 #include "hv/json.hpp"
 
 using namespace helix;
-
-/// Friend-class test accessor (L065 / test_code_lint.bats): keeps production
-/// headers free of `_for_testing` methods.
-class MoonrakerRequestTrackerTestAccess {
-  public:
-    static void inject_request(MoonrakerRequestTracker& tracker, RequestId id,
-                               PendingRequest request) {
-        std::lock_guard<std::mutex> lock(tracker.requests_mutex_);
-        tracker.pending_requests_[id] = std::move(request);
-    }
-};
 
 namespace {
 

@@ -156,6 +156,7 @@ static std::vector<uint8_t> read_file_bytes(const std::string& path) {
 // ============================================================================
 // Scoped temp directory for test isolation
 // ============================================================================
+namespace {
 struct TempDir {
     fs::path path;
     TempDir() {
@@ -171,6 +172,7 @@ struct TempDir {
         return path.string();
     }
 };
+} // namespace
 
 // ============================================================================
 // Tests

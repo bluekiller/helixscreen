@@ -20,6 +20,7 @@
 #include "ui_update_queue.h"
 
 #include "../helix_test_fixture.h"
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "ams_backend_ad5x_ifs.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_cfs.h"
@@ -221,17 +222,6 @@ TEST_CASE("bypass arming: a wrapped SET_FILAMENT_SENSOR is bypassed for the rena
 // ---------------------------------------------------------------------------
 // CFS external-spool lane_data publish (slicer sync)
 // ---------------------------------------------------------------------------
-
-// Friend shim for FilamentSlotOverrideStore — GLOBAL scope, matching the
-// `friend class ::FilamentSlotOverrideStoreTestAccess` declaration (same
-// idiom as test_ams_backend_cfs.cpp; per-TU class, no ODR clash).
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 namespace helix {
 

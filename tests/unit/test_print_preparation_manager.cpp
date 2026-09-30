@@ -1,70 +1,21 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_filename_utils.h"
 #include "ui_print_preparation_manager.h"
 
 #include "../helix_test_fixture.h"
-#include "../test_helpers/printer_state_test_access.h"
-#include "macro_param_cache.h"
-
-class PrintPreparationManagerTestAccess {
-  public:
-    static std::vector<std::pair<std::string, std::string>>
-    get_skip_params(const helix::ui::PrintPreparationManager& m) {
-        return m.collect_macro_skip_params();
-    }
-    static std::vector<std::string>
-    get_pre_start_gcode_lines(const helix::ui::PrintPreparationManager& m,
-                              const std::string& filename = {}) {
-        return m.collect_pre_start_gcode_lines(filename);
-    }
-    static std::vector<gcode::OperationType>
-    get_ops_to_disable(const helix::ui::PrintPreparationManager& m) {
-        return m.collect_ops_to_disable();
-    }
-    static std::string build_pre_start_gcode_block(const std::string& setup_gcode,
-                                                   const std::vector<std::string>& lines,
-                                                   bool emit_setup) {
-        return helix::ui::PrintPreparationManager::build_pre_start_gcode_block(setup_gcode, lines,
-                                                                               emit_setup);
-    }
-    /// The modify route's first synchronous bail-out. Private because nothing
-    /// outside the manager should dispatch it, but it is the cheapest reachable
-    /// failure exit and every other one retires the job the same way.
-    static void modify_and_print(helix::ui::PrintPreparationManager& m,
-                                 const std::string& file_path) {
-        m.modify_and_print(file_path, {}, {}, nullptr);
-    }
-    /// Age the pre-start send timestamp. Production stamps it when the
-    /// pre-start gcode RPC leaves; a test models a backed-up ack by winding
-    /// it back past the staleness bound.
-    static void set_pre_start_sent_ago(helix::ui::PrintPreparationManager& m,
-                                       std::chrono::seconds ago) {
-        m.pre_start_sent_at_ = std::chrono::steady_clock::now() - ago;
-    }
-    /// The preparing-job epoch the pre-start block was sent under. Production
-    /// snapshots it when the RPC leaves; a test sets it to model a send that
-    /// happened while a specific job was armed.
-    static void set_pre_start_epoch(helix::ui::PrintPreparationManager& m, int epoch) {
-        m.pre_start_epoch_ = epoch;
-    }
-    /// Drive the shared continuation every pre-start path funnels through.
-    static void continue_print_start(helix::ui::PrintPreparationManager& m, const std::string& file,
-                                     helix::ui::PrintCompletionCallback on_completion) {
-        m.continue_print_start(file, {}, nullptr, on_completion);
-    }
-};
-
-#include "ui_filename_utils.h"
-
 #include "../mocks/mock_websocket_server.h"
 #include "../test_helpers/preprint_config_scope.h"
+#include "../test_helpers/print_preparation_manager_test_access.h"
+#include "../test_helpers/printer_state_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "capability_matrix.h"
 #include "gcode_file_modifier.h"
 #include "gcode_ops_detector.h"
 #include "hv/EventLoopThread.h"
+#include "macro_param_cache.h"
 #include "moonraker_api.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client.h"

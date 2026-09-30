@@ -39,6 +39,7 @@ bool is_non_shippable_config_file(const std::string& filename);
 // RAII temp directory helper
 // ============================================================================
 
+namespace {
 class TempDir {
   public:
     TempDir(const std::string& prefix) {
@@ -65,6 +66,7 @@ class TempDir {
   private:
     fs::path path_;
 };
+} // namespace
 
 // Helper to write a file with content
 static void write_file(const fs::path& path, const std::string& content) {

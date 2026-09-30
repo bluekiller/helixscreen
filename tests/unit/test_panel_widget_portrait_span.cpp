@@ -23,6 +23,7 @@
  */
 
 #include "../test_fixtures.h"
+#include "../test_helpers/layout_manager_test_access.h"
 #include "../test_helpers/scoped_widget_factory.h"
 #include "config.h"
 #include "grid_layout.h"
@@ -44,22 +45,6 @@
 
 using namespace helix;
 using helix_test::ScopedWidgetFactory;
-
-// Access LayoutManager internals for test setup.
-// Note: LayoutManagerTestAccess is also defined in test_layout_manager.cpp and
-// test_grid_layout.cpp with an identical body — Catch2 amalgamated builds compile
-// each test file separately, so no ODR conflict.
-class LayoutManagerTestAccess {
-  public:
-    static void reset(helix::LayoutManager& lm) {
-        lm.type_ = helix::LayoutType::STANDARD;
-        lm.name_ = "standard";
-        lm.override_name_.clear();
-        lm.initialized_ = false;
-        lm.width_ = 0;
-        lm.height_ = 0;
-    }
-};
 
 namespace {
 

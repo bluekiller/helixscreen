@@ -11,6 +11,7 @@ using namespace helix;
 using namespace helix::config;
 
 // Helper to set/unset environment variables for testing
+namespace {
 class EnvGuard {
   public:
     explicit EnvGuard(const char* name, const char* value = nullptr) : m_name(name) {
@@ -46,6 +47,7 @@ class EnvGuard {
     std::string m_original;
     bool m_had_original{false};
 };
+} // namespace
 
 TEST_CASE("EnvironmentConfig::get_int basic parsing", "[environment][config]") {
     SECTION("Valid integer within range") {

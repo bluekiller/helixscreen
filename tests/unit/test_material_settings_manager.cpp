@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/material_settings_manager_test_access.h"
 #include "config.h"
 #include "filament_catalog.h"
 #include "filament_database.h"
@@ -11,18 +12,6 @@
 #include <fstream>
 
 #include "../catch_amalgamated.hpp"
-
-namespace helix {
-class TestAccess {
-  public:
-    static void reset(MaterialSettingsManager& mgr) {
-        mgr.overrides_.clear();
-        mgr.preset_materials_ = {"PLA", "PETG", "ABS", "TPU"};
-        mgr.preset_filaments_ = {};
-        mgr.initialized_ = false;
-    }
-};
-} // namespace helix
 
 using namespace helix;
 using namespace filament;

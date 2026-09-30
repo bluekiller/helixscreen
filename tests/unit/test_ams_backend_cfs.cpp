@@ -3,6 +3,7 @@
 
 #include "ui_update_queue.h"
 
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_cfs.h"
 #include "ams_remap.h"
@@ -62,18 +63,6 @@ std::optional<DeviceAction> find_action(AmsBackendCfs& b, const char* id) {
 }
 
 } // namespace
-
-// Friend-class shim for FilamentSlotOverrideStore — same idiom as IFS /
-// Snapmaker / ACE tests. Lets us redirect the store's on-disk read-cache to a
-// per-test tmp dir so save_async doesn't pollute the developer's real
-// helixscreen config.
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 // CfsTestAccess (friend shim for AmsBackendCfs) now lives in
 // tests/test_helpers/cfs_test_access.h so test_ams_home_confirmation.cpp can
