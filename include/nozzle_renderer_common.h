@@ -7,6 +7,7 @@
 
 #include "lvgl/lvgl.h"
 
+#include <cstddef>
 #include <optional>
 
 // ============================================================================
@@ -146,6 +147,26 @@ inline lv_color_t nr_dim(lv_color_t c, lv_opa_t opa) {
     float f = (float)opa / 255.0f;
     return lv_color_make((uint8_t)(c.red * f), (uint8_t)(c.green * f), (uint8_t)(c.blue * f));
 }
+
+/// @brief One filled polygon of a traced toolhead, in design-space coordinates
+struct NrPolygon {
+    const lv_point_t* pts;
+    int cnt;
+    uint8_t color; ///< Index into the renderer's palette
+};
+
+template <size_t N> constexpr NrPolygon nr_poly(const lv_point_t (&pts)[N], uint8_t color) {
+    return {pts, (int)N, color};
+}
+
+/// @brief Fill a simple (convex or concave) polygon by ear-clipping triangulation
+void nr_draw_polygon(lv_layer_t* layer, const lv_point_t* pts, int cnt, lv_color_t color);
+
+/// @brief Fill @p polys in order, mapping @p design_center to (@p cx, @p cy)
+/// @param palette Colors indexed by NrPolygon::color
+void nr_draw_polygons(lv_layer_t* layer, const NrPolygon* polys, size_t count,
+                      const lv_color_t* palette, int32_t cx, int32_t cy, float scale,
+                      lv_point_t design_center);
 
 /// @brief Draw a metal nozzle tip with a white glint at its bottom
 ///
