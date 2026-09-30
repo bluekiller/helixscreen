@@ -46,8 +46,10 @@ PY
     [ "$status" -eq 0 ] || fail "$output"
 }
 
-# Every step that publishes must be gated on publish, or (R2 only) write
-# through the dry-run prefix. Prints one line per offender.
+# An allowlist: a step that is not gated on publish may not use a secret,
+# publish through an action, or make a mutating call, except the Android
+# signing steps (the build needs the key) and R2 steps that write only under a
+# dry-run-asserted R2_PREFIX. Prints one line per offender.
 lint_publish_guards() {
     python3 - "$1" <<'PY'
 import re, sys, yaml
@@ -56,51 +58,88 @@ with open(sys.argv[1]) as fh:
 
 PUBLISH_ACTIONS = ("softprops/action-gh-release", "r0adkll/upload-google-play",
                    "peter-evans/repository-dispatch")
+MUTATING = [r"\bs3api\b", r"\bwrangler\b", r"\brclone\b", r"\bgh\s+release\b",
+            r"\bgh\s+api\b.*\s(-X|--method)\b",
+            r"\bcurl\b.*\s(-X|--request)\s*['\"]?(POST|PUT|DELETE|PATCH)\b"]
+SIGNING = {("build-android", "Materialize upload keystore"),
+           ("build-android", "Build Android APKs (release)"),
+           ("build-android", "Build Android AAB (release)")}
 STEP_GATE = "env.RELEASE_MODE == 'publish'"
 JOB_GATE = "needs.plan.outputs.mode == 'publish'"
 PREFIX_ASSERT = '[[ "$R2_PREFIX" == dry-run/?*/ ]]'
 PREFIX_ENV = "${{ needs.plan.outputs.r2_prefix }}"
 
+def r2_prefixed(job, run):
+    paths = re.findall(r"s3://[^\s\"']*", run)
+    return (PREFIX_ASSERT in run and paths
+            and all(p.startswith("s3://${R2_BUCKET}/${R2_PREFIX}") for p in paths)
+            and (job.get("env") or {}).get("R2_PREFIX") == PREFIX_ENV)
+
 bad = []
 for jname, job in jobs.items():
-    job_gated = JOB_GATE in str(job.get("if", ""))
+    if "secrets." in yaml.safe_dump(job.get("env") or {}):
+        bad.append(f"{jname}: job-level env hands a secret to every step")
+    if JOB_GATE in str(job.get("if", "")):
+        continue
     for step in job.get("steps", []):
-        where = f"{jname} / {step.get('name', '?')}"
-        uses = step.get("uses", "")
-        run = step.get("run", "")
-        env = step.get("env") or {}
-        gated = job_gated or STEP_GATE in str(step.get("if", ""))
-        if (uses.startswith(PUBLISH_ACTIONS) or "gh release" in run
-                or "DISCORD_WEBHOOK_URL" in env) and not gated:
-            bad.append(f"{where}: publishes without a publish gate")
-        if ("s3://" in run or "aws s3" in run) and not gated:
-            unprefixed = [m for m in re.findall(r"s3://[^\s\"']*", run)
-                          if not m.startswith("s3://${R2_BUCKET}/${R2_PREFIX}")]
-            if unprefixed:
-                bad.append(f"{where}: R2 path outside R2_PREFIX: {unprefixed}")
-            elif PREFIX_ASSERT not in run:
-                bad.append(f"{where}: writes R2 without asserting a dry run's R2_PREFIX")
-            elif (job.get("env") or {}).get("R2_PREFIX") != PREFIX_ENV:
-                bad.append(f"{where}: job R2_PREFIX is not {PREFIX_ENV}")
+        if STEP_GATE in str(step.get("if", "")):
+            continue
+        name = step.get("name", "?")
+        where = f"{jname} / {name}"
+        # Join backslash continuations so a multi-line curl is one line.
+        run = re.sub(r"\\\n\s*", " ", step.get("run", ""))
+        if step.get("uses", "").startswith(PUBLISH_ACTIONS):
+            bad.append(f"{where}: publishing action without a publish gate")
+        for pat in MUTATING:
+            if re.search(pat, run):
+                bad.append(f"{where}: mutating call /{pat}/ without a publish gate")
+        uses_secret = "secrets." in yaml.safe_dump(step)
+        if "s3://" in run or "aws s3" in run:
+            if not r2_prefixed(job, run):
+                bad.append(f"{where}: R2 access not confined to an asserted dry-run R2_PREFIX")
+        elif uses_secret and (jname, name) not in SIGNING:
+            bad.append(f"{where}: uses a secret without a publish gate")
 print("\n".join(bad))
 sys.exit(1 if bad else 0)
 PY
 }
 
-@test "every publishing step is gated on publish or writes through the dry-run prefix" {
+@test "every step using a secret or publishing is gated on publish or allowlisted" {
     run lint_publish_guards "$YML"
     [ "$status" -eq 0 ] || fail "$output"
 }
 
-@test "the guard lint fires on an ungated release and an unprefixed R2 write" {
+@test "the guard lint fires on ungated publishing, secrets and unprefixed R2 writes" {
     local broken="$BATS_TEST_TMPDIR/release.yml"
     sed -e "/name: Create GitHub Release/{n;/RELEASE_MODE == 'publish'/d}" \
         -e 's|s3://${R2_BUCKET}/${R2_PREFIX}install.sh|s3://${R2_BUCKET}/install.sh|' \
         "$YML" > "$broken"
     run lint_publish_guards "$broken"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Create GitHub Release: publishes without a publish gate"* ]] || fail "$output"
-    [[ "$output" == *"s3://\${R2_BUCKET}/install.sh"* ]] || fail "$output"
+    [[ "$output" == *"Create GitHub Release: publishing action without a publish gate"* ]] || fail "$output"
+    [[ "$output" == *"Upload artifacts and manifests to R2: R2 access not confined"* ]] || fail "$output"
+}
+
+@test "the guard lint fires on a planted ungated step using a secret or a mutating call" {
+    local broken="$BATS_TEST_TMPDIR/release.yml"
+    awk '{ print }
+         /^      run: make test-shell$/ {
+             print "    - name: Planted secret"
+             print "      env:"
+             print "        TOKEN: ${{ secrets.SOME_TOKEN }}"
+             print "      run: echo \"$TOKEN\" > /dev/null"
+             print "    - name: Planted curl"
+             print "      run: |"
+             print "        curl -s \\"
+             print "          -X DELETE https://example.invalid/x"
+             print "    - name: Planted rclone"
+             print "      run: rclone copy a b"
+         }' "$YML" > "$broken"
+    run lint_publish_guards "$broken"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"validate-shell / Planted secret: uses a secret without a publish gate"* ]] || fail "$output"
+    [[ "$output" == *"validate-shell / Planted curl: mutating call"* ]] || fail "$output"
+    [[ "$output" == *"validate-shell / Planted rclone: mutating call"* ]] || fail "$output"
 }
 
 # ------------------------------------------------------------- verifier

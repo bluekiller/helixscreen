@@ -1707,9 +1707,6 @@ jobs:
     needs: [plan, release, upload-r2, upload-symbols]
     if: always() && needs.plan.outputs.mode == 'dryrun'
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
       R2_BUCKET: ${{ vars.R2_BUCKET_NAME || 'helixscreen-releases' }}
       R2_PREFIX: ${{ needs.plan.outputs.r2_prefix }}
 
@@ -1729,6 +1726,10 @@ jobs:
         path: dry-run-assets
 
     - name: Download the dry-run R2 prefix
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
       run: |
         [[ "$R2_PREFIX" == dry-run/?*/ ]] || { echo "::error::R2_PREFIX='${R2_PREFIX}' is not a dry-run prefix"; exit 1; }
         # Symbols are uploaded here too, but nothing below checks them and the
@@ -1750,6 +1751,10 @@ jobs:
 
     - name: Delete the dry-run R2 prefix
       if: always()
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
       run: |
         [[ "$R2_PREFIX" == dry-run/?*/ ]] || { echo "::error::R2_PREFIX='${R2_PREFIX}' is not a dry-run prefix"; exit 1; }
         aws s3 rm --recursive "s3://${R2_BUCKET}/${R2_PREFIX}" --endpoint-url "$R2_ENDPOINT"
