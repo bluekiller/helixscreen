@@ -796,8 +796,7 @@ void MoonrakerClient::on_ws_close() {
         // uptime, so a reboot (or a switch to a different printer) restarts it near
         // zero; carrying the old watermark across would make the next session's
         // genuinely-current frames look older than the last session's and be
-        // rejected for the life of the process. Touches two POD members under
-        // PrinterState's own mutex — no LVGL, safe from this event-loop thread.
+        // rejected for the life of the process. Queued to the main thread.
         get_printer_state().reset_klippy_state_freshness();
 
         if (was_connected_) {

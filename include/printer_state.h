@@ -1652,6 +1652,8 @@ class PrinterState {
      * is the point where the watermark stops being comparable. Without this the
      * next session's genuinely-current frames would look older than the previous
      * session's and be rejected forever.
+     *
+     * Safe from any thread: the reset is queued to the main thread.
      */
     void reset_klippy_state_freshness();
 
@@ -2603,10 +2605,6 @@ class PrinterState {
     lv_subject_t printer_type_subject_;
     char printer_type_subject_buf_[128];
 
-    // JSON cache for complex data
-    json json_state_;
-    std::mutex state_mutex_;
-
     // Initialization guard to prevent multiple subject initializations
     bool subjects_initialized_ = false;
 
@@ -2655,9 +2653,9 @@ class PrinterState {
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;
 
-    /// Freshness watermark for klippy state. Guarded by state_mutex_ — the webhooks
-    /// parse reads/writes them while already holding it; every other accessor takes
-    /// it via mark_klippy_state_live() / reset_klippy_state_freshness().
+    /// Freshness watermark for klippy state. Main thread only: WebSocket-thread
+    /// writers go through set_klippy_state() / reset_klippy_state_freshness(),
+    /// which queue their write.
     ///
     /// Highest Klipper eventtime that has carried a webhooks klippy state. Klipper
     /// derives it from the monotonic clock, so it survives a Klipper restart and only
@@ -2706,9 +2704,8 @@ class PrinterState {
     void set_klippy_state_internal(KlippyState state);
     void set_printer_type_internal(const std::string& type);
 
-    /// Latch "a live klippy state has been applied". Takes state_mutex_, so it must
-    /// NOT be called from update_from_status(), which already holds it.
-    void mark_klippy_state_live();
+    /// Main-thread half of reset_klippy_state_freshness().
+    void reset_klippy_state_freshness_internal();
 
     /// Main-thread half of set_klippy_state_if_unseeded(): re-checks the guard in
     /// the same serialized order as the webhooks parse, then applies.

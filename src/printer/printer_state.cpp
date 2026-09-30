@@ -356,8 +356,6 @@ std::optional<StatusFrame> helix::parse_status_notification(const json& notifica
 
 void PrinterState::update_from_status(const json& state, double eventtime,
                                       bool from_cached_snapshot) {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-
     // Debug: Check if we're in render phase (this should never be true)
     LV_DEBUG_RENDER_STATE();
 
@@ -434,8 +432,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
                 }
             }
             // set_excluded_objects handles change detection and notification
-            // Note: We're inside state_mutex_ lock, but set_excluded_objects only modifies
-            // its own data and calls lv_subject_set_int which is safe
             set_excluded_objects(excluded);
         }
 
@@ -648,18 +644,13 @@ void PrinterState::set_network_status(int status) {
 }
 
 void PrinterState::set_klippy_state(KlippyState state) {
-    // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
-    // authoritative, and they must outrank any replayed snapshot from here on.
-    mark_klippy_state_live();
-
-    // Thread-safe wrapper: defer LVGL subject updates to main thread
-    helix::async::call_method(this, &PrinterState::set_klippy_state_internal, state);
+    helix::async::call_method(this, &PrinterState::set_klippy_state_sync, state);
 }
 
 void PrinterState::set_klippy_state_sync(KlippyState state) {
-    mark_klippy_state_live();
-
-    // Direct call for main-thread use (testing, or when already on main thread)
+    // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
+    // authoritative, and they must outrank any replayed snapshot from here on.
+    klippy_state_from_live_ = true;
     set_klippy_state_internal(state);
 }
 
@@ -672,14 +663,11 @@ void PrinterState::set_klippy_state_if_unseeded(KlippyState state) {
 }
 
 void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
-    {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        if (klippy_state_from_live_) {
-            spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
-                          "has already been applied",
-                          static_cast<int>(state));
-            return;
-        }
+    if (klippy_state_from_live_) {
+        spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
+                      "has already been applied",
+                      static_cast<int>(state));
+        return;
     }
 
     // Deliberately does NOT mark the state live: printer.info is a seed, and the
@@ -688,13 +676,14 @@ void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
     set_klippy_state_internal(state);
 }
 
-void PrinterState::mark_klippy_state_live() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    klippy_state_from_live_ = true;
+void PrinterState::reset_klippy_state_freshness() {
+    // Queued behind any frame already waiting, so the watermark only resets
+    // between sessions. The next connection's first frame is a network round
+    // trip away, long after the queue drains.
+    helix::async::call_method(this, &PrinterState::reset_klippy_state_freshness_internal);
 }
 
-void PrinterState::reset_klippy_state_freshness() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
+void PrinterState::reset_klippy_state_freshness_internal() {
     klippy_state_eventtime_ = 0.0;
     klippy_state_from_live_ = false;
 }

@@ -174,6 +174,7 @@ TEST_CASE_METHOD(KlippyFreshnessFixture, "Klippy freshness: reset re-arms cold s
     // Post-reboot Klipper restarts its clock, so the next session's frames carry
     // eventtimes far below the old watermark.
     state.reset_klippy_state_freshness();
+    helix::ui::UpdateQueue::instance().drain();
     live("ready", 3.0);
     CHECK(klippy() == KlippyState::READY);
 }
@@ -249,6 +250,28 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 
     state.update_from_status(webhooks_status("ready"), 101.0);
     CHECK(klippy() == KlippyState::READY);
+}
+
+// ============================================================================
+// A status frame's fan-out runs observers synchronously. One that calls back into
+// PrinterState must not wedge the frame that notified it.
+// ============================================================================
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: an observer may call back into PrinterState mid-frame",
+                 "[core][klippy][freshness]") {
+    auto callback = [](lv_observer_t* observer, lv_subject_t*) {
+        auto* self = static_cast<KlippyFreshnessFixture*>(lv_observer_get_user_data(observer));
+        self->state.reset_klippy_state_freshness();
+        self->state.set_klippy_state_sync(KlippyState::SHUTDOWN);
+    };
+    lv_observer_t* observer =
+        lv_subject_add_observer(state.get_klippy_state_subject(), callback, this);
+
+    live("ready", 100.0);
+    CHECK(klippy() == KlippyState::SHUTDOWN);
+
+    lv_observer_remove(observer);
 }
 
 // ============================================================================

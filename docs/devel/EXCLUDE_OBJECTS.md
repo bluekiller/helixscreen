@@ -418,7 +418,7 @@ excluded_observer_ = ObserverGuard(
 
 ### Thread Safety
 
-- `PrinterExcludedObjectsState::set_excluded_objects()` is called from the main thread (inside `PrinterState::update_from_status()` which holds `state_mutex_`)
+- `PrinterExcludedObjectsState::set_excluded_objects()` is called from the main thread (inside `PrinterState::update_from_status()`)
 - `set_excluded_objects()` calls `lv_subject_set_int()` which must happen on the LVGL thread
 - `PrintExcludeObjectManager` uses `ui_queue_update()` to marshal API error callbacks to the main thread
 - The `alive_` shared pointer guard prevents use-after-free when async callbacks fire after manager destruction

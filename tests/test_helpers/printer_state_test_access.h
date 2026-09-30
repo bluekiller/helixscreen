@@ -259,12 +259,7 @@ class PrinterStateTestAccess {
         ps.discovery_ = helix::PrinterDiscovery();
         ps.last_unknown_klippy_state_.clear();
         ps.timelapse_default_enabled_ = false;
-        {
-            std::lock_guard<std::mutex> lock(ps.state_mutex_);
-            ps.json_state_ = nlohmann::json::object();
-        }
-        // Takes state_mutex_ itself, so it must be outside the block above.
-        ps.reset_klippy_state_freshness();
+        ps.reset_klippy_state_freshness_internal();
     }
 
     static PrinterFanState& get_fan_state(PrinterState& ps) {

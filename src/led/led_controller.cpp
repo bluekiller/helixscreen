@@ -1824,8 +1824,6 @@ void LedController::update_from_status(const nlohmann::json& status) {
     const bool effects = effects_.update_from_status(status);
     const bool pins = output_pin_.update_from_status(status);
     if (native || effects || pins) {
-        // Runs inside PrinterState::update_from_status, under its state_mutex_: a
-        // led_state_version observer must not call back into PrinterState synchronously.
         bump_state_version();
     }
 }
