@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/config_test_access.h"
 #include "../test_helpers/scoped_breakpoint.h"
 #include "config.h"
@@ -2782,5 +2783,61 @@ TEST_CASE_METHOD(PanelWidgetConfigFixture, "removing a page keeps its unknown id
          ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"]["pages"])
         for (const auto& item : page["widgets"])
             kept = kept || item["id"] == "gone-plug__tile";
+    CHECK(kept);
+}
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "restoring a parked layout keeps its unknown ids",
+                 "[panel_widget][widget_config]") {
+    json unknown = {{"id", "gone-plug__tile"},
+                    {"enabled", true},
+                    {"col", 2},
+                    {"row", 0},
+                    {"colspan", 2},
+                    {"rowspan", 2}};
+    setup_with_pages(
+        {{"main", json::array({{{"id", "print_status"}, {"enabled", true}}, unknown})}});
+    // Stamp the grid the layout was arranged on, or the first switch adopts it
+    // without parking anything.
+    ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"]["grid"] =
+        "24x12";
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    wc.switch_to_grid(12, 6);  // parks the 24x12 arrangement, seeds 12x6 from it
+    wc.switch_to_grid(24, 12); // restores the parked 24x12 arrangement
+    bool kept = false;
+    for (const auto& item : get_saved_page0_widgets())
+        kept = kept || item == unknown;
+    CHECK(kept);
+}
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "a preset seed keeps unknown ids",
+                 "[panel_widget][widget_config]") {
+    ConfigDirGuard guard("preset-retain");
+    json unknown = {{"id", "gone-plug__tile"},
+                    {"enabled", true},
+                    {"col", 2},
+                    {"row", 0},
+                    {"colspan", 2},
+                    {"rowspan", 2}};
+    json seed;
+    seed["pages"] = json::array(
+        {json{{"id", "main"},
+              {"widgets", json::array({{{"id", "print_status"}, {"enabled", true}}, unknown})}}});
+    seed["main_page_index"] = 0;
+    seed["next_page_id"] = 1;
+    std::filesystem::create_directories(guard.dir / "panel_widgets" / "testp");
+    {
+        std::ofstream out(guard.dir / "panel_widgets" / "testp" / "home.json");
+        out << seed.dump();
+    }
+    setup_empty_config();
+    ConfigTestAccess::data(config)["printers"]["default"]["preset"] = "testp";
+
+    PanelWidgetConfig wc("home", config);
+    wc.load(); // no saved layout: seeds from panel_widgets/testp/home.json and saves
+
+    bool kept = false;
+    for (const auto& item : get_saved_page0_widgets())
+        kept = kept || item == unknown;
     CHECK(kept);
 }
