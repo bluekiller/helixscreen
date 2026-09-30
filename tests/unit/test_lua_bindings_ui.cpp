@@ -8,6 +8,8 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/log_capture.h"
+#include "../test_helpers/plugin_host_test_support.h"
 #include "../test_helpers/plugin_test_support.h"
 #include "../test_helpers/scope_exit.h"
 #include "helix-xml/src/xml/lv_xml.h"
@@ -225,22 +227,17 @@ TEST_CASE_METHOD(LVGLTestFixture, "a confirm dialog that cannot be shown holds n
     REQUIRE(b.t.run(R"(helix.ui.confirm("Two", "body"))"));
 }
 
-TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime safely",
-                 "[plugin][lua_bindings_ui]") {
-    sweep_retired_subjects();
-    size_t before = retired_subject_count();
+namespace {
+/// Closes a runtime while a bound label still observes its subject: the subject
+/// is retired, kept alive by the helix-xml bind record on the returned widget.
+/// Bind through helix-xml because its bind record keeps the observer handle and
+/// detaches it on the widget's delete event; that record is the reference that
+/// must outlive the runtime.
+lv_obj_t* bind_label_to_doomed_subject() {
     lv_obj_t* root = nullptr;
-    helix::test::ScopeExit cleanup([&root] {
-        if (root && lv_obj_is_valid(root))
-            lv_obj_delete(root);
-        lv_xml_component_unregister("test-plugin__bindrow");
-    });
     {
         BoundRuntime b({&install_ui_bindings});
         REQUIRE(b.t.run(R"(s = helix.subject.string("status", "hi"))"));
-        // Bind through helix-xml, whose bind record keeps the observer handle and detaches
-        // it on the widget's delete event; that record is the reference that must outlive
-        // the runtime.
         REQUIRE(lv_xml_register_component_from_data(
                     "test-plugin__bindrow",
                     "<component><view extends=\"lv_obj\">"
@@ -250,7 +247,21 @@ TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime 
         root = static_cast<lv_obj_t*>(
             lv_xml_create(lv_screen_active(), "test-plugin__bindrow", attrs));
         REQUIRE(root);
-    } // runtime destroyed while the label's bind record still observes the subject
+    }
+    return root;
+}
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime safely",
+                 "[plugin][lua_bindings_ui]") {
+    sweep_retired_subjects();
+    size_t before = retired_subject_count();
+    lv_obj_t* root = bind_label_to_doomed_subject();
+    helix::test::ScopeExit cleanup([&root] {
+        if (root && lv_obj_is_valid(root))
+            lv_obj_delete(root);
+        lv_xml_component_unregister("test-plugin__bindrow");
+    });
     lv_obj_t* label = lv_obj_find_by_name(root, "bound_label");
     REQUIRE(label);
     CHECK(lv_xml_get_subject(nullptr, "test-plugin__status") == nullptr);
@@ -260,6 +271,26 @@ TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime 
     lv_obj_delete(root); // detaches the bind record from a subject that must still be alive
     root = nullptr;
     sweep_retired_subjects();
+    CHECK(retired_subject_count() == before);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a plugin load sweeps retired subjects",
+                 "[plugin][lua_bindings_ui]") {
+    sweep_retired_subjects();
+    size_t before = retired_subject_count();
+    lv_obj_t* root = bind_label_to_doomed_subject();
+    helix::test::ScopeExit cleanup([&root] {
+        if (root && lv_obj_is_valid(root))
+            lv_obj_delete(root);
+        lv_xml_component_unregister("test-plugin__bindrow");
+    });
+    REQUIRE(retired_subject_count() == before + 1);
+    lv_obj_delete(root); // detaches the bind record: nothing observes the subject now
+    root = nullptr;
+
+    HostRig rig(enabled("hello", {"gcode"}));
+    rig.host->load_from("tests/fixtures/plugins");
+    drain();
     CHECK(retired_subject_count() == before);
 }
 
@@ -359,6 +390,20 @@ TEST_CASE_METHOD(LVGLUITestFixture, "closing the runtime hides the plugin's open
     process_lvgl(50);
     helix::ui::UpdateQueue::instance().drain();
     CHECK(ModalStack::instance().top_dialog() == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "a confirm the user closed is not hidden again at close",
+                 "[plugin][lua_bindings_ui]") {
+    helix::TextLogCapture log;
+    {
+        BoundRuntime b({&install_ui_bindings});
+        REQUIRE(b.t.run(R"(helix.ui.confirm("Q", "body"))"));
+        answer_open_confirm(*this, "btn_secondary", false);
+        REQUIRE(ModalStack::instance().top_dialog() == nullptr);
+    } // the dialog's close path cleared the pointer, so the closer must find nothing to hide
+    process_lvgl(50);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(log.contains("Dialog not found in stack"));
 }
 
 #endif // HELIX_HAS_PLUGINS
