@@ -340,45 +340,31 @@ void NavigationManager::activate_restored_target() {
     }
 }
 
+// Overlays enter from and exit to the right edge in every orientation.
+static void overlay_translate_x(void* obj, int32_t v) {
+    if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
+        return;
+    lv_obj_set_style_translate_x(static_cast<lv_obj_t*>(obj), v, LV_PART_MAIN);
+}
+
+static int32_t overlay_slide_offset(lv_obj_t* panel, int32_t fallback) {
+    const int32_t width = lv_obj_get_width(panel);
+    return width != 0 ? width : fallback;
+}
+
 void NavigationManager::overlay_animate_slide_in(lv_obj_t* panel) {
-    // Portrait overlays are top-anchored (ui_set_overlay_geometry), so they
-    // enter from ABOVE the screen on the Y axis. Landscape enters from the
-    // right on X. Everything else about the animation is identical.
-    lv_obj_t* screen = lv_obj_get_screen(panel);
-    const bool portrait = helix::is_portrait_layout(helix::detect_layout_type(
-        screen ? lv_obj_get_width(screen) : 800, screen ? lv_obj_get_height(screen) : 480));
-
-    int32_t offset = portrait ? -lv_obj_get_height(panel) : lv_obj_get_width(panel);
-    if (offset == 0) {
-        offset = portrait ? -OVERLAY_SLIDE_OFFSET : OVERLAY_SLIDE_OFFSET;
-    }
-
-    // Two captureless lambdas decay to the same function-pointer type, which is
-    // also lv_anim_exec_xcb_t — so one variable serves both the immediate
-    // "animations disabled" write and the animation's exec callback.
-    using TranslateFn = void (*)(void*, int32_t);
-    static const TranslateFn TRANSLATE_Y = [](void* obj, int32_t v) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_y(static_cast<lv_obj_t*>(obj), v, LV_PART_MAIN);
-    };
-    static const TranslateFn TRANSLATE_X = [](void* obj, int32_t v) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_x(static_cast<lv_obj_t*>(obj), v, LV_PART_MAIN);
-    };
-    const TranslateFn set_translate = portrait ? TRANSLATE_Y : TRANSLATE_X;
+    const int32_t offset = overlay_slide_offset(panel, OVERLAY_SLIDE_OFFSET);
 
     // Skip animation if disabled - show panel in final state
     if (!DisplaySettingsManager::instance().get_animations_enabled()) {
-        set_translate(panel, 0);
+        lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
         lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
         spdlog::trace("[NavigationManager] Animations disabled - showing overlay instantly");
         return;
     }
 
     // Set initial state: off-screen and transparent
-    set_translate(panel, offset);
+    lv_obj_set_style_translate_x(panel, offset, LV_PART_MAIN);
     lv_obj_set_style_opa(panel, LV_OPA_TRANSP, LV_PART_MAIN);
 
     lv_anim_t slide_anim;
@@ -387,7 +373,7 @@ void NavigationManager::overlay_animate_slide_in(lv_obj_t* panel) {
     lv_anim_set_values(&slide_anim, offset, 0);
     lv_anim_set_duration(&slide_anim, OVERLAY_ANIM_DURATION_MS);
     lv_anim_set_path_cb(&slide_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&slide_anim, set_translate);
+    lv_anim_set_exec_cb(&slide_anim, overlay_translate_x);
     lv_anim_start(&slide_anim);
 
     // Fade animation: opacity from transparent to opaque (runs simultaneously)
@@ -404,8 +390,8 @@ void NavigationManager::overlay_animate_slide_in(lv_obj_t* panel) {
     });
     lv_anim_start(&fade_anim);
 
-    spdlog::trace("[NavigationManager] Started slide+fade-in for panel {} (offset={}, {})",
-                  (void*)panel, offset, portrait ? "portrait/Y" : "landscape/X");
+    spdlog::trace("[NavigationManager] Started slide+fade-in for panel {} (offset={})",
+                  (void*)panel, offset);
 }
 
 void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
@@ -443,30 +429,7 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
         return;
     }
 
-    // Portrait overlays are top-anchored, so they exit back off the TOP on the
-    // Y axis. Landscape exits back off the right on X. Mirrors
-    // overlay_animate_slide_in()'s axis selection.
-    lv_obj_t* screen = lv_obj_get_screen(panel);
-    const bool portrait = helix::is_portrait_layout(helix::detect_layout_type(
-        screen ? lv_obj_get_width(screen) : 800, screen ? lv_obj_get_height(screen) : 480));
-
-    int32_t offset = portrait ? -lv_obj_get_height(panel) : lv_obj_get_width(panel);
-    if (offset == 0) {
-        offset = portrait ? -OVERLAY_SLIDE_OFFSET : OVERLAY_SLIDE_OFFSET;
-    }
-
-    using TranslateFn = void (*)(void*, int32_t);
-    static const TranslateFn TRANSLATE_Y = [](void* obj, int32_t v) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_y(static_cast<lv_obj_t*>(obj), v, LV_PART_MAIN);
-    };
-    static const TranslateFn TRANSLATE_X = [](void* obj, int32_t v) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_x(static_cast<lv_obj_t*>(obj), v, LV_PART_MAIN);
-    };
-    const TranslateFn set_translate = portrait ? TRANSLATE_Y : TRANSLATE_X;
+    const int32_t offset = overlay_slide_offset(panel, OVERLAY_SLIDE_OFFSET);
 
     lv_anim_t slide_anim;
     lv_anim_init(&slide_anim);
@@ -474,7 +437,7 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
     lv_anim_set_values(&slide_anim, 0, offset);
     lv_anim_set_duration(&slide_anim, OVERLAY_ANIM_DURATION_MS);
     lv_anim_set_path_cb(&slide_anim, lv_anim_path_ease_in);
-    lv_anim_set_exec_cb(&slide_anim, set_translate);
+    lv_anim_set_exec_cb(&slide_anim, overlay_translate_x);
     lv_anim_set_completed_cb(&slide_anim, overlay_slide_out_complete_cb);
     lv_anim_start(&slide_anim);
 
@@ -492,8 +455,8 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
     });
     lv_anim_start(&fade_anim);
 
-    spdlog::trace("[NavigationManager] Started slide+fade-out for panel {} (offset={}, {})",
-                  (void*)panel, offset, portrait ? "portrait/Y" : "landscape/X");
+    spdlog::trace("[NavigationManager] Started slide+fade-out for panel {} (offset={})",
+                  (void*)panel, offset);
 }
 
 // ============================================================================

@@ -90,4 +90,12 @@ class NavigationManagerTestAccess {
     static void clear_overlay_stack(NavigationManager& nav) {
         nav.clear_overlay_stack();
     }
+
+    /// Run the overlay open / close slide directly on a widget.
+    static void animate_slide_in(NavigationManager& nav, lv_obj_t* panel) {
+        nav.overlay_animate_slide_in(panel);
+    }
+    static void animate_slide_out(NavigationManager& nav, lv_obj_t* panel) {
+        nav.overlay_animate_slide_out(panel);
+    }
 };
