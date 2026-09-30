@@ -5442,6 +5442,7 @@ void AmsBackendAfc::write_lane_locked(int slot_index, SlotInfo& slot, const Slot
     slot.product_name = info.product_name;
     slot.spoolman_id = info.spoolman_id;
     slot.spoolman_filament_id = info.spoolman_filament_id;
+    slot.spoolman_vendor_id = info.spoolman_vendor_id;
     slot.spool_name = info.spool_name;
     slot.remaining_weight_g = info.remaining_weight_g;
     slot.total_weight_g = info.total_weight_g;
