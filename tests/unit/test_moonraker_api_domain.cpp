@@ -67,12 +67,10 @@ class MoonrakerAPIDomainTestFixture {
         // Connect mock client (required for discovery)
         mock_client.connect("ws://mock/websocket", []() {}, []() {});
 
-        // Create API with mock client BEFORE discovery
-        // (API registers hardware discovered callback in constructor)
         api = std::make_unique<MoonrakerAPI>(mock_client, state);
 
-        // Run discovery to populate hardware lists (triggers API callback)
-        mock_client.discover_printer([]() {});
+        // Run discovery, then hand the hardware to the API as Application does
+        mock_client.discover_printer([this]() { api->hardware() = mock_client.hardware(); });
     }
 
     ~MoonrakerAPIDomainTestFixture() {
