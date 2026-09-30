@@ -50,7 +50,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "an enabled plugin loads, binds and reacts", "
     auto* panel =
         static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "hello__panel", nullptr));
     REQUIRE(panel);
-    lv_obj_t* button = lv_obj_find_by_name(panel, "hello_button");
+    lv_obj_t* button = lv_obj_find_by_name(panel, "hello__button");
     REQUIRE(button);
     lv_obj_send_event(button, LV_EVENT_CLICKED, nullptr);
     CHECK(std::string(lv_subject_get_string(status)) == "pressed 7");
@@ -251,7 +251,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     w->attach(root, lv_screen_active());
     w->notify_size_changed(4, 2, 200, 100);
     drain();
-    CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo_size_label"))) ==
+    CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo__size_label"))) ==
           "2x1");
 
     rig.host->disable("widget-demo");

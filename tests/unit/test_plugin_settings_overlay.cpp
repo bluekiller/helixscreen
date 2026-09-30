@@ -369,7 +369,7 @@ TEST_CASE_METHOD(SettingsFx, "a manifest settings_overlay replaces the generated
     CHECK(NavigationManager::instance().has_open_overlays());
     CHECK(rig.host->overlays().open_count("custom-settings") == 1);
     CHECK(rig.host->settings_screen("custom-settings") == nullptr);
-    CHECK(lv_obj_find_by_name(lv_screen_active(), "custom_settings_marker"));
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "custom-settings__marker"));
 }
 
 TEST_CASE_METHOD(SettingsFx, "open_settings refuses nothing-to-show and unloaded plugins",

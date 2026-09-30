@@ -131,9 +131,14 @@ void on_start(void* ud, const XML_Char* name, const XML_Char** attrs) {
             }
         }
     }
-    for (int i = 0; attrs[i]; i += 2)
+    // On these elements name= declares a prop or refers to a style; it names no object.
+    bool names_object = el != "prop" && el != "style" && !starts_with(el, "remove_style");
+    for (int i = 0; attrs[i]; i += 2) {
+        if (!names_object && std::string_view(attrs[i]) == "name")
+            continue;
         if (auto why = check_plugin_attr(w.id, attrs[i], attrs[i + 1]))
             fail(w, std::move(*why));
+    }
 }
 
 void on_end(void*, const XML_Char*) {}
@@ -148,7 +153,10 @@ std::optional<std::string> check_plugin_attr(std::string_view id, std::string_vi
         name == "subject" || ends_with(name, "_subject") || starts_with(name, "bind_");
     bool is_cond = name == "cond" || ends_with(name, "_cond");
     bool is_target = name == "user_data";
-    if (!is_callback && !is_subject && !is_cond && !is_target)
+    // Screen-wide lookups by name (lv_obj_find_by_name from lv_layer_top or the
+    // screen) must never resolve to a plugin object.
+    bool is_object_name = name == "name";
+    if (!is_callback && !is_subject && !is_cond && !is_target && !is_object_name)
         return std::nullopt;
     if (!value.empty() && value.front() == '$')
         return std::string(name) + "=\"" + std::string(value) + "\": plugins cannot pass " +
@@ -159,6 +167,9 @@ std::optional<std::string> check_plugin_attr(std::string_view id, std::string_vi
     if (is_subject && !is_owned_name(id, value))
         return std::string(name) + "=\"" + std::string(value) + "\": subject must be named " +
                std::string(id) + "__<name>";
+    if (is_object_name && !is_owned_name(id, value))
+        return "name=\"" + std::string(value) + "\": object names must be " + std::string(id) +
+               "__<name>";
     if (is_target && !is_owned_name(id, value.substr(0, value.find(':'))))
         return "user_data=\"" + std::string(value) + "\": handler must be named " +
                std::string(id) + "__<name>";

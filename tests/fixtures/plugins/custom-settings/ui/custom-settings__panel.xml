@@ -3,6 +3,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <component>
   <view extends="overlay_panel" title="Custom" bg_color="#screen_bg">
-    <lv_label name="custom_settings_marker" text="Custom settings"/>
+    <lv_label name="custom-settings__marker" text="Custom settings"/>
   </view>
 </component>

@@ -173,4 +173,22 @@ TEST_CASE("plugin XML may not write subjects through subject_*_event elements",
         CHECK_FALSE(check_plugin_xml("ab", {}, view_with(f)).empty());
 }
 
+TEST_CASE("plugin object names are plugin-owned", "[plugin][xml_policy]") {
+    // Screen-wide lookups by name (modal_dialog, rename inputs) must never resolve
+    // to a plugin object.
+    CHECK_FALSE(check_plugin_xml("ab", {}, view_with(R"(<lv_obj name="modal_dialog"/>)")).empty());
+    CHECK_FALSE(
+        check_plugin_xml("ab", {}, view_with(R"(<lv_textarea name="rename_input"/>)")).empty());
+    CHECK(check_plugin_xml("ab", {}, view_with(R"(<lv_label name="ab__status"/>)")).empty());
+    CHECK(check_plugin_xml("ab", {}, view_with(R"(<lv_label/>)")).empty());
+    // A prop or a style reference names no object.
+    CHECK(check_plugin_xml("ab", {},
+                           "<component><api><prop name=\"title\" type=\"string\"/></api>"
+                           "<view extends=\"lv_obj\"/></component>")
+              .empty());
+    CHECK(check_plugin_xml("ab", {}, view_with(R"(<lv_obj-style name="card"/>)")).empty());
+    CHECK(check_plugin_attr("ab", "name", "modal_dialog").has_value());
+    CHECK_FALSE(check_plugin_attr("ab", "name", "ab__root").has_value());
+}
+
 #endif // HELIX_HAS_PLUGINS

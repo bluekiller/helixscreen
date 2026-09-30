@@ -155,7 +155,7 @@ TEST_CASE_METHOD(OverlayFx, "destroying the host mid-animation still deletes the
     REQUIRE(rt->run_string(R"(h = helix.ui.overlay("widget-demo__panel"))", "t"));
     drain(); // the push body ran; the slide-in is still animating
     REQUIRE(NavigationManager::instance().has_open_overlays());
-    REQUIRE(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status"));
+    REQUIRE(lv_obj_find_by_name(lv_screen_active(), "widget-demo__panel_status"));
 
     rig.host.reset();  // unload_all -> close_all -> go_back queued, then records die
     drain();           // go_back body pops and starts the slide-out
@@ -164,7 +164,7 @@ TEST_CASE_METHOD(OverlayFx, "destroying the host mid-animation still deletes the
     process_lvgl(100); // the deferred root delete is itself an async timer
 
     CHECK_FALSE(NavigationManager::instance().has_open_overlays());
-    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo__panel_status") == nullptr);
 }
 
 TEST_CASE_METHOD(OverlayFx,
@@ -294,7 +294,7 @@ TEST_CASE_METHOD(OverlayFx, "unload pops a buried overlay a close already claime
     process_lvgl(500);
     CHECK_FALSE(NavigationManager::instance().has_open_overlays());
     CHECK(rig.host->overlays().open_count("widget-demo") == 0);
-    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo__panel_status") == nullptr);
 }
 
 TEST_CASE_METHOD(OverlayFx, "a host destroyed over a claimed overlay leaves nothing to pop",
@@ -319,7 +319,7 @@ TEST_CASE_METHOD(OverlayFx, "a host destroyed over a claimed overlay leaves noth
     drain();
     process_lvgl(500);
     CHECK_FALSE(NavigationManager::instance().has_open_overlays());
-    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo__panel_status") == nullptr);
 
     NavigationManager::instance().go_back(); // the back press
     drain();
@@ -350,7 +350,7 @@ TEST_CASE_METHOD(OverlayFx, "a navbar tap during the close slide-out still finis
     process_lvgl(100); // the deferred root delete is itself an async timer
 
     CHECK(rig.host->overlays().open_count("widget-demo") == 0);
-    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo__panel_status") == nullptr);
     lua_getglobal(rt->state(), "closes");
     CHECK(lua_tointeger(rt->state(), -1) == 1);
     lua_pop(rt->state(), 1);
