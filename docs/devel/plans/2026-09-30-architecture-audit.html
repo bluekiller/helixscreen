@@ -9,7 +9,7 @@
   --bg: #f7f7f5; --surface: #ffffff; --surface-2: #f0f0ec; --text: #1d1f23; --muted: #5d636d; --border: #dcdcd6;
   --accent: #2f6fdb; --link: #2458b8;
   --bug: #c6362f; --footprint: #8a5a00; --dead: #5d636d; --dup: #2f6fdb; --belt: #7b4bc4; --god: #b0356f; --yagni: #1f8a70; --ext: #0f7ea8;
-  --open: #5d636d; --progress: #1f7a3a; --queued: #8a5a00;
+  --open: #5d636d; --progress: #1f7a3a; --queued: #8a5a00; --done: #1a7f37; --wontfix: #8b8f96;
   --chip-alpha-bg: color-mix(in srgb, currentColor 12%, transparent);
 }
 @media (prefers-color-scheme: dark) {
@@ -17,14 +17,14 @@
     --bg: #15171a; --surface: #1d2024; --surface-2: #25292e; --text: #e6e7e9; --muted: #9aa1ab; --border: #33383f;
     --accent: #6ea0ff; --link: #8cb4ff;
     --bug: #ff7b72; --footprint: #e0a84a; --dead: #a3aab4; --dup: #7aa9ff; --belt: #b99af0; --god: #f08bbd; --yagni: #5fd0b0; --ext: #5cc3e6;
-    --open: #a3aab4; --progress: #6bd08a; --queued: #e0a84a;
+    --open: #a3aab4; --progress: #6bd08a; --queued: #e0a84a; --done: #3fb950; --wontfix: #7d848e;
   }
 }
 :root[data-theme="dark"] {
   --bg: #15171a; --surface: #1d2024; --surface-2: #25292e; --text: #e6e7e9; --muted: #9aa1ab; --border: #33383f;
   --accent: #6ea0ff; --link: #8cb4ff;
   --bug: #ff7b72; --footprint: #e0a84a; --dead: #a3aab4; --dup: #7aa9ff; --belt: #b99af0; --god: #f08bbd; --yagni: #5fd0b0; --ext: #5cc3e6;
-  --open: #a3aab4; --progress: #6bd08a; --queued: #e0a84a;
+  --open: #a3aab4; --progress: #6bd08a; --queued: #e0a84a; --done: #3fb950; --wontfix: #7d848e;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -65,7 +65,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.82rem; }
 .t-bug { color: var(--bug); } .t-footprint { color: var(--footprint); } .t-dead { color: var(--dead); } .t-dup { color: var(--dup); }
 .t-belt-suspenders { color: var(--belt); } .t-god-class { color: var(--god); } .t-yagni { color: var(--yagni); } .t-extensibility { color: var(--ext); }
 .chip.sz { color: var(--muted); border-style: dashed; background: none; }
-.st-open { color: var(--open); } .st-progress { color: var(--progress); } .st-queued { color: var(--queued); }
+.st-open { color: var(--open); } .st-progress { color: var(--progress); } .st-queued { color: var(--queued); } .st-done { color: var(--done); } .st-wontfix { color: var(--wontfix); text-decoration: line-through; }
 .badge { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 4px; }
 .badge.ok { background: var(--bug); color: var(--surface); }
 .badge.unv { border: 1px solid var(--muted); color: var(--muted); }
@@ -111,9 +111,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">1.1-1.4 MB</div><div class="k">device binary from mocks + RTTI flags; +0.3-0.4 MB observer unification</div></div>
 <div class="tile"><div class="v">768 / 792 / 472 KB</div><div class="k">mock .text on mips / k2 / u1</div></div>
 <div class="tile"><div class="v">1.5-4 MB</div><div class="k">RAM: overlays, bed mesh, print select, XML text</div></div>
-<div class="tile"><div class="v">6 confirmed</div><div class="k">bugs: 5 of the 17 surfaced, plus SEC-1; all in progress</div></div>
+<div class="tile"><div class="v">6 confirmed</div><div class="k">bugs: 5 of the 17 surfaced, plus SEC-1; all shipped</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
-<div class="tile"><div class="v">123</div><div class="k">findings: 26 in progress, 3 queued, 94 open</div></div>
+<div class="tile"><div class="v">128</div><div class="k">findings: 28 done, 99 open, 1 wontfix</div></div>
 </div>
 </header>
 
@@ -147,17 +147,18 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 
 <section id="decisions">
 <h2>Decisions</h2>
-<p class="lede">Maintainer answers to the audit's product calls, plus one security decision (7).</p>
+<p class="lede">Maintainer answers to the audit's product calls, plus decisions 7 and 8.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>#</th><th>Question</th><th>Decision</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>On-device <code>--test</code>: keep mocks in device images?</td><td>Mocks stay in test/dev builds and are excluded from released (<code>HELIX_PACKAGING=1</code>) binaries. <a href="#FP-1">FP-1</a></td><td><span class="pill st-progress">in progress</span> <code class="br">chore/release-footprint</code></td></tr>
-<tr><td>2</td><td>WLED preset stub that invents "Preset 1-5"</td><td>Drop it. <a href="#PRN-4">PRN-4</a></td><td><span class="pill st-progress">in progress</span> <code class="br">refactor/dead-code-sweep</code></td></tr>
+<tr><td>1</td><td>On-device <code>--test</code>: keep mocks in device images?</td><td>Mocks stay in test/dev builds and are excluded from released (<code>HELIX_PACKAGING=1</code>) binaries. <a href="#FP-1">FP-1</a></td><td><span class="pill st-done">done</span> <code class="br">f1dc2ef14</code></td></tr>
+<tr><td>2</td><td>WLED preset stub that invents "Preset 1-5"</td><td>Drop it. <a href="#PRN-4">PRN-4</a></td><td><span class="pill st-done">done</span> <code class="br">11e3e7b2f</code></td></tr>
 <tr><td>3</td><td>Config migration floor (drop pre-v9 shims)</td><td>Drop migrations below v9, pending a telemetry check of the version distribution. <a href="#GOD-9">GOD-9</a></td><td><span class="pill st-progress">investigation in progress</span></td></tr>
 <tr><td>4</td><td>Committed installer bundles out of git?</td><td>Removable if the <code>releases.helixscreen.org</code> one-liner keeps working. <a href="#TB-7">TB-7</a></td><td><span class="pill st-progress">investigation in progress</span></td></tr>
 <tr><td>5</td><td>#1325 seam: bootstrapper/runtime, or reactions-to-owners?</td><td>Reactions move to their owning subsystems first; the remaining bootstrap sequence falls out. <a href="#GOD-1">GOD-1</a></td><td><span class="pill st-open">decided</span></td></tr>
 <tr><td>6</td><td>Release CA-cert bundling differs across targets: intentional?</td><td>Not known to be intentional; history being checked before unifying the recipes. <a href="#TB-5">TB-5</a></td><td><span class="pill st-progress">investigation in progress</span></td></tr>
-<tr><td>7</td><td>TLS verification</td><td>Our own internet endpoints (update/manifest, telemetry, crash, bundle) verify chain + hostname; time checks skipped for 1970 boot clocks; LAN/user URLs unchanged. Backport to <code>release/1.0</code> planned. <a href="#SEC-1">SEC-1</a></td><td><span class="pill st-progress">in progress</span> <code class="br">fix/tls-peer-verification</code></td></tr>
+<tr><td>7</td><td>TLS verification</td><td>Our own internet endpoints (update/manifest, telemetry, crash, bundle) verify chain + hostname; time checks skipped for 1970 boot clocks; LAN/user URLs unchanged. Backport to <code>release/1.0</code> planned. <a href="#SEC-1">SEC-1</a></td><td><span class="pill st-done">done</span> <code class="br">ba2018476</code></td></tr>
+<tr><td>8</td><td>Where does the perf farm measure what?</td><td>Idle performance is measured only on release binaries; print-load performance on dev cross builds.</td><td><span class="pill st-open">decided</span></td></tr>
 </tbody>
 </table></div>
 </section>
@@ -165,10 +166,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <section id="phases">
 <h2>Phases</h2>
 <p class="lede">Order of work. Each phase lists the findings it owns; later phases depend on the test decoupling in phase 2.</p>
-<div class="card"><strong>Phase 0: confirmed bugs.</strong> Fix independent of any refactor, then verify the unverified list one by one.<br><a href="#BUG-1">BUG-1</a>, <a href="#BUG-2">BUG-2</a>, <a href="#BUG-3">BUG-3</a>, <a href="#BUG-4">BUG-4</a>, <a href="#BUG-5">BUG-5</a>, <a href="#BUG-6">BUG-6</a>, <a href="#BUG-7">BUG-7</a>, <a href="#BUG-8">BUG-8</a>, <a href="#BUG-9">BUG-9</a>, <a href="#BUG-10">BUG-10</a>, <a href="#BUG-11">BUG-11</a>, <a href="#BUG-12">BUG-12</a>, <a href="#BUG-13">BUG-13</a>, <a href="#BUG-14">BUG-14</a>, <a href="#BUG-15">BUG-15</a>, <a href="#BUG-16">BUG-16</a>, <a href="#BUG-17">BUG-17</a>, <a href="#SEC-1">SEC-1</a></div>
-<div class="card"><strong>Phase 1: free footprint and pure deletion.</strong> Flags, headers, dead code; near-zero behaviour risk.<br><a href="#FP-1">FP-1</a>, <a href="#FP-2">FP-2</a>, <a href="#FP-3">FP-3</a>, <a href="#FP-4">FP-4</a>, <a href="#FP-5">FP-5</a>, <a href="#FP-6">FP-6</a>, <a href="#FP-7">FP-7</a>, <a href="#FP-8">FP-8</a>, <a href="#DEAD-1">DEAD-1</a>, <a href="#DEAD-2">DEAD-2</a>, <a href="#DEAD-3">DEAD-3</a>, <a href="#DEAD-4">DEAD-4</a>, <a href="#DEAD-5">DEAD-5</a>, <a href="#DEAD-6">DEAD-6</a>, <a href="#DEAD-7">DEAD-7</a>, <a href="#DEAD-8">DEAD-8</a>, <a href="#DEAD-9">DEAD-9</a>, <a href="#DEAD-10">DEAD-10</a>, <a href="#DEAD-11">DEAD-11</a>, <a href="#DEAD-12">DEAD-12</a>, <a href="#DEAD-13">DEAD-13</a>, <a href="#DEAD-14">DEAD-14</a>, <a href="#DEAD-15">DEAD-15</a>, <a href="#DEAD-16">DEAD-16</a>, <a href="#PRN-4">PRN-4</a></div>
-<div class="card"><strong>Phase 2: test decoupling, then framework consolidation.</strong> Move tests to public inputs before touching the code they pin; then give recurring lifecycle a home so per-feature growth stops.<br><a href="#TB-1">TB-1</a>, <a href="#TB-2">TB-2</a>, <a href="#TB-3">TB-3</a>, <a href="#TB-4">TB-4</a>, <a href="#FW-1">FW-1</a>, <a href="#FW-2">FW-2</a>, <a href="#FW-3">FW-3</a>, <a href="#FW-4">FW-4</a>, <a href="#FW-5">FW-5</a>, <a href="#FW-6">FW-6</a>, <a href="#FW-7">FW-7</a>, <a href="#FW-8">FW-8</a>, <a href="#FW-9">FW-9</a>, <a href="#FW-10">FW-10</a>, <a href="#FW-11">FW-11</a>, <a href="#FW-12">FW-12</a>, <a href="#FW-13">FW-13</a></div>
-<div class="card"><strong>Phase 3: subsystem dedup, RAM, build.</strong> Fold the near-twins onto one rule each; reclaim RAM; untangle release recipes and gates.<br><a href="#AMS-1">AMS-1</a>, <a href="#AMS-2">AMS-2</a>, <a href="#AMS-3">AMS-3</a>, <a href="#AMS-4">AMS-4</a>, <a href="#AMS-5">AMS-5</a>, <a href="#AMS-6">AMS-6</a>, <a href="#AMS-7">AMS-7</a>, <a href="#AMS-8">AMS-8</a>, <a href="#AMS-9">AMS-9</a>, <a href="#AMS-10">AMS-10</a>, <a href="#AMS-11">AMS-11</a>, <a href="#API-1">API-1</a>, <a href="#API-2">API-2</a>, <a href="#API-3">API-3</a>, <a href="#API-4">API-4</a>, <a href="#API-5">API-5</a>, <a href="#API-6">API-6</a>, <a href="#API-7">API-7</a>, <a href="#REN-1">REN-1</a>, <a href="#REN-2">REN-2</a>, <a href="#REN-3">REN-3</a>, <a href="#REN-4">REN-4</a>, <a href="#REN-5">REN-5</a>, <a href="#REN-6">REN-6</a>, <a href="#REN-7">REN-7</a>, <a href="#REN-8">REN-8</a>, <a href="#SYS-1">SYS-1</a>, <a href="#SYS-2">SYS-2</a>, <a href="#SYS-3">SYS-3</a>, <a href="#SYS-4">SYS-4</a>, <a href="#SYS-5">SYS-5</a>, <a href="#SYS-6">SYS-6</a>, <a href="#PRN-1">PRN-1</a>, <a href="#PRN-2">PRN-2</a>, <a href="#PRN-3">PRN-3</a>, <a href="#PRN-5">PRN-5</a>, <a href="#PRN-6">PRN-6</a>, <a href="#VEN-1">VEN-1</a>, <a href="#VEN-2">VEN-2</a>, <a href="#VEN-3">VEN-3</a>, <a href="#VEN-4">VEN-4</a>, <a href="#VEN-5">VEN-5</a>, <a href="#RAM-1">RAM-1</a>, <a href="#RAM-2">RAM-2</a>, <a href="#RAM-3">RAM-3</a>, <a href="#RAM-4">RAM-4</a>, <a href="#RAM-5">RAM-5</a>, <a href="#TB-5">TB-5</a>, <a href="#TB-6">TB-6</a>, <a href="#TB-7">TB-7</a>, <a href="#TB-8">TB-8</a>, <a href="#TB-9">TB-9</a></div>
+<div class="card"><strong>Phase 0: confirmed bugs.</strong> Fix independent of any refactor, then verify the unverified list one by one.<br><a href="#BUG-1">BUG-1</a>, <a href="#BUG-2">BUG-2</a>, <a href="#BUG-3">BUG-3</a>, <a href="#BUG-4">BUG-4</a>, <a href="#BUG-5">BUG-5</a>, <a href="#BUG-6">BUG-6</a>, <a href="#BUG-7">BUG-7</a>, <a href="#BUG-8">BUG-8</a>, <a href="#BUG-9">BUG-9</a>, <a href="#BUG-10">BUG-10</a>, <a href="#BUG-11">BUG-11</a>, <a href="#BUG-12">BUG-12</a>, <a href="#BUG-13">BUG-13</a>, <a href="#BUG-14">BUG-14</a>, <a href="#BUG-15">BUG-15</a>, <a href="#BUG-16">BUG-16</a>, <a href="#BUG-17">BUG-17</a>, <a href="#SEC-1">SEC-1</a>, <a href="#BUG-18">BUG-18</a></div>
+<div class="card"><strong>Phase 1: free footprint and pure deletion.</strong> Flags, headers, dead code; near-zero behaviour risk.<br><a href="#FP-1">FP-1</a>, <a href="#FP-2">FP-2</a>, <a href="#FP-3">FP-3</a>, <a href="#FP-4">FP-4</a>, <a href="#FP-5">FP-5</a>, <a href="#FP-6">FP-6</a>, <a href="#FP-7">FP-7</a>, <a href="#FP-8">FP-8</a>, <a href="#DEAD-1">DEAD-1</a>, <a href="#DEAD-2">DEAD-2</a>, <a href="#DEAD-3">DEAD-3</a>, <a href="#DEAD-4">DEAD-4</a>, <a href="#DEAD-5">DEAD-5</a>, <a href="#DEAD-6">DEAD-6</a>, <a href="#DEAD-7">DEAD-7</a>, <a href="#DEAD-8">DEAD-8</a>, <a href="#DEAD-9">DEAD-9</a>, <a href="#DEAD-10">DEAD-10</a>, <a href="#DEAD-11">DEAD-11</a>, <a href="#DEAD-12">DEAD-12</a>, <a href="#DEAD-13">DEAD-13</a>, <a href="#DEAD-14">DEAD-14</a>, <a href="#DEAD-15">DEAD-15</a>, <a href="#DEAD-16">DEAD-16</a>, <a href="#DEAD-17">DEAD-17</a>, <a href="#PRN-4">PRN-4</a></div>
+<div class="card"><strong>Phase 2: test decoupling, then framework consolidation.</strong> Move tests to public inputs before touching the code they pin; then give recurring lifecycle a home so per-feature growth stops.<br><a href="#TB-1">TB-1</a>, <a href="#TB-2">TB-2</a>, <a href="#TB-3">TB-3</a>, <a href="#TB-4">TB-4</a>, <a href="#FW-1">FW-1</a>, <a href="#FW-2">FW-2</a>, <a href="#FW-3">FW-3</a>, <a href="#FW-4">FW-4</a>, <a href="#FW-5">FW-5</a>, <a href="#FW-6">FW-6</a>, <a href="#FW-7">FW-7</a>, <a href="#FW-8">FW-8</a>, <a href="#FW-9">FW-9</a>, <a href="#FW-10">FW-10</a>, <a href="#FW-11">FW-11</a>, <a href="#FW-12">FW-12</a>, <a href="#FW-13">FW-13</a>, <a href="#FW-14">FW-14</a></div>
+<div class="card"><strong>Phase 3: subsystem dedup, RAM, build.</strong> Fold the near-twins onto one rule each; reclaim RAM; untangle release recipes and gates.<br><a href="#AMS-1">AMS-1</a>, <a href="#AMS-2">AMS-2</a>, <a href="#AMS-3">AMS-3</a>, <a href="#AMS-4">AMS-4</a>, <a href="#AMS-5">AMS-5</a>, <a href="#AMS-6">AMS-6</a>, <a href="#AMS-7">AMS-7</a>, <a href="#AMS-8">AMS-8</a>, <a href="#AMS-9">AMS-9</a>, <a href="#AMS-10">AMS-10</a>, <a href="#AMS-11">AMS-11</a>, <a href="#AMS-12">AMS-12</a>, <a href="#API-1">API-1</a>, <a href="#API-2">API-2</a>, <a href="#API-3">API-3</a>, <a href="#API-4">API-4</a>, <a href="#API-5">API-5</a>, <a href="#API-6">API-6</a>, <a href="#API-7">API-7</a>, <a href="#REN-1">REN-1</a>, <a href="#REN-2">REN-2</a>, <a href="#REN-3">REN-3</a>, <a href="#REN-4">REN-4</a>, <a href="#REN-5">REN-5</a>, <a href="#REN-6">REN-6</a>, <a href="#REN-7">REN-7</a>, <a href="#REN-8">REN-8</a>, <a href="#SYS-1">SYS-1</a>, <a href="#SYS-2">SYS-2</a>, <a href="#SYS-3">SYS-3</a>, <a href="#SYS-4">SYS-4</a>, <a href="#SYS-5">SYS-5</a>, <a href="#SYS-6">SYS-6</a>, <a href="#SYS-7">SYS-7</a>, <a href="#PRN-1">PRN-1</a>, <a href="#PRN-2">PRN-2</a>, <a href="#PRN-3">PRN-3</a>, <a href="#PRN-5">PRN-5</a>, <a href="#PRN-6">PRN-6</a>, <a href="#VEN-1">VEN-1</a>, <a href="#VEN-2">VEN-2</a>, <a href="#VEN-3">VEN-3</a>, <a href="#VEN-4">VEN-4</a>, <a href="#VEN-5">VEN-5</a>, <a href="#RAM-1">RAM-1</a>, <a href="#RAM-2">RAM-2</a>, <a href="#RAM-3">RAM-3</a>, <a href="#RAM-4">RAM-4</a>, <a href="#RAM-5">RAM-5</a>, <a href="#TB-5">TB-5</a>, <a href="#TB-6">TB-6</a>, <a href="#TB-7">TB-7</a>, <a href="#TB-8">TB-8</a>, <a href="#TB-9">TB-9</a></div>
 <div class="card"><strong>Phase 4: god classes.</strong> Staged behind phase 2; split along the seams each finding names.<br><a href="#GOD-1">GOD-1</a>, <a href="#GOD-2">GOD-2</a>, <a href="#GOD-3">GOD-3</a>, <a href="#GOD-4">GOD-4</a>, <a href="#GOD-5">GOD-5</a>, <a href="#GOD-6">GOD-6</a>, <a href="#GOD-7">GOD-7</a>, <a href="#GOD-8">GOD-8</a>, <a href="#GOD-9">GOD-9</a>, <a href="#GOD-10">GOD-10</a>, <a href="#GOD-11">GOD-11</a></div>
 </section>
 
@@ -194,16 +195,17 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <button data-f="status" data-v="all" aria-pressed="true">all</button>
 <button data-f="status" data-v="open">open</button>
 <button data-f="status" data-v="progress">in progress</button>
-<button data-f="status" data-v="queued">queued</button>
+<button data-f="status" data-v="done">done</button>
+<button data-f="status" data-v="wontfix">wontfix</button>
 </div>
 <div class="frow"><button id="expand">expand all</button><button id="collapse">collapse all</button><span class="count" id="count"></span></div>
 </div>
 
-<section id="sec-a"><h2>A. Bugs surfaced</h2><p class="lede">Fix independent of the refactor. BUG-1 to BUG-5 and SEC-1 are CONFIRMED.</p>
-<details class="f" id="BUG-1" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-1</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-confirmed-bugs</code><span class="ftitle">MIPS self-update skips ELF architecture validation</span><span class="fimpact">K1/AD5X installs any-arch binary unchecked</span></summary>
+<section id="sec-a"><h2>A. Bugs surfaced</h2><p class="lede">Fix independent of the refactor. BUG-1 to BUG-5 and SEC-1 are CONFIRMED and shipped.</p>
+<details class="f" id="BUG-1" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-1</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">01fda8d3d</code><span class="ftitle">MIPS self-update skips ELF architecture validation</span><span class="fimpact">K1/AD5X installs any-arch binary unchecked</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>fix/audit-confirmed-bugs</code></p>
+<p class="branch">Shipped: <code>fix/audit-confirmed-bugs</code>, merged to main at <code>01fda8d3d</code></p>
 <p><span class="badge ok">CONFIRMED</span></p>
 <dl>
 <dt>Locations</dt><dd><code>src/system/update_checker.cpp#UpdateChecker::get_platform_key</code>, <code>src/system/update_checker.cpp#UpdateChecker::validate_elf_architecture</code>, <code>src/system/update_checker.cpp#UpdateChecker::get_platform_display_name</code></dd>
@@ -216,10 +218,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-2" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-2</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-confirmed-bugs</code><span class="ftitle">AD5X debug bundles no longer include Adventurer5M.json</span><span class="fimpact">IFS slot truth missing from AD5X bundles</span></summary>
+<details class="f" id="BUG-2" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-2</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">01fda8d3d</code><span class="ftitle">AD5X debug bundles no longer include Adventurer5M.json</span><span class="fimpact">IFS slot truth missing from AD5X bundles</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>fix/audit-confirmed-bugs</code></p>
+<p class="branch">Shipped: <code>fix/audit-confirmed-bugs</code>, merged to main at <code>01fda8d3d</code></p>
 <p><span class="badge ok">CONFIRMED</span></p>
 <dl>
 <dt>Locations</dt><dd><code>src/system/debug_bundle_collector.cpp#platform_diagnostic_files</code>, <code>src/system/debug_bundle_collector.cpp#platform_has_printer_hardware</code>, <code>src/system/update_checker.cpp#UpdateChecker::get_platform_key</code></dd>
@@ -232,10 +234,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-3" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-3</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-confirmed-bugs</code><span class="ftitle">QIDI Box ignores all live status updates</span><span class="fimpact">AMS state never refreshes on QIDI</span></summary>
+<details class="f" id="BUG-3" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-3</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">01fda8d3d</code><span class="ftitle">QIDI Box ignores all live status updates</span><span class="fimpact">AMS state never refreshes on QIDI</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>fix/audit-confirmed-bugs</code></p>
+<p class="branch">Shipped: <code>fix/audit-confirmed-bugs</code>, merged to main at <code>01fda8d3d</code></p>
 <p><span class="badge ok">CONFIRMED</span></p>
 <dl>
 <dt>Locations</dt><dd><code>src/printer/ams_backend_qidi.cpp#AmsBackendQidi::handle_status_update</code>, <code>src/printer/ams_subscription_backend.cpp#start</code>, <code>tests/unit/test_ams_backend_qidi.cpp#make_save_variables_notification</code></dd>
@@ -248,10 +250,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-4" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-4</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-confirmed-bugs</code><span class="ftitle">Width sensor list always empty: width_sensor_row.xml never registered</span><span class="fimpact">Configured width sensors never listed</span></summary>
+<details class="f" id="BUG-4" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-4</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">01fda8d3d</code><span class="ftitle">Width sensor list always empty: width_sensor_row.xml never registered</span><span class="fimpact">Configured width sensors never listed</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>fix/audit-confirmed-bugs</code></p>
+<p class="branch">Shipped: <code>fix/audit-confirmed-bugs</code>, merged to main at <code>01fda8d3d</code></p>
 <p><span class="badge ok">CONFIRMED</span></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_settings_sensors.cpp#SensorSettingsOverlay::populate_width_sensors</code>, <code>ui_xml/width_sensor_row.xml</code></dd>
@@ -264,10 +266,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-5" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-5</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-confirmed-bugs</code><span class="ftitle">Test ODR violation: TestAccess::reset has different bodies per TU</span><span class="fimpact">Tests silently run another file's reset()</span></summary>
+<details class="f" id="BUG-5" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-5</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">01fda8d3d</code><span class="ftitle">Test ODR violation: TestAccess::reset has different bodies per TU</span><span class="fimpact">Tests silently run another file's reset()</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>fix/audit-confirmed-bugs</code></p>
+<p class="branch">Shipped: <code>fix/audit-confirmed-bugs</code>, merged to main at <code>01fda8d3d</code></p>
 <p><span class="badge ok">CONFIRMED</span></p>
 <dl>
 <dt>Locations</dt><dd><code>tests/unit/test_abort_manager.cpp</code>, <code>tests/unit/test_moonraker_events.cpp</code> (both define <code>helix::AbortManagerTestAccess::reset</code>); 5 copies of <code>LayoutManagerTestAccess</code></dd>
@@ -460,10 +462,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="SEC-1" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">SEC-1</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/tls-peer-verification</code><span class="ftitle">HTTPS to our own endpoints does not verify the server certificate</span><span class="fimpact">Update payload and its SHA-256 share one unverified channel</span></summary>
+<details class="f" id="SEC-1" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">SEC-1</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">ba2018476</code><span class="ftitle">HTTPS to our own endpoints does not verify the server certificate</span><span class="fimpact">Update payload and its SHA-256 share one unverified channel</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>fix/tls-peer-verification</code> (backport to <code>release/1.0</code> planned)</p>
+<p class="branch">Shipped: <code>fix/tls-peer-verification</code>, merged to main at <code>ba2018476</code>. release/1.0 backport <code>5ce294f12</code> (pushed)</p>
 <p><span class="badge ok">CONFIRMED</span> by code reading</p>
 <dl>
 <dt>Locations</dt><dd><code>lib/libhv/ssl/openssl.c#hssl_ctx_new</code>, <code>lib/libhv/ssl/mbedtls.c#hssl_ctx_new</code>, <code>src/system/update_checker.cpp#populate_release_urls_from_manifest</code></dd>
@@ -476,12 +478,27 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
+<details class="f" id="BUG-18" data-tag="bug" data-size="1.1" data-status="open">
+<summary><span class="fid">BUG-18</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">ESP32: api-&gt;hardware() is never populated, so discovery consumers see empty data</span><span class="fimpact">bed_dimensions and friends read an empty discovery</span></summary>
+<div class="fbody">
+<p><span class="badge unv">unverified</span></p>
+<dl>
+<dt>Locations</dt><dd><code>include/moonraker_api.h#MoonrakerAPI::hardware</code>, <code>src/printer/bed_dimensions.cpp</code>, <code>firmware/</code></dd>
+<dt>Evidence</dt><dd>On the ESP32 image nothing fills <code>PrinterDiscovery</code> behind <code>hardware()</code>, so <code>bed_dimensions</code> and every other reader of discovered hardware sees an empty object. Pre-existing; surfaced while the dead-code sweep touched the discovery handlers.</dd>
+<dt>Proposed change</dt><dd>Populate discovery on the firmware path the same way the Linux client does, or gate the consumers on a discovery-complete signal.</dd>
+<dt>Impact</dt><dd>Correct bed size and hardware-dependent UI on ESP32.</dd>
+<dt>Risk</dt><dd>Low-med: firmware-only path, verify on a K-Touch.</dd>
+<dt>Sizing</dt><dd>1.1</dd>
+<dt>Source</dt><dd>Maintainer follow-up, 2026-09-30</dd>
+</dl>
+</div>
+</details>
 </section>
 <section id="sec-b"><h2>B. Free footprint</h2><p class="lede">Flags and headers with near-zero behaviour risk.</p>
-<details class="f" id="FP-1" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/release-footprint</code><span class="ftitle">Mock printer compiled into most released device binaries</span><span class="fimpact">-0.5 to -0.8MB text per device image</span></summary>
+<details class="f" id="FP-1" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f1dc2ef14</code><span class="ftitle">Mock printer compiled into most released device binaries</span><span class="fimpact">-0.5 to -0.8MB text per device image</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>chore/release-footprint</code></p>
+<p class="branch">Shipped: <code>chore/release-footprint</code>, merged to main at <code>f1dc2ef14</code></p>
 <dl>
 <dt>Locations</dt><dd><code>Makefile</code> (<code>ENABLE_MOCKS ?= yes</code>), <code>mk/cross.mk</code></dd>
 <dt>Evidence</dt><dd>Only ad5m, ad5m-br and cc1 set <code>ENABLE_MOCKS := no</code>; <code>HELIX_PACKAGING=1</code> does not touch it. Mock <code>.text</code> measured: mips 768 KB, k2 792 KB, ad5x 699 KB, u1 472 KB (4.6-4.7% of <code>.text</code>). Largest u1 symbols are mock (<code>register_object_handlers</code> 30.9 KB, <code>gcode_script</code> 29.8 KB). <code>moonraker_client_mock.o</code> is the largest TU (468 KB). The 53 <code>#ifdef HELIX_ENABLE_MOCKS</code> guards are already proven by ad5m/cc1/ESP32. Docs claim mocks are off in every production build.</dd>
@@ -493,10 +510,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FP-2" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-2</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/release-footprint</code><span class="ftitle">-fno-rtti on all cross targets</span><span class="fimpact">About -0.6MB rodata per target</span></summary>
+<details class="f" id="FP-2" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-2</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f1dc2ef14</code><span class="ftitle">-fno-rtti on all cross targets</span><span class="fimpact">About -0.6MB rodata per target</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>chore/release-footprint</code></p>
+<p class="branch">Shipped: <code>chore/release-footprint</code>, merged to main at <code>f1dc2ef14</code></p>
 <dl>
 <dt>Locations</dt><dd><code>mk/cross.mk</code> ("Size flags" block)</dd>
 <dt>Evidence</dt><dd><code>-fno-rtti</code> applies only to cc1, ad5m, ad5m-br. u1 has 4,406 <code>typeinfo name</code> symbols totalling 569 KB; 3,646 of them (534 KB) are lambda types kept alive by <code>std::function</code>'s <code>target_type()</code>. Plus 78 KB of typeinfo objects; MIPS has 583 KB of typeinfo names. The lint gate already forbids <code>typeid</code>/<code>dynamic_cast</code>, and ESP32 builds <code>-fno-rtti</code>. It also drops a case from each of 3,675 <code>_M_manager</code> instances.</dd>
@@ -508,10 +525,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FP-3" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-3</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/release-footprint</code><span class="ftitle">operation_patterns.h tables to constexpr string_view</span><span class="fimpact">-300 to -370KB native init code</span></summary>
+<details class="f" id="FP-3" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-3</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f1dc2ef14</code><span class="ftitle">operation_patterns.h tables to constexpr string_view</span><span class="fimpact">-300 to -370KB native init code</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>chore/release-footprint</code></p>
+<p class="branch">Shipped: <code>chore/release-footprint</code>, merged to main at <code>f1dc2ef14</code></p>
 <dl>
 <dt>Locations</dt><dd><code>include/operation_patterns.h</code> (<code>OPERATION_KEYWORDS</code>, <code>SKIP_PARAM_VARIATIONS</code>, <code>PERFORM_</code>/<code>SLICER_</code> tables)</dd>
 <dt>Evidence</dt><dd>Inline <code>std::vector&lt;std::string&gt;</code> tables with dynamic initialisers get a guarded init per TU that the linker does not fold. <code>nm</code> shows identical <code>__cxx_global_var_init</code> (5,259 B) and <code>.35</code> (6,418 B) in 4 gcode objects; 32 native objects carry at least 11 KB each, ~450 KB of init code in total, reached via <code>print_start_analyzer.h</code>, <code>capability_matrix.h</code>, <code>operation_registry.h</code>, <code>ams_fault_event.h</code>. Each runs at startup and builds heap vectors.</dd>
@@ -523,10 +540,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FP-4" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-4</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/release-footprint</code><span class="ftitle">AntHead nozzle bitmap as C hex to a PNG asset</span><span class="fimpact">-65KB rodata, -4,100 source lines</span></summary>
+<details class="f" id="FP-4" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-4</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f1dc2ef14</code><span class="ftitle">AntHead nozzle bitmap as C hex to a PNG asset</span><span class="fimpact">-65KB rodata, -4,100 source lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>chore/release-footprint</code></p>
+<p class="branch">Shipped: <code>chore/release-footprint</code>, merged to main at <code>f1dc2ef14</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/nozzle_renderer_anthead.cpp#img_anthead_data</code></dd>
 <dt>Evidence</dt><dd>4,147 lines, 410 KB of source: a 100x163x4 raw ARGB8888 bitmap. <code>nm</code> shows it at 65,200 B, the largest object in the rendering slice. The rest of the file is a 35-line <code>lv_draw_image</code> call. <code>LV_USE_LODEPNG 1</code> is on and <code>assets/images/*.png</code> already load at runtime. Already compiled out on ESP32.</dd>
@@ -538,10 +555,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FP-5" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-5</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/release-footprint</code><span class="ftitle">openvdb, ftxui and tuibox submodules nothing references</span><span class="fimpact">-28.5MB per clone and worktree</span></summary>
+<details class="f" id="FP-5" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-5</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f1dc2ef14</code><span class="ftitle">openvdb, ftxui and tuibox submodules nothing references</span><span class="fimpact">-28.5MB per clone and worktree</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>chore/release-footprint</code></p>
+<p class="branch">Shipped: <code>chore/release-footprint</code>, merged to main at <code>f1dc2ef14</code></p>
 <dl>
 <dt>Locations</dt><dd><code>.gitmodules</code>, <code>lib/tuibox.h</code>, <code>ui_xml/about_settings_overlay.xml</code>, <code>COPYRIGHT</code></dd>
 <dt>Evidence</dt><dd><code>git grep</code> outside <code>lib/</code> for openvdb/nanovdb finds only .gitmodules, COPYRIGHT, .claudeignore, CHANGELOG and the About license text. ftxui: 0 include sites, 0 mk references. <code>lib/tuibox.h</code>: 0 include sites. openvdb is 26 MB, ftxui 2.5 MB. The About screen lists OpenVDB and ftxui as shipped components, which they are not. (libjpeg-turbo is Android-only; Linux dlopens the system lib.)</dd>
@@ -553,10 +570,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FP-6" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-6</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/release-footprint</code><span class="ftitle">Build spdlog as a compiled library (SPDLOG_COMPILED_LIB)</span><span class="fimpact">Est. 30%+ less codegen per TU</span></summary>
+<details class="f" id="FP-6" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-6</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f1dc2ef14</code><span class="ftitle">Build spdlog as a compiled library (SPDLOG_COMPILED_LIB)</span><span class="fimpact">Est. 30%+ less codegen per TU</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>chore/release-footprint</code></p>
+<p class="branch">Shipped: <code>chore/release-footprint</code>, merged to main at <code>f1dc2ef14</code></p>
 <dl>
 <dt>Locations</dt><dd><code>Makefile</code> (spdlog block), <code>include/lvgl_pch.h</code>, <code>lib/spdlog/src/</code>, <code>mk/bluetooth.mk</code>, <code>mk/watchdog.mk</code></dd>
 <dt>Evidence</dt><dd>The PCH puts spdlog, fmt and <code>hv/json.hpp</code> into 849 TUs. Native <code>-O2</code> objects hold 157 MB of <code>.text</code> for a 22.4 MB binary; the linker discards 148.6 MB of COMDAT duplicates: spdlog 76.5 MB (2,369 symbols in ~651 TUs), fmt 50.6 MB (150 symbols in 660 TUs). <code>format_dragon</code> compiled 660 times (5.2 MB). In <code>ui_panel_home.o</code>, 203 KB of 264 KB text is spdlog/fmt; any logging TU pays ~200 KB of codegen.</dd>
@@ -598,10 +615,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </details>
 </section>
 <section id="sec-c"><h2>C. Pure deletion</h2><p class="lede">Dead code, verified no callers unless noted.</p>
-<details class="f" id="DEAD-1" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-1</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">TestPanel, StepTestPanel, GcodeTestPanel: unreachable, still registered at boot</span><span class="fimpact">-1,726 C++ and -493 XML lines</span></summary>
+<details class="f" id="DEAD-1" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-1</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">TestPanel, StepTestPanel, GcodeTestPanel: unreachable, still registered at boot</span><span class="fimpact">-1,726 C++ and -493 XML lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_panel_test.cpp</code>, <code>src/ui/ui_panel_step_test.cpp</code>, <code>src/ui/ui_panel_gcode_test.cpp</code> (+ headers); <code>ui_xml/test_panel.xml</code>, <code>ui_xml/step_test_panel.xml</code>, <code>ui_xml/gcode_test_panel.xml</code>; <code>src/xml_registration.cpp#register_xml_components</code>; includes in <code>src/application/application.cpp</code></dd>
 <dt>Evidence</dt><dd>Every call shape (<code>get_global_test_panel</code>, <code>get_global_step_test_panel</code>, <code>ui_panel_gcode_test_create</code>, ctors, component names) has no caller outside its own file; application.cpp only includes the headers. <code>get_global_gcode_test_panel()</code> is declared and never defined. Native binary links 62 <code>TestPanel::</code> symbols. Sizes: 296 + 322 + 1,108 C++; 336 + 49 + 108 XML.</dd>
@@ -613,10 +630,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-2" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-2</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">GCodeObjectThumbnailRenderer has no production caller</span><span class="fimpact">-1,004 lines incl. its test</span></summary>
+<details class="f" id="DEAD-2" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-2</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">GCodeObjectThumbnailRenderer has no production caller</span><span class="fimpact">-1,004 lines incl. its test</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/gcode_object_thumbnail_renderer.cpp</code>, <code>include/gcode_object_thumbnail_renderer.h</code>, <code>tests/unit/test_gcode_object_thumbnail_renderer.cpp</code></dd>
 <dt>Evidence</dt><dd>grep <code>ObjectThumbnail</code> over src/, include/, ui_xml/, mk/ finds only the file and its test. Its last caller went with the unified side panel (2026-05); since then 3 unrelated sweeps kept it compiling. It carries its own Bresenham <code>draw_line</code> (~50 lines) duplicating <code>gcode_raster::line/thick_line</code>. Sizes: 325 .cpp, 192 .h, 487 test.</dd>
@@ -628,10 +645,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-3" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-3</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">CPU GCodeRenderer is compiled on non-3D builds but can never draw there</span><span class="fimpact">~-970 production lines</span></summary>
+<details class="f" id="DEAD-3" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-3</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">CPU GCodeRenderer is compiled on non-3D builds but can never draw there</span><span class="fimpact">~-970 production lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/gcode_renderer.cpp</code>, <code>include/gcode_renderer.h</code>, <code>src/ui/ui_gcode_viewer.cpp#GCodeViewerState::is_using_2d_mode</code>, <code>include/gcode_selection_style.h</code></dd>
 <dt>Evidence</dt><dd>The viewer builds <code>GCodeRenderer</code> only without <code>ENABLE_GLES_3D</code>, and on those builds <code>is_using_2d_mode()</code> is unconditionally true, so <code>gcode_viewer_draw_cb</code> never reaches <code>renderer_-&gt;render()</code>. Reachable calls: ~18 setters storing unread state, plus 2 fallbacks (<code>pick_object</code>, <code>get_max_layer_index</code>) that fire only before <code>layer_renderer_2d_</code> exists. The style header wrongly claims it renders on ad5m/ad5x/cc1/k1/k2/u1. Sizes: 524 .cpp + 448 .h.</dd>
@@ -643,10 +660,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-4" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-4</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">InputShaperCache was never wired to the UI</span><span class="fimpact">~-560 src and -870 test lines</span></summary>
+<details class="f" id="DEAD-4" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-4</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">InputShaperCache was never wired to the UI</span><span class="fimpact">~-560 src and -870 test lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/calibration/input_shaper_cache.cpp#InputShaperCache</code> and its header, plus the test file</dd>
 <dt>Evidence</dt><dd>Dead-symbol scan: the whole class and its 6 JSON (de)serializers have 0 references in src. Added 2026-01 as a "Phase 7 - Cache" step and never connected. Sizes: 386 .cpp + 175 header + 870 test lines.</dd>
@@ -658,10 +675,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-5" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-5</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">SensorRegistry/ISensorManager unused; ColorSensorManager can never discover</span><span class="fimpact">~1,500-2,000 lines incl. tests</span></summary>
+<details class="f" id="DEAD-5" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-5</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">SensorRegistry/ISensorManager unused; ColorSensorManager can never discover</span><span class="fimpact">~1,500-2,000 lines incl. tests</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/sensors/sensor_registry.cpp</code>, <code>include/sensor_registry.h</code>, <code>src/sensors/color_sensor_manager.cpp#ColorSensorManager::discover_from_moonraker</code>, <code>include/color_sensor_types.h</code>, <code>src/ui/ui_settings_sensors.cpp#populate_color_sensors</code>, <code>src/printer/printer_discovery.cpp#init_subsystems_from_hardware</code></dd>
 <dt>Evidence</dt><dd><code>register_manager(</code>: 0 src callers; SensorRegistry is constructed only in its own test. All 8 managers implement ISensorManager but are called by name in 3 hand lists that disagree (discovery 6/8, status 8, init 8). Color's only discovery path is the unused registry, so its list is always empty; nothing requests <code>/machine/td1/data</code>; <code>category_name()</code> x8: 0 callers. Registry wraps calls in 6 try/catch on -fno-exceptions firmware. Sizes: color 535 + 264 + 73 + 486 test; registry 120 + 99 + 307 test.</dd>
@@ -673,9 +690,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-6" data-tag="belt-suspenders" data-size="1.1" data-status="queued">
-<summary><span class="fid">DEAD-6</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-queued">queued</span><span class="ftitle">164 redundant if(get != v) set_int(v) guards</span><span class="fimpact">~-330 to -490 lines, no behaviour change</span></summary>
+<details class="f" id="DEAD-6" data-tag="belt-suspenders" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-6</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">13e884ae0</code><span class="ftitle">164 redundant if(get != v) set_int(v) guards</span><span class="fimpact">~-330 to -490 lines, no behaviour change</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/mechanical-cleanups</code>, merged to main at <code>13e884ae0</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/printer/ams_state.cpp#AmsState::sync_from_backend</code> (79), <code>src/printer/printer_motion_state.cpp</code> (18), <code>src/printer/printer_print_state.cpp</code> (18), <code>src/printer/printer_temperature_state.cpp</code> (8), calibration 5, humidity 4, led 3, fan 3, ui/ ~15</dd>
 <dt>Evidence</dt><dd><code>lib/lvgl/src/core/lv_observer.c#lv_subject_set_int</code> ends in <code>lv_subject_notify_if_changed()</code>, which for INT/FLOAT/COLOR skips notify when unchanged; no patch alters it and nothing reads <code>prev_value</code>. So the 3-line guard behaves exactly like a bare set. 164 sites by exact-shape match. String guards (32 <code>strcmp</code>) stay: <code>lv_subject_copy_string</code> always notifies without a prev buffer.</dd>
@@ -687,9 +705,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-7" data-tag="belt-suspenders" data-size="1.1" data-status="queued">
-<summary><span class="fid">DEAD-7</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-queued">queued</span><span class="ftitle">~105 null checks on Config::get_instance(), which cannot return null</span><span class="fimpact">~-250 lines across 60+ files</span></summary>
+<details class="f" id="DEAD-7" data-tag="belt-suspenders" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-7</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">13e884ae0</code><span class="ftitle">~105 null checks on Config::get_instance(), which cannot return null</span><span class="fimpact">~-250 lines across 60+ files</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/mechanical-cleanups</code>, merged to main at <code>13e884ae0</code>. Null checks deleted; <code>Config::get_instance()</code> keeps returning <code>Config*</code> by decision</p>
 <dl>
 <dt>Locations</dt><dd><code>src/system/config.cpp#Config::get_instance</code>; checks in <code>ui_settings_macro_buttons.cpp</code> (4), <code>ui_printer_list_overlay.cpp</code> (4), <code>update_checker.cpp</code> (3), <code>display_settings_manager.cpp</code> (3), <code>material_settings_manager.cpp</code> (3), <code>ams_backend_happy_hare.cpp</code> (3), ...</dd>
 <dt>Evidence</dt><dd>The getter lazily <code>new</code>s the instance when null; even the test hook <code>ConfigTestAccess::instance_ref()</code> only swaps the pointer and the getter recreates it. 345 calls; an awk pass finds 105 that null-test the result within 3 lines. Inconsistent in one file: <code>AudioSettingsManager::set_volume</code> checks, its 5 sibling setters do not.</dd>
@@ -701,10 +720,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-8" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-8</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">Dead observer value/transform/raw family, async_helpers.h, empty revalidate_all</span><span class="fimpact">~-490 framework lines</span></summary>
+<details class="f" id="DEAD-8" data-tag="dead" data-size="1.1" data-status="open">
+<summary><span class="fid">DEAD-8</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Dead observer value/transform/raw family, async_helpers.h, empty revalidate_all</span><span class="fimpact">~-490 framework lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Partly shipped: the unused half of <code>include/async_helpers.h</code> and the other dead framework pieces went out in <code>refactor/dead-code-sweep</code> (main <code>11e3e7b2f</code>). Still open: 8 raw-<code>this</code> <code>queue_update</code> captures in <code>async_helpers.h</code>, tracked as <a href="#FW-14">FW-14</a>.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/observer_factory.h#create_value_observer</code>, <code>#create_transform_observer</code>, <code>#create_raw_observer</code>, <code>#observe_connection_state</code>, <code>#observe_string_async</code>; <code>include/async_helpers.h#call_method</code>, <code>#call_method2</code>, <code>#invoke_weak</code>; <code>include/ui_observer_guard.h#revalidate_all</code></dd>
 <dt>Evidence</dt><dd>Observer family: 0 hits outside the header across src/include/tests/lib; 260-line block (111 code) the header still advertises as "the three observer patterns"; <code>observe_string_async</code> test-only. async_helpers.h: 150 lines (92 comments), one includer (<code>printer_state.cpp</code>), 8 calls, <code>call_method2</code>/<code>invoke_weak</code> 0 callers, <code>if (!instance)</code> guards dead since every call passes <code>this</code>. <code>revalidate_all()</code>: body <code>{}</code>, 3 callers in application.cpp under a stale NOTE.</dd>
@@ -716,10 +735,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-9" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-9</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">Nav zoom overlay transition is exercised only by one test</span><span class="fimpact">~-360 lines and one map member</span></summary>
+<details class="f" id="DEAD-9" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-9</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">Nav zoom overlay transition is exercised only by one test</span><span class="fimpact">~-360 lines and one map member</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_nav_manager.cpp#push_overlay_zoom_from</code>, <code>#overlay_animate_zoom_in</code>, <code>#overlay_animate_zoom_out</code>; <code>zoom_source_rects_</code> bookkeeping in <code>#rekey_overlay_widget</code>, <code>#scrub_deleted_widget</code>, <code>#go_back</code>, <code>#clear_overlay_stack</code>, <code>#shutdown</code></dd>
 <dt>Evidence</dt><dd>0 callers outside the file since the camera fullscreen change (2026-03). Only <code>tests/unit/test_overlay_rekey_stale_cache.cpp</code> exercises it. <code>push_overlay_zoom_from</code> is a 120-line twin of <code>push_overlay</code> that has already drifted; zoom animation is ~241 lines.</dd>
@@ -731,10 +750,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-10" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-10</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">TemperatureService per-heater panel path has no XML and no callers</span><span class="fimpact">~-450 to -500 lines of a 1,441-line file</span></summary>
+<details class="f" id="DEAD-10" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-10</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">TemperatureService per-heater panel path has no XML and no callers</span><span class="fimpact">~-450 to -500 lines of a 1,441-line file</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/temperature_service.cpp#TemperatureService::setup_panel</code>, <code>#create_temp_graph</code>, <code>#setup_spool_preset</code>, <code>#on_heater_preset_clicked</code>, <code>#on_heater_confirm_clicked</code>, <code>#on_nozzle_custom_clicked</code>, <code>#on_bed_custom_clicked</code>, <code>#keypad_value_cb</code>; backward-compat wrappers in <code>include/temperature_service.h</code></dd>
 <dt>Evidence</dt><dd>The nozzle/bed/chamber temp panel XML files are gone; <code>chart_area</code> exists in no <code>ui_xml/</code> file, so the lookup never hits and <code>h.graph</code> is always null, making every <code>ui_temp_graph_is_valid(h.graph)</code> branch dead. grep for <code>setup_panel(HeaterType</code>, <code>setup_nozzle_panel</code>, <code>get_nozzle_lifecycle</code> outside the file: 0 hits. The 5 heater callback names appear in 0 XML files.</dd>
@@ -746,10 +765,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-11" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-11</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">AmsBackend::create(AmsType) 1-arg factory with forbidden auto-mock fallback</span><span class="fimpact">~-135 lines</span></summary>
+<details class="f" id="DEAD-11" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-11</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">AmsBackend::create(AmsType) 1-arg factory with forbidden auto-mock fallback</span><span class="fimpact">~-135 lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/printer/ams_backend.cpp#AmsBackend::create</code> (1-arg overload), declaration and docs in <code>include/ams_backend.h</code></dd>
 <dt>Evidence</dt><dd>grep for a one-argument <code>AmsBackend::create(</code> across src/tests/include finds only the definition (98 lines). Its body falls back to a mock for every type ("detected but no API/client provided - using mock"), the auto-mock pattern the Code Standards forbid. The live 2-arg factory repeats <code>if (!api || !client) { error; return nullptr; }</code> in all 10 cases.</dd>
@@ -761,10 +780,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-12" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-12</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">OctaMED tracker parser and a 315 KB .med asset with no production caller</span><span class="fimpact">-525 lines, -315 KB asset</span></summary>
+<details class="f" id="DEAD-12" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-12</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">OctaMED tracker parser and a 315 KB .med asset with no production caller</span><span class="fimpact">-525 lines, -315 KB asset</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/system/tracker_module_med.cpp#parse_med</code>, MMD sniff in <code>src/system/tracker_module_mod.cpp#TrackerModule::load_from_memory</code>, <code>assets/sounds/crocketts_theme.med</code>, MED cases in <code>tests/unit/test_tracker_module.cpp</code></dd>
 <dt>Evidence</dt><dd>All three <code>play_file</code> callers hard-code <code>.mod</code> paths (sound settings, about, snake game). The only reference to the .med is the unit test, which SKIPs if absent. A .mod of the same tune ships beside it. Sizes: 525-line parser, 315,370-byte asset.</dd>
@@ -776,10 +795,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-13" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-13</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">#906 stress-test hook ships in production init_action_prompt</span><span class="fimpact">-90 lines incl. env var docs</span></summary>
+<details class="f" id="DEAD-13" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-13</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">#906 stress-test hook ships in production init_action_prompt</span><span class="fimpact">-90 lines incl. env var docs</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/application.cpp#Application::init_action_prompt</code> (the <code>HELIX_AUTO_STRESS_PROMPT</code> block), <code>docs/devel/ENVIRONMENT_VARIABLES.md</code></dd>
 <dt>Evidence</dt><dd>#906 is closed; the ~70-line block drives an endless modal show/hide loop to reproduce it. Its comment says "default 250 ms" while the code uses 500. It calls <code>std::stoi</code> inside <code>try/catch(...)</code> twice, which project rules replace with <code>text_io::parse_leading</code>. ~20 lines of env var docs describe it.</dd>
@@ -791,10 +810,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-14" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-14</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">Overwritten MoonrakerAPI discovery handlers; test-only update_from_notification</span><span class="fimpact">~-90 lines, one latent race removed</span></summary>
+<details class="f" id="DEAD-14" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-14</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">Overwritten MoonrakerAPI discovery handlers; test-only update_from_notification</span><span class="fimpact">~-90 lines, one latent race removed</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_api.cpp#MoonrakerAPI::MoonrakerAPI</code>, <code>src/application/application.cpp#Application::setup_discovery_callbacks</code>; <code>src/printer/printer_state.cpp#update_from_notification</code>, <code>include/printer_state.h</code>, <code>src/application/moonraker_manager.cpp</code></dd>
 <dt>Evidence</dt><dd>The discovery sequence's <code>set_on_hardware_discovered</code>/<code>set_on_discovery_complete</code> are single-slot setters; Application replaces both after the API ctor installs its own, so the API handlers never run in production (and would race, writing <code>hardware_</code> on the WebSocket thread). <code>update_from_notification</code> (42 lines): 0 src callers, 6 test callers; it defers while production calls <code>update_from_status</code> synchronously, both re-parse the same envelope.</dd>
@@ -806,10 +825,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-15" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-15</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">Dead XML callbacks, SaveZOffsetModal chain, dead components, shims, macros</span><span class="fimpact">~-1,000 lines</span></summary>
+<details class="f" id="DEAD-15" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-15</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">Dead XML callbacks, SaveZOffsetModal chain, dead components, shims, macros</span><span class="fimpact">~-1,000 lines</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_panel_home.cpp#HomePanel::ams_clicked_cb</code>, <code>src/ui/ui_panel_bed_mesh.cpp#on_delete_confirm_cb</code>, <code>src/ui/ui_panel_settings.cpp#on_label_printer_settings_clicked</code>, <code>src/ui/ui_print_tune_overlay.cpp#PrintTuneOverlay::handle_save_z_offset</code>, <code>include/ui_save_z_offset_modal.h</code>, <code>ui_xml/probe_indicator.xml</code>, <code>ui_xml/components/clog_meter_page.xml</code>, <code>src/ui/wizard_validation.cpp</code>, <code>include/ui_panel_singleton_macros.h</code></dd>
 <dt>Evidence</dt><dd>Of 883 registered callback names, 28 remain unreferenced by any XML after removing splices and C++-passed names; 20 are dead (e.g. <code>on_theme_preview_clicked</code>, <code>on_bed_mesh_delete_confirm</code>). <code>on_tune_save_z_offset</code> leads to SaveZOffsetModal (82-line header, empty 4-line TU, 35-line XML whose own callbacks are never registered). probe_indicator registered, never instantiated; clog_meter_page registered, only clog_bar_page created. wizard_validation.cpp is comment-only, its header a 3-includer shim. <code>DEFINE_SINGLETON_TRAMPOLINE</code> and <code>DEFINE_GLOBAL_PANEL_WITH_STATE</code>: 0 uses.</dd>
@@ -821,9 +840,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-16" data-tag="dead" data-size="1.1" data-status="queued">
-<summary><span class="fid">DEAD-16</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-queued">queued</span><span class="ftitle">Orphaned scripts and tests, ~18 dead make targets, duplicate lv_markdown rule</span><span class="fimpact">~-4,000 lines of scripts and make</span></summary>
+<details class="f" id="DEAD-16" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-16</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">13e884ae0</code><span class="ftitle">Orphaned scripts and tests, ~18 dead make targets, duplicate lv_markdown rule</span><span class="fimpact">~-4,000 lines of scripts and make</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/mechanical-cleanups</code>, merged to main at <code>13e884ae0</code></p>
 <dl>
 <dt>Locations</dt><dd><code>tests/test_installer_self_update.sh</code>, <code>tests/test_installer_verify_deps.sh</code>, <code>scripts/migrate_doc_citations.py</code>, <code>scripts/migrate_xml_translations.py</code>, <code>scripts/add-copyright-headers.sh</code>, <code>scripts/suite-verdict.sh</code>, <code>mk/tests.mk</code>, <code>mk/rules.mk</code></dd>
 <dt>Evidence</dt><dd>Scripts referenced by nothing: installer self-update 387, verify-deps 265 (both covered by bats); one-shot migrators 287 + 380 + 77; add-copyright-headers 74 (superseded by add-spdx-headers.sh); suite-verdict 87 + 103 test (only caller is its test); a 1,842-line old-source fixture used by one bats case. Make targets with no reference: <code>deploy-ad5m-legacy</code> (59 lines), <code>deploy-pi-quiet</code>, <code>test-wizard</code>, <code>test-timing-report</code>, <code>check-images</code>, <code>pi-asan-test</code>, ...; ~15 per-tag wrappers superseded by <code>make t F=</code>. <code>$(OBJ_DIR)/lv_markdown/%.o</code> is defined twice in rules.mk; the second silently replaces the first.</dd>
@@ -832,6 +852,17 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <dt>Risk</dt><dd>Low.</dd>
 <dt>Sizing</dt><dd>1.1</dd>
 <dt>Source</dt><dd>09-tests-build.md</dd>
+</dl>
+</div>
+</details>
+<details class="f" id="DEAD-17" data-tag="dup" data-size="1.1" data-status="wontfix">
+<summary><span class="fid">DEAD-17</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-wontfix">wontfix</span><span class="ftitle">micro_portrait material_temps_overlay.xml looks like a copy of micro/</span><span class="fimpact">Not a duplicate: the layout fallback needs it</span></summary>
+<div class="fbody">
+<dl>
+<dt>Locations</dt><dd><code>ui_xml/micro_portrait/material_temps_overlay.xml</code>, <code>ui_xml/micro/material_temps_overlay.xml</code></dd>
+<dt>Evidence</dt><dd>The two files are identical apart from comments (116 lines).</dd>
+<dt>Decision</dt><dd>Won't fix: <code>micro_portrait</code> falls back to <code>portrait/</code>, not <code>micro/</code>, so without its own copy the micro portrait layout would load the portrait overlay. The file is required by the fallback chain.</dd>
+<dt>Source</dt><dd>05-ui-tail.md</dd>
 </dl>
 </div>
 </details>
@@ -1019,6 +1050,20 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
+<details class="f" id="FW-14" data-tag="bug" data-size="1.1" data-status="open">
+<summary><span class="fid">FW-14</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">async_helpers.h: 8 raw-this queue_update captures</span><span class="fimpact">Deferred calls can run against a destroyed object</span></summary>
+<div class="fbody">
+<dl>
+<dt>Locations</dt><dd><code>include/async_helpers.h#call_method</code>, <code>include/async_helpers.h#call_method_ref</code></dd>
+<dt>Evidence</dt><dd>The helpers capture <code>this</code> by value into <code>helix::ui::queue_update</code> with no lifetime guard; 8 call sites remain after the unused half was deleted (<a href="#DEAD-8">DEAD-8</a>). Same hazard class as <a href="#BUG-12">BUG-12</a>.</dd>
+<dt>Proposed change</dt><dd>Move the 8 sites to <code>lifetime_.defer</code> and delete <code>async_helpers.h</code>; part of <a href="#FW-6">FW-6</a>.</dd>
+<dt>Impact</dt><dd>One deferral path; no unguarded <code>this</code> on the UI queue.</dd>
+<dt>Risk</dt><dd>Low: mechanical, per-site.</dd>
+<dt>Sizing</dt><dd>1.1</dd>
+<dt>Source</dt><dd>Maintainer follow-up, 2026-09-30</dd>
+</dl>
+</div>
+</details>
 </section>
 <section id="sec-e"><h2>E. Subsystem dedup</h2>
 <h3>AMS</h3>
@@ -1173,6 +1218,18 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <dt>Risk</dt><dd>Med.</dd>
 <dt>Sizing</dt><dd>later - god-function split</dd>
 <dt>Source</dt><dd>01-ams.md</dd>
+</dl>
+</div>
+</details>
+<details class="f" id="AMS-12" data-tag="dup" data-size="1.1" data-status="open">
+<summary><span class="fid">AMS-12</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">"Accept both envelope shapes" hand-written in ACE, AD5X, Snapmaker, QIDI</span><span class="fimpact">Covered by the base-class unwrap in AMS-2</span></summary>
+<div class="fbody">
+<dl>
+<dt>Locations</dt><dd><code>src/printer/ams_backend_ace.cpp#AmsBackendAce::handle_status_update</code>, <code>src/printer/ams_backend_ad5x_ifs.cpp</code>, <code>src/printer/ams_backend_snapmaker.cpp</code>, <code>src/printer/ams_backend_qidi.cpp#AmsBackendQidi::handle_status_update</code></dd>
+<dt>Evidence</dt><dd>Four backends each accept both the notify frame and the bare status object by hand.</dd>
+<dt>Proposed change</dt><dd>Resolved by <a href="#AMS-2">AMS-2</a>: once the base unwraps <code>params[0]</code>, each backend receives one shape and these branches delete.</dd>
+<dt>Sizing</dt><dd>1.1, with AMS-2</dd>
+<dt>Source</dt><dd>Maintainer follow-up, 2026-09-30</dd>
 </dl>
 </div>
 </details>
@@ -1473,6 +1530,18 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
+<details class="f" id="SYS-7" data-tag="dup" data-size="1.1" data-status="open">
+<summary><span class="fid">SYS-7</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">platform_has_printer_hardware is a second hand-kept platform key list</span><span class="fimpact">Drifts from the platform table like BUG-2 did</span></summary>
+<div class="fbody">
+<dl>
+<dt>Locations</dt><dd><code>src/system/debug_bundle_collector.cpp#platform_has_printer_hardware</code></dd>
+<dt>Evidence</dt><dd>A static list of platform keys separate from the one the update checker and diagnostics use; the same drift pattern produced <a href="#BUG-1">BUG-1</a> and <a href="#BUG-2">BUG-2</a>.</dd>
+<dt>Proposed change</dt><dd>Fold into the platform table (<a href="#SYS-4">SYS-4</a>) as a per-platform attribute.</dd>
+<dt>Sizing</dt><dd>1.1</dd>
+<dt>Source</dt><dd>Maintainer follow-up, 2026-09-30</dd>
+</dl>
+</div>
+</details>
 <h3>Printer</h3>
 <details class="f" id="PRN-1" data-tag="dup" data-size="1.1" data-status="open">
 <summary><span class="fid">PRN-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">PrinterDetector DB lookup hand-rolled 18 times next to its helper</span><span class="fimpact">~-300 lines; one ESP32 abort path</span></summary>
@@ -1516,10 +1585,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="PRN-4" data-tag="yagni" data-size="1.1" data-status="progress">
-<summary><span class="fid">PRN-4</span><span class="chip t-yagni">yagni</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/dead-code-sweep</code><span class="ftitle">WLED preset fetch is a stub that invents "Preset 1-5"</span><span class="fimpact">buttons select presets that may not exist</span></summary>
+<details class="f" id="PRN-4" data-tag="yagni" data-size="1.1" data-status="done">
+<summary><span class="fid">PRN-4</span><span class="chip t-yagni">yagni</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">11e3e7b2f</code><span class="ftitle">WLED preset fetch is a stub that invents "Preset 1-5"</span><span class="fimpact">buttons select presets that may not exist</span></summary>
 <div class="fbody">
-<p class="branch">Branch: <code>refactor/dead-code-sweep</code></p>
+<p class="branch">Shipped: <code>refactor/dead-code-sweep</code>, merged to main at <code>11e3e7b2f</code></p>
 <dl>
 <dt>Locations</dt><dd><code>src/led/led_controller.cpp#discover_wled_strips</code>, <code>WledBackend#fetch_presets_from_device</code>, <code>#set_strip_address</code>, <code>#get_strip_address</code>, <code>src/ui/ui_led_control_overlay.cpp#LedControlOverlay::publish_list</code></dd>
 <dt>Evidence</dt><dd><code>fetch_presets_from_device</code> (24 lines) logs "not yet implemented" and returns. The callback then installs <code>{1,"Preset 1"} ... {5,"Preset 5"}</code> for every WLED strip with an address, and <code>publish_list</code> renders them. WLED preset IDs are user-defined, so these buttons can select presets that do not exist. <code>get_strip_address</code> has 0 callers; the address chain around it (~60 lines of server-config fetch + parse) exists only to feed the stub.</dd>
