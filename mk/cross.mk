@@ -3359,10 +3359,10 @@ release-snapmaker-u1: $(INSTALLER_BUNDLES) | build/snapmaker-u1/bin/helix-screen
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
 	@cp assets/config/presets/snapmaker_u1.json $(RELEASE_DIR)/helixscreen/config/settings.json
 	@echo "  $(DIM)Included pre-configured config/settings.json for Snapmaker U1$(RESET)"
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/ 2>/dev/null || true
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME) 2>/dev/null || true
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
+	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
 	@cp scripts/snapmaker-u1-setup-autostart.sh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
