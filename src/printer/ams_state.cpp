@@ -399,12 +399,8 @@ void AmsState::init_subjects(bool register_xml) {
 
     // Filament path visualization subjects
     INIT_SUBJECT_INT(path_topology, static_cast<int>(PathTopology::HUB), subjects_, register_xml);
-    INIT_SUBJECT_INT(path_active_slot, -1, subjects_, register_xml);
     INIT_SUBJECT_INT(path_filament_segment, static_cast<int>(PathSegment::NONE), subjects_,
                      register_xml);
-    INIT_SUBJECT_INT(path_error_segment, static_cast<int>(PathSegment::NONE), subjects_,
-                     register_xml);
-    INIT_SUBJECT_INT(path_anim_progress, 0, subjects_, register_xml);
 
     // Dryer subjects (for AMS systems with integrated drying)
     INIT_SUBJECT_INT(dryer_supported, 0, subjects_, register_xml);
@@ -450,7 +446,8 @@ void AmsState::init_subjects(bool register_xml) {
 
     // Clog detection meter subjects
     INIT_SUBJECT_INT(clog_meter_mode, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(clog_meter_value, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(clog_meter_value, 0, subjects_,
+                     register_xml); // SUBJECT_OK: ClogMeterModel observes it via a lambda
     INIT_SUBJECT_INT(clog_meter_warning, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(clog_meter_status, 0, subjects_, register_xml);
     INIT_SUBJECT_STRING(clog_meter_mode_text, "", subjects_, register_xml);
@@ -801,10 +798,7 @@ void AmsState::register_xml_subject_names() {
 
     // Filament path visualization subjects
     helix::xml::register_subject_in_current_scope("path_topology", &path_topology_);
-    helix::xml::register_subject_in_current_scope("path_active_slot", &path_active_slot_);
     helix::xml::register_subject_in_current_scope("path_filament_segment", &path_filament_segment_);
-    helix::xml::register_subject_in_current_scope("path_error_segment", &path_error_segment_);
-    helix::xml::register_subject_in_current_scope("path_anim_progress", &path_anim_progress_);
 
     // Dryer subjects
     helix::xml::register_subject_in_current_scope("dryer_supported", &dryer_supported_);
@@ -832,7 +826,9 @@ void AmsState::register_xml_subject_names() {
 
     // Clog detection meter subjects
     helix::xml::register_subject_in_current_scope("clog_meter_mode", &clog_meter_mode_);
-    helix::xml::register_subject_in_current_scope("clog_meter_value", &clog_meter_value_);
+    helix::xml::register_subject_in_current_scope(
+        "clog_meter_value",
+        &clog_meter_value_); // SUBJECT_OK: ClogMeterModel observes it via a lambda
     helix::xml::register_subject_in_current_scope("clog_meter_warning", &clog_meter_warning_);
     helix::xml::register_subject_in_current_scope("clog_meter_status", &clog_meter_status_);
     helix::xml::register_subject_in_current_scope("clog_meter_mode_text", &clog_meter_mode_text_);
@@ -2056,17 +2052,8 @@ void AmsState::sync_from_backend() {
     // Update path visualization subjects
     int new_topology = static_cast<int>(backend->get_topology());
     lv_subject_set_int(&path_topology_, new_topology);
-    lv_subject_set_int(&path_active_slot_, info.current_slot);
     int new_filament_seg = static_cast<int>(backend->get_filament_segment());
     lv_subject_set_int(&path_filament_segment_, new_filament_seg);
-    int new_error_seg = static_cast<int>(backend->infer_error_segment());
-    lv_subject_set_int(&path_error_segment_, new_error_seg);
-    // If backend provides bowden progress (v4), use it to drive animation progress.
-    // Otherwise, path_anim_progress_ stays under UI animation control.
-    int bowden_progress = backend->get_bowden_progress();
-    if (bowden_progress >= 0) {
-        lv_subject_set_int(&path_anim_progress_, bowden_progress);
-    }
 
     // Update per-slot subjects, only firing when values actually change
     bool any_slot_changed = false;

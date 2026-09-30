@@ -863,14 +863,6 @@ class AmsState {
     }
 
     /**
-     * @brief Get path active slot subject
-     * @return Subject holding slot index whose path is being shown (-1=none)
-     */
-    lv_subject_t* get_path_active_slot_subject() {
-        return &path_active_slot_;
-    }
-
-    /**
      * @brief Get path filament segment subject
      *
      * Indicates where the filament currently is along the path.
@@ -879,28 +871,6 @@ class AmsState {
      */
     lv_subject_t* get_path_filament_segment_subject() {
         return &path_filament_segment_;
-    }
-
-    /**
-     * @brief Get path error segment subject
-     *
-     * Indicates which segment has an error (for highlighting).
-     *
-     * @return Subject holding PathSegment enum as int (NONE if no error)
-     */
-    lv_subject_t* get_path_error_segment_subject() {
-        return &path_error_segment_;
-    }
-
-    /**
-     * @brief Get path animation progress subject
-     *
-     * Used for load/unload animations.
-     *
-     * @return Subject holding progress 0-100
-     */
-    lv_subject_t* get_path_anim_progress_subject() {
-        return &path_anim_progress_;
     }
 
     // ========================================================================
@@ -2011,10 +1981,7 @@ class AmsState {
 
     // Filament path visualization subjects
     lv_subject_t path_topology_;
-    lv_subject_t path_active_slot_;
     lv_subject_t path_filament_segment_;
-    lv_subject_t path_error_segment_;
-    lv_subject_t path_anim_progress_;
 
     // Dryer subjects (for AMS systems with integrated drying)
     lv_subject_t dryer_supported_;

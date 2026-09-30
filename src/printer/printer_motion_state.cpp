@@ -50,7 +50,6 @@ void PrinterMotionState::init_subjects(bool register_xml) {
     INIT_SUBJECT_INT(flow_factor, 100, subjects_, register_xml);
 
     // Actual speed/velocity subjects
-    INIT_SUBJECT_INT(gcode_speed, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(max_velocity, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(live_extruder_velocity, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(live_velocity, 0, subjects_, register_xml);
@@ -154,11 +153,6 @@ void PrinterMotionState::update_from_status(const nlohmann::json& status) {
                 lv_subject_set_int(&gcode_position_y_, new_y);
                 lv_subject_set_int(&gcode_position_z_, new_z);
             }
-        }
-
-        if (gcode_move.contains("speed") && gcode_move["speed"].is_number()) {
-            int speed_mm_s = static_cast<int>(gcode_move["speed"].get<double>());
-            lv_subject_set_int(&gcode_speed_, speed_mm_s);
         }
 
         if (gcode_move.contains("speed_factor") && gcode_move["speed_factor"].is_number()) {
