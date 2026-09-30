@@ -322,8 +322,8 @@ bool PluginHost::load(PluginInfo& info) {
     limits.memory_bytes = l.memory_bytes;
     LifetimeToken token = guard_.token();
     l.rt = std::make_unique<LuaRuntime>(
-        id, root.string(), limits, [this, token, id](const std::string& reason) {
-            token.defer("plugin_fault", [this, id, reason] { on_fault(id, reason); });
+        id, root.string(), limits, [this, token, id, gen = l.gen](const std::string& reason) {
+            token.defer("plugin_fault", [this, id, gen, reason] { on_fault(id, gen, reason); });
         });
     l.ctx = std::make_unique<PluginContext>(
         PluginContext{*l.rt, deps_.backend, m, &l.settings, [this, id] { save_settings(id); },
@@ -437,9 +437,10 @@ void PluginHost::unload_all() {
     bulk_ = false;
 }
 
-void PluginHost::on_fault(const std::string& id, const std::string& reason) {
-    if (!loaded_.count(id))
-        return; // already unloaded by the load path
+void PluginHost::on_fault(const std::string& id, uint64_t gen, const std::string& reason) {
+    auto it = loaded_.find(id);
+    if (it == loaded_.end() || it->second.gen != gen)
+        return; // unloaded by the load path, or a newer load of the same id
     unload(id);
     if (PluginInfo* info = find(id)) {
         info->status = PluginStatus::Faulted;

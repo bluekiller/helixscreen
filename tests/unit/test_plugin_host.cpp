@@ -152,6 +152,23 @@ TEST_CASE_METHOD(LVGLTestFixture, "a plugin that spins in main.lua faults and un
     CHECK(rig.host->runtime("looper") == nullptr);
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "a fault queued by an old instance leaves a reload loaded",
+                 "[plugin][host]") {
+    HostRig rig(enabled("hello", {"gcode"}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* old_rt = rig.host->runtime("hello");
+    REQUIRE(old_rt);
+    // The budget kill faults the old runtime; its fault handler is deferred to the
+    // next drain, and the reload lands before that drain runs it.
+    CHECK_FALSE(old_rt->run_string("while true do end", "spin"));
+    REQUIRE(rig.host->enable("hello"));
+    LuaRuntime* new_rt = rig.host->runtime("hello");
+    REQUIRE(new_rt);
+    drain();
+    CHECK(rig.host->runtime("hello") == new_rt);
+    CHECK(rig.info("hello")->status == PluginStatus::Loaded);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "a plugin component that shadows an app component is rejected",
                  "[plugin][host]") {
     REQUIRE(lv_xml_register_component_from_data(

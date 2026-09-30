@@ -131,7 +131,7 @@ class PluginHost {
     void consider(PluginInfo& info);
     bool load(PluginInfo& info);
     void unload(const std::string& id);
-    void on_fault(const std::string& id, const std::string& reason);
+    void on_fault(const std::string& id, uint64_t gen, const std::string& reason);
     void save_settings(const std::string& id);
     json enabled_entry(const std::string& id) const;
     size_t memory_in_use() const;
