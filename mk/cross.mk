@@ -1672,11 +1672,11 @@ DEPLOY_TAR_EXCLUDES := --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_
 	--exclude='assets/fonts/*.c' --exclude='assets/fonts/*.ttf' --exclude='assets/fonts/*.otf' --exclude='assets/fonts/.clang-format' \
 	--exclude='*.icns' --exclude='mdi-icon-metadata.json.gz' --exclude='moonraker-plugin/tests' \
 	$(DEPLOY_RUNTIME_EXCLUDES)
-# Exclude tracker files (MOD/MED) on platforms without HELIX_HAS_TRACKER
+# Exclude tracker files (MOD) on platforms without HELIX_HAS_TRACKER
 # rsync syntax:
-DEPLOY_NO_TRACKER := --exclude='*.mod' --exclude='*.med'
+DEPLOY_NO_TRACKER := --exclude='*.mod'
 # tar syntax:
-DEPLOY_TAR_NO_TRACKER := --exclude='*.mod' --exclude='*.med'
+DEPLOY_TAR_NO_TRACKER := --exclude='*.mod'
 DEPLOY_ASSET_DIRS := ui_xml assets config moonraker-plugin
 
 # Common deploy recipe (called with: $(call deploy-common,SSH_TARGET,DEPLOY_DIR,BIN_DIR))
@@ -2066,7 +2066,7 @@ deploy-ad5m:
 	@# Transfer installer script (needed for auto-updates)
 	cat scripts/$(INSTALLER_FILENAME) | ssh $(AD5M_SSH_TARGET) "cat > $(AD5M_DEPLOY_DIR)/$(INSTALLER_FILENAME) && chmod +x $(AD5M_DEPLOY_DIR)/$(INSTALLER_FILENAME)"
 	@# Transfer assets via tar (uses shared DEPLOY_TAR_EXCLUDES and DEPLOY_ASSET_DIRS)
-	@# AD5M now has tracker support (PWM PCM mode) — include .mod/.med files
+	@# AD5M now has tracker support (PWM PCM mode) — include .mod files
 	@echo "$(DIM)Transferring assets...$(RESET)"
 	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_ASSET_DIRS) | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xof -"
 	@# Transfer pre-rendered images
@@ -2881,7 +2881,7 @@ define release-clean-assets
 	@# reaches no screen. tests/shell/test_platform_manifest_gate.bats fails if it
 	@# gains a real consumer, so stripping it here cannot quietly break a caller.
 	@rm -f "$(1)/assets/images/orcaslicer test cube.PNG" 2>/dev/null || true
-	@# assets/sounds is ~900 KB of MOD/MED tracker modules, playable only where
+	@# assets/sounds is ~600 KB of MOD tracker modules, playable only where
 	@# the tracker player is compiled in. AD5M has sound but deliberately no
 	@# tracker (its single core busy-waits and kills prints); CC1/K2 have
 	@# neither; the unified MIPS build carries the tracker for the AD5X (the
