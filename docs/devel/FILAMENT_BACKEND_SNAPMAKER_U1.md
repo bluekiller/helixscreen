@@ -355,7 +355,7 @@ expected-echo value with the fingerprint tracker — user edits can never masque
 hardware swap (`include/ams_backend_snapmaker.h#AmsBackendSnapmaker`). Clears preserve
 firmware-populated fields (`brand`, `spool_name`, `total_weight_g`) and reset only
 override-exclusive ones (`spoolman_*`, `remaining_weight_g`, `color_name`, catalog
-identity) (`src/printer/ams_backend_snapmaker.cpp#clear_override_locked`).
+identity) (`src/printer/ams_backend_snapmaker.cpp#clear_override_fields`).
 
 User edits round-trip to firmware through `POST /printer/filament_detect/set`
 (`channel` + `info` with `VENDOR`/`MAIN_TYPE`/`SUB_TYPE`/`RGB_1`/`ALPHA`/temps) — an
