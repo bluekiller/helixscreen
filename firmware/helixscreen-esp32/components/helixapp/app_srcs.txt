@@ -514,7 +514,6 @@ src/ui/ui_resume_dispatch.cpp
 src/ui/ui_runout_guidance_modal.cpp
 src/ui/ui_settings_about.cpp
 src/ui/ui_settings_appearance.cpp
-src/ui/ui_settings_connection.cpp
 src/ui/ui_settings_display.cpp
 src/ui/ui_settings_fans.cpp
 src/ui/ui_settings_hardware.cpp
