@@ -18,9 +18,9 @@ constexpr std::array<std::pair<Permission, const char*>, 4> kNames{{
     {Permission::Storage, "storage"},
 }};
 
-constexpr std::array<std::string_view, 6> kReadonlyMethods{
-    "printer.objects.query", "printer.objects.list",  "server.info",
-    "server.files.list",     "server.files.metadata", "machine.system_info",
+constexpr std::array<std::string_view, 7> kReadonlyMethods{
+    "printer.objects.query", "printer.objects.list",     "server.info",         "server.files.list",
+    "server.files.metadata", "server.temperature_store", "machine.system_info",
 };
 } // namespace
 
