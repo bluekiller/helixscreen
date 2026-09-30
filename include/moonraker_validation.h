@@ -24,6 +24,24 @@
 #include <string>
 #include <string_view>
 
+namespace helix {
+
+/**
+ * @brief Report a rejected argument exactly once
+ *
+ * Through @p on_error when the caller passed one (the caller owns how the
+ * failure surfaces), otherwise as an error toast carrying @p user_message.
+ * Defined in src/api/moonraker_api_validation.cpp.
+ *
+ * @param detail Developer-facing reason, carried in the MoonrakerError
+ * @param user_message Toast text for callers that passed no on_error
+ */
+void report_validation_error(const std::function<void(const MoonrakerError&)>& on_error,
+                             const char* method, const std::string& detail,
+                             const std::string& user_message);
+
+} // namespace helix
+
 namespace moonraker_internal {
 
 using ErrorCallback = std::function<void(const MoonrakerError&)>;
@@ -509,6 +527,8 @@ inline bool reject_non_finite(std::initializer_list<double> values, const char* 
 // Usage:
 //   report_error(on_error, MoonrakerErrorType::CONNECTION_LOST, "method", "message");
 //   report_http_error(on_error, 404, "method", "status message");
+
+using helix::report_validation_error;
 
 /**
  * @brief Report an error via callback with specified type

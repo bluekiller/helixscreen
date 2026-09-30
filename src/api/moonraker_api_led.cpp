@@ -1,8 +1,6 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "ui_error_reporting.h"
-
 #include "moonraker_api.h"
 #include "moonraker_api_internal.h"
 #include "spdlog/fmt/fmt.h"
@@ -27,12 +25,9 @@ void MoonrakerAPI::set_led(const std::string& led, double red, double green, dou
 
     // Validate LED name
     if (!is_safe_identifier(led)) {
-        NOTIFY_ERROR("Invalid LED name '{}'. Contains unsafe characters.", led);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_led", "Invalid LED name contains illegal characters");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "set_led", "Invalid LED name contains illegal characters",
+            fmt::format("Invalid LED name '{}'. Contains unsafe characters.", led));
         return;
     }
 

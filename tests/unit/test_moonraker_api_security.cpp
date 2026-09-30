@@ -10,6 +10,7 @@
 #include <chrono>
 #include <memory>
 #include <thread>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -1175,4 +1176,33 @@ TEST_CASE("MoonrakerClient cleanup_pending_requests is exception-safe",
         // whether exception handling stops iteration. The important
         // thing is no crash/memory corruption.
     }
+}
+
+TEST_CASE_METHOD(MoonrakerAPITestFixture,
+                 "A rejected argument is reported once: to on_error if given, else as a toast",
+                 "[api][security][validation]") {
+    std::vector<std::string> toasts;
+    helix::ui::set_test_notification_error_hook(
+        [&toasts](const std::string& msg) { toasts.push_back(msg); });
+
+    int errors = 0;
+    auto on_error = [&errors](const MoonrakerError& err) {
+        CHECK(err.type == MoonrakerErrorType::VALIDATION_ERROR);
+        errors++;
+    };
+
+    SECTION("with on_error, no toast") {
+        api->motion().move_axis('A', 10.0, 3000.0, nullptr, on_error);
+        api->set_fan_speed("fan;M112", 50.0, nullptr, on_error);
+        CHECK(errors == 2);
+        CHECK(toasts.empty());
+    }
+
+    SECTION("without on_error, one toast each") {
+        api->motion().move_axis('A', 10.0, 3000.0, nullptr, nullptr);
+        api->set_fan_speed("fan;M112", 50.0, nullptr, nullptr);
+        CHECK(toasts.size() == 2);
+    }
+
+    helix::ui::set_test_notification_error_hook(nullptr);
 }

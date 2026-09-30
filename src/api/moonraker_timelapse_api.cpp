@@ -7,6 +7,7 @@
 #include "hv/requests.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
+#include "moonraker_validation.h"
 #include "spdlog/spdlog.h"
 
 #include <iomanip>
@@ -123,24 +124,19 @@ void MoonrakerTimelapseAPI::set_timelapse_settings(const TimelapseSettings& sett
 
     // Validate mode parameter
     if (settings.mode != "layermacro" && settings.mode != "hyperlapse") {
-        spdlog::error("[Timelapse API] Invalid timelapse mode: {}", settings.mode);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_timelapse_settings",
-                "Invalid timelapse mode (must be 'layermacro' or 'hyperlapse')");
-            on_error(err);
-        }
+        helix::report_validation_error(
+            on_error, "set_timelapse_settings",
+            "Invalid timelapse mode (must be 'layermacro' or 'hyperlapse')",
+            fmt::format("Invalid timelapse mode '{}'.", settings.mode));
         return;
     }
 
     // Validate framerate (reasonable bounds: 1-120 fps)
     if (settings.output_framerate < 1 || settings.output_framerate > 120) {
-        spdlog::error("[Timelapse API] Invalid timelapse framerate: {}", settings.output_framerate);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_timelapse_settings", "Invalid timelapse framerate (must be 1-120)");
-            on_error(err);
-        }
+        helix::report_validation_error(
+            on_error, "set_timelapse_settings", "Invalid timelapse framerate (must be 1-120)",
+            fmt::format("Timelapse framerate {} is out of range (1-120).",
+                        settings.output_framerate));
         return;
     }
 

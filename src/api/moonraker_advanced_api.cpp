@@ -15,6 +15,7 @@
 #include "helix_regex.h"
 #include "json_utils.h"
 #include "moonraker_api.h"
+#include "moonraker_validation.h"
 #include "observer_factory.h"
 #include "operation_timeout_guard.h"
 #include "printer_state.h"
@@ -2860,12 +2861,9 @@ void MoonrakerAdvancedAPI::set_machine_limits(const MachineLimits& limits,
     }
 
     if (!has_params) {
-        spdlog::warn("[Moonraker API] set_machine_limits called with no valid parameters");
-        if (on_error) {
-            MoonrakerError err =
-                MoonrakerError::validation_error("", "No valid machine limit parameters provided");
-            on_error(err);
-        }
+        helix::report_validation_error(on_error, "set_machine_limits",
+                                       "No valid machine limit parameters provided",
+                                       "No machine limits to apply.");
         return;
     }
 
@@ -2884,24 +2882,16 @@ void MoonrakerAdvancedAPI::execute_macro(const std::string& name,
                                          uint32_t timeout_ms, bool suppress_auto_toast) {
     // Validate macro name - only allow alphanumeric, underscore (standard Klipper macro names)
     if (name.empty()) {
-        spdlog::error("[Moonraker API] execute_macro() called with empty name");
-        if (on_error) {
-            MoonrakerError err =
-                MoonrakerError::validation_error("execute_macro", "Macro name cannot be empty");
-            on_error(err);
-        }
+        helix::report_validation_error(on_error, "execute_macro", "Macro name cannot be empty",
+                                       "Cannot run a macro without a name.");
         return;
     }
 
     for (char c : name) {
         if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
-            spdlog::error("[Moonraker API] Invalid macro name '{}' contains illegal character '{}'",
-                          name, c);
-            if (on_error) {
-                MoonrakerError err = MoonrakerError::validation_error(
-                    "execute_macro", "Macro name contains illegal characters");
-                on_error(err);
-            }
+            helix::report_validation_error(
+                on_error, "execute_macro", "Macro name contains illegal characters",
+                fmt::format("Invalid macro name '{}'. Contains unsafe characters.", name));
             return;
         }
     }

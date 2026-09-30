@@ -39,29 +39,23 @@ void MoonrakerAPI::set_temperature(const std::string& heater, double temperature
 
     // Validate heater name
     if (!is_safe_identifier(heater)) {
-        NOTIFY_ERROR("Invalid heater name '{}'. Contains unsafe characters.", heater);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_temperature", "Invalid heater name contains illegal characters");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "set_temperature", "Invalid heater name contains illegal characters",
+            fmt::format("Invalid heater name '{}'. Contains unsafe characters.", heater));
         return;
     }
 
     // Validate temperature range
     if (!is_safe_temperature(temperature, safety_limits_, heater)) {
-        NOTIFY_ERROR("Temperature {:.0f}°C is out of range. Valid: {:.0f}°C to {:.0f}°C.",
-                     temperature, safety_limits_.min_temperature_celsius,
-                     safety_limits_.max_temp_for(heater));
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_temperature",
-                "Temperature " + std::to_string(static_cast<int>(temperature)) +
-                    "°C exceeds safety limits (" +
-                    std::to_string(static_cast<int>(safety_limits_.min_temperature_celsius)) + "-" +
-                    std::to_string(static_cast<int>(safety_limits_.max_temp_for(heater))) + "°C)");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "set_temperature",
+            "Temperature " + std::to_string(static_cast<int>(temperature)) +
+                "°C exceeds safety limits (" +
+                std::to_string(static_cast<int>(safety_limits_.min_temperature_celsius)) + "-" +
+                std::to_string(static_cast<int>(safety_limits_.max_temp_for(heater))) + "°C)",
+            fmt::format("Temperature {:.0f}°C is out of range. Valid: {:.0f}°C to {:.0f}°C.",
+                        temperature, safety_limits_.min_temperature_celsius,
+                        safety_limits_.max_temp_for(heater)));
         return;
     }
 
@@ -76,12 +70,8 @@ void MoonrakerAPI::set_temperature(const std::string& heater, double temperature
     const char* gcode = helix::ui::temperature::build_heater_gcode(
         heater, helix::units::to_decidegrees(temperature), gcode_buf, sizeof(gcode_buf), use_m141);
     if (!gcode) {
-        spdlog::error("[Moonraker API] Cannot build gcode for empty heater name");
-        if (on_error) {
-            MoonrakerError err =
-                MoonrakerError::validation_error("set_temperature", "Empty heater name");
-            on_error(err);
-        }
+        report_validation_error(on_error, "set_temperature", "Empty heater name",
+                                "Cannot set a temperature without a heater name.");
         return;
     }
 
@@ -101,28 +91,22 @@ void MoonrakerAPI::set_fan_speed(const std::string& fan, double speed, SuccessCa
 
     // Validate fan name
     if (!is_safe_identifier(fan)) {
-        NOTIFY_ERROR("Invalid fan name '{}'. Contains unsafe characters.", fan);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_fan_speed", "Invalid fan name contains illegal characters");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "set_fan_speed", "Invalid fan name contains illegal characters",
+            fmt::format("Invalid fan name '{}'. Contains unsafe characters.", fan));
         return;
     }
 
     // Validate speed percentage
     if (!is_safe_fan_speed(speed, safety_limits_)) {
-        NOTIFY_ERROR("Fan speed {:.0f}% is out of range. Valid: {:.0f}% to {:.0f}%.", speed,
-                     safety_limits_.min_fan_speed_percent, safety_limits_.max_fan_speed_percent);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_fan_speed",
-                "Fan speed " + std::to_string(static_cast<int>(speed)) +
-                    "% exceeds safety limits (" +
-                    std::to_string(static_cast<int>(safety_limits_.min_fan_speed_percent)) + "-" +
-                    std::to_string(static_cast<int>(safety_limits_.max_fan_speed_percent)) + "%)");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "set_fan_speed",
+            "Fan speed " + std::to_string(static_cast<int>(speed)) + "% exceeds safety limits (" +
+                std::to_string(static_cast<int>(safety_limits_.min_fan_speed_percent)) + "-" +
+                std::to_string(static_cast<int>(safety_limits_.max_fan_speed_percent)) + "%)",
+            fmt::format("Fan speed {:.0f}% is out of range. Valid: {:.0f}% to {:.0f}%.", speed,
+                        safety_limits_.min_fan_speed_percent,
+                        safety_limits_.max_fan_speed_percent));
         return;
     }
 
@@ -449,12 +433,9 @@ void MoonrakerAPI::exclude_object(const std::string& object_name, SuccessCallbac
         spdlog::warn("[Moonraker API] Rejected exclude_object name '{}' — contains characters "
                      "outside the object-name allowlist",
                      object_name);
-        NOTIFY_ERROR("Invalid object name '{}'. Contains unsafe characters.", object_name);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "exclude_object", "Invalid object name contains illegal characters");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "exclude_object", "Invalid object name contains illegal characters",
+            fmt::format("Invalid object name '{}'. Contains unsafe characters.", object_name));
         return;
     }
 

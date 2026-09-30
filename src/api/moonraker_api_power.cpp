@@ -112,28 +112,17 @@ void MoonrakerAPI::set_device_power(const std::string& device, const std::string
                 escaped += c;
             }
         }
-        // No NOTIFY_ERROR here: every caller already surfaces the failure through
-        // on_error (a toast in PowerDeviceWidget, a status line in PowerPanel), and
-        // toasting from the API layer too would double-report the same rejection.
-        spdlog::warn("[Moonraker API] Rejected power device name '{}' — contains control "
-                     "characters",
-                     escaped);
-        if (on_error) {
-            MoonrakerError err =
-                MoonrakerError::validation_error("set_device_power", "Invalid device name");
-            on_error(err);
-        }
+        report_validation_error(
+            on_error, "set_device_power", "Invalid device name",
+            fmt::format("Invalid power device name '{}'. Contains control characters.", escaped));
         return;
     }
 
     // Validate action
     if (action != "on" && action != "off" && action != "toggle") {
-        spdlog::error("[Moonraker API] Invalid power action: {}", action);
-        if (on_error) {
-            MoonrakerError err = MoonrakerError::validation_error(
-                "set_device_power", "Invalid action (must be on, off, or toggle)");
-            on_error(err);
-        }
+        report_validation_error(on_error, "set_device_power",
+                                "Invalid action (must be on, off, or toggle)",
+                                fmt::format("Invalid power action '{}'.", action));
         return;
     }
 
