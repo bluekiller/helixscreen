@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <map>
 #include <string_view>
@@ -179,6 +180,7 @@ std::map<std::string, RuntimeSlot, std::less<>>& runtime_slots() {
 }
 std::vector<PanelWidgetDef> s_all_defs;
 bool s_all_defs_dirty = true;
+uint64_t s_runtime_generation = 0;
 
 void rebuild_all_defs() {
     s_all_defs = s_widget_defs;
@@ -296,6 +298,7 @@ bool register_runtime_widget_def(RuntimeWidgetDef def) {
         it->second.active = true;
     }
     s_all_defs_dirty = true;
+    ++s_runtime_generation;
     return true;
 }
 
@@ -307,6 +310,11 @@ void unregister_runtime_widget_def(std::string_view id) {
     it->second.active = false;
     it->second.def.factory = nullptr;
     s_all_defs_dirty = true;
+    ++s_runtime_generation;
+}
+
+uint64_t runtime_widget_generation() {
+    return s_runtime_generation;
 }
 
 void init_widget_registrations() {

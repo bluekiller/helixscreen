@@ -2,8 +2,5 @@
 <component>
   <view extends="lv_obj" width="100%" height="100%">
     <lv_label name="widget-demo_size_label" bind_text="widget-demo__size"/>
-    <lv_button name="widget-demo_open_button">
-      <event_cb trigger="clicked" callback="plugin_event" user_data="widget-demo__open"/>
-    </lv_button>
   </view>
 </component>

@@ -3,12 +3,18 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_panel_home.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/home_panel_test_access.h"
 #include "../test_helpers/plugin_test_support.h"
+#include "config.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
+#include "misc/lv_timer_private.h"
 #include "panel_widget.h"
+#include "panel_widget_config.h"
+#include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
 #include "plugin_host.h"
 
@@ -322,6 +328,97 @@ TEST_CASE_METHOD(LVGLTestFixture, "a widget whose component file is missing is i
     CHECK(rig.info("widget-missing")->status == PluginStatus::Invalid);
     CHECK(rig.info("widget-missing")->reason.find("not in ui/") != std::string::npos);
     CHECK(helix::find_widget_def("widget-missing__tile") == nullptr);
+}
+
+namespace {
+/// Pump LVGL's one-shot timer queue (lv_async_call), as test_panel_widget_runtime_defs
+/// does: a fixed process_lvgl() elapse does not reliably fire period-0 timers created
+/// mid-tick.
+void process_async_calls() {
+    for (int safety = 0; safety < 50; ++safety) {
+        bool fired = false;
+        lv_timer_t* t = lv_timer_get_next(nullptr);
+        while (t) {
+            lv_timer_t* next = lv_timer_get_next(t);
+            if (t->repeat_count > 0 && t->timer_cb) {
+                t->timer_cb(t);
+                fired = true;
+                break;
+            }
+            t = next;
+        }
+        if (!fired)
+            break;
+    }
+}
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "an enabled reload rebuilds a placed home tile onto the new runtime",
+                 "[plugin][host]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.info("widget-demo")->status == PluginStatus::Loaded);
+
+    // A persisted two-page home layout: page 0 carries no widgets key, so the
+    // registry defaults are not appended anywhere, and page 1 holds only the
+    // plugin tile. The placement must live in the Config JSON rather than the
+    // parsed cache: the def-change notify marks every panel config dirty and
+    // the rebuild re-reads from disk.
+    auto* cfg = helix::Config::get_instance();
+    nlohmann::json tile = {{"id", "widget-demo__tile"},
+                           {"enabled", true},
+                           {"col", 0},
+                           {"row", 0},
+                           {"colspan", 2},
+                           {"rowspan", 2}};
+    nlohmann::json plug_page_cfg = {{"id", "plug"}, {"widgets", nlohmann::json::array({tile})}};
+    nlohmann::json home_cfg = {{"main_page_index", 0},
+                               {"next_page_id", 2},
+                               {"pages", nlohmann::json::array({{{"id", "main"}}, plug_page_cfg})}};
+    cfg->set<nlohmann::json>(cfg->df() + "panel_widgets/home", home_cfg);
+
+    auto& mgr = helix::PanelWidgetManager::instance();
+    mgr.get_widget_config("home").mark_dirty();
+    mgr.clear_panel_config("home");
+
+    HomePanel& panel = get_global_home_panel();
+    lv_obj_t* main_page = lv_obj_create(lv_screen_active());
+    lv_obj_t* plug_page = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(main_page, 400, 300);
+    lv_obj_set_size(plug_page, 400, 300);
+    HomePanelTestAccess::set_page_containers(panel, {main_page, plug_page});
+    HomePanelTestAccess::setup_gate_observers(panel);
+    panel.populate_widgets();
+    drain();
+    lv_subject_t* size = lv_xml_get_subject(nullptr, "widget-demo__size");
+    REQUIRE(size);
+    CHECK(std::string(lv_subject_get_string(size)) == "1x1"); // the placed tile is live
+
+    // enable() is unload + load of the same id: both def notifies coalesce into
+    // one async rebuild whose visible id list is identical to the cached one.
+    // The fresh runtime restarts its size subject empty, so only a rebuilt tile
+    // can write a value back.
+    CHECK(rig.host->enable("widget-demo"));
+    drain();
+    process_lvgl(50);
+    process_async_calls();
+    drain();
+
+    size = lv_xml_get_subject(nullptr, "widget-demo__size");
+    REQUIRE(size);
+    CHECK(std::string(lv_subject_get_string(size)) == "1x1");
+
+    helix::PanelWidgetManager::clear_gate_observers("home");
+    HomePanelTestAccess::clear_page_containers(panel);
+    // A null panel_widgets node reads as absent everywhere, restoring the
+    // default-placement view for later tests in this process.
+    cfg->set<nlohmann::json>(cfg->df() + "panel_widgets/home", nlohmann::json());
+    mgr.get_widget_config("home").mark_dirty();
+    mgr.clear_panel_config("home");
+    lv_obj_delete(main_page);
+    lv_obj_delete(plug_page);
+    drain();
 }
 
 #endif // HELIX_HAS_PLUGINS

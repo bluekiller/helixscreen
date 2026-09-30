@@ -47,4 +47,15 @@ TEST_CASE("helix.widget refuses an undeclared widget", "[plugin][lua_bindings_wi
     CHECK(b.t.global("err").find("widgets") != std::string::npos);
 }
 
+TEST_CASE("helix.widget refuses a hook key holding a non-function",
+          "[plugin][lua_bindings_widget]") {
+    BoundRuntime b({&install_widget_bindings});
+    WidgetDecl d;
+    d.id = "test-plugin__tile";
+    b.manifest.widgets.push_back(d);
+    REQUIRE(b.t.run(R"(ok, err = pcall(helix.widget, "tile", { on_attach = 5 }))"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("on_attach") != std::string::npos);
+}
+
 #endif // HELIX_HAS_PLUGINS

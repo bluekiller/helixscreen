@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -154,6 +155,11 @@ bool register_runtime_widget_def(RuntimeWidgetDef def);
 /// Deactivates a runtime definition. The id's storage is kept so pointers
 /// handed to LVGL user_data stay readable until the rows using them rebuild.
 void unregister_runtime_widget_def(std::string_view id);
+/// Bumped by every register/unregister of a runtime definition. A reload that
+/// re-registers the same ids leaves every id list unchanged while the
+/// factories now build widgets bound to a different owner, so caches keyed on
+/// the id list alone (home's page cache) must also compare this.
+uint64_t runtime_widget_generation();
 // Internal — called once from PanelWidgetManager::init_widget_subjects().
 // Do not call directly; widget factories require runtime context (singletons, shared resources).
 void init_widget_registrations();

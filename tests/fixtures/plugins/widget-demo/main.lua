@@ -11,4 +11,3 @@ helix.widget("tile", {
 })
 
 helix.ui.on("ping", function() status:set("pinged") end)
-helix.ui.on("open", function() helix.ui.overlay("widget-demo__panel") end)

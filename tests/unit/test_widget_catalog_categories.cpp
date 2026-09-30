@@ -1369,7 +1369,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
 }
 
 TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
-                 "Widget catalog: a same-id def changing spans under it still rebuild",
+                 "Widget catalog: a same-id def changing spans under it still rebuilds",
                  "[widget_catalog][widget_registry]") {
     RuntimeWidgetDef d = make_runtime_def("rt-span-tile", "Span Tile");
     d.colspan = 2;

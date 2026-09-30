@@ -25,6 +25,7 @@
 #include "observer_factory.h"
 #include "panel_widget_config.h"
 #include "panel_widget_manager.h"
+#include "panel_widget_registry.h"
 #include "panel_widgets/print_status_widget.h"
 #include "panel_widgets/printer_image_widget.h"
 #include "printer_image_manager.h"
@@ -541,7 +542,9 @@ void HomePanel::populate_page(int page_index, bool force) {
 
     // Skip rebuild if the resulting widget list would be identical
     if (!force) {
-        if (pages_[idx].visible_ids && snapshot_ids == *pages_[idx].visible_ids) {
+        uint64_t gen = helix::runtime_widget_generation();
+        if (pages_[idx].visible_ids && snapshot_ids == *pages_[idx].visible_ids &&
+            pages_[idx].widget_gen == gen) {
             spdlog::debug("[{}] Page {} widget list unchanged, skipping rebuild", get_name(),
                           page_index);
             populating_widgets_ = false;
@@ -550,7 +553,10 @@ void HomePanel::populate_page(int page_index, bool force) {
 
         // A change that only flips hardware gates re-creates just those tiles,
         // not the page: every page build is seconds of UI thread on slow boards.
-        if (pages_[idx].visible_ids) {
+        // A generation change is not a gate flip: the factories behind unchanged
+        // ids now build widgets for a different runtime, so it must not take
+        // this partial path.
+        if (pages_[idx].visible_ids && pages_[idx].widget_gen == gen) {
             if (auto flips = helix::PanelWidgetManager::gate_flips_only(*pages_[idx].visible_ids,
                                                                         snapshot_ids)) {
                 {
@@ -570,6 +576,7 @@ void HomePanel::populate_page(int page_index, bool force) {
                         }
                     }
                     pages_[idx].visible_ids = std::move(snapshot_ids);
+                    pages_[idx].widget_gen = gen;
                     populating_widgets_ = false;
                     return;
                 }
@@ -634,6 +641,7 @@ void HomePanel::populate_page(int page_index, bool force) {
     // placement, not a fresh read that could include late-arriving capability flips.
     pages_[idx].widgets = std::move(widgets);
     pages_[idx].visible_ids = std::move(snapshot_ids);
+    pages_[idx].widget_gen = helix::runtime_widget_generation();
 
     populating_widgets_ = false;
 }

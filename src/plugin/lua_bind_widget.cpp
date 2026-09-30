@@ -53,6 +53,8 @@ int widget_register(lua_State* L) {
         lua_getfield(L, 2, kNames[i]);
         if (lua_isfunction(L, -1))
             refs[i] = ctx.rt.ref_value(L, -1);
+        else if (!lua_isnil(L, -1))
+            return luaL_error(L, "helix.widget: hook '%s' must be a function", kNames[i]);
         lua_pop(L, 1);
     }
     return 0;
