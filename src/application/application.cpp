@@ -153,14 +153,11 @@
 #include "color_utils.h"
 #include "preflight_validator.h"
 
-// Developer-only showcase panels (ENABLE_DEV_PANELS, excluded from release
-// builds). Not wired into PanelFactory — kept as live testbeds for XML
-// bindings, wizard step progress, the 3D G-code viewer and icon-font coverage.
+// Developer-only showcase panel (ENABLE_DEV_PANELS, excluded from release
+// builds). Not wired into PanelFactory — kept as a live testbed for icon-font
+// coverage.
 #ifdef HELIX_ENABLE_DEV_PANELS
-#include "ui_panel_gcode_test.h"
 #include "ui_panel_glyphs.h"
-#include "ui_panel_step_test.h"
-#include "ui_panel_test.h"
 #endif
 
 #include "active_print_media_manager.h"

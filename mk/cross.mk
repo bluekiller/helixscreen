@@ -2928,7 +2928,7 @@ endef
 # where ENABLE_DEV_PANELS defaults to yes, while the binaries they package come
 # from separate cross sub-makes where it defaults to no. Keying the strip off the
 # ambient $(ENABLE_DEV_PANELS) would therefore never fire.
-DEV_PANEL_XML := gcode_test_panel.xml glyphs_panel.xml step_test_panel.xml test_panel.xml
+DEV_PANEL_XML := glyphs_panel.xml
 
 # Stage ui_xml/ + config/ + moonraker-plugin/ into a release tree, minus the
 # dev-panel layouts and the plugin's dev-only files. moonraker-plugin must ride

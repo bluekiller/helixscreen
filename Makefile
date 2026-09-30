@@ -567,11 +567,9 @@ else
     ENABLE_DIAGNOSTIC_UPLOADS ?= no
 endif
 
-# Developer-only showcase panels. Not reachable from the shipped navigation
-# (no PanelId, no PanelFactory wiring) — they exist as live testbeds: XML
-# binding/repeat demos (test_panel), wizard step-progress (step_test_panel),
-# the 3D G-code viewer harness (gcode_test_panel), and icon-font coverage
-# (glyphs_panel). Dev-only: default ON for the native dev build, OFF for
+# Developer-only showcase panel. Not reachable from the shipped navigation
+# (no PanelId, no PanelFactory wiring) — it exists as a live testbed for
+# icon-font coverage (glyphs_panel). Dev-only: default ON for the native dev build, OFF for
 # release/cross builds. Force into a device dev image with:
 #   make PLATFORM_TARGET=pi ENABLE_DEV_PANELS=yes
 ifeq ($(PLATFORM_TARGET),native)
@@ -581,9 +579,6 @@ else
 endif
 
 ifneq ($(ENABLE_DEV_PANELS),yes)
-    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_test.cpp,$(APP_SRCS))
-    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_step_test.cpp,$(APP_SRCS))
-    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_gcode_test.cpp,$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_glyphs.cpp,$(APP_SRCS))
 endif
 APP_OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(APP_SRCS))
