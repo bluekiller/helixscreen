@@ -7,6 +7,8 @@
 
 #include "lvgl/lvgl.h"
 
+#include <optional>
+
 // ============================================================================
 // Color Manipulation Helpers
 // ============================================================================
@@ -133,6 +135,35 @@ inline void nr_draw_bevel_row(lv_layer_t* layer, int32_t cx, int32_t half_w, int
     lv_area_t row = {cx - half_w, y, cx + half_w, y};
     lv_draw_fill(layer, &fill_dsc, &row);
 }
+
+/// @brief Blend a color toward black by @p opa (255 = unchanged)
+///
+/// Renderers pre-dim their colors instead of drawing with per-call alpha, which
+/// would let overlapping layers bleed through each other.
+inline lv_color_t nr_dim(lv_color_t c, lv_opa_t opa) {
+    if (opa >= LV_OPA_COVER)
+        return c;
+    float f = (float)opa / 255.0f;
+    return lv_color_make((uint8_t)(c.red * f), (uint8_t)(c.green * f), (uint8_t)(c.blue * f));
+}
+
+/// @brief Draw a metal nozzle tip with a white glint at its bottom
+///
+/// A loaded tip blends its @p left / @p right shading 40% toward the filament.
+/// @param filament Loaded filament color, or nullopt when unloaded
+/// @param opa Dims the filament color the way the body colors were dimmed
+/// @param glint_right Glint extent right of @p cx
+void nr_draw_tinted_tip(lv_layer_t* layer, int32_t cx, int32_t top_y, int32_t top_width,
+                        int32_t bottom_width, int32_t height, lv_color_t left, lv_color_t right,
+                        std::optional<lv_color_t> filament, lv_opa_t opa, int32_t glint_right = 1);
+
+/// @brief Draw a nozzle tip in the filament color, or charcoal metal when unloaded
+///
+/// Used by the vector-traced toolheads, whose body art has no metal tip of its own.
+/// @param filament Loaded filament color, or nullopt when unloaded
+void nr_draw_filament_tip(lv_layer_t* layer, int32_t cx, int32_t top_y, int32_t top_width,
+                          int32_t bottom_width, int32_t height, std::optional<lv_color_t> filament,
+                          lv_opa_t opa);
 
 } // namespace helix
 

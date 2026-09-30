@@ -393,40 +393,24 @@ static void draw_polygon(lv_layer_t* layer, const lv_point_t* pts, int cnt, lv_c
 // Main Drawing Function
 // ============================================================================
 
-void draw_nozzle_stealthburner(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t filament_color,
-                               int32_t scale_unit, lv_opa_t opa) {
+void draw_nozzle_stealthburner(lv_layer_t* layer, int32_t cx, int32_t cy,
+                               std::optional<lv_color_t> filament, int32_t scale_unit,
+                               lv_opa_t opa) {
     // The design space is 1000x1000, but the actual toolhead spans about
     // 440 units wide (280-720) and 850 units tall (78-928)
     // Stealthburner is larger than Bambu toolhead, so render at 2x
     int32_t render_size = scale_unit * 10;
     float scale = (float)render_size / 1000.0f;
 
-    // Dim helper: blend color toward black by opa factor (255=full, 0=invisible)
-    // This avoids inter-layer bleed that per-draw-call alpha would cause
-    auto dim = [opa](lv_color_t c) -> lv_color_t {
-        if (opa >= LV_OPA_COVER)
-            return c;
-        float f = (float)opa / 255.0f;
-        return lv_color_make((uint8_t)(c.red * f), (uint8_t)(c.green * f), (uint8_t)(c.blue * f));
-    };
-
     // Body color is ALWAYS Voron red - the toolhead housing doesn't change
-    lv_color_t primary = dim(lv_color_hex(0xD11D1D));
-
-    // Nozzle tip color uses filament color when loaded
-    // Detect "unloaded" by checking for known idle/nozzle colors
-    static constexpr uint32_t NOZZLE_UNLOADED = 0x3A3A3A;
-    lv_color_t tip_color = dim(filament_color);
-    bool has_filament = !lv_color_eq(filament_color, lv_color_hex(NOZZLE_UNLOADED)) &&
-                        !lv_color_eq(filament_color, lv_color_hex(0x808080)) &&
-                        !lv_color_eq(filament_color, lv_color_black());
+    lv_color_t primary = helix::nr_dim(lv_color_hex(0xD11D1D), opa);
 
     // Temporary buffer for scaled points
     lv_point_t tmp[MAX_POLYGON_POINTS];
 
     // Housing (dark frame outline)
     scale_polygon(pts_housing, pts_housing_cnt, tmp, cx, cy, scale);
-    draw_polygon(layer, tmp, pts_housing_cnt, dim(lv_color_hex(0x121212)));
+    draw_polygon(layer, tmp, pts_housing_cnt, helix::nr_dim(lv_color_hex(0x121212), opa));
 
     // Main plate (themed primary color)
     scale_polygon(pts_plate, pts_plate_cnt, tmp, cx, cy, scale);
@@ -481,24 +465,24 @@ void draw_nozzle_stealthburner(lv_layer_t* layer, int32_t cx, int32_t cy, lv_col
 
     // Top circle (extruder motor recess)
     scale_polygon(pts_top_circle, pts_top_circle_cnt, tmp, cx, cy, scale);
-    draw_polygon(layer, tmp, pts_top_circle_cnt, dim(lv_color_hex(0x100C0B)));
+    draw_polygon(layer, tmp, pts_top_circle_cnt, helix::nr_dim(lv_color_hex(0x100C0B), opa));
 
     // Bottom circle (fan) - simple filled circle instead of complex polygon
     // Fan center is at (490, 690) in design space with radius ~115
     int32_t fan_cx = cx + (int32_t)((490 - DESIGN_CENTER_X) * scale);
     int32_t fan_cy = cy + (int32_t)((690 - DESIGN_CENTER_Y) * scale);
     int32_t fan_radius = (int32_t)(115 * scale);
-    draw_circle(layer, fan_cx, fan_cy, fan_radius, dim(lv_color_hex(0x100C0B)), 32);
+    draw_circle(layer, fan_cx, fan_cy, fan_radius, helix::nr_dim(lv_color_hex(0x100C0B), opa), 32);
 
     // Logo stripes (Voron logo)
     scale_polygon(pts_logo_1, pts_logo_1_cnt, tmp, cx, cy, scale);
-    draw_polygon(layer, tmp, pts_logo_1_cnt, dim(lv_color_black()));
+    draw_polygon(layer, tmp, pts_logo_1_cnt, helix::nr_dim(lv_color_black(), opa));
 
     scale_polygon(pts_logo_2, pts_logo_2_cnt, tmp, cx, cy, scale);
-    draw_polygon(layer, tmp, pts_logo_2_cnt, dim(lv_color_black()));
+    draw_polygon(layer, tmp, pts_logo_2_cnt, helix::nr_dim(lv_color_black(), opa));
 
     scale_polygon(pts_logo_3, pts_logo_3_cnt, tmp, cx, cy, scale);
-    draw_polygon(layer, tmp, pts_logo_3_cnt, dim(lv_color_black()));
+    draw_polygon(layer, tmp, pts_logo_3_cnt, helix::nr_dim(lv_color_black(), opa));
 
     // Nozzle tip indicator at bottom (shows filament color when loaded)
     // Position below the Stealthburner body (body bottom is ~Y=898)
@@ -510,19 +494,6 @@ void draw_nozzle_stealthburner(lv_layer_t* layer, int32_t cx, int32_t cy, lv_col
     int32_t nozzle_top_width = (int32_t)(60 * scale);
     int32_t nozzle_bottom_width = (int32_t)(20 * scale);
 
-    // Draw tapered nozzle tip using common renderer function
-    lv_color_t nozzle_metal = dim(lv_color_hex(NOZZLE_UNLOADED));
-    lv_color_t tip_left = has_filament ? nr_lighten(tip_color, 30) : nr_lighten(nozzle_metal, 30);
-    lv_color_t tip_right = has_filament ? nr_darken(tip_color, 20) : nr_darken(nozzle_metal, 10);
-    nr_draw_nozzle_tip(layer, tip_cx, nozzle_top_y, nozzle_top_width, nozzle_bottom_width,
-                       nozzle_height, tip_left, tip_right);
-
-    // Bright glint at tip bottom
-    lv_draw_fill_dsc_t glint_dsc;
-    lv_draw_fill_dsc_init(&glint_dsc);
-    glint_dsc.color = dim(lv_color_hex(0xFFFFFF));
-    glint_dsc.opa = LV_OPA_70;
-    int32_t glint_y = nozzle_top_y + nozzle_height - 1;
-    lv_area_t glint = {tip_cx - 1, glint_y, tip_cx + 1, glint_y + 1};
-    lv_draw_fill(layer, &glint_dsc, &glint);
+    helix::nr_draw_filament_tip(layer, tip_cx, nozzle_top_y, nozzle_top_width, nozzle_bottom_width,
+                                nozzle_height, filament, opa);
 }

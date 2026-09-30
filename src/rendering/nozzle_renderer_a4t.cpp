@@ -401,36 +401,23 @@ static void scale_polygon(const lv_point_t* pts_in, int cnt, lv_point_t* pts_out
 // Main Drawing Function
 // ============================================================================
 
-void draw_nozzle_a4t(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t filament_color,
+void draw_nozzle_a4t(lv_layer_t* layer, int32_t cx, int32_t cy, std::optional<lv_color_t> filament,
                      int32_t scale_unit, lv_opa_t opa) {
     int32_t render_size = scale_unit * 10;
     // Design space is 1000x1334; scale down to match the visual footprint
     // of the other renderers (bambu/stealthburner use 1000-unit space)
     float scale = (float)render_size / 2000.0f;
 
-    auto dim = [opa](lv_color_t c) -> lv_color_t {
-        if (opa >= LV_OPA_COVER)
-            return c;
-        float f = (float)opa / 255.0f;
-        return lv_color_make((uint8_t)(c.red * f), (uint8_t)(c.green * f), (uint8_t)(c.blue * f));
-    };
-
-    // Filament detection for nozzle tip coloring
-    static constexpr uint32_t NOZZLE_UNLOADED = 0x3A3A3A;
-    bool has_filament = !lv_color_eq(filament_color, lv_color_hex(NOZZLE_UNLOADED)) &&
-                        !lv_color_eq(filament_color, lv_color_hex(0x808080)) &&
-                        !lv_color_eq(filament_color, lv_color_black());
-
     // Pre-dim colors
-    lv_color_t col_silhouette = dim(lv_color_hex(0x1A1A1A));
-    lv_color_t col_body = dim(lv_color_hex(0x353435));
-    lv_color_t col_detail = dim(lv_color_hex(0x5F5E5F));
-    lv_color_t col_dark = dim(lv_color_hex(0x0A0A0A));
-    lv_color_t col_highlight = dim(lv_color_hex(0xC7C8C5));
-    lv_color_t col_green_shadow = dim(lv_color_hex(0x282615));
-    lv_color_t col_green_dark = dim(lv_color_hex(0x615B12));
-    lv_color_t col_green_bright = dim(lv_color_hex(0xBFBB4B));
-    lv_color_t col_copper = dim(lv_color_hex(0xA6614C));
+    lv_color_t col_silhouette = helix::nr_dim(lv_color_hex(0x1A1A1A), opa);
+    lv_color_t col_body = helix::nr_dim(lv_color_hex(0x353435), opa);
+    lv_color_t col_detail = helix::nr_dim(lv_color_hex(0x5F5E5F), opa);
+    lv_color_t col_dark = helix::nr_dim(lv_color_hex(0x0A0A0A), opa);
+    lv_color_t col_highlight = helix::nr_dim(lv_color_hex(0xC7C8C5), opa);
+    lv_color_t col_green_shadow = helix::nr_dim(lv_color_hex(0x282615), opa);
+    lv_color_t col_green_dark = helix::nr_dim(lv_color_hex(0x615B12), opa);
+    lv_color_t col_green_bright = helix::nr_dim(lv_color_hex(0xBFBB4B), opa);
+    lv_color_t col_copper = helix::nr_dim(lv_color_hex(0xA6614C), opa);
 
     lv_point_t tmp[MAX_POLYGON_POINTS];
 
@@ -526,28 +513,12 @@ void draw_nozzle_a4t(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t filam
 
     // Layer 10: Nozzle tip (shows filament color when loaded)
     {
-        lv_color_t tip_color = dim(filament_color);
-        lv_color_t nozzle_metal = dim(lv_color_hex(NOZZLE_UNLOADED));
-
         int32_t nozzle_top_y = cy + (int32_t)((1300 - DESIGN_CENTER_Y) * scale);
         int32_t nozzle_height = LV_MAX((int32_t)(30 * scale), 2);
         int32_t nozzle_top_width = LV_MAX((int32_t)(80 * scale), 4);
         int32_t nozzle_bottom_width = LV_MAX((int32_t)(30 * scale), 2);
 
-        lv_color_t tip_left =
-            has_filament ? nr_lighten(tip_color, 30) : nr_lighten(nozzle_metal, 30);
-        lv_color_t tip_right =
-            has_filament ? nr_darken(tip_color, 20) : nr_darken(nozzle_metal, 10);
-
-        nr_draw_nozzle_tip(layer, cx, nozzle_top_y, nozzle_top_width, nozzle_bottom_width,
-                           nozzle_height, tip_left, tip_right);
-
-        lv_draw_fill_dsc_t glint_dsc;
-        lv_draw_fill_dsc_init(&glint_dsc);
-        glint_dsc.color = dim(lv_color_hex(0xFFFFFF));
-        glint_dsc.opa = LV_OPA_70;
-        int32_t glint_y = nozzle_top_y + nozzle_height - 1;
-        lv_area_t glint = {cx - 1, glint_y, cx + 1, glint_y + 1};
-        lv_draw_fill(layer, &glint_dsc, &glint);
+        helix::nr_draw_filament_tip(layer, cx, nozzle_top_y, nozzle_top_width, nozzle_bottom_width,
+                                    nozzle_height, filament, opa);
     }
 }

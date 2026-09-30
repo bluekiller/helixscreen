@@ -630,6 +630,7 @@ src/system/config_storage_file.cpp
 src/rendering/nozzle_renderer_a4t.cpp
 src/rendering/nozzle_renderer_anthead.cpp
 src/rendering/nozzle_renderer_bambu.cpp
+src/rendering/nozzle_renderer_common.cpp
 src/rendering/nozzle_renderer_creality_k1.cpp
 src/rendering/nozzle_renderer_creality_k2.cpp
 src/rendering/nozzle_renderer_jabberwocky.cpp

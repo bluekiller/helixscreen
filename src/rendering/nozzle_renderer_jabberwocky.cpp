@@ -1063,39 +1063,26 @@ static void scale_polygon(const lv_point_t* pts_in, int cnt, lv_point_t* pts_out
 // Main Drawing Function
 // ============================================================================
 
-void draw_nozzle_jabberwocky(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t filament_color,
-                             int32_t scale_unit, lv_opa_t opa) {
+void draw_nozzle_jabberwocky(lv_layer_t* layer, int32_t cx, int32_t cy,
+                             std::optional<lv_color_t> filament, int32_t scale_unit, lv_opa_t opa) {
     int32_t render_size = scale_unit * 10;
     // Design space is 1000x1542; scale down to match the visual footprint
     // of the other renderers (bambu/stealthburner use 1000-unit space)
     float scale = (float)render_size / 2400.0f;
 
-    auto dim = [opa](lv_color_t c) -> lv_color_t {
-        if (opa >= LV_OPA_COVER)
-            return c;
-        float f = (float)opa / 255.0f;
-        return lv_color_make((uint8_t)(c.red * f), (uint8_t)(c.green * f), (uint8_t)(c.blue * f));
-    };
-
-    // Filament detection for nozzle tip coloring
-    static constexpr uint32_t NOZZLE_UNLOADED = 0x3A3A3A;
-    bool has_filament = !lv_color_eq(filament_color, lv_color_hex(NOZZLE_UNLOADED)) &&
-                        !lv_color_eq(filament_color, lv_color_hex(0x808080)) &&
-                        !lv_color_eq(filament_color, lv_color_black());
-
     // Pre-dim all layer colors
-    lv_color_t col_body_dark = dim(lv_color_hex(0x2A2A28));
-    lv_color_t col_body_mid = dim(lv_color_hex(0x4C4B47));
-    lv_color_t col_body_light = dim(lv_color_hex(0x7A7972));
-    lv_color_t col_body_highlight = dim(lv_color_hex(0x969690));
-    lv_color_t col_dark = dim(lv_color_hex(0x0A0A0A));
-    lv_color_t col_copper_dark = dim(lv_color_hex(0x7A4D20));
-    lv_color_t col_copper_mid = dim(lv_color_hex(0xB06525));
-    lv_color_t col_copper_bright = dim(lv_color_hex(0xE87828));
-    lv_color_t col_blue_dark = dim(lv_color_hex(0x2D5070));
-    lv_color_t col_blue_bright = dim(lv_color_hex(0x3890C0));
-    lv_color_t col_green = dim(lv_color_hex(0x50A050));
-    lv_color_t col_highlight = dim(lv_color_hex(0xC0C0B8));
+    lv_color_t col_body_dark = helix::nr_dim(lv_color_hex(0x2A2A28), opa);
+    lv_color_t col_body_mid = helix::nr_dim(lv_color_hex(0x4C4B47), opa);
+    lv_color_t col_body_light = helix::nr_dim(lv_color_hex(0x7A7972), opa);
+    lv_color_t col_body_highlight = helix::nr_dim(lv_color_hex(0x969690), opa);
+    lv_color_t col_dark = helix::nr_dim(lv_color_hex(0x0A0A0A), opa);
+    lv_color_t col_copper_dark = helix::nr_dim(lv_color_hex(0x7A4D20), opa);
+    lv_color_t col_copper_mid = helix::nr_dim(lv_color_hex(0xB06525), opa);
+    lv_color_t col_copper_bright = helix::nr_dim(lv_color_hex(0xE87828), opa);
+    lv_color_t col_blue_dark = helix::nr_dim(lv_color_hex(0x2D5070), opa);
+    lv_color_t col_blue_bright = helix::nr_dim(lv_color_hex(0x3890C0), opa);
+    lv_color_t col_green = helix::nr_dim(lv_color_hex(0x50A050), opa);
+    lv_color_t col_highlight = helix::nr_dim(lv_color_hex(0xC0C0B8), opa);
 
     lv_point_t tmp[MAX_POLYGON_POINTS];
 
@@ -1268,30 +1255,14 @@ void draw_nozzle_jabberwocky(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color
 
     // Layer 13: Nozzle tip (shows filament color when loaded)
     {
-        lv_color_t tip_color = dim(filament_color);
-        lv_color_t nozzle_metal = dim(lv_color_hex(NOZZLE_UNLOADED));
-
         // Nozzle tip positioned below the copper assembly
         int32_t nozzle_top_y = cy + (int32_t)((1510 - DESIGN_CENTER_Y) * scale);
         int32_t nozzle_height = LV_MAX((int32_t)(40 * scale), 2);
         int32_t nozzle_top_width = LV_MAX((int32_t)(80 * scale), 4);
         int32_t nozzle_bottom_width = LV_MAX((int32_t)(30 * scale), 2);
 
-        lv_color_t tip_left =
-            has_filament ? nr_lighten(tip_color, 30) : nr_lighten(nozzle_metal, 30);
-        lv_color_t tip_right =
-            has_filament ? nr_darken(tip_color, 20) : nr_darken(nozzle_metal, 10);
-
-        nr_draw_nozzle_tip(layer, cx, nozzle_top_y, nozzle_top_width, nozzle_bottom_width,
-                           nozzle_height, tip_left, tip_right);
-
-        lv_draw_fill_dsc_t glint_dsc;
-        lv_draw_fill_dsc_init(&glint_dsc);
-        glint_dsc.color = dim(lv_color_hex(0xFFFFFF));
-        glint_dsc.opa = LV_OPA_70;
-        int32_t glint_y = nozzle_top_y + nozzle_height - 1;
-        lv_area_t glint = {cx - 1, glint_y, cx + 1, glint_y + 1};
-        lv_draw_fill(layer, &glint_dsc, &glint);
+        helix::nr_draw_filament_tip(layer, cx, nozzle_top_y, nozzle_top_width, nozzle_bottom_width,
+                                    nozzle_height, filament, opa);
     }
 }
 

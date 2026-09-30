@@ -43,9 +43,9 @@ static constexpr int32_t IMG_H = 163;
 static constexpr int32_t IMG_CENTER_X = 50; // horizontal center of content
 static constexpr int32_t IMG_CENTER_Y = 81; // vertical center of main body
 
-void draw_nozzle_anthead(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t filament_color,
-                         int32_t scale_unit, lv_opa_t opa) {
-    (void)filament_color;
+void draw_nozzle_anthead(lv_layer_t* layer, int32_t cx, int32_t cy,
+                         std::optional<lv_color_t> filament, int32_t scale_unit, lv_opa_t opa) {
+    (void)filament;
 
     // Scale to match other toolhead renderers' visual footprint
     int32_t render_height = (scale_unit * 65) / 10;
