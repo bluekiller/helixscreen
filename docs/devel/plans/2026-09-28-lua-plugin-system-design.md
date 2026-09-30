@@ -1,6 +1,6 @@
 # Lua Plugin System Design
 
-**Status:** Phase 1 (runtime) implemented on feature/lua-plugins; Phases 2 to 5 not started.
+**Status:** Phases 1 and 2 implemented (Phase 1 on main, Phase 2 on feature/lua-plugins-phase2); Phases 3 to 5 not started.
 **Replaces:** the `dlopen` C++ plugin system in `src/plugin/` and `docs/devel/PLUGIN_DEVELOPMENT.md`
 
 ## Why
@@ -203,6 +203,8 @@ One path for reload, disable, removal, fault and shutdown:
 4. Unregister its subjects and XML components, and drop its `helix.ui.on` handlers.
 5. Invalidate its `AsyncLifetimeGuard` so pending replies, timers and HTTP results are dropped.
 6. `lua_close`.
+
+Subjects the plugin registered are unregistered at step 4 and freed once no object observes them.
 
 Reload is unload then load. A disabled or removed plugin's widgets disappear from the home panel;
 their ids stay in the saved layout and reappear when the plugin returns.
