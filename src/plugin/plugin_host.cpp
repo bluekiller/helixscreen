@@ -10,6 +10,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "lvgl/lvgl.h"
+#include "plugin_xml_policy.h"
 #include "version.h"
 
 #include <spdlog/spdlog.h>
@@ -234,6 +235,16 @@ bool PluginHost::load(PluginInfo& info) {
         if (!is_owned_name(id, p.stem().string())) {
             info.status = PluginStatus::Invalid;
             info.reason = "component '" + p.stem().string() + "' must be named " + id + "_<name>";
+            return false;
+        }
+    }
+    // An app callback or an app subject named here would bypass every permission, so the
+    // policy runs before anything is registered.
+    for (const auto& p : xmls) {
+        std::string why = check_plugin_xml(id, read_file(p));
+        if (!why.empty()) {
+            info.status = PluginStatus::Invalid;
+            info.reason = p.filename().string() + ": " + why;
             return false;
         }
     }

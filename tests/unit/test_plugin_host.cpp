@@ -221,6 +221,17 @@ TEST_CASE_METHOD(LVGLTestFixture, "unload leaves an app component that took the 
     lv_xml_component_unregister("hello_panel");
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "plugin XML naming an app callback is rejected at load",
+                 "[plugin][host]") {
+    HostRig rig(enabled("app-callback", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    const PluginInfo* info = rig.info("app-callback");
+    REQUIRE(info);
+    CHECK(info->status == PluginStatus::Invalid);
+    CHECK(info->reason.find("on_estop_clicked") != std::string::npos);
+    CHECK(lv_xml_component_get_scope("app-callback_panel") == nullptr);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "disable unloads and forgets consent", "[plugin][host]") {
     HostRig rig(enabled("hello", {"gcode"}));
     rig.host->load_from("tests/fixtures/plugins");
