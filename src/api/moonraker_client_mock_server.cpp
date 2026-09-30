@@ -264,6 +264,56 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         return true;
     };
 
+    // server.webcams.list - HELIX_MOCK_WEBCAMS, or one unnamed MJPEG feed
+    registry["server.webcams.list"] =
+        [](MoonrakerClientMock* self, const json& /*params*/,
+           std::function<void(const json&)> success_cb,
+           std::function<void(const MoonrakerError&)> /*error_cb*/) -> bool {
+        json webcams = json::array();
+        for (const auto& cam : self->mock_webcams()) {
+            webcams.push_back({{"name", cam.name},
+                               {"service", cam.service},
+                               {"stream_url", cam.stream_url},
+                               {"snapshot_url", cam.snapshot_url},
+                               {"enabled", true}});
+        }
+        if (webcams.empty()) {
+            webcams.push_back({{"name", ""},
+                               {"service", "mjpegstreamer"},
+                               {"stream_url", "/webcam/?action=stream"},
+                               {"snapshot_url", "/webcam/?action=snapshot"},
+                               {"enabled", true}});
+        }
+        if (success_cb) {
+            success_cb(json{{"jsonrpc", "2.0"}, {"result", {{"webcams", webcams}}}});
+        }
+        return true;
+    };
+
+    // machine.device_power.devices - four devices, none with MOCK_EMPTY_POWER
+    registry["machine.device_power.devices"] =
+        [](MoonrakerClientMock* /*self*/, const json& /*params*/,
+           std::function<void(const json&)> success_cb,
+           std::function<void(const MoonrakerError&)> /*error_cb*/) -> bool {
+        json devices = json::array();
+        if (!std::getenv("MOCK_EMPTY_POWER")) {
+            auto device = [](const char* name, const char* type, const char* status, bool locked) {
+                return json{{"device", name},
+                            {"type", type},
+                            {"status", status},
+                            {"locked_while_printing", locked}};
+            };
+            devices = {device("printer_psu", "gpio", "on", false),
+                       device("chamber_light", "klipper_device", "on", true),
+                       device("exhaust_fan", "klipper_device", "off", false),
+                       device("led_strip", "gpio", "on", false)};
+        }
+        if (success_cb) {
+            success_cb(json{{"jsonrpc", "2.0"}, {"result", {{"devices", devices}}}});
+        }
+        return true;
+    };
+
     // server.helix.status - HelixPrint plugin presence.
     // Absent by default, which is the state a fresh printer is in and the one
     // the Advanced panel's Install row is bound to. HELIX_MOCK_HELIX_PLUGIN=1

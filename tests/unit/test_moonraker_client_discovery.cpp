@@ -109,8 +109,8 @@ TEST_CASE_METHOD(HelixTestFixture, "MoonrakerClientMock: discover_printer error 
 
         // Verify the error message is descriptive
         REQUIRE(error_reason.empty() == false);
-        REQUIRE(error_reason.find("Klippy") != std::string::npos);
-        REQUIRE(error_reason.find("not connected") != std::string::npos);
+        REQUIRE(error_reason.find("Klippy not ready") != std::string::npos);
+        REQUIRE(error_reason.find("startup") != std::string::npos);
     }
 
     SECTION("No crash when error callback is nullptr") {
