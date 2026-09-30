@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# release.yml dry-run mode: a workflow_dispatch with dry_run=true must build and
-# upload everything while publishing nothing. The guard lint below reads the
+# release.yml dry-run mode: a workflow_dispatch must build and upload everything
+# while publishing nothing. The guard lint below reads the
 # workflow; the verifier tests run scripts/verify-dry-run-release.sh against a
 # fixture built with the real manifest generator.
 
@@ -16,7 +16,7 @@ setup() {
 
 # ------------------------------------------------------------- guard lint
 
-@test "RELEASE_MODE is publish only for a tag push or a non-dry-run dispatch on a tag" {
+@test "RELEASE_MODE is publish only for a tag push" {
     run python3 - "$YML" <<'PY'
 import re, sys, yaml
 with open(sys.argv[1]) as fh:
@@ -26,22 +26,20 @@ inner = re.fullmatch(r"\$\{\{(.*)\}\}", expr.strip()).group(1)
 # the same way. An unknown term is a NameError, so a rewrite fails here
 # instead of passing unexamined.
 py = (inner.replace("startsWith(github.ref, 'refs/tags/v')", "is_tag")
-           .replace("github.event_name == 'workflow_dispatch'", "is_dispatch")
-           .replace("inputs.dry_run", "dry_run")
+           .replace("github.event_name == 'push'", "is_push")
            .replace("&&", " and ").replace("||", " or ").replace("!", " not "))
 cases = [
-    # is_tag, is_dispatch, dry_run, expected
-    (True,  False, None,  "publish"),
-    (True,  True,  True,  "dryrun"),
-    (True,  True,  False, "publish"),
-    (False, True,  True,  "dryrun"),
-    (False, True,  False, "dryrun"),
+    # is_tag, is_push, expected
+    (True,  True,  "publish"),   # tag push
+    (True,  False, "dryrun"),    # dispatch on a tag
+    (False, False, "dryrun"),    # dispatch on a branch
+    (False, True,  "dryrun"),    # branch push (not a trigger, but never publish)
 ]
 bad = []
-for is_tag, is_dispatch, dry_run, want in cases:
-    got = eval(py, {}, dict(is_tag=is_tag, is_dispatch=is_dispatch, dry_run=dry_run))
+for is_tag, is_push, want in cases:
+    got = eval(py, {}, dict(is_tag=is_tag, is_push=is_push))
     if got != want:
-        bad.append(f"tag={is_tag} dispatch={is_dispatch} dry_run={dry_run}: {got!r}, want {want!r}")
+        bad.append(f"tag={is_tag} push={is_push}: {got!r}, want {want!r}")
 print("\n".join(bad))
 sys.exit(1 if bad else 0)
 PY

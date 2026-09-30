@@ -4,16 +4,12 @@ on:
   push:
     tags:
       - 'v*'  # Triggers on v1.0.0, v1.2.3-beta, etc.
-  # Exercises the whole pipeline on any ref without releasing anything. See
-  # RELEASE_MODE below for what a dry run does instead of publishing.
+  # Always a dry run: exercises the whole pipeline on any ref without releasing
+  # anything. See RELEASE_MODE below for what it does instead of publishing.
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Dry run: publish to R2 dry-run/<run_id>/ and a workflow artifact, then verify and delete'
-        type: boolean
-        default: true
       platforms:
-        description: 'Dry run only: comma-separated subset of the build matrix (e.g. "x86" or "pi,mips"); empty builds every platform'
+        description: 'Comma-separated subset of the build matrix (e.g. "x86" or "pi,mips"); empty builds every platform'
         type: string
         default: ''
 
@@ -26,9 +22,7 @@ concurrency:
 # environment-wide rather than per-step).
 env:
   HELIX_PATCHES_FROM_CLEAN: "1"
-  # publish: a v* tag push (or a non-dry-run dispatch on a v* tag). Everything
-  # else is dryrun, including a dry_run=false dispatch on a branch, which has no
-  # version to publish under.
+  # publish: a v* tag push, and nothing else. Every dispatch is dryrun.
   #
   # dryrun never touches anything users or other runs can see. Steps that only
   # publish (GitHub release, Play Store, Discord, docs dispatch, R2 pruning) are
@@ -37,7 +31,7 @@ env:
   # empty in a release. dry-run-verify checks the result and deletes the prefix.
   # tests/shell/test_release_dry_run.bats fails any publishing step that is
   # neither gated nor prefixed.
-  RELEASE_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)) && 'publish' || 'dryrun' }}
+  RELEASE_MODE: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) && 'publish' || 'dryrun' }}
 
 jobs:
   # ============================================================================
@@ -104,7 +98,7 @@ jobs:
       id: plan
       env:
         PLATFORMS: ${{ inputs.platforms }}
-        # The release platform matrix. A release builds all of it; a dry run may
+        # The release platform matrix. A tag push builds all of it; a dry run may
         # name a subset through the platforms input.
         FULL_MATRIX: |
           [
@@ -126,10 +120,6 @@ jobs:
           dryrun)  TAG="v0.0.0-dryrun.${GITHUB_RUN_ID}"; PREFIX="dry-run/${GITHUB_RUN_ID}/" ;;
           *) echo "::error::RELEASE_MODE is '$RELEASE_MODE', expected publish or dryrun"; exit 1 ;;
         esac
-        if [ "$RELEASE_MODE" = publish ] && [ -n "${PLATFORMS//[[:space:],]/}" ]; then
-          echo "::error::platforms='$PLATFORMS' on a publishing run; a release ships every platform"
-          exit 1
-        fi
         MATRIX=$(jq -c --arg wanted "$PLATFORMS" '
           [$wanted | splits("[,[:space:]]+") | select(length > 0)] as $w
           | ($w - map(.platform)) as $unknown
