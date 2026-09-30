@@ -437,7 +437,7 @@ their ESP32 disposition:
   stream straight to the upload socket or ship a reduced bundle.
 - Self-update (`update_checker` downloads the new binary): replaced wholesale
   by native `esp_ota` A/B streaming from HTTP — never touches a filesystem.
-- `input_shaper_cache`, config writes: KB-scale, fine on LittleFS.
+- Config writes: KB-scale, fine on LittleFS.
 
 **CJK font viability (Task 4, final piece — MEASURED on-device 2026-07-13):**
 two implementations of the same 1203-codepoint zh+ja translation subset

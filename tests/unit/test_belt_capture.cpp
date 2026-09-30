@@ -210,7 +210,7 @@ TEST_CASE("parse_capture_sample_rate returns 0 when the key is missing",
 
 namespace {
 
-/// RAII temp directory, same pattern as InputShaperCacheTestFixture.
+/// RAII temp directory.
 class TempDirFixture {
   public:
     TempDirFixture() {
