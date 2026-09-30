@@ -20,6 +20,7 @@
 #include <cerrno>
 #include <cstring>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <thread>
 #include <unistd.h>
 

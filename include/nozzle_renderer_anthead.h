@@ -10,8 +10,9 @@
 
 #include "lvgl/lvgl.h"
 
-/// @brief Embedded AntHead image descriptor (100x163 ARGB8888)
-extern const lv_image_dsc_t img_anthead;
+/// @brief The AntHead image (100x163 ARGB8888), decoded on first call
+/// @return nullptr if the asset could not be decoded. Not built for ESP32.
+const lv_draw_buf_t* anthead_image();
 
 /// @brief Draw Micron AntHead toolhead
 ///

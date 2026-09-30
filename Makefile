@@ -470,8 +470,14 @@ ifneq ($(ENABLE_SCREENSAVER),yes)
 else ifneq ($(filter $(PLATFORM_TARGET),$(SCREENSAVER_16BPP_TARGETS)),)
     APP_SRCS := $(filter-out $(SCREENSAVER_32BPP_ONLY_SRCS),$(APP_SRCS))
 endif
-# Mock backends (enabled by default, disable with ENABLE_MOCKS=no for production)
-ENABLE_MOCKS ?= yes
+# Mock backends (the --test simulator). Dev/test scaffolding: ON for every developer
+# build, OFF under HELIX_PACKAGING=1 so released binaries do not carry it. Targets
+# in mk/cross.mk that set ENABLE_MOCKS := no keep it off for dev builds too.
+ifeq ($(HELIX_PACKAGING),1)
+    ENABLE_MOCKS ?= no
+else
+    ENABLE_MOCKS ?= yes
+endif
 
 # PWM sysfs buzzer backend — ad5m/ad5m-br only.
 #
@@ -515,6 +521,7 @@ ifneq ($(ENABLE_MOCKS),yes)
     APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/api/*_mock*.cpp),$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/printer/ams_backend_mock.cpp,$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/api/moonraker_api_mock.cpp,$(APP_SRCS))
+    APP_SRCS := $(filter-out $(SRC_DIR)/system/mock_performance_source.cpp,$(APP_SRCS))
 endif
 
 # Remote-control subsystem (helixctl server + socket/HTTP transport + the folded
@@ -701,6 +708,11 @@ else
     SPDLOG_DIR := lib/spdlog
     # Use -isystem to suppress warnings from third-party headers in strict mode
     SPDLOG_INC := -isystem $(SPDLOG_DIR)/include
+    # Compiled once from lib/spdlog/src and linked into every binary, instead of
+    # header-only code instantiated in every translation unit. A system spdlog
+    # above stays header-only.
+    SPDLOG_DEFINES := -DSPDLOG_COMPILED_LIB
+    SPDLOG_OBJS := $(patsubst $(SPDLOG_DIR)/src/%.cpp,$(OBJ_DIR)/spdlog/%.o,$(wildcard $(SPDLOG_DIR)/src/*.cpp))
 endif
 
 # fmt (formatting library required by header-only spdlog)
@@ -987,6 +999,8 @@ CXXFLAGS += $(SCREENSAVER_DEFINES)
 # Add mock defines to compiler flags
 CFLAGS += $(MOCK_DEFINES)
 CXXFLAGS += $(MOCK_DEFINES)
+
+CXXFLAGS += $(SPDLOG_DEFINES)
 
 # Add remote-control defines to compiler flags
 CFLAGS += $(REMOTE_CONTROL_DEFINES)

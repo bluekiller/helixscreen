@@ -25,7 +25,8 @@ INSPECTOR_DEPS := \
 	$(OBJ_DIR)/format_utils.o \
 	$(INSPECTOR_INTERACTIVE_OBJ) \
 	$(CPP_TERMINAL_VERSION_STUB_OBJ) \
-	$(CPP_TERMINAL_OBJS)
+	$(CPP_TERMINAL_OBJS) \
+	$(SPDLOG_OBJS)
 
 # Simplified linker flags (no SDL2, no UI frameworks)
 INSPECTOR_LDFLAGS := $(LIBHV_LIBS) -lm -lpthread
@@ -119,6 +120,7 @@ VALIDATE_XML_DEPS := \
 	$(LVGL_OBJS) \
 	$(HELIX_XML_OBJS) \
 	$(THORVG_OBJS) \
+	$(SPDLOG_OBJS) \
 	$(LV_MARKDOWN_OBJS) \
 	$(QUIRC_OBJS) \
 	$(LUA_OBJS) \
@@ -186,7 +188,7 @@ VALIDATE_ATTRS_LIB_OBJ := $(OBJ_DIR)/tools/xml_attribute_validator.o
 VALIDATE_ATTRS_LDFLAGS := -lexpat
 
 # Build rule for attribute validator
-$(VALIDATE_ATTRS_BIN): $(VALIDATE_ATTRS_OBJ) $(VALIDATE_ATTRS_LIB_OBJ)
+$(VALIDATE_ATTRS_BIN): $(VALIDATE_ATTRS_OBJ) $(VALIDATE_ATTRS_LIB_OBJ) $(SPDLOG_OBJS)
 	$(Q)mkdir -p $(BIN_DIR)
 	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
 	$(Q)$(CXX) $(CXXFLAGS) $^ -o $@ $(VALIDATE_ATTRS_LDFLAGS) || { \

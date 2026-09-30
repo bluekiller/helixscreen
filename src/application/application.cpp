@@ -2033,10 +2033,13 @@ bool Application::init_panel_subjects() {
     // Must happen after IMoonrakerAPI is up (m_moonraker->api() is valid here)
     // and before XML panels are created so subjects exist when bindings resolve.
     helix::perf::PerformanceState::instance().init_subjects();
+#ifdef HELIX_ENABLE_MOCKS
     if (get_runtime_config()->should_mock_moonraker()) {
         helix::perf::PerformanceState::instance().set_source(
             std::make_unique<helix::perf::MockPerformanceSource>());
-    } else {
+    } else
+#endif
+    {
         helix::perf::PerformanceState::instance().set_source(
             std::make_unique<helix::perf::MoonrakerPerformanceSource>(m_moonraker->api()));
     }

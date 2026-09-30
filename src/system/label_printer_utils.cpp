@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cctype>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 namespace helix {

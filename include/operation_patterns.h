@@ -110,6 +110,43 @@ inline const OperationKeyword OPERATION_KEYWORDS[] = {
 inline constexpr size_t OPERATION_KEYWORDS_COUNT =
     sizeof(OPERATION_KEYWORDS) / sizeof(OPERATION_KEYWORDS[0]);
 
+/// Row width of the parameter-name tables below; unused slots are empty.
+inline constexpr size_t MAX_PARAM_VARIATIONS = 8;
+
+/// One category's parameter names: a view into a constexpr table row, so the
+/// tables need no static initialization in the TUs that include this header.
+struct ParamNames {
+    const std::string_view* first = nullptr;
+    size_t count = 0;
+    const std::string_view* begin() const {
+        return first;
+    }
+    const std::string_view* end() const {
+        return first + count;
+    }
+    size_t size() const {
+        return count;
+    }
+    bool empty() const {
+        return count == 0;
+    }
+};
+
+/// The names in @p table's row for @p cat, or none when @p cat has no row.
+template <size_t N>
+ParamNames param_names(const std::string_view (&table)[N][MAX_PARAM_VARIATIONS],
+                       OperationCategory cat) {
+    size_t idx = static_cast<size_t>(cat);
+    if (idx >= N) {
+        return {};
+    }
+    size_t n = 0;
+    while (n < MAX_PARAM_VARIATIONS && !table[idx][n].empty()) {
+        ++n;
+    }
+    return {table[idx], n};
+}
+
 /**
  * @brief Skip parameter variations for detecting controllability
  *
@@ -117,7 +154,7 @@ inline constexpr size_t OPERATION_KEYWORDS_COUNT =
  * to determine if an operation can be skipped.
  */
 // clang-format off
-inline const std::vector<std::string> SKIP_PARAM_VARIATIONS[] = {
+inline constexpr std::string_view SKIP_PARAM_VARIATIONS[][MAX_PARAM_VARIATIONS] = {
     // Index 0: BED_MESH
     {"SKIP_BED_MESH", "SKIP_MESH", "SKIP_BED_LEVELING", "NO_BED_MESH", "SKIP_LEVEL"},
     // Index 1: QGL
@@ -148,7 +185,7 @@ inline const std::vector<std::string> SKIP_PARAM_VARIATIONS[] = {
  * These use opt-in semantics: param=1 means "do it", param=0 or omitted means "skip it".
  */
 // clang-format off
-inline const std::vector<std::string> PERFORM_PARAM_VARIATIONS[] = {
+inline constexpr std::string_view PERFORM_PARAM_VARIATIONS[][MAX_PARAM_VARIATIONS] = {
     // Index 0: BED_MESH
     {"PERFORM_BED_MESH", "DO_BED_MESH", "ENABLE_BED_MESH", "FORCE_BED_MESH", "FORCE_LEVELING"},
     // Index 1: QGL
@@ -182,7 +219,7 @@ inline const std::vector<std::string> PERFORM_PARAM_VARIATIONS[] = {
  * Used by GCodeOpsDetector for parameter parsing, NOT by PrintStartAnalyzer.
  */
 // clang-format off
-inline const std::vector<std::string> SLICER_PARAM_VARIATIONS[] = {
+inline constexpr std::string_view SLICER_PARAM_VARIATIONS[][MAX_PARAM_VARIATIONS] = {
     // Index 0: BED_MESH
     {"MESH", "BED_MESH", "DO_BED_MESH"},
     // Index 1: QGL
@@ -208,16 +245,10 @@ inline const std::vector<std::string> SLICER_PARAM_VARIATIONS[] = {
  * @brief Get slicer-style short parameter variations for a category
  *
  * @param cat The operation category
- * @return Vector of short parameter name variations, or empty if none
+ * @return List of short parameter name variations, or empty if none
  */
-inline const std::vector<std::string>& get_slicer_param_variations(OperationCategory cat) {
-    static const std::vector<std::string> empty;
-    size_t idx = static_cast<size_t>(cat);
-    constexpr size_t count = sizeof(SLICER_PARAM_VARIATIONS) / sizeof(SLICER_PARAM_VARIATIONS[0]);
-    if (idx < count) {
-        return SLICER_PARAM_VARIATIONS[idx];
-    }
-    return empty;
+inline ParamNames get_slicer_param_variations(OperationCategory cat) {
+    return param_names(SLICER_PARAM_VARIATIONS, cat);
 }
 
 /**
@@ -286,16 +317,10 @@ inline const char* category_key(OperationCategory cat) {
  * @brief Get skip parameter variations for a category
  *
  * @param cat The operation category
- * @return Vector of skip parameter name variations, or empty if none
+ * @return List of skip parameter name variations, or empty if none
  */
-inline const std::vector<std::string>& get_skip_variations(OperationCategory cat) {
-    static const std::vector<std::string> empty;
-    size_t idx = static_cast<size_t>(cat);
-    constexpr size_t count = sizeof(SKIP_PARAM_VARIATIONS) / sizeof(SKIP_PARAM_VARIATIONS[0]);
-    if (idx < count) {
-        return SKIP_PARAM_VARIATIONS[idx];
-    }
-    return empty;
+inline ParamNames get_skip_variations(OperationCategory cat) {
+    return param_names(SKIP_PARAM_VARIATIONS, cat);
 }
 
 /**
@@ -333,16 +358,10 @@ inline std::vector<std::string> get_all_skip_variations(OperationCategory cat) {
  * @brief Get perform (opt-in) parameter variations for a category
  *
  * @param cat The operation category
- * @return Vector of perform parameter name variations, or empty if none
+ * @return List of perform parameter name variations, or empty if none
  */
-inline const std::vector<std::string>& get_perform_variations(OperationCategory cat) {
-    static const std::vector<std::string> empty;
-    size_t idx = static_cast<size_t>(cat);
-    constexpr size_t count = sizeof(PERFORM_PARAM_VARIATIONS) / sizeof(PERFORM_PARAM_VARIATIONS[0]);
-    if (idx < count) {
-        return PERFORM_PARAM_VARIATIONS[idx];
-    }
-    return empty;
+inline ParamNames get_perform_variations(OperationCategory cat) {
+    return param_names(PERFORM_PARAM_VARIATIONS, cat);
 }
 
 /**
@@ -439,8 +458,8 @@ inline bool contains_ci(std::string_view haystack, std::string_view needle) {
 /**
  * @brief Case-insensitive string equality
  */
-inline bool equals_ci(const std::string& a, const std::string& b) {
-    return to_upper(a) == to_upper(b);
+inline bool equals_ci(std::string_view a, std::string_view b) {
+    return to_upper(std::string(a)) == to_upper(std::string(b));
 }
 
 /**
@@ -518,14 +537,14 @@ match_parameter_to_category(const std::string& param_name, bool include_slicer_p
         // Check perform variations (OPT_IN) first - they're more specific
         for (const auto& var : get_all_perform_variations(cat)) {
             if (equals_ci(param_name, var)) {
-                return ParamMatchResult{cat, ParameterSemantic::OPT_IN, var};
+                return ParamMatchResult{cat, ParameterSemantic::OPT_IN, std::string(var)};
             }
         }
 
         // Check skip variations (OPT_OUT)
         for (const auto& var : get_all_skip_variations(cat)) {
             if (equals_ci(param_name, var)) {
-                return ParamMatchResult{cat, ParameterSemantic::OPT_OUT, var};
+                return ParamMatchResult{cat, ParameterSemantic::OPT_OUT, std::string(var)};
             }
         }
 
@@ -533,7 +552,7 @@ match_parameter_to_category(const std::string& param_name, bool include_slicer_p
         if (include_slicer_params) {
             for (const auto& var : get_slicer_param_variations(cat)) {
                 if (equals_ci(param_name, var)) {
-                    return ParamMatchResult{cat, ParameterSemantic::OPT_IN, var};
+                    return ParamMatchResult{cat, ParameterSemantic::OPT_IN, std::string(var)};
                 }
             }
         }
