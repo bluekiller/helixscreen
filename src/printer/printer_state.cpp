@@ -15,7 +15,6 @@
 
 #include "ui_update_queue.h"
 
-#include "accel_sensor_manager.h"
 #include "app_globals.h"
 #include "async_helpers.h"
 #include "capability_overrides.h"
@@ -23,13 +22,10 @@
 #include "chamber_heater_backend.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "device_display_name.h"
-#include "filament_sensor_manager.h"
 #include "hardware_validator.h"
-#include "humidity_sensor_manager.h"
 #include "i_moonraker_client.h" // for helix::CACHED_SNAPSHOT_MARKER
 #include "json_utils.h"
 #include "led/led_controller.h"
-#include "load_cell_manager.h"
 #include "lvgl.h"
 #include "lvgl/src/display/lv_display_private.h" // For rendering_in_progress check
 #include "lvgl_debug_invalidate.h"
@@ -39,6 +35,7 @@
 #include "printer_cache_registry.h"
 #include "probe_sensor_manager.h"
 #include "runtime_config.h"
+#include "sensor_managers.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
 #include "system/crash_handler.h"
@@ -46,7 +43,6 @@
 #include "temperature_sensor_manager.h"
 #include "timelapse_state.h"
 #include "unit_conversions.h"
-#include "width_sensor_manager.h"
 #include "z_offset_persistence.h"
 
 #include <algorithm>
@@ -634,17 +630,7 @@ void PrinterState::update_from_status(const json& state, double eventtime,
         calibration_state_.arm_busy_queue_toast();
     }
 
-    // Forward filament sensor updates to FilamentSensorManager
-    // The manager handles all sensor types: filament_switch_sensor and filament_motion_sensor
-    helix::FilamentSensorManager::instance().update_from_status(state);
-
-    // Forward updates to all other sensor managers
-    helix::sensors::HumiditySensorManager::instance().update_from_status(state);
-    helix::sensors::WidthSensorManager::instance().update_from_status(state);
-    helix::sensors::ProbeSensorManager::instance().update_from_status(state);
-    helix::sensors::AccelSensorManager::instance().update_from_status(state);
-    helix::sensors::TemperatureSensorManager::instance().update_from_status(state);
-    helix::sensors::LoadCellManager::instance().update_from_status(state);
+    helix::sensors::for_each_sensor_manager([&state](auto& m) { m.update_from_status(state); });
 }
 
 void PrinterState::reset_for_new_print() {
