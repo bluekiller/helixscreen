@@ -13,8 +13,10 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <set>
 #include <system_error>
+#include <vector>
 
 #include "hv/json.hpp"
 
@@ -63,6 +65,7 @@ void PluginSource::start(DoneList done) {
     result_ = SyncResult{};
     index_.clear();
     staged_.clear();
+    spent_.clear();
     failed_.clear();
     seen_.clear();
     queue_.clear();
@@ -99,14 +102,18 @@ void PluginSource::on_listed(bool ok, const std::vector<RemoteFile>& files) {
     }
 
     std::map<std::string, PluginFiles> remote;
+    size_t root_level = 0;
     for (const auto& file : files) {
         std::string id, rest;
         if (!split_plugin_file(file.path, id, rest)) {
-            spdlog::warn("[PluginSource] listing path refused: {}", file.path);
+            ++root_level;
             continue;
         }
         remote[id][rest] = {file.size, file.modified};
     }
+    // A README or stray file beside the plugin folders is normal; one debug line per sync.
+    if (root_level)
+        spdlog::debug("[PluginSource] {} root-level file(s) ignored by the sync", root_level);
 
     // Ids arrive sorted (the grouping map); the first kMaxPlugins are kept, the rest
     // are rejected whole.
@@ -129,7 +136,11 @@ void PluginSource::on_listed(bool ok, const std::vector<RemoteFile>& files) {
     for (const auto& id : accepted) {
         const PluginFiles& plugin_files = remote[id];
         const auto indexed = index_.find(id);
-        if (indexed != index_.end() && indexed->second == plugin_files)
+        std::error_code dir_ec;
+        // The cache directory, not just the index entry, must be there: a directory
+        // deleted outside the app would otherwise read as "unchanged" forever.
+        if (indexed != index_.end() && indexed->second == plugin_files &&
+            std::filesystem::is_directory(plugin_dir(id), dir_ec))
             continue;
         for (const auto& [rest, entry] : plugin_files)
             queue_.push_back({id, rest, entry.first, entry.second});
@@ -172,16 +183,14 @@ void PluginSource::download_next() {
         std::error_code ec;
         std::filesystem::create_directories(dest.parent_path(), ec);
         if (ec) {
-            spdlog::warn("[PluginSource] cannot create {}: {}", dest.parent_path().string(),
-                         ec.message());
-            failed_.insert(pending.id);
-            result_.failed.push_back(pending.id);
+            fail_id(pending.id,
+                    "cannot create " + dest.parent_path().string() + ": " + ec.message());
             ++queue_pos_;
             continue;
         }
         const size_t index = queue_pos_;
         LifetimeToken tok = guard_.token();
-        deps_.download(pending.id + "/" + pending.rest, dest.string(),
+        deps_.download(pending.id + "/" + pending.rest, dest.string(), byte_cap(pending),
                        [this, tok, index](bool ok, std::string error) {
                            hop(tok, "PluginSource::on_downloaded",
                                [this, index, ok, error = std::move(error)] {
@@ -196,19 +205,49 @@ void PluginSource::download_next() {
 void PluginSource::on_downloaded(size_t index, bool ok, const std::string& error) {
     const Pending& pending = queue_[index];
     if (ok) {
-        staged_[pending.id][pending.rest] = {pending.size, pending.modified};
+        std::error_code ec;
+        const uint64_t written =
+            std::filesystem::file_size(staging_dir(pending.id) / pending.rest, ec);
+        if (ec) {
+            fail_id(pending.id, "downloaded " + pending.rest + " is missing: " + ec.message());
+        } else if (written > byte_cap(pending)) {
+            // The listing's sizes are what the limits were checked against; the file
+            // that landed is what fills the flash.
+            fail_id(pending.id, pending.rest + " is " + std::to_string(written) +
+                                    " bytes, over the " + std::to_string(byte_cap(pending)) +
+                                    " byte cap");
+        } else if (written != pending.size) {
+            // A size that disagrees with the listing means the listing is stale; the
+            // index must not record it, or the plugin would never re-download.
+            fail_id(pending.id, pending.rest + " is " + std::to_string(written) +
+                                    " bytes, the listing said " + std::to_string(pending.size));
+        } else {
+            staged_[pending.id][pending.rest] = {pending.size, pending.modified};
+            spent_[pending.id] += written;
+        }
         queue_pos_ = index + 1;
         download_next();
         return;
     }
-    spdlog::warn("[PluginSource] download failed for {}/{}: {}", pending.id, pending.rest, error);
-    failed_.insert(pending.id);
-    staged_.erase(pending.id);
-    std::error_code ec;
-    std::filesystem::remove_all(staging_dir(pending.id), ec);
-    result_.failed.push_back(pending.id);
+    fail_id(pending.id, "download failed for " + pending.rest + ": " + error);
     queue_pos_ = index + 1;
     download_next();
+}
+
+void PluginSource::fail_id(const std::string& id, const std::string& why) {
+    spdlog::warn("[PluginSource] {} stays at its previous version: {}", id, why);
+    failed_.insert(id);
+    staged_.erase(id);
+    std::error_code ec;
+    std::filesystem::remove_all(staging_dir(id), ec);
+    result_.failed.push_back(id);
+}
+
+size_t PluginSource::byte_cap(const Pending& pending) const {
+    const uint64_t spent = spent_.count(pending.id) ? spent_.at(pending.id) : 0;
+    const uint64_t remaining = spent >= kMaxBytesPerPlugin ? 0 : kMaxBytesPerPlugin - spent;
+    // +1 so a file that exactly fits its limit passes and one byte more does not.
+    return static_cast<size_t>(std::min(kMaxBytesPerFile, remaining)) + 1;
 }
 
 void PluginSource::complete() {
@@ -284,12 +323,33 @@ void PluginSource::finish(SyncResult result) {
 
 void PluginSource::clean_leftovers() {
     std::error_code ec;
-    std::filesystem::remove_all(std::filesystem::path(cache_dir_) / ".staging", ec);
+    std::vector<std::filesystem::path> olds;
     for (std::filesystem::directory_iterator it(cache_dir_, ec), end; it != end; it.increment(ec)) {
         const std::string name = it->path().filename().string();
         if (name.rfind(".old-", 0) == 0)
-            std::filesystem::remove_all(it->path(), ec);
+            olds.push_back(it->path());
     }
+    for (const auto& old : olds) {
+        std::string id = old.filename().string().substr(5);
+        // A crash between the two renames of a swap leaves the plugin's only copy
+        // under .old-<id>; putting it back before anything is deleted is what makes
+        // that crash non-destructive. The id is validated before it names a path.
+        if (is_valid_plugin_id(id)) {
+            std::error_code stale_ec;
+            if (!std::filesystem::exists(plugin_dir(id), stale_ec)) {
+                std::error_code rename_ec;
+                std::filesystem::rename(old, plugin_dir(id), rename_ec);
+                if (!rename_ec)
+                    continue;
+                spdlog::error("[PluginSource] cannot restore {} to {}: {}", old.string(),
+                              plugin_dir(id).string(), rename_ec.message());
+                continue; // keep it: the next sync retries the restore
+            }
+        }
+        std::error_code remove_ec;
+        std::filesystem::remove_all(old, remove_ec);
+    }
+    std::filesystem::remove_all(std::filesystem::path(cache_dir_) / ".staging", ec);
 }
 
 PluginSource::CacheIndex PluginSource::load_index() const {

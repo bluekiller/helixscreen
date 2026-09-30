@@ -28,8 +28,11 @@ struct SourceDeps {
     /// failed (disconnected, Moonraker error): nothing may be deleted on a failed listing.
     /// An absent folder is ok with an empty vector.
     std::function<void(std::function<void(bool ok, std::vector<RemoteFile>)>)> list;
-    /// Downloads one file (path relative to the plugin root) to `dest`.
-    std::function<void(const std::string& path, const std::string& dest,
+    /// Downloads one file (path relative to the plugin root) to `dest`, writing at
+    /// most `max_bytes`: a file that would exceed it fails the download. The cap is
+    /// min(per-file limit, the plugin's remaining byte budget) + 1, so a file that
+    /// exactly fits the limit passes and one byte more does not.
+    std::function<void(const std::string& path, const std::string& dest, size_t max_bytes,
                        std::function<void(bool ok, std::string error)>)>
         download;
 };
@@ -94,8 +97,9 @@ class PluginSource {
     void start(DoneList done);
     /// Runs `fn` on the main thread: inline when the dep answered there (`this` is then
     /// mid-call, alive by construction), through the token's queue hop when it answered
-    /// on a worker thread.
-    void hop(const LifetimeToken& tok, const char* tag, std::function<void()> fn);
+    /// on a worker thread. Static because a worker may call it while `this`, destroyed
+    /// on the main thread mid-transfer, no longer exists; the token alone decides.
+    static void hop(const LifetimeToken& tok, const char* tag, std::function<void()> fn);
     void on_listed(bool ok, const std::vector<RemoteFile>& files);
     /// True when the plugin's file count and sizes fit the per-plugin limits; the
     /// plugin-count limit is applied by the caller, which sees the accepted ids.
@@ -104,13 +108,21 @@ class PluginSource {
     /// a plugin already marked failed are skipped without a request.
     void download_next();
     void on_downloaded(size_t index, bool ok, const std::string& error);
+    /// Fails the whole id: drops its staged files and staging directory, keeps its
+    /// cached version and index entry untouched, and reports it once in `failed`.
+    void fail_id(const std::string& id, const std::string& why);
+    /// The byte cap handed to the next download of `pending`: the smaller of the
+    /// per-file limit and the plugin's remaining byte budget, plus one.
+    size_t byte_cap(const Pending& pending) const;
     /// Swaps every fully downloaded plugin in (all in one main-thread step, so no plugin
     /// runs Lua against a half-updated cache), removes plugins gone from the source,
     /// writes the index and finishes.
     void complete();
     /// Delivers `result`, then runs the one queued sync with its collected callers.
     void finish(SyncResult result);
-    /// Removes `<cache>/.staging` and every `<cache>/.old-*` left by an interrupted swap.
+    /// Puts back `<cache>/.old-<id>` when a crash between the two renames of a swap
+    /// left the plugin nowhere else, then removes `<cache>/.staging` and every
+    /// remaining `<cache>/.old-*`.
     void clean_leftovers();
     CacheIndex load_index() const;
     bool save_index(const CacheIndex& index) const;
@@ -128,7 +140,8 @@ class PluginSource {
 
     // State of the running sync; meaningful only while syncing_.
     CacheIndex index_;
-    CacheIndex staged_; ///< fully downloaded plugins awaiting the swap
+    CacheIndex staged_;                     ///< fully downloaded plugins awaiting the swap
+    std::map<std::string, uint64_t> spent_; ///< bytes written per id this sync
     std::set<std::string> failed_;
     std::set<std::string> seen_; ///< ids present in the listing (rejected ones included)
     std::vector<Pending> queue_;
