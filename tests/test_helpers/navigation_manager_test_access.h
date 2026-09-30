@@ -90,4 +90,19 @@ class NavigationManagerTestAccess {
     static void clear_overlay_stack(NavigationManager& nav) {
         nav.clear_overlay_stack();
     }
+
+    /// Move the forwarding entry keyed by a freed root onto `tenant`, the state
+    /// the allocator produces when a new object lands at that root's address.
+    /// Returns false when `freed` has no entry.
+    static bool readdress_rebuilt_overlay(NavigationManager& nav, lv_obj_t* freed,
+                                          lv_obj_t* tenant) {
+        auto it = nav.rebuilt_overlays_.find(freed);
+        if (it == nav.rebuilt_overlays_.end()) {
+            return false;
+        }
+        lv_obj_t* successor = it->second;
+        nav.rebuilt_overlays_.erase(it);
+        nav.rebuilt_overlays_[tenant] = successor;
+        return true;
+    }
 };

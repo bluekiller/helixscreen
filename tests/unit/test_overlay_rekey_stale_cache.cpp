@@ -15,11 +15,10 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/navigation_manager_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "overlay_base.h"
 #include "ui/ui_lazy_panel_helper.h"
-
-#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -181,22 +180,13 @@ TEST_CASE_METHOD(StaleCacheFixture,
     settle();
     lv_obj_t* stale = close_and_rebuild(overlay);
 
-    // Another overlay's root allocated at the freed address.
-    lv_obj_t* tenant = nullptr;
-    std::vector<lv_obj_t*> spare;
-    for (int i = 0; i < 64 && !tenant; ++i) {
-        lv_obj_t* obj = lv_obj_create(test_screen());
-        if (obj == stale) {
-            tenant = obj;
-        } else {
-            spare.push_back(obj);
-        }
-    }
-    for (lv_obj_t* obj : spare) {
-        lv_obj_delete(obj);
-    }
-    REQUIRE(tenant != nullptr);
+    // Another overlay's root at the freed address. The navigation manager keys
+    // forwarding by address alone, so the entry moves onto a fresh object
+    // instead of waiting for the allocator to reuse the address, which an
+    // allocator with a free-list quarantine (ASAN) never does in a test's span.
+    lv_obj_t* tenant = lv_obj_create(test_screen());
     lv_obj_add_flag(tenant, LV_OBJ_FLAG_HIDDEN);
+    REQUIRE(NavigationManagerTestAccess::readdress_rebuilt_overlay(nav, stale, tenant));
 
     nav.register_overlay_instance(tenant, nullptr);
     nav.push_overlay(tenant);
