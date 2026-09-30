@@ -26,7 +26,7 @@ AfcMessageDedup& AfcMessageDedup::instance() {
 
 std::string AfcMessageDedup::active_printer_key() {
     auto* config = Config::get_instance();
-    const std::string id = config ? config->get_active_printer_id() : std::string();
+    const std::string id = config->get_active_printer_id();
     return id.empty() ? std::string("default") : id;
 }
 

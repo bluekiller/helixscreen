@@ -83,7 +83,6 @@ std::string tri(const std::optional<bool>& v) {
 /// starts from a fresh install with no settings.json on disk.
 Config* fresh_config(const char* printer_id = "zoffset_test_printer") {
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     helix::ConfigTestAccess::active_printer_id(*cfg) = printer_id;
     return cfg;
 }

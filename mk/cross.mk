@@ -1843,7 +1843,7 @@ endif
 # Pi Deployment Targets
 # =============================================================================
 
-.PHONY: deploy-pi deploy-pi-fg deploy-pi-quiet pi-ssh pi-test
+.PHONY: deploy-pi deploy-pi-fg pi-ssh pi-test
 
 # Deploy full application to Pi and restart in background
 deploy-pi:
@@ -1872,14 +1872,6 @@ deploy-pi-fg:
 	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi/bin)
 	@echo "$(CYAN)Starting helix-screen on $(PI_HOST) (foreground, debug mode)...$(RESET)"
 	ssh -t $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug --log-dest=console"
-
-# Deploy and run in foreground without debug logging (production mode)
-deploy-pi-quiet:
-	@test -f build/pi/bin/helix-screen || { echo "$(RED)Error: build/pi/bin/helix-screen not found. Run 'make pi-docker' first.$(RESET)"; exit 1; }
-	@test -f build/pi/bin/helix-splash || { echo "$(RED)Error: build/pi/bin/helix-splash not found. Run 'make pi-docker' first.$(RESET)"; exit 1; }
-	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi/bin)
-	@echo "$(CYAN)Starting helix-screen on $(PI_HOST) (foreground)...$(RESET)"
-	ssh -t $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && ./bin/helix-launcher.sh"
 
 # Convenience: SSH into the Pi
 pi-ssh:
@@ -2134,67 +2126,6 @@ deploy-ad5m:
 	$(call sync-device-features,$(AD5M_SSH_TARGET),$(AD5M_DEPLOY_DIR),build/ad5m/bin)
 	@echo "$(CYAN)Restarting helix-screen on $(AD5M_HOST)...$(RESET)"
 	ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && ./bin/helix-launcher.sh >/dev/null 2>&1 &"
-	@echo "$(GREEN)✓ helix-screen restarted in background$(RESET)"
-	@echo "$(DIM)Logs: ssh $(AD5M_SSH_TARGET) 'tail -f /var/log/messages | grep helix'$(RESET)"
-
-# Legacy deploy using tar/scp (for systems without rsync)
-deploy-ad5m-legacy:
-	@test -f build/ad5m/bin/helix-screen || { echo "$(RED)Error: build/ad5m/bin/helix-screen not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
-	@test -f build/ad5m/bin/helix-splash || { echo "$(RED)Error: build/ad5m/bin/helix-splash not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
-	@# Generate pre-rendered images if missing (requires Python/PIL)
-	@if [ ! -f build/assets/images/prerendered/splash-logo-medium.bin ]; then \
-		echo "$(CYAN)Generating pre-rendered splash images for AD5M...$(RESET)"; \
-		$(MAKE) gen-images-ad5m; \
-	fi
-	@if [ ! -d build/assets/images/printers/prerendered ]; then \
-		echo "$(CYAN)Generating pre-rendered printer images...$(RESET)"; \
-		$(MAKE) gen-printer-images; \
-	fi
-	@if [ ! -f build/assets/images/prerendered/splash-3d-dark-small.bin ]; then \
-		echo "$(CYAN)Generating 3D splash images for AD5M...$(RESET)"; \
-		$(MAKE) gen-splash-3d-ad5m; \
-	fi
-	@echo "$(CYAN)Deploying HelixScreen to $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)...$(RESET)"
-	@echo "  Binaries: helix-screen, helix-splash, helix-watchdog"
-	@echo "  Assets: ui_xml/, assets/ (excl. test files), config/"
-	ssh $(AD5M_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null; sleep 0.5; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null; while pidof helix-screen helix-splash helix-watchdog >/dev/null 2>&1; do sleep 0.2; done; true"
-	ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/bin"
-	scp -O build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/bin/
-	@if [ -f build/ad5m/bin/helix-watchdog ]; then scp -O build/ad5m/bin/helix-watchdog $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/bin/; fi
-	scp -O scripts/helix-launcher.sh $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/bin/
-	@echo "$(DIM)Transferring assets (excluding test files)...$(RESET)"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) ui_xml assets config | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xof -"
-	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
-		echo "$(DIM)Transferring pre-rendered splash images...$(RESET)"; \
-		ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/assets/images/prerendered"; \
-		scp -O build/assets/images/prerendered/*.bin $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/assets/images/prerendered/; \
-	fi
-	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		echo "$(DIM)Transferring pre-rendered printer images...$(RESET)"; \
-		ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		scp -O build/assets/images/printers/prerendered/*.bin $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/assets/images/printers/prerendered/; \
-	fi
-	@# Update init script in /etc/init.d/ if it differs from deployed version
-	@echo "$(DIM)Checking init script...$(RESET)"
-	@ssh $(AD5M_SSH_TARGET) '\
-		INIT_SCRIPT=""; \
-		if [ -f /etc/init.d/S80helixscreen ]; then INIT_SCRIPT="/etc/init.d/S80helixscreen"; \
-		elif [ -f /etc/init.d/S90helixscreen ]; then INIT_SCRIPT="/etc/init.d/S90helixscreen"; fi; \
-		if [ -n "$$INIT_SCRIPT" ]; then \
-			if ! cmp -s "$$INIT_SCRIPT" "$(AD5M_DEPLOY_DIR)/config/helixscreen.init" 2>/dev/null; then \
-				echo "Updating $$INIT_SCRIPT..."; \
-				cp "$(AD5M_DEPLOY_DIR)/config/helixscreen.init" "$$INIT_SCRIPT"; \
-				sed -i "s|DAEMON_DIR=\"/opt/helixscreen\"|DAEMON_DIR=\"$(AD5M_DEPLOY_DIR)\"|" "$$INIT_SCRIPT"; \
-				chmod +x "$$INIT_SCRIPT"; \
-				echo "Init script updated"; \
-			else \
-				echo "Init script unchanged"; \
-			fi; \
-		fi'
-	@echo "$(GREEN)✓ Deployed to $(AD5M_HOST):$(AD5M_DEPLOY_DIR)$(RESET)"
-	$(call sync-device-features,$(AD5M_SSH_TARGET),$(AD5M_DEPLOY_DIR),build/ad5m/bin)
-	@echo "$(CYAN)Restarting helix-screen on $(AD5M_HOST)...$(RESET)"
-	ssh $(AD5M_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; sleep 1; cd $(AD5M_DEPLOY_DIR) && ./bin/helix-launcher.sh >/dev/null 2>&1 &"
 	@echo "$(GREEN)✓ helix-screen restarted in background$(RESET)"
 	@echo "$(DIM)Logs: ssh $(AD5M_SSH_TARGET) 'tail -f /var/log/messages | grep helix'$(RESET)"
 
@@ -3501,7 +3432,7 @@ release-clean:
 # Aliases for package-* — trigger the full build + package workflow.
 # The legacy scripts/package.sh wrapper was deleted; these targets are now
 # the single entry point for building release artifacts.
-.PHONY: package-ad5m package-cc1 package-pi package-pi32 package-mips package-k1 package-ad5x package-k1-dynamic package-k2 package-snapmaker-u1 package-x86 package-all package-clean
+.PHONY: package-ad5m package-cc1 package-pi package-pi32 package-mips package-k1 package-ad5x package-k1-dynamic package-k2 package-snapmaker-u1 package-x86 package-all
 
 # THE marker that separates a production build from a developer one. Everything
 # a developer builds gets the helixctl server (see the ENABLE_REMOTE_CONTROL
@@ -3533,9 +3464,7 @@ package-k2: k2-docker gen-images gen-splash-3d-k2 gen-printer-images release-k2
 package-snapmaker-u1: snapmaker-u1-docker gen-images gen-splash-3d-snapmaker-u1 gen-printer-images release-snapmaker-u1
 package-x86: x86-all-docker gen-images gen-splash-3d-x86 gen-printer-images release-x86
 package-all: package-ad5m package-cc1 package-pi package-pi32 package-mips package-k1-dynamic package-k2 package-snapmaker-u1 package-x86
-package-clean: release-clean
 
-# Convenience aliases (verb-target → target-verb)
-.PHONY: pi-deploy ad5m-deploy
-pi-deploy: deploy-pi
+# Convenience alias (verb-target → target-verb)
+.PHONY: ad5m-deploy
 ad5m-deploy: deploy-ad5m

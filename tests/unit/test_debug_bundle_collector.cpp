@@ -1441,7 +1441,6 @@ TEST_CASE_METHOD(HelixTestFixture, "UpdateChecker: settings.json r2_url is ignor
             std::string(UpdateChecker::DEFAULT_R2_BASE_URL));
 
     auto* config = helix::Config::get_instance();
-    REQUIRE(config != nullptr);
     // The base URL is root-owned authority; a settings.json copy is ignored.
     config->set<std::string>("/update/r2_url", "https://mirror.example.com/rel///");
     REQUIRE(UpdateChecker::effective_r2_base_url() ==
@@ -1506,7 +1505,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
 TEST_CASE_METHOD(HelixTestFixture, "UpdateChecker: config snapshot tracks a channel change",
                  "[debug-bundle][update]") {
     auto* config = helix::Config::get_instance();
-    REQUIRE(config != nullptr);
     auto& checker = UpdateChecker::instance();
 
     // Beta and Dev are only effective while /beta_features is unlocked —

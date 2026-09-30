@@ -120,30 +120,22 @@ void WizardSummaryStep::init_subjects() {
 
     // Printer name
     std::string printer_name =
-        config ? config->get<std::string>(config->df() + helix::wizard::PRINTER_NAME,
-                                          "Unnamed Printer")
-               : "Unnamed Printer";
+        config->get<std::string>(config->df() + helix::wizard::PRINTER_NAME, "Unnamed Printer");
     spdlog::debug("[{}] Printer name from config: '{}'", get_name(), printer_name);
 
     // Printer type
     std::string printer_type =
-        config ? config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "Unknown")
-               : "Unknown";
+        config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "Unknown");
     spdlog::debug("[{}] Printer type from config: '{}'", get_name(), printer_type);
 
     // WiFi SSID
-    std::string wifi_ssid =
-        config ? config->get<std::string>(helix::wizard::WIFI_SSID, "Not configured")
-               : "Not configured";
+    std::string wifi_ssid = config->get<std::string>(helix::wizard::WIFI_SSID, "Not configured");
     spdlog::debug("[{}] WiFi SSID from config: '{}'", get_name(), helix::redact::ssid(wifi_ssid));
 
     // Moonraker connection (host:port)
     std::string moonraker_host =
-        config ? config->get<std::string>(config->df() + helix::wizard::MOONRAKER_HOST,
-                                          "Not configured")
-               : "Not configured";
-    int moonraker_port =
-        config ? config->get<int>(config->df() + helix::wizard::MOONRAKER_PORT, 7125) : 7125;
+        config->get<std::string>(config->df() + helix::wizard::MOONRAKER_HOST, "Not configured");
+    int moonraker_port = config->get<int>(config->df() + helix::wizard::MOONRAKER_PORT, 7125);
     spdlog::debug("[{}] Moonraker host from config: '{}', port: {}", get_name(), moonraker_host,
                   moonraker_port);
     std::string moonraker_connection;
@@ -155,24 +147,21 @@ void WizardSummaryStep::init_subjects() {
     spdlog::debug("[{}] Moonraker connection: '{}'", get_name(), moonraker_connection);
 
     // Bed configuration
-    std::string bed_summary = config ? format_bed_summary() : "Not configured";
+    std::string bed_summary = format_bed_summary();
 
     // Hotend configuration
-    std::string hotend_summary = config ? format_hotend_summary() : "Not configured";
+    std::string hotend_summary = format_hotend_summary();
 
     // Part cooling fan
-    std::string part_fan =
-        config ? config->get<std::string>(config->df() + helix::wizard::PART_FAN, "") : "";
+    std::string part_fan = config->get<std::string>(config->df() + helix::wizard::PART_FAN, "");
     int part_fan_visible = !part_fan.empty() ? 1 : 0;
 
     // Hotend cooling fan
-    std::string hotend_fan =
-        config ? config->get<std::string>(config->df() + helix::wizard::HOTEND_FAN, "") : "";
+    std::string hotend_fan = config->get<std::string>(config->df() + helix::wizard::HOTEND_FAN, "");
     int hotend_fan_visible = !hotend_fan.empty() ? 1 : 0;
 
     // LED strip
-    std::string led_strip =
-        config ? config->get<std::string>(config->df() + helix::wizard::LED_STRIP, "") : "";
+    std::string led_strip = config->get<std::string>(config->df() + helix::wizard::LED_STRIP, "");
     int led_strip_visible = !led_strip.empty() ? 1 : 0;
 
     // Filament sensor - get from FilamentSensorManager
@@ -340,7 +329,7 @@ lv_obj_t* WizardSummaryStep::create(lv_obj_t* parent) {
 
     // Hide telemetry opt-in for subsequent printers (already shown on first wizard run)
     auto* cfg = Config::get_instance();
-    if (cfg && cfg->get_printer_ids().size() > 1) {
+    if (cfg->get_printer_ids().size() > 1) {
         lv_obj_t* telemetry_row = lv_obj_find_by_name(screen_root_, "telemetry_opt_in_row");
         if (telemetry_row) {
             lv_obj_add_flag(telemetry_row, LV_OBJ_FLAG_HIDDEN);

@@ -268,7 +268,6 @@ TEST_CASE("malformed level entries are ignored and a written entry parses back",
 TEST_CASE("a level entry saved to config loads back from its path",
           "[screensaver][screensaver_gate]") {
     helix::Config* config = helix::Config::get_instance();
-    REQUIRE(config != nullptr);
     constexpr const char* NAME = "gate_store_probe";
     CHECK(helix::ui::level_store_path(NAME) == "/display/screensaver_levels/gate_store_probe");
 

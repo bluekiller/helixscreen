@@ -3638,9 +3638,9 @@ void AmsBackendAd5xIfs::detect_local_adventurer_json_path() {
     // Only meaningful when Moonraker runs on the same host — otherwise
     // /usr/prog/config/ is on a remote filesystem we can't touch.
     std::string moonraker_host;
-    if (helix::Config* cfg = helix::Config::get_instance()) {
-        moonraker_host = cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
-    }
+    helix::Config* cfg = helix::Config::get_instance();
+    moonraker_host = cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
+
     if (!helix::is_moonraker_on_same_host(moonraker_host)) {
         spdlog::debug("{} Moonraker is remote ({}); leaving Adventurer5M.json on upload path",
                       backend_log_tag(), moonraker_host);

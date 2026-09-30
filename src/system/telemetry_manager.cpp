@@ -392,13 +392,9 @@ void TelemetryManager::init(const std::string& config_dir) {
     // loading, so by now /telemetry_enabled is already authoritative.
     {
         Config* cfg = Config::get_instance();
-        if (cfg) {
-            enabled_.store(cfg->get<bool>("/telemetry_enabled", false));
-            spdlog::info("[TelemetryManager] Loaded enabled state: {}",
-                         enabled_.load() ? "true" : "false");
-        } else {
-            enabled_.store(false);
-        }
+        enabled_.store(cfg->get<bool>("/telemetry_enabled", false));
+        spdlog::info("[TelemetryManager] Loaded enabled state: {}",
+                     enabled_.load() ? "true" : "false");
     }
 
     // Check for crash file from a previous session (respects opt-in)
@@ -493,13 +489,9 @@ void TelemetryManager::set_enabled(bool enabled) {
     // so there is exactly one writer now — application.cpp no longer needs
     // to clobber our state on every startup.
     Config* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set<bool>("/telemetry_enabled", enabled);
-        cfg->save();
-        spdlog::debug("[TelemetryManager] Persisted enabled state to settings.json");
-    } else {
-        spdlog::warn("[TelemetryManager] Config not available; enabled state not persisted");
-    }
+    cfg->set<bool>("/telemetry_enabled", enabled);
+    cfg->save();
+    spdlog::debug("[TelemetryManager] Persisted enabled state to settings.json");
 }
 
 bool TelemetryManager::is_enabled() const {

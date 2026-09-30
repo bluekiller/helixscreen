@@ -111,7 +111,6 @@ TEST_CASE("aux fan role: descriptor is fans/aux, resolves live value, never inve
     REQUIRE(std::string(desc->canonical_default).empty());
 
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string key = cfg->df() + helix::wizard::AUX_FAN;
     const std::string orig = cfg->get<std::string>(key, "");
 
@@ -132,7 +131,6 @@ TEST_CASE("aux fan role: descriptor is fans/aux, resolves live value, never inve
 // the registry knows about but that batch never asks for stays unresolved forever.
 TEST_CASE("FanRoleConfig::from_config resolves the aux fan role", "[hwrole][config]") {
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     const char* keys[] = {helix::wizard::PART_FAN, helix::wizard::HOTEND_FAN,
                           helix::wizard::CHAMBER_FAN, helix::wizard::EXHAUST_FAN,
@@ -159,7 +157,6 @@ TEST_CASE("FanRoleConfig::from_config resolves the aux fan role", "[hwrole][conf
 
 TEST_CASE("resolve_role_from_config: unconfigured optional role stays empty", "[hwrole][config]") {
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string key = cfg->df() + helix::wizard::CHAMBER_FAN;
     const std::string orig = cfg->get<std::string>(key, "");
     cfg->set<std::string>(key, std::string(""));

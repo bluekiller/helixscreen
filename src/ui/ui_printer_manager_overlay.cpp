@@ -399,13 +399,11 @@ void PrinterManagerOverlay::finish_name_edit() {
 
     // Save to config
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>(config->df() + helix::wizard::PRINTER_NAME, name_str);
-        config->save();
-        spdlog::info("[{}] Printer name changed to: '{}'", get_name(), name_str);
-        // Sync name to Mainsail/Fluidd DB
-        helix::PrinterNameSync::write_back(get_moonraker_api(), name_str);
-    }
+    config->set<std::string>(config->df() + helix::wizard::PRINTER_NAME, name_str);
+    config->save();
+    spdlog::info("[{}] Printer name changed to: '{}'", get_name(), name_str);
+    // Sync name to Mainsail/Fluidd DB
+    helix::PrinterNameSync::write_back(get_moonraker_api(), name_str);
 
     // Update subjects to reflect new name (local overlay + global PrinterState + image widget)
     std::strncpy(name_buf_, name_str.c_str(), sizeof(name_buf_) - 1);
@@ -470,10 +468,6 @@ void PrinterManagerOverlay::on_deactivating(DeactivateReason) {
 
 void PrinterManagerOverlay::refresh_printer_info() {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[{}] Config not available", get_name());
-        return;
-    }
 
     // Printer name: saved name → model/type → "My Printer"
     std::string name = helix::get_printer_display_name();

@@ -364,7 +364,6 @@ TEST_CASE("A radio toggle records the state the radio reached, caller alive or n
           "[wifi][manager][radio][async]") {
     helix::http::HttpExecutor::fast().start();
     Config* config = Config::get_instance();
-    REQUIRE(config != nullptr);
 
     // A radio that refuses to change: the request is "off" and the state stays
     // "on", so the value a caller assumed when it flipped its switch and the

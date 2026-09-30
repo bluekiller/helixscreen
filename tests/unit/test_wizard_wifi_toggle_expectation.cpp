@@ -98,7 +98,6 @@ TEST_CASE_METHOD(WizardWifiToggleFixture,
                  "A wizard WiFi tap stores nothing until the radio answers",
                  "[wizard][wifi][radio]") {
     Config* config = Config::get_instance();
-    REQUIRE(config != nullptr);
 
     WizardWifiStep& step = step_with_manager();
     config->set_wifi_expected(false);

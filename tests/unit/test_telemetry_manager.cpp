@@ -89,10 +89,9 @@ class TelemetryTestFixture {
         // ofstream open, calls CONFIG_RECORD_ERROR, and enqueues a phantom
         // telemetry "file_io" event between our clear_queue() and the test's
         // first assertion. Empty path makes save() a no-op (line 1426).
-        if (auto* cfg = helix::Config::get_instance()) {
-            cfg->clear_path();
-            cfg->set<bool>("/telemetry_enabled", false);
-        }
+        auto* cfg = helix::Config::get_instance();
+        cfg->clear_path();
+        cfg->set<bool>("/telemetry_enabled", false);
 
         tm.init(temp_dir_.string());
         tm.set_enabled(false);

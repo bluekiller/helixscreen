@@ -1418,7 +1418,6 @@ TEST_CASE("FanRoleConfig::from_config auto-heals stale part fan to live fan",
           "[characterization][fan][role][hwrole]") {
     lv_init_safe();
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string key = cfg->df() + "fans/part";
     const std::string orig = cfg->get<std::string>(key, "");
     cfg->set<std::string>(key, std::string("output_pin fan0"));

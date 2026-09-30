@@ -349,7 +349,7 @@ void PreheatWidget::handle_cooldown() {
     // Use configured cooldown macro (user-overridable in settings.json)
     auto* cfg = Config::get_instance();
     MacroConfig default_cooldown{"Cool Down", kDefaultCooldownGcode};
-    auto cooldown = cfg ? cfg->get_macro("cooldown", default_cooldown) : default_cooldown;
+    auto cooldown = cfg->get_macro("cooldown", default_cooldown);
 
     // A platform preset's macro text is fixed at install time and can name a
     // chamber heater that another machine sharing the same preset file

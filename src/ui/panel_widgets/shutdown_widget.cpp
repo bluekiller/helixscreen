@@ -404,8 +404,7 @@ void show_shutdown_dialog(IMoonrakerAPI* api, ShutdownModal& modal, AsyncLifetim
     // its default (local), which on a remote screen would silently collapse
     // the dual dialog into screen-only power actions.
     Config* cfg = Config::get_instance();
-    const std::string host =
-        cfg ? cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost") : "localhost";
+    const std::string host = cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
     const bool same_host = api->is_connected() ? !get_printer_state().is_moonraker_remote()
                                                : helix::is_moonraker_on_same_host(host);
     if (same_host) {

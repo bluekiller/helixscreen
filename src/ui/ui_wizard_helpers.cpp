@@ -95,7 +95,8 @@ int restore_dropdown_selection(lv_obj_t* dropdown, lv_subject_t* subject,
         }
     }
     // Priority 2: Try to restore from saved config
-    else if (Config* config = Config::get_instance()) {
+    else {
+        Config* config = Config::get_instance();
         std::string saved = config->get<std::string>(config->df() + config_path, "");
         if (!saved.empty() && try_select(saved, "Restored selection")) {
             // Found saved item
@@ -138,10 +139,6 @@ bool save_dropdown_selection(lv_subject_t* subject, const std::vector<std::strin
     }
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("{} Cannot save selection: config not available", log_prefix);
-        return false;
-    }
 
     // Get selection index from subject
     int index = lv_subject_get_int(subject);

@@ -360,7 +360,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // nothing rotating underneath it that reading is exact rather than a guess, so
     // the record stands and the user is never asked to recalibrate.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     write_unstamped_affine(*cfg);
     REQUIRE_FALSE(cfg->exists("/input/calibration/rotation"));
 
@@ -393,7 +392,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "an unstamped calibration on a rotated display
     // calibrated", so an in-memory-only drop would leave the device reporting itself
     // calibrated and never offer the wizard that fixes it.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     write_unstamped_affine(*cfg);
     REQUIRE_FALSE(cfg->exists("/input/calibration/rotation"));
 
@@ -415,7 +413,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "a stored rotation key is honoured over the di
     // that hardcodes zero and never reads the key at all, and it is what pins the
     // discard above to the MISSING stamp rather than to the rotation alone.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     write_unstamped_affine(*cfg);
     cfg->set<int>("/input/calibration/rotation", 90);
 

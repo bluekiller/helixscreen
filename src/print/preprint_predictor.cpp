@@ -136,14 +136,12 @@ std::map<int, int> PreprintPredictor::default_phase_durations() {
     // Per-printer DB override wins over the generic defaults so first-print
     // ETAs aren't wildly off on printers whose PRINT_START / slicer start
     // gcode doesn't exercise the full QGL/mesh/wipe flow (e.g. Elegoo CC1).
-    if (auto* cfg = Config::get_instance()) {
-        std::string printer_type =
-            cfg->get<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, "");
-        if (!printer_type.empty()) {
-            auto db_phases = PrinterDetector::get_print_start_default_phases(printer_type);
-            if (!db_phases.empty()) {
-                return db_phases;
-            }
+    auto* cfg = Config::get_instance();
+    std::string printer_type = cfg->get<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, "");
+    if (!printer_type.empty()) {
+        auto db_phases = PrinterDetector::get_print_start_default_phases(printer_type);
+        if (!db_phases.empty()) {
+            return db_phases;
         }
     }
 
@@ -274,9 +272,6 @@ int PreprintPredictor::predicted_total() const {
 
 std::vector<PreprintEntry> PreprintPredictor::load_entries_from_config() {
     auto* cfg = Config::get_instance();
-    if (!cfg) {
-        return {};
-    }
 
     auto entries_json =
         cfg->get<nlohmann::json>("/print_start_history/entries", nlohmann::json::array());

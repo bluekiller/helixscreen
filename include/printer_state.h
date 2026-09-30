@@ -1214,9 +1214,6 @@ class PrinterState {
     lv_subject_t* get_flow_factor_subject() {
         return motion_state_.get_flow_factor_subject();
     }
-    lv_subject_t* get_gcode_speed_subject() {
-        return motion_state_.get_gcode_speed_subject();
-    }
     lv_subject_t* get_max_velocity_subject() {
         return motion_state_.get_max_velocity_subject();
     }

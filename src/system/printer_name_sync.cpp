@@ -24,10 +24,9 @@ static constexpr const char* FLUIDD_KEY = "general.instanceName";
 /// Must be called on the UI thread (via queue_update), or on main thread during init.
 static void seed_name(const std::string& name, const char* source) {
     Config* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set<std::string>(cfg->df() + wizard::PRINTER_NAME, name);
-        cfg->save();
-    }
+    cfg->set<std::string>(cfg->df() + wizard::PRINTER_NAME, name);
+    cfg->save();
+
     get_printer_state().set_active_printer_name(name);
     spdlog::info("[PrinterNameSync] Seeded name from {}: '{}'", source, name);
 }
@@ -64,10 +63,6 @@ static void try_fluidd_then_hostname(IMoonrakerAPI* api, const std::string& host
 
 void PrinterNameSync::resolve(IMoonrakerAPI* api, const std::string& hostname) {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[PrinterNameSync] No config instance, skipping resolve");
-        return;
-    }
 
     // Check local config first — if set, we're done (local wins)
     std::string local_name = config->get<std::string>(config->df() + wizard::PRINTER_NAME, "");

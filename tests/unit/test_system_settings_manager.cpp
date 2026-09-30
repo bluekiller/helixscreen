@@ -180,7 +180,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "SystemSettingsManager log level reports the s
     REQUIRE(helix::logging::effective_log_level() == spdlog::level::warn);
 
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     config->set<std::string>("/log_level", "");
 
     SystemSettingsManager::instance().deinit_subjects();
@@ -198,7 +197,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "SystemSettingsManager log level prefers a sav
     init_logging_at(spdlog::level::warn);
 
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     config->set<std::string>("/log_level", "trace");
 
     SystemSettingsManager::instance().deinit_subjects();

@@ -4415,8 +4415,6 @@ void Application::on_enter_foreground() {
 #ifdef HELIX_ENABLE_SCREENSAVER
 void Application::show_screensaver_migration_notice_if_pending() {
     auto* cfg = Config::get_instance();
-    if (!cfg)
-        return;
 
     if (!cfg->exists("/display/screensaver_migration_notice_pending")) {
         return;

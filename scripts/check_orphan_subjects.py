@@ -105,6 +105,12 @@ COMMENT_LINE_RE = re.compile(r'^\s*(?:\*|//)')
 MEMBER_RE = re.compile(r'&\s*([A-Za-z_][A-Za-z_0-9]*)')
 # An accessor body that only yields the subject's address.
 HANDOVER_RE = re.compile(r'return\s+&\s*[A-Za-z_][A-Za-z_0-9]*\s*;')
+# The whole inline accessor, so a pointer handed over by calling it can be
+# traced back to its member.
+ACCESSOR_DEF_RE = re.compile(
+    r'\b([A-Za-z_][A-Za-z_0-9]*)\s*\(\s*\)\s*(?:const\s*)?\{\s*return\s+&\s*([A-Za-z_][A-Za-z_0-9]*)\s*;\s*\}')
+# A registration whose pointer argument is an accessor call, not &member.
+ACCESSOR_CALL_RE = re.compile(r'(?:\.|->)\s*([A-Za-z_][A-Za-z_0-9]*)\s*\(\s*\)')
 # Any XML attribute that names a subject: bind_text=, bind_value=, subject=, ...
 XML_REF_RE = re.compile(r'(?:bind_[a-z_]+|subject)="([^"]+)"')
 # Expression attributes name subjects as bare identifiers: cond="a or b gt c".
@@ -195,9 +201,23 @@ def find_managed_macro_calls(text: str):
 
 
 def collect_registrations(root: pathlib.Path):
-    """Map subject name -> (sites, members)."""
+    """Map subject name -> (sites, members, owned).
+
+    `owned` keys each member by its owner - the stem of the file that
+    registers it or defines its accessor - so two classes that both name a
+    member status_subject_ never vouch for each other.
+    """
     found: dict[str, list[str]] = {}
     members: dict[str, set[str]] = {}
+    owned: dict[str, set[tuple[str, str]]] = {}
+    # accessor name -> every (owner, member) it could return. A name defined in
+    # more than one owner is ambiguous and resolves to nothing.
+    accessors: dict[str, set[tuple[str, str]]] = {}
+    for d in SRC_DIRS:
+        for path in (root / d).rglob("*"):
+            if path.suffix in (".cpp", ".h", ".hpp", ".cc"):
+                for m in ACCESSOR_DEF_RE.finditer(path.read_text(errors="ignore")):
+                    accessors.setdefault(m.group(1), set()).add((path.stem, m.group(2)))
     for d in SRC_DIRS:
         for path in (root / d).rglob("*"):
             if path.suffix not in (".cpp", ".h", ".hpp", ".cc"):
@@ -217,6 +237,7 @@ def collect_registrations(root: pathlib.Path):
                 found.setdefault(name, []).append(f"{rel}:{first + 1}")
                 if member:
                     members.setdefault(name, set()).add(member)
+                    owned.setdefault(name, set()).add((path.stem, member))
             for n, line in enumerate(lines, 1):
                 # Prose naming a macro is not a registration, and the macros are
                 # documented with worked examples wherever they are mentioned.
@@ -228,16 +249,29 @@ def collect_registrations(root: pathlib.Path):
                 for m in REGISTER_RE.finditer(line):
                     name = m.group(1)
                     found.setdefault(name, []).append(f"{rel}:{n}")
-                    # The pointer argument may sit on this line or the next.
                     tail = line[m.end():]
                     mem = MEMBER_RE.search(tail)
                     if mem:
                         members.setdefault(name, set()).add(mem.group(1))
+                        owned.setdefault(name, set()).add((path.stem, mem.group(1)))
+                        continue
+                    # The pointer argument wraps onto the next line only while
+                    # the call's paren is still open.
+                    if (line.count("(", m.start()) > line.count(")", m.start())
+                            and n < len(lines)):
+                        tail += " " + lines[n]
+                    # Re-published through the owner's accessor: the alias
+                    # shares the member, so binding either name reads it.
+                    call = ACCESSOR_CALL_RE.search(tail)
+                    targets = accessors.get(call.group(1), set()) if call else set()
+                    if len(targets) == 1:
+                        owned.setdefault(name, set()).update(targets)
                 for m in MACRO_REGISTER_RE.finditer(line):
                     name = m.group(1)
                     found.setdefault(name, []).append(f"{rel}:{n}")
                     members.setdefault(name, set()).add(f"{name}_")
-    return found, members
+                    owned.setdefault(name, set()).add((path.stem, f"{name}_"))
+    return found, members, owned
 
 
 def collect_xml_refs(root: pathlib.Path) -> set[str]:
@@ -372,11 +406,15 @@ def main() -> int:
     args = ap.parse_args()
 
     root = args.repo_root.resolve() if args.repo_root else repo_root()
-    registered, members = collect_registrations(root)
+    registered, members, owned = collect_registrations(root)
     bound = collect_xml_refs(root)
     read_text = collect_read_text(root)
+    # A member published under several names is read when any of them is bound.
+    bound_members = {om for n in bound if n in registered for om in owned.get(n, ())}
 
     def is_read(name: str) -> bool:
+        if owned.get(name, set()) & bound_members:
+            return True
         if re.search(r'"' + re.escape(name) + r'"', read_text):
             return True
         # A consumer that does not own the subject reaches it through the

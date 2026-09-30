@@ -215,9 +215,7 @@ void PrinterPrintState::publish_progress_display(int percent) {
     if (progress_frozen_) {
         return;
     }
-    if (lv_subject_get_int(&print_progress_display_) != percent) {
-        lv_subject_set_int(&print_progress_display_, percent);
-    }
+    lv_subject_set_int(&print_progress_display_, percent);
     char buf[sizeof(print_progress_text_buf_)];
     helix::format::format_percent(percent, buf, sizeof(buf));
     if (strcmp(lv_subject_get_string(&print_progress_text_), buf) != 0) {
@@ -427,15 +425,11 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
         // "Starting Print..." stuck and dropping print_elapsed updates.
         if (auto pd_it = stats.find("print_duration"); pd_it != stats.end() && pd_it->is_number()) {
             int print_seconds = static_cast<int>(pd_it->get<double>());
-            if (lv_subject_get_int(&print_duration_) != print_seconds) {
-                lv_subject_set_int(&print_duration_, print_seconds);
-            }
+            lv_subject_set_int(&print_duration_, print_seconds);
         }
         if (auto td_it = stats.find("total_duration"); td_it != stats.end() && td_it->is_number()) {
             int total_elapsed = static_cast<int>(td_it->get<double>());
-            if (lv_subject_get_int(&print_elapsed_) != total_elapsed) {
-                lv_subject_set_int(&print_elapsed_, total_elapsed);
-            }
+            lv_subject_set_int(&print_elapsed_, total_elapsed);
         }
 
         if (auto state_it = stats.find("state"); state_it != stats.end() && state_it->is_string()) {
@@ -681,25 +675,19 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
         // Track filament usage (Moonraker reports in mm)
         if (stats.contains("filament_used") && stats["filament_used"].is_number()) {
             int filament_mm = static_cast<int>(stats["filament_used"].get<double>());
-            if (filament_mm != lv_subject_get_int(&print_filament_used_)) {
-                lv_subject_set_int(&print_filament_used_, filament_mm);
-            }
+            lv_subject_set_int(&print_filament_used_, filament_mm);
         }
 
         // Update print time tracking (elapsed and remaining)
         if (stats.contains("print_duration") && stats["print_duration"].is_number()) {
             int print_seconds = static_cast<int>(stats["print_duration"].get<double>());
-            if (lv_subject_get_int(&print_duration_) != print_seconds) {
-                lv_subject_set_int(&print_duration_, print_seconds);
-            }
+            lv_subject_set_int(&print_duration_, print_seconds);
         }
 
         // total_duration = wall-clock elapsed since job started (includes prep, pauses)
         if (stats.contains("total_duration") && stats["total_duration"].is_number()) {
             int total_elapsed = static_cast<int>(stats["total_duration"].get<double>());
-            if (lv_subject_get_int(&print_elapsed_) != total_elapsed) {
-                lv_subject_set_int(&print_elapsed_, total_elapsed);
-            }
+            lv_subject_set_int(&print_elapsed_, total_elapsed);
 
             // Estimate remaining from progress using print_duration (actual print time),
             // NOT total_duration (which includes prep/preheat and inflates the estimate)
@@ -826,9 +814,7 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
         if (auto pl_it = sdcard.find("pl_env_valid");
             pl_it != sdcard.end() && pl_it->is_boolean()) {
             int val = pl_it->get<bool>() ? 1 : 0;
-            if (lv_subject_get_int(&pl_env_valid_) != val) {
-                lv_subject_set_int(&pl_env_valid_, val);
-            }
+            lv_subject_set_int(&pl_env_valid_, val);
         }
         if (auto fp_it = sdcard.find("file_path"); fp_it != sdcard.end() && fp_it->is_string()) {
             // get_ref borrows the stored string (no temporary); assign only when
@@ -1033,9 +1019,7 @@ void PrinterPrintState::update_display_message_visible() {
     // most M117 traffic originates. The collector's phase label lives in a
     // separate subject (print_start_message), so there is nothing to duplicate.
     int new_value = (strcmp(lv_subject_get_string(&display_message_), "") != 0) ? 1 : 0;
-    if (lv_subject_get_int(&display_message_visible_) != new_value) {
-        lv_subject_set_int(&display_message_visible_, new_value);
-    }
+    lv_subject_set_int(&display_message_visible_, new_value);
 }
 
 // ============================================================================
@@ -1145,11 +1129,8 @@ void PrinterPrintState::set_print_display_filename(const std::string& name) {
 }
 
 void PrinterPrintState::set_print_layer_total(int total) {
-    async_lifetime_.defer("PrinterPrintState::set_print_layer_total", [this, total]() {
-        if (lv_subject_get_int(&print_layer_total_) != total) {
-            lv_subject_set_int(&print_layer_total_, total);
-        }
-    });
+    async_lifetime_.defer("PrinterPrintState::set_print_layer_total",
+                          [this, total]() { lv_subject_set_int(&print_layer_total_, total); });
 }
 
 void PrinterPrintState::set_print_layer_heights(double layer_height, double first_layer_height) {
@@ -1225,9 +1206,7 @@ void PrinterPrintState::set_print_start_state(PrintStartPhase phase, const char*
             strcmp(lv_subject_get_string(&print_start_message_), msg.c_str()) != 0) {
             lv_subject_copy_string(&print_start_message_, msg.c_str());
         }
-        if (lv_subject_get_int(&print_start_progress_) != clamped_progress) {
-            lv_subject_set_int(&print_start_progress_, clamped_progress);
-        }
+        lv_subject_set_int(&print_start_progress_, clamped_progress);
         update_print_show_progress();
     });
 }
@@ -1265,26 +1244,18 @@ void PrinterPrintState::clear_print_start_time_left() {
     if (strcmp(lv_subject_get_string(&print_start_time_left_), "") != 0) {
         lv_subject_copy_string(&print_start_time_left_, "");
     }
-    if (lv_subject_get_int(&preprint_remaining_) != 0) {
-        lv_subject_set_int(&preprint_remaining_, 0);
-    }
-    if (lv_subject_get_int(&preprint_elapsed_) != 0) {
-        lv_subject_set_int(&preprint_elapsed_, 0);
-    }
+    lv_subject_set_int(&preprint_remaining_, 0);
+    lv_subject_set_int(&preprint_elapsed_, 0);
 }
 
 void PrinterPrintState::set_preprint_remaining_seconds(int seconds) {
     int val = std::max(0, seconds);
-    if (lv_subject_get_int(&preprint_remaining_) != val) {
-        lv_subject_set_int(&preprint_remaining_, val);
-    }
+    lv_subject_set_int(&preprint_remaining_, val);
 }
 
 void PrinterPrintState::set_preprint_elapsed_seconds(int seconds) {
     int val = std::max(0, seconds);
-    if (lv_subject_get_int(&preprint_elapsed_) != val) {
-        lv_subject_set_int(&preprint_elapsed_, val);
-    }
+    lv_subject_set_int(&preprint_elapsed_, val);
 }
 
 void PrinterPrintState::set_estimated_print_time(int seconds) {
@@ -1542,13 +1513,8 @@ void PrinterPrintState::publish_lifecycle_state() {
     // observer see the stale value. Ordering it first closes that, and is safe
     // in the other direction because job_holds_machine has only XML consumers
     // (bind_state_if_eq), none of which reads print_lifecycle back.
-    //
-    // Written only-if-changed for the same reason print_lifecycle is: several
-    // lifecycle values map to the same boolean.
     const int holds = job_holds_machine(static_cast<PrintState>(derived)) ? 1 : 0;
-    if (lv_subject_get_int(&job_holds_machine_) != holds) {
-        lv_subject_set_int(&job_holds_machine_, holds);
-    }
+    lv_subject_set_int(&job_holds_machine_, holds);
     publish_machine_motion_blocked();
 
     if (current != derived) {
@@ -1562,9 +1528,7 @@ void PrinterPrintState::publish_lifecycle_state() {
 void PrinterPrintState::publish_machine_motion_blocked() {
     const int blocked =
         (lv_subject_get_int(&job_holds_machine_) != 0 || spool_latch_active_.load()) ? 1 : 0;
-    if (lv_subject_get_int(&machine_motion_blocked_) != blocked) {
-        lv_subject_set_int(&machine_motion_blocked_, blocked);
-    }
+    lv_subject_set_int(&machine_motion_blocked_, blocked);
 }
 
 void PrinterPrintState::set_spool_latch(bool on, std::vector<std::string> extra_tokens) {
@@ -1573,9 +1537,7 @@ void PrinterPrintState::set_spool_latch(bool on, std::vector<std::string> extra_
         spool_latch_tokens_ = on ? std::move(extra_tokens) : std::vector<std::string>{};
     }
     spool_latch_active_.store(on);
-    if (lv_subject_get_int(&spool_latch_) != (on ? 1 : 0)) {
-        lv_subject_set_int(&spool_latch_, on ? 1 : 0);
-    }
+    lv_subject_set_int(&spool_latch_, on ? 1 : 0);
     publish_machine_motion_blocked();
 }
 

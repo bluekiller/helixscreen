@@ -268,7 +268,6 @@ TEST_CASE_METHOD(ConnFailedFixture,
     // already correct, and the body text told them to check that the printer was
     // powered on — while they were holding its screen.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string key = cfg->df() + "moonraker_host";
     const std::string prev = cfg->get<std::string>(key, "");
     cfg->set<std::string>(key, "127.0.0.1");
@@ -311,7 +310,6 @@ TEST_CASE_METHOD(ConnFailedFixture, "A never-connected remote host still offers 
     // the OK-only alert and loses its primary recovery path. 192.0.2.1 is
     // TEST-NET-1 (RFC 5737): guaranteed never to be one of our interfaces.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string key = cfg->df() + "moonraker_host";
     const std::string prev = cfg->get<std::string>(key, "");
     cfg->set<std::string>(key, "192.0.2.1");
@@ -345,7 +343,6 @@ TEST_CASE_METHOD(ConnFailedFixture, "An unconfigured host still offers Change Ad
     // empty host is the case where changing the address is precisely the fix, so
     // it must not be swept in by a "localhost" default.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string key = cfg->df() + "moonraker_host";
     const std::string prev = cfg->get<std::string>(key, "");
     cfg->set<std::string>(key, std::string(""));

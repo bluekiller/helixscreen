@@ -290,12 +290,10 @@ void AboutSettingsOverlay::populate_info_rows() {
 
     // Printer name from config
     Config* config = Config::get_instance();
-    if (config) {
-        std::string printer_name =
-            config->get<std::string>(config->df() + helix::wizard::PRINTER_NAME, "Unknown");
-        lv_subject_copy_string(&printer_value_subject_, printer_name.c_str());
-        spdlog::trace("[{}] Printer: {}", get_name(), printer_name);
-    }
+    std::string printer_name =
+        config->get<std::string>(config->df() + helix::wizard::PRINTER_NAME, "Unknown");
+    lv_subject_copy_string(&printer_value_subject_, printer_name.c_str());
+    spdlog::trace("[{}] Printer: {}", get_name(), printer_name);
 }
 
 void AboutSettingsOverlay::fetch_print_hours() {
@@ -379,7 +377,7 @@ void AboutSettingsOverlay::on_about_version_clicked(lv_event_t*) {
 
     if (remaining > 0 && remaining <= 3) {
         Config* config = Config::get_instance();
-        bool currently_on = config && config->is_beta_features_enabled();
+        bool currently_on = config->is_beta_features_enabled();
         const char* action = currently_on ? lv_tr("disable") : lv_tr("enable");
         std::string msg =
             remaining == 1
@@ -388,31 +386,30 @@ void AboutSettingsOverlay::on_about_version_clicked(lv_event_t*) {
         ToastManager::instance().show(ToastSeverity::INFO, msg.c_str(), 1000);
     } else if (remaining == 0) {
         Config* config = Config::get_instance();
-        if (config) {
-            bool currently_enabled = config->is_beta_features_enabled();
-            bool new_value = !currently_enabled;
-            config->set("/beta_features", new_value);
-            config->save();
+        bool currently_enabled = config->is_beta_features_enabled();
+        bool new_value = !currently_enabled;
+        config->set("/beta_features", new_value);
+        config->save();
 
-            lv_subject_t* subject = lv_xml_get_subject(nullptr, "show_beta_features");
-            if (subject) {
-                lv_subject_set_int(subject, new_value ? 1 : 0);
-            }
-
-            // The two Update Channel rows swap on that subject, and toggling
-            // beta also moves the effective channel whenever Dev is stored, so
-            // the row arriving on screen needs its selection re-seeded. A root
-            // of nullptr (Updates never opened) is a no-op.
-            UpdatesSettingsOverlay::sync_update_channel_rows(
-                get_updates_settings_overlay().get_root(),
-                static_cast<int>(UpdateChecker::instance().get_channel()));
-
-            ToastManager::instance().show(
-                ToastSeverity::SUCCESS,
-                new_value ? lv_tr("Beta features: ON") : lv_tr("Beta features: OFF"), 1500);
-            spdlog::info("[AboutSettings] Beta features toggled via 7-tap secret: {}",
-                         new_value ? "ON" : "OFF");
+        lv_subject_t* subject = lv_xml_get_subject(nullptr, "show_beta_features");
+        if (subject) {
+            lv_subject_set_int(subject, new_value ? 1 : 0);
         }
+
+        // The two Update Channel rows swap on that subject, and toggling
+        // beta also moves the effective channel whenever Dev is stored, so
+        // the row arriving on screen needs its selection re-seeded. A root
+        // of nullptr (Updates never opened) is a no-op.
+        UpdatesSettingsOverlay::sync_update_channel_rows(
+            get_updates_settings_overlay().get_root(),
+            static_cast<int>(UpdateChecker::instance().get_channel()));
+
+        ToastManager::instance().show(
+            ToastSeverity::SUCCESS,
+            new_value ? lv_tr("Beta features: ON") : lv_tr("Beta features: OFF"), 1500);
+        spdlog::info("[AboutSettings] Beta features toggled via 7-tap secret: {}",
+                     new_value ? "ON" : "OFF");
+
         tap_count = 0;
     }
 }

@@ -335,7 +335,6 @@ TEST_CASE_METHOD(XMLTestFixture,
 
     // Detection settles: config gains the type and PrinterState publishes it.
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     cfg->set<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, "Voron 2.4");
     get_printer_state().set_printer_type_sync("Voron 2.4");
 

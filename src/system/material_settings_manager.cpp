@@ -183,7 +183,7 @@ bool MaterialSettingsManager::write_to_overlay(
 
 bool MaterialSettingsManager::migrate_settings_overrides() {
     Config* config = Config::get_instance();
-    if (!config || !config->exists("/material_overrides")) {
+    if (!config->exists("/material_overrides")) {
         return false;
     }
     const nlohmann::json legacy = config->get_json("/material_overrides");
@@ -253,7 +253,7 @@ void MaterialSettingsManager::load_presets_from_config() {
     }
 
     Config* config = Config::get_instance();
-    if (!config || !config->exists("/preset_materials")) {
+    if (!config->exists("/preset_materials")) {
         return;
     }
     auto& arr = config->get_json("/preset_materials");
@@ -302,9 +302,6 @@ void MaterialSettingsManager::load_presets_from_config() {
 
 void MaterialSettingsManager::save_presets_to_config() {
     Config* config = Config::get_instance();
-    if (!config) {
-        return;
-    }
     nlohmann::json arr = nlohmann::json::array();
     for (int i = 0; i < 4; ++i) {
         nlohmann::json entry = nlohmann::json::object();

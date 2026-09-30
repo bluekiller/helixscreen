@@ -348,10 +348,6 @@ void PrinterImageWidget::on_activate() {
 
 void PrinterImageWidget::reload_from_config() {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[PrinterImageWidget] reload_from_config: Config not available");
-        return;
-    }
 
     // Update printer type in PrinterState (triggers capability cache refresh)
     std::string printer_type =
@@ -837,8 +833,7 @@ void PrinterImageWidget::update_callouts() {
     const int bed_tgt = read_int_or_zero(ps.get_bed_target_subject());
     heater(bed_cur, bed_tgt, true, &s_callout_bed_shown, &s_callout_bed_text);
     const int bed_heating = heater_display(bed_cur, bed_tgt).state == HeatState::Heating ? 1 : 0;
-    if (lv_subject_get_int(&s_callout_bed_heating) != bed_heating)
-        lv_subject_set_int(&s_callout_bed_heating, bed_heating);
+    lv_subject_set_int(&s_callout_bed_heating, bed_heating);
     heater(read_int_or_zero(ps.get_chamber_temp_subject()),
            read_int_or_zero(ps.get_chamber_effective_target_subject()),
            read_int_or_zero(ps.get_printer_has_chamber_heater_subject()) != 0,

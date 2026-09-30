@@ -195,17 +195,15 @@ MotionPanel::MotionPanel() {
     // Load persisted jog mode (default: coarse)
     // Migrate from old bool /motion/jog_mode_fine to new int /motion/jog_mode
     auto* cfg = Config::get_instance();
-    if (cfg) {
-        int mode = cfg->get<int>("/motion/jog_mode", -1);
-        if (mode >= 0 && mode < JOG_MODE_COUNT) {
-            current_mode_ = static_cast<JogMode>(mode);
-        } else {
-            // Migrate legacy bool setting and persist new key
-            bool fine = cfg->get<bool>("/motion/jog_mode_fine", false);
-            current_mode_ = fine ? JogMode::Fine : JogMode::Coarse;
-            cfg->set("/motion/jog_mode", static_cast<int>(current_mode_));
-            cfg->save();
-        }
+    int mode = cfg->get<int>("/motion/jog_mode", -1);
+    if (mode >= 0 && mode < JOG_MODE_COUNT) {
+        current_mode_ = static_cast<JogMode>(mode);
+    } else {
+        // Migrate legacy bool setting and persist new key
+        bool fine = cfg->get<bool>("/motion/jog_mode_fine", false);
+        current_mode_ = fine ? JogMode::Fine : JogMode::Coarse;
+        cfg->set("/motion/jog_mode", static_cast<int>(current_mode_));
+        cfg->save();
     }
 
     spdlog::trace("[MotionPanel] Instance created");
@@ -705,12 +703,9 @@ void MotionPanel::register_position_observers() {
             int x = (strchr(axes, 'x') != nullptr) ? 1 : 0;
             int y = (strchr(axes, 'y') != nullptr) ? 1 : 0;
             int z = (strchr(axes, 'z') != nullptr) ? 1 : 0;
-            if (lv_subject_get_int(&self->motion_x_homed_) != x)
-                lv_subject_set_int(&self->motion_x_homed_, x);
-            if (lv_subject_get_int(&self->motion_y_homed_) != y)
-                lv_subject_set_int(&self->motion_y_homed_, y);
-            if (lv_subject_get_int(&self->motion_z_homed_) != z)
-                lv_subject_set_int(&self->motion_z_homed_, z);
+            lv_subject_set_int(&self->motion_x_homed_, x);
+            lv_subject_set_int(&self->motion_y_homed_, y);
+            lv_subject_set_int(&self->motion_z_homed_, z);
             self->update_z_button_blocked();
             if (self->jog_pad_)
                 ui_jog_pad_set_homed(self->jog_pad_, x && y && z);
@@ -1536,10 +1531,8 @@ void MotionPanel::set_jog_mode(JogMode mode) {
 
     // Persist setting
     auto* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set("/motion/jog_mode", static_cast<int>(mode));
-        cfg->save();
-    }
+    cfg->set("/motion/jog_mode", static_cast<int>(mode));
+    cfg->save();
 
     spdlog::info("[MotionPanel] Jog mode: {}", jog_mode_name(mode));
 }

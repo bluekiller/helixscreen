@@ -60,8 +60,6 @@ what each script is for; the script's own header carries the reasoning behind it
 | `generate_translations.py` | Main translation generator - YAML → runtime XML packs (`--emit-lv-i18n` for the legacy unlinked C table). A key holding a real newline or tab survives the XML parse only as a `&#10;`/`&#9;` character reference; `escape_xml_attr()` says why |
 | `translation_sync.py` | Sync keys (XML/C++ → YAML); also `coverage`, `obsolete`, `glossary` subcommands |
 | `translations/yaml_manager.py` | Reads/edits the locale YAMLs by **line splice**, never a re-dump (no dump config reproduces the committed files byte-for-byte). `load_yaml_file()` refuses a file that defines a key twice: a later placeholder would otherwise silently replace the translation. Gated by `tests/shell/test_translation_duplicate_keys.bats` |
-| `migrate_xml_translations.py` | Migration tool: inline XML text → translation key references |
-| `xml_to_yaml_translations.py` | Extract inline XML strings to YAML format |
 | `translations/` | Python package: extractor, YAML manager, coverage, glossary, CLI |
 
 **Terminology consistency:** `translations/GLOSSARY.md` (`make translation-glossary`) pins canonical per-language renderings of recurring terms. Reuse the glossary term when translating, human or agent, and `grep` the locale before coining a new word for an already-translated concept. After changing a canonical term, add its English key to `GLOSSARY_GROUPS` in `translations/glossary.py` and regenerate.
@@ -178,7 +176,6 @@ each screen maps to a navigation recipe in `screenshot-recipes.sh`, the single s
 | `benchmark_hosts.sh` | Benchmark host performance for build optimization |
 | `benchmark_neon.sh` | NEON SIMD performance benchmarks |
 | `add-spdx-headers.sh` | Add SPDX license headers to source files |
-| `add-copyright-headers.sh` | Add copyright headers to source files |
 | `debug-ad5m-boot.sh` | AD5M boot diagnostics. `--boot` saves to persistent log |
 
 ### Cloud Sessions

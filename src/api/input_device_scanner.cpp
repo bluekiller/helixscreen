@@ -188,11 +188,10 @@ std::vector<std::string> read_device_blacklist_from_config() {
     // runs during display backend init, before SettingsManager::init_subjects().
     try {
         Config* config = Config::get_instance();
-        if (config) {
-            // Top-level "/input/..." path (not df()/per-printer) to match the
-            // template placement and sibling keys like /input/touch_device.
-            return config->get<std::vector<std::string>>("/input/device_blacklist", {});
-        }
+        // Top-level "/input/..." path (not df()/per-printer) to match the
+        // template placement and sibling keys like /input/touch_device.
+        return config->get<std::vector<std::string>>("/input/device_blacklist", {});
+
     } catch (...) {
         // Config may not be initialized yet during very early startup, or the key
         // may hold an unexpected type. Treat as no blacklist.
@@ -477,9 +476,8 @@ std::optional<ScannedDevice> find_keyboard_device() {
     std::string exclude_id;
     try {
         Config* config = Config::get_instance();
-        if (config) {
-            exclude_id = config->get<std::string>("/scanner/usb_vendor_product", "");
-        }
+        exclude_id = config->get<std::string>("/scanner/usb_vendor_product", "");
+
     } catch (...) {
         // Config may not be initialized yet during very early startup
     }

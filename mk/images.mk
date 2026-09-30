@@ -94,24 +94,6 @@ clean-images:
 list-images:
 	$(Q)./$(REGEN_IMAGES_SCRIPT) --list
 
-# Check if pre-rendered images exist in build directory
-.PHONY: check-images
-check-images:
-	$(ECHO) "$(CYAN)Checking pre-rendered images...$(RESET)"
-	$(Q)missing=0; \
-	for img in $(PRERENDERED_IMAGES_ALL); do \
-		if [ ! -f "$$img" ]; then \
-			echo "$(RED)✗ Missing: $$img$(RESET)"; \
-			missing=1; \
-		fi; \
-	done; \
-	if [ $$missing -eq 1 ]; then \
-		echo "$(RED)Run 'make gen-images' to generate missing files$(RESET)"; \
-		exit 1; \
-	else \
-		echo "$(GREEN)✓ All pre-rendered images present$(RESET)"; \
-	fi
-
 # =============================================================================
 # Placeholder Thumbnail Pre-rendering
 # =============================================================================

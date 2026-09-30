@@ -32,21 +32,19 @@ void StreamingPolicy::load_from_config() {
 
     // Priority 2: Config file
     Config* config = Config::get_instance();
-    if (config != nullptr) {
-        // Check force_streaming option
-        bool force = config->get<bool>("/streaming/force_streaming", false);
-        if (force) {
-            spdlog::info("[StreamingPolicy] Force streaming enabled via config");
-            force_streaming_.store(true);
-        }
+    // Check force_streaming option
+    bool force = config->get<bool>("/streaming/force_streaming", false);
+    if (force) {
+        spdlog::info("[StreamingPolicy] Force streaming enabled via config");
+        force_streaming_.store(true);
+    }
 
-        // Check threshold override (0 = auto-detect)
-        int threshold_mb = config->get<int>("/streaming/threshold_mb", 0);
-        if (threshold_mb > 0) {
-            size_t threshold_bytes = static_cast<size_t>(threshold_mb) * 1024 * 1024;
-            threshold_bytes_.store(threshold_bytes);
-            spdlog::info("[StreamingPolicy] Threshold set to {}MB via config", threshold_mb);
-        }
+    // Check threshold override (0 = auto-detect)
+    int threshold_mb = config->get<int>("/streaming/threshold_mb", 0);
+    if (threshold_mb > 0) {
+        size_t threshold_bytes = static_cast<size_t>(threshold_mb) * 1024 * 1024;
+        threshold_bytes_.store(threshold_bytes);
+        spdlog::info("[StreamingPolicy] Threshold set to {}MB via config", threshold_mb);
     }
 
     // Log current settings

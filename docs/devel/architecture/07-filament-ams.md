@@ -143,7 +143,7 @@ Both paths write change-gated — every value is compared before `lv_subject_set
 | Current line | `current_slot`, `ams_current_tool`, `ams_filament_loaded`, `ams_filament_runout`, `current_color` | Filament panel, runout dialog |
 | Operation progress | `ams_action`, `ams_action_detail`, `ams_operation_phase`, `toolchange_step` | Step bar, action prompts |
 | Toolchange narration | `toolchange_visible`, `ams_current_toolchange`, `ams_number_of_toolchanges`, `toolchange_text` | Print-status toolchange banner |
-| Path canvas feed | `path_topology`, `path_active_slot`, `path_filament_segment`, `path_error_segment`, `path_anim_progress` | Filament-path canvas (its own doc) |
+| Path canvas feed | `path_topology`, `path_filament_segment` | Filament-path canvas (its own doc) |
 | Dryer / environment | `dryer_*` (mirrored from whichever unit the shown box belongs to), per-unit `ams_unit_<i>_*` and `ams_env_ind_<i>_*` temp + humidity, `env_zone_*` / `zone_ov_*` for the box views | AMS unit card badges, environment detail overlay, box list |
 | Endless spool | `ams_endless_state`, `ams_endless_text` | Endless-spool status line |
 

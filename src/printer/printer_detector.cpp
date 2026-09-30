@@ -2262,9 +2262,6 @@ bool PrinterDetector::auto_detect_and_save(const helix::PrinterDiscovery& discov
 /// Case-insensitive check whether the configured printer type contains @p needle.
 static bool printer_type_contains(const std::string& needle) {
     Config* config = Config::get_instance();
-    if (!config) {
-        return false;
-    }
 
     std::string printer_type =
         config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
@@ -2325,9 +2322,6 @@ nlohmann::json database_rules() {
 
 std::string PrinterDetector::screws_tilt_direction_override() {
     Config* config = Config::get_instance();
-    if (!config) {
-        return "";
-    }
     std::string printer_name =
         config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
     if (printer_name.empty()) {

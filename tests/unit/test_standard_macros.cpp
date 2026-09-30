@@ -846,7 +846,6 @@ TEST_CASE("get_saved_printer_type - the source populated during discovery",
     // yields "" on every run and the shipped tier silently never fills, so the
     // production call site must read config instead.
     helix::Config* config = helix::Config::get_instance();
-    REQUIRE(config != nullptr);
     const std::string saved =
         config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
 

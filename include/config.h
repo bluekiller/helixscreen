@@ -621,7 +621,7 @@ class Config {
     /**
      * @brief Get singleton instance
      *
-     * @return Pointer to global Config instance
+     * @return Pointer to global Config instance, created on first call; never null
      */
     static Config* get_instance();
 

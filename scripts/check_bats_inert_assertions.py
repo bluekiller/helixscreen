@@ -293,6 +293,10 @@ def main():
     if unplaced:
         coverage += f'; {unplaced} could not be placed in a @test body'
 
+    if scanned == 0 and args.staged_only:
+        # A staged deletion wakes this gate but leaves no blob to read.
+        print('✅ bats inert assertions: no staged .bats content to examine.')
+        return 0
     if scanned == 0:
         print('❌ bats inert assertions: no .bats files examined - nothing was checked.')
         return 1

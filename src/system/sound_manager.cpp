@@ -51,7 +51,7 @@ bool sound_disabled() {
         return true;
     }
     Config* cfg = Config::get_instance();
-    return cfg && cfg->get<bool>("/disable_sound", false);
+    return cfg->get<bool>("/disable_sound", false);
 }
 
 } // namespace

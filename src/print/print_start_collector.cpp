@@ -2500,9 +2500,8 @@ void PrintStartCollector::save_prediction_entry() {
     if (fallback_completion_) {
         spdlog::debug("[PrintStartCollector] Timeout completion: saving heating rates only");
         helix::ui::queue_update([]() {
-            if (auto* cfg = Config::get_instance()) {
-                ThermalRateManager::instance().save_to_config(*cfg);
-            }
+            auto* cfg = Config::get_instance();
+            ThermalRateManager::instance().save_to_config(*cfg);
         });
         return;
     }
@@ -2604,9 +2603,6 @@ void PrintStartCollector::save_prediction_entry() {
         }
         auto entries = std::move(merged);
         auto* cfg = Config::get_instance();
-        if (!cfg) {
-            return;
-        }
 
         if (entries.size() > 1000) {
             spdlog::warn("[PrintStartCollector] Suspiciously large entry count ({}), skipping save",

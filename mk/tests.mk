@@ -773,40 +773,12 @@ test-verbose: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running tests with timing...$(RESET)"
 	$(Q)$(TEST_BIN) --durations yes --use-colour yes
 
-# Run G-code related tests
-test-gcode: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running G-code tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[gcode]"; \
-	$(call report_test_result,G-code tests)
-
 # Run UI-related tests
 test-ui: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running UI tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[navigation],[theme],[wizard]"; \
 	$(call report_test_result,UI tests)
-
-# Run Moonraker/mock-related tests
-test-moonraker: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running Moonraker tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[mock],[sequencer],[capabilities]"; \
-	$(call report_test_result,Moonraker tests)
-
-# Run network-related tests (WiFi, Ethernet)
-test-network: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running network tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[network],[scan],[connect]"; \
-	$(call report_test_result,Network tests)
-
-# Run security-related tests
-test-security: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running security tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[security],[injection],[safety]"; \
-	$(call report_test_result,Security tests)
 
 # List all available test tags
 test-list-tags: test-build
@@ -817,19 +789,11 @@ test-list-tags: test-build
 test-list: test-build
 	$(Q)$(TEST_BIN) --list-tests
 
-# Backwards compatibility alias
-test-wizard: test
-
 # ============================================================================
 # Test Timing and Performance Targets
 # ============================================================================
 # Use these targets to identify slow tests and optimize test runtime.
 # Tests tagged [slow] are excluded from test-fast for quick iteration.
-
-# Show slowest tests (top 20) - useful for identifying optimization targets
-test-timing: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Slowest tests (top 20):$(RESET)"
-	@$(TEST_BIN) "~[.]" --durations yes 2>&1 | grep -E "^[0-9]+\.[0-9]+ s:" | sort -rn | head -20
 
 # Run only fast tests in PARALLEL (skip hidden and slow tests) - for quick iteration
 # Target: <15s total runtime for rapid development feedback with parallelism
@@ -873,29 +837,6 @@ test-smoke: test-build
 	$(TEST_BIN) "[config],[navigation],[ui_theme],[parser]" "~[slow]" "~[.]"; \
 	$(call report_test_result,Smoke tests)
 
-# Show test coverage summary by tag area
-test-summary: test-build
-	$(ECHO) "$(CYAN)$(BOLD)=== Test Coverage by Tag (top 25) ===$(RESET)"
-	@$(TEST_BIN) --list-tags 2>&1 | grep -E "^\s+[0-9]+" | sort -rn | head -25
-	$(ECHO) ""
-	$(ECHO) "$(CYAN)$(BOLD)=== Test Count ===$(RESET)"
-	@echo -n "  "; $(TEST_BIN) --list-tests 2>&1 | grep -c "^  " || echo "0"
-
-# Generate timing report for major test categories
-# Updates /tmp/test_timing.md with current timings
-test-timing-report: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Generating test timing report...$(RESET)"
-	@echo "| Tag | Tests | Time |" > /tmp/test_timing.md
-	@echo "|-----|-------|------|" >> /tmp/test_timing.md
-	@for tag in moonraker gcode printer_detector config parser navigation ui_theme security afc wizard mock; do \
-		result=$$($(TEST_BIN) "[$$tag]" "~[.]" "~[slow]" --durations yes 2>&1); \
-		count=$$(echo "$$result" | grep "test cases" | grep -o "[0-9]* passed" | head -1 || echo "0"); \
-		time=$$(echo "$$result" | tail -1); \
-		echo "| [\$$tag] | $$count | - |" >> /tmp/test_timing.md; \
-	done
-	@cat /tmp/test_timing.md
-	$(ECHO) "$(GREEN)See /tmp/test_timing.md for full documentation$(RESET)"
-
 # ============================================================================
 # Slow Test Candidates (>500ms) - Tag with [slow] incrementally
 # ============================================================================
@@ -913,85 +854,6 @@ test-timing-report: test-build
 #   TEST_CASE("My slow test", "[feature][slow]") { ... }
 #
 # ============================================================================
-
-# Run only config tests
-test-config: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running config tests...$(RESET)"
-	$(Q)$(TEST_BIN) "[config]" || { \
-		echo "$(RED)$(BOLD)✗ Config tests failed!$(RESET)"; \
-		exit 1; \
-	}
-	$(ECHO) "$(GREEN)$(BOLD)✓ Config tests passed!$(RESET)"
-
-# ============================================================================
-# Feature-Based Test Targets (New Taxonomy)
-# ============================================================================
-# Tests are now tagged by FEATURE/IMPORTANCE rather than layer/speed.
-# Use these targets to test specific functional areas.
-
-# CORE tests - Critical functionality that MUST work (<15s, ~18 tests)
-# If these fail, the app is fundamentally broken.
-test-core: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running core tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[core]"; \
-	$(call report_test_result,Core tests)
-
-# CONNECTION tests - Moonraker connection lifecycle, retry, robustness
-test-connection: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running connection tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[connection]" "~[slow]"; \
-	$(call report_test_result,Connection tests)
-
-# STATE tests - PrinterState, subjects, observers
-test-state: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running state tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[state]"; \
-	$(call report_test_result,State tests)
-
-# PRINT tests - Print workflow, start/pause/cancel, exclude object
-test-print: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running print tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[print]" "~[slow]"; \
-	$(call report_test_result,Print tests)
-
-# CALIBRATION tests - Bed mesh, input shaper
-test-calibration: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running calibration tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[calibration]"; \
-	$(call report_test_result,Calibration tests)
-
-# PRINTER tests - Printer detection, capabilities, hardware
-test-printer: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running printer tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[printer]"; \
-	$(call report_test_result,Printer tests)
-
-# AMS tests - All AMS/MMU backends (includes [afc], [ace])
-test-ams: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running AMS tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[ams]"; \
-	$(call report_test_result,AMS tests)
-
-# FILAMENT tests - Spoolman, filament sensors
-test-filament: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running filament tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[filament]"; \
-	$(call report_test_result,Filament tests)
-
-# ASSETS tests - Thumbnails, prerendered images
-test-assets: test-build
-	$(ECHO) "$(CYAN)$(BOLD)Running assets tests...$(RESET)"
-	@START_TIME=$$(date +%s); \
-	$(TEST_BIN) "[assets]"; \
-	$(call report_test_result,Assets tests)
 
 # Unified test binary - uses automatic app object discovery
 # No more manual dependency lists! New source files are automatically included.
@@ -1614,12 +1476,7 @@ help-test:
 	echo "  $${G}test-verbose$${X}         - Run with per-test timing (sequential)"; \
 	echo ""; \
 	echo "$${C}Component Tests:$${X}"; \
-	echo "  $${G}test-gcode$${X}           - G-code parsing and geometry tests"; \
 	echo "  $${G}test-ui$${X}              - UI navigation, theme, wizard tests"; \
-	echo "  $${G}test-moonraker$${X}       - Moonraker client and mock tests"; \
-	echo "  $${G}test-network$${X}         - WiFi and Ethernet tests"; \
-	echo "  $${G}test-security$${X}        - Security and injection tests"; \
-	echo "  $${G}test-config$${X}          - Configuration tests"; \
 	echo "  $${G}test-xml$${X}             - helix-xml submodule suite (CMake+Unity)"; \
 	echo "  $${G}test-shell$${X}           - Shell/installer tests (bats)"; \
 	echo "  $${G}dev-timing$${X}           - Measured cost of every build and suite"; \
@@ -1630,8 +1487,6 @@ help-test:
 	echo "$${C}Discovery:$${X}"; \
 	echo "  $${G}test-list$${X}            - List all test cases"; \
 	echo "  $${G}test-list-tags$${X}       - List available test tags"; \
-	echo "  $${G}test-timing$${X}          - Show slowest tests (top 20)"; \
-	echo "  $${G}test-summary$${X}         - Test coverage by tag"; \
 	echo ""; \
 	echo "$${C}Sanitizers (Memory/Thread Safety):$${X}"; \
 	echo "  $${G}test-asan$${X}            - Run all tests with AddressSanitizer"; \
@@ -1766,7 +1621,3 @@ cov-diff: cov-build cov-run
 .PHONY: mutate-diff
 mutate-diff:
 	$(Q)python3 scripts/mutate_diff.py $(MUTATE_ARGS)
-
-.PHONY: mutate-list
-mutate-list:
-	$(Q)python3 scripts/mutate_diff.py --list-only $(MUTATE_ARGS)

@@ -2041,6 +2041,23 @@ fi
 echo ""
 
 SECTION_START=$(date +%s)
+echo -n "🖼️  Checking printer image cache invalidation..."
+# Only src/system/ may delete a printer image cache: every entry a UI refresh
+# deletes costs a decode, resize and flash write to rebuild.
+if python3 scripts/check_printer_image_invalidation.py >/tmp/printer_image_inval.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/printer_image_inval.out
+else
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/printer_image_inval.out
+  EXIT_CODE=1
+fi
+
+echo ""
+
+SECTION_START=$(date +%s)
 echo -n "⏱️  Checking timer destructor cancels..."
 
 if [ -f "scripts/check_timer_destructor_cancel.py" ]; then
@@ -2643,6 +2660,14 @@ if [ "$HEX_COUNT" -gt "$HEX_BASELINE" ]; then
   grep -rn 'lv_color_hex(0x' src include 2>/dev/null | grep -vE "$HEX_ALLOW" || true
   echo "❌ Hardcoded colors: $HEX_COUNT exceeds baseline ($HEX_BASELINE)."
   echo "   Use theme_manager_get_color(\"token\") or an XML design token."
+  TOKEN_EXIT=1
+fi
+
+# A spacing token C++ reads must be declared in a shipped XML file, not only
+# in a dev panel's, or release builds read it as missing.
+if ! python3 scripts/check_shipped_spacing_tokens.py >/tmp/shipped_spacing.out 2>&1; then
+  echo ""
+  cat /tmp/shipped_spacing.out
   TOKEN_EXIT=1
 fi
 

@@ -448,7 +448,6 @@ TEST_CASE("UpdateChecker callback is optional", "[update_checker][callback][slow
     // reset_config_singleton() wipes these config keys again for the next test;
     // the ScopedUpdateUrls guard restores the state dir itself.
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     // Dev and Beta are gated behind /beta_features - get_channel() reports Stable
     // for either one while beta is locked, which would send this check at the real
     // stable endpoint instead of the loopback port below.
@@ -1052,36 +1051,31 @@ TEST_CASE("UpdateChecker dismissed version logic", "[update_checker][dismissed]"
 
     // Clear any previously dismissed version
     auto* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>("/update/dismissed_version", "");
-        config->save();
-    }
+    config->set<std::string>("/update/dismissed_version", "");
+    config->save();
 
     SECTION("is_version_dismissed returns false when no dismissed version in config") {
         REQUIRE_FALSE(checker.is_version_dismissed("1.2.0"));
     }
 
     SECTION("is_version_dismissed returns true when version matches dismissed") {
-        if (config) {
-            config->set<std::string>("/update/dismissed_version", "1.2.0");
-            config->save();
-        }
+        config->set<std::string>("/update/dismissed_version", "1.2.0");
+        config->save();
+
         REQUIRE(checker.is_version_dismissed("1.2.0"));
     }
 
     SECTION("is_version_dismissed returns false for newer version than dismissed") {
-        if (config) {
-            config->set<std::string>("/update/dismissed_version", "1.2.0");
-            config->save();
-        }
+        config->set<std::string>("/update/dismissed_version", "1.2.0");
+        config->save();
+
         REQUIRE_FALSE(checker.is_version_dismissed("1.3.0"));
     }
 
     SECTION("is_version_dismissed returns true for older version than dismissed") {
-        if (config) {
-            config->set<std::string>("/update/dismissed_version", "1.2.0");
-            config->save();
-        }
+        config->set<std::string>("/update/dismissed_version", "1.2.0");
+        config->save();
+
         REQUIRE(checker.is_version_dismissed("1.1.0"));
     }
 
@@ -1090,11 +1084,9 @@ TEST_CASE("UpdateChecker dismissed version logic", "[update_checker][dismissed]"
         // Since we can't easily set cached_info_ without a real check,
         // test via the config path directly
         // This tests the config interaction pattern
-        if (config) {
-            auto dismissed = config->get<std::string>("/update/dismissed_version", "");
-            // After clearing, should be empty
-            REQUIRE(dismissed.empty());
-        }
+        auto dismissed = config->get<std::string>("/update/dismissed_version", "");
+        // After clearing, should be empty
+        REQUIRE(dismissed.empty());
     }
 
     checker.shutdown();

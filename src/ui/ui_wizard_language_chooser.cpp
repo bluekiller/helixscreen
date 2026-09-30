@@ -445,9 +445,6 @@ bool WizardLanguageChooserStep::should_skip() const {
     }
 
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        return false;
-    }
 
     // Check if language has already been set in config
     std::string saved_language = cfg->get<std::string>("/language", "");

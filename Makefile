@@ -1262,7 +1262,7 @@ MOCK_OBJS := $(patsubst $(TEST_MOCK_DIR)/%.cpp,$(OBJ_DIR)/tests/mocks/%.o,$(MOCK
 # Default target
 .DEFAULT_GOAL := all
 
-.PHONY: all build clean run test tests demo compile_commands compile_commands_full libhv-build apply-patches generate-fonts validate-fonts regen-fonts check-doc-anchors docs-pinned regen-lvgl-event-codes check-lvgl-event-codes update-mdi-cache verify-mdi-codepoints help check-deps install-deps venv-setup icon format format-staged screenshots tools moonraker-inspector strict quality setup translations symbols strip dev install regen-filaments
+.PHONY: all build clean run test tests demo compile_commands compile_commands_full libhv-build apply-patches generate-fonts validate-fonts regen-fonts check-doc-anchors docs-pinned regen-lvgl-event-codes check-lvgl-event-codes update-mdi-cache help check-deps install-deps venv-setup icon format format-staged screenshots tools moonraker-inspector strict quality setup translations symbols strip dev install regen-filaments
 
 # Fast development build: -O0 skips optimization passes (~2x faster compilation)
 # Library code still builds at -O2 (via SUBMODULE_CFLAGS) since it rarely changes

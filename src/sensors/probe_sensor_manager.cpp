@@ -340,10 +340,6 @@ void ProbeSensorManager::load_config_from_file() {
     spdlog::debug("[ProbeSensorManager] Loading config from file");
 
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[ProbeSensorManager] Config not initialized");
-        return;
-    }
 
     std::string base_path = cfg->df() + "probe_sensors";
 
@@ -390,10 +386,6 @@ void ProbeSensorManager::save_config_to_file() {
     spdlog::debug("[ProbeSensorManager] Saving config to file");
 
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[ProbeSensorManager] Config not initialized");
-        return;
-    }
 
     std::string base_path = cfg->df() + "probe_sensors";
 

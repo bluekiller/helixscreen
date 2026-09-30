@@ -533,18 +533,16 @@ void fade_music() {
 
 void load_high_score() {
     auto* cfg = Config::get_instance();
-    if (cfg) {
-        g_game.high_score = cfg->get<int>(HIGH_SCORE_KEY, 0);
-    }
+    g_game.high_score = cfg->get<int>(HIGH_SCORE_KEY, 0);
+
     spdlog::debug("[SnakeGame] Loaded high score: {}", g_game.high_score);
 }
 
 void save_high_score() {
     auto* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set(HIGH_SCORE_KEY, g_game.high_score);
-        cfg->save();
-    }
+    cfg->set(HIGH_SCORE_KEY, g_game.high_score);
+    cfg->save();
+
     spdlog::info("[SnakeGame] Saved new high score: {}", g_game.high_score);
 }
 

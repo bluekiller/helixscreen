@@ -168,10 +168,6 @@ void WizardHeaterSelectStep::cleanup() {
     spdlog::debug("[{}] Cleaning up resources", get_name());
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::error("[{}] Config instance not available!", get_name());
-        return;
-    }
 
     // Save bed heater selection
     // Store the heater name to BOTH heater and sensor paths (Klipper heaters provide temp readings)

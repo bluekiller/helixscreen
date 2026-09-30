@@ -522,8 +522,7 @@ std::string DisplaySettingsManager::get_theme_name() const {
     }
     // Fallback to config if theme_manager not initialized yet
     Config* config = Config::get_instance();
-    return config ? config->get<std::string>("/display/theme", helix::DEFAULT_THEME)
-                  : helix::DEFAULT_THEME;
+    return config->get<std::string>("/display/theme", helix::DEFAULT_THEME);
 }
 
 void DisplaySettingsManager::set_theme_name(const std::string& name) {
@@ -1058,15 +1057,11 @@ void DisplaySettingsManager::set_screensaver_type(int type) {
 
 std::string DisplaySettingsManager::get_printer_image() const {
     Config* config = Config::get_instance();
-    if (!config)
-        return "";
     return config->get<std::string>(config->df() + PRINTER_IMAGE, "");
 }
 
 void DisplaySettingsManager::set_printer_image(const std::string& id) {
     Config* config = Config::get_instance();
-    if (!config)
-        return;
     config->set<std::string>(config->df() + PRINTER_IMAGE, id);
     config->save();
     spdlog::info("[DisplaySettingsManager] Printer image set to: '{}'",

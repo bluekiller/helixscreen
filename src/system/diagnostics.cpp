@@ -117,9 +117,8 @@ Diagnostics collect() {
     d.paths.install_root = app_get_install_root();
     d.paths.config_dir = app_get_config_dir();
 
-    if (Config* config = Config::get_instance()) {
-        d.paths.settings_file = config->get_path();
-    }
+    Config* config = Config::get_instance();
+    d.paths.settings_file = config->get_path();
 
     // Peek, never resolve. get_helix_cache_dir() creates the directory tree as
     // the cost of answering, so an HELIX_CACHE_DIR naming an unmounted stick

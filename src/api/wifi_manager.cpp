@@ -839,12 +839,11 @@ void WiFiManager::persist_radio_expectation(bool requested, bool success, bool a
     // back here keeps the stored value and the value the UI reconciles its
     // switch to from being two rules that agree only by convention.
     const auto outcome = helix::wifi::reconcile_radio_toggle(requested, success, actual);
-    if (auto* config = Config::get_instance()) {
-        // Staged, not saved: a toggle must not put a synchronous disk write on
-        // the main thread, and whichever surface started it saves on its own
-        // schedule.
-        config->set_wifi_expected(outcome.enabled);
-    }
+    auto* config = Config::get_instance();
+    // Staged, not saved: a toggle must not put a synchronous disk write on
+    // the main thread, and whichever surface started it saves on its own
+    // schedule.
+    config->set_wifi_expected(outcome.enabled);
 }
 
 void WiFiManager::set_enabled_async(bool enabled, helix::LifetimeToken token,

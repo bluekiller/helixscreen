@@ -784,8 +784,6 @@ class AmsBackend {
      *
      * Returns the firmware-reported bowden loading progress (0-100%).
      * Happy Hare v4 provides this via printer.mmu.bowden_progress.
-     * When available (>= 0), AmsState uses it to drive path_anim_progress_subject
-     * instead of UI-controlled animation.
      *
      * @return 0-100 for real progress, -1 if not available (v3 or non-HH backends)
      */

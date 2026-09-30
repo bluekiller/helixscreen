@@ -3601,9 +3601,6 @@ void AmsBackendAfc::check_afc_feature_level(const nlohmann::json& lane_status) {
                  modern ? "publishes" : "does NOT publish");
 
     auto* config = Config::get_instance();
-    if (!config) {
-        return;
-    }
     constexpr const char* NOTICE_SHOWN_KEY = "/ams/afc_upgrade_notice_shown";
 
     if (modern) {
