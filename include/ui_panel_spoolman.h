@@ -162,6 +162,5 @@ class SpoolmanPanel : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
-inline SpoolmanPanel& get_global_spoolman_panel() {
-    return helix::lazy_global<SpoolmanPanel>("SpoolmanPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+SpoolmanPanel& get_global_spoolman_panel();

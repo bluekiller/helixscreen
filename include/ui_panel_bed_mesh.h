@@ -374,6 +374,5 @@ class BedMeshPanel : public OverlayBase {
 };
 
 // Global instance accessor (needed by main.cpp)
-inline BedMeshPanel& get_global_bed_mesh_panel() {
-    return helix::lazy_global<BedMeshPanel>("BedMeshPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+BedMeshPanel& get_global_bed_mesh_panel();

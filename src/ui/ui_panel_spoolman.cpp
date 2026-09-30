@@ -845,3 +845,7 @@ void SpoolmanPanel::print_label_for_spool(int spool_id) {
     }
 }
 #endif
+
+SpoolmanPanel& get_global_spoolman_panel() {
+    return helix::lazy_global<SpoolmanPanel>("SpoolmanPanel");
+}

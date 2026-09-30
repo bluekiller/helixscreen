@@ -2131,3 +2131,7 @@ static void on_emergency_stop_cb(lv_event_t* /*e*/) {
 static void on_calibrate_start_cb(lv_event_t* /*e*/) {
     get_global_bed_mesh_panel().submit_calibration_name_field();
 }
+
+BedMeshPanel& get_global_bed_mesh_panel() {
+    return helix::lazy_global<BedMeshPanel>("BedMeshPanel");
+}
