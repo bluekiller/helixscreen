@@ -110,6 +110,39 @@
  */
 #define FIND_WIDGET_OPTIONAL(var, parent, name) (var) = lv_obj_find_by_name((parent), (name))
 
+namespace helix::ui {
+
+/**
+ * @brief Make a breached UI contract fatal
+ *
+ * On in unit tests and under --test: a breach prints to stderr and aborts, so
+ * the run fails where the XML and the C++ disagree. Off (the default) it only
+ * logs. Release builds never abort.
+ */
+void set_strict_ui_checks(bool enabled) noexcept;
+
+/// Log @p message at error, then abort when strict UI checks are on.
+void report_ui_contract_breach(const char* message);
+
+/**
+ * @brief A widget the component's XML must contain
+ *
+ * A missing name logs once per (owner, name) at error and returns nullptr; with
+ * strict UI checks on it aborts. A null @p root returns nullptr silently, so a
+ * lookup nested under a failed one does not report twice.
+ * scripts/check_required_names.py checks each literal @p name against every
+ * layout variant of the component the calling file creates.
+ */
+lv_obj_t* find_required(lv_obj_t* root, const char* name, const char* owner);
+
+/// A widget that may legitimately be absent (inside <if>, omitted by a layout
+/// variant, or in plugin-supplied XML). Never reports.
+inline lv_obj_t* find_optional(lv_obj_t* root, const char* name) {
+    return root ? lv_obj_find_by_name(root, name) : nullptr;
+}
+
+} // namespace helix::ui
+
 /**
  * @brief Toggle a widget's enabled state with visual feedback
  *

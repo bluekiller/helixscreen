@@ -152,6 +152,7 @@
 
 #include "color_utils.h"
 #include "preflight_validator.h"
+#include "ui/ui_widget_helpers.h"
 
 // Developer-only showcase panel (ENABLE_DEV_PANELS, excluded from release
 // builds). Not wired into PanelFactory — kept as a live testbed for icon-font
@@ -882,6 +883,10 @@ int Application::run(int argc, char** argv) {
     // Update DisplaySettingsManager with theme mode support (must be after both theme and settings
     // init)
     DisplaySettingsManager::instance().on_theme_changed();
+
+    // --test fails loudly where the XML and the C++ disagree (a required
+    // widget missing from its component), as the unit tests do.
+    helix::ui::set_strict_ui_checks(get_runtime_config()->is_test_mode());
 
     // Phase 10: Create UI and wire panels
     if (!init_ui()) {

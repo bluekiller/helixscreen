@@ -1859,10 +1859,14 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   # is the widget's LVGL-facing surface; scoping this one call into helix::
   # would make it the only member of that family that is. 2215 -> 2214 is
   # plugin_api.h's file-scope `class IMoonrakerAPI;` forward declaration.
+  # 2193 -> 2194 nets three sites: ui_panel_controls.cpp's redundant
+  # redeclaration of get_global_motion_panel() leaves (its header defines it
+  # inline), and the bed mesh and spoolman accessors are counted as .cpp
+  # definitions, kept out of line because the ESP32 build supplies its own.
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2191 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2192 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out
@@ -1963,6 +1967,44 @@ else
   section_time $SECTION_START
   echo ""
   echo "⚠️  check_orphan_subjects.py not found — skipping"
+fi
+
+echo ""
+
+SECTION_START=$(date +%s)
+echo -n "🔌 Checking XML event callbacks against their registrations..."
+# A ratchet keyed on names: an XML callback nothing registers, a registered name
+# no XML uses, and a name registered from two files (the table is
+# last-write-wins). scripts/orphan_callback_baseline.txt is accepted debt.
+if python3 scripts/check_orphan_callbacks.py --baseline scripts/orphan_callback_baseline.txt \
+    >/tmp/orphan_callbacks.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/orphan_callbacks.out
+else
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/orphan_callbacks.out
+  echo "   Run: python3 scripts/check_orphan_callbacks.py --list"
+  EXIT_CODE=1
+fi
+
+echo ""
+
+SECTION_START=$(date +%s)
+echo -n "🔎 Checking find_required() names exist in every layout variant..."
+# find_required() aborts a --test run on a missing name, but only on paths the
+# run reaches; this covers every literal statically, in every variant chain.
+if python3 scripts/check_required_names.py --baseline scripts/required_names_baseline.txt \
+    >/tmp/required_names.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/required_names.out
+else
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/required_names.out
+  EXIT_CODE=1
 fi
 
 echo ""

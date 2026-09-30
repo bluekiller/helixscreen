@@ -426,8 +426,7 @@ void AboutSettingsOverlay::on_about_print_hours_clicked(lv_event_t* /*e*/) {
 
 void AboutSettingsOverlay::handle_print_hours_clicked() {
     helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
-        get_global_history_dashboard_panel, history_dashboard_panel_, parent_screen_,
-        "Print History", get_name());
+        get_global_history_dashboard_panel, parent_screen_, "Print History", get_name());
 }
 
 } // namespace helix::settings

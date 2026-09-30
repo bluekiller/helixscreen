@@ -112,15 +112,6 @@ bool AmsEditOverlay::show_for_slot(lv_obj_t* parent, int slot_index, const SlotI
                                    bool open_on_picker) {
     // Its preset grids draw edges by contrast with the current theme's surfaces.
     refresh_swatch_edges();
-    // A previous widget tree may have died with its screen (display rebuild,
-    // test teardown) without the destroy-on-close path running — drop the
-    // stale cache so lazy_create_and_push_overlay rebuilds from XML.
-    if (cached_overlay_widget_ && !lv_obj_is_valid(cached_overlay_widget_)) {
-        spdlog::debug("[AmsEditOverlay] Cached overlay widget is stale - rebuilding");
-        overlay_root_ = nullptr;
-        on_ui_destroyed();
-    }
-
     // Store per-invocation state (QrScannerOverlay pattern: params + callback
     // stored on the singleton before push)
     slot_index_ = slot_index;
@@ -140,8 +131,7 @@ bool AmsEditOverlay::show_for_slot(lv_obj_t* parent, int slot_index, const SlotI
     // Always prefer the active screen so the overlay renders above everything
     lv_obj_t* screen = lv_screen_active();
     bool ok = lazy_create_and_push_overlay<AmsEditOverlay>(
-        get_ams_edit_overlay, cached_overlay_widget_, screen ? screen : parent, "AMS Slot Editor",
-        "AmsEditOverlay");
+        get_ams_edit_overlay, screen ? screen : parent, "AMS Slot Editor", "AmsEditOverlay");
     if (!ok) {
         spdlog::error("[AmsEditOverlay] Failed to push overlay for slot {}", slot_index);
         return false;
@@ -155,14 +145,14 @@ bool AmsEditOverlay::show_for_slot(lv_obj_t* parent, int slot_index, const SlotI
     // list + logistics fields + color view) and is opened only to edit a spool,
     // so keeping it resident for the whole app lifetime wastes memory on 111MB
     // devices (CC1, AD5M). Subjects and overlay state survive; the next open
-    // rebuilds via the stale-cache path above + lazy_create_and_push_overlay.
+    // rebuilds through show().
     // It has to be ONE combined callback: NavigationManager keeps a single close
     // callback per widget, so a separate destroy_on_close registration would
     // just overwrite this one (or be overwritten by it).
-    NavigationManager::instance().register_overlay_close_callback(cached_overlay_widget_, []() {
+    NavigationManager::instance().register_overlay_close_callback(overlay_root_, []() {
         auto& overlay = get_ams_edit_overlay();
         overlay.fire_completion(false);
-        overlay.destroy_overlay_ui(overlay.cached_overlay_widget_);
+        overlay.destroy_overlay_ui();
     });
 
     // Reset per-session view state HERE (covered-safe — on_deactivate must not
@@ -323,7 +313,6 @@ void AmsEditOverlay::on_ui_destroyed() {
     // static destruction — after the map itself is gone — corrupting the heap
     // at process exit (and leaving a stale key at runtime).
     details_selector_.detach();
-    cached_overlay_widget_ = nullptr;
 }
 
 void AmsEditOverlay::on_activate() {

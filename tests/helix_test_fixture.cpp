@@ -34,6 +34,7 @@
 #include "test_helpers/print_control_buttons_test_access.h"
 #include "test_helpers/printer_state_test_access.h"
 #include "tool_state.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -220,6 +221,9 @@ HelixTestFixture::HelixTestFixture() {
     // would never fire on dismiss) aborts instead of just warning. Production
     // stays at warn. See NavigationManager::set_overlay_registration_strict.
     NavigationManager::set_overlay_registration_strict(true);
+    // And into fatal UI contract checks: a required widget missing from its
+    // XML, or show() pushing a root someone else holds the close callback for.
+    helix::ui::set_strict_ui_checks(true);
     reset_all();
 }
 

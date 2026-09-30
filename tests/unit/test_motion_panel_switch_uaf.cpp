@@ -8,26 +8,22 @@
  * Run with: ./build/bin/helix-tests "[1707]"
  *
  * A printer switch (Application::switch_printer -> tear_down_printer_state)
- * destroys the panel objects registered with StaticPanelRegistry but deletes
- * none of their overlay widgets: NavigationManager::shutdown() clears its
- * tracking without freeing widgets, and the panel destructors skip deletion
- * entirely. An overlay widget therefore survives as a hidden screen child
- * while the panel object that created it is gone. Callers cache that widget
- * (MotionWidget::motion_panel_ is a static), and lazy_create_and_push_overlay
- * trusts a non-null cache, so the next open re-pushed the orphan - whose jog
- * pad still carried the freed MotionPanel as its callback user_data. Tapping
- * home called MotionPanel::home() on freed memory (prestonbrown/helixscreen#1707).
+ * destroys the panel objects registered with StaticPanelRegistry while their
+ * overlay widgets are still on the screen; the widgets are freed a tick later.
+ * Re-pushing that orphan fires its jog pad callbacks on the freed MotionPanel
+ * (prestonbrown/helixscreen#1707). The reopen must push the live panel's own
+ * root.
  *
- * These tests reproduce that sequence through the real caller path: open via
- * lazy_create_and_push_overlay, run StaticPanelRegistry::destroy_all() (the
- * switch's step that frees the panel), reopen via the same helper. The second
- * case pins the two-caller shape: a second cache holding the pre-switch widget
- * must adopt the live panel's rebuilt widget, not create a third and orphan it.
+ * These tests run that sequence through the real caller path: open via
+ * lazy_create_and_push_overlay, run the switch's panel teardown, reopen via the
+ * same helper. The second case pins the two-caller shape: a second caller
+ * converges on the live panel's rebuilt widget, not a third one.
  */
 
 #include "ui_nav_manager.h"
 #include "ui_panel_motion.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "static_panel_registry.h"
@@ -60,11 +56,11 @@ TEST_CASE_METHOD(LVGLUITestFixture, "reopening motion after a printer switch reb
     NavigationManager::instance().set_panels(panels.data());
 
     // Open Motion through the real caller path (what MotionWidget::handle_click
-    // does). The cache here stands in for MotionWidget::motion_panel_, which is
-    // a static and so survives the panel object's destruction.
+    // does).
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     lv_obj_t* orphan = cached;
@@ -77,13 +73,14 @@ TEST_CASE_METHOD(LVGLUITestFixture, "reopening motion after a printer switch reb
     lv_obj_add_event_cb(orphan, count_orphan_delete, LV_EVENT_DELETE, nullptr);
 
     // The switch's teardown step that matters here: panel objects die while
-    // their widgets stay on the screen. No widget is deleted by this call.
-    StaticPanelRegistry::instance().destroy_all();
+    // their widgets stay on the screen until a later tick.
+    helix::ui::destroy_static_panels();
     CHECK(g_orphan_deletes == 0);
 
     // Reopen through the same path a user takes after the switch.
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     // The orphan must not be re-pushed: pushing it is what fires its jog pad
@@ -117,16 +114,18 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // second caller that opened pre-switch is left with.
     lv_obj_t* cache_a = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cache_a, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cache_a = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
     lv_obj_t* cache_b = cache_a;
 
     StaticPanelRegistry::instance().destroy_all();
 
-    // Caller A reopens: the live panel has no widget, so the pre-switch one is
-    // freed and a fresh widget is built for the new panel.
+    // Caller A reopens: the live panel has no widget, so a fresh one is built
+    // for it.
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cache_a, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cache_a = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
     lv_obj_t* rebuilt = get_global_motion_panel().get_root();
     REQUIRE(rebuilt != nullptr);
@@ -136,7 +135,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // live root. Falling into create() here would overwrite the panel's root
     // and leave the rebuilt widget orphaned behind a third one.
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cache_b, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cache_b = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     CHECK(cache_b == rebuilt);

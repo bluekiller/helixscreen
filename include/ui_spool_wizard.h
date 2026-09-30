@@ -5,6 +5,7 @@
 
 #include "overlay_base.h"
 #include "spoolman_types.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <functional>
@@ -360,4 +361,6 @@ class SpoolWizardOverlay : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
-SpoolWizardOverlay& get_global_spool_wizard();
+inline SpoolWizardOverlay& get_global_spool_wizard() {
+    return helix::lazy_global<SpoolWizardOverlay>("SpoolWizardOverlay");
+}

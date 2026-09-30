@@ -5,7 +5,6 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_color_picker.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
@@ -17,6 +16,7 @@
 #include "app_globals.h"
 #include "filament_database.h"
 #include "i_moonraker_api.h"
+#include "static_panel_registry.h"
 #include "text_io.h"
 #include "theme_manager.h"
 
@@ -49,12 +49,6 @@ void set_temp_range(nlohmann::json& data, const char* key, int min_val, int max_
 }
 
 } // namespace
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(SpoolWizardOverlay, g_spool_wizard, get_global_spool_wizard)
 
 // ============================================================================
 // Constructor / Destructor

@@ -469,6 +469,11 @@ class NavigationManager {
     void register_overlay_close_callback(lv_obj_t* overlay_panel,
                                          helix::OverlayCloseCallback callback);
 
+    /// True when a close callback is registered for @p overlay_panel.
+    bool has_overlay_close_callback(lv_obj_t* overlay_panel) const {
+        return overlay_close_callbacks_.count(overlay_panel) > 0;
+    }
+
     /**
      * @brief Remove a registered close callback for an overlay
      *

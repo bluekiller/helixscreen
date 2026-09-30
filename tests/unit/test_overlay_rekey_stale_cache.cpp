@@ -130,14 +130,16 @@ TEST_CASE_METHOD(StaleCacheFixture,
     g_lazy_overlay = &overlay;
     lv_obj_t* cached = nullptr;
 
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<CachedOverlay>(
-        get_lazy_overlay, cached, test_screen(), "Cached", "test"));
+    REQUIRE(helix::ui::lazy_create_and_push_overlay<CachedOverlay>(get_lazy_overlay, test_screen(),
+                                                                   "Cached", "test"));
+    cached = get_lazy_overlay().get_root();
     settle();
 
     close_and_rebuild(overlay);
 
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<CachedOverlay>(
-        get_lazy_overlay, cached, test_screen(), "Cached", "test"));
+    REQUIRE(helix::ui::lazy_create_and_push_overlay<CachedOverlay>(get_lazy_overlay, test_screen(),
+                                                                   "Cached", "test"));
+    cached = get_lazy_overlay().get_root();
     settle();
 
     CHECK(nav.is_panel_on_top(overlay.get_root()));
