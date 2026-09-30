@@ -46,6 +46,7 @@
 #include "job_queue_state.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "preprint_predictor.h"
 #include "print_history_manager.h"

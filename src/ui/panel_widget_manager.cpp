@@ -22,6 +22,7 @@
 #include "panel_widget_config.h"
 #include "panel_widget_registry.h"
 #include "printer_cache_registry.h"
+#include "printer_state.h"
 #include "src/ui/panel_widgets/tile_sizing.h"
 #include "system/crash_handler.h"
 #include "system/telemetry_manager.h"

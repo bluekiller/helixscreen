@@ -7,6 +7,7 @@
 
 #include "ams_state.h"
 #include "app_globals.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "static_subject_registry.h"

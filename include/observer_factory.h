@@ -11,8 +11,8 @@
  * Each observer takes a lambda handler and comes in a deferred form (observe_int_sync,
  * observe_string), an immediate form (*_immediate) and, for ints, a value-now /
  * update-later form (observe_int_async). All of them forward to one type-erased
- * detail::observe_core() per value type. Domain helpers wrap them for print state and
- * language changes.
+ * detail::observe_core() per value type. Domain helpers wrap them for print state;
+ * observe_language_change() lives in observe_language.h.
  */
 
 #pragma once
@@ -22,13 +22,10 @@
 
 #include "connection_state.h"
 #include "lvgl/lvgl.h"
-#include "print_lifecycle_state.h" // PrintState, for observe_print_lifecycle
-#include "printer_state.h"         // PrintJobState
-#include "system_settings_manager.h"
+#include "print_lifecycle_state.h" // PrintState; declares PrintJobState
 
 #include <cstdint>
 #include <functional>
-#include <memory>
 
 namespace helix::ui {
 
@@ -160,36 +157,6 @@ ObserverGuard observe_string_immediate(lv_subject_t* subject, Panel* panel, Hand
 // ============================================================================
 // Domain-Specific Observer Helpers
 // ============================================================================
-
-/**
- * @brief Re-render C++-formatted text after every language switch
- *
- * XML re-translates what it bound through translation_tag. Text C++ produced
- * with lv_tr() was translated once, when it was set, and stays in the old
- * language until the owner formats it again: this is the trigger for that.
- * The handler runs deferred, so the new translation pack is already active,
- * and only on a real switch (not on registration).
- *
- * @tparam Panel Owner class type
- * @tparam OnChange Callable: void(Panel*)
- */
-template <typename Panel, typename OnChange>
-ObserverGuard observe_language_change(Panel* panel, OnChange&& on_change) {
-    auto& settings = SystemSettingsManager::instance();
-    lv_subject_t* language = settings.subject_language();
-    // Held by pointer so the non-mutable handler can update it.
-    auto shown = std::make_shared<int>(lv_subject_get_int(language));
-    return observe_int_sync<Panel>(
-        language, panel,
-        [shown, on_change = std::forward<OnChange>(on_change)](Panel* p, int index) {
-            if (index == *shown) {
-                return;
-            }
-            *shown = index;
-            on_change(p);
-        },
-        settings.get_subjects_lifetime());
-}
 
 /**
  * @brief Create print state observer with typed PrintJobState
