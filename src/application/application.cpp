@@ -66,7 +66,6 @@
 #include "spoolman_manager.h"
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
-#include "streaming_policy.h"
 #include "subject_initializer.h"
 #include "temp_graph_controller.h"
 #include "temperature_history_manager.h"
@@ -1337,9 +1336,6 @@ bool Application::init_config() {
         helix::ToolState::instance().set_config_dir(env_dir);
         spdlog::info("[Application] ToolState config dir: {}", env_dir);
     }
-
-    // Initialize streaming policy from config (auto-detects thresholds from RAM)
-    helix::StreamingPolicy::instance().load_from_config();
 
     // Load persisted thermal heating rates so estimates are available immediately
     ThermalRateManager::instance().load_from_config(*m_config);

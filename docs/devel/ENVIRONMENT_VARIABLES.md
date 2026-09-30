@@ -30,7 +30,7 @@ Only these keys are read; any other key is ignored with one logged warning per k
 `HELIX_ALSA_DEVICE`, `HELIX_AUTO_QUIT_MS`, `HELIX_AUTO_SCREENSHOT`, `HELIX_BACKLIGHT_DEVICE`,
 `HELIX_COLOR_SWAP_RB`, `HELIX_DEBUG`, `HELIX_DEBUG_TOUCH`, `HELIX_DIAGNOSTIC_UPLOADS`,
 `HELIX_DISABLE_AUTO_UPDATES`, `HELIX_DISPLAY_BACKEND`, `HELIX_DISPLAY_ROTATION`, `HELIX_DPI`,
-`HELIX_DRM_DEVICE`, `HELIX_FB_DEVICE`, `HELIX_FORCE_STREAMING`, `HELIX_GCODE_MODE`,
+`HELIX_DRM_DEVICE`, `HELIX_FB_DEVICE`, `HELIX_GCODE_MODE`,
 `HELIX_GCODE_STREAMING`, `HELIX_KEYBOARD_DEVICE`, `HELIX_LOG_DEST`, `HELIX_LOG_FILE`,
 `HELIX_LOG_LEVEL`, `HELIX_MOUSE_DEVICE`, `HELIX_NICE`, `HELIX_NO_SPLASH`,
 `HELIX_REMOTE_CONTROL`, `HELIX_REMOTE_HTTP_TOKEN`, `HELIX_REMOTE_SOCKET`, `HELIX_REQUIRE_POINTER`, `HELIX_SCREEN_SIZE`, `HELIX_SCROLL_GUARD`,
@@ -993,13 +993,15 @@ Control G-code streaming mode for memory-efficient loading of large files. Strea
 |----------|-------|
 | **Values** | `on` (always stream), `off` (always full load), `auto` (calculate based on RAM) |
 | **Default** | `auto` |
-| **Config** | `gcode_viewer.streaming_mode` in `settings.json` |
+| **Config** | `gcode_viewer.streaming_mode`, `streaming.force_streaming`, `streaming.threshold_mb` in `settings.json` |
 | **File** | `src/rendering/gcode_streaming_config.cpp` |
+
+The same decision governs the G-code viewer and the file rewrite in `GCodeFileModifier::apply()`.
 
 **Priority order:**
 1. Environment variable (highest) - for testing/debugging
-2. Config file setting - for user preference
-3. Auto-detection based on available RAM
+2. `gcode_viewer.streaming_mode` `on`/`off`, then `streaming.force_streaming: true` (= `on`)
+3. Auto-detection based on available RAM; a non-zero `streaming.threshold_mb` also streams any file above it
 
 ```bash
 # Force streaming mode (useful for testing streaming behavior)
@@ -1542,30 +1544,6 @@ vim ui_xml/home_panel.xml
 # [HotReload] Reloaded: home_panel (0.3ms)
 # [PanelBase::rebuild] Home Panel — tearing down and re-creating
 ```
-
-### `HELIX_FORCE_STREAMING`
-
-Force `StreamingPolicy` to answer "stream" for every file-size question, regardless of the file's actual size or the device's RAM. `StreamingPolicy` is the single source of truth for whether a file operation goes disk-to-disk (streaming) or buffers in memory — G-code download and the exclude-objects file rewrite are its main consumers. Forcing it on lets you exercise the streaming path on a desktop with plenty of RAM.
-
-| Property | Value |
-|----------|-------|
-| **Values** | `1`, `true`, or `on`. Any other value (including `0` and `off`) falls through to the config file. |
-| **Default** | Unset — auto-decision from file size vs. a RAM-derived threshold |
-| **Config** | `/streaming/force_streaming` (bool), `/streaming/threshold_mb` (int, `0` = auto) |
-| **File** | `src/system/streaming_policy.cpp` |
-
-```bash
-# Always take the streaming path, even for a 200 KB file
-HELIX_FORCE_STREAMING=1 ./build/bin/helix-screen --test -vv
-```
-
-**Priority order:**
-1. `HELIX_FORCE_STREAMING` set to `1`/`true`/`on` (highest — returns immediately, config is never read)
-2. `/streaming/force_streaming` in `settings.json`
-3. `/streaming/threshold_mb` override, when non-zero
-4. Auto-detection from available RAM
-
-**Not the same as [`HELIX_GCODE_STREAMING`](#helix_gcode_streaming)**, which controls how the G-code *viewer* loads layers. This one governs file operations (download, modify) across the app. There is no "force off" value — to disable, leave it unset.
 
 ### `HELIX_FLOW_SEGMENT`
 

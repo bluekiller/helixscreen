@@ -1431,15 +1431,13 @@ Located in the `streaming` section:
 
 ### `threshold_mb`
 **Type:** integer
-**Default:** `0` (auto-detect)
-**Description:** File size threshold in MB for using streaming (disk-based) operations instead of buffered (in-memory). `0` = auto-detect based on 10% of available RAM.
-
-Can be overridden via `HELIX_FORCE_STREAMING=1` env var to force streaming for all files.
+**Default:** `0` (no size ceiling)
+**Description:** Files larger than this many MB always stream, even when available RAM would allow loading them whole. `0` leaves the decision to the RAM-based rule in [`streaming_threshold_percent`](#streaming_threshold_percent). A value here can only add streaming; it never loads a larger file whole.
 
 ### `force_streaming`
 **Type:** boolean
 **Default:** `false`
-**Description:** Always use streaming operations regardless of file size. Useful for memory-constrained devices or testing. Can also be set via `HELIX_FORCE_STREAMING=1` env var.
+**Description:** Always stream, regardless of file size. Same as `gcode_viewer.streaming_mode: "on"` or `HELIX_GCODE_STREAMING=on`; an explicit `streaming_mode` of `"off"` or `"on"` takes precedence.
 
 ---
 
@@ -2015,7 +2013,6 @@ are read from it; any other line is ignored and noted in the log.
 | `HELIX_THEME` | Override theme (e.g., `dracula`, `nord`, `gruvbox`) |
 | `HELIX_GCODE_MODE` | Override G-code render mode (`3D` or `2D`, exact case-sensitive; unset = Auto, any other value = 2D) |
 | `HELIX_GCODE_STREAMING` | Override G-code streaming mode |
-| `HELIX_FORCE_STREAMING` | Force streaming for all file operations (`1` to enable) |
 
 **Example in service file:**
 ```ini
