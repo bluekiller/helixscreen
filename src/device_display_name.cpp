@@ -90,7 +90,8 @@ const std::unordered_map<std::string, std::string> SPECIAL_WORDS = {
     {"btn", "Button"},       {"htr", "Heater"},   {"relay", "Relay"},
     {"mcu", "MCU"},          {"cpu", "CPU"},      {"afc", "AFC"},
     {"ercf", "ERCF"},        {"ams", "AMS"},      {"mmu", "MMU"},
-    {"btt", "BTT"},          {"tmc", "TMC"},
+    {"btt", "BTT"},          {"tmc", "TMC"},      {"rgb", "RGB"},
+    {"rgbw", "RGBW"},
 };
 
 // Convert a single word to lowercase for comparison
