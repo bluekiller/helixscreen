@@ -662,6 +662,7 @@ void register_xml_components() {
     register_xml("setting_group_header.xml");
     register_xml("setting_section_header.xml");
     register_xml("setting_toggle_row.xml");
+    register_xml("setting_text_row.xml");
     register_xml("setting_dropdown_row.xml");
     register_xml("setting_action_row.xml");
     register_xml("setting_info_row.xml");
