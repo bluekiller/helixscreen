@@ -3,11 +3,15 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/application_test_access.h"
+#include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/ethernet_manager_test_access.h"
+#include "../test_helpers/scoped_env.h"
 #include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/settings_panel_test_access.h"
 #include "../test_helpers/wifi_manager_test_access.h"
 #include "app_globals.h"
+#include "config.h"
 #include "display_settings_manager.h"
 #include "ethernet_backend_mock.h"
 #include "helix-xml/src/xml/lv_xml.h"
@@ -127,6 +131,28 @@ TEST_CASE_METHOD(RootFixture, "settings root: Updates shows on updates_unavailab
     set_int("updates_unavailable", 1);
     CHECK_FALSE(lv_obj_has_flag(find("row_updates"), LV_OBJ_FLAG_HIDDEN));
 }
+
+#if HELIX_HAS_PLUGINS
+TEST_CASE_METHOD(RootFixture, "settings root: Plugins stays hidden until a plugin host exists",
+                 "[settings][settings_root]") {
+    lv_obj_t* row = find("row_plugins");
+    REQUIRE(row);
+    // settings_plugins_available defaults to 0, so the row must not show yet.
+    CHECK(lv_obj_has_flag(row, LV_OBJ_FLAG_HIDDEN));
+
+    // init_plugins creates the host (an empty plugin dir loads nothing) and
+    // flips the visibility subject.
+    helix::ConfigDirGuard guard("plugins-row");
+    helix::ScopedEnv plugin_dir("HELIX_PLUGIN_DIR", guard.dir.c_str());
+    helix::Config config;
+    Application app;
+    ApplicationTestAccess::neutralize_destructor(app);
+    ApplicationTestAccess::set_config(app, &config);
+    ApplicationTestAccess::init_plugins(app);
+    process_lvgl(5);
+    CHECK_FALSE(lv_obj_has_flag(find("row_plugins"), LV_OBJ_FLAG_HIDDEN));
+}
+#endif
 
 namespace {
 std::string status_text(lv_obj_t* root, const char* row) {
