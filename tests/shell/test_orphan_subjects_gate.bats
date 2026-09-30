@@ -385,6 +385,61 @@ EOF
     contains "0 of 1 registered" "$output"
 }
 
+@test "a subject re-registered through its accessor under an XML-bound alias is not an orphan" {
+    # An overlay publishes a singleton's subject under the name its XML binds,
+    # handing the pointer over by accessor rather than by &member.
+    cat > "$ROOT/src/manager.cpp" <<'EOF'
+void LabelManager::init_subjects() {
+    UI_MANAGED_SUBJECT_INT(printer_kind_subject_, 0, "label_printer_kind", subjects_);
+}
+EOF
+    cat > "$ROOT/include/manager.h" <<'EOF'
+class LabelManager {
+  public:
+    lv_subject_t* subject_printer_kind() {
+        return &printer_kind_subject_;
+    }
+};
+EOF
+    cat > "$ROOT/src/overlay.cpp" <<'EOF'
+void LabelOverlay::init_subjects() {
+    lv_xml_register_subject(nullptr, "printer_kind_alias",
+                            LabelManager::instance().subject_printer_kind());
+}
+EOF
+    cat > "$ROOT/ui_xml/overlay.xml" <<'EOF'
+<component><view><lv_obj><bind_flag_if_not_eq subject="printer_kind_alias" flag="hidden" ref_value="0"/></lv_obj></view></component>
+EOF
+    run_gate
+    contains "0 of 2 registered" "$output"
+}
+
+@test "an accessor alias nothing binds does not clear the subject behind it" {
+    cat > "$ROOT/src/manager.cpp" <<'EOF'
+void LabelManager::init_subjects() {
+    UI_MANAGED_SUBJECT_INT(printer_kind_subject_, 0, "label_printer_kind", subjects_);
+}
+EOF
+    cat > "$ROOT/include/manager.h" <<'EOF'
+class LabelManager {
+  public:
+    lv_subject_t* subject_printer_kind() {
+        return &printer_kind_subject_;
+    }
+};
+EOF
+    cat > "$ROOT/src/overlay.cpp" <<'EOF'
+void LabelOverlay::init_subjects() {
+    lv_xml_register_subject(nullptr, "printer_kind_alias",
+                            LabelManager::instance().subject_printer_kind());
+}
+EOF
+    run_gate
+    contains "label_printer_kind" "$output"
+    contains "printer_kind_alias" "$output"
+    contains "2 of 2 registered" "$output"
+}
+
 # ------------------------------------------------------ the accepted-debt list
 #
 # The gate keys on NAMES, not on a count, so it also catches a swap: one orphan
