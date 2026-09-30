@@ -893,12 +893,6 @@ const TokenEntry k_token_table[] = {
     {"px", "tg_picker_gap_large", "6"},
     {"px", "tg_picker_gap_xlarge", "8"},
     {"px", "tg_picker_gap_xxlarge", "10"},
-    {"string", "demo_slot_0_label", "Alpha"},
-    {"string", "demo_slot_1_label", "Bravo"},
-    {"string", "demo_slot_2_label", "Charlie"},
-    {"string", "demo_slot_3_label", "Delta"},
-    {"string", "demo_slot_4_label", "Echo"},
-    {"string", "demo_slot_5_label", "Foxtrot"},
     {"px", "metadata_overlay_min_height", "55"},
     {"px", "play_icon_size", "40"},
 };
