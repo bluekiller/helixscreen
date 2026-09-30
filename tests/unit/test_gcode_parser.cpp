@@ -1261,18 +1261,6 @@ TEST_CASE("GCodeParser - Real 3DBenchy layer count", "[gcode][parser][layers][in
         REQUIRE(file.layers.size() >= 230);
         REQUIRE(file.layers.size() <= 250);
     }
-
-    SECTION("Layer count stored in metadata matches parsed count") {
-        // The metadata layer count should match what we parsed
-        INFO("Parsed layers: " << file.layers.size());
-        INFO("Metadata layer count: " << file.total_layer_count);
-
-        // If metadata has layer count, it should roughly match parsed
-        if (file.total_layer_count > 0) {
-            REQUIRE(file.layers.size() >= static_cast<size_t>(file.total_layer_count * 0.9));
-            REQUIRE(file.layers.size() <= static_cast<size_t>(file.total_layer_count * 1.1));
-        }
-    }
 }
 
 // ============================================================================

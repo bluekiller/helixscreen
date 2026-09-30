@@ -611,88 +611,11 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
     } else if (contains_all({"filament", "type"})) {
         metadata_filament_type_ = value;
         spdlog::trace("[GCode Parser] Parsed filament type: {}", value);
-    } else if (contains_all({"printer", "model"}) || contains_all({"printer", "name"})) {
-        metadata_printer_model_ = value;
-        spdlog::trace("[GCode Parser] Parsed printer model: {}", value);
     } else if (contains_all({"nozzle", "diameter"})) {
         if (const auto v = helix::text_io::parse_leading<float>(value)) {
             metadata_nozzle_diameter_ = *v;
             spdlog::trace("[GCode Parser] Parsed nozzle diameter: {}mm", metadata_nozzle_diameter_);
         }
-    } else if (contains_all({"filament"}) &&
-               (key_lower.find("[mm]") != std::string::npos || contains_all({"length"}))) {
-        if (const auto v = helix::text_io::parse_leading<float>(value)) {
-            metadata_filament_length_ = *v;
-            spdlog::trace("[GCode Parser] Parsed filament length: {}mm", metadata_filament_length_);
-        }
-    } else if (contains_all({"filament"}) &&
-               (key_lower.find("[g]") != std::string::npos || contains_all({"weight"}))) {
-        if (const auto v = helix::text_io::parse_leading<float>(value)) {
-            metadata_filament_weight_ = *v;
-            spdlog::trace("[GCode Parser] Parsed filament weight: {}g", metadata_filament_weight_);
-        }
-    } else if (contains_all({"filament", "cost"}) || contains_all({"material", "cost"})) {
-        if (const auto v = helix::text_io::parse_leading<float>(value)) {
-            metadata_filament_cost_ = *v;
-            spdlog::trace("[GCode Parser] Parsed filament cost: ${}", metadata_filament_cost_);
-        }
-    } else if (contains_all({"layer"}) && contains_all({"total"}) &&
-               (contains_all({"number"}) || contains_all({"count"}) ||
-                key_lower.find("total layer") != std::string::npos)) {
-        // Match "total layer number", "total layers count", but NOT "interlocking_beam_layer_count"
-        if (const auto v = helix::text_io::parse_leading<int>(value)) {
-            metadata_layer_count_ = *v;
-            spdlog::trace("[GCode Parser] Parsed total layer count: {}", metadata_layer_count_);
-        }
-    } else if ((contains_all({"time"}) &&
-                (contains_all({"print"}) || contains_all({"estimated"}))) ||
-               contains_all({"print", "time"})) {
-        // Parse various time formats: "29m 25s", "1h 23m", "45s", etc.
-        float minutes = 0.0f;
-        std::string_view val_sv(value);
-
-        // Helper to parse float from a range, skipping leading whitespace
-        auto parse_float = [](std::string_view sv) -> float {
-            size_t s = 0;
-            while (s < sv.size() && std::isspace(sv[s]))
-                s++;
-            if (s >= sv.size())
-                return 0.0f;
-            float v = 0.0f;
-            parse_gcode_decimal(sv.data() + s, sv.data() + sv.size(), v);
-            return v;
-        };
-
-        // Try to find hours
-        size_t h_pos = val_sv.find('h');
-        if (h_pos != std::string_view::npos) {
-            minutes += parse_float(val_sv.substr(0, h_pos)) * 60.0f;
-        }
-
-        // Try to find minutes
-        size_t m_pos = val_sv.find('m');
-        if (m_pos != std::string_view::npos) {
-            size_t start_pos = (h_pos != std::string_view::npos) ? h_pos + 1 : 0;
-            minutes += parse_float(val_sv.substr(start_pos, m_pos - start_pos));
-        }
-
-        // Try to find seconds
-        size_t s_pos = val_sv.find('s');
-        if (s_pos != std::string_view::npos) {
-            size_t start_pos = (m_pos != std::string_view::npos)   ? m_pos + 1
-                               : (h_pos != std::string_view::npos) ? h_pos + 1
-                                                                   : 0;
-            float seconds = parse_float(val_sv.substr(start_pos, s_pos - start_pos));
-            minutes += seconds / 60.0f;
-        }
-
-        if (minutes > 0.0f) {
-            metadata_print_time_ = minutes;
-            spdlog::trace("[GCode Parser] Parsed estimated time: {:.2f} minutes", minutes);
-        }
-    } else if (contains_all({"generated"}) || contains_all({"slicer"})) {
-        metadata_slicer_name_ = value;
-        spdlog::trace("[GCode Parser] Parsed slicer: {}", value);
     }
     // Parse layer height metadata (exact key match to avoid max_layer_height etc.)
     // OrcaSlicer/PrusaSlicer: "; layer_height = 0.2"
@@ -1320,14 +1243,9 @@ ParsedGCodeFile GCodeParser::finalize(bool whole_file) {
     result.drawable_segments = drawable_segments_;
 
     // Transfer metadata
-    result.slicer_name = metadata_slicer_name_;
     result.filament_type = metadata_filament_type_;
     result.filament_color_hex = metadata_filament_color_;
-    result.printer_model = metadata_printer_model_;
     result.nozzle_diameter_mm = metadata_nozzle_diameter_;
-    result.total_filament_mm = metadata_filament_length_;
-    result.filament_weight_g = metadata_filament_weight_;
-    result.filament_cost = metadata_filament_cost_;
 
     // Transfer layer height + extrusion width metadata
     result.layer_height_mm = metadata_layer_height_;
@@ -1336,8 +1254,6 @@ ParsedGCodeFile GCodeParser::finalize(bool whole_file) {
     result.perimeter_extrusion_width_mm = metadata_perimeter_extrusion_width_;
     result.infill_extrusion_width_mm = metadata_infill_extrusion_width_;
     result.first_layer_extrusion_width_mm = metadata_first_layer_extrusion_width_;
-    result.estimated_print_time_minutes = metadata_print_time_;
-    result.total_layer_count = metadata_layer_count_;
 
     spdlog::debug("[GCode Parser] Layer height: {}mm, first layer: {}mm, extrusion width: {}mm",
                   result.layer_height_mm,

@@ -343,18 +343,11 @@ struct ParsedGCodeFile {
     /// clear_segments() has already freed, and a recomputed 0 would select
     /// tier 1 - the opposite failure.
     size_t drawable_segments{0};
-    float estimated_print_time_minutes{0.0f}; ///< From metadata (if available)
-    float total_filament_mm{0.0f};            ///< From metadata (if available)
 
     // Slicer metadata (parsed from comments)
-    std::string slicer_name;        ///< Slicer software name and version
     std::string filament_type;      ///< Filament material type (e.g., "PLA", "PETG")
     std::string filament_color_hex; ///< Filament color in hex format (e.g., "#26A69A")
-    std::string printer_model;      ///< Printer model name
     float nozzle_diameter_mm{0.0f}; ///< Nozzle diameter in mm
-    float filament_weight_g{0.0f};  ///< Total filament weight in grams
-    float filament_cost{0.0f};      ///< Estimated filament cost
-    int total_layer_count{0};       ///< Total layer count from metadata
 
     // Extrusion width metadata (from OrcaSlicer/PrusaSlicer headers)
     float extrusion_width_mm{0.0f}; ///< Default extrusion width (0 = use nozzle-based default)
@@ -682,8 +675,7 @@ class GCodeParser {
      * Extracts key-value pairs from slicer comments in OrcaSlicer/PrusaSlicer format.
      * Examples:
      * - "; filament_colour = #26A69A"
-     * - "; estimated printing time (normal mode) = 29m 25s"
-     * - "; printer_model = Flashforge Adventurer 5M Pro"
+     * - "; nozzle_diameter = 0.4"
      */
     void parse_metadata_comment(const std::string& line);
 
@@ -807,16 +799,9 @@ class GCodeParser {
     AABB global_bounds_;                         ///< Global bounding box
 
     // Parsed metadata (transferred to ParsedGCodeFile on finalize())
-    std::string metadata_slicer_name_;
     std::string metadata_filament_type_;
     std::string metadata_filament_color_;
-    std::string metadata_printer_model_;
     float metadata_nozzle_diameter_{0.0f};
-    float metadata_filament_length_{0.0f};
-    float metadata_filament_weight_{0.0f};
-    float metadata_filament_cost_{0.0f};
-    float metadata_print_time_{0.0f};
-    int metadata_layer_count_{0};
 
     // Extrusion width metadata
     float metadata_extrusion_width_{0.0f};
