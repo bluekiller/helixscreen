@@ -368,16 +368,6 @@ $(OBJ_DIR)/helix-xml/%.o: $(HELIX_XML_DIR)/%.c lv_conf.h $(PATCHES_STAMP) $(ABI_
 	}
 	$(call emit-compile-command,$(CC),$(SUBMODULE_CFLAGS) $(INCLUDES) $(LV_CONF),$<,$@)
 
-# Compile lv_markdown C sources (markdown viewer + md4c parser)
-$(OBJ_DIR)/lv_markdown/%.o: $(LV_MARKDOWN_DIR)/%.c $(PATCHES_STAMP) $(ABI_STAMP) $(FLAGS_STAMP) | $(PATCH_MARKER_STAMP)
-	$(Q)mkdir -p $(dir $@)
-	$(ECHO) "$(CYAN)[CC]$(RESET) $<"
-	$(Q)$(CC) $(SUBMODULE_CFLAGS) $(INCLUDES) $(LV_CONF) -c $< -o $@ || { \
-		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
-		exit 1; \
-	}
-	$(call emit-compile-command,$(CC),$(SUBMODULE_CFLAGS) $(INCLUDES) $(LV_CONF),$<,$@)
-
 # Compile LVGL C++ sources (ThorVG) - use SUBMODULE_CXXFLAGS and PCH
 # NOTE: No DEPFLAGS for internal headers - see C rule above for rationale.
 # lv_conf.h tracked explicitly as it controls LVGL feature flags.
