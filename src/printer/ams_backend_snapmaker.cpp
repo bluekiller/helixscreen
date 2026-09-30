@@ -885,33 +885,6 @@ void AmsBackendSnapmaker::prepare_for_resume(int slot_index, ResumeReadyCallback
 // Configuration
 // ============================================================================
 
-namespace {
-
-/// Put @p info's filament fields on @p slot, covering every SlotInfo field the
-/// caller may set, so the UI does not snap back on the next get_slot_info read.
-void write_filament_fields(SlotInfo& slot, const SlotInfo& info) {
-    slot.color_name = info.color_name;
-    slot.color_rgb = info.color_rgb;
-    slot.material = info.material;
-    slot.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that dropped
-    // it would make the editor snap back to a different variant on the next
-    // get_slot_info().
-    slot.catalog_id = info.catalog_id;
-    slot.product_name = info.product_name;
-    slot.nozzle_temp_min = info.nozzle_temp_min;
-    slot.nozzle_temp_max = info.nozzle_temp_max;
-    slot.bed_temp = info.bed_temp;
-    slot.remaining_weight_g = info.remaining_weight_g;
-    slot.total_weight_g = info.total_weight_g;
-    slot.spoolman_id = info.spoolman_id;
-    slot.spoolman_filament_id = info.spoolman_filament_id;
-    slot.spoolman_vendor_id = info.spoolman_vendor_id;
-    slot.spool_name = info.spool_name;
-}
-
-} // namespace
-
 AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& info,
                                               const helix::ams::Observation& declared) {
     auto err = validate_slot_index(slot_index);
@@ -924,7 +897,7 @@ AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& in
         if (!slot)
             return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, NUM_TOOLS - 1);
 
-        write_filament_fields(*slot, info);
+        slot->assign_filament_fields(info);
 
         // handle_status_update writes RFID and print_task_config fields
         // unconditionally, so an edit kept only in memory is wiped by the next
@@ -1114,7 +1087,7 @@ AmsError AmsBackendSnapmaker::sync_external_identity(int slot_index, const SlotI
 
         // overrides_ is left alone and nothing reaches firmware: the next
         // Klipper status update overwrites a synced value.
-        write_filament_fields(*slot, info);
+        slot->assign_filament_fields(info);
     }
 
     // Pass slot_index as event data so AmsState can do a targeted slot sync.

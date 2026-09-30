@@ -17,6 +17,7 @@
 #include "filament_slot_override_store.h"
 #include "json_utils.h"
 #include "klipper_error_table.h"
+#include "lane_apply.h"
 #include "lane_legacy_migration.h"
 #include "lane_source_store.h"
 #include "lane_translation.h"
@@ -2167,21 +2168,7 @@ namespace {
 /// Put @p info's filament fields on @p bay, covering every SlotInfo field the
 /// caller may have set, so get_slot_info returns them at once.
 void write_filament_fields(SlotInfo& bay, const SlotInfo& info) {
-    bay.color_rgb = info.color_rgb;
-    bay.color_name = info.color_name;
-    bay.material = info.material;
-    bay.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that dropped
-    // it would make the editor snap back to a different variant on the next
-    // get_slot_info().
-    bay.catalog_id = info.catalog_id;
-    bay.product_name = info.product_name;
-    bay.spool_name = info.spool_name;
-    bay.spoolman_id = info.spoolman_id;
-    bay.spoolman_filament_id = info.spoolman_filament_id;
-    bay.spoolman_vendor_id = info.spoolman_vendor_id;
-    bay.remaining_weight_g = info.remaining_weight_g;
-    bay.total_weight_g = info.total_weight_g;
+    helix::ams::copy_resolver_owned_identity(bay, info);
 }
 
 } // namespace

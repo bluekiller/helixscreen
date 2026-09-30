@@ -5418,37 +5418,7 @@ std::string set_weight_command(const std::string& lane_name, float remaining_wei
 
 void AmsBackendAfc::write_lane_locked(int slot_index, SlotInfo& slot, const SlotInfo& info) {
     const int old_mapped_tool = slot.mapped_tool;
-
-    // Detect whether anything actually changed
-    bool changed = slot.color_name != info.color_name || slot.color_rgb != info.color_rgb ||
-                   slot.material != info.material || slot.brand != info.brand ||
-                   slot.catalog_id != info.catalog_id || slot.product_name != info.product_name ||
-                   slot.spoolman_id != info.spoolman_id || slot.spool_name != info.spool_name ||
-                   slot.remaining_weight_g != info.remaining_weight_g ||
-                   slot.total_weight_g != info.total_weight_g ||
-                   slot.nozzle_temp_min != info.nozzle_temp_min ||
-                   slot.nozzle_temp_max != info.nozzle_temp_max || slot.bed_temp != info.bed_temp ||
-                   slot.mapped_tool != info.mapped_tool;
-
-    // Update local state
-    slot.color_name = info.color_name;
-    slot.color_rgb = info.color_rgb;
-    slot.material = info.material;
-    slot.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that
-    // dropped it would make the editor snap back to a different variant on
-    // the next get_slot_info().
-    slot.catalog_id = info.catalog_id;
-    slot.product_name = info.product_name;
-    slot.spoolman_id = info.spoolman_id;
-    slot.spoolman_filament_id = info.spoolman_filament_id;
-    slot.spoolman_vendor_id = info.spoolman_vendor_id;
-    slot.spool_name = info.spool_name;
-    slot.remaining_weight_g = info.remaining_weight_g;
-    slot.total_weight_g = info.total_weight_g;
-    slot.nozzle_temp_min = info.nozzle_temp_min;
-    slot.nozzle_temp_max = info.nozzle_temp_max;
-    slot.bed_temp = info.bed_temp;
+    const bool changed = slot.assign_filament_fields(info) || info.mapped_tool != old_mapped_tool;
     // Tool mapping change goes through registry so reverse maps stay consistent.
     if (info.mapped_tool != old_mapped_tool && info.mapped_tool >= 0) {
         slots_.set_tool_mapping(slot_index, info.mapped_tool);
