@@ -124,12 +124,13 @@ static constexpr uint32_t BG_COLOR_3D_LIGHT =
 // Configured dark_mode, or default_value when unset
 static bool read_config_dark_mode(bool default_value = true) {
     std::string path;
-    const auto token = helix::read_settings_scalar("dark_mode", &path);
-    if (!token || (*token != "true" && *token != "false")) {
+    const auto dark = helix::read_settings_bool("dark_mode", &path);
+    if (!dark) {
         return default_value;
     }
-    fprintf(stderr, "helix-splash: dark_mode=%s (from %s)\n", token->c_str(), path.c_str());
-    return *token == "true";
+    fprintf(stderr, "helix-splash: dark_mode=%s (from %s)\n", *dark ? "true" : "false",
+            path.c_str());
+    return *dark;
 }
 
 /**

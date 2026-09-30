@@ -153,14 +153,17 @@ namespace helix {
  *
  * Searches settings.json in the config dir, then the legacy helixconfig.json
  * locations, and returns the alphanumeric token after the colon (digits, `true`,
- * `false`). The first occurrence anywhere in a file wins, at any nesting depth.
- * A plain scan, not a JSON parse: the splash and watchdog read their settings
- * before anything else runs and link no regex code.
+ * `false`). The first occurrence anywhere in a file whose token `accept` takes
+ * wins, at any nesting depth, so a nested `"key": null` does not hide a real value
+ * later in the file. A plain scan, not a JSON parse: the splash and watchdog read
+ * their settings before anything else runs and link no regex code.
  *
  * @param from If non-null, receives the path the value came from.
+ * @param accept If non-null, occurrences whose token it rejects are skipped.
  */
 inline std::optional<std::string> read_settings_scalar(std::string_view key,
-                                                       std::string* from = nullptr) {
+                                                       std::string* from = nullptr,
+                                                       bool (*accept)(std::string_view) = nullptr) {
     const std::string paths[] = {helix::writable_path("settings.json"),
                                  helix::writable_path("helixconfig.json"), "helixconfig.json",
                                  "/opt/helixscreen/helixconfig.json"};
@@ -189,7 +192,7 @@ inline std::optional<std::string> read_settings_scalar(std::string_view key,
             size_t end = i;
             while (end < text.size() && is_token(text[end]))
                 ++end;
-            if (end == i)
+            if (end == i || (accept && !accept(text.substr(i, end - i))))
                 continue;
             if (from) {
                 *from = path;
@@ -200,10 +203,19 @@ inline std::optional<std::string> read_settings_scalar(std::string_view key,
     return std::nullopt;
 }
 
-/// read_settings_scalar() as a non-negative integer; nullopt when absent or not digits.
+/// The first occurrence of `key` holding a non-negative integer.
 inline std::optional<int> read_settings_int(std::string_view key, std::string* from = nullptr) {
-    const auto token = read_settings_scalar(key, from);
+    const auto token = read_settings_scalar(key, from, [](std::string_view t) {
+        return helix::text_io::parse_int<int>(t).has_value();
+    });
     return token ? helix::text_io::parse_int<int>(*token) : std::nullopt;
+}
+
+/// The first occurrence of `key` holding `true` or `false`.
+inline std::optional<bool> read_settings_bool(std::string_view key, std::string* from = nullptr) {
+    const auto token = read_settings_scalar(
+        key, from, [](std::string_view t) { return t == "true" || t == "false"; });
+    return token ? std::optional<bool>(*token == "true") : std::nullopt;
 }
 
 } // namespace helix
@@ -217,11 +229,11 @@ inline std::optional<int> read_settings_int(std::string_view key, std::string* f
  * @return Rotation in degrees (0, 90, 180, 270); 0 for an invalid value
  */
 inline int read_config_rotation(int default_value = 0) {
-    const auto token = helix::read_settings_scalar("rotate");
-    if (!token) {
+    const auto parsed = helix::read_settings_int("rotate");
+    if (!parsed) {
         return default_value;
     }
-    const int rotation = helix::text_io::parse_int<int>(*token).value_or(0);
+    const int rotation = *parsed;
     return (rotation == 90 || rotation == 180 || rotation == 270) ? rotation : 0;
 }
 

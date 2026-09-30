@@ -448,6 +448,23 @@ TEST_CASE("read_settings_scalar returns the value token and falls through to leg
     CHECK_FALSE(helix::read_settings_int("dark_mode").has_value());
 }
 
+TEST_CASE("typed settings reads skip an occurrence whose value does not parse",
+          "[display][rotation]") {
+    helix::ConfigDirGuard guard("settings_scan_skip");
+    const std::string settings = (guard.dir / "settings.json").string();
+
+    REQUIRE(helix::text_io::write_file(
+        settings, R"({"leds": {"brightness": null}, "display": {"brightness": 60}})"));
+    CHECK(helix::read_settings_int("brightness") == 60);
+
+    REQUIRE(
+        helix::text_io::write_file(settings, R"({"a": {"dark_mode": null}, "dark_mode": false})"));
+    CHECK(helix::read_settings_bool("dark_mode") == false);
+
+    REQUIRE(helix::text_io::write_file(settings, R"({"a": {"rotate": null}, "rotate": 270})"));
+    CHECK(read_config_rotation(-1) == 270);
+}
+
 TEST_CASE("standalone_rotation prefers the CLI value, then the configured one",
           "[display][rotation]") {
     helix::ConfigDirGuard guard("standalone_rotation");
