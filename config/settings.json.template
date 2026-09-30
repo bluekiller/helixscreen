@@ -136,9 +136,9 @@
   },
   "streaming": {
     "threshold_mb": 0,
-    "_threshold_mb_comment": "File size threshold in MB for using streaming (disk-based) operations instead of buffered (in-memory). 0 = auto-detect based on 10% of available RAM. Override with HELIX_FORCE_STREAMING=1 env var to force streaming for all files.",
+    "_threshold_mb_comment": "Files larger than this many MB always stream, even when RAM would allow a full load. 0 = no ceiling; the RAM rule in gcode_viewer.streaming_threshold_percent decides.",
     "force_streaming": false,
-    "_force_streaming_comment": "Always use streaming operations regardless of file size. Useful for memory-constrained devices or testing. Can also be set via HELIX_FORCE_STREAMING=1 env var."
+    "_force_streaming_comment": "Always stream regardless of file size. Same as gcode_viewer.streaming_mode 'on' or HELIX_GCODE_STREAMING=on."
   },
   "plugins": {
     "enabled": [],

@@ -1180,15 +1180,13 @@ void helix::fetch_thumbnail_from_gcode(const std::string& gcode_path, size_t max
             // deliberately left here — they are the expensive part and touch
             // no UI state and nothing owned by the caller, everything the
             // body needs having been captured by value on the main thread.
-            auto thumbnails = helix::gcode::extract_thumbnails_from_content(content);
-            if (thumbnails.empty()) {
+            const auto best = helix::gcode::get_best_thumbnail_from_content(content);
+            if (best.png_data.empty()) {
                 spdlog::debug("[ThumbnailCache] No embedded thumbnails in {}", gcode_path);
                 report_error(std::string(GCODE_THUMBNAIL_NONE_EMBEDDED) + gcode_path);
                 return;
             }
 
-            // Use the largest thumbnail (already sorted largest-first)
-            const auto& best = thumbnails[0];
             spdlog::debug("[ThumbnailCache] Extracted {}x{} thumbnail ({} bytes) from {}",
                           best.width, best.height, best.png_data.size(), gcode_path);
 

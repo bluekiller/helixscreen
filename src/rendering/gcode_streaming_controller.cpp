@@ -416,12 +416,6 @@ void GCodeStreamingController::close() {
     is_open_.store(false);
 
     {
-        std::lock_guard<std::mutex> lock(metadata_mutex_);
-        metadata_extracted_ = false;
-        header_metadata_.reset();
-    }
-
-    {
         std::lock_guard<std::mutex> lock(name_table_mutex_);
         merged_object_name_table_.clear();
         merged_object_name_lookup_.clear();
@@ -718,15 +712,6 @@ void GCodeStreamingController::respond_to_memory_pressure() {
 }
 
 // =============================================================================
-// Metadata Access
-// =============================================================================
-
-const GCodeHeaderMetadata* GCodeStreamingController::get_header_metadata() const {
-    std::lock_guard<std::mutex> lock(metadata_mutex_);
-    return header_metadata_.get();
-}
-
-// =============================================================================
 // Private Implementation
 // =============================================================================
 
@@ -809,21 +794,6 @@ std::vector<ToolpathSegment> GCodeStreamingController::load_layer(size_t layer_i
 
     // Get parsed result
     auto result = parser.finalize();
-
-    // Extract metadata from first layer parsed (thread-safe)
-    if (!result.layers.empty()) {
-        std::lock_guard<std::mutex> lock(metadata_mutex_);
-        if (!metadata_extracted_) {
-            header_metadata_ = std::make_unique<GCodeHeaderMetadata>();
-            header_metadata_->slicer = result.slicer_name;
-            header_metadata_->filament_type = result.filament_type;
-            header_metadata_->estimated_time_seconds = result.estimated_print_time_minutes * 60.0;
-            header_metadata_->filament_used_mm = result.total_filament_mm;
-            header_metadata_->layer_count = static_cast<uint32_t>(index_.get_layer_count());
-            header_metadata_->tool_colors = result.tool_color_palette;
-            metadata_extracted_ = true;
-        }
-    }
 
     // Collect all segments from all parsed layers
     // (usually just one layer, but parser may split on Z changes).

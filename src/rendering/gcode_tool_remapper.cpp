@@ -27,6 +27,7 @@
 
 #include "gcode_tool_remapper.h"
 
+#include "gcode_parser.h"
 #include "text_io.h"
 
 #include <algorithm>
@@ -63,31 +64,21 @@ bool starts_with(const std::string& s, const char* prefix) {
     return true;
 }
 
-// --- Family 2: bare toolchange line "T<digits>" (optional trailing whitespace) ---
-// Returns true and fills `out` if `line` is a bare toolchange whose index is
-// remapped. The trailing whitespace (if any) is preserved.
+// --- Family 2: standalone toolchange line, as helix::gcode::tool_index_for_line reads it ---
+// Returns true and fills `out` if `line` is a toolchange whose index is
+// remapped. Everything around the tool number is preserved byte for byte.
 bool try_bare_toolchange(const std::string& line, const std::map<int, int>& remap,
                          std::string& out) {
-    if (line.size() < 2 || line[0] != 'T') {
+    std::pair<size_t, size_t> digits;
+    const int idx = helix::gcode::tool_index_for_line(line, &digits);
+    if (idx < 0) {
         return false;
     }
-    size_t pos = 1;
-    if (!std::isdigit(static_cast<unsigned char>(line[pos]))) {
-        return false;
-    }
-    int idx = parse_uint(line, pos);
-    // Whatever remains must be whitespace only (e.g. trailing \r or spaces).
-    std::string tail = line.substr(pos);
-    for (char c : tail) {
-        if (!std::isspace(static_cast<unsigned char>(c))) {
-            return false; // e.g. "T1X" or "TOOL" -- not a bare toolchange
-        }
-    }
-    int m = mapped(idx, remap);
+    const int m = mapped(idx, remap);
     if (m == idx) {
         return false; // unmapped: leave untouched (preserves exact bytes)
     }
-    out = "T" + std::to_string(m) + tail;
+    out = line.substr(0, digits.first) + std::to_string(m) + line.substr(digits.second);
     return true;
 }
 

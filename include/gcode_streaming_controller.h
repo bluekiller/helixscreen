@@ -446,15 +446,6 @@ class GCodeStreamingController {
     // =========================================================================
 
     /**
-     * @brief Get header metadata (slicer info, print time, etc.)
-     *
-     * Only populated after first layer is parsed.
-     *
-     * @return Pointer to metadata, or nullptr if not available
-     */
-    const GCodeHeaderMetadata* get_header_metadata() const;
-
-    /**
      * @brief Resolve an object name index to a string
      *
      * Uses the merged string table built from all parsed layers.
@@ -560,11 +551,6 @@ class GCodeStreamingController {
     std::atomic<bool> index_cancel_requested_{false};
     mutable std::mutex callback_mutex_; // Protects index_complete_callback_
     std::function<void(bool)> index_complete_callback_;
-
-    // Metadata (populated lazily)
-    mutable std::mutex metadata_mutex_;
-    std::unique_ptr<GCodeHeaderMetadata> header_metadata_;
-    bool metadata_extracted_{false};
 
     // State
     std::atomic<bool> is_open_{false};

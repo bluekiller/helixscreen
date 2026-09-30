@@ -10,13 +10,7 @@
 #include "ui_filament_path_internal.h"
 #include "ui_fonts.h"
 
-#include "nozzle_renderer_a4t.h"
-#include "nozzle_renderer_anthead.h"
-#include "nozzle_renderer_bambu.h"
-#include "nozzle_renderer_creality_k1.h"
-#include "nozzle_renderer_creality_k2.h"
-#include "nozzle_renderer_jabberwocky.h"
-#include "nozzle_renderer_stealthburner.h"
+#include "nozzle_renderer_dispatch.h"
 #include "settings_manager.h"
 #include "theme_manager.h"
 
@@ -356,34 +350,13 @@ void draw_flow_dots_path(lv_layer_t* layer, const pg::FilamentPath& path, lv_col
 // Toolhead glyph
 // ============================================================================
 
-// One dispatch point for the user's configured toolhead style. The A4T glyph
-// is drawn 6/5 larger than the others at every call site in this widget, so
-// the boost is folded in here.
-void draw_toolhead(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t color, int32_t scale,
-                   lv_opa_t opa) {
-    switch (helix::SettingsManager::instance().get_effective_toolhead_style()) {
-    case helix::ToolheadStyle::A4T:
-        draw_nozzle_a4t(layer, cx, cy, color, scale * 6 / 5, opa);
-        break;
-    case helix::ToolheadStyle::ANTHEAD:
-        draw_nozzle_anthead(layer, cx, cy, color, scale, opa);
-        break;
-    case helix::ToolheadStyle::JABBERWOCKY:
-        draw_nozzle_jabberwocky(layer, cx, cy, color, scale, opa);
-        break;
-    case helix::ToolheadStyle::STEALTHBURNER:
-        draw_nozzle_stealthburner(layer, cx, cy, color, scale, opa);
-        break;
-    case helix::ToolheadStyle::CREALITY_K1:
-        draw_nozzle_creality_k1(layer, cx, cy, color, scale, opa);
-        break;
-    case helix::ToolheadStyle::CREALITY_K2:
-        draw_nozzle_creality_k2(layer, cx, cy, color, scale, opa);
-        break;
-    default:
-        draw_nozzle_bambu(layer, cx, cy, color, scale, opa);
-        break;
-    }
+// The A4T glyph is drawn 6/5 larger than the others at every call site in this
+// widget, so the boost is folded in here.
+void draw_toolhead(lv_layer_t* layer, int32_t cx, int32_t cy, std::optional<lv_color_t> filament,
+                   int32_t scale, lv_opa_t opa) {
+    bool a4t = helix::SettingsManager::instance().get_effective_toolhead_style() ==
+               helix::ToolheadStyle::A4T;
+    draw_nozzle_for_style(layer, cx, cy, filament, a4t ? scale * 6 / 5 : scale, opa);
 }
 
 // Nozzle tip Y for the configured style — anchors the heat glow halo.
