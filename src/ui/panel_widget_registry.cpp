@@ -181,6 +181,7 @@ std::map<std::string, RuntimeSlot, std::less<>>& runtime_slots() {
 std::vector<PanelWidgetDef> s_all_defs;
 bool s_all_defs_dirty = true;
 uint64_t s_runtime_generation = 0;
+size_t s_active_runtime_defs = 0;
 
 void rebuild_all_defs() {
     s_all_defs = s_widget_defs;
@@ -205,6 +206,10 @@ void rebuild_all_defs() {
 } // namespace
 
 const std::vector<PanelWidgetDef>& get_all_widget_defs() {
+    // With no runtime def the built-ins are the whole list, so there is no second
+    // copy of the table: builds that host no plugins (the ESP32 image) never make one.
+    if (s_active_runtime_defs == 0)
+        return s_widget_defs;
     if (s_all_defs_dirty)
         rebuild_all_defs();
     return s_all_defs;
@@ -283,6 +288,7 @@ bool register_runtime_widget_def(RuntimeWidgetDef def) {
     if (it == slots.end()) {
         std::string key = def.id;
         slots.emplace(std::move(key), RuntimeSlot{std::move(def), true});
+        ++s_active_runtime_defs;
     } else {
         // Field by field, leaving `id` alone: its buffer is what catalog rows
         // point at.
@@ -295,6 +301,8 @@ bool register_runtime_widget_def(RuntimeWidgetDef def) {
         cur.max_colspan = def.max_colspan;
         cur.max_rowspan = def.max_rowspan;
         cur.factory = std::move(def.factory);
+        if (!it->second.active)
+            ++s_active_runtime_defs;
         it->second.active = true;
     }
     s_all_defs_dirty = true;
@@ -309,6 +317,8 @@ void unregister_runtime_widget_def(std::string_view id) {
         return;
     it->second.active = false;
     it->second.def.factory = nullptr;
+    if (--s_active_runtime_defs == 0)
+        std::vector<PanelWidgetDef>().swap(s_all_defs); // back to the built-in table alone
     s_all_defs_dirty = true;
     ++s_runtime_generation;
 }

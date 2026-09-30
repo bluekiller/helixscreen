@@ -499,7 +499,7 @@ class NavigationManager {
      * @brief Pop a specific overlay, decided in queue order
      *
      * Like go_back(), the decision runs deferred, when the operation's turn in
-     * the UpdateQueue comes — by then other pushes may have landed on top of
+     * the UpdateQueue comes: by then other pushes may have landed on top of
      * `overlay_panel`. If it is still on top it is popped with the normal
      * back animation and restore path; if it is buried it is removed from the
      * stack without disturbing what covers it; if it already left the stack

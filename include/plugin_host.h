@@ -101,6 +101,8 @@ class PluginHost {
     bool set_setting(const std::string& id, const std::string& key, const json& value);
     /// The generated settings screen currently showing `id`, or null.
     PluginSettingsOverlay* settings_screen(const std::string& id);
+    /// True when an open settings screen owns the row binding at `ud`.
+    bool owns_row_binding(const void* ud);
 
     /// The body of the global `plugin_event` XML callback.
     void dispatch_event(std::string_view user_data);

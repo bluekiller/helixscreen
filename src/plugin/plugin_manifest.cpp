@@ -73,7 +73,7 @@ void check_display_field(const char* key, const std::string& v, size_t max_bytes
     });
     if (v.size() > max_bytes || !single_line) {
         errors.push_back(std::string("'") + key + "' must be a single line of at most " +
-                         std::to_string(max_bytes) + " characters");
+                         std::to_string(max_bytes) + " bytes");
     }
 }
 

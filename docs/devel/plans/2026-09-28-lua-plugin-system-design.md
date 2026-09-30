@@ -1,6 +1,6 @@
 # Lua Plugin System Design
 
-**Status:** Phases 1 and 2 implemented (Phase 1 on main, Phase 2 on feature/lua-plugins-phase2); Phases 3 to 5 not started.
+**Status:** Phases 1 and 2 implemented; Phases 3 to 5 not started.
 **Replaces:** the `dlopen` C++ plugin system in `src/plugin/` and `docs/devel/PLUGIN_DEVELOPMENT.md`
 
 ## Why

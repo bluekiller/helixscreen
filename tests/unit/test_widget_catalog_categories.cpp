@@ -705,7 +705,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
 
     lv_obj_t* group = category_group();
     REQUIRE(group != nullptr);
-    // One row per category holding an available def, nothing else — the
+    // One row per category holding an available def, nothing else: the
     // unavailable row only exists to carry gated widgets, and there are none.
     // Plugins holds no def until one registers at runtime, so it renders no row.
     size_t expect_rows = 0;

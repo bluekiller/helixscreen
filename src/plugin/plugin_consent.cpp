@@ -13,8 +13,8 @@ namespace {
 
 /// The approved wording per permission, already through lv_tr (returning the
 /// literal itself is safe: it has static storage, and the translation pack's
-/// copy outlives the call). Preston signed off on these lines verbatim
-/// (2026-09-29); rewording them is a product change, not a copy edit.
+/// copy outlives the call). The wording is approved as written; rewording it is
+/// a product change, not a copy edit.
 const char* permission_line(Permission p) {
     switch (p) {
     case Permission::Gcode:

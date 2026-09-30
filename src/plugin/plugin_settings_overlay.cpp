@@ -74,7 +74,11 @@ void sync_value_label(const PluginSettingsOverlay::RowBinding& b) {
 }
 
 void slider_value_changed_cb(lv_event_t* e) {
-    sync_value_label(*static_cast<PluginSettingsOverlay::RowBinding*>(lv_event_get_user_data(e)));
+    // Like the row callbacks, trust the binding only while an open screen owns it.
+    void* ud = lv_event_get_user_data(e);
+    PluginHost* host = PluginHost::live();
+    if (host && host->owns_row_binding(ud))
+        sync_value_label(*static_cast<PluginSettingsOverlay::RowBinding*>(ud));
 }
 
 } // namespace

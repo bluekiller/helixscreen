@@ -587,6 +587,13 @@ PluginSettingsOverlay* PluginHost::settings_screen(const std::string& id) {
     return nullptr;
 }
 
+bool PluginHost::owns_row_binding(const void* ud) {
+    for (auto& s : settings_screens_)
+        if (s->binding_at(ud))
+            return true;
+    return false;
+}
+
 void PluginHost::close_settings_screens(const std::string& id) {
     auto& nav = NavigationManager::instance();
     // Newest first, matching pop order. Every screen leaves through navigation:

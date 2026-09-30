@@ -160,6 +160,17 @@ TEST_CASE("display fields are single-line and length-capped", "[plugin][manifest
     CHECK(has_error_containing(
         parse_manifest(R"({"id":"ab","name":"n","version":"1","author":")" + author65 + R"("})"),
         "'author'"));
+
+    // The cap counts UTF-8 bytes, and the message says so: 16 three-byte glyphs fit
+    // in 48, 17 do not.
+    std::string cjk16, cjk17;
+    for (int i = 0; i < 16; ++i)
+        cjk16 += "\u6f22";
+    cjk17 = cjk16 + "\u6f22";
+    CHECK(parse_manifest(R"({"id":"ab","name":")" + cjk16 + R"(","version":"1"})")
+              .manifest.has_value());
+    CHECK(has_error_containing(
+        parse_manifest(R"({"id":"ab","name":")" + cjk17 + R"(","version":"1"})"), "48 bytes"));
 }
 
 TEST_CASE("setting declaration errors", "[plugin][manifest]") {
