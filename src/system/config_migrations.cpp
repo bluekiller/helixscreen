@@ -18,6 +18,8 @@
 #define CONFIG_RECORD_ERROR(...) ((void)0)
 #endif
 
+#include <spdlog/spdlog.h>
+
 #include <iterator>
 #include <optional>
 #include <string>
