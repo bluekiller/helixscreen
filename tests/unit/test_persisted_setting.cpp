@@ -19,6 +19,7 @@
 #include "config.h"
 #include "display_settings_manager.h"
 #include "input_settings_manager.h"
+#include "persisted_setting.h"
 #include "safety_settings_manager.h"
 #include "system/telemetry_manager.h"
 #include "system_settings_manager.h"
@@ -442,4 +443,15 @@ TEST_CASE_METHOD(LVGLTestFixture, "Persisted settings: exactly the telemetry-key
     tm.shutdown();
     std::error_code ec;
     fs::remove_all(dir, ec);
+}
+
+TEST_CASE("PersistedSettings: get before init returns the row default", "[persisted_setting]") {
+    enum class K : uint8_t { Count, Flag, COUNT };
+    static constexpr settings::PersistedSetting table[] = {
+        {"test_ps_count", "/test_ps/count", settings::Scope::Global, false, 42, 0, 100, nullptr},
+        {"test_ps_flag", "/test_ps/flag", settings::Scope::Global, true, 1, 0, 1, nullptr},
+    };
+    settings::PersistedSettings<K, static_cast<size_t>(K::COUNT)> ps(table);
+    CHECK(ps.get(K::Count) == 42);
+    CHECK(ps.get_bool(K::Flag));
 }
