@@ -254,15 +254,14 @@ Switching printers performs a "soft restart" -- the LVGL display stays alive, bu
  7. Create overlay panels (if not in wizard)
  8. Reload plugins
  9. Connect to new printer's Moonraker
-10. ObserverGuard::revalidate_all() (all old guards cleared, new observers attached)
-    Force full screen refresh
+10. Force full screen refresh
 ```
 
 ### Key Safety Mechanisms
 
 **ScopedFreeze**: During teardown, the update queue is frozen (step 5) to prevent the WebSocket background thread from enqueuing new callbacks between `drain()` and widget destruction. The freeze thaws when it goes out of scope.
 
-**ObserverGuard invalidate/revalidate**: At teardown step 17, `ObserverGuard::invalidate_all()` marks all existing guards as stale. During init, when old guards are reassigned (`guard = observe_*()`), the move-assignment safely releases instead of calling `lv_observer_remove()` on freed observer pointers. After init step 10, `revalidate_all()` re-enables normal guard behavior.
+**ObserverGuard invalidation**: At teardown step 17, `ObserverGuard::invalidate_all()` bumps an epoch that marks every existing guard as stale. During init, when old guards are reassigned (`guard = observe_*()`), the move-assignment safely releases instead of calling `lv_observer_remove()` on freed observer pointers. Guards created after the bump are removed normally, so init needs no closing step.
 
 **Re-entrancy guard**: `m_soft_restart_in_progress` (bool in Application) prevents `switch_printer()`, `add_printer_via_wizard()`, and `cancel_add_printer_wizard()` from being called during an active soft restart.
 
@@ -424,11 +423,10 @@ Checked at the top of `switch_printer()`, `add_printer_via_wizard()`, and `cance
 
 ### ObserverGuard Lifecycle
 
-During soft restart, observer guards in surviving singletons (not destroyed by `StaticPanelRegistry`) hold freed observer pointers. The invalidate/revalidate protocol handles this:
+During soft restart, observer guards in surviving singletons (not destroyed by `StaticPanelRegistry`) hold freed observer pointers. The invalidation epoch handles this:
 
 1. `ObserverGuard::invalidate_all()` at end of teardown (step 17)
 2. During init, when guards are reassigned (`guard = observe_*()`), `reset()` safely releases instead of calling `lv_observer_remove()` on freed memory
-3. `ObserverGuard::revalidate_all()` at end of init (step 10) restores normal behavior
 
 ---
 
@@ -476,7 +474,7 @@ void MySingleton::init_subjects() {
 
 2. **Implement `deinit_subjects()`** to call `lv_subject_deinit()` on each subject.
 
-3. If your singleton creates ObserverGuards, they will be safely handled by the `invalidate_all()`/`revalidate_all()` protocol during soft restart.
+3. If your singleton creates ObserverGuards, they will be safely handled by the `invalidate_all()` epoch during soft restart.
 
 4. If your singleton is a panel/overlay, register with `StaticPanelRegistry` so it is destroyed during teardown step 14.
 

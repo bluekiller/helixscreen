@@ -18,7 +18,7 @@
  *   StaticSubjectRegistry::deinit_all() — skip lv_observer_remove() on the
  *   already-freed observer. But new widgets are also created WHILE the flag is
  *   false (Application::init_printer_state() builds the home panel via
- *   finalize_setup() before revalidate_all()). An observer created in that
+ *   finalize_setup()). An observer created in that
  *   window is attached to a LIVE subject; if it is reset() in the same window
  *   the boolean wrongly suppressed lv_observer_remove(), orphaning a live
  *   observer node on a live subject while its context was freed.
@@ -57,7 +57,7 @@ void drain() {
 } // namespace
 
 // An observer created DURING the reinit window (after invalidate_all, before
-// revalidate_all) is attached to a live subject. Resetting it in the same
+// init finishes) is attached to a live subject. Resetting it in the same
 // window MUST remove it from the subject — otherwise it is orphaned and a
 // later notify fires on the freed context (the production UAF).
 TEST_CASE_METHOD(LVGLTestFixture,
@@ -85,9 +85,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     // The observer MUST be gone. Boolean impl skips removal here → len == 1.
     REQUIRE(lv_ll_get_len(&subject.subs_ll) == 0);
-
-    // App finishes init.
-    ObserverGuard::revalidate_all();
 
     // A later status update must not reach the freed context.
     panel.notifications = 0;
@@ -158,6 +155,4 @@ TEST_CASE_METHOD(LVGLTestFixture, "ObserverGuard skips removal for observers fre
     // reset() must detect the observer predates the invalidation and skip
     // lv_observer_remove() on the now-freed pointer. No crash, no assertion.
     REQUIRE_NOTHROW(guard.reset());
-
-    ObserverGuard::revalidate_all();
 }

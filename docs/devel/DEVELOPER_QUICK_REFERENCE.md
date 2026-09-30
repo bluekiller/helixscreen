@@ -159,24 +159,12 @@ add_observer(observe_string<MyPanel>(
         lv_label_set_text(self->filename_label_, name);
     }
 ));
-
-// Connection state observer (special case).
-// Signature: observe_connection_state(subject, panel, on_connected);
-// on_connected is void(Panel*) — fired when the state becomes CONNECTED.
-add_observer(observe_connection_state<MyPanel>(
-    get_printer_state().get_printer_connection_state_subject(),
-    this,
-    [](MyPanel* self) {
-        self->set_controls_enabled(true);
-    }
-));
 ```
 
 **Key patterns:**
 - `observe_int_sync<Panel>()` - Direct callback (same thread)
 - `observe_int_async<Panel>()` - Queued to LVGL thread (safe from WebSocket)
 - `observe_string<Panel>()` - String subjects
-- `observe_connection_state<Panel>()` - Connection status
 
 ---
 

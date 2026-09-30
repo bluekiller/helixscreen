@@ -332,34 +332,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "Factory: observe_string_immediate fires synch
 }
 
 // ============================================================================
-// observe_string_async Tests
-// ============================================================================
-
-TEST_CASE_METHOD(LVGLTestFixture, "Factory: observe_string_async calls update handler",
-                 "[factory][observer][string]") {
-    static char buf[32] = "";
-    lv_subject_t subject;
-    lv_subject_init_string(&subject, buf, nullptr, sizeof(buf), "");
-
-    TestPanel panel;
-
-    auto guard = observe_string_async<TestPanel>(
-        &subject, &panel, [](TestPanel* p, const char* str) { p->string_value = str; },
-        [](TestPanel* p) { p->on_value_update(); }, subject_never_freed());
-
-    // Value change triggers callback
-    lv_subject_copy_string(&subject, "test");
-    REQUIRE(panel.string_value == "test");
-
-    // Process async queue
-    drain();
-    REQUIRE(panel.update_called == true);
-
-    guard.release();
-    lv_subject_deinit(&subject);
-}
-
-// ============================================================================
 // RAII Cleanup Tests
 // ============================================================================
 

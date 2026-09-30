@@ -5009,11 +5009,10 @@ void Application::init_printer_state() {
         lv_obj_set_style_text_font(err_label, lv_font_get_default(), 0);
     };
 
-    // NOTE: ObserverGuard::invalidate_all() was called at the end of teardown.
-    // Guards in surviving singletons hold freed observer pointers. When they get
-    // reassigned (guard = observe_*()), the move-assignment calls reset() which
-    // safely releases instead of calling lv_observer_remove() on freed memory.
-    // We revalidate at the END of init after all old guards have been cleared.
+    // ObserverGuard::invalidate_all() ran at the end of teardown. Guards in
+    // surviving singletons hold freed observer pointers; when they get
+    // reassigned (guard = observe_*()), reset() sees they predate the
+    // invalidation and releases instead of calling lv_observer_remove().
 
     // 1. Reinitialize update queue BEFORE moonraker so background thread callbacks
     //    (hardware discovery, WebSocket messages) have a functioning queue.
@@ -5023,7 +5022,6 @@ void Application::init_printer_state() {
     if (!init_core_subjects()) {
         spdlog::error("[Application] Failed to reinitialize core subjects");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5039,7 +5037,6 @@ void Application::init_printer_state() {
     if (!init_moonraker()) {
         spdlog::error("[Application] Failed to reinitialize Moonraker");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5047,7 +5044,6 @@ void Application::init_printer_state() {
     if (!init_panel_subjects()) {
         spdlog::error("[Application] Failed to reinitialize panel subjects");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5055,7 +5051,6 @@ void Application::init_printer_state() {
     if (!init_ui()) {
         spdlog::error("[Application] Failed to reinitialize UI");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5085,11 +5080,7 @@ void Application::init_printer_state() {
         spdlog::warn("[Application] Running without printer connection after switch");
     }
 
-    // 10. Revalidate observer guards — all old guards have been reassigned (released)
-    //     during init, and all new observers are attached to live subjects.
-    ObserverGuard::revalidate_all();
-
-    // Force full screen refresh
+    // 10. Force full screen refresh
     lv_obj_update_layout(m_screen);
     invalidate_all_recursive(m_screen);
     lv_refr_now(nullptr);
