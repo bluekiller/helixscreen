@@ -43,7 +43,6 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
         return AmsType::OPENAMS;
     }
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     [[nodiscard]] PathTopology get_topology() const override;
     [[nodiscard]] PathTopology get_unit_topology(int unit_index) const override;
@@ -104,7 +103,7 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
     AmsError do_change_tool(int tool_number) override;
 
     void on_started() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS OpenAMS]";
     }
@@ -181,8 +180,9 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
     std::vector<Group> groups_;
     std::unordered_map<std::string, std::string> commands_;
 
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+    /// OpenAMS states no identity of its own, so a clear blanks every
+    /// identity field: nothing will restate them.
+    void clear_override_fields(SlotInfo& slot) const override;
 };
 
 } // namespace helix

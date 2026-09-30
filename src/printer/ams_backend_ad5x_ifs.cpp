@@ -55,7 +55,7 @@ namespace {
 
 /// True when the printer's job state is PAUSED.
 ///
-/// Reads the same subject handle_status_update() already uses to pick the
+/// Reads the same subject handle_status() already uses to pick the
 /// Adventurer5M.json poll cadence, so there is one way this backend learns the
 /// print state. Null-safe: before PrinterState::init_subjects() (cold boot,
 /// non-LVGL unit tests) the accessor returns nullptr and we answer "not paused",
@@ -240,7 +240,7 @@ AmsBackendAd5xIfs::required_status_objects(const helix::PrinterDiscovery& hw) {
 void AmsBackendAd5xIfs::on_started() {
     // Load persisted per-slot overrides (brand, spool name, spoolman IDs, etc.)
     // BEFORE issuing the initial status query — otherwise the first
-    // handle_status_update() callback may fire (on the websocket thread) and
+    // handle_status() callback may fire (on the websocket thread) and
     // update slots before overrides_ is populated, so the first frame of
     // EVENT_STATE_CHANGED would be missing override data. load_blocking runs
     // on this (main) thread; the Moonraker DB callback fires on the libhv
@@ -354,7 +354,7 @@ void AmsBackendAd5xIfs::on_started() {
                 // a real macro's get_status() returns a non-empty dict.
                 //
                 // Only the existence bool is extracted here; the dict itself
-                // survives into status_copy below and handle_status_update()
+                // survives into status_copy below and handle_status()
                 // reads its `variable_*` payload (parse_ifs_vars_macro_locked).
                 macro_exists = status.contains("gcode_macro _ifs_vars") &&
                                status["gcode_macro _ifs_vars"].is_object() &&
@@ -367,13 +367,13 @@ void AmsBackendAd5xIfs::on_started() {
                 have_status = true;
             }
 
-            // MAIN THREAD: apply latch, run handle_status_update, log, and
+            // MAIN THREAD: apply latch, run handle_status, log, and
             // launch the follow-up chain (each call accesses api_/client_).
             token.defer("Ad5xIfsBackend::on_started_apply",
                         [this, macro_exists, klippy_ready, have_status,
                          status_copy = std::move(status_copy)]() mutable {
                             if (have_status) {
-                                // Update latch BEFORE handle_status_update so
+                                // Update latch BEFORE handle_status so
                                 // parse_save_variables sees the correct state.
                                 // ifs_macro_confirmed_missing_ starts true
                                 // (pessimistic) and is only cleared here when
@@ -386,7 +386,7 @@ void AmsBackendAd5xIfs::on_started() {
                                     // !macro_exists: latch stays true
                                 }
 
-                                handle_status_update(status_copy);
+                                handle_status(status_copy);
                             }
 
                             // Log initial state after processing query response
@@ -485,18 +485,8 @@ void AmsBackendAd5xIfs::request_resync() {
 
 // --- Status parsing ---
 
-void AmsBackendAd5xIfs::handle_status_update(const json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    // Initial query response sends unwrapped status directly — handle both formats.
-    const json* status = &notification;
-    if (notification.contains("params") && notification["params"].is_array() &&
-        !notification["params"].empty()) {
-        status = &notification["params"][0];
-        if (!status->is_object()) {
-            return;
-        }
-    }
+void AmsBackendAd5xIfs::handle_status(const json& status_obj) {
+    const json* status = &status_obj;
 
     std::unique_lock<std::mutex> lock(mutex_);
 
@@ -909,7 +899,7 @@ void AmsBackendAd5xIfs::parse_save_variables(const json& vars) {
         // scan of tools 4..15 could never find a backup lane). SAVE_VARIABLE
         // persists the damage across reboots, and lessWaste's own start dialog
         // only re-heals it until our next push. Detect the truncated shape and
-        // stage a repair; handle_status_update() dispatches it with mutex_
+        // stage a repair; handle_status() dispatches it with mutex_
         // released. bambufy arrays legitimately hold 4 entries, so the check is
         // lessWaste-only. Not an array (string/absent) means the plugin never
         // wrote the row or uses another form — leave it alone.
@@ -962,7 +952,7 @@ void AmsBackendAd5xIfs::parse_save_variables(const json& vars) {
                           backend_log_tag(), loaded, seated_chan_);
             seated_chan_ = loaded;
         }
-        // Keep current_tool in step too — handle_status_update snapshots
+        // Keep current_tool in step too — handle_status snapshots
         // active_tool_ into system_info_ on this same frame, and the identity
         // tool map the latch installed makes tool == channel - 1.
         active_tool_ = (loaded >= 1 && loaded <= NUM_PORTS) ? loaded - 1 : -1;
@@ -1184,7 +1174,7 @@ void AmsBackendAd5xIfs::update_slot_from_state(int slot_index) {
     // colour; anything else leaves color_rgb alone so the last good colour
     // stays on screen. Cleared lands there too, because an empty colors_[idx]
     // is a slot no source has spoken for yet rather than the board stating the
-    // lane has no colour - parse_save_variables and handle_status_update run
+    // lane has no colour - parse_save_variables and handle_status run
     // before parse_adventurer_json fills it.
     std::optional<uint32_t> observed_color;
     if (const auto reading = ams::read_lane_color(colors_[idx]);
@@ -1195,7 +1185,7 @@ void AmsBackendAd5xIfs::update_slot_from_state(int slot_index) {
 
     // Material follows the color rule above: an empty materials_[idx] is a
     // slot no source has spoken for yet (parse_save_variables and
-    // handle_status_update run before parse_adventurer_json fills it), not
+    // handle_status run before parse_adventurer_json fills it), not
     // the board stating the lane has no material. The vendor-cache filing
     // below already treats it that way, and painting "" here would wipe an
     // identity the lane model cannot restore — a sync carries no declaration
@@ -1248,7 +1238,7 @@ void AmsBackendAd5xIfs::update_slot_from_state(int slot_index) {
     // answer, in which a declared field outranks this frame's vendor reading.
     //
     // observed_color is nullopt whenever this call read no colour at all: an
-    // empty colors_[idx] (parse_save_variables / handle_status_update run
+    // empty colors_[idx] (parse_save_variables / handle_status run
     // before parse_adventurer_json fills it), or a string that would not parse.
     // That is the helper's explicit "no reading" signal, and it establishes no
     // baseline, so a genuine later reading is not misread as an external edit.
@@ -1556,48 +1546,6 @@ bool AmsBackendAd5xIfs::sync_override_to_firmware_locked(int slot_index, uint32_
     return true;
 }
 
-void AmsBackendAd5xIfs::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets
-    // override-exclusive fields on the live SlotInfo (so the next
-    // get_slot_info sees cleared state), and fires the async store delete.
-    // Firmware-sourced
-    // fields (color_rgb, material, mapped_tool, status) are left alone —
-    // update_slot_from_state has already refreshed them.
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-    // The echo suppression goes too: the user just disowned the write, so
-    // what firmware repeats from here on is its own word again.
-    own_write_echoes_.abandon(slot_index);
-
-    slot.brand.clear();
-    slot.clear_spoolman_link();
-    slot.remaining_weight_g = -1.0f;
-    slot.total_weight_g = -1.0f;
-    slot.color_name.clear();
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
-    slot.catalog_id.clear();
-    slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value only — clear_async's Moonraker callback can fire
-        // long after this function returns (MR tracker ~60s timeout) and
-        // after the backend itself may be gone. Same pattern as the
-        // save_async site in apply_user_edit().
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
-}
-
 void AmsBackendAd5xIfs::retract_lane_declaration_locked(int slot_index, RetractedFields fields) {
     // Caller holds mutex_. See the header for why both stores have to move
     // together.
@@ -1703,7 +1651,7 @@ void AmsBackendAd5xIfs::release_locked_override_keep_identity_locked(int slot_in
     if (!has_identity) {
         // Nothing firmware-uncarryable to keep — behave exactly like the
         // pre-existing #981 clear so those tests still see a clean wipe.
-        clear_override_locked(slot_index, slot);
+        clear_override_locked(slot_index, &slot);
         return;
     }
 
@@ -1767,7 +1715,7 @@ void AmsBackendAd5xIfs::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, entry->info);
+        clear_override_locked(slot_index, &entry->info);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
@@ -1829,15 +1777,6 @@ AmsSystemInfo AmsBackendAd5xIfs::get_system_info() const {
     }
 
     return info;
-}
-
-SlotInfo AmsBackendAd5xIfs::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto* entry = slots_.get(slot_index);
-    if (!entry) {
-        return SlotInfo{};
-    }
-    return entry->info;
 }
 
 bool AmsBackendAd5xIfs::is_bypass_active() const {
@@ -6343,7 +6282,7 @@ void AmsBackendAd5xIfs::detect_load_unload_completion(bool head_detected) {
 // === Unattended runout detection (#1250, reported as #1247) ===
 
 void AmsBackendAd5xIfs::note_head_switch_reading_locked(bool detected) {
-    // Reads the PREVIOUS latch values; handle_status_update calls this before it
+    // Reads the PREVIOUS latch values; handle_status calls this before it
     // overwrites head_switch_seen_ / head_switch_present_.
     const bool was_seen = head_switch_seen_;
     const bool was_present = head_switch_present_;

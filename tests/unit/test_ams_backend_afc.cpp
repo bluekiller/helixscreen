@@ -1643,6 +1643,22 @@ TEST_CASE("AFC persist=false: updates local state without G-code",
     REQUIRE(stored.spoolman_id == 42);
 }
 
+TEST_CASE("AFC sync_external_identity carries the whole Spoolman link", "[ams][afc][persistence]") {
+    AmsBackendAfcTestHelper helper;
+    helper.set_afc_version("1.0.20");
+    helper.initialize_test_lanes_with_slots(4);
+
+    SlotInfo info;
+    info.spoolman_id = 42;
+    info.spoolman_filament_id = 77;
+    info.spoolman_vendor_id = 3;
+    helper.sync_external_identity(0, info);
+
+    const SlotInfo stored = helper.get_slot_info(0);
+    CHECK(stored.spoolman_filament_id == 77);
+    CHECK(stored.spoolman_vendor_id == 3);
+}
+
 TEST_CASE("AFC persist=true: sends G-code (default behavior unchanged)",
           "[ams][afc][persistence][persist_flag]") {
     AmsBackendAfcTestHelper helper;
@@ -7319,7 +7335,7 @@ TEST_CASE("AFC buffer delta omitting fields leaves the prior health intact",
 //
 // Every buffer assertion above is single-unit units[0], which is why two
 // separate defects hid here on a five-unit rig:
-//   (a) handle_status_update parsed AFC_buffer objects BEFORE the unit-level
+//   (a) handle_status parsed AFC_buffer objects BEFORE the unit-level
 //       objects that build the multi-unit layout, so every lane resolved against
 //       the synthetic single unit initialize_slots() creates and all five buffers
 //       landed on unit 0, overwriting each other;

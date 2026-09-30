@@ -74,12 +74,15 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
      *
      * @param tool_names Vector of tool names
      */
-    void set_discovered_tools(std::vector<std::string> tool_names) override;
+    void set_discovered_tools(std::vector<std::string> tool_names);
+
+    /// Tool names plus the feeder, tool sensor, swap commands and material
+    /// source resolved from discovery.
+    void set_discovery(const helix::PrinterDiscovery& discovery) override;
 
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
     [[nodiscard]] AmsType get_type() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     /// The material list the firmware itself validates against, once a frame
     /// has carried it. nullopt until then, or when the firmware states no such
@@ -334,24 +337,24 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
      * exposes no device actions -- which is every klipper-toolchanger build
      * that swaps a whole toolhead.
      */
-    void set_feeder(helix::toolchanger_addon::Feeder feeder) override {
+    void set_feeder(helix::toolchanger_addon::Feeder feeder) {
         feeder_ = std::move(feeder);
     }
 
     /// Dock-sensor reader. When set, its answer overrides toolchanger.tool_number.
-    void set_tool_sensor(helix::toolchanger_addon::ToolSensor sensor) override {
+    void set_tool_sensor(helix::toolchanger_addon::ToolSensor sensor) {
         tool_sensor_ = std::move(sensor);
     }
 
     /// Swap commands for a machine without klipper-toolchanger. Absent leaves
     /// SELECT_TOOL/UNSELECT_TOOL in place.
-    void set_tool_commands(helix::toolchanger_addon::ToolCommands commands) override {
+    void set_tool_commands(helix::toolchanger_addon::ToolCommands commands) {
         tool_commands_ = std::move(commands);
     }
 
     /// The firmware material store this machine keeps. Absent means
     /// HelixScreen's own store is the only one.
-    void set_material_source(helix::toolchanger_addon::MaterialSource source) override {
+    void set_material_source(helix::toolchanger_addon::MaterialSource source) {
         std::lock_guard<std::mutex> lock(mutex_);
         material_source_ = std::move(source);
     }
@@ -373,7 +376,7 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// Post-start work. Loads the slot-override store here and NOT in
     /// additional_start_checks(), which start() calls with mutex_ held.
     void on_started() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS ToolChanger]";
     }
@@ -517,13 +520,9 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// a firmware reading, and initialize_tools() resets colour to default grey
     /// on every rediscovery - which is exactly what used to wipe the user's edit.
 
-    /// Per-slot user metadata, keyed by slot index. Written and read only under
-    /// mutex_.
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
-
-    /// Moonraker-DB-backed store. Null until additional_start_checks() builds it
-    /// (needs api_), and on backends constructed without an API in tests.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
+    /// The store is the sole source of filament identity here, so a clear
+    /// blanks every identity field: nothing will restate them.
+    void clear_override_fields(SlotInfo& slot) const override;
 
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.

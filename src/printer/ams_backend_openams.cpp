@@ -97,22 +97,8 @@ std::optional<PathTopology> topology_from_token(const std::string& topology) {
 /// Put @p info's filament fields on @p slot, so get_slot_info returns them at
 /// once rather than after the next frame.
 void write_filament_fields(SlotInfo& slot, const SlotInfo& info) {
-    slot.color_rgb = info.color_rgb;
-    slot.color_name = info.color_name;
+    slot.assign_filament_fields(info);
     slot.multi_color_hexes = info.multi_color_hexes;
-    slot.material = info.material;
-    slot.brand = info.brand;
-    slot.catalog_id = info.catalog_id;
-    slot.product_name = info.product_name;
-    slot.spool_name = info.spool_name;
-    slot.spoolman_id = info.spoolman_id;
-    slot.spoolman_filament_id = info.spoolman_filament_id;
-    slot.spoolman_vendor_id = info.spoolman_vendor_id;
-    slot.remaining_weight_g = info.remaining_weight_g;
-    slot.total_weight_g = info.total_weight_g;
-    slot.nozzle_temp_min = info.nozzle_temp_min;
-    slot.nozzle_temp_max = info.nozzle_temp_max;
-    slot.bed_temp = info.bed_temp;
 }
 
 } // namespace
@@ -159,14 +145,8 @@ void AmsBackendOpenAms::on_started() {
     emit_event(EVENT_STATE_CHANGED);
 }
 
-void AmsBackendOpenAms::handle_status_update(const json& notification) {
-    const json* objects = &notification;
-    auto params = notification.find("params");
-    if (params != notification.end() && params->is_array() && !params->empty() &&
-        (*params)[0].is_object()) {
-        objects = &(*params)[0];
-    }
-    const json* update = object_member(*objects, openams::kManagerObject);
+void AmsBackendOpenAms::handle_status(const json& status) {
+    const json* update = object_member(status, openams::kManagerObject);
     if (!update) {
         return;
     }
@@ -477,12 +457,6 @@ AmsAction AmsBackendOpenAms::action_from_lane_state(const std::string& state) {
 AmsSystemInfo AmsBackendOpenAms::get_system_info() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return system_info_;
-}
-
-SlotInfo AmsBackendOpenAms::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const SlotInfo* slot = system_info_.get_slot_global(slot_index);
-    return slot ? *slot : SlotInfo{};
 }
 
 SlotInfo* AmsBackendOpenAms::cached_slot_locked(int slot_index) {
@@ -897,37 +871,16 @@ void AmsBackendOpenAms::persist_external_identity_impl(int slot_index,
 void AmsBackendOpenAms::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-
-        // OpenAMS states no identity of its own, so nothing would restate
-        // these fields; a clear that left them would show the old spool until
-        // the next frame.
-        if (SlotInfo* slot = system_info_.get_slot_global(slot_index)) {
-            slot->material.clear();
-            slot->color_rgb = AMS_DEFAULT_SLOT_COLOR;
-            slot->color_name.clear();
-            slot->multi_color_hexes.clear();
-            slot->brand.clear();
-            slot->catalog_id.clear();
-            slot->product_name.clear();
-            slot->spool_name.clear();
-            slot->clear_spoolman_link();
-            slot->remaining_weight_g = -1.0f;
-            slot->total_weight_g = -1.0f;
-        }
+        clear_override_locked(slot_index, system_info_.get_slot_global(slot_index));
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        // The record may have been written by another lane_data author, so
-        // the delete goes out whether or not this session loaded one.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} Override clear failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
+}
+
+void AmsBackendOpenAms::clear_override_fields(SlotInfo& slot) const {
+    AmsSubscriptionBackend::clear_override_fields(slot);
+    slot.material.clear();
+    slot.color_rgb = AMS_DEFAULT_SLOT_COLOR;
+    slot.multi_color_hexes.clear();
 }
 
 // ============================================================================

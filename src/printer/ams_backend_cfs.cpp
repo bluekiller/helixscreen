@@ -17,6 +17,7 @@
 #include "filament_slot_override_store.h"
 #include "json_utils.h"
 #include "klipper_error_table.h"
+#include "lane_apply.h"
 #include "lane_legacy_migration.h"
 #include "lane_source_store.h"
 #include "lane_translation.h"
@@ -283,7 +284,7 @@ AmsBackendCfs::AmsBackendCfs(IMoonrakerAPI* api, helix::IMoonrakerClient* client
     system_info_.type = AmsType::CFS;
     system_info_.type_name = "CFS";
     // Starts false and converges on the first full box frame in
-    // handle_status_update — see the convergence comment there for the two
+    // handle_status — see the convergence comment there for the two
     // dialect rules (Fork: verified T<external> command + payload entry;
     // stock: sensor-derived rule, no load command exists).
     system_info_.supports_bypass = false;
@@ -398,17 +399,15 @@ void AmsBackendCfs::on_started() {
             [this, token = lifetime_.token()](const nlohmann::json& response) {
                 if (response.contains("result") && response["result"].contains("status") &&
                     response["result"]["status"].is_object()) {
-                    // Wrap in notify_status_update format for handle_status_update
-                    nlohmann::json notification = {
-                        {"params", nlohmann::json::array({response["result"]["status"]})}};
                     // The response callback runs on the libhv WS thread; the
-                    // notify subscription defers handle_status_update to main,
-                    // and this entry point must match it (handle_status_update
-                    // reads LVGL subjects for the insert-probe gate).
-                    token.defer("AmsBackendCfs::initial_state", [this, notification]() {
-                        handle_status_update(notification);
-                        spdlog::info("[AMS CFS] Initial state loaded");
-                    });
+                    // notify subscription defers handle_status to main, and
+                    // this entry point must match it (handle_status reads
+                    // LVGL subjects for the insert-probe gate).
+                    token.defer("AmsBackendCfs::initial_state",
+                                [this, status = response["result"]["status"]]() {
+                                    handle_status(status);
+                                    spdlog::info("[AMS CFS] Initial state loaded");
+                                });
                 } else {
                     spdlog::warn("[AMS CFS] Initial state query returned unexpected format");
                 }
@@ -499,7 +498,7 @@ AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
     // loaded" truth — it retains a lane number even when nothing is loaded,
     // producing phantom "loaded from lane N". The authoritative loaded signal
     // is the toolhead sensor (filament_switch_sensor filament_sensor), handled
-    // in handle_status_update. Leave filament_loaded false here.
+    // in handle_status. Leave filament_loaded false here.
     info.filament_loaded = false;
 
     // Runout signal: box.filament_useup == 1 means no filament at the box gate.
@@ -909,7 +908,7 @@ static uint32_t parse_flat_slot_color(const std::string& raw) {
 // key entirely. Both cases mean "no reading", which is a different answer from
 // false — false is a runout. Returning an optional keeps that distinction at
 // the one place it is decided, so the parse and the merge gate in
-// handle_status_update cannot drift apart on it.
+// handle_status cannot drift apart on it.
 static std::optional<bool> flat_gate_filament_present(const nlohmann::json& box_json) {
     auto it = box_json.find("filament_detected");
     if (it == box_json.end() || !it->is_boolean()) {
@@ -937,7 +936,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     info.supports_purge = true;
 
     // Bypass on a Flat payload is decided at convergence in
-    // handle_status_update, not here: the holder entry is observable, but only
+    // handle_status, not here: the holder entry is observable, but only
     // the identified Fork dialect has a verified command for it (`T<external>`
     // is registered by the port's own box.py; BOX_UNLOAD's external branch
     // ejects it). This static parser cannot see the latched dialect, so it
@@ -954,7 +953,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
 
     // Runout is the box gate's own presence boolean, negated. No reading (key
     // absent, or null before the sensor's first read) is not a runout, and the
-    // merge gate in handle_status_update tests the same optional so such a
+    // merge gate in handle_status tests the same optional so such a
     // frame leaves the latch as it was.
     //
     // `runout` is deliberately NOT read here. It is the runout-SWAP plan — an
@@ -966,7 +965,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     // Spoolman link the moment the bay next reads empty.
     //
     // filament_loaded is left false for the same reason as the stock parse —
-    // the toolhead sensor branch in handle_status_update is its sole writer.
+    // the toolhead sensor branch in handle_status is its sole writer.
     const std::optional<bool> gate_present = flat_gate_filament_present(box_json);
     info.filament_runout = gate_present.has_value() && !*gate_present;
     info.filament_loaded = false;
@@ -1244,25 +1243,14 @@ static std::string build_cfs_flat_slot_uid(const nlohmann::json& slot_json) {
                                 color.kind == helix::ams::ColorReadingKind::Observed, color.rgb);
 }
 
-// --- handle_status_update ---
+// --- handle_status ---
 
-void AmsBackendCfs::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update format: {"method": "notify_status_update", "params": [{...}, timestamp]}
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendCfs::handle_status(const nlohmann::json& params) {
     bool changed = false;
     // unit number -> bay bitmask, filled under mutex_ and dispatched after it.
     std::map<int, int> insert_probes;
 
-    // Print-lifecycle input for the insert-probe gate below. handle_status_update
+    // Print-lifecycle input for the insert-probe gate below. handle_status
     // runs on the main thread (the subscription defers every notify there, and
     // on_started's initial-state query response defers through the same token), so a
     // synchronous subject read is safe. A null api_ (unit-test rigs, cold boot)
@@ -1297,7 +1285,7 @@ void AmsBackendCfs::handle_status_update(const nlohmann::json& notification) {
                 // safe_int, not .value(): spdlog evaluates its arguments before it
                 // consults the log level, so a null or wrong-typed "filament"/
                 // "auto_refill"/"enable" would throw type_error.302 out of
-                // handle_status_update in a release build too, not just under -vv.
+                // handle_status in a release build too, not just under -vv.
                 // NB these are the TOP-LEVEL box fields, documented as ints — not
                 // the same-named per-unit "filament" letter, which is a string.
                 spdlog::debug("[AMS CFS] filament_useup {} -> {} (box.filament={}, "
@@ -1468,7 +1456,7 @@ void AmsBackendCfs::handle_status_update(const nlohmann::json& notification) {
                     const auto& unit_json = box[key];
                     // safe_string for the same reason as the parse_box_status
                     // unit loop: a null/wrong-typed `state` must degrade to
-                    // "disconnected", not throw out of handle_status_update.
+                    // "disconnected", not throw out of handle_status.
                     std::string state = helix::json_util::safe_string(unit_json, "state", "None");
                     if (state == "None" || state == "-1")
                         continue;
@@ -1915,15 +1903,6 @@ AmsSystemInfo AmsBackendCfs::get_system_info() const {
     return system_info_;
 }
 
-SlotInfo AmsBackendCfs::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto* slot = system_info_.get_slot_global(slot_index);
-    if (slot) {
-        return *slot;
-    }
-    return SlotInfo{};
-}
-
 int AmsBackendCfs::slot_index_bound_locked() const {
     return slot_index_ceiling(system_info_.total_slots);
 }
@@ -2189,21 +2168,7 @@ namespace {
 /// Put @p info's filament fields on @p bay, covering every SlotInfo field the
 /// caller may have set, so get_slot_info returns them at once.
 void write_filament_fields(SlotInfo& bay, const SlotInfo& info) {
-    bay.color_rgb = info.color_rgb;
-    bay.color_name = info.color_name;
-    bay.material = info.material;
-    bay.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that dropped
-    // it would make the editor snap back to a different variant on the next
-    // get_slot_info().
-    bay.catalog_id = info.catalog_id;
-    bay.product_name = info.product_name;
-    bay.spool_name = info.spool_name;
-    bay.spoolman_id = info.spoolman_id;
-    bay.spoolman_filament_id = info.spoolman_filament_id;
-    bay.spoolman_vendor_id = info.spoolman_vendor_id;
-    bay.remaining_weight_g = info.remaining_weight_g;
-    bay.total_weight_g = info.total_weight_g;
+    helix::ams::copy_resolver_owned_identity(bay, info);
 }
 
 } // namespace
@@ -3813,7 +3778,7 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
     // AmsBackendHappyHare::get_endless_spool_capabilities.
     //
     // units is the readiness signal because it is the same guard the merge
-    // uses: handle_status_update writes the enable bit only inside
+    // uses: handle_status writes the enable bit only inside
     // `if (!new_info.units.empty())`, so an empty units vector is exactly the
     // state in which that bit cannot have come from firmware.
     if (system_info_.units.empty()) {
@@ -4467,7 +4432,7 @@ bool AmsBackendCfs::check_hardware_event_clear(SlotInfo& slot, int slot_index,
     // hardware-event clears and user-initiated clears share one field-reset
     // policy. Caller already holds mutex_.
     (void)ovr_it;
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
     return true;
 }
 
@@ -4517,7 +4482,7 @@ bool AmsBackendCfs::clear_stale_override_on_removal_locked(SlotInfo& slot, int s
     // the empty bay would go on ghosting.
     spdlog::info("{} Slot {} reads EMPTY — clearing auto-mirrored override for the removed spool",
                  backend_log_tag(), slot_index);
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
     return true;
 }
 
@@ -4539,7 +4504,7 @@ bool AmsBackendCfs::judge_insert_locked(SlotInfo& slot, int slot_index,
         spdlog::info("{} Slot {} insert carries a different spool's reading - dropping what "
                      "described the previous one",
                      backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, slot);
+        clear_override_locked(slot_index, &slot);
         return true;
     case helix::ams::InsertVerdict::NoEvidence:
         // Keep everything and ask. The notice is self-gating, so a lane with
@@ -4674,46 +4639,11 @@ bool AmsBackendCfs::note_insert_edge_locked(SlotInfo& slot, int slot_index) {
     return false;
 }
 
-void AmsBackendCfs::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets STRICTLY
-    // override-exclusive fields on the live SlotInfo so the cleared state is
-    // visible in the very next get_slot_info() read.
-    //
-    // CFS field policy: brand / color_name / total_weight_g come from the
-    // RFID material database (FilamentCatalog::resolve_code lookup in
-    // parse_box_status) — the parse has already written firmware truth for
-    // the current spool, so
-    // we must NOT re-zero those fields. The override's copies disappear with
-    // the erase; firmware's copies stay. Matches Snapmaker policy.
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-    // The echo suppression goes too: the user just disowned the write, so
-    // what firmware repeats from here on is its own word again.
-    own_write_echoes_.abandon(slot_index);
-
+void AmsBackendCfs::clear_override_fields(SlotInfo& slot) const {
     slot.clear_spoolman_link();
     slot.remaining_weight_g = -1.0f;
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
     slot.catalog_id.clear();
     slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value — clear_async's Moonraker callback may fire after
-        // this returns (MR tracker ~60s) and potentially after the backend
-        // itself is gone. Same rationale as save_async.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
 }
 
 void AmsBackendCfs::update_runout_episode_locked() {
@@ -4836,7 +4766,7 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, *slot);
+        clear_override_locked(slot_index, slot);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));

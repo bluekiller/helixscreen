@@ -82,7 +82,6 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     // ========================================================================
 
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // ========================================================================
     // Path Visualization
@@ -181,7 +180,10 @@ class AmsBackendAce : public AmsSubscriptionBackend {
 
     /// The macros that throw the ACE master switch, resolved from discovery
     /// with a user override. Empty names mean this rig cannot bypass.
-    void set_bypass_macros(helix::BypassMacros macros) override;
+    void set_bypass_macros(helix::BypassMacros macros);
+
+    /// The bypass macros resolved from discovery.
+    void set_discovery(const helix::PrinterDiscovery& discovery) override;
 
     // ========================================================================
     // Environment Sensors & Dryer Control (ACE Pro has built-in dryer + temp)
@@ -211,7 +213,7 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     // AmsSubscriptionBackend hooks
     // ========================================================================
 
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[ACE]";
     }
@@ -428,8 +430,10 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     std::atomic<bool> rest_data_ok_{false};
     std::atomic<int> data_fetch_failures_{0};
 
-    // Callback lifetime management
-    helix::AsyncLifetimeGuard lifetime_;
+    /// Guards ACE's own RPC and REST callbacks. Separate from the base
+    /// lifetime_ because cancel() and on_stopping() expire these without
+    /// expiring the status subscription.
+    helix::AsyncLifetimeGuard op_lifetime_;
 
     // REST fallback state
     bool use_rest_fallback_{false};
@@ -490,6 +494,11 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     /// first_slot_global_index/slot_count, which parse_slots_response only
     /// refreshes when the slot count actually changes. Caller holds mutex_.
     SlotInfo* mutable_slot_locked(int slot_index);
+    /// Reads index units[0].slots the same way, so a read sees what a write
+    /// through mutable_slot_locked() left.
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        return const_cast<AmsBackendAce*>(this)->mutable_slot_locked(slot_index);
+    }
 
     /// Undo the derived LOADED stamp, restoring the status the last parse
     /// wrote. Caller holds mutex_. Runs at the TOP of every parse so
@@ -546,22 +555,6 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     bool path_sensors_seen_ = false;
     bool rdm_sensor_ = false;
     bool toolhead_sensor_ = false;
-
-    // Shared helper used by every override-clear path (hardware event and
-    // explicit user request). Caller must hold mutex_. Erases
-    // overrides_[slot_index], resets override-exclusive fields on the
-    // provided SlotInfo (brand, spool_name, spoolman_*, weights, color_name),
-    // and fires clear_async. Color/material stay untouched — firmware owns
-    // them for ACE and the parse has just refreshed them.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
-
-    // User-provided per-slot metadata (brand, spool name, spoolman IDs,
-    // remaining weight, etc.) layered over firmware-reported state.
-    // Both writers (on_started initial load, apply_user_edit) hold
-    // mutex_; so do the readers (apply_user_edit's re-read of the staged record,
-    // clear_override_locked).
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
 
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
