@@ -70,7 +70,7 @@ jobs:
     # always() so a transient cache-API failure in the prune job degrades the
     # warm to "runs without the extra headroom" rather than skipping it entirely.
     # Upstream only - forks neither release nor share this repo's cache budget.
-    if: always() && github.repository == 'prestonbrown/helixscreen'
+    if: always()
     runs-on: ubuntu-22.04
     # This job is the one that MUST tolerate a fully cold build, because a cold
     # build is the only kind it ever does: its whole purpose is to produce the
@@ -84,15 +84,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: pi
-            display_name: "Raspberry Pi"
-            build_target: pi-both
           - platform: pi32
             display_name: "Raspberry Pi 32-bit"
             build_target: pi32-both
-          - platform: x86
-            display_name: "x86_64 Debian"
-            build_target: x86-both
 
     steps:
     - name: Checkout repository
@@ -181,6 +175,12 @@ jobs:
           -w /src \
           helixscreen/toolchain-${{ matrix.platform }} \
           make PLATFORM_TARGET=${{ matrix.build_target }} HELIX_PACKAGING=1 SKIP_OPTIONAL_DEPS=1 -j$(nproc)
+
+    - name: Check the EGL binary was linked
+      run: |
+        test -x build/pi32/bin/helix-screen-egl
+        file build/pi32/bin/helix-screen-egl
+        ls -la build/pi32/bin/ build/pi32-fbdev/bin/
 
     - name: Show ccache stats
       run: |
