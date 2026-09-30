@@ -35,6 +35,7 @@
 #include "static_subject_registry.h"
 #include "system/helix_paths.h"
 #include "temperature_controller.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -504,11 +505,8 @@ bool helix_parse_truthy_env(const char* value) {
     if (!value || value[0] == '\0') {
         return false;
     }
-    std::string v(value);
-    // Trim surrounding whitespace (helixscreen.env values can carry a stray space).
-    auto not_space = [](unsigned char c) { return !std::isspace(c); };
-    v.erase(v.begin(), std::find_if(v.begin(), v.end(), not_space));
-    v.erase(std::find_if(v.rbegin(), v.rend(), not_space).base(), v.end());
+    // helixscreen.env values can carry a stray space.
+    std::string v(helix::text_io::trim(value));
     std::transform(v.begin(), v.end(), v.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return v == "1" || v == "true" || v == "yes" || v == "on";

@@ -4,6 +4,7 @@
 #include "netd_protocol.h"
 
 #include "hv/base64.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -22,20 +23,6 @@
 namespace helix::netd {
 namespace {
 
-// Whitespace the daemon may pad a value with (and the assembler's line tail).
-std::string trim_copy(const std::string& s) {
-    const auto is_space = [](unsigned char c) {
-        return c == ' ' || c == '\t' || c == '\r' || c == '\n';
-    };
-    size_t begin = 0;
-    size_t end = s.size();
-    while (begin < end && is_space(s[begin]))
-        ++begin;
-    while (end > begin && is_space(s[end - 1]))
-        --end;
-    return s.substr(begin, end - begin);
-}
-
 std::string ascii_lower(const std::string& s) {
     std::string out;
     out.reserve(s.size());
@@ -53,7 +40,7 @@ std::string snapshot_line_key(const std::string& line) {
     const size_t eq = line.find('=');
     if (eq == std::string::npos)
         return {};
-    return ascii_lower(trim_copy(line.substr(0, eq)));
+    return ascii_lower(std::string(helix::text_io::trim(line.substr(0, eq))));
 }
 
 // Strict full-string integer parse: optional sign, digits only, no whitespace,
@@ -122,12 +109,12 @@ Ack parse_ack(const std::string& line) {
     }
     if (line.rfind("OK ", 0) == 0) {
         ack.kind = Ack::Kind::Ok;
-        ack.text = trim_copy(line.substr(3));
+        ack.text = std::string(helix::text_io::trim(line.substr(3)));
         return ack;
     }
     if (line.rfind("ERR ", 0) == 0) {
         ack.kind = Ack::Kind::Err;
-        ack.text = trim_copy(line.substr(4));
+        ack.text = std::string(helix::text_io::trim(line.substr(4)));
         return ack;
     }
     return ack;
@@ -139,7 +126,7 @@ bool parse_snapshot_line(const std::string& line, NetdSnapshot& out) {
         return false;
 
     const std::string key = snapshot_line_key(line);
-    const std::string value = trim_copy(line.substr(eq + 1));
+    const std::string value(helix::text_io::trim(line.substr(eq + 1)));
 
     // Known keys only; everything else is a newer daemon's addition and is
     // ignored without disturbing what was already merged.

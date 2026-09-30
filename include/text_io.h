@@ -210,6 +210,17 @@ inline std::vector<std::string_view> split_ws(std::string_view s) {
     return out;
 }
 
+/// `s` without leading and trailing C-locale whitespace (space \t \n \v \f \r).
+/// The view points into `s`; "" when `s` is all whitespace.
+inline std::string_view trim(std::string_view s) {
+    constexpr std::string_view ws = " \t\n\v\f\r";
+    const size_t first = s.find_first_not_of(ws);
+    if (first == std::string_view::npos) {
+        return {};
+    }
+    return s.substr(first, s.find_last_not_of(ws) - first + 1);
+}
+
 // ---------------------------------------------------------------------------
 // Numbers. Strict: the whole view must be the number, no surrounding
 // whitespace. One leading '+' is accepted, as std::stoi/stod and >> accept it.

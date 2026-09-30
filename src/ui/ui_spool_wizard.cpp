@@ -17,6 +17,7 @@
 #include "app_globals.h"
 #include "filament_database.h"
 #include "i_moonraker_api.h"
+#include "text_io.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -40,15 +41,6 @@ constexpr size_t MAX_VENDOR_URL_LEN = 2048;
 std::string to_lower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
     return s;
-}
-
-/// Return a whitespace-trimmed copy of the input string
-std::string trim(const std::string& s) {
-    auto start = s.find_first_not_of(" \t\n\r\f\v");
-    if (start == std::string::npos)
-        return "";
-    auto end = s.find_last_not_of(" \t\n\r\f\v");
-    return s.substr(start, end - start + 1);
 }
 
 /// Set a JSON temperature range object, only including fields with positive values
@@ -863,7 +855,7 @@ void SpoolWizardOverlay::set_new_vendor(const std::string& name, const std::stri
     new_vendor_name_ = name.substr(0, MAX_VENDOR_NAME_LEN);
     new_vendor_url_ = url.substr(0, MAX_VENDOR_URL_LEN);
 
-    bool valid = !trim(new_vendor_name_).empty();
+    bool valid = !helix::text_io::trim(new_vendor_name_).empty();
 
     if (subjects_initialized_) {
         lv_subject_set_int(&can_create_vendor_subject_, valid ? 1 : 0);
@@ -997,7 +989,7 @@ void SpoolWizardOverlay::on_wizard_confirm_create_vendor(lv_event_t* /*e*/) {
     spdlog::debug("[SpoolWizard] Confirm create vendor");
     auto& wiz = get_global_spool_wizard();
 
-    std::string name = trim(wiz.new_vendor_name_);
+    std::string name(helix::text_io::trim(wiz.new_vendor_name_));
     if (name.empty()) {
         spdlog::warn("[SpoolWizard] Cannot create vendor with empty name");
         return;
@@ -1704,7 +1696,7 @@ void SpoolWizardOverlay::on_wizard_confirm_create_filament(lv_event_t* /*e*/) {
 
     // Check for duplicate (case-insensitive material + name match)
     std::string mat_lower = to_lower(wiz.new_filament_material_);
-    std::string name_lower = to_lower(trim(wiz.new_filament_name_));
+    std::string name_lower = to_lower(std::string(helix::text_io::trim(wiz.new_filament_name_)));
     for (const auto& f : wiz.all_filaments_) {
         if (to_lower(f.material) == mat_lower && to_lower(f.name) == name_lower) {
             spdlog::warn("[SpoolWizard] Duplicate filament: {} '{}'", wiz.new_filament_material_,

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "text_io.h"
+
 #include <cctype>
 #include <string>
 #include <vector>
@@ -16,14 +18,6 @@ inline std::string selector_to_lower(const std::string& s) {
         lower.push_back(static_cast<char>(std::tolower(c)));
     }
     return lower;
-}
-
-inline std::string selector_trimmed(const std::string& s) {
-    const auto begin = s.find_first_not_of(" \t\n\r\f\v");
-    if (begin == std::string::npos) {
-        return "";
-    }
-    return s.substr(begin, s.find_last_not_of(" \t\n\r\f\v") - begin + 1);
 }
 
 /**
@@ -88,7 +82,7 @@ std::string selector_bucket_of(const SelectorEntry& entry);
  * filtered list; selector_entry_matches() treats such a query as matching all.
  */
 inline bool selector_query_is_blank(const std::string& query) {
-    return selector_trimmed(query).empty();
+    return helix::text_io::trim(query).empty();
 }
 
 /**
@@ -100,7 +94,7 @@ inline bool selector_query_is_blank(const std::string& query) {
  * matches everything.
  */
 inline bool selector_entry_matches(const SelectorEntry& entry, const std::string& query) {
-    const std::string normalized = selector_to_lower(selector_trimmed(query));
+    const std::string normalized = selector_to_lower(std::string(helix::text_io::trim(query)));
     if (normalized.empty()) {
         return true;
     }
