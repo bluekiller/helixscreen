@@ -20,17 +20,6 @@ using namespace helix;
 using json = nlohmann::json;
 
 // ============================================================================
-// STATIC HELPER: Case-insensitive string comparison
-// ============================================================================
-
-static std::string to_upper(const std::string& s) {
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return std::toupper(c); });
-    return result;
-}
-
-// ============================================================================
 // STATIC HELPERS: Status-signal predicate evaluation
 // ============================================================================
 
@@ -432,7 +421,7 @@ bool PrintStartProfile::parse_json(const json& j, const std::string& source_path
 
     // Progress mode (optional, defaults to weighted)
     if (j.contains("progress_mode") && j["progress_mode"].is_string()) {
-        std::string mode_str = to_upper(j["progress_mode"].get<std::string>());
+        std::string mode_str = helix::text_io::to_upper(j["progress_mode"].get<std::string>());
         if (mode_str == "WEIGHTED") {
             progress_mode_ = ProgressMode::WEIGHTED;
         } else if (mode_str == "SEQUENTIAL") {
@@ -714,7 +703,7 @@ void PrintStartProfile::parse_status_signals(const json& array, const std::strin
         // A rule targeting IDLE has nothing to say — the phase stream starts
         // at INITIALIZING — so it is a malformed target, not a mapping.
         const std::string phase_name = rule_json["phase"].get<std::string>();
-        if (to_upper(phase_name) == "IDLE") {
+        if (helix::text_io::to_upper(phase_name) == "IDLE") {
             skip("phase may not be IDLE");
             continue;
         }
@@ -828,7 +817,7 @@ void PrintStartProfile::parse_status_signals(const json& array, const std::strin
 PrintStartPhase PrintStartProfile::parse_phase_name(const std::string& name) {
     // Profiles are hand-written JSON, so the spelling is case-folded before the
     // canonical lookup; the lookup itself is exact.
-    if (const auto phase = helix::print_start_phase_from_name(to_upper(name))) {
+    if (const auto phase = helix::print_start_phase_from_name(helix::text_io::to_upper(name))) {
         return *phase;
     }
 

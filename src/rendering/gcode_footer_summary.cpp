@@ -30,7 +30,7 @@ std::string comment_key(std::string_view line, size_t eq) {
     while (!key.empty() && (key.front() == ';' || key.front() == ' ' || key.front() == '\t')) {
         key.remove_prefix(1);
     }
-    return to_lower(std::string(helix::text_io::trim(key)));
+    return helix::text_io::to_lower(helix::text_io::trim(key));
 }
 
 bool is_colour_key(const std::string& key) {

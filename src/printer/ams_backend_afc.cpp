@@ -929,14 +929,6 @@ std::vector<std::string> split_lower_words(const std::string& line) {
     return out;
 }
 
-std::string to_lower_copy(const std::string& s) {
-    std::string out;
-    out.reserve(s.size());
-    for (unsigned char c : s)
-        out.push_back(static_cast<char>(std::tolower(c)));
-    return out;
-}
-
 /// Highest tool number a lane may claim. Anything above this is treated as
 /// garbage rather than grown into, so a malformed field cannot size a vector.
 constexpr int AFC_MAX_TOOL_NUMBER = 64;
@@ -1030,7 +1022,7 @@ AmsBackendAfc::match_bare_narration_phase(const std::string& line) const {
 }
 
 bool AmsBackendAfc::is_narration_drift_candidate(const std::string& line) const {
-    const std::string s = to_lower_copy(line);
+    const std::string s = helix::text_io::to_lower(line);
 
     // Every AFC narration line either names the system (`AFC_Cut:`, `AFC_Brush:`)
     // or names a lane. Looser than the matchers on purpose: the hint exists to
@@ -3828,7 +3820,7 @@ bool AmsBackendAfc::has_toolchanger() const {
     return std::any_of(unit_infos_.begin(), unit_infos_.end(), [](const AfcUnitInfo& u) {
         // `type` is user-overridable (`config.get("type", "Toolchanger")`), so
         // compare case-insensitively rather than pinning the exact spelling.
-        return to_lower_copy(u.type) == "toolchanger";
+        return helix::text_io::to_lower(u.type) == "toolchanger";
     });
 }
 
@@ -3872,7 +3864,7 @@ void AmsBackendAfc::query_afc_configfile_topology() {
                 std::unordered_map<std::string, std::string> found;
                 bool saw_toolchanger = false;
                 for (auto it = settings.begin(); it != settings.end(); ++it) {
-                    const std::string key = to_lower_copy(it.key());
+                    const std::string key = helix::text_io::to_lower(it.key());
                     if (key.rfind(TOOLCHANGER_PREFIX, 0) == 0) {
                         saw_toolchanger = true;
                         continue;
@@ -3932,7 +3924,7 @@ std::string AmsBackendAfc::klipper_extruder_name_unlocked(const std::string& sec
     // containing "extruder" (AFC_extruder.py:384), so a config can carry one
     // that no numbering can read, and the section name is the better guess
     // then. Checking here rather than at each caller keeps one fallback chain.
-    const auto it = extruder_klipper_names_.find(to_lower_copy(section_name));
+    const auto it = extruder_klipper_names_.find(helix::text_io::to_lower(section_name));
     if (it != extruder_klipper_names_.end() && helix::tool_number_for_extruder(it->second)) {
         return it->second;
     }
@@ -3983,7 +3975,7 @@ int AmsBackendAfc::tool_index_for_extruder_unlocked(const std::string& ext_name)
     }
 
     if (extruder_tool_index_warned_.insert(ext_name).second) {
-        const auto it = extruder_klipper_names_.find(to_lower_copy(ext_name));
+        const auto it = extruder_klipper_names_.find(helix::text_io::to_lower(ext_name));
         if (it != extruder_klipper_names_.end()) {
             spdlog::warn("[AMS AFC] Cannot determine a tool number for AFC_extruder '{}': its "
                          "extruder_name is '{}', which is not a Klipper extruder object name "

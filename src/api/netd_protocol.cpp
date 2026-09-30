@@ -23,15 +23,6 @@
 namespace helix::netd {
 namespace {
 
-std::string ascii_lower(const std::string& s) {
-    std::string out;
-    out.reserve(s.size());
-    for (char c : s) {
-        out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-    }
-    return out;
-}
-
 /// Lowercased key of a snapshot line ("MODE=ETHERNET" -> "mode"), or empty
 /// when the line carries no '='. Internal: only the snapshot parser needs
 /// the key spelling now that query_snapshot() derives authority from the
@@ -40,7 +31,7 @@ std::string snapshot_line_key(const std::string& line) {
     const size_t eq = line.find('=');
     if (eq == std::string::npos)
         return {};
-    return ascii_lower(std::string(helix::text_io::trim(line.substr(0, eq))));
+    return helix::text_io::to_lower(std::string(helix::text_io::trim(line.substr(0, eq))));
 }
 
 // Strict full-string integer parse: optional sign, digits only, no whitespace,

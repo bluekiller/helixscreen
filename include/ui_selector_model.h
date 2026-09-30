@@ -11,15 +11,6 @@
 
 namespace helix::ui {
 
-inline std::string selector_to_lower(const std::string& s) {
-    std::string lower;
-    lower.reserve(s.size());
-    for (unsigned char c : s) {
-        lower.push_back(static_cast<char>(std::tolower(c)));
-    }
-    return lower;
-}
-
 /**
  * @file ui_selector_model.h
  * @brief Pure selection-model helpers for long machine/widget lists.
@@ -94,13 +85,14 @@ inline bool selector_query_is_blank(const std::string& query) {
  * matches everything.
  */
 inline bool selector_entry_matches(const SelectorEntry& entry, const std::string& query) {
-    const std::string normalized = selector_to_lower(std::string(helix::text_io::trim(query)));
+    const std::string normalized =
+        helix::text_io::to_lower(std::string(helix::text_io::trim(query)));
     if (normalized.empty()) {
         return true;
     }
-    return selector_to_lower(entry.label).find(normalized) != std::string::npos ||
-           selector_to_lower(entry.group).find(normalized) != std::string::npos ||
-           selector_to_lower(entry.description).find(normalized) != std::string::npos;
+    return helix::text_io::to_lower(entry.label).find(normalized) != std::string::npos ||
+           helix::text_io::to_lower(entry.group).find(normalized) != std::string::npos ||
+           helix::text_io::to_lower(entry.description).find(normalized) != std::string::npos;
 }
 
 /**

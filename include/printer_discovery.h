@@ -177,7 +177,7 @@ class PrinterDiscovery {
                 continue;
             }
 
-            std::string upper_name = to_upper(name);
+            std::string upper_name = helix::text_io::to_upper(name);
 
             // ================================================================
             // Steppers (stepper_x, stepper_y, stepper_z, stepper_z1, etc.)
@@ -265,7 +265,7 @@ class PrinterDiscovery {
                 has_fan_feedback_ = true;
             } else if (name.rfind("output_pin ", 0) == 0) {
                 std::string pin_name = name.substr(11); // Remove "output_pin " prefix
-                std::string upper_pin = to_upper(pin_name);
+                std::string upper_pin = helix::text_io::to_upper(pin_name);
 
                 // Fan detection: name starts with "FAN" (e.g., fan0, fan1, fan2)
                 if (upper_pin.rfind("FAN", 0) == 0) {
@@ -546,7 +546,7 @@ class PrinterDiscovery {
             // ================================================================
             else if (name.rfind("gcode_macro ", 0) == 0) {
                 std::string macro_name = name.substr(12); // Remove "gcode_macro " prefix
-                std::string upper_macro = to_upper(macro_name);
+                std::string upper_macro = helix::text_io::to_upper(macro_name);
 
                 macros_.insert(upper_macro);
                 // Klipper keeps the CONFIG case for the status object key
@@ -1503,7 +1503,7 @@ class PrinterDiscovery {
      * @return true if the macro exists
      */
     [[nodiscard]] bool has_macro(const std::string& name) const {
-        return macros_.count(to_upper(name)) > 0;
+        return macros_.count(helix::text_io::to_upper(name)) > 0;
     }
 
     /**
@@ -1524,7 +1524,7 @@ class PrinterDiscovery {
      * here. Empty when no such macro exists.
      */
     [[nodiscard]] std::string macro_config_name(const std::string& name) const {
-        auto it = macro_config_names_.find(to_upper(name));
+        auto it = macro_config_names_.find(helix::text_io::to_upper(name));
         return it == macro_config_names_.end() ? std::string{} : it->second;
     }
 
@@ -1540,7 +1540,7 @@ class PrinterDiscovery {
     /// check misses the wrapped case (ZMOD's AUTO_FULL_BED_LEVEL reaches
     /// SAVE_CONFIG two levels down), which is why confirmations ask this.
     [[nodiscard]] bool macro_restarts_host(const std::string& name) const {
-        return host_restarting_macros_.count(to_upper(name)) > 0;
+        return host_restarting_macros_.count(helix::text_io::to_upper(name)) > 0;
     }
 
     [[nodiscard]] const std::unordered_set<std::string>& host_restarting_macros() const {
@@ -1613,7 +1613,7 @@ class PrinterDiscovery {
     /// another macro? Separate from macro_restarts_host() because the two differ
     /// in what the user is promised once the rpc comes back dropped.
     [[nodiscard]] bool macro_halts_host(const std::string& name) const {
-        return host_halting_macros_.count(to_upper(name)) > 0;
+        return host_halting_macros_.count(helix::text_io::to_upper(name)) > 0;
     }
 
     [[nodiscard]] const std::unordered_set<std::string>& host_halting_macros() const {
@@ -1681,7 +1681,7 @@ class PrinterDiscovery {
      * @return true if macro was detected
      */
     [[nodiscard]] bool has_helix_macro(const std::string& macro_name) const {
-        return helix_macros_.count(to_upper(macro_name)) > 0;
+        return helix_macros_.count(helix::text_io::to_upper(macro_name)) > 0;
     }
 
     /**
@@ -1829,14 +1829,6 @@ class PrinterDiscovery {
     }
 
   private:
-    // Helper: convert string to uppercase
-    static std::string to_upper(const std::string& str) {
-        std::string result = str;
-        std::transform(result.begin(), result.end(), result.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
-        return result;
-    }
-
     // Helper: natural sort — splits on trailing digits so "lane2" < "lane10"
     static void natural_sort(std::vector<std::string>& names) {
         std::sort(names.begin(), names.end(), [](const std::string& a, const std::string& b) {

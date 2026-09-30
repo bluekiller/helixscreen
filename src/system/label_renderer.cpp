@@ -6,6 +6,7 @@
 #include "label_renderer.h"
 
 #include "spoolman_types.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -265,14 +266,6 @@ static std::string truncate_to_fit(const std::string& text, int max_width, int s
     return text.substr(0, max_chars - 2) + "..";
 }
 
-/// Convert string to uppercase for cleaner label rendering
-static std::string to_upper(const std::string& s) {
-    std::string result = s;
-    for (auto& c : result)
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    return result;
-}
-
 /// Pixel width of `text` drawn at `scale` (last glyph has no trailing gap)
 static int text_width(const std::string& text, int scale) {
     if (text.empty())
@@ -418,12 +411,13 @@ LabelBitmap LabelRenderer::render(const SpoolInfo& spool, LabelPreset preset,
     }
 
     // Build text content
-    std::string vendor = to_upper(spool.vendor.empty() ? "UNKNOWN" : spool.vendor);
-    std::string material = to_upper(spool.material.empty() ? "FILAMENT" : spool.material);
+    std::string vendor = helix::text_io::to_upper(spool.vendor.empty() ? "UNKNOWN" : spool.vendor);
+    std::string material =
+        helix::text_io::to_upper(spool.material.empty() ? "FILAMENT" : spool.material);
     // Behaviour preserved across the color_name -> filament_name rename: this
     // line has always rendered Spoolman's filament.name, which is the most
     // specific string on the record and what a user scans the label for.
-    std::string color = to_upper(spool.filament_name);
+    std::string color = helix::text_io::to_upper(spool.filament_name);
 
     // --- NARROW labels (< 150px wide): render landscape, rotate 90° CW ---
     // Narrow labels like Niimbot D110 (96px wide × 307px tall) have the
@@ -648,15 +642,19 @@ LabelBitmap LabelRenderer::render(const SpoolInfo& spool, LabelPreset preset,
 
         // Line 6: Lot number (small) — if present and space permits
         if (!spool.lot_nr.empty() && text_y + line_h_sm <= height - margin) {
-            draw_text(label, truncate_to_fit(to_upper(spool.lot_nr), text_area_width, scale_sm),
-                      text_x, text_y, scale_sm);
+            draw_text(
+                label,
+                truncate_to_fit(helix::text_io::to_upper(spool.lot_nr), text_area_width, scale_sm),
+                text_x, text_y, scale_sm);
             text_y += line_h_sm;
         }
 
         // Line 7: Comment/notes (small) — if present and space permits
         if (!spool.comment.empty() && text_y + line_h_sm <= height - margin) {
-            draw_text(label, truncate_to_fit(to_upper(spool.comment), text_area_width, scale_sm),
-                      text_x, text_y, scale_sm);
+            draw_text(
+                label,
+                truncate_to_fit(helix::text_io::to_upper(spool.comment), text_area_width, scale_sm),
+                text_x, text_y, scale_sm);
         }
     } else {
         // COMPACT: Line 2 = Vendor (large)

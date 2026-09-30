@@ -221,6 +221,28 @@ inline std::string_view trim(std::string_view s) {
     return s.substr(first, s.find_last_not_of(ws) - first + 1);
 }
 
+/// ASCII-only case mapping: bytes outside A-Z / a-z pass through untouched,
+/// whatever the process locale.
+inline std::string to_lower(std::string_view s) {
+    std::string out(s);
+    for (char& c : out) {
+        if (c >= 'A' && c <= 'Z') {
+            c = static_cast<char>(c - 'A' + 'a');
+        }
+    }
+    return out;
+}
+
+inline std::string to_upper(std::string_view s) {
+    std::string out(s);
+    for (char& c : out) {
+        if (c >= 'a' && c <= 'z') {
+            c = static_cast<char>(c - 'a' + 'A');
+        }
+    }
+    return out;
+}
+
 // ---------------------------------------------------------------------------
 // Numbers. Strict: the whole view must be the number, no surrounding
 // whitespace. One leading '+' is accepted, as std::stoi/stod and >> accept it.
