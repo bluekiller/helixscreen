@@ -1201,7 +1201,7 @@ void MoonrakerClient::get_gcode_store(
 
     send_jsonrpc(
         "server.gcode_store", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<GcodeStoreEntry> entries;
 
             // Parse response: {"result": {"gcode_store": [...]}}
@@ -1267,7 +1267,7 @@ void MoonrakerClient::get_temperature_store(std::function<void(const Temperature
 
     send_jsonrpc(
         "server.temperature_store", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             TemperatureStore store;
             if (response.contains("result")) {
                 store = parse_temperature_store(response["result"]);

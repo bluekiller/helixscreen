@@ -52,7 +52,7 @@ void MoonrakerQueueAPI::get_queue_status(StatusCallback on_success, ErrorCallbac
 
     client_.send_jsonrpc(
         "server.job_queue.status", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             JobQueueStatus status = parse_queue_status(response);
             spdlog::debug("[Moonraker API] Job queue: state={}, {} jobs", status.queue_state,
                           status.queued_jobs.size());
@@ -97,7 +97,7 @@ void MoonrakerQueueAPI::add_job(const std::string& filename, StatusCallback on_s
 
     client_.send_jsonrpc(
         "server.job_queue.post_job", params,
-        [on_success, filename](json response) {
+        [on_success, filename](const json& response) {
             JobQueueStatus status = parse_queue_status(response);
             spdlog::info("[Moonraker API] Job added to queue: {} ({} jobs now)", filename,
                          status.queued_jobs.size());

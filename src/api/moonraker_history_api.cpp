@@ -199,7 +199,7 @@ void MoonrakerHistoryAPI::get_history_totals(HistoryTotalsCallback on_success,
 
     client_.send_jsonrpc(
         "server.history.totals", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             PrintHistoryTotals totals;
 
             if (response.contains("result") && response["result"].contains("job_totals") &&

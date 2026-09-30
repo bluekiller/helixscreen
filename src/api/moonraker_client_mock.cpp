@@ -1452,7 +1452,7 @@ void MoonrakerClientMock::discover_printer(
     generate_mock_bed_mesh();
 
     // Query server.info to get moonraker_version (uses registered RPC handler)
-    send_jsonrpc("server.info", json::object(), [this, on_complete](json response) {
+    send_jsonrpc("server.info", json::object(), [this, on_complete](const json& response) {
         std::string moonraker_version;
         if (response.contains("result")) {
             moonraker_version = response["result"].value("moonraker_version", "unknown");
@@ -1463,7 +1463,8 @@ void MoonrakerClientMock::discover_printer(
         // populate_capabilities() below reparses the objects list and clears the
         // discovery record, so anything written before it is lost.
         send_jsonrpc(
-            "printer.info", json::object(), [this, on_complete, moonraker_version](json response) {
+            "printer.info", json::object(),
+            [this, on_complete, moonraker_version](const json& response) {
                 spdlog::debug("[MoonrakerClientMock] printer.info response received");
 
                 // Re-populate after mock discovery may have changed hardware data
@@ -1486,7 +1487,7 @@ void MoonrakerClientMock::discover_printer(
                 // Query machine.system_info for OS version (uses registered RPC handler)
                 send_jsonrpc(
                     "machine.system_info", json::object(),
-                    [this](json sys_response) {
+                    [this](const json& sys_response) {
                         if (sys_response.contains("result") &&
                             sys_response["result"].contains("system_info") &&
                             sys_response["result"]["system_info"].contains("distribution") &&

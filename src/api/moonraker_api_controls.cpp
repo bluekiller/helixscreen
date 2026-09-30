@@ -139,7 +139,7 @@ void MoonrakerAPI::set_fan_speed(const std::string& fan, double speed, SuccessCa
 void MoonrakerAPI::get_sensors(SensorsCallback on_success, ErrorCallback on_error) {
     client_.send_jsonrpc(
         "server.sensors.list", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<helix::SensorInfo> sensors;
             nlohmann::json initial_values;
 
@@ -599,7 +599,7 @@ void MoonrakerAPI::update_safety_limits_from_printer(SuccessCallback on_success,
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [this, on_success](json response) {
+        [this, on_success](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("configfile") ||
                 !response["result"]["status"]["configfile"].contains("settings")) {

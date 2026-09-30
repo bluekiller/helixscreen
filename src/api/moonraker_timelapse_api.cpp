@@ -271,7 +271,7 @@ void MoonrakerTimelapseAPI::get_last_frame_info(
     spdlog::debug("[Timelapse API] Getting last frame info");
     client_.send_jsonrpc(
         "machine.timelapse.lastframeinfo", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             LastFrameInfo info;
             const auto& result = response.contains("result") ? response["result"] : response;
             if (result.contains("count") && result["count"].is_number()) {
@@ -295,7 +295,7 @@ void MoonrakerTimelapseAPI::get_webcam_list(WebcamListCallback on_success, Error
 
     client_.send_jsonrpc(
         "server.webcams.list", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<WebcamInfo> webcams;
             if (response.contains("result") && response["result"].contains("webcams")) {
                 for (const auto& cam : response["result"]["webcams"]) {

@@ -141,7 +141,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_status(std::function<void(bool, int)> on
 
     client_.send_jsonrpc(
         "server.spoolman.status", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             bool connected = false;
             int active_spool_id = 0;
 
@@ -174,7 +174,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_spools(SpoolListCallback on_success,
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<SpoolInfo> spools;
 
             // The proxy returns the Spoolman response in "result"
@@ -213,7 +213,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_spool(int spool_id, SpoolCallback on_suc
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, spool_id](json response) {
+        [on_success, spool_id](const json& response) {
             if (response.contains("result") && response["result"].is_object()) {
                 SpoolInfo spool = parse_spool_info(response["result"]);
                 spdlog::trace("[SpoolmanAPI] Got spool {}: {} {}", spool_id, spool.vendor,
@@ -368,7 +368,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_vendors(VendorListCallback on_success,
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<VendorInfo> vendors;
 
             if (response.contains("result") && response["result"].is_array()) {
@@ -396,7 +396,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_filaments(FilamentListCallback on_succes
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<FilamentInfo> filaments;
 
             if (response.contains("result") && response["result"].is_array()) {
@@ -427,7 +427,7 @@ void MoonrakerSpoolmanAPI::create_spoolman_vendor(const nlohmann::json& vendor_d
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             if (response.contains("result") && response["result"].is_object()) {
                 VendorInfo vendor = parse_vendor_info(response["result"]);
                 spdlog::debug("[SpoolmanAPI] Created vendor {}: {}", vendor.id, vendor.name);
@@ -458,7 +458,7 @@ void MoonrakerSpoolmanAPI::create_spoolman_filament(const nlohmann::json& filame
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             if (response.contains("result") && response["result"].is_object()) {
                 FilamentInfo filament = parse_filament_info(response["result"]);
                 spdlog::debug("[SpoolmanAPI] Created filament {}: {}", filament.id,
@@ -489,7 +489,7 @@ void MoonrakerSpoolmanAPI::create_spoolman_spool(const nlohmann::json& spool_dat
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             if (response.contains("result") && response["result"].is_object()) {
                 SpoolInfo spool = parse_spool_info(response["result"]);
                 spdlog::debug("[SpoolmanAPI] Created spool {}: {}", spool.id, spool.display_name());
@@ -538,7 +538,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_external_vendors(VendorListCallback on_s
     // is not available on all Spoolman versions (e.g. v0.22.x)
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<VendorInfo> vendors;
 
             if (response.contains("result") && response["result"].is_array()) {
@@ -584,7 +584,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_external_filaments(const std::string& ve
     // is not available on all Spoolman versions (e.g. v0.22.x)
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, vendor_name](json response) {
+        [on_success, vendor_name](const json& response) {
             std::vector<FilamentInfo> filaments;
 
             if (response.contains("result") && response["result"].is_array()) {
@@ -613,7 +613,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_filaments(int vendor_id, FilamentListCal
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, vendor_id](json response) {
+        [on_success, vendor_id](const json& response) {
             std::vector<FilamentInfo> filaments;
 
             if (response.contains("result") && response["result"].is_array()) {

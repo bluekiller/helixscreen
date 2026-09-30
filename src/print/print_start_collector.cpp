@@ -2420,7 +2420,7 @@ void PrintStartCollector::query_mesh_probe_count() {
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [self](json response) {
+        [self](const json& response) {
             if (!self->active_.load())
                 return;
 

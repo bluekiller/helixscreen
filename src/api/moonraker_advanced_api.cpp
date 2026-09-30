@@ -225,7 +225,7 @@ void MoonrakerAdvancedAPI::get_excluded_objects(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::set<std::string> excluded;
 
             if (response.contains("result") && response["result"].contains("status") &&
@@ -258,7 +258,7 @@ void MoonrakerAdvancedAPI::get_available_objects(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<std::string> objects;
 
             if (response.contains("result") && response["result"].contains("status") &&
@@ -2702,7 +2702,7 @@ void MoonrakerAdvancedAPI::get_input_shaper_config(InputShaperConfigCallback on_
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             InputShaperConfig config;
             // A field present with a type we cannot read fails the whole read,
             // like a parse error does.
@@ -2791,7 +2791,7 @@ void MoonrakerAdvancedAPI::get_machine_limits(MachineLimitsCallback on_success,
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("toolhead")) {
                 spdlog::warn("[Moonraker API] Toolhead object not available in response");
@@ -2976,7 +2976,7 @@ void MoonrakerAdvancedAPI::get_heater_pid_values(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [heater, on_complete, on_error](json response) {
+        [heater, on_complete, on_error](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("configfile") ||
                 !response["result"]["status"]["configfile"].contains("settings")) {
@@ -3044,7 +3044,7 @@ void MoonrakerAdvancedAPI::get_heater_control_type(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [heater, on_complete, on_error](json response) {
+        [heater, on_complete, on_error](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("configfile") ||
                 !response["result"]["status"]["configfile"].contains("settings")) {
