@@ -2851,11 +2851,13 @@ EOF
 # --- Our own servers are reached only through helix::tls::trusted_* ---
 # trusted_request()/trusted_download() verify the server certificate; a plain
 # requests:: call to the update, telemetry, crash or debug-bundle servers does not.
-# Requests to the printer's LAN services keep requests:: on purpose.
+# Uploads to the ingest workers go through helix::ingest::post, the one sender
+# that carries the API key. Requests to the printer's LAN services keep
+# requests:: on purpose.
 
 own_endpoint_http_offenders() {
     local root="$1" f
-    for f in update_checker telemetry_manager crash_reporter; do
+    for f in update_checker telemetry_manager crash_reporter ingest_client; do
         grep -nE '^[^/]*(requests::|HttpClient)' "$root/src/system/$f.cpp" | sed "s|^|$f.cpp:|"
     done
     # Any other file naming one of our hosts must reach it through trusted_*.
@@ -2870,6 +2872,8 @@ own_endpoint_http_offenders() {
          on && /^}/ { on = 0 }
          END { if (!seen) print "debug_bundle_collector.cpp: upload to WORKER_URL not found" }' \
         "$root/src/system/debug_bundle_collector.cpp"
+    grep -rnF '["X-API-Key"]' "$root/src" | grep -v '^[^:]*/src/system/ingest_client\.cpp:' |
+        sed 's|$| (ingest uploads go through helix::ingest::post)|'
 }
 
 @test "requests to our own servers go through helix::tls::trusted_*" {
@@ -2884,11 +2888,13 @@ own_endpoint_http_offenders() {
     printf '    // requests::request is fine in a comment\n' > "$d/update_checker.cpp"
     printf '    auto r = requests::request(req);\n' > "$d/telemetry_manager.cpp"
     printf '    hv::HttpClient cli;\n' > "$d/crash_reporter.cpp"
+    printf '    req->headers["X-API-Key"] = API_KEY;\n' > "$d/ingest_client.cpp"
     mkdir -p "$d/../ui"
     printf 'auto u = "https://api.github.com/x";\nauto r = requests::get(u);\n' > "$d/../ui/rogue.cpp"
     printf 'auto u = "https://helixscreen.org/x";\nauto r = helix::tls::trusted_request(q);\n' \
         > "$d/../ui/fine.cpp"
     printf 'auto u = "https://helixscreen.org/docs";\n' > "$d/../ui/link_only.cpp"
+    printf '    req->headers["X-API-Key"] = key;\n' > "$d/../ui/keyed.cpp"
     printf 'int f() {\n    auto r = requests::request(req);\n}\nvoid up() {\n    const std::string url = worker_url();\n    auto r = requests::request(req);\n}\n' \
         > "$d/debug_bundle_collector.cpp"
     run own_endpoint_http_offenders "${BATS_TEST_TMPDIR}/offender"
@@ -2901,4 +2907,6 @@ own_endpoint_http_offenders() {
     lacks "link_only.cpp" "$output"
     lacks "update_checker.cpp" "$output"
     lacks "debug_bundle_collector.cpp:2" "$output"
+    contains "keyed.cpp" "$output"
+    lacks "ingest_client.cpp" "$output"
 }

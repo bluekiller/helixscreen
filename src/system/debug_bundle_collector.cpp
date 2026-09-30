@@ -7,6 +7,7 @@
 #include "app_globals.h"
 #include "data_root_resolver.h"
 #include "helix_install_roots.h"
+#include "helix_regex.h"
 #include "helix_version.h"
 #include "host_identity.h"
 #include "http_executor.h"
@@ -23,17 +24,12 @@
 #include "system/diag_upload_gate.h"
 #include "system/diagnostics.h"
 #include "system/helix_paths.h"
+#include "system/ingest_client.h"
 #include "system/log_collector.h"
 #include "system/moonraker_local_probe.h"
 #include "system/telemetry_manager.h"
-#include "system/tls_trust.h"
 #include "system/update_checker.h"
 #include "touch_calibration_wrapper.h"
-#ifdef __ANDROID__
-#include "system/http_android.h"
-#endif
-
-#include "helix_regex.h"
 
 #include <spdlog/spdlog.h>
 
@@ -2296,36 +2292,10 @@ void DebugBundleCollector::upload_async(const BundleOptions& options, ResultCall
             spdlog::info("[DebugBundle] Uploading {} bytes (compressed from {})...",
                          compressed.size(), json_str.size());
 
-            std::string ua = std::string("HelixScreen/") + HELIX_VERSION;
-            int status;
-            std::string response_body;
-
-#ifdef __ANDROID__
-            // libhv is built without SSL on Android (no NDK OpenSSL), so route
-            // the gzip-compressed bundle through the platform TLS stack via JNI.
-            // The binary bridge avoids corrupting gzip bytes through a Java
-            // String — the existing httpsPost takes String body and would
-            // mangle arbitrary binary. Same pattern as update_checker and
-            // crash_reporter.
-            auto [s, body] = helix::android::https_post_binary(url, compressed, "application/json",
-                                                               "gzip", ua, INGEST_API_KEY, 30);
-            status = s;
-            response_body = body;
-#else
-            auto req = std::make_shared<HttpRequest>();
-            req->method = HTTP_POST;
-            req->url = url;
-            req->timeout = 30;
-            req->headers["Content-Type"] = "application/json";
-            req->headers["Content-Encoding"] = "gzip";
-            req->headers["User-Agent"] = ua;
-            req->headers["X-API-Key"] = INGEST_API_KEY;
-            req->body.assign(reinterpret_cast<const char*>(compressed.data()), compressed.size());
-
-            auto resp = helix::tls::trusted_request(req);
-            status = resp ? static_cast<int>(resp->status_code) : 0;
-            response_body = resp ? resp->body : "";
-#endif
+            auto [status, response_body] = helix::ingest::post(
+                url,
+                std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size()),
+                30, "gzip");
 
             if (status >= 200 && status < 300) {
                 // Parse share_code from response

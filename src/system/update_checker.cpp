@@ -27,6 +27,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "helix_install_roots.h"
+#include "helix_version.h"
 #include "hv/requests.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -100,7 +101,7 @@ constexpr int RESTART_MARSHAL_TIMEOUT_MS = 5000;
 /// (DNS, connection, TLS, JNI) and body carries a short error message.
 static std::pair<int, std::string> do_http_get(const std::string& url,
                                                const std::string& accept = "") {
-    const std::string ua = std::string("HelixScreen/") + HELIX_VERSION;
+    const std::string ua = HELIX_USER_AGENT;
 
 #ifdef __ANDROID__
     return helix::android::https_get(url, ua, accept, HTTP_TIMEOUT_SECONDS);

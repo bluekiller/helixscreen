@@ -31,6 +31,7 @@
 #include "screen_locality.h"
 #include "system/crash_handler.h"
 #include "system/crash_history.h"
+#include "system/ingest_client.h"
 #include "system/sha256_util.h"
 #include "system/tls_trust.h"
 #include "system/update_checker.h"
@@ -751,26 +752,15 @@ void TelemetryManager::do_send(const nlohmann::json& batch) {
         nlohmann::json pending = batch;
 
         for (size_t attempt = 0; attempt < MAX_BATCHES_PER_SEND; ++attempt) {
-            // Use libhv HTTP client (same pattern as UpdateChecker and Moonraker API)
-            auto req = std::make_shared<HttpRequest>();
-            req->method = HTTP_POST;
-            req->url = ENDPOINT_URL;
-            req->timeout = 30;
-            req->content_type = APPLICATION_JSON;
-            req->headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
-            req->headers["X-API-Key"] = API_KEY;
-            req->body = helix::json_util::safe_dump(pending);
-
-            auto resp = helix::tls::trusted_request(req);
+            auto [status_code, resp_body] =
+                helix::ingest::post(ENDPOINT_URL, helix::json_util::safe_dump(pending), 30);
 
             if (shutting_down_.load()) {
                 spdlog::debug("[TelemetryManager] Shutting down, aborting send result processing");
                 return;
             }
 
-            int status_code = resp ? static_cast<int>(resp->status_code) : 0;
-
-            if (!resp || status_code < 200 || status_code >= 300) {
+            if (status_code < 200 || status_code >= 300) {
                 // Failure: keep events, increase backoff
                 int new_backoff = std::min(backoff_multiplier_.load() * 2, MAX_BACKOFF_MULTIPLIER);
                 spdlog::warn(

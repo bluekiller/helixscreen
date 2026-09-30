@@ -155,6 +155,7 @@ src/system/helix_lvgl_anomaly.cpp  # not in the v1 Core+AMS cut
 src/system/helix_version.cpp  # not in the v1 Core+AMS cut
 src/system/host_census.cpp  # not in the v1 Core+AMS cut
 src/system/http_android.cpp  # not in the v1 Core+AMS cut
+src/system/ingest_client.cpp  # rides tls_trust; the firmware has no TLS
 src/system/ipp_printer.cpp  # not in the v1 Core+AMS cut
 src/system/ipp_protocol.cpp  # not in the v1 Core+AMS cut
 src/system/klippy_frame_decoder.cpp  # decodes klippy's UDS accel stream for the belt tuner, which requires co-location with klippy
