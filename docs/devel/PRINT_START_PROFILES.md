@@ -25,8 +25,7 @@ assets/config/printer_database.json        assets/config/print_start_profiles/
                                 ├─ HELIX:PHASE:* signals (universal, always highest priority)
                                 ├─ Profile signal formats (prefix + value lookup)
                                 ├─ Profile regex patterns (response_patterns)
-                                ├─ Profile status-object evidence (phase_object, status_signals)
-                                └─ Built-in fallback (if no JSON files found)
+                                └─ Profile status-object evidence (phase_object, status_signals)
 ```
 
 The active profile is loaded by `PrintStartProfile::load()` and drives `PrintStartCollector`. Any status objects it declares (`phase_object`, `status_signals`) are subscribed generically during discovery - `PrintStartProfile::required_status_objects()` feeds `MoonrakerDiscoverySequence::build_subscription_objects()` (`src/api/moonraker_discovery_sequence.cpp`), so a profile adding a status dependency needs no C++ change.
@@ -97,7 +96,6 @@ Every G-code response line is checked in this order. First match wins, and a mat
 | 5 | PRINT_START marker | Regex: `PRINT_START\|START_PRINT\|_PRINT_START` (case-insensitive). Sets INITIALIZING once per session. |
 | 6 | Engine probe heuristics | `// Adapted probe count: N,M` and `probe at X,Y is z=Z` lines are consumed as mesh data - they update the probe counters and never reach the profile patterns. |
 | 7 | Profile regex patterns | `response_patterns` from the loaded profile JSON. |
-| 8 | Built-in fallback | Not a stage of its own. When `default.json` cannot be read or parsed, `load_default()` returns `make_builtin_default()`, and that compiled-in profile becomes the one this chain consults. |
 
 Structured state and physical inference never pass through this chain: they arrive as status frames on `notify_status_update`, not as console lines, and are handled beside it (`handle_phase_object_status()`, `handle_status_signals()` in `src/print/print_start_collector.cpp`).
 
@@ -319,7 +317,7 @@ The declared object is subscribed automatically during discovery. Klipper notifi
 
 **`message` strings are English translation tags** - they pass through `lv_tr()` at match time (`src/print/print_start_profile.cpp#match_pattern_list` for pattern and state hits, `#evaluate_status_signal` for inference rules), so a loaded language pack resolves them like the built-in labels. An untranslated tag displays as-is.
 
-**The extractor never reads profile JSON.** `scripts/translations/extractor.py` globs `*.cpp`, `*.h` and `*.xml` only, so a message string that exists nowhere but a profile file is not a key in any language pack and ships English in every locale. The generic profile's strings escape this because `make_builtin_default()` spells the same wording in C++ under `lv_tr()`, where the extractor sees it. So: reuse the wording from an existing profile where the phase is the same. That keeps the panel's message from varying by printer for the same event, and it is also what keeps a new profile translated. Wording that genuinely has no precedent has to reach the extractor from a `.cpp`, `.h` or `.xml` file as well, or it stays English.
+**The extractor never reads profile JSON.** `scripts/translations/extractor.py` globs `*.cpp`, `*.h` and `*.xml` only, so a message string that exists nowhere but a profile file is not a key in any language pack and ships English in every locale. So: reuse the wording from an existing profile where the phase is the same. That keeps the panel's message from varying by printer for the same event, and it is also what keeps a new profile translated. Wording that genuinely has no precedent has to reach the extractor from a `.cpp`, `.h` or `.xml` file as well, or it stays English.
 
 **Non-console signals.** Two phase signals do not arrive through `notify_gcode_response`: a bed-mesh status clear while CLEANING enters BED_MESH ("Bed Leveling...", denominator fetched then), and `probe at X,Y is z=Z` lines are consumed as mesh points (never re-matched against `response_patterns`, so a BED_MESH pattern cannot re-announce the phase and reset the probe counters mid-sweep). Both are rows in the [Signal Sources](#signal-sources) table above, which also maps the toolhead-position stream and the fallback observers.
 
@@ -411,7 +409,7 @@ Two more fields give a printer's first print a measured estimate instead of a ge
 
 `print_start_default_phases` is seconds per phase the prediction history keeps a duration for (HOMING, SOAKING, QGL, Z_TILT, BED_MESH, CLEANING, PURGING); any other name is ignored with a warning. Its HOMING value is also the homing time the print details estimate shows, never below 20s. The printer's own phase timings replace these from the next completed print on. `thermal_rates` is seconds per degree C per heater (`extruder` or `heater_bed`; any other name is ignored with a warning), used by `ThermalRateManager::apply_archetype_defaults()` in place of its guess from the bed size. The rate a print saves is its whole measured climb, seconds over degrees, with a hold between two climbs (a probing temperature, then the print temperature) left out, blended 70/30 with the saved rate loaded at startup. A completed pre-print, a timeout completion included, saves the rates it measured, but the app loads saved rates only at startup (`Application` calls `ThermalRateManager::load_from_config()`), so until the next restart the database rates stay in use.
 
-If a printer has no `print_start_profile` field, or the profile fails to load, the system falls back to `default.json`, then to the compiled-in profile `make_builtin_default()` builds. This three-level fallback chain means nothing ever breaks. The compiled-in copy is hand-maintained, and the `[parity]` test described under "Existing Profiles" below is the only thing holding it level with the JSON.
+If a printer has no `print_start_profile` field, or the profile fails to load, the system falls back to `default.json`. If that is unreadable too (a broken install), `load_default()` returns an empty profile: no text matching, but HELIX:PHASE, RESPOND, the macro ready-flags, heater inference and the timeouts still run. The ESP32 image ships `default.json` alone (`scripts/esp32_stage_assets.py#stage_config`), so every named profile falls back to it there.
 
 ### Step 4: Add to PrinterDetector (if new printer)
 
@@ -522,20 +520,6 @@ Run the app with `-vv`: `PrintStartProfile` logs every signal-format match (`Sig
 | **Artillery M1** | `artillery_m1.json` | sequential | Artillery M1 Pro | 1 signal format + 4 regex patterns |
 | **Snapmaker U1** | `snapmaker_u1.json` | weighted | Snapmaker U1 | 2 signal formats + `adaptive_meshing`; patterns captured live, none invented for silent steps |
 | **COSMOS** | `cosmos_cc1.json` | weighted | Elegoo Centauri Carbon on OpenCentauri COSMOS | 7 response patterns read on the console and through `phase_object` (display_status); the heat soak declares `hold_minutes_group`; the skew check completes the pre-print |
-| **Built-in fallback** | `make_builtin_default()` | weighted | Emergency fallback when `default.json` is unreadable | Same decisions as `default.json`, compiled into the binary and pinned there by the `[parity]` test below |
-
-The generic profile exists twice, once as JSON and once as C++, so something has to hold the
-two copies together: `PrintStartProfile: the built-in fallback matches the shipped
-default.json` in `tests/unit/test_print_start_profile.cpp`, tag `[profile][print][parity]`.
-It compares **decisions, not regex text** - each copy may spell a pattern its own way, and
-what is pinned is where a given string lands. The test walks a corpus of both feeds'
-vocabulary (command echoes like `M190 S60`, macro prose like `Heating Bed: 100c`, and lines
-neither may claim such as `BED_MESH_CLEAR`) through `try_match_pattern()` and
-`try_match_state()` on both profiles and requires the same phase and message from each; it
-also pins the phase object and its subscription list, the heater inference rules field by
-field. Editing `default.json` without editing
-`make_builtin_default()` turns it red, and that is the whole mechanism - there is no code
-path that derives one from the other.
 
 ---
 
@@ -562,7 +546,7 @@ Timeouts are deliberately reluctant: active mesh probing suppresses every one bu
 | File | Purpose |
 |------|---------|
 | `include/print_start_profile.h` | Profile class: structs, factory methods, matching API |
-| `src/print/print_start_profile.cpp` | JSON parsing, signal/pattern/state/signal matching, built-in fallback |
+| `src/print/print_start_profile.cpp` | JSON parsing, signal/pattern/state/signal matching |
 | `include/print_start_collector.h` | Collector: lifecycle, phase tracking, profile + predictor integration |
 | `src/print/print_start_collector.cpp` | Detection engine: priority chain, status-frame handlers, progress calculation, ETA timer |
 | `include/preprint_predictor.h` | Pure-logic ETA predictor using historical timing data |
@@ -576,7 +560,7 @@ Timeouts are deliberately reluctant: active mesh probing suppresses every one bu
 | `src/printer/printer_detector.cpp` | Database lookup for profile name |
 | `assets/config/print_start_profiles/*.json` | Profile definitions |
 | `assets/config/printer_database.json` | Maps printer IDs to profile names |
-| `tests/unit/test_print_start_profile.cpp` | Profile loading + matching tests (table tests, `[profile][print]`), including the built-in fallback parity test (`[parity]`) |
+| `tests/unit/test_print_start_profile.cpp` | Profile loading + matching tests (table tests, `[profile][print]`) |
 | `tests/unit/test_print_start_profile_k2.cpp` | Captured-lines regression: the K2 narration pinned line by line |
 | `tests/unit/test_print_start_collector.cpp` | Integration tests with collector |
 | `tests/unit/test_preprint_predictor.cpp` | Predictor unit tests (weighting, FIFO, edge cases) |

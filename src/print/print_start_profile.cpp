@@ -147,110 +147,16 @@ std::shared_ptr<PrintStartProfile> PrintStartProfile::load_default() {
             spdlog::debug("[PrintStartProfile] Loaded default profile from JSON");
             return profile;
         }
-        spdlog::warn("[PrintStartProfile] Failed to parse default.json, using built-in fallback");
+        spdlog::warn("[PrintStartProfile] Failed to parse default.json");
     } while (false);
-    return make_builtin_default();
-}
 
-std::shared_ptr<PrintStartProfile> PrintStartProfile::make_builtin_default() {
+    // Only a broken install lands here. The engine's own signals (HELIX:PHASE,
+    // RESPOND, macro variables, heater inference, timeouts) need no patterns.
+    spdlog::error(
+        "[PrintStartProfile] No readable default.json at '{}', phase text matching is off", path);
     auto profile = std::make_shared<PrintStartProfile>();
-    profile->name_ = "Generic (built-in)";
+    profile->name_ = "Generic";
     profile->is_default_ = true;
-    profile->description_ = "Generic profile compiled in, for when default.json is unreadable";
-    profile->progress_mode_ = ProgressMode::WEIGHTED;
-
-    // Klipper does not echo commands run inside a gcode_macro, so a
-    // macro-driven PRINT_START never reaches the console stream. Its narration
-    // arrives in display_status.message instead, which SET_DISPLAY_TEXT and
-    // M117 write.
-    profile->phase_object_name_ = "display_status";
-    profile->phase_object_field_ = "message";
-
-    struct PatternDef {
-        const char* pattern;
-        PrintStartPhase phase;
-        const char* message;
-        int weight;
-    };
-
-    // Order is the matching order: the first entry whose regex hits wins, so
-    // the heat-soak entry sits below the bed-heating one it would otherwise
-    // claim "Heating Bed: 100c" from.
-    // clang-format off
-    const PatternDef builtin_patterns[] = {
-        {"G28|Homing|Home All|homing axes|homing all",
-         PrintStartPhase::HOMING, lv_tr("Homing..."), 10},
-        {"M190|M140\\s+S[1-9]|Heating bed|Heat Bed|BED_TEMP|bed.*heat",
-         PrintStartPhase::HEATING_BED, lv_tr("Heating Bed..."), 20},
-        {"(heat|bed|chamber).?soak|soaking|heating chamber|waiting for chamber",
-         PrintStartPhase::SOAKING, lv_tr("Heat Soaking..."), 20},
-        {"M109|M104\\s+S[1-9]|Heating (nozzle|hotend|extruder)|EXTRUDER_TEMP",
-         PrintStartPhase::HEATING_NOZZLE, lv_tr("Heating Nozzle..."), 20},
-        {"QUAD_GANTRY_LEVEL|quad.?gantry.?level|QGL",
-         PrintStartPhase::QGL, lv_tr("Leveling Gantry..."), 15},
-        {"Z_TILT_ADJUST|z.?tilt.?adjust",
-         PrintStartPhase::Z_TILT, lv_tr("Z Tilt Adjust..."), 15},
-        {"BED_MESH_CALIBRATE|BED_MESH_PROFILE\\s+LOAD=|Loading bed mesh|mesh.*load|Probing mesh|generating mesh|bed mesh",
-         PrintStartPhase::BED_MESH, lv_tr("Probing Bed Mesh..."), 10},
-        {"CLEAN_NOZZLE|NOZZLE_CLEAN|NOZZLE_CLEAR|WIPE_NOZZLE|nozzle.?wipe|clean(ing)?.?nozzle|nozzle.?clear",
-         PrintStartPhase::CLEANING, lv_tr("Cleaning Nozzle..."), 5},
-        {"VORON_PURGE|LINE_PURGE|PURGE_LINE|Prime.?Line|Priming|KAMP_.*PURGE|purge.?line|prime.?nozzle|PRIME_LINE",
-         PrintStartPhase::PURGING, lv_tr("Purging..."), 5},
-    };
-    // clang-format on
-
-    for (const auto& def : builtin_patterns) {
-        ResponsePattern rp;
-        rp.pattern = helix::Regex(def.pattern, helix::Regex::ICase);
-        if (!rp.pattern.ok()) {
-            spdlog::error("[PrintStartProfile] Built-in regex error for '{}': {}", def.pattern,
-                          rp.pattern.error());
-            continue;
-        }
-        rp.phase = def.phase;
-        rp.message_template = def.message;
-        rp.weight = def.weight;
-        profile->response_patterns_.push_back(std::move(rp));
-    }
-
-    // Both heaters take the same rule: a target is set and the reading is
-    // still short of it. Rule messages stay untranslated here — the lookup
-    // happens in evaluate_status_signal(), the way a parsed rule's does.
-    struct HeaterRuleDef {
-        const char* name;
-        const char* object;
-        PrintStartPhase phase;
-        const char* message;
-    };
-    const HeaterRuleDef heater_rules[] = {
-        {"heating_bed", "heater_bed", PrintStartPhase::HEATING_BED, "Heating Bed..."},
-        {"heating_nozzle", "extruder", PrintStartPhase::HEATING_NOZZLE, "Heating Nozzle..."},
-    };
-    constexpr double HEATER_RULE_TARGET_OFFSET_DEGREES = -2.0;
-    constexpr int HEATER_RULE_WEIGHT = 15;
-    for (const auto& def : heater_rules) {
-        StatusPredicate target_set;
-        target_set.field = "target";
-        target_set.op = StatusPredicate::Op::GT;
-        target_set.value = 0.0;
-
-        StatusPredicate below_target;
-        below_target.field = "temperature";
-        below_target.op = StatusPredicate::Op::LT;
-        below_target.ref_field = "target";
-        below_target.offset = HEATER_RULE_TARGET_OFFSET_DEGREES;
-
-        StatusSignalRule rule;
-        rule.name = def.name;
-        rule.object = def.object;
-        rule.when = {target_set, below_target};
-        rule.phase = def.phase;
-        rule.message = def.message;
-        rule.weight = HEATER_RULE_WEIGHT;
-        profile->status_signals_.push_back(std::move(rule));
-    }
-
-    spdlog::debug("[PrintStartProfile] Using built-in fallback profile");
     return profile;
 }
 

@@ -143,8 +143,8 @@ class PrintStartProfile {
      * @brief Load the default profile
      *
      * Loads from config/print_start_profiles/default.json.
-     * If that file is missing, returns a built-in fallback with the same patterns
-     * currently hardcoded in PrintStartCollector.
+     * If that file cannot be read or parsed, returns an empty profile named
+     * "Generic": no text matching, the engine's own signals still work.
      *
      * @return Default profile
      */
@@ -341,18 +341,6 @@ class PrintStartProfile {
     std::string phase_object_name_;
     std::string phase_object_field_;
     std::vector<StatusSignalRule> status_signals_;
-
-    /**
-     * @brief Build the generic profile as compiled-in data
-     *
-     * Reached when default.json cannot be read at all — a missing asset, a
-     * truncated install. It mirrors the shipped default.json decision for
-     * decision (phase object, response patterns, status-signal rules, phase
-     * weights), so losing the asset costs a printer nothing beyond the file.
-     * The two are held to that agreement by the parity case in
-     * `tests/unit/test_print_start_profile.cpp`.
-     */
-    static std::shared_ptr<PrintStartProfile> make_builtin_default();
 
     /**
      * @brief Parse a JSON object into this profile
