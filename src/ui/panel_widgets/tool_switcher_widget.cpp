@@ -39,7 +39,6 @@ void register_tool_switcher_widget() {
     });
 
     // Register XML event callbacks at startup (before any XML is parsed)
-    lv_xml_register_event_cb(nullptr, "tool_pill_cb", ToolSwitcherWidget::tool_pill_cb);
     lv_xml_register_event_cb(nullptr, "tool_compact_cb", ToolSwitcherWidget::tool_compact_cb);
 }
 
@@ -650,16 +649,6 @@ void ToolSwitcherWidget::handle_tool_selected(int tool_index) {
 // ============================================================================
 // Static XML event callbacks (registered at startup, used in XML if needed)
 // ============================================================================
-
-void ToolSwitcherWidget::tool_pill_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[ToolSwitcher] tool_pill_cb");
-    if (!s_active_instance)
-        return;
-    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int idx = static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(target)));
-    s_active_instance->handle_tool_selected(idx);
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void ToolSwitcherWidget::tool_compact_cb(lv_event_t* e) {
     (void)e;

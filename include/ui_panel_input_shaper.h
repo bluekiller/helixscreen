@@ -186,12 +186,10 @@ class InputShaperPanel : public OverlayBase {
     void handle_calibrate_x_clicked();
     void handle_calibrate_y_clicked();
     void handle_calibrate_all_clicked();
-    void handle_measure_noise_clicked();
     void handle_cancel_clicked();
     void handle_apply_clicked();
     void handle_close_clicked();
     void handle_retry_clicked();
-    void handle_save_config_clicked();
     void handle_save_clicked();
     void handle_print_test_pattern_clicked();
     void handle_help_clicked();
@@ -211,7 +209,6 @@ class InputShaperPanel : public OverlayBase {
 
     // Calibration commands
     void start_calibration(char axis);
-    void measure_noise();
     void cancel_calibration();
     void apply_recommendation();
     void save_configuration();

@@ -138,8 +138,6 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         {"on_filament_preset_abs_hold", on_preset_abs_hold},
         {"on_filament_preset_tpu_hold", on_preset_tpu_hold},
         // Temperature tap targets
-        {"on_filament_nozzle_temp_tap", on_nozzle_temp_tap_clicked},
-        {"on_filament_bed_temp_tap", on_bed_temp_tap_clicked},
         {"on_filament_nozzle_target_tap", on_nozzle_target_tap_clicked},
         {"on_filament_bed_target_tap", on_bed_target_tap_clicked},
         {"on_filament_chamber_target_tap", on_filament_chamber_target_tap},
@@ -2399,20 +2397,6 @@ void FilamentPanel::update_spool_preset() {
 }
 
 // Temperature tap callbacks (XML event_cb - use global singleton)
-void FilamentPanel::on_nozzle_temp_tap_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_nozzle_temp_tap_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_nozzle_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_bed_temp_tap_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_bed_temp_tap_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_bed_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void FilamentPanel::custom_nozzle_keypad_cb(float value, void* user_data) {
     auto* self = static_cast<FilamentPanel*>(user_data);
     if (self) {
