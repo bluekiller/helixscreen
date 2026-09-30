@@ -2,12 +2,12 @@
 
 #include "shaper_csv_parser.h"
 
+#include "text_io.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdlib>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -28,10 +28,8 @@ std::string trim(const std::string& s) {
 /// Split a CSV line into fields (simple comma-delimited, no quoting)
 std::vector<std::string> split_csv_line(const std::string& line) {
     std::vector<std::string> fields;
-    std::istringstream stream(line);
-    std::string field;
-    while (std::getline(stream, field, ',')) {
-        fields.push_back(trim(field));
+    for (std::string_view field : text_io::lines(line, ',')) {
+        fields.push_back(trim(std::string(field)));
     }
     return fields;
 }
@@ -59,15 +57,15 @@ bool parse_shaper_header(const std::string& header, std::string& name, float& fr
 ShaperCsvData parse_shaper_csv(const std::string& csv_path, char axis) {
     ShaperCsvData result;
 
-    std::ifstream file(csv_path);
-    if (!file.is_open()) {
+    text_io::LineReader file(csv_path);
+    if (!file) {
         spdlog::warn("shaper_csv_parser: cannot open file: {}", csv_path);
         return result;
     }
 
     // Read header line
     std::string header_line;
-    if (!std::getline(file, header_line)) {
+    if (!file.next(header_line)) {
         spdlog::warn("shaper_csv_parser: empty file: {}", csv_path);
         return result;
     }
@@ -136,7 +134,7 @@ ShaperCsvData parse_shaper_csv(const std::string& csv_path, char axis) {
 
     // Parse data rows
     std::string line;
-    while (std::getline(file, line)) {
+    while (file.next(line)) {
         auto trimmed = trim(line);
         if (trimmed.empty())
             continue;
@@ -185,15 +183,15 @@ ShaperCsvData parse_shaper_csv(const std::string& csv_path, char axis) {
 ResonanceCsvData parse_resonance_csv(const std::string& csv_path) {
     ResonanceCsvData result;
 
-    std::ifstream file(csv_path);
-    if (!file.is_open()) {
+    text_io::LineReader file(csv_path);
+    if (!file) {
         spdlog::warn("[ShaperCSV] cannot open resonance file: {}", csv_path);
         result.error = ResonanceCsvError::MISSING;
         return result;
     }
 
     std::string header_line;
-    std::getline(file, header_line);
+    file.next(header_line);
     auto headers = split_csv_line(header_line);
 
     int freq_col = -1;
@@ -227,7 +225,7 @@ ResonanceCsvData parse_resonance_csv(const std::string& csv_path) {
     }
 
     std::string line;
-    while (std::getline(file, line)) {
+    while (file.next(line)) {
         if (trim(line).empty())
             continue;
         auto fields = split_csv_line(line);
