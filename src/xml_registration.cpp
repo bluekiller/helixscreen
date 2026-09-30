@@ -580,11 +580,7 @@ void register_xml_components() {
     register_xml("components/zone_tab.xml");
     register_xml("components/move_preset_grid.xml");
     register_xml("motion_panel.xml");
-    // TempGraphOverlay is the only temperature overlay; there are no per-heater
-    // nozzle/bed/chamber_temp_panel.xml components. TemperatureService::setup_panel()
-    // and xml_component_name() are residual per-heater machinery — compiled, but with
-    // no callers and no XML behind the names they return, so
-    // lv_xml_component_get_scope() returns nullptr there (guarded).
+    // TempGraphOverlay is the only temperature overlay.
     register_xml("temp_graph_overlay.xml");
     // Register TempGraphOverlay event callbacks at startup (before XML is parsed)
     lv_xml_register_event_cb(nullptr, "on_temp_graph_preset_clicked",

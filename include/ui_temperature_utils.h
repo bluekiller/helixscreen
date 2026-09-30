@@ -584,7 +584,7 @@ ChamberSetpoint chamber_effective_setpoint(int heater_target_deci, int fan_targe
  *
  * Returns "Heating", "Maintaining", or "Off".  Callers that display the string
  * must localise it at the call site via lv_tr().  Single definition of the
- * words; TemperatureService (recompute_chamber_target() and setup_panel()) is
+ * words; TemperatureService::recompute_chamber_target() is
  * the only caller, filling HeaterInfo::chamber_mode.
  */
 const char* chamber_mode_word(helix::ChamberMode mode);

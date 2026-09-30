@@ -74,7 +74,7 @@ Where the 367 lives, by directory:
 | `src/ui/tour/` | 5 | first-run tour |
 | `src/ui/widgets/` + `src/` root | 4 | [`power_device_widget.cpp`](../../../src/ui/widgets/power_device_widget.cpp) and [`xml_registration.cpp`](../../../src/xml_registration.cpp) |
 
-The worst files: [`src/ui/ui_overlay_network_settings.cpp`](../../../src/ui/ui_overlay_network_settings.cpp) (19), [`src/ui/ui_filament_mapping_modal.cpp`](../../../src/ui/ui_filament_mapping_modal.cpp) (15), [`src/ui/ui_panel_ams.cpp`](../../../src/ui/ui_panel_ams.cpp) and [`src/ui/temperature_service.cpp`](../../../src/ui/temperature_service.cpp) (12 each), then a trio at 11 — [`ui_spool_wizard.cpp`](../../../src/ui/ui_spool_wizard.cpp), [`ui_pin_utils.cpp`](../../../src/ui/ui_pin_utils.cpp), [`ui_fan_dial.cpp`](../../../src/ui/ui_fan_dial.cpp).
+The worst files: [`src/ui/ui_overlay_network_settings.cpp`](../../../src/ui/ui_overlay_network_settings.cpp) (19), [`src/ui/ui_filament_mapping_modal.cpp`](../../../src/ui/ui_filament_mapping_modal.cpp) (15), [`src/ui/ui_panel_ams.cpp`](../../../src/ui/ui_panel_ams.cpp) (12), then a trio at 11 — [`ui_spool_wizard.cpp`](../../../src/ui/ui_spool_wizard.cpp), [`ui_pin_utils.cpp`](../../../src/ui/ui_pin_utils.cpp), [`ui_fan_dial.cpp`](../../../src/ui/ui_fan_dial.cpp).
 
 Why the sites exist: most predate the gate, written when the XML engine could not yet express what was needed — `<if>`, `<repeat>`, `<subject_expr>` and the word-form `cond` operators all shipped after chunks of this UI were built. Those were deliberate pragmatism at the time. Others are plain mistakes that got through review before the gate existed. Both are debt. **None of it is precedent**: do not imitate a nearby imperative site just because it is there, and do not port one opportunistically inside an unrelated change — the ratchet falls through dedicated, reviewable port commits.
 
@@ -94,7 +94,7 @@ The declarative target is the shape every [`ui_xml/temp_graph_overlay.xml`](../.
 </ui_button>
 ```
 
-and publish the handler by name from C++ — either a `{"name", fn}` table like `src/ui/temperature_service.cpp#TemperatureService/"on_heater_preset_clicked"` or a direct `lv_xml_register_event_cb()` as [`src/xml_registration.cpp#register_xml_components`](../../../src/xml_registration.cpp#L340) does. The static wrapper, the null-check, and the ledger entry all disappear.
+and publish the handler by name from C++ — either a `{"name", fn}` table like `src/ui/temperature_service.cpp#TemperatureService/"on_chamber_fault_reset_clicked"` or a direct `lv_xml_register_event_cb()` as [`src/xml_registration.cpp#register_xml_components`](../../../src/xml_registration.cpp#L340) does. The static wrapper, the null-check, and the ledger entry all disappear.
 
 ### Duplication debt: the honest part
 
@@ -251,7 +251,7 @@ The gate does not merely tolerate these cases — it excludes them structurally,
 | `LV_EVENT_DELETE` cleanup, draw hooks (`DRAW_MAIN`/`DRAW_POST`), `SIZE_CHANGED`, gestures/scroll | No declarative equivalent exists |
 | **Measured layout and computed fonts** — `decide_nozzle_layout()` ([`src/ui/panel_widgets/nozzle_layout.h#decide_nozzle_layout`](../../../src/ui/panel_widgets/nozzle_layout.h#L31)), breakpoint fonts | Depends on runtime pixel measurement |
 | Widgets created in C++ (`lv_*_create`) — canvas, procedural rendering, gcode viewer | Never had an XML layer |
-| **Per-item payload on generated collections** | `lv_obj_set_user_data()` on a `ui_button` overwrites the `UiButtonData*` it owns ([`src/ui/temperature_service.cpp#setup_panel`](../../../src/ui/temperature_service.cpp#L671) warns at the site) |
+| **Per-item payload on generated collections** | `lv_obj_set_user_data()` on a `ui_button` overwrites the `UiButtonData*` it owns ([`src/ui/panel_widgets/heater_temp_widget.cpp#HeaterTempWidget::attach`](../../../src/ui/panel_widgets/heater_temp_widget.cpp) warns at the site) |
 | `helix-screen ctl` remote control ([`src/remote/remote_control_server.cpp`](../../../src/remote/remote_control_server.cpp)) | Its job is reaching into an arbitrary live widget tree on command |
 | CLI stdout ([`src/system/cli_args.cpp`](../../../src/system/cli_args.cpp), [`src/application/detect_printer_cmd.cpp`](../../../src/application/detect_printer_cmd.cpp), [`src/helix_splash.cpp`](../../../src/helix_splash.cpp)) | stdout *is* the product there; spdlog is for logging |
 | Widget pool recycling, chart data, animations | Churn or per-frame data a subject would not model |
@@ -305,5 +305,5 @@ Read in this order; about 25 minutes total.
 7. [`src/ui/panel_widgets/led_widget.cpp#attach`](../../../src/ui/panel_widgets/led_widget.cpp#L75) — the twin: same problem, same workaround, separately evolved. Then `src/ui/panel_widgets/led_widget.cpp#bind_led` for `bind_led()` itself.
 8. [`ui_xml/components/panel_widget_network.xml#net_disconnected`](../../../ui_xml/components/panel_widget_network.xml#L11) — the six state-mapped icons; count the attributes that differ (three).
 9. [`ui_xml/settings_hardware_overlay.xml#container_fan_settings`](../../../ui_xml/settings_hardware_overlay.xml#L62) — the four wrapper rows; note each is reactive gating, which is why this is duplication but not a bug.
-10. [`src/ui/temperature_service.cpp#setup_panel`](../../../src/ui/temperature_service.cpp#L671) — the in-code warning that documents the `user_data` toleration row better than any doc could.
+10. [`src/ui/panel_widgets/heater_temp_widget.cpp#HeaterTempWidget::attach`](../../../src/ui/panel_widgets/heater_temp_widget.cpp) — the in-code warning that documents the `user_data` toleration row better than any doc could.
 11. [`src/ui/ui_temperature_utils.cpp#format_temperature_pair`](../../../src/ui/ui_temperature_utils.cpp#L61) — `format_temperature_pair()`: what consolidation done right looks like, and the endpoint of first project #3's pattern.
