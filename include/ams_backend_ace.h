@@ -494,6 +494,11 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     /// first_slot_global_index/slot_count, which parse_slots_response only
     /// refreshes when the slot count actually changes. Caller holds mutex_.
     SlotInfo* mutable_slot_locked(int slot_index);
+    /// Reads index units[0].slots the same way, so a read sees what a write
+    /// through mutable_slot_locked() left.
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        return const_cast<AmsBackendAce*>(this)->mutable_slot_locked(slot_index);
+    }
 
     /// Undo the derived LOADED stamp, restoring the status the last parse
     /// wrote. Caller holds mutex_. Runs at the TOP of every parse so
