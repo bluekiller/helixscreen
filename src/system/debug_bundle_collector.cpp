@@ -277,21 +277,6 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
 // System info
 // =============================================================================
 
-// Map a platform key ("ad5x", "ad5m", etc.) to the display-name root the
-// printer database uses for that hardware. The dashboard's title generator
-// can compare this against the user-picked model name (printer.model) and
-// surface the mismatch instead of trusting the wizard pick blindly. The
-// AD5X/AD5M Pro pair is the prototypical mismatch — same Klipper config,
-// different hardware; a wizard pick of "Adventurer 5M Pro" on an AD5X
-// platform is structurally wrong but has no local way to self-correct
-// without reflashing or re-running the wizard.
-//
-// Generic dev/SBC platforms (pi, pi32, x86) have no specific printer hardware
-// to compare against, so platform_model is omitted for them.
-static bool platform_has_printer_hardware(const std::string& key) {
-    return key != "pi" && key != "pi32" && key != "x86";
-}
-
 json DebugBundleCollector::collect_touch_info() {
     TouchRangeDiagnostics diag;
     get_touch_range_diagnostics(diag);
@@ -615,8 +600,9 @@ json DebugBundleCollector::collect_printer_info(const PrinterSnapshot& snap) {
             display = UpdateChecker::get_platform_display_name(
                 helix::ad5x_mod_layout_present() ? "ad5x" : "k1");
         }
+        const auto* row = UpdateChecker::find_platform(platform);
         const std::string platform_model =
-            platform_has_printer_hardware(platform) ? display : std::string{};
+            row && row->has_printer_hardware ? display : std::string{};
         if (!platform_model.empty()) {
             printer["platform_model"] = platform_model;
             // Substring match handles trim variations ("5M" vs "5M Pro"). If

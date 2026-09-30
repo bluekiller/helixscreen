@@ -2909,18 +2909,18 @@ constexpr uint16_t EM_ARM_ = 0x28, EM_AARCH64_ = 0xB7, EM_X86_64_ = 0x3E, EM_MIP
 // Rows mirror the toolchains in mk/cross.mk. "ad5x" and "k1" name the board
 // behind the unified "mips" key.
 const std::vector<UpdateChecker::PlatformInfo> kPlatforms = {
-    {"pi", "Raspberry Pi", ELF64, LE, EM_AARCH64_, {}},
-    {"pi32", "Raspberry Pi (32-bit)", ELF32, LE, EM_ARM_, {}},
-    {"x86", "x86 Desktop", ELF64, LE, EM_X86_64_, {}},
-    {"ad5m", "FlashForge Adventurer 5M", ELF32, LE, EM_ARM_, kZmodDiagnosticFiles},
-    {"ad5x", "FlashForge Adventurer 5X", ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
-    {"mips", "MIPS (K1 series / AD5X)", ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
-    {"k1", "Creality K1", ELF32, LE, EM_MIPS_, {}},
-    {"k2", "Creality K2 Plus", ELF32, LE, EM_ARM_, {}},
-    {"cc1", "Elegoo Centauri Carbon", ELF32, LE, EM_ARM_, {}},
-    {"snapmaker-u1", "Snapmaker U1", ELF64, LE, EM_AARCH64_, {}},
+    {"pi", "Raspberry Pi", false, ELF64, LE, EM_AARCH64_, {}},
+    {"pi32", "Raspberry Pi (32-bit)", false, ELF32, LE, EM_ARM_, {}},
+    {"x86", "x86 Desktop", false, ELF64, LE, EM_X86_64_, {}},
+    {"ad5m", "FlashForge Adventurer 5M", true, ELF32, LE, EM_ARM_, kZmodDiagnosticFiles},
+    {"ad5x", "FlashForge Adventurer 5X", true, ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
+    {"mips", "MIPS (K1 series / AD5X)", true, ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
+    {"k1", "Creality K1", true, ELF32, LE, EM_MIPS_, {}},
+    {"k2", "Creality K2 Plus", true, ELF32, LE, EM_ARM_, {}},
+    {"cc1", "Elegoo Centauri Carbon", true, ELF32, LE, EM_ARM_, {}},
+    {"snapmaker-u1", "Snapmaker U1", true, ELF64, LE, EM_AARCH64_, {}},
     // The K-Touch ships a firmware image, never an ELF release zip.
-    {"esp32", "BTT K-Touch", 0, 0, 0, {}},
+    {"esp32", "BTT K-Touch", false, 0, 0, 0, {}},
 };
 
 } // namespace
