@@ -5,9 +5,9 @@
 
 // The AntHead is one selectable toolhead-visualization style. On ESP32 (v1
 // size cut) the image is not staged and nothing loads it: draw_nozzle_anthead becomes
-// a no-op so the dispatch (nozzle_renderer_dispatch.h) and the three UI callers
-// still link, and a user who selects the AntHead style sees no toolhead glyph
-// (every other style renders normally). Firmware-only; desktop keeps the image.
+// a no-op so the dispatch (nozzle_renderer_dispatch.h) still links, and a user who selects the
+// AntHead style sees no toolhead glyph (every other style renders normally). Firmware-only; desktop
+// keeps the image.
 #if !defined(HELIX_PLATFORM_ESP32)
 
 #include "data_root_resolver.h"

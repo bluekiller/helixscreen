@@ -14,14 +14,7 @@
 #include "helix-xml/src/xml/lv_xml_widget.h"
 #include "helix-xml/src/xml/parsers/lv_xml_obj_parser.h"
 #include "lvgl/lvgl.h"
-#include "nozzle_renderer_a4t.h"
-#include "nozzle_renderer_anthead.h"
-#include "nozzle_renderer_bambu.h"
-#include "nozzle_renderer_creality_k1.h"
-#include "nozzle_renderer_creality_k2.h"
-#include "nozzle_renderer_jabberwocky.h"
-#include "nozzle_renderer_stealthburner.h"
-#include "settings_manager.h"
+#include "nozzle_renderer_dispatch.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -518,34 +511,6 @@ static int32_t calc_tool_x(int tool_index, int total_tools, int32_t x_off, int32
     return x_off + margin + (usable * tool_index) / (total_tools - 1);
 }
 
-// One dispatch point for the user's configured toolhead style.
-static void draw_toolhead_glyph(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t color,
-                                int32_t scale) {
-    switch (helix::SettingsManager::instance().get_effective_toolhead_style()) {
-    case helix::ToolheadStyle::A4T:
-        draw_nozzle_a4t(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::ANTHEAD:
-        draw_nozzle_anthead(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::JABBERWOCKY:
-        draw_nozzle_jabberwocky(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::STEALTHBURNER:
-        draw_nozzle_stealthburner(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::CREALITY_K1:
-        draw_nozzle_creality_k1(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::CREALITY_K2:
-        draw_nozzle_creality_k2(layer, cx, cy, color, scale);
-        break;
-    default:
-        draw_nozzle_bambu(layer, cx, cy, color, scale);
-        break;
-    }
-}
-
 // Per-draw layout + resolved colors/sizes shared by every phase.
 struct SysLayout {
     lv_area_t obj_coords{};
@@ -973,7 +938,7 @@ static void draw_tool_row(lv_layer_t* layer, SystemPathData* data, const SysLayo
         bool is_active_tool = (t == data->active_tool) && data->filament_loaded;
 
         lv_color_t noz_color = is_active_tool ? L.active_color_lv : L.nozzle_color;
-        draw_toolhead_glyph(layer, tool_x, L.tools_y, noz_color, small_scale);
+        draw_nozzle_for_style(layer, tool_x, L.tools_y, noz_color, small_scale);
 
         // Tool badge below nozzle — use pre-formatted label from data
         if (data->label_font && t < SystemPathData::MAX_TOOLS) {
@@ -1136,7 +1101,7 @@ static void draw_output_to_nozzle(lv_layer_t* layer, SystemPathData* data, const
         noz_color = L.active_color_lv;
     }
 
-    draw_toolhead_glyph(layer, L.center_x, L.nozzle_y, noz_color, data->extruder_scale);
+    draw_nozzle_for_style(layer, L.center_x, L.nozzle_y, noz_color, data->extruder_scale);
 
     // Virtual tool badge beneath nozzle — only when multiple slots feed one toolhead
     if (data->total_tools <= 1 && data->current_tool >= 0 && data->label_font) {
