@@ -75,13 +75,12 @@ static std::vector<CacheCandidate> cache_path_candidates(const std::string& subd
         out.push_back({std::string(helix_cache) + "/" + subdir, "HELIX_CACHE_DIR", false});
 
     // 2. Config /cache/base_directory
-    if (helix::Config* config = helix::Config::get_instance()) {
-        std::string base = config->get<std::string>("/cache/base_directory", "");
-        if (!base.empty())
-            out.push_back({base + "/" + subdir, "config", false});
-    }
+    helix::Config* config = helix::Config::get_instance();
+    std::string base = config->get<std::string>("/cache/base_directory", "");
+    if (!base.empty())
+        out.push_back({base + "/" + subdir, "config", false});
 
-    // 3. Platform-specific compile-time paths
+        // 3. Platform-specific compile-time paths
 #if defined(HELIX_PLATFORM_AD5M)
     // Dot-prefixed on purpose: /data is the only large writable partition on
     // this board and the vendor symlinks it whole into Moonraker's gcodes

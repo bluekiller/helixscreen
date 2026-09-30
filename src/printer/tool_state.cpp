@@ -679,9 +679,7 @@ void ToolState::mark_tool_offsets_saved(int tool_index) {
 
 void ToolState::refresh_any_tool_dirty() {
     const int any = dirty_tool_indices().empty() ? 0 : 1;
-    if (lv_subject_get_int(&any_tool_offset_dirty_) != any) {
-        lv_subject_set_int(&any_tool_offset_dirty_, any);
-    }
+    lv_subject_set_int(&any_tool_offset_dirty_, any);
 }
 
 int ToolState::extruder_count() const {

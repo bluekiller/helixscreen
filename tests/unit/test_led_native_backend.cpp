@@ -443,7 +443,6 @@ TEST_CASE_METHOD(LedPinConfigFixture,
     auto& ctrl = helix::led::LedController::instance();
 
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     cfg->set(cfg->df() + "leds/startup_brightness", 60);
     cfg->save();
 

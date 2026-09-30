@@ -1891,8 +1891,7 @@ static helix::ThemeData theme_manager_load_active_theme() {
     } else {
         // Read theme name from config
         Config* config = Config::get_instance();
-        theme_name = config ? config->get<std::string>("/display/theme", helix::DEFAULT_THEME)
-                            : helix::DEFAULT_THEME;
+        theme_name = config->get<std::string>("/display/theme", helix::DEFAULT_THEME);
     }
 
     // Load theme file (supports fallback from user themes to defaults)

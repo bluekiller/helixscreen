@@ -1020,7 +1020,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto& pim = helix::PrinterImageManager::instance();
     pim.init(root.string());
     Config* cfg = Config::get_instance();
-    REQUIRE(cfg);
     const std::string key = cfg->df() + helix::PRINTER_IMAGE;
     struct Restore {
         Config* cfg;

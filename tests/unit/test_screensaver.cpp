@@ -94,7 +94,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "Screensaver type survives a restart",
     // accepts can still be rewritten on the next boot — the user picks a
     // screensaver, restarts, and finds a different one selected.
     Config* config = Config::get_instance();
-    REQUIRE(config != nullptr);
 
     // The fixture leaves the subjects initialized, and init_subjects() returns
     // early in that state — so the config has to be seeded while they are down

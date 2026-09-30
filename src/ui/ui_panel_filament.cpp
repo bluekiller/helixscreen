@@ -138,8 +138,6 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         {"on_filament_preset_abs_hold", on_preset_abs_hold},
         {"on_filament_preset_tpu_hold", on_preset_tpu_hold},
         // Temperature tap targets
-        {"on_filament_nozzle_temp_tap", on_nozzle_temp_tap_clicked},
-        {"on_filament_bed_temp_tap", on_bed_temp_tap_clicked},
         {"on_filament_nozzle_target_tap", on_nozzle_target_tap_clicked},
         {"on_filament_bed_target_tap", on_bed_target_tap_clicked},
         {"on_filament_chamber_target_tap", on_filament_chamber_target_tap},
@@ -192,12 +190,9 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         printer_state_.get_subjects_lifetime());
 
     // Subscribe to active tool changes for dynamic nozzle label + dropdown sync.
-    // Also rebind TemperatureService to the new tool's extruder — otherwise
-    // the mini graph stays glued to whatever extruder was active when
-    // TemperatureService::setup_panel last ran (typically T0, since the
-    // temperature overlay panel is rarely created on startup). #9 — without
-    // this re-bind the Snapmaker U1 user sees T0's cold-baseline plot while
-    // the actively-heating T1 ramps invisibly.
+    // TemperatureService binds the mini graph to one extruder, so rebind it
+    // when the active tool changes, or the graph plots an idle extruder while
+    // the active one heats (#9).
     active_tool_observer_ = observe_int_sync<FilamentPanel>(
         helix::ToolState::instance().get_active_tool_subject(), this,
         [](FilamentPanel* self, int tool_idx) {
@@ -2399,20 +2394,6 @@ void FilamentPanel::update_spool_preset() {
 }
 
 // Temperature tap callbacks (XML event_cb - use global singleton)
-void FilamentPanel::on_nozzle_temp_tap_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_nozzle_temp_tap_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_nozzle_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_bed_temp_tap_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_bed_temp_tap_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_bed_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void FilamentPanel::custom_nozzle_keypad_cb(float value, void* user_data) {
     auto* self = static_cast<FilamentPanel*>(user_data);
     if (self) {
@@ -2487,7 +2468,7 @@ void FilamentPanel::handle_cooldown() {
         // Use configured cooldown macro (user-overridable in settings.json)
         auto* cfg = helix::Config::get_instance();
         helix::MacroConfig default_cooldown{"Cool Down", helix::kDefaultCooldownGcode};
-        auto cooldown = cfg ? cfg->get_macro("cooldown", default_cooldown) : default_cooldown;
+        auto cooldown = cfg->get_macro("cooldown", default_cooldown);
 
         // A platform preset's macro text is fixed at install time and can name
         // a chamber heater that another machine sharing the same preset file

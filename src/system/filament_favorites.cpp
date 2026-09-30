@@ -11,7 +11,7 @@ std::vector<std::string> load_favorite_ids() {
     helix::Config* cfg = helix::Config::get_instance();
     // get_string_array() is non-vivifying: an absent path reads as empty and
     // writes nothing back (#1129).
-    return cfg ? cfg->get_string_array(kFavoriteIdsPath) : std::vector<std::string>{};
+    return cfg->get_string_array(kFavoriteIdsPath);
 }
 
 bool is_favorite(const std::string& product_id) {
@@ -32,10 +32,10 @@ bool toggle_favorite(const std::string& product_id) {
     } else {
         ids.erase(it);
     }
-    if (helix::Config* cfg = helix::Config::get_instance()) {
-        cfg->set(kFavoriteIdsPath, ids);
-        cfg->save(); // star toggles persist immediately, no separate save step
-    }
+    helix::Config* cfg = helix::Config::get_instance();
+    cfg->set(kFavoriteIdsPath, ids);
+    cfg->save(); // star toggles persist immediately, no separate save step
+
     return now_favorite;
 }
 

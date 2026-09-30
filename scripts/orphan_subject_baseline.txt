@@ -14,8 +14,13 @@
 abort_state  # src/abort/abort_manager.cpp:63
 about_version_description  # src/ui/ui_settings_about.cpp:103
 ams_env_overlay_preset_text  # src/ui/ui_ams_environment_overlay.cpp:124
-bt_has_results  # src/ui/ui_panel_belt_tension.cpp:259
 detail_view_visible  # src/ui/ui_panel_print_select.cpp:335
+dryer_current_temp_text  # src/printer/ams_state.cpp:416; src/printer/ams_state.cpp:816
+dryer_progress_pct  # src/printer/ams_state.cpp:415; src/printer/ams_state.cpp:815
+dryer_remaining_min  # src/printer/ams_state.cpp:414; src/printer/ams_state.cpp:814
+dryer_target_temp  # src/printer/ams_state.cpp:413; src/printer/ams_state.cpp:813
+dryer_target_temp_text  # src/printer/ams_state.cpp:417; src/printer/ams_state.cpp:818
+dryer_time_text  # src/printer/ams_state.cpp:418; src/printer/ams_state.cpp:820
 exclude_map_active  # src/ui/ui_panel_print_status.cpp:653
 filament_extrusion_allowed  # src/ui/ui_panel_filament.cpp:287
 filament_material_bed_temp  # src/ui/ui_panel_filament.cpp:301
@@ -57,6 +62,4 @@ total_steps  # src/ui/ui_wizard.cpp:384
 touch_cal_accept_text  # src/ui/ui_touch_calibration_overlay.cpp:272
 touch_cal_current_step  # src/ui/ui_wizard_touch_calibration.cpp:133
 touch_cal_valid  # src/ui/ui_wizard_touch_calibration.cpp:134
-update_current_version  # src/ui/ui_settings_about.cpp:113
-update_new_version  # src/system/update_checker.cpp:791
 z_offset_delta_display  # src/ui/ui_panel_controls.cpp:172

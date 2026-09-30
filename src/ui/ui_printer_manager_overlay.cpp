@@ -264,11 +264,11 @@ void PrinterManagerOverlay::on_chip_ams_clicked(lv_event_t* e) {
     }
     lv_obj_t* panel_obj = ams_panel.get_panel();
     if (panel_obj) {
-        // Re-register before push (see HomePanel::handle_ams_clicked):
-        // get_global_ams_panel() only registers in its lazy-creation block, and
-        // navbar switches clear overlay_instances_, so a cached panel loses its
-        // registration and on_deactivate() never fires on dismiss — leaving the
-        // filament-path animation drawing into a torn-down panel. Idempotent.
+        // Re-register before push: get_global_ams_panel() only registers in its
+        // lazy-creation block, and navbar switches clear overlay_instances_, so a
+        // cached panel loses its registration and on_deactivate() never fires on
+        // dismiss — leaving the filament-path animation drawing into a torn-down
+        // panel. Idempotent.
         NavigationManager::instance().register_overlay_instance(panel_obj, &ams_panel);
         NavigationManager::instance().push_overlay(panel_obj);
     }
@@ -399,13 +399,11 @@ void PrinterManagerOverlay::finish_name_edit() {
 
     // Save to config
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>(config->df() + helix::wizard::PRINTER_NAME, name_str);
-        config->save();
-        spdlog::info("[{}] Printer name changed to: '{}'", get_name(), name_str);
-        // Sync name to Mainsail/Fluidd DB
-        helix::PrinterNameSync::write_back(get_moonraker_api(), name_str);
-    }
+    config->set<std::string>(config->df() + helix::wizard::PRINTER_NAME, name_str);
+    config->save();
+    spdlog::info("[{}] Printer name changed to: '{}'", get_name(), name_str);
+    // Sync name to Mainsail/Fluidd DB
+    helix::PrinterNameSync::write_back(get_moonraker_api(), name_str);
 
     // Update subjects to reflect new name (local overlay + global PrinterState + image widget)
     std::strncpy(name_buf_, name_str.c_str(), sizeof(name_buf_) - 1);
@@ -470,10 +468,6 @@ void PrinterManagerOverlay::on_deactivating(DeactivateReason) {
 
 void PrinterManagerOverlay::refresh_printer_info() {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[{}] Config not available", get_name());
-        return;
-    }
 
     // Printer name: saved name → model/type → "My Printer"
     std::string name = helix::get_printer_display_name();

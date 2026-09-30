@@ -212,9 +212,7 @@ void PrintPreparationManager::recalculate_estimate() {
     add_if_enabled("purge_line", static_cast<int>(helix::PrintStartPhase::PURGING), 10.0f);
 
     int estimate_s = static_cast<int>(total);
-    if (lv_subject_get_int(&preprint_estimate_subject_) != estimate_s) {
-        lv_subject_set_int(&preprint_estimate_subject_, estimate_s);
-    }
+    lv_subject_set_int(&preprint_estimate_subject_, estimate_s);
 
     spdlog::debug("[PrintPreparationManager] Pre-print estimate: {}s", estimate_s);
 }

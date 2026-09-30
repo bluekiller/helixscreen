@@ -955,7 +955,7 @@ Force the G-code preview rendering mode.
 |----------|-------|
 | **Values** | `2D`, `3D` |
 | **Default** | unset — Auto, which resolves to 3D on GLES-capable builds and 2D elsewhere |
-| **Files** | `include/gcode_render_mode_policy.h`, `src/ui/ui_gcode_viewer.cpp`, `src/ui/ui_panel_print_status.cpp`, `src/ui/ui_panel_gcode_test.cpp` |
+| **Files** | `include/gcode_render_mode_policy.h`, `src/ui/ui_gcode_viewer.cpp`, `src/ui/ui_panel_print_status.cpp` |
 
 Only the exact strings `2D` and `3D` are honored — matching is case-sensitive, so
 `3d` is an unrecognized value. An unrecognized value resolves to 2D (the renderer
@@ -1734,30 +1734,6 @@ HELIX_STRICT_BG_THREAD_CHECK=1 ./build/bin/helix-screen --test -vv
 
 **Release builds ignore the env var *and* compile out the abort branch.** Under `HELIX_RELEASE_BUILD` the detector still emits its telemetry anomaly and debug log, but never aborts: a Snapmaker U1 user (dev `6d10417c`, 2026-05-14) somehow had this set in their environment and hit a stray strict-mode abort (crash signature `307b6f48`). `set_strict_bg_check(true)` still flips the flag in any build — the release build simply has nothing to do with it. See `CLAUDE.md` § "Threading & Lifecycle".
 
-### Action-Prompt Stress Loop
-
-Reproducer harness for the `cluster:pstat-async-delete` crash (#906). Drives a continuous show/hide cycle of `action_prompt_modal` so the bug accumulates while a user sits on the Print Status panel. Transitions are gated on `ActionPromptManager::is_showing()` so the loop alternates cleanly instead of stacking modals when the exit animation runs slower than the period.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `HELIX_AUTO_STRESS_PROMPT` | Enable the loop. Any non-empty value except `0`. | Disabled |
-| `HELIX_STRESS_PROMPT_MS` | Show/hide period in milliseconds, floored at `100`. An unparseable value keeps the default. | `500` |
-| `HELIX_STRESS_START_DELAY_SEC` | Seconds to wait before the loop arms, floored at `0`. Unparseable values keep the default. | `30` |
-
-**Usage Notes:**
-- The code default for `HELIX_STRESS_PROMPT_MS` is **500 ms**. The comment above it says 250 ms (chosen to outpace the ~150 ms modal exit animation so consecutive deletes pile into the same async list) — the comment is stale; the literal in `application.cpp` is `500`. Pass `HELIX_STRESS_PROMPT_MS=250` explicitly if you want the documented-but-unimplemented cadence.
-- The start delay exists so you can navigate to Print Status before modals begin hijacking the screen.
-- Both timers are LVGL timers on the main thread: a one-shot kickoff after the delay, which then spawns the repeating stress timer.
-- Watch for `[ActionPrompt] HELIX_AUTO_STRESS_PROMPT=1 — will drive show/hide every <n>ms after <n>s delay` at startup and `[ActionPrompt] Stress timer ARMED` when it kicks in (both at WARN).
-
-**Example:**
-```bash
-# Arm after 5s, cycle every 200ms
-HELIX_AUTO_STRESS_PROMPT=1 HELIX_STRESS_PROMPT_MS=200 HELIX_STRESS_START_DELAY_SEC=5 \
-  HELIX_MOCK_AUTO_PRINT=1 ./build/bin/helix-screen --test --sim-speed 6 -vv &
-./build/bin/helix-screen ctl navigate print-status
-```
-
 ---
 
 ## Deployment
@@ -2356,20 +2332,22 @@ Systemd services can start with `PATH` cleared entirely. That breaks tools like 
 
 ### `SSL_CERT_FILE` / `SSL_CERT_DIR`
 
-Standard OpenSSL CA-bundle overrides. Telemetry checks them before its first HTTPS request to confirm a usable CA bundle exists.
+Standard OpenSSL CA-bundle overrides. They are the first choice for the CA store that requests to HelixScreen's own servers (update check and download, changelog, telemetry, crash reports, debug bundle upload) verify against. Printer LAN services (Moonraker, cameras, Spoolman, IPP, plugins) are not verified, because self-signed certificates are normal there.
 
 | Property | Value |
 |----------|-------|
 | **Values** | Path to a CA bundle file / path to a directory of CA certs |
-| **Default** | Unset — `/etc/ssl/certs/ca-certificates.crt` is probed instead |
-| **File** | `src/system/telemetry_manager.cpp` (`TelemetryManager::do_send()`) |
+| **Default** | Unset: `/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/tls/certs/ca-bundle.crt`, `/etc/ssl/cert.pem`, then `<install>/certs/ca-certificates.crt` are probed in that order |
+| **File** | `src/system/tls_trust.cpp` (`find_ca_store()`, `trusted_request()`) |
 
 ```bash
 # Point at a bundle on a device without one in the standard location
 SSL_CERT_FILE=/usr/data/ca-certificates.crt ./build/bin/helix-screen
 ```
 
-**Why this check exists:** on devices with no CA bundle at all (AD5M stock firmware), glibc's NSS resolver can `SIGSEGV` during the SSL handshake. Rather than risk that, telemetry verifies readability of `SSL_CERT_FILE`, `SSL_CERT_DIR`, or the standard bundle path, and if none is readable it logs a warning and **disables telemetry sends for the session** instead of crashing. The check runs once and is cached — setting the variable after startup does not re-enable sends.
+The store is resolved on the first such request and logged as `[TLS] Verifying our servers against <path>`. Servers are checked for chain and hostname but not for validity dates, because printers often boot with a 1970 clock. A store that exists but cannot be loaded trusts nothing, so those requests fail with `[TLS] Certificate for '<host>' rejected: ...`. With no store at all the app logs a warning and connects unverified.
+
+Telemetry also refuses to send when no store is found: on devices with no CA bundle at all (AD5M stock firmware), glibc's NSS resolver can `SIGSEGV` during the SSL handshake. The check runs once and is cached, so setting the variable after startup does not re-enable sends.
 
 ---
 

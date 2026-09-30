@@ -28,6 +28,7 @@
 // Mock Panel for Testing Global Accessor Pattern
 // ============================================================================
 
+namespace {
 class MockPanel {
   public:
     // Track which handlers were called
@@ -51,6 +52,7 @@ class MockPanel {
     static void on_bar_pressed(lv_event_t* e);
     static void on_exception_test(lv_event_t* e);
 };
+} // namespace
 
 // Global instance for testing global accessor pattern
 static MockPanel* g_mock_panel = nullptr;

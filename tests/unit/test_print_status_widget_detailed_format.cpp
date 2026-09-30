@@ -33,6 +33,7 @@ using namespace helix::ui;
 // the current PrinterState subjects (tests in this file reset PrinterState in
 // their setup; a formatter from a prior test would hold dangling observer
 // pointers to the freed subjects).
+namespace {
 struct FormatterScope {
     FormatterScope() {
         PrintStatusWidget::destroy_formatter_for_test();
@@ -42,6 +43,7 @@ struct FormatterScope {
         PrintStatusWidget::release_formatter_for_test();
     }
 };
+} // namespace
 
 TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter writes layer and time",
                  "[print_status][formatter]") {

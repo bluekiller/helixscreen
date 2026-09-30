@@ -1084,23 +1084,21 @@ void PIDCalibrationPanel::start_progress_tracking() {
 
     // Load historical data if available
     auto* config = helix::Config::get_instance();
-    if (config) {
-        const char* heater_key = (selected_heater_ == Heater::EXTRUDER) ? "extruder" : "heater_bed";
+    const char* heater_key = (selected_heater_ == Heater::EXTRUDER) ? "extruder" : "heater_bed";
 
-        // Heat rate from shared ThermalRateManager (ensure loaded from config)
-        auto& thermal_mgr = ThermalRateManager::instance();
-        thermal_mgr.load_from_config(*config);
-        float heat_rate = thermal_mgr.get_model(heater_key).best_rate();
+    // Heat rate from shared ThermalRateManager (ensure loaded from config)
+    auto& thermal_mgr = ThermalRateManager::instance();
+    thermal_mgr.load_from_config(*config);
+    float heat_rate = thermal_mgr.get_model(heater_key).best_rate();
 
-        // Oscillation duration from PID-specific config path
-        std::string osc_path =
-            std::string("/calibration/pid_history/") + heater_key + "/oscillation_duration";
-        float osc_dur = config->get<float>(osc_path, 0.0f);
-        if (heat_rate > 0 && osc_dur > 0) {
-            progress_tracker_.set_history(heat_rate, osc_dur);
-            spdlog::info("[PIDCal] Loaded historical rates: heat={:.2f} s/deg, osc={:.0f}s",
-                         heat_rate, osc_dur);
-        }
+    // Oscillation duration from PID-specific config path
+    std::string osc_path =
+        std::string("/calibration/pid_history/") + heater_key + "/oscillation_duration";
+    float osc_dur = config->get<float>(osc_path, 0.0f);
+    if (heat_rate > 0 && osc_dur > 0) {
+        progress_tracker_.set_history(heat_rate, osc_dur);
+        spdlog::info("[PIDCal] Loaded historical rates: heat={:.2f} s/deg, osc={:.0f}s", heat_rate,
+                     osc_dur);
     }
 
     // Observe temperature for phase tracking (both extruder and bed need lifetime tokens)
@@ -1223,8 +1221,6 @@ void PIDCalibrationPanel::on_eta_timer_tick(lv_timer_t* timer) {
 
 void PIDCalibrationPanel::save_calibration_history() {
     auto* config = helix::Config::get_instance();
-    if (!config)
-        return;
 
     float heat_rate = progress_tracker_.measured_heat_rate();
     float osc_duration = progress_tracker_.measured_oscillation_duration();

@@ -35,12 +35,8 @@ HumiditySensorManager::HumiditySensorManager() = default;
 HumiditySensorManager::~HumiditySensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string HumiditySensorManager::category_name() const {
-    return "humidity";
-}
 
 void HumiditySensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -101,9 +97,7 @@ void HumiditySensorManager::discover(const std::vector<std::string>& klipper_obj
     // Update sensor count subject
     if (subjects_initialized_) {
         int new_count = static_cast<int>(sensors_.size());
-        if (lv_subject_get_int(&sensor_count_) != new_count) {
-            lv_subject_set_int(&sensor_count_, new_count);
-        }
+        lv_subject_set_int(&sensor_count_, new_count);
     }
 
     spdlog::info("[HumiditySensorManager] Discovered {} humidity sensors", sensors_.size());
@@ -533,17 +527,11 @@ void HumiditySensorManager::update_subjects() {
     };
 
     int chamber_humidity = get_chamber_humidity_value();
-    if (lv_subject_get_int(&chamber_humidity_) != chamber_humidity) {
-        lv_subject_set_int(&chamber_humidity_, chamber_humidity);
-    }
+    lv_subject_set_int(&chamber_humidity_, chamber_humidity);
     int chamber_pressure = get_chamber_pressure_value();
-    if (lv_subject_get_int(&chamber_pressure_) != chamber_pressure) {
-        lv_subject_set_int(&chamber_pressure_, chamber_pressure);
-    }
+    lv_subject_set_int(&chamber_pressure_, chamber_pressure);
     int dryer_humidity = get_dryer_humidity_value();
-    if (lv_subject_get_int(&dryer_humidity_) != dryer_humidity) {
-        lv_subject_set_int(&dryer_humidity_, dryer_humidity);
-    }
+    lv_subject_set_int(&dryer_humidity_, dryer_humidity);
 
     spdlog::trace("[HumiditySensorManager] Subjects updated: chamber_humidity={}, "
                   "chamber_pressure={}, dryer_humidity={}",

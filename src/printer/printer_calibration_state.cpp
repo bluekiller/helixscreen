@@ -99,9 +99,7 @@ void PrinterCalibrationState::update_from_status(const nlohmann::json& status) {
             // Store as microns (multiply by 1000) for integer subject with 0.001mm resolution
             double z_mm = mp["z_position"].get<double>();
             int z_microns = static_cast<int>(z_mm * 1000.0);
-            if (lv_subject_get_int(&manual_probe_z_position_) != z_microns) {
-                lv_subject_set_int(&manual_probe_z_position_, z_microns);
-            }
+            lv_subject_set_int(&manual_probe_z_position_, z_microns);
             spdlog::trace("[PrinterCalibrationState] Manual probe Z: {:.3f}mm", z_mm);
         }
     }

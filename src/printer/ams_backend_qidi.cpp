@@ -407,7 +407,15 @@ void AmsBackendQidi::apply_query_response(const nlohmann::json& response) {
     handle_status_update(*status_it);
 }
 
-void AmsBackendQidi::handle_status_update(const nlohmann::json& notification) {
+void AmsBackendQidi::handle_status_update(const nlohmann::json& envelope) {
+    // Subscription frames arrive as {"params": [{...}, timestamp]}; the startup
+    // query hands over the status object directly.
+    const nlohmann::json* status = &envelope;
+    if (envelope.contains("params") && envelope["params"].is_array() &&
+        !envelope["params"].empty()) {
+        status = &envelope["params"][0];
+    }
+    const auto& notification = *status;
     if (!notification.is_object()) {
         return;
     }

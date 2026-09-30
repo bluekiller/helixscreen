@@ -259,8 +259,6 @@ void NavigationManager::clear_overlay_stack() {
         spdlog::trace("[NavigationManager] Cleared overlay {} from stack", (void*)overlay);
     }
 
-    // Clear zoom source rects for any cleared overlays
-    zoom_source_rects_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
 
@@ -289,7 +287,6 @@ void NavigationManager::overlay_slide_out_complete_cb(lv_anim_t* anim) {
     }
     lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
     // Reset all transform and opacity properties for potential reuse
-    // (covers both slide and zoom animation properties)
     lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
     lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
     lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
@@ -497,246 +494,6 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
 
     spdlog::trace("[NavigationManager] Started slide+fade-out for panel {} (offset={}, {})",
                   (void*)panel, offset, portrait ? "portrait/Y" : "landscape/X");
-}
-
-void NavigationManager::overlay_animate_zoom_in(lv_obj_t* panel, lv_area_t source_rect) {
-    // Skip animation if disabled
-    if (!DisplaySettingsManager::instance().get_animations_enabled()) {
-        lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
-        lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
-        spdlog::trace("[NavigationManager] Animations disabled - showing zoom overlay instantly");
-        return;
-    }
-
-    // Calculate panel dimensions
-    lv_obj_update_layout(panel);
-    int32_t panel_w = lv_obj_get_width(panel);
-    int32_t panel_h = lv_obj_get_height(panel);
-    if (panel_w <= 0)
-        panel_w = 480;
-    if (panel_h <= 0)
-        panel_h = 800;
-
-    // Get panel screen position
-    lv_area_t panel_coords;
-    lv_obj_get_coords(panel, &panel_coords);
-
-    // Calculate source rect center and panel center
-    int32_t src_cx = (source_rect.x1 + source_rect.x2) / 2;
-    int32_t src_cy = (source_rect.y1 + source_rect.y2) / 2;
-    int32_t panel_cx = (panel_coords.x1 + panel_coords.x2) / 2;
-    int32_t panel_cy = (panel_coords.y1 + panel_coords.y2) / 2;
-
-    // Calculate starting translation (offset from panel center to source center)
-    int32_t start_tx = src_cx - panel_cx;
-    int32_t start_ty = src_cy - panel_cy;
-
-    // Calculate starting scale based on card/panel size ratio
-    // LVGL scale: 256 = 100%
-    int32_t src_w = source_rect.x2 - source_rect.x1;
-    int32_t start_scale = (src_w * 256) / panel_w;
-    if (start_scale < 64)
-        start_scale = 64; // Min 25% scale
-    if (start_scale > 200)
-        start_scale = 200; // Max ~78% scale
-
-    spdlog::debug("[NavigationManager] zoom-in: panel={}x{} src=({},{}-{},{}) "
-                  "start_tx={} start_ty={} start_scale={}",
-                  panel_w, panel_h, source_rect.x1, source_rect.y1, source_rect.x2, source_rect.y2,
-                  start_tx, start_ty, start_scale);
-
-    // Set pivot to center for symmetric scaling
-    lv_obj_set_style_transform_pivot_x(panel, panel_w / 2, LV_PART_MAIN);
-    lv_obj_set_style_transform_pivot_y(panel, panel_h / 2, LV_PART_MAIN);
-
-    // Set initial state
-    lv_obj_set_style_translate_x(panel, start_tx, LV_PART_MAIN);
-    lv_obj_set_style_translate_y(panel, start_ty, LV_PART_MAIN);
-    lv_obj_set_style_transform_scale(panel, static_cast<int16_t>(start_scale), LV_PART_MAIN);
-    lv_obj_set_style_opa(panel, LV_OPA_TRANSP, LV_PART_MAIN);
-
-    // Translate X animation
-    lv_anim_t tx_anim;
-    lv_anim_init(&tx_anim);
-    lv_anim_set_var(&tx_anim, panel);
-    lv_anim_set_values(&tx_anim, start_tx, 0);
-    lv_anim_set_duration(&tx_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&tx_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&tx_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_x(static_cast<lv_obj_t*>(obj), value, LV_PART_MAIN);
-    });
-    lv_anim_start(&tx_anim);
-
-    // Translate Y animation
-    lv_anim_t ty_anim;
-    lv_anim_init(&ty_anim);
-    lv_anim_set_var(&ty_anim, panel);
-    lv_anim_set_values(&ty_anim, start_ty, 0);
-    lv_anim_set_duration(&ty_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&ty_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&ty_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_y(static_cast<lv_obj_t*>(obj), value, LV_PART_MAIN);
-    });
-    lv_anim_start(&ty_anim);
-
-    // Scale animation
-    lv_anim_t scale_anim;
-    lv_anim_init(&scale_anim);
-    lv_anim_set_var(&scale_anim, panel);
-    lv_anim_set_values(&scale_anim, start_scale, 256);
-    lv_anim_set_duration(&scale_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&scale_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&scale_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_transform_scale(static_cast<lv_obj_t*>(obj), static_cast<int16_t>(value),
-                                         LV_PART_MAIN);
-    });
-    lv_anim_start(&scale_anim);
-
-    // Opacity animation
-    lv_anim_t opa_anim;
-    lv_anim_init(&opa_anim);
-    lv_anim_set_var(&opa_anim, panel);
-    lv_anim_set_values(&opa_anim, LV_OPA_TRANSP, LV_OPA_COVER);
-    lv_anim_set_duration(&opa_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&opa_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&opa_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_opa(static_cast<lv_obj_t*>(obj), value, LV_PART_MAIN);
-    });
-    lv_anim_start(&opa_anim);
-
-    spdlog::trace("[NavigationManager] Started zoom-in animation for panel {} (scale {}->256, "
-                  "tx {}->0, ty {}->0)",
-                  (void*)panel, start_scale, start_tx, start_ty);
-}
-
-void NavigationManager::overlay_animate_zoom_out(lv_obj_t* panel, lv_area_t source_rect) {
-    // Disable clicks during animation
-    lv_obj_remove_flag(panel, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(panel, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-    // Skip animation if disabled
-    if (!DisplaySettingsManager::instance().get_animations_enabled()) {
-        lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
-        lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
-
-        // Invoke close callback
-        auto it = overlay_close_callbacks_.find(panel);
-        if (it != overlay_close_callbacks_.end()) {
-            auto callback = std::move(it->second);
-            overlay_close_callbacks_.erase(it);
-            callback();
-        }
-
-        // No activation here — see overlay_animate_slide_out()'s no-animation
-        // path: go_back() activates the restored target once, after its un-hide.
-        return;
-    }
-
-    // Calculate animation targets (reverse of zoom-in)
-    lv_obj_update_layout(panel);
-    int32_t panel_w = lv_obj_get_width(panel);
-    int32_t panel_h = lv_obj_get_height(panel);
-    if (panel_w <= 0)
-        panel_w = 480;
-    if (panel_h <= 0)
-        panel_h = 800;
-
-    lv_area_t panel_coords;
-    lv_obj_get_coords(panel, &panel_coords);
-
-    int32_t src_cx = (source_rect.x1 + source_rect.x2) / 2;
-    int32_t src_cy = (source_rect.y1 + source_rect.y2) / 2;
-    int32_t panel_cx = (panel_coords.x1 + panel_coords.x2) / 2;
-    int32_t panel_cy = (panel_coords.y1 + panel_coords.y2) / 2;
-
-    int32_t end_tx = src_cx - panel_cx;
-    int32_t end_ty = src_cy - panel_cy;
-
-    int32_t src_w = source_rect.x2 - source_rect.x1;
-    int32_t end_scale = (src_w * 256) / panel_w;
-    if (end_scale < 64)
-        end_scale = 64;
-    if (end_scale > 200)
-        end_scale = 200;
-
-    lv_obj_set_style_transform_pivot_x(panel, panel_w / 2, LV_PART_MAIN);
-    lv_obj_set_style_transform_pivot_y(panel, panel_h / 2, LV_PART_MAIN);
-
-    // Translate X
-    lv_anim_t tx_anim;
-    lv_anim_init(&tx_anim);
-    lv_anim_set_var(&tx_anim, panel);
-    lv_anim_set_values(&tx_anim, 0, end_tx);
-    lv_anim_set_duration(&tx_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&tx_anim, lv_anim_path_ease_in);
-    lv_anim_set_exec_cb(&tx_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_x(static_cast<lv_obj_t*>(obj), value, LV_PART_MAIN);
-    });
-    lv_anim_start(&tx_anim);
-
-    // Translate Y
-    lv_anim_t ty_anim;
-    lv_anim_init(&ty_anim);
-    lv_anim_set_var(&ty_anim, panel);
-    lv_anim_set_values(&ty_anim, 0, end_ty);
-    lv_anim_set_duration(&ty_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&ty_anim, lv_anim_path_ease_in);
-    lv_anim_set_exec_cb(&ty_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_translate_y(static_cast<lv_obj_t*>(obj), value, LV_PART_MAIN);
-    });
-    lv_anim_start(&ty_anim);
-
-    // Scale
-    lv_anim_t scale_anim;
-    lv_anim_init(&scale_anim);
-    lv_anim_set_var(&scale_anim, panel);
-    lv_anim_set_values(&scale_anim, 256, end_scale);
-    lv_anim_set_duration(&scale_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&scale_anim, lv_anim_path_ease_in);
-    lv_anim_set_exec_cb(&scale_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_transform_scale(static_cast<lv_obj_t*>(obj), static_cast<int16_t>(value),
-                                         LV_PART_MAIN);
-    });
-    lv_anim_start(&scale_anim);
-
-    // Opacity — use the completed callback to handle post-animation cleanup
-    lv_anim_t opa_anim;
-    lv_anim_init(&opa_anim);
-    lv_anim_set_var(&opa_anim, panel);
-    lv_anim_set_values(&opa_anim, LV_OPA_COVER, LV_OPA_TRANSP);
-    lv_anim_set_duration(&opa_anim, ZOOM_ANIM_DURATION_MS);
-    lv_anim_set_path_cb(&opa_anim, lv_anim_path_ease_in);
-    lv_anim_set_exec_cb(&opa_anim, [](void* obj, int32_t value) {
-        if (!lv_obj_is_valid(static_cast<lv_obj_t*>(obj)))
-            return;
-        lv_obj_set_style_opa(static_cast<lv_obj_t*>(obj), value, LV_PART_MAIN);
-    });
-    // Reuse the existing slide-out completion callback for post-animation cleanup
-    lv_anim_set_completed_cb(&opa_anim, overlay_slide_out_complete_cb);
-    lv_anim_start(&opa_anim);
-
-    spdlog::trace("[NavigationManager] Started zoom-out animation for panel {} (scale 256->{}, "
-                  "tx 0->{}, ty 0->{})",
-                  (void*)panel, end_scale, end_tx, end_ty);
 }
 
 // ============================================================================
@@ -1565,13 +1322,6 @@ void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new
         overlay_is_destination_[new_widget] = cls;
     }
 
-    auto zs_it = zoom_source_rects_.find(old_widget);
-    if (zs_it != zoom_source_rects_.end()) {
-        auto rect = zs_it->second;
-        zoom_source_rects_.erase(zs_it);
-        zoom_source_rects_[new_widget] = rect;
-    }
-
     std::replace(panel_stack_.begin(), panel_stack_.end(), old_widget, new_widget);
 
     // Roots cached before this or an earlier rebuild now resolve to new_widget.
@@ -1702,7 +1452,6 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
     // Drop the backdrop map entry only — out of scope to delete the backdrop here.
     overlay_backdrops_.erase(widget);
     overlay_close_callbacks_.erase(widget);
-    zoom_source_rects_.erase(widget);
     overlay_is_destination_.erase(widget);
     overlay_width_unmanaged_.erase(widget);
     panel_stack_.erase(std::remove(panel_stack_.begin(), panel_stack_.end(), widget),
@@ -2207,114 +1956,6 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
     });
 }
 
-void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_t source_rect) {
-    if (!overlay_panel) {
-        spdlog::error("[NavigationManager] Cannot push NULL overlay panel");
-        return;
-    }
-
-    // Queue the push operation (same pattern as push_overlay)
-    helix::ui::queue_update([overlay_panel, source_rect]() mutable {
-        overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
-        // See push_overlay() above: the captured raw pointer can be freed
-        // before this deferred lambda drains. Bail before any deref. (MBUX7WUN)
-        if (!lv_obj_is_valid(overlay_panel)) {
-            spdlog::warn("[NavigationManager] push_overlay_zoom_from: target {} destroyed "
-                         "before deferred push ran; skipping",
-                         (void*)overlay_panel);
-            return;
-        }
-
-        auto& mgr = NavigationManager::instance();
-
-        // Store source rect for reverse animation on go_back (must be on UI thread)
-        mgr.zoom_source_rects_[overlay_panel] = source_rect;
-
-        // Check for duplicate push
-        if (std::find(mgr.panel_stack_.begin(), mgr.panel_stack_.end(), overlay_panel) !=
-            mgr.panel_stack_.end()) {
-            spdlog::warn("[NavigationManager] Overlay {} already in stack, ignoring duplicate push",
-                         (void*)overlay_panel);
-            return;
-        }
-
-        // <= 1: empty stack counts as "first" — the else branch derefs
-        // panel_stack_.back() (UB on empty). See push_overlay() above.
-        bool is_first_overlay = (mgr.panel_stack_.size() <= 1);
-
-        // Track overlay opens for telemetry panel_usage event.
-        // See push_overlay() above for the three-way distinction.
-        auto inst_it = mgr.overlay_instances_.find(overlay_panel);
-        bool registered = inst_it != mgr.overlay_instances_.end() ||
-                          mgr.persistent_overlay_instances_.count(overlay_panel) > 0;
-        auto* lc = mgr.resolve_overlay_lifecycle(overlay_panel);
-        std::string overlay_name = lc ? lc->get_name() : (registered ? "anon" : "unreg");
-        TelemetryManager::instance().notify_overlay_opened(overlay_name);
-        crash_handler::breadcrumb::note("overlay+", overlay_name.c_str());
-
-        // Lifecycle: Deactivate what's currently visible
-        if (is_first_overlay) {
-            mgr.main_panel_deactivated_for_overlay_ = true;
-            if (mgr.panel_instances_[static_cast<int>(mgr.active_panel_)]) {
-                mgr.panel_instances_[static_cast<int>(mgr.active_panel_)]->on_deactivate(
-                    DeactivateReason::NavigateAway);
-            }
-        } else {
-            lv_obj_t* prev_overlay = mgr.panel_stack_.back();
-            auto it = mgr.overlay_instances_.find(prev_overlay);
-            if (it != mgr.overlay_instances_.end() && it->second) {
-                it->second->on_deactivate(DeactivateReason::NavigateAway);
-            }
-        }
-
-        // Create backdrop BEFORE hiding previous panel — snapshot must capture
-        // the visible content, not a blank screen.
-        lv_obj_t* screen = lv_obj_get_screen(overlay_panel);
-        if (screen && is_first_overlay) {
-            mgr.adopt_overlay_backdrop(screen);
-        }
-
-        // Hide current top panel (after snapshot)
-        if (!mgr.panel_stack_.empty()) {
-            lv_obj_t* current_top = mgr.panel_stack_.back();
-            lv_obj_add_flag(current_top, LV_OBJ_FLAG_HIDDEN);
-        }
-
-        // Resolve and apply the width class before the overlay becomes visible,
-        // while panel_stack_.back() is still the widget beneath it. #1178
-        mgr.apply_overlay_width(overlay_panel, is_first_overlay);
-
-        // Show overlay with zoom animation instead of slide
-        lv_obj_remove_flag(overlay_panel, LV_OBJ_FLAG_HIDDEN);
-        helix::ui::bring_to_front(overlay_panel);
-        // See push_overlay(): claim in-bounds taps so stray touches don't fall
-        // through to the dismiss-backdrop and close the overlay (#1066).
-        lv_obj_add_flag(overlay_panel, LV_OBJ_FLAG_CLICKABLE);
-        mgr.ensure_delete_hook(overlay_panel);
-        mgr.panel_stack_.push_back(overlay_panel);
-        mgr.overlay_animate_zoom_in(overlay_panel, source_rect);
-
-        // Lifecycle: Activate new overlay
-        auto* lifecycle = mgr.resolve_overlay_lifecycle(overlay_panel);
-        if (!lifecycle) {
-            bool registered = mgr.overlay_instances_.count(overlay_panel) ||
-                              mgr.persistent_overlay_instances_.count(overlay_panel);
-            if (!registered) {
-                spdlog::warn("[NavigationManager] Overlay {} pushed without lifecycle registration",
-                             (void*)overlay_panel);
-            }
-        } else {
-            lifecycle->on_activate();
-        }
-
-        helix::ui::PageScrollAutoInject::instance().on_root_shown(overlay_panel);
-
-        SoundManager::instance().play("nav_forward");
-        spdlog::trace("[NavigationManager] Pushed overlay {} with zoom (stack: {})",
-                      (void*)overlay_panel, mgr.panel_stack_.size());
-    });
-}
-
 void NavigationManager::register_overlay_close_callback(lv_obj_t* overlay_panel,
                                                         OverlayCloseCallback callback) {
     overlay_panel = resolve_arriving(overlay_panel);
@@ -2375,7 +2016,6 @@ void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
             helix::ui::safe_delete_deferred(backdrop_it->second);
             mgr.overlay_backdrops_.erase(backdrop_it);
         }
-        mgr.zoom_source_rects_.erase(root);
         auto cb_it = mgr.overlay_close_callbacks_.find(root);
         if (cb_it != mgr.overlay_close_callbacks_.end()) {
             auto callback = std::move(cb_it->second);
@@ -2459,16 +2099,9 @@ void NavigationManager::go_back_now() {
         // Determine the previous panel (what will be visible after pop)
         lv_obj_t* previous_panel = mgr.panel_stack_.empty() ? nullptr : mgr.panel_stack_.back();
 
-        // Animate out if overlay (zoom-out for zoomed overlays, slide-out otherwise)
+        // Animate out if overlay
         if (is_overlay && current_top) {
-            auto zoom_it = mgr.zoom_source_rects_.find(current_top);
-            if (zoom_it != mgr.zoom_source_rects_.end()) {
-                lv_area_t source_rect = zoom_it->second;
-                mgr.zoom_source_rects_.erase(zoom_it);
-                mgr.overlay_animate_zoom_out(current_top, source_rect);
-            } else {
-                mgr.overlay_animate_slide_out(current_top);
-            }
+            mgr.overlay_animate_slide_out(current_top);
             SoundManager::instance().play("nav_back");
         }
 
@@ -2609,9 +2242,8 @@ void NavigationManager::shutdown() {
     printer_dot_observer_.reset();
     printer_dot_widget_ = nullptr;
 
-    // Clear panel stack and zoom state
+    // Clear panel stack
     panel_stack_.clear();
-    zoom_source_rects_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
 
@@ -2714,7 +2346,6 @@ void NavigationManager::deinit_subjects() {
     persistent_overlay_instances_.clear();
     overlay_close_callbacks_.clear();
     overlay_backdrops_.clear();
-    zoom_source_rects_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
     delete_hooked_.clear();

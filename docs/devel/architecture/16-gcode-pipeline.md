@@ -75,7 +75,6 @@ flowchart TB
 | [`src/rendering/gcode_layer_renderer.cpp`](../../../src/rendering/gcode_layer_renderer.cpp) | 2D renderer: layer draw, selection brackets, `pick_object_at()` |
 | [`src/rendering/gcode_gles_renderer.cpp`](../../../src/rendering/gcode_gles_renderer.cpp) | 3D renderer, compiled only where `ENABLE_GLES_3D=yes` (the `pi`/`x86` build families) |
 | [`include/gcode_render_schedule.h`](../../../include/gcode_render_schedule.h) | Pure scheduling policy for the 3D renderer: slice quotas, the learned GPU rate, the moving plan, `decide_job()` |
-| [`src/rendering/gcode_renderer.cpp`](../../../src/rendering/gcode_renderer.cpp) | CPU wireframe 3D renderer, compiled into every non-GLES build (`ad5m`, `ad5x`, `cc1`, `k1-dynamic`, `k2`, `snapmaker-u1`, the `-fbdev` targets) |
 | [`include/gcode_render_mode_policy.h`](../../../include/gcode_render_mode_policy.h) | `decide_render_mode()` — pure resolution of `HELIX_GCODE_MODE` |
 | [`include/ui_print_select_detail_view.h`](../../../include/ui_print_select_detail_view.h) | Detail-view acquisition contracts: shared download, tail read, scan/cache handoff |
 | [`src/ui/ui_print_select_detail_view.cpp`](../../../src/ui/ui_print_select_detail_view.cpp) | `ensure_gcode_downloaded()`, local-read probe, footer fast path, cache seeding |
@@ -156,7 +155,7 @@ The precedence chain is **cmdline > env > settings**, applied in the panel's `on
 - The settings observer would otherwise fire once at startup with the persisted value and silently overwrite the cmdline pin ~16ms after it was applied; it now stands down when the cmdline pinned a mode ([`src/ui/ui_panel_print_status.cpp#"printer_state_.get_print_psram_thumb_gen_subject(), this,"`](../../../src/ui/ui_panel_print_status.cpp#L402)).
 - `decide_render_mode()` treats an unrecognized env value as **2D, not Auto** — a typo'd override lands on the renderer that works everywhere rather than silently behaving as unset. Only unset reaches Auto.
 
-On a non-GLES build the CPU wireframe renderer is reachable only through `--render-3d` or a persisted `gcode_render_mode: 1` carried over from a GLES build - the settings dropdown drops the 3D entry there, and Auto never lands on it. That makes it look like dead fallback code, but it is not: deleting it would turn those two paths into a blank view, so it stays compiled in while feature work targets the GLES and 2D renderers. For the fleet without GLES, the 2D isometric view is the G-code view.
+A non-GLES build (`ad5m`, `ad5x`, `cc1`, `k1-dynamic`, `k2`, `snapmaker-u1`, the `-fbdev` targets) holds no 3D renderer at all: `is_using_2d_mode()` answers 2D unconditionally there, so `--render-3d` or a persisted `gcode_render_mode: 1` carried over from a GLES build still lands on the 2D isometric view. For the fleet without GLES, the 2D view is the G-code view.
 
 ### The GLES 3D render path: three frame qualities
 

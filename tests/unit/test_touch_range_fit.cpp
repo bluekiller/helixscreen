@@ -762,10 +762,9 @@ TouchCalibration some_affine() {
 
 /// Leave the shared Config singleton the way a fresh one looks for these keys.
 void reset_stored_calibration_keys() {
-    if (Config* cfg = Config::get_instance()) {
-        cfg->set<bool>("/input/calibration/valid", false);
-        cfg->set<bool>("/input/touch_range/valid", false);
-    }
+    Config* cfg = Config::get_instance();
+    cfg->set<bool>("/input/calibration/valid", false);
+    cfg->set<bool>("/input/touch_range/valid", false);
 }
 
 } // namespace
@@ -797,13 +796,13 @@ TEST_CASE("commit_calibration_result: a solved range replaces the full affine",
     CHECK(sink.cleared);
     CHECK(sink.applied_count == 0);
 
-    if (Config* cfg = Config::get_instance()) {
-        CHECK(cfg->get<bool>("/input/touch_range/valid", false));
-        CHECK(cfg->get<bool>("/input/touch_range/swap_axes", false));
-        CHECK(cfg->get<int>("/input/touch_range/min_y", 0) == 243);
-        CHECK(cfg->get<int>("/input/touch_range/max_y", 0) == 16);
-        CHECK_FALSE(cfg->get<bool>("/input/calibration/valid", true));
-    }
+    Config* cfg = Config::get_instance();
+    CHECK(cfg->get<bool>("/input/touch_range/valid", false));
+    CHECK(cfg->get<bool>("/input/touch_range/swap_axes", false));
+    CHECK(cfg->get<int>("/input/touch_range/min_y", 0) == 243);
+    CHECK(cfg->get<int>("/input/touch_range/max_y", 0) == 16);
+    CHECK_FALSE(cfg->get<bool>("/input/calibration/valid", true));
+
     reset_stored_calibration_keys();
 }
 
@@ -824,11 +823,11 @@ TEST_CASE("commit_calibration_result: a fit with a residual keeps the affine sta
     CHECK(sink.applied_count == 1);
     CHECK_FALSE(sink.cleared);
 
-    if (Config* cfg = Config::get_instance()) {
-        CHECK(cfg->get<bool>("/input/touch_range/valid", false));
-        CHECK(cfg->get<bool>("/input/calibration/valid", false));
-        CHECK(cfg->get<double>("/input/calibration/a", 0.0) == Approx(1.7));
-    }
+    Config* cfg = Config::get_instance();
+    CHECK(cfg->get<bool>("/input/touch_range/valid", false));
+    CHECK(cfg->get<bool>("/input/calibration/valid", false));
+    CHECK(cfg->get<double>("/input/calibration/a", 0.0) == Approx(1.7));
+
     reset_stored_calibration_keys();
 }
 
@@ -837,10 +836,9 @@ TEST_CASE("commit_calibration_result: no fit persists the full affine and clears
     // The pre-#1259 path, and the one every non-evdev install stays on. A range
     // left over from an earlier calibration must be cleared here: stacked under a
     // full-pipeline affine it would apply both stages.
-    if (Config* cfg = Config::get_instance()) {
-        cfg->set<bool>("/input/touch_range/valid", true);
-        cfg->set<int>("/input/touch_range/min_x", 111);
-    }
+    Config* cfg = Config::get_instance();
+    cfg->set<bool>("/input/touch_range/valid", true);
+    cfg->set<int>("/input/touch_range/min_x", 111);
 
     RangeFakeSink sink;
     TouchRangeFit fit{}; // valid == false
@@ -850,10 +848,9 @@ TEST_CASE("commit_calibration_result: no fit persists the full affine and clears
     CHECK(sink.applied_count == 1);
     CHECK(sink.stored.a == Approx(1.7f));
 
-    if (Config* cfg = Config::get_instance()) {
-        CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
-        CHECK(cfg->get<bool>("/input/calibration/valid", false));
-    }
+    CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
+    CHECK(cfg->get<bool>("/input/calibration/valid", false));
+
     reset_stored_calibration_keys();
 }
 
@@ -876,10 +873,10 @@ TEST_CASE("commit_calibration_result: a backend that refuses the range falls bac
     CHECK(sink.applied_count == 1);
     CHECK(sink.stored.a == Approx(1.7f));
 
-    if (Config* cfg = Config::get_instance()) {
-        CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
-        CHECK(cfg->get<bool>("/input/calibration/valid", false));
-    }
+    Config* cfg = Config::get_instance();
+    CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
+    CHECK(cfg->get<bool>("/input/calibration/valid", false));
+
     reset_stored_calibration_keys();
 }
 
@@ -894,11 +891,11 @@ TEST_CASE("commit_calibration_result: a null sink still persists the affine-only
 
     CHECK_FALSE(commit_calibration_result(nullptr, some_affine(), fit));
 
-    if (Config* cfg = Config::get_instance()) {
-        CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
-        CHECK(cfg->get<bool>("/input/calibration/valid", false));
-        CHECK(cfg->get<double>("/input/calibration/e", 0.0) == Approx(1.6));
-    }
+    Config* cfg = Config::get_instance();
+    CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
+    CHECK(cfg->get<bool>("/input/calibration/valid", false));
+    CHECK(cfg->get<double>("/input/calibration/e", 0.0) == Approx(1.6));
+
     reset_stored_calibration_keys();
 }
 
@@ -935,9 +932,9 @@ TEST_CASE("commit_calibration_result: the persisted affine carries the solve's r
     REQUIRE(sink.applied_count == 1);
     CHECK(sink.stored.capture_rotation == 90);
 
-    if (Config* cfg = Config::get_instance()) {
-        CHECK(cfg->get<int>("/input/calibration/rotation", -1) == 90);
-    }
+    Config* cfg = Config::get_instance();
+    CHECK(cfg->get<int>("/input/calibration/rotation", -1) == 90);
+
     reset_stored_calibration_keys();
 }
 

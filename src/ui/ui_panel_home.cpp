@@ -134,7 +134,6 @@ void HomePanel::init_subjects() {
     // Widget-specific callbacks (LED, power, temp, network, fan, macro, etc.)
     // are self-registered by each widget in their attach() method.
     register_xml_callbacks({
-        {"ams_clicked_cb", ams_clicked_cb},
         {"on_home_grid_pressed", on_home_grid_pressed},
         {"on_home_grid_long_press", on_home_grid_long_press},
         {"on_home_grid_clicked", on_home_grid_clicked},
@@ -940,41 +939,8 @@ void HomePanel::trigger_idle_runout_check() {
 }
 
 // ============================================================================
-// Panel-level click handlers
-// ============================================================================
-
-void HomePanel::handle_ams_clicked() {
-    spdlog::info("[{}] AMS indicator clicked - opening AMS panel overlay", get_name());
-
-    auto& ams_panel = get_global_ams_panel();
-    if (!ams_panel.are_subjects_initialized()) {
-        ams_panel.init_subjects();
-    }
-    lv_obj_t* panel_obj = ams_panel.get_panel();
-    if (panel_obj) {
-        // Re-register before push: get_global_ams_panel() only registers the
-        // overlay instance inside its lazy-creation block, and
-        // switch_to_panel_impl() clears overlay_instances_ on navbar switches
-        // (keeping only the persistent map). A cached panel re-opened after a
-        // navbar tap therefore loses its registration, so on_deactivate() never
-        // fires on dismiss and the filament-path animation keeps drawing into a
-        // torn-down panel. Idempotent (keyed by widget). Mirrors
-        // AmsOverviewPanel and lazy_create_and_push_overlay.
-        NavigationManager::instance().register_overlay_instance(panel_obj, &ams_panel);
-        NavigationManager::instance().push_overlay(panel_obj);
-    }
-}
-
-// ============================================================================
 // Static callback trampolines
 // ============================================================================
-
-void HomePanel::ams_clicked_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[HomePanel] ams_clicked_cb");
-    (void)e;
-    get_global_home_panel().handle_ams_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 /// Returns true if the active input device is interacting with a widget that
 /// consumes drag gestures — either scrolling (e.g., swiping a carousel) or

@@ -45,25 +45,8 @@ FilamentSensorManager::FilamentSensorManager() : startup_time_(std::chrono::stea
 FilamentSensorManager::~FilamentSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string FilamentSensorManager::category_name() const {
-    return "filament_switch";
-}
-
-void FilamentSensorManager::discover(const std::vector<std::string>& klipper_objects) {
-    // Filter to only filament sensor objects and delegate to discover_sensors
-    std::vector<std::string> sensor_names;
-    for (const auto& obj : klipper_objects) {
-        // Match filament_switch_sensor and filament_motion_sensor prefixes
-        if (obj.rfind("filament_switch_sensor ", 0) == 0 ||
-            obj.rfind("filament_motion_sensor ", 0) == 0) {
-            sensor_names.push_back(obj);
-        }
-    }
-    discover_sensors(sensor_names);
-}
 
 namespace {
 nlohmann::json sensor_config_json(const FilamentSensorConfig& sensor) {
@@ -106,12 +89,6 @@ nlohmann::json sensor_config_json(const FilamentSensorConfig& sensor) {
     return value;
 }
 } // namespace
-
-void FilamentSensorManager::load_config(const nlohmann::json& /*config*/) {
-    // This manager uses legacy Config-based persistence
-    // Delegate to the file-based config loader
-    load_config_from_file();
-}
 
 nlohmann::json FilamentSensorManager::save_config() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -302,10 +279,6 @@ void FilamentSensorManager::load_config_from_file() {
     spdlog::debug("[FilamentSensorManager] Loading config from file");
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[FilamentSensorManager] Config not initialized");
-        return;
-    }
 
     // Build path using default printer prefix
     std::string base_path = config->df() + "filament_sensors";
@@ -383,10 +356,6 @@ void FilamentSensorManager::save_config_to_file() {
     spdlog::debug("[FilamentSensorManager] Saving config to file");
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[FilamentSensorManager] Config not initialized");
-        return;
-    }
 
     // Build path using default printer prefix
     std::string base_path = config->df() + "filament_sensors";

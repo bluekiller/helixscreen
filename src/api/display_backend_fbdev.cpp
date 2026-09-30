@@ -454,24 +454,23 @@ lv_indev_t* DisplayBackendFbdev::create_input_pointer() {
     // those panels now ride on evdev's linear scaling applied above. The v17→v18
     // migration set recheck_pending; decide here, where the device's resistive nature
     // and live ABS range are known.
-    if (helix::Config* cfg = helix::Config::get_instance()) {
-        bool recheck_pending = cfg->get<bool>("/input/calibration/recheck_pending", false);
-        if (recheck_pending) {
-            bool is_resistive = helix::is_resistive_touchscreen_name(dev_name);
-            bool abs_mismatch =
-                got_range && helix::has_abs_display_mismatch(abs_x.maximum, abs_y.maximum,
-                                                             screen_width_, screen_height_);
-            if (helix::should_invalidate_legacy_calibration(recheck_pending, is_resistive,
-                                                            abs_mismatch)) {
-                spdlog::info("[Fbdev Backend] Invalidating legacy pre-#943 affine calibration "
-                             "(non-resistive panel, ABS/display mismatch)");
-                calibration_.valid = false;
-                cfg->set<bool>("/input/calibration/valid", false);
-            }
-            // One-shot: clear the flag regardless of the decision above.
-            cfg->set<bool>("/input/calibration/recheck_pending", false);
-            cfg->save();
+    helix::Config* cfg = helix::Config::get_instance();
+    bool recheck_pending = cfg->get<bool>("/input/calibration/recheck_pending", false);
+    if (recheck_pending) {
+        bool is_resistive = helix::is_resistive_touchscreen_name(dev_name);
+        bool abs_mismatch =
+            got_range && helix::has_abs_display_mismatch(abs_x.maximum, abs_y.maximum,
+                                                         screen_width_, screen_height_);
+        if (helix::should_invalidate_legacy_calibration(recheck_pending, is_resistive,
+                                                        abs_mismatch)) {
+            spdlog::info("[Fbdev Backend] Invalidating legacy pre-#943 affine calibration "
+                         "(non-resistive panel, ABS/display mismatch)");
+            calibration_.valid = false;
+            cfg->set<bool>("/input/calibration/valid", false);
         }
+        // One-shot: clear the flag regardless of the decision above.
+        cfg->set<bool>("/input/calibration/recheck_pending", false);
+        cfg->save();
     }
 
     // needs_calibration_ stays a STABLE capability flag: "this panel uses affine
@@ -651,14 +650,12 @@ std::string DisplayBackendFbdev::auto_detect_touch_device() const {
 
     // Check for common misconfiguration: touch_device at root or display level
     // instead of under /input/
-    if (cfg) {
-        auto root_touch = cfg->get<std::string>("/touch_device", "");
-        auto display_touch = cfg->get<std::string>("/display/touch_device", "");
-        if (!root_touch.empty() || !display_touch.empty()) {
-            spdlog::warn("[Fbdev Backend] Found 'touch_device' at config root or display section, "
-                         "but it should be under 'input'. "
-                         "See docs/user/CONFIGURATION.md");
-        }
+    auto root_touch = cfg->get<std::string>("/touch_device", "");
+    auto display_touch = cfg->get<std::string>("/display/touch_device", "");
+    if (!root_touch.empty() || !display_touch.empty()) {
+        spdlog::warn("[Fbdev Backend] Found 'touch_device' at config root or display section, "
+                     "but it should be under 'input'. "
+                     "See docs/user/CONFIGURATION.md");
     }
 
     // Priority 3: Capability-based detection using Linux sysfs

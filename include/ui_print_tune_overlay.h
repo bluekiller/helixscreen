@@ -3,12 +3,9 @@
 
 #pragma once
 
-#include "ui_save_z_offset_modal.h"
-
 #include "lvgl/lvgl.h"
 #include "observer_factory.h"
 #include "overlay_base.h"
-#include "save_config_restart.h"
 #include "subject_managed_panel.h"
 #include "z_offset_utils.h"
 
@@ -90,12 +87,6 @@ class PrintTuneOverlay : public OverlayBase {
      * @param direction -1 for closer (more squish), +1 for farther (less squish)
      */
     void handle_z_adjust(int direction);
-
-    /**
-     * @brief Handle save Z-offset button click
-     * Shows warning modal since SAVE_CONFIG will restart Klipper
-     */
-    void handle_save_z_offset();
 
     /**
      * @brief Update Z-offset icons based on printer kinematics
@@ -207,9 +198,6 @@ class PrintTuneOverlay : public OverlayBase {
 
     IMoonrakerAPI* api_ = nullptr;
 
-    /// Owns the SAVE_CONFIG contract for the z-offset save: absorbs the rpc the
-    /// restart drops and reports success only once Klipper is back (#1359).
-    helix::ui::SaveConfigWatch save_config_watch_;
     helix::PrinterState* printer_state_ = nullptr;
     lv_obj_t* tune_panel_ = nullptr;
 
@@ -288,12 +276,6 @@ class PrintTuneOverlay : public OverlayBase {
     ObserverGuard max_velocity_observer_;
     ObserverGuard extruder_vel_observer_;
     ObserverGuard units_observer_;
-
-    //
-    // === Modals ===
-    //
-
-    SaveZOffsetModal save_z_offset_modal_;
 };
 
 /**

@@ -281,11 +281,6 @@ update-mdi-cache:
 	$(ECHO) "$(GREEN)✓ Updated assets/mdi-icon-metadata.json.gz$(RESET)"
 	@ls -lh assets/mdi-icon-metadata.json.gz | awk '{print "$(CYAN)  Size: " $$5 "$(RESET)"}'
 
-# Verify MDI codepoint labels match official metadata
-verify-mdi-codepoints:
-	$(ECHO) "$(CYAN)Verifying MDI codepoint labels...$(RESET)"
-	$(Q)python3 scripts/verify_mdi_codepoints.py
-
 # Generate macOS .icns icon from source logo
 # Requires: ImageMagick (magick) for image processing
 # Source: assets/images/helixscreen-logo.png

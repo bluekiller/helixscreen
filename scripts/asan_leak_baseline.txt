@@ -37,7 +37,6 @@ include/observer_factory.h::observe_int_sync<helix::PowerDeviceState>
 include/observer_factory.h::observe_int_sync<helix::PrintStatusWidget>
 include/observer_factory.h::observe_string<CATCH2_INTERNAL_TEST::test()::AxesState>
 include/observer_factory.h::observe_string<TestPanel>
-include/observer_factory.h::observe_string_async<TestPanel>
 include/observer_factory.h::observe_string_immediate<TestPanel>
 lib/lvgl/src/layouts/grid/lv_grid.c::calc_rows
 lib/lvgl/src/misc/lv_ll.c::lv_ll_ins_tail

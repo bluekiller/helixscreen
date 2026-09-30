@@ -36,12 +36,8 @@ LoadCellManager::LoadCellManager() = default;
 LoadCellManager::~LoadCellManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string LoadCellManager::category_name() const {
-    return "load_cell";
-}
 
 void LoadCellManager::discover(const std::vector<std::string>& klipper_objects) {
     {

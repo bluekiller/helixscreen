@@ -478,20 +478,18 @@ ToolheadStyle SettingsManager::get_effective_toolhead_style() const {
     // string straight to the enum so every printer that declares a style is
     // covered by one lookup (creality_k1/k2 live in the DB).
     Config* config = Config::get_instance();
-    if (config) {
-        std::string printer_type =
-            config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
-        if (!printer_type.empty()) {
-            std::string db_style = PrinterDetector::get_toolhead_style(printer_type);
-            if (db_style == "creality_k1")
-                return ToolheadStyle::CREALITY_K1;
-            if (db_style == "creality_k2")
-                return ToolheadStyle::CREALITY_K2;
-            // An explicit "default" pins the printer to the Bambu-like glyph
-            // regardless of what a migrated config's type string says.
-            if (db_style == "default")
-                return ToolheadStyle::DEFAULT;
-        }
+    std::string printer_type =
+        config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
+    if (!printer_type.empty()) {
+        std::string db_style = PrinterDetector::get_toolhead_style(printer_type);
+        if (db_style == "creality_k1")
+            return ToolheadStyle::CREALITY_K1;
+        if (db_style == "creality_k2")
+            return ToolheadStyle::CREALITY_K2;
+        // An explicit "default" pins the printer to the Bambu-like glyph
+        // regardless of what a migrated config's type string says.
+        if (db_style == "default")
+            return ToolheadStyle::DEFAULT;
     }
 
     // Fall back to heuristic detection only for printers the DB doesn't cover.

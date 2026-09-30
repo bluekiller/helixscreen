@@ -448,7 +448,6 @@ TEST_CASE("UpdateChecker callback is optional", "[update_checker][callback][slow
     // reset_config_singleton() wipes these config keys again for the next test;
     // the ScopedUpdateUrls guard restores the state dir itself.
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     // Dev and Beta are gated behind /beta_features - get_channel() reports Stable
     // for either one while beta is locked, which would send this check at the real
     // stable endpoint instead of the loopback port below.
@@ -1052,36 +1051,31 @@ TEST_CASE("UpdateChecker dismissed version logic", "[update_checker][dismissed]"
 
     // Clear any previously dismissed version
     auto* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>("/update/dismissed_version", "");
-        config->save();
-    }
+    config->set<std::string>("/update/dismissed_version", "");
+    config->save();
 
     SECTION("is_version_dismissed returns false when no dismissed version in config") {
         REQUIRE_FALSE(checker.is_version_dismissed("1.2.0"));
     }
 
     SECTION("is_version_dismissed returns true when version matches dismissed") {
-        if (config) {
-            config->set<std::string>("/update/dismissed_version", "1.2.0");
-            config->save();
-        }
+        config->set<std::string>("/update/dismissed_version", "1.2.0");
+        config->save();
+
         REQUIRE(checker.is_version_dismissed("1.2.0"));
     }
 
     SECTION("is_version_dismissed returns false for newer version than dismissed") {
-        if (config) {
-            config->set<std::string>("/update/dismissed_version", "1.2.0");
-            config->save();
-        }
+        config->set<std::string>("/update/dismissed_version", "1.2.0");
+        config->save();
+
         REQUIRE_FALSE(checker.is_version_dismissed("1.3.0"));
     }
 
     SECTION("is_version_dismissed returns true for older version than dismissed") {
-        if (config) {
-            config->set<std::string>("/update/dismissed_version", "1.2.0");
-            config->save();
-        }
+        config->set<std::string>("/update/dismissed_version", "1.2.0");
+        config->save();
+
         REQUIRE(checker.is_version_dismissed("1.1.0"));
     }
 
@@ -1090,11 +1084,9 @@ TEST_CASE("UpdateChecker dismissed version logic", "[update_checker][dismissed]"
         // Since we can't easily set cached_info_ without a real check,
         // test via the config path directly
         // This tests the config interaction pattern
-        if (config) {
-            auto dismissed = config->get<std::string>("/update/dismissed_version", "");
-            // After clearing, should be empty
-            REQUIRE(dismissed.empty());
-        }
+        auto dismissed = config->get<std::string>("/update/dismissed_version", "");
+        // After clearing, should be empty
+        REQUIRE(dismissed.empty());
     }
 
     checker.shutdown();
@@ -1562,12 +1554,11 @@ TEST_CASE("get_platform_key matches compiled binary architecture",
 
     uint8_t elf_class = elf_header[4]; // 1 = 32-bit, 2 = 64-bit
 
-    if (platform == "pi32" || platform == "ad5m") {
-        REQUIRE(elf_class == 1); // ELFCLASS32
-    } else if (platform == "pi") {
-        REQUIRE(elf_class == 2); // ELFCLASS64
-    }
-    // Other platforms (k1, k2, ad5x, mips, cc1) may vary — no assertion
+    // Native dev builds report "pi" whatever the host, so only the class is
+    // comparable here, not the machine.
+    const auto* expected = UpdateChecker::find_platform(platform);
+    REQUIRE(expected != nullptr);
+    REQUIRE(elf_class == expected->elf_class);
 #endif
 }
 
@@ -1575,8 +1566,6 @@ TEST_CASE("get_platform_display_name returns non-empty string for all known plat
           "[update_checker][platform]") {
     // Mirror the known_platforms list from "get_platform_key returns a known platform".
     // Every key that get_platform_key() can return MUST have a display name.
-    // Keep in sync with platform_canonical_model in debug_bundle_collector.cpp
-    // (and UpdateChecker::get_platform_display_name once centralised).
     std::vector<std::string> known_platforms = {"pi",   "pi32", "x86", "ad5m",  "k1",          "k2",
                                                 "ad5x", "mips", "cc1", "esp32", "snapmaker-u1"};
 
@@ -1584,6 +1573,60 @@ TEST_CASE("get_platform_display_name returns non-empty string for all known plat
         INFO("platform key: " << key);
         std::string name = UpdateChecker::get_platform_display_name(key);
         REQUIRE(!name.empty());
+        // Self-update ELF validation and debug-bundle file capture read the
+        // same row, so a key without one silently loses both.
+        REQUIRE(UpdateChecker::find_platform(key) != nullptr);
+    }
+}
+
+TEST_CASE("platform table gives every Linux platform an ELF expectation",
+          "[update_checker][platform]") {
+    // esp32 ships a firmware image, not an ELF release zip.
+    for (const char* key :
+         {"pi", "pi32", "x86", "ad5m", "k1", "k2", "ad5x", "mips", "cc1", "snapmaker-u1"}) {
+        INFO("platform key: " << key);
+        const auto* p = UpdateChecker::find_platform(key);
+        REQUIRE(p != nullptr);
+        REQUIRE(p->elf_class != 0);
+    }
+}
+
+TEST_CASE("mips platform validates MIPS32 LE and captures the AD5X zmod files",
+          "[update_checker][platform]") {
+    const auto* p = UpdateChecker::find_platform("mips");
+    REQUIRE(p != nullptr);
+    REQUIRE(p->elf_class == 1);   // ELFCLASS32
+    REQUIRE(p->elf_data == 1);    // ELFDATA2LSB
+    REQUIRE(p->elf_machine == 8); // EM_MIPS
+
+    const auto* ad5x = UpdateChecker::find_platform("ad5x");
+    REQUIRE(ad5x != nullptr);
+    REQUIRE(!ad5x->diagnostic_files.empty());
+    REQUIRE(p->diagnostic_files == ad5x->diagnostic_files);
+}
+
+TEST_CASE("elf_header_matches checks class, endianness and machine", "[update_checker][platform]") {
+    const auto* mips = UpdateChecker::find_platform("mips");
+    REQUIRE(mips != nullptr);
+
+    // 0x7f ELF, class 1, data 1 (LE), e_machine at bytes 18-19.
+    uint8_t hdr[20] = {0x7f, 'E', 'L', 'F', 1, 1};
+    hdr[18] = 0x08;
+    REQUIRE(UpdateChecker::elf_header_matches(*mips, hdr));
+
+    SECTION("big-endian MIPS is rejected") {
+        hdr[5] = 2;
+        hdr[18] = 0x00;
+        hdr[19] = 0x08;
+        REQUIRE_FALSE(UpdateChecker::elf_header_matches(*mips, hdr));
+    }
+    SECTION("ARM is rejected") {
+        hdr[18] = 0x28;
+        REQUIRE_FALSE(UpdateChecker::elf_header_matches(*mips, hdr));
+    }
+    SECTION("64-bit is rejected") {
+        hdr[4] = 2;
+        REQUIRE_FALSE(UpdateChecker::elf_header_matches(*mips, hdr));
     }
 }
 

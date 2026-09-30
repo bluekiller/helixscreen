@@ -1227,10 +1227,9 @@ linear modes** (only Flowguard's two directions mean different faults).
 
 **Where it renders:** `clog_bar_body.xml` is the bar itself at content height;
 `clog_bar_page.xml` is a centring shell around it for the carousel cell, and
-`buffer_status_modal.xml` embeds the body directly. The arc is authored twice —
-`clog_meter_page.xml` and `ams_loaded_card.xml` — so a named child added to one
-(e.g. `clog_safe_icon`) must be added to both, or `UiClogMeter` silently finds
-nothing under that parent.
+`buffer_status_modal.xml` embeds the body directly. The arc lives in
+`ams_loaded_card.xml`; `UiClogMeter` finds its named children (e.g.
+`clog_safe_icon`) there by name, and silently finds nothing if one is missing.
 
 **Mock scenarios:** `helix-screen ctl scenario <name>` drives the mock *backend*,
 so the whole derivation runs — `clog_healthy`, `clog_warning`, `clog_blocked`,

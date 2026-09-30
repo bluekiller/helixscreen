@@ -26,6 +26,7 @@
 #include "system/log_collector.h"
 #include "system/moonraker_local_probe.h"
 #include "system/telemetry_manager.h"
+#include "system/tls_trust.h"
 #include "system/update_checker.h"
 #include "touch_calibration_wrapper.h"
 #ifdef __ANDROID__
@@ -1318,31 +1319,25 @@ struct PlatformFile {
     PlatformFileFormat format;
 };
 
-// Returns the platform-specific files to capture. moonraker_path is rooted
-// at the Moonraker base URL (e.g. "/server/files/config/Adventurer5M.json").
-// Empty list = nothing to collect.
+// Returns the platform-specific files to capture, from the platform table.
+// moonraker_path is rooted at the Moonraker base URL. Empty list = nothing to
+// collect.
 //
 // Keep entries small (a few KB each) — this is the debug-bundle hot path. For
 // larger files, route through a dedicated capture with a size cap.
 static std::vector<PlatformFile> platform_diagnostic_files(const std::string& platform) {
-    if (platform == "ad5x" || platform == "ad5m") {
-        return {
-            // ZMOD's authoritative IFS slot truth: color, material, lessWaste
-            // pairings. Polling this is our primary change-detection mechanism
-            // in AmsBackendAd5xIfs::poll_adventurer_json(); having it in the
-            // bundle lets us verify what zmod wrote vs. what the UI cached.
-            {"Adventurer5M.json", "/server/files/config/Adventurer5M.json",
-             PlatformFileFormat::JSON},
-            // zmod's user-defined filament types (PLA+, RPLA, HELIX, ...). Read
-            // by the COLOR gcode macro at print time. helix-screen's edit modal
-            // currently restricts to the firmware whitelist and silently
-            // normalises user types away on save (#904); the file in the bundle
-            // lets us see exactly what types were defined and how the macro
-            // consumes them.
-            {"user.cfg", "/server/files/config/mod_data/user.cfg", PlatformFileFormat::TEXT},
-        };
+    std::vector<PlatformFile> files;
+    const auto* info = UpdateChecker::find_platform(platform);
+    if (!info) {
+        return files;
     }
-    return {};
+    for (const auto& path : info->diagnostic_files) {
+        std::string name = path.substr(path.rfind('/') + 1);
+        const bool is_json = name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0;
+        files.push_back(
+            {std::move(name), path, is_json ? PlatformFileFormat::JSON : PlatformFileFormat::TEXT});
+    }
+    return files;
 }
 
 // Fetch a text file from Moonraker. Returns body + HTTP status; an HTTP-status
@@ -2341,7 +2336,7 @@ void DebugBundleCollector::upload_async(const BundleOptions& options, ResultCall
             req->headers["X-API-Key"] = INGEST_API_KEY;
             req->body.assign(reinterpret_cast<const char*>(compressed.data()), compressed.size());
 
-            auto resp = requests::request(req);
+            auto resp = helix::tls::trusted_request(req);
             status = resp ? static_cast<int>(resp->status_code) : 0;
             response_body = resp ? resp->body : "";
 #endif

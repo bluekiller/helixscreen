@@ -158,9 +158,9 @@ I18N_DO_NOT_TRANSLATE_RE = re.compile(
 I18N_UNIVERSAL_RE = re.compile(r"//[^\n]*\bi18n:\s*universal", re.IGNORECASE)
 
 # File-level opt-out for XML files: an `i18n: skip-file` marker anywhere in an
-# XML comment excludes the whole file from extraction. Used by dev/test-only
-# panels (test_panel.xml, gcode_test_panel.xml, step_test_panel.xml) whose demo
-# strings are never shown to end users and shouldn't pollute the locale packs.
+# XML comment excludes the whole file from extraction, for dev/test-only
+# panels whose demo strings are never shown to end users and shouldn't pollute
+# the locale packs.
 I18N_SKIP_FILE_RE = re.compile(r"<!--[^>]*\bi18n:\s*skip-file", re.IGNORECASE)
 
 # Language names displayed in their native script (never translated)

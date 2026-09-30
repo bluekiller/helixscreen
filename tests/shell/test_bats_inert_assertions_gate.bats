@@ -372,6 +372,14 @@ setup_tmp_repo() {
     contains 'tests/shell/foo.bats' "$output"
 }
 
+@test "--staged-only passes when the only staged .bats change is a deletion" {
+    setup_tmp_repo
+    git rm -q tests/shell/foo.bats
+    run python3 "$GATE_ABS" --staged-only
+    [ "$status" -eq 0 ]
+    contains "no staged .bats content" "$output"
+}
+
 @test "--staged-only stays silent on a clean staged file with a dirty violation on disk" {
     setup_tmp_repo
     # Genuinely different from the base commit (a second clean @test), so the

@@ -44,19 +44,15 @@ bool commit_calibration_result(ICalibrationSink* sink, const TouchCalibration& c
     // inherits it here rather than depending on who chose to compute a range.
     affine.capture_rotation = cal.capture_rotation;
 
-    if (Config* cfg = Config::get_instance()) {
-        TouchRangeSettings range;
-        range.valid = range_installed;
-        range.swap_axes = fit.swap_axes;
-        range.min_x = fit.min_x;
-        range.max_x = fit.max_x;
-        range.min_y = fit.min_y;
-        range.max_y = fit.max_y;
-        save_touch_range(range);
-        write_affine(*cfg, affine);
-    } else {
-        spdlog::error("[TouchCalSession] Config not available - calibration not persisted");
-    }
+    TouchRangeSettings range;
+    range.valid = range_installed;
+    range.swap_axes = fit.swap_axes;
+    range.min_x = fit.min_x;
+    range.max_x = fit.max_x;
+    range.min_y = fit.min_y;
+    range.max_y = fit.max_y;
+    save_touch_range(range);
+    write_affine(*Config::get_instance(), affine);
 
     bool applied = false;
     if (sink != nullptr) {

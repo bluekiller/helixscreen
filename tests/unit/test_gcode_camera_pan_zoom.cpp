@@ -12,7 +12,7 @@ using namespace helix::gcode;
 using Catch::Approx;
 
 namespace {
-// Same NDC -> pixel mapping as GCodeRenderer (Y flipped).
+// NDC -> pixel mapping with Y flipped, as the renderers use.
 glm::vec2 to_screen(const GCodeCamera& cam, glm::vec3 p) {
     glm::vec4 clip = cam.get_view_projection_matrix() * glm::vec4(p, 1.0f);
     glm::vec3 ndc = glm::vec3(clip) / clip.w;

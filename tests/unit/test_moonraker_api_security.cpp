@@ -35,6 +35,7 @@ using namespace helix;
 // Global LVGL Initialization (called once)
 // ============================================================================
 
+namespace {
 struct LVGLInitializer {
     LVGLInitializer() {
         lv_init_safe();
@@ -43,6 +44,7 @@ struct LVGLInitializer {
         lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     }
 };
+} // namespace
 
 static LVGLInitializer lvgl_init;
 

@@ -17,6 +17,7 @@
 #include "ui_print_preparation_manager.h"
 #include "ui_update_queue.h"
 
+#include "../test_helpers/print_preparation_manager_test_access.h"
 #include "lvgl_test_fixture.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
@@ -28,14 +29,6 @@
 #include "test_helpers/printer_state_test_access.h"
 
 #include "../catch_amalgamated.hpp"
-
-// Minimal local twin of the accessor in test_print_preparation_manager.cpp —
-// the manager declares `friend class ::PrintPreparationManagerTestAccess`, so
-// any class with this exact name reaches its privates.
-class PrintPreparationManagerTestAccess {
-  public:
-    static lv_timer_t* pending_wait_timer(const helix::ui::PrintPreparationManager& m);
-};
 
 namespace {
 
@@ -85,11 +78,6 @@ struct PreStartGateAPI : public MoonrakerAPIMock {
 };
 
 } // namespace
-
-lv_timer_t*
-PrintPreparationManagerTestAccess::pending_wait_timer(const helix::ui::PrintPreparationManager& m) {
-    return m.pre_start_wait_guard_.pending_timer();
-}
 
 class PreStartGateFixture : public LVGLTestFixture {
   public:
@@ -293,8 +281,7 @@ TEST_CASE("start_print outlives a print-start macro that heats synchronously",
     MoonrakerJobAPI job(client);
 
     bool started = false;
-    job.start_print(
-        "part.gcode", [&started]() { started = true; }, [](const MoonrakerError&) {});
+    job.start_print("part.gcode", [&started]() { started = true; }, [](const MoonrakerError&) {});
 
     REQUIRE(started);
     REQUIRE(client.last_send_method() == "printer.print.start");

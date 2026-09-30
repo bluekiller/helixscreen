@@ -5,6 +5,7 @@
 
 #include "../helix_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../test_helpers/printer_state_test_access.h"
 #include "../test_helpers/snapmaker_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
@@ -55,18 +56,6 @@ using json = nlohmann::json;
 struct SnapmakerFixture : public HelixTestFixture {
     ~SnapmakerFixture() override {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
-    }
-};
-
-// Friend-class shim for FilamentSlotOverrideStore — same idiom as IFS tests
-// and test_filament_slot_override_store.cpp. Lets us redirect the store's
-// on-disk read-cache to a per-test tmp dir so save_async doesn't pollute
-// the developer's real helixscreen config.
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
     }
 };
 

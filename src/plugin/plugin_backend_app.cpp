@@ -99,8 +99,8 @@ std::vector<std::string> local_interface_ips() {
 }
 
 std::string configured_moonraker_host() {
-    if (helix::Config* cfg = helix::Config::get_instance())
-        return cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
+    helix::Config* cfg = helix::Config::get_instance();
+    return cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
     return "localhost";
 }
 

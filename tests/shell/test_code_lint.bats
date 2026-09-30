@@ -28,6 +28,24 @@ setup() {
     [ "$status" -eq 1 ]  # grep returns 1 when no matches found
 }
 
+# A friend accessor defined in two test TUs is an ODR violation: the linker keeps
+# one copy of each inline member, so a test can silently run another file's body.
+# Define it once in tests/test_helpers/<name>_test_access.h and include that.
+@test "every *TestAccess class is defined in at most one file" {
+    local defs
+    defs=$(grep -rEo --include='*.cpp' --include='*.h' \
+        '^[[:space:]]*(class|struct)[[:space:]]+[A-Za-z0-9_]*TestAccess[[:space:]]*(final[[:space:]]*)?(:[^;]*)?\{' tests/ \
+        | sed -E 's/^([^:]+):[[:space:]]*(class|struct)[[:space:]]+([A-Za-z0-9_]+).*/\3 \1/' | sort -u)
+    [ -n "$defs" ]  # an empty scan means the pattern stopped matching, not a clean tree
+    local dups
+    dups=$(echo "$defs" | awk '{n[$1]++; f[$1]=f[$1]" "$2} END {for (c in n) if (n[c] > 1) print c ":" f[c]}')
+    if [ -n "$dups" ]; then
+        echo "TestAccess classes defined in more than one file:"
+        echo "$dups"
+        return 1
+    fi
+}
+
 # --- Migrated temperature VIEW files must route sends through the controller ---
 # ui_overlay_temp_graph.cpp and ui_panel_controls.cpp were migrated to delegate
 # temperature commands to helix::TemperatureController. They must NOT call the
@@ -2828,6 +2846,61 @@ EOF
     run slot_validator_offenders "$d"
     [ "$status" -eq 0 ]
     contains "validate_slot_index" "$output"
+}
+
+# --- Our own servers are reached only through helix::tls::trusted_* ---
+# trusted_request()/trusted_download() verify the server certificate; a plain
+# requests:: call to the update, telemetry, crash or debug-bundle servers does not.
+# Requests to the printer's LAN services keep requests:: on purpose.
+
+own_endpoint_http_offenders() {
+    local root="$1" f
+    for f in update_checker telemetry_manager crash_reporter; do
+        grep -nE '^[^/]*(requests::|HttpClient)' "$root/src/system/$f.cpp" | sed "s|^|$f.cpp:|"
+    done
+    # Any other file naming one of our hosts must reach it through trusted_*.
+    grep -rlE 'helixscreen\.org|api\.github\.com|github(usercontent)?\.com/prestonbrown' \
+        "$root/src" | while read -r f; do
+        if grep -qE '^[^/]*(requests::|HttpClient)' "$f" && ! grep -q 'tls::trusted_' "$f"; then
+            echo "${f#"$root"/}: names one of our hosts but sends without tls::trusted_*"
+        fi
+    done
+    awk '/= worker_url\(\);|= WORKER_URL;/ { on = 1; seen = 1 }
+         on && /^[^\/]*(requests::|HttpClient)/ { print "debug_bundle_collector.cpp:" FNR ": " $0 }
+         on && /^}/ { on = 0 }
+         END { if (!seen) print "debug_bundle_collector.cpp: upload to WORKER_URL not found" }' \
+        "$root/src/system/debug_bundle_collector.cpp"
+}
+
+@test "requests to our own servers go through helix::tls::trusted_*" {
+    run own_endpoint_http_offenders .
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "the own-endpoint gate fires on a plain requests:: call" {
+    local d="${BATS_TEST_TMPDIR}/offender/src/system"
+    mkdir -p "$d"
+    printf '    // requests::request is fine in a comment\n' > "$d/update_checker.cpp"
+    printf '    auto r = requests::request(req);\n' > "$d/telemetry_manager.cpp"
+    printf '    hv::HttpClient cli;\n' > "$d/crash_reporter.cpp"
+    mkdir -p "$d/../ui"
+    printf 'auto u = "https://api.github.com/x";\nauto r = requests::get(u);\n' > "$d/../ui/rogue.cpp"
+    printf 'auto u = "https://helixscreen.org/x";\nauto r = helix::tls::trusted_request(q);\n' \
+        > "$d/../ui/fine.cpp"
+    printf 'auto u = "https://helixscreen.org/docs";\n' > "$d/../ui/link_only.cpp"
+    printf 'int f() {\n    auto r = requests::request(req);\n}\nvoid up() {\n    const std::string url = worker_url();\n    auto r = requests::request(req);\n}\n' \
+        > "$d/debug_bundle_collector.cpp"
+    run own_endpoint_http_offenders "${BATS_TEST_TMPDIR}/offender"
+    [ "$status" -eq 0 ]
+    contains "telemetry_manager.cpp" "$output"
+    contains "debug_bundle_collector.cpp:6" "$output"
+    contains "crash_reporter.cpp" "$output"
+    contains "src/ui/rogue.cpp" "$output"
+    lacks "fine.cpp" "$output"
+    lacks "link_only.cpp" "$output"
+    lacks "update_checker.cpp" "$output"
+    lacks "debug_bundle_collector.cpp:2" "$output"
 }
 
 # --- ui_xml never uses the plugin name separator ---

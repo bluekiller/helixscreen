@@ -25,8 +25,8 @@
 #include "runtime_config.h"
 #include "static_panel_registry.h"
 #include "theme_manager.h"
+#include "utils/network_validation.h"
 #include "wizard_config_paths.h"
-#include "wizard_validation.h"
 
 #include <spdlog/spdlog.h>
 

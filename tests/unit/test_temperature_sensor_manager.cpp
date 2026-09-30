@@ -515,10 +515,6 @@ TEST_CASE_METHOD(TemperatureSensorTestFixture, "TemperatureSensorManager - edge 
         REQUIRE_FALSE(state.has_value());
     }
 
-    SECTION("category_name returns temperature") {
-        REQUIRE(mgr().category_name() == "temperature");
-    }
-
     SECTION("get_temp_subject returns valid subject after discovery") {
         discover_test_sensors();
 

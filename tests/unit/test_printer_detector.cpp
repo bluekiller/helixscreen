@@ -5642,7 +5642,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 TEST_CASE("PrinterDetector::screws_tilt_direction_override reads DB field",
           "[printer_detector][screws_tilt]") {
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     std::string type_path = config->df() + "type";
 
     SECTION("FlashForge Adventurer 5M reports ccw override") {
@@ -5681,7 +5680,6 @@ TEST_CASE("PrinterDetector::screws_tilt_direction_override reads DB field",
 
 TEST_CASE("Creality K1 printer detection", "[printer_detector]") {
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     // printer_type_contains() uses config->df() + wizard::PRINTER_TYPE which
     // resolves to e.g. "/printers/default/type" — use the same suffix here.
     std::string type_path = config->df() + "type";

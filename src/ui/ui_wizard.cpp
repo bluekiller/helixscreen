@@ -372,11 +372,11 @@ void ui_wizard_init_subjects() {
     auto* cfg = Config::get_instance();
     helix::wizard::StepContext init_ctx = helix::wizard::build_context();
     if (init_ctx.preset.first_run) {
-        spdlog::info("[Wizard] Preset mode active (preset: {})", cfg ? cfg->get_preset() : "");
+        spdlog::info("[Wizard] Preset mode active (preset: {})", cfg->get_preset());
     } else if (init_ctx.preset.skip_hardware) {
         spdlog::info("[Wizard] Subsequent printer with preset '{}': hardware steps will be "
                      "skipped, summary shown",
-                     cfg ? cfg->get_preset() : "");
+                     cfg->get_preset());
     }
 
     // Initialize subjects with defaults using managed macros for RAII cleanup
@@ -1067,31 +1067,27 @@ void ui_wizard_complete() {
 
     // 1. Mark wizard as completed in config
     Config* config = Config::get_instance();
-    if (config) {
-        spdlog::debug("[Wizard] Setting wizard_completed flag");
-        config->set<bool>(config->df() + "wizard_completed", true);
-        // Also set root-level for backward compat
-        config->set<bool>("/wizard_completed", true);
+    spdlog::debug("[Wizard] Setting wizard_completed flag");
+    config->set<bool>(config->df() + "wizard_completed", true);
+    // Also set root-level for backward compat
+    config->set<bool>("/wizard_completed", true);
 
-        // 1b. Populate expected_hardware from wizard selections so later
-        // discoveries don't report already-present hardware as newly appeared.
-        const size_t recorded = ui_wizard_record_expected_hardware(config);
+    // 1b. Populate expected_hardware from wizard selections so later
+    // discoveries don't report already-present hardware as newly appeared.
+    const size_t recorded = ui_wizard_record_expected_hardware(config);
 
-        // 1c. A run that never reached Klipper had empty pickers and recorded
-        // nothing. Committing that emptiness as the final snapshot makes the
-        // first boot where Klipper does come up flag every fan, filament sensor
-        // and LED as new (#1160). Record the debt instead; the first successful
-        // discovery pays it and offers the skipped hardware steps.
-        //
-        // Stays correct no matter which path reached Finish.
-        const bool discovery_succeeded = wizard_discovery_succeeded(get_moonraker_api());
-        helix::wizard_apply_hardware_snapshot_decision(config, discovery_succeeded, recorded > 0);
+    // 1c. A run that never reached Klipper had empty pickers and recorded
+    // nothing. Committing that emptiness as the final snapshot makes the
+    // first boot where Klipper does come up flag every fan, filament sensor
+    // and LED as new (#1160). Record the debt instead; the first successful
+    // discovery pays it and offers the skipped hardware steps.
+    //
+    // Stays correct no matter which path reached Finish.
+    const bool discovery_succeeded = wizard_discovery_succeeded(get_moonraker_api());
+    helix::wizard_apply_hardware_snapshot_decision(config, discovery_succeeded, recorded > 0);
 
-        if (!config->save()) {
-            NOTIFY_ERROR(lv_tr("Failed to save setup completion"));
-        }
-    } else {
-        LOG_ERROR_INTERNAL("[Wizard] Failed to get config instance to mark wizard complete");
+    if (!config->save()) {
+        NOTIFY_ERROR(lv_tr("Failed to save setup completion"));
     }
 
     // 2-5. Shared container teardown (cleanup screen, hide keyboard, delete
@@ -1121,7 +1117,7 @@ void ui_wizard_complete() {
     g_completion_timers.arm_home_navigation();
 
     // Show success toast when adding a subsequent printer
-    if (config && config->get_printer_ids().size() > 1) {
+    if (config->get_printer_ids().size() > 1) {
         NOTIFY_SUCCESS(lv_tr("New printer successfully added"));
     }
 

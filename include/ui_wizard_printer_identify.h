@@ -96,7 +96,6 @@ class WizardPrinterIdentifyStep : public helix::wizard::Step {
      *
      * Registers callbacks:
      * - on_printer_name_changed
-     * - on_printer_type_changed
      * - on_wizard_printer_search_changed
      * - on_wizard_vendor_back_clicked
      */
@@ -211,7 +210,6 @@ class WizardPrinterIdentifyStep : public helix::wizard::Step {
 
     // Event handler implementations
     void handle_printer_name_changed(lv_event_t* e);
-    void handle_printer_type_changed(lv_event_t* e);
 
     // Printer type list helpers
     void populate_printer_type_list();
@@ -234,7 +232,6 @@ class WizardPrinterIdentifyStep : public helix::wizard::Step {
 
     // Static trampolines for LVGL callbacks
     static void on_printer_name_changed_static(lv_event_t* e);
-    static void on_printer_type_changed_static(lv_event_t* e);
     static void on_wizard_printer_search_changed(lv_event_t* e);
     static void on_wizard_vendor_back_clicked(lv_event_t* e);
     static void on_vendor_tile_clicked(lv_event_t* e);

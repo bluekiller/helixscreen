@@ -5,6 +5,7 @@
 #include "ui_update_queue.h"
 
 #include "../helix_test_fixture.h"
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "ams_backend_openams.h"
 #include "ams_error.h"
 #include "ams_types.h"
@@ -36,14 +37,6 @@ using helix::AmsType;
 using helix::PathTopology;
 using helix::SlotStatus;
 using json = nlohmann::json;
-
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 namespace {
 

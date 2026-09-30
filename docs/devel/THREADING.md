@@ -701,7 +701,6 @@ Create observers with the factories in `include/observer_factory.h` rather than 
 | `observe_int_sync<T>()` | int subject, callback deferred via `queue_update` |
 | `observe_int_async<T>()` | int subject, explicitly async |
 | `observe_string()` | string subject, callback deferred |
-| `observe_string_async()` | string subject, explicitly async |
 | `observe_print_state<T>()` | typed `PrintJobState` over the raw `print_state_enum` subject, deferred |
 | `observe_print_state_immediate<T>()` | the same typing, firing synchronously like `observe_int_immediate` |
 | `observe_print_lifecycle<T>()` | typed `PrintState` over the derived `print_lifecycle` subject |

@@ -57,9 +57,9 @@ int build_floor_percent(bool dev_disp_backend, int build_floor) {
 // backend honours it), else @p build_floor.
 int backlight_floor_percent(int build_floor) {
     int floor = build_floor;
-    if (auto* config = helix::Config::get_instance()) {
-        floor = config->get<int>("/display/backlight_floor_percent", floor);
-    }
+    auto* config = helix::Config::get_instance();
+    floor = config->get<int>("/display/backlight_floor_percent", floor);
+
     return std::clamp(floor, 0, 100);
 }
 

@@ -101,15 +101,14 @@ class FullStackTestFixture {
         // initialize to SHUTDOWN until production code observes a real state update.
         printer_state_.set_klippy_state_sync(helix::KlippyState::READY);
 
-        // Create API mock BEFORE discovery so it can receive hardware callbacks
         api_ = std::make_unique<MoonrakerAPIMock>(client_, printer_state_);
         api_->set_mock_state(shared_state_);
 
         // Connect mock client (required for discovery)
         client_.connect("ws://mock/websocket", []() {}, []() {});
 
-        // Run discovery to populate hardware lists (API receives hardware via callback)
-        client_.discover_printer([]() {});
+        // Run discovery, then hand the hardware to the API as Application does
+        client_.discover_printer([this]() { api_->hardware() = client_.hardware(); });
     }
 
     ~FullStackTestFixture() {
@@ -520,13 +519,12 @@ TEST_CASE_METHOD(HelixTestFixture, "Full stack: All printer types work correctly
             MoonrakerClientMock client(printer_type, 1000.0);
             client.set_mock_state(shared_state);
 
-            // Create API BEFORE discovery so it can receive hardware callbacks
             MoonrakerAPIMock api(client, state);
             api.set_mock_state(shared_state);
 
-            // Now connect and discover (API receives hardware via callback)
+            // Connect and discover, then hand the hardware to the API as Application does
             client.connect("ws://mock/websocket", []() {}, []() {});
-            client.discover_printer([]() {});
+            client.discover_printer([&]() { api.hardware() = client.hardware(); });
 
             // Verify basic operations work via PrinterHardware
             PrinterHardware hw(api.hardware().heaters(), api.hardware().sensors(),
@@ -701,10 +699,9 @@ TEST_CASE_METHOD(HelixTestFixture, "Full stack: API error callbacks work correct
     MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24, 1000.0);
     client.connect("ws://mock/websocket", []() {}, []() {});
 
-    // Construct API before discovery so its hardware callbacks get fired
     MoonrakerAPIMock api(client, state);
 
-    client.discover_printer([]() {});
+    client.discover_printer([&]() { api.hardware() = client.hardware(); });
 
     // Allow async discovery to populate hardware data
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

@@ -151,24 +151,22 @@ void WizardLedSelectStep::cleanup() {
     // Stage the pick as the light button's device and the auto-state strip, and
     // keep leds/strip (string) for the wizard dropdown restore.
     Config* config = Config::get_instance();
-    if (config) {
-        int index = lv_subject_get_int(&led_strip_selected_);
-        if (index >= 0 && static_cast<size_t>(index) < led_strip_items_.size()) {
-            const std::string& item = led_strip_items_[static_cast<size_t>(index)];
-            const std::string save_value = (item == "None") ? "" : item;
+    int index = lv_subject_get_int(&led_strip_selected_);
+    if (index >= 0 && static_cast<size_t>(index) < led_strip_items_.size()) {
+        const std::string& item = led_strip_items_[static_cast<size_t>(index)];
+        const std::string save_value = (item == "None") ? "" : item;
 
-            if (!save_value.empty()) {
-                helix::led::stage_light_selection({save_value, {save_value}});
-            }
-
-            // String for wizard dropdown restore
-            config->set(config->df() + "leds/strip", save_value);
-
-            spdlog::debug("[Wizard LED] Saved LED selection: '{}'", save_value);
+        if (!save_value.empty()) {
+            helix::led::stage_light_selection({save_value, {save_value}});
         }
-        if (!config->save()) {
-            NOTIFY_ERROR(lv_tr("Failed to save LED configuration"));
-        }
+
+        // String for wizard dropdown restore
+        config->set(config->df() + "leds/strip", save_value);
+
+        spdlog::debug("[Wizard LED] Saved LED selection: '{}'", save_value);
+    }
+    if (!config->save()) {
+        NOTIFY_ERROR(lv_tr("Failed to save LED configuration"));
     }
 
     // Reset UI references

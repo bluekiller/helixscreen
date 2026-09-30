@@ -47,6 +47,7 @@ static void drain() {
 // active_ guard, and observer guards whose callbacks reference widgets.
 // ============================================================================
 
+namespace {
 class MockPanel {
   public:
     // Simulated widget pointers (would be lv_obj_t* in real code)
@@ -127,6 +128,7 @@ class MockPanel {
         lv_subject_deinit(&subject_);
     }
 };
+} // namespace
 
 // ============================================================================
 // Tests for cleanup ordering

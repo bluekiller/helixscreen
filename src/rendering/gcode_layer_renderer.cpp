@@ -2379,10 +2379,6 @@ int GCodeLayerRenderer::get_extrusion_pixel_width() const {
 
 void GCodeLayerRenderer::load_config() {
     auto* config = Config::get_instance();
-    if (!config) {
-        spdlog::debug("[GCodeLayerRenderer] No config instance, using defaults");
-        return;
-    }
 
     // Load layers_per_frame: 0 = adaptive, 1-100 = fixed
     config_layers_per_frame_ = config->get<int>("/gcode_viewer/layers_per_frame", 0);

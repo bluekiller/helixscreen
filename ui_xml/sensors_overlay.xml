@@ -126,26 +126,6 @@
       </setting_group>
 
       <!-- ================================================================== -->
-      <!-- COLOR SENSORS SECTION -->
-      <!-- ================================================================== -->
-      <setting_group name="color_sensors_section">
-        <bind_flag_if_eq subject="color_sensor_count" flag="hidden" ref_value="0"/>
-        <setting_group_header title="COLOR SENSORS"
-                              title_tag="Color Sensors" icon="palette" badge_name="color_sensor_count_label"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
-        <lv_obj width="100%"
-                height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
-                style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">
-          <text_small width="100%"
-                      text="TD-1 filament color detection" translation_tag="TD-1 filament color detection"
-                      style_text_align="left"/>
-          <lv_obj name="color_sensors_list"
-                  width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="column"
-                  style_pad_gap="#space_xs"/>
-        </lv_obj>
-      </setting_group>
-
-      <!-- ================================================================== -->
       <!-- LOAD CELLS SECTION -->
       <!-- ================================================================== -->
       <setting_group name="load_cells_section">

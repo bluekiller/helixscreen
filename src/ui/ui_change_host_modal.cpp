@@ -55,13 +55,11 @@ bool ChangeHostModal::show_modal(lv_obj_t* parent) {
 
     // Populate with current config values
     Config* config = Config::get_instance();
-    if (config) {
-        std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
-        int port = config->get<int>(config->df() + "moonraker_port", 7125);
+    std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
+    int port = config->get<int>(config->df() + "moonraker_port", 7125);
 
-        lv_subject_copy_string(&host_ip_subject_, host.c_str());
-        lv_subject_copy_string(&host_port_subject_, std::to_string(port).c_str());
-    }
+    lv_subject_copy_string(&host_ip_subject_, host.c_str());
+    lv_subject_copy_string(&host_port_subject_, std::to_string(port).c_str());
 
     bool result = show(parent);
     if (result && dialog()) {
@@ -277,15 +275,13 @@ void ChangeHostModal::handle_save() {
 
     // Save to config
     Config* config = Config::get_instance();
-    if (config) {
-        config->set(config->df() + "moonraker_host", std::string(ip));
-        config->set(config->df() + "moonraker_port", port);
-        config->save();
-        spdlog::info("[ChangeHostModal] Saved new host: {}:{}", ip, port);
-        // moonraker_host changed — flush the same-host detection cache so the
-        // shutdown widget picks up the new value on next open.
-        helix::invalidate_host_identity_cache();
-    }
+    config->set(config->df() + "moonraker_host", std::string(ip));
+    config->set(config->df() + "moonraker_port", port);
+    config->save();
+    spdlog::info("[ChangeHostModal] Saved new host: {}:{}", ip, port);
+    // moonraker_host changed — flush the same-host detection cache so the
+    // shutdown widget picks up the new value on next open.
+    helix::invalidate_host_identity_cache();
 
     // Close modal first — on_hide() removes observers and clears state
     hide();
@@ -475,9 +471,9 @@ void show_connection_failed_modal(const std::string& title, const std::string& m
         // moonraker_is_remote subject is still at its default (local) and
         // would suppress "Change Address" for every remote host.
         std::string host;
-        if (Config* cfg = Config::get_instance()) {
-            host = cfg->get<std::string>(cfg->df() + "moonraker_host", "");
-        }
+        Config* cfg = Config::get_instance();
+        host = cfg->get<std::string>(cfg->df() + "moonraker_host", "");
+
         if (!host.empty() && helix::is_moonraker_on_same_host(host)) {
             helix::ui::modal_alert(title.c_str(), message.c_str(), ModalSeverity::Error,
                                    lv_tr("Reconnect"), reconnect);

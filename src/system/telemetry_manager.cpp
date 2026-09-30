@@ -11,7 +11,6 @@
 #include "ams_types.h"
 #include "app_globals.h"
 #include "audio_settings_manager.h"
-#include "color_sensor_manager.h"
 #include "config.h"
 #include "display_backend.h"
 #include "display_manager.h"
@@ -32,6 +31,7 @@
 #include "screen_locality.h"
 #include "system/crash_handler.h"
 #include "system/crash_history.h"
+#include "system/tls_trust.h"
 #include "system/update_checker.h"
 #include "system_settings_manager.h"
 #include "temperature_sensor_manager.h"
@@ -392,13 +392,9 @@ void TelemetryManager::init(const std::string& config_dir) {
     // loading, so by now /telemetry_enabled is already authoritative.
     {
         Config* cfg = Config::get_instance();
-        if (cfg) {
-            enabled_.store(cfg->get<bool>("/telemetry_enabled", false));
-            spdlog::info("[TelemetryManager] Loaded enabled state: {}",
-                         enabled_.load() ? "true" : "false");
-        } else {
-            enabled_.store(false);
-        }
+        enabled_.store(cfg->get<bool>("/telemetry_enabled", false));
+        spdlog::info("[TelemetryManager] Loaded enabled state: {}",
+                     enabled_.load() ? "true" : "false");
     }
 
     // Check for crash file from a previous session (respects opt-in)
@@ -493,13 +489,9 @@ void TelemetryManager::set_enabled(bool enabled) {
     // so there is exactly one writer now — application.cpp no longer needs
     // to clobber our state on every startup.
     Config* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set<bool>("/telemetry_enabled", enabled);
-        cfg->save();
-        spdlog::debug("[TelemetryManager] Persisted enabled state to settings.json");
-    } else {
-        spdlog::warn("[TelemetryManager] Config not available; enabled state not persisted");
-    }
+    cfg->set<bool>("/telemetry_enabled", enabled);
+    cfg->save();
+    spdlog::debug("[TelemetryManager] Persisted enabled state to settings.json");
 }
 
 bool TelemetryManager::is_enabled() const {
@@ -935,12 +927,7 @@ void TelemetryManager::do_send(const nlohmann::json& batch) {
         // On devices without a CA cert bundle (e.g., AD5M stock firmware),
         // glibc's NSS resolver can crash with SIGSEGV during SSL handshake.
         if (!ssl_verified_) {
-            const char* cert_file = getenv("SSL_CERT_FILE");
-            const char* cert_dir = getenv("SSL_CERT_DIR");
-            bool have_certs = (cert_file && access(cert_file, R_OK) == 0) ||
-                              (cert_dir && access(cert_dir, R_OK) == 0) ||
-                              access("/etc/ssl/certs/ca-certificates.crt", R_OK) == 0;
-            if (!have_certs) {
+            if (helix::tls::find_ca_store().empty()) {
                 spdlog::warn("[TelemetryManager] No CA certificate bundle found — "
                              "HTTPS requests may fail. Set SSL_CERT_FILE or install "
                              "ca-certificates.");
@@ -972,7 +959,7 @@ void TelemetryManager::do_send(const nlohmann::json& batch) {
             req->headers["X-API-Key"] = API_KEY;
             req->body = helix::json_util::safe_dump(pending);
 
-            auto resp = requests::request(req);
+            auto resp = helix::tls::trusted_request(req);
 
             if (shutting_down_.load()) {
                 spdlog::debug("[TelemetryManager] Shutting down, aborting send result processing");
@@ -1862,7 +1849,6 @@ nlohmann::json TelemetryManager::build_hw_sensors_section(const helix::PrinterDi
     sensors["load_cell"] = static_cast<int>(sensors::LoadCellManager::instance().sensor_count());
     sensors["temperature_extra"] =
         static_cast<int>(sensors::TemperatureSensorManager::instance().sensor_count());
-    sensors["color"] = static_cast<int>(sensors::ColorSensorManager::instance().sensor_count());
     sensors["accel"] = static_cast<int>(sensors::AccelSensorManager::instance().sensor_count());
 
     // Name-level data for printer detection analysis

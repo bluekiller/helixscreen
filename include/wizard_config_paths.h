@@ -102,16 +102,12 @@ constexpr const char* PRINTER_IMAGE = "printer_image";
  */
 inline std::string get_saved_printer_type() {
     Config* config = Config::get_instance();
-    if (!config)
-        return {};
     return config->get<std::string>(config->df() + wizard::PRINTER_TYPE, "");
 }
 
 /// Used by both the home screen widget and printer manager overlay.
 inline std::string get_printer_display_name(const std::string& fallback = "My Printer") {
     Config* config = Config::get_instance();
-    if (!config)
-        return fallback;
 
     std::string name = config->get<std::string>(config->df() + wizard::PRINTER_NAME, "");
     if (!name.empty())

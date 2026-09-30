@@ -505,8 +505,6 @@ void SettingsPanel::populate_info_rows() {
     // first paint shows the current host:port (otherwise it's the em-dash default
     // until ChangeHostModal fires its completion callback).
     Config* config = Config::get_instance();
-    if (!config)
-        return;
 
     std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
     if (!host.empty()) {
@@ -536,8 +534,7 @@ void SettingsPanel::refresh_status_lines() {
     // Formatted here rather than once at init, so it is in the language of the
     // latest return to the settings root.
     Config* config = Config::get_instance();
-    const bool is_calibrated =
-        config && config->get<bool>(config->df() + "input/calibration/valid", false);
+    const bool is_calibrated = config->get<bool>(config->df() + "input/calibration/valid", false);
     lv_subject_copy_string(&touch_cal_status_subject_,
                            is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated"));
 
@@ -712,16 +709,6 @@ void SettingsPanel::handle_security_settings_clicked() {
     auto& overlay = helix::settings::get_security_settings_overlay();
     overlay.show(parent_screen_);
 }
-
-#if HELIX_HAS_LABEL_PRINTER
-void SettingsPanel::handle_label_printer_settings_clicked() {
-    spdlog::debug("[{}] Label Printer clicked - delegating to LabelPrinterSettingsOverlay",
-                  get_name());
-
-    auto& overlay = helix::settings::get_label_printer_settings_overlay();
-    overlay.show(parent_screen_);
-}
-#endif
 
 void SettingsPanel::handle_led_settings_clicked() {
     spdlog::debug("[{}] LED Settings clicked - delegating to LedSettingsOverlay", get_name());
@@ -934,11 +921,9 @@ void SettingsPanel::perform_factory_reset() {
 
     // Get config instance and reset
     Config* config = Config::get_instance();
-    if (config) {
-        config->reset_to_defaults();
-        config->save();
-        spdlog::info("[{}] Config reset to defaults", get_name());
-    }
+    config->reset_to_defaults();
+    config->save();
+    spdlog::info("[{}] Config reset to defaults", get_name());
 
     // Hide the dialog - animation + callback will handle cleanup
     if (factory_reset_dialog_) {
@@ -1128,14 +1113,6 @@ void SettingsPanel::on_security_clicked(lv_event_t* /*e*/) {
     get_global_settings_panel().handle_security_settings_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
-
-#if HELIX_HAS_LABEL_PRINTER
-void SettingsPanel::on_label_printer_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_label_printer_settings_clicked");
-    get_global_settings_panel().handle_label_printer_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-#endif
 
 void SettingsPanel::on_led_settings_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_led_settings_clicked");
@@ -1328,9 +1305,6 @@ void register_settings_panel_callbacks() {
         {"on_led_settings_clicked", SettingsPanel::on_led_settings_clicked},
         {"on_timelapse_settings_clicked", SettingsPanel::on_timelapse_settings_clicked},
         {"on_security_clicked", SettingsPanel::on_security_clicked},
-#if HELIX_HAS_LABEL_PRINTER
-        {"on_label_printer_settings_clicked", SettingsPanel::on_label_printer_settings_clicked},
-#endif
         {"on_estop_confirm_changed", SettingsPanel::on_estop_confirm_changed},
         {"on_cancel_escalation_changed", SettingsPanel::on_cancel_escalation_changed},
         {"on_cancel_escalation_timeout_changed", on_cancel_escalation_timeout_changed},

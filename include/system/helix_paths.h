@@ -11,7 +11,7 @@
  *
  * Stage 1 of a DRY refactor: these primitives were previously reimplemented
  * (6+ times) across update_checker.cpp, log_path_probe.cpp,
- * input_shaper_cache.cpp, thumbnail_cache.cpp, app_globals.cpp,
+ * thumbnail_cache.cpp, app_globals.cpp,
  * app_constants.h, logging_init.cpp, and data_root_resolver.cpp. Each function
  * documents which existing implementation its semantics were converged from.
  *
@@ -57,7 +57,7 @@ bool is_ram_backed(const std::string& dir);
  * @brief Robust probe: is `dir` writable AND does it have enough free space?
  *
  * Converges the create+write+remove write-test from
- * input_shaper_cache.cpp / thumbnail_cache.cpp try_create_cache_dir with the
+ * thumbnail_cache.cpp try_create_cache_dir with the
  * statvfs space check. Creates a UNIQUELY-named temp file inside `dir`
  * (".helix_write_test.<pid>.<tid>.<counter>", unique per process, per thread,
  * and per call so concurrent same-process probes of the same dir never collide),
@@ -134,8 +134,7 @@ std::string home();
  *
  * Base directories only — callers append "/helix/<subdir>" and try each in
  * order. Returning BOTH (rather than just the first) preserves the original
- * two-step fallback in app_globals.cpp get_helix_cache_dir (steps 4/5) and
- * input_shaper_cache.cpp determine_cache_dir (steps 1/2): if the XDG dir can't
+ * two-step fallback in app_globals.cpp get_helix_cache_dir (steps 4/5): if the XDG dir can't
  * be created, callers still fall through to $HOME/.cache before the next step.
  */
 std::vector<std::string> xdg_cache_bases();

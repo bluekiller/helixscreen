@@ -1862,7 +1862,7 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2214 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2198 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out
@@ -2036,6 +2036,23 @@ else
   section_time $SECTION_START
   echo ""
   echo "⚠️  check_gcode_error_ownership.py not found — skipping"
+fi
+
+echo ""
+
+SECTION_START=$(date +%s)
+echo -n "🖼️  Checking printer image cache invalidation..."
+# Only src/system/ may delete a printer image cache: every entry a UI refresh
+# deletes costs a decode, resize and flash write to rebuild.
+if python3 scripts/check_printer_image_invalidation.py >/tmp/printer_image_inval.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/printer_image_inval.out
+else
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/printer_image_inval.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2646,6 +2663,14 @@ if [ "$HEX_COUNT" -gt "$HEX_BASELINE" ]; then
   TOKEN_EXIT=1
 fi
 
+# A spacing token C++ reads must be declared in a shipped XML file, not only
+# in a dev panel's, or release builds read it as missing.
+if ! python3 scripts/check_shipped_spacing_tokens.py >/tmp/shipped_spacing.out 2>&1; then
+  echo ""
+  cat /tmp/shipped_spacing.out
+  TOKEN_EXIT=1
+fi
+
 section_time $SECTION_START
 if [ "$TOKEN_EXIT" -eq 0 ]; then
   echo ""
@@ -2777,6 +2802,36 @@ else
   section_time $SECTION_START
   echo ""
   echo "⚠️  check_test_widget_registry.py not found — skipping"
+fi
+
+echo ""
+
+# ====================================================================
+# (terminator: tests/shell/*.bats extract a section's body by awk-ing from
+#  its first line to the next '# ====' banner. Wrapping the sections in
+#  functions moved the banners above them, so without this the extraction
+#  ran on past the body and swallowed the return/closing brace.)
+  return $EXIT_CODE
+}
+
+# ====================================================================
+# Every component src/ creates by name through lv_xml_create is registered
+# ====================================================================
+qc_xml_create_registered() {
+  local EXIT_CODE=0
+SECTION_START=$(date +%s)
+echo -n "🧩 Checking lv_xml_create component registration..."
+
+if python3 scripts/check_xml_create_registered.py >/tmp/xml_create_registered.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/xml_create_registered.out
+else
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/xml_create_registered.out
+  echo "   Run: python3 scripts/check_xml_create_registered.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3547,7 +3602,7 @@ echo ""
   return $EXIT_CODE
 }
 
-QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
+QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_xml_create_registered qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
 
 QC_PARALLEL=""
 for fn in $QC_ALL; do
@@ -3582,6 +3637,8 @@ qc_trigger_re() {
     qc_test_tautology)  echo '^tests/|^include/|^src/|^scripts/check_test_tautology\.py$' ;;
     qc_test_widget_registry)
                         echo '^tests/|^src/|^scripts/check_test_widget_registry\.py$' ;;
+    qc_xml_create_registered)
+                        echo '^src/|^scripts/check_xml_create_registered\.py$' ;;
     qc_doc_refs)        echo '\.md$|^scripts/check_doc_refs\.py$' ;;
     qc_lvgl_event_codes)
                         echo '^server/crash-worker/|^scripts/gen_lvgl_event_codes\.py$|^lib/lvgl$|^lv_conf\.h$' ;;

@@ -34,12 +34,8 @@ WidthSensorManager::WidthSensorManager() = default;
 WidthSensorManager::~WidthSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string WidthSensorManager::category_name() const {
-    return "width";
-}
 
 void WidthSensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -238,10 +234,6 @@ void WidthSensorManager::load_config_from_file() {
     spdlog::debug("[WidthSensorManager] Loading config from file");
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[WidthSensorManager] Config not initialized");
-        return;
-    }
 
     // Reuse load_config() to avoid deserialization drift (mirrors save_config_to_file)
     std::string base_path = config->df() + "width_sensors";
@@ -261,10 +253,6 @@ void WidthSensorManager::save_config_to_file() {
     spdlog::debug("[WidthSensorManager] Saving config to file");
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[WidthSensorManager] Config not initialized");
-        return;
-    }
 
     // Build path using default printer prefix
     std::string base_path = config->df() + "width_sensors";

@@ -8,8 +8,9 @@
 #include "filament_sensor_types.h"
 #include "json_fwd.h"
 #include "lvgl.h"
-#include "sensor_registry.h"
 #include "subject_managed_panel.h"
+
+#include "hv/json.hpp"
 
 // Forward declarations — IMoonrakerAPI is a GLOBAL-scope interface (see
 // i_moonraker_api.h); declaring it inside namespace helix would create a
@@ -82,7 +83,7 @@ enum class PrintJobState;
  * }
  * @endcode
  */
-class FilamentSensorManager : public helix::sensors::ISensorManager {
+class FilamentSensorManager {
   public:
     /// @brief Callback for sensor state change notifications
     using StateChangeCallback =
@@ -99,36 +100,13 @@ class FilamentSensorManager : public helix::sensors::ISensorManager {
     FilamentSensorManager& operator=(const FilamentSensorManager&) = delete;
 
     // ========================================================================
-    // ISensorManager Interface
+    // Discovery, Status and Config
     // ========================================================================
-
-    /// @brief Get category name for registry
-    [[nodiscard]] std::string category_name() const override;
-
-    /**
-     * @brief Discover sensors from Klipper objects list
-     *
-     * Implements ISensorManager interface. Delegates to discover_sensors().
-     * @note MUST be called from main LVGL thread (updates subjects directly)
-     */
-    void discover(const std::vector<std::string>& klipper_objects) override;
 
     // update_from_status() is declared below in "State Updates" section
 
-    /**
-     * @brief Load sensor configuration from JSON
-     *
-     * Note: This manager uses legacy Config-based persistence. This method
-     * accepts JSON for ISensorManager compatibility but delegates to the
-     * internal load_config_from_file() which reads from settings.json.
-     *
-     * @param config JSON config (currently ignored - uses internal config)
-     * @note MUST be called from main LVGL thread (updates subjects directly)
-     */
-    void load_config(const nlohmann::json& config) override;
-
     /// @brief Save configuration to JSON
-    [[nodiscard]] nlohmann::json save_config() const override;
+    [[nodiscard]] nlohmann::json save_config() const;
 
     // ========================================================================
     // Initialization
@@ -196,17 +174,11 @@ class FilamentSensorManager : public helix::sensors::ISensorManager {
      *
      * Merges saved config with discovered sensors. New sensors get default config,
      * removed sensors are preserved in config (in case they come back).
-     *
-     * @note This is the legacy config API. Use ISensorManager::load_config(json) for
-     *       SensorRegistry integration.
      */
     void load_config_from_file();
 
     /**
      * @brief Save current configuration to settings.json
-     *
-     * @note This is the legacy config API. ISensorManager::save_config() returns
-     *       JSON but also saves to file for this manager.
      */
     void save_config_to_file();
 
@@ -448,12 +420,11 @@ class FilamentSensorManager : public helix::sensors::ISensorManager {
      * @brief Update sensor states from Moonraker notification
      *
      * Called by PrinterState when receiving notify_status_update.
-     * Implements ISensorManager interface.
      * Thread-safe.
      *
      * @param status JSON object containing sensor state updates
      */
-    void update_from_status(const nlohmann::json& status) override;
+    void update_from_status(const nlohmann::json& status);
 
     /**
      * @brief Register callback for state changes

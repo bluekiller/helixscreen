@@ -192,11 +192,7 @@ CommitOutcome TouchCalibrationController::commit() {
 
     const bool applied = commit_calibration_result(sink(), *cal, fit);
 
-    if (Config* config = Config::get_instance()) {
-        config->save();
-    } else {
-        spdlog::error("[TouchCalController] Config not available - calibration not persisted");
-    }
+    Config::get_instance()->save();
 
     clear_pending();
     session_.commit();

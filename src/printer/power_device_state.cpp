@@ -164,9 +164,7 @@ void PowerDeviceState::update_device_status(const std::string& device, const std
                 effective = 2;
             }
         }
-        if (lv_subject_get_int(it->second.status_subject.get()) != effective) {
-            lv_subject_set_int(it->second.status_subject.get(), effective);
-        }
+        lv_subject_set_int(it->second.status_subject.get(), effective);
     });
 }
 

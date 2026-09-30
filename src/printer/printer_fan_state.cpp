@@ -116,9 +116,7 @@ void PrinterFanState::update_from_status(const nlohmann::json& status) {
             double speed = fan["speed"].get<double>();
             int speed_pct = units::to_percent(normalize_speed("fan", speed));
             spdlog::trace("[PrinterFanState] Fan speed update: {}%", speed_pct);
-            if (lv_subject_get_int(&fan_speed_) != speed_pct) {
-                lv_subject_set_int(&fan_speed_, speed_pct);
-            }
+            lv_subject_set_int(&fan_speed_, speed_pct);
 
             // Also update multi-fan tracking
             update_fan_speed("fan", speed);
@@ -139,9 +137,7 @@ void PrinterFanState::update_from_status(const nlohmann::json& status) {
                 // so the hero slider tracks the actual part fan speed
                 if (!roles_.part_fan.empty() && key == roles_.part_fan) {
                     int speed_pct = units::to_percent(normalize_speed(key, speed));
-                    if (lv_subject_get_int(&fan_speed_) != speed_pct) {
-                        lv_subject_set_int(&fan_speed_, speed_pct);
-                    }
+                    lv_subject_set_int(&fan_speed_, speed_pct);
                 }
             }
         }
@@ -156,9 +152,7 @@ void PrinterFanState::update_from_status(const nlohmann::json& status) {
                 // If this is the configured part fan, also update the main fan_speed_ subject
                 if (!roles_.part_fan.empty() && key == roles_.part_fan) {
                     int speed_pct = units::to_percent(speed);
-                    if (lv_subject_get_int(&fan_speed_) != speed_pct) {
-                        lv_subject_set_int(&fan_speed_, speed_pct);
-                    }
+                    lv_subject_set_int(&fan_speed_, speed_pct);
                 }
             }
         }
@@ -338,13 +332,12 @@ std::string PrinterFanState::disambiguate_chamber_fan_name(const std::string& ob
 std::string PrinterFanState::resolve_display_name(const std::string& object_name,
                                                   FanType type) const {
     // Name priority: custom name > role name > auto-generated
-    if (auto* config = Config::get_instance()) {
-        std::string custom =
-            config->get<std::string>(config->df() + "fans/names/" + object_name, "");
-        if (!custom.empty()) {
-            return custom;
-        }
+    auto* config = Config::get_instance();
+    std::string custom = config->get<std::string>(config->df() + "fans/names/" + object_name, "");
+    if (!custom.empty()) {
+        return custom;
     }
+
     const std::string role_name = get_role_display_name(object_name);
     const std::string english = disambiguate_chamber_fan_name(
         object_name, type,
@@ -620,18 +613,14 @@ lv_subject_t* PrinterFanState::get_fan_speed_subject(const std::string& object_n
 void PrinterFanState::rename_fan(const std::string& object_name, const std::string& new_name) {
     // Save to config
     auto* config = Config::get_instance();
-    if (config) {
-        std::string key = config->df() + "fans/names/" + object_name;
-        config->set<std::string>(key, new_name);
+    std::string key = config->df() + "fans/names/" + object_name;
+    config->set<std::string>(key, new_name);
 
-        if (config->save()) {
-            spdlog::info("[PrinterFanState] Persisted name '{}' for '{}'", new_name, object_name);
-        } else {
-            spdlog::error("[PrinterFanState] Failed to persist name '{}' for '{}'", new_name,
-                          object_name);
-        }
+    if (config->save()) {
+        spdlog::info("[PrinterFanState] Persisted name '{}' for '{}'", new_name, object_name);
     } else {
-        spdlog::error("[PrinterFanState] No config available, '{}' not persisted", object_name);
+        spdlog::error("[PrinterFanState] Failed to persist name '{}' for '{}'", new_name,
+                      object_name);
     }
 
     // Update in-memory display name

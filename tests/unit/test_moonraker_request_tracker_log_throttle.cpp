@@ -18,6 +18,7 @@
  */
 
 #include "../test_helpers/log_capture.h"
+#include "../test_helpers/moonraker_request_tracker_test_access.h"
 #include "moonraker_request.h"
 #include "moonraker_request_tracker.h"
 
@@ -29,19 +30,6 @@
 #include "../catch_amalgamated.hpp"
 
 using namespace helix;
-
-/// Friend-class test accessor (L065 / test_code_lint.bats): keeps production
-/// headers free of `_for_testing` methods. Mirrors the definition in
-/// test_moonraker_request_tracker_silent.cpp — it must be a global-scope class,
-/// so it cannot live in an anonymous namespace.
-class MoonrakerRequestTrackerTestAccess {
-  public:
-    static void inject_request(MoonrakerRequestTracker& tracker, RequestId id,
-                               PendingRequest request) {
-        std::lock_guard<std::mutex> lock(tracker.requests_mutex_);
-        tracker.pending_requests_[id] = std::move(request);
-    }
-};
 
 namespace {
 

@@ -36,12 +36,8 @@ ProbeSensorManager::ProbeSensorManager() = default;
 ProbeSensorManager::~ProbeSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string ProbeSensorManager::category_name() const {
-    return "probe";
-}
 
 void ProbeSensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -344,10 +340,6 @@ void ProbeSensorManager::load_config_from_file() {
     spdlog::debug("[ProbeSensorManager] Loading config from file");
 
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[ProbeSensorManager] Config not initialized");
-        return;
-    }
 
     std::string base_path = cfg->df() + "probe_sensors";
 
@@ -394,10 +386,6 @@ void ProbeSensorManager::save_config_to_file() {
     spdlog::debug("[ProbeSensorManager] Saving config to file");
 
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[ProbeSensorManager] Config not initialized");
-        return;
-    }
 
     std::string base_path = cfg->df() + "probe_sensors";
 

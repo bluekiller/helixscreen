@@ -16,7 +16,6 @@
 #include "accel_sensor_manager.h"
 #include "app_globals.h"
 #include "chamber_assignment_options.h"
-#include "color_sensor_manager.h"
 #include "filament_sensor_manager.h"
 #include "filament_sensor_types.h"
 #include "humidity_sensor_manager.h"
@@ -652,68 +651,6 @@ void SensorSettingsOverlay::populate_accel_sensors() {
 }
 
 // ============================================================================
-// COLOR SENSORS
-// ============================================================================
-
-void SensorSettingsOverlay::update_color_sensor_count() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* badge = lv_obj_find_by_name(overlay_root_, "color_sensor_count_label");
-    if (badge) {
-        auto& mgr = helix::sensors::ColorSensorManager::instance();
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%zu", mgr.sensor_count());
-        ui_status_pill_set_text(badge, buf);
-    }
-}
-
-void SensorSettingsOverlay::populate_color_sensors() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* sensors_list = lv_obj_find_by_name(overlay_root_, "color_sensors_list");
-    if (!sensors_list) {
-        spdlog::debug("[{}] Could not find color_sensors_list container", get_name());
-        return;
-    }
-
-    // Clear existing rows
-    uint32_t child_count = lv_obj_get_child_count(sensors_list);
-    for (int i = static_cast<int>(child_count) - 1; i >= 0; i--) {
-        lv_obj_t* child = lv_obj_get_child(sensors_list, i);
-        helix::ui::safe_delete(child);
-    }
-
-    auto& mgr = helix::sensors::ColorSensorManager::instance();
-    auto sensors = mgr.get_sensors();
-
-    spdlog::debug("[{}] Populating color sensor list with {} sensors", get_name(), sensors.size());
-
-    for (const auto& sensor : sensors) {
-        auto* row = lv_obj_create(sensors_list);
-        lv_obj_set_width(row, lv_pct(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(row, 0, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        lv_obj_set_style_pad_all(row, theme_manager_get_spacing("space_sm"), 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_flex_cross_place(row, LV_FLEX_ALIGN_CENTER, 0);
-
-        auto* name_label = lv_label_create(row);
-        lv_label_set_text(name_label, sensor.sensor_name.c_str());
-        lv_obj_set_style_text_color(name_label, theme_manager_get_color("text"), 0);
-        lv_obj_set_flex_grow(name_label, 1);
-
-        auto* type_label = lv_label_create(row);
-        lv_label_set_text(type_label, "TD-1");
-        lv_obj_set_style_text_color(type_label, theme_manager_get_color("text_muted"), 0);
-
-        spdlog::debug("[{}]   Created row for color sensor: {}", get_name(), sensor.sensor_name);
-    }
-}
-
-// ============================================================================
 // LOAD CELLS
 // ============================================================================
 
@@ -925,7 +862,6 @@ void SensorSettingsOverlay::populate_all_sensors() {
     populate_width_sensors();
     populate_humidity_sensors();
     populate_accel_sensors();
-    populate_color_sensors();
     populate_chamber_assignment();
     populate_temperature_sensors();
     populate_load_cells();
@@ -937,7 +873,6 @@ void SensorSettingsOverlay::update_all_sensor_counts() {
     update_width_sensor_count();
     update_humidity_sensor_count();
     update_accel_sensor_count();
-    update_color_sensor_count();
     update_temperature_sensor_count();
     update_load_cell_count();
 }

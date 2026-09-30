@@ -5,26 +5,6 @@
 # Handles all compilation rules, linking, and main build targets
 
 # ============================================================================
-# BUILD UP-TO-DATE CHECK (for pre-commit hook)
-# ============================================================================
-# Problem: 'make -q' can't evaluate shell commands in the 'all' target,
-# so it always returns "needs rebuild" even when the build is current.
-#
-# Solution: A fast target that uses 'find -newer' to compare source timestamps
-# against the binary. Used by scripts/quality-checks.sh to skip unnecessary builds.
-#
-# Exit codes: 0 = up to date, 1 = needs rebuild
-# ============================================================================
-.PHONY: check-uptodate
-check-uptodate:
-	@if [ ! -f "$(TARGET)" ]; then \
-		exit 1; \
-	fi
-	@if find $(SRC_DIR) $(INC_DIR) -type f \( -name '*.cpp' -o -name '*.c' -o -name '*.h' -o -name '*.mm' \) -newer "$(TARGET)" 2>/dev/null | grep -q .; then \
-		exit 1; \
-	fi
-
-# ============================================================================
 # UNLIMITED -j DETECTION AND AUTO-FIX
 # ============================================================================
 # Problem: 'make -j' (no number) means UNLIMITED parallelism in GNU Make.
@@ -178,7 +158,7 @@ endif
 
 # Link binary (SDL2_LIB is empty if using system SDL2)
 # Keep broad filtering so non-object prerequisites can be added safely later.
-$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(LUA_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
+$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(SPDLOG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(LUA_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
 	$(call check_abi_unchanged)
 	$(Q)mkdir -p $(BIN_DIR)
 	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
@@ -388,16 +368,6 @@ $(OBJ_DIR)/helix-xml/%.o: $(HELIX_XML_DIR)/%.c lv_conf.h $(PATCHES_STAMP) $(ABI_
 	}
 	$(call emit-compile-command,$(CC),$(SUBMODULE_CFLAGS) $(INCLUDES) $(LV_CONF),$<,$@)
 
-# Compile lv_markdown C sources (markdown viewer + md4c parser)
-$(OBJ_DIR)/lv_markdown/%.o: $(LV_MARKDOWN_DIR)/%.c $(PATCHES_STAMP) $(ABI_STAMP) $(FLAGS_STAMP) | $(PATCH_MARKER_STAMP)
-	$(Q)mkdir -p $(dir $@)
-	$(ECHO) "$(CYAN)[CC]$(RESET) $<"
-	$(Q)$(CC) $(SUBMODULE_CFLAGS) $(INCLUDES) $(LV_CONF) -c $< -o $@ || { \
-		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
-		exit 1; \
-	}
-	$(call emit-compile-command,$(CC),$(SUBMODULE_CFLAGS) $(INCLUDES) $(LV_CONF),$<,$@)
-
 # Compile LVGL C++ sources (ThorVG) - use SUBMODULE_CXXFLAGS and PCH
 # NOTE: No DEPFLAGS for internal headers - see C rule above for rationale.
 # lv_conf.h tracked explicitly as it controls LVGL feature flags.
@@ -413,6 +383,16 @@ endif
 		exit 1; \
 	}
 	$(call emit-compile-command,$(CXX),$(SUBMODULE_CXXFLAGS) $(PCH_FLAGS) $(INCLUDES) $(LV_CONF),$<,$@)
+
+# Compile spdlog's own sources (SPDLOG_COMPILED_LIB), once for every binary
+$(OBJ_DIR)/spdlog/%.o: $(SPDLOG_DIR)/src/%.cpp $(ABI_STAMP) $(FLAGS_STAMP)
+	$(Q)mkdir -p $(dir $@)
+	$(ECHO) "$(CYAN)[CXX]$(RESET) $<"
+	$(Q)$(CXX) $(SUBMODULE_CXXFLAGS) $(SPDLOG_DEFINES) $(SPDLOG_INC) -c $< -o $@ || { \
+		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
+		exit 1; \
+	}
+	$(call emit-compile-command,$(CXX),$(SUBMODULE_CXXFLAGS) $(SPDLOG_DEFINES) $(SPDLOG_INC),$<,$@)
 
 # Compile LVGL OpenGL ES shader assets as C++ (raw string literals require C++11)
 # Only the assets/ subdirectory needs C++ — the rest compiles fine as C.

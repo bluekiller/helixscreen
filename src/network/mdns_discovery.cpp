@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <map>
+#include <sys/time.h>
 #include <thread>
 
 using namespace helix;

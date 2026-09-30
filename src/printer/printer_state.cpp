@@ -21,7 +21,6 @@
 #include "capability_overrides.h"
 #include "chamber_heater_assignment.h"
 #include "chamber_heater_backend.h"
-#include "color_sensor_manager.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "device_display_name.h"
 #include "filament_sensor_manager.h"
@@ -644,7 +643,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     helix::sensors::WidthSensorManager::instance().update_from_status(state);
     helix::sensors::ProbeSensorManager::instance().update_from_status(state);
     helix::sensors::AccelSensorManager::instance().update_from_status(state);
-    helix::sensors::ColorSensorManager::instance().update_from_status(state);
     helix::sensors::TemperatureSensorManager::instance().update_from_status(state);
     helix::sensors::LoadCellManager::instance().update_from_status(state);
 }
@@ -1338,7 +1336,7 @@ void PrinterState::set_printer_type_internal(const std::string& type) {
 
     // Update z_offset_can_save subject: 0 when firmware/macros auto-persist (FIRMWARE_MANAGED)
     int can_save = (new_strategy != ZOffsetCalibrationStrategy::FIRMWARE_MANAGED) ? 1 : 0;
-    if (subjects_initialized_ && lv_subject_get_int(&z_offset_can_save_) != can_save) {
+    if (subjects_initialized_) {
         lv_subject_set_int(&z_offset_can_save_, can_save);
     }
 

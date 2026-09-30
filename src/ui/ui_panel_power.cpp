@@ -368,10 +368,6 @@ void PowerPanel::on_power_device_toggle(lv_event_t* e) {
 
 void PowerPanel::load_selected_devices() {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[{}] No config available for loading selected devices", get_name());
-        return;
-    }
 
     auto devices = config->get<std::vector<std::string>>(config->df() + "power/selected_devices",
                                                          std::vector<std::string>{});
@@ -393,11 +389,9 @@ void PowerPanel::set_selected_devices(const std::vector<std::string>& devices) {
     selected_devices_ = devices;
 
     Config* config = Config::get_instance();
-    if (config) {
-        config->set(config->df() + "power/selected_devices", devices);
-        config->save();
-        spdlog::debug("[{}] Saved {} selected devices to config", get_name(), devices.size());
-    }
+    config->set(config->df() + "power/selected_devices", devices);
+    config->save();
+    spdlog::debug("[{}] Saved {} selected devices to config", get_name(), devices.size());
 }
 
 void PowerPanel::on_devices_discovered(const std::vector<PowerDevice>& devices) {

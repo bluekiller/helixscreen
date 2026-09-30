@@ -376,8 +376,8 @@ void register_xml_components() {
     register_xml("icon.xml");
     register_xml("status_pill.xml");
     register_xml("filament_sensor_indicator.xml");
-    register_xml("probe_indicator.xml");
     register_xml("filament_sensor_row.xml");
+    register_xml("width_sensor_row.xml");
     register_xml("load_cell_row.xml");
     register_xml("temp_display.xml");
     register_xml("components/home_action_tile.xml");
@@ -445,7 +445,6 @@ void register_xml_components() {
     register_xml("components/preflight_check_tool_row.xml");
     register_xml("components/preflight_check_modal.xml");
     register_xml("print_completion_modal.xml");
-    register_xml("save_z_offset_modal.xml");
     register_xml("exclude_object_modal.xml");
 
     // Notification history
@@ -539,7 +538,6 @@ void register_xml_components() {
     register_xml("components/panel_widget_tool_switcher.xml");
     register_xml("components/panel_widget_nozzle_temps.xml");
     register_xml("components/panel_widget_job_queue.xml");
-    register_xml("components/clog_meter_page.xml");
     register_xml("components/clog_bar_body.xml");
     register_xml("components/clog_bar_page.xml");
     register_xml("components/panel_widget_clog_detection.xml");
@@ -580,11 +578,7 @@ void register_xml_components() {
     register_xml("components/zone_tab.xml");
     register_xml("components/move_preset_grid.xml");
     register_xml("motion_panel.xml");
-    // TempGraphOverlay is the only temperature overlay; there are no per-heater
-    // nozzle/bed/chamber_temp_panel.xml components. TemperatureService::setup_panel()
-    // and xml_component_name() are residual per-heater machinery — compiled, but with
-    // no callers and no XML behind the names they return, so
-    // lv_xml_component_get_scope() returns nullptr there (guarded).
+    // TempGraphOverlay is the only temperature overlay.
     register_xml("temp_graph_overlay.xml");
     // Register TempGraphOverlay event callbacks at startup (before XML is parsed)
     lv_xml_register_event_cb(nullptr, "on_temp_graph_preset_clicked",
@@ -782,13 +776,10 @@ void register_xml_components() {
     register_xml("advanced_panel.xml");
     register_xml("print_select_panel.xml");
 
-    // Developer-only showcase panels (ENABLE_DEV_PANELS). Their C++ classes are
+    // Developer-only showcase panel (ENABLE_DEV_PANELS). Its C++ class is
     // excluded from release builds, so skip the component registration too —
-    // nothing navigates to them and the XML files are never instantiated.
+    // nothing navigates to it and the XML file is never instantiated.
 #ifdef HELIX_ENABLE_DEV_PANELS
-    register_xml("test_panel.xml");
-    register_xml("gcode_test_panel.xml");
-    register_xml("step_test_panel.xml");
     register_xml("glyphs_panel.xml");
 #endif
 

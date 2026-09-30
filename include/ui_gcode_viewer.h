@@ -60,10 +60,11 @@ extern "C" {
  * @brief Custom LVGL widget for 3D G-code visualization
  *
  * Provides an interactive 3D viewer widget for G-code files. Integrates
- * GCodeParser, GCodeCamera, and GCodeRenderer for complete visualization.
+ * GCodeParser, GCodeCamera, the 2D GCodeLayerRenderer and, on ENABLE_GLES_3D
+ * builds, the 3D GCodeGLESRenderer.
  *
  * Features:
- * - 3D wireframe rendering of toolpaths
+ * - 2D isometric and (GLES builds) 3D rendering of toolpaths
  * - Interactive camera control (rotate, pan, zoom)
  * - Layer filtering and LOD support
  * - Object highlighting for Klipper exclusion

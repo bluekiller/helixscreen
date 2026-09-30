@@ -980,7 +980,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                 }
 
                                 auto* config = Config::get_instance();
-                                if (config && !macro_result.role_hints.empty()) {
+                                if (!macro_result.role_hints.empty()) {
                                     for (const auto& [obj_name, role] : macro_result.role_hints) {
                                         std::string key = config->df() + "fans/names/" + obj_name;
                                         if (config->get<std::string>(key, "").empty()) {

@@ -470,8 +470,14 @@ ifneq ($(ENABLE_SCREENSAVER),yes)
 else ifneq ($(filter $(PLATFORM_TARGET),$(SCREENSAVER_16BPP_TARGETS)),)
     APP_SRCS := $(filter-out $(SCREENSAVER_32BPP_ONLY_SRCS),$(APP_SRCS))
 endif
-# Mock backends (enabled by default, disable with ENABLE_MOCKS=no for production)
-ENABLE_MOCKS ?= yes
+# Mock backends (the --test simulator). Dev/test scaffolding: ON for every developer
+# build, OFF under HELIX_PACKAGING=1 so released binaries do not carry it. Targets
+# in mk/cross.mk that set ENABLE_MOCKS := no keep it off for dev builds too.
+ifeq ($(HELIX_PACKAGING),1)
+    ENABLE_MOCKS ?= no
+else
+    ENABLE_MOCKS ?= yes
+endif
 
 # PWM sysfs buzzer backend — ad5m/ad5m-br only.
 #
@@ -515,6 +521,7 @@ ifneq ($(ENABLE_MOCKS),yes)
     APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/api/*_mock*.cpp),$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/printer/ams_backend_mock.cpp,$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/api/moonraker_api_mock.cpp,$(APP_SRCS))
+    APP_SRCS := $(filter-out $(SRC_DIR)/system/mock_performance_source.cpp,$(APP_SRCS))
 endif
 
 # Remote-control subsystem (helixctl server + socket/HTTP transport + the folded
@@ -567,11 +574,9 @@ else
     ENABLE_DIAGNOSTIC_UPLOADS ?= no
 endif
 
-# Developer-only showcase panels. Not reachable from the shipped navigation
-# (no PanelId, no PanelFactory wiring) — they exist as live testbeds: XML
-# binding/repeat demos (test_panel), wizard step-progress (step_test_panel),
-# the 3D G-code viewer harness (gcode_test_panel), and icon-font coverage
-# (glyphs_panel). Dev-only: default ON for the native dev build, OFF for
+# Developer-only showcase panel. Not reachable from the shipped navigation
+# (no PanelId, no PanelFactory wiring) — it exists as a live testbed for
+# icon-font coverage (glyphs_panel). Dev-only: default ON for the native dev build, OFF for
 # release/cross builds. Force into a device dev image with:
 #   make PLATFORM_TARGET=pi ENABLE_DEV_PANELS=yes
 ifeq ($(PLATFORM_TARGET),native)
@@ -581,9 +586,6 @@ else
 endif
 
 ifneq ($(ENABLE_DEV_PANELS),yes)
-    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_test.cpp,$(APP_SRCS))
-    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_step_test.cpp,$(APP_SRCS))
-    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_gcode_test.cpp,$(APP_SRCS))
     APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_panel_glyphs.cpp,$(APP_SRCS))
 endif
 APP_OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(APP_SRCS))
@@ -701,6 +703,11 @@ else
     SPDLOG_DIR := lib/spdlog
     # Use -isystem to suppress warnings from third-party headers in strict mode
     SPDLOG_INC := -isystem $(SPDLOG_DIR)/include
+    # Compiled once from lib/spdlog/src and linked into every binary, instead of
+    # header-only code instantiated in every translation unit. A system spdlog
+    # above stays header-only.
+    SPDLOG_DEFINES := -DSPDLOG_COMPILED_LIB
+    SPDLOG_OBJS := $(patsubst $(SPDLOG_DIR)/src/%.cpp,$(OBJ_DIR)/spdlog/%.o,$(wildcard $(SPDLOG_DIR)/src/*.cpp))
 endif
 
 # fmt (formatting library required by header-only spdlog)
@@ -988,6 +995,8 @@ CXXFLAGS += $(SCREENSAVER_DEFINES)
 CFLAGS += $(MOCK_DEFINES)
 CXXFLAGS += $(MOCK_DEFINES)
 
+CXXFLAGS += $(SPDLOG_DEFINES)
+
 # Add remote-control defines to compiler flags
 CFLAGS += $(REMOTE_CONTROL_DEFINES)
 CXXFLAGS += $(REMOTE_CONTROL_DEFINES)
@@ -1253,7 +1262,7 @@ MOCK_OBJS := $(patsubst $(TEST_MOCK_DIR)/%.cpp,$(OBJ_DIR)/tests/mocks/%.o,$(MOCK
 # Default target
 .DEFAULT_GOAL := all
 
-.PHONY: all build clean run test tests demo compile_commands compile_commands_full libhv-build apply-patches generate-fonts validate-fonts regen-fonts check-doc-anchors docs-pinned regen-lvgl-event-codes check-lvgl-event-codes update-mdi-cache verify-mdi-codepoints help check-deps install-deps venv-setup icon format format-staged screenshots tools moonraker-inspector strict quality setup translations symbols strip dev install regen-filaments
+.PHONY: all build clean run test tests demo compile_commands compile_commands_full libhv-build apply-patches generate-fonts validate-fonts regen-fonts check-doc-anchors docs-pinned regen-lvgl-event-codes check-lvgl-event-codes update-mdi-cache help check-deps install-deps venv-setup icon format format-staged screenshots tools moonraker-inspector strict quality setup translations symbols strip dev install regen-filaments
 
 # Fast development build: -O0 skips optimization passes (~2x faster compilation)
 # Library code still builds at -O2 (via SUBMODULE_CFLAGS) since it rarely changes

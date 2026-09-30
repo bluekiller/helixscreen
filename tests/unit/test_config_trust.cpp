@@ -144,7 +144,6 @@ TEST_CASE_METHOD(HelixTestFixture, "UpdateChecker: settings.json r2_url is ignor
                  "[config-trust][update]") {
     StateDirGuard guard;
     auto* config = helix::Config::get_instance();
-    REQUIRE(config != nullptr);
     config->set<std::string>("/update/r2_url", "https://mirror.example.com/rel");
     REQUIRE(UpdateChecker::effective_r2_base_url() ==
             std::string(UpdateChecker::DEFAULT_R2_BASE_URL));
@@ -242,7 +241,6 @@ TEST_CASE_METHOD(HelixTestFixture, "UpdateChecker: settings.json dev_url is igno
                  "[config-trust][update]") {
     StateDirGuard guard;
     auto* config = helix::Config::get_instance();
-    REQUIRE(config != nullptr);
     config->set<std::string>("/update/dev_url", "https://dev.example.com");
     helix::config_trust::UpdateUrls urls = helix::config_trust::read_update_urls();
     REQUIRE(urls.dev_url.empty());

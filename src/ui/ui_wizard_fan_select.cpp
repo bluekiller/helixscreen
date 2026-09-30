@@ -369,10 +369,8 @@ void WizardFanSelectStep::cleanup() {
 
     // Persist to disk
     Config* config = Config::get_instance();
-    if (config) {
-        if (!config->save()) {
-            NOTIFY_ERROR(lv_tr("Failed to save fan configuration"));
-        }
+    if (!config->save()) {
+        NOTIFY_ERROR(lv_tr("Failed to save fan configuration"));
     }
 
     // Reset Next button state to enabled for other wizard steps

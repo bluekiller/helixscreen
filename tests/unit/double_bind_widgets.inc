@@ -59,7 +59,6 @@ static const BindGroup kDoubleBindWidgets[] = {
     {"network_settings_overlay", "refresh_btn", BindKind::State, "disabled", {{"wifi_scanning", 0}, {"wifi_hardware_available", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
     {"network_settings_overlay", "wifi_disabled_placeholder", BindKind::Flag, "hidden", {{"wifi_enabled", 0}, {"wifi_hardware_available", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
     {"print_file_detail", "filament_mapping_card", BindKind::Flag, "hidden", {{"filament_mapping_visible", -1}, {"print_select_button_mode", 0}}, 2, {{0, 0}, {1, 1}}, 2, true},
-    {"probe_indicator", "probe_indicator", BindKind::Flag, "hidden", {{"probe_count", -1}, {"probe_triggered", 0}}, 2, {{0, 0}, {1, -1}}, 2, true},
     {"spool_wizard", "create_btn", BindKind::State, "disabled", {{"spool_wizard_can_proceed", -1}, {"wizard_creating", 0}}, 2, {{0, 0}, {1, 1}}, 2, true},
     {"wizard_wifi_setup", "network_list_container", BindKind::State, "disabled", {{"wifi_enabled", -1}, {"wifi_hardware_available", -1}}, 2, {{0, 0}, {1, 0}}, 2, true},
 };
@@ -70,4 +69,4 @@ static constexpr int kUndrivableGroups = 34;
 
 // Total groups in ui_xml/. A new double-bind widget moves this, which is the
 // point: it has to be regenerated and re-run rather than silently uncovered.
-static constexpr int kTotalGroups = 79;
+static constexpr int kTotalGroups = 78;

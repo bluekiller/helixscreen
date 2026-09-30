@@ -175,7 +175,6 @@ class ToolSwitcherWidget : public PanelWidget {
     static void dispatch_tool_change(int tool_index);
 
   public:
-    static void tool_pill_cb(lv_event_t* e);
     static void tool_compact_cb(lv_event_t* e);
 };
 

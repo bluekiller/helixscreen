@@ -12,6 +12,7 @@
 #include "../../lvgl/lvgl.h"
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/scoped_runtime_config.h"
+#include "../test_helpers/wifi_manager_test_access.h"
 #include "../ui_test_utils.h"
 
 #include <atomic>
@@ -24,22 +25,6 @@
 #include "../catch_amalgamated.hpp"
 
 using namespace helix;
-
-namespace helix {
-// Friend accessor — lets this file point WiFiManager's stranding-prevention
-// check (has_non_wifi_network_path, Task 15) at a fixture sysfs tree instead
-// of the real /sys, mirroring the os_link_probe_ seam in
-// test_wifi_os_link_fallback.cpp.
-class WiFiManagerTestAccess {
-  public:
-    static void set_sys_root(const std::string& root) {
-        WiFiManager::sys_root_ = root;
-    }
-    static void reset_sys_root() {
-        WiFiManager::sys_root_ = "/sys";
-    }
-};
-} // namespace helix
 
 namespace {
 
@@ -102,6 +87,7 @@ struct SysFixture {
 // Global LVGL Initialization (called once)
 // ============================================================================
 
+namespace {
 struct LVGLInitializer {
     LVGLInitializer() {
         lv_init_safe();
@@ -110,6 +96,7 @@ struct LVGLInitializer {
         lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     }
 };
+} // namespace
 
 static LVGLInitializer lvgl_init;
 

@@ -244,12 +244,11 @@ void LedWidget::detach() {
 
 void LedWidget::bind_led() {
     if (led_key_.empty() && !panel_id().empty()) {
-        if (auto* cfg = Config::get_instance()) {
-            // A sibling tile's bind may already have written this one's value.
-            auto& home = PanelWidgetManager::instance().get_widget_config(panel_id());
-            adopt_pending_light_button(*cfg, home);
-            led_key_ = json_util::safe_string(home.get_widget_config(id()), "led");
-        }
+        auto* cfg = Config::get_instance();
+        // A sibling tile's bind may already have written this one's value.
+        auto& home = PanelWidgetManager::instance().get_widget_config(panel_id());
+        adopt_pending_light_button(*cfg, home);
+        led_key_ = json_util::safe_string(home.get_widget_config(id()), "led");
     }
 
     auto& led_ctrl = led::LedController::instance();

@@ -35,12 +35,8 @@ TemperatureSensorManager::TemperatureSensorManager() = default;
 TemperatureSensorManager::~TemperatureSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string TemperatureSensorManager::category_name() const {
-    return "temperature";
-}
 
 void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -630,8 +626,7 @@ void TemperatureSensorManager::update_subjects() {
 
         // Convert temperature to decidegrees (×10 for 0.1°C resolution)
         int decidegrees = helix::units::to_decidegrees(state_it->second.temperature);
-        if (lv_subject_get_int(&subj_it->second->subject) != decidegrees)
-            lv_subject_set_int(&subj_it->second->subject, decidegrees);
+        lv_subject_set_int(&subj_it->second->subject, decidegrees);
     }
 
     spdlog::trace("[TemperatureSensorManager] Subjects updated: {} sensors", sensors_.size());

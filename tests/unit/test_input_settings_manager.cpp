@@ -293,7 +293,6 @@ TEST_CASE_METHOD(InputSettingsFixture, "InputSettingsManager long_press_time def
 TEST_CASE_METHOD(InputSettingsFixture, "InputSettingsManager long_press_time persistence",
                  "[input_settings][long_press][1245]") {
     Config* config = Config::get_instance();
-    REQUIRE(config != nullptr);
 
     SECTION("the setter writes Config, and the next load reads it back") {
         input().set_long_press_time(750);
@@ -346,7 +345,6 @@ TEST_CASE_METHOD(InputSettingsFixture, "InputSettingsManager long_press_time per
 TEST_CASE_METHOD(InputSettingsFixture, "InputSettingsManager home_edit_mode_enabled persistence",
                  "[input_settings][edit_mode][1245]") {
     Config* config = Config::get_instance();
-    REQUIRE(config != nullptr);
 
     SECTION("defaults to enabled on a fresh install") {
         REQUIRE_FALSE(config->exists("/input/home_edit_mode_enabled"));

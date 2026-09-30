@@ -645,7 +645,6 @@ TEST_CASE_METHOD(HelixTestFixture,
                  "PanelWidgetManager: clear_all_panel_configs reloads after printer switch",
                  "[panel_widget][manager]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     auto& mgr = PanelWidgetManager::instance();
 

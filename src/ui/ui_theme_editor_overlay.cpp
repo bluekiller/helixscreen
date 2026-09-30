@@ -141,13 +141,9 @@ void ThemeEditorOverlay::register_callbacks() {
         {"on_theme_save_clicked", on_theme_save_clicked},
         {"on_theme_save_as_clicked", on_theme_save_as_clicked},
         {"on_theme_reset_clicked", on_theme_reset_clicked},
-        // Custom back button callback to intercept close and check dirty state
-        {"on_theme_editor_back_clicked", on_back_clicked},
         // Save As dialog callbacks
         {"on_theme_save_as_confirm", on_save_as_confirm},
         {"on_theme_save_as_cancel", on_save_as_cancel},
-        // Preview button callback
-        {"on_theme_preview_clicked", on_theme_preview_clicked},
     });
 
     spdlog::debug("[{}] Callbacks registered", get_name());
@@ -878,25 +874,6 @@ void ThemeEditorOverlay::handle_save_as_confirm() {
 
     // Close the editor overlay
     NavigationManager::instance().go_back();
-}
-
-// ============================================================================
-// PREVIEW BUTTON
-// ============================================================================
-
-void ThemeEditorOverlay::on_theme_preview_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[ThemeEditorOverlay] on_theme_preview_clicked");
-    static_cast<void>(lv_event_get_current_target(e));
-    get_theme_editor_overlay().handle_preview_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ThemeEditorOverlay::handle_preview_clicked() {
-    // Apply the editing theme (selected from dropdown) for preview
-    theme_manager_preview(editing_theme_);
-
-    spdlog::debug("[{}] Preview clicked - applied editing theme '{}'", get_name(),
-                  editing_theme_.name);
 }
 
 // ============================================================================

@@ -3,6 +3,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "ams_backend_qidi.h"
 #include "ams_error.h"
@@ -2054,16 +2055,6 @@ struct QidiTmpCacheDir {
     }
 };
 } // namespace
-
-// Friend-class shim for FilamentSlotOverrideStore, same idiom as the CFS /
-// Snapmaker / ACE test files.
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 TEST_CASE("QIDI Box tag fingerprint change clears a prior user edit", "[ams][qidi_box]") {
     QidiTmpCacheDir tmp("swap_clears");

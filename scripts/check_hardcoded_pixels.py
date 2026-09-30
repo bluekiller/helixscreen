@@ -53,8 +53,7 @@ WHAT IS NOT FLAGGED
   - Anything inside an XML comment. A comment that documents a fix by quoting
     the attribute it replaced is documentation, not a violation.
   - Sub-token granularity: a value below 2 has no ladder, see above.
-  - The dev-only panels (ui_xml/test_panel.xml, gcode_test_panel.xml,
-    step_test_panel.xml and their C++), the crash/hang screens
+  - The crash/hang screens
     (helix_watchdog.cpp, ui_fatal_error.cpp), the glyph diagnostic panel, and
     the snake easter egg. The crash screens are the load-bearing exclusion:
     they render before or without theme init, where theme_manager_get_spacing()
@@ -113,12 +112,8 @@ OPT_OUT_LOOKBACK = 6
 
 # Dev-only surfaces and pre-theme crash screens. See WHAT IS NOT FLAGGED.
 EXEMPT_FILES = {
-    "ui_xml/test_panel.xml",
-    "ui_xml/gcode_test_panel.xml",
-    "ui_xml/step_test_panel.xml",
     "src/helix_watchdog.cpp",
     "src/ui/ui_fatal_error.cpp",
-    "src/ui/ui_panel_gcode_test.cpp",
     "src/ui/ui_panel_glyphs.cpp",
     "src/ui/ui_snake_game.cpp",
 }

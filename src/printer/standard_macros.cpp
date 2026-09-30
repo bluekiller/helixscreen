@@ -343,10 +343,6 @@ void StandardMacros::set_macro(StandardMacroSlot slot, const std::string& macro)
 
 void StandardMacros::load_from_config() {
     auto* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[StandardMacros] Config not available");
-        return;
-    }
 
     for (auto& slot : slots_) {
         std::string path = "/standard_macros/" + slot.slot_name;
@@ -363,10 +359,6 @@ void StandardMacros::load_from_config() {
 
 void StandardMacros::save_to_config() {
     auto* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[StandardMacros] Config not available for save");
-        return;
-    }
 
     for (const auto& slot : slots_) {
         std::string path = "/standard_macros/" + slot.slot_name;

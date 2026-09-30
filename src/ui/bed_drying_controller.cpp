@@ -587,9 +587,7 @@ void BedDryingController::publish() {
     case State::Idle:
         break;
     }
-    if (lv_subject_get_int(&bed_drying_state_) != static_cast<int>(s)) {
-        lv_subject_set_int(&bed_drying_state_, static_cast<int>(s));
-    }
+    lv_subject_set_int(&bed_drying_state_, static_cast<int>(s));
     if (text != lv_subject_get_string(&bed_drying_text_)) {
         lv_subject_copy_string(&bed_drying_text_, text.c_str());
     }

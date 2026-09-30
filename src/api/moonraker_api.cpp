@@ -39,21 +39,6 @@ MoonrakerAPI::MoonrakerAPI(IMoonrakerClient& client, PrinterState& state)
     // Initialize build_volume_version subject for change notifications
     lv_subject_init_int(&build_volume_version_, 0);
 
-    // Wire up hardware discovery callbacks: Client pushes data to API during discovery
-    client_.set_on_hardware_discovered([this](const helix::PrinterDiscovery& hw) {
-        hardware_ = hw;
-        spdlog::debug("[MoonrakerAPI] Hardware discovered: {} heaters, {} fans, {} sensors",
-                      hardware_.heaters().size(), hardware_.fans().size(),
-                      hardware_.sensors().size());
-    });
-
-    client_.set_on_discovery_complete(
-        [this](const helix::PrinterDiscovery& hw, const nlohmann::json& /*initial_status*/) {
-            hardware_ = hw;
-            spdlog::debug("[MoonrakerAPI] Discovery complete: hostname='{}', kinematics='{}'",
-                          hardware_.hostname(), hardware_.kinematics());
-        });
-
     // Wire up bed mesh callback: Client pushes data to advanced API when it arrives from WebSocket
     client_.set_bed_mesh_callback([this](const json& bed_mesh) {
         this->advanced_api_->update_bed_mesh(bed_mesh);

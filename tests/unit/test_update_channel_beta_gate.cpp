@@ -54,7 +54,6 @@ constexpr bool BETA_DEFAULT = false;
 
 TEST_CASE_METHOD(HelixTestFixture, "Only the Dev update channel needs beta features",
                  "[update_checker][channel][beta]") {
-    REQUIRE(helix::Config::get_instance() != nullptr);
     auto& checker = UpdateChecker::instance();
 
     SECTION("Dev channel with beta locked reports Stable") {

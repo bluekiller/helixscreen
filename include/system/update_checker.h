@@ -435,6 +435,23 @@ class UpdateChecker {
      */
     static std::string get_platform_display_name(const std::string& key);
 
+    /// Everything keyed on a platform key: its display name, the ELF header its
+    /// release binary must carry, and the Moonraker files a debug bundle captures.
+    struct PlatformInfo {
+        const char* key;
+        const char* display_name;
+        uint8_t elf_class;    ///< 1 = ELFCLASS32, 2 = ELFCLASS64, 0 = no ELF release to check
+        uint8_t elf_data;     ///< EI_DATA: 1 = little-endian, 2 = big-endian
+        uint16_t elf_machine; ///< e_machine
+        std::vector<std::string> diagnostic_files; ///< Moonraker paths; basename is the bundle key
+    };
+
+    /// Table row for @p key, or nullptr for an unknown key.
+    static const PlatformInfo* find_platform(const std::string& key);
+
+    /// True when the first 20 bytes of an ELF file match @p platform's expectation.
+    static bool elf_header_matches(const PlatformInfo& platform, const uint8_t (&header)[20]);
+
     /**
      * @brief Find a local install.sh by searching well-known paths
      * @param extra_search_paths Additional paths to search (prepended to default list)

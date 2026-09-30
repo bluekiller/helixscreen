@@ -333,13 +333,6 @@ void WizardPrinterIdentifyStep::on_printer_name_changed_static(lv_event_t* e) {
     }
 }
 
-void WizardPrinterIdentifyStep::on_printer_type_changed_static(lv_event_t* e) {
-    auto* self = static_cast<WizardPrinterIdentifyStep*>(lv_event_get_user_data(e));
-    if (self) {
-        self->handle_printer_type_changed(e);
-    }
-}
-
 // ============================================================================
 // Event Handler Implementations
 // ============================================================================
@@ -389,32 +382,6 @@ void WizardPrinterIdentifyStep::handle_printer_name_changed(lv_event_t* event) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void WizardPrinterIdentifyStep::handle_printer_type_changed(lv_event_t* event) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Wizard Printer] handle_printer_type_changed");
-
-    lv_obj_t* roller = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    uint16_t selected = static_cast<uint16_t>(lv_roller_get_selected(roller));
-
-    char buf[64];
-    lv_roller_get_selected_str(roller, buf, sizeof(buf));
-
-    spdlog::debug("[{}] Type changed: index {} ({})", get_name(), selected, buf);
-
-    // Update subject
-    lv_subject_set_int(&printer_type_selected_, selected);
-    update_validation();
-
-    // Update printer preview image (resolve name from filtered list)
-    if (printer_preview_image_) {
-        std::string name = PrinterDetector::get_list_name_at(selected, detected_kinematics_);
-        std::string image_path = PrinterImages::get_image_path_for_name(name);
-        lv_image_set_src(printer_preview_image_, image_path.c_str());
-        spdlog::debug("[{}] Preview image updated: {}", get_name(), image_path);
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 // ============================================================================
 // Callback Registration
 // ============================================================================
@@ -423,7 +390,6 @@ void WizardPrinterIdentifyStep::register_callbacks() {
     spdlog::debug("[{}] Registering event callbacks", get_name());
 
     lv_xml_register_event_cb(nullptr, "on_printer_name_changed", on_printer_name_changed_static);
-    lv_xml_register_event_cb(nullptr, "on_printer_type_changed", on_printer_type_changed_static);
     lv_xml_register_event_cb(nullptr, "on_wizard_printer_search_changed",
                              on_wizard_printer_search_changed);
     lv_xml_register_event_cb(nullptr, "on_wizard_vendor_back_clicked",

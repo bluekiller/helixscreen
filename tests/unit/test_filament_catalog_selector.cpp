@@ -31,14 +31,12 @@ struct FavoriteIdsGuard {
     std::vector<std::string> saved;
 
     FavoriteIdsGuard() {
-        if (Config* cfg = Config::get_instance()) {
-            saved = cfg->get_string_array(helix::filament_favorites::kFavoriteIdsPath);
-        }
+        Config* cfg = Config::get_instance();
+        saved = cfg->get_string_array(helix::filament_favorites::kFavoriteIdsPath);
     }
     ~FavoriteIdsGuard() {
-        if (Config* cfg = Config::get_instance()) {
-            cfg->set(helix::filament_favorites::kFavoriteIdsPath, saved);
-        }
+        Config* cfg = Config::get_instance();
+        cfg->set(helix::filament_favorites::kFavoriteIdsPath, saved);
     }
 };
 } // namespace

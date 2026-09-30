@@ -784,8 +784,6 @@ class AmsBackend {
      *
      * Returns the firmware-reported bowden loading progress (0-100%).
      * Happy Hare v4 provides this via printer.mmu.bowden_progress.
-     * When available (>= 0), AmsState uses it to drive path_anim_progress_subject
-     * instead of UI-controlled animation.
      *
      * @return 0-100 for real progress, -1 if not available (v3 or non-HH backends)
      */
@@ -3151,7 +3149,7 @@ class AmsBackend {
      *
      * Static rather than virtual because the callers (hardware validation,
      * sensor settings, wizard sensor select) run during discovery — before any
-     * AmsBackend instance exists, and create(AmsType) returns nullptr for real
+     * AmsBackend instance exists, and create() returns nullptr for real
      * backends without a live API/client. The recognition is pure name/discovery
      * pattern matching with no per-instance state, so it needs no backend object.
      *
@@ -3170,20 +3168,6 @@ class AmsBackend {
     // ========================================================================
     // Factory Method
     // ========================================================================
-
-    /**
-     * @brief Create appropriate backend for detected AMS type (mock only)
-     *
-     * Factory method that creates a mock backend for testing.
-     * For real backends, use the overload that accepts IMoonrakerAPI and MoonrakerClient.
-     *
-     * In mock mode (RuntimeConfig::should_mock_ams()), returns AmsBackendMock.
-     *
-     * @param detected_type The detected AMS type from printer discovery
-     * @return Unique pointer to backend instance, or nullptr if type is NONE
-     * @deprecated Use create(AmsType, IMoonrakerAPI*, helix::IMoonrakerClient*) for real backends
-     */
-    static std::unique_ptr<AmsBackend> create(AmsType detected_type);
 
     /**
      * @brief Create appropriate backend for detected AMS type with dependencies

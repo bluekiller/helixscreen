@@ -310,10 +310,8 @@ void MacroButtonsOverlay::handle_quick_button_1_changed(int index) {
     std::string slot_name = quick_button_index_to_slot_name(index);
 
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>(helix::kQuickButtonKeys[0], slot_name);
-        config->save();
-    }
+    config->set<std::string>(helix::kQuickButtonKeys[0], slot_name);
+    config->save();
 
     spdlog::info("[{}] Quick button 1 set to: {}", get_name(),
                  slot_name.empty() ? "(empty)" : slot_name);
@@ -323,10 +321,8 @@ void MacroButtonsOverlay::handle_quick_button_2_changed(int index) {
     std::string slot_name = quick_button_index_to_slot_name(index);
 
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>(helix::kQuickButtonKeys[1], slot_name);
-        config->save();
-    }
+    config->set<std::string>(helix::kQuickButtonKeys[1], slot_name);
+    config->save();
 
     spdlog::info("[{}] Quick button 2 set to: {}", get_name(),
                  slot_name.empty() ? "(empty)" : slot_name);
@@ -336,10 +332,8 @@ void MacroButtonsOverlay::handle_quick_button_3_changed(int index) {
     std::string slot_name = quick_button_index_to_slot_name(index);
 
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>(helix::kQuickButtonKeys[2], slot_name);
-        config->save();
-    }
+    config->set<std::string>(helix::kQuickButtonKeys[2], slot_name);
+    config->save();
 
     spdlog::info("[{}] Quick button 3 set to: {}", get_name(),
                  slot_name.empty() ? "(empty)" : slot_name);
@@ -349,10 +343,8 @@ void MacroButtonsOverlay::handle_quick_button_4_changed(int index) {
     std::string slot_name = quick_button_index_to_slot_name(index);
 
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<std::string>(helix::kQuickButtonKeys[3], slot_name);
-        config->save();
-    }
+    config->set<std::string>(helix::kQuickButtonKeys[3], slot_name);
+    config->save();
 
     spdlog::info("[{}] Quick button 4 set to: {}", get_name(),
                  slot_name.empty() ? "(empty)" : slot_name);

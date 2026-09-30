@@ -33,13 +33,12 @@ void PostOpCooldownManager::schedule() {
 
     // Read config rather than the SettingsManager subject: schedule() is callable
     // from any thread, and the config accessors are the only thread-safe half.
-    if (cfg && !cfg->get<bool>(cfg->df() + "filament/auto_cooldown", true)) {
+    if (!cfg->get<bool>(cfg->df() + "filament/auto_cooldown", true)) {
         spdlog::debug("[PostOpCooldown] Skipping — auto-cooldown disabled in settings");
         return;
     }
 
-    int delay_seconds =
-        cfg ? cfg->get<int>(cfg->df() + "filament/cooldown_delay_seconds", 120) : 120;
+    int delay_seconds = cfg->get<int>(cfg->df() + "filament/cooldown_delay_seconds", 120);
 
     // A zero/negative delay means "off" — an lv_timer with a 0ms period would
     // otherwise fire on the next tick and cool the nozzle immediately.

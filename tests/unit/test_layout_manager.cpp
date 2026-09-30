@@ -1,24 +1,13 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/layout_manager_test_access.h"
 #include "layout_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
 using helix::LayoutManager;
 using helix::LayoutType;
-
-class LayoutManagerTestAccess {
-  public:
-    static void reset(LayoutManager& lm) {
-        lm.type_ = LayoutType::STANDARD;
-        lm.name_ = "standard";
-        lm.override_name_.clear();
-        lm.initialized_ = false;
-        lm.width_ = 0;
-        lm.height_ = 0;
-    }
-};
 
 // Reset singleton state between tests
 struct LayoutFixture {

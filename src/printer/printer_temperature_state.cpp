@@ -423,18 +423,14 @@ void PrinterTemperatureState::set_active_extruder(const std::string& name) {
     }
     if (info.target_subject) {
         int new_target = lv_subject_get_int(info.target_subject.get());
-        if (lv_subject_get_int(&active_extruder_target_) != new_target) {
-            lv_subject_set_int(&active_extruder_target_, new_target);
-        }
+        lv_subject_set_int(&active_extruder_target_, new_target);
     }
     // Duty resyncs with them: Moonraker deltas omit unchanged fields, so the
     // new tool may not carry a power frame for a long time, and without this
     // the mirror keeps displaying the previous tool's duty.
     if (info.power_subject) {
         int new_power = lv_subject_get_int(info.power_subject.get());
-        if (lv_subject_get_int(&active_extruder_power_) != new_power) {
-            lv_subject_set_int(&active_extruder_power_, new_power);
-        }
+        lv_subject_set_int(&active_extruder_power_, new_power);
     }
 }
 
@@ -456,9 +452,7 @@ void PrinterTemperatureState::update_from_status(const nlohmann::json& status) {
         }
         int pct = static_cast<int>(std::lround(obj["power"].get<double>() * 100.0));
         pct = std::clamp(pct, 0, 100);
-        if (lv_subject_get_int(subject) != pct) {
-            lv_subject_set_int(subject, pct);
-        }
+        lv_subject_set_int(subject, pct);
     };
 
     // Update dynamic per-extruder subjects
@@ -497,9 +491,7 @@ void PrinterTemperatureState::update_from_status(const nlohmann::json& status) {
             if (info.target > 0.0f) {
                 info.last_nonzero_target = info.target;
             }
-            if (lv_subject_get_int(info.target_subject.get()) != target_deci) {
-                lv_subject_set_int(info.target_subject.get(), target_deci);
-            }
+            lv_subject_set_int(info.target_subject.get(), target_deci);
         }
 
         publish_power(name, info.power_subject.get());
@@ -520,9 +512,7 @@ void PrinterTemperatureState::update_from_status(const nlohmann::json& status) {
 
         if (active.contains("target") && active["target"].is_number()) {
             int target_deci = helix::units::json_to_decidegrees(active, "target");
-            if (lv_subject_get_int(&active_extruder_target_) != target_deci) {
-                lv_subject_set_int(&active_extruder_target_, target_deci);
-            }
+            lv_subject_set_int(&active_extruder_target_, target_deci);
         }
     }
 
