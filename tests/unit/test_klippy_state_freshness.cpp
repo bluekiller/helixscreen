@@ -49,6 +49,13 @@ nlohmann::json webhooks_status(const char* klippy_state, const char* message = n
     return nlohmann::json{{"webhooks", webhooks}};
 }
 
+/// What MoonrakerManager's notification drain does with each frame.
+void apply_notification(PrinterState& state, const nlohmann::json& notification) {
+    if (auto frame = parse_status_notification(notification)) {
+        state.update_from_status(*frame->status, frame->eventtime, frame->from_cached_snapshot);
+    }
+}
+
 class KlippyFreshnessFixture : public LVGLTestFixture {
   public:
     KlippyFreshnessFixture() {
@@ -56,7 +63,7 @@ class KlippyFreshnessFixture : public LVGLTestFixture {
         // Wire the client's fan-out to PrinterState the way MoonrakerManager does,
         // so the cached-snapshot marker is exercised end to end rather than faked.
         client.register_notify_update(
-            [this](const nlohmann::json& n) { state.update_from_notification(n); });
+            [this](const nlohmann::json& n) { apply_notification(state, n); });
     }
 
     ~KlippyFreshnessFixture() override {
@@ -68,7 +75,7 @@ class KlippyFreshnessFixture : public LVGLTestFixture {
         nlohmann::json notification = {
             {"method", "notify_status_update"},
             {"params", nlohmann::json::array({webhooks_status(klippy_state, message), eventtime})}};
-        state.update_from_notification(notification);
+        apply_notification(state, notification);
         helix::ui::UpdateQueue::instance().drain();
     }
 
@@ -225,9 +232,7 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 }
 
 // ============================================================================
-// The production live path does NOT go through update_from_notification — it is
-// MoonrakerManager::process_notifications calling update_from_status(params[0],
-// eventtime, from_cached_snapshot) directly. Pin the overload it depends on.
+// The overload the production drain calls, without the envelope in between.
 // ============================================================================
 
 TEST_CASE_METHOD(KlippyFreshnessFixture,
@@ -311,10 +316,9 @@ TEST_CASE_METHOD(KlippyFreshnessFixture, "Klippy freshness: null webhooks.state 
     };
 
     // Both sections drive update_from_status() DIRECTLY rather than through
-    // update_from_notification()/dispatch_status_update(). Those defer the parse
-    // onto the UpdateQueue, so a throw would escape during drain() — outside any
-    // REQUIRE_NOTHROW here, and swallowed by the queue. Wrapping the enqueue
-    // proves nothing; this calls the parse on the test's own stack.
+    // dispatch_status_update(), which defers the parse onto the UpdateQueue, so a
+    // throw would escape during drain() — outside any REQUIRE_NOTHROW here, and
+    // swallowed by the queue. This calls the parse on the test's own stack.
 
     SECTION("on a stale replay — the branch that formats the state into a log line") {
         live("shutdown", 100.0);

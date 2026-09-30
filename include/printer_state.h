@@ -196,6 +196,27 @@ constexpr bool belt_path_kinematics(std::string_view kinematics) {
     return kinematics == "corexy" || kinematics == "limited_corexy";
 }
 
+/// One notify_status_update, unpacked. `status` points into the notification.
+struct StatusFrame {
+    const json* status = nullptr; ///< params[0], the printer objects that changed
+    double eventtime = 0.0;       ///< params[1]; 0 when the frame was synthesized
+    bool from_cached_snapshot = false;
+};
+
+/**
+ * @brief Unpack a Moonraker notification into the frame update_from_status() takes
+ *
+ * params[1] is Klipper's eventtime. It is monotonic-clock derived, so it survives
+ * a Klipper restart and only rewinds on a host reboot: a usable freshness key
+ * within one connection. CACHED_SNAPSHOT_MARKER says the frame is a replay of an
+ * earlier snapshot rather than current traffic.
+ *
+ * @return The frame, or nullopt for anything that is not a notify_status_update
+ */
+std::optional<StatusFrame> parse_status_notification(const json& notification);
+/// The frame points into the notification, so a temporary would leave it dangling.
+std::optional<StatusFrame> parse_status_notification(json&&) = delete;
+
 /**
  * @brief Printer state manager with LVGL 9 reactive subjects
  *
@@ -250,16 +271,6 @@ class PrinterState {
      * then deinitializes PrinterState's own subjects.
      */
     void deinit_subjects();
-
-    /**
-     * @brief Update state from Moonraker notification
-     *
-     * Extracts values from notify_status_update messages and updates subjects.
-     * Also maintains JSON cache for complex data.
-     *
-     * @param notification Parsed JSON notification from Moonraker
-     */
-    void update_from_notification(const json& notification);
 
     /**
      * @brief Update state from raw status data

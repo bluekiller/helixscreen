@@ -336,46 +336,22 @@ void PrinterState::reload_capability_overrides() {
     capability_overrides_.load_from_config();
 }
 
-void PrinterState::update_from_notification(const json& notification) {
-    // Moonraker notifications have structure:
-    // {"method": "notify_status_update", "params": [{...printer state...}, eventtime]}
-
-    auto method_it = notification.find("method");
-    if (method_it == notification.end() || !method_it->is_string() ||
-        !notification.contains("params")) {
-        return;
+std::optional<StatusFrame> helix::parse_status_notification(const json& notification) {
+    auto method = notification.find("method");
+    auto params = notification.find("params");
+    if (method == notification.end() || !method->is_string() ||
+        method->get_ref<const std::string&>() != "notify_status_update" ||
+        params == notification.end() || !params->is_array() || params->empty()) {
+        return std::nullopt;
     }
-
-    std::string method = method_it->get<std::string>();
-    if (method != "notify_status_update") {
-        return;
+    StatusFrame frame;
+    frame.status = &(*params)[0];
+    if (params->size() > 1 && (*params)[1].is_number()) {
+        frame.eventtime = (*params)[1].get<double>();
     }
-
-    // Extract printer state from params[0] and delegate to update_from_status
-    // CRITICAL: Defer to main thread via ui_queue_update to avoid LVGL assertion
-    // when subject updates trigger lv_obj_invalidate() during rendering
-    auto params = notification["params"];
-    if (params.is_array() && !params.empty()) {
-        // params[1] is Klipper's eventtime. It is monotonic-clock derived, so it
-        // survives a Klipper restart and only rewinds on a host reboot — a usable
-        // freshness key within one connection. Absent or non-numeric means the
-        // frame was synthesized rather than received.
-        const double eventtime =
-            (params.size() > 1 && params[1].is_number()) ? params[1].get<double>() : 0.0;
-        const bool from_cached_snapshot =
-            helix::json_util::safe_bool(notification, helix::CACHED_SNAPSHOT_MARKER);
-        async_lifetime_.defer("PrinterState::on_status_update", [this, state_json = params[0],
-                                                                 eventtime,
-                                                                 from_cached_snapshot]() {
-            // Debug check: log if we're somehow in render phase (should never happen)
-            if (lvgl_is_rendering()) {
-                spdlog::error("[PrinterState] async status update running during render phase!");
-                spdlog::error("[PrinterState] This should not happen - lv_async_call should run "
-                              "between frames");
-            }
-            update_from_status(state_json, eventtime, from_cached_snapshot);
-        });
-    }
+    frame.from_cached_snapshot =
+        helix::json_util::safe_bool(notification, helix::CACHED_SNAPSHOT_MARKER);
+    return frame;
 }
 
 void PrinterState::update_from_status(const json& state, double eventtime,
