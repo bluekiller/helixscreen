@@ -16,9 +16,11 @@ struct FaceStyle {
     const lv_font_t* font;
     lv_style_t style;
 };
+/// Never destroyed: live objects keep pointing at these styles until the process
+/// ends, so an exit-time destructor would orphan each style's property array.
 std::deque<FaceStyle>& face_styles() {
-    static std::deque<FaceStyle> styles;
-    return styles;
+    static auto* styles = new std::deque<FaceStyle>();
+    return *styles;
 }
 
 } // namespace
