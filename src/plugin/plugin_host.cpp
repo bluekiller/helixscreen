@@ -384,6 +384,7 @@ void PluginHost::unload(const std::string& id) {
         return;
     Loaded& l = it->second;
     if (l.rt && !l.rt->faulted()) {
+        l.ctx->unloading = true;
         lua_State* L = l.rt->state();
         lua_getglobal(L, "on_unload");
         if (lua_isfunction(L, -1)) {

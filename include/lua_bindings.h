@@ -28,6 +28,9 @@ struct PluginContext {
     std::string storage_path; ///< <dir of settings.json>/plugin-data/<id>.json
     /// Overlay access; filled by PluginHost, null where no host provides it.
     PluginUi* ui = nullptr;
+    /// Set while on_unload runs: the plugin is leaving (at shutdown navigation is
+    /// already down), so it may not open overlays or dialogs.
+    bool unloading = false;
 };
 
 using Installer = void (*)(PluginContext&);

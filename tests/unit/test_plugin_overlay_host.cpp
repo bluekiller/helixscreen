@@ -3,11 +3,13 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_home.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/home_panel_test_access.h"
+#include "../test_helpers/log_capture.h"
 #include "../test_helpers/navigation_manager_test_access.h"
 #include "../test_helpers/plugin_host_test_support.h"
 #include "config.h"
@@ -352,6 +354,32 @@ TEST_CASE_METHOD(OverlayFx, "a navbar tap during the close slide-out still finis
     lua_getglobal(rt->state(), "closes");
     CHECK(lua_tointeger(rt->state(), -1) == 1);
     lua_pop(rt->state(), 1);
+}
+
+TEST_CASE_METHOD(OverlayFx, "on_unload cannot open an overlay or a confirm dialog",
+                 "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    // At shutdown on_unload runs after navigation has shut down, so both calls must
+    // be refused rather than build UI; print is the one channel that outlives the
+    // runtime.
+    REQUIRE(rt->run_string(R"(
+        function on_unload()
+            print("overlay", (pcall(helix.ui.overlay, "widget-demo__panel")))
+            print("confirm", (pcall(helix.ui.confirm, "Late", "body")))
+        end)",
+                           "t"));
+
+    helix::TextLogCapture log;
+    rig.host->disable("widget-demo");
+    drain();
+    process_lvgl(100);
+    CHECK(log.contains("overlay\tfalse"));
+    CHECK(log.contains("confirm\tfalse"));
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    CHECK(ModalStack::instance().empty());
 }
 
 #endif // HELIX_HAS_PLUGINS

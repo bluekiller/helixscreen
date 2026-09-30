@@ -212,6 +212,8 @@ int ui_toast(lua_State* L) {
 }
 
 int ui_confirm(lua_State* L) {
+    if (context(L).unloading)
+        return luaL_error(L, "helix.ui.confirm cannot open during on_unload");
     auto& rt = LuaRuntime::from(L);
     std::string title = luaL_checkstring(L, 1);
     std::string msg = luaL_checkstring(L, 2);
@@ -292,6 +294,8 @@ int ui_overlay(lua_State* L) {
     auto& rt = LuaRuntime::from(L);
     if (!context(L).ui)
         return luaL_error(L, "helix.ui.overlay is not available here");
+    if (context(L).unloading)
+        return luaL_error(L, "helix.ui.overlay cannot open during on_unload");
     std::string component = luaL_checkstring(L, 1);
     if (!is_owned_name(rt.plugin_id(), component))
         return luaL_error(L, "helix.ui.overlay: component '%s' is not owned by this plugin",
