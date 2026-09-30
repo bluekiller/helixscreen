@@ -18,6 +18,9 @@ using json = nlohmann::json;
 
 enum class SettingType { Bool, Int, Float, Enum, String, Action, Info };
 
+constexpr int kMaxWidgetCells = 8;
+constexpr size_t kMaxWidgetsPerPlugin = 8;
+
 /// One entry of the manifest's `settings` array.
 struct SettingDecl {
     std::string key;
@@ -31,6 +34,19 @@ struct SettingDecl {
     std::string subject;              ///< Info: subject name, owned by the plugin
 };
 
+/// One entry of the manifest's `widgets` array. Spans are in grid cells.
+struct WidgetDecl {
+    std::string id; ///< <plugin>_<name>
+    std::string name;
+    std::string icon; ///< icon name; empty when absent
+    std::string description;
+    std::string component; ///< <plugin>_<name>, a file in ui/
+    int colspan = 1;
+    int rowspan = 1;
+    int max_colspan = 0; ///< 0: not resizable on this axis
+    int max_rowspan = 0;
+};
+
 struct Manifest {
     std::string id;
     std::string name;
@@ -42,6 +58,7 @@ struct Manifest {
     int memory_mb = 2;
     std::vector<SettingDecl> settings;
     std::string settings_overlay; ///< XML component name, empty when absent
+    std::vector<WidgetDecl> widgets;
 };
 
 /// `manifest` is set only when `errors` is empty.

@@ -412,4 +412,25 @@ TEST_CASE("a budget kill followed by a yield still faults", "[plugin][lua_runtim
     CHECK(t.fault.find("time budget") != std::string::npos);
 }
 
+TEST_CASE("plugin-relative paths stay inside the plugin", "[plugin][lua_runtime]") {
+    CHECK(is_plugin_relative_path("main.lua"));
+    CHECK(is_plugin_relative_path("lib/util.lua"));
+    CHECK_FALSE(is_plugin_relative_path(""));
+    CHECK_FALSE(is_plugin_relative_path("/etc/x.lua"));
+    CHECK_FALSE(is_plugin_relative_path("../x.lua"));
+    CHECK_FALSE(is_plugin_relative_path("lib/../../x.lua"));
+    CHECK_FALSE(is_plugin_relative_path("lib//x.lua"));
+    CHECK_FALSE(is_plugin_relative_path("./x.lua"));
+    CHECK_FALSE(is_plugin_relative_path("main.txt"));
+    CHECK_FALSE(is_plugin_relative_path("a b.lua"));
+    CHECK_FALSE(is_plugin_relative_path(std::string(125, 'a') + ".lua"));
+}
+
+// ../require-test/util.lua names a real file through a .. hop, and its content runs
+// cleanly, so only the path check can refuse it.
+TEST_CASE("run_file refuses a path outside the plugin", "[plugin][lua_runtime]") {
+    TestRuntime t;
+    CHECK_FALSE(t.rt->run_file("../require-test/util.lua"));
+}
+
 #endif // HELIX_HAS_PLUGINS

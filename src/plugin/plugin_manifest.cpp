@@ -156,6 +156,63 @@ void parse_setting(const std::string& id, const json& s, size_t index, Manifest&
         m.settings.push_back(std::move(d));
 }
 
+void span_field(const json& w, const char* key, int& out, int lo, std::vector<std::string>& local) {
+    auto it = w.find(key);
+    if (it == w.end())
+        return;
+    if (!it->is_number_integer() || it->get<int>() < lo || it->get<int>() > kMaxWidgetCells) {
+        local.push_back(std::string("'") + key + "' must be an integer from " + std::to_string(lo) +
+                        " to " + std::to_string(kMaxWidgetCells));
+        return;
+    }
+    out = it->get<int>();
+}
+
+void parse_widgets(const json& arr, Manifest& m, std::vector<std::string>& errors) {
+    if (!arr.is_array()) {
+        errors.push_back("'widgets' must be an array");
+        return;
+    }
+    if (arr.size() > kMaxWidgetsPerPlugin) {
+        errors.push_back("'widgets' may list at most " + std::to_string(kMaxWidgetsPerPlugin));
+        return;
+    }
+    std::set<std::string> seen;
+    for (size_t i = 0; i < arr.size(); ++i) {
+        const std::string where = "widgets[" + std::to_string(i) + "]";
+        const json& w = arr[i];
+        if (!w.is_object()) {
+            errors.push_back(where + " must be an object");
+            continue;
+        }
+        WidgetDecl d;
+        std::vector<std::string> local;
+        require_string(w, "id", d.id, local);
+        require_string(w, "name", d.name, local);
+        require_string(w, "component", d.component, local);
+        optional_string(w, "icon", d.icon, local);
+        optional_string(w, "description", d.description, local);
+        if (!d.id.empty() && !is_owned_name(m.id, d.id))
+            local.push_back("'id' must be named " + m.id + "_<name>");
+        if (!d.component.empty() && !is_owned_name(m.id, d.component))
+            local.push_back("'component' must be named " + m.id + "_<name>");
+        span_field(w, "colspan", d.colspan, 1, local);
+        span_field(w, "rowspan", d.rowspan, 1, local);
+        span_field(w, "max_colspan", d.max_colspan, 0, local);
+        span_field(w, "max_rowspan", d.max_rowspan, 0, local);
+        if (d.max_colspan != 0 && d.max_colspan < d.colspan)
+            local.push_back("'max_colspan' must be 0 or at least 'colspan'");
+        if (d.max_rowspan != 0 && d.max_rowspan < d.rowspan)
+            local.push_back("'max_rowspan' must be 0 or at least 'rowspan'");
+        if (!d.id.empty() && !seen.insert(d.id).second)
+            local.push_back("duplicate widget id '" + d.id + "'");
+        for (const auto& e : local)
+            errors.push_back(where + ": " + e);
+        if (local.empty())
+            m.widgets.push_back(std::move(d));
+    }
+}
+
 } // namespace
 
 bool is_valid_plugin_id(std::string_view id) {
@@ -235,6 +292,9 @@ ManifestParse parse_manifest(const std::string& text) {
         else
             m.settings_overlay = it->get<std::string>();
     }
+
+    if (auto it = j.find("widgets"); it != j.end())
+        parse_widgets(*it, m, r.errors);
 
     if (r.errors.empty())
         r.manifest = std::move(m);

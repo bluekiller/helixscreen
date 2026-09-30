@@ -22,6 +22,10 @@ bool has_error_containing(const ManifestParse& r, const std::string& needle) {
 ManifestParse with_setting(const std::string& setting) {
     return parse_manifest(R"({"id":"ab","name":"n","version":"1","settings":[)" + setting + "]}");
 }
+
+ManifestParse with_widgets(const std::string& widgets) {
+    return parse_manifest(R"({"id":"ab","name":"n","version":"1","widgets":[)" + widgets + "]}");
+}
 } // namespace
 
 TEST_CASE("plugin ids", "[plugin][manifest]") {
@@ -61,7 +65,9 @@ TEST_CASE("a complete manifest parses", "[plugin][manifest]") {
         {"key": "state", "type": "info", "label": "State", "subject": "orca-cal_state"}
       ],
       "settings_overlay": "orca-cal_settings",
-      "widgets": [{"anything": "ignored in phase 1"}]
+      "widgets": [{"id": "orca-cal_launch", "name": "Launch", "icon": "tune",
+                   "description": "Start", "component": "orca-cal_widget",
+                   "colspan": 1, "rowspan": 1, "max_colspan": 2}]
     })");
     REQUIRE(r.errors.empty());
     REQUIRE(r.manifest);
@@ -70,6 +76,9 @@ TEST_CASE("a complete manifest parses", "[plugin][manifest]") {
     CHECK(r.manifest->memory_mb == 4);
     CHECK(r.manifest->permissions == PermissionSet{Permission::Gcode, Permission::MoonrakerWrite});
     CHECK(r.manifest->settings_overlay == "orca-cal_settings");
+    REQUIRE(r.manifest->widgets.size() == 1);
+    CHECK(r.manifest->widgets[0].id == "orca-cal_launch");
+    CHECK(r.manifest->widgets[0].max_colspan == 2);
     REQUIRE(r.manifest->settings.size() == 7);
     CHECK(r.manifest->settings[2].type == SettingType::Int);
     CHECK(r.manifest->settings[2].default_value == 5);
@@ -160,6 +169,41 @@ TEST_CASE("permissions", "[plugin][manifest]") {
     CHECK_FALSE(is_readonly_moonraker_method("printer.gcode.script"));
     CHECK_FALSE(is_readonly_moonraker_method("server.files.delete_file"));
     CHECK_FALSE(is_readonly_moonraker_method("printer.objects.query.extra"));
+}
+
+TEST_CASE("manifest widgets parse with cell spans", "[plugin][manifest]") {
+    auto r = with_widgets(R"({"id":"ab_launch","name":"Launch","icon":"tune",
+        "description":"Start","component":"ab_widget","colspan":1,"rowspan":1,
+        "max_colspan":2,"max_rowspan":1})");
+    REQUIRE(r.manifest);
+    REQUIRE(r.manifest->widgets.size() == 1);
+    const auto& w = r.manifest->widgets[0];
+    CHECK(w.id == "ab_launch");
+    CHECK(w.component == "ab_widget");
+    CHECK(w.icon == "tune");
+    CHECK(w.colspan == 1);
+    CHECK(w.max_colspan == 2);
+    CHECK(w.max_rowspan == 1);
+}
+
+TEST_CASE("manifest widgets reject bad names and spans", "[plugin][manifest]") {
+    CHECK(has_error_containing(with_widgets(R"({"id":"launch","name":"L","component":"ab_w"})"),
+                               "widgets[0]"));
+    CHECK(has_error_containing(with_widgets(R"({"id":"ab_l","name":"L","component":"w"})"),
+                               "'component'"));
+    CHECK(has_error_containing(
+        with_widgets(R"({"id":"ab_l","name":"L","component":"ab_w","colspan":9})"), "'colspan'"));
+    CHECK(has_error_containing(
+        with_widgets(R"({"id":"ab_l","name":"L","component":"ab_w","colspan":2,"max_colspan":1})"),
+        "'max_colspan'"));
+    CHECK(has_error_containing(with_widgets(R"({"id":"ab_l","name":"L","component":"ab_w"},
+                                               {"id":"ab_l","name":"M","component":"ab_w"})"),
+                               "duplicate widget id"));
+    std::string nine;
+    for (int i = 0; i < 9; ++i)
+        nine += std::string(i ? "," : "") + R"({"id":"ab_w)" + std::to_string(i) +
+                R"(","name":"W","component":"ab_c"})";
+    CHECK(has_error_containing(with_widgets(nine), "at most 8"));
 }
 
 #endif // HELIX_HAS_PLUGINS
