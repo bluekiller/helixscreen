@@ -13,9 +13,11 @@ on:
         type: string
         default: ''
 
-# Ensure only one release workflow runs at a time
+# Ensure only one release workflow runs at a time per ref. The event name keeps
+# a dry run and a real release in separate groups, so neither can wait on or
+# cancel the other.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 # Every patch is judged from clean here (see build.yml for why the flag is
