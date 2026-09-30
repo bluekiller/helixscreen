@@ -5,7 +5,7 @@
 # HelixScreen Installer (Development/Modular Version)
 #
 # This script requires the lib/installer/ modules and must be run from a repo checkout.
-# For end-user installation via curl, use scripts/install.sh instead.
+# For end-user installation via curl, use the bundled install.sh (make installer).
 #
 # Usage (from repo root):
 #   ./scripts/install-dev.sh [options]

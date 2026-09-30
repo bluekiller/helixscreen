@@ -205,11 +205,11 @@ echo "  Device       : ${USERNAME}@${PRINTER}"
 echo ""
 
 # ── Bundle install.sh from modules ───────────────────────────────────────────
-# install.sh is auto-generated from scripts/lib/installer/*.sh by bundle-installer.sh.
-# Always regenerate before build or patch so the tarball contains the latest installer,
-# even if only module sources were edited (not the bundled install.sh).
+# install.sh is generated from scripts/lib/installer/*.sh. Regenerate before build or
+# patch so the tarball carries the installer the modules describe.
 echo "[serve-local-update] Bundling install.sh from modules..."
-"$SCRIPT_DIR/bundle-installer.sh" -o "$PROJECT_DIR/scripts/install.sh"
+make -C "$PROJECT_DIR" --no-print-directory installer
+INSTALLER="$PROJECT_DIR/build/installer/install.sh"
 echo ""
 
 # ── Build ─────────────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ if [[ $BUILD -eq 0 ]]; then
         echo "ERROR: Tarball does not contain expected helixscreen/ directory."
         exit 1
     fi
-    cp "$PROJECT_DIR/scripts/install.sh" "$PATCH_DIR/helixscreen/install.sh"
+    cp "$INSTALLER" "$PATCH_DIR/helixscreen/install.sh"
     chmod +x "$PATCH_DIR/helixscreen/install.sh"
     COPYFILE_DISABLE=1 tar -czf "$TARBALL_PATH" --owner=0 --group=0 -C "$PATCH_DIR" helixscreen
     rm -rf "$PATCH_DIR"
@@ -357,7 +357,7 @@ print('  HELIX_LOG_LEVEL=debug  (debug logging enabled in', env_path + ')')
     echo "  dev_url = ${BASE_URL}/  (in /var/lib/helixscreen/update_urls.json)"
     echo ""
     echo "[serve-local-update] Copying install.sh to /tmp/ on ${USERNAME}@${PRINTER} ..."
-    scp "$PROJECT_DIR/scripts/install.sh" "${USERNAME}@${PRINTER}:/tmp/install.sh"
+    scp "$INSTALLER" "${USERNAME}@${PRINTER}:/tmp/install.sh"
     echo "  To test the installer directly on the device (bypasses update checker):"
     echo "    ssh ${USERNAME}@${PRINTER} 'sh /tmp/install.sh --local /tmp/helixscreen-update.tar.gz'"
     echo ""

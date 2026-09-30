@@ -418,9 +418,9 @@ setup() {
 # --- Bundled installer parity ---
 
 @test "bundled install.sh has setup_config_symlink function" {
-    grep -q 'setup_config_symlink()' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'setup_config_symlink()' "$INSTALL_BUNDLE"
 }
 
 @test "bundled install.sh calls setup_config_symlink in main flow" {
-    grep -q 'setup_config_symlink' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'setup_config_symlink' "$INSTALL_BUNDLE"
 }

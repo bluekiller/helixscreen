@@ -145,6 +145,9 @@ if [[ ! -d "$BUILD_DIR" ]]; then
     exit 1
 fi
 
+# install.sh is generated, never committed; the bucket-root copy comes from here.
+make -C "$REPO_ROOT" --no-print-directory installer
+
 # Determine which platforms to process
 declare -a PLATFORMS=()
 if [[ "$PLATFORM" == "all" ]]; then
@@ -238,7 +241,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
 
     echo ""
     echo "# Upload install.sh to bucket root"
-    echo "aws s3 cp \"$REPO_ROOT/scripts/install.sh\" \"s3://${R2_BUCKET_NAME}/install.sh\" --endpoint-url \"$R2_ENDPOINT\" --content-type \"text/x-shellscript\""
+    echo "aws s3 cp \"$REPO_ROOT/build/installer/install.sh\" \"s3://${R2_BUCKET_NAME}/install.sh\" --endpoint-url \"$R2_ENDPOINT\" --content-type \"text/x-shellscript\""
 
     echo ""
     echo -e "${GREEN}Manifest would be available at: ${R2_PUBLIC_URL}/${CHANNEL}/manifest.json${NC}"
@@ -264,7 +267,7 @@ else
 
     echo ""
     echo -e "${GREEN}Uploading install.sh to bucket root...${NC}"
-    aws s3 cp "$REPO_ROOT/scripts/install.sh" "s3://${R2_BUCKET_NAME}/install.sh" \
+    aws s3 cp "$REPO_ROOT/build/installer/install.sh" "s3://${R2_BUCKET_NAME}/install.sh" \
         --endpoint-url "$R2_ENDPOINT" \
         --content-type "text/x-shellscript"
 

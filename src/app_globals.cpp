@@ -622,7 +622,7 @@ bool compute_self_update_supported(const std::string& install_root, bool can_esc
     //                  ones in. Everything happens INSIDE the root, so it needs
     //                  write permission on the root alone. install.sh picks this
     //                  automatically when the parent is not writable
-    //                  (scripts/install.sh, "replacing install contents in-place").
+    //                  (scripts/lib/installer/release.sh, "replacing install contents in-place").
     //
     // Testing only the parent was a false negative on the standalone-display
     // layout: no local Klipper, so detect_pi_install_dir() falls through to

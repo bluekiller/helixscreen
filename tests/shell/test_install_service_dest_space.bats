@@ -217,7 +217,7 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "the generated install.sh carries the service-destination check" {
-    grep -q 'check_service_dest_space()' "$WORKTREE_ROOT/scripts/install.sh"
-    awk '/^check_disk_space\(\)/,/^}/' "$WORKTREE_ROOT/scripts/install.sh" |
+    grep -q 'check_service_dest_space()' "$INSTALL_BUNDLE"
+    awk '/^check_disk_space\(\)/,/^}/' "$INSTALL_BUNDLE" |
         grep -q 'check_service_dest_space'
 }

@@ -1794,7 +1794,7 @@ define deploy-common
 	fi
 	rsync -avzz scripts/helix-launcher.sh $(1):$(2)/bin/
 	@# Sync installer script (needed for auto-updates)
-	rsync -avzz scripts/$(INSTALLER_FILENAME) $(1):$(2)/
+	rsync -avzz $(INSTALLER_BUNDLE) $(1):$(2)/
 	@# Sync assets (--delete removes stale files)
 	rsync $(DEPLOY_RSYNC_FLAGS) $(DEPLOY_ASSET_EXCLUDES) $(DEPLOY_ASSET_DIRS) $(1):$(2)/
 	@# Sync pre-rendered images
@@ -2066,7 +2066,7 @@ deploy-ad5m:
 	fi
 	cat scripts/helix-launcher.sh | ssh $(AD5M_SSH_TARGET) "cat > $(AD5M_DEPLOY_DIR)/bin/helix-launcher.sh && chmod +x $(AD5M_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Transfer installer script (needed for auto-updates)
-	cat scripts/$(INSTALLER_FILENAME) | ssh $(AD5M_SSH_TARGET) "cat > $(AD5M_DEPLOY_DIR)/$(INSTALLER_FILENAME) && chmod +x $(AD5M_DEPLOY_DIR)/$(INSTALLER_FILENAME)"
+	cat $(INSTALLER_BUNDLE) | ssh $(AD5M_SSH_TARGET) "cat > $(AD5M_DEPLOY_DIR)/$(INSTALLER_FILENAME) && chmod +x $(AD5M_DEPLOY_DIR)/$(INSTALLER_FILENAME)"
 	@# Transfer assets via tar (uses shared DEPLOY_TAR_EXCLUDES and DEPLOY_ASSET_DIRS)
 	@# AD5M now has tracker support (PWM PCM mode) — include .mod files
 	@echo "$(DIM)Transferring assets...$(RESET)"
@@ -2258,7 +2258,7 @@ deploy-cc1:
 	fi
 	cat scripts/helix-launcher.sh | ssh $(CC1_SSH_TARGET) "cat > $(CC1_DEPLOY_DIR)/bin/helix-launcher.sh && chmod +x $(CC1_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Transfer installer script (needed for auto-updates)
-	cat scripts/install.sh | ssh $(CC1_SSH_TARGET) "cat > $(CC1_DEPLOY_DIR)/install.sh && chmod +x $(CC1_DEPLOY_DIR)/install.sh"
+	cat $(INSTALLER_BUNDLE) | ssh $(CC1_SSH_TARGET) "cat > $(CC1_DEPLOY_DIR)/$(INSTALLER_FILENAME) && chmod +x $(CC1_DEPLOY_DIR)/$(INSTALLER_FILENAME)"
 	@# Transfer assets via tar (uses shared DEPLOY_TAR_EXCLUDES and DEPLOY_ASSET_DIRS)
 	@echo "$(DIM)Transferring assets...$(RESET)"
 	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR) && tar -xof -"
@@ -2348,7 +2348,7 @@ define snapmaker-u1-deploy-common
 	$(call deploy-platform-hooks,$(SNAPMAKER_U1_SSH_TARGET),$(SNAPMAKER_U1_DEPLOY_DIR),snapmaker-u1)
 	scp scripts/helix-launcher.sh $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)/bin/ && ssh $(SNAPMAKER_U1_SSH_TARGET) "chmod +x $(SNAPMAKER_U1_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Patch the init script AT THE PATH THE INSTALLER USES — config/helixscreen.init.
-	@# install_service_snapmaker_u1() (scripts/install.sh) patches that copy, and
+	@# install_service_snapmaker_u1() (scripts/lib/installer/service.sh) patches that copy, and
 	@# snapmaker-u1-setup-autostart.sh points the S99 boot hooks at it. Deploy used
 	@# to patch a top-level $(SNAPMAKER_U1_DEPLOY_DIR)/helixscreen.init instead, so
 	@# the tar's UNPATCHED config/ copy (DAEMON_DIR="/opt/helixscreen") was what ran
@@ -2948,10 +2948,34 @@ define assert-diag-uploads
 	fi
 endef
 
+# Installer bundles: install.sh and uninstall.sh are generated from
+# scripts/lib/installer/ by scripts/bundle-*.sh and never committed. Everything that ships or
+# deploys an installer (release tarballs, deploy targets, release.yml's asset
+# and R2 upload, dev-release.sh) takes it from here.
+INSTALLER_BUNDLE_DIR := build/installer
+INSTALLER_BUNDLE := $(INSTALLER_BUNDLE_DIR)/$(INSTALLER_FILENAME)
+UNINSTALLER_BUNDLE := $(INSTALLER_BUNDLE_DIR)/uninstall.sh
+INSTALLER_BUNDLES := $(INSTALLER_BUNDLE) $(UNINSTALLER_BUNDLE)
+INSTALLER_SOURCES := $(wildcard scripts/lib/installer/*.sh)
+
+.PHONY: installer
+installer: $(INSTALLER_BUNDLES)
+
+$(INSTALLER_BUNDLE): scripts/bundle-installer.sh $(INSTALLER_SOURCES)
+	@mkdir -p $(@D)
+	@sh scripts/bundle-installer.sh -o $@ >/dev/null
+
+$(UNINSTALLER_BUNDLE): scripts/bundle-uninstaller.sh $(INSTALLER_SOURCES)
+	@mkdir -p $(@D)
+	@sh scripts/bundle-uninstaller.sh -o $@ >/dev/null
+
+deploy-pi deploy-pi-fg deploy-pi-asan deploy-pi32 deploy-pi32-fg deploy-pi32-asan \
+deploy-ad5m deploy-ad5m-fg deploy-cc1 deploy-cc1-fg deploy-k1-fg deploy-k1-dynamic-fg: $(INSTALLER_BUNDLES)
+
 .PHONY: release-pi release-pi32 release-ad5m release-cc1 release-mips release-k1 release-ad5x release-k1-dynamic release-k2 release-snapmaker-u1 release-x86 release-all release-clean pi-fbdev-docker pi32-fbdev-docker pi-all-docker pi32-all-docker x86-fbdev-docker x86-all-docker
 
 # Package Pi release
-release-pi: | build/pi/bin/helix-screen build/pi/bin/helix-splash build/pi-fbdev/bin/helix-screen
+release-pi: $(INSTALLER_BUNDLES) | build/pi/bin/helix-screen build/pi/bin/helix-splash build/pi-fbdev/bin/helix-screen
 	@echo "$(CYAN)$(BOLD)Packaging Pi release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/pi/bin)
 	$(call assert-diag-uploads,build/pi/bin)
@@ -2968,10 +2992,10 @@ release-pi: | build/pi/bin/helix-screen build/pi/bin/helix-splash build/pi-fbdev
 	@# Remove any personal config — release ships template only (installer copies it on first run)
 	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3000,7 +3024,7 @@ release-pi: | build/pi/bin/helix-screen build/pi/bin/helix-splash build/pi-fbdev
 	@ls -lh $(RELEASE_DIR)/helixscreen-pi-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-pi.zip
 
 # Package Pi 32-bit release (same structure as 64-bit Pi)
-release-pi32: | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi32-fbdev/bin/helix-screen
+release-pi32: $(INSTALLER_BUNDLES) | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi32-fbdev/bin/helix-screen
 	@echo "$(CYAN)$(BOLD)Packaging Pi 32-bit release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/pi32/bin)
 	$(call assert-diag-uploads,build/pi32/bin)
@@ -3016,10 +3040,10 @@ release-pi32: | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi
 	@# Remove any personal config — release ships template only (installer copies it on first run)
 	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3050,7 +3074,7 @@ release-pi32: | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi
 # Package AD5M release
 # Note: AD5M uses BusyBox which doesn't support tar -z, so we create uncompressed tar + gzip separately
 # Includes pre-configured settings.json for Adventurer 5M Pro (skips setup wizard)
-release-ad5m: | build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash
+release-ad5m: $(INSTALLER_BUNDLES) | build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash
 	@echo "$(CYAN)$(BOLD)Packaging AD5M release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/ad5m/bin)
 	$(call assert-diag-uploads,build/ad5m/bin)
@@ -3065,10 +3089,10 @@ release-ad5m: | build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash
 	@# variant preset (ad5m_pro_forgex / ad5m_pro_zmod) via apply_preset_with_variants.
 	@cp assets/config/presets/ad5m.json $(RELEASE_DIR)/helixscreen/config/settings.json
 	@echo "  $(DIM)Seeded config/settings.json from the AD5M base preset$(RESET)"
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3104,7 +3128,7 @@ release-ad5m: | build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash
 
 # Package AD5X release
 # Package CC1 release
-release-cc1: | build/cc1/bin/helix-screen build/cc1/bin/helix-splash
+release-cc1: $(INSTALLER_BUNDLES) | build/cc1/bin/helix-screen build/cc1/bin/helix-splash
 	@echo "$(CYAN)$(BOLD)Packaging CC1 release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/cc1/bin)
 	$(call assert-diag-uploads,build/cc1/bin)
@@ -3118,10 +3142,10 @@ release-cc1: | build/cc1/bin/helix-screen build/cc1/bin/helix-splash
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
 	@cp assets/config/presets/cc1.json $(RELEASE_DIR)/helixscreen/config/settings.json
 	@echo "  $(DIM)Included pre-configured config/settings.json for CC1$(RESET)"
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3160,7 +3184,7 @@ release-cc1: | build/cc1/bin/helix-screen build/cc1/bin/helix-splash
 # ships both presets (assets/config/presets/k1.json and ad5x.json, already in
 # RELEASE_ASSETS) and the installer writes the detected board's preset as the
 # first-run default, which is what the per-package bake used to do.
-release-mips: | build/mips/bin/helix-screen build/mips/bin/helix-splash
+release-mips: $(INSTALLER_BUNDLES) | build/mips/bin/helix-screen build/mips/bin/helix-splash
 	@echo "$(CYAN)$(BOLD)Packaging unified MIPS (K1 + AD5X) release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/mips/bin)
 	$(call assert-diag-uploads,build/mips/bin)
@@ -3171,10 +3195,10 @@ release-mips: | build/mips/bin/helix-screen build/mips/bin/helix-splash
 	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
 	@rm -f $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3223,7 +3247,7 @@ release-k1: release-mips
 release-ad5x: release-mips
 
 # Package K1 Dynamic release
-release-k1-dynamic: | build/k1-dynamic/bin/helix-screen build/k1-dynamic/bin/helix-splash
+release-k1-dynamic: $(INSTALLER_BUNDLES) | build/k1-dynamic/bin/helix-screen build/k1-dynamic/bin/helix-splash
 	@echo "$(CYAN)$(BOLD)Packaging K1 Dynamic release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/k1-dynamic/bin)
 	$(call assert-diag-uploads,build/k1-dynamic/bin)
@@ -3235,10 +3259,10 @@ release-k1-dynamic: | build/k1-dynamic/bin/helix-screen build/k1-dynamic/bin/hel
 	@# Remove any personal config — release ships template only (installer copies it on first run)
 	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3266,7 +3290,7 @@ release-k1-dynamic: | build/k1-dynamic/bin/helix-screen build/k1-dynamic/bin/hel
 	@ls -lh $(RELEASE_DIR)/helixscreen-k1-dynamic-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-k1-dynamic.zip
 
 # Package K2 release
-release-k2: | build/k2/bin/helix-screen build/k2/bin/helix-splash
+release-k2: $(INSTALLER_BUNDLES) | build/k2/bin/helix-screen build/k2/bin/helix-splash
 	@echo "$(CYAN)$(BOLD)Packaging K2 release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/k2/bin)
 	$(call assert-diag-uploads,build/k2/bin)
@@ -3289,10 +3313,10 @@ release-k2: | build/k2/bin/helix-screen build/k2/bin/helix-splash
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
 	@cp assets/config/presets/k2.json $(RELEASE_DIR)/helixscreen/config/settings.json
 	@echo "  $(DIM)Included pre-configured config/settings.json for K2$(RESET)"
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
@@ -3320,7 +3344,7 @@ release-k2: | build/k2/bin/helix-screen build/k2/bin/helix-splash
 	@ls -lh $(RELEASE_DIR)/helixscreen-k2-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-k2.zip
 
 # Package Snapmaker U1 release
-release-snapmaker-u1: | build/snapmaker-u1/bin/helix-screen
+release-snapmaker-u1: $(INSTALLER_BUNDLES) | build/snapmaker-u1/bin/helix-screen
 	@echo "$(CYAN)$(BOLD)Packaging Snapmaker U1 release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/snapmaker-u1/bin)
 	$(call assert-diag-uploads,build/snapmaker-u1/bin)
@@ -3335,10 +3359,10 @@ release-snapmaker-u1: | build/snapmaker-u1/bin/helix-screen
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
 	@cp assets/config/presets/snapmaker_u1.json $(RELEASE_DIR)/helixscreen/config/settings.json
 	@echo "  $(DIM)Included pre-configured config/settings.json for Snapmaker U1$(RESET)"
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/ 2>/dev/null || true
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/ 2>/dev/null || true
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME) 2>/dev/null || true
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
 	@cp scripts/snapmaker-u1-setup-autostart.sh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
@@ -3372,7 +3396,7 @@ release-snapmaker-u1: | build/snapmaker-u1/bin/helix-screen
 	@ls -lh $(RELEASE_DIR)/helixscreen-snapmaker-u1-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-snapmaker-u1.zip
 
 # Package x86_64 Debian release (same structure as Pi)
-release-x86: | build/x86/bin/helix-screen build/x86/bin/helix-splash build/x86-fbdev/bin/helix-screen
+release-x86: $(INSTALLER_BUNDLES) | build/x86/bin/helix-screen build/x86/bin/helix-splash build/x86-fbdev/bin/helix-screen
 	@echo "$(CYAN)$(BOLD)Packaging x86 release v$(VERSION)...$(RESET)"
 	$(call assert-no-remote-control,build/x86/bin)
 	$(call assert-diag-uploads,build/x86/bin)
@@ -3388,10 +3412,10 @@ release-x86: | build/x86/bin/helix-screen build/x86/bin/helix-splash build/x86-f
 	@# Remove any personal config — release ships template only (installer copies it on first run)
 	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp scripts/$(INSTALLER_FILENAME) $(RELEASE_DIR)/helixscreen/
+	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp scripts/uninstall.sh $(RELEASE_DIR)/helixscreen/scripts/
+	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \

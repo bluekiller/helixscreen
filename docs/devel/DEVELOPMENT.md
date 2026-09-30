@@ -478,7 +478,7 @@ docs(readme): update build instructions
 ## Installer Scripts
 
 The installation system is modular POSIX shell (`scripts/lib/installer/`, 17
-modules) bundled into the one-line `scripts/install.sh` for BusyBox-compatible
+modules) bundled by `make installer` into the one-line `install.sh` for BusyBox-compatible
 `curl | sh` distribution. Module structure, BusyBox rules, bundle regeneration,
 and installer testing: → **[INSTALLER.md](INSTALLER.md)**.
 

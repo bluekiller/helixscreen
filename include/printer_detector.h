@@ -686,7 +686,7 @@ class PrinterDetector {
     static std::string canonical_type_name(const std::string& printer_name);
 
     /// Minimum winning confidence before detection may persist a printer type.
-    /// Mirrors HELIX_DETECT_MIN_CONFIDENCE in scripts/install.sh.
+    /// Mirrors HELIX_DETECT_MIN_CONFIDENCE in scripts/lib/installer/printer_seed.sh.
     static constexpr int AUTOSAVE_MIN_CONFIDENCE = 85;
 
     /// Minimum detection confidence before the saved-vs-detected type warning
@@ -710,7 +710,7 @@ class PrinterDetector {
     /// printers this database identifies correctly today.
     ///
     /// Independent of the installer's HELIX_DETECT_MIN_MARGIN in
-    /// scripts/install.sh, which chooses between two seeding depths rather than
+    /// scripts/lib/installer/printer_seed.sh, which chooses between two seeding depths rather than
     /// between saving and declining.
     static constexpr int DETECT_MIN_MARGIN = 1;
 

@@ -349,40 +349,40 @@ INIT_SCRIPT="config/helixscreen.init"
 # --- Bundle integrity tests ---
 
 @test "bundled installer passes syntax check" {
-    sh -n scripts/install.sh
+    sh -n "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer contains configure_platform" {
-    grep -q 'configure_platform' scripts/install.sh
+    grep -q 'configure_platform' "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer contains deploy_platform_hooks" {
-    grep -q 'deploy_platform_hooks' scripts/install.sh
+    grep -q 'deploy_platform_hooks' "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer contains detect_klipper_user" {
-    grep -q 'detect_klipper_user' scripts/install.sh
+    grep -q 'detect_klipper_user' "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer contains record_disabled_service" {
-    grep -q 'record_disabled_service' scripts/install.sh
+    grep -q 'record_disabled_service' "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer contains fix_install_ownership" {
-    grep -q 'fix_install_ownership' scripts/install.sh
+    grep -q 'fix_install_ownership' "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer contains detect_pi_install_dir function" {
-    grep -q 'detect_pi_install_dir()' scripts/install.sh
+    grep -q 'detect_pi_install_dir()' "$INSTALL_BUNDLE"
 }
 
 @test "bundled installer calls detect_pi_install_dir in Pi branch" {
     # The Pi branch of set_install_paths must call detect_pi_install_dir
-    grep -A5 'detect_klipper_user' scripts/install.sh | grep -q 'detect_pi_install_dir'
+    grep -A5 'detect_klipper_user' "$INSTALL_BUNDLE" | grep -q 'detect_pi_install_dir'
 }
 
 @test "bundled installer captures _USER_INSTALL_DIR" {
-    grep -q '_USER_INSTALL_DIR=' scripts/install.sh
+    grep -q '_USER_INSTALL_DIR=' "$INSTALL_BUNDLE"
 }
 
 # --- Parity tests: platform.sh functions must exist in bundled install.sh ---
@@ -394,7 +394,7 @@ INIT_SCRIPT="config/helixscreen.init"
     local funcs
     funcs=$(grep -E '^[a-z_]+\(\)' scripts/lib/installer/platform.sh | sed 's/().*//')
     for func in $funcs; do
-        if ! grep -q "${func}()" scripts/install.sh; then
+        if ! grep -q "${func}()" "$INSTALL_BUNDLE"; then
             echo "MISSING in install.sh: ${func}()"
             return 1
         fi
@@ -404,7 +404,7 @@ INIT_SCRIPT="config/helixscreen.init"
 @test "parity: Pi branch in install.sh matches platform.sh" {
     # Both files should call detect_pi_install_dir (not hardcode /opt/helixscreen)
     # in their Pi/else branch of set_install_paths
-    refute_sh "grep -A3 'Pi and other platforms' scripts/install.sh | grep -q 'INSTALL_DIR=\"/opt/helixscreen\"'"
+    refute_sh "grep -A3 'Pi and other platforms' "$INSTALL_BUNDLE" | grep -q 'INSTALL_DIR=\"/opt/helixscreen\"'"
     refute_sh "grep -A3 'Pi and other platforms' scripts/lib/installer/platform.sh | grep -q 'INSTALL_DIR=\"/opt/helixscreen\"'"
 }
 

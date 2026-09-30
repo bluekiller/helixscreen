@@ -2042,7 +2042,7 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
             // surviving a `systemctl stop helixscreen` mid-install.  The script
             // handles this by deferring the service stop to a final
             // `systemctl restart` that systemd completes even if install.sh is
-            // killed during the stop phase (see scripts/install.sh main()).
+            // killed during the stop phase (see main() in scripts/lib/installer/main.sh).
             setsid();
             // Tell install.sh this is an in-app self-update so it skips
             // stop_service/start_service on SysV — the watchdog handles restart.
@@ -2484,7 +2484,7 @@ UpdateChecker::find_local_installer(const std::vector<std::string>& extra_search
     for (const char* root : helix::kHomeInstallRoots) {
         search_paths.push_back(std::string(root) + "/" + fname);
     }
-    search_paths.push_back("scripts/" + fname); // development fallback
+    search_paths.push_back("build/installer/" + fname); // development fallback (make installer)
 
     for (const auto& path : search_paths) {
         if (access(path.c_str(), X_OK) == 0) {

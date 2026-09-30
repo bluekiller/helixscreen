@@ -39,9 +39,9 @@ setup() {
 # --- Bundled install.sh parity ---
 
 @test "bundled install.sh calls all three ForgeX patches" {
-    grep -q 'patch_forgex_screen_sh' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'patch_forgex_screen_drawing' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'install_forgex_logged_wrapper' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'patch_forgex_screen_sh' "$INSTALL_BUNDLE"
+    grep -q 'patch_forgex_screen_drawing' "$INSTALL_BUNDLE"
+    grep -q 'install_forgex_logged_wrapper' "$INSTALL_BUNDLE"
 }
 
 @test "bundle-installer.sh sources main.sh which holds ForgeX patches" {
@@ -211,22 +211,22 @@ forgex_draw_commands_decl() {
 # --- Bundled install.sh uninstall parity ---
 
 @test "bundled install.sh has unpatch_forgex_screen_drawing function" {
-    grep -q 'unpatch_forgex_screen_drawing()' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'unpatch_forgex_screen_drawing()' "$INSTALL_BUNDLE"
 }
 
 @test "bundled install.sh uninstall_forgex calls unpatch_forgex_screen_drawing" {
-    awk '/^uninstall_forgex\(\)/,/^}/' "$WORKTREE_ROOT/scripts/install.sh" \
+    awk '/^uninstall_forgex\(\)/,/^}/' "$INSTALL_BUNDLE" \
         | grep -q 'unpatch_forgex_screen_drawing'
 }
 
 @test "bundled install.sh logged wrapper uses string accumulation for args" {
     # The active path must use $args (string accumulation) — the old set-- pattern
     # was broken because set-- clears positional params before the loop iterates
-    sed -n '/WRAPPER_EOF/,/WRAPPER_EOF/p' "$WORKTREE_ROOT/scripts/install.sh" | grep 'exec.*/logged-real' | head -1 | grep -q '\$args'
+    sed -n '/WRAPPER_EOF/,/WRAPPER_EOF/p' "$INSTALL_BUNDLE" | grep 'exec.*/logged-real' | head -1 | grep -q '\$args'
 }
 
 @test "uninstall.sh calls unpatch_forgex_screen_drawing" {
-    grep -q 'unpatch_forgex_screen_drawing' "$WORKTREE_ROOT/scripts/uninstall.sh"
+    grep -q 'unpatch_forgex_screen_drawing' "$UNINSTALL_BUNDLE"
 }
 
 # --- helixscreen_active flag coordination ---
@@ -429,7 +429,7 @@ promo_fixture() {
 
 @test "installer wires dismiss_forgex_feather_promo into configure_platform" {
     grep -q 'dismiss_forgex_feather_promo' "$WORKTREE_ROOT/scripts/lib/installer/main.sh"
-    grep -q 'dismiss_forgex_feather_promo' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'dismiss_forgex_feather_promo' "$INSTALL_BUNDLE"
 }
 
 # --- GuppyScreen launcher must be disabled, not just its init script ---

@@ -296,7 +296,7 @@ setup_existing_install() {
 
 @test "install.sh (bundled) has incomplete-archive guard" {
     grep -q 'Extracted archive is incomplete' \
-        "$BATS_TEST_DIRNAME/../../scripts/install.sh"
+        "$INSTALL_BUNDLE"
 }
 
 # --- cleanup_old_install ---
@@ -688,9 +688,9 @@ create_preset_tarball() {
 
 @test "install.sh (bundled) guards packaged-config removal on a restore candidate" {
     grep -q '_have_restore_candidate' \
-        "$BATS_TEST_DIRNAME/../../scripts/install.sh"
+        "$INSTALL_BUNDLE"
     grep -q '.helix-fresh-install' \
-        "$BATS_TEST_DIRNAME/../../scripts/install.sh"
+        "$INSTALL_BUNDLE"
 }
 
 # --- Legacy config migration ---

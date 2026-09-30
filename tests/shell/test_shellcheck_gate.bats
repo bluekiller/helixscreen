@@ -72,8 +72,7 @@ check_as_gate_does() {
 
 # Every scripts/*.sh the gate would actually collect in full-scan mode.
 gate_scripts() {
-    git ls-files 'scripts/*.sh' 'scripts/**/*.sh' 2>/dev/null | sort -u \
-        | grep -vE '^scripts/(install|uninstall)\.sh$'
+    git ls-files 'scripts/*.sh' 'scripts/**/*.sh' 2>/dev/null | sort -u
 }
 
 # ------------------------------------------------------- scope (the actual bug)
@@ -101,14 +100,6 @@ gate_scripts() {
     filter_selects config/platform/foo.sh
     filter_selects config/helixscreen.init
     filter_selects config/creality-backend.init
-}
-
-@test "the generated installer bundles are excluded" {
-    # install.sh/uninstall.sh are bundled from install-dev.sh + lib/installer/,
-    # which are themselves checked. Linting the artifact would double-report
-    # every finding and make it unfixable at source.
-    run bash -c "gate_scripts() { git ls-files 'scripts/*.sh' 'scripts/**/*.sh' | sort -u | grep -vE '^scripts/(install|uninstall)\.sh\$'; }; gate_scripts | grep -c -E '^scripts/(install|uninstall)\.sh\$' || true"
-    [ "$output" = "0" ]
 }
 
 @test "non-shell files are not selected" {

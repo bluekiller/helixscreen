@@ -801,7 +801,7 @@ esac
 @test "the bundled install.sh carries the override arms and the env scrub" {
     # The generated bundle is what users curl|sh; regeneration must carry the
     # parser arms (new spellings and their aliases) and the source-time scrub.
-    local bundle="$WORKTREE_ROOT/scripts/install.sh"
+    local bundle="$INSTALL_BUNDLE"
     grep -q -- '--standalone)' "$bundle"
     grep -q -- '--payload-root)' "$bundle"
     grep -q -- '--auto-update)' "$bundle"

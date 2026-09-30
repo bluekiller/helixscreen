@@ -462,7 +462,7 @@ The installer is found by searching these paths in order:
 4. /usr/data/helixscreen/install.sh
 5. /home/biqu/helixscreen/install.sh
 6. /home/pi/helixscreen/install.sh
-7. `scripts/install.sh` (development fallback)
+7. `build/installer/install.sh` (development fallback, from `make installer`)
 
 ### Safe Execution
 
@@ -845,7 +845,7 @@ Or for deployed installations, set `HELIX_LOG_LEVEL=debug` in `~/helixscreen/con
 | `ui_xml/settings_updates_overlay.xml` | Updates settings overlay: channel, check, install, notices |
 | `ui_xml/about_settings_overlay.xml` | About overlay: version, branding, contributors |
 | `scripts/generate-manifest.sh` | Manifest generator for CI and dev |
-| `scripts/install.sh` | Bundled installer (used for `--update` mode) |
+| `scripts/bundle-installer.sh` | Builds the bundled `install.sh` (used for `--update` mode) via `make installer` |
 | `scripts/lib/installer/moonraker.sh` | Moonraker update_manager configuration |
 | `.github/workflows/release.yml` | CI: build, release, R2 upload |
 | `tests/unit/test_update_checker.cpp` | UpdateChecker unit tests |

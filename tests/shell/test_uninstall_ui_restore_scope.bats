@@ -11,7 +11,7 @@
 # ${INSTALL_DIR}/config/.disabled_services is the only thing that tells the two
 # cases apart, and it is gone by the time reenable_previous_ui() runs - the
 # install directory is removed first - so reenable_disabled_services() publishes
-# what it read. These drive the GENERATED scripts/uninstall.sh through both
+# what it read. These drive the GENERATED uninstall.sh through both
 # functions in the order main() calls them, so the handoff is under test too.
 
 WORKTREE_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -36,7 +36,7 @@ setup() {
     sed -e "s|/etc/init\.d|$MOCK_ROOT/etc/init.d|g" \
         -e "s|/usr/bin/update-cosmos|$MOCK_ROOT/usr/bin/update-cosmos|g" \
         -e "s|/mnt/UDISK|$MOCK_ROOT/mnt/UDISK|g" \
-        "$WORKTREE_ROOT/scripts/uninstall.sh" \
+        "$UNINSTALL_BUNDLE" \
         | sed '/^case "\${0##\*\/}" in$/,+2d' > "$BUNDLE"
     export BUNDLE
 }

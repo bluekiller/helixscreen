@@ -545,7 +545,7 @@ print_k2_stock_ai_notice() {
 }
 
 # Refuse to run --uninstall from a script sitting inside the dir we're about to
-# delete. The release tarball ships scripts/install.sh into $INSTALL_DIR for
+# delete. The release tarball ships install.sh into $INSTALL_DIR for
 # offline --local updates; users sometimes invoke that copy with --uninstall,
 # which "works" on Linux only because the kernel keeps the inode open after rm.
 # Force the user to copy out. No-op (returns 0) when INSTALL_DIR isn't known

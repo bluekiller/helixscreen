@@ -635,7 +635,7 @@ EOF
         "$WORKTREE_ROOT/scripts/lib/installer/main.sh" \
         || fail "main.sh does not propagate the takeover failure"
     grep -qF 'configure_forgex_display || {' \
-        "$WORKTREE_ROOT/scripts/install.sh" \
+        "$INSTALL_BUNDLE" \
         || fail "bundled install.sh does not carry the propagation"
 }
 
