@@ -1907,7 +1907,7 @@ lv_obj_t* w = (root_name && strcmp(root_name, "ams_current_tool") == 0)
                   : lv_obj_find_by_name(root, "ams_current_tool");
 ```
 
-`ams_current_tool` and `probe_indicator` are both built this way.
+`ams_current_tool` is built this way.
 
 ### Debugging Checklist
 

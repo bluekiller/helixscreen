@@ -376,7 +376,6 @@ void register_xml_components() {
     register_xml("icon.xml");
     register_xml("status_pill.xml");
     register_xml("filament_sensor_indicator.xml");
-    register_xml("probe_indicator.xml");
     register_xml("filament_sensor_row.xml");
     register_xml("load_cell_row.xml");
     register_xml("temp_display.xml");
@@ -538,7 +537,6 @@ void register_xml_components() {
     register_xml("components/panel_widget_tool_switcher.xml");
     register_xml("components/panel_widget_nozzle_temps.xml");
     register_xml("components/panel_widget_job_queue.xml");
-    register_xml("components/clog_meter_page.xml");
     register_xml("components/clog_bar_body.xml");
     register_xml("components/clog_bar_page.xml");
     register_xml("components/panel_widget_clog_detection.xml");

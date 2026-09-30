@@ -53,11 +53,12 @@
       <bind_flag_if_eq subject="clog_meter_mode" flag="hidden" ref_value="0"/>
       <!-- Mini arc (sized by C++) -->
       <lv_obj name="clog_arc_container" style_pad_all="0" scrollable="false">
-        <!-- Main arc — see clog_meter_page.xml for the migration note. -->
+        <!-- Main arc: helix_progress_arc handles common styling and the
+             diameter-driven stroke tier. UiClogMeter syncs the danger/peak
+             overlay arcs (created in C++) to match. -->
         <helix_progress_arc name="clog_arc" align="center"/>
         <!-- Stands in for the arc when there is nothing to report. UiClogMeter
-             swaps the two; it looks this up by name in both of its parents, so
-             the page and this card each have to author one. -->
+             swaps the two, finding this by name under its parent. -->
         <lv_label name="clog_safe_icon"
                   hidden="true" align="center" text="#icon_check_circle" style_text_font="mdi_icons_16"
                   style_text_color="#primary" clickable="false"/>
