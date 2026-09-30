@@ -58,7 +58,7 @@ TEST_CASE("page: Klipper LED, single channel", "[led][page]") {
 
 TEST_CASE("page: WLED", "[led][page]") {
     CHECK(classify_device_page(of(LedBackendType::WLED), ANY, true) ==
-          DevicePage{LampControl::PowerAndBrightness, WhiteMode::None, false, ListKind::Presets});
+          DevicePage{LampControl::PowerAndBrightness, WhiteMode::None, false, ListKind::None});
 }
 
 TEST_CASE("page: output pin, PWM", "[led][page]") {

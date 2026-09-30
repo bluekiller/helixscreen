@@ -151,12 +151,6 @@ inline MacroFieldView macro_field_view(const std::string& stored,
     return {macro_custom_index(discovered), stored};
 }
 
-/// WLED preset info fetched from device
-struct WledPresetInfo {
-    int id = -1;
-    std::string name;
-};
-
 /// WLED strip runtime state (from Moonraker status polling)
 struct WledStripState {
     bool is_on = false;

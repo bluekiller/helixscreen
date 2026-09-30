@@ -261,9 +261,8 @@
             </lv_obj>
           </lv_obj>
 
-          <!-- Empty unless the model has something to say (a macro's commands,
-               where WLED presets live); an empty line at the column's foot takes
-               no visible room. -->
+          <!-- Empty unless the model has something to say (a macro's commands);
+               an empty line at the column's foot takes no visible room. -->
           <text_small name="led_page_note_label" width="100%" bind_text="led_page_note" long_mode="wrap">
             <style name="section_label"/>
           </text_small>

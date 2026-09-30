@@ -506,95 +506,20 @@ void LedController::discover_wled_strips() {
             }
 
             // === MAIN THREAD: apply discovered strips, then chain server config fetch ===
-            token.defer("LedController::wled_strips_apply", [this, token, gen,
-                                                             discovered =
-                                                                 std::move(discovered)]() mutable {
-                spdlog::info("[LedController] Discovered {} WLED strip(s)", discovered.size());
-                for (auto& strip : discovered) {
-                    wled_.add_strip(strip);
-                }
-                bump_config_version();
-                publish_controllable_state();
-                settle_wled_discovery(gen);
-
-                // Fetch server config to get WLED device addresses
-                this->api_->rest().get_server_config(
-                    [this, token](const RestResponse& cfg_resp) {
-                        // === BG THREAD: parse server config, build local addr map ===
-                        if (!cfg_resp.data.is_object())
-                            return;
-
-                        const json& config_data = cfg_resp.data.contains("result")
-                                                      ? cfg_resp.data["result"]
-                                                      : cfg_resp.data;
-
-                        const json& cfg =
-                            config_data.contains("config") ? config_data["config"] : config_data;
-
-                        if (!cfg.is_object())
-                            return;
-
-                        std::vector<std::pair<std::string, std::string>> wled_addrs;
-                        for (auto it = cfg.begin(); it != cfg.end(); ++it) {
-                            const std::string& key = it.key();
-                            if (key.rfind("wled ", 0) != 0)
-                                continue;
-
-                            std::string strip_name = key.substr(5); // strip "wled " prefix
-                            if (it.value().is_object() && it.value().contains("address")) {
-                                wled_addrs.emplace_back(
-                                    std::move(strip_name),
-                                    helix::json_util::as_string(it.value()["address"]));
+            token.defer("LedController::wled_strips_apply",
+                        [this, gen, discovered = std::move(discovered)]() mutable {
+                            spdlog::info("[LedController] Discovered {} WLED strip(s)",
+                                         discovered.size());
+                            for (auto& strip : discovered) {
+                                wled_.add_strip(strip);
                             }
-                        }
+                            bump_config_version();
+                            publish_controllable_state();
+                            settle_wled_discovery(gen);
 
-                        if (wled_addrs.empty())
-                            return;
-
-                        // === MAIN THREAD: apply addresses, chain preset fetches ===
-                        token.defer(
-                            "LedController::wled_addrs_apply",
-                            [this, token, wled_addrs = std::move(wled_addrs)]() mutable {
-                                for (auto& wled_pair : wled_addrs) {
-                                    const std::string& strip_name = wled_pair.first;
-                                    const std::string& addr = wled_pair.second;
-                                    wled_.set_strip_address(strip_name, addr);
-                                    // Attempt to fetch preset names from WLED device
-                                    wled_.fetch_presets_from_device(strip_name, [this, strip_name,
-                                                                                 token]() {
-                                        // === MAIN THREAD: defer presets check ===
-                                        token.defer(
-                                            "LedController::wled_presets_apply",
-                                            [this, strip_name]() {
-                                                // If fetch didn't populate
-                                                // presets (mock/offline), set
-                                                // defaults
-                                                if (wled_.get_strip_presets(strip_name).empty()) {
-                                                    wled_.set_strip_presets(strip_name,
-                                                                            {{1, "Preset 1"},
-                                                                             {2, "Preset 2"},
-                                                                             {3, "Preset 3"},
-                                                                             {4, "Preset 4"},
-                                                                             {5, "Preset 5"}});
-                                                    spdlog::debug("[LedController] Set "
-                                                                  "default presets for "
-                                                                  "'{}'",
-                                                                  strip_name);
-                                                }
-                                            });
-                                    });
-                                }
-                            });
-                    },
-                    [](const MoonrakerError& err) {
-                        spdlog::warn("[LedController] Failed to fetch server config "
-                                     "for WLED addresses: {}",
-                                     err.message);
-                    });
-
-                // Poll initial status
-                refresh_wled_state();
-            });
+                            // Poll initial status
+                            refresh_wled_state();
+                        });
         },
         [this, token, gen](const MoonrakerError& err) {
             // WLED not configured is expected on most printers
@@ -1220,16 +1145,12 @@ std::string LedEffectBackend::display_name_for_effect(const std::string& config_
 // WledBackend
 // ============================================================================
 
-const std::vector<WledPresetInfo> WledBackend::empty_presets_;
-
 void WledBackend::add_strip(const LedStripInfo& strip) {
     strips_.push_back(strip);
 }
 
 void WledBackend::clear() {
     strips_.clear();
-    strip_addresses_.clear();
-    strip_presets_.clear();
     strip_states_.clear();
 }
 
@@ -1339,34 +1260,6 @@ void WledBackend::toggle(const std::string& strip_name, NativeBackend::SuccessCa
                                 });
 }
 
-void WledBackend::set_strip_address(const std::string& strip_id, const std::string& address) {
-    strip_addresses_[strip_id] = address;
-    spdlog::debug("[WledBackend] Set address for '{}': {}", strip_id, address);
-}
-
-std::string WledBackend::get_strip_address(const std::string& strip_id) const {
-    auto it = strip_addresses_.find(strip_id);
-    if (it != strip_addresses_.end()) {
-        return it->second;
-    }
-    return "";
-}
-
-void WledBackend::set_strip_presets(const std::string& strip_id,
-                                    const std::vector<WledPresetInfo>& presets) {
-    strip_presets_[strip_id] = presets;
-    spdlog::debug("[WledBackend] Set {} preset(s) for '{}'", presets.size(), strip_id);
-}
-
-const std::vector<WledPresetInfo>&
-WledBackend::get_strip_presets(const std::string& strip_id) const {
-    auto it = strip_presets_.find(strip_id);
-    if (it != strip_presets_.end()) {
-        return it->second;
-    }
-    return empty_presets_;
-}
-
 void WledBackend::update_strip_state(const std::string& strip_id, const WledStripState& state) {
     strip_states_[strip_id] = state;
     spdlog::debug("[WledBackend] Updated state for '{}': on={} brightness={} preset={}", strip_id,
@@ -1425,31 +1318,6 @@ void WledBackend::poll_status(std::function<void()> on_complete) {
             if (on_complete)
                 on_complete();
         }));
-}
-
-void WledBackend::fetch_presets_from_device(const std::string& strip_id,
-                                            std::function<void()> on_complete) {
-    auto addr_it = strip_addresses_.find(strip_id);
-    if (addr_it == strip_addresses_.end() || addr_it->second.empty()) {
-        spdlog::debug("[WledBackend] No address for strip '{}' - can't fetch presets", strip_id);
-        if (on_complete)
-            on_complete();
-        return;
-    }
-
-    std::string url = "http://" + addr_it->second + "/presets.json";
-    spdlog::debug("[WledBackend] Fetching presets from {}", url);
-
-    // Use libhv's synchronous HTTP client in an async thread via the API's REST mechanism
-    // Since we can't use call_rest_get (it's bound to Moonraker's base URL), we make
-    // a direct HTTP request. The API's launch_http_thread isn't accessible from here,
-    // so for the initial implementation, we skip the actual HTTP call and rely on
-    // mock presets being set directly via set_strip_presets().
-    // Real device fetching will be implemented when a live WLED device is available for testing.
-    spdlog::debug(
-        "[WledBackend] Direct WLED HTTP fetch not yet implemented - use set_strip_presets()");
-    if (on_complete)
-        on_complete();
 }
 
 // ============================================================================

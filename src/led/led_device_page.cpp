@@ -22,7 +22,7 @@ DevicePage classify_device_page(const LedStripInfo& device, MacroLedType macro_t
         return {LampControl::PowerAndBrightness, WhiteMode::None, false,
                 has_effects ? ListKind::Effects : ListKind::LevelChips};
     case LedBackendType::WLED:
-        return {LampControl::PowerAndBrightness, WhiteMode::None, false, ListKind::Presets};
+        return {LampControl::PowerAndBrightness, WhiteMode::None, false, ListKind::None};
     case LedBackendType::OUTPUT_PIN:
         if (device.is_pwm) {
             return {LampControl::PowerAndBrightness, WhiteMode::None, false, ListKind::LevelChips};

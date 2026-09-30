@@ -220,15 +220,6 @@ class WledBackend {
     void toggle(const std::string& strip_name, NativeBackend::SuccessCallback on_success = nullptr,
                 NativeBackend::ErrorCallback on_error = nullptr);
 
-    // Per-strip address management (IP/hostname from Moonraker server config)
-    void set_strip_address(const std::string& strip_id, const std::string& address);
-    [[nodiscard]] std::string get_strip_address(const std::string& strip_id) const;
-
-    // Per-strip preset management (fetched from WLED device)
-    void set_strip_presets(const std::string& strip_id, const std::vector<WledPresetInfo>& presets);
-    [[nodiscard]] const std::vector<WledPresetInfo>&
-    get_strip_presets(const std::string& strip_id) const;
-
     // Per-strip runtime state (from Moonraker status polling)
     void update_strip_state(const std::string& strip_id, const WledStripState& state);
     [[nodiscard]] WledStripState get_strip_state(const std::string& strip_id) const;
@@ -237,22 +228,15 @@ class WledBackend {
     // Poll Moonraker for current WLED status and update strip_states_
     void poll_status(std::function<void()> on_complete = nullptr);
 
-    // Fetch preset names from WLED device directly (http://<address>/presets.json)
-    void fetch_presets_from_device(const std::string& strip_id,
-                                   std::function<void()> on_complete = nullptr);
-
   private:
     IMoonrakerAPI* api_ = nullptr;
     IMoonrakerClient* client_ = nullptr;
     std::vector<LedStripInfo> strips_;
-    std::unordered_map<std::string, std::string> strip_addresses_;
-    std::unordered_map<std::string, std::vector<WledPresetInfo>> strip_presets_;
     std::unordered_map<std::string, WledStripState> strip_states_;
 
     // Declared last: reverse-declaration destruction invalidates outstanding
     // tokens before any member they touch is gone.
     helix::AsyncLifetimeGuard lifetime_;
-    static const std::vector<WledPresetInfo> empty_presets_;
 };
 
 class MacroBackend {
