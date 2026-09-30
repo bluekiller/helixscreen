@@ -11,6 +11,7 @@
 
 #include "overlay_base.h"
 #include "spoolman_types.h" // For SpoolInfo
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -161,4 +162,6 @@ class SpoolmanPanel : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
-SpoolmanPanel& get_global_spoolman_panel();
+inline SpoolmanPanel& get_global_spoolman_panel() {
+    return helix::lazy_global<SpoolmanPanel>("SpoolmanPanel");
+}

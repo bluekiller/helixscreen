@@ -18,7 +18,6 @@
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
@@ -2132,9 +2131,3 @@ static void on_emergency_stop_cb(lv_event_t* /*e*/) {
 static void on_calibrate_start_cb(lv_event_t* /*e*/) {
     get_global_bed_mesh_panel().submit_calibration_name_field();
 }
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(BedMeshPanel, g_bed_mesh_panel, get_global_bed_mesh_panel)

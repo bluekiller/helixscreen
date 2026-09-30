@@ -15,6 +15,7 @@
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "save_config_restart.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <array>
@@ -373,4 +374,6 @@ class BedMeshPanel : public OverlayBase {
 };
 
 // Global instance accessor (needed by main.cpp)
-BedMeshPanel& get_global_bed_mesh_panel();
+inline BedMeshPanel& get_global_bed_mesh_panel() {
+    return helix::lazy_global<BedMeshPanel>("BedMeshPanel");
+}

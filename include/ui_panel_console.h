@@ -10,6 +10,7 @@
 #include "lvgl.h"
 #include "moonraker_types.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <chrono>
@@ -234,4 +235,6 @@ class ConsolePanel : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
-ConsolePanel& get_global_console_panel();
+inline ConsolePanel& get_global_console_panel() {
+    return helix::lazy_global<ConsolePanel>("ConsolePanel");
+}

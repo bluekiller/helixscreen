@@ -11,7 +11,6 @@
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
 #include "ui_panel_controls.h"
-#include "ui_panel_singleton_macros.h"
 #include "ui_settings_motion.h"
 #include "ui_subject_registry.h"
 #include "ui_utils.h"
@@ -26,6 +25,7 @@
 #include "printer_state.h"
 #include "settings_manager.h"
 #include "standard_macros.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "theme_manager.h"
 #include "toolhead_homing.h"
@@ -170,12 +170,6 @@ static void on_motion_tab_clicked(lv_event_t* e);
 static void on_motion_preset_clicked(lv_event_t* e);
 static void on_motion_park_clicked(lv_event_t* e);
 static void on_motion_motors_off_clicked(lv_event_t* e);
-
-// ============================================================================
-// Global Instance (via DEFINE_GLOBAL_PANEL macro)
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(MotionPanel, motion)
 
 // ============================================================================
 // Constructor

@@ -71,7 +71,6 @@ using helix::ui::temperature::deci_to_degrees;
 
 // Forward declarations for class-based API
 class MotionPanel;
-MotionPanel& get_global_motion_panel();
 
 using helix::ui::position::format_position;
 

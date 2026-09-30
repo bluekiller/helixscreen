@@ -9,6 +9,7 @@
 #include "lvgl.h"
 #include "macro_param_modal.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -185,4 +186,6 @@ class MacrosPanel : public OverlayBase {
  *
  * @return Reference to singleton MacrosPanel
  */
-MacrosPanel& get_global_macros_panel();
+inline MacrosPanel& get_global_macros_panel() {
+    return helix::lazy_global<MacrosPanel>("MacrosPanel");
+}
