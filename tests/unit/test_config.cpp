@@ -10,6 +10,7 @@
 #include "runtime_config.h"
 #include "static_subject_registry.h"
 #include "test_helpers/unique_temp_dir.h"
+#include "text_io.h"
 #include "wizard_config_paths.h"
 
 #include <cstdlib>
@@ -3472,6 +3473,61 @@ TEST_CASE("Config::init() keeps tarball default when backup is corrupt",
     test_config.init(env.config_path);
 
     REQUIRE(test_config.is_wizard_required());
+}
+
+namespace {
+
+/// A below-floor document of an install whose printer lives on another host.
+json below_floor_backup() {
+    return {{"config_version", 5},
+            {"wizard_completed", true},
+            {"active_printer_id", "voron"},
+            {"printers",
+             {{"voron",
+               {{"moonraker_host", "192.168.1.77"},
+                {"moonraker_port", 7126},
+                {"wizard_completed", true}}}}}};
+}
+
+json read_json_file(const std::string& file) {
+    return json::parse(helix::text_io::read_file(file).value_or(""), nullptr, false);
+}
+
+} // namespace
+
+TEST_CASE("Config::init() keeps a below-floor backup restored over a tarball default",
+          "[core][config][moonraker-update][migration]") {
+    TarballTestEnv env("floor_tarball_backup");
+    env.write_config({{"preset", "ad5m"},
+                      {"wizard_completed", false},
+                      {"printer", {{"moonraker_host", "127.0.0.1"}}}});
+    env.write_backup(below_floor_backup());
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get_active_printer_id() == "default");
+    REQUIRE(read_json_file(env.config_path + ".pre-migration") == below_floor_backup());
+    REQUIRE(read_json_file(env.backup_dir + "/settings.json.backup") == below_floor_backup());
+}
+
+TEST_CASE("Config::init() keeps a below-floor backup restored over a corrupt config",
+          "[core][config][migration]") {
+    TarballTestEnv env("floor_corrupt_backup");
+    {
+        std::ofstream o(env.config_path);
+        o << "{{{{ not valid json";
+    }
+    env.write_backup(below_floor_backup());
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get_active_printer_id() == "default");
+    REQUIRE(read_json_file(env.config_path + ".pre-migration") == below_floor_backup());
+    REQUIRE(read_json_file(env.backup_dir + "/settings.json.backup") == below_floor_backup());
 }
 
 // ============================================================================

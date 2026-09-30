@@ -853,10 +853,19 @@ void Config::init(const std::string& config_path) {
             // ponytail: one generation only - the next migrating boot from a
             // different version overwrites it; keep a versioned name per
             // migration if older ones are wanted.
+            //
+            // A document below the migration floor is replaced by defaults, and
+            // it may have come from a rolling backup rather than from path (a
+            // corrupt settings.json, or a tarball default after a Moonraker web
+            // update). The snapshot is then its only copy, so it is written
+            // from memory whatever the source.
             const std::string snapshot = path + ".pre-migration";
-            if (data_is_on_disk_doc && version_before > 0 &&
-                version_before < CURRENT_CONFIG_VERSION && storage_->describe() == path &&
-                !read_only_mode_) {
+            const bool below_floor =
+                version_before > 0 && version_before < MIN_MIGRATABLE_CONFIG_VERSION;
+            const bool copy_from_file = data_is_on_disk_doc && storage_->describe() == path;
+            bool snapshot_kept = false;
+            if (version_before > 0 && version_before < CURRENT_CONFIG_VERSION &&
+                (copy_from_file || below_floor) && !read_only_mode_) {
                 // Absent or unreadable parses as discarded, which reads as 0:
                 // nothing worth keeping.
                 const int snapshot_version = helix::json_util::safe_int(
@@ -865,14 +874,23 @@ void Config::init(const std::string& config_path) {
                 if (snapshot_version == version_before) {
                     spdlog::debug("[Config] Keeping existing v{} pre-migration copy: {}",
                                   version_before, snapshot);
-                } else if (write_backup_file(path, snapshot)) {
+                    snapshot_kept = true;
+                } else if (copy_from_file ? write_backup_file(path, snapshot)
+                                          : tio::write_file_atomic(snapshot, data.dump(2))) {
                     spdlog::info("[Config] Saved v{} config before migrating: {}", version_before,
                                  snapshot);
+                    snapshot_kept = true;
                 } else {
                     spdlog::warn("[Config] Could not save pre-migration copy to {}", snapshot);
                 }
             }
-            if (version_before > 0 && version_before < MIN_MIGRATABLE_CONFIG_VERSION) {
+            if (below_floor && !snapshot_kept && !read_only_mode_) {
+                // Replacing it now would leave no copy anywhere. Left unmigrated
+                // and unstamped, it is retried on the next boot.
+                spdlog::error("[Config] config_version {} is older than this build migrates "
+                              "(oldest: {}) and could not be copied to {}; leaving it unmigrated",
+                              version_before, MIN_MIGRATABLE_CONFIG_VERSION, snapshot);
+            } else if (below_floor) {
                 spdlog::warn("[Config] config_version {} is older than this build migrates "
                              "(oldest: {}); starting from defaults, previous config kept at {}",
                              version_before, MIN_MIGRATABLE_CONFIG_VERSION, snapshot);
