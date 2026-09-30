@@ -177,10 +177,6 @@ Like `PrinterState`, `ToolState` is fed `update_from_status()` on the main threa
 | `UpgradeBanner` | [`upgrade_banner.h`](../../../include/upgrade_banner.h) | Dismissible 1.0 upgrade banner |
 | `UpgradeNudge` | [`upgrade_nudge.h`](../../../include/upgrade_nudge.h) | Upgrade nudge coordination |
 | `TipsManager` | [`tips_manager.h`](../../../include/tips_manager.h) | Printing tips |
-| **Plugins** | | |
-| `PluginRegistry` | [`plugin_registry.h`](../../../include/plugin_registry.h) | Service locator for plugin-to-plugin calls |
-| `EventDispatcher` | [`plugin_events.h`](../../../include/plugin_events.h) | Plugin event system |
-| `InjectionPointManager` | [`injection_point_manager.h`](../../../include/injection_point_manager.h) | Plugin UI injection points |
 | **LED** | | |
 | `LedController` | [`led/led_controller.h`](../../../include/led/led_controller.h) | LED hardware interface (5 backends) |
 | `LedAutoState` | [`led/led_auto_state.h`](../../../include/led/led_auto_state.h) | Auto-state lighting rules |

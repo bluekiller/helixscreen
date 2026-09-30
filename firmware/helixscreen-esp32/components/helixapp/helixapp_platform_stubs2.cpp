@@ -22,7 +22,6 @@
 #include "makeid_bt_printer.h"
 #include "mdns_discovery.h"
 #include "platform_info.h"
-#include "plugin_manager.h"
 #include "snapshot_qr_scanner.h"
 #include "spoolman_manager.h"
 #include "spoolman_slot_saver.h"
@@ -611,21 +610,6 @@ SnapshotQrScanner::SnapshotQrScanner() = default;
 SnapshotQrScanner::~SnapshotQrScanner() = default;
 #endif // HELIX_HAS_CAMERA
 
-} // namespace helix
-
-// --- PluginManager readers (dlopen plugin loading; no dynamic linking on
-// ESP-IDF). Empty containers = "no plugins discovered, no errors".
-namespace helix {
-namespace plugin {
-
-std::vector<PluginInfo> PluginManager::get_discovered_plugins() const {
-    return {};
-}
-std::vector<PluginError> PluginManager::get_load_errors() const {
-    return {};
-}
-
-} // namespace plugin
 } // namespace helix
 
 // --- FileDataSource (fopen/fseek/fread streaming; lives in the libhv HTTP

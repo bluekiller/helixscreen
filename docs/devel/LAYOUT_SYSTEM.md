@@ -209,7 +209,6 @@ For `home_panel.xml`, these widget names are required:
 | `print_card_label` | "Print Files" text / progress text |
 | `temp_icon` | Heater icon (C++ controls color animation while heating) |
 | `light_icon` | Light bulb icon (C++ sets color/brightness dynamically) |
-| `panel_widget_area` | Plugin injection point (plugins add widgets here) |
 
 **How to find required names for other panels:** search the corresponding `.cpp` file for
 `lv_obj_find_by_name`. Any name referenced there must exist in your XML.

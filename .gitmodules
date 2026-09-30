@@ -48,3 +48,6 @@
 [submodule "lib/libjpeg-turbo"]
 	path = lib/libjpeg-turbo
 	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
+[submodule "lib/lua"]
+	path = lib/lua
+	url = https://github.com/lua/lua.git

@@ -1857,11 +1857,12 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   # its declaration, its definition, and the stub for builds without the renderer.
   # It joins the ui_gcode_viewer_* C API, which is global by design because it
   # is the widget's LVGL-facing surface; scoping this one call into helix::
-  # would make it the only member of that family that is.
+  # would make it the only member of that family that is. 2215 -> 2214 is
+  # plugin_api.h's file-scope `class IMoonrakerAPI;` forward declaration.
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2215 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2214 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out

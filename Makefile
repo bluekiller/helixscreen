@@ -1146,9 +1146,20 @@ HELIX_HAS_SNAPMAKER ?= 1
 # code AND their big runtime buffers (ESP32-class targets set these to 0).
 HELIX_HAS_GCODE_VIEWER ?= 1
 HELIX_HAS_BED_MESH_3D ?= 1
-# Compile-out gate for the dlopen()-based plugin system — no dynamic linking
-# on statically-linked embedded targets (ESP32-class).
+# Compile-out gate for the plugin runtime — embedded targets that cannot
+# spare the interpreter's size set this to 0 (ESP32-class).
 HELIX_HAS_PLUGINS ?= 1
+# Lua 5.4 for the plugin runtime. Compiled as C++ so a Lua error is an exception and a
+# binding's destructors run. The io, os, package and debug libraries stay out of the
+# binary, which keeps them out of every plugin's reach.
+LUA_DIR := lib/lua
+ifeq ($(HELIX_HAS_PLUGINS),1)
+LUA_EXCLUDED := lua.c onelua.c ltests.c linit.c liolib.c loslib.c loadlib.c ldblib.c
+LUA_SRCS := $(filter-out $(addprefix $(LUA_DIR)/,$(LUA_EXCLUDED)),$(wildcard $(LUA_DIR)/*.c))
+LUA_OBJS := $(patsubst $(LUA_DIR)/%.c,$(OBJ_DIR)/lua/%.o,$(LUA_SRCS))
+else
+LUA_OBJS :=
+endif
 # Compile-out gate for the timelapse VIEWING UI (video list/download/playback).
 # Capture-control (settings, render, save-frames) is plain JSON-RPC and is NOT
 # gated — printers keep capturing timelapses even where the screen can't view them.

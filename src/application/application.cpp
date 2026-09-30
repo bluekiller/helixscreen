@@ -222,7 +222,9 @@
 #include "moonraker_client.h"
 #include "moonraker_performance_source.h"
 #include "performance_state.h"
-#include "plugin_manager.h"
+#if HELIX_HAS_PLUGINS
+#include "plugin_host.h"
+#endif
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "splash_screen.h"
@@ -890,7 +892,7 @@ int Application::run(int argc, char** argv) {
         return 1;
     }
 
-    // Post-UI safety net: phases 11-16b run finalize_setup, plugin init,
+    // Post-UI safety net: phases 11-16b run finalize_setup,
     // overlay construction, and the first synchronous render. Any std::exception
     // escaping here unwinds out of run() into main()'s catch and exits 134,
     // which the watchdog interprets as a deterministic crash and (after
@@ -1006,11 +1008,11 @@ int Application::run(int argc, char** argv) {
             get_global_home_panel().finalize_setup();
         }
 
-        // Phase 14: Initialize and load plugins
-        // Must be after UI panels exist (injection points are registered by panels)
-        if (!init_plugins()) {
-            spdlog::warn("[Application] Plugin initialization had errors (non-fatal)");
-        }
+        // Phase 14: Load plugins (a no-op until HELIX_PLUGIN_DIR is set; the
+        // Moonraker plugin folder arrives in a later phase)
+#if HELIX_HAS_PLUGINS
+        init_plugins();
+#endif
 
         // Banner: Safe Mode — UI is up, so this is the earliest the user can
         // see why the printer connection didn't come up. Sticky (no auto-dismiss)
@@ -2217,83 +2219,26 @@ bool Application::init_moonraker() {
     return true;
 }
 
-bool Application::init_plugins() {
 #if HELIX_HAS_PLUGINS
-    spdlog::debug("[Application] Initializing plugin system");
-
-    m_plugin_manager = std::make_unique<helix::plugin::PluginManager>();
-
-    // Set core services - API and client may be nullptr if mock mode
-    m_plugin_manager->set_core_services(m_moonraker->api(), m_moonraker->client(),
-                                        get_printer_state(), m_config);
-
-    // Read enabled plugins from config
-    auto enabled_plugins =
-        m_config->get<std::vector<std::string>>("/plugins/enabled", std::vector<std::string>{});
-    m_plugin_manager->set_enabled_plugins(enabled_plugins);
-    spdlog::debug("[Application] Enabled plugins from config: {}", enabled_plugins.size());
-
-    // Discover plugins in the plugins directory
-    if (!m_plugin_manager->discover_plugins("plugins")) {
-        spdlog::error("[Application] Plugin discovery failed");
-        return false;
-    }
-
-    // Load all enabled plugins
-    bool all_loaded = m_plugin_manager->load_all();
-
-    // Log any errors and show toast notification with action buttons
-    auto errors = m_plugin_manager->get_load_errors();
-    if (!errors.empty()) {
-        spdlog::warn("[Application] {} plugin(s) failed to load", errors.size());
-        for (const auto& err : errors) {
-            spdlog::warn("[Application]   - {}: {}", err.plugin_id, err.message);
-        }
-
-        if (errors.size() == 1) {
-            // Single failure: Show [Disable] button for quick action
-            // Context struct to pass plugin_id and manager pointer to callback
-            struct PluginDisableContext {
-                helix::plugin::PluginManager* manager;
-                std::string plugin_id;
-            };
-            auto* ctx = new PluginDisableContext{m_plugin_manager.get(), errors[0].plugin_id};
-
-            char toast_msg[96];
-            snprintf(toast_msg, sizeof(toast_msg), lv_tr("\"%s\" failed to load"),
-                     errors[0].plugin_id.c_str());
-
-            ToastManager::instance().show_with_action(
-                ToastSeverity::WARNING, toast_msg, lv_tr("Disable"),
-                [](void* user_data) {
-                    auto* ctx = static_cast<PluginDisableContext*>(user_data);
-                    if (ctx->manager && ctx->manager->disable_plugin(ctx->plugin_id)) {
-                        ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                      lv_tr("Plugin disabled"), 3000);
-                    }
-                    delete ctx;
-                },
-                ctx, 8000);
-        } else {
-            // Multiple failures: the per-plugin errors are in the log above
-            char toast_msg[64];
-            snprintf(toast_msg, sizeof(toast_msg), lv_tr("%zu plugins failed to load"),
-                     errors.size());
-
-            ToastManager::instance().show(ToastSeverity::WARNING, toast_msg, 8000);
-        }
-    }
-
-    auto loaded = m_plugin_manager->get_loaded_plugins();
-    spdlog::debug("[Application] {} plugin(s) loaded successfully", loaded.size());
-
-    helix::MemoryMonitor::log_now("after_plugins_loaded");
-    return all_loaded;
-#else
-    spdlog::debug("[Application] Plugin system compiled out (HELIX_HAS_PLUGINS=0)");
-    return true;
-#endif
+void Application::init_plugins() {
+    const char* dir = std::getenv("HELIX_PLUGIN_DIR");
+    if (!dir || !*dir)
+        return; // the Moonraker plugin folder arrives in a later phase
+    helix::plugin::PluginHost::Deps deps;
+    deps.backend = helix::plugin::make_app_backend();
+    deps.read_block = [this] { return m_config->get<json>("/plugins", json::object()); };
+    deps.write_block = [this](const json& j) {
+        m_config->set<json>("/plugins", j);
+        m_config->save();
+    };
+    deps.settings_path = m_config->get_path();
+    deps.helix_version = HELIX_VERSION;
+    deps.memory_budget = helix::plugin::plugin_memory_budget(helix::plugin::read_mem_total());
+    helix::plugin::register_plugin_event_callback();
+    m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
+    m_plugin_host->load_from(dir);
 }
+#endif
 
 bool Application::run_wizard() {
     bool wizard_required =
@@ -3684,11 +3629,6 @@ void Application::setup_discovery_callbacks() {
                 app->m_job_queue_state->fetch();
             }
 
-            // Notify plugins that Moonraker is connected
-            if (app->m_plugin_manager) {
-                app->m_plugin_manager->on_moonraker_connected();
-            }
-
             helix::settle_light_buttons();
 
             // Start automatic update checks (15s initial delay, then every 24h)
@@ -4887,11 +4827,15 @@ void Application::tear_down_printer_state() {
     // 3. Stop UpdateChecker auto-check timer (fires API calls on background thread)
     UpdateChecker::instance().stop_auto_check();
 
-    // 4. Unload plugins (may hold refs to managers)
-    if (m_plugin_manager) {
-        m_plugin_manager->unload_all();
-        m_plugin_manager.reset();
+    // 4. Unload plugins. Plugin closers remove printer-subject observers and
+    //    Moonraker notify handlers, so they must run while the subjects (deinit
+    //    at step 16) and the client (destroyed at step 18) are still alive.
+#if HELIX_HAS_PLUGINS
+    if (m_plugin_host) {
+        m_plugin_host->unload_all();
+        m_plugin_host.reset();
     }
+#endif
 
     // 5. Freeze update queue to prevent new callbacks during teardown
     auto queue_freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
@@ -5118,10 +5062,10 @@ void Application::init_printer_state() {
         get_global_home_panel().finalize_setup();
     }
 
-    // 8. Reload plugins
-    if (!init_plugins()) {
-        spdlog::warn("[Application] Plugin reinitialization had errors (non-fatal)");
-    }
+    // 8. Reload plugins against the new printer's state
+#if HELIX_HAS_PLUGINS
+    init_plugins();
+#endif
 
     // 9. Connect to new printer's Moonraker
     if (!connect_moonraker()) {
@@ -5231,11 +5175,16 @@ void Application::shutdown() {
     // Shutdown PostOpCooldownManager (cancel pending cooldown timers)
     PostOpCooldownManager::instance().shutdown();
 
-    // Unload plugins before destroying managers they depend on
-    if (m_plugin_manager) {
-        m_plugin_manager->unload_all();
-        m_plugin_manager.reset();
+    // Unload plugins before destroying managers they depend on: plugin closers
+    // remove printer-subject observers and Moonraker notify handlers, so they
+    // must run while the subjects (deinit_all below) and the Moonraker client
+    // (m_moonraker.reset below) are still alive.
+#if HELIX_HAS_PLUGINS
+    if (m_plugin_host) {
+        m_plugin_host->unload_all();
+        m_plugin_host.reset();
     }
+#endif
 
     // Reset managers in reverse order (MoonrakerManager handles print_start_collector cleanup)
     // History managers MUST be reset before moonraker (use client for unregistration).

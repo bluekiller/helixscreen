@@ -65,7 +65,6 @@ graph TB
             CR["CrashReporter"]
             TLM["TelemetryManager"]
             LED["LedController"]
-            PLG["PluginManager"]
         end
         subgraph Lifecycle["Lifecycle"]
             SSR["StaticSubjectRegistry"]
@@ -102,7 +101,6 @@ graph TB
     CFG --> SM
     SND --> MC
     LED --> MA
-    PLG --> MA
 ```
 
 ## Design Philosophy

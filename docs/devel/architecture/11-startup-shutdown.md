@@ -40,7 +40,7 @@ sequenceDiagram
 
     Note over A: Phase 10-17: UI and loop
     A->>XML: lv_xml_create(m_screen, "app_layout")
-    A->>A: PanelFactory, wizard (12), CLI actions (13),<br/>plugins (14), remote ctl (14c), MemoryMonitor (15)
+    A->>A: PanelFactory, wizard (12), CLI actions (13),<br/>remote ctl (14c), MemoryMonitor (15)
     A->>A: main_loop() — splash SIGUSR1 handoff,<br/>first full repaint (16b)
     A->>A: shutdown() (Phase 18)
     M->>M: execv() in-place restart if requested
@@ -101,7 +101,7 @@ The whole ladder, one line per phase comment (all in `run()` unless noted):
 | 9c | `init_panel_subjects()` | `src/application/application.cpp#init_panel_subjects` | `init_panels()` + `init_post()` — every subject exists before XML |
 | 9d | `connect_moonraker()` | `src/application/application.cpp#connect_moonraker` | Async discovery under the splash; Safe Mode skips |
 | 10 | `init_ui()` | `src/application/application.cpp#init_ui` | `lv_xml_create("app_layout")`, navbar, `PanelFactory` |
-| 11b–16b | recovery, wizard, CLI actions, plugins, ctl server, MemoryMonitor, repaint | `src/application/application.cpp#run` | One try/catch: post-UI failures degrade, never exit |
+| 11b–16b | recovery, wizard, CLI actions, ctl server, MemoryMonitor, repaint | `src/application/application.cpp#run` | One try/catch: post-UI failures degrade, never exit |
 | 17 | `main_loop()` | `src/application/application.cpp#main_loop` | Splash handoff lives here (chapter 02 owns the rest) |
 | 18 | `shutdown()` | `src/application/application.cpp#shutdown` | The ladder below |
 
@@ -111,7 +111,7 @@ Phase 9a constructs `SubjectInitializer` and runs `init_core_and_state()` ([`src
 
 Phase 9c (`init_panel_subjects`) runs the rest of the sweep — `init_panels()` then `init_post()` (observers, USB manager), EmergencyStop/AbortManager/detection wiring — so **every subject exists before any XML binding needs it**. Phase 9d then calls `connect_moonraker()` (`src/application/application.cpp#connect_moonraker`) *before* the UI exists: discovery runs async under the splash, and by the time `init_ui()` (Phase 10) calls `lv_xml_create(m_screen, "app_layout", nullptr)` (`src/application/application.cpp#init_ui/"lv_xml_create"`) — timed in the log, it builds all six panel subtrees at once — the connection may already be complete, saving ~2s of splash time. The old startup diagram put connect *after* UI creation and `init_post()` after both; the code orders it 9c → 9d → 10, and `init_post()` runs inside 9c.
 
-Phases 11b–16b live in one `try` block (`src/application/application.cpp#run/"Post-UI safety net"`) with a catch that degrades to a toast instead of exiting — a regression here (`HomePanel::finalize_setup()` json throw) once crash-looped real devices, so anything after UI creation is survivable by policy. In order: stale-printer recovery (11b), first-run wizard (12), CLI startup actions (13), plugins (14), WiFi availability check (14b), the remote-control server — auto-on in `--test`, opt-in via `--remote` (14c, `src/application/application.cpp#run/"Phase 14c"`), memory monitor + hang detection + pressure responders (15), and the first full-screen repaint (16b, skipped while the external splash still owns the framebuffer). Then `main_loop()` (17) and `shutdown()` (18).
+Phases 11b–16b live in one `try` block (`src/application/application.cpp#run/"Post-UI safety net"`) with a catch that degrades to a toast instead of exiting — a regression here (`HomePanel::finalize_setup()` json throw) once crash-looped real devices, so anything after UI creation is survivable by policy. In order: stale-printer recovery (11b), first-run wizard (12), CLI startup actions (13), WiFi availability check (14b), the remote-control server — auto-on in `--test`, opt-in via `--remote` (14c, `src/application/application.cpp#run/"Phase 14c"`), memory monitor + hang detection + pressure responders (15), and the first full-screen repaint (16b, skipped while the external splash still owns the framebuffer). Then `main_loop()` (17) and `shutdown()` (18).
 
 The main loop itself belongs to chapter 02 (notification dispatch, `lv_timer_handler`, the UpdateQueue drain inside it). What is boot-specific is the **splash handoff**: invalidation was suppressed and the flush callback swapped to a no-op in phase 4 while the splash process painted fb0; once discovery completes — or the 8s `DISCOVERY_TIMEOUT_MS` ([`include/splash_screen_manager.h#DISCOVERY_TIMEOUT_MS`](../../../include/splash_screen_manager.h#L32)) fires — the loop sends SIGUSR1, restores the real flush callback, and forces one full repaint. Four timers bound the choreography, each a backstop for the one before it:
 
@@ -126,7 +126,7 @@ The main loop itself belongs to chapter 02 (notification dispatch, `lv_timer_han
 
 `Application::shutdown()` (`src/application/application.cpp#shutdown`) is guarded by `m_shutdown_complete` (the destructor calls it again) and runs a strict ladder. Simplified to its load-bearing steps:
 
-1. **Stop producers.** Hot reloader, remote-control server, memory monitor, then `MoonrakerClient::disconnect()` — background threads must stop delivering before anything they would touch is freed. Clear `app_globals` pointers, then `NavigationManager::shutdown()`, then the service managers (UpdateChecker, Telemetry, CrashHistory, Sound, plugins).
+1. **Stop producers.** Hot reloader, remote-control server, memory monitor, then `MoonrakerClient::disconnect()` — background threads must stop delivering before anything they would touch is freed. Clear `app_globals` pointers, then `NavigationManager::shutdown()`, then the service managers (UpdateChecker, Telemetry, CrashHistory, Sound).
 2. **Unregister and drain.** Timelapse/power/sensor/action-prompt callbacks come off the client, `AmsState::clear_backends()` releases subscription guards while the client's mutex is alive, `update_queue_shutdown()` drains deferred UI callbacks *before* the panels they capture die, and `lv_anim_delete_all()` stops completion callbacks firing on soon-freed widgets.
 3. **`StaticPanelRegistry::destroy_all()`** (`src/application/application.cpp#shutdown/"Destroy ALL static panel"`) — every panel/overlay singleton, self-registered at creation. Destroys panel-local subjects and releases ObserverGuards while LVGL is still up.
 4. **`StaticSubjectRegistry::deinit_all()`** (`src/application/application.cpp#shutdown/"StaticSubjectRegistry::instance().deinit_all"`) — LIFO over self-registered `deinit_subjects()` callbacks ([`src/application/static_subject_registry.cpp#deinit_all`](../../../src/application/static_subject_registry.cpp#L67) iterates a detached copy in reverse, so a callback that re-registers lands in the empty member vector).

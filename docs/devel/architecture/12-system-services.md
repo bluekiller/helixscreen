@@ -22,7 +22,6 @@ flowchart LR
         PH["PrintHistoryManager<br/>published pointer"]
         TS["TimelapseState"]
         NTF["ToastManager +<br/>NotificationManager"]
-        PLG["PluginManager<br/>Application-owned"]
     end
 
     subgraph main["Main thread"]
@@ -60,7 +59,6 @@ flowchart LR
 | [`include/led/led_auto_state.h`](../../../include/led/led_auto_state.h) | LedAutoState: state-key computation and action mapping |
 | [`include/memory_monitor.h`](../../../include/memory_monitor.h) | MemoryMonitor: pressure levels, tier-aware thresholds, responders |
 | [`include/post_op_cooldown_manager.h`](../../../include/post_op_cooldown_manager.h) | PostOpCooldownManager: the whole design in ~75 documented lines |
-| [`src/plugin/plugin_manager.cpp`](../../../src/plugin/plugin_manager.cpp) | PluginManager: discovery, load, core-service injection |
 | [`src/print/print_history_manager.cpp`](../../../src/print/print_history_manager.cpp) | PrintHistoryManager: shared cache, Moonraker subscription |
 | [`include/timelapse_state.h`](../../../include/timelapse_state.h) / [`src/printer/timelapse_state.cpp`](../../../src/printer/timelapse_state.cpp) | TimelapseState: event dispatch to subjects |
 | [`include/ui_notification_manager.h`](../../../include/ui_notification_manager.h) / [`include/ui_toast_manager.h`](../../../include/ui_toast_manager.h) | Badge+history manager and transient toast stack |
@@ -83,7 +81,6 @@ The full roster, verified against the tree (chapter 05 has the complete singleto
 | `PrintHistoryManager` | Application-owned ([`src/application/application.cpp#init_moonraker`](../../../src/application/application.cpp#L2154)), published as nullable pointer ([`include/app_globals.h#get_print_history_manager`](../../../include/app_globals.h#L116)) | no | no (client callbacks) | none |
 | `TimelapseState` | `::instance()` | yes | no (client callbacks) | [`../TIMELAPSE.md`](../TIMELAPSE.md) |
 | `ToastManager` / `NotificationManager` | `::instance()` each | yes (badge/count) | no | none |
-| `PluginManager` | Application-owned `unique_ptr` ([`src/application/application.cpp#init_plugins`](../../../src/application/application.cpp#L2195)) — **not** `::instance()` | no | plugins may spawn their own | [`../PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) |
 
 When each one comes up is chapter 11's ladder; the service-eye view, with the call sites to grep for:
 
@@ -93,7 +90,6 @@ When each one comes up is chapter 11's ladder; the service-eye view, with the ca
 | 9d follow-on | SoundManager (backend pick + startup tone), PostOpCooldownManager | `src/application/application.cpp#"Initialize SoundManager (audio feedback)"`, `src/application/application.cpp#"PostOpCooldownManager::instance().init()"` |
 | 11b | CrashReportModal — only if a pending crash survives suppression | `src/application/application.cpp#"bool show_crash_dialog ="`-`src/application/application.cpp#"CrashReportModal::show_owned(report)"` |
 | during connect | Timelapse subscription; telemetry `start_auto_send()` | `src/application/application.cpp#setup_discovery_callbacks`, `src/application/application.cpp#connect_moonraker` |
-| 14 | PluginManager discover + load | `src/application/application.cpp#init_plugins` |
 | 15 | MemoryMonitor sampling, hang detector, pressure responders | `src/application/application.cpp#"Phase 15: Start memory monitoring"`-`src/application/application.cpp#"Drop all live G-code viewer state on critical pressure"` |
 
 ### Update & recovery
@@ -156,11 +152,27 @@ Both `critical` responders fire on the monitor thread and defer the actual LVGL 
 
 **TimelapseState** is the Moonraker timelapse plugin's client-side shadow: `Application` registers `notify_timelapse_event` → `TimelapseState::handle_timelapse_event` ([`src/application/application.cpp#setup_discovery_callbacks`](../../../src/application/application.cpp#L3162)), which turns `newframe` and `render` events into frame-count and render-progress subjects ([`src/printer/timelapse_state.cpp#handle_timelapse_event`](../../../src/printer/timelapse_state.cpp#L70)–`109`, subjects init'd in [`src/application/subject_initializer.cpp#init_panel_subjects`](../../../src/application/subject_initializer.cpp#L390)) plus throttled toasts during long renders. All subject writes go through `queue_update()`; the subscription is unregistered during shutdown. The surrounding UX — install wizard ([`ui_overlay_timelapse_install.h`](../../../include/ui_overlay_timelapse_install.h)), video list ([`ui_overlay_timelapse_videos.h`](../../../include/ui_overlay_timelapse_videos.h)), print-screen toggle — is [`TIMELAPSE.md`](../TIMELAPSE.md) territory.
 
-**PluginManager** (`helix::plugin::PluginManager`) is Application-owned — a `unique_ptr` member, **not** `::instance()` — compiled in only when `HELIX_HAS_PLUGINS=1` (default on, `Makefile:973`). `init_plugins()` (phase 14, [`src/application/application.cpp#init_plugins`](../../../src/application/application.cpp#L2192)) injects the core services (Moonraker API, client, PrinterState, Config), reads the enabled list from `/plugins/enabled`, discovers the `plugins/` directory, and loads. A failed load surfaces as a warning toast with a **Disable** action button rather than a boot failure. Plugins receive a `PluginAPI`, inject UI at named points ([`src/plugin/injection_point_manager.cpp`](../../../src/plugin/injection_point_manager.cpp)), and may spawn their own threads under the threading rules of chapter 03.
+**Plugins** are Lua scripts under `HELIX_PLUGIN_DIR`. `PluginHost` owns everything about them: discovery, enable state, the memory budget, load, unload and faults ([`src/plugin/plugin_host.cpp#load_from`](../../../src/plugin/plugin_host.cpp#load_from)). It is Application-owned, not a singleton ([`src/application/application.cpp#init_plugins`](../../../src/application/application.cpp#init_plugins)), and everything it does stays on the main thread. A plugin directory's name must match its manifest `id`. Loading reads the config's `/plugins` block for the enable entry and granted permissions, registers the plugin's XML components (`ui/<id>_<name>.xml`), installs the bindings and runs `main.lua`; a manifest asking for permissions beyond those granted parks the plugin at *needs approval* instead of loading it.
+
+Each plugin runs in its own `LuaRuntime` ([`include/lua_runtime.h#LuaRuntime`](../../../include/lua_runtime.h#LuaRuntime)), with one shared set of limits:
+
+| Limit | Rule | Where |
+|-------|------|-------|
+| Libraries | base, string, table, math, utf8 and coroutine only; no `io`, `os`, `package` or `debug` | `src/plugin/lua_runtime.cpp#install_sandbox` |
+| Loading | text chunks only, including `require` and `load`; `dofile`, `loadfile` and `string.dump` are nil | `src/plugin/lua_runtime.cpp#lua_require` |
+| Time | 50 ms per entry; once tripped, the count hook raises again on every instruction, so no depth of `pcall` can swallow it | `src/plugin/lua_runtime.cpp#budget_hook` |
+| Memory, per plugin | the manifest's `memory_mb`; the allocator refuses over-cap growth only inside Lua entries, never during host-side bookkeeping (registry refs, coroutine setup, result pushes), so a push that lands over the cap faults the plugin | `src/plugin/lua_runtime.cpp#alloc` |
+| Memory, all plugins | min(MemTotal / 16, 64 MB); a plugin whose `memory_mb` does not fit in what remains stays unloaded as *over memory budget* | `src/plugin/plugin_host.cpp#plugin_memory_budget` |
+
+Async results are capped before they are pushed: a response body that would not fit between the runtime's use and its cap reaches the plugin as (nil, "response larger than the plugin memory cap") ([`include/lua_bindings.h#push_rpc_capped_body`](../../../include/lua_bindings.h#push_rpc_capped_body)), and `push_json` never raises, turning nesting deeper than 64 levels into nil. Three errors within 60 s fault the plugin as well. A faulted runtime refuses further entries, and the fault handler defers the unload through the update queue, so it runs from a later main-loop turn and never from inside the fault, marking the plugin faulted and showing a toast ([`src/plugin/plugin_host.cpp#on_fault`](../../../src/plugin/plugin_host.cpp#on_fault)). Async completions ride the same queue: `LuaRuntime::Pending::resolve` is thread-safe and resumes the waiting entry on the main thread.
+
+Bindings reach the app only through `PluginBackend` ([`include/plugin_backend.h#PluginBackend`](../../../include/plugin_backend.h#PluginBackend)): gcode, a generic Moonraker call, file upload and download, HTTP, and notify-handler registration, each a `std::function` the host supplies. That struct is the whole app surface a binding can touch, which is also what lets tests substitute a fake. A plugin's XML addresses events to the one global `plugin_event` callback ([`src/plugin/plugin_host.cpp#register_plugin_event_callback`](../../../src/plugin/plugin_host.cpp#register_plugin_event_callback)) with user_data `<id>_<name>[:arg]`; the host runs the plugin's `helix.ui.on` handler `name` with `arg` ([`src/plugin/plugin_host.cpp#dispatch_event`](../../../src/plugin/plugin_host.cpp#dispatch_event)).
+
+Plugins load at boot when `HELIX_PLUGIN_DIR` is set, and unload before subjects and Moonraker are torn down on shutdown and on the restart/printer-switch teardown ([`src/application/application.cpp#shutdown`](../../../src/application/application.cpp#shutdown), [`src/application/application.cpp#tear_down_printer_state`](../../../src/application/application.cpp#tear_down_printer_state)); a printer switch reloads them against the new printer. The manifest schema, the permission list and the Lua API surface are in [`../plans/2026-09-28-lua-plugin-system-design.md`](../plans/2026-09-28-lua-plugin-system-design.md); the plugin author guide is a later phase of that spec.
 
 ## Patterns & gotchas
 
-- **Nine singletons, two owned objects — do not "fix" the split.** `PluginManager` and `PrintHistoryManager` are Application-owned by design (test isolation, explicit lifetime); adding `::instance()` to them breaks both properties. `get_print_history_manager()` returns **nullptr** before phase 9c — always null-check.
+- **Nine singletons, one owned object — do not "fix" the split.** `PrintHistoryManager` is Application-owned by design (test isolation, explicit lifetime); adding `::instance()` to it breaks both properties. `get_print_history_manager()` returns **nullptr** before phase 9c — always null-check.
 - **Every service here follows the UpdateQueue rule.** UpdateChecker results, MemoryMonitor responders, Timelapse events, and PostOpCooldown timers all reach LVGL through `ui_queue_update()` / `queue_update()`; `PostOpCooldownManager::schedule()` is explicitly documented as callable from any thread. A new service that touches a subject from its own thread violates chapter 03.
 - **The M300 install gate is a feedback-loop guard, not an optimization** — installing M300 without a matching Klipper macro loops error tones forever. Same class of trap: alarm-priority sounds bypass mute, so don't route user-facing chirps through `SoundPriority::ALARM`.
 - **A manual update tap inside 10 minutes is a silent no-op by design** — it returns the cached result and logs at `debug` only, which reads as "the button does nothing" in bug reports.
@@ -181,7 +193,7 @@ Both `critical` responders fire on the monitor thread and defer the actual LVGL 
 - [`../SOUND_SYSTEM.md`](../SOUND_SYSTEM.md) — backend internals, the priority system, and the JSON theme schema.
 - [`../LED_CONTROL.md`](../LED_CONTROL.md) — all five backends in detail, the control/settings overlays, and the home-panel LED widget.
 - [`../TIMELAPSE.md`](../TIMELAPSE.md) — the Moonraker timelapse plugin protocol and the video-management UI.
-- [`../PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) — the plugin lifecycle, `PluginAPI` reference, UI injection, and threading rules for plugin authors.
+- Plugins: the Lua runtime's manifest schema, permissions and Lua API, in [`../plans/2026-09-28-lua-plugin-system-design.md`](../plans/2026-09-28-lua-plugin-system-design.md).
 - [`11-startup-shutdown.md`](11-startup-shutdown.md) — the exact phases where each service starts and the shutdown ladder that stops them.
 - [`04-moonraker.md`](04-moonraker.md) — the network endpoints these services talk to and which of them never touch the Moonraker socket.
 - [`03-threading-lifetime.md`](03-threading-lifetime.md) — the joined-worker pattern UpdateChecker and TelemetryManager follow.
@@ -200,7 +212,6 @@ Read in this order; about 30 minutes total.
 8. [`include/system/telemetry_manager.h`](../../../include/system/telemetry_manager.h) — the block-comment architecture diagram (collect → persist → batch → POST) and the thread contract.
 9. [`include/post_op_cooldown_manager.h`](../../../include/post_op_cooldown_manager.h) — the entire header; the threading and opt-out rules are in the doc comments.
 10. [`src/application/application.cpp#run`](../../../src/application/application.cpp#L900) — the crash-dialog gate: the three suppression paths (post-update, unparseable, duplicate) before `CrashReportModal`.
-11. [`src/application/application.cpp#init_plugins`](../../../src/application/application.cpp#L2192) — `init_plugins()`: owned manager, service injection, the error toast with Disable action.
-12. [`src/print/print_history_manager.cpp#subscribe_to_notifications`](../../../src/print/print_history_manager.cpp#L290) — the `notify_history_changed` registration and `token.defer()` invalidation.
-13. [`src/printer/timelapse_state.cpp#handle_timelapse_event`](../../../src/printer/timelapse_state.cpp#L70) — `handle_timelapse_event()`: newframe/render branches and subject updates.
-14. [`include/ui_toast_manager.h`](../../../include/ui_toast_manager.h) — the stack semantics comment, then [`include/ui_notification_manager.h`](../../../include/ui_notification_manager.h) for the before/after-XML ordering contract.
+11. [`src/print/print_history_manager.cpp#subscribe_to_notifications`](../../../src/print/print_history_manager.cpp#L290) — the `notify_history_changed` registration and `token.defer()` invalidation.
+12. [`src/printer/timelapse_state.cpp#handle_timelapse_event`](../../../src/printer/timelapse_state.cpp#L70) — `handle_timelapse_event()`: newframe/render branches and subject updates.
+13. [`include/ui_toast_manager.h`](../../../include/ui_toast_manager.h) — the stack semantics comment, then [`include/ui_notification_manager.h`](../../../include/ui_notification_manager.h) for the before/after-XML ordering contract.

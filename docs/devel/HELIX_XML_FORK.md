@@ -113,9 +113,8 @@ in a proprietary repo we have neither access to nor the right to copy from.
 
 Practical consequences:
 
-- Any XML bug is **our** bug. `PLUGIN_DEVELOPMENT.md` used to say "LVGL 9.5 does not provide
-  `lv_xml_unregister_subject()`" as though it were an upstream limitation — LVGL 9.5 has no XML at
-  all; that gap is ours to fill or not.
+- Any XML bug is **our** bug. LVGL 9.5 has no XML at all; that gap is ours to fill or not.
+  Plugins are being rebuilt on sandboxed Lua; the design is `docs/devel/plans/2026-09-28-lua-plugin-system-design.md`.
 - Upstream XML documentation links are dead. `docs.lvgl.io/master/details/xml/` now redirects to
   Pro docs describing a different, closed engine. Do not cite it as authoritative for our syntax.
 - `lib/helix-xml/` is a submodule pointing at

@@ -17,7 +17,6 @@ Welcome to the HelixScreen documentation. Choose your path:
 | [**FAQ**](user/FAQ.md) | Quick answers to common questions |
 | [**Telemetry**](user/TELEMETRY.md) | What telemetry collects, privacy controls, opt-in/out |
 | [**Feature Guides**](user/guide/) | 30 guides: per-feature (printing, calibration, filament, sensors, camera, and more) plus per-printer install guides (K1C, K2, AD5M, AD5X, CC1, Sonic Pad, U1) |
-| [**Plugin Development**](devel/PLUGIN_DEVELOPMENT.md) | Create custom plugins |
 
 ---
 

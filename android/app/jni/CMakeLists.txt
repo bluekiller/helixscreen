@@ -270,7 +270,8 @@ target_compile_definitions(main PRIVATE
     # stub implementation.
     HELIX_HAS_GCODE_VIEWER=1
     HELIX_HAS_BED_MESH_3D=1
-    HELIX_HAS_PLUGINS=1
+    # The Lua plugin runtime is not built for Android.
+    HELIX_HAS_PLUGINS=0
     HELIX_HAS_TIMELAPSE_VIEWER=1
     # FONT_SOURCES above globs every face under assets/fonts/*.c with no tier
     # filtering, so the 48/64pt and 32/40pt hi-DPI CJK rungs are linked into

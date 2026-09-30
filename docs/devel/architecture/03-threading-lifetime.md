@@ -182,7 +182,7 @@ Supporting rules that trip contributors:
 - [`../THREADING.md`](../THREADING.md) — the single source of truth this chapter summarizes: the L081 TOCTOU mechanisms and their three enforcement layers, `ScopedFreeze` drain-and-destroy semantics, shutdown registry ordering, the dynamic-subject source table, Klippy-volatile membership rules, and the full symptom index.
 - [`02-subjects-dataflow.md`](02-subjects-dataflow.md) — the same boundary from the data side: the notification queue, the marshalling setter pattern, and the observer-factory worked examples.
 - [`../MOONRAKER_ARCHITECTURE.md`](../MOONRAKER_ARCHITECTURE.md) — § "HTTP Work Execution (HttpExecutor)": lane discipline and the submit/run_sync contract in full.
-- [`../PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) § "Threading Model" — the same rules restated for plugin authors, whose event callbacks arrive on background threads by default.
+- Plugins are being rebuilt on sandboxed Lua; the design is `docs/devel/plans/2026-09-28-lua-plugin-system-design.md`.
 - [`../REVIEW_RUBRIC.md`](../REVIEW_RUBRIC.md) — which crash families the automated gates already cover, so review effort goes where the gates are blind.
 
 ## Guided code tour

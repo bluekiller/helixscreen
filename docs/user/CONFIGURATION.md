@@ -36,7 +36,6 @@ Complete reference for HelixScreen configuration options.
 - [Label Printer Settings](#label-printer-settings)
 - [Printer Switcher](#printer-switcher)
 - [Telemetry Settings](#telemetry-settings)
-- [Plugin Settings](#plugin-settings)
 - [Update Settings](#update-settings)
 - [Upgrade Nudge](#upgrade-nudge)
 - [Safety Limits](#safety-limits)
@@ -111,7 +110,6 @@ The configuration file is JSON format with several top-level sections:
   "security": { ... },
   "label_printer": { ... },
   "printers": { ... },
-  "plugins": { ... },
   "update": { ... }
 }
 ```
@@ -1696,32 +1694,6 @@ Located in the `printers` section:
 
 ---
 
-## Plugin Settings
-
-Located in the `plugins` section:
-
-```json
-{
-  "plugins": {
-    "enabled": []
-  }
-}
-```
-
-### `enabled`
-**Type:** array
-**Default:** `[]`
-**Description:** List of plugin IDs to load. Plugins must be explicitly enabled.
-
-**Example:**
-```json
-{
-  "enabled": ["led-effects", "custom-macros"]
-}
-```
-
----
-
 ## Update Settings
 
 `channel` lives in the `update` section of `settings.json`. The URL overrides
@@ -2235,10 +2207,6 @@ Environment="HELIX_TOUCH_DEVICE=/dev/input/event0"
   "filament_sensors": {
     "master_enabled": true,
     "sensors": []
-  },
-
-  "plugins": {
-    "enabled": []
   },
 
   "update": {
