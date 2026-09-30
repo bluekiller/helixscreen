@@ -504,9 +504,12 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
      * @param hub_names Hub names from PrinterCapabilities::get_afc_hub_names()
      */
     void set_discovered_lanes(const std::vector<std::string>& lane_names,
-                              const std::vector<std::string>& hub_names) override;
+                              const std::vector<std::string>& hub_names);
 
-    void set_discovered_sensors(const std::vector<std::string>& sensor_names) override;
+    void set_discovered_sensors(const std::vector<std::string>& sensor_names);
+
+    /// Lanes, hubs and filament sensors from discovery.
+    void set_discovery(const helix::PrinterDiscovery& discovery) override;
 
     // Device-Specific Actions
     /**

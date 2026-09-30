@@ -74,7 +74,11 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
      *
      * @param tool_names Vector of tool names
      */
-    void set_discovered_tools(std::vector<std::string> tool_names) override;
+    void set_discovered_tools(std::vector<std::string> tool_names);
+
+    /// Tool names plus the feeder, tool sensor, swap commands and material
+    /// source resolved from discovery.
+    void set_discovery(const helix::PrinterDiscovery& discovery) override;
 
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
@@ -333,24 +337,24 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
      * exposes no device actions -- which is every klipper-toolchanger build
      * that swaps a whole toolhead.
      */
-    void set_feeder(helix::toolchanger_addon::Feeder feeder) override {
+    void set_feeder(helix::toolchanger_addon::Feeder feeder) {
         feeder_ = std::move(feeder);
     }
 
     /// Dock-sensor reader. When set, its answer overrides toolchanger.tool_number.
-    void set_tool_sensor(helix::toolchanger_addon::ToolSensor sensor) override {
+    void set_tool_sensor(helix::toolchanger_addon::ToolSensor sensor) {
         tool_sensor_ = std::move(sensor);
     }
 
     /// Swap commands for a machine without klipper-toolchanger. Absent leaves
     /// SELECT_TOOL/UNSELECT_TOOL in place.
-    void set_tool_commands(helix::toolchanger_addon::ToolCommands commands) override {
+    void set_tool_commands(helix::toolchanger_addon::ToolCommands commands) {
         tool_commands_ = std::move(commands);
     }
 
     /// The firmware material store this machine keeps. Absent means
     /// HelixScreen's own store is the only one.
-    void set_material_source(helix::toolchanger_addon::MaterialSource source) override {
+    void set_material_source(helix::toolchanger_addon::MaterialSource source) {
         std::lock_guard<std::mutex> lock(mutex_);
         material_source_ = std::move(source);
     }

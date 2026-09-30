@@ -981,16 +981,6 @@ void AmsState::init_backends_from_hardware(const helix::PrinterDiscovery& hardwa
             continue;
         }
 
-        backend->set_discovered_lanes(hardware.afc_lane_names(), hardware.afc_hub_names());
-        backend->set_discovered_tools(hardware.tool_names());
-        backend->set_feeder(helix::toolchanger_addon::resolve_feeder(
-            hardware, helix::SettingsManager::instance().get_feeder_open_macro(),
-            helix::SettingsManager::instance().get_feeder_close_macro()));
-        backend->set_bypass_macros(helix::resolve_bypass_macros_for(hardware));
-        backend->set_tool_sensor(helix::toolchanger_addon::resolve_tool_sensor(hardware));
-        backend->set_tool_commands(helix::toolchanger_addon::resolve_tool_commands(hardware));
-        backend->set_material_source(helix::toolchanger_addon::resolve_material_source(hardware));
-        backend->set_discovered_sensors(hardware.filament_sensor_names());
         backend->set_discovery(hardware);
 
         int index = add_backend(std::move(backend));

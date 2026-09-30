@@ -574,6 +574,10 @@ std::vector<int> AmsBackendAce::get_tool_mapping() const {
 // Bypass Mode (not supported)
 // ============================================================================
 
+void AmsBackendAce::set_discovery(const helix::PrinterDiscovery& discovery) {
+    set_bypass_macros(helix::resolve_bypass_macros_for(discovery));
+}
+
 void AmsBackendAce::set_bypass_macros(helix::BypassMacros macros) {
     std::lock_guard<std::mutex> lock(mutex_);
     bypass_on_macro_ = std::move(macros.on);

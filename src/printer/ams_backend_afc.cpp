@@ -375,6 +375,11 @@ void AmsBackendAfc::set_discovered_lanes(const std::vector<std::string>& lane_na
     }
 }
 
+void AmsBackendAfc::set_discovery(const helix::PrinterDiscovery& discovery) {
+    set_discovered_lanes(discovery.afc_lane_names(), discovery.afc_hub_names());
+    set_discovered_sensors(discovery.filament_sensor_names());
+}
+
 void AmsBackendAfc::set_discovered_sensors(const std::vector<std::string>& sensor_names) {
     std::lock_guard<std::mutex> lock(mutex_);
 

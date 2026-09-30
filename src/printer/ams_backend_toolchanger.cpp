@@ -41,6 +41,17 @@ AmsBackendToolChanger::AmsBackendToolChanger(IMoonrakerAPI* api, IMoonrakerClien
     spdlog::debug("[AMS ToolChanger] Backend created");
 }
 
+void AmsBackendToolChanger::set_discovery(const helix::PrinterDiscovery& discovery) {
+    namespace addon = helix::toolchanger_addon;
+    set_discovered_tools(discovery.tool_names());
+    set_feeder(addon::resolve_feeder(discovery,
+                                     helix::SettingsManager::instance().get_feeder_open_macro(),
+                                     helix::SettingsManager::instance().get_feeder_close_macro()));
+    set_tool_sensor(addon::resolve_tool_sensor(discovery));
+    set_tool_commands(addon::resolve_tool_commands(discovery));
+    set_material_source(addon::resolve_material_source(discovery));
+}
+
 void AmsBackendToolChanger::set_discovered_tools(std::vector<std::string> tool_names) {
     std::lock_guard<std::mutex> lock(mutex_);
 

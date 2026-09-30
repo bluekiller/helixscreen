@@ -180,7 +180,10 @@ class AmsBackendAce : public AmsSubscriptionBackend {
 
     /// The macros that throw the ACE master switch, resolved from discovery
     /// with a user override. Empty names mean this rig cannot bypass.
-    void set_bypass_macros(helix::BypassMacros macros) override;
+    void set_bypass_macros(helix::BypassMacros macros);
+
+    /// The bypass macros resolved from discovery.
+    void set_discovery(const helix::PrinterDiscovery& discovery) override;
 
     // ========================================================================
     // Environment Sensors & Dryer Control (ACE Pro has built-in dryer + temp)
