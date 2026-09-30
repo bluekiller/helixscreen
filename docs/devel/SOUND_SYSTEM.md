@@ -219,7 +219,7 @@ coloring the timbre bright.
 
 ### PWM tracker playback: PC-speaker mode (PWM backends)
 
-`supports_render_source()` returns **false** on PWM, so tracker playback (MOD/MED music) on a PWM backend routes through the note fallback: `TrackerPlayer::apply_to_backend()` computes each channel's note frequency (`3546895 / period`) and calls `set_voice()`, whose base implementation forwards slot 0 to `set_tone()` -- the channel-0 lead line as note-frequency square waves, PC-speaker style. Channels 1-3 are dropped (single sysfs channel), and instrument samples are not reproduced (their note pitches are).
+`supports_render_source()` returns **false** on PWM, so tracker playback (MOD music) on a PWM backend routes through the note fallback: `TrackerPlayer::apply_to_backend()` computes each channel's note frequency (`3546895 / period`) and calls `set_voice()`, whose base implementation forwards slot 0 to `set_tone()` -- the channel-0 lead line as note-frequency square waves, PC-speaker style. Channels 1-3 are dropped (single sysfs channel), and instrument samples are not reproduced (their note pitches are).
 
 This is a hardware verdict, not a preference: verified on an AD5M Pro 2026-08-30, the buzzer is a resonant piezo with no reconstruction filter, so a duty-modulated carrier demodulates as static -- an audible beat, not music. Note-frequency square waves are what the transducer is built for.
 

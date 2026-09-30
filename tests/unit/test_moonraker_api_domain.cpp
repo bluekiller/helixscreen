@@ -67,12 +67,10 @@ class MoonrakerAPIDomainTestFixture {
         // Connect mock client (required for discovery)
         mock_client.connect("ws://mock/websocket", []() {}, []() {});
 
-        // Create API with mock client BEFORE discovery
-        // (API registers hardware discovered callback in constructor)
         api = std::make_unique<MoonrakerAPI>(mock_client, state);
 
-        // Run discovery to populate hardware lists (triggers API callback)
-        mock_client.discover_printer([]() {});
+        // Run discovery, then hand the hardware to the API as Application does
+        mock_client.discover_printer([this]() { api->hardware() = mock_client.hardware(); });
     }
 
     ~MoonrakerAPIDomainTestFixture() {
@@ -266,43 +264,4 @@ TEST_CASE_METHOD(HelixTestFixture,
             mock.disconnect();
         }
     }
-}
-
-// ============================================================================
-// Hardware Discovery Access via MoonrakerAPI Tests
-// ============================================================================
-
-TEST_CASE_METHOD(HelixTestFixture,
-                 "MoonrakerAPI hardware() returns discovery data after discovery completes",
-                 "[api][hardware]") {
-    PrinterState state;
-    state.init_subjects(false);
-
-    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
-    mock.connect("ws://mock/websocket", []() {}, []() {});
-
-    // Create API before discovery so callbacks are registered
-    MoonrakerAPI api(mock, state);
-
-    // Run discovery - this fires callbacks that populate api.hardware_
-    mock.discover_printer([]() {});
-
-    // Verify hardware data is accessible through API
-    // After discovery, the API should have hardware data populated
-    const auto& hw = api.hardware();
-
-    // VORON_24 should have hostname populated from mock
-    // Note: Mock sets hostname during discovery
-    REQUIRE_FALSE(hw.hostname().empty());
-
-    // Should have expected hardware for VORON_24
-    REQUIRE_FALSE(hw.heaters().empty());
-    REQUIRE_FALSE(hw.fans().empty());
-
-    // Check capabilities that VORON_24 should have
-    REQUIRE(hw.has_heater_bed() == true);
-    REQUIRE(hw.has_qgl() == true); // Voron 2.4 has QGL
-
-    mock.stop_temperature_simulation();
-    mock.disconnect();
 }

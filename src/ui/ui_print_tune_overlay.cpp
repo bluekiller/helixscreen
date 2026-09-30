@@ -106,10 +106,6 @@ static void on_tune_z_adjust_cb(lv_event_t* e) {
     get_print_tune_overlay().handle_z_adjust(atoi(dir_str));
 }
 
-static void on_tune_save_z_offset_cb(lv_event_t* /*e*/) {
-    get_print_tune_overlay().handle_save_z_offset();
-}
-
 // ============================================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================================
@@ -239,7 +235,6 @@ void PrintTuneOverlay::init_subjects_internal() {
         {"on_tune_flow_adjust", on_tune_flow_adjust_cb},
         {"on_tune_reset_clicked", on_tune_reset_clicked_cb},
         {"on_tune_units_toggle", on_tune_units_toggle_cb},
-        {"on_tune_save_z_offset", on_tune_save_z_offset_cb},
         {"on_tune_z_step", on_tune_z_step_cb},
         {"on_tune_z_target", on_tune_z_target_cb},
         {"on_tune_z_adjust", on_tune_z_adjust_cb},
@@ -647,32 +642,4 @@ void PrintTuneOverlay::handle_tool_z_offset_changed(double delta) {
             ui_z_offset_indicator_flash_direction(indicator, delta > 0 ? 1 : -1);
         }
     }
-}
-
-void PrintTuneOverlay::handle_save_z_offset() {
-    if (printer_state_) {
-        auto strategy = printer_state_->get_z_offset_calibration_strategy();
-        if (helix::zoffset::is_auto_saved(strategy))
-            return;
-    }
-
-    save_z_offset_modal_.set_on_confirm([this]() {
-        if (!api_ || !printer_state_)
-            return;
-
-        auto strategy = printer_state_->get_z_offset_calibration_strategy();
-        helix::zoffset::apply_and_save(
-            api_, save_config_watch_, strategy,
-            []() {
-                spdlog::info("[PrintTuneOverlay] Z-offset saved — Klipper restarting");
-                ToastManager::instance().show(
-                    ToastSeverity::WARNING, lv_tr("Z-offset saved - Klipper restarting..."), 5000);
-            },
-            [](const std::string& error) {
-                spdlog::error("[PrintTuneOverlay] Save failed: {}", error);
-                NOTIFY_ERROR(lv_tr("Save failed: {}"), error);
-            },
-            printer_state_);
-    });
-    save_z_offset_modal_.show(lv_screen_active());
 }

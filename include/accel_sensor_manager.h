@@ -5,7 +5,6 @@
 
 #include "accel_sensor_types.h"
 #include "lvgl.h"
-#include "sensor_registry.h"
 #include "subject_managed_panel.h"
 
 #include <map>
@@ -14,12 +13,13 @@
 #include <string>
 #include <vector>
 
+#include "hv/json.hpp"
+
 namespace helix::sensors {
 
 /**
  * @brief Manager for accelerometer sensors (ADXL345, LIS2DW, LIS3DH, MPU9250, ICM20948)
  *
- * Implements ISensorManager interface for integration with SensorRegistry.
  * Provides:
  * - Auto-discovery of accelerometer sensors from Klipper objects list
  * - Role assignment for input shaping
@@ -47,7 +47,7 @@ namespace helix::sensors {
  * }
  * @endcode
  */
-class AccelSensorManager : public ISensorManager {
+class AccelSensorManager {
   public:
     /**
      * @brief Get singleton instance
@@ -59,11 +59,8 @@ class AccelSensorManager : public ISensorManager {
     AccelSensorManager& operator=(const AccelSensorManager&) = delete;
 
     // ========================================================================
-    // ISensorManager Interface
+    // Discovery, Status and Config
     // ========================================================================
-
-    /// @brief Get category name for registry
-    [[nodiscard]] std::string category_name() const override;
 
     /**
      * @brief Discover sensors from Klipper config keys (configfile.config)
@@ -74,19 +71,19 @@ class AccelSensorManager : public ISensorManager {
      * @param config_keys JSON object where keys are config section names
      * @note MUST be called from main LVGL thread (updates subjects directly)
      */
-    void discover_from_config(const nlohmann::json& config_keys) override;
+    void discover_from_config(const nlohmann::json& config_keys);
 
     /// @brief Update state from Moonraker status JSON
-    void update_from_status(const nlohmann::json& status) override;
+    void update_from_status(const nlohmann::json& status);
 
     /**
      * @brief Load sensor configuration from JSON
      * @note MUST be called from main LVGL thread (updates subjects directly)
      */
-    void load_config(const nlohmann::json& config) override;
+    void load_config(const nlohmann::json& config);
 
     /// @brief Save configuration to JSON
-    [[nodiscard]] nlohmann::json save_config() const override;
+    [[nodiscard]] nlohmann::json save_config() const;
 
     // ========================================================================
     // Initialization

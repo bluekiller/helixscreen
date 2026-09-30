@@ -68,8 +68,6 @@ static void on_calibrate_header_clicked_cb(lv_event_t* e);
 static void on_calibrate_cancel_cb(lv_event_t* e);
 static void on_rename_cancel_cb(lv_event_t* e);
 static void on_rename_confirm_cb(lv_event_t* e);
-static void on_delete_cancel_cb(lv_event_t* e);
-static void on_delete_confirm_cb(lv_event_t* e);
 static void on_save_config_no_cb(lv_event_t* e);
 static void on_save_config_yes_cb(lv_event_t* e);
 static void on_emergency_stop_cb(lv_event_t* e);
@@ -608,10 +606,6 @@ void BedMeshPanel::register_callbacks() {
         // Rename modal
         {"on_bed_mesh_rename_cancel", on_rename_cancel_cb},
         {"on_bed_mesh_rename_confirm", on_rename_confirm_cb},
-
-        // Delete modal
-        {"on_bed_mesh_delete_cancel", on_delete_cancel_cb},
-        {"on_bed_mesh_delete_confirm", on_delete_confirm_cb},
 
         // Save config modal
         {"on_bed_mesh_save_config_no", on_save_config_no_cb},
@@ -2121,14 +2115,6 @@ static void on_rename_confirm_cb(lv_event_t* /*e*/) {
 
     const char* text = input ? lv_textarea_get_text(input) : nullptr;
     get_global_bed_mesh_panel().rename_profile_checked(text ? text : "");
-}
-
-static void on_delete_cancel_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().hide_all_modals();
-}
-
-static void on_delete_confirm_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().confirm_delete_profile();
 }
 
 static void on_save_config_no_cb(lv_event_t* /*e*/) {

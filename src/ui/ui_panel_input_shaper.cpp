@@ -147,24 +147,14 @@ void ui_panel_input_shaper_register_callbacks() {
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_calibrate_x_clicked(); }},
         {"input_shaper_calibrate_y_cb",
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_calibrate_y_clicked(); }},
-        {"input_shaper_measure_noise_cb",
-         [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_measure_noise_clicked(); }},
         {"input_shaper_cancel_cb",
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_cancel_clicked(); }},
-        {"input_shaper_apply_cb",
-         [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_apply_clicked(); }},
         {"input_shaper_close_cb",
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_close_clicked(); }},
         {"input_shaper_retry_cb",
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_retry_clicked(); }},
-        {"input_shaper_save_config_cb",
-         [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_save_config_clicked(); }},
         {"input_shaper_save_cb",
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_save_clicked(); }},
-        {"input_shaper_print_test_cb",
-         [](lv_event_t* /*e*/) {
-             get_global_input_shaper_panel().handle_print_test_pattern_clicked();
-         }},
         {"input_shaper_help_cb",
          [](lv_event_t* /*e*/) { get_global_input_shaper_panel().handle_help_clicked(); }},
         // Chip toggle callbacks for frequency response chart overlays
@@ -901,43 +891,6 @@ void InputShaperPanel::begin_analysis_display() {
 
 void InputShaperPanel::cancel_analysis_display() {
     analysis_elapsed_.cancel();
-}
-
-void InputShaperPanel::measure_noise() {
-    if (!calibrator_) {
-        spdlog::error("[InputShaper] No calibrator - cannot measure noise");
-        on_calibration_error("Internal error: calibrator not available");
-        return;
-    }
-
-    snprintf(is_measuring_axis_label_buf_, sizeof(is_measuring_axis_label_buf_), "%s",
-             lv_tr("Measuring accelerometer noise..."));
-    lv_subject_copy_string(&is_measuring_axis_label_, is_measuring_axis_label_buf_);
-    calibration_lifetime_.invalidate();
-    auto cal_tok = calibration_lifetime_.token();
-    set_state(State::MEASURING);
-    spdlog::info("[InputShaper] Starting accelerometer check via calibrator");
-
-    calibrator_->check_accelerometer(
-        lifetime_.bg_cb("InputShaperPanel::measure_noise_complete",
-                        [this, cal_tok](float noise_level) {
-                            if (cal_tok.expired())
-                                return;
-                            spdlog::debug(
-                                "[InputShaper] Accelerometer check complete, noise={:.4f}",
-                                noise_level);
-                            char msg[64];
-                            snprintf(msg, sizeof(msg), "Noise level: %.4f", noise_level);
-                            ToastManager::instance().show(ToastSeverity::INFO, msg, 3000);
-                            set_state(State::IDLE);
-                        }),
-        lifetime_.bg_cb("InputShaperPanel::measure_noise_error",
-                        [this, cal_tok](const std::string& err) {
-                            if (cal_tok.expired())
-                                return;
-                            spdlog::error("[InputShaper] Failed to measure noise: {}", err);
-                            on_calibration_error(err);
-                        }));
 }
 
 void InputShaperPanel::cancel_calibration() {
@@ -2173,14 +2126,6 @@ void InputShaperPanel::handle_calibrate_y_clicked() {
     start_with_preflight('Y');
 }
 
-void InputShaperPanel::handle_measure_noise_clicked() {
-    if (state_ != State::IDLE) {
-        return;
-    }
-    spdlog::debug("[InputShaper] Measure Noise clicked");
-    measure_noise();
-}
-
 void InputShaperPanel::handle_cancel_clicked() {
     spdlog::debug("[InputShaper] Cancel clicked");
     cancel_calibration();
@@ -2202,15 +2147,6 @@ void InputShaperPanel::handle_retry_clicked() {
     spdlog::debug("[InputShaper] Retry clicked");
     calibrate_all_mode_ = false;
     start_with_preflight(current_axis_);
-}
-
-void InputShaperPanel::handle_save_config_clicked() {
-    spdlog::debug("[InputShaper] Save Config clicked");
-    // save_configuration() reads the results, so it has to run BEFORE they are cleared.
-    save_configuration();
-    clear_results();
-    set_state(State::IDLE);
-    NavigationManager::instance().go_back();
 }
 
 void InputShaperPanel::handle_save_clicked() {

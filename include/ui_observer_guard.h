@@ -8,7 +8,7 @@
  * @pattern Guard that removes observer on destruction; release() for pre-destroyed subjects.
  *          For dynamic subjects (per-fan, per-sensor, per-extruder), use SubjectLifetime
  *          tokens to prevent use-after-free when subjects are deinited before observers.
- * @threading Main thread only (invalidate_all/revalidate_all use atomic for safety)
+ * @threading Main thread only (invalidate_all uses an atomic epoch for safety)
  * @gotchas Checks lv_is_initialized() - safe during LVGL shutdown.
  *          Dynamic subjects MUST provide a SubjectLifetime token — see printer_fan_state.h,
  *          temperature_sensor_manager.h, printer_temperature_state.h.
@@ -125,7 +125,7 @@ class ObserverGuard {
      * subjects the registry never frees (the reseeded theme globals) still
      * remove theirs.
      * Observers created AFTER this call — e.g. widgets built during
-     * init_printer_state()'s finalize_setup() before revalidate_all() — are
+     * init_printer_state()'s finalize_setup() — are
      * attached to live subjects and are removed normally on reset().
      *
      * Call invalidate_all() AFTER StaticSubjectRegistry::deinit_all() and
@@ -139,16 +139,6 @@ class ObserverGuard {
     static void invalidate_all() {
         s_invalidation_epoch.fetch_add(1, std::memory_order_release);
     }
-    /**
-     * @brief Marks the end of a reinit window. No-op in the epoch model.
-     *
-     * Removal coherence is decided per-observer by created_epoch_ vs the
-     * current invalidation epoch, so no global "valid again" flip is needed.
-     * Retained for call-site compatibility (Application::init_printer_state(),
-     * including its early-return error paths).
-     */
-    static void revalidate_all() {}
-
     /**
      * @brief Declare that a subject is never freed by a registry teardown.
      *

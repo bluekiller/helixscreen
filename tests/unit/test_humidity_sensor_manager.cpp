@@ -160,9 +160,9 @@ TEST_CASE("HumiditySensorTypes - type string conversion", "[humidity][types]") {
     }
 
     SECTION("humidity_type_to_string / from_string round-trip") {
-        for (auto t : {HumiditySensorType::BME280, HumiditySensorType::HTU21D,
-                       HumiditySensorType::SHT3X, HumiditySensorType::AHT10,
-                       HumiditySensorType::AHT20, HumiditySensorType::AHT20_F}) {
+        for (auto t :
+             {HumiditySensorType::BME280, HumiditySensorType::HTU21D, HumiditySensorType::SHT3X,
+              HumiditySensorType::AHT10, HumiditySensorType::AHT20, HumiditySensorType::AHT20_F}) {
             REQUIRE(humidity_type_from_string(humidity_type_to_string(t)) == t);
         }
     }
@@ -667,10 +667,6 @@ TEST_CASE_METHOD(HumiditySensorTestFixture, "HumiditySensorManager - edge cases"
 
         mgr().set_sensor_enabled("bme280 chamber", true);
         REQUIRE(mgr().is_sensor_available(HumiditySensorRole::CHAMBER));
-    }
-
-    SECTION("category_name returns 'humidity'") {
-        REQUIRE(mgr().category_name() == "humidity");
     }
 
     SECTION("BME280 sensor parses name with space correctly") {

@@ -6,7 +6,7 @@
  * @brief Unit tests for helix::paths filesystem-path primitives.
  *
  * These primitives centralize behavior currently reimplemented across
- * update_checker.cpp, log_path_probe.cpp, input_shaper_cache.cpp,
+ * update_checker.cpp, log_path_probe.cpp,
  * thumbnail_cache.cpp, app_globals.cpp, app_constants.h, logging_init.cpp,
  * and data_root_resolver.cpp. Written TDD-style: the cases below encode the
  * exact edge-case semantics converged from those sources.
@@ -196,7 +196,7 @@ TEST_CASE("probe_writable fails on nonexistent dir", "[helix_paths]") {
     CHECK_FALSE(probe_writable("/no/such/path/really/unlikely/xyz", 0));
 }
 
-// GAP 3 (L093 shape): the two cache sites (input_shaper_cache, thumbnail_cache)
+// GAP 3 (L093 shape): the cache sites (thumbnail_cache)
 // depend on probe_writable correctly REJECTING an existing-but-unwritable dir —
 // a plain is_writable_dir/exists check would wrongly accept it. This proves the
 // create+write+remove probe actually fails when the dir denies writes.

@@ -52,7 +52,6 @@
 #include "ui_panel_screws_tilt.h"
 #include "ui_toast_manager.h"
 
-#include "color_sensor_manager.h"
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "macro_manager.h"
@@ -255,67 +254,6 @@ ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel() {
     return *reinterpret_cast<ToolOffsetCalibrationPanel*>(storage);
 }
 } // namespace helix::ui
-
-// ===========================================================================
-// ColorSensorManager (src/sensors/color_sensor_manager.cpp).
-//
-// The TD-1 colour sensor stack is dead on EVERY platform, not just this one:
-// `sensors_` is only ever filled by discover_from_moonraker(), whose sole
-// caller is SensorRegistry::discover_all() — and nothing in the tree calls
-// that (sensor_registry.cpp is not compiled anywhere). So the shipped
-// behaviour is a permanently empty sensor list, which is exactly what these
-// stubs reproduce.
-//
-// Unlike the panel accessors above, this one CANNOT be raw storage:
-// printer_state.cpp calls update_from_status() on the returned reference for
-// every status frame, and that is a virtual dispatch through the vptr. So
-// instance() constructs a real object, which means defining the ctor/dtor and
-// every ISensorManager override so the vtable emits here with all slots filled.
-// ===========================================================================
-
-namespace helix::sensors {
-
-ColorSensorManager::ColorSensorManager() = default;
-ColorSensorManager::~ColorSensorManager() = default;
-
-ColorSensorManager& ColorSensorManager::instance() {
-    static ColorSensorManager mgr;
-    return mgr;
-}
-
-// sensors_overlay.xml binds `color_sensor_count` to hide the Color Sensors
-// section, so the subjects must exist even though nothing ever fills them.
-// Registering all three keeps the zero-sensor state identical to the real
-// manager's; without this the overlay logs "No subject was found" on open.
-void ColorSensorManager::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
-    UI_MANAGED_SUBJECT_STRING_N(color_hex_, color_hex_buf_.data(), COLOR_HEX_BUF_SIZE, "",
-                                "filament_color_hex", subjects_);
-    UI_MANAGED_SUBJECT_INT(td_value_, -1, "filament_td_value", subjects_);
-    UI_MANAGED_SUBJECT_INT(sensor_count_, 0, "color_sensor_count", subjects_);
-    subjects_initialized_ = true;
-}
-
-std::string ColorSensorManager::category_name() const {
-    return "color";
-}
-void ColorSensorManager::discover_from_moonraker(const nlohmann::json&) {}
-void ColorSensorManager::update_from_status(const nlohmann::json&) {}
-void ColorSensorManager::load_config(const nlohmann::json&) {}
-nlohmann::json ColorSensorManager::save_config() const {
-    return nlohmann::json::object();
-}
-
-std::vector<ColorSensorConfig> ColorSensorManager::get_sensors() const {
-    return {};
-}
-size_t ColorSensorManager::sensor_count() const {
-    return 0;
-}
-
-} // namespace helix::sensors
 
 // parse_shaper_csv IS genuinely helix::calibration-namespaced (called qualified
 // from moonraker_advanced_api.cpp).

@@ -215,12 +215,6 @@ void XMLTestFixture::setup_global_xml_registrations_once() {
     // 5. Register no-op callbacks for event handlers in XML components
     lv_xml_register_event_cb(nullptr, "", xml_test_noop_event_callback);
     lv_xml_register_event_cb(nullptr, "on_header_back_clicked", xml_test_noop_event_callback);
-    // Nozzle temp panel callbacks
-    lv_xml_register_event_cb(nullptr, "on_nozzle_custom_clicked", xml_test_noop_event_callback);
-    // Bed temp panel callbacks
-    lv_xml_register_event_cb(nullptr, "on_bed_custom_clicked", xml_test_noop_event_callback);
-    // Shared preset-button handler on both temp panels.
-    lv_xml_register_event_cb(nullptr, "on_heater_preset_clicked", xml_test_noop_event_callback);
 
     // nozzle_temp_panel / bed_temp_panel are `<view extends="overlay_panel">` and
     // draw the heater glyph with <nozzle_icon>. An unregistered dependency makes

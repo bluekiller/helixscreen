@@ -8,7 +8,6 @@
 #include "async_lifetime_guard.h"
 #include "load_cell_types.h"
 #include "lvgl.h"
-#include "sensor_registry.h"
 #include "subject_managed_panel.h"
 
 #include <map>
@@ -18,12 +17,13 @@
 #include <string>
 #include <vector>
 
+#include "hv/json.hpp"
+
 namespace helix::sensors {
 
 /**
  * @brief Manager for load cells (load_cell)
  *
- * Implements ISensorManager interface for integration with SensorRegistry.
  * Provides:
  * - Auto-discovery of load cells from Klipper objects list
  * - Auto-categorization by role (SPOOL_WEIGHT)
@@ -43,7 +43,7 @@ namespace helix::sensors {
  * }
  * @endcode
  */
-class LoadCellManager : public ISensorManager {
+class LoadCellManager {
   public:
     /**
      * @brief Get singleton instance
@@ -55,26 +55,23 @@ class LoadCellManager : public ISensorManager {
     LoadCellManager& operator=(const LoadCellManager&) = delete;
 
     // ========================================================================
-    // ISensorManager Interface
+    // Discovery, Status and Config
     // ========================================================================
-
-    /// @brief Get category name for registry
-    [[nodiscard]] std::string category_name() const override;
 
     /**
      * @brief Discover sensors from Klipper objects list
      * @note MUST be called from main LVGL thread (updates subjects directly)
      */
-    void discover(const std::vector<std::string>& klipper_objects) override;
+    void discover(const std::vector<std::string>& klipper_objects);
 
     /// @brief Update state from Moonraker status JSON
-    void update_from_status(const nlohmann::json& status) override;
+    void update_from_status(const nlohmann::json& status);
 
     /// @brief No-op: load cell roles are derived at discovery, nothing is persisted
-    void load_config(const nlohmann::json& config) override;
+    void load_config(const nlohmann::json& config);
 
     /// @brief Save configuration to JSON
-    [[nodiscard]] nlohmann::json save_config() const override;
+    [[nodiscard]] nlohmann::json save_config() const;
 
     // ========================================================================
     // Initialization

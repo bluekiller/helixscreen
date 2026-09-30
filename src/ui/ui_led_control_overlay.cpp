@@ -442,24 +442,7 @@ void LedControlOverlay::publish_list() {
         }
     } else if (page_.list == ListKind::Presets) {
         title = lv_tr("Presets");
-        const auto* info = focused_info();
-        if (info != nullptr && info->backend == LedBackendType::WLED) {
-            const int active_id = ctrl.wled().get_strip_state(focused_strip_).active_preset;
-            const auto& presets = ctrl.wled().get_strip_presets(focused_strip_);
-            std::vector<WledPresetInfo> shown = presets;
-            if (shown.empty()) {
-                for (int i = 1; i <= 5; ++i) {
-                    shown.push_back({i, fmt::format("{} {}", lv_tr("Preset"), i)});
-                }
-            }
-            for (const auto& p : shown) {
-                if (p.id == active_id) {
-                    active = static_cast<int>(labels.size());
-                }
-                labels.push_back(p.name);
-                list_values_.push_back(std::to_string(p.id));
-            }
-        } else if (const auto* m = find_macro(ctrl.configured_macros(), focused_strip_)) {
+        if (const auto* m = find_macro(ctrl.configured_macros(), focused_strip_)) {
             for (const auto& preset : m->presets) {
                 labels.push_back(pretty_print_macro(preset));
                 list_values_.push_back(preset);
@@ -720,14 +703,6 @@ void LedControlOverlay::handle_list_chip(int index) {
                 spdlog::error("[LedControlOverlay] Effect activation failed: {}", err);
             },
             /*on_queued=*/nullptr, /*caller_surfaces_errors=*/false);
-    } else if (info != nullptr && info->backend == LedBackendType::WLED) {
-        const int preset = helix::text_io::parse_leading<int>(value).value_or(-1);
-        // set_preset completes on an HTTP worker; bg_cb marshals to the main thread.
-        ctrl.wled().set_preset(
-            focused_strip_, preset,
-            lifetime_.bg_cb("LedControlOverlay::wled_preset",
-                            []() { LedController::instance().refresh_wled_state(); }),
-            nullptr);
     } else if (info != nullptr && info->backend == LedBackendType::MACRO) {
         ctrl.macro().execute_custom_action(value);
     } else {

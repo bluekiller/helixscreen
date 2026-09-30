@@ -71,7 +71,7 @@
 #     splash_screen_manager,remote_screen_*,android_asset_extractor}, src/bluetooth/*.
 #   Mocks (CONFIG_HELIX_MOCK_PRINTER only): see `# MOCK:` lines at end.
 #   New-since-audit files (audit was 2026-07-13): all are platform seams,
-#     excluded subsystems, or dev/test panels (ui_panel_test/step_test/glyphs/
+#     excluded subsystems, or dev/test panels (ui_panel_glyphs/
 #     memory_stats, screensaver_*, tools/xml_attribute_validator, lvgl-demo/) —
 #     none are Core+AMS. The link loop adds any genuinely-referenced core file.
 #

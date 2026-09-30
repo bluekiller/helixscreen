@@ -19,7 +19,6 @@
 #include "accel_sensor_manager.h"
 #include "ams_state.h"
 #include "app_globals.h"
-#include "color_sensor_manager.h"
 #include "filament_sensor_manager.h"
 #include "humidity_sensor_manager.h"
 #include "printer_state.h"
@@ -165,7 +164,6 @@ TEST_CASE("Sensor managers self-register cleanup on init_subjects", "[shutdown][
     helix::sensors::WidthSensorManager::instance().deinit_subjects();
     helix::sensors::ProbeSensorManager::instance().deinit_subjects();
     helix::sensors::AccelSensorManager::instance().deinit_subjects();
-    helix::sensors::ColorSensorManager::instance().deinit_subjects();
     helix::sensors::TemperatureSensorManager::instance().deinit_subjects();
     registry.clear();
 
@@ -173,17 +171,15 @@ TEST_CASE("Sensor managers self-register cleanup on init_subjects", "[shutdown][
     helix::sensors::WidthSensorManager::instance().init_subjects();
     helix::sensors::ProbeSensorManager::instance().init_subjects();
     helix::sensors::AccelSensorManager::instance().init_subjects();
-    helix::sensors::ColorSensorManager::instance().init_subjects();
     helix::sensors::TemperatureSensorManager::instance().init_subjects();
 
     // Each sensor manager should have registered exactly one entry
-    REQUIRE(registry.count() == 6);
+    REQUIRE(registry.count() == 5);
 
     helix::sensors::HumiditySensorManager::instance().deinit_subjects();
     helix::sensors::WidthSensorManager::instance().deinit_subjects();
     helix::sensors::ProbeSensorManager::instance().deinit_subjects();
     helix::sensors::AccelSensorManager::instance().deinit_subjects();
-    helix::sensors::ColorSensorManager::instance().deinit_subjects();
     helix::sensors::TemperatureSensorManager::instance().deinit_subjects();
     registry.clear();
 }

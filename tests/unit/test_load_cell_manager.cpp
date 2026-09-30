@@ -221,13 +221,3 @@ TEST_CASE_METHOD(LoadCellTestFixture, "LoadCellManager - state updates", "[load_
         REQUIRE(mgr().sensor_count() == 2);
     }
 }
-
-// ============================================================================
-// Edge Cases
-// ============================================================================
-
-TEST_CASE_METHOD(LoadCellTestFixture, "LoadCellManager - edge cases", "[load_cell][edge]") {
-    SECTION("category_name returns 'load_cell'") {
-        REQUIRE(mgr().category_name() == "load_cell");
-    }
-}

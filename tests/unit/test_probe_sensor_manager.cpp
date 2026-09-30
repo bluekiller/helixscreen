@@ -564,10 +564,6 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - edge cases", "[pr
         REQUIRE_FALSE(mgr().is_sensor_available(ProbeSensorRole::Z_PROBE));
     }
 
-    SECTION("category_name returns 'probe'") {
-        REQUIRE(mgr().category_name() == "probe");
-    }
-
     SECTION("Eddy current probe without name parameter is ignored") {
         // "probe_eddy_current" needs a name parameter
         std::vector<std::string> sensors = {"probe_eddy_current"};

@@ -445,8 +445,7 @@ whereas a missed reference deletes a string users see.
 Two categories are reported obsolete **by design**:
 
 - Strings that live only in a dev/test panel carrying an `<!-- i18n: skip-file -->`
-  marker (`test_panel.xml`, `gcode_test_panel.xml`, `step_test_panel.xml`) — the
-  marker opts the file out, so its strings should not be keys.
+  marker: the marker opts the file out, so its strings should not be keys.
 - Strings containing a literal `\n` (multi-line dropdown option labels), which
   `should_skip_text()` no longer extracts.
 

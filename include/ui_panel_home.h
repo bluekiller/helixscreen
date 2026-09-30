@@ -233,11 +233,7 @@ class HomePanel : public PanelBase {
     // Grid and widget lifecycle
     void setup_widget_gate_observers();
 
-    // Panel-level click handlers (not widget-delegated)
-    void handle_ams_clicked();
-
     // Panel-level static callbacks
-    static void ams_clicked_cb(lv_event_t* e);
     static void on_home_grid_pressed(lv_event_t* e);
     static void on_home_grid_long_press(lv_event_t* e);
     static void on_home_grid_clicked(lv_event_t* e);

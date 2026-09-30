@@ -473,8 +473,4 @@ TEST_CASE_METHOD(WidthSensorTestFixture, "WidthSensorManager - edge cases", "[wi
         mgr().set_sensor_enabled("tsl1401cl_filament_width_sensor", false);
         REQUIRE_FALSE(mgr().is_sensor_available(WidthSensorRole::FLOW_COMPENSATION));
     }
-
-    SECTION("category_name returns 'width'") {
-        REQUIRE(mgr().category_name() == "width");
-    }
 }

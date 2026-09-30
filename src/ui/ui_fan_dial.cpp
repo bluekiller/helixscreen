@@ -538,17 +538,12 @@ DEFINE_EVENT_TRAMPOLINE_SIMPLE(FanDial, on_icon_clicked, handle_icon_clicked)
 // The actual event handling is done via lv_obj_add_event_cb in the constructor
 // with user_data pointing to the FanDial instance
 
-static void xml_fan_dial_value_changed(lv_event_t* /*e*/) {
-    // No-op: actual handling is via C++ event callbacks with user_data
-}
-
 static void xml_fan_dial_switch_changed(lv_event_t* /*e*/) {
     // No-op: actual handling is via C++ event callbacks with user_data
 }
 
 void register_fan_dial_callbacks() {
     // Register XML callbacks (required for XML parsing, but we use C++ callbacks)
-    lv_xml_register_event_cb(nullptr, "on_fan_dial_value_changed", xml_fan_dial_value_changed);
     lv_xml_register_event_cb(nullptr, "on_fan_dial_switch_changed", xml_fan_dial_switch_changed);
 
     spdlog::trace("[FanDial] Registered XML event callbacks");

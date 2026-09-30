@@ -153,14 +153,11 @@
 #include "color_utils.h"
 #include "preflight_validator.h"
 
-// Developer-only showcase panels (ENABLE_DEV_PANELS, excluded from release
-// builds). Not wired into PanelFactory — kept as live testbeds for XML
-// bindings, wizard step progress, the 3D G-code viewer and icon-font coverage.
+// Developer-only showcase panel (ENABLE_DEV_PANELS, excluded from release
+// builds). Not wired into PanelFactory — kept as a live testbed for icon-font
+// coverage.
 #ifdef HELIX_ENABLE_DEV_PANELS
-#include "ui_panel_gcode_test.h"
 #include "ui_panel_glyphs.h"
-#include "ui_panel_step_test.h"
-#include "ui_panel_test.h"
 #endif
 
 #include "active_print_media_manager.h"
@@ -2178,9 +2175,8 @@ bool Application::init_moonraker() {
     // Register MoonrakerManager globally (for Advanced panel access to MacroModificationManager)
     set_moonraker_manager(m_moonraker.get());
 
-    // Set up discovery callbacks on client (must be after API creation since API constructor
-    // also sets these callbacks - we intentionally overwrite with combined callbacks that
-    // both update the API's hardware_ and perform Application-level initialization)
+    // Discovery callbacks on the client update the API's hardware_ and run
+    // Application-level initialization.
     setup_discovery_callbacks();
 
     // Create print history manager (shared cache for history panels and file status indicators)
@@ -3834,74 +3830,6 @@ void Application::init_action_prompt() {
     AmsState::instance().set_gcode_response_callback(
         [prompt_mgr](const std::string& line) { prompt_mgr->process_line(line); });
 
-    // Cluster:pstat-async-delete reproducer hook (#906). When
-    // HELIX_AUTO_STRESS_PROMPT=1, drive a continuous show/hide cycle of
-    // action_prompt_modal so a user can sit on Print Status and let the
-    // bug accumulate. Period is configurable via HELIX_STRESS_PROMPT_MS
-    // (default 250 ms — fast enough to outpace the modal exit animation
-    // (~150 ms) so consecutive deletes pile in the same async list).
-    if (const char* on = std::getenv("HELIX_AUTO_STRESS_PROMPT");
-        on && *on && std::string(on) != "0") {
-        int period_ms = 500;
-        if (const char* p = std::getenv("HELIX_STRESS_PROMPT_MS")) {
-            try {
-                period_ms = std::max(100, std::stoi(p));
-            } catch (...) {
-            }
-        }
-        int delay_ms = 30000; // default 30s so user can navigate to Print Status first
-        if (const char* d = std::getenv("HELIX_STRESS_START_DELAY_SEC")) {
-            try {
-                delay_ms = std::max(0, std::stoi(d)) * 1000;
-            } catch (...) {
-            }
-        }
-        spdlog::warn("[ActionPrompt] HELIX_AUTO_STRESS_PROMPT=1 — will drive show/hide every {}ms "
-                     "after {}s delay (gated on is_showing)",
-                     period_ms, delay_ms / 1000);
-        // Gate transitions on ActionPromptManager state so we alternate
-        // cleanly instead of stacking modals when the exit animation is
-        // slower than our period. ActionPromptManager::is_showing() is the
-        // canonical "is a prompt active right now" probe.
-        struct StressCtx {
-            ActionPromptManager* mgr;
-            int period_ms;
-        };
-        auto* ctx = new StressCtx{prompt_mgr, period_ms};
-        // One-shot kick-off timer; on fire it spawns the repeating stress
-        // timer. Gives the operator time to navigate before modals start
-        // hijacking the screen.
-        auto* kickoff = lv_timer_create(
-            [](lv_timer_t* t) {
-                auto* c = static_cast<StressCtx*>(lv_timer_get_user_data(t));
-                if (!c) {
-                    lv_timer_delete(t);
-                    return;
-                }
-                spdlog::warn("[ActionPrompt] Stress timer ARMED — show/hide cycle starting now");
-                auto* repeat = lv_timer_create(
-                    [](lv_timer_t* t2) {
-                        auto* mgr = static_cast<ActionPromptManager*>(lv_timer_get_user_data(t2));
-                        if (!mgr)
-                            return;
-                        if (ActionPromptManager::is_showing()) {
-                            mgr->process_line("// action:prompt_end");
-                        } else {
-                            mgr->process_line("// action:prompt_begin StressTest");
-                            mgr->process_line("// action:prompt_text Cluster A reproducer");
-                            mgr->process_line("// action:prompt_button OK|ECHO_OK");
-                            mgr->process_line("// action:prompt_show");
-                        }
-                    },
-                    c->period_ms, c->mgr);
-                (void)repeat;
-                delete c;
-                lv_timer_delete(t); // one-shot
-            },
-            std::max(1, delay_ms), ctx);
-        (void)kickoff;
-    }
-
     // Register for notify_gcode_response messages from Moonraker
     // All lines from G-code console output come through this notification
     client->register_method_callback(
@@ -5015,11 +4943,10 @@ void Application::init_printer_state() {
         lv_obj_set_style_text_font(err_label, lv_font_get_default(), 0);
     };
 
-    // NOTE: ObserverGuard::invalidate_all() was called at the end of teardown.
-    // Guards in surviving singletons hold freed observer pointers. When they get
-    // reassigned (guard = observe_*()), the move-assignment calls reset() which
-    // safely releases instead of calling lv_observer_remove() on freed memory.
-    // We revalidate at the END of init after all old guards have been cleared.
+    // ObserverGuard::invalidate_all() ran at the end of teardown. Guards in
+    // surviving singletons hold freed observer pointers; when they get
+    // reassigned (guard = observe_*()), reset() sees they predate the
+    // invalidation and releases instead of calling lv_observer_remove().
 
     // 1. Reinitialize update queue BEFORE moonraker so background thread callbacks
     //    (hardware discovery, WebSocket messages) have a functioning queue.
@@ -5029,7 +4956,6 @@ void Application::init_printer_state() {
     if (!init_core_subjects()) {
         spdlog::error("[Application] Failed to reinitialize core subjects");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5045,7 +4971,6 @@ void Application::init_printer_state() {
     if (!init_moonraker()) {
         spdlog::error("[Application] Failed to reinitialize Moonraker");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5053,7 +4978,6 @@ void Application::init_printer_state() {
     if (!init_panel_subjects()) {
         spdlog::error("[Application] Failed to reinitialize panel subjects");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5061,7 +4985,6 @@ void Application::init_printer_state() {
     if (!init_ui()) {
         spdlog::error("[Application] Failed to reinitialize UI");
         show_init_error();
-        ObserverGuard::revalidate_all();
         return;
     }
 
@@ -5091,11 +5014,7 @@ void Application::init_printer_state() {
         spdlog::warn("[Application] Running without printer connection after switch");
     }
 
-    // 10. Revalidate observer guards — all old guards have been reassigned (released)
-    //     during init, and all new observers are attached to live subjects.
-    ObserverGuard::revalidate_all();
-
-    // Force full screen refresh
+    // 10. Force full screen refresh
     lv_obj_update_layout(m_screen);
     invalidate_all_recursive(m_screen);
     lv_refr_now(nullptr);

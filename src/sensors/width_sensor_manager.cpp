@@ -34,12 +34,8 @@ WidthSensorManager::WidthSensorManager() = default;
 WidthSensorManager::~WidthSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string WidthSensorManager::category_name() const {
-    return "width";
-}
 
 void WidthSensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);

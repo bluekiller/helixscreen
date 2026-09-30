@@ -125,17 +125,13 @@ src/rendering/gcode_gles_renderer.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_layer_cache.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_layer_index.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_layer_renderer.cpp  # not in the v1 Core+AMS cut
-src/rendering/gcode_object_thumbnail_renderer.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_projection.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_raster.cpp  # not in the v1 Core+AMS cut
-src/rendering/gcode_renderer.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_selection_state.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_selection_style.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_streaming_config.cpp  # not in the v1 Core+AMS cut
 src/rendering/gcode_streaming_controller.cpp  # not in the v1 Core+AMS cut
 src/rendering/geometry_budget_manager.cpp  # not in the v1 Core+AMS cut
-src/sensors/color_sensor_manager.cpp  # dead on all platforms — audit 2026-08-12; tree-wide deletion is a separate desktop-scope decision
-src/sensors/sensor_registry.cpp  # not in the v1 Core+AMS cut
 src/spoolman/spoolman_slot_saver.cpp  # scope decision 2026-08-12: unreachable while ESP discovery omits server.info#2; re-adding requires restoring these TUs + verifying flash budget; until then the UI entry points fail with an error toast
 src/system/alsa_sound_backend.cpp  # not in the v1 Core+AMS cut
 src/system/bluetooth_loader.cpp  # not in the v1 Core+AMS cut
@@ -196,7 +192,6 @@ src/system/sound_synthesis.cpp  # not in the v1 Core+AMS cut
 src/system/streaming_policy.cpp  # not in the v1 Core+AMS cut
 src/system/telemetry_manager.cpp  # not in the v1 Core+AMS cut
 src/system/tls_trust.cpp  # the concrete libhv client; the firmware has no TLS
-src/system/tracker_module_med.cpp  # not in the v1 Core+AMS cut
 src/system/tracker_module_mod.cpp  # not in the v1 Core+AMS cut
 src/system/tracker_player.cpp  # not in the v1 Core+AMS cut
 src/system/update_checker.cpp  # not in the v1 Core+AMS cut
@@ -244,16 +239,11 @@ src/ui/ui_panel_calibration_pid.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_calibration_tool_offset.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_calibration_pa.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_calibration_zoffset.cpp  # not in the v1 Core+AMS cut
-src/ui/ui_panel_gcode_test.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_glyphs.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_input_shaper.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_memory_stats.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_screws_tilt.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_panel_spoolman.cpp  # scope decision 2026-08-12: unreachable while ESP discovery omits server.info#2; re-adding requires restoring these TUs + verifying flash budget; until then the UI entry points fail with an error toast
-src/ui/ui_panel_step_test.cpp  # not in the v1 Core+AMS cut
-src/ui/ui_panel_test.cpp  # not in the v1 Core+AMS cut
-src/ui/ui_print_cancel_modal.cpp  # not in the v1 Core+AMS cut
-src/ui/ui_save_z_offset_modal.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_screensaver.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_screws_tilt_share_modal.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_settings_barcode_scanner.cpp  # not in the v1 Core+AMS cut
@@ -280,7 +270,6 @@ src/ui/ui_wizard_touch_calibration.cpp  # not in the v1 Core+AMS cut
 src/ui/ui_wizard_wifi.cpp  # not in the v1 Core+AMS cut
 src/ui/upgrade_banner.cpp  # not in the v1 Core+AMS cut
 src/ui/view_gestures.cpp  # two-finger gestures for the 3D G-code viewer and 3D bed mesh, both compiled out (HELIX_HAS_GCODE_VIEWER=0, HELIX_HAS_BED_MESH_3D=0)
-src/ui/wizard_validation.cpp  # not in the v1 Core+AMS cut
 
 src/system/jz_pwm_sound_backend.cpp  # AD5X-only: exec's the Linux fx-pwm child; no process model on ESP32
 src/ui/ui_selector_model.cpp  # selector model for the wizard printer step, not in the v1 Core+AMS cut

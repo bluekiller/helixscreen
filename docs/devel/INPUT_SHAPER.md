@@ -24,11 +24,8 @@ InputShaperPanel (UI overlay, state machine, XML-bound subjects)
   |     raw PSD data, and per-shaper filtered response curves
   |
   +-> FrequencyResponseChart (LVGL widget, C API)
-  |     Line chart with multiple series, peak markers, axis labels,
-  |     grid lines, and platform-adaptive downsampling
-  |
-  +-> InputShaperCache (JSON persistence, 30-day TTL)
-        Stores calibration results keyed by printer ID
+        Line chart with multiple series, peak markers, axis labels,
+        grid lines, and platform-adaptive downsampling
 ```
 
 ### Data Flow
@@ -59,8 +56,6 @@ Klipper SHAPER_CALIBRATE
 | `src/calibration/shaper_response.cpp` | Tap definitions + transfer evaluation, pinned against firmware CSV output |
 | `include/input_shaper_calibrator.h` | Calibration orchestrator (state machine) |
 | `src/calibration/input_shaper_calibrator.cpp` | Orchestrator implementation |
-| `include/input_shaper_cache.h` | Result cache with JSON serialization |
-| `src/calibration/input_shaper_cache.cpp` | Cache implementation (XDG-compliant paths) |
 | `include/ui_frequency_response_chart.h` | Frequency response chart widget (C API) |
 | `src/ui/ui_frequency_response_chart.cpp` | Chart implementation with LVGL draw callbacks |
 | `include/ui_panel_input_shaper.h` | Input shaper panel (overlay) |
@@ -79,7 +74,6 @@ Klipper SHAPER_CALIBRATE
 | `tests/unit/test_shaper_response.cpp` | Transfer math: pinned against a K1C firmware CSV column, residual guards |
 | `tests/unit/test_frequency_response_chart.cpp` | Chart widget: lifecycle, series, data, downsampling, platform tiers |
 | `tests/unit/test_input_shaper_calibrator.cpp` | Calibrator: state machine, callbacks, validation, error handling |
-| `tests/unit/test_input_shaper_cache.cpp` | Cache: save/load round-trip, TTL expiry, printer ID matching |
 | `tests/unit/test_input_shaper_panel_integration.cpp` | Panel integration tests |
 | `tests/unit/test_input_shaper_panel_progress_display.cpp` | Progress display across phases: determinate bar while sweeping, spinner + elapsed-seconds label while analyzing, bar restored on complete |
 | `tests/unit/test_input_shaper_chart.cpp` | Chart-specific integration tests |
@@ -499,47 +493,6 @@ This section explains what users see in the chart and how to make decisions.
 
 ---
 
-## Result Cache
-
-Calibration results are cached to disk in JSON format to avoid re-running expensive resonance tests.
-
-### Cache Location
-
-Follows XDG Base Directory Specification:
-1. `$XDG_CACHE_HOME/helix/input_shaper_cache.json`
-2. `$HOME/.cache/helix/input_shaper_cache.json` (fallback)
-3. /tmp/helix/input_shaper_cache.json (last resort)
-
-### Cache Format
-
-```json
-{
-  "version": 1,
-  "printer_id": "my-printer-uuid",
-  "timestamp": 1707753600,
-  "noise_level": 22.5,
-  "x_result": {
-    "axis": "X",
-    "shaper_type": "mzv",
-    "shaper_freq": 53.8,
-    "max_accel": 4000.0,
-    "smoothing": 0.130,
-    "vibrations": 1.6,
-    "freq_response": [[5.0, 0.00123], [10.0, 0.00250], ...],
-    "all_shapers": [
-      {"type": "zv", "frequency": 59.0, "vibrations": 5.2, "smoothing": 0.045, "max_accel": 13400}
-    ]
-  },
-  "y_result": { ... }
-}
-```
-
-### TTL
-
-Cache entries expire after 30 days (`DEFAULT_TTL_DAYS = 30`). Entries are also invalidated if the printer ID does not match.
-
----
-
 ## Demo Mode / Mock Screenshots
 
 Both the Input Shaper panel and PID panel support demo result injection for screenshots and development.
@@ -588,10 +541,9 @@ The CSV parser auto-discovers shaper columns from the header, and the chip toggl
 ### Adding a New Calibration Metric
 
 1. Add the field to `ShaperOption` in `calibration_types.h`
-2. Update JSON serialization in `input_shaper_cache.cpp` (`shaper_option_to_json` / `shaper_option_from_json`)
-3. Add a column to the comparison table XML in `input_shaper_panel.xml`
-4. Add a subject binding for the new column in `InputShaperPanel::init_subjects()`
-5. Populate the value in `InputShaperPanel::populate_axis_result()`
+2. Add a column to the comparison table XML in `input_shaper_panel.xml`
+3. Add a subject binding for the new column in `InputShaperPanel::init_subjects()`
+4. Populate the value in `InputShaperPanel::populate_axis_result()`
 
 ### Adding a New Calibration Panel
 

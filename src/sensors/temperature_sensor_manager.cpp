@@ -35,12 +35,8 @@ TemperatureSensorManager::TemperatureSensorManager() = default;
 TemperatureSensorManager::~TemperatureSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string TemperatureSensorManager::category_name() const {
-    return "temperature";
-}
 
 void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);

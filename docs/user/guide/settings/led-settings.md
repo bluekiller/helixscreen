@@ -145,7 +145,7 @@ WLED strips are network-attached LED controllers managed outside of Klipper. Con
 address: 192.168.1.100
 ```
 
-After restarting Moonraker, the WLED strip appears as its own tab in the LEDs overlay. You get on/off toggle, brightness, and access to all WLED presets you've configured in the WLED web interface.
+After restarting Moonraker, the WLED strip appears as its own tab in the LEDs overlay. You get on/off toggle and brightness. To switch to a WLED preset, use a **WLED Preset** action in Automatic LED Control with the preset's ID from the WLED web interface.
 
 ### LED Effects (Animated Patterns)
 

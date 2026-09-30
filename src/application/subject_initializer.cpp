@@ -47,7 +47,6 @@
 #include "ams_state.h"
 #include "app_globals.h"
 #include "bed_drying_controller.h"
-#include "color_sensor_manager.h"
 #include "filament_catalog.h"
 #include "filament_database.h"
 #include "filament_sensor_manager.h"
@@ -221,7 +220,6 @@ void SubjectInitializer::init_ams_subjects() {
     helix::sensors::WidthSensorManager::instance().init_subjects();
     helix::sensors::ProbeSensorManager::instance().init_subjects();
     helix::sensors::AccelSensorManager::instance().init_subjects();
-    helix::sensors::ColorSensorManager::instance().init_subjects();
     helix::sensors::TemperatureSensorManager::instance().init_subjects();
     helix::sensors::LoadCellManager::instance().init_subjects();
 }

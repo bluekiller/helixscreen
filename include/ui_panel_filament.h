@@ -789,8 +789,6 @@ class FilamentPanel : public PanelBase {
     static void on_preset_tpu_hold(lv_event_t* e);
 
     // Temperature tap callbacks (XML event_cb)
-    static void on_nozzle_temp_tap_clicked(lv_event_t* e);
-    static void on_bed_temp_tap_clicked(lv_event_t* e);
     static void on_nozzle_target_tap_clicked(lv_event_t* e);
     static void on_bed_target_tap_clicked(lv_event_t* e);
     static void on_filament_chamber_target_tap(lv_event_t* e);

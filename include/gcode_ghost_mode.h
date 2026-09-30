@@ -7,16 +7,8 @@
  *
  * Separate from gcode_ghost_sampling.h, which decides *which* layers that pass
  * visits. This is the appearance half, and it is shared because the mode is a
- * viewer-level setting applied to whichever renderer happens to be active:
- * ui_gcode_viewer.cpp reads it once and hands it to the GLES renderer or the
- * CPU wireframe renderer without knowing which it has.
- *
- * It lives in its own header because those two renderer headers are mutually
- * exclusive by construction - each is compiled into a different set of
- * platforms - and each previously carried its own identical copy of the enum.
- * Two definitions of one type in one namespace is an ODR violation waiting for
- * the first translation unit that includes both, which nothing does today only
- * by luck of the platform gating.
+ * viewer-level setting: ui_gcode_viewer.cpp maps its int wire value
+ * (0=Dimmed, 1=Stipple) onto this enum and hands it to the renderer.
  */
 
 #pragma once

@@ -930,7 +930,6 @@ bool Modal::show(lv_obj_t* /*parent*/, const char** attrs) {
     register_xml_callbacks({
         {"on_modal_ok_clicked", ok_button_cb},
         {"on_modal_cancel_clicked", cancel_button_cb},
-        {"on_modal_tertiary_clicked", tertiary_button_cb},
     });
 
     if (!create_and_show(parent_, component_name(), attrs)) {
@@ -1245,7 +1244,6 @@ void helix::ui::modal_init_subjects() {
     // Register event callbacks for modals using static Modal::show() API
     register_xml_callbacks({
         // Generic close callback - closes topmost modal (use for OK/Cancel that just dismiss)
-        {"on_modal_close", static_modal_close_cb},
         // Legacy alias for print complete dialog
         {"on_print_complete_ok", static_modal_close_cb},
     });

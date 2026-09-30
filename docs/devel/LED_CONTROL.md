@@ -36,7 +36,7 @@ each of the old selection's jobs lives now.
 
 | File | Purpose |
 |------|---------|
-| `include/led/led_backend.h` | Data types: `LedStripInfo`, `LedEffectInfo`, `LedMacroInfo`, `WledPresetInfo`, enums |
+| `include/led/led_backend.h` | Data types: `LedStripInfo`, `LedEffectInfo`, `LedMacroInfo`, enums |
 | `include/led/led_controller.h` | `LedController` singleton — orchestrates all 5 backends, discovery, config persistence, and the id-based device API (`device_state()`, `set_power()`, `light_targets()`, `chamber_light()`, …) |
 | `src/led/led_controller.cpp` | Discovery, config persistence, id-based control, startup preference |
 | `include/led/led_devices.h`, `src/led/led_devices.cpp` | Pure functions with no LVGL or Moonraker dependency: `resolve_chamber_light()`, `resolve_light_targets()`, `union_light_targets()`, `toggle_target()`, `pick_overlay_focus()`, `device_display_name()`, `macro_device_note()`, `next_power_on()`, `plan_selection_migration()`, `migrate_color_presets()`, the `DeviceState`/`PowerState` pair the overlay and light buttons read |
@@ -87,7 +87,7 @@ each of the old selection's jobs lives now.
 | `tests/unit/test_led_auto_state.cpp` | State mapping, evaluate, config round-trip, its own device list |
 | `tests/unit/test_led_native_backend.cpp` | Native strip color control, color cache |
 | `tests/unit/test_led_effect_backend.cpp` | Effect activation, target filtering |
-| `tests/unit/test_led_wled_backend.cpp` | WLED preset, brightness, toggle, state polling |
+| `tests/unit/test_led_wled_backend.cpp` | WLED brightness, toggle, state polling |
 | `tests/unit/test_led_macro_backend.cpp` | Macro execution: on/off, toggle, custom actions |
 | `tests/unit/test_led_control_overlay.cpp` | Tab rebuild, focus, page publishing, control handlers |
 | `tests/unit/test_led_settings_overlay.cpp` | Startup, Applies-to row, macro device editor |
@@ -119,12 +119,10 @@ Integrates with the [Klipper LED Effect](https://github.com/julianschill/klipper
 
 Controls [WLED](https://kno.wled.ge/) network LED controllers via Moonraker's HTTP bridge.
 
-- **Discovery**: Async via `discover_wled_strips()` — queries Moonraker's `server.config` for WLED entries
+- **Discovery**: Async via `discover_wled_strips()` — queries Moonraker's WLED strip list
 - **Controls**: `set_on/off()`, `set_brightness()`, `set_preset()`, `toggle()`
-- **Presets**: Fetched directly from WLED device via `fetch_presets_from_device()` (HTTP to `<address>/presets.json`)
 - **State polling**: `poll_status()` gets on/off, brightness, active preset from Moonraker
-- **Address tracking**: Per-strip IP/hostname from Moonraker server config
-- **No color**: WLED gets power, brightness and its own presets from the LEDs overlay, never a color picker
+- **No color, no preset list**: WLED gets power and brightness from the LEDs overlay. Preset IDs are user-defined on the device and HelixScreen cannot list them, so presets are reached only through an Automatic LED Control `wled_preset` action with an explicit ID
 
 ### MacroBackend
 
@@ -388,8 +386,7 @@ right edge once more tabs sit past it. A tab only changes which device is *focus
 configuration, or Automatic LED Control target. Each tab carries a state dot: filled in
 the device's current color when on, hollow when off, a dimmed ring when the state cannot
 be read (macro devices). Tabs rebuild only when the overlay activates, not on a mid-view
-device-list change, so a WLED strip whose presets just loaded, or a device added while
-the overlay is open, appears the next time it opens.
+device-list change, so a device added while the overlay is open, appears the next time it opens.
 
 **The device page.** Two columns for the focused device: the lamp (power, brightness, or
 the macro buttons) on the left, the look (White, Color, Effects/Presets/Level chips) on

@@ -74,6 +74,5 @@ TEST_CASE_METHOD(
     drain();
     CHECK(panel.notifications == 0);
 
-    ObserverGuard::revalidate_all();
     lv_subject_deinit(&subject);
 }

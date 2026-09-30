@@ -5,7 +5,6 @@
 
 #include "lvgl.h"
 #include "probe_sensor_types.h"
-#include "sensor_registry.h"
 #include "subject_managed_panel.h"
 
 #include <map>
@@ -14,12 +13,13 @@
 #include <string>
 #include <vector>
 
+#include "hv/json.hpp"
+
 namespace helix::sensors {
 
 /**
  * @brief Manager for native Klipper probe sensors
  *
- * Implements ISensorManager interface for integration with SensorRegistry.
  * Provides:
  * - Auto-discovery of probe sensors from Klipper objects list
  * - Role assignment for Z probing
@@ -51,7 +51,7 @@ namespace helix::sensors {
  * @note Switch sensors configured as probes are handled by SwitchSensorManager,
  *       not this manager.
  */
-class ProbeSensorManager : public ISensorManager {
+class ProbeSensorManager {
   public:
     /**
      * @brief Get singleton instance
@@ -63,32 +63,29 @@ class ProbeSensorManager : public ISensorManager {
     ProbeSensorManager& operator=(const ProbeSensorManager&) = delete;
 
     // ========================================================================
-    // ISensorManager Interface
+    // Discovery, Status and Config
     // ========================================================================
-
-    /// @brief Get category name for registry
-    [[nodiscard]] std::string category_name() const override;
 
     /**
      * @brief Discover sensors from Klipper objects list
      * @note MUST be called from main LVGL thread (updates subjects directly)
      */
-    void discover(const std::vector<std::string>& klipper_objects) override;
+    void discover(const std::vector<std::string>& klipper_objects);
 
     /// @brief Update state from Moonraker status JSON
-    void update_from_status(const nlohmann::json& status) override;
+    void update_from_status(const nlohmann::json& status);
 
     /// @brief Seed initial state from Klipper configfile (e.g., z_offset from [probe])
-    void discover_from_config(const nlohmann::json& config_keys) override;
+    void discover_from_config(const nlohmann::json& config_keys);
 
     /**
      * @brief Load sensor configuration from JSON
      * @note MUST be called from main LVGL thread (updates subjects directly)
      */
-    void load_config(const nlohmann::json& config) override;
+    void load_config(const nlohmann::json& config);
 
     /// @brief Save configuration to JSON
-    [[nodiscard]] nlohmann::json save_config() const override;
+    [[nodiscard]] nlohmann::json save_config() const;
 
     /// @brief Load sensor config (roles, enabled state) from settings.json
     void load_config_from_file();

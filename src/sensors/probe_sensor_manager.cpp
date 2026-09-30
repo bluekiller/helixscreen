@@ -36,12 +36,8 @@ ProbeSensorManager::ProbeSensorManager() = default;
 ProbeSensorManager::~ProbeSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string ProbeSensorManager::category_name() const {
-    return "probe";
-}
 
 void ProbeSensorManager::discover(const std::vector<std::string>& klipper_objects) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
