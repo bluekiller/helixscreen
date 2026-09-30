@@ -141,10 +141,10 @@ PluginSettingsOverlay::PluginSettingsOverlay(std::string plugin_id, const Manife
       load_gen_(load_gen), settings_(settings) {}
 
 PluginSettingsOverlay::~PluginSettingsOverlay() {
-    // A close callback NavigationManager drops without invoking (its base-panel
-    // clear can run while this screen is still sliding out) leaves the root with
-    // no owner; this class created it, so it deletes it here.
-    if (!overlay_root_ || StaticPanelRegistry::is_destroyed())
+    // Still open when the host is destroyed (a printer switch drops the queued
+    // close): navigation will never tear this screen down, and this class created
+    // the root, so it deletes it here.
+    if (!overlay_root_ || StaticPanelRegistry::is_destroying_all())
         return; // inside destroy_all the registry's caller owns the widget
     if (!NavigationManager::is_destroyed()) {
         NavigationManager::instance().unregister_overlay_close_callback(overlay_root_);

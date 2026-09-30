@@ -43,23 +43,35 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
     rec.root = root;
     rec.on_closed = std::move(on_closed);
 
+    push(root, &overlay_lifecycle(), [this, handle = rec.handle] { on_nav_closed(handle); });
+    return rec.handle;
+}
+
+void PluginOverlayHost::push(lv_obj_t* root, IPanelLifecycle* lifecycle,
+                             std::function<void()> on_nav_closed) {
     auto& nav = NavigationManager::instance();
-    nav.register_overlay_instance(root, &overlay_lifecycle());
+    nav.register_overlay_instance(root, lifecycle);
     // The navigation manager runs close callbacks deferred, after the slide-out, so
-    // this is the one place the root's deletion is allowed to happen.
-    lv_obj_t* closed_root = root;
+    // this is where a live host tears an overlay down.
     nav.register_overlay_close_callback(
-        root, [this, handle = rec.handle, closed_root, token = guard_.token()] {
-            if (token.expired()) {
-                // The host is gone and its records with it. The root still belongs to the
-                // screen (a printer switch keeps the app running), so delete just that.
-                helix::ui::safe_delete_deferred_raw(closed_root);
-                return;
-            }
-            on_nav_closed(handle);
+        root, [fn = std::move(on_nav_closed), token = guard_.token()] {
+            if (token.expired())
+                return; // the destroyed host's owner already deleted the root
+            fn();
         });
     nav.push_overlay(root);
-    return rec.handle;
+}
+
+PluginOverlayHost::~PluginOverlayHost() {
+    guard_.invalidate();
+    for (auto& rec : records_) {
+        if (!NavigationManager::is_destroyed()) {
+            auto& nav = NavigationManager::instance();
+            nav.unregister_overlay_close_callback(rec.root);
+            nav.unregister_overlay_instance(rec.root);
+        }
+        helix::ui::safe_delete_deferred(rec.root);
+    }
 }
 
 void PluginOverlayHost::on_nav_closed(int handle) {

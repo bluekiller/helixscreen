@@ -8,6 +8,7 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/home_panel_test_access.h"
+#include "../test_helpers/navigation_manager_test_access.h"
 #include "../test_helpers/plugin_host_test_support.h"
 #include "config.h"
 #include "display_settings_manager.h"
@@ -322,6 +323,35 @@ TEST_CASE_METHOD(OverlayFx, "a host destroyed over a claimed overlay leaves noth
     drain();
     process_lvgl(100);
     CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+}
+
+TEST_CASE_METHOD(OverlayFx, "a navbar tap during the close slide-out still finishes the overlay",
+                 "[plugin][overlay]") {
+    DisplaySettingsManager::instance().set_animations_enabled(true);
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(
+        closes = 0
+        h = helix.ui.overlay("widget-demo__panel", {on_close = function() closes = closes + 1 end}))",
+                           "t"));
+    drain();
+    process_lvgl(500); // slide-in complete
+    auto& nav = NavigationManager::instance();
+    nav.go_back();
+    drain(); // popped; the close callback waits for the slide-out
+    NavigationManagerTestAccess::switch_to_panel(nav, helix::PanelId::Controls);
+    drain();
+    process_lvgl(500);
+    drain();
+    process_lvgl(100); // the deferred root delete is itself an async timer
+
+    CHECK(rig.host->overlays().open_count("widget-demo") == 0);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "widget-demo_panel_status") == nullptr);
+    lua_getglobal(rt->state(), "closes");
+    CHECK(lua_tointeger(rt->state(), -1) == 1);
+    lua_pop(rt->state(), 1);
 }
 
 #endif // HELIX_HAS_PLUGINS

@@ -29,6 +29,19 @@ struct PluginUi {
 /// Plugin overlays on the navigation stack. Main thread.
 class PluginOverlayHost {
   public:
+    PluginOverlayHost() = default;
+    PluginOverlayHost(const PluginOverlayHost&) = delete;
+    PluginOverlayHost& operator=(const PluginOverlayHost&) = delete;
+    /// Deletes the roots of overlays still open: once the host is gone navigation
+    /// never finishes them (a printer switch drops the queued closes).
+    ~PluginOverlayHost();
+
+    /// Registers `lifecycle` and a close callback for `root`, then pushes it.
+    /// `on_nav_closed` runs when navigation closes the overlay while this host
+    /// lives; after that the host's owner deletes the root, so the callback is a
+    /// no-op. Every plugin overlay and settings screen goes through here.
+    void push(lv_obj_t* root, IPanelLifecycle* lifecycle, std::function<void()> on_nav_closed);
+
     /// Creates `component` on the active screen and pushes it. 0 when it cannot be
     /// created. `on_closed` runs when the overlay is closed for any reason but an
     /// unload of its plugin.

@@ -142,6 +142,23 @@ bool overlay_registration_strict() {
     return g_overlay_strict.load(std::memory_order_acquire);
 #endif
 }
+
+// Runs an overlay close callback on the next LVGL tick. Close callbacks delete
+// widgets, and the paths that fire them run inside UpdateQueue drains or LVGL
+// animation callbacks, where a synchronous delete corrupts LVGL's event list
+// (prestonbrown/helixscreen#637).
+void defer_close_callback(OverlayCloseCallback callback) {
+    auto* deferred = new OverlayCloseCallback(std::move(callback));
+    lv_async_call(
+        [](void* data) {
+            auto* cb = static_cast<OverlayCloseCallback*>(data);
+            if (!g_nav_manager_destroyed) {
+                (*cb)();
+            }
+            delete cb;
+        },
+        deferred);
+}
 } // namespace
 
 void NavigationManager::set_overlay_registration_strict(bool enabled) noexcept {
@@ -225,17 +242,8 @@ void NavigationManager::clear_overlay_stack() {
         // event linked list (prestonbrown/helixscreen#637).
         auto close_it = overlay_close_callbacks_.find(overlay);
         if (close_it != overlay_close_callbacks_.end()) {
-            auto* deferred = new OverlayCloseCallback(std::move(close_it->second));
+            defer_close_callback(std::move(close_it->second));
             overlay_close_callbacks_.erase(close_it);
-            lv_async_call(
-                [](void* data) {
-                    auto* cb = static_cast<OverlayCloseCallback*>(data);
-                    if (!NavigationManager::is_destroyed()) {
-                        (*cb)();
-                    }
-                    delete cb;
-                },
-                deferred);
         }
 
         // Clean up dynamic backdrop for this overlay (if one was created).
@@ -297,18 +305,8 @@ void NavigationManager::overlay_slide_out_complete_cb(lv_anim_t* anim) {
     auto it = mgr.overlay_close_callbacks_.find(panel);
     if (it != mgr.overlay_close_callbacks_.end()) {
         spdlog::trace("[NavigationManager] Deferring close callback for overlay {}", (void*)panel);
-        // Move callback to heap — lv_async_call will invoke it on the next LVGL tick
-        auto* deferred = new OverlayCloseCallback(std::move(it->second));
+        defer_close_callback(std::move(it->second));
         mgr.overlay_close_callbacks_.erase(it);
-        lv_async_call(
-            [](void* data) {
-                auto* cb = static_cast<OverlayCloseCallback*>(data);
-                if (!NavigationManager::is_destroyed()) {
-                    (*cb)();
-                }
-                delete cb;
-            },
-            deferred);
     }
 
     // Lifecycle: activate what's now visible. go_back() consumes the latch
@@ -1084,17 +1082,8 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
         if (it != overlay_close_callbacks_.end()) {
             spdlog::trace("[NavigationManager] Deferring close callback for panel {} (navbar)",
                           (void*)panel);
-            auto* deferred = new OverlayCloseCallback(std::move(it->second));
+            defer_close_callback(std::move(it->second));
             overlay_close_callbacks_.erase(it);
-            lv_async_call(
-                [](void* data) {
-                    auto* cb = static_cast<OverlayCloseCallback*>(data);
-                    if (!NavigationManager::is_destroyed()) {
-                        (*cb)();
-                    }
-                    delete cb;
-                },
-                deferred);
         }
 
         // Clean up dynamic backdrop for this overlay (if one was created).
@@ -1115,6 +1104,13 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
     // then arrives with no lifecycle, so its on_deactivate() never runs. Whether
     // an overlay is open is answered by panel_stack_, not by this map.
     panel_stack_.clear();
+    // What is left belongs to overlays already popped and still sliding out: their
+    // callbacks would run when the slide-out ends, and that completion finds
+    // nothing once the map is cleared. Run them now instead, so each overlay's
+    // owner still tears it down.
+    for (auto& [_, callback] : overlay_close_callbacks_) {
+        defer_close_callback(std::move(callback));
+    }
     overlay_close_callbacks_.clear();
     // Delete any remaining dynamic backdrops the loop above didn't reach
     // (orphaned entries not in panel_stack_), then clear the map.

@@ -559,18 +559,7 @@ bool PluginHost::open_settings(const std::string& id) {
     PluginSettingsOverlay* raw = screen.get();
     settings_screens_.push_back(std::move(screen));
 
-    auto& nav = NavigationManager::instance();
-    nav.register_overlay_instance(root, raw);
-    // The navigation manager runs close callbacks deferred, after the slide-out,
-    // so this is the one place the screen's teardown may happen.
-    nav.register_overlay_close_callback(root, [this, raw, root, token = guard_.token()] {
-        if (token.expired()) {
-            // The host is gone and its screens with it. The root still belongs
-            // to the screen (a printer switch keeps the app running), so delete
-            // just that.
-            helix::ui::safe_delete_deferred_raw(root);
-            return;
-        }
+    overlays_.push(root, raw, [this, raw] {
         raw->on_nav_closed();
         for (auto it = settings_screens_.begin(); it != settings_screens_.end(); ++it) {
             if (it->get() == raw) {
@@ -579,7 +568,6 @@ bool PluginHost::open_settings(const std::string& id) {
             }
         }
     });
-    nav.push_overlay(root);
     return true;
 }
 

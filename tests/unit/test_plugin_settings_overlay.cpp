@@ -6,6 +6,7 @@
 #include "ui_nav_manager.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/navigation_manager_test_access.h"
 #include "../test_helpers/plugin_host_test_support.h"
 #include "config.h"
 #include "display_settings_manager.h"
@@ -332,6 +333,28 @@ TEST_CASE_METHOD(SettingsFx, "unloading a plugin closes its open settings screen
     drain(); // close_overlay queues go_back; its body runs on the next queue pass
     process_lvgl(500);
     CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    CHECK(rig.host->settings_screen("widget-demo") == nullptr);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "settings_rows") == nullptr);
+}
+
+TEST_CASE_METHOD(SettingsFx, "a navbar tap during the close slide-out still tears the screen down",
+                 "[plugin][plugin_settings]") {
+    DisplaySettingsManager::instance().set_animations_enabled(true);
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    process_lvgl(500); // slide-in complete
+    auto& nav = NavigationManager::instance();
+    nav.go_back();
+    drain(); // popped; the close callback waits for the slide-out
+    NavigationManagerTestAccess::switch_to_panel(nav, helix::PanelId::Controls);
+    drain();
+    process_lvgl(500);
+    drain();
+    process_lvgl(100);
+
+    // The host still lives, so only navigation can have torn the screen down.
     CHECK(rig.host->settings_screen("widget-demo") == nullptr);
     CHECK(lv_obj_find_by_name(lv_screen_active(), "settings_rows") == nullptr);
 }
