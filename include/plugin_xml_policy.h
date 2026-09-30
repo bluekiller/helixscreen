@@ -24,7 +24,7 @@ namespace helix::plugin {
 ///    identifier is owned by `id`; numbers, operators, whitespace and parentheses are
 ///    the only other tokens allowed;
 ///  - `name` names an object owned by `id` (`check_plugin_xml` skips it on `prop`,
-///    `style` and `remove_style`, where it names no object);
+///    `style`, `remove_style*` and `bind_style*`, where it names no object);
 ///  - none of those attributes takes a `$prop` value, since a prop default cannot be
 ///    checked against the attribute it feeds.
 std::optional<std::string> check_plugin_attr(std::string_view id, std::string_view name,

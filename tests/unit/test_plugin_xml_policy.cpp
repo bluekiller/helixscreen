@@ -187,6 +187,14 @@ TEST_CASE("plugin object names are plugin-owned", "[plugin][xml_policy]") {
                            "<view extends=\"lv_obj\"/></component>")
               .empty());
     CHECK(check_plugin_xml("ab", {}, view_with(R"(<lv_obj-style name="card"/>)")).empty());
+    // bind_style and bind_style_if_* name the style they toggle.
+    CHECK(check_plugin_xml("ab", {},
+                           view_with(R"(<bind_style name="card" subject="ab__on" ref_value="1"/>)"))
+              .empty());
+    CHECK(check_plugin_xml(
+              "ab", {},
+              view_with(R"(<lv_obj-bind_style_if_eq name="card" subject="ab__on" ref_value="1"/>)"))
+              .empty());
     CHECK(check_plugin_attr("ab", "name", "modal_dialog").has_value());
     CHECK_FALSE(check_plugin_attr("ab", "name", "ab__root").has_value());
 }

@@ -131,8 +131,10 @@ void on_start(void* ud, const XML_Char* name, const XML_Char** attrs) {
             }
         }
     }
-    // On these elements name= declares a prop or refers to a style; it names no object.
-    bool names_object = el != "prop" && el != "style" && !starts_with(el, "remove_style");
+    // On these elements name= declares a prop or refers to a style (style,
+    // remove_style*, bind_style*); it names no object.
+    bool names_object = el != "prop" && el != "style" && !starts_with(el, "remove_style") &&
+                        !starts_with(el, "bind_style");
     for (int i = 0; attrs[i]; i += 2) {
         if (!names_object && std::string_view(attrs[i]) == "name")
             continue;
