@@ -498,8 +498,6 @@ void SettingsPanel::populate_info_rows() {
     // first paint shows the current host:port (otherwise it's the em-dash default
     // until ChangeHostModal fires its completion callback).
     Config* config = Config::get_instance();
-    if (!config)
-        return;
 
     std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
     if (!host.empty()) {
@@ -529,8 +527,7 @@ void SettingsPanel::refresh_status_lines() {
     // Formatted here rather than once at init, so it is in the language of the
     // latest return to the settings root.
     Config* config = Config::get_instance();
-    const bool is_calibrated =
-        config && config->get<bool>(config->df() + "input/calibration/valid", false);
+    const bool is_calibrated = config->get<bool>(config->df() + "input/calibration/valid", false);
     lv_subject_copy_string(&touch_cal_status_subject_,
                            is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated"));
 
@@ -927,11 +924,9 @@ void SettingsPanel::perform_factory_reset() {
 
     // Get config instance and reset
     Config* config = Config::get_instance();
-    if (config) {
-        config->reset_to_defaults();
-        config->save();
-        spdlog::info("[{}] Config reset to defaults", get_name());
-    }
+    config->reset_to_defaults();
+    config->save();
+    spdlog::info("[{}] Config reset to defaults", get_name());
 
     // Hide the dialog - animation + callback will handle cleanup
     if (factory_reset_dialog_) {

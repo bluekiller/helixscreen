@@ -56,10 +56,6 @@ void PrinterSwitchMenu::on_backdrop_clicked() {
 
 void PrinterSwitchMenu::populate_printer_list() {
     auto* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[PrinterSwitchMenu] No config instance");
-        return;
-    }
 
     auto printer_ids = cfg->get_printer_ids();
     auto active_id = cfg->get_active_printer_id();

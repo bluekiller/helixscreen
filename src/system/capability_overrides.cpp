@@ -15,10 +15,6 @@ using namespace helix;
 
 void CapabilityOverrides::load_from_config() {
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[CapabilityOverrides] Config not available, using defaults");
-        return;
-    }
 
     // Get printer-specific path prefix
     std::string prefix = cfg->df();
@@ -114,10 +110,6 @@ bool CapabilityOverrides::get_auto_value(const std::string& name) const {
 
 bool CapabilityOverrides::save_to_config() {
     Config* cfg = Config::get_instance();
-    if (!cfg) {
-        spdlog::error("[CapabilityOverrides] Cannot save - Config not available");
-        return false;
-    }
 
     std::string prefix = cfg->df();
 

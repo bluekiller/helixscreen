@@ -220,9 +220,9 @@ ScreensaverManager::plan_start(const helix::ui::SaverBase& saver,
     }
 
     std::optional<SaverLevelEntry> stored;
-    if (const helix::Config* config = helix::Config::get_instance()) {
-        stored = helix::ui::load_level_entry(*config, info.name);
-    }
+    const helix::Config* config = helix::Config::get_instance();
+    stored = helix::ui::load_level_entry(*config, info.name);
+
     const SaverLevelEntry entry =
         helix::ui::start_entry(stored, version_, board_, saver.level_count());
     return {entry.level, entry.too_heavy, true};
@@ -309,7 +309,7 @@ void ScreensaverManager::show_black_screen(ScreensaverType type) {
 
 void ScreensaverManager::record_level(size_t level, bool too_heavy) {
     helix::Config* config = helix::Config::get_instance();
-    if (!config || !active_info_) {
+    if (!active_info_) {
         return;
     }
     helix::ui::save_level_entry(*config, active_info_->name, {level, too_heavy, version_, board_});

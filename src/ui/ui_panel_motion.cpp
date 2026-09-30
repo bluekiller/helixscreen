@@ -195,17 +195,15 @@ MotionPanel::MotionPanel() {
     // Load persisted jog mode (default: coarse)
     // Migrate from old bool /motion/jog_mode_fine to new int /motion/jog_mode
     auto* cfg = Config::get_instance();
-    if (cfg) {
-        int mode = cfg->get<int>("/motion/jog_mode", -1);
-        if (mode >= 0 && mode < JOG_MODE_COUNT) {
-            current_mode_ = static_cast<JogMode>(mode);
-        } else {
-            // Migrate legacy bool setting and persist new key
-            bool fine = cfg->get<bool>("/motion/jog_mode_fine", false);
-            current_mode_ = fine ? JogMode::Fine : JogMode::Coarse;
-            cfg->set("/motion/jog_mode", static_cast<int>(current_mode_));
-            cfg->save();
-        }
+    int mode = cfg->get<int>("/motion/jog_mode", -1);
+    if (mode >= 0 && mode < JOG_MODE_COUNT) {
+        current_mode_ = static_cast<JogMode>(mode);
+    } else {
+        // Migrate legacy bool setting and persist new key
+        bool fine = cfg->get<bool>("/motion/jog_mode_fine", false);
+        current_mode_ = fine ? JogMode::Fine : JogMode::Coarse;
+        cfg->set("/motion/jog_mode", static_cast<int>(current_mode_));
+        cfg->save();
     }
 
     spdlog::trace("[MotionPanel] Instance created");
@@ -1533,10 +1531,8 @@ void MotionPanel::set_jog_mode(JogMode mode) {
 
     // Persist setting
     auto* cfg = Config::get_instance();
-    if (cfg) {
-        cfg->set("/motion/jog_mode", static_cast<int>(mode));
-        cfg->save();
-    }
+    cfg->set("/motion/jog_mode", static_cast<int>(mode));
+    cfg->save();
 
     spdlog::info("[MotionPanel] Jog mode: {}", jog_mode_name(mode));
 }

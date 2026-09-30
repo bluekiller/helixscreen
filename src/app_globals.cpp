@@ -208,7 +208,7 @@ void app_globals_init_subjects() {
 
     // Initialize beta features visibility subject (config-driven, used by multiple panels)
     Config* config = Config::get_instance();
-    bool beta_enabled = config && config->is_beta_features_enabled();
+    bool beta_enabled = config->is_beta_features_enabled();
     lv_subject_init_int(&g_show_beta_features_subject, beta_enabled ? 1 : 0);
     g_subjects.register_subject(&g_show_beta_features_subject);
     lv_xml_register_subject(nullptr, "show_beta_features", &g_show_beta_features_subject);

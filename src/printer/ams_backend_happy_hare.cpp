@@ -2199,8 +2199,6 @@ void AmsBackendHappyHare::query_config_defaults() {
 
 void AmsBackendHappyHare::load_persisted_overrides() {
     auto* config = helix::Config::get_instance();
-    if (!config)
-        return;
 
     // Helper: load a float override if config_default matches current default
     auto load_float = [&](const std::string& key, std::optional<float>& field,
@@ -2332,8 +2330,6 @@ void AmsBackendHappyHare::save_override(const std::string& key, float value) {
 
     // Persist to Config JSON (outside lock — disk I/O)
     auto* config = helix::Config::get_instance();
-    if (!config)
-        return;
     std::string base = "/hh_overrides/" + key;
     config->set<float>(base + "/value", value);
     config->set<float>(base + "/config_default", get_config_default_float(key));
@@ -2351,8 +2347,6 @@ void AmsBackendHappyHare::save_override(const std::string& key, int value) {
 
     // Persist to Config JSON (outside lock — disk I/O)
     auto* config = helix::Config::get_instance();
-    if (!config)
-        return;
     std::string base = "/hh_overrides/" + key;
     config->set<int>(base + "/value", value);
     config->set<int>(base + "/config_default", get_config_default_int(key));

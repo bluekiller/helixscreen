@@ -302,10 +302,6 @@ void FilamentSensorManager::load_config_from_file() {
     spdlog::debug("[FilamentSensorManager] Loading config from file");
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[FilamentSensorManager] Config not initialized");
-        return;
-    }
 
     // Build path using default printer prefix
     std::string base_path = config->df() + "filament_sensors";
@@ -383,10 +379,6 @@ void FilamentSensorManager::save_config_to_file() {
     spdlog::debug("[FilamentSensorManager] Saving config to file");
 
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[FilamentSensorManager] Config not initialized");
-        return;
-    }
 
     // Build path using default printer prefix
     std::string base_path = config->df() + "filament_sensors";

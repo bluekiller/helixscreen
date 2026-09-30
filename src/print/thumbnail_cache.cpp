@@ -67,16 +67,14 @@ static bool try_create_cache_dir(const std::string& path) {
 std::string ThumbnailCache::determine_cache_dir() {
     // 1. Check config setting first (explicit override)
     Config* config = Config::get_instance();
-    if (config) {
-        std::string config_dir = config->get<std::string>("/cache/directory", "");
-        if (!config_dir.empty()) {
-            std::string full_path = config_dir + "/" + CACHE_SUBDIR;
-            if (try_create_cache_dir(full_path)) {
-                spdlog::info("[ThumbnailCache] Using configured cache directory: {}", full_path);
-                return full_path;
-            }
-            spdlog::warn("[ThumbnailCache] Cannot use configured directory: {}", full_path);
+    std::string config_dir = config->get<std::string>("/cache/directory", "");
+    if (!config_dir.empty()) {
+        std::string full_path = config_dir + "/" + CACHE_SUBDIR;
+        if (try_create_cache_dir(full_path)) {
+            spdlog::info("[ThumbnailCache] Using configured cache directory: {}", full_path);
+            return full_path;
         }
+        spdlog::warn("[ThumbnailCache] Cannot use configured directory: {}", full_path);
     }
 
     // 2. Fall through to centralized cache resolution chain
@@ -149,10 +147,6 @@ void ThumbnailCache::ensure_cache_dir() const {
 
 void ThumbnailCache::load_config() {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::debug("[ThumbnailCache] Config not available, using defaults");
-        return;
-    }
 
     // Read cache settings from config (values are in MB, convert to bytes)
     int max_mb = config->get<int>("/cache/thumbnail_max_mb",

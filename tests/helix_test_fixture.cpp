@@ -197,9 +197,6 @@ void reset_config_singleton() {
     }
 
     helix::Config* cfg = helix::Config::get_instance();
-    if (cfg == nullptr) {
-        return;
-    }
     helix::ConfigTestAccess::path(*cfg) = config_sandbox_dir() + "/settings.json";
     helix::ConfigTestAccess::data(*cfg) = nlohmann::json::object();
     helix::ConfigTestAccess::active_printer_id(*cfg).clear();

@@ -135,10 +135,8 @@ void AudioSettingsManager::set_volume(int volume) {
     spdlog::info("[AudioSettingsManager] set_volume({})", volume);
 
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<int>("/sounds/volume", volume);
-        config->save();
-    }
+    config->set<int>("/sounds/volume", volume);
+    config->save();
 }
 
 std::string AudioSettingsManager::get_sound_theme() const {

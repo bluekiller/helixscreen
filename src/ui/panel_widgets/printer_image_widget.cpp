@@ -348,10 +348,6 @@ void PrinterImageWidget::on_activate() {
 
 void PrinterImageWidget::reload_from_config() {
     Config* config = Config::get_instance();
-    if (!config) {
-        spdlog::warn("[PrinterImageWidget] reload_from_config: Config not available");
-        return;
-    }
 
     // Update printer type in PrinterState (triggers capability cache refresh)
     std::string printer_type =

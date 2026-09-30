@@ -485,17 +485,15 @@ GeometryBuilder::GeometryBuilder() {
     stats_ = {};
 
     auto* config = Config::get_instance();
-    if (config) {
-        tube_sides_ = config->get<int>("/gcode_viewer/tube_sides", 16);
-        if (tube_sides_ != 4 && tube_sides_ != 8 && tube_sides_ != 16) {
-            spdlog::warn(
-                "[GCode Geometry] Invalid tube_sides={} (must be 4, 8, or 16), defaulting to 16",
-                tube_sides_);
-            tube_sides_ = 16;
-        }
-        spdlog::info("[GCode Geometry] G-code tube geometry: N={} sides (elliptical cross-section)",
-                     tube_sides_);
+    tube_sides_ = config->get<int>("/gcode_viewer/tube_sides", 16);
+    if (tube_sides_ != 4 && tube_sides_ != 8 && tube_sides_ != 16) {
+        spdlog::warn(
+            "[GCode Geometry] Invalid tube_sides={} (must be 4, 8, or 16), defaulting to 16",
+            tube_sides_);
+        tube_sides_ = 16;
     }
+    spdlog::info("[GCode Geometry] G-code tube geometry: N={} sides (elliptical cross-section)",
+                 tube_sides_);
 }
 
 // ============================================================================

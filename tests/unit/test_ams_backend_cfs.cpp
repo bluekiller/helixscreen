@@ -1907,7 +1907,6 @@ TEST_CASE("CFS backend ctor latches macro variant from PrinterDetector (#968)", 
     // The constructor reads PrinterDetector::is_creality_k1() once and caches
     // the result. Verify both routes resolve correctly.
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     const std::string type_path = config->df() + "type";
     const std::string saved = config->get<std::string>(type_path, "");
 
@@ -1944,7 +1943,6 @@ TEST_CASE("PrinterDiscovery enables CFS for K1 box object (#968 gate)", "[ams][c
     // After the #968 fix flip: K1 + `box` → CFS enabled, K1 dialect chosen
     // downstream by AmsBackendCfs ctor.
     auto* config = Config::get_instance();
-    REQUIRE(config != nullptr);
     const std::string type_path = config->df() + "type";
     const std::string saved = config->get<std::string>(type_path, "");
 

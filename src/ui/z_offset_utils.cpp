@@ -183,9 +183,6 @@ void apply_and_save(IMoonrakerAPI* api, helix::ui::SaveConfigWatch& save_watch,
 
 int persisted_step_index() {
     Config* config = Config::get_instance();
-    if (!config) {
-        return kZStepDefaultIndex;
-    }
     int idx = config->get<int>(config->df() + "z_offset/step_index", kZStepDefaultIndex);
     if (idx < 0 || idx >= static_cast<int>(std::size(kZStepAmountsMm))) {
         return kZStepDefaultIndex;
@@ -205,9 +202,6 @@ void set_persisted_step_index(int idx) {
         return;
     }
     Config* config = Config::get_instance();
-    if (!config) {
-        return;
-    }
     config->set<int>(config->df() + "z_offset/step_index", idx);
     config->save();
 }

@@ -2832,9 +2832,6 @@ void UpdateChecker::do_check() {
 
 UpdateChecker::UpdateChannel UpdateChecker::get_channel() const {
     auto* config = Config::get_instance();
-    if (!config) {
-        return UpdateChannel::Stable;
-    }
     int channel = config->get<int>("/update/channel", 0);
 
     // /update/channel persists independently of /beta_features. Stable and Beta
@@ -2967,9 +2964,6 @@ std::string UpdateChecker::get_platform_display_name(const std::string& key) {
 
 bool UpdateChecker::is_version_dismissed(const std::string& version) const {
     auto* config = Config::get_instance();
-    if (!config) {
-        return false;
-    }
 
     auto dismissed_str = config->get<std::string>("/update/dismissed_version", "");
     if (dismissed_str.empty()) {
@@ -3003,10 +2997,6 @@ void UpdateChecker::dismiss_current_version() {
     }
 
     auto* config = Config::get_instance();
-    if (!config) {
-        spdlog::error("[UpdateChecker] Cannot dismiss version: no config instance");
-        return;
-    }
 
     config->set<std::string>("/update/dismissed_version", version);
     config->save();

@@ -75,17 +75,17 @@ bool adopt_pending_light_button(Config& cfg, PanelWidgetConfig& home) {
 std::vector<std::string> home_light_button_targets() {
     auto& ctrl = led::LedController::instance();
     std::vector<std::string> keys;
-    if (auto* cfg = Config::get_instance()) {
-        keys = home_light_button_keys(PanelWidgetManager::instance().get_widget_config("home"),
-                                      pending_value(*cfg));
-    }
+    auto* cfg = Config::get_instance();
+    keys = home_light_button_keys(PanelWidgetManager::instance().get_widget_config("home"),
+                                  pending_value(*cfg));
+
     return led::union_light_targets(keys, ctrl.switchable_ids(), ctrl.chamber_light());
 }
 
 void settle_light_buttons() {
-    if (auto* cfg = Config::get_instance()) {
-        adopt_pending_light_button(*cfg, PanelWidgetManager::instance().get_widget_config("home"));
-    }
+    auto* cfg = Config::get_instance();
+    adopt_pending_light_button(*cfg, PanelWidgetManager::instance().get_widget_config("home"));
+
     auto& ctrl = led::LedController::instance();
     // A button may name a WLED strip that has not arrived yet, and falling back
     // to the chamber light would spend the startup attempt on the wrong light.

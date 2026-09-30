@@ -372,9 +372,6 @@ std::string HelixPluginInstaller::get_install_script_path() const {
 
 bool HelixPluginInstaller::should_prompt_install() const {
     Config* config = Config::get_instance();
-    if (!config) {
-        return false; // Don't prompt if config not available
-    }
 
     // Gate plugin install prompt behind beta_features flag
     if (!config->is_beta_features_enabled()) {
@@ -397,11 +394,9 @@ bool HelixPluginInstaller::should_prompt_install() const {
 
 void HelixPluginInstaller::set_install_declined() {
     Config* config = Config::get_instance();
-    if (config) {
-        config->set<bool>(PREF_INSTALL_DECLINED, true);
-        config->save();
-        spdlog::debug("[PluginInstaller] User declined plugin install prompt");
-    }
+    config->set<bool>(PREF_INSTALL_DECLINED, true);
+    config->save();
+    spdlog::debug("[PluginInstaller] User declined plugin install prompt");
 }
 
 PluginInstallState HelixPluginInstaller::get_state() const {

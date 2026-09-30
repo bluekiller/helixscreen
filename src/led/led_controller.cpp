@@ -385,7 +385,7 @@ void LedController::bump_config_version() {
 
 void LedController::migrate_legacy_selection() {
     auto* cfg = Config::get_instance();
-    if (cfg == nullptr || legacy_selection_.empty()) {
+    if (legacy_selection_.empty()) {
         return;
     }
     const nlohmann::json* existing = cfg->try_get_json(cfg->df() + AUTO_STATE_STRIPS_PATH);
@@ -1759,10 +1759,6 @@ void OutputPinBackend::set_pin_pwm(const std::string& pin_id, bool is_pwm) {
 
 void LedController::load_config() {
     auto* cfg = Config::get_instance();
-    if (!cfg) {
-        color_presets_ = migrate_color_presets({});
-        return;
-    }
 
     // The one-time fold of the legacy top-level /led block into the active
     // printer's leds/ section lives in migrate_v19_to_v20() (config.cpp); probing
@@ -1926,9 +1922,6 @@ void LedController::load_config() {
 
 void LedController::save_config() {
     auto* cfg = Config::get_instance();
-    if (!cfg) {
-        return;
-    }
 
     // Last color & brightness (saved as #RRGGBB hex strings)
     cfg->set(cfg->df() + "leds/last_color", helix::color_to_hex_string(last_color_.rgb));
@@ -2569,9 +2562,6 @@ void LedController::set_configured_macros(const std::vector<LedMacroInfo>& macro
 
 void LedController::seed_auto_paired_macros() {
     auto* cfg = Config::get_instance();
-    if (cfg == nullptr) {
-        return;
-    }
 
     // Bases we have already offered. Retained after the user deletes the device,
     // so a deliberate dismissal is not undone on the next discovery.

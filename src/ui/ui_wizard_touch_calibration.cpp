@@ -338,7 +338,7 @@ bool WizardTouchCalibrationStep::should_skip() const {
 
     // Skip if already calibrated
     Config* config = Config::get_instance();
-    if (config && config->get<bool>("/input/calibration/valid", false)) {
+    if (config->get<bool>("/input/calibration/valid", false)) {
         spdlog::info("[{}] Skipping touch calibration: already calibrated", get_name());
         return true;
     }

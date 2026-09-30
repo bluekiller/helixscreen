@@ -254,10 +254,6 @@ void LedAutoState::unsubscribe_observers() {
 
 void LedAutoState::load_config() {
     auto* cfg = Config::get_instance();
-    if (!cfg) {
-        setup_default_mappings();
-        return;
-    }
 
     // NOTE: the one-time fold of the legacy /led/auto_state/ block into the
     // active printer lives in migrate_v19_to_v20() (config.cpp). It used to run
@@ -309,9 +305,6 @@ void LedAutoState::load_config() {
 
 void LedAutoState::save_config() {
     auto* cfg = Config::get_instance();
-    if (!cfg) {
-        return;
-    }
 
     cfg->set(cfg->df() + "leds/auto_state/enabled", enabled_);
 
@@ -347,9 +340,6 @@ void LedAutoState::save_config() {
 
 void stage_light_selection(const SelectionMigration& m) {
     auto* cfg = Config::get_instance();
-    if (cfg == nullptr) {
-        return;
-    }
     // Written directly: LedAutoState::save_config() on an uninitialised instance
     // would save empty mappings over the user's.
     cfg->set(cfg->df() + AUTO_STATE_STRIPS_PATH, nlohmann::json(m.auto_state_strips));

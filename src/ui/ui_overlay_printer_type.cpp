@@ -175,9 +175,9 @@ void PrinterTypeOverlay::populate_type_list() {
     }
 
     std::string current;
-    if (Config* config = Config::get_instance()) {
-        current = config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
-    }
+    Config* config = Config::get_instance();
+    current = config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
+
     update_selection_indicator(current);
 
     spdlog::debug("[{}] Populated {} models (kinematics filter '{}'), current '{}'", get_name(),
@@ -221,7 +221,7 @@ void PrinterTypeOverlay::handle_type_selected(const std::string& type_name) {
 
     Config* config = Config::get_instance();
     IMoonrakerAPI* api = get_moonraker_api();
-    if (!config || !api) {
+    if (!api) {
         spdlog::warn("[{}] Cannot apply '{}' - config or Moonraker unavailable", get_name(),
                      type_name);
         return;

@@ -41,7 +41,6 @@ std::string write_persisted_auto_state(bool enabled, const std::string& state_ke
                                        const std::string& action_type, const std::string& hex_color,
                                        int brightness) {
     auto* cfg = helix::Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const std::string base = cfg->df() + "leds/auto_state/";
 
     cfg->set(base + "enabled", enabled);
@@ -62,9 +61,6 @@ std::string write_persisted_auto_state(bool enabled, const std::string& state_ke
 /// leak state into later tests (random test order).
 void clear_persisted_auto_state() {
     auto* cfg = helix::Config::get_instance();
-    if (!cfg) {
-        return;
-    }
     cfg->set(cfg->df() + "leds/auto_state/enabled", nlohmann::json());
     cfg->set(cfg->df() + "leds/auto_state/mappings", nlohmann::json());
     // Also clear the legacy migration source so it cannot re-seed.
@@ -408,9 +404,9 @@ struct AutoStateTargetFixture : public LVGLTestFixture {
     ~AutoStateTargetFixture() override {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
         helix::led::LedAutoState::instance().set_strips({});
-        if (auto* cfg = helix::Config::get_instance()) {
-            cfg->set(cfg->df() + "leds/auto_state/strips", nlohmann::json());
-        }
+        auto* cfg = helix::Config::get_instance();
+        cfg->set(cfg->df() + "leds/auto_state/strips", nlohmann::json());
+
         clear_persisted_auto_state();
         helix::led::LedController::instance().deinit();
     }

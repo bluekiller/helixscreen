@@ -31,8 +31,6 @@ struct LedConfigFixture : public HelixTestFixture {
 /// Tests run in random order and the Config singleton persists between tests.
 static void clear_led_config_paths() {
     auto* cfg = Config::get_instance();
-    if (!cfg)
-        return;
     cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array());
     cfg->set(cfg->df() + "leds/selected", nlohmann::json());
     cfg->set(cfg->df() + "leds/strip", nlohmann::json());
@@ -220,7 +218,6 @@ TEST_CASE_METHOD(LedConfigFixture,
                  "[led][config]") {
     // This test verifies that after save + reload, data persists under the new paths
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     // A pre-1.1 selection on disk: read for the migration, never rewritten.
     cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array({"Lamp"}));
     cfg->set(cfg->df() + "leds/macro_devices",
@@ -262,7 +259,6 @@ TEST_CASE_METHOD(LedConfigFixture,
 TEST_CASE_METHOD(LedConfigFixture, "LedController config: legacy /printer/leds/selected migration",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Simulate old SettingsManager data at df()+"leds/selected" (JSON array)
     nlohmann::json legacy_selected = nlohmann::json::array({"neopixel legacy_led"});
@@ -291,7 +287,6 @@ TEST_CASE_METHOD(LedConfigFixture,
                  "LedController config: legacy /printer/leds/strip string migration",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Simulate oldest format: single string at df()+"leds/strip"
     cfg->set<std::string>(cfg->df() + "leds/strip", "neopixel oldest_led");
@@ -320,7 +315,6 @@ TEST_CASE_METHOD(LedConfigFixture,
                  "LedController config: wizard saves both strip and selected_strips",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Simulate wizard behavior: saves to both leds/strip (string for dropdown
     // restore) and leds/selected_strips (array for LedController)
@@ -350,7 +344,6 @@ TEST_CASE_METHOD(LedConfigFixture,
                  "LedController config: selected_strips takes priority over legacy strip",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Both paths set with different values — selected_strips should win
     cfg->set<std::string>(cfg->df() + "leds/strip", "neopixel old_led");
@@ -378,7 +371,6 @@ TEST_CASE_METHOD(LedConfigFixture,
 TEST_CASE_METHOD(LedConfigFixture, "LedController config: wizard None selection saves empty array",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Simulate wizard saving "None" — empty string and empty array
     cfg->set<std::string>(cfg->df() + "leds/strip", "");
@@ -489,7 +481,6 @@ TEST_CASE_METHOD(LedConfigFixture, "LedController config: hex string colors save
 TEST_CASE_METHOD(LedConfigFixture, "LedController config: loads hex string colors from config",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Write hex string colors to config
     cfg->set<std::string>(cfg->df() + "leds/last_color", "#AABB00");
@@ -518,7 +509,6 @@ TEST_CASE_METHOD(LedConfigFixture, "LedController config: loads hex string color
 TEST_CASE_METHOD(LedConfigFixture, "LedController config: loads legacy integer colors from config",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Write old-style integer colors
     cfg->set(cfg->df() + "leds/last_color", static_cast<int>(0xFF8800));
@@ -547,7 +537,6 @@ TEST_CASE_METHOD(LedConfigFixture, "LedController config: loads legacy integer c
 TEST_CASE_METHOD(LedConfigFixture, "LedController config: mixed integer and hex string presets",
                  "[led][config]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     // Mix of old integers and new hex strings
     nlohmann::json presets = nlohmann::json::array();
@@ -592,7 +581,6 @@ TEST_CASE_METHOD(LedConfigFixture,
                  "LedController config: per-printer selected_strips wins over legacy formats",
                  "[led][config][integration]") {
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
 
     auto& ctrl = helix::led::LedController::instance();
     ctrl.deinit();
@@ -643,7 +631,6 @@ TEST_CASE_METHOD(LedConfigFixture, "LedController config: draft macro is never p
     ctrl.save_config();
 
     const auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     const nlohmann::json* saved =
         Config::get_instance()->try_get_json(Config::get_instance()->df() + "leds/macro_devices");
     REQUIRE(saved != nullptr);

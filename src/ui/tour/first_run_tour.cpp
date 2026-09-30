@@ -35,8 +35,6 @@ FirstRunTour& FirstRunTour::instance() {
 
 bool FirstRunTour::should_auto_start() {
     auto* cfg = ::helix::Config::get_instance();
-    if (!cfg)
-        return false;
 
     if (cfg->is_wizard_required()) {
         spdlog::debug("[FirstRunTour] gate: wizard_required");
@@ -70,8 +68,6 @@ bool FirstRunTour::should_auto_start() {
 
 void FirstRunTour::mark_completed() {
     auto* cfg = ::helix::Config::get_instance();
-    if (!cfg)
-        return;
     cfg->set<bool>("/tour/completed", true);
     cfg->set<int>("/tour/last_seen_version", TOUR_VERSION);
     cfg->save();

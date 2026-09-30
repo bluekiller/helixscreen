@@ -53,30 +53,27 @@ GCodeStreamingMode get_gcode_streaming_mode() {
 
     // Priority 2: Config file
     Config* config = Config::get_instance();
-    if (config != nullptr) {
-        std::string mode = config->get<std::string>("/gcode_viewer/streaming_mode", "auto");
-        if (mode == "on") {
-            spdlog::debug("[GCodeStreaming] Mode from config: ON");
-            return GCodeStreamingMode::ON;
-        }
-        if (mode == "off") {
-            spdlog::debug("[GCodeStreaming] Mode from config: OFF");
-            return GCodeStreamingMode::OFF;
-        }
-        // Default to AUTO for any other value
-        spdlog::trace("[GCodeStreaming] Mode from config: AUTO");
+    std::string mode = config->get<std::string>("/gcode_viewer/streaming_mode", "auto");
+    if (mode == "on") {
+        spdlog::debug("[GCodeStreaming] Mode from config: ON");
+        return GCodeStreamingMode::ON;
     }
+    if (mode == "off") {
+        spdlog::debug("[GCodeStreaming] Mode from config: OFF");
+        return GCodeStreamingMode::OFF;
+    }
+    // Default to AUTO for any other value
+    spdlog::trace("[GCodeStreaming] Mode from config: AUTO");
 
     return GCodeStreamingMode::AUTO;
 }
 
 int get_streaming_threshold_percent() {
     Config* config = Config::get_instance();
-    if (config != nullptr) {
-        int percent = config->get<int>("/gcode_viewer/streaming_threshold_percent", 40);
-        // Clamp to valid range
-        return std::clamp(percent, 1, 90);
-    }
+    int percent = config->get<int>("/gcode_viewer/streaming_threshold_percent", 40);
+    // Clamp to valid range
+    return std::clamp(percent, 1, 90);
+
     return 40; // Default
 }
 

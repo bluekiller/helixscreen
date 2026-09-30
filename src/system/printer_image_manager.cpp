@@ -80,15 +80,11 @@ void PrinterImageManager::deinit_subjects() {
 
 std::string PrinterImageManager::get_active_image_id() const {
     Config* config = Config::get_instance();
-    if (!config)
-        return "";
     return config->get<std::string>(config->df() + PRINTER_IMAGE, "");
 }
 
 void PrinterImageManager::set_active_image(const std::string& id) {
     Config* config = Config::get_instance();
-    if (!config)
-        return;
     config->set<std::string>(config->df() + PRINTER_IMAGE, id);
     config->save();
     spdlog::info("[PrinterImageManager] Active image set to: '{}'",
@@ -168,7 +164,7 @@ std::string PrinterImageManager::get_displayed_image_path(int screen_width) {
         return path;
     Config* config = Config::get_instance();
     const std::string printer_type =
-        config ? config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "") : "";
+        config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
     return PrinterImages::get_best_printer_image(printer_type);
 }
 

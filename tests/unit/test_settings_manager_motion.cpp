@@ -167,7 +167,6 @@ TEST_CASE_METHOD(HelixTestFixture, "Coordinate source defaults to commanded and 
 
     // Persisted beside the jog settings in the per-printer motion section.
     auto* cfg = helix::Config::get_instance();
-    REQUIRE(cfg != nullptr);
     REQUIRE(cfg->get<bool>(cfg->df() + "motion/show_actual_position", false) == true);
 
     s.set_motion_show_actual_position(false);

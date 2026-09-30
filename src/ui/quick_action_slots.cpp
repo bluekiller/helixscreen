@@ -13,10 +13,8 @@ StoredQuickSlots read_stored_quick_slots() {
     StoredQuickSlots out;
     Config* config = Config::get_instance();
     for (size_t i = 0; i < kQuickButtonKeys.size(); ++i) {
-        out.user_set[i] = config && config->exists(kQuickButtonKeys[i]);
-        out.value[i] = config
-                           ? config->get<std::string>(kQuickButtonKeys[i], kQuickButtonDefaults[i])
-                           : kQuickButtonDefaults[i];
+        out.user_set[i] = config->exists(kQuickButtonKeys[i]);
+        out.value[i] = config->get<std::string>(kQuickButtonKeys[i], kQuickButtonDefaults[i]);
     }
     return out;
 }

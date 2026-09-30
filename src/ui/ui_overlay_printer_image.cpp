@@ -200,11 +200,10 @@ void PrinterImageOverlay::on_activate() {
         // Show the auto-detected image as preview
         std::string auto_path;
         Config* config = Config::get_instance();
-        if (config) {
-            std::string printer_type =
-                config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
-            auto_path = PrinterImages::get_best_printer_image(printer_type);
-        }
+        std::string printer_type =
+            config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
+        auto_path = PrinterImages::get_best_printer_image(printer_type);
+
         update_preview("", lv_tr("Auto-Detect"), auto_path);
     }
 }
@@ -509,11 +508,10 @@ void PrinterImageOverlay::handle_auto_detect() {
     // Show the auto-detected image as preview
     std::string auto_path;
     Config* config = Config::get_instance();
-    if (config) {
-        std::string printer_type =
-            config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
-        auto_path = PrinterImages::get_best_printer_image(printer_type);
-    }
+    std::string printer_type =
+        config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
+    auto_path = PrinterImages::get_best_printer_image(printer_type);
+
     update_preview("", "Auto-Detect", auto_path);
     NOTIFY_INFO(lv_tr("Printer image set to auto-detect"));
 }

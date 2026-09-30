@@ -110,16 +110,12 @@ std::string LockManager::hash_pin(const std::string& pin) const {
 
 void LockManager::load_from_config() {
     auto* config = Config::get_instance();
-    if (!config)
-        return;
     pin_hash_ = config->get<std::string>("/security/pin_hash", "");
     auto_lock_ = config->get<bool>("/security/auto_lock", false);
 }
 
 void LockManager::save_to_config() {
     auto* config = Config::get_instance();
-    if (!config)
-        return;
     config->set<std::string>("/security/pin_hash", pin_hash_);
     config->set<bool>("/security/auto_lock", auto_lock_);
     config->save();

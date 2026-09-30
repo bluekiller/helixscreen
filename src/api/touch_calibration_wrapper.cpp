@@ -231,9 +231,6 @@ bool get_last_raw_touch(Point& out) {
 TouchRangeSettings load_touch_range() {
     TouchRangeSettings range;
     helix::Config* cfg = helix::Config::get_instance();
-    if (!cfg) {
-        return range;
-    }
 
     if (!cfg->get<bool>("/input/touch_range/valid", false)) {
         return range;
@@ -259,10 +256,6 @@ TouchRangeSettings load_touch_range() {
 
 void save_touch_range(const TouchRangeSettings& range) {
     helix::Config* cfg = helix::Config::get_instance();
-    if (!cfg) {
-        spdlog::warn("[TouchCal] Config not available - touch range not saved");
-        return;
-    }
 
     cfg->set<bool>("/input/touch_range/valid", range.valid);
     if (!range.valid) {
@@ -285,11 +278,6 @@ void save_touch_range(const TouchRangeSettings& range) {
 TouchCalibration load_touch_calibration() {
     helix::Config* cfg = helix::Config::get_instance();
     TouchCalibration cal;
-
-    if (!cfg) {
-        spdlog::debug("[TouchCal] Config not available for calibration load");
-        return cal;
-    }
 
     cal.valid = cfg->get<bool>("/input/calibration/valid", false);
     // Every save writes the rotation key (touch_calibration_session.cpp#write_affine),

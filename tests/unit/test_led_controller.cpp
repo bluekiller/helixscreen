@@ -37,11 +37,10 @@ struct LedControllerFixture : public HelixTestFixture {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
         // A discovery over a saved selection stages the light selection; later
         // tests must see a config that has not migrated yet.
-        if (auto* cfg = Config::get_instance()) {
-            cfg->set(cfg->df() + "leds/auto_state/strips", nlohmann::json());
-            cfg->set(cfg->df() + "leds/light_button_pending", nlohmann::json());
-            cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json());
-        }
+        auto* cfg = Config::get_instance();
+        cfg->set(cfg->df() + "leds/auto_state/strips", nlohmann::json());
+        cfg->set(cfg->df() + "leds/light_button_pending", nlohmann::json());
+        cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json());
     }
 };
 
@@ -842,7 +841,6 @@ TEST_CASE_METHOD(
     // A preset's LED name the firmware does not have. No discovered strip uses a
     // chamber-light spelling, so only the fallback decides the chamber light.
     auto* cfg = Config::get_instance();
-    REQUIRE(cfg != nullptr);
     cfg->set(cfg->df() + "leds/selected_strips", nlohmann::json::array({"neopixel ghost"}));
 
     auto& ctrl = helix::led::LedController::instance();

@@ -605,9 +605,9 @@ void PrintSelectDetailView::resolve_local_gcodes_root() {
     // absolute root path names a filesystem we cannot see, and reading a local
     // path that happens to match would be reading the wrong file entirely.
     std::string host;
-    if (Config* cfg = Config::get_instance()) {
-        host = cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
-    }
+    Config* cfg = Config::get_instance();
+    host = cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost");
+
     if (!helix::is_moonraker_on_same_host(host)) {
         local_gcodes_root_resolved_ = true;
         spdlog::debug("[DetailView] Moonraker is remote ('{}') — G-code comes over HTTP", host);
