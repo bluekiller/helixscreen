@@ -1060,6 +1060,16 @@ struct SlotInfo {
     }
 
     /**
+     * @brief The identity fields: colour, material, brand, catalog pick,
+     * Spoolman link and weights, as a tuple of references into @p s
+     */
+    template <class S> static auto identity_fields(S& s) {
+        return std::tie(s.color_rgb, s.color_name, s.material, s.brand, s.catalog_id,
+                        s.product_name, s.spool_name, s.spoolman_id, s.spoolman_filament_id,
+                        s.spoolman_vendor_id, s.remaining_weight_g, s.total_weight_g);
+    }
+
+    /**
      * @brief Copy the filament fields an edit or an identity sync carries
      *
      * Colour, material, brand, catalog pick, Spoolman link, weights and
@@ -1069,10 +1079,8 @@ struct SlotInfo {
      */
     bool assign_filament_fields(const SlotInfo& other) {
         auto fields = [](auto& s) {
-            return std::tie(s.color_rgb, s.color_name, s.material, s.brand, s.catalog_id,
-                            s.product_name, s.spool_name, s.spoolman_id, s.spoolman_filament_id,
-                            s.spoolman_vendor_id, s.remaining_weight_g, s.total_weight_g,
-                            s.nozzle_temp_min, s.nozzle_temp_max, s.bed_temp);
+            return std::tuple_cat(identity_fields(s),
+                                  std::tie(s.nozzle_temp_min, s.nozzle_temp_max, s.bed_temp));
         };
         const bool changed = fields(*this) != fields(other);
         fields(*this) = fields(other);
