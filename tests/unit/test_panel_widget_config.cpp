@@ -2727,3 +2727,60 @@ TEST_CASE_METHOD(PanelWidgetConfigFixture,
     // key and not a save that did nothing.
     CHECK(get_saved_root().contains("pages"));
 }
+
+// ============================================================================
+// Unknown widget ids: a plugin's placement outlives the plugin
+// ============================================================================
+//
+// A plugin widget id (gone-plug__tile) has a definition only while its plugin
+// is loaded. The layout must keep the entry verbatim across any number of
+// saves, so the widget returns to its cell when the plugin comes back.
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "an unknown widget id survives load and save",
+                 "[panel_widget][widget_config]") {
+    json unknown = {{"id", "gone-plug__tile"},
+                    {"enabled", true},
+                    {"col", 2},
+                    {"row", 0},
+                    {"colspan", 2},
+                    {"rowspan", 2}};
+    setup_with_pages(
+        {{"main", json::array({{{"id", "print_status"}, {"enabled", true}}, unknown})}});
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    for (const auto& e : wc.page_entries(0))
+        CHECK(e.id != "gone-plug__tile"); // not rendered
+    wc.save();
+
+    const json& saved =
+        ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"];
+    bool kept = false;
+    for (const auto& item : saved["pages"][0]["widgets"])
+        kept = kept || item == unknown;
+    CHECK(kept);
+
+    PanelWidgetConfig again("home", config);
+    again.load();
+    again.save();
+    int count = 0;
+    for (const auto& item : ConfigTestAccess::data(
+             config)["printers"]["default"]["panel_widgets"]["home"]["pages"][0]["widgets"])
+        count += item["id"] == "gone-plug__tile";
+    CHECK(count == 1); // kept once, not duplicated per save
+}
+
+TEST_CASE_METHOD(PanelWidgetConfigFixture, "removing a page keeps its unknown ids",
+                 "[panel_widget][widget_config]") {
+    json unknown = {{"id", "gone-plug__tile"}, {"enabled", true}, {"col", 0}, {"row", 0}};
+    setup_with_pages({{"main", json::array()}, {"extra", json::array({unknown})}});
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    REQUIRE(wc.remove_page(1));
+    wc.save();
+    bool kept = false;
+    for (const auto& page :
+         ConfigTestAccess::data(config)["printers"]["default"]["panel_widgets"]["home"]["pages"])
+        for (const auto& item : page["widgets"])
+            kept = kept || item["id"] == "gone-plug__tile";
+    CHECK(kept);
+}

@@ -61,6 +61,10 @@ struct PanelWidgetEntry {
 struct PageConfig {
     std::string id;
     std::vector<PanelWidgetEntry> widgets;
+    /// Saved entries whose id has no widget definition (a plugin widget while
+    /// its plugin is absent), kept verbatim so the placement is restored when
+    /// the definition returns.
+    nlohmann::json retained = nlohmann::json::array();
 };
 
 /// Soft cap on maximum number of pages
@@ -361,8 +365,11 @@ class PanelWidgetConfig {
 
     /// Parse a JSON array of widget entries into a vector, applying migrations.
     /// If append_registry_defaults is true, appends missing registry widgets.
+    /// An entry whose id has no definition is dropped, or appended verbatim to
+    /// @p retained when given, so a layout survives a missing plugin.
     std::vector<PanelWidgetEntry> parse_widget_array(const nlohmann::json& arr,
-                                                     bool append_registry_defaults = true);
+                                                     bool append_registry_defaults = true,
+                                                     nlohmann::json* retained = nullptr);
 
     /// Attempt to populate pages_ from a preset-shipped seed file at
     /// assets/config/panel_widgets/<preset>/<panel_id>.json. Returns true if a
