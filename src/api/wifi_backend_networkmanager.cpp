@@ -221,55 +221,20 @@ bool WifiBackendNetworkManager::is_running() const {
 // Event System
 // ============================================================================
 
-void WifiBackendNetworkManager::register_event_callback(
-    const std::string& name, std::function<void(const std::string&)> callback) {
-    std::lock_guard<std::mutex> lock(callbacks_mutex_);
-
-    auto it = callbacks_.find(name);
-    if (it == callbacks_.end()) {
-        callbacks_.insert({name, callback});
-        spdlog::debug("[WifiBackend] NM: Registered callback '{}'", name);
-    } else {
-        spdlog::warn("[WifiBackend] NM: Callback '{}' already registered (not replacing)", name);
-    }
-}
-
 void WifiBackendNetworkManager::fire_event(const std::string& event_name, const std::string& data) {
     // Single source of truth for the connection-transition tracker: every
     // explicit CONNECTED/DISCONNECTED we emit — from the connect/disconnect
     // paths as well as the status poll — updates prev_connected_ here. This
     // keeps the poll loop from re-firing a duplicate event for a state another
-    // path already reported (prestonbrown/helixscreen#1059). Update regardless
-    // of whether a UI callback is registered — this is backend state, not UI
-    // state — so it must run before the early return below.
+    // path already reported (prestonbrown/helixscreen#1059). It is backend
+    // state, not UI state, so it updates whether or not a handler is registered.
     if (event_name == "CONNECTED") {
         prev_connected_.store(true);
     } else if (event_name == "DISCONNECTED") {
         prev_connected_.store(false);
     }
 
-    // Copy the callback out under the mutex, then release BEFORE invoking it.
-    // Holding callbacks_mutex_ across the callback invites deadlock if a
-    // handler acquires another backend lock (or re-enters the backend).
-    std::function<void(const std::string&)> cb;
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = callbacks_.find(event_name);
-        if (it == callbacks_.end()) {
-            spdlog::trace("[WifiBackend] NM: No callback registered for '{}'", event_name);
-            return;
-        }
-        cb = it->second;
-    }
-
-    spdlog::debug("[WifiBackend] NM: Firing event '{}'", event_name);
-    try {
-        cb(data);
-    } catch (const std::exception& e) {
-        spdlog::error("[WifiBackend] NM: Exception in callback '{}': {}", event_name, e.what());
-    } catch (...) {
-        spdlog::error("[WifiBackend] NM: Unknown exception in callback '{}'", event_name);
-    }
+    dispatch_event(event_name, data);
 }
 
 // ============================================================================
