@@ -156,7 +156,6 @@ Like `PrinterState`, `ToolState` is fed `update_from_status()` on the main threa
 | **Background work & caches** | | |
 | `UpdateQueue` | [`ui_update_queue.h`](../../../include/ui_update_queue.h) | Any-thread → main-thread bridge (ch. 02) |
 | `MemoryMonitor` | [`memory_monitor.h`](../../../include/memory_monitor.h) | Memory sampling + pressure thresholds |
-| `StreamingPolicy` | [`streaming_policy.h`](../../../include/streaming_policy.h) | When to use streaming operations |
 | `MacroParamCache` | [`macro_param_cache.h`](../../../include/macro_param_cache.h) | Macro parameter knowledge cache |
 | `StandardMacros` | [`standard_macros.h`](../../../include/standard_macros.h) | Semantic-op → printer macro mapping |
 | `ThermalRateManager` | [`thermal_rate_model.h`](../../../include/thermal_rate_model.h) | EMA thermal heating-rate model |

@@ -407,12 +407,6 @@ G1 X10 Y10 Z0.2 E0.5
 // Streaming Mode Tests
 // ============================================================================
 
-TEST_CASE("GCodeFileModifier - Streaming mode constants", "[gcode][modifier][streaming]") {
-    // Verify the threshold constant is reasonable for embedded devices
-    REQUIRE(MAX_BUFFERED_FILE_SIZE == 5 * 1024 * 1024); // 5MB
-    REQUIRE(MAX_BUFFERED_FILE_SIZE < 10 * 1024 * 1024); // Less than 10MB
-}
-
 TEST_CASE("GCodeFileModifier - Streaming comment out", "[gcode][modifier][streaming]") {
     GCodeFileModifier modifier;
 

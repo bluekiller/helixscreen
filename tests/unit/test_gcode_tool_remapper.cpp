@@ -253,6 +253,14 @@ TEST_CASE("streaming rewrite counts only the lines it changed", "[remap][gcode][
     CHECK(changed == 0);
 }
 
+TEST_CASE("a tool change the preview counts is a tool change the remapper rewrites",
+          "[remap][gcode][stream]") {
+    std::map<int, int> remap = {{1, 2}};
+    CHECK(stream_remap("T1 ; tool change\n", remap) == "T2 ; tool change\n");
+    CHECK(stream_remap("  T1\n", remap) == "  T2\n");
+    CHECK(stream_remap("\tT1;next\r\n", remap) == "\tT2;next\r\n");
+}
+
 TEST_CASE("near-miss tokens are left alone", "[remap][gcode][stream]") {
     std::map<int, int> remap = {{1, 2}};
     // Each of these is a corrupted print if the match is ever loosened: a

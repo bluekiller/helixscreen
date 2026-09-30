@@ -2,7 +2,7 @@
 
 How the versioned config migration system works, how to add new migrations, and how migrations are tested.
 
-**Key files**: `include/config.h`, `src/system/config.cpp`, `tests/unit/test_config.cpp`
+**Key files**: `include/config.h`, `src/system/config_migrations.cpp` (the ladder), `src/system/config.cpp` (`Config::init()`), `tests/unit/test_config.cpp`
 
 ---
 
@@ -14,7 +14,7 @@ There are two migration layers:
 
 1. **Structural migrations** (legacy) -- Key-path moves like `display_rotate` to `/display/rotate` or `/display/calibration` to `/input/calibration`. These run unconditionally based on key presence.
 
-2. **Versioned migrations** -- Numbered `v0->v1`, `v1->v2`, etc. Each bumps the integer `config_version` field. These run in sequence and only on configs older than the target version.
+2. **Versioned migrations** -- Numbered `v9->v10`, `v10->v11`, etc. Each bumps the integer `config_version` field. These run in sequence and only on configs older than the target version.
 
 ---
 
@@ -35,12 +35,11 @@ Every config file has an integer `config_version` at the root level:
 The current version is defined in `config.h`:
 
 ```cpp
-static constexpr int CURRENT_CONFIG_VERSION = 25;
+static constexpr int CURRENT_CONFIG_VERSION = 26;
+static constexpr int MIN_MIGRATABLE_CONFIG_VERSION = 9;
 ```
 
-The two migrations enumerated below (v0->v1, v1->v2) are the earliest examples; the
-full migration ladder up to the current head lives in `config.cpp`. The "how to add a
-migration" mechanism shown later still applies to every step in that ladder.
+The full migration ladder lives in `config_migrations.cpp`: one function per step and one ordered table, `kMigrations`, that `run_versioned_migrations()` walks.
 
 Two properties of the ladder worth knowing before you add to it:
 
@@ -83,8 +82,9 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
 | Scenario | What happens |
 |----------|-------------|
 | **No config file** | `get_default_config()` creates one with `config_version = CURRENT_CONFIG_VERSION`. No migrations run. |
-| **Existing config, no `config_version`** | Treated as version 0. All migrations run in sequence (v0->v1, v1->v2, ...). |
-| **Existing config, `config_version = 1`** | Only migrations after v1 run (v1->v2, ...). |
+| **Existing config, no `config_version`** | Treated as version 0: a shipped preset (`assets/config/presets/*.json`) or a tarball default. A rolling backup with a real version replaces it if one exists; otherwise `normalize_versionless_document()` moves the single `/printer` into the `/printers` map and the chain runs from v9. |
+| **Existing config, `config_version` 1-8** | Below the floor. Copied to `settings.json.pre-migration`, one warning logged, and replaced by `get_default_config()`, the same defaults a missing config gets. |
+| **Existing config, `config_version = 9`** | Only migrations after v9 run (v9->v10, ...). |
 | **Existing config, `config_version = CURRENT`** | No migrations run. |
 
 ### Execution Order in `Config::init()`
@@ -98,9 +98,10 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
    a. Read config_version (default 0 if absent)
       If 0 < version < CURRENT and the document came from disk, copy
       settings.json to settings.json.pre-migration first
-   b. if (version < 1) migrate_v0_to_v1()
-   c. if (version < 2) migrate_v1_to_v2()
-   d. Set config_version = CURRENT_CONFIG_VERSION
+   b. If 0 < version < MIN_MIGRATABLE_CONFIG_VERSION: replace with defaults, stop
+   c. If version == 0: normalize_versionless_document() (/printer -> /printers)
+   d. Run each kMigrations row whose to_version > version, in order
+   e. Set config_version = CURRENT_CONFIG_VERSION
 4. Ensure required sections exist with defaults (printer, display, input, etc.)
 5. Save to disk if anything changed
 ```
@@ -111,55 +112,11 @@ Versioned migrations only run on **existing** configs. A fresh install skips str
 
 ---
 
-## Existing Migrations
+## The Migration Floor
 
-### v0 -> v1: Disable sounds for existing users
+`MIN_MIGRATABLE_CONFIG_VERSION` (9, first shipped in v0.99.4) is the oldest stamp the chain still migrates. A config stamped 1-8 is not migrated: `init()` keeps it as `settings.json.pre-migration`, logs `config_version N is older than this build migrates`, and starts from defaults. Raising the floor means deleting the steps below it, except any a version-0 preset still needs.
 
-**Problem**: Before the sound system worked, configs had `sounds_enabled: true` as a harmless default. When sound support shipped, upgrading users would get surprise beeps.
-
-**Fix**: Force `sounds_enabled` to `false` for any pre-v1 config that has the key.
-
-```cpp
-static void migrate_v0_to_v1(json& config) {
-    if (config.contains("sounds_enabled")) {
-        config["sounds_enabled"] = false;
-        spdlog::info("[Config] Migration v1: disabled sounds_enabled for existing config");
-    }
-}
-```
-
-**Note:** Dedicated tests for this specific v1->v2 migration are not yet implemented. Later migrations in the ladder are covered (e.g. `tests/unit/test_config_migration_v18.cpp`).
-
-### v1 -> v2: Single LED string to multi-LED array
-
-**Problem**: LED config was a single string at `/printer/leds/strip`. Multi-LED support needs an array at `/printer/leds/selected`.
-
-**Fix**: Convert the old string value into a single-element array, or create an empty array if no LED was configured.
-
-```cpp
-static void migrate_v1_to_v2(json& config) {
-    json::json_pointer strip_ptr("/printer/leds/strip");
-    json::json_pointer selected_ptr("/printer/leds/selected");
-
-    if (config.contains(selected_ptr)) {
-        return;  // Already has new format
-    }
-
-    if (config.contains(strip_ptr)) {
-        auto& strip_val = config[strip_ptr];
-        if (strip_val.is_string()) {
-            std::string led = strip_val.get<std::string>();
-            if (!led.empty()) {
-                config[selected_ptr] = json::array({led});
-            } else {
-                config[selected_ptr] = json::array();
-            }
-        }
-    } else {
-        config[selected_ptr] = json::array();
-    }
-}
-```
+Version 0 is not below the floor. The shipped presets carry no `config_version` and use the single `/printer` shape, so `normalize_versionless_document()` moves that into the `/printers` map, gives a printer with no `leds` block an empty selection, and hides the printer switcher on a single-printer install, before the numbered chain runs. `tests/unit/test_config.cpp` loads every shipped preset through `Config::init()` to keep that path honest.
 
 ---
 
@@ -170,40 +127,30 @@ static void migrate_v1_to_v2(json& config) {
 In `include/config.h`:
 
 ```cpp
-static constexpr int CURRENT_CONFIG_VERSION = 3;  // was 2
+static constexpr int CURRENT_CONFIG_VERSION = 27;  // was 26
 ```
 
 ### Step 2: Write the migration function
 
-In `src/system/config.cpp`, add a new static function in the anonymous namespace alongside the existing migrations:
+In `src/system/config_migrations.cpp`, add a static function in the anonymous namespace alongside the existing migrations:
 
 ```cpp
-/// Migration v2->v3: <description of what and why>
-static void migrate_v2_to_v3(json& config) {
-    // Your migration logic here.
-    // The config JSON is passed by reference -- modify it in place.
-    // Use spdlog::info() to log what changed.
+/// Migration v26->v27: <description of what and why>
+static void migrate_v26_to_v27(json& config, const std::string& /*config_path*/) {
+    // Modify config in place; spdlog::info() what changed.
 }
 ```
 
-### Step 3: Register it in `run_versioned_migrations()`
+`config_path` is the settings file's path, for a migration that folds in a sidecar file (`migrate_v13_to_v14`).
 
-Add one line to the chain:
+### Step 3: Add a row to `kMigrations`
 
 ```cpp
-static void run_versioned_migrations(json& config) {
-    int version = 0;
-    if (config.contains("config_version")) {
-        version = config["config_version"].get<int>();
-    }
-
-    if (version < 1) migrate_v0_to_v1(config);
-    if (version < 2) migrate_v1_to_v2(config);
-    if (version < 3) migrate_v2_to_v3(config);  // <-- ADD THIS
-
-    config["config_version"] = CURRENT_CONFIG_VERSION;
-}
+    {26, migrate_v25_to_v26},
+    {27, migrate_v26_to_v27},  // <-- ADD THIS
 ```
+
+A `static_assert` fails the build if the last row does not reach `CURRENT_CONFIG_VERSION`.
 
 ### Step 4: Update `get_default_config()` if needed
 
@@ -217,7 +164,7 @@ See the testing section below.
 
 ## Migration Rules
 
-1. **Migrations are permanent and append-only.** Never remove or modify an existing migration function. Old configs in the wild may still need them.
+1. **Migrations are append-only above the floor.** Never modify an existing migration function; old configs in the wild may still need it. Steps below `MIN_MIGRATABLE_CONFIG_VERSION` are removed when the floor rises.
 
 2. **Migrations must be idempotent.** Check if the target state already exists before making changes. Use `config.contains()` guards.
 
@@ -239,47 +186,13 @@ Migration tests are in `tests/unit/test_config.cpp` under the `[core][config][mi
 
 The standard pattern creates a temp config file with pre-migration data, runs `Config::init()` on it, and verifies the post-migration state:
 
-```cpp
-TEST_CASE_METHOD(ConfigTestFixture,
-                 "Config: v0 config with sounds_enabled=true gets migrated to false",
-                 "[core][config][migration][versioning]") {
-    // Set up pre-migration config data
-    set_data_for_plural_test(
-        {{"sounds_enabled", true},
-         {"brightness", 50},
-         {"printer", {{"moonraker_host", "192.168.1.100"}, {"moonraker_port", 7125}}}});
-
-    // No config_version means v0
-    REQUIRE_FALSE(data_contains("config_version"));
-
-    // Write to temp file
-    std::string temp_dir = std::filesystem::temp_directory_path().string() +
-                           "/helix_migration_test_" + std::to_string(rand());
-    std::filesystem::create_directories(temp_dir);
-    std::string temp_path = temp_dir + "/test_config.json";
-
-    {
-        std::ofstream o(temp_path);
-        o << get_data().dump(2);
-    }
-
-    // Run init which triggers migrations
-    Config test_config;
-    test_config.init(temp_path);
-
-    // Verify migration ran
-    REQUIRE(test_config.get<bool>("/sounds_enabled") == false);
-    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
-
-    std::filesystem::remove_all(temp_dir);
-}
-```
+`tests/unit/test_config.cpp` "a config at the migration floor is migrated" is the shape: write a stamped document to a temp file, wrap `init()` in a `BackupGuard` so no real rolling backup is found, then assert on the loaded result.
 
 ### What to test for each migration
 
 | Test case | What it verifies |
 |-----------|-----------------|
-| v0 config triggers migration | Old configs without `config_version` get migrated |
+| Oldest stamp triggers migration | A config at the version before yours gets migrated |
 | Already-migrated config is left alone | Config at version N does not re-run migration N |
 | Fresh config skips migrations | New install gets `CURRENT_CONFIG_VERSION` without running migration logic |
 | Edge case: key absent | Migration handles configs that never had the key being migrated |
@@ -322,19 +235,17 @@ Run HelixScreen with `-vv` (DEBUG) to see migration log output:
 
 ```
 [Config] Loading config from config/settings.json
-[Config] Migration v1: disabled sounds_enabled for existing config
-[Config] Migration v2: converted LED 'neopixel chamber_light' from /printer/leds/strip to /printer/leds/selected array
+[Config] Versionless config: restructured /printer to /printers/default
 ```
 
 If a config file is corrupt (unparseable JSON), `init()` backs it up as `settings.json.corrupt` and creates a fresh default config.
 
 ---
 
-## Config File Rename (v0.X.X)
+## Config File Rename
 
-The config file was renamed from helixconfig.json to `settings.json`. Migration
-is automatic:
-- C++ `Config::init()` renames the file on disk if the old name is found
-- The installer checks for old names during backup/restore
+The config file was renamed from helixconfig.json to `settings.json`:
+- The installer renames it, in the install dir and in printer_data
+- `Config::init()` follows a helixconfig.json symlink into printer_data when no `settings.json` exists
 - Rolling backups fall back to old names if new-named backups don't exist
 - Template renamed from `helixconfig.json.template` to `settings.json.template`

@@ -3406,26 +3406,6 @@ const char* ui_gcode_viewer_get_filament_type(lv_obj_t*) {
     return nullptr;
 }
 
-const char* ui_gcode_viewer_get_printer_model(lv_obj_t*) {
-    return nullptr;
-}
-
-float ui_gcode_viewer_get_estimated_time_minutes(lv_obj_t*) {
-    return 0.0f;
-}
-
-float ui_gcode_viewer_get_filament_weight_g(lv_obj_t*) {
-    return 0.0f;
-}
-
-float ui_gcode_viewer_get_filament_length_mm(lv_obj_t*) {
-    return 0.0f;
-}
-
-float ui_gcode_viewer_get_filament_cost(lv_obj_t*) {
-    return 0.0f;
-}
-
 float ui_gcode_viewer_get_nozzle_diameter_mm(lv_obj_t*) {
     return 0.0f;
 }
