@@ -312,10 +312,8 @@ TEST_CASE_METHOD(AccelSensorTestFixture, "AccelSensorManager - config-based disc
     }
 }
 
-// NOTE: The old discover(vector<string>) tests have been removed because:
-// - Accelerometers only exist in configfile.config, not printer.objects.list
-// - The ISensorManager::discover() method now uses the default no-op for AccelSensorManager
-// - Use discover_from_config() tests above instead
+// Accelerometers only exist in configfile.config, not printer.objects.list, so
+// discover_from_config() is the only discovery path.
 
 // ============================================================================
 // Role Assignment Tests
@@ -540,9 +538,5 @@ TEST_CASE_METHOD(AccelSensorTestFixture, "AccelSensorManager - edge cases", "[ac
 
         mgr().set_sensor_enabled("adxl345", false);
         REQUIRE_FALSE(mgr().is_sensor_available(AccelSensorRole::INPUT_SHAPER));
-    }
-
-    SECTION("category_name returns 'accelerometer'") {
-        REQUIRE(mgr().category_name() == "accelerometer");
     }
 }

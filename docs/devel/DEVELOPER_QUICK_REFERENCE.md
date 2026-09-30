@@ -334,22 +334,17 @@ ui_step_progress_set_current(progress, 2);  // Advance to step 3
 
 ## Sensor Framework
 
-Extensible sensor system via `ISensorManager` interface (`include/sensor_registry.h`). Headers live flat in `include/` (`*_sensor_manager.h`).
+One singleton manager per sensor category, called directly (`Manager::instance()`). Headers live flat in `include/` (`*_sensor_manager.h`).
 
 **Available managers:**
 - `AccelSensorManager` - ADXL345, LIS2DW, LIS3DH, MPU9250, ICM20948
 - `FilamentSensorManager` - Runout detection
 - `ProbeSensorManager` - Z-probe tracking
-- `ColorSensorManager` - Filament color
 - `WidthSensorManager` - Filament diameter
 - `HumiditySensorManager` - Chamber humidity
 - `TemperatureSensorManager` - `temperature_sensor` / `temperature_fan` objects
 
-**Registration:**
-```cpp
-auto& registry = SensorRegistry::instance();
-registry.register_manager("accel", std::make_unique<AccelSensorManager>());
-```
+**Wiring:** discovery calls each manager's `discover()` / `discover_from_config()` from `src/printer/printer_discovery.cpp#init_subsystems_from_hardware` and the configfile discovery step; status frames reach every manager from `PrinterState::update_from_status()`.
 
 **Accessing state:** Sensors expose LVGL subjects for reactive binding.
 

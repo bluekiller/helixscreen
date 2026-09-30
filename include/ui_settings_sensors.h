@@ -11,7 +11,6 @@
  * - Width sensors (filament diameter)
  * - Humidity sensors (chamber/dryer)
  * - Accelerometer sensors (input shaper)
- * - Color sensors (TD-1)
  *
  * Each sensor type has its own section, hidden when no sensors of that type exist.
  *
@@ -40,7 +39,6 @@ struct ProbeSensorConfig;
 struct WidthSensorConfig;
 struct HumiditySensorConfig;
 struct AccelSensorConfig;
-struct ColorSensorConfig;
 struct TemperatureSensorConfig;
 } // namespace helix::sensors
 
@@ -56,7 +54,6 @@ namespace helix::settings {
  * - Width sensors: Role dropdown for flow compensation
  * - Humidity sensors: Role dropdown for chamber/dryer
  * - Accelerometers: Display-only status
- * - Color sensors: Display-only TD-1 status
  *
  * ## State Management:
  *
@@ -232,16 +229,6 @@ class SensorSettingsOverlay : public OverlayBase {
      * @brief Update accelerometer count label
      */
     void update_accel_sensor_count();
-
-    /**
-     * @brief Populate color sensor list from ColorSensorManager
-     */
-    void populate_color_sensors();
-
-    /**
-     * @brief Update color sensor count label
-     */
-    void update_color_sensor_count();
 
     /**
      * @brief Populate chamber assignment dropdowns from PrinterDiscovery

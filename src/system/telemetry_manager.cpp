@@ -11,7 +11,6 @@
 #include "ams_types.h"
 #include "app_globals.h"
 #include "audio_settings_manager.h"
-#include "color_sensor_manager.h"
 #include "config.h"
 #include "display_backend.h"
 #include "display_manager.h"
@@ -1862,7 +1861,6 @@ nlohmann::json TelemetryManager::build_hw_sensors_section(const helix::PrinterDi
     sensors["load_cell"] = static_cast<int>(sensors::LoadCellManager::instance().sensor_count());
     sensors["temperature_extra"] =
         static_cast<int>(sensors::TemperatureSensorManager::instance().sensor_count());
-    sensors["color"] = static_cast<int>(sensors::ColorSensorManager::instance().sensor_count());
     sensors["accel"] = static_cast<int>(sensors::AccelSensorManager::instance().sensor_count());
 
     // Name-level data for printer detection analysis

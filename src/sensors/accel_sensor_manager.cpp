@@ -33,12 +33,8 @@ AccelSensorManager::AccelSensorManager() = default;
 AccelSensorManager::~AccelSensorManager() = default;
 
 // ============================================================================
-// ISensorManager Interface
+// Discovery, Status and Config
 // ============================================================================
-
-std::string AccelSensorManager::category_name() const {
-    return "accelerometer";
-}
 
 void AccelSensorManager::discover_from_config(const nlohmann::json& config_keys) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);

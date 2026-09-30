@@ -21,7 +21,6 @@
 #include "capability_overrides.h"
 #include "chamber_heater_assignment.h"
 #include "chamber_heater_backend.h"
-#include "color_sensor_manager.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "device_display_name.h"
 #include "filament_sensor_manager.h"
@@ -644,7 +643,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     helix::sensors::WidthSensorManager::instance().update_from_status(state);
     helix::sensors::ProbeSensorManager::instance().update_from_status(state);
     helix::sensors::AccelSensorManager::instance().update_from_status(state);
-    helix::sensors::ColorSensorManager::instance().update_from_status(state);
     helix::sensors::TemperatureSensorManager::instance().update_from_status(state);
     helix::sensors::LoadCellManager::instance().update_from_status(state);
 }

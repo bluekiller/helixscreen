@@ -113,7 +113,6 @@ Like `PrinterState`, `ToolState` is fed `update_from_status()` on the main threa
 | `WidthSensorManager` | [`width_sensor_manager.h`](../../../include/width_sensor_manager.h) | Filament width sensors (TSL1401CL, Hall) |
 | `ProbeSensorManager` | [`probe_sensor_manager.h`](../../../include/probe_sensor_manager.h) | Native Klipper probe sensors |
 | `AccelSensorManager` | [`accel_sensor_manager.h`](../../../include/accel_sensor_manager.h) | ADXL345, LIS2DW, LIS3DH, MPU9250, ICM20948 |
-| `ColorSensorManager` | [`color_sensor_manager.h`](../../../include/color_sensor_manager.h) | TD-1 color sensors |
 | `FilamentSensorManager` | [`filament_sensor_manager.h`](../../../include/filament_sensor_manager.h) | Filament sensor discovery + runout state; owns the bypass⇄runout arming policy (`on_bypass_active_changed`) |
 | `DetectionManager` | [`detection_manager.h`](../../../include/detection_manager.h) | Detection-source registry + policy dispatch |
 | **Filament & spools** | | |

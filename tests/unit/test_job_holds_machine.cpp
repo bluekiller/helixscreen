@@ -377,7 +377,6 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/calibration_zoffset_panel.xml",
     "ui_xml/change_host_modal.xml",
     "ui_xml/color_picker.xml",
-    "ui_xml/color_sensor_row.xml",
     "ui_xml/components/activity_chip.xml",
     "ui_xml/components/ams_environment_indicator.xml",
     "ui_xml/components/barcode_scanner_device_row.xml",
