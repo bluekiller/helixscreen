@@ -4,6 +4,7 @@
 #include "system/tls_trust.h"
 
 #include <arpa/inet.h>
+#include <atomic>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -11,8 +12,10 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
+#include <poll.h>
 #include <random>
 #include <sys/socket.h>
+#include <thread>
 #include <unistd.h>
 
 #include "../catch_amalgamated.hpp"
@@ -21,6 +24,8 @@ using helix::ScopedEnv;
 using helix::tls::CaStore;
 using helix::tls::find_ca_store;
 using helix::tls::make_client_ctx;
+using helix::tls::trusted_download;
+namespace detail = helix::tls::detail;
 
 namespace {
 
@@ -132,6 +137,89 @@ bool handshake(void* client_ctx, const TestCert& server, const std::string& sni)
     return crc == 1;
 }
 
+/// A loopback HTTPS server presenting `cert`, answering each request with
+/// `respond(path)`, a complete HTTP response.
+class TlsServer {
+  public:
+    TlsServer(const TestCert& cert, std::function<std::string(const std::string&)> respond)
+        : respond_(std::move(respond)) {
+        ctx_ = SSL_CTX_new(TLS_server_method());
+        SSL_CTX_use_certificate(ctx_, cert.cert);
+        SSL_CTX_use_PrivateKey(ctx_, cert.key);
+        fd_ = socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        socklen_t len = sizeof(addr);
+        bind(fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+        listen(fd_, 4);
+        getsockname(fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+        port_ = ntohs(addr.sin_port);
+        thread_ = std::thread([this] { serve(); });
+    }
+    ~TlsServer() {
+        stop_ = true;
+        thread_.join();
+        close(fd_);
+        SSL_CTX_free(ctx_);
+    }
+    std::string url(const std::string& path) const {
+        return "https://127.0.0.1:" + std::to_string(port_) + path;
+    }
+
+  private:
+    void serve() {
+        while (!stop_) {
+            pollfd p{fd_, POLLIN, 0};
+            if (poll(&p, 1, 20) <= 0)
+                continue;
+            const int c = accept(fd_, nullptr, nullptr);
+            SSL* ssl = SSL_new(ctx_);
+            SSL_set_fd(ssl, c);
+            if (SSL_accept(ssl) == 1) {
+                std::string req;
+                char buf[1024];
+                int n;
+                while (req.find("\r\n\r\n") == std::string::npos &&
+                       (n = SSL_read(ssl, buf, sizeof(buf))) > 0)
+                    req.append(buf, n);
+                const size_t sp = req.find(' ');
+                const std::string path = req.substr(sp + 1, req.find(' ', sp + 1) - sp - 1);
+                const std::string out = respond_(path);
+                SSL_write(ssl, out.data(), static_cast<int>(out.size()));
+                SSL_shutdown(ssl);
+            }
+            SSL_free(ssl);
+            close(c);
+        }
+    }
+
+    std::function<std::string(const std::string&)> respond_;
+    SSL_CTX* ctx_ = nullptr;
+    int fd_ = -1;
+    int port_ = 0;
+    std::atomic<bool> stop_{false};
+    std::thread thread_;
+};
+
+std::string ok_response(const std::string& body) {
+    return "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(body.size()) +
+           "\r\nConnection: close\r\n\r\n" + body;
+}
+
+std::string redirect_response(const std::string& location) {
+    return "HTTP/1.1 302 Found\r\nLocation: " + location +
+           "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+}
+
+HttpRequestPtr get(const std::string& url) {
+    auto req = std::make_shared<HttpRequest>();
+    req->method = HTTP_GET;
+    req->url = url;
+    req->timeout = 5;
+    return req;
+}
+
 } // namespace
 
 TEST_CASE("find_ca_store: env beats system beats bundled", "[tls]") {
@@ -212,4 +300,45 @@ TEST_CASE("client ctx accepts only a trusted certificate for the host", "[tls]")
         CHECK(handshake(ctx, expired, "helix.test"));
         SSL_CTX_free(static_cast<SSL_CTX*>(ctx));
     }
+}
+
+TEST_CASE("trusted_request verifies every hop of a redirect", "[tls]") {
+    TempDir dir;
+    TestCert trusted("IP:127.0.0.1");
+    TestCert untrusted("IP:127.0.0.1");
+    TlsServer evil(untrusted, [](const std::string&) { return ok_response("evil"); });
+    TlsServer mirror(trusted, [](const std::string&) { return ok_response("mirror"); });
+    TlsServer ours(trusted, [&](const std::string& path) {
+        if (path == "/to-mirror")
+            return redirect_response(mirror.url("/ok"));
+        if (path == "/to-evil")
+            return redirect_response(evil.url("/payload"));
+        return ok_response("ok");
+    });
+    void* ctx = make_client_ctx({trusted.write_pem(dir), {}});
+
+    auto direct = detail::trusted_request(get(ours.url("/ok")), ctx);
+    REQUIRE(direct);
+    CHECK(direct->body == "ok");
+
+    auto hop = detail::trusted_request(get(ours.url("/to-mirror")), ctx);
+    REQUIRE(hop);
+    CHECK(hop->body == "mirror");
+
+    CHECK_FALSE(detail::trusted_request(get(evil.url("/payload")), ctx));
+    CHECK_FALSE(detail::trusted_request(get(ours.url("/to-evil")), ctx));
+
+    SSL_CTX_free(static_cast<SSL_CTX*>(ctx));
+}
+
+TEST_CASE("trusted_download refuses a server the CA store does not trust", "[tls]") {
+    REQUIRE_FALSE(find_ca_store().empty());
+    TempDir dir;
+    TestCert self_signed("IP:127.0.0.1");
+    TlsServer server(self_signed, [](const std::string&) { return ok_response("payload"); });
+    const std::string dest = (dir.path / "out.bin").string();
+
+    CHECK(trusted_download(server.url("/f"), dest, nullptr) == 0);
+    CHECK_FALSE(std::filesystem::exists(dest));
+    CHECK_FALSE(std::filesystem::exists(dest + ".download"));
 }

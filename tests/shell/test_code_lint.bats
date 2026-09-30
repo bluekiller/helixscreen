@@ -2829,3 +2829,42 @@ EOF
     [ "$status" -eq 0 ]
     contains "validate_slot_index" "$output"
 }
+
+# --- Our own servers are reached only through helix::tls::trusted_* ---
+# trusted_request()/trusted_download() verify the server certificate; a plain
+# requests:: call to the update, telemetry, crash or debug-bundle servers does not.
+# Requests to the printer's LAN services keep requests:: on purpose.
+
+own_endpoint_http_offenders() {
+    local root="$1" f
+    for f in update_checker telemetry_manager crash_reporter; do
+        grep -nE '^[^/]*requests::' "$root/src/system/$f.cpp" | sed "s|^|$f.cpp:|"
+    done
+    awk '/= worker_url\(\);|= WORKER_URL;/ { on = 1; seen = 1 }
+         on && /^[^\/]*requests::/ { print "debug_bundle_collector.cpp:" FNR ": " $0 }
+         on && /^}/ { on = 0 }
+         END { if (!seen) print "debug_bundle_collector.cpp: upload to WORKER_URL not found" }' \
+        "$root/src/system/debug_bundle_collector.cpp"
+}
+
+@test "requests to our own servers go through helix::tls::trusted_*" {
+    run own_endpoint_http_offenders .
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "the own-endpoint gate fires on a plain requests:: call" {
+    local d="${BATS_TEST_TMPDIR}/offender/src/system"
+    mkdir -p "$d"
+    printf '    // requests::request is fine in a comment\n' > "$d/update_checker.cpp"
+    printf '    auto r = requests::request(req);\n' > "$d/telemetry_manager.cpp"
+    : > "$d/crash_reporter.cpp"
+    printf 'int f() {\n    auto r = requests::request(req);\n}\nvoid up() {\n    const std::string url = worker_url();\n    auto r = requests::request(req);\n}\n' \
+        > "$d/debug_bundle_collector.cpp"
+    run own_endpoint_http_offenders "${BATS_TEST_TMPDIR}/offender"
+    [ "$status" -eq 0 ]
+    contains "telemetry_manager.cpp" "$output"
+    contains "debug_bundle_collector.cpp:6" "$output"
+    lacks "update_checker.cpp" "$output"
+    lacks "debug_bundle_collector.cpp:2" "$output"
+}

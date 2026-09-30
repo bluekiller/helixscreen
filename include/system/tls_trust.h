@@ -1,9 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "hv/HttpMessage.h"
+
+#include <cstddef>
+#include <functional>
 #include <string>
 #include <vector>
 
+/// Certificate verification for the app's own internet endpoints.
+///
+/// Only requests to our servers verify: the update manifest, release downloads and
+/// changelog, telemetry, crash reports and debug bundle uploads. They go through
+/// trusted_request() / trusted_download(). Every other libhv request (Moonraker,
+/// cameras, Spoolman, IPP, plugins, anything the user typed) keeps libhv's unverified
+/// default, because self-signed certificates are normal on printer LANs.
 namespace helix::tls {
 
 /// Where the CA certificates live. Both empty means no store was found.
@@ -30,9 +41,19 @@ CaStore find_ca_store();
 /// so every handshake fails instead of passing unverified. Null without OpenSSL.
 void* make_client_ctx(const CaStore& store);
 
-/// Makes every libhv HTTPS and WSS client connection verify its server. Call once at
-/// startup, before any thread makes a request. With no CA store on the device it logs
-/// a warning and leaves connections unverified.
-void install_client_verification();
+/// requests::request() for one of our own endpoints: the server certificate is
+/// verified, and redirects are followed on the same verifying context. Null on any
+/// transport or verification failure. With no CA store on the device it logs one
+/// warning and sends unverified.
+HttpResponsePtr trusted_request(const HttpRequestPtr& req);
+
+/// requests::downloadFile() over trusted_request().
+size_t trusted_download(const std::string& url, const std::string& path,
+                        const std::function<void(size_t received, size_t total)>& progress);
+
+namespace detail {
+/// trusted_request() with an explicit context, for tests.
+HttpResponsePtr trusted_request(const HttpRequestPtr& req, void* ssl_ctx);
+} // namespace detail
 
 } // namespace helix::tls

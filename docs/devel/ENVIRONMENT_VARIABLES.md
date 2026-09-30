@@ -2356,20 +2356,20 @@ Systemd services can start with `PATH` cleared entirely. That breaks tools like 
 
 ### `SSL_CERT_FILE` / `SSL_CERT_DIR`
 
-Standard OpenSSL CA-bundle overrides. They are the first choice for the CA store every HTTPS and WSS connection verifies its server against.
+Standard OpenSSL CA-bundle overrides. They are the first choice for the CA store that requests to HelixScreen's own servers (update check and download, changelog, telemetry, crash reports, debug bundle upload) verify against. Printer LAN services (Moonraker, cameras, Spoolman, IPP, plugins) are not verified, because self-signed certificates are normal there.
 
 | Property | Value |
 |----------|-------|
 | **Values** | Path to a CA bundle file / path to a directory of CA certs |
 | **Default** | Unset: `/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/tls/certs/ca-bundle.crt`, `/etc/ssl/cert.pem`, then `<install>/certs/ca-certificates.crt` are probed in that order |
-| **File** | `src/system/tls_trust.cpp` (`find_ca_store()`, `install_client_verification()`) |
+| **File** | `src/system/tls_trust.cpp` (`find_ca_store()`, `trusted_request()`) |
 
 ```bash
 # Point at a bundle on a device without one in the standard location
 SSL_CERT_FILE=/usr/data/ca-certificates.crt ./build/bin/helix-screen
 ```
 
-The store is resolved once at startup and logged as `[TLS] Verifying HTTPS servers against <path>`. Servers are checked for chain and hostname but not for validity dates, because printers often boot with a 1970 clock. A store that exists but cannot be loaded trusts nothing, so every HTTPS request fails with `[TLS] Certificate for '<host>' rejected: ...`. With no store at all the app logs a warning and connects unverified.
+The store is resolved on the first such request and logged as `[TLS] Verifying our servers against <path>`. Servers are checked for chain and hostname but not for validity dates, because printers often boot with a 1970 clock. A store that exists but cannot be loaded trusts nothing, so those requests fail with `[TLS] Certificate for '<host>' rejected: ...`. With no store at all the app logs a warning and connects unverified.
 
 Telemetry also refuses to send when no store is found: on devices with no CA bundle at all (AD5M stock firmware), glibc's NSS resolver can `SIGSEGV` during the SSL handshake. The check runs once and is cached, so setting the variable after startup does not re-enable sends.
 

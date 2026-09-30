@@ -188,7 +188,6 @@
 #include "system/crash_reporter.h"
 #include "system/diagnostics.h"
 #include "system/telemetry_manager.h"
-#include "system/tls_trust.h"
 #include "system/update_checker.h"
 #include "system_settings_manager.h"
 #include "theme_manager.h"
@@ -691,9 +690,6 @@ int Application::run(int argc, char** argv) {
     // way to confirm the handoff happened at all. Still ahead of LVGL, the
     // display, the printer database, and every large allocation.
     helix::apply_oom_score_adj_from_env();
-
-    // Before anything opens an HTTPS connection, and after logging so the verdict is kept.
-    helix::tls::install_client_verification();
 
     // Headless one-shot: detect printer via Moonraker REST, print JSON verdict, exit.
     // Must run after logging init but before any display/LVGL init.

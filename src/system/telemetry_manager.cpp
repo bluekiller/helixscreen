@@ -968,7 +968,7 @@ void TelemetryManager::do_send(const nlohmann::json& batch) {
             req->headers["X-API-Key"] = API_KEY;
             req->body = helix::json_util::safe_dump(pending);
 
-            auto resp = requests::request(req);
+            auto resp = helix::tls::trusted_request(req);
 
             if (shutting_down_.load()) {
                 spdlog::debug("[TelemetryManager] Shutting down, aborting send result processing");

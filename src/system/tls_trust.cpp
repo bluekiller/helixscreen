@@ -3,11 +3,12 @@
 #include "system/tls_trust.h"
 
 #include "app_globals.h"
+#include "hv/HttpClient.h"
 #include "hv/hconfig.h"
-#include "hv/hssl.h"
 
 #include <spdlog/spdlog.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
 
@@ -121,18 +122,84 @@ void* make_client_ctx(const CaStore& store) {
 #endif
 }
 
-void install_client_verification() {
-#ifdef WITH_OPENSSL
-    const CaStore store = find_ca_store();
-    if (store.empty()) {
-        spdlog::warn("[TLS] No CA certificate store found; HTTPS servers will NOT be verified. "
-                     "Set SSL_CERT_FILE or install ca-certificates.");
-        return;
+namespace detail {
+
+HttpResponsePtr trusted_request(const HttpRequestPtr& req, void* ssl_ctx) {
+    // libhv follows a redirect on a fresh default client, which would drop the
+    // verifying context, so redirects are followed here instead.
+    constexpr int kMaxRedirects = 5;
+    req->redirect = false;
+    auto resp = std::make_shared<HttpResponse>();
+    for (int hop = 0; hop <= kMaxRedirects; ++hop) {
+        hv::HttpClient cli;
+        if (ssl_ctx)
+            cli.setSslCtx(ssl_ctx);
+        if (cli.send(req.get(), resp.get()) != 0)
+            return nullptr;
+        const std::string location = resp->GetHeader("Location");
+        if (!HTTP_STATUS_IS_REDIRECT(resp->status_code) || location.empty())
+            return resp;
+        req->url = location;
+        req->ParseUrl();
+        req->headers["Host"] = req->host;
+        resp->Reset();
     }
-    g_ssl_ctx = make_client_ctx(store);
-    spdlog::info("[TLS] Verifying HTTPS servers against {}{}", store.file,
-                 store.dir.empty() ? "" : " + " + store.dir);
-#endif
+    spdlog::warn("[TLS] Too many redirects fetching {}", req->url);
+    return nullptr;
+}
+
+} // namespace detail
+
+HttpResponsePtr trusted_request(const HttpRequestPtr& req) {
+    static void* const ctx = []() -> void* {
+        const CaStore store = find_ca_store();
+        if (store.empty()) {
+            spdlog::warn("[TLS] No CA certificate store found; update and telemetry servers "
+                         "will NOT be verified. Set SSL_CERT_FILE or install ca-certificates.");
+            return nullptr;
+        }
+        spdlog::info("[TLS] Verifying our servers against {}{}", store.file,
+                     store.dir.empty() ? "" : " + " + store.dir);
+        return make_client_ctx(store);
+    }();
+    return detail::trusted_request(req, ctx);
+}
+
+size_t trusted_download(const std::string& url, const std::string& path,
+                        const std::function<void(size_t received, size_t total)>& progress) {
+    const std::string partial = path + ".download";
+    FILE* file = std::fopen(partial.c_str(), "wb");
+    if (!file)
+        return 0;
+    auto req = std::make_shared<HttpRequest>();
+    req->method = HTTP_GET;
+    req->url = url;
+    req->timeout = 3600;
+    size_t content_length = 0;
+    size_t received = 0;
+    bool write_failed = false;
+    req->http_cb = [&](HttpMessage* resp, http_parser_state state, const char* data, size_t size) {
+        if (!resp->GetHeader("Location").empty())
+            return;
+        if (state == HP_HEADERS_COMPLETE) {
+            content_length = std::strtoull(resp->GetHeader("Content-Length").c_str(), nullptr, 10);
+        } else if (state == HP_BODY && data && size) {
+            write_failed |= std::fwrite(data, 1, size, file) != size;
+            received += size;
+            if (progress)
+                progress(received, content_length);
+        }
+    };
+    auto resp = trusted_request(req);
+    std::fclose(file);
+    if (!resp || resp->status_code != 200 || write_failed ||
+        (content_length != 0 && received != content_length)) {
+        std::remove(partial.c_str());
+        return 0;
+    }
+    if (std::rename(partial.c_str(), path.c_str()) != 0)
+        return 0;
+    return received;
 }
 
 } // namespace helix::tls
