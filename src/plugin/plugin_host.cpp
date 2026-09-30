@@ -7,9 +7,13 @@
 
 #include "ui_toast_manager.h"
 
+#include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
+#include "lua_panel_widget.h"
 #include "lvgl/lvgl.h"
+#include "panel_widget_manager.h"
+#include "panel_widget_registry.h"
 #include "plugin_xml_policy.h"
 #include "version.h"
 
@@ -103,6 +107,10 @@ PluginHost::PluginHost(Deps deps) : deps_(std::move(deps)) {
     g_live_host = this;
 }
 
+PluginHost* PluginHost::live() {
+    return g_live_host;
+}
+
 PluginHost::~PluginHost() {
     unload_all();
     guard_.invalidate();
@@ -114,6 +122,7 @@ void PluginHost::load_from(const std::string& dir) {
     unload_all();
     plugins_.clear();
     dir_ = dir;
+    bulk_ = true;
 
     std::error_code ec;
     std::vector<std::string> names;
@@ -149,6 +158,11 @@ void PluginHost::load_from(const std::string& dir) {
     for (const auto& info : plugins_) {
         spdlog::info("[PluginHost] {}: {}{}", info.dir_name, plugin_status_name(info.status),
                      info.reason.empty() ? "" : " (" + info.reason + ")");
+    }
+    bulk_ = false;
+    if (widget_defs_dirty_) {
+        PanelWidgetManager::instance().notify_widget_defs_changed();
+        widget_defs_dirty_ = false;
     }
 }
 
@@ -267,6 +281,16 @@ bool PluginHost::load(PluginInfo& info) {
             return false;
         }
     }
+    // Every declared widget resolves to one of the plugin's own component files, or the
+    // home grid would later hand lv_xml_create a name nothing registered.
+    for (const WidgetDecl& d : m.widgets) {
+        if (std::find(stems.begin(), stems.end(), d.component) == stems.end()) {
+            info.status = PluginStatus::Invalid;
+            info.reason =
+                "widget '" + d.id + "' names component '" + d.component + "', which is not in ui/";
+            return false;
+        }
+    }
 
     auto [it, inserted] = loaded_.try_emplace(id);
     Loaded& l = it->second;
@@ -304,7 +328,7 @@ bool PluginHost::load(PluginInfo& info) {
                       plugin_storage_path(deps_.settings_path, id)});
     for (Installer install :
          {&install_core_bindings, &install_ui_bindings, &install_printer_bindings,
-          &install_moonraker_bindings, &install_io_bindings})
+          &install_moonraker_bindings, &install_io_bindings, &install_widget_bindings})
         install(*l.ctx);
 
     if (!l.rt->run_file("main.lua")) {
@@ -312,6 +336,36 @@ bool PluginHost::load(PluginInfo& info) {
         info.reason = l.rt->faulted() ? l.rt->fault_reason() : "main.lua failed; see the log";
         unload(id);
         return false;
+    }
+
+    for (const WidgetDecl& d : m.widgets) {
+        helix::RuntimeWidgetDef def;
+        def.id = d.id;
+        def.display_name = d.name;
+        def.icon = d.icon.empty() ? "puzzle_outline" : d.icon;
+        def.description = d.description;
+        // Manifest spans are cells; the registry stores grid tracks.
+        constexpr int kT = helix::GridLayout::TRACKS_PER_CELL;
+        def.colspan = d.colspan * kT;
+        def.rowspan = d.rowspan * kT;
+        def.max_colspan = d.max_colspan * kT;
+        def.max_rowspan = d.max_rowspan * kT;
+        def.factory = [pid = id, wid = d.id, comp = d.component,
+                       tok = l.rt->token()](const std::string&) {
+            return std::make_unique<LuaPanelWidget>(pid, wid, comp, tok);
+        };
+        if (helix::register_runtime_widget_def(std::move(def))) {
+            l.widget_ids.push_back(d.id);
+        } else {
+            spdlog::warn("[PluginHost] {}: widget id '{}' is taken", id, d.id);
+        }
+    }
+    if (!l.widget_ids.empty()) {
+        widget_defs_dirty_ = true;
+        if (!bulk_) {
+            helix::PanelWidgetManager::instance().notify_widget_defs_changed();
+            widget_defs_dirty_ = false;
+        }
     }
     return true;
 }
@@ -333,6 +387,19 @@ void PluginHost::unload(const std::string& id) {
             lua_pop(L, 1);
         }
     }
+    // Widget definitions go before the runtime does: the async home rebuild this
+    // schedules dereferences nothing of the plugin's, and the tiles it retires are
+    // handed to deferred deletion while their subjects are still alive.
+    if (!l.widget_ids.empty()) {
+        for (const auto& wid : l.widget_ids)
+            helix::unregister_runtime_widget_def(wid);
+        l.widget_ids.clear();
+        widget_defs_dirty_ = true;
+        if (!bulk_) {
+            helix::PanelWidgetManager::instance().notify_widget_defs_changed();
+            widget_defs_dirty_ = false;
+        }
+    }
     l.rt.reset();
     for (const auto& [name, scope] : l.components) {
         if (lv_xml_component_get_scope(name.c_str()) == scope)
@@ -347,8 +414,13 @@ void PluginHost::unload_all() {
     std::vector<std::string> ids;
     for (const auto& [id, l] : loaded_)
         ids.push_back(id);
+    // No notify at the end: shutdown tears the UI down after this, and a printer switch
+    // reloads through load_from, whose own end-of-scan notify covers what went here.
+    // widget_defs_dirty_ stays set for that caller.
+    bulk_ = true;
     for (const auto& id : ids)
         unload(id);
+    bulk_ = false;
 }
 
 void PluginHost::on_fault(const std::string& id, const std::string& reason) {

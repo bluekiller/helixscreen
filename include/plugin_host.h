@@ -68,6 +68,9 @@ class PluginHost {
     void load_from(const std::string& dir);
     void unload_all();
 
+    /// The host the app runs, or nullptr.
+    static PluginHost* live();
+
     const std::vector<PluginInfo>& plugins() const {
         return plugins_;
     }
@@ -88,6 +91,8 @@ class PluginHost {
         /// Each component this plugin registered, with the scope it created: an app that later
         /// registers the same name replaces the scope, and unload must then leave it alone.
         std::vector<std::pair<std::string, const void*>> components;
+        /// The widget definitions this plugin registered, to unregister at unload.
+        std::vector<std::string> widget_ids;
         size_t memory_bytes = 0;
     };
 
@@ -105,6 +110,12 @@ class PluginHost {
     std::vector<PluginInfo> plugins_;
     std::map<std::string, Loaded> loaded_;
     AsyncLifetimeGuard guard_;
+    /// Set while load_from / unload_all loop over plugins: widget definitions still change,
+    /// but each change only marks the set dirty; one notify runs after the loop.
+    bool bulk_ = false;
+    /// Widget definitions changed since the last notify_widget_defs_changed(). Survives a
+    /// bulk unload_all so load_from's single end-of-scan notify covers plugins that went.
+    bool widget_defs_dirty_ = false;
 };
 
 /// Registers the `plugin_event` XML callback once per process. It forwards to the live host.

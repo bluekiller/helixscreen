@@ -39,6 +39,8 @@ void install_ui_bindings(PluginContext& ctx);
 void install_printer_bindings(PluginContext& ctx);
 void install_moonraker_bindings(PluginContext& ctx);
 void install_io_bindings(PluginContext& ctx);
+/// helix.widget. BoundRuntime users may pass it in `installers`.
+void install_widget_bindings(PluginContext& ctx);
 
 PluginContext& context(lua_State* L);
 
@@ -105,6 +107,14 @@ PluginEventTarget parse_plugin_event(std::string_view user_data);
 /// Runs the helix.ui.on handler `name` of `rt` with `arg` (or nil). False if there is none.
 bool dispatch_ui_handler(LuaRuntime& rt, const std::string& name,
                          const std::optional<std::string>& arg);
+
+/// One lifecycle hook a plugin may register on a widget it declares.
+enum class WidgetHook { Attach, Detach, Size, Activate, Deactivate };
+
+/// Runs the helix.widget hook `rt` registered for `widget_id` (the full id, with the
+/// plugin prefix). False when the plugin registered none for that hook.
+bool dispatch_widget_hook(LuaRuntime& rt, const std::string& widget_id, WidgetHook hook,
+                          const LuaRuntime::PushFn& args = {});
 
 /// Frees every retired plugin subject that no observer holds any more. Cheap; PluginHost
 /// calls it on every load and unload.

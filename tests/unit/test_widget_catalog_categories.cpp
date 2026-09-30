@@ -1367,3 +1367,38 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     deliver_defs_change();
     settle();
 }
+
+TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
+                 "Widget catalog: a same-id def changing spans under it still rebuild",
+                 "[widget_catalog][widget_registry]") {
+    RuntimeWidgetDef d = make_runtime_def("rt-span-tile", "Span Tile");
+    d.colspan = 2;
+    d.rowspan = 2;
+    REQUIRE(register_runtime_widget_def(d));
+    open_catalog();
+    lv_obj_t* results = search_results();
+    REQUIRE(results != nullptr);
+    lv_obj_t* row = lv_obj_find_by_name(results, "rt-span-tile");
+    REQUIRE(row != nullptr);
+    std::vector<std::string> labels;
+    collect_labels(row, labels);
+    CHECK(std::find(labels.begin(), labels.end(), "1x1") != labels.end());
+
+    // Same id, same name, same gate: only the spans moved, and the badge shows them.
+    d.colspan = 4;
+    d.rowspan = 2;
+    REQUIRE(register_runtime_widget_def(d));
+    deliver_defs_change();
+    settle();
+
+    row = lv_obj_find_by_name(results, "rt-span-tile");
+    REQUIRE(row != nullptr);
+    labels.clear();
+    collect_labels(row, labels);
+    CHECK(std::find(labels.begin(), labels.end(), "2x1") != labels.end());
+    CHECK(std::find(labels.begin(), labels.end(), "1x1") == labels.end());
+
+    unregister_runtime_widget_def("rt-span-tile");
+    deliver_defs_change();
+    settle();
+}

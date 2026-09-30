@@ -295,3 +295,5 @@ src/plugin/lua_bind_moonraker.cpp  # not in the v1 Core+AMS cut
 src/plugin/lua_bind_io.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_host.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_xml_policy.cpp  # not in the v1 Core+AMS cut
+src/plugin/lua_bind_widget.cpp  # not in the v1 Core+AMS cut
+src/plugin/lua_panel_widget.cpp  # not in the v1 Core+AMS cut

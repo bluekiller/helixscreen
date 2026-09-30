@@ -49,10 +49,16 @@ constexpr const char* kGateObserverKey = "widget_catalog";
 struct DefRowIdentity {
     std::string id;
     std::string display_name;
-    bool gated;
+    std::string icon;
+    std::string description;
+    int colspan = 0;
+    int rowspan = 0;
+    bool gated = false;
 
     bool operator==(const DefRowIdentity& other) const {
-        return gated == other.gated && id == other.id && display_name == other.display_name;
+        return gated == other.gated && colspan == other.colspan && rowspan == other.rowspan &&
+               id == other.id && display_name == other.display_name && icon == other.icon &&
+               description == other.description;
     }
 };
 
@@ -423,15 +429,19 @@ static std::vector<const PanelWidgetDef*> page_defs(std::optional<WidgetCategory
 }
 
 /// The registry's identity as the current rows were built: one entry per def,
-/// in registry order. refresh_gated_rows() rebuilds when this differs, so a
-/// runtime definition arriving or leaving under an open catalog rebuilds even
-/// when the def count and gate flags happen to be unchanged.
+/// in registry order, covering every field a row renders. refresh_gated_rows()
+/// rebuilds when this differs, so a runtime definition arriving or leaving under
+/// an open catalog rebuilds even when the def count and gate flags happen to be
+/// unchanged, and a same-id re-registration that moved a def's spans, icon or
+/// description rebuilds too.
 static std::vector<DefRowIdentity> def_row_snapshot() {
     const auto& defs = get_all_widget_defs();
     std::vector<DefRowIdentity> out;
     out.reserve(defs.size());
     for (const auto& def : defs) {
-        out.push_back({def.id, def.display_name ? def.display_name : "", is_hardware_gated(def)});
+        out.push_back({def.id, def.display_name ? def.display_name : "", def.icon ? def.icon : "",
+                       def.description ? def.description : "", def.colspan, def.rowspan,
+                       is_hardware_gated(def)});
     }
     return out;
 }

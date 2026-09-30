@@ -8,6 +8,8 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/plugin_test_support.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
+#include "panel_widget.h"
+#include "panel_widget_registry.h"
 #include "plugin_host.h"
 
 #include "../catch_amalgamated.hpp"
@@ -241,6 +243,85 @@ TEST_CASE_METHOD(LVGLTestFixture, "disable unloads and forgets consent", "[plugi
     CHECK(rig.info("hello")->status == PluginStatus::Disabled);
     CHECK_FALSE(rig.block["enabled"].contains("hello"));
     CHECK(lv_xml_get_subject(nullptr, "hello__status") == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry until unload",
+                 "[plugin][host]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.info("widget-demo")->status == PluginStatus::Loaded);
+    const helix::PanelWidgetDef* def = helix::find_widget_def("widget-demo__tile");
+    REQUIRE(def);
+    CHECK(def->category == helix::WidgetCategory::Plugins);
+    CHECK(def->colspan == 2);     // one cell, in tracks
+    CHECK(def->max_colspan == 4); // two cells
+    // A two-cell by one-cell manifest widget registers four by two tracks.
+    const helix::PanelWidgetDef* wide = helix::find_widget_def("widget-demo__wide");
+    REQUIRE(wide);
+    CHECK(wide->colspan == 4);
+    CHECK(wide->rowspan == 2);
+
+    auto w = def->factory("widget-demo__tile");
+    REQUIRE(w);
+    lv_obj_t* root = static_cast<lv_obj_t*>(
+        lv_xml_create(lv_screen_active(), w->get_component_name().c_str(), nullptr));
+    REQUIRE(root);
+    w->attach(root, lv_screen_active());
+    w->notify_size_changed(4, 2, 200, 100);
+    drain();
+    CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo_size_label"))) ==
+          "2x1");
+
+    rig.host->disable("widget-demo");
+    CHECK(helix::find_widget_def("widget-demo__tile") == nullptr);
+    // The plugin is gone: no hook runs against freed Lua state, nothing crashes.
+    w->on_activate();
+    w->notify_size_changed(2, 2, 100, 100);
+    w->detach();
+    lv_obj_delete(root);
+    w.reset();
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a reloaded plugin's widget reaches only a fresh instance",
+                 "[plugin][host]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    const helix::PanelWidgetDef* def = helix::find_widget_def("widget-demo__tile");
+    REQUIRE(def);
+    std::unique_ptr<helix::PanelWidget> stale = def->factory("widget-demo__tile");
+    stale->notify_size_changed(4, 2, 200, 100);
+    lv_subject_t* size = lv_xml_get_subject(nullptr, "widget-demo__size");
+    REQUIRE(size);
+    CHECK(std::string(lv_subject_get_string(size)) == "2x1");
+
+    rig.host->disable("widget-demo");
+    CHECK(rig.host->enable("widget-demo"));
+    size = lv_xml_get_subject(nullptr, "widget-demo__size");
+    REQUIRE(size);
+    CHECK(std::string(lv_subject_get_string(size)) == ""); // the new runtime starts fresh
+
+    // The instance built against the destroyed runtime is inert: driving it must
+    // not reach the new runtime either.
+    stale->on_activate();
+    stale->notify_size_changed(2, 2, 100, 100);
+    CHECK(std::string(lv_subject_get_string(size)) == "");
+
+    // A fresh instance from the re-registered factory reaches the new runtime.
+    def = helix::find_widget_def("widget-demo__tile");
+    REQUIRE(def);
+    std::unique_ptr<helix::PanelWidget> fresh = def->factory("widget-demo__tile");
+    fresh->notify_size_changed(2, 2, 100, 100);
+    CHECK(std::string(lv_subject_get_string(size)) == "1x1");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a widget whose component file is missing is invalid",
+                 "[plugin][host]") {
+    // Fixture widget-missing: manifest declares component widget-missing__tile, no ui/ file.
+    HostRig rig(enabled("widget-missing", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    CHECK(rig.info("widget-missing")->status == PluginStatus::Invalid);
+    CHECK(rig.info("widget-missing")->reason.find("not in ui/") != std::string::npos);
+    CHECK(helix::find_widget_def("widget-missing__tile") == nullptr);
 }
 
 #endif // HELIX_HAS_PLUGINS
