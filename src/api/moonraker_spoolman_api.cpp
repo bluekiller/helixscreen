@@ -3,13 +3,12 @@
 
 #include "moonraker_spoolman_api.h"
 
+#include "hv/hurl.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
 
 #include <spdlog/spdlog.h>
 
-#include <cctype>
-#include <cstdio>
 #include <string>
 
 using namespace helix;
@@ -561,20 +560,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_external_filaments(const std::string& ve
                                                            ErrorCallback on_error) {
     spdlog::debug("[SpoolmanAPI] get_spoolman_external_filaments(vendor={})", vendor_name);
 
-    // URL-encode the vendor name
-    std::string encoded;
-    for (char c : vendor_name) {
-        if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' ||
-            c == '~') {
-            encoded += c;
-        } else if (c == ' ') {
-            encoded += "%20";
-        } else {
-            char buf[4];
-            std::snprintf(buf, sizeof(buf), "%%%02X", static_cast<unsigned char>(c));
-            encoded += buf;
-        }
-    }
+    std::string encoded = HUrl::escape(vendor_name);
 
     json params;
     params["request_method"] = "GET";

@@ -10,13 +10,13 @@
 // moonraker_api_controls.cpp.
 
 #include "http_executor.h"
+#include "hv/hurl.h"
 #include "hv/requests.h"
 #include "moonraker_api.h"
 #include "moonraker_api_internal.h"
 #include "power_device_parse.h"
 #include "spdlog/spdlog.h"
 
-#include <cctype>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -147,17 +147,7 @@ void MoonrakerAPI::set_device_power(const std::string& device, const std::string
         return;
     }
 
-    // URL-encode device name (spaces, special chars) for safe query param
-    std::string encoded_device;
-    for (char c : device) {
-        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.') {
-            encoded_device += c;
-        } else {
-            char buf[4];
-            std::snprintf(buf, sizeof(buf), "%%%02X", static_cast<unsigned char>(c));
-            encoded_device += buf;
-        }
-    }
+    std::string encoded_device = HUrl::escape(device);
 
     // Build URL with query params
     std::string url = http_base_url_ + "/machine/device_power/device?device=" + encoded_device +
