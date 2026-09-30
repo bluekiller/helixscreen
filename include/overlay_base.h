@@ -241,8 +241,8 @@ class OverlayBase : public ViewLifecycleBase {
     /**
      * @brief Destroy overlay widget tree to free memory
      *
-     * Called by close callbacks registered via lazy_create_and_push_overlay
-     * with destroy_on_close=true. Performs:
+     * Called by the close callback show() registers when destroy_on_close()
+     * is true. Performs:
      * 1. Drains UpdateQueue (process pending deferred callbacks)
      * 2. Unregisters close callback from NavigationManager
      * 3. Unregisters overlay instance from NavigationManager
@@ -254,10 +254,9 @@ class OverlayBase : public ViewLifecycleBase {
      *    reparented to top layer; actual deletion runs on the next tick)
      *
      * The overlay object (subjects, state) survives — only the widget tree
-     * is destroyed. Next open triggers re-creation via lazy_create_and_push_overlay.
+     * is destroyed. The next show() re-creates it.
      *
-     * @param cached_panel Reference to the caller's cached lv_obj_t* pointer
-     *                     (the same reference passed to lazy_create_and_push_overlay)
+     * @param cached_panel A caller's second copy of the root, nulled too
      */
     void destroy_overlay_ui(lv_obj_t*& cached_panel);
 

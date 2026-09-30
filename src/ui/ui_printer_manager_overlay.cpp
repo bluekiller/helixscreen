@@ -190,7 +190,7 @@ void PrinterManagerOverlay::on_chip_bed_mesh_clicked(lv_event_t* e) {
     auto& pm = get_printer_manager_overlay();
     helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(
         get_global_bed_mesh_panel, pm.bed_mesh_panel_, lv_display_get_screen_active(nullptr),
-        "Bed Mesh", "Printer Manager", true);
+        "Bed Mesh", "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_leds_clicked(lv_event_t* e) {
@@ -210,7 +210,7 @@ void PrinterManagerOverlay::on_chip_adxl_clicked(lv_event_t* e) {
     auto& pm = get_printer_manager_overlay();
     helix::ui::lazy_create_and_push_overlay<InputShaperPanel>(
         get_global_input_shaper_panel, pm.input_shaper_panel_,
-        lv_display_get_screen_active(nullptr), "Input Shaper", "Printer Manager", true);
+        lv_display_get_screen_active(nullptr), "Input Shaper", "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_retraction_clicked(lv_event_t* e) {

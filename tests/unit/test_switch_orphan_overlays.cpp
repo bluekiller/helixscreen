@@ -17,14 +17,11 @@
  * that, every overlay opened before a switch stays allocated as a hidden screen
  * child for the rest of the session (~400-800KB each, once per switch).
  *
- * A surviving caller cache is more dangerous than the leak: a static like
- * MotionWidget::motion_panel_ holds the orphan's address after teardown, and
- * lazy_create_and_push_overlay's stale-cache guard calls
- * safe_delete_deferred(cached) when the fresh panel has no root - a freed
- * address reused by a live widget makes that delete hit the LIVE widget. The
- * switch must drop those caches too. PrinterCacheRegistry::invalidate_all()
- * already fires from every active-printer change BEFORE teardown, so the three
- * static caches register invalidators there.
+ * A static caller copy like MotionWidget::motion_panel_ holds the orphan's
+ * address after teardown, and a freed address can be reused by a live widget,
+ * so the switch drops those copies too. PrinterCacheRegistry::invalidate_all()
+ * fires from every active-printer change BEFORE teardown, so the three static
+ * copies register invalidators there.
  *
  * These tests run the switch's overlay-relevant sequence end to end:
  * invalidate_all() (switch_printer's order), NavigationManager::shutdown()
@@ -98,8 +95,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_obj_add_event_cb(orphan, count_delete, LV_EVENT_DELETE, &deletes);
 
     // switch_printer fires every invalidator BEFORE teardown, while the widget
-    // is still alive. A cache that survives the widget's destruction is a
-    // freed pointer the stale-cache guard would later deref.
+    // is still alive. A copy that survives the widget's destruction is a freed
+    // pointer.
     helix::PrinterCacheRegistry::instance().invalidate_all();
     CHECK(cached == nullptr);
 
@@ -147,7 +144,7 @@ TEST_CASE_METHOD(
     REQUIRE(helix::ui::lazy_create_and_push_overlay<ConsolePanel>(
         get_global_console_panel, console_cached, lv_screen_active(), "Console", "test"));
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MacrosPanel>(
-        get_global_macros_panel, macros_cached, lv_screen_active(), "Macros", "test", true));
+        get_global_macros_panel, macros_cached, lv_screen_active(), "Macros", "test"));
     helix::ui::UpdateQueue::instance().drain();
 
     lv_obj_t* console_orphan = console_cached;

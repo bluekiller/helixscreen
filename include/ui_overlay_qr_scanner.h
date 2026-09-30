@@ -64,6 +64,11 @@ class QrScannerOverlay : public OverlayBase {
     void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
     void register_callbacks() override;
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     const char* get_name() const override {
         return "QR Scanner";
     }

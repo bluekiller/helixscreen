@@ -60,8 +60,8 @@ void MacrosWidget::detach() {
 }
 
 void MacrosWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(
-        get_global_macros_panel, macros_panel_, parent_screen_, "Macros", "MacrosWidget", true);
+    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(get_global_macros_panel, macros_panel_,
+                                                         parent_screen_, "Macros", "MacrosWidget");
 }
 
 void MacrosWidget::clicked_cb(lv_event_t* e) {

@@ -1564,7 +1564,7 @@ void ControlsPanel::handle_calibration_bed_mesh() {
     return;
 #endif
     helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(
-        get_global_bed_mesh_panel, bed_mesh_panel_, parent_screen_, "Bed Mesh", get_name(), true);
+        get_global_bed_mesh_panel, bed_mesh_panel_, parent_screen_, "Bed Mesh", get_name());
 }
 
 void ControlsPanel::handle_calibration_tool_offsets() {

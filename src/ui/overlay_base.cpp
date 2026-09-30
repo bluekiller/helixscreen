@@ -70,7 +70,9 @@ lv_obj_t* OverlayBase::create(lv_obj_t* parent) {
 }
 
 bool OverlayBase::show(lv_obj_t* parent_screen) {
-    parent_screen_ = parent_screen;
+    if (parent_screen) {
+        parent_screen_ = parent_screen;
+    }
     if (!subjects_initialized_) {
         init_subjects();
         subjects_initialized_ = true;

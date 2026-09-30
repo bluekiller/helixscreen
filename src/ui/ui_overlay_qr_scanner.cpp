@@ -163,7 +163,7 @@ void QrScannerOverlay::show(lv_obj_t* parent, int slot_index, ResultCallback on_
 
     bool ok = lazy_create_and_push_overlay<QrScannerOverlay>(
         get_qr_scanner_overlay, cached_overlay_, screen ? screen : parent, "QR Scanner",
-        "QrScannerOverlay", true /* destroy_on_close */);
+        "QrScannerOverlay");
     if (!ok) {
         spdlog::error("[{}] Failed to show overlay", get_name());
     }

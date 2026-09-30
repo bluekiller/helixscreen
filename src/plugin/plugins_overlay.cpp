@@ -40,8 +40,7 @@ PluginsOverlay& get_plugins_overlay() {
 
 void show_plugins_overlay(lv_obj_t* parent, const char* caller) {
     helix::ui::lazy_create_and_push_overlay<PluginsOverlay>(
-        get_plugins_overlay, g_plugins_panel_cache, parent, "Plugins", caller,
-        /*destroy_on_close=*/true);
+        get_plugins_overlay, g_plugins_panel_cache, parent, "Plugins", caller);
 }
 
 void PluginsOverlay::init_subjects() {

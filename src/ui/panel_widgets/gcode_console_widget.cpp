@@ -290,9 +290,8 @@ void GCodeConsoleWidget::publish_view() {
 }
 
 void GCodeConsoleWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, console_panel_,
-                                                          parent_screen_, "Console",
-                                                          "GCodeConsoleWidget", true);
+    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(
+        get_global_console_panel, console_panel_, parent_screen_, "Console", "GCodeConsoleWidget");
 }
 
 void GCodeConsoleWidget::clicked_cb(lv_event_t* e) {
