@@ -559,6 +559,7 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/setting_section_header.xml",
     "ui_xml/setting_slider_row.xml",
     "ui_xml/setting_state_row.xml",
+    "ui_xml/setting_text_row.xml",
     "ui_xml/setting_toggle_row.xml",
     "ui_xml/setting_value_field.xml",
     "ui_xml/settings_appearance_overlay.xml",
