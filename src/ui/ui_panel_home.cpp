@@ -103,8 +103,8 @@ HomePanel::~HomePanel() {
 
     // Gate observers watch external subjects (capabilities, klippy_state) that may
     // already be freed. Clear unconditionally.
-    helix::PanelWidgetManager::instance().clear_gate_observers("home");
-    helix::PanelWidgetManager::instance().unregister_rebuild_callback("home");
+    helix::PanelWidgetManager::clear_gate_observers("home");
+    helix::PanelWidgetManager::unregister_rebuild_callback("home");
 
     // Detach all page widget instances
     for (auto& page : pages_) {
@@ -162,7 +162,7 @@ void HomePanel::deinit_subjects() {
         return;
     }
     // Release gate observers BEFORE subjects are freed
-    helix::PanelWidgetManager::instance().clear_gate_observers("home");
+    helix::PanelWidgetManager::clear_gate_observers("home");
 
     // Disconnect page observer before deiniting the subject
     page_observer_.reset();

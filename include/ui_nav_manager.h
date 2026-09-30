@@ -145,6 +145,21 @@ class NavigationManager {
      */
     void wire_events(lv_obj_t* navbar);
 
+    /// The panel button under @p point, or nullptr. How a tap on the
+    /// backdrop's snapshot of the rail reaches the live rail under an overlay.
+    [[nodiscard]] static lv_obj_t* navbar_target_at(lv_obj_t* navbar, const lv_point_t& point);
+
+    /// The keyboard's top edge in screen coordinates while it is open, or -1
+    /// once it closes. Beside a side rail the E-stop moves up the rail column
+    /// to clear it and back to its slot after; under a portrait bottom bar the
+    /// keyboard covers it.
+    void set_rail_estop_keyboard_top(int32_t top);
+
+    /// The E-stop kept over the rail's nav_estop_slot, or nullptr.
+    [[nodiscard]] lv_obj_t* rail_estop() const {
+        return rail_estop_;
+    }
+
     /**
      * @brief Wire up status icons in navbar
      *
@@ -686,6 +701,13 @@ class NavigationManager {
      */
     void refresh_overlay_backdrop();
 
+    /// Build the screen-level E-stop over @p navbar's nav_estop_slot.
+    void create_rail_estop(lv_obj_t* navbar);
+    /// Move the E-stop onto the slot's current position.
+    void sync_rail_estop();
+    lv_obj_t* rail_estop_ = nullptr;
+    int32_t rail_estop_keyboard_top_ = -1;
+
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);
 
@@ -736,6 +758,8 @@ class NavigationManager {
     // already-built panels. Guarded against re-entrancy. Called from both
     // navigation choke points (switch_to_panel_impl + handle_active_panel_change).
     void ensure_panel_built(int panel_id);
+    // Whether ensure_panel_built(panel_id) would build anything.
+    bool needs_build(int panel_id) const;
 
     // C++ overlay instances for lifecycle dispatch (on_activate/on_deactivate)
     std::unordered_map<lv_obj_t*, IPanelLifecycle*> overlay_instances_;
@@ -780,6 +804,23 @@ class NavigationManager {
     // Overlays exempt from push-time width management (deliberate custom
     // widths, e.g. the 70% widget catalog). #1178
     std::unordered_set<lv_obj_t*> overlay_width_unmanaged_;
+
+    // Rebuilt overlays (replaced root -> its live successor). Callers cache an
+    // overlay's root and keep registering and pushing it after a hot-reload
+    // rebuild has freed it, so every widget-taking entry point resolves through
+    // this. An entry is dropped when its successor is deleted, and when a
+    // different object is deleted at, or arrives live at, its key's address.
+    std::unordered_map<lv_obj_t*, lv_obj_t*> rebuilt_overlays_;
+    // Replaced roots still awaiting their deferred delete. Still valid objects,
+    // but never handed back: they resolve to their successor.
+    std::unordered_set<lv_obj_t*> condemned_roots_;
+
+    /// @p widget, or the live overlay that replaced it when a rebuild replaced it.
+    lv_obj_t* resolve_rebuilt(lv_obj_t* widget) const;
+    /// resolve_rebuilt() for a widget arriving to be registered or pushed: a
+    /// live object at a replaced root's address is a new object there, so its
+    /// forwarding entry ends.
+    lv_obj_t* resolve_arriving(lv_obj_t* widget);
 
     // Widgets that already have the LV_EVENT_DELETE scrub hook attached.
     // Prevents double-registering the callback and is itself scrubbed on delete.

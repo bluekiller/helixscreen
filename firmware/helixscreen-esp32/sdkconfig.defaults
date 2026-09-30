@@ -2,7 +2,6 @@ CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
@@ -103,11 +102,21 @@ CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
 # case), and stock ships this mitigation.
 CONFIG_ESP_PHY_REDUCE_TX_POWER=y
 
-# Stock parity: DOUT flash header — the shipped stock image runs DOUT@80m,
-# not the QIO its build config nominally requested. (Stock's 32B data-cache
-# line was tried and worsened scan-out: 64B lines give longer, more efficient
-# PSRAM bursts for the framebuffer reads.)
-CONFIG_ESPTOOLPY_FLASHMODE_DOUT=y
+# QIO flash: all code executes from flash through a 16KB instruction cache, so
+# every miss pays the fetch; QIO builds panels ~10% faster than the stock
+# image's DOUT on the K-Touch's GD25Q128. The image header stays DIO and the
+# bootloader enables quad mode only when it can set the chip's QE bit.
+# (Stock's 32B data-cache line was tried and worsened scan-out: 64B lines give
+# longer, more efficient PSRAM bursts for the framebuffer reads.)
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+# 32KB instruction cache. With 16KB the hot UI code thrashes it: panel builds,
+# XML registration and full-screen renders ran 30-40% slower, and an unrelated
+# code-layout shift could swing them 25%. The larger cache takes all of SRAM0,
+# so its IRAM code moves into shared DIRAM; FreeRTOS's non-ISR functions go to
+# flash to pay for most of that (ISR-safe ones stay in IRAM).
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
 
 # RESTART_IN_VSYNC must stay OFF (measured 2026-08-14, IDF v5.5.5 driver bug):
 # the bounce refill targets bounce_buffer[bb_eof_count % 2], and the driver

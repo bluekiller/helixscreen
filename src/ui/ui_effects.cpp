@@ -177,6 +177,33 @@ void flash_object(lv_obj_t* obj, int32_t duration_ms, bool force) {
     lv_anim_start(&scale_anim);
 }
 
+namespace {
+lv_obj_t* s_always_on_top = nullptr;
+} // namespace
+
+void set_always_on_top(lv_obj_t* obj) {
+    s_always_on_top = obj;
+}
+
+lv_obj_t* always_on_top() {
+    return s_always_on_top;
+}
+
+void bring_to_front(lv_obj_t* obj) {
+    if (!obj) {
+        return;
+    }
+    lv_obj_move_foreground(obj);
+    if (s_always_on_top && s_always_on_top != obj && lv_obj_is_valid(s_always_on_top) &&
+        lv_obj_get_parent(s_always_on_top) == lv_obj_get_parent(obj)) {
+        lv_obj_move_foreground(s_always_on_top);
+    }
+}
+
+bool is_screen_chrome(const lv_obj_t* child) {
+    return child && child == s_always_on_top;
+}
+
 lv_obj_t* create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity) {
     if (!parent) {
         spdlog::error("[UI Effects] Cannot create backdrop: parent is null");

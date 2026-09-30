@@ -208,6 +208,16 @@ static void on_system_keyboard_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
+static void on_hide_keyboard_with_hardware_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_hide_keyboard_with_hardware_changed");
+    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    spdlog::info("[SettingsPanel] Hide keyboard with hardware keyboard toggled: {}",
+                 enabled ? "ON" : "OFF");
+    DisplaySettingsManager::instance().set_hide_keyboard_with_hardware(enabled);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 static void on_keep_navbar_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_keep_navbar_changed");
     auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -259,9 +269,6 @@ void SettingsPanel::init_subjects() {
         spdlog::warn("[{}] init_subjects() called twice - ignoring", get_name());
         return;
     }
-
-    // Initialize settings subjects across all domain managers (for reactive binding)
-    SettingsManager::instance().init_subjects();
 
     // Note: LED config loading moved to MoonrakerManager::create_api() for centralized init
 
@@ -322,12 +329,8 @@ void SettingsPanel::init_subjects() {
                            (install_suppressed && !externally_managed) ? 1 : 0,
                            "updates_unavailable", subjects_);
 
-    // Touch calibration status - show "Calibrated" or "Not calibrated" in row description
-    Config* config = Config::get_instance();
-    bool is_calibrated =
-        config && config->get<bool>(config->df() + "input/calibration/valid", false);
-    const char* status_text = is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated");
-    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, status_text,
+    // Touch calibration status, filled by refresh_status_lines().
+    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, "",
                               "touch_cal_status", subjects_);
 
     // Live status line under each stateful root row; refresh_status_lines()
@@ -359,6 +362,7 @@ void SettingsPanel::init_subjects() {
         {"on_home_edit_mode_changed", on_home_edit_mode_changed},
         {"on_scroll_guard_changed", on_scroll_guard_changed},
         {"on_system_keyboard_changed", on_system_keyboard_changed},
+        {"on_hide_keyboard_with_hardware_changed", on_hide_keyboard_with_hardware_changed},
         {"on_keep_navbar_changed", on_keep_navbar_changed},
         {"on_page_scroll_buttons_changed", on_page_scroll_buttons_changed},
 
@@ -522,6 +526,14 @@ std::string status_string_subject(const char* name, const char* fallback) {
 void SettingsPanel::refresh_status_lines() {
     using namespace helix::settings::status;
 
+    // Formatted here rather than once at init, so it is in the language of the
+    // latest return to the settings root.
+    Config* config = Config::get_instance();
+    const bool is_calibrated =
+        config && config->get<bool>(config->df() + "input/calibration/valid", false);
+    lv_subject_copy_string(&touch_cal_status_subject_,
+                           is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated"));
+
     lv_subject_copy_string(&settings_status_display_subject_,
                            display(status_int_subject("settings_brightness", 0),
                                    status_int_subject("settings_display_sleep", 0),
@@ -552,38 +564,36 @@ void SettingsPanel::refresh_status_lines() {
         lv_subject_copy_string(&settings_status_connection_subject_,
                                lv_subject_get_string(&printer_host_value_subject_));
     } else {
-        // Wi-Fi status is a cheap in-memory read; Ethernet's is not (sysfs scans,
-        // or a blocking netd Unix-socket round-trip on daemon-managed firmwares —
-        // see EthernetBackendNetd), so it must go through get_info_async() rather
-        // than a synchronous get_info() call on this (the LVGL) thread. Show the
-        // last resolved Ethernet state immediately so a wired-only printer does not
-        // read "Not connected" on every return to this panel, then refresh it from
-        // the deferred callback once the probe lands.
-        auto wifi = get_wifi_manager();
-        lv_subject_copy_string(
-            &settings_status_connection_subject_,
-            connection(last_ethernet_up_, wifi->is_connected(), wifi->get_connected_ssid())
-                .c_str());
+        // Both link probes block (a wpa_supplicant control round trip; sysfs
+        // scans or a netd socket round trip for Ethernet), so neither runs on
+        // this thread. Show the last resolved states now, then refresh each as
+        // its probe lands.
+        render_connection_status();
 
         if (!ethernet_manager_) {
             ethernet_manager_ = std::make_unique<EthernetManager>();
         }
+        const uint32_t seq = ++connection_probe_seq_;
         auto tok = lifetime_.token();
-        // Only ethernet_up crosses the worker thread. Wi-Fi is read fresh inside
-        // the deferred (main-thread) lambda rather than snapshotted here, so a
-        // probe that lands after a later refresh's own probe still applies the
-        // CURRENT Wi-Fi state instead of overwriting it with a stale one.
-        ethernet_manager_->get_info_async([this, tok](const EthernetInfo& info) {
-            bool ethernet_up = info.connected;
-            tok.defer("SettingsPanel::apply_connection_status", [this, ethernet_up]() {
+        ethernet_manager_->get_info_async([this, tok, seq](const EthernetInfo& info) {
+            const bool ethernet_up = info.connected;
+            tok.defer("SettingsPanel::apply_ethernet_status", [this, seq, ethernet_up]() {
+                if (seq != connection_probe_seq_) {
+                    return;
+                }
                 last_ethernet_up_ = ethernet_up;
-                auto wifi = get_wifi_manager();
-                lv_subject_copy_string(
-                    &settings_status_connection_subject_,
-                    connection(ethernet_up, wifi->is_connected(), wifi->get_connected_ssid())
-                        .c_str());
+                render_connection_status();
             });
         });
+        get_wifi_manager()->get_status_async(
+            tok, [this, seq](const WifiBackend::ConnectionStatus& status) {
+                if (seq != connection_probe_seq_) {
+                    return;
+                }
+                last_wifi_connected_ = status.connected;
+                last_wifi_ssid_ = status.ssid;
+                render_connection_status();
+            });
     }
 
     lv_subject_copy_string(
@@ -596,6 +606,13 @@ void SettingsPanel::refresh_status_lines() {
                            updates(status_int_subject("update_status", 0),
                                    status_string_subject("update_new_version", ""), helix_version(),
                                    lv_subject_get_int(&updates_firmware_managed_subject_) != 0)
+                               .c_str());
+}
+
+void SettingsPanel::render_connection_status() {
+    lv_subject_copy_string(&settings_status_connection_subject_,
+                           helix::settings::status::connection(
+                               last_ethernet_up_, last_wifi_connected_, last_wifi_ssid_)
                                .c_str());
 }
 

@@ -558,3 +558,31 @@ TEST_CASE_METHOD(LVGLTestFixture,
     REQUIRE_FALSE(helix::ui::is_on_active_screen(obj));
     lv_obj_delete(other_screen);
 }
+
+namespace {
+int g_layout_passes = 0;
+void count_layout_pass(lv_event_t*) {
+    ++g_layout_passes;
+}
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "UI Utils: safe_clean_children - an empty container runs no layout pass",
+                 "[ui_utils][safe_clean]") {
+    lv_display_t* disp = lv_obj_get_display(test_screen());
+    lv_display_add_event_cb(disp, count_layout_pass, LV_EVENT_UPDATE_LAYOUT_COMPLETED, nullptr);
+    lv_obj_t* container = lv_obj_create(test_screen());
+
+    g_layout_passes = 0;
+    helix::ui::safe_clean_children(container);
+    CHECK(g_layout_passes == 0);
+
+    lv_obj_create(container);
+    lv_obj_create(container);
+    g_layout_passes = 0;
+    helix::ui::safe_clean_children(container);
+    CHECK(g_layout_passes >= 1);
+    CHECK(lv_obj_get_child_count(container) == 0);
+
+    lv_display_remove_event_cb_with_user_data(disp, count_layout_pass, nullptr);
+}

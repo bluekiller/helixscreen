@@ -2627,19 +2627,11 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
     execute_gcode("BOX_UPDATE_SAME_MATERIAL_LIST");
 }
 
-AmsError AmsBackendCfs::set_tool_mapping_impl(int tool_number, int slot_index) {
-    // CFS exposes per-print tool→slot remap via the BOX_MODIFY_TN gcode (format
-    // observed in box_wrapper.cpython-39.so: "BOX_MODIFY_TN %s=%s"). Both sides
-    // use the TNN notation (T1A..T4D) that matches the box.map JSON keys/values
-    // returned by Moonraker.
-    //
-    // Example: set_tool_mapping(0, 5) sends "BOX_MODIFY_TN T1A=T2B" — when the
-    // slicer emits T0/T1A, the CFS routes from physical slot T2B (index 5).
-    //
+AmsError AmsBackendCfs::can_set_tool_mapping(int tool_number, int slot_index) const {
     // slot_index names a bay, so its bound is the attached unit count (the
     // TNN alphabet while the box size is unknown): a remap naming a bay on an
-    // unattached unit is refused here instead of leaving firmware's routing
-    // table pointing at a bay that cannot feed.
+    // unattached unit is refused instead of leaving firmware's routing table
+    // pointing at a bay that cannot feed.
     // tool_number is a routing-table KEY, not a bay: the T0-T15 key space
     // exists wherever firmware's map says it does — a slicer-driven remap or
     // Creality's own UI can hold a high key while fewer units are attached —
@@ -2651,15 +2643,29 @@ AmsError AmsBackendCfs::set_tool_mapping_impl(int tool_number, int slot_index) {
     if (auto err = validate_slot_index(slot_index); !err.success()) {
         return err;
     }
-
-    std::string tool_tnn = CfsMaterialDb::slot_to_tnn(tool_number);
-    std::string slot_tnn = CfsMaterialDb::slot_to_tnn(slot_index);
-    if (tool_tnn.empty() || slot_tnn.empty()) {
+    if (CfsMaterialDb::slot_to_tnn(tool_number).empty() ||
+        CfsMaterialDb::slot_to_tnn(slot_index).empty()) {
         return AmsError(AmsResult::INVALID_TOOL,
                         "Failed to encode TNN for tool=" + std::to_string(tool_number) +
                             " slot=" + std::to_string(slot_index),
                         lv_tr("Invalid tool/slot"), "");
     }
+    return AmsErrorHelper::success();
+}
+
+AmsError AmsBackendCfs::set_tool_mapping_impl(int tool_number, int slot_index) {
+    // CFS exposes per-print tool→slot remap via the BOX_MODIFY_TN gcode (format
+    // observed in box_wrapper.cpython-39.so: "BOX_MODIFY_TN %s=%s"). Both sides
+    // use the TNN notation (T1A..T4D) that matches the box.map JSON keys/values
+    // returned by Moonraker.
+    //
+    // Example: set_tool_mapping(0, 5) sends "BOX_MODIFY_TN T1A=T2B" — when the
+    // slicer emits T0/T1A, the CFS routes from physical slot T2B (index 5).
+    if (auto err = can_set_tool_mapping(tool_number, slot_index); !err.success()) {
+        return err;
+    }
+    const std::string tool_tnn = CfsMaterialDb::slot_to_tnn(tool_number);
+    const std::string slot_tnn = CfsMaterialDb::slot_to_tnn(slot_index);
 
     // Optimistic local update so get_tool_mapping() reflects the new mapping
     // immediately for UI/restore-snapshot reads. The next box-status websocket

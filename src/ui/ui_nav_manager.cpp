@@ -3,6 +3,7 @@
 
 #include "ui_nav_manager.h"
 
+#include "ui_effects.h"
 #include "ui_emergency_stop.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
@@ -45,49 +46,27 @@ using helix::ui::observe_int_sync;
 
 #if defined(HELIX_PLATFORM_ESP32)
 namespace {
-// Full-screen loading scrim on the TOP layer (above the panels AND the navbar),
-// painted before a (possibly multi-second) panel transition. STATIC "Loading..."
-// label, NOT a spinner: the transition blocks the LVGL thread, so no animation
-// timer can run — a spinner would freeze and read as a hang. Default-CLICKABLE,
-// so it absorbs every tap (incl. navbar hammering) for the whole transition.
+// "Loading..." pill on the TOP layer, painted before a (possibly multi-second)
+// first build of a panel. STATIC label, NOT a spinner: the build blocks the LVGL
+// thread, so no animation timer can run and a spinner would freeze and read as a
+// hang. Small on purpose: painting or lifting a full-screen scrim re-renders the
+// whole screen, which costs ~600ms on the ESP32; the pill costs a few dozen. Taps
+// need no absorbing: touch is polled on the thread the build blocks.
 lv_obj_t* make_loading_scrim() {
-    lv_obj_t* scrim = lv_obj_create(lv_layer_top());
-    lv_obj_remove_style_all(scrim);
-    lv_obj_set_size(scrim, lv_pct(100), lv_pct(100));
-    lv_obj_set_style_bg_color(scrim, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(scrim, LV_OPA_60, LV_PART_MAIN);
-    lv_obj_remove_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t* lbl = lv_label_create(scrim);
+    lv_obj_t* pill = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(pill);
+    lv_obj_set_size(pill, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_color(pill, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(pill, LV_OPA_80, LV_PART_MAIN);
+    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(pill, 24, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(pill, 12, LV_PART_MAIN);
+    lv_obj_remove_flag(pill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t* lbl = lv_label_create(pill);
     lv_label_set_text(lbl, "Loading...");
     lv_obj_set_style_text_color(lbl, lv_color_white(), LV_PART_MAIN);
-    lv_obj_center(lbl);
-    return scrim;
-}
-
-// Settle-heal: one full-screen repaint scheduled a beat after a panel
-// transition completes. Tears the unpaced blit leaves on STATIC content (the
-// navbar, which never repaints on its own) stick on screen; a single
-// invalidate in the quiet window after the transition forces a clean present
-// that heals them. Debounced through one shared one-shot timer so a burst of
-// tap-through navigations collapses to a single heal after the last settles.
-// The heal present could itself tear, but it runs at post-transition idle load
-// where the blit wins the beam race, and it re-arms nothing. Stage B's
-// pointer-swap makes tears impossible — this is the Stage A mitigation.
-lv_timer_t* g_settle_heal_timer = nullptr;
-
-void schedule_settle_heal(uint32_t delay_ms) {
-    if (g_settle_heal_timer != nullptr) {
-        lv_timer_set_period(g_settle_heal_timer, delay_ms);
-        lv_timer_reset(g_settle_heal_timer); // restart the countdown (debounce)
-        return;
-    }
-    g_settle_heal_timer = lv_timer_create(
-        [](lv_timer_t*) {
-            lv_obj_invalidate(lv_screen_active());
-            g_settle_heal_timer = nullptr; // repeat_count=1 auto-deletes after this cb
-        },
-        delay_ms, nullptr);
-    lv_timer_set_repeat_count(g_settle_heal_timer, 1);
+    lv_obj_center(pill);
+    return pill;
 }
 
 // RAII busy indicator wrapping a panel transition (the deferred first-build now
@@ -104,7 +83,10 @@ void schedule_settle_heal(uint32_t delay_ms) {
 // the active_panel subject, and we must not nest two.
 class NavTransitionScrim {
   public:
-    explicit NavTransitionScrim(bool& active) : active_(active), owns_(!active) {
+    // `needed`: the transition has a panel to build. Switching between built
+    // panels only flips visibility, so a scrim would add two forced full renders
+    // for nothing.
+    NavTransitionScrim(bool& active, bool needed) : active_(active), owns_(!active && needed) {
         if (owns_) {
             active_ = true;
             scrim_ = make_loading_scrim();
@@ -116,7 +98,6 @@ class NavTransitionScrim {
             lv_refr_now(lv_display_get_default());
             helix::ui::safe_delete_deferred(scrim_);
             active_ = false;
-            schedule_settle_heal(500);
         }
     }
     NavTransitionScrim(const NavTransitionScrim&) = delete;
@@ -768,7 +749,7 @@ void NavigationManager::handle_active_panel_change(int32_t new_active_panel) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Busy scrim + input block for the whole transition (ESP32-only; no-op on the
     // nested inner change if switch_to_panel_impl cascaded here).
-    NavTransitionScrim scrim_guard(nav_scrim_active_);
+    NavTransitionScrim scrim_guard(nav_scrim_active_, needs_build(new_active_panel));
 #endif
     // Deferred bring-up: catches navigation paths that set active_panel directly
     // (set_active from connection/klippy handlers, etc.) without going through
@@ -855,6 +836,27 @@ void NavigationManager::handle_klippy_state_change(int state) {
 // EVENT CALLBACKS
 // ============================================================================
 
+lv_obj_t* NavigationManager::navbar_target_at(lv_obj_t* navbar, const lv_point_t& point) {
+    if (!navbar) {
+        return nullptr;
+    }
+    static constexpr const char* kTargets[] = {"nav_btn_home",     "nav_btn_print_select",
+                                               "nav_btn_controls", "nav_btn_filament",
+                                               "nav_btn_settings", "nav_btn_advanced"};
+    for (const char* name : kTargets) {
+        lv_obj_t* btn = lv_obj_find_by_name(navbar, name);
+        if (!btn || lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN)) {
+            continue;
+        }
+        lv_area_t area;
+        lv_obj_get_coords(btn, &area);
+        if (point.x >= area.x1 && point.x <= area.x2 && point.y >= area.y1 && point.y <= area.y2) {
+            return btn;
+        }
+    }
+    return nullptr;
+}
+
 void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
     lv_obj_t* current = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -905,30 +907,12 @@ void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
 
         if (click_point.x >= navbar_area.x1 && click_point.x <= navbar_area.x2 &&
             click_point.y >= navbar_area.y1 && click_point.y <= navbar_area.y2) {
-            // Click is in navbar area - find which button and trigger navigation
-            const char* button_names[] = {"nav_btn_home",     "nav_btn_print_select",
-                                          "nav_btn_controls", "nav_btn_filament",
-                                          "nav_btn_settings", "nav_btn_advanced"};
-
-            for (int i = 0; i < UI_PANEL_COUNT; i++) {
-                lv_obj_t* btn = lv_obj_find_by_name(mgr.navbar_widget_, button_names[i]);
-                if (!btn) {
-                    continue;
-                }
-
-                // Check if click point is inside this button
-                lv_area_t btn_area;
-                lv_obj_get_coords(btn, &btn_area);
-
-                // Simple bounds check (point in rectangle)
-                if (click_point.x >= btn_area.x1 && click_point.x <= btn_area.x2 &&
-                    click_point.y >= btn_area.y1 && click_point.y <= btn_area.y2) {
-                    spdlog::trace(
-                        "[NavigationManager] Backdrop click forwarded to navbar button {}", i);
-                    // Simulate the navbar button click by sending a clicked event
-                    lv_obj_send_event(btn, LV_EVENT_CLICKED, nullptr);
-                    return;
-                }
+            if (lv_obj_t* target = navbar_target_at(mgr.navbar_widget_, click_point)) {
+                spdlog::trace("[NavigationManager] Backdrop click forwarded to navbar '{}'",
+                              lv_obj_get_name(target) ? lv_obj_get_name(target) : "?");
+                // Simulate the navbar button click by sending a clicked event
+                lv_obj_send_event(target, LV_EVENT_CLICKED, nullptr);
+                return;
             }
 
             // Click was in navbar area but not on a button - just close overlay
@@ -1013,7 +997,7 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Busy scrim + input block for the whole transition (ESP32-only). Outermost
     // owner; a cascade into handle_active_panel_change won't create a second one.
-    NavTransitionScrim scrim_guard(nav_scrim_active_);
+    NavTransitionScrim scrim_guard(nav_scrim_active_, needs_build(panel_id));
 #endif
     auto switch_start = std::chrono::steady_clock::now();
     spdlog::trace("[NavigationManager] switch_to_panel_impl executing for panel {}", panel_id);
@@ -1041,7 +1025,8 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 continue;
             }
 
-            if (child == app_layout_widget_) {
+            // Screen chrome (the rail E-stop) is not an overlay.
+            if (child == app_layout_widget_ || helix::ui::is_screen_chrome(child)) {
                 continue;
             }
 
@@ -1314,6 +1299,8 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         [](NavigationManager* mgr, int /* shown */) { mgr->refresh_overlay_backdrop(); },
         SettingsManager::instance().get_subjects_lifetime());
 
+    create_rail_estop(navbar);
+
     spdlog::trace(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");
 }
@@ -1523,13 +1510,14 @@ void NavigationManager::set_deferred_panel_builder(std::function<void(int)> buil
     deferred_panel_builder_ = std::move(builder);
 }
 
+bool NavigationManager::needs_build(int panel_id) const {
+    return panel_id >= 0 && panel_id < UI_PANEL_COUNT && !panel_widgets_[panel_id] &&
+           deferred_panel_builder_;
+}
+
 void NavigationManager::ensure_panel_built(int panel_id) {
-    if (panel_id < 0 || panel_id >= UI_PANEL_COUNT)
-        return;
-    if (panel_widgets_[panel_id])
-        return; // already built
-    if (!deferred_panel_builder_)
-        return; // desktop / all-resident model — nothing to defer
+    if (!needs_build(panel_id))
+        return; // out of range, already built, or desktop (all-resident, nothing deferred)
     if (building_deferred_panel_)
         return; // re-entrancy guard (nav runs single-threaded; belt-and-suspenders)
     building_deferred_panel_ = true;
@@ -1590,12 +1578,46 @@ void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new
 
     std::replace(panel_stack_.begin(), panel_stack_.end(), old_widget, new_widget);
 
+    // Roots cached before this or an earlier rebuild now resolve to new_widget.
+    for (auto& [freed, successor] : rebuilt_overlays_) {
+        if (successor == old_widget) {
+            successor = new_widget;
+        }
+    }
+    rebuilt_overlays_[old_widget] = new_widget;
+    // Its delete must be seen, to tell it from a later object at its address.
+    if (lv_obj_is_valid(old_widget)) {
+        condemned_roots_.insert(old_widget);
+        ensure_delete_hook(old_widget);
+    }
+
     // The new widget needs its own delete hook — the old widget's hook does not
     // transfer (it fires for the old object only).
     ensure_delete_hook(new_widget);
 
     spdlog::debug("[NavigationManager] Rekeyed overlay widget {} → {}", (void*)old_widget,
                   (void*)new_widget);
+}
+
+lv_obj_t* NavigationManager::resolve_rebuilt(lv_obj_t* widget) const {
+    auto it = widget ? rebuilt_overlays_.find(widget) : rebuilt_overlays_.end();
+    if (it == rebuilt_overlays_.end()) {
+        return widget;
+    }
+    // A live object that is not the condemned root is a new object reusing a
+    // freed root's address. lv_obj_is_valid() reads no freed memory.
+    if (condemned_roots_.count(widget) || !lv_obj_is_valid(widget)) {
+        return it->second;
+    }
+    return widget;
+}
+
+lv_obj_t* NavigationManager::resolve_arriving(lv_obj_t* widget) {
+    lv_obj_t* resolved = resolve_rebuilt(widget);
+    if (resolved == widget && widget) {
+        rebuilt_overlays_.erase(widget);
+    }
+    return resolved;
 }
 
 void NavigationManager::set_overlay_width_unmanaged(lv_obj_t* overlay) {
@@ -1691,6 +1713,15 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
                        panel_stack_.end());
 
     delete_hooked_.erase(widget);
+    // A replaced root's own deferred delete keeps its forwarding entry: that
+    // key is the address callers still hold. Any other object deleted at a key
+    // is a later tenant of the address, and a dead successor ends its entries.
+    if (condemned_roots_.erase(widget) == 0) {
+        rebuilt_overlays_.erase(widget);
+    }
+    for (auto it = rebuilt_overlays_.begin(); it != rebuilt_overlays_.end();) {
+        it = it->second == widget ? rebuilt_overlays_.erase(it) : std::next(it);
+    }
 
     spdlog::trace("[NavigationManager] Scrubbed deleted widget {} from nav bookkeeping",
                   (void*)widget);
@@ -1704,15 +1735,109 @@ void NavigationManager::overlay_delete_event_cb(lv_event_t* e) {
 }
 
 void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen) {
+    // Keep the live E-stop out of the snapshot: it stays above the backdrop,
+    // and a dimmed copy baked into the image would show wherever the page
+    // shifts (the keyboard lifts the layout, backdrop included).
+    const bool estop_shown = rail_estop_ && !lv_obj_has_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
+    if (estop_shown) {
+        lv_obj_add_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
+    }
     overlay_backdrop_ = helix::ui::create_darkened_backdrop(screen, 40);
+    if (estop_shown) {
+        lv_obj_remove_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
+    }
     if (!overlay_backdrop_)
         return;
 
-    lv_obj_move_foreground(overlay_backdrop_);
+    helix::ui::bring_to_front(overlay_backdrop_);
     // PRESSED latches keyboard visibility before LVGL's click-focus
     // hides it; CLICKED consumes the tap for the keyboard dismiss.
     lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_CLICKED, nullptr);
+}
+
+void NavigationManager::create_rail_estop(lv_obj_t* navbar) {
+    lv_obj_t* slot = lv_obj_find_by_name(navbar, "nav_estop_slot");
+    lv_obj_t* screen = lv_obj_get_screen(navbar);
+    if (!slot || !screen) {
+        spdlog::debug("[NavigationManager] No nav_estop_slot in this navbar; no rail E-stop");
+        return;
+    }
+    rail_estop_ = static_cast<lv_obj_t*>(lv_xml_create(screen, "rail_estop", nullptr));
+    if (!rail_estop_) {
+        spdlog::error("[NavigationManager] rail_estop component would not build");
+        return;
+    }
+    lv_obj_set_name(rail_estop_, "nav_btn_estop");
+    helix::ui::set_always_on_top(rail_estop_);
+    spdlog::debug("[NavigationManager] Rail E-stop created over nav_estop_slot");
+    // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
+    lv_obj_add_event_cb(
+        rail_estop_,
+        [](lv_event_t* e) {
+            // Only the current E-stop: a replaced one dying late must not
+            // clear its successor.
+            auto& mgr = NavigationManager::instance();
+            if (lv_event_get_target_obj(e) == mgr.rail_estop_) {
+                mgr.rail_estop_ = nullptr;
+                helix::ui::set_always_on_top(nullptr);
+            }
+        },
+        LV_EVENT_DELETE, nullptr);
+    // The slot moves whenever the rail lays out (it appears, the orientation
+    // flips), and the button has to follow it there.
+    lv_obj_add_event_cb(
+        navbar, [](lv_event_t* /*e*/) { NavigationManager::instance().sync_rail_estop(); },
+        LV_EVENT_LAYOUT_CHANGED, nullptr);
+    sync_rail_estop();
+}
+
+void NavigationManager::sync_rail_estop() {
+    if (!rail_estop_ || !navbar_widget_) {
+        return;
+    }
+    lv_obj_t* slot = lv_obj_find_by_name(navbar_widget_, "nav_estop_slot");
+    if (!slot) {
+        return;
+    }
+    lv_area_t area;
+    lv_obj_get_coords(slot, &area);
+
+    // The keyboard can shift the whole layout up while it is open; the slot's
+    // home position is its offset within that layout, which rests at y=0.
+    lv_obj_t* layout_root = navbar_widget_;
+    while (lv_obj_get_parent(layout_root) &&
+           lv_obj_get_parent(layout_root) != lv_obj_get_screen(layout_root)) {
+        layout_root = lv_obj_get_parent(layout_root);
+    }
+    lv_area_t root_area;
+    lv_obj_get_coords(layout_root, &root_area);
+    int32_t y = area.y1 - root_area.y1;
+
+    // With the keyboard open over the bottom of a side rail, the E-stop rides
+    // in the rail column just above the keyboard's top edge, never over a key.
+    // A portrait bottom bar has no column above the keyboard: everything there
+    // is the overlay's own content, the text field first.
+    const bool side_rail = lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_);
+    if (rail_estop_keyboard_top_ >= 0 && side_rail) {
+        const int32_t size = lv_obj_get_height(rail_estop_);
+        const int32_t above =
+            rail_estop_keyboard_top_ - size - theme_manager_get_spacing("space_xs");
+        y = std::min(y, above);
+    }
+    // Screen children are positioned in screen coordinates.
+    lv_obj_set_pos(rail_estop_, area.x1, y);
+}
+
+void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
+    rail_estop_keyboard_top_ = top;
+    sync_rail_estop();
+    // Only a side rail leaves room above the keyboard. A portrait bottom bar is
+    // under it, and an E-stop raised there would sit on the keyboard's keys.
+    if (top >= 0 && rail_estop_ && navbar_widget_ &&
+        lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_)) {
+        lv_obj_move_foreground(rail_estop_);
+    }
 }
 
 void NavigationManager::refresh_overlay_backdrop() {
@@ -1883,6 +2008,7 @@ void NavigationManager::resume_active() {
 
 void NavigationManager::register_overlay_instance(lv_obj_t* widget, IPanelLifecycle* overlay,
                                                   bool persistent) {
+    widget = resolve_arriving(widget);
     if (!widget) {
         spdlog::error("[NavigationManager] Cannot register overlay with NULL widget");
         return;
@@ -1903,6 +2029,7 @@ void NavigationManager::register_overlay_instance(lv_obj_t* widget, IPanelLifecy
 }
 
 void NavigationManager::unregister_overlay_instance(lv_obj_t* widget) {
+    widget = resolve_rebuilt(widget);
     auto it = overlay_instances_.find(widget);
     if (it != overlay_instances_.end()) {
         spdlog::trace("[NavigationManager] Unregistered overlay instance for widget {}",
@@ -1936,7 +2063,10 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
 
     // Always queue - this is the safest pattern for overlay operations
     // which can be triggered from various contexts (events, observers, etc.)
-    helix::ui::queue_update([overlay_panel, hide_previous]() {
+    helix::ui::queue_update([overlay_panel, hide_previous]() mutable {
+        // Resolved when the push runs, on the UI thread: a rebuild can land
+        // between the queueing and now.
+        overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
         // The captured overlay_panel is a raw lv_obj_t* — it can be destroyed
         // between queue time and now (rapid push→teardown, e.g. a print that
         // fails Klipper config validation and immediately tears its status
@@ -2046,7 +2176,7 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
 
         // Show overlay
         lv_obj_remove_flag(overlay_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(overlay_panel);
+        helix::ui::bring_to_front(overlay_panel);
         // Claim taps landing anywhere within the panel bounds. Overlays are
         // narrower than the screen and sit in front of a full-screen, clickable
         // dismiss-backdrop. Without this, a touch that misses an interactive
@@ -2088,7 +2218,8 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
     }
 
     // Queue the push operation (same pattern as push_overlay)
-    helix::ui::queue_update([overlay_panel, source_rect]() {
+    helix::ui::queue_update([overlay_panel, source_rect]() mutable {
+        overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
         // See push_overlay() above: the captured raw pointer can be freed
         // before this deferred lambda drains. Bail before any deref. (MBUX7WUN)
         if (!lv_obj_is_valid(overlay_panel)) {
@@ -2159,7 +2290,7 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
 
         // Show overlay with zoom animation instead of slide
         lv_obj_remove_flag(overlay_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(overlay_panel);
+        helix::ui::bring_to_front(overlay_panel);
         // See push_overlay(): claim in-bounds taps so stray touches don't fall
         // through to the dismiss-backdrop and close the overlay (#1066).
         lv_obj_add_flag(overlay_panel, LV_OBJ_FLAG_CLICKABLE);
@@ -2190,6 +2321,7 @@ void NavigationManager::push_overlay_zoom_from(lv_obj_t* overlay_panel, lv_area_
 
 void NavigationManager::register_overlay_close_callback(lv_obj_t* overlay_panel,
                                                         OverlayCloseCallback callback) {
+    overlay_panel = resolve_arriving(overlay_panel);
     if (!overlay_panel || !callback) {
         return;
     }
@@ -2300,7 +2432,8 @@ bool NavigationManager::go_back() {
             for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++) {
                 lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
                 if (child == mgr.app_layout_widget_ || child == mgr.overlay_backdrop_ ||
-                    child == current_top || child == previous_panel) {
+                    child == current_top || child == previous_panel ||
+                    helix::ui::is_screen_chrome(child)) {
                     continue;
                 }
                 bool is_main = false;
@@ -2377,6 +2510,7 @@ bool NavigationManager::go_back() {
 }
 
 bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
+    panel = resolve_rebuilt(panel);
     if (!panel) {
         return false;
     }
@@ -2384,6 +2518,7 @@ bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
 }
 
 bool NavigationManager::is_panel_on_top(lv_obj_t* panel) const {
+    panel = resolve_rebuilt(panel);
     if (!panel || panel_stack_.empty()) {
         return false;
     }
@@ -2538,6 +2673,8 @@ void NavigationManager::deinit_subjects() {
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
     delete_hooked_.clear();
+    rebuilt_overlays_.clear();
+    condemned_roots_.clear();
     panel_stack_.clear();
     app_layout_widget_ = nullptr;
     if (overlay_backdrop_) {
@@ -2545,6 +2682,13 @@ void NavigationManager::deinit_subjects() {
         overlay_backdrop_ = nullptr;
     }
     navbar_widget_ = nullptr;
+    // The E-stop lives on the screen, not in the app layout a printer switch
+    // rebuilds, so it goes explicitly or the rebuild leaves an orphan behind.
+    if (rail_estop_) {
+        helix::ui::set_always_on_top(nullptr);
+        helix::ui::safe_delete_deferred(rail_estop_);
+    }
+    rail_estop_keyboard_top_ = -1;
     active_panel_ = PanelId::Home;
     previous_connection_state_ = -1;
     previous_klippy_state_ = -1;

@@ -13,6 +13,9 @@ _HELIX_RELEASE_SOURCED=1
 
 # R2 CDN configuration (overridable via environment)
 : "${R2_BASE_URL:=https://releases.helixscreen.org}"
+# Whether R2_CHANNEL arrived from the environment (as opposed to the default
+# below). resolve_update_channel() must not override the operator's choice.
+_R2_CHANNEL_FROM_ENV="${R2_CHANNEL:+yes}"
 : "${R2_CHANNEL:=stable}"
 
 # Plain HTTP endpoint for systems without SSL (K1, AD5M BusyBox wget)
@@ -330,6 +333,89 @@ parse_json_string_field() {
 # Extract "version" value from manifest JSON on stdin
 parse_manifest_version() {
     parse_json_string_field version
+}
+
+# Extract the value of a JSON integer field from stdin. Args: key
+#
+# Prints the number, or nothing when the key is absent or its value is not a
+# bare integer. Unquoted values ride in the same quote-split field as the colon
+# ("channel": 1, splits to `channel` + `: 1,`), so the digits are trimmed out
+# of that field rather than read from the next one. First match wins, and the
+# key/value pair always shares a line, so the line-wise walk of
+# parse_json_string_field is enough here too.
+parse_json_int_field() {
+    awk -v key="$1" '
+        {
+            n = split($0, p, "\"")
+            for (i = 1; i < n; i++) {
+                if (p[i] == key && p[i+1] ~ /^[ \t]*:[ \t]*-?[0-9]/) {
+                    v = p[i+1]
+                    sub(/^[^0-9-]*/, "", v)
+                    sub(/[^0-9].*$/, "", v)
+                    print v
+                    exit
+                }
+            }
+        }
+    '
+}
+
+# Newest release tag from GitHub's /releases payload on stdin, prereleases
+# included. GitHub lists the array newest-first and serializes every entry with
+# tag_name ahead of draft and prerelease, so one walk that carries the current
+# entry's tag and flags can take the first non-draft prerelease, falling back
+# to the first non-draft stable release (what /releases/latest answers) when
+# no prerelease exists. Whole-field comparison on quote-split input keeps a
+# "prerelease" mentioned inside release prose from counting, per
+# parse_json_string_field.
+parse_newest_release_tag() {
+    awk '
+        {
+            n = split($0, p, "\"")
+            for (i = 1; i < n; i++) {
+                if (p[i] == "tag_name" && p[i+1] ~ /^[ \t]*:[ \t]*$/) tag = p[i+2]
+                else if (p[i] == "draft") draft = (p[i+1] ~ /:[ \t]*true/)
+                else if (p[i] == "prerelease") {
+                    if (p[i+1] ~ /:[ \t]*true/) {
+                        if (!draft && tag != "") { print tag; done = 1; exit }
+                    } else if (!draft && tag != "" && stable == "") {
+                        stable = tag
+                    }
+                }
+            }
+        }
+        END { if (!done && stable != "") print stable }
+    '
+}
+
+# Set R2_CHANNEL from the installed app's settings, so an update follows the
+# channel the user picked in the UI instead of always pulling stable.
+#
+# The app persists its channel at /update/channel as an int (0=stable,
+# 1=beta, 2=dev). config/settings.json is normally a symlink into
+# printer_data/config/helixscreen/; reading through it covers both layouts,
+# and _config_source_dir also reaches an install mid-migration at its old
+# root. An R2_CHANNEL from the environment wins; anything unreadable,
+# absent or out of range maps back to stable.
+resolve_update_channel() {
+    if [ "${_R2_CHANNEL_FROM_ENV:-}" = "yes" ]; then
+        log_info "Update channel: ${R2_CHANNEL} (R2_CHANNEL set in environment)"
+        return 0
+    fi
+
+    local settings num=""
+    settings="$(_config_source_dir)/config/settings.json"
+
+    if [ -f "$settings" ]; then
+        num=$(parse_json_int_field channel < "$settings" 2>/dev/null) || num=""
+    fi
+
+    case "$num" in
+        1) R2_CHANNEL=beta ;;
+        2) R2_CHANNEL=dev ;;
+        *) R2_CHANNEL=stable ;;
+    esac
+    log_info "Update channel: ${R2_CHANNEL} (read from ${settings})"
 }
 
 # Extract the version from a release tarball path. Args: path or basename.
@@ -705,11 +791,19 @@ get_latest_version() {
             log_warn "CDN unavailable, trying GitHub..."
         fi
 
-        # Fallback: GitHub API
-        local url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
-        log_info "Fetching latest version from GitHub..."
-
-        version=$(fetch_url "$url" | parse_json_string_field tag_name)
+        # Fallback: GitHub API. /releases/latest skips prereleases, so the
+        # beta and dev channels list /releases and take the newest non-draft
+        # release, prereleases included.
+        local url
+        if [ "$R2_CHANNEL" != "stable" ]; then
+            url="https://api.github.com/repos/${GITHUB_REPO}/releases"
+            log_info "Fetching newest ${R2_CHANNEL} version from GitHub..."
+            version=$(fetch_url "$url" | parse_newest_release_tag)
+        else
+            url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+            log_info "Fetching latest version from GitHub..."
+            version=$(fetch_url "$url" | parse_json_string_field tag_name)
+        fi
 
         if [ -n "$version" ]; then
             echo "$version"
@@ -1195,29 +1289,8 @@ validate_binary_architecture() {
 # Used when the install partition is too tight to hold the old + new install
 # at once (e.g. K2 /opt: ~240MB, ~81MB free). Relocating the old install to a
 # roomy partition frees the install fs so the new tree can move in, and the
-# off-partition copy serves as the rollback source on failure.
-#
-# --- Filesystem measurement helpers -----------------------------------------
-#
-# `-P` is load-bearing, not decoration: without it df wraps a long device name
-# onto its own line, and `tail -1 | awk '{print $1}'` then returns a BLOCK COUNT
-# where the caller expects a device. Two filesystems would compare unequal by
-# accident and a rename would be mistaken for a copy. POSIX output is one line
-# per filesystem, which is why detect_rollback_dir already uses it.
-#
-# `-P` alone reports 512-byte blocks, so pair it with `-k` to get the 1K units
-# the arithmetic below assumes. Verified on BusyBox 1.29.3 and 1.33.2.
-
-# Echo the filesystem identity for a path (df's device column). Two paths with
-# the same value are on one filesystem, so a mv between them is a rename.
-_fs_id() {
-    df -kP "$1" 2>/dev/null | tail -1 | awk '{print $1}'
-}
-
-# Echo free space in MB on the filesystem holding a path.
-_fs_free_mb() {
-    df -kP "$1" 2>/dev/null | tail -1 | awk '{print int($4/1024)}'
-}
+# off-partition copy serves as the rollback source on failure. Free space and
+# filesystem identity come from _fs_free_mb / _fs_id in common.sh.
 
 # Echo the size of a directory tree in MB.
 #
@@ -1346,7 +1419,7 @@ detect_rollback_dir() {
 
     # Filesystem device backing the install partition — candidates on the same
     # device free no space when we relocate there.
-    _install_dev=$(df -P "$install_parent" 2>/dev/null | tail -1 | awk '{print $1}')
+    _install_dev=$(_fs_id "$install_parent")
 
     for _cand in $_candidates; do
         [ -d "$_cand" ] || continue
@@ -1360,13 +1433,13 @@ detect_rollback_dir() {
             continue
         fi
 
-        _dev=$(df -P "$_cand" 2>/dev/null | tail -1 | awk '{print $1}')
+        _dev=$(_fs_id "$_cand")
         # Skip tmpfs — volatile RAM, a reboot mid-update loses the rollback.
         [ "$_dev" = "tmpfs" ] && continue
         # Skip same filesystem as the install — relocating there frees nothing.
         [ "$_dev" = "$_install_dev" ] && continue
 
-        _free=$(df "$_cand" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        _free=$(_fs_free_mb "$_cand")
         if [ -n "$_free" ] && [ "$_free" -ge $(( needed_mb + 20 )) ]; then
             echo "$_cand"
             return 0
@@ -1527,7 +1600,7 @@ extract_release() {
     while [ ! -d "$tmp_check_dir" ] && [ "$tmp_check_dir" != "/" ]; do
         tmp_check_dir=$(dirname "$tmp_check_dir")
     done
-    tmp_available_mb=$(df "$tmp_check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+    tmp_available_mb=$(_fs_free_mb "$tmp_check_dir")
 
     if [ -n "$tmp_available_mb" ] && [ "$tmp_available_mb" -lt "$extract_required_mb" ]; then
         log_error "Not enough space in temp directory for extraction."
@@ -1584,10 +1657,10 @@ extract_release() {
 
     if [ "$extract_ok" = false ]; then
         local post_mb
-        post_mb=$(df "$tmp_check_dir" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        post_mb=$(_fs_free_mb "$tmp_check_dir")
         if [ -n "$post_mb" ] && [ "$post_mb" -lt 5 ]; then
             log_error "Failed to extract archive: no space left on device."
-            log_error "Filesystem $(df "$tmp_check_dir" | tail -1 | awk '{print $1}') is full."
+            log_error "Filesystem $(_fs_id "$tmp_check_dir") is full."
             log_error "Try: TMP_DIR=/path/with/space sh install.sh ..."
         else
             log_error "Failed to extract archive."
@@ -1785,7 +1858,7 @@ extract_release() {
         while [ ! -d "$install_parent" ] && [ "$install_parent" != "/" ]; do
             install_parent=$(dirname "$install_parent")
         done
-        install_free_mb=$(df "$install_parent" 2>/dev/null | tail -1 | awk '{print int($4/1024)}')
+        install_free_mb=$(_fs_free_mb "$install_parent")
         [ -z "$install_free_mb" ] && install_free_mb=0
 
         swap_margin_mb=10

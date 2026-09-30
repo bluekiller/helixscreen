@@ -6,11 +6,14 @@
 #include "wifi_backend.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <set>
 #include <thread>
+#include <vector>
 
 /**
  * @brief Mock WiFi network with password for testing
@@ -71,6 +74,9 @@ class WifiBackendMock : public WifiBackend {
     ConnectionStatus get_status() override;
     bool supports_5ghz() const override;
     WiFiError forget_network(const std::string& ssid) override;
+    bool supports_forget() const override {
+        return true;
+    }
     std::optional<helix::wifi::WifiInterface> resolved_interface() const override;
 
     // Test helpers — allow test code to drive state directly without going
@@ -104,12 +110,25 @@ class WifiBackendMock : public WifiBackend {
         return join_displaces_wired_link_;
     }
 
+    /// Test helpers for callers that must never block on a status read: the
+    /// threads get_status() ran on since the last clear, and a gate that makes
+    /// the next get_status() take its answer, then wait for release.
+    std::vector<std::thread::id> status_callers();
+    void clear_status_callers();
+    void hold_next_status();
+    void release_held_status();
+
   private:
     // ========================================================================
     // Internal State
     // ========================================================================
 
     bool running_;
+    std::mutex status_mutex_; ///< get_status() runs on workers; tests write the state
+    std::condition_variable status_cv_;
+    std::vector<std::thread::id> status_callers_;
+    bool hold_next_status_{false};
+    bool status_held_{false};
     bool connected_;
     std::string connected_ssid_;
     std::string connected_ip_;

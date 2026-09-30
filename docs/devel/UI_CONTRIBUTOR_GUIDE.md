@@ -448,9 +448,10 @@ Color variants: `text`, `muted`, `primary`, `secondary`, `tertiary`, `success`, 
 ```
 
 An icon's font face is applied as a shared style, so a bound style can retier it; this is
-how a home tile scales its glyph with its size. The rung styles `styles.tile_icon_xs` ..
-`styles.tile_icon_xl` live in `ui_xml/styles.xml`, each naming an `#icon_font_*` token
-rather than a literal face (a literal face a platform did not link renders tofu). An
+how a home tile scales its glyph with its size, through
+`<bind_tile_rung ladder="icon" subject="..."/>` (`include/ui_tile_rung.h`). Each rung
+names an `#icon_font_*` token rather than a literal face (a literal face a platform did
+not link renders tofu). An
 inline `style_text_font` attribute still outranks a bound style (see
 `LVGL9_XML_GUIDE.md` § Conditional Style Bindings).
 
@@ -815,6 +816,10 @@ You're free to rearrange the visual hierarchy, change flex directions, adjust si
 **Portrait (480x800):** Lots of vertical space, narrow width. Content stacks naturally with `flex_flow="column"`. The navbar and app shell already move to the bottom automatically (`ui_is_portrait`) — no override needed.
 
 **Tiny (480x320):** Very limited in both directions. Reduce information density, use bigger touch targets (48px minimum), show fewer labels. Hide optional elements with conditional visibility or just remove decorative content.
+
+### One tree, restyled for portrait
+
+A panel usually needs no portrait override. The print file detail view is the pattern: one widget tree, with complementary `bind_style` pairs keyed on `ui_is_portrait` carrying every restyle that is a style property (row vs column, which side grows, the button tier). The inline attribute for a restyled property must come off the widget, because an inline attribute beats a bound style and freezes one orientation. What styles cannot express (a size measured from runtime pixels) is measured in C++: `src/ui/ui_print_select_detail_view.cpp#fit_portrait_preview` reads the options column's real content height and sets the preview card's height from `include/print_detail_layout.h#decide_detail_portrait_preview`. See `ui_xml/print_file_detail.xml` for the whole shape.
 
 ### Priority panels to override
 

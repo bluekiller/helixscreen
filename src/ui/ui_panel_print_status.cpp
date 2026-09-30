@@ -583,8 +583,8 @@ void PrintStatusPanel::init_subjects() {
 
     // Initialize all subjects with default values
     // Note: Display filename is now handled by ActivePrintMediaManager via print_display_filename
-    UI_MANAGED_SUBJECT_STRING(layer_text_subject_, layer_text_buf_, "Layer 0 / 0",
-                              "print_layer_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(layer_text_subject_, layer_text_buf_, "0 / 0", "print_layer_text",
+                              subjects_);
     UI_MANAGED_SUBJECT_STRING(filament_used_text_subject_, filament_used_text_buf_, "",
                               "print_filament_used_text", subjects_);
     UI_MANAGED_SUBJECT_STRING(elapsed_subject_, elapsed_buf_, "0h 00m", "print_elapsed", subjects_);
@@ -3285,10 +3285,8 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
         spdlog::debug("[{}] Print cancelled at progress: {}%", get_name(), lifecycle_.progress());
     }
 
-    // The e-stop is the estop_fab at the panel root, bound to the estop_visible
-    // subject in XML; the header owns only the estop_slot gutter now. Nothing
-    // here touches the header's action_button: this panel never configures one,
-    // so un-hiding it renders an empty primary-colored pill.
+    // Nothing here touches the header's action_button: this panel never
+    // configures one, so un-hiding it renders an empty primary-colored pill.
 }
 
 void PrintStatusPanel::on_print_filename_changed(const char* filename) {
@@ -3337,7 +3335,8 @@ void PrintStatusPanel::update_speed_flow_text() {
         DisplaySettingsManager::instance().get_speed_flow_physical_units(),
         lifecycle_.speed_percent(), lifecycle_.flow_percent(),
         lv_subject_get_int(printer_state_.get_live_velocity_subject()),
-        lv_subject_get_int(printer_state_.get_live_extruder_velocity_subject()));
+        lv_subject_get_int(printer_state_.get_live_extruder_velocity_subject()),
+        printer_state_.get_discovery().filament_diameter_mm());
     // The extruder velocity observer fires several times a second; only a
     // changed string is worth a relabel.
     if (text.speed != speed_buf_) {

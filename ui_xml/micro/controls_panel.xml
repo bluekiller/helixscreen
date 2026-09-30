@@ -82,6 +82,7 @@
           <lv_obj name="btn_zoffset_tune"
                   width="100%" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_xs"
                   style_margin_top="#space_sm" clickable="true" scrollable="false">
+            <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_zoffset_tune"/>
             <text_muted width="content" text="Z-Off:" translation_tag="Z-Off:"/>
             <text_body bind_text="controls_z_offset" flex_grow="1" style_text_align="right"/>
@@ -134,17 +135,10 @@
                             moves_machine="true" disabled_cond="motors_enabled eq 0"/>
         </lv_obj>
       </ui_card>
-      <!-- Right section: E-Stop banner + Temps + Cooling -->
+      <!-- Right section: Temps + Cooling -->
       <lv_obj height="100%"
               flex_grow="2" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xs" style_pad_row="0"
               scrollable="false">
-        <!-- Emergency Stop Banner (conditional, compact) -->
-        <ui_button name="estop_button_controls"
-                   width="100%" height="#button_height_sm" hidden="true" variant="danger" icon="alert_octagon"
-                   text="Emergency Stop" translation_tag="Emergency Stop">
-          <bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
-          <event_cb trigger="clicked" callback="emergency_stop_clicked"/>
-        </ui_button>
         <!-- Temps + Cooling row (always visible) -->
         <lv_obj width="100%"
                 flex_grow="1" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs" scrollable="false">
@@ -164,6 +158,7 @@
             <lv_obj name="btn_nozzle_temp"
                     width="100%" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
                     style_margin_top="#space_xs" clickable="true" scrollable="false">
+              <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_nozzle_temp_clicked"/>
               <!-- Left side: animated heater icon + label -->
               <lv_obj width="content"
@@ -179,6 +174,7 @@
               <lv_obj name="nozzle_temp_edit_container"
                       width="content" height="content" flex_flow="row" style_pad_all="0" scrollable="false"
                       style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12">
+                <style name="styles.press_wash" selector="pressed"/>
                 <event_cb trigger="clicked" callback="on_nozzle_target_edit"/>
                 <icon src="pencil" size="xs" variant="tertiary" clickable="false" event_bubble="true"/>
               </lv_obj>
@@ -187,6 +183,7 @@
             <lv_obj name="btn_bed_temp"
                     width="100%" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
                     clickable="true" scrollable="false">
+              <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_bed_temp_clicked"/>
               <!-- Left side: animated bed icon + label -->
               <lv_obj width="content"
@@ -201,6 +198,7 @@
               <lv_obj name="bed_temp_edit_container"
                       width="content" height="content" flex_flow="row" style_pad_all="0" scrollable="false"
                       style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12">
+                <style name="styles.press_wash" selector="pressed"/>
                 <event_cb trigger="clicked" callback="on_bed_target_edit"/>
                 <icon src="pencil" size="xs" variant="tertiary" clickable="false" event_bubble="true"/>
               </lv_obj>
@@ -209,6 +207,7 @@
             <lv_obj name="btn_chamber_temp"
                     width="100%" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
                     hidden="true" clickable="true" scrollable="false">
+              <style name="styles.press_wash" selector="pressed"/>
               <bind_flag_if_eq subject="printer_has_chamber" flag="hidden" ref_value="0"/>
               <event_cb trigger="clicked" callback="on_chamber_temp_clicked"/>
               <!-- Left side: icon + label + temp display -->
@@ -225,6 +224,7 @@
               <lv_obj name="chamber_temp_edit_container"
                       width="content" height="content" flex_flow="row" style_pad_all="0" scrollable="false"
                       style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12">
+                <style name="styles.press_wash" selector="pressed"/>
                 <event_cb trigger="clicked" callback="on_chamber_target_edit"/>
                 <icon src="pencil" size="xs" variant="tertiary" clickable="false" event_bubble="true"/>
               </lv_obj>

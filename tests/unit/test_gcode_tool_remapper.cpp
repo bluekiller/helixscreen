@@ -263,3 +263,126 @@ TEST_CASE("near-miss tokens are left alone", "[remap][gcode][stream]") {
     CHECK(stream_remap("M104 S200\n", remap) == "M104 S200\n");
     CHECK(stream_remap("; printing T1_bracket.gcode\n", remap) == "; printing T1_bracket.gcode\n");
 }
+
+// ---------------------------------------------------------------------------
+// INITIAL_TOOL: the one start-macro parameter whose meaning is fixed by the
+// slicer's own placeholder name, so it is rewritten like a T line.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("INITIAL_TOOL is remapped on a start macro line", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}};
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START INITIAL_TOOL=0 BED_TEMP=60\n",
+                                                    remap) ==
+          "PRINT_START INITIAL_TOOL=1 BED_TEMP=60\n");
+    // Klipper params are case-insensitive, so the key is too; its spelling survives.
+    CHECK(helix::GcodeToolRemapper::apply_to_string("START_PRINT initial_tool=0\n", remap) ==
+          "START_PRINT initial_tool=1\n");
+    // Any macro carrying it, and multi-digit values.
+    CHECK(
+        helix::GcodeToolRemapper::apply_to_string("MY_START BED=60 INITIAL_TOOL=10\n", {{10, 3}}) ==
+        "MY_START BED=60 INITIAL_TOOL=3\n");
+}
+
+TEST_CASE("INITIAL_TOOL and T lines swap without chaining", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}, {1, 0}};
+    std::string in = "PRINT_START INITIAL_TOOL=0\nT0\nT1\nPRINT_START INITIAL_TOOL=1\n";
+    CHECK(helix::GcodeToolRemapper::apply_to_string(in, remap) ==
+          "PRINT_START INITIAL_TOOL=1\nT1\nT0\nPRINT_START INITIAL_TOOL=0\n");
+}
+
+TEST_CASE("INITIAL_TOOL near-misses and comments are left alone", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}};
+    for (const char* line : {
+             "PRINT_START XINITIAL_TOOL=0\n",         // longer key that ends the same way
+             "PRINT_START INITIAL_TOOL=abc\n",        // not a number
+             "PRINT_START INITIAL_TOOL=\n",           // no value
+             "; PRINT_START INITIAL_TOOL=0\n",        // comment line
+             "PRINT_START BED=60 ; INITIAL_TOOL=0\n", // comment tail
+             "PRINT_START INITIAL_TOOL=2\n",          // unmapped value, byte-identical
+         }) {
+        CAPTURE(line);
+        CHECK(helix::GcodeToolRemapper::apply_to_string(line, remap) == line);
+    }
+    // The comment tail survives a rewrite of the parameter before it.
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START INITIAL_TOOL=0 ; INITIAL_TOOL=0\n",
+                                                    remap) ==
+          "PRINT_START INITIAL_TOOL=1 ; INITIAL_TOOL=0\n");
+}
+
+// The line and the body a MedusaHC user sliced: tool 0 only, remapped to tool 1.
+static const char* const kOrcaToolchangerStart =
+    "PRINT_START INITIAL_TOOL=0 INITIAL_TEMP=230 EXTRUDER_TEMP=150 EXTRUDER1_TEMP=0 "
+    "EXTRUDER2_TEMP=0 EXTRUDER3_TEMP=0 EXTRUDER4_TEMP=0 EXTRUDER5_TEMP=0 BED_TEMP=60";
+
+TEST_CASE("a single-tool Orca job remaps both its start line and its tool change",
+          "[remap][gcode]") {
+    const std::string start = kOrcaToolchangerStart;
+    std::string in = start + "\nG90\nT0\nG1 X1\n";
+    std::string out = helix::GcodeToolRemapper::apply_to_string(in, {{0, 1}});
+    std::string expected_start = start;
+    expected_start.replace(expected_start.find("INITIAL_TOOL=0"), 14, "INITIAL_TOOL=1");
+    CHECK(out == expected_start + "\nG90\nT1\nG1 X1\n");
+}
+
+TEST_CASE("unremapped_tool_params names what the rewrite leaves on a line", "[remap][gcode]") {
+    using helix::GcodeToolRemapper;
+    using V = std::vector<std::string>;
+
+    CHECK(GcodeToolRemapper::unremapped_tool_params(kOrcaToolchangerStart) ==
+          V{"EXTRUDER_TEMP", "EXTRUDER1_TEMP", "EXTRUDER2_TEMP", "EXTRUDER3_TEMP", "EXTRUDER4_TEMP",
+            "EXTRUDER5_TEMP"});
+
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START BED_TEMP=60 CHAMBER=40").empty());
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START INITIAL_TOOL=0").empty());
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START T0_TEMP=220 T1=0 TX=4") ==
+          V{"T0_TEMP", "T1"});
+    // TOOL= is rewritten, so it is not reported; keys that merely contain TOOL are.
+    CHECK(GcodeToolRemapper::unremapped_tool_params("START_PRINT tool=2 Extruder=210") ==
+          V{"Extruder"});
+    CHECK(GcodeToolRemapper::unremapped_tool_params("START_PRINT TOOL_TEMP=220 TOOLS=3 XTOOL=1") ==
+          V{"TOOL_TEMP", "TOOLS", "XTOOL"});
+    // A bare T= names a tool (MedusaHC's own SET/MHC_SET take it) and is not rewritten.
+    CHECK(GcodeToolRemapper::unremapped_tool_params("MHC_SET T=1 BED=60") == V{"T"});
+    // A rewritten key whose value is a tool NAME is left by the rewrite, so it is reported.
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START TOOL=T0 INITIAL_TOOL=0") ==
+          V{"TOOL"});
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START initial_tool=T1") ==
+          V{"initial_tool"});
+    // Nothing after a comment, and a bare word is not a parameter.
+    CHECK(GcodeToolRemapper::unremapped_tool_params("PRINT_START BED=60 ; EXTRUDER_TEMP=200")
+              .empty());
+    CHECK(GcodeToolRemapper::unremapped_tool_params("EXTRUDER_TEMP").empty());
+}
+
+TEST_CASE("TOOL is remapped like INITIAL_TOOL", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}, {1, 0}};
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START TOOL=0 BED=60\n", remap) ==
+          "PRINT_START TOOL=1 BED=60\n");
+    CHECK(helix::GcodeToolRemapper::apply_to_string("SET_TOOL_TEMPERATURE tool=1 TARGET=200\n",
+                                                    remap) ==
+          "SET_TOOL_TEMPERATURE tool=0 TARGET=200\n");
+    // Swap does not chain, across lines or families.
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START TOOL=0\nT1\nPRINT_START TOOL=1\n",
+                                                    remap) ==
+          "PRINT_START TOOL=1\nT0\nPRINT_START TOOL=0\n");
+    // Both parameters on one line are rewritten, each from its own original value.
+    CHECK(helix::GcodeToolRemapper::apply_to_string(
+              "PRINT_START INITIAL_TOOL=0 BED=60 TOOL=1 ; TOOL=0\n", remap) ==
+          "PRINT_START INITIAL_TOOL=1 BED=60 TOOL=0 ; TOOL=0\n");
+    // Keys that only contain TOOL are someone else's convention.
+    for (const char* line :
+         {"PRINT_START XTOOL=0\n", "PRINT_START TOOLS=0\n", "PRINT_START TOOL_TEMP=0\n",
+          "PRINT_START TOOL=T0\n", "PRINT_START TOOL=0x\n"}) {
+        CAPTURE(line);
+        CHECK(helix::GcodeToolRemapper::apply_to_string(line, remap) == line);
+    }
+}
+
+TEST_CASE("tool parameters are rewritten across CRLF and tab separators", "[remap][gcode]") {
+    std::map<int, int> remap = {{0, 1}};
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START TOOL=0\r\nT0\r\n", remap) ==
+          "PRINT_START TOOL=1\r\nT1\r\n");
+    CHECK(helix::GcodeToolRemapper::apply_to_string("PRINT_START\tINITIAL_TOOL=0\tBED=60\tTOOL=0\n",
+                                                    remap) ==
+          "PRINT_START\tINITIAL_TOOL=1\tBED=60\tTOOL=1\n");
+}

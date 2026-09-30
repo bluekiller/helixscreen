@@ -704,7 +704,7 @@ Select which printer the mock Moonraker client impersonates. Drives the mock's r
 
 | Property | Value |
 |----------|-------|
-| **Values** | `voron_24`, `voron_trident`, `k1`, `k1max`, `ad5m`, `creator5`, `creator5_zmod`, `generic_corexy`, `generic_bedslinger`, `multi_extruder`, `delta` |
+| **Values** | `voron_24`, `voron_trident`, `k1`, `k1max`, `snapmaker_u1`, `ad5m`, `creator5`, `creator5_zmod`, `generic_corexy`, `generic_bedslinger`, `multi_extruder`, `delta` |
 | **Default** | `voron_24` (Voron 2.4) |
 | **File** | `src/application/moonraker_manager.cpp` |
 
@@ -714,6 +714,9 @@ HELIX_MOCK_PRINTER=ad5m ./build/bin/helix-screen --test -vv
 
 # Multi-extruder mock
 HELIX_MOCK_PRINTER=multi_extruder ./build/bin/helix-screen --test -vv
+
+# Snapmaker U1: multi-extruder mock with the U1's four pre-print options
+HELIX_MOCK_PRINTER=snapmaker_u1 ./build/bin/helix-screen --test -vv
 
 # Linear delta: reports kinematics=delta, so per-axis homing is hidden
 HELIX_MOCK_PRINTER=delta ./build/bin/helix-screen --test -vv

@@ -3237,9 +3237,23 @@ std::vector<int> AmsBackendAd5xIfs::get_tool_mapping() const {
     return result;
 }
 
-AmsError AmsBackendAd5xIfs::set_tool_mapping_impl(int tool_number, int slot_index) {
+AmsError AmsBackendAd5xIfs::can_set_tool_mapping(int tool_number, int slot_index) const {
     if (tool_number < 0 || tool_number >= TOOL_MAP_SIZE) {
         return AmsErrorHelper::invalid_parameter("Invalid tool number");
+    }
+    bool wire_backed = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        wire_backed = ifs_tool_map_live_;
+    }
+    // Only the Forge-X wire rejects a lane; the plugin table takes any slot and
+    // stores an out-of-range one as unmapped.
+    return wire_backed ? validate_slot_index(slot_index) : AmsErrorHelper::success();
+}
+
+AmsError AmsBackendAd5xIfs::set_tool_mapping_impl(int tool_number, int slot_index) {
+    if (auto err = can_set_tool_mapping(tool_number, slot_index); !err.success()) {
+        return err;
     }
 
     bool wire_backed = false;
@@ -3261,9 +3275,6 @@ AmsError AmsBackendAd5xIfs::set_tool_mapping_impl(int tool_number, int slot_inde
     // structural error, not a verb to send. Takes precedence when both
     // contracts are detected (parse_ifs_tool_map_locked logs that case).
     if (wire_backed) {
-        if (auto err = validate_slot_index(slot_index); !err.success()) {
-            return err;
-        }
         std::string verb = "IFS_MAP_TOOL TOOL=" + std::to_string(tool_number) + " SLOT=";
         verb += std::to_string(slot_index + 1); // DISPLAY_NUMBERING_OK: gcode wire, not a label
         return execute_gcode(verb);

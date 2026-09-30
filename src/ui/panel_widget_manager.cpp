@@ -207,7 +207,10 @@ void PanelWidgetManager::register_rebuild_callback(const std::string& panel_id,
 }
 
 void PanelWidgetManager::unregister_rebuild_callback(const std::string& panel_id) {
-    rebuild_callbacks_.erase(panel_id);
+    if (s_destroyed_) {
+        return;
+    }
+    instance().rebuild_callbacks_.erase(panel_id);
 }
 
 void PanelWidgetManager::notify_config_changed(const std::string& panel_id) {
@@ -1105,6 +1108,11 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
         };
         std::unordered_set<std::pair<int, int>, TrackHash> merged_tracks;
         std::unordered_set<std::pair<int, int>, TrackHash> occupied_by_own_card;
+        // Footprints of the merging widgets, so no card piece ends inside one.
+        struct TrackRect {
+            int col, row, colspan, rowspan;
+        };
+        std::vector<TrackRect> merged_footprints;
 
         // Where each widget ACTUALLY landed, which is not always where its entry
         // asks for. Auto-placement and span reduction both move a widget without
@@ -1164,7 +1172,12 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
             // a widget that opts out blocks merges through the tracks it
             // touches and is on its own for a background.
             const auto* def = find_widget_def(entry.id);
-            auto& covered = (def && def->merges_into_card) ? merged_tracks : occupied_by_own_card;
+            const bool merges = def && def->merges_into_card;
+            auto& covered = merges ? merged_tracks : occupied_by_own_card;
+            if (merges) {
+                merged_footprints.push_back(
+                    {fitted.col, fitted.row, fitted.colspan, fitted.rowspan});
+            }
             for (int r = fitted.row; r < fitted.row + fitted.rowspan; r++) {
                 for (int c = fitted.col; c < fitted.col + fitted.colspan; c++) {
                     covered.insert({c, r});
@@ -1248,26 +1261,56 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
                 int start_col = top_left.first;
                 int start_row = top_left.second;
 
-                int end_col = start_col;
-                while (remaining.count({end_col + 1, start_row})) {
-                    end_col++;
+                int max_end_col = start_col;
+                while (remaining.count({max_end_col + 1, start_row})) {
+                    max_end_col++;
                 }
 
-                // Extend down only while every column in the run is present, so
-                // the result is always a full rectangle.
-                int end_row = start_row;
-                for (;;) {
-                    bool can_extend = true;
-                    for (int c = start_col; c <= end_col; c++) {
-                        if (!remaining.count({c, end_row + 1})) {
-                            can_extend = false;
-                            break;
+                // A piece that ends partway through a widget draws that widget
+                // across two cards with a seam through it, so every widget the
+                // piece touches must lie wholly inside it.
+                auto cuts_a_widget = [&](int c0, int r0, int c1, int r1) {
+                    for (const auto& w : merged_footprints) {
+                        const int w_c1 = w.col + w.colspan - 1;
+                        const int w_r1 = w.row + w.rowspan - 1;
+                        const bool touches = w.col <= c1 && c0 <= w_c1 && w.row <= r1 && r0 <= w_r1;
+                        const bool inside = c0 <= w.col && w_c1 <= c1 && r0 <= w.row && w_r1 <= r1;
+                        if (touches && !inside) {
+                            return true;
                         }
                     }
-                    if (!can_extend) {
+                    return false;
+                };
+
+                // Widest run first, then as tall as it extends as a full
+                // rectangle, backing off until no widget is cut. The widget (or
+                // bare gap track) at the top-left always qualifies on its own,
+                // because pieces never take part of a widget, so this ends.
+                int end_col = start_col;
+                int end_row = start_row;
+                for (int c1 = max_end_col; c1 >= start_col; c1--) {
+                    int r1 = start_row;
+                    for (;;) {
+                        bool can_extend = true;
+                        for (int c = start_col; c <= c1; c++) {
+                            if (!remaining.count({c, r1 + 1})) {
+                                can_extend = false;
+                                break;
+                            }
+                        }
+                        if (!can_extend) {
+                            break;
+                        }
+                        r1++;
+                    }
+                    while (r1 >= start_row && cuts_a_widget(start_col, start_row, c1, r1)) {
+                        r1--;
+                    }
+                    if (r1 >= start_row) {
+                        end_col = c1;
+                        end_row = r1;
                         break;
                     }
-                    end_row++;
                 }
 
                 for (int r = start_row; r <= end_row; r++) {
@@ -1670,22 +1713,26 @@ void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
 }
 
 void PanelWidgetManager::clear_gate_observers(const std::string& panel_id) {
-    auto it = gate_observers_.find(panel_id);
-    if (it != gate_observers_.end()) {
+    if (s_destroyed_) {
+        return;
+    }
+    PanelWidgetManager& mgr = instance();
+    auto it = mgr.gate_observers_.find(panel_id);
+    if (it != mgr.gate_observers_.end()) {
         spdlog::debug("[PanelWidgetManager] Clearing {} gate observers for panel '{}'",
                       it->second.size(), panel_id);
-        gate_observers_.erase(it);
+        mgr.gate_observers_.erase(it);
     }
     // Cancel any in-flight async rebuild *before* destroying the slot it
     // points at. Without this, a rebuild queued via lv_async_call could fire
     // after the slot's storage is freed → UAF on ud / on the captured
     // rebuild_cb (which closes over the registering panel's `this`).
-    auto sit = gate_rebuild_slots_.find(panel_id);
-    if (sit != gate_rebuild_slots_.end()) {
+    auto sit = mgr.gate_rebuild_slots_.find(panel_id);
+    if (sit != mgr.gate_rebuild_slots_.end()) {
         lv_async_call_cancel(&PanelWidgetManager::gate_rebuild_trampoline, &sit->second);
-        gate_rebuild_slots_.erase(sit);
+        mgr.gate_rebuild_slots_.erase(sit);
     }
-    gate_rebuild_callbacks_.erase(panel_id);
+    mgr.gate_rebuild_callbacks_.erase(panel_id);
 }
 
 void PanelWidgetManager::gate_rebuild_trampoline(void* ud) {

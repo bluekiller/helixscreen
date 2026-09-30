@@ -71,6 +71,9 @@ class PrinterHardwareValidationState {
      */
     void remove_hardware_issue(const std::string& hardware_name);
 
+    /// Re-format the status texts in the current language.
+    void refresh_texts();
+
     // ========================================================================
     // Subject accessors
     // ========================================================================
@@ -183,11 +186,12 @@ class PrinterHardwareValidationState {
 
     // Stored validation result for UI access
     HardwareValidationResult hardware_validation_result_;
+    bool has_result_ = false; ///< Before the first result the texts keep their defaults
 
     // String buffers for subject storage
     char hardware_status_title_buf_[64]{};
     char hardware_status_detail_buf_[128]{};
-    char hardware_issues_label_buf_[48]{}; // "1 Hardware Issue" / "5 Hardware Issues"
+    char hardware_issues_label_buf_[96]{}; // "1 Hardware Issue" / "5 Hardware Issues"
 };
 
 } // namespace helix

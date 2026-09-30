@@ -16,7 +16,9 @@
 #include "ui_print_select_usb_source.h"
 #include "ui_print_start_controller.h"
 
+#include "ams_backend.h"
 #include "async_lifetime_guard.h"
+#include "gcode_ops_detector.h"
 #include "helix_plugin_installer.h"
 #include "in_flight_guard.h"
 #include "print_file_data.h"
@@ -230,6 +232,12 @@ class PrintSelectPanel : public PanelBase {
      *       Widget tree is cleaned up by LVGL.
      */
     ~PrintSelectPanel() override;
+
+    /// The Filament Mapping dialog's warning for a file's start line, or empty.
+    /// @param start The line scanned from the file being remapped, or nullptr.
+    [[nodiscard]] static std::string
+    start_macro_remap_note(helix::AmsBackend::RemapStrategy strategy,
+                           const helix::gcode::PrintStartCallInfo* start);
 
     //
     // === PanelBase Implementation ===
@@ -805,6 +813,7 @@ class PrintSelectPanel : public PanelBase {
         print_in_progress_observer_; ///< Observes workflow in-progress for immediate disable
     ObserverGuard print_lifecycle_observer_; ///< Observes the lifecycle the button decision reads
     ObserverGuard helix_plugin_observer_;    ///< Observes plugin status for install prompt
+    ObserverGuard language_observer_;        ///< Re-formats card metadata on a switch
 
     /// Observer for PrintHistoryManager - updates file status when history changes
     helix::HistoryChangedCallback history_observer_;

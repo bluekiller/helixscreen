@@ -9,6 +9,7 @@
 #include "ui_pin_entry_modal.h"
 
 #include "ui_callback_helpers.h"
+#include "ui_effects.h"
 #include "ui_event_safety.h"
 #include "ui_pin_utils.h"
 #include "ui_utils.h"
@@ -92,7 +93,7 @@ void PinEntryModal::create() {
     lv_obj_set_style_radius(backdrop_, 0, 0);
     lv_obj_add_flag(backdrop_, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(backdrop_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_move_foreground(backdrop_);
+    helix::ui::bring_to_front(backdrop_);
 
     // Create the dialog from XML component
     dialog_ = static_cast<lv_obj_t*>(lv_xml_create(backdrop_, "pin_entry_modal", nullptr));

@@ -94,15 +94,23 @@ use_sandbox_dirs() {
         fail "the tree left behind was forgotten: '$MIGRATE_FROM_DIR'"
 }
 
-@test "an explicit INSTALL_DIR outranks the migration" {
+@test "an INSTALL_DIR the platform ignores does not stop the migration" {
+    # k2 installs at its own root whatever INSTALL_DIR says, so the override
+    # must not leave the /opt tree behind unmigrated (prestonbrown/helixscreen#1674).
     use_sandbox_dirs
-    seed_install /opt/helixscreen >/dev/null
-    _USER_INSTALL_DIR="$FAKE_ROOT/somewhere/helixscreen"
-    INSTALL_DIR="$_USER_INSTALL_DIR"
+    local old user_dir
+    old="$(seed_install /opt/helixscreen)"
+    for user_dir in "$FAKE_ROOT/somewhere/helixscreen" /mnt/UDISK/helixscreen; do
+        _USER_INSTALL_DIR="$user_dir"
+        INSTALL_DIR="$user_dir"
 
-    set_install_paths k2
+        set_install_paths k2
 
-    [ -z "$MIGRATE_FROM_DIR" ] || fail "overrode a deliberate INSTALL_DIR"
+        [ "$INSTALL_DIR" = "/mnt/UDISK/helixscreen" ] || \
+            fail "INSTALL_DIR=$user_dir landed at '$INSTALL_DIR'"
+        [ "$MIGRATE_FROM_DIR" = "$old" ] || \
+            fail "INSTALL_DIR=$user_dir left MIGRATE_FROM_DIR '$MIGRATE_FROM_DIR'"
+    done
 }
 
 @test "a platform declaring no superseded root never migrates" {

@@ -722,22 +722,22 @@ void HistoryDashboardPanel::update_trend_chart(const std::vector<PrintHistoryJob
     double now = static_cast<double>(std::time(nullptr));
 
     // Update period label text via subject (binding will update UI automatically)
-    const char* period_text = "Last 7 days";
+    const char* period_text = lv_tr("Last 7 days");
     switch (current_filter_) {
     case HistoryTimeFilter::DAY:
-        period_text = "Last 24 hours";
+        period_text = lv_tr("Last 24 hours");
         break;
     case HistoryTimeFilter::WEEK:
-        period_text = "Last 7 days";
+        period_text = lv_tr("Last 7 days");
         break;
     case HistoryTimeFilter::MONTH:
-        period_text = "Last 30 days";
+        period_text = lv_tr("Last 30 days");
         break;
     case HistoryTimeFilter::YEAR:
-        period_text = "Last 12 months";
+        period_text = lv_tr("Last 12 months");
         break;
     case HistoryTimeFilter::ALL_TIME:
-        period_text = "All time";
+        period_text = lv_tr("All time");
         break;
     }
     lv_subject_copy_string(&trend_period_subject_, period_text);

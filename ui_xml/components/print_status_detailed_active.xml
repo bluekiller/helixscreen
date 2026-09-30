@@ -80,6 +80,7 @@
         <lv_obj name="detailed_nozzle_click_target"
                 width="content" height="content" style_pad_all="0" flex_flow="row" style_pad_gap="#space_xs"
                 style_flex_cross_place="center" scrollable="false" clickable="true" event_bubble="false">
+          <style name="styles.press_wash" selector="pressed"/>
           <event_cb trigger="clicked" callback="print_status_nozzle_chevron_cb"/>
           <text_tiny bind_text="print_status_nozzle_tool_label" clickable="false" event_bubble="true">
             <bind_flag_if_eq subject="print_status_multi_tool" flag="hidden" ref_value="0"/>

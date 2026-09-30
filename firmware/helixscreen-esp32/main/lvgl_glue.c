@@ -3,7 +3,9 @@
 
 #include "app_boot.h"
 #include "board_display.h"
+#include "esp_async_memcpy.h"
 #include "esp_attr.h"
+#include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_rgb.h"
 #include "esp_log.h"
@@ -72,7 +74,7 @@ static void (*s_ui_tick)(void);
 
 // Two-hop staging band, INTERNAL DRAM. UI_BAND_LINES full-width rows (mirrors
 // the 10-line RGB bounce granularity). Allocated at display init AFTER the two
-// boot heap gates (48KB UI stack, 32KB bounce) have already passed, so it can't
+// boot heap gates (40KB UI stack, 32KB bounce) have already passed, so it can't
 // threaten them; a failed alloc falls back to the direct PSRAM->PSRAM blit.
 // Drop to 8 lines if internal DRAM proves tight.
 #define UI_BAND_LINES 10
@@ -80,6 +82,12 @@ static void (*s_ui_tick)(void);
 
 static uint8_t* s_shadow; // full-frame PSRAM shadow (LVGL chunks land here)
 static uint8_t* s_band;   // internal-DRAM two-hop staging band (NULL => direct blit)
+// GDMA copy of shadow bands straight into the scan-out FB. A CPU copy between two
+// PSRAM buffers thrashes the shared cache and runs slower than the scan; the DMA
+// path bypasses the cache. NULL => the two-hop CPU copy below.
+static async_memcpy_handle_t s_dma;
+static uint8_t* s_fb;
+static SemaphoreHandle_t s_dma_done;
 static SemaphoreHandle_t s_shadow_lock;
 // The UI thread, suspended by the presenter for the length of each copy: a panel
 // build's PSRAM traffic otherwise slows the copy enough for the next frame's
@@ -155,7 +163,7 @@ static bool on_frame_buf_complete(esp_lcd_panel_handle_t panel,
 // into these). Static (link-time reserved, no runtime fragmentation lottery).
 // Internal (not PSRAM) so LVGL's blends don't contend with scan-out. 12-line
 // pair (2x19.2KB) double-buffers render N+1 while N is staged, at half the
-// internal cost of the 24-line pair — the 48KB UI stack and 32KB RGB bounce DMA
+// internal cost of the 24-line pair — the 40KB UI stack and 32KB RGB bounce DMA
 // must still find contiguous internal blocks (see the boot heap-gate logs).
 /* One 24-line buffer instead of the earlier 12-line double-buffer pair — SAME
  * 38.4KB internal total. Rationale: every chunk re-walks the widget tree and
@@ -169,11 +177,13 @@ static bool on_frame_buf_complete(esp_lcd_panel_handle_t panel,
 #define UI_DRAW_BUF_BYTES (BOARD_LCD_H_RES * UI_DRAW_BUF_LINES * (int)FB_BPP)
 LV_ATTRIBUTE_MEM_ALIGN static uint8_t s_draw_buf1[UI_DRAW_BUF_BYTES];
 
-// XML/expat parsing recurses deeply during component registration and layout;
-// the audit ran the full app slice on a 32KB pthread stack. 48KB gives margin
-// for the real bring-up + panel construction. Kept INTERNAL (not PSRAM) — the
-// UI thread does settings→flash writes, which cannot run from a PSRAM stack.
-#define UI_THREAD_STACK_BYTES (48 * 1024)
+// XML/expat parsing recurses deeply during component registration and layout.
+// Boot, the home page and the controls, filament and settings builds peak at
+// ~15KB, so 40KB keeps ~25KB of margin; internal RAM is the scarce resource
+// (the WebSocket task needs an 8KB block while WiFi is associating). Kept
+// INTERNAL (not PSRAM) — the UI thread does settings→flash writes, which cannot
+// run from a PSRAM stack.
+#define UI_THREAD_STACK_BYTES (40 * 1024)
 // Presenter: tiny body (union read + banded blit). 4KB internal stack, high
 // priority so it preempts to blit at the vsync boundary. No affinity — the
 // external-RAM cache is shared across cores, so shadow reads are coherent
@@ -299,6 +309,32 @@ static int64_t scan_read_us(int64_t vsync_us, int32_t y, int32_t frame, int32_t 
                100;
 }
 
+static bool dma_done_cb(async_memcpy_handle_t mcp, async_memcpy_event_t* event, void* arg) {
+    (void)mcp;
+    (void)event;
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR((SemaphoreHandle_t)arg, &woken);
+    return woken == pdTRUE;
+}
+
+// Copy shadow rows [by, by+bh) into the FB by DMA. The shadow is written through
+// the cache by flush_cb, so its lines are written back first; the bounce ISR
+// reads the FB through the cache, so the rows just written are invalidated after.
+static bool dma_copy_band(int32_t by, int32_t bh) {
+    uint8_t* src = s_shadow + (size_t)by * FB_STRIDE;
+    uint8_t* dst = s_fb + (size_t)by * FB_STRIDE;
+    size_t n = (size_t)bh * FB_STRIDE;
+    esp_cache_msync(src, n, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    if (esp_async_memcpy(s_dma, dst, src, n, dma_done_cb, s_dma_done) != ESP_OK) {
+        return false;
+    }
+    if (xSemaphoreTake(s_dma_done, pdMS_TO_TICKS(50)) != pdTRUE) {
+        return false;
+    }
+    esp_cache_msync(dst, n, ESP_CACHE_MSYNC_FLAG_DIR_M2C | ESP_CACHE_MSYNC_FLAG_INVALIDATE);
+    return true;
+}
+
 // Blit shadow rows [y1, y2] (full width) to the FB. Two-hop through the internal
 // band buffer when available (see the s_band comment); direct otherwise.
 static void present_blit(int32_t y1, int32_t y2) {
@@ -328,10 +364,12 @@ static void present_blit(int32_t y1, int32_t y2) {
             }
             while (esp_timer_get_time() < start_after) {
             }
-            // hop 1: shadow(PSRAM) -> internal band (sequential read)
-            memcpy(s_band, s_shadow + (size_t)by * FB_STRIDE, (size_t)bh * FB_STRIDE);
-            // hop 2: internal band -> FB(PSRAM) (cache-buffered write)
-            esp_lcd_panel_draw_bitmap(s_panel, 0, by, BOARD_LCD_H_RES, by + bh, s_band);
+            if (!s_dma || !dma_copy_band(by, bh)) {
+                // hop 1: shadow(PSRAM) -> internal band (sequential read)
+                memcpy(s_band, s_shadow + (size_t)by * FB_STRIDE, (size_t)bh * FB_STRIDE);
+                // hop 2: internal band -> FB(PSRAM) (cache-buffered write)
+                esp_lcd_panel_draw_bitmap(s_panel, 0, by, BOARD_LCD_H_RES, by + bh, s_band);
+            }
             const int64_t over =
                 esp_timer_get_time() - scan_read_us(vsync_us, by, 1, READ_LEAD_MAX);
             if (over > late_us) {
@@ -447,13 +485,27 @@ static void* ui_thread_main(void* arg) {
     s_shadow_lock = xSemaphoreCreateMutex();
 
     // Two-hop blit staging band (INTERNAL DRAM). Allocated HERE — after the boot
-    // heap gates (48KB UI stack, 32KB bounce) have already passed — so it cannot
+    // heap gates (40KB UI stack, 32KB bounce) have already passed — so it cannot
     // push them over. Non-fatal: on failure present_blit falls back to the direct
     // PSRAM->PSRAM blit (slower, but correct).
     s_band = heap_caps_aligned_alloc(16, UI_BAND_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!s_band) {
         ESP_LOGW(TAG, "no internal for %uB band; direct blit (largest=%u)", (unsigned)UI_BAND_BYTES,
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    }
+
+    void* fb = NULL;
+    if (esp_lcd_rgb_panel_get_frame_buffer(s_panel, 1, &fb) == ESP_OK && fb) {
+        async_memcpy_config_t mcfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
+        mcfg.backlog = 2;
+        mcfg.dma_burst_size = 64;
+        s_dma_done = xSemaphoreCreateBinary();
+        if (s_dma_done && esp_async_memcpy_install_gdma_ahb(&mcfg, &s_dma) == ESP_OK) {
+            s_fb = (uint8_t*)fb;
+        } else {
+            s_dma = NULL;
+            ESP_LOGW(TAG, "async memcpy unavailable; CPU blit");
+        }
     }
 
     lv_display_t* disp = lv_display_create(BOARD_LCD_H_RES, BOARD_LCD_V_RES);
@@ -548,8 +600,8 @@ void lvgl_glue_start(void (*ui_build)(void), void (*ui_tick)(void)) {
         ESP_LOGE(TAG, "esp_pthread_set_cfg failed: %s", esp_err_to_name(cfg_err));
     }
 
-    // Allocation gate #1 (one-shot, every boot): the 48KB UI stack must fit in
-    // `largest`. Below ~48KB, pthread_create fails with ENOMEM (errno 12). The
+    // Allocation gate #1 (one-shot, every boot): the UI stack must fit in
+    // `largest`, or pthread_create fails with ENOMEM (errno 12). The
     // matching gate #2 (RGB bounce DMA) logs inside board_display_init.
     ESP_LOGI(TAG, "heap before pthread: free=%u largest=%u need=%u",
              heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

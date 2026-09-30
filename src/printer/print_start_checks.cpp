@@ -592,8 +592,9 @@ std::optional<std::pair<float, float>> insufficient_spool_weight_in(const PrintS
         // Fall back to length-based estimate using the spool's material.
         auto mat = filament::find_material(spool->material);
         if (mat.has_value() && mat->density_g_cm3 > 0.0f) {
-            needed_g = filament::length_to_weight_g(
-                static_cast<float>(ctx.metadata->filament_total), mat->density_g_cm3, 1.75f);
+            needed_g =
+                filament::length_to_weight_g(static_cast<float>(ctx.metadata->filament_total),
+                                             mat->density_g_cm3, ctx.filament_diameter_mm);
         }
     }
     if (needed_g > 0.0f && needed_g > spool->remaining_weight_g) {

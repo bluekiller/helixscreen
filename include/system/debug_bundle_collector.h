@@ -2,6 +2,7 @@
 #pragma once
 
 #include "system/diagnostics.h"
+#include "system/host_census.h"
 #include "touch_calibration.h"
 
 #include <cstdint>
@@ -109,9 +110,12 @@ class DebugBundleCollector {
 
     /// Individual collectors (public for testing)
     /// A projection of the caller's Diagnostics onto the legacy `system` keys
-    /// (scripts/debug-bundle.sh --summary/--pretty read them); pure, so the
-    /// projection is testable against a synthetic snapshot.
-    static nlohmann::json collect_system_info(const diagnostics::Diagnostics& diag);
+    /// (scripts/debug-bundle.sh --summary/--pretty read them), plus the host
+    /// census: distro, failed units and display-contending processes, every
+    /// string through sanitize_value(). Pure, so both are testable against a
+    /// synthetic snapshot.
+    static nlohmann::json collect_system_info(const diagnostics::Diagnostics& diag,
+                                              const helix::diag::HostCensus& census);
 
     /**
      * @brief The resolved paths, identity, machine and log facts.

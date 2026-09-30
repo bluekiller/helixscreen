@@ -12,6 +12,7 @@
 #include "gcode_parser.h"
 #include "macro_param_cache.h"
 #include "mock_persona.h"
+#include "mock_planted_gcodes.h"
 #include "moonraker_client_mock_internal.h"
 #include "power_device_state.h"
 #include "printer_state.h"
@@ -4280,7 +4281,7 @@ bool MoonrakerClientMock::start_print_internal(const std::string& filename) {
         full_path = lookup_filename;
     } else {
         // Bare filename, prepend test directory
-        full_path = std::string(RuntimeConfig::TEST_GCODE_DIR) + "/" + lookup_filename;
+        full_path = helix::mock::gcode_disk_path(lookup_filename);
     }
 
     // Extract metadata from G-code file
@@ -5769,6 +5770,15 @@ void MoonrakerClientMock::temperature_simulation_loop() {
             filament_total_mm = print_metadata_.filament_mm;
         }
         double filament_used = (filament_total_mm > 0) ? progress * filament_total_mm : 0.0;
+
+        // A console line per layer while printing, so the console has live
+        // output to show in --test.
+        if (print_state_str == "printing" && current_layer > 0 &&
+            current_layer != last_console_layer_) {
+            last_console_layer_ = current_layer;
+            dispatch_gcode_response("// Layer " + std::to_string(current_layer) + "/" +
+                                    std::to_string(total_layers));
+        }
 
         // Get Z offset for gcode_move
         double z_offset = gcode_offset_z_.load();

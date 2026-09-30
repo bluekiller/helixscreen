@@ -16,10 +16,11 @@
 
 namespace helix {
 
-/// Rungs on the icon ladder: xs, sm, md, lg, xl. The same index selects the
-/// value and label faces the tile pairs with that rung, so one number drives
-/// every face on the tile and the ladders cannot drift apart.
-inline constexpr int kTileRungs = 5;
+/// Rungs on the icon ladder: xs, sm, md, lg, xl, and xxl above the tier's
+/// authored faces. The same index selects the value and label faces the tile
+/// pairs with that rung, so one number drives every face on the tile and the
+/// ladders cannot drift apart.
+inline constexpr int kTileRungs = 6;
 
 enum class TileDirection : int {
     Column = 0, ///< icon above the value
@@ -94,11 +95,19 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
 /**
  * @brief Pick the rung, direction and content a tile can draw at this size
  *
- * Content is surrendered in a fixed order, and only when nothing at any rung
- * can keep it: the target half first, then the label. Within each step the
- * largest rung that fits wins, so a tile grows its glyph rather than its text.
+ * Down to @p authored_rung, content is surrendered in a fixed order and only
+ * when nothing at those rungs can keep it: the target half first, then the
+ * label. Within each step the largest rung that fits wins, so a roomy tile
+ * grows its glyph and keeps its text. Below the authored rung the glyph is what
+ * gives way last: a tile drops its text before it shrinks the icon every other
+ * tile draws at, and only a box that cannot hold that icon at all shrinks it.
  * Column is preferred and Row is the fallback for a box too short to stack, so
  * direction follows fit rather than aspect ratio.
+ *
+ * A label that is the tile's identity (which fan, which sensor: the only thing
+ * telling two such tiles apart) is surrendered last instead: the glyph shrinks
+ * all the way down with the label kept, and only a box that cannot hold the
+ * label at the smallest rung drops it.
  *
  * `fits` is false only when even the smallest rung, with everything optional
  * surrendered, cannot draw the icon and the widest value. It is MONOTONIC in
@@ -111,10 +120,14 @@ inline bool tile_candidate_fits(const TileRungMetrics& m, TileDirection dir, Til
  * @param rungs          measured metrics, one per rung, smallest first
  * @param has_value      false for a tile that shows only an icon and a label
  * @param labels_enabled the user setting; size may hide a label, never show one
+ * @param authored_rung  the rung the tier draws a tile's icon at by default
+ * @param row_inset      width a row gives to its side insets, which a column does not
+ * @param label_is_identity the label says which tile this is, so it outlasts the glyph
  */
 inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
                                       const TileRungMetrics rungs[kTileRungs], bool has_value,
-                                      bool labels_enabled) {
+                                      bool labels_enabled, int authored_rung = 0, int row_inset = 0,
+                                      bool label_is_identity = false) {
     using detail::TileCandidate;
 
     // Ordered by what the tile gives up, most complete first. A tile that has
@@ -126,30 +139,66 @@ inline TileVerdict decide_tile_layout(int avail_w, int avail_h, int gap_px,
     const int candidate_count = labels_enabled ? 3 : 2;
 
     const TileDirection directions[] = {TileDirection::Column, TileDirection::Row};
+    const int floor_rung = std::clamp(authored_rung, 0, kTileRungs - 1);
+    auto width_for = [&](TileDirection dir) {
+        return dir == TileDirection::Row ? avail_w - row_inset : avail_w;
+    };
 
-    for (int c = 0; c < candidate_count; ++c) {
-        for (TileDirection dir : directions) {
-            for (int r = kTileRungs - 1; r >= 0; --r) {
-                if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value, avail_w,
-                                                avail_h, gap_px)) {
-                    TileVerdict v;
-                    v.icon_rung = r;
-                    v.label = candidates[c].label ? TileLabelRung::Label : TileLabelRung::None;
-                    v.direction = dir;
-                    v.show_target = has_value && candidates[c].target;
-                    v.fits = true;
-                    return v;
+    auto verdict_for = [&](int r, int c, TileDirection dir) {
+        TileVerdict v;
+        v.icon_rung = r;
+        v.label = candidates[c].label ? TileLabelRung::Label : TileLabelRung::None;
+        v.direction = dir;
+        v.show_target = has_value && candidates[c].target;
+        v.fits = true;
+        return v;
+    };
+
+    // Candidates [first, last) are tried over every rung before any later one:
+    // an identity label splits them into those that keep it (a prefix, by the
+    // order above) and those that do not, everything else is one group.
+    int kept = candidate_count;
+    if (label_is_identity) {
+        kept = 0;
+        while (kept < candidate_count && candidates[kept].label) {
+            ++kept;
+        }
+    }
+    const int groups[][2] = {{0, kept}, {kept, candidate_count}};
+    for (const auto& [first, last] : groups) {
+        // At or above the authored rung: keep content, grow the glyph into room.
+        for (int c = first; c < last; ++c) {
+            for (TileDirection dir : directions) {
+                for (int r = kTileRungs - 1; r >= floor_rung; --r) {
+                    if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
+                                                    width_for(dir), avail_h, gap_px)) {
+                        return verdict_for(r, c, dir);
+                    }
+                }
+            }
+        }
+        // Below it: the glyph shrinks one rung at a time, keeping what content fits.
+        for (int r = floor_rung - 1; r >= 0; --r) {
+            for (int c = first; c < last; ++c) {
+                for (TileDirection dir : directions) {
+                    if (detail::tile_candidate_fits(rungs[r], dir, candidates[c], has_value,
+                                                    width_for(dir), avail_h, gap_px)) {
+                        return verdict_for(r, c, dir);
+                    }
                 }
             }
         }
     }
 
     // Nothing draws here. Report the most forgiving arrangement so a caller
-    // that renders anyway clips as little as possible.
+    // that renders anyway clips as little as possible: the smallest glyph,
+    // stacked along whichever axis the box has more of once a row's inset is
+    // paid.
     TileVerdict v;
     v.icon_rung = 0;
     v.label = TileLabelRung::None;
-    v.direction = TileDirection::Row;
+    v.direction =
+        avail_h >= width_for(TileDirection::Row) ? TileDirection::Column : TileDirection::Row;
     v.show_target = false;
     v.fits = false;
     return v;

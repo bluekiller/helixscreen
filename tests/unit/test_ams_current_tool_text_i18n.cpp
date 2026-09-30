@@ -68,6 +68,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "ams_current_tool_text survives a long transla
     // loudly, so byte-for-byte equality is the only check that catches it.
     const std::string round_tripped(lv_subject_get_string(ams.get_current_tool_text_subject()));
     CHECK(round_tripped == label);
+
+    lv_subject_copy_string(ams.get_current_tool_text_subject(), "---");
 }
 
 TEST_CASE_METHOD(LVGLTestFixture,
@@ -170,6 +172,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "clog_meter_mode_text holds the longest transl
     // resized buffer from the original.
     REQUIRE(mode.size() >= 24);
     CHECK(mode == "Засор: вручную");
+
+    // The clog meter subjects are the singleton's, read by later tests.
+    AmsStateTestAccess::sync_clog_meter(ams, AmsSystemInfo{});
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "clog_meter endpoint labels hold СПУТЫВАНИЕ whole",
@@ -190,4 +195,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "clog_meter endpoint labels hold СПУТЫВ�
     const std::string left(lv_subject_get_string(ams.get_clog_meter_label_left_subject()));
     REQUIRE(left.size() > 16); // otherwise this test cannot distinguish old from new
     CHECK(left == "СПУТЫВАНИЕ");
+
+    AmsStateTestAccess::sync_clog_meter(ams, AmsSystemInfo{});
 }

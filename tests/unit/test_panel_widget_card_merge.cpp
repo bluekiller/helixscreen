@@ -31,6 +31,7 @@
 #include "panel_widget_registry.h"
 #include "theme_manager.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -271,4 +272,58 @@ TEST_CASE_METHOD(XMLTestFixture, "Card merge: a widget 1.5 cells wide gets a car
     size_t cards =
         check_card_containment("test_card_merge_odd_span", widgets, {"clock"}, test_screen());
     CHECK(cards == 1);
+}
+
+// A merging widget two cells tall beside a one-cell readout row, with a
+// widget that paints its own card below that row: the home layout of a
+// console tile at 2x2. The carve-out below the readout row stops the first
+// piece at the row boundary, and that boundary runs through the tall widget,
+// so the piece must not end there with the widget half inside it.
+TEST_CASE_METHOD(XMLTestFixture, "Card merge: a tall widget beside a short row is never split",
+                 "[manager][card_merge]") {
+    helix::init_widget_registrations();
+    lv_xml_register_component_from_data(
+        "test_card_merge_stub",
+        "<component><view extends=\"lv_obj\" width=\"100%\" height=\"100%\"/></component>");
+    REQUIRE(theme_manager_get_spacing("space_xs") > 0);
+
+    const std::vector<std::string> merging = {"temperature",   "bed_temperature", "led",
+                                              "notifications", "fan_stack",       "ams",
+                                              "gcode_console"};
+    for (const auto& id : merging) {
+        const auto* def = helix::find_widget_def(id);
+        REQUIRE(def != nullptr);
+        INFO(id);
+        REQUIRE(def->merges_into_card);
+    }
+    const auto* own = helix::find_widget_def("print_status");
+    REQUIRE(own != nullptr);
+    REQUIRE_FALSE(own->merges_into_card);
+
+    std::vector<std::unique_ptr<ScopedWidgetFactory>> factories;
+    for (const auto& id : merging) {
+        factories.push_back(std::make_unique<ScopedWidgetFactory>(id.c_str(), stub_factory()));
+    }
+    factories.push_back(std::make_unique<ScopedWidgetFactory>("print_status", stub_factory()));
+
+    auto at = [](const char* id, int col, int row, int colspan, int rowspan) {
+        return nlohmann::json{{"id", id},   {"enabled", true},    {"col", col},
+                              {"row", row}, {"colspan", colspan}, {"rowspan", rowspan}};
+    };
+    const int C = TPC;
+    nlohmann::json widgets = {
+        at("temperature", 2 * C, 0, C, C),
+        at("bed_temperature", 3 * C, 0, C, C),
+        at("led", 4 * C, 0, C, C),
+        at("notifications", 5 * C, 0, C, C),
+        at("fan_stack", 2 * C, C, C, C),
+        at("ams", 3 * C, C, C, C),
+        at("gcode_console", 4 * C, C, 2 * C, 2 * C),
+        at("print_status", 0, 2 * C, 4 * C, 2 * C),
+    };
+
+    std::vector<std::string> ids = merging;
+    ids.push_back("print_status");
+    size_t cards = check_card_containment("test_card_merge_tall", widgets, ids, test_screen());
+    CHECK(cards >= 2);
 }

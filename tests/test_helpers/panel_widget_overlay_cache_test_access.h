@@ -29,6 +29,12 @@ class GCodeConsoleWidgetTestAccess {
     static lv_obj_t*& console_panel() {
         return GCodeConsoleWidget::console_panel_;
     }
+    static const std::deque<ConsolePanel::GcodeEntry>& lines(const GCodeConsoleWidget& w) {
+        return w.lines_;
+    }
+    static const std::string& handler_name(const GCodeConsoleWidget& w) {
+        return w.handler_name_;
+    }
 };
 
 class MacrosWidgetTestAccess {

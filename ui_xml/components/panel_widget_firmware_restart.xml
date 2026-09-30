@@ -17,6 +17,7 @@
                       height="100%" icon="refresh" icon_variant="secondary" label="Restart" label_tag="Restart"
                       callback="firmware_restart_clicked" button_name="firmware_restart_button_home"
                       icon_name="firmware_restart_icon" tile_icon_subject="$tile_icon_subject"
-                      tile_label_subject="$tile_label_subject" disabled_cond="0 eq 1"/>
+                      tile_label_subject="$tile_label_subject" tile_dir_subject="$tile_dir_subject"
+                      disabled_cond="0 eq 1"/>
   </view>
 </component>

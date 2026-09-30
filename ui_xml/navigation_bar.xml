@@ -24,6 +24,17 @@
     <string name="icon_size_nav_inactive_large" value="md"/>
     <string name="icon_size_nav_inactive_xlarge" value="md"/>
     <string name="icon_size_nav_inactive_xxlarge" value="md"/>
+
+    <!-- Rail E-stop diameter: the larger of #button_height and 44px, so the
+         target never shrinks below the circles it stands in for. micro is
+         capped at the 42px rail width. -->
+    <px name="nav_estop_size_micro" value="42"/>
+    <px name="nav_estop_size_tiny" value="44"/>
+    <px name="nav_estop_size_small" value="48"/>
+    <px name="nav_estop_size_medium" value="52"/>
+    <px name="nav_estop_size_large" value="72"/>
+    <px name="nav_estop_size_xlarge" value="80"/>
+    <px name="nav_estop_size_xxlarge" value="96"/>
   </consts>
   <styles>
     <!-- One bar, two axes. Each pair is bound complementarily on ui_is_portrait
@@ -239,5 +250,14 @@
                 clickable="false" event_bubble="true"/>
       </lv_obj>
     </ui_button>
+    <!-- Room for the E-stop while a job holds the machine. The button itself is
+         the rail_estop component, which NavigationManager keeps over this slot
+         on the screen so backdrops never dim it. Last in the bar: the bottom of
+         the rail, the end of the portrait bar. -->
+    <lv_obj name="nav_estop_slot"
+            width="#nav_estop_size" height="#nav_estop_size" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+            clickable="false" scrollable="false" hidden="true">
+      <bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
+    </lv_obj>
   </view>
 </component>

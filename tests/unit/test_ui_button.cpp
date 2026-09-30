@@ -13,6 +13,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
+#include "../test_helpers/scoped_breakpoint.h"
 #include "../test_helpers/scoped_theme_mode.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
@@ -643,4 +644,178 @@ TEST_CASE_METHOD(UiButtonTestFixture,
 
     REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
     REQUIRE(icon_idx > label_idx);
+}
+
+// ============================================================================
+// label_hidden_subject / label_hidden_if_bp_eq
+// ============================================================================
+
+namespace {
+/// The button's text label: the label child that is not its icon glyph.
+lv_obj_t* text_label(lv_obj_t* btn) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(btn); ++i) {
+        lv_obj_t* child = lv_obj_get_child(btn, static_cast<int32_t>(i));
+        if (lv_obj_check_type(child, &lv_label_class) && child != ui_button_get_icon(btn)) {
+            return child;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+TEST_CASE_METHOD(UiButtonTestFixture, "ui_button label follows label_hidden_subject",
+                 "[ui_button][xml][label_hidden]") {
+    // Static: the XML scope keeps the name after the test, so the storage must outlive it.
+    static lv_subject_t labels{};
+    lv_subject_init_int(&labels, 1);
+    lv_xml_register_subject(nullptr, "test_labels_subject", &labels);
+
+    const char* attrs[] = {"icon",
+                           "stop",
+                           "text",
+                           "Stop",
+                           "label_hidden_subject",
+                           "test_labels_subject",
+                           "label_hidden_if_eq",
+                           "0",
+                           nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    lv_obj_t* label = text_label(btn);
+    REQUIRE(label != nullptr);
+
+    CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+    lv_subject_set_int(&labels, 0);
+    CHECK(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+    lv_subject_set_int(&labels, 1);
+    CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_delete(btn);
+    lv_subject_deinit(&labels);
+}
+
+TEST_CASE_METHOD(UiButtonTestFixture, "ui_button label_hidden_if_bp_eq follows ui_breakpoint",
+                 "[ui_button][xml][label_hidden]") {
+    lv_subject_t* bp = lv_xml_get_subject(nullptr, "ui_breakpoint");
+    REQUIRE(bp != nullptr);
+    const int32_t saved = lv_subject_get_int(bp);
+
+    const char* attrs[] = {"icon", "stop", "text", "Stop", "label_hidden_if_bp_eq", "1", nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    lv_obj_t* label = text_label(btn);
+    REQUIRE(label != nullptr);
+
+    lv_subject_set_int(bp, 1);
+    CHECK(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+    lv_subject_set_int(bp, 3);
+    CHECK_FALSE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_delete(btn);
+    lv_subject_set_int(bp, saved);
+}
+
+// stacked_if_bp_lte: at ui_breakpoint <= N the button restacks icon-over-label
+// and fills its parent's height; above N it keeps the row layout it declared at
+// create time. Pinned by the print status action grid at 480x320, where the
+// row layout clips the labels.
+TEST_CASE_METHOD(UiButtonTestFixture,
+                 "ui_button stacked_if_bp_lte restacks at or below threshold and restores above",
+                 "[ui_button][xml][quick]") {
+    const char* attrs[] = {"icon", "tune", "text", "Tune", "stacked_if_bp_lte", "1", nullptr};
+
+    // Created while tiny: stacked from the first layout pass. The text label
+    // is the LAST lv_label child: the icon glyph is an lv_label too and sits
+    // first once stacked.
+    {
+        helix::test::ScopedBreakpoint tiny(UiBreakpoint::Tiny);
+        lv_obj_t* btn = create_button(attrs);
+        REQUIRE(btn != nullptr);
+        lv_obj_t* label = UITest::button_label(btn);
+        REQUIRE(label != nullptr);
+
+        REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+        REQUIRE(lv_obj_get_index(label) == 1); // icon first, label under it
+        REQUIRE(lv_obj_get_style_height(btn, LV_PART_MAIN) == lv_pct(100));
+
+        // Crossing the threshold live restacks and restores the same button.
+        {
+            helix::test::ScopedBreakpoint medium(UiBreakpoint::Medium);
+            REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
+            REQUIRE(lv_obj_get_style_height(btn, LV_PART_MAIN) ==
+                    theme_manager_get_spacing("button_height"));
+        }
+        REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN);
+    }
+
+    // Created while medium: the row layout it declared at create time.
+    {
+        helix::test::ScopedBreakpoint medium(UiBreakpoint::Medium);
+        lv_obj_t* btn = create_button(attrs);
+        REQUIRE(btn != nullptr);
+        REQUIRE(lv_obj_get_style_flex_flow(btn, LV_PART_MAIN) == LV_FLEX_FLOW_ROW);
+        REQUIRE(lv_obj_get_style_height(btn, LV_PART_MAIN) ==
+                theme_manager_get_spacing("button_height"));
+    }
+}
+
+// A style applied after the button's own setup (a component's styles, a
+// binding) queues its contrast pass. That pass lands before the next frame
+// draws, so the frame after does not repaint every button of a freshly built
+// panel.
+TEST_CASE_METHOD(UiButtonTestFixture, "ui_button: the next frame draws the contrast text colour",
+                 "[ui_button][contrast]") {
+    const char* attrs[] = {"text", "Go", "variant", "primary", nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    lv_obj_t* label = nullptr;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(btn) && !label; ++i)
+        if (lv_obj_check_type(lv_obj_get_child(btn, i), &lv_label_class))
+            label = lv_obj_get_child(btn, i);
+    REQUIRE(label != nullptr);
+    const uint32_t before = lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN));
+
+    static lv_style_t white_fill;
+    lv_style_init(&white_fill);
+    lv_style_set_bg_color(&white_fill, lv_color_white());
+    lv_style_set_bg_opa(&white_fill, LV_OPA_COVER);
+    lv_obj_add_style(btn, &white_fill, LV_PART_MAIN);
+
+    lv_refr_now(nullptr); // no UpdateQueue drain
+    const uint32_t drawn = lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN));
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    const uint32_t settled = lv_color_to_u32(lv_obj_get_style_text_color(label, LV_PART_MAIN));
+    CAPTURE(before & 0xFFFFFF, drawn & 0xFFFFFF, settled & 0xFFFFFF);
+    REQUIRE(settled != before); // the new fill does change the text colour
+    CHECK(drawn == settled);
+    lv_obj_remove_style(btn, &white_fill, LV_PART_MAIN);
+}
+
+namespace {
+int s_invalidations = 0;
+void count_invalidation(lv_event_t* /*e*/) {
+    ++s_invalidations;
+}
+} // namespace
+
+// The contrast pass runs on every style and state change; one that finds the
+// colours already applied must not repaint the button.
+TEST_CASE_METHOD(UiButtonTestFixture,
+                 "ui_button: a contrast pass with nothing to change repaints nothing",
+                 "[ui_button][contrast]") {
+    const char* attrs[] = {"text", "Go", "variant", "primary", nullptr};
+    lv_obj_t* btn = create_button(attrs);
+    REQUIRE(btn != nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    lv_refr_now(nullptr);
+
+    lv_display_t* disp = lv_obj_get_display(btn);
+    s_invalidations = 0;
+    lv_display_add_event_cb(disp, count_invalidation, LV_EVENT_INVALIDATE_AREA, nullptr);
+    lv_obj_send_event(btn, LV_EVENT_STATE_CHANGED, nullptr);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    lv_display_remove_event_cb_with_user_data(disp, count_invalidation, nullptr);
+
+    CHECK(s_invalidations == 0);
 }

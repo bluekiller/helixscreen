@@ -1921,6 +1921,27 @@ TEST_CASE("PrinterDiscovery: sensor toggle command follows a SET_FILAMENT_SENSOR
     }
 }
 
+TEST_CASE("PrinterDiscovery: filament diameter comes from the extruder section",
+          "[printer_discovery][filament_diameter]") {
+    helix::PrinterDiscovery discovery;
+    REQUIRE(discovery.filament_diameter_mm() == Catch::Approx(1.75f));
+
+    SECTION("a 2.85 mm extruder is read") {
+        discovery.parse_filament_diameter(json{{"extruder", {{"filament_diameter", 2.85}}}});
+        CHECK(discovery.filament_diameter_mm() == Catch::Approx(2.85f));
+
+        discovery.clear();
+        CHECK(discovery.filament_diameter_mm() == Catch::Approx(1.75f));
+    }
+
+    SECTION("a missing, null or non-positive value keeps the default") {
+        discovery.parse_filament_diameter(json{{"heater_bed", {{"max_temp", 120}}}});
+        discovery.parse_filament_diameter(json{{"extruder", {{"filament_diameter", nullptr}}}});
+        discovery.parse_filament_diameter(json{{"extruder", {{"filament_diameter", 0}}}});
+        CHECK(discovery.filament_diameter_mm() == Catch::Approx(1.75f));
+    }
+}
+
 TEST_CASE("PrinterDiscovery: build volume keeps negative axis minimums",
           "[printer_discovery][build_volume]") {
     // Voron-style configs park X/Y off the bed, so position_min is negative.

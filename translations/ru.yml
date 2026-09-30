@@ -9,10 +9,19 @@ translations:
   '%d feeders': '%d фидеров'
   '%d gates': '%d шлюзов'
   '%d lanes': '%d каналов'
+  '%d min': '%d мин'
+  '%d min left': 'осталось %d мин'
   '%d more sensors': Ещё %d датчиков
   '%d slots': '%d слотов'
   '%d toolheads': '%d печатающих головок'
   '%d tools': '%d инструментов'
+  '%d:%02d left': 'осталось %d:%02d'
+  '%dh': '%d ч'
+  '%dh %02dm': '%d ч %02d мин'
+  '%dh %dm': '%d ч %d мин'
+  '%dm': '%d мин'
+  '%dm %02ds': '%d мин %02d с'
+  '%ds': '%d с'
   '%lu days ago': '%lu дн. назад'
   '%lu hours ago': '%lu ч. назад'
   '%lu min ago': '%lu мин. назад'
@@ -52,6 +61,8 @@ translations:
   0 slots: '{0} Слотов'
   '0.4-2mm direct drive, 4-6mm bowden': '0.4-2мм для директа, 4-6мм для боудена'
   '0°': '0°'
+  1 Hardware Issue: '1 проблема с оборудованием'
+  1 Issue Detected: 'Обнаружена 1 проблема'
   '1 day ago': '1 день назад'
   1 event queued: 1 событие в очереди
   1 hour ago: 1 ч. назад
@@ -138,6 +149,7 @@ translations:
   AMS: AMS
   'AMS Active: ': 'AMS активен: '
   AMS is busy: AMS занят
+  AMS/MMU system not detected: 'Система AMS/MMU не обнаружена'
   API not available: API недоступен
   APPEARANCE: ВНЕШНИЙ ВИД
   AUTO FANS: АВТО ВЕНТИЛЯТОРЫ
@@ -193,10 +205,13 @@ translations:
   Alerts and messages waiting for you: Уведомления и сообщения для вас
   All: Все
   All Devices: Все устройства
+  All Healthy: 'Всё в порядке'
   All axes homed: Все оси запаркованы
+  All configured hardware detected: 'Всё настроенное оборудование обнаружено'
   All fields are required: Все поля обязательны для заполнения
   All healthy: Всё в порядке
   All lights: Вся подсветка
+  All time: 'За всё время'
   Allow: 'Разрешить'
   Allow Home Screen Editing: 'Разрешить редактирование главного экрана'
   Allow cold load/unload: Разрешить загрузку/выгрузку без нагрева
@@ -674,6 +689,10 @@ translations:
     макросы
   Configure timelapse recording: Настроить запись таймлапса
   Configure your printer's cooling fans: Настройте вентиляторы охлаждения принтера
+  Configured LED strip not found: 'Настроенная LED-лента не найдена'
+  Configured aux fan not found: 'Настроенный дополнительный вентилятор не найден'
+  Configured filament sensor not found: 'Настроенный датчик филамента не найден'
+  Configured hardware no longer present: 'Настроенное оборудование больше не обнаруживается'
   Configured in the backup-spool package, not from here: Настраивается в плагине резервной катушки, не здесь
   Configuring Moonraker...: Настройка Moonraker...
   Confirm PIN: Подтвердите PIN
@@ -1211,6 +1230,7 @@ translations:
   Fan Calibration: Калибровка вентилятора
   Fan Speeds: 'Скорости вентиляторов'
   Fan Transfer: Теплообмен с вентилятором
+  Fan available but not assigned to any role: 'Вентилятор доступен, но не назначен ни на одну роль'
   'Fan control failed: {}': 'Ошибка управления вентилятором: {}'
   FanSelect: Выбрать вентилятор
   Fans: Вентиляторы
@@ -1287,6 +1307,7 @@ translations:
   Filament saved: Филамент сохранён
   Filament sensor available for runout detection: Датчик филамента доступен для обнаружения
     окончания
+  Filament sensor available. Add to config for runout detection?: 'Доступен датчик филамента. Добавить в конфигурацию для обнаружения окончания филамента?'
   Filament snapped inside CFS: Филамент сломался внутри CFS
   Filament stalled between CFS hub and extruder sensor: Филамент остановился между хабом CFS и датчиком экструдера
   Filament stuck in connector during unload: Филамент застрял в разъёме при выгрузке
@@ -1326,6 +1347,7 @@ translations:
   Flowguard: Flowguard
   Flushing Filament...: Промывка филамента...
   Flying Toasters: Летающие тостеры
+  Focused: 'Сосредоточенный'
   Follow active tool: Следовать активному инструменту
   Follow graph screen: Следовать экрану графика
   Force/weight sensors: 'Датчики силы/веса'
@@ -1382,12 +1404,14 @@ translations:
   Happy Hare MMU: Happy Hare MMU
   Hardware: Оборудование
   Hardware Health: Состояние оборудования
+  Hardware Keyboard: Аппаратная клавиатура
   Hardware Name: Название оборудования
   Hardware Profile: Профиль оборудования
   Hardware is validated on startup and reconnection: Оборудование проверяется при
     запуске и переподключении
   Hardware marked as optional: Оборудование помечено как необязательное
   Hardware saved to config: Оборудование сохранено в конфигурацию
+  Hardware was present in previous session but is now missing: 'Оборудование было в прошлом сеансе, но сейчас отсутствует'
   Have a piece of paper ready.: Подготовьте лист бумаги.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
     adjusted with                              thumb wheels or some other built-in
@@ -1396,6 +1420,7 @@ translations:
     если стол не регулируется                              барашками или другим встроенным
     механизмом.
   Heading: Заголовок
+  Healthy: 'В порядке'
   Heat Capacity: Теплоёмкость
   Heat Soak: Прогрев
   Heat Soaking...: Прогрев...
@@ -1453,6 +1478,7 @@ translations:
   Helper macros are up to date: 'Вспомогательные макросы актуальны'
   Hide Firmware Noise: Скрыть служебные сообщения прошивки
   Hide Temperature Reports: Скрыть отчёты о температуре
+  Hide the on-screen keyboard while a USB keyboard is attached: Скрывать экранную клавиатуру, пока подключена USB-клавиатура
   High Water Mark: Пиковое значение
   Hold anywhere to cancel: Удерживайте в любом месте для отмены
   Holding nozzle at {}°C to purge previous filament.: Удержание сопла при {}°C для очистки от предыдущего филамента.
@@ -1664,6 +1690,7 @@ translations:
   LED on at Start: Включать LED при старте
   LED strip available for lighting control: Светодиодная лента доступна для управления
     освещением
+  LED strip available. Add to config for lighting control?: 'Доступна LED-лента. Добавить в конфигурацию для управления подсветкой?'
   LEDs: LED
   LOAD CELLS: 'ТЕНЗОДАТЧИКИ'
   LOADED: ЗАГРУЖЕН
@@ -1682,6 +1709,9 @@ translations:
   Language & Time: Язык и время
   Last: Последняя
   # Source: history_dashboard_panel.xml:114
+  Last 12 months: 'Последние 12 месяцев'
+  Last 24 hours: 'Последние 24 часа'
+  Last 30 days: 'Последние 30 дней'
   Last 7 days: 'Последние 7 дней'
   Last measured: 'Последний замер'
   Last print cancelled: Последняя печать отменена
@@ -1970,6 +2000,7 @@ translations:
   No Bluetooth printers found: Bluetooth-принтеры не найдены
   No Camera: Нет камеры
   No Filament Detected: Филамент не обнаружен
+  No Hardware Issues: 'Проблем с оборудованием нет'
   No History: Нет истории
   No LED macros detected on your printer. Add Klipper macros for LED control first.: На
     вашем принтере не обнаружены LED-макросы. Сначала добавьте макросы Klipper для
@@ -1999,6 +2030,7 @@ translations:
     лучших результатов.
   No effects available: Нет доступных эффектов
   No events queued: Нет событий в очереди
+  No extruder heater found. Check [extruder] in printer.cfg: 'Нагреватель экструдера не найден. Проверьте [extruder] в printer.cfg'
   No fans detected: Вентиляторы не обнаружены
   No filament: Нет филамента
   No filament environment sensors: Нет датчиков среды филамента
@@ -2026,6 +2058,7 @@ translations:
   No new mesh was stored as '{}': "Новая сетка не сохранена как '{}'"
   No notifications: Нет уведомлений
   No objects defined for this print: Для этой печати не определены объекты
+  No output yet: Нет вывода
   No presets configured: Пресеты не настроены
   No preview: Нет предпросмотра
   No print history found: История печати не найдена
@@ -2280,6 +2313,8 @@ translations:
   'Pre-print command failed: {}': 'Ошибка команды перед печатью: {}'
   Pre-print homing...: Парковка перед печатью...
   Preheat: 'Преднагрев'
+  Preheat %s: 'Преднагрев %s'
+  Preheat %s (%d/%d): 'Преднагрев %s (%d/%d)'
   Preheat Macro: Макрос преднагрева
   Preheat PLA: Преднагрев PLA
   Preheat cancelled: Предварительный нагрев отменён
@@ -2321,6 +2356,7 @@ translations:
   Print Failed: Печать не удалась
   Print File: Файл печати
   Print Files: Файлы Gcode
+  Print Head: 'Печатающая головка'
   Print History: История печати
   Print Hours: Часы печати
   Print Label: Печать этикетки
@@ -2484,6 +2520,7 @@ translations:
   Quick Button 3: Быстрая кнопка 3
   Quick Button 4: Быстрая кнопка 4
   Quick actions, calibration, speed: Быстрые действия, калибровка, скорость
+  Quiet: 'Тихий'
   RFCOMM connect failed: Не удалось подключиться по RFCOMM
   'RFCOMM connect failed: ': 'Не удалось подключиться по RFCOMM: '
   RFID reader malfunction (left): Неисправность RFID-считывателя (левый)
@@ -3538,6 +3575,7 @@ translations:
     для ввода текста
   Use G10/G11 firmware retraction: Использовать аппаратный ретракт G10/G11
   Use Unload before Eject: 'Используйте «Выгрузить» перед «Извлечь»'
+  Use first HID scanner found: 'Использовать первый найденный HID-сканер'
   Use printer type to select image: Использовать тип принтера для выбора изображения
   User intervention required: 'Требуется ручное вмешательство'
   VM Peak: Пик VM
@@ -3685,6 +3723,8 @@ translations:
   Your printer has an automatic filament changer: Ваш принтер оснащён автоматическим
     сменщиком филамента
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: Принтер был не в сети во время настройки, поэтому параметры оборудования пропущены. Настроить их сейчас?
+  ? Your {} line passes per-tool settings that remapping does not change ({}). A remapped tool may not be heated. See Tool Mapping in the user guide.
+  : "Строка {} передаёт настройки для отдельных инструментов, которые переназначение не меняет ({}). Переназначенный инструмент может не нагреться. См. раздел «Tool Mapping» в руководстве пользователя."
   Z: Z
   Z Calibration: Калибровка Z
   Z Movement: Движение Z
@@ -3794,14 +3834,18 @@ translations:
   v{} is available. Tap to update.: v{} доступна. Нажмите для обновления.
   you have: у вас
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Гц · примерно {} мин'
+  '{} Hardware Issues': 'Проблем с оборудованием: {}'
+  '{} Issues Detected': 'Обнаружено проблем: {}'
   '{} LED strips available': 'Доступно светодиодных лент: {}'
   '{} and {} are both mapped here': '{} и {} оба назначены сюда'
   '{} available': Доступна версия {}
   '{} axis homed': Ось {} запаркована
+  '{} changed': 'изменено: {}'
   '{} command timed out': Время команды {} истекло
   '{} complete': '{} завершено'
   '{} configured item not found': Не найден {} настроенный элемент
   '{} configured items not found': Не найдено {} настроенных элементов
+  '{} critical': 'критических: {}'
   '{} critical hardware issues': '{} критических проблем с оборудованием'
   '{} disabled': '{} выключено'
   '{} enabled': '{} включено'
@@ -3822,8 +3866,10 @@ translations:
   '{} may cause unintended changes. Are you sure?': '{} может привести к непреднамеренным
     изменениям. Вы уверены?'
   '{} min ago': '{} мин. назад'
+  '{} missing': 'отсутствует: {}'
   '{} more taps to {} beta features': '{} нажатий до {} бета-функций'
   '{} needs the HelixPrint plugin. Printing original file.': 'Для {} нужен плагин HelixPrint. Печатается исходный файл.'
+  '{} new': 'новых: {}'
   '{} new hardware available': 'Доступно нового оборудования: {}'
   '{} preset{}': '{} пресет{}'
   '{} set to {}': '{} установлено на {}'

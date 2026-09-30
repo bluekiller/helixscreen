@@ -301,6 +301,10 @@ inline void safe_clean_children(lv_obj_t* container) {
         StaticPanelRegistry::is_destroying_all()) {
         return;
     }
+    // The flush lays out the container's whole screen; with nothing to delete
+    // there is nothing for a pending layout to reach.
+    if (lv_obj_get_child_count(container) == 0)
+        return;
     lv_obj_update_layout(container);
     while (lv_obj_get_child_count(container) > 0) {
         const uint32_t before = lv_obj_get_child_count(container);

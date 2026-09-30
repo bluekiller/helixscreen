@@ -8,6 +8,7 @@
 
 #include "ui_overlay_qr_scanner.h"
 
+#include "ui_effects.h"
 #include "ui_event_safety.h"
 #include "ui_nav_manager.h"
 #include "ui_update_queue.h"
@@ -169,7 +170,7 @@ void QrScannerOverlay::show(lv_obj_t* parent, int slot_index, ResultCallback on_
 
     // Move to front so it renders above any open modals
     if (cached_overlay_) {
-        lv_obj_move_foreground(cached_overlay_);
+        helix::ui::bring_to_front(cached_overlay_);
     }
 }
 

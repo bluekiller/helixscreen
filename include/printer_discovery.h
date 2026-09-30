@@ -16,6 +16,7 @@
 #include "ams_types.h"
 #include "chamber_heater_backend.h" // chamber::match — heater slot; chamber::keyword_confidence — sensor/fan slots
 #include "display_numbering.h"       // helix::ui::tool_label — T<n> gcode tool naming
+#include "filament_database.h"       // filament::DEFAULT_DIAMETER_MM
 #include "klipper_extruder_naming.h" // count_extruder_names: one hot end per numbered extruder
 #include "macro_patterns.h"          // Shared macro-name tables (nozzle clean, ...)
 #include "openams_api.h"             // OpenAMS claims only a manager speaking its API
@@ -1095,6 +1096,7 @@ class PrinterDiscovery {
         chamber_filter_fan_pin_.clear();
         chamber_cooling_fan_name_.clear();
         chamber_fan_resting_deci_ = 0;
+        filament_diameter_mm_ = filament::DEFAULT_DIAMETER_MM;
         fan_max_power_.clear();
         has_led_ = false;
         led_effects_.clear();
@@ -1546,6 +1548,29 @@ class PrinterDiscovery {
     }
 
     /**
+     * @brief Read the filament diameter from [extruder] filament_diameter
+     *
+     * A missing, null or non-positive value leaves the current diameter.
+     *
+     * @param settings JSON object from a configfile.settings response
+     */
+    void parse_filament_diameter(const nlohmann::json& settings) {
+        const auto extruder = settings.find("extruder");
+        if (extruder == settings.end() || !extruder->is_object()) {
+            return;
+        }
+        const auto d = extruder->find("filament_diameter");
+        if (d != extruder->end() && d->is_number() && d->get<float>() > 0.0f) {
+            filament_diameter_mm_ = d->get<float>();
+        }
+    }
+
+    /// Filament diameter in mm the extruder is configured for.
+    [[nodiscard]] float filament_diameter_mm() const {
+        return filament_diameter_mm_;
+    }
+
+    /**
      * @brief Resolve the command that toggles a filament sensor in firmware
      *
      * A [gcode_macro SET_FILAMENT_SENSOR] wrapper must rename the builtin
@@ -1933,9 +1958,10 @@ class PrinterDiscovery {
                                              ///< independent of the heater pick: in COOLING mode
                                              ///< the K2 M141 macro parks the setpoint on this fan's
                                              ///< target, not the heater's.
-    int chamber_fan_resting_deci_ = 0;       ///< Cooling fan's configured resting/off target
-                                             ///< (decidegrees), from configfile.settings
-                                             ///< target_temp. 0 = unknown. M141 S0 returns here.
+    float filament_diameter_mm_ = filament::DEFAULT_DIAMETER_MM; ///< [extruder] filament_diameter
+    int chamber_fan_resting_deci_ = 0; ///< Cooling fan's configured resting/off target
+                                       ///< (decidegrees), from configfile.settings
+                                       ///< target_temp. 0 = unknown. M141 S0 returns here.
     std::unordered_map<std::string, double> fan_max_power_; ///< Per-fan max_power from
                                                             ///< configfile.settings, keyed by
                                                             ///< lowercased object name. Used to

@@ -82,6 +82,8 @@ class PrintLightTimelapseControls {
     /// Show the chamber light's power on the light button icon. Runs on every
     /// led_state_version bump once init_subjects() has run.
     void refresh_light_state();
+    /// Icon and translated On/Off label for timelapse_enabled_.
+    void refresh_timelapse_display();
 
     /**
      * @brief Check if subjects have been initialized
@@ -110,6 +112,7 @@ class PrintLightTimelapseControls {
     //
 
     ObserverGuard led_state_observer_;
+    ObserverGuard language_observer_;
     lv_subject_t light_button_subject_;
     char light_button_buf_[8] = "\xF3\xB0\x8C\xB6"; // MDI lightbulb_outline (off state)
 

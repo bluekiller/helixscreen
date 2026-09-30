@@ -1149,8 +1149,12 @@ void AmsBackendSnapmaker::persist_slot_weight(int slot_index, float remaining_we
                                         remaining_weight_g, total_weight_g, tag);
 }
 
-AmsError AmsBackendSnapmaker::set_tool_mapping_impl(int /*tool_number*/, int /*slot_index*/) {
+AmsError AmsBackendSnapmaker::can_set_tool_mapping(int /*tool_number*/, int /*slot_index*/) const {
     return AmsErrorHelper::not_supported("Tool mapping not supported on Snapmaker");
+}
+
+AmsError AmsBackendSnapmaker::set_tool_mapping_impl(int tool_number, int slot_index) {
+    return can_set_tool_mapping(tool_number, slot_index);
 }
 
 // ============================================================================

@@ -27,7 +27,6 @@
 #include "settings_manager.h"
 #include "standard_macros.h"
 #include "subject_managed_panel.h"
-#include "system_settings_manager.h"
 #include "theme_manager.h"
 #include "toolhead_homing.h"
 #include "unit_conversions.h"
@@ -670,10 +669,10 @@ void MotionPanel::register_position_observers() {
     // Flipping the persisted setting re-renders the readouts.
     // Tab labels are translated into subject buffers, so a live language
     // switch has to re-fill them; XML text around them re-translates itself.
-    language_observer_ = observe_int_sync<MotionPanel>(
-        SystemSettingsManager::instance().subject_language(), this,
-        [](MotionPanel* self, int) { self->refresh_tab_labels(); },
-        SystemSettingsManager::instance().get_subjects_lifetime());
+    language_observer_ = helix::ui::observe_language_change(this, [](MotionPanel* self) {
+        self->refresh_tab_labels();
+        self->update_z_axis_label(self->bed_moves_);
+    });
 
     coordinate_mode_observer_ = observe_int_sync<MotionPanel>(
         SettingsManager::instance().subject_motion_show_actual_position(), this,
@@ -768,7 +767,7 @@ void MotionPanel::update_z_button_blocked() {
 
 void MotionPanel::update_z_axis_label(bool bed_moves) {
     bed_moves_ = bed_moves; // Store for Z button direction inversion
-    const char* label = bed_moves ? "Bed" : "Print Head";
+    const char* label = bed_moves ? lv_tr("Bed") : lv_tr("Print Head");
     std::strncpy(z_axis_label_buf_, label, sizeof(z_axis_label_buf_) - 1);
     z_axis_label_buf_[sizeof(z_axis_label_buf_) - 1] = '\0';
     lv_subject_copy_string(&z_axis_label_subject_, z_axis_label_buf_);

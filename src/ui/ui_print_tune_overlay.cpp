@@ -13,6 +13,7 @@
 
 #include "display_numbering.h"
 #include "display_settings_manager.h"
+#include "filament_database.h"
 #include "format_utils.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -395,16 +396,18 @@ void PrintTuneOverlay::update_display() {
     int live_velocity = 0;
     int max_velocity = 0;
     int vel_centimm = 0;
+    float diameter_mm = filament::DEFAULT_DIAMETER_MM;
     if (printer_state_) {
+        diameter_mm = printer_state_->get_discovery().filament_diameter_mm();
         live_velocity = lv_subject_get_int(printer_state_->get_live_velocity_subject());
         max_velocity = lv_subject_get_int(printer_state_->get_max_velocity_subject());
         vel_centimm = lv_subject_get_int(printer_state_->get_live_extruder_velocity_subject());
     }
 
-    const auto percent =
-        helix::tune::status_speed_flow_text(false, speed_percent_, flow_percent_, 0, 0);
+    const auto percent = helix::tune::status_speed_flow_text(false, speed_percent_, flow_percent_,
+                                                             0, 0, diameter_mm);
     const auto live = helix::tune::status_speed_flow_text(true, speed_percent_, flow_percent_,
-                                                          live_velocity, vel_centimm);
+                                                          live_velocity, vel_centimm, diameter_mm);
 
     // The same preference Print Status shows decides which of each pair leads.
     // As the secondary readout, live speed carries the machine limit and an
@@ -426,7 +429,7 @@ void PrintTuneOverlay::update_display() {
             std::snprintf(tune_actual_speed_buf_, sizeof(tune_actual_speed_buf_), "%s",
                           live.speed.c_str());
         }
-        if (helix::tune::volumetric_flow_mm3_s(vel_centimm) >= 0.1) {
+        if (helix::tune::volumetric_flow_mm3_s(vel_centimm, diameter_mm) >= 0.1) {
             std::snprintf(tune_actual_flow_buf_, sizeof(tune_actual_flow_buf_), "%s",
                           live.flow.c_str());
         } else {

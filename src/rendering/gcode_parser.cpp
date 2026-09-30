@@ -3,6 +3,7 @@
 
 #include "gcode_parser.h"
 
+#include "filament_database.h"
 #include "gcode_color_metadata.h"
 #include "text_io.h"
 #include "utils/decimal_parse.h"
@@ -1791,11 +1792,10 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
         double meters = 0;
         if (sscanf(filament_str.c_str(), "%lfm", &meters) == 1) {
             metadata.filament_used_mm = meters * 1000.0; // Convert to mm
-            // Estimate grams (assuming PLA: 1.75mm diameter, ~1.24 g/cm³)
-            // Volume = π * r² * length, mass = volume * density
-            // For 1.75mm filament: π * (0.875)² ≈ 2.405 mm², so 1mm = 2.405mm³
-            // At 1.24 g/cm³, 1mm of filament = 2.405 * 1.24 / 1000 ≈ 0.00298g
-            metadata.filament_used_g = metadata.filament_used_mm * 0.00298;
+            // Estimate grams as PLA (1.24 g/cm³) at the default diameter: the
+            // file names neither, and the parser has no printer to ask.
+            metadata.filament_used_g =
+                filament::length_to_weight_g(static_cast<float>(metadata.filament_used_mm), 1.24f);
         }
         return true;
     }

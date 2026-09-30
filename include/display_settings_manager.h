@@ -165,6 +165,36 @@ class DisplaySettingsManager {
     /** @brief Set system keyboard preference (updates subject + persists) */
     void set_use_system_keyboard(bool enabled);
 
+    /** @brief Hide the on-screen keyboard while a hardware keyboard is attached */
+    bool get_hide_keyboard_with_hardware() const;
+
+    /** @brief Set the hide-with-hardware-keyboard preference (updates subject + persists) */
+    void set_hide_keyboard_with_hardware(bool enabled);
+
+    /**
+     * @brief Record whether the display backend opened a physical keyboard.
+     *
+     * DisplayManager calls this each time it creates its input devices, which
+     * happens before init_subjects(), so the value is held here and seeds the
+     * settings_hardware_keyboard_present subject. Only a backend that opened a
+     * scanned keyboard device answers true: the SDL window keyboard is not one.
+     */
+    void set_hardware_keyboard_present(bool present);
+
+    /** @brief Whether the display backend opened a physical keyboard */
+    bool hardware_keyboard_present() const {
+        return hardware_keyboard_present_;
+    }
+
+    /**
+     * @brief Whether text entry goes to the hardware keyboard alone.
+     *
+     * True only while the preference is on AND a physical keyboard is attached;
+     * the focused textarea still takes that keyboard's keys through the input
+     * group, so nothing but the on-screen keyboard goes away.
+     */
+    bool soft_keyboard_suppressed() const;
+
     /** @brief Page-scroll buttons enabled (auto-injected gutter chevrons) */
     bool get_page_scroll_buttons() const;
 
@@ -413,6 +443,16 @@ class DisplaySettingsManager {
         return &keep_navbar_visible_subject_;
     }
 
+    /** @brief Hide-with-hardware-keyboard subject (integer: 0=off, 1=on) */
+    lv_subject_t* subject_hide_keyboard_with_hardware() {
+        return &hide_keyboard_with_hardware_subject_;
+    }
+
+    /** @brief Physical keyboard presence (integer: 0=none, 1=attached) */
+    lv_subject_t* subject_hardware_keyboard_present() {
+        return &hardware_keyboard_present_subject_;
+    }
+
     /** @brief Android platform flag (integer: 0=not Android, 1=Android) */
     lv_subject_t* subject_is_android() {
         return &is_android_subject_;
@@ -483,6 +523,8 @@ class DisplaySettingsManager {
     lv_subject_t sleep_while_printing_subject_;
     lv_subject_t animations_enabled_subject_;
     lv_subject_t use_system_keyboard_subject_;
+    lv_subject_t hide_keyboard_with_hardware_subject_;
+    lv_subject_t hardware_keyboard_present_subject_;
     lv_subject_t page_scroll_buttons_subject_;
     lv_subject_t speed_flow_physical_units_subject_;
     lv_subject_t keep_navbar_visible_subject_;
@@ -498,6 +540,7 @@ class DisplaySettingsManager {
 #endif
 
     bool subjects_initialized_ = false;
+    bool hardware_keyboard_present_ = false;
 };
 
 } // namespace helix

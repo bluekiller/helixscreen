@@ -3161,17 +3161,27 @@ uint64_t AmsBackendHappyHare::firmware_tool_mapping_generation() const {
     return slots_.firmware_mapping_generation();
 }
 
+AmsError AmsBackendHappyHare::can_set_tool_mapping(int tool_number, int slot_index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return can_set_tool_mapping_locked(tool_number, slot_index);
+}
+
+AmsError AmsBackendHappyHare::can_set_tool_mapping_locked(int tool_number, int slot_index) const {
+    if (tool_number < 0 || tool_number >= static_cast<int>(system_info_.tool_to_slot_map.size())) {
+        return AmsErrorHelper::tool_out_of_range(tool_number);
+    }
+    if (!slots_.is_valid_index(slot_index)) {
+        return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, slots_.slot_count() - 1);
+    }
+    return AmsErrorHelper::success();
+}
+
 AmsError AmsBackendHappyHare::set_tool_mapping_impl(int tool_number, int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
-        if (tool_number < 0 ||
-            tool_number >= static_cast<int>(system_info_.tool_to_slot_map.size())) {
-            return AmsErrorHelper::tool_out_of_range(tool_number);
-        }
-
-        if (!slots_.is_valid_index(slot_index)) {
-            return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, slots_.slot_count() - 1);
+        if (auto err = can_set_tool_mapping_locked(tool_number, slot_index); !err.success()) {
+            return err;
         }
 
         // Check if another tool already maps to this slot

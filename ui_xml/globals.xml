@@ -148,6 +148,21 @@
     <px name="space_2xl_neg_large" value="-40"/>
     <px name="space_2xl_neg_xlarge" value="-48"/>
     <px name="space_2xl_neg_xxlarge" value="-64"/>
+    <!-- space_md_neg / space_xxs_neg: an inward offset from a right or bottom
+         edge. An attribute cannot negate a token ("-#space_md" is dropped), so
+         the negated tier lives here. -->
+    <px name="space_md_neg_tiny" value="-6"/>
+    <px name="space_md_neg_small" value="-8"/>
+    <px name="space_md_neg_medium" value="-10"/>
+    <px name="space_md_neg_large" value="-12"/>
+    <px name="space_md_neg_xlarge" value="-16"/>
+    <px name="space_md_neg_xxlarge" value="-20"/>
+    <px name="space_xxs_neg_tiny" value="-1"/>
+    <px name="space_xxs_neg_small" value="-2"/>
+    <px name="space_xxs_neg_medium" value="-3"/>
+    <px name="space_xxs_neg_large" value="-4"/>
+    <px name="space_xxs_neg_xlarge" value="-5"/>
+    <px name="space_xxs_neg_xxlarge" value="-6"/>
 
     <!-- ===================================================================== -->
     <!-- Responsive Icon Sizes (icon_size)                                    -->
@@ -215,6 +230,61 @@
     <px name="badge_size_large" value="20"/>
     <px name="badge_size_xlarge" value="24"/>
     <px name="badge_size_xxlarge" value="32"/>
+
+    <!-- ===================================================================== -->
+    <!-- Tile badge rungs (tile_badge_*)                                       -->
+    <!-- ===================================================================== -->
+    <!-- A count badge sitting on a home-tile glyph that follows the tile icon
+         rung (bind_tile_rung ladder="icon"). The badge must follow the same rung or it
+         covers the glyph on the small rungs: a fixed badge_size is 10px against
+         a 16-24px bell. Each value is 2/5 of the matching icon_font_* rung
+         face at that tier (round to nearest), the proportion the AMS lane
+         badge uses on its spool. Changing an icon_font_* rung means revisiting
+         the matching column here. -->
+    <px name="tile_badge_xs_small" value="6"/>
+    <px name="tile_badge_xs_medium" value="6"/>
+    <px name="tile_badge_xs_large" value="6"/>
+    <px name="tile_badge_xs_xlarge" value="10"/>
+    <px name="tile_badge_xs_xxlarge" value="13"/>
+
+    <px name="tile_badge_sm_micro" value="6"/>
+    <px name="tile_badge_sm_small" value="10"/>
+    <px name="tile_badge_sm_medium" value="10"/>
+    <px name="tile_badge_sm_large" value="10"/>
+    <px name="tile_badge_sm_xlarge" value="13"/>
+    <px name="tile_badge_sm_xxlarge" value="19"/>
+
+    <px name="tile_badge_md_micro" value="10"/>
+    <px name="tile_badge_md_small" value="13"/>
+    <px name="tile_badge_md_medium" value="13"/>
+    <px name="tile_badge_md_large" value="13"/>
+    <px name="tile_badge_md_xlarge" value="19"/>
+    <px name="tile_badge_md_xxlarge" value="26"/>
+
+    <px name="tile_badge_lg_micro" value="10"/>
+    <px name="tile_badge_lg_tiny" value="13"/>
+    <px name="tile_badge_lg_small" value="19"/>
+    <px name="tile_badge_lg_medium" value="19"/>
+    <px name="tile_badge_lg_large" value="19"/>
+    <px name="tile_badge_lg_xlarge" value="26"/>
+    <px name="tile_badge_lg_xxlarge" value="32"/>
+
+    <px name="tile_badge_xl_micro" value="13"/>
+    <px name="tile_badge_xl_tiny" value="19"/>
+    <px name="tile_badge_xl_small" value="26"/>
+    <px name="tile_badge_xl_medium" value="26"/>
+    <px name="tile_badge_xl_large" value="26"/>
+    <px name="tile_badge_xl_xlarge" value="32"/>
+    <px name="tile_badge_xl_xxlarge" value="38"/>
+
+    <!-- xxl follows #tile_icon_xxl_size, the size that rung's glyph draws at. -->
+    <px name="tile_badge_xxl_micro" value="26"/>
+    <px name="tile_badge_xxl_tiny" value="38"/>
+    <px name="tile_badge_xxl_small" value="51"/>
+    <px name="tile_badge_xxl_medium" value="51"/>
+    <px name="tile_badge_xxl_large" value="51"/>
+    <px name="tile_badge_xxl_xlarge" value="64"/>
+    <px name="tile_badge_xxl_xxlarge" value="77"/>
 
     <!-- ===================================================================== -->
     <!-- Responsive Spinner Sizes (spinner_*)                                  -->
@@ -309,6 +379,30 @@
     <px name="controls_toggle_width_medium" value="80"/>
     <px name="controls_toggle_width_large" value="96"/>
     <px name="controls_toggle_width_xlarge" value="112"/>
+    <!-- Pre-print option tiles (option_tile.xml): fixed-height cells of the
+         2-column grid on the print file detail view. The tile height itself
+         bounds the label (style_max_height="100%"), so long_mode="dots"
+         ellipsizes instead of wrapping past the cell. option_tile_tab is the
+         corner check tab, holding an xs check glyph. -->
+    <px name="option_tile_height_micro" value="40"/>
+    <px name="option_tile_height_tiny" value="40"/>
+    <px name="option_tile_height_small" value="48"/>
+    <px name="option_tile_height_medium" value="48"/>
+    <px name="option_tile_height_large" value="56"/>
+    <px name="option_tile_height_xlarge" value="64"/>
+    <px name="option_tile_tab_micro" value="14"/>
+    <px name="option_tile_tab_tiny" value="14"/>
+    <px name="option_tile_tab_small" value="16"/>
+    <px name="option_tile_tab_medium" value="16"/>
+    <px name="option_tile_tab_large" value="18"/>
+    <px name="option_tile_tab_xlarge" value="20"/>
+    <!-- The tab's lift off the tile's bottom border: -space_xs per tier. -->
+    <px name="option_tile_tab_lift_micro" value="-2"/>
+    <px name="option_tile_tab_lift_tiny" value="-2"/>
+    <px name="option_tile_tab_lift_small" value="-4"/>
+    <px name="option_tile_tab_lift_medium" value="-5"/>
+    <px name="option_tile_tab_lift_large" value="-6"/>
+    <px name="option_tile_tab_lift_xlarge" value="-8"/>
     <!-- Calibration tiles: the glyph a tile's share of the card holds above a
          one-line label -->
     <string name="calib_icon_size_micro" value="sm"/>
@@ -672,6 +766,17 @@
     <string name="icon_font_xl_xlarge" value="mdi_icons_80"/>
     <string name="icon_font_xl_xxlarge" value="mdi_icons_96"/>
     <!-- NO BASE icon_font_xl - registered at runtime -->
+    <!-- tile_icon_xxl_size: the home tiles' top icon rung, twice the tier's xl
+         glyph, so a tile only reaches it past a cell and a half. It names a
+         size, not a face: src/ui/ui_tile_rung.cpp draws it in the largest MDI
+         face this build links at or below it, scaled up to at most 2x. -->
+    <px name="tile_icon_xxl_size_micro" value="64"/>
+    <px name="tile_icon_xxl_size_tiny" value="96"/>
+    <px name="tile_icon_xxl_size_small" value="128"/>
+    <px name="tile_icon_xxl_size_medium" value="128"/>
+    <px name="tile_icon_xxl_size_large" value="128"/>
+    <px name="tile_icon_xxl_size_xlarge" value="160"/>
+    <px name="tile_icon_xxl_size_xxlarge" value="192"/>
     <!-- icon_font_hero: Card-filling empty-state icons (thumbnail placeholders etc.) -->
     <!-- mdi_icons_96/128 live only in the xxlarge font tier (mk/fonts.mk). On -->
     <!-- devices whose FONT_TIERS excludes xxlarge (CC1 = micro+tiny, AD5M = -->

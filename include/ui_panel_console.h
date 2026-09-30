@@ -8,6 +8,7 @@
 #include "console_filter_engine.h"
 #include "in_flight_guard.h"
 #include "lvgl.h"
+#include "moonraker_types.h"
 #include "overlay_base.h"
 #include "subject_managed_panel.h"
 
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "hv/json.hpp"
@@ -112,6 +114,26 @@ class ConsolePanel : public OverlayBase {
                                              bool filter_temps, bool filter_firmware_noise,
                                              const helix::ui::ConsoleFilterEngine& firmware_filter);
 
+    /// Whether @p entry is shown, under the user's console filter settings as
+    /// they stand now and the active printer's @p firmware_filter. The one
+    /// display decision for the overlay's history and live paths and the home
+    /// console tile. Main thread: reads SettingsManager.
+    [[nodiscard]] static bool accepts(const GcodeEntry& entry,
+                                      const helix::ui::ConsoleFilterEngine& firmware_filter);
+
+    /// One server.gcode_store row as an entry. Pure, safe on any thread.
+    [[nodiscard]] static GcodeEntry entry_from_store(const GcodeStoreEntry& stored);
+
+    /// The response line a notify_gcode_response carries, or nullopt for a
+    /// malformed frame, an empty line or a bare "ok". Pure, safe on any thread.
+    [[nodiscard]] static std::optional<GcodeEntry>
+    entry_from_gcode_response(const nlohmann::json& msg);
+
+    /// Fill @p filter with the active printer's firmware-noise presets plus the
+    /// user's own additions and removals. Main thread: reads PrinterState and
+    /// SettingsManager.
+    static void load_firmware_filter(helix::ui::ConsoleFilterEngine& filter);
+
   private:
     /// Fetch initial history from Moonraker's server.gcode_store
     void fetch_history();
@@ -127,9 +149,6 @@ class ConsolePanel : public OverlayBase {
 
     /// Scroll to the bottom (newest entries visible)
     void scroll_to_bottom();
-
-    /// True if message starts with "!!" or "Error" (case-insensitive)
-    static bool is_error_message(const std::string& message);
 
     /// Toggle console_container_ vs empty_state_ visibility
     void update_visibility();
@@ -149,9 +168,6 @@ class ConsolePanel : public OverlayBase {
     /// Rebuild the firmware-noise filter engine for the current printer.
     /// Cheap when the printer hasn't changed (compares against firmware_filter_printer_).
     void rebuild_firmware_filter();
-
-    /// True if message is a periodic temperature report (e.g. "ok T:210.0 /210.0 B:60.0 /60.0")
-    static bool is_temp_message(const std::string& message);
 
     /// Tap handler for a command line: paste it back into the input field.
     /// Refills only — never sends. A mis-tap must not re-run a printer command.
@@ -189,14 +205,9 @@ class ConsolePanel : public OverlayBase {
     helix::InFlightGuard fetch_guard_{std::chrono::milliseconds(30000)};
     bool user_scrolled_up_ = false; ///< True if user manually scrolled up
 
-    // Filtering — engine + observers driven by SettingsManager subjects.
-    // The engine is rebuilt on every on_activate() so user pattern edits take
-    // effect immediately when returning from the settings overlay.
+    // Firmware-noise patterns, rebuilt on every on_activate() so user pattern
+    // edits take effect when returning from the settings overlay.
     helix::ui::ConsoleFilterEngine firmware_filter_;
-    ObserverGuard filter_temps_observer_;
-    ObserverGuard filter_firmware_observer_;
-    bool filter_temps_ = true;
-    bool filter_firmware_noise_ = true;
 
     // Timestamp display (responsive: medium+ breakpoints only)
     bool show_timestamps_ = false; ///< True if screen is large enough for timestamps

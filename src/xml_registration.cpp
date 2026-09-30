@@ -376,13 +376,12 @@ void register_xml_components() {
     register_xml("icon.xml");
     register_xml("status_pill.xml");
     register_xml("filament_sensor_indicator.xml");
-    register_xml("humidity_indicator.xml");
-    register_xml("width_indicator.xml");
     register_xml("probe_indicator.xml");
     register_xml("filament_sensor_row.xml");
     register_xml("load_cell_row.xml");
     register_xml("temp_display.xml");
     register_xml("components/home_action_tile.xml");
+    register_xml("components/tile_badge.xml");
     register_xml("components/nozzle_icon.xml");
     register_xml("components/heater_icon.xml");
     register_xml("components/heater_status.xml");
@@ -484,7 +483,7 @@ void register_xml_components() {
     register_xml("components/filament_slot_picker_row.xml");
     register_xml("components/filament_mapping_tool_row.xml");
     register_xml("components/filament_source_row.xml");
-    register_xml("components/compact_toggle_row.xml");
+    register_xml("components/option_tile.xml");
     // Endless-spool status line. Registered here, ahead of filament_panel.xml,
     // because the AMS panel registers itself lazily and would otherwise be the
     // only consumer guaranteed to find it.
@@ -568,6 +567,7 @@ void register_xml_components() {
     register_xml("macro_param_modal.xml");
 
     // Main navigation and panels
+    register_xml("components/rail_estop.xml");
     register_xml("navigation_bar.xml");
     // Every home carousel page, then the next-page slot built around one
     register_xml("components/home_page_container.xml");

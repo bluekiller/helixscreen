@@ -6,6 +6,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_fixtures.h"
 #include "../test_helpers/grid_edit_mode_test_access.h"
+#include "../test_helpers/scoped_whole_cell_def.h"
 #include "config.h"
 #include "grid_edit_mode.h"
 #include "grid_layout.h"
@@ -237,20 +238,21 @@ TEST_CASE("GridEditMode: clamp_span respects min/max from registry", "[grid_edit
     CHECK(r3 == 2);
 }
 
-TEST_CASE("GridEditMode: clamp_span non-scalable widget stays fixed", "[grid_edit][resize]") {
-    // "control_buttons" is authored at a fixed footprint on both axes:
-    // min == max == default, so it cannot be resized at all. Assert that
-    // premise, or a widget that later gains a range turns this into a test of
-    // nothing.
-    const auto* def = find_widget_def("control_buttons");
+TEST_CASE("GridEditMode: clamp_span holds an axis whose min equals its max",
+          "[grid_edit][resize]") {
+    // "preheat" is authored at a fixed row span: min == max on that axis, so a
+    // drag can never change its height. Assert that premise, or a widget that
+    // later gains a range turns this into a test of nothing.
+    const auto* def = find_widget_def("preheat");
     REQUIRE(def != nullptr);
-    REQUIRE_FALSE(def->is_scalable());
+    REQUIRE(def->effective_min_rowspan() == def->effective_max_rowspan());
 
-    auto [c, r] = GridEditMode::clamp_span("control_buttons", 6, 6);
-    CHECK(c == def->effective_min_colspan());
-    CHECK(r == def->effective_min_rowspan());
-    CHECK(c == def->colspan);
+    auto [c, r] = GridEditMode::clamp_span("preheat", 6, 6);
     CHECK(r == def->rowspan);
+    auto [c2, r2] = GridEditMode::clamp_span("preheat", 6, 1);
+    CHECK(r2 == def->rowspan);
+    (void)c;
+    (void)c2;
 }
 
 TEST_CASE("GridEditMode: clamp_span unknown widget returns at least one track",
@@ -901,83 +903,6 @@ TEST_CASE("Drag collision detection: empty target cell allows placement", "[grid
     CHECK_FALSE(grid.can_place(0, 0, 1, 1));
 }
 
-TEST_CASE("Drag collision detection: occupied target with same size allows swap",
-          "[grid_edit][drag]") {
-    // Simulate swap logic from handle_drag_end
-    std::vector<PanelWidgetEntry> entries = {
-        {"widget_a", true, {}, 2, 1, 1, 1},
-        {"widget_b", true, {}, 4, 1, 1, 1},
-    };
-
-    int drag_cfg_idx = 0;
-    int drag_orig_col = 2, drag_orig_row = 1;
-    int drag_orig_colspan = 1, drag_orig_rowspan = 1;
-    int target_col = 4, target_row = 1;
-
-    // Find occupant at target
-    int occupant_cfg_idx = -1;
-    for (size_t i = 0; i < entries.size(); ++i) {
-        if (static_cast<int>(i) == drag_cfg_idx)
-            continue;
-        if (target_col >= entries[i].col && target_col < entries[i].col + entries[i].colspan &&
-            target_row >= entries[i].row && target_row < entries[i].row + entries[i].rowspan) {
-            occupant_cfg_idx = static_cast<int>(i);
-            break;
-        }
-    }
-
-    REQUIRE(occupant_cfg_idx == 1);
-
-    // Same size allows swap
-    auto& occupant = entries[static_cast<size_t>(occupant_cfg_idx)];
-    bool can_swap =
-        (occupant.colspan == drag_orig_colspan && occupant.rowspan == drag_orig_rowspan);
-    REQUIRE(can_swap);
-
-    // Perform swap
-    occupant.col = drag_orig_col;
-    occupant.row = drag_orig_row;
-    entries[static_cast<size_t>(drag_cfg_idx)].col = target_col;
-    entries[static_cast<size_t>(drag_cfg_idx)].row = target_row;
-
-    // Verify swapped positions
-    CHECK(entries[0].col == 4); // widget_a moved to target
-    CHECK(entries[0].row == 1);
-    CHECK(entries[1].col == 2); // widget_b moved to original
-    CHECK(entries[1].row == 1);
-}
-
-TEST_CASE("Drag collision detection: occupied target with different size rejects swap",
-          "[grid_edit][drag]") {
-    std::vector<PanelWidgetEntry> entries = {
-        {"small_widget", true, {}, 2, 1, 1, 1}, // 1x1
-        {"big_widget", true, {}, 4, 0, 2, 2},   // 2x2
-    };
-
-    int drag_orig_colspan = 1, drag_orig_rowspan = 1;
-    int target_col = 4, target_row = 0;
-
-    // Find occupant at target
-    int occupant_cfg_idx = -1;
-    for (size_t i = 0; i < entries.size(); ++i) {
-        if (static_cast<int>(i) == 0)
-            continue;
-        if (target_col >= entries[i].col && target_col < entries[i].col + entries[i].colspan &&
-            target_row >= entries[i].row && target_row < entries[i].row + entries[i].rowspan) {
-            occupant_cfg_idx = static_cast<int>(i);
-            break;
-        }
-    }
-
-    REQUIRE(occupant_cfg_idx == 1);
-
-    // Different size rejects swap
-    auto& occupant = entries[static_cast<size_t>(occupant_cfg_idx)];
-    bool can_swap =
-        (occupant.colspan == drag_orig_colspan && occupant.rowspan == drag_orig_rowspan);
-    REQUIRE_FALSE(can_swap);
-}
-
 TEST_CASE("Drag: FLOATING position compensation prevents visual shift", "[grid_edit][drag]") {
     // When a grid-managed widget becomes FLOATING, its coordinate reference
     // changes from content area to parent outer coords + padding. Without
@@ -1402,9 +1327,10 @@ TEST_CASE("PanelWidgetDef: partially scalable (one axis)", "[grid_edit][sizing]"
 
 TEST_CASE("clamp_span: clamps to widget min/max", "[grid_edit][sizing]") {
     // Spans are in tracks — a track is half a cell (GridLayout::TRACKS_PER_CELL).
-    // "humidity" is bounded on both axes (min 2x2, max 4x4 tracks), which is
-    // what makes a clamp observable at all; a widget whose maximum is the whole
-    // grid would never reach its ceiling here.
+    // "humidity" is held to min 2x2, max 4x4 tracks, which is what makes a
+    // clamp observable at all; a widget whose maximum is the whole grid would
+    // never reach its ceiling here.
+    ScopedWholeCellDef whole_cell("humidity");
     const auto* bounded = find_widget_def("humidity");
     REQUIRE(bounded != nullptr);
     REQUIRE(bounded->effective_max_colspan() == 4);
@@ -1427,16 +1353,17 @@ TEST_CASE("clamp_span: clamps to widget min/max", "[grid_edit][sizing]") {
     CHECK(r4 == 4);
 }
 
-TEST_CASE("clamp_span: non-scalable widget stays fixed", "[grid_edit][sizing]") {
-    // "control_buttons" is authored at a fixed footprint and cannot scale on
-    // either axis. Assert the premise so a widget that later gains a range does
-    // not leave this passing on a clamp that never happened.
-    const auto* def = find_widget_def("control_buttons");
+TEST_CASE("clamp_span: a fixed axis stays fixed while the other scales", "[grid_edit][sizing]") {
+    // "preheat" scales its width but not its height. Assert the premise so a
+    // widget that later gains a range does not leave this passing on a clamp
+    // that never happened.
+    const auto* def = find_widget_def("preheat");
     REQUIRE(def != nullptr);
-    REQUIRE_FALSE(def->is_scalable());
+    REQUIRE(def->effective_min_rowspan() == def->effective_max_rowspan());
+    REQUIRE(def->effective_max_colspan() > def->effective_min_colspan());
 
-    auto [c1, r1] = GridEditMode::clamp_span("control_buttons", 6, 6);
-    CHECK(c1 == def->colspan);
+    auto [c1, r1] = GridEditMode::clamp_span("preheat", def->effective_max_colspan(), 8);
+    CHECK(c1 == def->effective_max_colspan());
     CHECK(r1 == def->rowspan);
 }
 

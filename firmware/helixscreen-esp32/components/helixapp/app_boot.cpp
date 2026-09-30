@@ -50,6 +50,7 @@
 #include "ui_status_pill.h"
 #include "ui_switch.h"
 #include "ui_temp_display.h"
+#include "ui_tile_rung.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 
@@ -190,6 +191,7 @@ HostPort parse_moonraker_kconfig_url(const std::string& url) {
 // it parses.
 void register_widgets() {
     helix::ui::icon::register_widget();
+    helix::ui::register_tile_rung_binding();
     ui_status_pill_register_widget();
     ui_switch_register();
     ui_card_register();
@@ -961,23 +963,6 @@ extern "C" void app_boot_ui(void) {
     // The .bin font loads at ~2s print into the WiFi RF-cal serial dead window
     // (CH340 drops off USB); re-log them here where serial is reliable.
     helix_fonts_log_summary();
-
-    // Settle-heal: one full-screen repaint ~600ms after the shell is up. The
-    // synchronous boot build is the heaviest load window on the unpaced blit,
-    // and any tear it leaves on STATIC content (the navbar never repaints on
-    // its own) sticks on screen forever. Network is already quiet by now
-    // (websocket connects ~4s, home-up ~11s), so this fires into calm and
-    // forces a clean present that heals the boot-window artifacts. The heal
-    // present could itself tear, but at idle load the blit wins the beam race;
-    // it is one-shot and re-arms nothing. Stage B's pointer-swap makes tears
-    // impossible — this is the Stage A mitigation.
-    lv_timer_t* heal = lv_timer_create(
-        [](lv_timer_t*) {
-            lv_obj_invalidate(lv_screen_active());
-            ESP_LOGI(TAG, "helix: boot settle-heal repaint");
-        },
-        600, nullptr);
-    lv_timer_set_repeat_count(heal, 1);
 
 #if !CONFIG_HELIX_MOCK_PRINTER && !CONFIG_HELIX_NET_HIL
     // Bring up WiFi + connect to Moonraker, LAST — the shell is already up, so

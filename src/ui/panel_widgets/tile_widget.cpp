@@ -23,11 +23,14 @@ struct TileContentRow {
     const char* widest_current;
     const char* label;
     bool has_value;
+    /// A part of the tile is sized off the glyph, so the component takes
+    /// tile_drawn_subject.
+    bool glyph_sized_part;
 };
 
 constexpr TileContentRow kPureXmlTiles[] = {
-    {"notifications", "", "", "Notifications", false},
-    {"firmware_restart", "", "", "Restart", false},
+    {"notifications", "", "", "Alerts", false, true},
+    {"firmware_restart", "", "", "Restart", false, false},
 };
 
 } // namespace
@@ -43,9 +46,16 @@ void register_tile_widgets() {
             continue;
         }
         TileSizing::Content content{row.widest_value, row.widest_current, row.label, row.has_value};
-        register_widget_factory(row.id, [content](const std::string& instance_id) {
-            return std::make_unique<TileWidget>(instance_id, content);
-        });
+        const bool glyph_sized_part = row.glyph_sized_part;
+        register_widget_factory(
+            row.id, [content, glyph_sized_part](const std::string& instance_id) {
+                auto widget = std::make_unique<TileWidget>(instance_id, content);
+                if (glyph_sized_part) {
+                    TileSizing* sizing = widget->tile_sizing();
+                    sizing->add_subject_attr("tile_drawn_subject", sizing->drawn_subject_name());
+                }
+                return widget;
+            });
     }
 }
 

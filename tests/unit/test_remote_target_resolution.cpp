@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -607,5 +608,91 @@ TEST_CASE_METHOD(LVGLTestFixture, "ctl click: every reason a tap would miss", "[
         lv_obj_add_state(obj, LV_STATE_DISABLED);
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
         CHECK(std::string(helix::click_blocker(obj)) == "hidden");
+    }
+}
+
+// --- click on a checkable button -----------------------------------------
+//
+// A checkable button acts on CLICKED (extruder selector, gcode test Travels).
+// A `click` that only flips CHECKED leaves every such button dead, so the
+// handler must deliver both events, in the order a real tap does.
+
+TEST_CASE_METHOD(LVGLTestFixture, "ctl click: a checkable button toggles and still fires CLICKED",
+                 "[remote][ctl]") {
+    lv_obj_t* btn = lv_button_create(lv_screen_active());
+    lv_obj_set_name(btn, "ctl_checkable_button");
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_CHECKABLE);
+
+    int clicked = 0;
+    lv_obj_add_event_cb(
+        btn, [](lv_event_t* e) { ++*static_cast<int*>(lv_event_get_user_data(e)); },
+        LV_EVENT_CLICKED, &clicked);
+
+    const std::string sock = (std::filesystem::temp_directory_path() /
+                              ("helix_ctl_click_" + std::to_string(::getpid()) + ".sock"))
+                                 .string();
+    ::unlink(sock.c_str());
+    helix::RemoteConfig config;
+    config.socket_path = sock;
+    auto& server = helix::RemoteControlServer::instance();
+    // A sibling case in the same process may already run the singleton server;
+    // only stop what we started.
+    const bool started = server.start(config);
+    REQUIRE((started || server.is_running()));
+
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    REQUIRE(sock.size() < sizeof(addr.sun_path));
+    std::strncpy(addr.sun_path, sock.c_str(), sizeof(addr.sun_path) - 1);
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+    REQUIRE(connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    // The transport thread services the request through the UI queue, so this
+    // thread must drain while waiting for the reply line.
+    auto click = [&](int id) -> nlohmann::json {
+        const std::string req =
+            R"({"jsonrpc":"2.0","method":"click","params":{"name":"ctl_checkable_button"},"id":)" +
+            std::to_string(id) + "}\n";
+        REQUIRE(send(fd, req.data(), req.size(), 0) == static_cast<ssize_t>(req.size()));
+
+        std::string response;
+        char buf[4096];
+        for (int i = 0; i < 50 && response.find('\n') == std::string::npos; ++i) {
+            helix::ui::UpdateQueue::instance().drain();
+            struct pollfd pfd {
+                fd, POLLIN, 0
+            };
+            if (poll(&pfd, 1, 200) <= 0) {
+                continue;
+            }
+            const ssize_t n = recv(fd, buf, sizeof(buf), 0);
+            if (n <= 0) {
+                break;
+            }
+            response.append(buf, static_cast<size_t>(n));
+        }
+        REQUIRE(response.find('\n') != std::string::npos);
+        response.erase(response.find('\n'));
+        const nlohmann::json reply = nlohmann::json::parse(response, nullptr, false);
+        REQUIRE(!reply.is_discarded());
+        REQUIRE(reply.contains("result"));
+        return reply["result"];
+    };
+
+    const nlohmann::json first = click(1);
+    CHECK(first.value("toggled_to", -1) == 1);
+    CHECK(lv_obj_has_state(btn, LV_STATE_CHECKED));
+    CHECK(clicked == 1);
+
+    const nlohmann::json second = click(2);
+    CHECK(second.value("toggled_to", -1) == 0);
+    CHECK_FALSE(lv_obj_has_state(btn, LV_STATE_CHECKED));
+    CHECK(clicked == 2);
+
+    ::close(fd);
+    if (started) {
+        server.stop();
+        ::unlink(sock.c_str());
     }
 }

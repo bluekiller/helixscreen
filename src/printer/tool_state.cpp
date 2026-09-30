@@ -62,6 +62,11 @@ bool subjects_ready(bool initialized, const char* what) {
     return false;
 }
 
+/// "Tool 2", in the active backend's noun, for the tool at zero-based @p index.
+std::string noun_tool_label(int index) {
+    return helix::ui::lane_label(helix::ui::active_tool_noun(), index);
+}
+
 } // namespace
 
 ToolState& ToolState::instance() {
@@ -134,6 +139,13 @@ void ToolState::deinit_subjects() {
     subjects_initialized_ = false;
 }
 
+void ToolState::refresh_display_labels() {
+    for (auto& tool : tools_) {
+        tool.display_label = noun_tool_label(tool.index);
+    }
+    lv_subject_set_int(&tools_version_, lv_subject_get_int(&tools_version_) + 1);
+}
+
 void ToolState::init_tools(const helix::PrinterDiscovery& hardware) {
     // Clear existing tools
     tools_.clear();
@@ -170,7 +182,7 @@ void ToolState::init_tools(const helix::PrinterDiscovery& hardware) {
             ToolInfo tool;
             tool.index = i;
             tool.name = helix::ui::tool_label(i);
-            tool.display_label = helix::ui::lane_label(helix::ui::active_tool_noun(), i);
+            tool.display_label = noun_tool_label(i);
             tool.extruder_name = extruder_names[i];
             tool.heater_name = extruder_names[i];
             tool.fan_name = (i == 0)
@@ -205,7 +217,7 @@ void ToolState::init_tools(const helix::PrinterDiscovery& hardware) {
             // custom-named [tool Left]), so it is not always the generated
             // "T{i}" pattern and must not be overwritten.
             tool.name = tool_names[i];
-            tool.display_label = helix::ui::lane_label(helix::ui::active_tool_noun(), i);
+            tool.display_label = noun_tool_label(i);
 
             // Map extruder by index if available
             if (i < static_cast<int>(extruder_names.size())) {
@@ -241,7 +253,7 @@ void ToolState::init_tools(const helix::PrinterDiscovery& hardware) {
             ToolInfo tool;
             tool.index = i;
             tool.name = helix::ui::tool_label(i);
-            tool.display_label = helix::ui::lane_label(helix::ui::active_tool_noun(), i);
+            tool.display_label = noun_tool_label(i);
             tool.extruder_name = extruder_names[i];
             tool.heater_name = std::nullopt;
 
@@ -308,7 +320,7 @@ void ToolState::set_ams_topology(const ToolTopology& topo) {
             ToolInfo t;
             t.index = i;
             t.name = helix::ui::tool_label(i);
-            t.display_label = helix::ui::lane_label(helix::ui::active_tool_noun(), i);
+            t.display_label = noun_tool_label(i);
             t.backend_index = topo.backend_index;
             t.backend_slot =
                 (i < static_cast<int>(topo.tool_to_slot.size())) ? topo.tool_to_slot[i] : -1;
@@ -992,8 +1004,17 @@ void ToolState::save_spool_json() const {
     // The installer links this file out to printer_data; rename onto the target.
     path = helix::paths::write_target(path);
 
+    // Every connect reloads the assignments from Moonraker and saves them back,
+    // almost always unchanged. Skip the write then: on the ESP32 a flash write
+    // stalls the display's scan-out, and elsewhere it is SD-card wear for nothing.
+    const std::string text = helix::json_util::safe_dump(json_data, 2);
+    if (auto existing = helix::text_io::read_file(path); existing && *existing == text) {
+        spdlog::trace("[ToolState] Spool assignments unchanged, not rewriting {}", path);
+        return;
+    }
+
     // Atomic save: write to temp file, then rename to avoid partial writes on crash/power loss
-    if (!helix::text_io::write_file_atomic(path, helix::json_util::safe_dump(json_data, 2))) {
+    if (!helix::text_io::write_file_atomic(path, text)) {
         spdlog::error("[ToolState] Failed to write spool JSON to {}: {}", path, strerror(errno));
         return;
     }

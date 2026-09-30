@@ -93,12 +93,22 @@ instances="$MOCK_ROOT/var/run/procd-instances/\$name"
 instance_params="$MOCK_ROOT/var/run/procd-params-\$name"
 kill_instances() {
     [ -f "\$instances" ] || return 0
+    _killed=""
     while IFS= read -r pf; do
         [ -f "\$pf" ] || continue
         _ip=\$(cat "\$pf" 2>/dev/null)
-        [ -n "\$_ip" ] && kill "\$_ip" 2>/dev/null
+        [ -n "\$_ip" ] && kill "\$_ip" 2>/dev/null && _killed="\$_killed \$_ip"
     done < "\$instances"
     rm -f "\$instances"
+    # procd's stop returns once the instance has exited. Wait for it, up to
+    # 20s, so a loaded host's slow exit is never read as a survivor.
+    for _kp in \$_killed; do
+        _n=0
+        while kill -0 "\$_kp" 2>/dev/null && [ "\$_n" -lt 80 ]; do
+            sleep 0.25
+            _n=\$((_n + 1))
+        done
+    done
     return 0
 }
 procd_open_instance() {
@@ -207,9 +217,11 @@ redirected_init_script() {
 }
 
 # A fake web-server that records its launch, notes its pid, and stays alive
-# long enough for lifecycle assertions.
+# long enough for lifecycle assertions. It takes a second to exit on SIGTERM,
+# the way a real server does under load, so a stop that does not wait for the
+# exit is caught every run instead of once in a while.
 write_fake_webserver() {
-    printf '#!/bin/sh\necho $$ > "%s/webserver.pid"\necho "launched web-server" >> "%s/servers.log"\nsleep 30\n' \
+    printf '#!/bin/sh\necho $$ > "%s/webserver.pid"\necho "launched web-server" >> "%s/servers.log"\ntrap "sleep 1; exit 0" TERM\nsleep 30 & wait\n' \
         "$BATS_TEST_TMPDIR" "$BATS_TEST_TMPDIR" \
         > "$MOCK_ROOT/usr/bin/web-server"
     chmod +x "$MOCK_ROOT/usr/bin/web-server"

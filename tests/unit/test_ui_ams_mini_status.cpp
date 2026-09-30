@@ -447,3 +447,71 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: a condemned unit row keeps its po
     ams.clear_backends();
     ams.deinit_subjects();
 }
+
+// The widget syncs when it is created, so the frame that first shows it draws
+// its lanes instead of the next frame repainting them in.
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "ams_mini: a widget created with AMS data has its lanes at once",
+                 "[ui][ams_mini][sync]") {
+    auto& ams = helix::AmsState::instance();
+    ams.init_subjects(false);
+    auto mock = std::make_unique<helix::AmsBackendMock>(2);
+    auto* mock_ptr = mock.get();
+    ams.set_backend(std::move(mock));
+    mock_ptr->start();
+    ams.sync_from_backend();
+    helix::ui::UpdateQueue::instance().drain();
+
+    ui_ams_mini_status_init();
+    lv_obj_t* w = ui_ams_mini_status_create(test_screen(), 60);
+    ui_ams_mini_status_set_width(w, 260); // spool mode sizes from width_px, not layout
+
+    CHECK(UITest::find_by_name(w, "spool_material_0") != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(w, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_delete(w);
+    mock_ptr->stop();
+    ams.clear_backends();
+    ams.deinit_subjects();
+}
+
+namespace {
+int s_mini_invalidations = 0;
+void count_mini_invalidation(lv_event_t* /*e*/) {
+    ++s_mini_invalidations;
+}
+} // namespace
+
+// Every AmsState event re-syncs the widget; one that reads the same lanes must
+// not rebuild and repaint it.
+TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: a sync that reads nothing new repaints nothing",
+                 "[ui][ams_mini][sync]") {
+    auto& ams = helix::AmsState::instance();
+    ams.init_subjects(false);
+    auto mock = std::make_unique<helix::AmsBackendMock>(2);
+    auto* mock_ptr = mock.get();
+    ams.set_backend(std::move(mock));
+    mock_ptr->start();
+    ams.sync_from_backend();
+
+    ui_ams_mini_status_init();
+    lv_obj_t* w = ui_ams_mini_status_create(test_screen(), 60);
+    lv_obj_set_width(w, 200); // bar mode, sized by layout
+    lv_obj_update_layout(test_screen());
+    helix::ui::UpdateQueue::instance().drain();
+    lv_refr_now(nullptr);
+
+    lv_display_t* disp = lv_obj_get_display(w);
+    s_mini_invalidations = 0;
+    lv_display_add_event_cb(disp, count_mini_invalidation, LV_EVENT_INVALIDATE_AREA, nullptr);
+    ams.sync_from_backend(); // bumps slots_version with the same lanes
+    helix::ui::UpdateQueue::instance().drain();
+    lv_display_remove_event_cb_with_user_data(disp, count_mini_invalidation, nullptr);
+
+    CHECK(s_mini_invalidations == 0);
+
+    lv_obj_delete(w);
+    mock_ptr->stop();
+    ams.clear_backends();
+    ams.deinit_subjects();
+}

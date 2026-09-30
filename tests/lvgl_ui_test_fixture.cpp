@@ -21,6 +21,7 @@
 #include "ui_switch.h"
 #include "ui_temp_display.h"
 #include "ui_text_input.h"
+#include "ui_tile_rung.h"
 
 #include "setting_group.h"
 
@@ -129,6 +130,7 @@ void LVGLUITestFixture::register_widgets() {
     // Register C++ widgets in dependency order
     // These are needed before XML components that embed them
     helix::ui::icon::register_widget();
+    helix::ui::register_tile_rung_binding();
     ui_switch_register();
     ui_card_register();
     ui_temp_display_init();
@@ -228,7 +230,10 @@ void LVGLUITestFixture::cleanup() {
         // Wizard subjects
         ui_wizard_deinit_subjects();
 
-        // PrinterState subjects
+        // PrinterState subjects, reset first: with them down,
+        // HelixTestFixture::reset_all() can no longer clear the fan list or end
+        // a print this case started, and the next case inherits both.
+        reset_printer_state();
         get_printer_state().deinit_subjects();
 
         // Core singleton subjects - must be deinitialized to clear observers

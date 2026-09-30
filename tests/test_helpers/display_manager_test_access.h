@@ -69,6 +69,10 @@ class DisplayManagerTestAccess {
         dm.rebuild_input_after_backend_swap();
     }
 
+    static void create_keyboard_input(DisplayManager& dm) {
+        dm.create_keyboard_input();
+    }
+
     // Assigns m_pointer/m_keyboard directly, without creating a device, deleting
     // one, or registering a delete watch. Lets a test move the member to a second
     // live device while the first stays alive, which no production path does.

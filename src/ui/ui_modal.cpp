@@ -739,7 +739,7 @@ lv_obj_t* Modal::show(const char* component_name, const char** attrs) {
     }
 
     // Bring to foreground
-    lv_obj_move_foreground(backdrop);
+    helix::ui::bring_to_front(backdrop);
 
     // Add to stack
     ModalStack::instance().push(backdrop, dialog, component_name);
@@ -771,7 +771,7 @@ static void raise_top_modal_to_foreground(ModalStack& stack) {
     }
     lv_obj_t* top_backdrop = stack.backdrop_for(top);
     if (top_backdrop && !stack.is_exiting(top_backdrop)) {
-        lv_obj_move_foreground(top_backdrop);
+        helix::ui::bring_to_front(top_backdrop);
     }
 }
 
@@ -1097,7 +1097,7 @@ bool Modal::create_and_show(lv_obj_t* parent, const char* comp_name, const char*
     }
 
     // Bring to foreground
-    lv_obj_move_foreground(backdrop_);
+    helix::ui::bring_to_front(backdrop_);
 
     // Add to stack, recording this instance as the owner so the static
     // Modal::hide(dialog) overload can delegate back to instance teardown

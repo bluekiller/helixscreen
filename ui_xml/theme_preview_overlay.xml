@@ -73,7 +73,8 @@
                     scrollable="false">
               <text_small name="preview_label_mode" text="Mode" translation_tag="Mode"/>
               <lv_dropdown name="preview_dropdown"
-                           width="100%" height="#input_height" options="Standard&#10;Quiet&#10;Focused"/>
+                           width="100%" height="#input_height" options="Standard&#10;Quiet&#10;Focused"
+                           options_tag="Standard&#10;Quiet&#10;Focused"/>
             </lv_obj>
             <lv_obj height="content"
                     flex_flow="column" style_pad_all="#space_xs" style_pad_gap="#space_xs" scrollable="false">

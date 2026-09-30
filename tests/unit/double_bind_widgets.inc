@@ -24,18 +24,23 @@ static const BindGroup kDoubleBindWidgets[] = {
     {"components/filament_operations_group", "btn_purge", BindKind::State, "disabled", {{"filament_safety_warning_visible", 0}, {"filament_operation_in_progress", 0}, {"filament_unload_disabled", 0}}, 3, {{0, 1}, {1, 1}, {2, 1}}, 3, true},
     {"components/filament_operations_group", "btn_extrude", BindKind::State, "disabled", {{"filament_safety_warning_visible", 0}, {"filament_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"components/filament_operations_group", "btn_retract", BindKind::State, "disabled", {{"filament_safety_warning_visible", 0}, {"filament_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
+    {"components/move_preset_grid", "preset_rear_left", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_rear", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_rear_right", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_left", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_center", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_right", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_front_left", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_front", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "preset_front_right", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "move_park", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"components/move_preset_grid", "move_motors_off", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
     {"controls_panel", "chamber_status", BindKind::Flag, "hidden", {{"ui_breakpoint", 0}, {"printer_has_chamber", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
-    {"controls_panel", "btn_qgl", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
-    {"controls_panel", "btn_z_tilt", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
-    {"controls_panel", "btn_motors", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"motors_enabled", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
-    {"controls_panel", "light_button", BindKind::State, "disabled", {{"printer_connection_state", 2}, {"led_command_in_flight", 0}}, 2, {{0, 3}, {1, 1}}, 2, true},
     {"controls_panel", "btn_home_all", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"controls_panel", "btn_home_x", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"controls_panel", "btn_home_y", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"controls_panel", "btn_home_xy", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"controls_panel", "btn_home_z", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
-    {"micro/controls_panel", "btn_motors", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"motors_enabled", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
-    {"micro/controls_panel", "light_button", BindKind::State, "disabled", {{"printer_connection_state", 2}, {"led_command_in_flight", 0}}, 2, {{0, 3}, {1, 1}}, 2, true},
     {"micro/controls_panel", "btn_home_all", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"micro/controls_panel", "btn_home_x", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"micro/controls_panel", "btn_home_y", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
@@ -43,6 +48,8 @@ static const BindGroup kDoubleBindWidgets[] = {
     {"micro/controls_panel", "btn_home_z", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"micro/controls_panel", "btn_qgl", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"micro/controls_panel", "btn_z_tilt", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
+    {"motion_panel", "move_park", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}, {"idle_timeout_printing", 0}}, 3, {{0, 1}, {1, 0}, {2, 1}}, 3, true},
+    {"motion_panel", "move_motors_off", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"nav_buttons_enabled", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
     {"motion_panel", "btn_qgl", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"motion_panel", "btn_z_tilt", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
     {"motion_panel", "btn_qgl", BindKind::State, "disabled", {{"machine_motion_blocked", 0}, {"controls_operation_in_progress", 0}}, 2, {{0, 1}, {1, 1}}, 2, true},
@@ -52,7 +59,6 @@ static const BindGroup kDoubleBindWidgets[] = {
     {"network_settings_overlay", "refresh_btn", BindKind::State, "disabled", {{"wifi_scanning", 0}, {"wifi_hardware_available", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
     {"network_settings_overlay", "wifi_disabled_placeholder", BindKind::Flag, "hidden", {{"wifi_enabled", 0}, {"wifi_hardware_available", -1}}, 2, {{0, 1}, {1, 0}}, 2, true},
     {"print_file_detail", "filament_mapping_card", BindKind::Flag, "hidden", {{"filament_mapping_visible", -1}, {"print_select_button_mode", 0}}, 2, {{0, 0}, {1, 1}}, 2, true},
-    {"print_status_panel", "speed_flow_row", BindKind::Flag, "hidden", {{"ui_breakpoint", 0}}, 1, {{0, 1}, {0, 2}}, 2, false},
     {"probe_indicator", "probe_indicator", BindKind::Flag, "hidden", {{"probe_count", -1}, {"probe_triggered", 0}}, 2, {{0, 0}, {1, -1}}, 2, true},
     {"spool_wizard", "create_btn", BindKind::State, "disabled", {{"spool_wizard_can_proceed", -1}, {"wizard_creating", 0}}, 2, {{0, 0}, {1, 1}}, 2, true},
     {"wizard_wifi_setup", "network_list_container", BindKind::State, "disabled", {{"wifi_enabled", -1}, {"wifi_hardware_available", -1}}, 2, {{0, 0}, {1, 0}}, 2, true},
@@ -60,8 +66,8 @@ static const BindGroup kDoubleBindWidgets[] = {
 // clang-format on
 
 // Groups the scan found but that no test can drive; see the header comment.
-static constexpr int kUndrivableGroups = 24;
+static constexpr int kUndrivableGroups = 34;
 
 // Total groups in ui_xml/. A new double-bind widget moves this, which is the
 // point: it has to be regenerated and re-run rather than silently uncovered.
-static constexpr int kTotalGroups = 63;
+static constexpr int kTotalGroups = 79;

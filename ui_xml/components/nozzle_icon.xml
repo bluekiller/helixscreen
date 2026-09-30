@@ -51,11 +51,8 @@
         width="content" height="content" flex_flow="row" style_flex_cross_place="end" style_pad_all="0"
         style_pad_column="#space_xxs" scrollable="false" clickable="false" event_bubble="true">
     <icon name="nozzle_icon_glyph" src="heater" size="$size" variant="secondary" clickable="false" event_bubble="true">
-      <bind_style_if_eq name="styles.tile_icon_xs" subject="$rung_subject" ref_value="0"/>
-      <bind_style_if_eq name="styles.tile_icon_sm" subject="$rung_subject" ref_value="1"/>
-      <bind_style_if_eq name="styles.tile_icon_md" subject="$rung_subject" ref_value="2"/>
-      <bind_style_if_eq name="styles.tile_icon_lg" subject="$rung_subject" ref_value="3"/>
-      <bind_style_if_eq name="styles.tile_icon_xl" subject="$rung_subject" ref_value="4"/>
+      <!-- The heating pulse animates this glyph, so it never takes the scaled path -->
+      <bind_tile_rung ladder="icon" subject="$rung_subject" animated="true"/>
     </icon>
     <!-- The digit carries hidden="true" as the static default the
          empty-subject contract requires: a call site passing badge_subject=""

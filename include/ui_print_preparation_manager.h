@@ -300,6 +300,14 @@ class PrintPreparationManager {
     [[nodiscard]] bool has_scan_result_for(const std::string& filename) const;
 
     /**
+     * @brief The PRINT_START/START_PRINT call the cached scan found in `filename`
+     *
+     * @return nullptr when the cache holds another file, or no call was found.
+     */
+    [[nodiscard]] const gcode::PrintStartCallInfo*
+    print_start_for(const std::string& filename) const;
+
+    /**
      * @brief Get cached scan result (if available)
      */
     [[nodiscard]] const std::optional<gcode::ScanResult>& get_scan_result() const {
@@ -461,8 +469,9 @@ class PrintPreparationManager {
     /**
      * @brief Get the pre-print time estimate subject (seconds)
      *
-     * Updated by recalculate_estimate() whenever checkbox toggles change.
-     * Value is total estimated seconds for all enabled pre-print operations.
+     * Updated by recalculate_estimate() on open and whenever checkbox toggles
+     * change. Value is total estimated seconds for all enabled pre-print
+     * operations.
      */
     lv_subject_t* get_preprint_estimate_subject();
 
@@ -708,8 +717,9 @@ class PrintPreparationManager {
     /**
      * @brief Lazy-initialize the prep-time estimate subject.
      *
-     * Called from get_preprint_estimate_subject(); ensures the subject is
-     * ready before any observer wires up.
+     * Called from get_preprint_estimate_subject() and
+     * recalculate_estimate(); ensures the subject is ready before any
+     * observer wires up.
      */
     void ensure_estimate_subject_initialized();
 

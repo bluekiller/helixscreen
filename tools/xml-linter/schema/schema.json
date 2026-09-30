@@ -1536,6 +1536,15 @@
         },
         "label_hidden_if_bp_eq": {
           "type": "int"
+        },
+        "label_hidden_subject": {
+          "type": "string"
+        },
+        "label_hidden_if_eq": {
+          "type": "int"
+        },
+        "stacked_if_bp_lte": {
+          "type": "int"
         }
       },
       "inherits": "lv_obj"
@@ -1720,6 +1729,9 @@
           "type": "string"
         },
         "size_target_subject": {
+          "type": "string"
+        },
+        "rung_subject": {
           "type": "string"
         },
         "bind_current": {
@@ -1921,6 +1933,26 @@
     },
     "leader_line": {
       "attributes": {},
+      "inherits": "lv_obj"
+    },
+    "lv_obj-bind_tile_rung": {
+      "attributes": {
+        "subject": {
+          "type": "string"
+        },
+        "ladder": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "string"
+        },
+        "one_line": {
+          "type": "string"
+        },
+        "animated": {
+          "type": "string"
+        }
+      },
       "inherits": "lv_obj"
     }
   },
@@ -2874,7 +2906,8 @@
     "ams_lane_bar",
     "ams_lane_spool",
     "belt_path_sketch",
-    "leader_line"
+    "leader_line",
+    "lv_obj-bind_tile_rung"
   ],
   "runtime_constants": [
     "accent_bar_gap",
@@ -3133,14 +3166,6 @@
     "dialog_content_tall_chrome_max_xxlarge",
     "dot_size",
     "elevated_bg",
-    "estop_slot_width",
-    "estop_slot_width_large",
-    "estop_slot_width_medium",
-    "estop_slot_width_micro",
-    "estop_slot_width_small",
-    "estop_slot_width_tiny",
-    "estop_slot_width_xlarge",
-    "estop_slot_width_xxlarge",
     "fan_arc_size",
     "fan_arc_size_large",
     "fan_arc_size_medium",
@@ -3529,6 +3554,14 @@
     "motion_z_col_w_micro",
     "motion_z_col_w_small",
     "motion_z_col_w_tiny",
+    "nav_estop_size",
+    "nav_estop_size_large",
+    "nav_estop_size_medium",
+    "nav_estop_size_micro",
+    "nav_estop_size_small",
+    "nav_estop_size_tiny",
+    "nav_estop_size_xlarge",
+    "nav_estop_size_xxlarge",
     "nav_padding",
     "nav_width",
     "nav_width_large",
@@ -3550,6 +3583,27 @@
     "object_color_6",
     "object_color_7",
     "object_color_8",
+    "option_tile_height",
+    "option_tile_height_large",
+    "option_tile_height_medium",
+    "option_tile_height_micro",
+    "option_tile_height_small",
+    "option_tile_height_tiny",
+    "option_tile_height_xlarge",
+    "option_tile_tab",
+    "option_tile_tab_large",
+    "option_tile_tab_lift",
+    "option_tile_tab_lift_large",
+    "option_tile_tab_lift_medium",
+    "option_tile_tab_lift_micro",
+    "option_tile_tab_lift_small",
+    "option_tile_tab_lift_tiny",
+    "option_tile_tab_lift_xlarge",
+    "option_tile_tab_medium",
+    "option_tile_tab_micro",
+    "option_tile_tab_small",
+    "option_tile_tab_tiny",
+    "option_tile_tab_xlarge",
     "overlay_bg",
     "overlay_bg_dark",
     "overlay_bg_light",
@@ -3630,6 +3684,13 @@
     "space_md",
     "space_md_large",
     "space_md_medium",
+    "space_md_neg",
+    "space_md_neg_large",
+    "space_md_neg_medium",
+    "space_md_neg_small",
+    "space_md_neg_tiny",
+    "space_md_neg_xlarge",
+    "space_md_neg_xxlarge",
     "space_md_small",
     "space_md_tiny",
     "space_md_xlarge",
@@ -3658,6 +3719,13 @@
     "space_xxs",
     "space_xxs_large",
     "space_xxs_medium",
+    "space_xxs_neg",
+    "space_xxs_neg_large",
+    "space_xxs_neg_medium",
+    "space_xxs_neg_small",
+    "space_xxs_neg_tiny",
+    "space_xxs_neg_xlarge",
+    "space_xxs_neg_xxlarge",
     "space_xxs_small",
     "space_xxs_tiny",
     "space_xxs_xlarge",
@@ -3853,8 +3921,74 @@
     "text",
     "text_muted",
     "text_subtle",
+    "tg_picker_gap",
+    "tg_picker_gap_large",
+    "tg_picker_gap_medium",
+    "tg_picker_gap_micro",
+    "tg_picker_gap_small",
+    "tg_picker_gap_tiny",
+    "tg_picker_gap_xlarge",
+    "tg_picker_gap_xxlarge",
+    "tg_preset_h",
+    "tg_preset_h_large",
+    "tg_preset_h_medium",
+    "tg_preset_h_micro",
+    "tg_preset_h_small",
+    "tg_preset_h_tiny",
     "theme_swatch_size",
     "thumbnail_height",
+    "tile_badge_lg",
+    "tile_badge_lg_large",
+    "tile_badge_lg_medium",
+    "tile_badge_lg_micro",
+    "tile_badge_lg_small",
+    "tile_badge_lg_tiny",
+    "tile_badge_lg_xlarge",
+    "tile_badge_lg_xxlarge",
+    "tile_badge_md",
+    "tile_badge_md_large",
+    "tile_badge_md_medium",
+    "tile_badge_md_micro",
+    "tile_badge_md_small",
+    "tile_badge_md_xlarge",
+    "tile_badge_md_xxlarge",
+    "tile_badge_sm",
+    "tile_badge_sm_large",
+    "tile_badge_sm_medium",
+    "tile_badge_sm_micro",
+    "tile_badge_sm_small",
+    "tile_badge_sm_xlarge",
+    "tile_badge_sm_xxlarge",
+    "tile_badge_xl",
+    "tile_badge_xl_large",
+    "tile_badge_xl_medium",
+    "tile_badge_xl_micro",
+    "tile_badge_xl_small",
+    "tile_badge_xl_tiny",
+    "tile_badge_xl_xlarge",
+    "tile_badge_xl_xxlarge",
+    "tile_badge_xs",
+    "tile_badge_xs_large",
+    "tile_badge_xs_medium",
+    "tile_badge_xs_small",
+    "tile_badge_xs_xlarge",
+    "tile_badge_xs_xxlarge",
+    "tile_badge_xxl",
+    "tile_badge_xxl_large",
+    "tile_badge_xxl_medium",
+    "tile_badge_xxl_micro",
+    "tile_badge_xxl_small",
+    "tile_badge_xxl_tiny",
+    "tile_badge_xxl_xlarge",
+    "tile_badge_xxl_xxlarge",
+    "tile_icon_xxl_size",
+    "tile_icon_xxl_size_large",
+    "tile_icon_xxl_size_medium",
+    "tile_icon_xxl_size_micro",
+    "tile_icon_xxl_size_small",
+    "tile_icon_xxl_size_tiny",
+    "tile_icon_xxl_size_xlarge",
+    "tile_icon_xxl_size_xxlarge",
     "toolhead_body",
     "tray_bg",
     "tray_border",

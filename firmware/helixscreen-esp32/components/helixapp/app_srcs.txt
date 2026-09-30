@@ -280,6 +280,7 @@ src/ui/bed_coord_mapper.cpp
 src/ui/bed_mesh_profile_name.cpp
 src/ui/chamber_assignment_options.cpp
 src/ui/console_filter_engine.cpp
+src/ui/console_line.cpp
 src/ui/fan_spin_animation.cpp
 src/ui/fault_modal_registry.cpp
 src/ui/filament_op_execute.cpp
@@ -554,6 +555,7 @@ src/ui/ui_temp_display.cpp
 src/ui/ui_temp_graph.cpp
 src/ui/ui_temperature_utils.cpp
 src/ui/ui_text.cpp
+src/ui/ui_tile_rung.cpp
 src/ui/ui_text_input.cpp
 src/ui/ui_theme_editor_overlay.cpp
 src/ui/ui_toast_manager.cpp

@@ -379,3 +379,11 @@ def test_every_lv_tr_key_in_src_resolves_to_a_pack_tag():
     assert not misses, "lv_tr() keys with no tag in en.xml:\n" + "\n".join(
         f"  {k!r}  ({site})" for k, site in sorted(misses.items())
     )
+
+
+def test_tr_noop_marks_a_format_string_like_lv_tr_does(tmp_path):
+    # A bare "%dh %dm" is skipped as a format string, but TR_NOOP() is an
+    # explicit mark, so it becomes a key the same as lv_tr() would make it.
+    src = 'snprintf(buf, n, tr(TR_NOOP("%dh %dm")), h, m);\nconst char* s = "%dh %dm";'
+    assert _extract(tmp_path, src) == {"%dh %dm"}
+    assert _extract(tmp_path, 'const char* s = "%dh %dm";') == set()

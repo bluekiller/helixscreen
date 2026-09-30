@@ -14,7 +14,10 @@
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "src/ui/panel_widgets/print_status_widget.h"
+#include "system_settings_manager.h"
 #include "tool_state.h"
+
+#include <spdlog/fmt/fmt.h>
 
 #include <chrono>
 #include <string>
@@ -308,7 +311,6 @@ PrintHistoryJob make_history_job(const char* filename, bool exists, double ended
     job.end_time = now - ended_secs_ago;
     job.print_duration = 3600.0;
     job.filament_used = 12500.0;
-    job.duration_str = "1h 00m";
     job.filament_str = "12.5m";
     return job;
 }
@@ -373,12 +375,54 @@ TEST_CASE_METHOD(HelixTestFixture,
 
         // Exactly the presentation used when there is no history at all.
         REQUIRE(subject_text("print_status_idle_filename").empty());
-        REQUIRE(subject_text("print_status_idle_when") == "Never printed");
+        REQUIRE(subject_text("print_status_idle_when") == "No prints yet");
         REQUIRE(subject_text("print_status_idle_meta").empty());
         // print_status_detailed_idle.xml binds the Reprint Last button's
         // disabled state to this being 0.
         REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "print_status_idle_has_last")) == 0);
     }
+}
+
+// The idle tile's text is formatted in C++ and handed to XML as finished strings,
+// so XML's own re-translation on a language switch never reaches it.
+TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter re-renders its text on a language switch",
+                 "[print_status][formatter][i18n]") {
+    PrintStatusWidget::destroy_formatter_for_test();
+
+    PrinterState& ps = get_printer_state();
+    PrinterStateTestAccess::reset(ps);
+    ps.init_subjects(false);
+    PrinterPrintStateTestAccess::set_has_real_layer_data(
+        PrinterStateTestAccess::get_print_state(ps), true);
+    lv_subject_set_int(ps.get_print_filament_used_subject(), 1500);
+    lv_subject_set_int(ps.get_print_layer_current_subject(), 7);
+
+    ScopedHistory history({make_history_job("slipper.gcode", true, 2 * 3600.0)});
+
+    FormatterScope fs;
+    UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
+    REQUIRE(subject_text("print_status_layer_text") == "Layer 7");
+    REQUIRE(subject_text("print_status_idle_when") == "Completed 2h ago");
+    REQUIRE(subject_text("print_status_idle_meta") == "12.5m filament • 1h");
+    REQUIRE(subject_text("print_status_filament_text") == "Filament: 1.5m");
+
+    auto& settings = SystemSettingsManager::instance();
+    settings.set_language("ru");
+    UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
+    // With no pack loaded lv_tr() returns the English tag, and every check
+    // below would pass against English.
+    REQUIRE(std::string(lv_tr("Completed {}h ago")) != "Completed {}h ago");
+
+    CHECK(subject_text("print_status_layer_text") == std::string(lv_tr("Layer")) + " 7");
+    CHECK(subject_text("print_status_idle_when") == fmt::format(lv_tr("Completed {}h ago"), 2));
+    CHECK(subject_text("print_status_idle_meta") ==
+          fmt::format(lv_tr("{} filament • {}"), "12.5m", helix::format::duration(3600)));
+    CHECK(helix::format::duration(3600) != "1h");
+    CHECK(subject_text("print_status_filament_text") == std::string(lv_tr("Filament")) + ": 1.5m");
+
+    settings.set_language("en");
+    UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
+    CHECK(subject_text("print_status_idle_when") == "Completed 2h ago");
 }
 
 // =============================================================================
@@ -399,7 +443,6 @@ PrintHistoryJob job_with(PrintJobStatus status, double start_time, double end_ti
     job.status = status;
     job.start_time = start_time;
     job.end_time = end_time;
-    job.duration_str = "0s";
     job.filament_str = "0mm";
     return job;
 }
@@ -463,7 +506,6 @@ TEST_CASE("describe_last_print: zero filament and duration hide the meta line",
     REQUIRE(describe_last_print(job, kNow).meta.empty());
 
     job.print_duration = 5400.0;
-    job.duration_str = "1h 30m";
     REQUIRE(describe_last_print(job, kNow).meta == "1h 30m");
 
     job.filament_used = 2500.0;
@@ -505,7 +547,6 @@ TEST_CASE("describe_last_print: under a second of time hides the meta line",
     job.end_time = 0.0;
     job.print_duration = 0.0;
     job.total_duration = 0.8278;
-    job.duration_str = "0s";
     job.filament_str = "0mm";
 
     const double now = job.start_time + 600.0;

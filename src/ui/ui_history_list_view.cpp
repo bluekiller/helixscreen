@@ -3,6 +3,7 @@
 
 #include "ui_history_list_view.h"
 
+#include "format_utils.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -235,7 +236,8 @@ void HistoryListView::configure_row(lv_obj_t* row, size_t data_index, const Prin
     // Duration label
     lv_obj_t* duration_label = lv_obj_find_by_name(row, "row_duration");
     if (duration_label) {
-        lv_label_set_text(duration_label, job.duration_str.c_str());
+        lv_label_set_text(duration_label,
+                          helix::format::duration(static_cast<int>(job.print_duration)).c_str());
     }
 
     // Filament type label

@@ -165,6 +165,10 @@ class PrinterFanState {
     /// Rename a fan: saves custom name to Config, updates display_name, bumps fans_version
     void rename_fan(const std::string& object_name, const std::string& new_name);
 
+    /// Re-resolve every fan's display name in the current language (custom
+    /// names stay as typed) and bump fans_version so consumers redraw.
+    void refresh_display_names();
+
     // Subject accessors
     lv_subject_t* get_fan_speed_subject() {
         return &fan_speed_;
@@ -263,6 +267,10 @@ class PrinterFanState {
     /// Returns base_name unchanged for any other object or type.
     std::string disambiguate_chamber_fan_name(const std::string& object_name, FanType type,
                                               const std::string& base_name) const;
+
+    /// The name a fan shows: its custom name when the user set one, else its
+    /// role or generated name translated into the current language.
+    std::string resolve_display_name(const std::string& object_name, FanType type) const;
 
     SubjectManager subjects_;
     bool subjects_initialized_ = false;

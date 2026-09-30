@@ -4,9 +4,11 @@
 #include "ui_keyboard_manager.h"
 
 #include "ui_breakpoint.h"
+#include "ui_effects.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
 #include "ui_keycap_style.h"
+#include "ui_nav_manager.h"
 #include "ui_text_input.h"
 #include "ui_utils.h"
 
@@ -1342,6 +1344,22 @@ void KeyboardManager::show(lv_obj_t* textarea) {
     }
 #endif
 
+    // The hardware keyboard types into the focused textarea through the input
+    // group; the on-screen keyboard would only cover it. Checked after the
+    // Android system keyboard, which wins when both are on.
+    if (DisplaySettingsManager::instance().soft_keyboard_suppressed()) {
+        // A keyboard raised before suppression turned on must not stay up, linked
+        // to the field it was raised for.
+        if (is_visible()) {
+            hide();
+        }
+        spdlog::debug("[KeyboardManager] Hardware keyboard attached - on-screen keyboard "
+                      "suppressed for textarea: {}",
+                      (void*)textarea);
+        context_textarea_ = textarea;
+        return;
+    }
+
     lv_obj_t* screen = lv_screen_active();
     if (screen == nullptr) {
         spdlog::debug("[KeyboardManager] Skipping show - no active screen");
@@ -1370,6 +1388,13 @@ void KeyboardManager::show(lv_obj_t* textarea) {
     lv_obj_remove_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(keyboard_);
     lv_obj_update_layout(screen);
+    {
+        // The keyboard covers the bottom of the rail, where the E-stop sits:
+        // move it up the rail column to clear the keyboard's final top edge.
+        lv_area_t kb_area;
+        lv_obj_get_coords(keyboard_, &kb_area);
+        NavigationManager::instance().set_rail_estop_keyboard_top(kb_area.y1);
+    }
 
     // Animate keyboard sliding up from bottom
     if (keyboard_animations_enabled()) {
@@ -1414,7 +1439,9 @@ void KeyboardManager::show(lv_obj_t* textarea) {
 
         for (uint32_t i = 0; i < child_count; i++) {
             lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-            if (child == keyboard_)
+            // Screen chrome (the rail E-stop) is placed against the keyboard, not
+            // shifted with the page.
+            if (child == keyboard_ || helix::ui::is_screen_chrome(child))
                 continue;
 
             int32_t current_y = lv_obj_get_y(child);
@@ -1462,6 +1489,12 @@ void KeyboardManager::hide() {
     }
 #endif
 
+    // A suppressed show never raised the keyboard or moved the screen.
+    if (DisplaySettingsManager::instance().soft_keyboard_suppressed() && !is_visible()) {
+        lv_keyboard_set_textarea(keyboard_, nullptr);
+        return;
+    }
+
     // Cancel any in-progress show animation
     lv_anim_delete(keyboard_, nullptr);
 
@@ -1469,6 +1502,7 @@ void KeyboardManager::hide() {
     longpress_state_ = LP_IDLE;
 
     lv_keyboard_set_textarea(keyboard_, nullptr);
+    NavigationManager::instance().set_rail_estop_keyboard_top(-1);
 
     // Animate keyboard sliding down (or hide instantly if animations disabled)
     if (keyboard_animations_enabled()) {
@@ -1500,7 +1534,7 @@ void KeyboardManager::hide() {
 
     for (uint32_t i = 0; i < child_count; i++) {
         lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-        if (child == keyboard_)
+        if (child == keyboard_ || helix::ui::is_screen_chrome(child))
             continue;
 
         int32_t current_y = lv_obj_get_y(child);
