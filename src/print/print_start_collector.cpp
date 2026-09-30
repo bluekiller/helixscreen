@@ -166,47 +166,7 @@ void PrintStartCollector::start() {
 
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
-        // Record start time for timeout fallback
-        printing_state_start_ = helix::sim::SimulatedClock::now();
-        last_signal_time_ = printing_state_start_;
-        last_inferred_activity_time_ = printing_state_start_;
-        hold_until_ = helix::sim::SimulatedClock::time_point::min();
-        held_for_ = {};
-        // Assume the narrower window until something says otherwise.
-        window_ = helix::PreprintWindow::PrinterEdge;
-        host_pre_start_echo_lines_.clear();
-        detected_phases_.clear();
-        current_phase_ = PrintStartPhase::INITIALIZING;
-        print_start_detected_ = false;
-        max_sequential_progress_ = 0;
-        phase_enter_times_.clear();
-        // Reset mesh probe tracking
-        mesh_probe_current_ = 0;
-        mesh_probe_total_ = 0;
-        mesh_points_.reset();
-        mesh_first_probe_time_ = {};
-        mesh_last_probe_time_ = {};
-        mesh_seconds_per_probe_ = 0.0f;
-        pre_mesh_points_.reset();
-        pre_mesh_last_probe_time_ = {};
-        current_mesh_message_.clear();
-        current_message_.clear();
-        heater_wait_report_time_ = helix::sim::SimulatedClock::time_point::min();
-        heater_wait_shown_ = false;
-        last_phase_object_state_.clear();
-        held_status_signal_rules_.clear();
-        bed_mesh_present_ = false;
-        temps_ready_time_ = {};
-        silent_progression_idx_ = 0;
-        real_signal_seen_.store(false, std::memory_order_relaxed);
-        // Arm the layer-1 completion edge fresh for this print. The current
-        // subject value may be a stale positive carried over from the previous
-        // print (reset_for_new_print() runs async, after start()), so we do NOT
-        // seed layer_zero_seen_ from it — only a freshly observed current_layer<1
-        // (post-reset) latches it. See MoonrakerManager::should_complete_preprint().
-        layer_zero_seen_.store(false, std::memory_order_relaxed);
-        first_layer_observed_.store(-1, std::memory_order_relaxed);
-        layer_advanced_.store(false, std::memory_order_relaxed);
+        reset_run_locked();
         // Snapshot stale subject values so fallbacks only trigger on real changes
         baseline_layer_ = lv_subject_get_int(state_.get_print_layer_current_subject());
         baseline_progress_ = lv_subject_get_int(state_.get_print_progress_subject());
@@ -229,17 +189,6 @@ void PrintStartCollector::start() {
     cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(
                                  lv_subject_get_int(state_.get_bed_target_subject())),
                              std::memory_order_relaxed);
-    last_remaining_ = 0;
-    fallback_completion_ = false;
-    // A mark left from the last print would count its climb since then as activity.
-    bed_climb_ = {};
-    ext_climb_ = {};
-
-    // Position inference starts with a clean slate and a fresh sample clock
-    position_classifier_.reset();
-    last_position_activity_ = helix::PositionActivity::NONE;
-    position_clock_start_ = helix::sim::SimulatedClock::now();
-
     // Reset thermal rate models with current temperatures
     {
         auto& mgr = ThermalRateManager::instance();
@@ -424,41 +373,65 @@ void PrintStartCollector::note_host_side_pre_start(const std::string& dispatched
     load_prediction_history();
 }
 
+void PrintStartCollector::reset_run_locked() {
+    printing_state_start_ = helix::sim::SimulatedClock::now();
+    last_signal_time_ = printing_state_start_;
+    last_inferred_activity_time_ = printing_state_start_;
+    hold_until_ = helix::sim::SimulatedClock::time_point::min();
+    held_for_ = {};
+    // Assume the narrower window until something says otherwise.
+    window_ = helix::PreprintWindow::PrinterEdge;
+    host_pre_start_echo_lines_.clear();
+    detected_phases_.clear();
+    current_phase_ = PrintStartPhase::INITIALIZING;
+    print_start_detected_ = false;
+    max_sequential_progress_ = 0;
+    phase_enter_times_.clear();
+    mesh_probe_current_ = 0;
+    mesh_probe_total_ = 0;
+    mesh_points_.reset();
+    mesh_first_probe_time_ = {};
+    mesh_last_probe_time_ = {};
+    mesh_seconds_per_probe_ = 0.0f;
+    mesh_entry_ext_target_ = 0;
+    pre_mesh_points_.reset();
+    pre_mesh_last_probe_time_ = {};
+    current_mesh_message_.clear();
+    current_message_.clear();
+    heater_wait_report_time_ = helix::sim::SimulatedClock::time_point::min();
+    heater_wait_shown_ = false;
+    wait_heater_arrived_at_ = helix::sim::SimulatedClock::time_point::min();
+    pre_wait_phase_ = PrintStartPhase::IDLE;
+    pre_wait_message_.clear();
+    last_phase_object_state_.clear();
+    held_status_signal_rules_.clear();
+    bed_mesh_present_ = false;
+    temps_ready_time_ = {};
+    silent_progression_idx_ = 0;
+    real_signal_seen_.store(false, std::memory_order_relaxed);
+    // Arm the layer-1 completion edge fresh for this print. The current
+    // subject value may be a stale positive carried over from the previous
+    // print (reset_for_new_print() runs async, after start()), so we do NOT
+    // seed layer_zero_seen_ from it — only a freshly observed current_layer<1
+    // (post-reset) latches it. See MoonrakerManager::should_complete_preprint().
+    layer_zero_seen_.store(false, std::memory_order_relaxed);
+    first_layer_observed_.store(-1, std::memory_order_relaxed);
+    layer_advanced_.store(false, std::memory_order_relaxed);
+    last_remaining_ = 0;
+    fallback_completion_ = false;
+    // A mark left from the last print would count its climb since then as activity.
+    bed_climb_ = {};
+    ext_climb_ = {};
+    // Position inference starts with a clean slate and a fresh sample clock
+    position_classifier_.reset();
+    last_position_activity_ = helix::PositionActivity::NONE;
+    position_clock_start_ = printing_state_start_;
+}
+
 void PrintStartCollector::reset() {
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
-        detected_phases_.clear();
-        current_phase_ = PrintStartPhase::INITIALIZING;
-        print_start_detected_ = false;
-        max_sequential_progress_ = 0;
-        printing_state_start_ = helix::sim::SimulatedClock::now();
-        last_signal_time_ = printing_state_start_;
-        last_inferred_activity_time_ = printing_state_start_;
-        hold_until_ = helix::sim::SimulatedClock::time_point::min();
-        held_for_ = {};
-        phase_enter_times_.clear();
-        mesh_probe_current_ = 0;
-        mesh_probe_total_ = 0;
-        mesh_points_.reset();
-        mesh_first_probe_time_ = {};
-        mesh_last_probe_time_ = {};
-        mesh_seconds_per_probe_ = 0.0f;
-        pre_mesh_points_.reset();
-        pre_mesh_last_probe_time_ = {};
-        current_mesh_message_.clear();
-        current_message_.clear();
-        heater_wait_report_time_ = helix::sim::SimulatedClock::time_point::min();
-        heater_wait_shown_ = false;
-        last_phase_object_state_.clear();
-        held_status_signal_rules_.clear();
-        bed_mesh_present_ = false;
-        temps_ready_time_ = {};
-        silent_progression_idx_ = 0;
-        real_signal_seen_.store(false, std::memory_order_relaxed);
-        layer_zero_seen_.store(false, std::memory_order_relaxed);
-        first_layer_observed_.store(-1, std::memory_order_relaxed);
-        layer_advanced_.store(false, std::memory_order_relaxed);
-        host_pre_start_echo_lines_.clear();
+        reset_run_locked();
     }
     fallbacks_enabled_.store(false);
 

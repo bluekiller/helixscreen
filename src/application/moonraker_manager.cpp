@@ -838,7 +838,6 @@ void MoonrakerManager::init_print_start_collector() {
                                              s_arming.is_initial_transition(),
                                              current_print_duration)) {
                 if (!collector->is_active()) {
-                    collector->reset();
                     collector->start();
                     collector->enable_fallbacks();
                     spdlog::info("[MoonrakerManager] PRINT_START collector started");
@@ -912,7 +911,6 @@ void MoonrakerManager::init_print_start_collector() {
             if (collector->is_active()) {
                 return; // already tracking
             }
-            collector->reset();
             collector->start();
             collector->enable_fallbacks();
             spdlog::info("[MoonrakerManager] PRINT_START collector started (commit)");
