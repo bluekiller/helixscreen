@@ -141,6 +141,10 @@ TEST_CASE("setting declaration errors", "[plugin][manifest]") {
     CHECK(has_error_containing(
         with_setting(R"({"key":"k","type":"enum","label":"l","options":["a"],"default":"b"})"),
         "default"));
+    // The generated dropdown joins options with '\n', so one containing a
+    // newline would split into wrong entries.
+    CHECK(has_error_containing(
+        with_setting(R"({"key":"k","type":"enum","label":"l","options":["a\nb"]})"), "options"));
     CHECK(has_error_containing(
         with_setting(R"({"key":"k","type":"action","label":"l","callback":"other_x"})"),
         "callback"));

@@ -118,6 +118,9 @@ class PluginHost {
         /// The widget definitions this plugin registered, to unregister at unload.
         std::vector<std::string> widget_ids;
         size_t memory_bytes = 0;
+        /// Bumped per load: a screen built against an older generation of the same
+        /// plugin id must not route its rows to this instance.
+        uint64_t gen = 0;
     };
 
     PluginInfo* find(const std::string& id);
@@ -147,6 +150,7 @@ class PluginHost {
     /// Generated settings screens currently open. More than one only while an
     /// earlier one is still sliding out.
     std::vector<std::unique_ptr<PluginSettingsOverlay>> settings_screens_;
+    uint64_t next_load_gen_ = 1;
 };
 
 /// Registers the `plugin_event` XML callback once per process. It forwards to the live host.

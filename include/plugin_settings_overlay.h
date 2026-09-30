@@ -8,6 +8,7 @@
 #include "overlay_base.h"
 #include "plugin_manifest.h"
 
+#include <cstdint>
 #include <list>
 #include <string>
 #include <utility>
@@ -38,7 +39,8 @@ class PluginSettingsOverlay : public OverlayBase {
         lv_obj_t* row = nullptr;
     };
 
-    PluginSettingsOverlay(std::string plugin_id, const Manifest& manifest, const json& settings);
+    PluginSettingsOverlay(std::string plugin_id, const Manifest& manifest, const json& settings,
+                          uint64_t load_gen);
     ~PluginSettingsOverlay() override;
 
     void init_subjects() override;
@@ -47,6 +49,11 @@ class PluginSettingsOverlay : public OverlayBase {
 
     const std::string& plugin_id() const {
         return plugin_id_;
+    }
+    /// The host's load generation this screen was built against; a plugin reloaded
+    /// under the same id gets a new one, and the screen's rows stop routing to it.
+    uint64_t load_gen() const {
+        return load_gen_;
     }
     lv_obj_t* root() const {
         return overlay_root_;
@@ -77,8 +84,9 @@ class PluginSettingsOverlay : public OverlayBase {
     std::list<RowBinding> bindings_;
     std::string plugin_id_;
     std::string title_;
-    const Manifest& manifest_; ///< read only in create(); unload closes the screen before it dies
-    json settings_;            ///< snapshot the rows were built from
+    std::vector<SettingDecl> settings_decls_; ///< copied: the plugin's context can die first
+    uint64_t load_gen_ = 0;
+    json settings_; ///< snapshot the rows were built from
 };
 
 /// Registers the plugin_setting_changed / plugin_setting_action XML callbacks

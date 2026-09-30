@@ -5,10 +5,14 @@
 
 #include "plugin_settings_overlay.h"
 
+#include "ui_nav_manager.h"
+#include "ui_utils.h"
+
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lua_bindings.h"
 #include "plugin_host.h"
 #include "plugin_xml_policy.h"
+#include "static_panel_registry.h"
 
 #include <spdlog/spdlog.h>
 
@@ -39,6 +43,38 @@ long long int_of(const json& j) {
 /// Float-slider range/value: scaled by 100 onto the slider's integer range.
 long long scaled(double v) {
     return static_cast<long long>(std::lround(v * 100));
+}
+
+/// The value label's text for a slider row: an Int setting as-is, a Float setting
+/// as its real value (the slider carries it x100), no trailing zeros.
+std::string row_value_text(const SettingDecl& d, int32_t units) {
+    if (d.type == SettingType::Float) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.2f", units / 100.0);
+        std::string s = buf;
+        while (s.back() == '0')
+            s.pop_back();
+        if (s.back() == '.')
+            s.pop_back();
+        return s;
+    }
+    return std::to_string(units);
+}
+
+/// Puts the row's value label in step with its slider, both directions: from the
+/// stored value at build/restore, and live during a drag, when the row's
+/// callback has not fired yet (it triggers on release).
+void sync_value_label(const PluginSettingsOverlay::RowBinding& b) {
+    if (b.decl.type != SettingType::Int && b.decl.type != SettingType::Float)
+        return;
+    lv_obj_t* slider = lv_obj_find_by_name(b.row, "slider");
+    lv_obj_t* label = lv_obj_find_by_name(b.row, "value_label");
+    if (slider && label)
+        lv_label_set_text(label, row_value_text(b.decl, lv_slider_get_value(slider)).c_str());
+}
+
+void slider_value_changed_cb(lv_event_t* e) {
+    sync_value_label(*static_cast<PluginSettingsOverlay::RowBinding*>(lv_event_get_user_data(e)));
 }
 
 } // namespace
@@ -100,11 +136,22 @@ SettingRowSpec setting_row_spec(const std::string& /*plugin_id*/, const SettingD
 }
 
 PluginSettingsOverlay::PluginSettingsOverlay(std::string plugin_id, const Manifest& manifest,
-                                             const json& settings)
-    : plugin_id_(std::move(plugin_id)), title_(manifest.name), manifest_(manifest),
-      settings_(settings) {}
+                                             const json& settings, uint64_t load_gen)
+    : plugin_id_(std::move(plugin_id)), title_(manifest.name), settings_decls_(manifest.settings),
+      load_gen_(load_gen), settings_(settings) {}
 
-PluginSettingsOverlay::~PluginSettingsOverlay() = default;
+PluginSettingsOverlay::~PluginSettingsOverlay() {
+    // A close callback NavigationManager drops without invoking (its base-panel
+    // clear can run while this screen is still sliding out) leaves the root with
+    // no owner; this class created it, so it deletes it here.
+    if (!overlay_root_ || StaticPanelRegistry::is_destroyed())
+        return; // inside destroy_all the registry's caller owns the widget
+    if (!NavigationManager::is_destroyed()) {
+        NavigationManager::instance().unregister_overlay_close_callback(overlay_root_);
+        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+    }
+    helix::ui::safe_delete_deferred(overlay_root_);
+}
 
 void PluginSettingsOverlay::init_subjects() {
     subjects_initialized_ = true; // rows bind to the plugin's own subjects, not ours
@@ -131,7 +178,7 @@ lv_obj_t* PluginSettingsOverlay::create(lv_obj_t* parent) {
         destroy_overlay_ui(overlay_root_);
         return nullptr;
     }
-    for (const SettingDecl& d : manifest_.settings)
+    for (const SettingDecl& d : settings_decls_)
         build_row(rows, d, effective_setting(settings_, d)); // a refused row is skipped, not fatal
 
     lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN); // shown by push_overlay
@@ -180,6 +227,9 @@ bool PluginSettingsOverlay::build_row(lv_obj_t* rows, const SettingDecl& d, cons
     // The binding must be reachable through user data before any widget state is
     // applied: setting state fires the row's own value_changed, which walks here.
     lv_obj_set_user_data(row, &b);
+    if (d.type == SettingType::Int || d.type == SettingType::Float)
+        if (lv_obj_t* slider = lv_obj_find_by_name(row, "slider"))
+            lv_obj_add_event_cb(slider, slider_value_changed_cb, LV_EVENT_VALUE_CHANGED, &b);
     apply_row_state(b);
     return true;
 }
@@ -203,6 +253,7 @@ void PluginSettingsOverlay::apply_row_state(const RowBinding& b) {
             else if (b.stored.is_number())
                 v = static_cast<int32_t>(scaled(b.stored.get<double>()));
             lv_slider_set_value(slider, v, LV_ANIM_OFF);
+            sync_value_label(b);
         }
         break;
     case SettingType::Enum:

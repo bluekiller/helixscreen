@@ -298,6 +298,7 @@ bool PluginHost::load(PluginInfo& info) {
 
     auto [it, inserted] = loaded_.try_emplace(id);
     Loaded& l = it->second;
+    l.gen = next_load_gen_++;
     for (size_t i = 0; i < xmls.size(); ++i) {
         if (lv_xml_register_component_from_data(stems[i].c_str(), buffers[i].c_str()) !=
             LV_RESULT_OK) {
@@ -536,7 +537,8 @@ bool PluginHost::open_settings(const std::string& id) {
     if (m.settings.empty())
         return false;
 
-    auto screen = std::make_unique<PluginSettingsOverlay>(id, m, it->second.settings);
+    auto screen =
+        std::make_unique<PluginSettingsOverlay>(id, m, it->second.settings, it->second.gen);
     lv_obj_t* root = screen->create(lv_screen_active());
     if (!root)
         return false;
@@ -601,6 +603,11 @@ void PluginHost::handle_setting_row_event(lv_event_t* e, bool action) {
             continue;
         for (auto& s : settings_screens_) {
             if (auto* b = s->binding_at(ud)) {
+                // A screen outlives its plugin until its close lands; a plugin
+                // reloaded under the same id must not take its rows.
+                auto lit = loaded_.find(s->plugin_id());
+                if (lit == loaded_.end() || lit->second.gen != s->load_gen())
+                    return;
                 if (action)
                     s->on_row_action(*b);
                 else

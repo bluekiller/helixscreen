@@ -88,7 +88,14 @@ void check_enum(SettingDecl& d, const json& s, std::vector<std::string>& local) 
             local.push_back("'options' must be a non-empty array of strings");
             return;
         }
-        d.options.push_back(o.get<std::string>());
+        const std::string& opt = o.get_ref<const std::string&>();
+        // The settings screen joins options with '\n' into one dropdown, so an
+        // option containing a newline would split into wrong entries.
+        if (opt.find('\n') != std::string::npos) {
+            local.push_back("'options' entries must not contain newlines");
+            return;
+        }
+        d.options.push_back(opt);
     }
     if (!d.default_value.is_null() &&
         (!d.default_value.is_string() ||

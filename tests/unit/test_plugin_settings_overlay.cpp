@@ -240,6 +240,85 @@ TEST_CASE_METHOD(SettingsFx, "an action row runs the manifest's callback through
     CHECK(std::string(lv_label_get_text(value)) == "pinged");
 }
 
+TEST_CASE_METHOD(SettingsFx, "slider rows show the formatted value and follow the slider",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* screen = rig.host->settings_screen("widget-demo");
+    REQUIRE(screen);
+
+    // A Float row's slider carries the value x100; its label must not.
+    lv_obj_t* ratio_label = lv_obj_find_by_name(screen->row_for("ratio"), "value_label");
+    REQUIRE(ratio_label);
+    CHECK(std::string(lv_label_get_text(ratio_label)) == "0.5");
+
+    // An Int row's label follows the drag live, and the write lands on release.
+    lv_obj_t* step_row = screen->row_for("step");
+    lv_obj_t* slider = value_widget(step_row, "slider");
+    lv_obj_t* step_label = lv_obj_find_by_name(step_row, "value_label");
+    REQUIRE(slider);
+    REQUIRE(step_label);
+    CHECK(std::string(lv_label_get_text(step_label)) == "5");
+    lv_slider_set_value(slider, 7, LV_ANIM_OFF);
+    lv_obj_send_event(slider, LV_EVENT_VALUE_CHANGED, nullptr);
+    CHECK(std::string(lv_label_get_text(step_label)) == "7");
+    CHECK_FALSE(rig.block["settings"].contains("widget-demo")); // no write before release
+    lv_obj_send_event(slider, LV_EVENT_RELEASED, nullptr);
+    drain();
+    CHECK(std::string(lv_label_get_text(step_label)) == "7");
+    CHECK(rig.block["settings"]["widget-demo"]["step"] == json(7));
+}
+
+TEST_CASE_METHOD(SettingsFx, "toggle and dropdown rows write through the event path",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* screen = rig.host->settings_screen("widget-demo");
+    REQUIRE(screen);
+
+    lv_obj_t* toggle = value_widget(screen->row_for("enabled"), "toggle");
+    REQUIRE(toggle);
+    lv_obj_remove_state(toggle, LV_STATE_CHECKED);
+    lv_obj_send_event(toggle, LV_EVENT_VALUE_CHANGED, nullptr);
+    drain();
+    CHECK(rig.block["settings"]["widget-demo"]["enabled"] == json(false));
+
+    lv_obj_t* dropdown = value_widget(screen->row_for("mode"), "dropdown");
+    REQUIRE(dropdown);
+    lv_dropdown_set_selected(dropdown, 1); // "b"
+    lv_obj_send_event(dropdown, LV_EVENT_VALUE_CHANGED, nullptr);
+    drain();
+    CHECK(rig.block["settings"]["widget-demo"]["mode"] == json("b"));
+}
+
+TEST_CASE_METHOD(SettingsFx, "a reloaded plugin ignores its old screen's rows",
+                 "[plugin][plugin_settings]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    REQUIRE(rig.host->open_settings("widget-demo"));
+    drain();
+    PluginSettingsOverlay* old = rig.host->settings_screen("widget-demo");
+    REQUIRE(old);
+
+    // Unload queues the close but the old screen is still up when the plugin
+    // comes back under the same id; its rows must not reach the new instance.
+    rig.host->disable("widget-demo");
+    REQUIRE(rig.host->enable("widget-demo"));
+    lv_obj_t* slider = value_widget(old->row_for("step"), "slider");
+    REQUIRE(slider);
+    lv_slider_set_value(slider, 19, LV_ANIM_OFF);
+    lv_obj_send_event(slider, LV_EVENT_RELEASED, nullptr);
+
+    CHECK_FALSE(rig.block["settings"].contains("widget-demo"));
+    drain();
+    process_lvgl(500);
+    CHECK(rig.host->settings_screen("widget-demo") == nullptr);
+}
+
 TEST_CASE_METHOD(SettingsFx, "unloading a plugin closes its open settings screen",
                  "[plugin][plugin_settings]") {
     HostRig rig(enabled("widget-demo", {}));
