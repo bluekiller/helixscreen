@@ -5,6 +5,7 @@
 #include "ui_test_utils.h"
 #include "ui_update_queue.h"
 
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "ams_backend_ace.h"
 #include "ams_bypass_policy.h"
 #include "ams_types.h"
@@ -45,17 +46,6 @@ using helix::SlotInfo;
 using helix::SlotStatus;
 
 using json = nlohmann::json;
-
-// Friend-class shim for FilamentSlotOverrideStore. Same idiom as IFS/Snapmaker
-// tests — redirects the store's on-disk read-cache to a per-test tmp dir so
-// save_async doesn't pollute the developer's real helixscreen config.
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 namespace {
 // Per-test tmp cache dir — same idiom as IFS/Snapmaker tests.

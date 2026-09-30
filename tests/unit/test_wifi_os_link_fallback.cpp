@@ -17,6 +17,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_helpers/scoped_runtime_config.h"
+#include "../test_helpers/wifi_manager_test_access.h"
 #include "../ui_test_utils.h"
 #include "runtime_config.h"
 #include "wifi_manager.h"
@@ -35,45 +36,6 @@
 
 using namespace helix;
 namespace fs = std::filesystem;
-
-namespace helix {
-// Friend accessor — injects a stub OS-link probe and drives start_scan()
-// without standing up a threaded backend, so the suppression decision is
-// deterministic.
-class WiFiManagerTestAccess {
-  public:
-    static void set_os_link_probe(std::function<bool()> probe) {
-        WiFiManager::os_link_probe_ = std::move(probe);
-    }
-    static void reset_os_link_probe() {
-        WiFiManager::os_link_probe_ = []() {
-            return helix::ui::wifi::probe_os_wifi_link().has_link;
-        };
-    }
-    static bool os_link_up() {
-        return WiFiManager::os_link_up();
-    }
-    // Stops the backend directly, bypassing set_enabled()'s radio-only
-    // semantics (helixscreen wifi-interface-identity task 6: set_enabled(false)
-    // now disables the radio and keeps the backend/control-connection alive,
-    // so it no longer forces trigger_scan() into a NOT_INITIALIZED failure).
-    // Tests that need that specific failure path reach in here instead.
-    static void stop_backend(WiFiManager& wm) {
-        if (wm.backend_) {
-            wm.backend_->stop();
-        }
-    }
-    // Backdate the association stamp past ASSOCIATION_GRACE so the expiry side
-    // of the suppression is testable without a 5-second sleep.
-    static void expire_association_grace(WiFiManager& wm) {
-        wm.last_association_change_ = std::chrono::steady_clock::now() -
-                                      WiFiManager::ASSOCIATION_GRACE - std::chrono::seconds(1);
-    }
-    static bool in_association_grace(const WiFiManager& wm) {
-        return wm.in_association_grace();
-    }
-};
-} // namespace helix
 
 namespace {
 

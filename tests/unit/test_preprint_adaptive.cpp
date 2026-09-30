@@ -21,21 +21,11 @@
  * separate sub-row reappeared.
  */
 
+#include "ui_pre_print_options_renderer.h"
 #include "ui_print_preparation_manager.h"
 
 #include "../helix_test_fixture.h"
 #include "../test_helpers/printer_state_test_access.h"
-
-// Friend accessors (mirror test_print_preparation_manager.cpp).
-class PrintPreparationManagerTestAccess {
-  public:
-    static std::vector<std::pair<std::string, std::string>>
-    get_skip_params(const helix::ui::PrintPreparationManager& m) {
-        return m.collect_macro_skip_params();
-    }
-};
-
-#include "ui_pre_print_options_renderer.h"
 
 namespace helix::ui {
 // Exposes the private static label_for() so the relabel logic is unit-testable.
@@ -49,6 +39,7 @@ class PrePrintOptionsRendererTestAccess {
 
 #include "ui_update_queue.h"
 
+#include "../test_helpers/print_preparation_manager_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "pre_print_option.h"

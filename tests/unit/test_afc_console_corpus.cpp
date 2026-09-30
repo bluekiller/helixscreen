@@ -38,6 +38,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/gcode_narration_router_test_access.h"
 #include "ams_backend_afc.h"
 #include "ams_state.h"
 #include "gcode_narration_router.h"
@@ -48,20 +49,6 @@
 #include "../catch_amalgamated.hpp"
 
 using namespace helix;
-
-// Test-only friend of GcodeNarrationRouter (declared in
-// gcode_narration_router.h as `friend struct ::GcodeNarrationRouterTestAccess`).
-// Exposes BOTH private entry points. This definition MUST stay token-identical
-// to the one in test_gcode_narration_router.cpp (same struct, global namespace)
-// to avoid an ODR violation across translation units.
-struct GcodeNarrationRouterTestAccess {
-    static void feed(GcodeNarrationRouter& r, const std::string& line) {
-        r.process_line(line);
-    }
-    static void notify(GcodeNarrationRouter& r, const nlohmann::json& msg) {
-        r.on_notify_gcode_response(msg);
-    }
-};
 
 namespace {
 

@@ -33,6 +33,7 @@ static void cleanup_dir(const std::string& path) {
 }
 
 // RAII guard for env vars - restores original value on destruction
+namespace {
 struct EnvGuard {
     std::string name;
     std::string original;
@@ -53,6 +54,7 @@ struct EnvGuard {
         }
     }
 };
+} // namespace
 
 // ============================================================================
 // get_helix_cache_dir() Tests

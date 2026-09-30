@@ -3,6 +3,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
+#include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_ad5x_ifs.h"
@@ -58,18 +59,6 @@ using helix::StepOperationType;
 
 using helix::Ad5xIfsTestAccess;
 using helix::AmsBackendAd5xIfs;
-
-// Friend-class shim matching the one in test_filament_slot_override_store.cpp
-// (declared friend in filament_slot_override_store.h per L065). Allows our
-// Task 10 tests to redirect the store's read-cache to a per-test tmp dir so
-// successful save_async calls don't pollute the developer's real config.
-class FilamentSlotOverrideStoreTestAccess {
-  public:
-    static void set_cache_directory(helix::ams::FilamentSlotOverrideStore& store,
-                                    std::filesystem::path dir) {
-        store.cache_dir_ = std::move(dir);
-    }
-};
 
 namespace {
 // Per-test tmp cache dir — same idiom as test_filament_slot_override_store.cpp.

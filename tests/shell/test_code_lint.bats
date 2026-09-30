@@ -28,6 +28,24 @@ setup() {
     [ "$status" -eq 1 ]  # grep returns 1 when no matches found
 }
 
+# A friend accessor defined in two test TUs is an ODR violation: the linker keeps
+# one copy of each inline member, so a test can silently run another file's body.
+# Define it once in tests/test_helpers/<name>_test_access.h and include that.
+@test "every *TestAccess class is defined in at most one file" {
+    local defs
+    defs=$(grep -rEo --include='*.cpp' --include='*.h' \
+        '^[[:space:]]*(class|struct)[[:space:]]+[A-Za-z0-9_]*TestAccess[[:space:]]*(final[[:space:]]*)?(:[^;]*)?\{' tests/ \
+        | sed -E 's/^([^:]+):[[:space:]]*(class|struct)[[:space:]]+([A-Za-z0-9_]+).*/\3 \1/' | sort -u)
+    [ -n "$defs" ]  # an empty scan means the pattern stopped matching, not a clean tree
+    local dups
+    dups=$(echo "$defs" | awk '{n[$1]++; f[$1]=f[$1]" "$2} END {for (c in n) if (n[c] > 1) print c ":" f[c]}')
+    if [ -n "$dups" ]; then
+        echo "TestAccess classes defined in more than one file:"
+        echo "$dups"
+        return 1
+    fi
+}
+
 # --- Migrated temperature VIEW files must route sends through the controller ---
 # ui_overlay_temp_graph.cpp and ui_panel_controls.cpp were migrated to delegate
 # temperature commands to helix::TemperatureController. They must NOT call the

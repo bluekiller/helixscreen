@@ -21,6 +21,7 @@
 using namespace helix;
 using namespace helix::ui;
 
+namespace {
 struct FormatterScope {
     FormatterScope() {
         PrintStatusWidget::destroy_formatter_for_test();
@@ -30,6 +31,7 @@ struct FormatterScope {
         PrintStatusWidget::release_formatter_for_test();
     }
 };
+} // namespace
 
 TEST_CASE_METHOD(HelixTestFixture, "Tool override: pinned reads per-tool subject",
                  "[print_status][tool_override]") {
