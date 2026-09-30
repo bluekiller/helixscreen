@@ -22,7 +22,9 @@
 #include "config.h"
 #include "display_settings_manager.h"
 #include "grid_layout.h"
+#include "misc/lv_timer_private.h"
 #include "panel_widget_config.h"
+#include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
 
 #include <algorithm>
@@ -127,6 +129,28 @@ void collect_labels(lv_obj_t* obj, std::vector<std::string>& out) {
             out.push_back(lv_label_get_text(child) ? lv_label_get_text(child) : "");
         }
         collect_labels(child, out);
+    }
+}
+
+/// Drain LVGL's one-shot timer queue (lv_async_call), mirroring the helper in
+/// test_panel_widget_manager.cpp: a fixed process_lvgl() elapse does not
+/// reliably fire period-0 one-shot timers created mid-tick, so pump them
+/// explicitly.
+void process_async_calls() {
+    for (int safety = 0; safety < 50; ++safety) {
+        bool fired = false;
+        lv_timer_t* t = lv_timer_get_next(nullptr);
+        while (t) {
+            lv_timer_t* next = lv_timer_get_next(t);
+            if (t->repeat_count > 0 && t->timer_cb) {
+                t->timer_cb(t);
+                fired = true;
+                break;
+            }
+            t = next;
+        }
+        if (!fired)
+            break;
     }
 }
 
@@ -339,7 +363,10 @@ TEST_CASE("Widget catalog: a category holds exactly its own defs, in registry or
 
         INFO("category: " << cat.display_name);
         CHECK(actual == expected);
-        CHECK_FALSE(actual.empty()); // an empty category would be a dead menu row
+        // Plugins is empty until a runtime definition registers; its row stays
+        // hidden rather than being a dead menu entry. Every other category must
+        // hold at least one widget.
+        CHECK((cat.id == WidgetCategory::Plugins || !actual.empty()));
     }
 }
 
@@ -677,9 +704,14 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
 
     lv_obj_t* group = category_group();
     REQUIRE(group != nullptr);
-    // One row per category, nothing else — the unavailable row only exists to
-    // carry gated widgets, and there are none.
-    CHECK(child_count(group) == get_widget_categories().size());
+    // One row per category holding an available def, nothing else — the
+    // unavailable row only exists to carry gated widgets, and there are none.
+    // Plugins holds no def until one registers at runtime, so it renders no row.
+    size_t expect_rows = 0;
+    for (const auto& cat : get_widget_categories()) {
+        expect_rows += available_ids_in_category(cat.id).empty() ? 0 : 1;
+    }
+    CHECK(child_count(group) == expect_rows);
     CHECK(row_with_label(group, "Unavailable on this printer") == nullptr);
     force_close();
 }
@@ -748,7 +780,6 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
 
     bool checked_any = false;
     for (const auto& cat : cats) {
-        dive_category(cat);
         const auto defs = WidgetCatalogOverlay::widgets_in_category(cat.id);
         // The category page shows only its available defs; the gated ones are
         // checked through the unavailable page below so every def gets exactly
@@ -759,8 +790,14 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
                 available.push_back(def);
             }
         }
+        // Plugins carries no def until one registers at runtime, so it has no
+        // category row to dive into.
+        if (available.empty()) {
+            continue;
+        }
+        dive_category(cat);
         check_page_rows(available);
-        checked_any = checked_any || !available.empty();
+        checked_any = true;
         header_back();
     }
     // Any def the fixture gates lands here instead — same badge rule.
@@ -1226,4 +1263,107 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     header_back();
     REQUIRE(WidgetCatalogOverlay::active_root() == nullptr);
     CHECK(lv_ll_get_len(&gate->subs_ll) == observers_closed);
+}
+
+// ============================================================================
+// Runtime definitions under an open catalog
+// ============================================================================
+
+namespace {
+
+RuntimeWidgetDef make_runtime_def(const char* id, const char* display_name) {
+    RuntimeWidgetDef d;
+    d.id = id;
+    d.display_name = display_name;
+    d.icon = "puzzle_outline";
+    d.description = "runtime definition";
+    return d;
+}
+
+/// Deliver a definition-set change to the open catalog: the same coalesced
+/// async path notify_widget_defs_changed() queues through.
+void deliver_defs_change() {
+    PanelWidgetManager::instance().notify_widget_defs_changed();
+    process_async_calls();
+}
+
+} // namespace
+
+TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
+                 "Widget catalog: search follows runtime defs added and removed under it",
+                 "[widget_catalog][widget_registry]") {
+    open_catalog();
+    lv_obj_t* results = search_results();
+    REQUIRE(results != nullptr);
+    const uint32_t base_rows = child_count(results);
+
+    // The count change alone rebuilds the rows; the search index is the half
+    // that can go stale, so the assertions lean on the query, not the count.
+    REQUIRE(register_runtime_widget_def(make_runtime_def("rt-search-tile", "Qz Runtime Tile")));
+    deliver_defs_change();
+    settle();
+
+    lv_obj_t* row = lv_obj_find_by_name(results, "rt-search-tile");
+    REQUIRE(row != nullptr);
+    CHECK(child_count(results) == base_rows + 1);
+
+    // A query naming the new def leaves exactly its row visible.
+    type_query("Qz Runtime Tile");
+    CHECK(visible_rows(results) == 1);
+    CHECK_FALSE(lv_obj_has_flag(row, LV_OBJ_FLAG_HIDDEN));
+
+    // A query matching nothing must hide it too: entries rebuilt with the rows
+    // filter the new def like any built-in.
+    type_query("zzqq no such widget");
+    CHECK(visible_rows(results) == 0);
+
+    unregister_runtime_widget_def("rt-search-tile");
+    deliver_defs_change();
+    settle();
+    CHECK(lv_obj_find_by_name(results, "rt-search-tile") == nullptr);
+    CHECK(child_count(results) == base_rows);
+    type_query("Qz Runtime Tile");
+    CHECK(visible_rows(results) == 0);
+}
+
+TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
+                 "Widget catalog: same-count def changes under it still rebuild",
+                 "[widget_catalog][widget_registry]") {
+    // Registered before the open, so the rows were built listing it.
+    REQUIRE(register_runtime_widget_def(make_runtime_def("rt-swap-a", "Swap Alpha")));
+    open_catalog();
+    lv_obj_t* results = search_results();
+    REQUIRE(results != nullptr);
+    REQUIRE(lv_obj_find_by_name(results, "rt-swap-a") != nullptr);
+
+    // Same id re-registered with a new display name: def count and gate flags
+    // are unchanged, only the def's identity moved.
+    REQUIRE(register_runtime_widget_def(make_runtime_def("rt-swap-a", "Swap Alpha Two")));
+    deliver_defs_change();
+    settle();
+
+    lv_obj_t* row = lv_obj_find_by_name(results, "rt-swap-a");
+    REQUIRE(row != nullptr);
+    std::vector<std::string> labels;
+    collect_labels(row, labels);
+    CHECK(std::find(labels.begin(), labels.end(), "Swap Alpha Two") != labels.end());
+    CHECK(std::find(labels.begin(), labels.end(), "Swap Alpha") == labels.end());
+
+    // A same-tick remove plus add nets out to the same count: the row set must
+    // still swap over.
+    unregister_runtime_widget_def("rt-swap-a");
+    REQUIRE(register_runtime_widget_def(make_runtime_def("rt-swap-b", "Swap Beta")));
+    deliver_defs_change();
+    settle();
+
+    CHECK(lv_obj_find_by_name(results, "rt-swap-a") == nullptr);
+    lv_obj_t* beta = lv_obj_find_by_name(results, "rt-swap-b");
+    REQUIRE(beta != nullptr);
+    type_query("Swap Beta");
+    CHECK(visible_rows(results) == 1);
+    CHECK_FALSE(lv_obj_has_flag(beta, LV_OBJ_FLAG_HIDDEN));
+
+    unregister_runtime_widget_def("rt-swap-b");
+    deliver_defs_change();
+    settle();
 }
