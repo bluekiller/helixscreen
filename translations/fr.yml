@@ -558,6 +558,8 @@ translations:
   Change Tool: Changer d'outil
   Change Tool While Paused: Changer d'outil en pause
   Change heater control?: Changer le contrôle du chauffage ?
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : 'Modifie les paramètres de l''imprimante via Moonraker, y compris le téléversement, la réécriture et la suppression de fichiers dans le dossier de configuration de l''imprimante.'
   Change tool: Changer d'outil
   Changes apply immediately. Adjust during print for tuning.: Les modifications s'appliquent
     immédiatement. Ajustez pendant l'impression pour le réglage.
@@ -718,6 +720,7 @@ translations:
     USB
   Connect an ADXL345 accelerometer to calibrate: Connectez un accéléromètre ADXL345
     pour calibrer
+  Connect to servers on your network and the internet.: 'Se connecte aux serveurs de votre réseau et d''Internet.'
   'Connect to your printer via SSH and run:': 'Connectez-vous à votre imprimante via
     SSH et exécutez :'
   Connected: Connecté
@@ -1029,10 +1032,12 @@ translations:
   Enable brush wipe after purging: 'Activer l''essuyage par brosse après la purge'
   Enable feed assist for active slot during printing: 'Activer l''assistance d''alimentation pour le slot actif pendant l''impression'
   Enable or disable the hub cutter: 'Activer ou désactiver le coupeur du hub'
+  Enable plugin?: 'Activer le plugin ?'
   Enable purging during tool changes: 'Activer la purge lors des changements d''outil'
   Enable/disable automatic backup spool switching: 'Activer/désactiver le passage automatique à la bobine de secours'
   Enable/disable quiet operation mode: 'Activer/désactiver le mode de fonctionnement silencieux'
   Enabled: Activé
+  Enabled. Open its settings, or disable it?: 'Activé. Ouvrir ses paramètres ou le désactiver ?'
   Enclosed: Fermée
 
   Enclosure: Caisson
@@ -1689,6 +1694,7 @@ translations:
   Keep current: Garder l'actuel
   Keep hands clear. The printer moves on its own.: Tenez vos mains à distance. L'imprimante bouge seule.
 
+  Keep its own data on this screen (up to 256 KB).: 'Conserve ses propres données sur cet écran (jusqu''à 256 Ko).'
   Keep the bypass spool visible when bypass is off: Garder la bobine de bypass visible lorsque le bypass est désactivé
   Kick away: 'Éjecter'
   Kinematics: Cinématique
@@ -2939,6 +2945,8 @@ translations:
   Self-Test: Auto-test
   Send G-code and read the replies: Envoyer du G-code et lire les réponses
   Send Report: Envoyer le rapport
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : 'Envoie n''importe quelle commande G-code. C''est le contrôle total de l''imprimante : chaque macro, y compris celles qui exécutent des commandes shell, est accessible.'
   Send commands directly to printer: Envoyer des commandes directement à l'imprimante
   Send this crash report to help improve HelixScreen.: Envoyez ce rapport de crash
     pour aider à améliorer HelixScreen.
@@ -3409,6 +3417,7 @@ translations:
   This is what data would be sent if enabled: Voici les données qui seraient envoyées
     si activé
   This may take up to 30 seconds: Cela peut prendre jusqu'à 30 secondes
+  This plugin asks for no special permissions.: 'Ce plugin ne demande aucune autorisation particulière.'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : Ce plugin permet à HelixScreen de contrôler les options de démarrage d'impression
@@ -3430,6 +3439,7 @@ translations:
   This system does not support bypass mode: 'Ce système ne prend pas en charge le mode bypass'
   This tool probes each bed screw and tells you how much to adjust.: Cet outil palpe
     chaque vis du plateau et vous indique combien ajuster.
+  'This update asks for new permissions:': 'Cette mise à jour demande de nouvelles autorisations :'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : Cela appliquera le Z-offset à votre butée et redémarrera Klipper pour enregistrer
@@ -3840,6 +3850,7 @@ translations:
   attempt {}: 'essai {}'
   bed: plateau
   busy: 'occupé'
+  by: 'par'
   by Preston Brown: par Preston Brown
   chamber heater: chauffage du caisson
   complete: terminé

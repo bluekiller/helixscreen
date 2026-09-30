@@ -18,6 +18,7 @@
 #include "panel_widget_registry.h"
 #include "plugin_settings_overlay.h"
 #include "plugin_xml_policy.h"
+#include "plugins_overlay.h"
 #include "version.h"
 
 #include <spdlog/spdlog.h>
@@ -68,6 +69,7 @@ void register_plugin_event_callback() {
         return;
     lv_xml_register_event_cb(nullptr, "plugin_event", &plugin_event_cb);
     register_plugin_settings_callbacks();
+    register_plugins_overlay_callbacks();
     registered = true;
 }
 
@@ -206,16 +208,7 @@ void PluginHost::consider(PluginInfo& info) {
         return;
     }
 
-    PermissionSet granted;
-    if (auto p = entry.find("permissions"); p != entry.end() && p->is_array()) {
-        for (const auto& n : *p) {
-            if (!n.is_string())
-                continue;
-            if (auto perm = permission_from_string(n.get<std::string>()))
-                granted.insert(*perm);
-        }
-    }
-    auto grown = permission_growth(granted, m.permissions);
+    auto grown = permission_growth(granted(m.id), m.permissions);
     if (!grown.empty()) {
         info.status = PluginStatus::NeedsApproval;
         info.reason = "asks for new permissions:";
@@ -497,6 +490,23 @@ bool PluginHost::enable(const std::string& id) {
     info->status = PluginStatus::Disabled;
     consider(*info);
     return info->status == PluginStatus::Loaded;
+}
+
+PermissionSet PluginHost::granted(const std::string& id) const {
+    PermissionSet out;
+    json entry = enabled_entry(id);
+    if (!entry.is_object())
+        return out;
+    auto p = entry.find("permissions");
+    if (p == entry.end() || !p->is_array())
+        return out;
+    for (const auto& n : *p) {
+        if (!n.is_string())
+            continue;
+        if (auto perm = permission_from_string(n.get<std::string>()))
+            out.insert(*perm);
+    }
+    return out;
 }
 
 void PluginHost::disable(const std::string& id) {

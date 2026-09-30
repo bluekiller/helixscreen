@@ -543,6 +543,8 @@ translations:
   Change Tool: Сменить инструмент
   Change Tool While Paused: Смена инструмента при паузе
   Change heater control?: Изменить управление нагревателем?
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : 'Изменяет настройки принтера через Moonraker, включая загрузку, перезапись и удаление файлов в папке конфигурации принтера.'
   Change tool: Сменить инструмент
   Changes apply immediately. Adjust during print for tuning.: Изменения применяются
     немедленно. Корректируйте во время печати.
@@ -701,6 +703,7 @@ translations:
   Connect a USB label printer first: Сначала подключите USB-принтер этикеток
   Connect an ADXL345 accelerometer to calibrate: Подключите акселерометр ADXL345 для
     калибровки
+  Connect to servers on your network and the internet.: 'Подключается к серверам в вашей сети и в интернете.'
   'Connect to your printer via SSH and run:': 'Подключитесь к принтеру по SSH и выполните:'
   Connected: Подключен
   Connected (%s): Подключен (%s)
@@ -1009,10 +1012,12 @@ translations:
   Enable brush wipe after purging: 'Включить очистку щёткой после продувки'
   Enable feed assist for active slot during printing: 'Включить помощь подачи для активного слота во время печати'
   Enable or disable the hub cutter: 'Включить или выключить резак хаба'
+  Enable plugin?: 'Включить плагин?'
   Enable purging during tool changes: 'Включить продувку при смене инструмента'
   Enable/disable automatic backup spool switching: 'Включить/выключить автопереключение на резервную катушку'
   Enable/disable quiet operation mode: 'Включить/выключить тихий режим работы'
   Enabled: Включено
+  Enabled. Open its settings, or disable it?: 'Включено. Открыть его настройки или отключить?'
   Enclosed: Закрытый
 
   Enclosure: Корпус
@@ -1657,6 +1662,7 @@ translations:
   Keep current: Оставить текущую
   Keep hands clear. The printer moves on its own.: Держите руки подальше. Принтер двигается сам.
 
+  Keep its own data on this screen (up to 256 KB).: 'Хранит собственные данные на этом экране (до 256 КБ).'
   Keep the bypass spool visible when bypass is off: Показывать катушку байпаса, даже когда байпас выключен
   Kick away: 'Сброс остатка'
   Kinematics: Кинематика
@@ -2892,6 +2898,8 @@ translations:
   Self-Test: Самотестирование
   Send G-code and read the replies: Отправка G-code и чтение ответов
   Send Report: Отправить отчёт
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : 'Отправляет любые команды G-code. Это полный контроль над принтером: доступен каждый макрос, включая те, что выполняют команды оболочки.'
   Send commands directly to printer: Отправлять команды напрямую принтеру
   Send this crash report to help improve HelixScreen.: Отправьте этот отчёт об ошибке,
     чтобы помочь улучшить HelixScreen.
@@ -3345,6 +3353,7 @@ translations:
     отправлены
   This is what data would be sent if enabled: Эти данные были бы отправлены при включении
   This may take up to 30 seconds: Это может занять до 30 секунд
+  This plugin asks for no special permissions.: 'Этот плагин не запрашивает специальных разрешений.'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : Этот плагин позволяет HelixScreen управлять опциями начала печати, такими как
@@ -3365,6 +3374,7 @@ translations:
   This system does not support bypass mode: 'Эта система не поддерживает режим обхода'
   This tool probes each bed screw and tells you how much to adjust.: Этот инструмент
     проверяет каждый винт стола и показывает, насколько его нужно отрегулировать.
+  'This update asks for new permissions:': 'Это обновление запрашивает новые разрешения:'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : Z-offset будет применён к вашему концевику, и Klipper перезапустится для сохранения
@@ -3762,6 +3772,7 @@ translations:
   attempt {}: 'попытка {}'
   bed: стол
   busy: 'занят'
+  by: 'автор:'
   by Preston Brown: от Preston Brown
   chamber heater: нагреватель камеры
   complete: завершено

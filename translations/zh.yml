@@ -504,6 +504,8 @@ translations:
   Change Tool: 切换工具
   Change Tool While Paused: 暂停时切换工具
   Change heater control?: 更改加热器控制？
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : '通过Moonraker更改打印机设置，包括上传、改写和删除打印机配置文件夹中的文件。'
   Change tool: 切换工具
   Changes apply immediately. Adjust during print for tuning.: 更改立即生效。可在打印时调整进行调优。
   Changes are temporary and reset on printer reboot: 更改是临时的，打印机重启后会重置
@@ -646,6 +648,7 @@ translations:
   Connect: 连接
   Connect a USB label printer first: 请先连接 USB 标签打印机
   Connect an ADXL345 accelerometer to calibrate: 连接 ADXL345 加速度计以进行校准
+  Connect to servers on your network and the internet.: '连接到您网络及互联网上的服务器。'
   'Connect to your printer via SSH and run:': 通过 SSH 连接到打印机并运行：
   Connected: 已连接
   Connected (%s): 已连接 (%s)
@@ -945,10 +948,12 @@ translations:
   Enable brush wipe after purging: '排料后启用刷子擦拭'
   Enable feed assist for active slot during printing: '打印时为当前槽位启用送料辅助'
   Enable or disable the hub cutter: '启用或停用集线器切刀'
+  Enable plugin?: '启用插件？'
   Enable purging during tool changes: '在换工具时启用排料'
   Enable/disable automatic backup spool switching: '启用/停用自动切换备用料盘'
   Enable/disable quiet operation mode: '启用/停用静音运行模式'
   Enabled: 已启用
+  Enabled. Open its settings, or disable it?: '已启用。打开其设置，或禁用？'
   Enclosed: 封闭
 
   Enclosure: 机箱
@@ -1557,6 +1562,7 @@ translations:
   Keep current: 保留当前
   Keep hands clear. The printer moves on its own.: 请勿将手靠近。打印机会自行移动。
 
+  Keep its own data on this screen (up to 256 KB).: '在此屏幕上保存自己的数据（最多256 KB）。'
   Keep the bypass spool visible when bypass is off: 旁路关闭时保持料盘可见
   Kick away: '拨除废料'
   Kinematics: 运动学
@@ -2727,6 +2733,8 @@ translations:
   Self-Test: 自检
   Send G-code and read the replies: 发送 G-code 并查看回复
   Send Report: 发送报告
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : '发送任意G-code命令。这是对打印机的完全控制：包括运行shell命令在内的所有宏都可以被调用。'
   Send commands directly to printer: 直接向打印机发送命令
   Send this crash report to help improve HelixScreen.: 发送此崩溃报告以帮助改进 HelixScreen。
   Sending...: 正在发送...
@@ -3143,6 +3151,7 @@ translations:
   This is exactly the data that will be sent: 这正是将要发送的数据
   This is what data would be sent if enabled: 这是启用后将发送的数据
   This may take up to 30 seconds: 这可能需要 30 秒
+  This plugin asks for no special permissions.: '此插件不请求任何特殊权限。'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : 此插件让 HelixScreen 控制打印启动选项，如热床网格和 QGL。安装后，使用下面的配置 PRINT_START 启用可选步骤。
@@ -3160,6 +3169,7 @@ translations:
   : '这会将打印机的帮助宏替换为当前版本。当前正在打印，Klipper 将在打印结束后重启。'
   This system does not support bypass mode: '此系统不支持旁通模式'
   This tool probes each bed screw and tells you how much to adjust.: 此工具探测每个热床螺丝并告诉您需要调整多少。
+  'This update asks for new permissions:': '此更新请求新的权限：'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : 这将把 Z-offset 应用到限位开关并重启 Klipper 以保存配置。打印机将短暂断开连接。
@@ -3533,6 +3543,7 @@ translations:
   attempt {}: '第 {} 次尝试'
   bed: 热床
   busy: '正忙'
+  by: '作者：'
   by Preston Brown: by Preston Brown
   chamber heater: 腔体加热器
   complete: 完成

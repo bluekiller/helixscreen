@@ -550,6 +550,8 @@ translations:
   Change Tool: Trocar Ferramenta
   Change Tool While Paused: Trocar Ferramenta com Impressão Pausada
   Change heater control?: Alterar o controle do aquecedor?
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : 'Altera configurações da impressora através do Moonraker, incluindo enviar, reescrever e excluir arquivos na pasta de configuração da impressora.'
   Change tool: Trocar ferramenta
   Changes apply immediately. Adjust during print for tuning.: Alterações aplicadas
     imediatamente. Ajuste durante a impressão para calibrar.
@@ -712,6 +714,7 @@ translations:
     USB
   Connect an ADXL345 accelerometer to calibrate: Conecte um acelerômetro ADXL345 para
     calibrar
+  Connect to servers on your network and the internet.: 'Conecta-se a servidores da sua rede e da internet.'
   'Connect to your printer via SSH and run:': 'Conecte-se à sua impressora via SSH
     e execute:'
   Connected: Conectado
@@ -1021,10 +1024,12 @@ translations:
   Enable brush wipe after purging: 'Habilitar limpeza com escova após a purga'
   Enable feed assist for active slot during printing: 'Habilitar a assistência de alimentação para o slot ativo durante a impressão'
   Enable or disable the hub cutter: 'Habilitar ou desabilitar o cortador do hub'
+  Enable plugin?: 'Habilitar plugin?'
   Enable purging during tool changes: 'Habilitar a purga durante trocas de ferramenta'
   Enable/disable automatic backup spool switching: 'Habilitar/desabilitar a troca automática para o carretel reserva'
   Enable/disable quiet operation mode: 'Habilitar/desabilitar o modo de operação silencioso'
   Enabled: Habilitado
+  Enabled. Open its settings, or disable it?: 'Habilitado. Abrir as configurações ou desabilitar?'
   Enclosed: Fechada
 
   Enclosure: Gabinete
@@ -1677,6 +1682,7 @@ translations:
   Keep current: Manter atual
   Keep hands clear. The printer moves on its own.: Mantenha as mãos afastadas. A impressora se move sozinha.
 
+  Keep its own data on this screen (up to 256 KB).: 'Guarda seus próprios dados nesta tela (até 256 KB).'
   Keep the bypass spool visible when bypass is off: Manter o carretel de bypass visível quando o bypass estiver desligado
   Kick away: 'Expulsar'
   Kinematics: Cinemática
@@ -2923,6 +2929,8 @@ translations:
   Self-Test: Autoteste
   Send G-code and read the replies: Enviar G-code e ler as respostas
   Send Report: Enviar Relatório
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : 'Envia qualquer comando G-code. Isso é controle total da impressora: todas as macros, incluindo as que executam comandos de shell, são acessíveis.'
   Send commands directly to printer: Enviar comandos diretamente para a impressora
   Send this crash report to help improve HelixScreen.: Envie este relatório de erro
     para ajudar a melhorar o HelixScreen.
@@ -3386,6 +3394,7 @@ translations:
   This is what data would be sent if enabled: Estes são os dados que seriam enviados
     se habilitado
   This may take up to 30 seconds: Isso pode levar até 30 segundos
+  This plugin asks for no special permissions.: 'Este plugin não pede permissões especiais.'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : Este plugin permite que o HelixScreen controle opções de início de impressão como
@@ -3407,6 +3416,7 @@ translations:
   This system does not support bypass mode: 'Este sistema não oferece suporte ao modo bypass'
   This tool probes each bed screw and tells you how much to adjust.: Esta ferramenta
     sonda cada parafuso da mesa e informa quanto ajustar.
+  'This update asks for new permissions:': 'Esta atualização pede novas permissões:'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : Isso aplicará o Z-offset ao seu endstop e reiniciará o Klipper para salvar a configuração.
@@ -3810,6 +3820,7 @@ translations:
   attempt {}: 'tentativa {}'
   bed: mesa
   busy: 'ocupado'
+  by: 'por'
   by Preston Brown: por Preston Brown
   chamber heater: aquecedor da câmara
   complete: concluído

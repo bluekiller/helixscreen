@@ -670,6 +670,8 @@ void register_xml_components() {
 #if HELIX_HAS_PLUGINS
     // The generated plugin settings screen (rows built by PluginSettingsOverlay)
     register_xml("plugin_settings_overlay.xml");
+    // Settings > Plugins (rows built by PluginsOverlay)
+    register_xml("plugins_overlay.xml");
 #endif
     register_xml("setting_value_field.xml");
     register_xml("setting_led_chip_row.xml");

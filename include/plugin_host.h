@@ -9,6 +9,7 @@
 #include "plugin_backend.h"
 #include "plugin_manifest.h"
 #include "plugin_overlay_host.h"
+#include "plugin_permissions.h"
 
 #include <cstdint>
 #include <functional>
@@ -81,6 +82,9 @@ class PluginHost {
     /// Grants the manifest's current permissions and loads the plugin.
     bool enable(const std::string& id);
     void disable(const std::string& id);
+    /// The permissions recorded for `id` in the enabled block (empty when not
+    /// enabled) - the same read `consider` compares the manifest against.
+    PermissionSet granted(const std::string& id) const;
     LuaRuntime* runtime(const std::string& id);
 
     /// The overlays every loaded plugin has on the navigation stack.
