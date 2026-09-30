@@ -2842,7 +2842,19 @@ EOF
     [ -z "$output" ]
 }
 
-@test "no ui_xml name or subject attribute value contains the plugin separator" {
-    run grep -rEn '(name|[_a-z0-9]+_subject|bind_[_a-z0-9]+)="[^"]*__[^"]*"' ui_xml/
+@test "no ui_xml name, subject or cond attribute value contains the plugin separator" {
+    run grep -rEn '((^|[^_a-z0-9])subject|[_a-z0-9]+_subject|bind_[_a-z0-9]+|[_a-z0-9]*cond|name)="[^"]*__[^"]*"' ui_xml/
     [ "$status" -eq 1 ]  # grep returns 1 when no matches found
+}
+
+@test "no app-registered XML subject name contains the plugin separator" {
+    # `subject="x__y"` in a bind_flag_if/bind_state_if/bind_style/bind_tile_rung child,
+    # a `cond=` expression, or a C++-registered subject (lv_xml_register_subject literal
+    # or INIT_SUBJECT_* macro name) would sit inside the plugin namespace: the policy
+    # would read it as plugin-owned and a plugin with id `x` could bind it. Plugin code
+    # is excluded because building `__` names is its job.
+    run bash -c "grep -rn -A 1 --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' 'lv_xml_register_subject(' src/ include/ | grep -E '\"[^\"]*__'"
+    [ "$status" -eq 1 ]
+    run grep -rnE --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' 'INIT_SUBJECT_[A-Z_]+\([[:space:]]*[_A-Za-z0-9]*__' src/ include/
+    [ "$status" -eq 1 ]
 }
