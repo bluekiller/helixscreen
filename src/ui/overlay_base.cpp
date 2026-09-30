@@ -5,12 +5,16 @@
 
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
+#include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "system/crash_handler.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
+
+#include <string>
 
 OverlayBase::~OverlayBase() {
     // Fallback unregister in case cleanup() wasn't called.
@@ -54,6 +58,78 @@ void OverlayBase::cleanup() {
     object_lifetime_.invalidate();
     cleanup_called_ = true;
     visible_ = false;
+}
+
+lv_obj_t* OverlayBase::create(lv_obj_t* parent) {
+    const char* component = xml_component();
+    if (!component) {
+        spdlog::error("[{}] create(): no xml_component() and no create() override", get_name());
+        return nullptr;
+    }
+    return create_overlay_from_xml(parent, component);
+}
+
+bool OverlayBase::show(lv_obj_t* parent_screen) {
+    parent_screen_ = parent_screen;
+    if (!subjects_initialized_) {
+        init_subjects();
+        subjects_initialized_ = true;
+    }
+
+    auto& nav = NavigationManager::instance();
+
+    // The tree this object last pushed was deleted out from under it (its
+    // screen went away): overlay_root_ still holds the freed address.
+    if (overlay_root_ && overlay_root_ == shown_root_ && !shown_root_ref_) {
+        spdlog::debug("[{}] shown root was deleted externally - re-creating", get_name());
+        overlay_root_ = nullptr;
+        on_ui_destroyed();
+    }
+
+    if (!overlay_root_) {
+        register_callbacks(); // every create: XML callback slots are last-write-wins
+        lv_obj_t* root = parent_screen_ ? create(parent_screen_) : nullptr;
+        if (!root) {
+            spdlog::error("[{}] Failed to create overlay", get_name());
+            ToastManager::instance().show(
+                ToastSeverity::ERROR, (std::string("Failed to open ") + get_name()).c_str(), 2000);
+            return false;
+        }
+        overlay_root_ = root;
+        if (destroy_on_close()) {
+            if (nav.has_overlay_close_callback(overlay_root_)) {
+                report_foreign_close_callback();
+            }
+            nav.register_overlay_close_callback(overlay_root_,
+                                                [this, tok = object_lifetime_.token()] {
+                                                    if (!tok.expired()) {
+                                                        destroy_overlay_ui();
+                                                    }
+                                                });
+        }
+    } else if (!destroy_on_close() && nav.has_overlay_close_callback(overlay_root_)) {
+        report_foreign_close_callback();
+    }
+
+    shown_root_ = overlay_root_;
+    shown_root_ref_ = overlay_root_;
+    before_show();
+    nav.register_overlay_instance(overlay_root_, this);
+    nav.push_overlay(overlay_root_);
+    return true;
+}
+
+void OverlayBase::report_foreign_close_callback() const {
+    std::string msg = std::string("[") + get_name() +
+                      "] show() on a root that carries another owner's close callback; an "
+                      "owner-held overlay is pushed by its owner, not show()";
+    helix::ui::report_ui_contract_breach(msg.c_str());
+}
+
+void OverlayBase::close() {
+    if (overlay_root_) {
+        NavigationManager::instance().close_overlay(overlay_root_);
+    }
 }
 
 void OverlayBase::destroy_overlay_ui(lv_obj_t*& cached_panel) {

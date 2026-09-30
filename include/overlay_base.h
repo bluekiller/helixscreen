@@ -29,43 +29,30 @@
  *
  * ## Usage Pattern:
  *
+ * A behaviour-free overlay is its name and XML component; show() does the rest
+ * (subjects once, callbacks + create on each build, register + push):
+ *
  * @code
  * class MyOverlay : public OverlayBase {
- * public:
- *     void init_subjects() override {
- *         // Register LVGL subjects for XML binding
- *         subjects_initialized_ = true;
- *     }
- *
- *     void register_callbacks() override {
- *         // Register event callbacks with lv_xml_register_event_cb()
- *     }
- *
- *     lv_obj_t* create(lv_obj_t* parent) override {
- *         overlay_root_ = lv_xml_create(parent, "my_overlay", nullptr);
- *         return overlay_root_;
- *     }
- *
+ *   public:
  *     const char* get_name() const override { return "My Overlay"; }
- *
- *     void on_activate() override {
- *         // Start scanning, refresh data, etc.
- *         visible_ = true;
- *     }
- *
- *   protected:
- *     void on_deactivating(DeactivateReason reason) override {
- *         // Stop scanning, cancel pending operations, etc.
- *         // No base call: the base runs this hook and then invalidates
- *         // lifetime_ on its own.
- *     }
+ *     const char* xml_component() const override { return "my_overlay"; }
  * };
+ * MyOverlay& get_my_overlay() { return helix::lazy_global<MyOverlay>("MyOverlay"); }
+ *
+ * get_my_overlay().show(parent_screen);
  * @endcode
+ *
+ * Override init_subjects() for owned subjects, register_callbacks() for XML
+ * callbacks, before_show() for per-open work that needs the root, and
+ * destroy_on_close() to free the widget tree whenever the overlay is popped.
  *
  * @see NetworkSettingsOverlay for reference implementation
  */
 
 #pragma once
+
+#include "ui_widget_ref.h"
 
 #include "lvgl/lvgl.h"
 #include "panel_lifecycle.h"
@@ -107,20 +94,69 @@ class OverlayBase : public ViewLifecycleBase {
     /**
      * @brief Initialize LVGL subjects for XML data binding
      *
-     * MUST be called BEFORE create() to ensure bindings work.
-     * Implementations should set subjects_initialized_ = true.
+     * Runs BEFORE create() so bindings resolve. show() calls it once and sets
+     * subjects_initialized_; the default has nothing to initialize.
      */
-    virtual void init_subjects() = 0;
+    virtual void init_subjects() {}
 
     /**
-     * @brief Create overlay UI from XML
+     * @brief Create overlay UI
+     *
+     * Default: create_overlay_from_xml(parent, xml_component()). Override when
+     * the overlay passes attributes to lv_xml_create or builds its own rows.
      *
      * @param parent Parent widget to attach overlay to (usually screen)
      * @return Root object of overlay, or nullptr on failure
      *
      * Implementations should store result in overlay_root_.
      */
-    virtual lv_obj_t* create(lv_obj_t* parent) = 0;
+    virtual lv_obj_t* create(lv_obj_t* parent);
+
+    /**
+     * @brief XML component the default create() instantiates
+     * @return Component name, or nullptr when the subclass overrides create()
+     */
+    virtual const char* xml_component() const {
+        return nullptr;
+    }
+
+    /**
+     * @brief Free the widget tree every time show()'s overlay is popped
+     *
+     * The object (subjects, state) survives and the next show() re-creates the
+     * tree (#1329, #1246). Default: built once, retained for the session.
+     */
+    virtual bool destroy_on_close() const {
+        return false;
+    }
+
+    /**
+     * @brief Open this overlay: the one lazy-create-and-push sequence
+     *
+     * Initializes subjects once, and on each build registers callbacks (XML
+     * callback slots are last-write-wins) and calls create(). Then runs
+     * before_show(), registers the lifecycle and pushes. With
+     * destroy_on_close(), registers the close callback that frees the tree.
+     *
+     * For overlays that own their root for the session. An overlay whose
+     * object is owned elsewhere and dies with its screen (plugin settings
+     * screens) is pushed by its owner, whose close callback deletes it:
+     * NavigationManager keeps one close callback per root, so show() refuses a
+     * root that already carries someone else's (abort in --test and unit
+     * tests, error log in release).
+     *
+     * @param parent_screen Screen to build on
+     * @return false (after a toast) when the root could not be created
+     */
+    bool show(lv_obj_t* parent_screen);
+
+    /**
+     * @brief Close this overlay through NavigationManager::close_overlay()
+     *
+     * Pops it when on top, drops it silently when buried, no-op when it is
+     * already gone; safe to call whatever the stack looks like.
+     */
+    void close();
 
     /**
      * @brief Get human-readable overlay name
@@ -225,6 +261,12 @@ class OverlayBase : public ViewLifecycleBase {
      */
     void destroy_overlay_ui(lv_obj_t*& cached_panel);
 
+    /// destroy_overlay_ui() for an overlay no caller keeps a second copy of.
+    void destroy_overlay_ui() {
+        lv_obj_t* no_cache = nullptr;
+        destroy_overlay_ui(no_cache);
+    }
+
     /**
      * @brief Check if subjects have been initialized
      * @return true if init_subjects() was called
@@ -273,6 +315,13 @@ class OverlayBase : public ViewLifecycleBase {
     bool subjects_initialized_ = false; ///< True after init_subjects() called
     bool visible_ = false;              ///< True when overlay is visible
     bool cleanup_called_ = false;       ///< True after cleanup() called
+
+    /**
+     * @brief Per-open work that needs the root (populate, seed state)
+     *
+     * show() runs it on every open, after create() and before the push.
+     */
+    virtual void before_show() {}
 
     /**
      * @brief Called after widget tree is destroyed by destroy_overlay_ui()
@@ -345,6 +394,12 @@ class OverlayBase : public ViewLifecycleBase {
 
   private:
     void on_view_hidden() override;
+    void report_foreign_close_callback() const;
+
+    /// The root show() last pushed, and a handle LVGL nulls when it is deleted:
+    /// a root freed with its screen still reads non-null in overlay_root_.
+    lv_obj_t* shown_root_ = nullptr;
+    helix::ui::WidgetRef shown_root_ref_;
 };
 
 /**
