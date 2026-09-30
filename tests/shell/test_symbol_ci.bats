@@ -18,11 +18,9 @@ yml_code() {
     grep -vE '^[[:space:]]*#' "$YML"
 }
 
-# Platforms the release workflow builds, from the matrix axis itself.
+# Platforms the release workflow builds, from the plan job's matrix.
 ci_platforms() {
-    yml_code \
-        | sed -n 's/^[[:space:]]*platform:[[:space:]]*\[\(.*\)\].*/\1/p' \
-        | tr ',' '\n' | tr -d ' ' | grep -v '^$' | sort -u
+    release_matrix_platforms "$YML" | sort -u
 }
 
 # Platforms mk/cross.mk can package: the shared release_targets() derivation
@@ -87,5 +85,5 @@ CI_EXEMPT='k1-dynamic'
     # the real aws-s3 step could have been deleted outright and this stayed green.
     yml_code \
         | sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' \
-        | grep -qE '(s3cp|aws s3 cp)[^#]*s3://[^"]*/symbols/v\$\{RELEASE_VERSION\}/\$\{platform\}\.sym\.zst'
+        | grep -qE '(s3cp|aws s3 cp)[^#]*s3://[^"]*/\$\{R2_PREFIX\}symbols/v\$\{RELEASE_VERSION\}/\$\{platform\}\.sym\.zst'
 }

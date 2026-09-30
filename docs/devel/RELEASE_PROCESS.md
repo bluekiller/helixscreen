@@ -98,6 +98,16 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
+### Dry run
+
+`workflow_dispatch` runs the whole pipeline on any ref without releasing anything:
+
+```bash
+gh workflow run release.yml --ref <branch> -f dry_run=true -f platforms=x86   # platforms empty = full matrix
+```
+
+A dry run creates no GitHub release and sends nothing to Play, Discord or the website. Its R2 uploads go under `dry-run/<run_id>/` with version `0.0.0-dryrun.<run_id>`, and the would-be release assets go to the `dry-run-release-assets` workflow artifact. The `dry-run-verify` job then runs `scripts/verify-dry-run-release.sh` against both and deletes the prefix. `tests/shell/test_release_dry_run.bats` fails any publishing step that is not gated on `RELEASE_MODE == 'publish'` and does not write through `R2_PREFIX`.
+
 ### Pipeline Stages
 
 ```text
