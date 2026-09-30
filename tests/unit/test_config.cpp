@@ -1821,6 +1821,27 @@ TEST_CASE("Config: every shipped preset loads as a fresh install in the /printer
     REQUIRE(checked >= 20);
 }
 
+TEST_CASE("Config: version-0 document selects its legacy LED strip",
+          "[core][config][migration][preset]") {
+    std::string temp_dir = helix::test::unique_temp_dir("helix_v0_led_strip");
+    std::filesystem::create_directories(temp_dir);
+    std::string temp_path = temp_dir + "/settings.json";
+    {
+        std::ofstream o(temp_path);
+        o << json{{"printer", {{"leds", {{"strip", "neopixel case"}}}}}}.dump(2);
+    }
+
+    BackupGuard guard;
+    Config test_config;
+    test_config.init(temp_path);
+
+    REQUIRE(test_config.get<json>(test_config.df() + "leds/selected") ==
+            json::array({"neopixel case"}));
+    REQUIRE(test_config.get<std::string>(test_config.df() + "leds/strip") == "neopixel case");
+
+    std::filesystem::remove_all(temp_dir);
+}
+
 TEST_CASE("Config: version-0 migration restructures single printer to multi-printer",
           "[core][config][migration][v4]") {
     std::string temp_dir = helix::test::unique_temp_dir("helix_test_v3_to_v4");
