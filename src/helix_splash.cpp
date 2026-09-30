@@ -27,13 +27,13 @@
 #include "splash_asset_choice.h"
 #include "splash_status.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <lvgl.h>
 #include <memory>
-#include <regex>
 #include <signal.h>
 #include <string>
 #include <sys/stat.h>
@@ -109,40 +109,10 @@ static long splash_min_free_kb() {
     return 8192; // ~8 MiB
 }
 
-// Read brightness from config file (simple parsing, no JSON library)
-// Returns configured brightness (10-100) or default_value on failure
+// Configured brightness clamped to 10-100, or default_value when unset
 static int read_config_brightness(int default_value = 100) {
-    // writable_path honors HELIX_CONFIG_DIR (Yocto) or "config/" (tarball);
-    // legacy paths are kept for old install layouts.
-    const std::string main_settings = helix::writable_path("settings.json");
-    const std::string main_legacy = helix::writable_path("helixconfig.json");
-    const std::string paths[] = {main_settings, main_legacy, "helixconfig.json",
-                                 "/opt/helixscreen/helixconfig.json"};
-
-    for (const auto& path : paths) {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            continue;
-        }
-
-        std::string content((std::istreambuf_iterator<char>(file)),
-                            std::istreambuf_iterator<char>());
-
-        // Simple regex to find "brightness": <number>
-        std::regex brightness_regex(R"("brightness"\s*:\s*(\d+))");
-        std::smatch match;
-        if (std::regex_search(content, match, brightness_regex) && match.size() > 1) {
-            int brightness = std::stoi(match[1].str());
-            // Clamp to valid range
-            if (brightness < 10)
-                brightness = 10;
-            if (brightness > 100)
-                brightness = 100;
-            return brightness;
-        }
-    }
-
-    return default_value;
+    const auto brightness = helix::read_settings_int("brightness");
+    return brightness ? std::clamp(*brightness, 10, 100) : default_value;
 }
 
 // Background colors for each mode
@@ -151,35 +121,15 @@ static constexpr uint32_t BG_COLOR_3D_DARK = 0x2D2D2D; // 3D splash dark (sample
 static constexpr uint32_t BG_COLOR_3D_LIGHT =
     0xDBDBDF; // 3D splash light (sampled from image edges)
 
-// Read dark_mode setting from config file (same parsing approach as brightness)
-// Returns configured value or default_value on failure
+// Configured dark_mode, or default_value when unset
 static bool read_config_dark_mode(bool default_value = true) {
-    const std::string main_settings = helix::writable_path("settings.json");
-    const std::string main_legacy = helix::writable_path("helixconfig.json");
-    const std::string paths[] = {main_settings, main_legacy, "helixconfig.json",
-                                 "/opt/helixscreen/helixconfig.json"};
-
-    for (const auto& path : paths) {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            continue;
-        }
-
-        std::string content((std::istreambuf_iterator<char>(file)),
-                            std::istreambuf_iterator<char>());
-
-        // Simple regex to find "dark_mode": true/false
-        std::regex dark_mode_regex(R"("dark_mode"\s*:\s*(true|false))");
-        std::smatch match;
-        if (std::regex_search(content, match, dark_mode_regex) && match.size() > 1) {
-            bool result = (match[1].str() == "true");
-            fprintf(stderr, "helix-splash: dark_mode=%s (from %s)\n", result ? "true" : "false",
-                    path.c_str());
-            return result;
-        }
+    std::string path;
+    const auto token = helix::read_settings_scalar("dark_mode", &path);
+    if (!token || (*token != "true" && *token != "false")) {
+        return default_value;
     }
-
-    return default_value;
+    fprintf(stderr, "helix-splash: dark_mode=%s (from %s)\n", token->c_str(), path.c_str());
+    return *token == "true";
 }
 
 /**
@@ -411,20 +361,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Apply display rotation if configured (CLI arg from watchdog, or config fallback)
-    if (rotation == 0) {
-        rotation = read_config_rotation(0);
-    }
-    // Auto-detect from kernel if no config/CLI rotation (first boot).
-    // panel_orientation is informational — kernel does NOT rotate the
-    // framebuffer, we must do it ourselves.
-    if (rotation == 0) {
-        int kernel_rot = detect_panel_orientation_from_cmdline();
-        if (kernel_rot > 0) {
-            rotation = kernel_rot;
-            fprintf(stderr, "helix-splash: Auto-detected panel orientation: %d°\n", rotation);
-        }
-    }
+    rotation = helix::standalone_rotation(rotation);
     if (rotation != 0) {
         lv_display_set_rotation(display, degrees_to_lv_rotation(rotation));
         // Update dimensions to match rotated resolution for splash layout

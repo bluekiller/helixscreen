@@ -574,11 +574,9 @@ std_regex_pattern() {
 }
 
 # Allowed, with the reason:
-#   src/helix_splash.cpp, src/helix_watchdog.cpp - separate small binaries that
-#       each read one small settings file on the main thread (full rlimit stack)
-#   src/tools/                                   - host-only build tools
+#   src/tools/ - host-only build tools
 std_regex_lint_files() {
-    rtti_lint_files | grep -Ev '^src/(helix_splash|helix_watchdog)\.cpp$|^src/tools/'
+    rtti_lint_files | grep -Ev '^src/tools/'
 }
 
 check_no_std_regex() {

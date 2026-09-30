@@ -424,3 +424,35 @@ TEST_CASE("read_config_rotation takes the first \"rotate\": <digits> in settings
     // No key: the caller's default.
     CHECK(rotation_for(R"({"display": {}})") == -1);
 }
+
+TEST_CASE("read_settings_scalar returns the value token and falls through to legacy files",
+          "[display][rotation]") {
+    helix::ConfigDirGuard guard("settings_scan");
+    const std::string settings = (guard.dir / "settings.json").string();
+    const std::string legacy = (guard.dir / "helixconfig.json").string();
+
+    REQUIRE(helix::text_io::write_file(settings, R"({"brightness": 75, "dark_mode" : false})"));
+    CHECK(helix::read_settings_int("brightness") == 75);
+    CHECK(helix::read_settings_scalar("dark_mode") == "false");
+    CHECK_FALSE(helix::read_settings_scalar("auto_restart_sec").has_value());
+
+    // A key settings.json lacks is looked up in the legacy file.
+    REQUIRE(helix::text_io::write_file(legacy, R"({"auto_restart_sec": 12})"));
+    std::string from;
+    CHECK(helix::read_settings_int("auto_restart_sec", &from) == 12);
+    CHECK(from == legacy);
+
+    // A string value is not a scalar token; a non-numeric token is not an int.
+    REQUIRE(helix::text_io::write_file(settings, R"({"brightness": "80", "dark_mode": true})"));
+    CHECK_FALSE(helix::read_settings_int("brightness").has_value());
+    CHECK_FALSE(helix::read_settings_int("dark_mode").has_value());
+}
+
+TEST_CASE("standalone_rotation prefers the CLI value, then the configured one",
+          "[display][rotation]") {
+    helix::ConfigDirGuard guard("standalone_rotation");
+    REQUIRE(helix::text_io::write_file((guard.dir / "settings.json").string(),
+                                       R"({"display": {"rotate": 180}})"));
+    CHECK(helix::standalone_rotation(90) == 90);
+    CHECK(helix::standalone_rotation(0) == 180);
+}
