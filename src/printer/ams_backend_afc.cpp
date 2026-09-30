@@ -2017,7 +2017,7 @@ void AmsBackendAfc::parse_afc_state(const nlohmann::json& afc_data,
         }
 
         // If we got unit-lane data from object format, re-organize into multi-unit layout.
-        // NOTE: This runs under mutex_ lock (held by handle_status_update caller),
+        // NOTE: This runs under mutex_ lock (held by handle_status caller),
         // so system_info_ modifications are safe from concurrent get_system_info() reads.
         if (!unit_lane_map_.empty()) {
             if (!slots_.is_initialized() && !discovered_lane_names_.empty()) {
@@ -2914,7 +2914,7 @@ bool AmsBackendAfc::printer_retains_spool_info() const {
 
 void AmsBackendAfc::maybe_reassert_retained_spool_link(int slot_index,
                                                        const std::string& lane_name) {
-    // Callers hold mutex_ (parse_afc_stepper via handle_status_update).
+    // Callers hold mutex_ (parse_afc_stepper via handle_status).
     //
     // The #1289 convergence gap: with "Keep Spool Info on Eject" on we keep
     // a lane's spool identity in our override namespace, but AFC itself —
@@ -3730,7 +3730,7 @@ void AmsBackendAfc::query_initial_state() {
     client_->send_jsonrpc(
         "printer.objects.query", params,
         [this, token](const nlohmann::json& response) {
-            // L081 Mechanism C: handle_status_update mutates members + emits events.
+            // L081 Mechanism C: handle_status mutates members + emits events.
             token.defer("AmsBackendAfc::query_initial_state_success", [this, response]() {
                 // Response structure:
                 // {"jsonrpc": "2.0", "result": {"eventtime": ..., "status": {...}}, "id": ...}
@@ -4589,7 +4589,7 @@ void AmsBackendAfc::initialize_slots(const std::vector<std::string>& lane_names)
  * Rebuilds system_info_.units from unit_lane_map_ (unit_name → [lane_names]),
  * preserving existing slot data (colors, materials, status) by matching lane names.
  *
- * @pre mutex_ must be held by caller (via handle_status_update → parse_afc_state)
+ * @pre mutex_ must be held by caller (via handle_status → parse_afc_state)
  * @pre slots_ must be initialized (slots exist in system_info_.units[0])
  */
 void AmsBackendAfc::reorganize_slots() {

@@ -62,7 +62,7 @@ constexpr int kSnapPendingInsertPasses = 8;
 }
 
 // Snapmaker's recognized filament SUB_TYPE product lines. The RFID read path
-// stores SUB_TYPE into SlotInfo::spool_name (see handle_status_update), but a
+// stores SUB_TYPE into SlotInfo::spool_name (see handle_status), but a
 // user can edit spool_name to a free-form string ("My Custom Spool"). Both the
 // apply_user_edit firmware round-trip (POST /printer/filament_detect/set) and the
 // #991 post-runout SET_PRINT_FILAMENT_CONFIG re-assert must only treat
@@ -899,7 +899,7 @@ AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& in
 
         slot->assign_filament_fields(info);
 
-        // handle_status_update writes RFID and print_task_config fields
+        // handle_status writes RFID and print_task_config fields
         // unconditionally, so an edit kept only in memory is wiped by the next
         // Klipper status update. Stage the override into overrides_ so the edit
         // survives a restart; the lane's own declaration, filed when the edit is
@@ -942,7 +942,7 @@ AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& in
             info_obj["MAIN_TYPE"] = info.material;
         // SUB_TYPE is restricted to Snapmaker's known product lines per the
         // firmware spec. spool_name carries the SUB_TYPE on the read path
-        // (see handle_status_update), but UI-edited spool_name may be a free-
+        // (see handle_status), but UI-edited spool_name may be a free-
         // form string ("My Custom Spool"). Only round-trip when it matches a
         // known sub_type — otherwise omit and let firmware preserve whatever
         // it had. The free-form string still lives in lane_data. Shares the
@@ -2278,7 +2278,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         // print_task_config, filament_feed). Rather than hook the override logic
         // into each one, we run it once here at the tail — the tradeoff is that
         // get_slot_info during a partial parse would observe uncleared overrides,
-        // but since everything runs under mutex_ and handle_status_update is the
+        // but since everything runs under mutex_ and handle_status is the
         // only writer, there's no observable window.
         for (int i = 0; i < NUM_TOOLS; ++i) {
             auto* slot = system_info_.units[0].get_slot(i);

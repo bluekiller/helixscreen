@@ -17,9 +17,9 @@
 //
 // The clock is faked by back-dating action_start_time_ — no sleeps.
 
-#include "test_helpers/afc_test_access.h"
 #include "ams_backend_afc.h"
 #include "ams_types.h"
+#include "test_helpers/afc_test_access.h"
 
 #include <chrono>
 #include <mutex>
@@ -45,7 +45,7 @@ class AfcActionTimeoutHelper : public AmsBackendAfc {
     }
 
     /// Feed a status frame carrying only AFC.current_state, the authoritative
-    /// state field. Goes through the real handle_status_update() path.
+    /// state field. Goes through the real handle_status() path.
     void feed_state(const std::string& current_state) {
         nlohmann::json afc;
         afc["current_state"] = current_state;

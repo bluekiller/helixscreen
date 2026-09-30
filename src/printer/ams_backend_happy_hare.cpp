@@ -119,7 +119,7 @@ AmsBackendHappyHare::AmsBackendHappyHare(IMoonrakerAPI* api, IMoonrakerClient* c
     // Endless spool AVAILABILITY is unconditional for Happy Hare and lives in
     // get_endless_spool_capabilities(). This is the ENABLE bit, and it starts
     // false so nothing claims the feature is running before mmu.
-    // endless_spool_enabled arrives (see handle_status_update).
+    // endless_spool_enabled arrives (see handle_status).
     system_info_.endless_spool_enabled = false;
     // Bypass support is determined at runtime from mmu.has_bypass status field.
     // Starts false so the bypass UI stays absent until the firmware confirms it:
@@ -3376,7 +3376,7 @@ DryerInfo AmsBackendHappyHare::get_dryer_info(int unit) const {
 std::vector<helix::printer::EnvironmentZone>
 AmsBackendHappyHare::get_environment_zones(int unit) const {
     // filament_heaters_, environment_sensors_, gate_drying_states_ and heater_temp_ are
-    // all written from the status thread under mutex_ (handle_status_update for the
+    // all written from the status thread under mutex_ (handle_status for the
     // first three, apply_filament_heater_status for the last). Snapshot them once here
     // rather than reading each under no lock at all.
     std::vector<std::string> heaters;

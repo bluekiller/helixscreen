@@ -7335,7 +7335,7 @@ TEST_CASE("AFC buffer delta omitting fields leaves the prior health intact",
 //
 // Every buffer assertion above is single-unit units[0], which is why two
 // separate defects hid here on a five-unit rig:
-//   (a) handle_status_update parsed AFC_buffer objects BEFORE the unit-level
+//   (a) handle_status parsed AFC_buffer objects BEFORE the unit-level
 //       objects that build the multi-unit layout, so every lane resolved against
 //       the synthetic single unit initialize_slots() creates and all five buffers
 //       landed on unit 0, overwriting each other;

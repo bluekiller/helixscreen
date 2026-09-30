@@ -1691,7 +1691,7 @@ TEST_CASE("CFS change_tool selects load-vs-swap from filament_loaded (#968)", "[
 //
 // The push writes color_value always, and material_type ONLY when a code for
 // the user's pick exists in the firmware-observed vocabulary harvested by
-// handle_status_update (observed_material_*_). Codes are never synthesized —
+// handle_status (observed_material_*_). Codes are never synthesized —
 // a value the firmware never reported could poison the wrapper's material-DB
 // lookups (flush temps, same-material matching) and the stock LCD display.
 //
@@ -2714,7 +2714,7 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
     // Second parse: DIFFERENT fingerprint on slot 0 (material=102001, new
     // color) — physical swap detected.
     //
-    // Sequence inside handle_status_update for this slot:
+    // Sequence inside handle_status for this slot:
     //   1. check_hardware_event_clear fires clear_override_locked, which
     //      erases the user-set override (brand, spool_name, spoolman_id,
     //      material, color) AND deletes the lane_data record.

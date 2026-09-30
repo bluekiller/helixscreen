@@ -284,7 +284,7 @@ AmsBackendCfs::AmsBackendCfs(IMoonrakerAPI* api, helix::IMoonrakerClient* client
     system_info_.type = AmsType::CFS;
     system_info_.type_name = "CFS";
     // Starts false and converges on the first full box frame in
-    // handle_status_update — see the convergence comment there for the two
+    // handle_status — see the convergence comment there for the two
     // dialect rules (Fork: verified T<external> command + payload entry;
     // stock: sensor-derived rule, no load command exists).
     system_info_.supports_bypass = false;
@@ -498,7 +498,7 @@ AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
     // loaded" truth — it retains a lane number even when nothing is loaded,
     // producing phantom "loaded from lane N". The authoritative loaded signal
     // is the toolhead sensor (filament_switch_sensor filament_sensor), handled
-    // in handle_status_update. Leave filament_loaded false here.
+    // in handle_status. Leave filament_loaded false here.
     info.filament_loaded = false;
 
     // Runout signal: box.filament_useup == 1 means no filament at the box gate.
@@ -908,7 +908,7 @@ static uint32_t parse_flat_slot_color(const std::string& raw) {
 // key entirely. Both cases mean "no reading", which is a different answer from
 // false — false is a runout. Returning an optional keeps that distinction at
 // the one place it is decided, so the parse and the merge gate in
-// handle_status_update cannot drift apart on it.
+// handle_status cannot drift apart on it.
 static std::optional<bool> flat_gate_filament_present(const nlohmann::json& box_json) {
     auto it = box_json.find("filament_detected");
     if (it == box_json.end() || !it->is_boolean()) {
@@ -936,7 +936,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     info.supports_purge = true;
 
     // Bypass on a Flat payload is decided at convergence in
-    // handle_status_update, not here: the holder entry is observable, but only
+    // handle_status, not here: the holder entry is observable, but only
     // the identified Fork dialect has a verified command for it (`T<external>`
     // is registered by the port's own box.py; BOX_UNLOAD's external branch
     // ejects it). This static parser cannot see the latched dialect, so it
@@ -953,7 +953,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
 
     // Runout is the box gate's own presence boolean, negated. No reading (key
     // absent, or null before the sensor's first read) is not a runout, and the
-    // merge gate in handle_status_update tests the same optional so such a
+    // merge gate in handle_status tests the same optional so such a
     // frame leaves the latch as it was.
     //
     // `runout` is deliberately NOT read here. It is the runout-SWAP plan — an
@@ -965,7 +965,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     // Spoolman link the moment the bay next reads empty.
     //
     // filament_loaded is left false for the same reason as the stock parse —
-    // the toolhead sensor branch in handle_status_update is its sole writer.
+    // the toolhead sensor branch in handle_status is its sole writer.
     const std::optional<bool> gate_present = flat_gate_filament_present(box_json);
     info.filament_runout = gate_present.has_value() && !*gate_present;
     info.filament_loaded = false;
@@ -1243,14 +1243,14 @@ static std::string build_cfs_flat_slot_uid(const nlohmann::json& slot_json) {
                                 color.kind == helix::ams::ColorReadingKind::Observed, color.rgb);
 }
 
-// --- handle_status_update ---
+// --- handle_status ---
 
 void AmsBackendCfs::handle_status(const nlohmann::json& params) {
     bool changed = false;
     // unit number -> bay bitmask, filled under mutex_ and dispatched after it.
     std::map<int, int> insert_probes;
 
-    // Print-lifecycle input for the insert-probe gate below. handle_status_update
+    // Print-lifecycle input for the insert-probe gate below. handle_status
     // runs on the main thread (the subscription defers every notify there, and
     // on_started's initial-state query response defers through the same token), so a
     // synchronous subject read is safe. A null api_ (unit-test rigs, cold boot)
@@ -1285,7 +1285,7 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                 // safe_int, not .value(): spdlog evaluates its arguments before it
                 // consults the log level, so a null or wrong-typed "filament"/
                 // "auto_refill"/"enable" would throw type_error.302 out of
-                // handle_status_update in a release build too, not just under -vv.
+                // handle_status in a release build too, not just under -vv.
                 // NB these are the TOP-LEVEL box fields, documented as ints — not
                 // the same-named per-unit "filament" letter, which is a string.
                 spdlog::debug("[AMS CFS] filament_useup {} -> {} (box.filament={}, "
@@ -1456,7 +1456,7 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                     const auto& unit_json = box[key];
                     // safe_string for the same reason as the parse_box_status
                     // unit loop: a null/wrong-typed `state` must degrade to
-                    // "disconnected", not throw out of handle_status_update.
+                    // "disconnected", not throw out of handle_status.
                     std::string state = helix::json_util::safe_string(unit_json, "state", "None");
                     if (state == "None" || state == "-1")
                         continue;
@@ -3778,7 +3778,7 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
     // AmsBackendHappyHare::get_endless_spool_capabilities.
     //
     // units is the readiness signal because it is the same guard the merge
-    // uses: handle_status_update writes the enable bit only inside
+    // uses: handle_status writes the enable bit only inside
     // `if (!new_info.units.empty())`, so an empty units vector is exactly the
     // state in which that bit cannot have come from firmware.
     if (system_info_.units.empty()) {

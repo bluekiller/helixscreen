@@ -1245,7 +1245,7 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     int message_drain_budget_ = 0;
 
     /// Set by parse_afc_state() while holding mutex_; consumed by
-    /// handle_status_update() after the lock is released. parse_afc_state() must
+    /// handle_status() after the lock is released. parse_afc_state() must
     /// never send gcode itself — same reason deferred_error_event exists.
     bool message_drain_pending_ = false;
 

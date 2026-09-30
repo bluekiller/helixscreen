@@ -551,7 +551,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// print finished on, not the ones it was planned with.
     ///
     /// Empty until a configured task has been seen. Written only from
-    /// handle_status_update under mutex_; read by last_print_tool_mapping().
+    /// handle_status under mutex_; read by last_print_tool_mapping().
     std::vector<int> last_task_extruder_map_;
 
     /// What the firmware last reported for its stored print preferences.
@@ -561,7 +561,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// Like every other print_task_config field, these are a write surface, not
     /// a sensor — held as told, never filed as a lane observation.
     ///
-    /// Written only from handle_status_update under mutex_; read by
+    /// Written only from handle_status under mutex_; read by
     /// print_preferences().
     snapmaker::PrintPreferences print_preferences_;
 
@@ -604,7 +604,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// Last value published to AmsState::set_active_tool_port_present for the
     /// active tool (#991). Tracks the active-tool port flag so we only push to
     /// the UI subject on an actual change. -1 = nothing published yet. Written
-    /// only from handle_status_update (the single WS-thread writer).
+    /// only from handle_status (the single WS-thread writer).
     int last_published_port_present_ = -1;
 
     /// Per-slot "filament is loaded to THIS tool's nozzle" latch, driven
@@ -642,12 +642,12 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// parses (reader disabled, read never landed) asks too. Presence dropping
     /// cancels it: the spool left before any read. A feed the firmware itself
     /// drives (tool-change load/unload, one of our batch ops) never arms it.
-    /// Written only from handle_status_update (the single WS-thread writer).
+    /// Written only from handle_status (the single WS-thread writer).
     std::array<int, NUM_TOOLS> pending_insert_passes_{{0, 0, 0, 0}};
 
     /// Last filament_feed frame's raw per-channel fields (channel_state,
     /// channel_error, filament_detected, module_exist, disable_auto), written
-    /// by handle_status_update before classification. Each write replaces the
+    /// by handle_status before classification. Each write replaces the
     /// whole entry, defaulting any feeder field that frame omitted;
     /// sensor_enabled arrives from the motion-sensor objects instead and is
     /// carried across a feeder write. Read by channel_snapshot().
@@ -661,7 +661,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
 
     /// Layer a configured FilamentSlotOverride for `slot_index` over `slot`,
     /// mutating `slot` in place. Override wins for every non-default field.
-    /// Callers must hold mutex_. Called from the tail of handle_status_update
+    /// Callers must hold mutex_. Called from the tail of handle_status
     /// AFTER firmware data has been populated and BEFORE event emission, so
     /// the very next get_slot_info() reflects the overridden values.
 
@@ -706,7 +706,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     std::string batch_macro_object_;
 
     /// The batch do_filament_batch() dispatched, verified head-by-head in
-    /// handle_status_update's channel_state parse. All access under mutex_.
+    /// handle_status's channel_state parse. All access under mutex_.
     BatchPlan batch_;
 
     /// Source of BatchPlan::dispatch_id; monotonic per backend. Under mutex_.

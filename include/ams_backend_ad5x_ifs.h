@@ -984,7 +984,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     /// Push a correctly-shaped `colors=`/`types=` pair into `_IFS_VARS` after
     /// parse_save_variables() observed a truncated lessWaste array (the
     /// persisted damage from the #1247 bug — SAVE_VARIABLE keeps it across
-    /// reboots). Called from handle_status_update() with mutex_ released
+    /// reboots). Called from handle_status() with mutex_ released
     /// because execute_gcode() blocks.
     void dispatch_ifs_vars_repair();
     AmsError write_ifs_var(const std::string& key, const std::string& value);
@@ -1144,7 +1144,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     int find_first_tool_for_port(int port_1based) const;
 
     // Map active_tool_ -> system_info_.current_slot via tool_map_. Single source
-    // of truth shared by handle_status_update and apply_zcolor_result so the
+    // of truth shared by handle_status and apply_zcolor_result so the
     // seated slot updates immediately when IFS_STATUS reports a new Chan instead
     // of waiting for the next status frame. Caller must hold mutex_.
     void recompute_current_slot_locked();
@@ -1413,7 +1413,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // Set by parse_save_variables() when a lessWaste `<prefix>_colors` or
     // `_types` save_variables array arrives with fewer than TOOL_MAP_SIZE
     // entries — the truncation signature of the #1247 mirror bug. Consumed
-    // (read + cleared) by handle_status_update() under the same lock hold,
+    // (read + cleared) by handle_status() under the same lock hold,
     // then dispatched after unlock. Guarded by mutex_.
     bool ifs_vars_repair_staged_ = false;
 
@@ -1501,7 +1501,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // A real purge runs far longer than the generic 90 s phase window (raza616:
     // ~3 min whole-op from cold; Vger1700 hit the 90 s ERROR twice mid-purge,
     // #1065). PURGING gets its own budget AND its clock is reset on
-    // ifs_motion_sensor activity (see handle_status_update), so the budget is
+    // ifs_motion_sensor activity (see handle_status), so the budget is
     // effectively "time since filament last moved" — a long-but-healthy purge is
     // never falsely failed, a genuinely stalled one still surfaces ERROR.
     static constexpr int PURGING_TIMEOUT_SECONDS = 240;
@@ -1531,7 +1531,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     std::chrono::steady_clock::time_point last_phase_progress_time_;
     int last_progress_temp_deci_ = 0; // deci-degrees of the last progress-noting temp frame
 
-    // Rate-limit gate for the JSON-content poll. handle_status_update kicks
+    // Rate-limit gate for the JSON-content poll. handle_status kicks
     // poll_adventurer_json() if at least kJsonPollInterval has elapsed since
     // the last kick — replaces the old 15s unconditional GET_ZCOLOR backstop.
     // Default-constructed time_point is the epoch, so the first status update
