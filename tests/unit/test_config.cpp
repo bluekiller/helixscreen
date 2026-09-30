@@ -1740,8 +1740,85 @@ TEST_CASE_METHOD(ConfigTestFixture, "Config: factory reset removes rolling backu
 }
 
 // ============================================================================
-// v3→v4 migration: Multi-printer support
+// Versionless (version 0) documents: the single /printer shape
 // ============================================================================
+
+TEST_CASE("Config: every shipped preset loads as a fresh install in the /printers shape",
+          "[core][config][migration][preset]") {
+    namespace fs = std::filesystem;
+    std::string src = __FILE__;
+    // __FILE__ is repo-relative or absolute; either way the prefix is the root.
+    const std::string presets_dir =
+        src.substr(0, src.rfind("tests/unit/")) + "assets/config/presets";
+
+    int checked = 0;
+    for (const auto& entry : fs::directory_iterator(presets_dir)) {
+        if (entry.path().extension() != ".json") {
+            continue;
+        }
+        const std::string name = entry.path().filename().string();
+        INFO("preset " << name);
+        const json preset = json::parse(std::ifstream(entry.path()));
+        REQUIRE_FALSE(preset.contains("config_version"));
+        const json& legacy_printer = preset.at("printer");
+
+        std::string temp_dir = helix::test::unique_temp_dir("helix_preset_load");
+        fs::create_directories(temp_dir);
+        std::string temp_path = temp_dir + "/settings.json";
+        fs::copy_file(entry.path(), temp_path);
+
+        BackupGuard guard;
+        Config test_config;
+        test_config.init(temp_path);
+        const json doc = test_config.get<json>("", json());
+
+        REQUIRE(doc.at("config_version") == CURRENT_CONFIG_VERSION);
+        REQUIRE_FALSE(doc.contains("printer"));
+
+        std::string slug = "default";
+        for (const char* key : {"printer_name", "name"}) {
+            if (legacy_printer.contains(key)) {
+                slug = Config::slugify(legacy_printer.at(key).get<std::string>());
+                break;
+            }
+        }
+        REQUIRE(test_config.get_active_printer_id() == slug);
+        const json& printer = doc.at("printers").at(slug);
+
+        if (legacy_printer.contains("heaters")) {
+            CHECK(printer.at("heaters") == legacy_printer.at("heaters"));
+        }
+        if (preset.contains("preset")) {
+            CHECK(printer.at("preset") == preset.at("preset"));
+        }
+
+        const json legacy_leds = legacy_printer.value("leds", json::object());
+        const std::string strip = legacy_leds.value("strip", "");
+        CHECK(printer.at("leds").at("selected") ==
+              (strip.empty() ? json::array() : json::array({strip})));
+        if (legacy_leds.contains("selected_strips")) {
+            CHECK(printer.at("leds").at("selected_strips") == legacy_leds.at("selected_strips"));
+        }
+
+        json rotate;
+        if (preset.contains("display") && preset.at("display").contains("rotate")) {
+            rotate = preset.at("display").at("rotate");
+        } else if (preset.contains("display_rotate")) {
+            rotate = preset.at("display_rotate");
+        }
+        if (!rotate.is_null()) {
+            CHECK(doc.at("display").at("rotate") == rotate);
+        }
+        CHECK_FALSE(doc.contains("display_rotate"));
+        CHECK(doc.at("printers").at("show_printer_switcher") == false);
+
+        CHECK(test_config.is_wizard_required() != preset.value("wizard_completed", false));
+
+        fs::remove_all(temp_dir);
+        ++checked;
+    }
+    REQUIRE(checked >= 20);
+}
 
 TEST_CASE("Config: version-0 migration restructures single printer to multi-printer",
           "[core][config][migration][v4]") {
@@ -1791,8 +1868,8 @@ TEST_CASE("Config: version-0 migration restructures single printer to multi-prin
     REQUIRE(test_config.get<int>(test_config.df() + "filament/extrude_speed") == 10);
 
     // Panel widgets should have moved under printer entry. This drives the whole
-    // migration chain, so the v22 step has since lifted the legacy flat array
-    // into the multi-page shape — the widget set and its order are what v3->v4
+    // migration chain, so the v22 step lifts the legacy flat array
+    // into the multi-page shape — the widget set and its order are what the versionless step
     // is responsible for carrying across, not the container.
     auto pw = test_config.get<json>(test_config.df() + "panel_widgets/home", json());
     REQUIRE(pw.is_object());
@@ -1899,6 +1976,88 @@ TEST_CASE("Config: version-0 migration moves printer_image to per-printer path",
 
     // /display should still have other keys intact
     REQUIRE(test_config.get<int>("/display/rotate") == 0);
+
+    std::filesystem::remove_all(temp_dir);
+}
+
+TEST_CASE("Config: version-0 migration disables printer switcher for single-printer config",
+          "[core][config][migration][v5]") {
+    std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_single");
+    std::filesystem::remove_all(temp_dir);
+    std::filesystem::create_directories(temp_dir);
+    std::string temp_path = temp_dir + "/test_config.json";
+
+    json v4_config = {
+        {"active_printer_id", "ender3"},
+        {"printers", {{"ender3", {{"moonraker_host", "192.168.1.50"}, {"moonraker_port", 7125}}}}}};
+
+    {
+        std::ofstream o(temp_path);
+        o << v4_config.dump(2);
+    }
+
+    BackupGuard guard;
+    Config test_config;
+    test_config.init(temp_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get<bool>("/printers/show_printer_switcher") == false);
+
+    std::filesystem::remove_all(temp_dir);
+}
+
+TEST_CASE("Config: version-0 migration skips when multiple printers configured",
+          "[core][config][migration][v5]") {
+    std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_multi");
+    std::filesystem::remove_all(temp_dir);
+    std::filesystem::create_directories(temp_dir);
+    std::string temp_path = temp_dir + "/test_config.json";
+
+    json v4_config = {{"active_printer_id", "ender3"},
+                      {"printers",
+                       {{"ender3", {{"moonraker_host", "192.168.1.50"}}},
+                        {"voron", {{"moonraker_host", "192.168.1.51"}}}}}};
+
+    {
+        std::ofstream o(temp_path);
+        o << v4_config.dump(2);
+    }
+
+    BackupGuard guard;
+    Config test_config;
+    test_config.init(temp_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    // Migration should NOT have written the key for multi-printer configs
+    REQUIRE_FALSE(test_config.exists("/printers/show_printer_switcher"));
+
+    std::filesystem::remove_all(temp_dir);
+}
+
+TEST_CASE("Config: version-0 migration preserves explicit show_printer_switcher setting",
+          "[core][config][migration][v5]") {
+    std::string temp_dir = helix::test::unique_temp_dir("helix_test_v4_to_v5_explicit");
+    std::filesystem::remove_all(temp_dir);
+    std::filesystem::create_directories(temp_dir);
+    std::string temp_path = temp_dir + "/test_config.json";
+
+    json v4_config = {
+        {"active_printer_id", "ender3"},
+        {"printers",
+         {{"show_printer_switcher", true}, {"ender3", {{"moonraker_host", "192.168.1.50"}}}}}};
+
+    {
+        std::ofstream o(temp_path);
+        o << v4_config.dump(2);
+    }
+
+    BackupGuard guard;
+    Config test_config;
+    test_config.init(temp_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    // Should NOT override the explicit true setting
+    REQUIRE(test_config.get<bool>("/printers/show_printer_switcher") == true);
 
     std::filesystem::remove_all(temp_dir);
 }

@@ -52,12 +52,10 @@ static helix::PlatformTier current_tier_for_migration() {
 }
 #endif
 
-/// Restructure single /printer to multi-printer /printers map. Only version 0
-/// reaches this below the floor: the shipped presets carry no config_version
-/// and still use the single /printer shape.
-/// Moves the old singular "printer" object under "printers/{slug}/" and sets active_printer_id.
-/// Also moves root-level "filament", "panel_widgets" under the printer entry.
-static void migrate_v3_to_v4(json& config, const std::string& /*config_path*/) {
+/// Move a single root /printer object under "printers/{slug}/", set
+/// active_printer_id, and move root-level "filament" and "panel_widgets" under
+/// that printer.
+static void move_single_printer_under_printers(json& config) {
     // Skip if already has /printers (idempotent)
     if (config.contains("printers")) {
         return;
@@ -69,6 +67,13 @@ static void migrate_v3_to_v4(json& config, const std::string& /*config_path*/) {
     }
 
     json printer_data = config["printer"];
+
+    // A printer with no LEDs gets an explicit empty selection. Config::init()
+    // fills an absent leds block with a placeholder strip and selects it, which
+    // would pre-select an LED the printer does not have.
+    if (!printer_data.contains("leds")) {
+        printer_data["leds"] = {{"selected", json::array()}};
+    }
 
     // Determine the slug ID from the printer name
     std::string printer_name;
@@ -109,12 +114,40 @@ static void migrate_v3_to_v4(json& config, const std::string& /*config_path*/) {
     if (config.contains("display") && config["display"].contains("printer_image")) {
         config["printers"][slug]["printer_image"] = config["display"]["printer_image"];
         config["display"].erase("printer_image");
-        spdlog::info(
-            "[Config] Migration v4: moved /display/printer_image to /printers/{}/printer_image",
-            slug);
+        spdlog::info("[Config] Versionless config: moved /display/printer_image to "
+                     "/printers/{}/printer_image",
+                     slug);
     }
 
-    spdlog::info("[Config] Migration v4: restructured /printer to /printers/{}", slug);
+    spdlog::info("[Config] Versionless config: restructured /printer to /printers/{}", slug);
+}
+
+/// Bring a versionless document into the shape the numbered chain starts from.
+/// The shipped presets (assets/config/presets/*.json) and the tarball-default
+/// settings.json seeded from them carry no config_version and describe their one
+/// printer as a single root /printer object. Only version 0 runs this.
+static void normalize_versionless_document(json& config) {
+    move_single_printer_under_printers(config);
+
+    // A single-printer install starts with the printer switcher hidden.
+    if (config.contains("/printers/show_printer_switcher"_json_pointer)) {
+        return;
+    }
+    int printer_count = 0;
+    if (config.contains("printers") && config["printers"].is_object()) {
+        for (const auto& [key, val] : config["printers"].items()) {
+            if (val.is_object()) {
+                printer_count++;
+            }
+        }
+    }
+    const char* why = nullptr;
+    json* flag = printer_count <= 1
+                     ? node_for_write(config, "/printers/show_printer_switcher", &why)
+                     : nullptr;
+    if (flag != nullptr) {
+        *flag = false;
+    }
 }
 
 /// Consolidate "power" widget into "power_device" with __all__ sentinel.
@@ -531,7 +564,7 @@ static bool has_any_value(const json& node) {
 /// the version number, using non-vivifying contains()) is what makes the
 /// erase stick.
 ///
-/// The /printer erase matters beyond tidiness: migrate_v3_to_v4() gates on
+/// The /printer erase matters beyond tidiness: normalize_versionless_document() gates on
 /// `config.contains("printer") && config["printer"].is_object()`, so a
 /// resurrected /printer node would be split into a bogus printers/default entry
 /// if that migration ever re-ran.
@@ -587,7 +620,7 @@ static void migrate_v19_to_v20(json& config, const std::string& /*config_path*/)
         }
     }
     // /printer at this point is probe pollution: a real legacy /printer block was
-    // already split out by migrate_v3_to_v4(). Erase it only when it truly holds
+    // already split out by normalize_versionless_document(). Erase it only when it truly holds
     // nothing, so an unexpected real one is never silently destroyed.
     if (config.contains("printer")) {
         if (!has_any_value(config["printer"])) {
@@ -1186,12 +1219,12 @@ constexpr struct {
     int to_version;
     MigrationFn fn;
 } kMigrations[] = {
-    {4, migrate_v3_to_v4},    {10, migrate_v9_to_v10},  {11, migrate_v10_to_v11},
-    {12, migrate_v11_to_v12}, {13, migrate_v12_to_v13}, {14, migrate_v13_to_v14},
-    {15, migrate_v14_to_v15}, {16, migrate_v15_to_v16}, {17, migrate_v16_to_v17},
-    {18, migrate_v17_to_v18}, {19, migrate_v18_to_v19}, {20, migrate_v19_to_v20},
-    {21, migrate_v20_to_v21}, {22, migrate_v21_to_v22}, {23, migrate_v22_to_v23},
-    {24, migrate_v23_to_v24}, {25, migrate_v24_to_v25}, {26, migrate_v25_to_v26},
+    {10, migrate_v9_to_v10},  {11, migrate_v10_to_v11}, {12, migrate_v11_to_v12},
+    {13, migrate_v12_to_v13}, {14, migrate_v13_to_v14}, {15, migrate_v14_to_v15},
+    {16, migrate_v15_to_v16}, {17, migrate_v16_to_v17}, {18, migrate_v17_to_v18},
+    {19, migrate_v18_to_v19}, {20, migrate_v19_to_v20}, {21, migrate_v20_to_v21},
+    {22, migrate_v21_to_v22}, {23, migrate_v22_to_v23}, {24, migrate_v23_to_v24},
+    {25, migrate_v24_to_v25}, {26, migrate_v25_to_v26},
 };
 
 static_assert(kMigrations[std::size(kMigrations) - 1].to_version == CURRENT_CONFIG_VERSION,
@@ -1244,6 +1277,9 @@ void run_versioned_migrations(json& config, const std::string& config_path) {
         return;
     }
 
+    if (version == 0) {
+        normalize_versionless_document(config);
+    }
     for (const auto& m : kMigrations) {
         if (version < m.to_version) {
             m.fn(config, config_path);

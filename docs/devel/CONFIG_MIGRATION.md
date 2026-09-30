@@ -14,7 +14,7 @@ There are two migration layers:
 
 1. **Structural migrations** (legacy) -- Key-path moves like `display_rotate` to `/display/rotate` or `/display/calibration` to `/input/calibration`. These run unconditionally based on key presence.
 
-2. **Versioned migrations** -- Numbered `v3->v4`, `v9->v10`, etc. Each bumps the integer `config_version` field. These run in sequence and only on configs older than the target version.
+2. **Versioned migrations** -- Numbered `v9->v10`, `v10->v11`, etc. Each bumps the integer `config_version` field. These run in sequence and only on configs older than the target version.
 
 ---
 
@@ -82,7 +82,7 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
 | Scenario | What happens |
 |----------|-------------|
 | **No config file** | `get_default_config()` creates one with `config_version = CURRENT_CONFIG_VERSION`. No migrations run. |
-| **Existing config, no `config_version`** | Treated as version 0: a shipped preset (`assets/config/presets/*.json`) or a tarball default. A rolling backup with a real version replaces it if one exists; otherwise it runs v3->v4 (single `/printer` to the `/printers` map) and then the chain from v9. |
+| **Existing config, no `config_version`** | Treated as version 0: a shipped preset (`assets/config/presets/*.json`) or a tarball default. A rolling backup with a real version replaces it if one exists; otherwise `normalize_versionless_document()` moves the single `/printer` into the `/printers` map and the chain runs from v9. |
 | **Existing config, `config_version` 1-8** | Below the floor. Copied to `settings.json.pre-migration`, one warning logged, and replaced by `get_default_config()`, the same defaults a missing config gets. |
 | **Existing config, `config_version = 9`** | Only migrations after v9 run (v9->v10, ...). |
 | **Existing config, `config_version = CURRENT`** | No migrations run. |
@@ -99,9 +99,9 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
       If 0 < version < CURRENT and the document came from disk, copy
       settings.json to settings.json.pre-migration first
    b. If 0 < version < MIN_MIGRATABLE_CONFIG_VERSION: replace with defaults, stop
-   c. Run each kMigrations row whose to_version > version, in order
-      (v3->v4 is the only row below the floor; only version 0 reaches it)
-   d. Set config_version = CURRENT_CONFIG_VERSION
+   c. If version == 0: normalize_versionless_document() (/printer -> /printers)
+   d. Run each kMigrations row whose to_version > version, in order
+   e. Set config_version = CURRENT_CONFIG_VERSION
 4. Ensure required sections exist with defaults (printer, display, input, etc.)
 5. Save to disk if anything changed
 ```
@@ -116,7 +116,7 @@ Versioned migrations only run on **existing** configs. A fresh install skips str
 
 `MIN_MIGRATABLE_CONFIG_VERSION` (9, first shipped in v0.99.4) is the oldest stamp the chain still migrates. A config stamped 1-8 is not migrated: `init()` keeps it as `settings.json.pre-migration`, logs `config_version N is older than this build migrates`, and starts from defaults. Raising the floor means deleting the steps below it, except any a version-0 preset still needs.
 
-Version 0 is not below the floor. The shipped presets carry no `config_version` and use the single `/printer` shape, so `migrate_v3_to_v4()` stays for them.
+Version 0 is not below the floor. The shipped presets carry no `config_version` and use the single `/printer` shape, so `normalize_versionless_document()` moves that into the `/printers` map, gives a printer with no `leds` block an empty selection, and hides the printer switcher on a single-printer install, before the numbered chain runs. `tests/unit/test_config.cpp` loads every shipped preset through `Config::init()` to keep that path honest.
 
 ---
 
@@ -235,7 +235,7 @@ Run HelixScreen with `-vv` (DEBUG) to see migration log output:
 
 ```
 [Config] Loading config from config/settings.json
-[Config] Migration v4: restructured /printer to /printers/default
+[Config] Versionless config: restructured /printer to /printers/default
 ```
 
 If a config file is corrupt (unparseable JSON), `init()` backs it up as `settings.json.corrupt` and creates a fresh default config.
