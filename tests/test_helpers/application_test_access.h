@@ -106,8 +106,8 @@ class ApplicationTestAccess {
 
 #if HELIX_HAS_PLUGINS
     /// init_plugins() runs only from deep inside run()'s boot and the
-    /// printer-switch path. Flipping settings_plugins_available — which unhides
-    /// the Settings > Plugins row — is the externally observable part a test
+    /// printer-switch path. Flipping settings_plugins_available, which unhides
+    /// the Settings > Plugins row, is the externally observable part a test
     /// can pin without a full boot. Needs m_config installed first
     /// (set_config) and HELIX_PLUGIN_DIR to name a directory.
     static void init_plugins(Application& app) {
