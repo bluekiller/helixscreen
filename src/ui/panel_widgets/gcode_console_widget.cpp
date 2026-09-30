@@ -286,9 +286,7 @@ void GCodeConsoleWidget::publish_view() {
     if (tail_active_) {
         view = lines_.empty() ? View::TailEmpty : View::Tail;
     }
-    if (lv_subject_get_int(&view_subject_) != static_cast<int>(view)) {
-        lv_subject_set_int(&view_subject_, static_cast<int>(view));
-    }
+    lv_subject_set_int(&view_subject_, static_cast<int>(view));
 }
 
 void GCodeConsoleWidget::handle_click() {

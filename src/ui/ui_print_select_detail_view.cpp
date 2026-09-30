@@ -2583,9 +2583,7 @@ void PrintSelectDetailView::update_options_more_below() {
         return;
     }
     const int more = lv_obj_get_scroll_bottom(options_scroll_) > 0 ? 1 : 0;
-    if (lv_subject_get_int(&detail_options_more_below_) != more) {
-        lv_subject_set_int(&detail_options_more_below_, more);
-    }
+    lv_subject_set_int(&detail_options_more_below_, more);
 }
 
 void PrintSelectDetailView::fit_portrait_preview() {

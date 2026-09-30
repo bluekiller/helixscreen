@@ -116,9 +116,7 @@ void PrinterFanState::update_from_status(const nlohmann::json& status) {
             double speed = fan["speed"].get<double>();
             int speed_pct = units::to_percent(normalize_speed("fan", speed));
             spdlog::trace("[PrinterFanState] Fan speed update: {}%", speed_pct);
-            if (lv_subject_get_int(&fan_speed_) != speed_pct) {
-                lv_subject_set_int(&fan_speed_, speed_pct);
-            }
+            lv_subject_set_int(&fan_speed_, speed_pct);
 
             // Also update multi-fan tracking
             update_fan_speed("fan", speed);
@@ -139,9 +137,7 @@ void PrinterFanState::update_from_status(const nlohmann::json& status) {
                 // so the hero slider tracks the actual part fan speed
                 if (!roles_.part_fan.empty() && key == roles_.part_fan) {
                     int speed_pct = units::to_percent(normalize_speed(key, speed));
-                    if (lv_subject_get_int(&fan_speed_) != speed_pct) {
-                        lv_subject_set_int(&fan_speed_, speed_pct);
-                    }
+                    lv_subject_set_int(&fan_speed_, speed_pct);
                 }
             }
         }
@@ -156,9 +152,7 @@ void PrinterFanState::update_from_status(const nlohmann::json& status) {
                 // If this is the configured part fan, also update the main fan_speed_ subject
                 if (!roles_.part_fan.empty() && key == roles_.part_fan) {
                     int speed_pct = units::to_percent(speed);
-                    if (lv_subject_get_int(&fan_speed_) != speed_pct) {
-                        lv_subject_set_int(&fan_speed_, speed_pct);
-                    }
+                    lv_subject_set_int(&fan_speed_, speed_pct);
                 }
             }
         }

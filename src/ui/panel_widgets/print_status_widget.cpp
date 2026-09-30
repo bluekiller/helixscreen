@@ -1876,9 +1876,7 @@ void PrintStatusWidget::DetailedFormatter::update_filament_text() {
     // used-mm transition (e.g., first extrusion of the print).
     int width_band = lv_subject_get_int(&PrintStatusWidget::width_band_subject_);
     int show = (width_band >= 2 && used_mm > 0) ? 1 : 0;
-    if (lv_subject_get_int(&PrintStatusWidget::show_filament_active_subject_) != show) {
-        lv_subject_set_int(&PrintStatusWidget::show_filament_active_subject_, show);
-    }
+    lv_subject_set_int(&PrintStatusWidget::show_filament_active_subject_, show);
 }
 
 void PrintStatusWidget::DetailedFormatter::update_nozzle_text() {
@@ -1897,12 +1895,8 @@ void PrintStatusWidget::DetailedFormatter::update_nozzle_text() {
     // Mirror into proxy subjects (decidegrees) — temp_display in the detailed
     // XML binds to these and gets heating-color rendering for free, including
     // when pinned to a specific tool.
-    if (lv_subject_get_int(&nozzle_current_subject_) != temp_dd) {
-        lv_subject_set_int(&nozzle_current_subject_, temp_dd);
-    }
-    if (lv_subject_get_int(&nozzle_target_subject_) != tgt_dd) {
-        lv_subject_set_int(&nozzle_target_subject_, tgt_dd);
-    }
+    lv_subject_set_int(&nozzle_current_subject_, temp_dd);
+    lv_subject_set_int(&nozzle_target_subject_, tgt_dd);
     // String form kept for the (unused-by-XML but test-asserted) nozzle_text
     // subject, so test_print_status_widget_tool_override.cpp still verifies
     // the pinning + auto-mode dispatch.

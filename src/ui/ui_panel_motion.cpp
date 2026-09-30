@@ -705,12 +705,9 @@ void MotionPanel::register_position_observers() {
             int x = (strchr(axes, 'x') != nullptr) ? 1 : 0;
             int y = (strchr(axes, 'y') != nullptr) ? 1 : 0;
             int z = (strchr(axes, 'z') != nullptr) ? 1 : 0;
-            if (lv_subject_get_int(&self->motion_x_homed_) != x)
-                lv_subject_set_int(&self->motion_x_homed_, x);
-            if (lv_subject_get_int(&self->motion_y_homed_) != y)
-                lv_subject_set_int(&self->motion_y_homed_, y);
-            if (lv_subject_get_int(&self->motion_z_homed_) != z)
-                lv_subject_set_int(&self->motion_z_homed_, z);
+            lv_subject_set_int(&self->motion_x_homed_, x);
+            lv_subject_set_int(&self->motion_y_homed_, y);
+            lv_subject_set_int(&self->motion_z_homed_, z);
             self->update_z_button_blocked();
             if (self->jog_pad_)
                 ui_jog_pad_set_homed(self->jog_pad_, x && y && z);

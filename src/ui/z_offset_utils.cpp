@@ -352,9 +352,7 @@ struct SaveAvailabilityPublisher {
     }
 
     void publish(int available) {
-        if (lv_subject_get_int(&z_offset_save_available_) != available) {
-            lv_subject_set_int(&z_offset_save_available_, available);
-        }
+        lv_subject_set_int(&z_offset_save_available_, available);
     }
 
   private:

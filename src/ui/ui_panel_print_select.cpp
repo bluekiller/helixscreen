@@ -2552,9 +2552,7 @@ void PrintSelectPanel::update_print_button_state() {
         spdlog::trace("[{}] Print button {} (mode={}, can_start_new_print={})", get_name(),
                       enabled ? "enabled" : "disabled", queue_mode ? "queue" : "print", enabled);
     }
-    if (lv_subject_get_int(&button_mode_subject_) != static_cast<int>(view.mode)) {
-        lv_subject_set_int(&button_mode_subject_, static_cast<int>(view.mode));
-    }
+    lv_subject_set_int(&button_mode_subject_, static_cast<int>(view.mode));
 }
 
 void PrintSelectPanel::update_sort_indicators() {

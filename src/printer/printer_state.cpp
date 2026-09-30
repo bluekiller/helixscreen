@@ -1338,7 +1338,7 @@ void PrinterState::set_printer_type_internal(const std::string& type) {
 
     // Update z_offset_can_save subject: 0 when firmware/macros auto-persist (FIRMWARE_MANAGED)
     int can_save = (new_strategy != ZOffsetCalibrationStrategy::FIRMWARE_MANAGED) ? 1 : 0;
-    if (subjects_initialized_ && lv_subject_get_int(&z_offset_can_save_) != can_save) {
+    if (subjects_initialized_) {
         lv_subject_set_int(&z_offset_can_save_, can_save);
     }
 
