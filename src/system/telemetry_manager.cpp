@@ -37,6 +37,7 @@
 #include "system/update_checker.h"
 #include "system_settings_manager.h"
 #include "temperature_sensor_manager.h"
+#include "text_io.h"
 #include "theme_loader.h"
 #include "theme_manager.h"
 #include "tool_state.h"
@@ -910,22 +911,11 @@ void TelemetryManager::save_queue() const {
     std::lock_guard<std::mutex> lock(mutex_);
     try {
         std::string path = get_queue_path();
-        std::string tmp_path = path + ".tmp";
-
-        // Write to temp file first, then atomic rename to prevent
-        // empty/corrupt queue file if process is killed mid-write
-        std::ofstream file(tmp_path);
-        if (file.good()) {
-            file << helix::json_util::safe_dump(json(queue_), 2);
-            file.close();
-            if (std::rename(tmp_path.c_str(), path.c_str()) != 0) {
-                spdlog::warn("[TelemetryManager] Failed to rename queue temp file: {}",
-                             strerror(errno));
-            } else {
-                spdlog::trace("[TelemetryManager] Saved {} events to {}", queue_.size(), path);
-            }
+        if (helix::text_io::write_file_atomic(path, helix::json_util::safe_dump(json(queue_), 2))) {
+            spdlog::trace("[TelemetryManager] Saved {} events to {}", queue_.size(), path);
         } else {
-            spdlog::warn("[TelemetryManager] Failed to open queue file for writing: {}", path);
+            spdlog::warn("[TelemetryManager] Failed to write queue file {}: {}", path,
+                         strerror(errno));
         }
     } catch (const std::exception& e) {
         spdlog::error("[TelemetryManager] Failed to save queue: {}", e.what());
@@ -2707,17 +2697,12 @@ void TelemetryManager::save_snapshot_state() const {
     state["klippy_error_count"] = klippy_error_count_;
     state["klippy_shutdown_count"] = klippy_shutdown_count_;
 
-    auto path = fs::path(config_dir_) / "telemetry_snapshot.json";
-    auto tmp_path = fs::path(config_dir_) / "telemetry_snapshot.json.tmp";
-
-    try {
-        std::ofstream ofs(tmp_path);
-        ofs << helix::json_util::safe_dump(state, 2);
-        ofs.close();
-        fs::rename(tmp_path, path);
-        spdlog::debug("[TelemetryManager] Snapshot state saved to {}", path.string());
-    } catch (const std::exception& e) {
-        spdlog::warn("[TelemetryManager] Failed to save snapshot state: {}", e.what());
+    const std::string path = (fs::path(config_dir_) / "telemetry_snapshot.json").string();
+    if (helix::text_io::write_file_atomic(path, helix::json_util::safe_dump(state, 2))) {
+        spdlog::debug("[TelemetryManager] Snapshot state saved to {}", path);
+    } else {
+        spdlog::warn("[TelemetryManager] Failed to save snapshot state to {}: {}", path,
+                     strerror(errno));
     }
 }
 

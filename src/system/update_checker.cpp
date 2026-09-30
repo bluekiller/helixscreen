@@ -40,6 +40,7 @@
 #include "system/sha256_util.h"
 #include "system/telemetry_manager.h"
 #include "system/tls_trust.h"
+#include "text_io.h"
 
 #include <cctype>
 #ifdef __ANDROID__
@@ -1196,53 +1197,15 @@ UpdateChecker::repair_release_info(const std::string& install_root) {
     // itself rather than writing through it (prestonbrown/helixscreen#1176).
     const std::string target_path = helix::paths::write_target(path);
 
-    const std::string tmp_path = target_path + ".tmp";
-    {
-        std::ofstream o(tmp_path);
-        if (!o.is_open()) {
-            // Read-only rootfs or a root-owned install dir. Never fatal: the app
-            // boots fine, self-update just stays broken until the installer runs.
-            spdlog::warn("[UpdateChecker] Cannot repair release_info.json — open {} failed: {}",
-                         tmp_path, strerror(errno));
-            return ReleaseInfoRepair::Failed;
-        }
-        o << helix::json_util::safe_dump(repaired) << std::endl;
-        o.flush();
-        if (!o.good()) {
-            spdlog::warn("[UpdateChecker] Cannot repair release_info.json — write {} failed: {}",
-                         tmp_path, strerror(errno));
-            o.close();
-            std::remove(tmp_path.c_str());
-            return ReleaseInfoRepair::Failed;
-        }
-    }
-
-    // fsync the temp file before the rename, and the parent dir after, so a
-    // power cut on flash-backed storage cannot leave a zero-length file (#943).
-    {
-        int fd = ::open(tmp_path.c_str(), O_RDONLY);
-        if (fd >= 0) {
-            (void)::fsync(fd);
-            ::close(fd);
-        }
-    }
-
-    if (std::rename(tmp_path.c_str(), target_path.c_str()) != 0) {
-        spdlog::warn("[UpdateChecker] Cannot repair release_info.json — rename {} -> {} failed: {}",
-                     tmp_path, target_path, strerror(errno));
-        std::remove(tmp_path.c_str());
+    // Fsync so a power cut on flash-backed storage cannot leave a zero-length
+    // file (#943). A read-only rootfs or root-owned install dir is never fatal:
+    // the app boots fine, self-update just stays broken until the installer runs.
+    if (!helix::text_io::write_file_atomic(target_path,
+                                           helix::json_util::safe_dump(repaired) + "\n",
+                                           helix::text_io::Durability::Fsync)) {
+        spdlog::warn("[UpdateChecker] Cannot repair release_info.json: write {} failed: {}",
+                     target_path, strerror(errno));
         return ReleaseInfoRepair::Failed;
-    }
-
-    {
-        const std::string dir = std::filesystem::path(target_path).parent_path().string();
-        if (!dir.empty()) {
-            int dfd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
-            if (dfd >= 0) {
-                (void)::fsync(dfd);
-                ::close(dfd);
-            }
-        }
     }
 
     spdlog::info("[UpdateChecker] Repaired release_info.json at {}", target_path);

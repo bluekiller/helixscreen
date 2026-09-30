@@ -65,64 +65,17 @@ class FileConfigStorage : public ConfigStorage {
     }
 
     bool store(const std::string& bytes) override {
-        // Atomic save: symlink-resolve, write .tmp, fsync, rename, fsync
-        // parent dir. Moved verbatim from Config::save() (see #943: without
-        // the fsyncs a power cycle can leave settings.json empty on
-        // flash-backed filesystems).
+        // Without the fsyncs a power cycle can leave settings.json empty on
+        // flash-backed filesystems (#943).
         std::string target_path = helix::paths::write_target(path_);
-
-        std::string tmp_path = target_path + ".tmp";
-        {
-            helix::text_io::File o = helix::text_io::open_file(tmp_path, "wb");
-            if (!o) {
-                std::string reason = errno_reason(errno);
-                NOTIFY_ERROR("Could not save settings: {}", reason);
-                LOG_ERROR_INTERNAL("Failed to open temp file for writing: {} ({})", tmp_path,
-                                   reason);
-                CONFIG_RECORD_ERROR("file_io", "config_write_failed",
-                                    fmt::format("open failed: {}", reason));
-                return false;
-            }
-
-            const bool wrote = helix::text_io::write_all(o.get(), bytes);
-            if (!helix::text_io::close(o) || !wrote) {
-                std::string reason = errno_reason(errno);
-                NOTIFY_ERROR("Failed to save settings: {}", reason);
-                LOG_ERROR_INTERNAL("Failed to write config to {}: {}", tmp_path, reason);
-                CONFIG_RECORD_ERROR("file_io", "config_write_failed",
-                                    fmt::format("write error: {}", reason));
-                std::remove(tmp_path.c_str());
-                return false;
-            }
-        }
-
-        {
-            int fd = ::open(tmp_path.c_str(), O_RDONLY);
-            if (fd >= 0) {
-                (void)::fsync(fd);
-                ::close(fd);
-            }
-        }
-
-        if (std::rename(tmp_path.c_str(), target_path.c_str()) != 0) {
-            NOTIFY_ERROR("Failed to save configuration file");
-            LOG_ERROR_INTERNAL("Failed to rename temp file '{}' to '{}': {}", tmp_path, target_path,
-                               strerror(errno));
+        if (!helix::text_io::write_file_atomic(target_path, bytes,
+                                               helix::text_io::Durability::Fsync)) {
+            std::string reason = errno_reason(errno);
+            NOTIFY_ERROR("Could not save settings: {}", reason);
+            LOG_ERROR_INTERNAL("Failed to write config to {}: {}", target_path, reason);
             CONFIG_RECORD_ERROR("file_io", "config_write_failed",
-                                fmt::format("rename failed: {}", strerror(errno)));
-            std::remove(tmp_path.c_str());
+                                fmt::format("write failed: {}", reason));
             return false;
-        }
-
-        {
-            std::string dir(hfs::parent_path(target_path));
-            if (!dir.empty()) {
-                int dfd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
-                if (dfd >= 0) {
-                    (void)::fsync(dfd);
-                    ::close(dfd);
-                }
-            }
         }
 
         // The rolling backup is Config::save()'s job, not the backend's —
