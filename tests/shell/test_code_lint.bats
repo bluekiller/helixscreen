@@ -2857,4 +2857,11 @@ EOF
     [ "$status" -eq 1 ]
     run grep -rnE --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' 'INIT_SUBJECT_[A-Z_]+\([[:space:]]*[_A-Za-z0-9]*__' src/ include/
     [ "$status" -eq 1 ]
+    # register_subject_in_current_scope(name, ...) publishes the same scope entry as
+    # lv_xml_register_subject; UI_MANAGED_SUBJECT_* and UI_SUBJECT_INIT_AND_REGISTER_*
+    # take the XML name as a string-literal argument and publish through it. The name
+    # can sit on the call's next line, so -A 1; these macros also carry non-name
+    # literals (initial values), where a __ fails closed rather than slipping through.
+    run bash -c "grep -rn -A 1 --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' -E 'register_subject_in_current_scope\(|UI_MANAGED_SUBJECT_[A-Z_]+\(|UI_SUBJECT_INIT_AND_REGISTER_[A-Z_]+\(' src/ include/ | grep -E '\"[^\"]*__'"
+    [ "$status" -eq 1 ]
 }
