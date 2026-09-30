@@ -9,7 +9,7 @@
 #include "axis_move.h"
 #include "gcode_classify.h"
 #include "gcode_homing.h"
-#include "moonraker_client.h"
+#include "i_moonraker_client.h"
 #include "moonraker_gcode_guards.h"
 #include "moonraker_types.h"
 #include "printer_state.h"

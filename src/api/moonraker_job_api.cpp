@@ -3,9 +3,9 @@
 
 #include "moonraker_job_api.h"
 
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "moonraker_api_internal.h"
-#include "moonraker_client.h"
 #include "moonraker_gcode_guards.h"
 #include "spdlog/spdlog.h"
 

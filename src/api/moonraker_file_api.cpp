@@ -5,9 +5,9 @@
 
 #include "ui_error_reporting.h"
 
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "moonraker_api_internal.h"
-#include "moonraker_client.h"
 #include "spdlog/spdlog.h"
 #include "text_io.h"
 

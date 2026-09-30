@@ -6,10 +6,10 @@
 #include "ui_format_utils.h"
 
 #include "display_settings_manager.h"
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "locale_formats.h"
 #include "moonraker_api_internal.h"
-#include "moonraker_client.h"
 #include "print_history_parse.h"
 
 #include <spdlog/spdlog.h>

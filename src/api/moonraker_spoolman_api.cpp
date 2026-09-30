@@ -3,8 +3,8 @@
 
 #include "moonraker_spoolman_api.h"
 
+#include "i_moonraker_client.h"
 #include "json_utils.h"
-#include "moonraker_client.h"
 
 #include <spdlog/spdlog.h>
 
