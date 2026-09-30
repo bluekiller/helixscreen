@@ -182,6 +182,20 @@ jobs:
         file build/pi32/bin/helix-screen-egl
         ls -la build/pi32/bin/ build/pi32-fbdev/bin/
 
+    - name: Upload pi32 binaries
+      uses: actions/upload-artifact@v7
+      with:
+        name: helixscreen-pi32-egl-bin
+        if-no-files-found: error
+        retention-days: 14
+        path: |
+          build/pi32/bin/helix-screen
+          build/pi32/bin/helix-screen-egl
+          build/pi32/bin/helix-splash
+          build/pi32/bin/helix-watchdog
+          build/pi32-fbdev/bin/helix-screen
+          scripts/helix-launcher.sh
+
     - name: Show ccache stats
       run: |
         docker run --rm \
