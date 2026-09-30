@@ -21,7 +21,6 @@
 
 # --- whole directories excluded ---
 src/bluetooth/  # all 9 src/ files beneath
-src/calibration/  # all 5 src/ files beneath
 src/config/  # all 1 src/ files beneath
 src/input/  # all 1 src/ files beneath
 src/lvgl-demo/  # all 1 src/ files beneath
@@ -93,6 +92,21 @@ src/application/remote_screen_fb0_sink.cpp  # not in the v1 Core+AMS cut
 src/application/remote_screen_manager.cpp  # not in the v1 Core+AMS cut
 src/application/splash_screen_manager.cpp  # not in the v1 Core+AMS cut
 src/application/xml_hot_reloader.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_capture.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_dsp_probe.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_gating.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_listen_session.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_live_data.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_stream_client.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_tension_calibrator.cpp  # not in the v1 Core+AMS cut
+src/calibration/belt_tension_types.cpp  # not in the v1 Core+AMS cut
+src/calibration/calibration_abort.cpp  # not in the v1 Core+AMS cut
+src/calibration/input_shaper_calibrator.cpp  # not in the v1 Core+AMS cut
+src/calibration/pitch_estimator.cpp  # not in the v1 Core+AMS cut
+src/calibration/pluck_aggregator.cpp  # not in the v1 Core+AMS cut
+src/calibration/pluck_detector.cpp  # not in the v1 Core+AMS cut
+src/calibration/shaper_response.cpp  # not in the v1 Core+AMS cut
+src/calibration/shaper_selection.cpp  # not in the v1 Core+AMS cut
 src/helix_splash.cpp  # not in the v1 Core+AMS cut
 src/helix_watchdog.cpp  # not in the v1 Core+AMS cut
 src/main.cpp  # not in the v1 Core+AMS cut
