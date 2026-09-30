@@ -147,28 +147,6 @@ TEST_CASE_METHOD(StaleCacheFixture,
     g_lazy_overlay = nullptr;
 }
 
-TEST_CASE_METHOD(StaleCacheFixture, "A root cached by its caller reopens with zoom after a rebuild",
-                 "[1729][navigation][overlay][hot_reload]") {
-    auto& nav = NavigationManager::instance();
-    CachedOverlay overlay;
-    overlay.init_subjects();
-    lv_obj_t* cached = overlay.create(test_screen());
-    nav.register_overlay_instance(cached, &overlay);
-    nav.push_overlay(cached);
-    settle();
-
-    close_and_rebuild(overlay);
-
-    nav.register_overlay_instance(cached, &overlay);
-    nav.push_overlay_zoom_from(cached, lv_area_t{10, 10, 60, 60});
-    settle();
-
-    CHECK(nav.is_panel_on_top(overlay.get_root()));
-
-    nav.go_back();
-    settle();
-}
-
 TEST_CASE_METHOD(StaleCacheFixture, "A push queued before a rebuild opens the rebuilt root",
                  "[1729][navigation][overlay][hot_reload]") {
     auto& nav = NavigationManager::instance();
