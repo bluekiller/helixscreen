@@ -178,7 +178,7 @@ endif
 
 # Link binary (SDL2_LIB is empty if using system SDL2)
 # Keep broad filtering so non-object prerequisites can be added safely later.
-$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(LUA_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
+$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(SPDLOG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(LUA_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
 	$(call check_abi_unchanged)
 	$(Q)mkdir -p $(BIN_DIR)
 	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
@@ -413,6 +413,16 @@ endif
 		exit 1; \
 	}
 	$(call emit-compile-command,$(CXX),$(SUBMODULE_CXXFLAGS) $(PCH_FLAGS) $(INCLUDES) $(LV_CONF),$<,$@)
+
+# Compile spdlog's own sources (SPDLOG_COMPILED_LIB), once for every binary
+$(OBJ_DIR)/spdlog/%.o: $(SPDLOG_DIR)/src/%.cpp $(ABI_STAMP) $(FLAGS_STAMP)
+	$(Q)mkdir -p $(dir $@)
+	$(ECHO) "$(CYAN)[CXX]$(RESET) $<"
+	$(Q)$(CXX) $(SUBMODULE_CXXFLAGS) $(SPDLOG_DEFINES) $(SPDLOG_INC) -c $< -o $@ || { \
+		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
+		exit 1; \
+	}
+	$(call emit-compile-command,$(CXX),$(SUBMODULE_CXXFLAGS) $(SPDLOG_DEFINES) $(SPDLOG_INC),$<,$@)
 
 # Compile LVGL OpenGL ES shader assets as C++ (raw string literals require C++11)
 # Only the assets/ subdirectory needs C++ — the rest compiles fine as C.

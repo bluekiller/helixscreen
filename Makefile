@@ -708,6 +708,11 @@ else
     SPDLOG_DIR := lib/spdlog
     # Use -isystem to suppress warnings from third-party headers in strict mode
     SPDLOG_INC := -isystem $(SPDLOG_DIR)/include
+    # Compiled once from lib/spdlog/src and linked into every binary, instead of
+    # header-only code instantiated in every translation unit. A system spdlog
+    # above stays header-only.
+    SPDLOG_DEFINES := -DSPDLOG_COMPILED_LIB
+    SPDLOG_OBJS := $(patsubst $(SPDLOG_DIR)/src/%.cpp,$(OBJ_DIR)/spdlog/%.o,$(wildcard $(SPDLOG_DIR)/src/*.cpp))
 endif
 
 # fmt (formatting library required by header-only spdlog)
@@ -994,6 +999,8 @@ CXXFLAGS += $(SCREENSAVER_DEFINES)
 # Add mock defines to compiler flags
 CFLAGS += $(MOCK_DEFINES)
 CXXFLAGS += $(MOCK_DEFINES)
+
+CXXFLAGS += $(SPDLOG_DEFINES)
 
 # Add remote-control defines to compiler flags
 CFLAGS += $(REMOTE_CONTROL_DEFINES)

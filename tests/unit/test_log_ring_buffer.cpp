@@ -12,6 +12,7 @@
 #include "logging_init.h"
 #include "system/log_collector.h"
 
+#include <spdlog/sinks/sink.h>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>

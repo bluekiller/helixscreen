@@ -35,7 +35,8 @@ else
 endif
 
 # Compiler/linker flags for plugin
-BT_CXXFLAGS := $(CXXFLAGS) -fPIC -I$(INC_DIR) $(SPDLOG_INC) -isystem lib/minilzo
+# spdlog stays header-only here: the static spdlog objects are not built -fPIC.
+BT_CXXFLAGS := $(filter-out $(SPDLOG_DEFINES),$(CXXFLAGS)) -fPIC -I$(INC_DIR) $(SPDLOG_INC) -isystem lib/minilzo
 ifneq ($(CROSS_COMPILE),)
     BT_LDFLAGS := -shared -lbluetooth -lsystemd
 else
