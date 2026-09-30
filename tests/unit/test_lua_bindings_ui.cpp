@@ -16,6 +16,7 @@
 #include "helix-xml/src/xml/lv_xml_component.h"
 #include "layout_manager.h"
 #include "lua_bindings.h"
+#include "lvgl_log_handler.h"
 #include "plugin_overlay_host.h"
 
 #include "../catch_amalgamated.hpp"
@@ -91,6 +92,27 @@ TEST_CASE_METHOD(LVGLTestFixture, "subjects are unregistered when the runtime cl
         REQUIRE(lv_xml_get_subject(nullptr, "test-plugin__gone"));
     }
     CHECK(lv_xml_get_subject(nullptr, "test-plugin__gone") == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "creating a plugin subject logs no missing-subject warning",
+                 "[plugin][lua_bindings_ui]") {
+    helix::logging::register_lvgl_log_handler();
+    BoundRuntime b({&install_ui_bindings});
+    {
+        helix::TextLogCapture cap;
+        REQUIRE(b.t.run(R"(s = helix.subject.int("quiet", 5))"));
+        CHECK_FALSE(cap.contains("No subject was found"));
+    }
+    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "test-plugin__quiet")) == 5);
+
+    lv_subject_t app_subject;
+    lv_subject_init_int(&app_subject, 5);
+    helix::test::ScopeExit cleanup([&app_subject] {
+        lv_xml_unregister_subject(nullptr, "test-plugin__taken");
+        lv_subject_deinit(&app_subject);
+    });
+    lv_xml_register_subject(nullptr, "test-plugin__taken", &app_subject);
+    CHECK_FALSE(b.t.run(R"(helix.subject.int("taken", 1))"));
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "helix.subject bounds subjects per plugin",
