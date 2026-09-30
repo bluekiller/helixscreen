@@ -177,6 +177,8 @@ else ifeq ($(PLATFORM_TARGET),pi32)
     BUILD_SUBDIR := pi32
     STRIP_BINARY := yes
     FONT_TIERS := all
+    # Also link helix-screen-egl, which the launcher probes for and prefers.
+    ENABLE_EGL_RUNG := yes
 
 else ifeq ($(PLATFORM_TARGET),pi32-fbdev)
     # -------------------------------------------------------------------------
@@ -226,6 +228,7 @@ else ifeq ($(PLATFORM_TARGET),pi32-both)
     STRIP_BINARY := yes
     FONT_TIERS := all
     PI_DUAL_LINK := yes
+    ENABLE_EGL_RUNG := yes
 
 else ifeq ($(PLATFORM_TARGET),ad5m)
     # -------------------------------------------------------------------------

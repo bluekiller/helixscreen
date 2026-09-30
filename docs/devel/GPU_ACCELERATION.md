@@ -185,6 +185,7 @@ Measured per board, not inferred from the SoC.
 | Pi 5 | V3D | no (DSI panel reports mask `0x0`) | a `0x0` mask passes any rotation test vacuously — never verify rotation here |
 | Pi 3B | vc4 | **yes** (mask `0x35`) | the only board with a rotation-capable plane, a connected panel, and working EGL at once |
 | CB1 | Mali-G31 (Panfrost) | not measured | EGL rung verified rendering 2026-09-12 on Mesa 25.0.7; the vendor Mesa 21.3.9 in `/opt/panfrost` fails `gbm_create_device` for want of `kms_swrast`/`swrast`, so this needs Mesa 25.x |
+| Mi 4 (MSM8974, `pi32`) | Adreno 330 (freedreno) | not measured | EGL rung verified rendering 2026-09-29 on Ubuntu 24.04 armhf: every angle rotates on the GPU (`DrmRotationStrategy::GPU`) with touch matching. The only 32-bit board on the rung so far |
 
 The CB1's `gbm_create_device` failure was a stale userspace Mesa, not a hardware
 limit. On current Armbian it reports `GL_RENDERER = Mali-G31 (Panfrost)`.
