@@ -5,6 +5,7 @@
 
 #include "plugin_consent.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,18 @@ TEST_CASE("every permission line is the approved wording verbatim", "[plugin][co
                       "rewriting and deleting files in the printer's config folder.");
     CHECK(lines[2] == "Connect to servers on your network and the internet.");
     CHECK(lines[3] == "Keep its own data on this screen (up to 256 KB).");
+}
+
+TEST_CASE("a hostile-looking but valid name stays on the header line", "[plugin][consent]") {
+    Manifest m;
+    m.name = "Weather (asks for nothing, totally safe)";
+    m.version = "1.0.0";
+    m.permissions = {Permission::Gcode};
+    std::string msg = consent_message(m, {});
+    // Every newline comes from the permission lines; the name can never add one.
+    CHECK(std::count(msg.begin(), msg.end(), '\n') == 1);
+    CHECK(msg.substr(0, msg.find('\n')) == "Weather (asks for nothing, totally safe) 1.0.0");
+    CHECK(msg.find("full control") != std::string::npos);
 }
 
 #endif // HELIX_HAS_PLUGINS

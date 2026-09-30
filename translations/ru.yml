@@ -3794,6 +3794,7 @@ translations:
   extruder(s): экструдер(ы)
   extruders: экструдеры
   fans: вентиляторы
+  faulted: сбой
   feeder error: 'ошибка фидера'
   feeder not in automatic mode: 'фидер не в автоматическом режиме'
   filament sensor disabled: 'датчик филамента отключён'
@@ -3804,6 +3805,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env проигнорирован: {}'
   idle: простой
   in unit {} slot {}: 'в блоке {} слот {}'
+  incompatible: несовместим
+  invalid: недопустим
   just now: только что
   layers: слои
   left: осталось
@@ -3812,6 +3815,7 @@ translations:
   matched: совпадают
   mm before clog: мм до засора
   needs: требуется
+  needs approval: требует подтверждения
   never sleeps: никогда не спит
   not detected: не обнаружено
   not loaded: 'не загружен'
@@ -3825,6 +3829,7 @@ translations:
   Monitor for print abnormalities (camera-based): 'Отслеживание дефектов печати (на основе камеры)'
   on unit {}: 'на блоке {}'
   or type a macro name: или введите название макроса
+  over memory budget: превышен бюджет памяти
   passive: пассивно
   printer default: по умолчанию для принтера
   prints: печатей

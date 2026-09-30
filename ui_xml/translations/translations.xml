@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" de="Extruder" en="extruder(s)" es="extrusor(es)" fr="extrudeur(s)" it="estrusore/i" ja="エクストルーダー" pt="extrusor(es)" ru="экструдер(ы)" zh="挤出机"/>
   <translation tag="extruders" de="Extruder" en="extruders" es="extrusores" fr="extrudeurs" it="estrusori" ja="エクストルーダー" pt="extrusores" ru="экструдеры" zh="挤出机"/>
   <translation tag="fans" de="Lüfter" en="fans" es="ventiladores" fr="ventilateurs" it="ventole" ja="ファン" pt="ventoinhas" ru="вентиляторы" zh="风扇"/>
+  <translation tag="faulted" de="fehlgeschlagen" en="faulted" es="con fallos" fr="en erreur" it="in errore" ja="エラー発生" pt="com falha" ru="сбой" zh="出错"/>
   <translation tag="feeder error" de="Zuführungsfehler" en="feeder error" es="error del alimentador" fr="erreur d&apos;alimentateur" it="errore alimentatore" ja="フィーダーエラー" pt="erro do alimentador" ru="ошибка фидера" zh="送料器错误"/>
   <translation tag="feeder not in automatic mode" de="Zuführung nicht im Automatikmodus" en="feeder not in automatic mode" es="alimentador no está en modo automático" fr="alimentateur pas en mode automatique" it="alimentatore non in modalità automatica" ja="フィーダーが自動モードではありません" pt="alimentador não está em modo automático" ru="фидер не в автоматическом режиме" zh="送料器未处于自动模式"/>
   <translation tag="filament sensor disabled" de="Filamentsensor deaktiviert" en="filament sensor disabled" es="sensor de filamento desactivado" fr="capteur de filament désactivé" it="sensore filamento disattivato" ja="フィラメントセンサーが無効" pt="sensor de filamento desativado" ru="датчик филамента отключён" zh="耗材传感器已禁用"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" de="helixscreen.env ignoriert: {}" en="helixscreen.env ignored: {}" es="helixscreen.env ignorado: {}" fr="helixscreen.env ignoré : {}" it="helixscreen.env ignorato: {}" ja="helixscreen.env は無視されました：{}" pt="helixscreen.env ignorado: {}" ru="helixscreen.env проигнорирован: {}" zh="已忽略 helixscreen.env：{}"/>
   <translation tag="idle" de="Leerlauf" en="idle" es="inactivo" fr="inactif" it="inattivo" ja="アイドル" pt="ocioso" ru="простой" zh="空闲"/>
   <translation tag="in unit {} slot {}" de="in Einheit {} Slot {}" en="in unit {} slot {}" es="en la unidad {} ranura {}" fr="dans l&apos;unité {} slot {}" it="nell&apos;unità {} slot {}" ja="ユニット {} スロット {}" pt="na unidade {} slot {}" ru="в блоке {} слот {}" zh="在单元 {} 槽位 {}"/>
+  <translation tag="incompatible" de="inkompatibel" en="incompatible" es="incompatible" fr="incompatible" it="incompatibile" ja="互換性なし" pt="incompatível" ru="несовместим" zh="不兼容"/>
+  <translation tag="invalid" de="ungültig" en="invalid" es="no válido" fr="non valide" it="non valido" ja="不正" pt="inválido" ru="недопустим" zh="无效"/>
   <translation tag="just now" de="gerade eben" en="just now" es="justo ahora" fr="à l&apos;instant" it="proprio ora" ja="たった今" pt="agora mesmo" ru="только что" zh="刚刚"/>
   <translation tag="layers" de="Schichten" en="layers" es="capas" fr="couches" it="layer" ja="レイヤー" pt="camadas" ru="слои" zh="层"/>
   <translation tag="left" de="übrig" en="left" es="restante" fr="restant" it="rimanente" ja="残り" pt="restante" ru="осталось" zh="剩余"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" de="abgestimmt" en="matched" es="igualadas" fr="équilibrées" it="bilanciate" ja="一致" pt="equilibradas" ru="совпадают" zh="匹配"/>
   <translation tag="mm before clog" de="mm vor Verstopfung" en="mm before clog" es="mm antes de obstrucción" fr="mm avant bouchon" it="mm prima dell&apos;intasamento" ja="詰まりまでの距離 (mm)" pt="mm antes da obstrução" ru="мм до засора" zh="毫米后堵料"/>
   <translation tag="needs" de="benötigt" en="needs" es="necesita" fr="nécessite" it="richiede" ja="必要" pt="precisa" ru="требуется" zh="需要"/>
+  <translation tag="needs approval" de="Genehmigung erforderlich" en="needs approval" es="requiere aprobación" fr="approbation requise" it="richiede approvazione" ja="承認が必要" pt="requer aprovação" ru="требует подтверждения" zh="需要批准"/>
   <translation tag="never sleeps" de="schläft nie" en="never sleeps" es="nunca duerme" fr="ne dort jamais" it="non va mai in sospensione" ja="スリープしない" pt="nunca dorme" ru="никогда не спит" zh="从不休眠"/>
   <translation tag="not detected" de="nicht erkannt" en="not detected" es="no detectado" fr="non détecté" it="non rilevato" ja="未検出" pt="não detectado" ru="не обнаружено" zh="未检测到"/>
   <translation tag="not loaded" de="nicht geladen" en="not loaded" es="no cargado" fr="non chargé" it="non caricato" ja="未装填" pt="não carregado" ru="не загружен" zh="未加载"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" de="aus" en="off" es="apagado" fr="éteint" it="spento" ja="オフ" pt="desligado" ru="выкл" zh="关闭"/>
   <translation tag="on unit {}" de="an Einheit {}" en="on unit {}" es="en la unidad {}" fr="sur l&apos;unité {}" it="sull&apos;unità {}" ja="ユニット {}" pt="na unidade {}" ru="на блоке {}" zh="在单元 {}"/>
   <translation tag="or type a macro name" de="oder Makronamen eingeben" en="or type a macro name" es="o escriba un nombre de macro" fr="ou saisissez un nom de macro" it="oppure digita un nome di macro" ja="またはマクロ名を入力" pt="ou digite um nome de macro" ru="или введите название макроса" zh="或输入宏名称"/>
+  <translation tag="over memory budget" de="über dem Speicherbudget" en="over memory budget" es="por encima del presupuesto de memoria" fr="au-delà du budget mémoire" it="oltre il budget di memoria" ja="メモリ予算超過" pt="acima do orçamento de memória" ru="превышен бюджет памяти" zh="超出内存预算"/>
   <translation tag="passive" de="passiv" en="passive" es="pasivo" fr="passif" it="passivo" ja="パッシブ" pt="passivo" ru="пассивно" zh="被动"/>
   <translation tag="printer default" de="Druckerstandard" en="printer default" es="valor por defecto de la impresora" fr="par défaut de l’imprimante" it="predefinito stampante" ja="プリンター既定" pt="padrão da impressora" ru="по умолчанию для принтера" zh="打印机默认"/>
   <translation tag="prints" de="Drucke" en="prints" es="impresiones" fr="impressions" it="stampe" ja="印刷" pt="impressões" ru="печатей" zh="打印次数"/>

@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" en="extruder(s)"/>
   <translation tag="extruders" en="extruders"/>
   <translation tag="fans" en="fans"/>
+  <translation tag="faulted" en="faulted"/>
   <translation tag="feeder error" en="feeder error"/>
   <translation tag="feeder not in automatic mode" en="feeder not in automatic mode"/>
   <translation tag="filament sensor disabled" en="filament sensor disabled"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" en="helixscreen.env ignored: {}"/>
   <translation tag="idle" en="idle"/>
   <translation tag="in unit {} slot {}" en="in unit {} slot {}"/>
+  <translation tag="incompatible" en="incompatible"/>
+  <translation tag="invalid" en="invalid"/>
   <translation tag="just now" en="just now"/>
   <translation tag="layers" en="layers"/>
   <translation tag="left" en="left"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" en="matched"/>
   <translation tag="mm before clog" en="mm before clog"/>
   <translation tag="needs" en="needs"/>
+  <translation tag="needs approval" en="needs approval"/>
   <translation tag="never sleeps" en="never sleeps"/>
   <translation tag="not detected" en="not detected"/>
   <translation tag="not loaded" en="not loaded"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" en="off"/>
   <translation tag="on unit {}" en="on unit {}"/>
   <translation tag="or type a macro name" en="or type a macro name"/>
+  <translation tag="over memory budget" en="over memory budget"/>
   <translation tag="passive" en="passive"/>
   <translation tag="printer default" en="printer default"/>
   <translation tag="prints" en="prints"/>

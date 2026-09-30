@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" ru="экструдер(ы)"/>
   <translation tag="extruders" ru="экструдеры"/>
   <translation tag="fans" ru="вентиляторы"/>
+  <translation tag="faulted" ru="сбой"/>
   <translation tag="feeder error" ru="ошибка фидера"/>
   <translation tag="feeder not in automatic mode" ru="фидер не в автоматическом режиме"/>
   <translation tag="filament sensor disabled" ru="датчик филамента отключён"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" ru="helixscreen.env проигнорирован: {}"/>
   <translation tag="idle" ru="простой"/>
   <translation tag="in unit {} slot {}" ru="в блоке {} слот {}"/>
+  <translation tag="incompatible" ru="несовместим"/>
+  <translation tag="invalid" ru="недопустим"/>
   <translation tag="just now" ru="только что"/>
   <translation tag="layers" ru="слои"/>
   <translation tag="left" ru="осталось"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" ru="совпадают"/>
   <translation tag="mm before clog" ru="мм до засора"/>
   <translation tag="needs" ru="требуется"/>
+  <translation tag="needs approval" ru="требует подтверждения"/>
   <translation tag="never sleeps" ru="никогда не спит"/>
   <translation tag="not detected" ru="не обнаружено"/>
   <translation tag="not loaded" ru="не загружен"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" ru="выкл"/>
   <translation tag="on unit {}" ru="на блоке {}"/>
   <translation tag="or type a macro name" ru="или введите название макроса"/>
+  <translation tag="over memory budget" ru="превышен бюджет памяти"/>
   <translation tag="passive" ru="пассивно"/>
   <translation tag="printer default" ru="по умолчанию для принтера"/>
   <translation tag="prints" ru="печатей"/>

@@ -3842,6 +3842,7 @@ translations:
   extruder(s): extrusor(es)
   extruders: extrusores
   fans: ventoinhas
+  faulted: com falha
   feeder error: 'erro do alimentador'
   feeder not in automatic mode: 'alimentador não está em modo automático'
   filament sensor disabled: 'sensor de filamento desativado'
@@ -3852,6 +3853,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env ignorado: {}'
   idle: ocioso
   in unit {} slot {}: na unidade {} slot {}
+  incompatible: incompatível
+  invalid: inválido
   just now: agora mesmo
   layers: camadas
   left: restante
@@ -3860,6 +3863,7 @@ translations:
   matched: equilibradas
   mm before clog: mm antes da obstrução
   needs: precisa
+  needs approval: requer aprovação
   never sleeps: nunca dorme
   not detected: não detectado
   not loaded: 'não carregado'
@@ -3873,6 +3877,7 @@ translations:
   Monitor for print abnormalities (camera-based): 'Monitorar anomalias de impressão (baseado em câmera)'
   on unit {}: 'na unidade {}'
   or type a macro name: ou digite um nome de macro
+  over memory budget: acima do orçamento de memória
   passive: passivo
   printer default: padrão da impressora
   prints: impressões

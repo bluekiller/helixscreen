@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" zh="挤出机"/>
   <translation tag="extruders" zh="挤出机"/>
   <translation tag="fans" zh="风扇"/>
+  <translation tag="faulted" zh="出错"/>
   <translation tag="feeder error" zh="送料器错误"/>
   <translation tag="feeder not in automatic mode" zh="送料器未处于自动模式"/>
   <translation tag="filament sensor disabled" zh="耗材传感器已禁用"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" zh="已忽略 helixscreen.env：{}"/>
   <translation tag="idle" zh="空闲"/>
   <translation tag="in unit {} slot {}" zh="在单元 {} 槽位 {}"/>
+  <translation tag="incompatible" zh="不兼容"/>
+  <translation tag="invalid" zh="无效"/>
   <translation tag="just now" zh="刚刚"/>
   <translation tag="layers" zh="层"/>
   <translation tag="left" zh="剩余"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" zh="匹配"/>
   <translation tag="mm before clog" zh="毫米后堵料"/>
   <translation tag="needs" zh="需要"/>
+  <translation tag="needs approval" zh="需要批准"/>
   <translation tag="never sleeps" zh="从不休眠"/>
   <translation tag="not detected" zh="未检测到"/>
   <translation tag="not loaded" zh="未加载"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" zh="关闭"/>
   <translation tag="on unit {}" zh="在单元 {}"/>
   <translation tag="or type a macro name" zh="或输入宏名称"/>
+  <translation tag="over memory budget" zh="超出内存预算"/>
   <translation tag="passive" zh="被动"/>
   <translation tag="printer default" zh="打印机默认"/>
   <translation tag="prints" zh="打印次数"/>

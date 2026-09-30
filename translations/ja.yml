@@ -3576,6 +3576,7 @@ translations:
   extruder(s): エクストルーダー
   extruders: エクストルーダー
   fans: ファン
+  faulted: エラー発生
   feeder error: 'フィーダーエラー'
   feeder not in automatic mode: 'フィーダーが自動モードではありません'
   filament sensor disabled: 'フィラメントセンサーが無効'
@@ -3586,6 +3587,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env は無視されました：{}'
   idle: アイドル
   in unit {} slot {}: 'ユニット {} スロット {}'
+  incompatible: 互換性なし
+  invalid: 不正
   just now: たった今
   layers: レイヤー
   left: 残り
@@ -3594,6 +3597,7 @@ translations:
   matched: 一致
   mm before clog: 詰まりまでの距離 (mm)
   needs: 必要
+  needs approval: 承認が必要
   never sleeps: スリープしない
   not detected: 未検出
   not loaded: '未装填'
@@ -3607,6 +3611,7 @@ translations:
   Monitor for print abnormalities (camera-based): '印刷異常を監視 (カメラベース)'
   on unit {}: 'ユニット {}'
   or type a macro name: またはマクロ名を入力
+  over memory budget: メモリ予算超過
   passive: パッシブ
   printer default: プリンター既定
   prints: 印刷

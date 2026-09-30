@@ -3565,6 +3565,7 @@ translations:
   extruder(s): 挤出机
   extruders: 挤出机
   fans: 风扇
+  faulted: 出错
   feeder error: '送料器错误'
   feeder not in automatic mode: '送料器未处于自动模式'
   filament sensor disabled: '耗材传感器已禁用'
@@ -3575,6 +3576,8 @@ translations:
   'helixscreen.env ignored: {}': '已忽略 helixscreen.env：{}'
   idle: 空闲
   in unit {} slot {}: 在单元 {} 槽位 {}
+  incompatible: 不兼容
+  invalid: 无效
   just now: 刚刚
   layers: 层
   left: 剩余
@@ -3583,6 +3586,7 @@ translations:
   matched: 匹配
   mm before clog: 毫米后堵料
   needs: 需要
+  needs approval: 需要批准
   never sleeps: 从不休眠
   not detected: 未检测到
   not loaded: '未加载'
@@ -3596,6 +3600,7 @@ translations:
   Monitor for print abnormalities (camera-based): '监测打印异常（基于摄像头）'
   on unit {}: '在单元 {}'
   or type a macro name: 或输入宏名称
+  over memory budget: 超出内存预算
   passive: 被动
   printer default: 打印机默认
   prints: 打印次数

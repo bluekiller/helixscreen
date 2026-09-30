@@ -58,6 +58,25 @@ void optional_string(const json& j, const char* key, std::string& out,
     out = it->get<std::string>();
 }
 
+// The consent dialog's header line and the plugin rows print these fields
+// verbatim, so a control character could forge dialog text and a runaway
+// length could push the permission lines off the visible body.
+constexpr size_t kMaxNameBytes = 48;
+constexpr size_t kMaxVersionBytes = 32;
+constexpr size_t kMaxAuthorBytes = 64;
+
+void check_display_field(const char* key, const std::string& v, size_t max_bytes,
+                         std::vector<std::string>& errors) {
+    bool single_line = std::none_of(v.begin(), v.end(), [](char c) {
+        unsigned char u = static_cast<unsigned char>(c);
+        return u < 0x20 || u == 0x7f;
+    });
+    if (v.size() > max_bytes || !single_line) {
+        errors.push_back(std::string("'") + key + "' must be a single line of at most " +
+                         std::to_string(max_bytes) + " characters");
+    }
+}
+
 void check_range(SettingDecl& d, const json& s, std::vector<std::string>& local) {
     auto mn = s.find("min");
     auto mx = s.find("max");
@@ -264,8 +283,11 @@ ManifestParse parse_manifest(const std::string& text) {
     if (!m.id.empty() && !is_valid_plugin_id(m.id))
         r.errors.push_back("'id' must match ^[a-z][a-z0-9-]{1,31}$");
     require_string(j, "name", m.name, r.errors);
+    check_display_field("name", m.name, kMaxNameBytes, r.errors);
     require_string(j, "version", m.version, r.errors);
+    check_display_field("version", m.version, kMaxVersionBytes, r.errors);
     optional_string(j, "author", m.author, r.errors);
+    check_display_field("author", m.author, kMaxAuthorBytes, r.errors);
     optional_string(j, "description", m.description, r.errors);
     optional_string(j, "helix_version", m.helix_version, r.errors);
 

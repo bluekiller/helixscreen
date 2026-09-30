@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" de="Extruder"/>
   <translation tag="extruders" de="Extruder"/>
   <translation tag="fans" de="Lüfter"/>
+  <translation tag="faulted" de="fehlgeschlagen"/>
   <translation tag="feeder error" de="Zuführungsfehler"/>
   <translation tag="feeder not in automatic mode" de="Zuführung nicht im Automatikmodus"/>
   <translation tag="filament sensor disabled" de="Filamentsensor deaktiviert"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" de="helixscreen.env ignoriert: {}"/>
   <translation tag="idle" de="Leerlauf"/>
   <translation tag="in unit {} slot {}" de="in Einheit {} Slot {}"/>
+  <translation tag="incompatible" de="inkompatibel"/>
+  <translation tag="invalid" de="ungültig"/>
   <translation tag="just now" de="gerade eben"/>
   <translation tag="layers" de="Schichten"/>
   <translation tag="left" de="übrig"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" de="abgestimmt"/>
   <translation tag="mm before clog" de="mm vor Verstopfung"/>
   <translation tag="needs" de="benötigt"/>
+  <translation tag="needs approval" de="Genehmigung erforderlich"/>
   <translation tag="never sleeps" de="schläft nie"/>
   <translation tag="not detected" de="nicht erkannt"/>
   <translation tag="not loaded" de="nicht geladen"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" de="aus"/>
   <translation tag="on unit {}" de="an Einheit {}"/>
   <translation tag="or type a macro name" de="oder Makronamen eingeben"/>
+  <translation tag="over memory budget" de="über dem Speicherbudget"/>
   <translation tag="passive" de="passiv"/>
   <translation tag="printer default" de="Druckerstandard"/>
   <translation tag="prints" de="Drucke"/>

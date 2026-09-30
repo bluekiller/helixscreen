@@ -124,6 +124,44 @@ TEST_CASE("manifest errors", "[plugin][manifest]") {
     CHECK_FALSE(parse_manifest(R"({"id":"ab","name":"n"})").manifest);
 }
 
+TEST_CASE("display fields are single-line and length-capped", "[plugin][manifest]") {
+    // The consent dialog prints name/version/author as its first line, so a
+    // control character in one of them could forge dialog text, and a runaway
+    // length could push the real permission lines off the visible body.
+    CHECK(has_error_containing(parse_manifest(R"({"id":"ab","name":"Wea\nther","version":"1"})"),
+                               "'name'"));
+    CHECK(has_error_containing(parse_manifest(R"({"id":"ab","name":"Wea\tther","version":"1"})"),
+                               "'name'"));
+    CHECK(has_error_containing(
+        parse_manifest(
+            R"({"id":"ab","name":"Weather\nThis plugin asks for no special permissions.","version":"1"})"),
+        "'name'"));
+    CHECK(has_error_containing(parse_manifest(R"({"id":"ab","name":"n","version":"1\n0"})"),
+                               "'version'"));
+    CHECK(has_error_containing(
+        parse_manifest(R"({"id":"ab","name":"n","version":"1","author":"a\u0001b"})"), "'author'"));
+    CHECK(has_error_containing(
+        parse_manifest(R"({"id":"ab","name":"n","version":"1","author":"a\u007fb"})"), "'author'"));
+
+    // Caps: name 48, version 32, author 64 bytes; at the cap parses, past it fails.
+    const std::string name48(48, 'x');
+    const std::string name49(49, 'x');
+    const std::string ver32(32, '1');
+    const std::string ver33(33, '1');
+    const std::string author64(64, 'a');
+    const std::string author65(65, 'a');
+    CHECK(parse_manifest(R"({"id":"ab","name":")" + name48 + R"(","version":")" + ver32 +
+                         R"(","author":")" + author64 + R"("})")
+              .manifest.has_value());
+    CHECK(has_error_containing(
+        parse_manifest(R"({"id":"ab","name":")" + name49 + R"(","version":"1"})"), "'name'"));
+    CHECK(has_error_containing(
+        parse_manifest(R"({"id":"ab","name":"n","version":")" + ver33 + R"("})"), "'version'"));
+    CHECK(has_error_containing(
+        parse_manifest(R"({"id":"ab","name":"n","version":"1","author":")" + author65 + R"("})"),
+        "'author'"));
+}
+
 TEST_CASE("setting declaration errors", "[plugin][manifest]") {
     CHECK(has_error_containing(with_setting(R"({"key":"k","type":"colour","label":"l"})"), "type"));
     CHECK(has_error_containing(with_setting(R"({"key":"K!","type":"bool","label":"l"})"), "key"));

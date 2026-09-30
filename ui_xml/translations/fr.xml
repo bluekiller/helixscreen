@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" fr="extrudeur(s)"/>
   <translation tag="extruders" fr="extrudeurs"/>
   <translation tag="fans" fr="ventilateurs"/>
+  <translation tag="faulted" fr="en erreur"/>
   <translation tag="feeder error" fr="erreur d&apos;alimentateur"/>
   <translation tag="feeder not in automatic mode" fr="alimentateur pas en mode automatique"/>
   <translation tag="filament sensor disabled" fr="capteur de filament désactivé"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" fr="helixscreen.env ignoré : {}"/>
   <translation tag="idle" fr="inactif"/>
   <translation tag="in unit {} slot {}" fr="dans l&apos;unité {} slot {}"/>
+  <translation tag="incompatible" fr="incompatible"/>
+  <translation tag="invalid" fr="non valide"/>
   <translation tag="just now" fr="à l&apos;instant"/>
   <translation tag="layers" fr="couches"/>
   <translation tag="left" fr="restant"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" fr="équilibrées"/>
   <translation tag="mm before clog" fr="mm avant bouchon"/>
   <translation tag="needs" fr="nécessite"/>
+  <translation tag="needs approval" fr="approbation requise"/>
   <translation tag="never sleeps" fr="ne dort jamais"/>
   <translation tag="not detected" fr="non détecté"/>
   <translation tag="not loaded" fr="non chargé"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" fr="éteint"/>
   <translation tag="on unit {}" fr="sur l&apos;unité {}"/>
   <translation tag="or type a macro name" fr="ou saisissez un nom de macro"/>
+  <translation tag="over memory budget" fr="au-delà du budget mémoire"/>
   <translation tag="passive" fr="passif"/>
   <translation tag="printer default" fr="par défaut de l’imprimante"/>
   <translation tag="prints" fr="impressions"/>

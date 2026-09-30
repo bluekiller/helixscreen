@@ -71,6 +71,11 @@ lv_obj_t* PluginsOverlay::create(lv_obj_t* parent) {
 }
 
 void PluginsOverlay::populate_rows() {
+    // A consent or Disable callback can outlive the screen's widget tree; with
+    // no root there is nothing to repopulate. Searching from NULL would adopt
+    // the active screen instead.
+    if (!overlay_root_)
+        return;
     lv_obj_t* rows = lv_obj_find_by_name(overlay_root_, "plugins_rows");
     if (!rows)
         return;

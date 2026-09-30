@@ -3723,6 +3723,7 @@ translations:
   extruder(s): extruder(s)
   extruders: extruders
   fans: fans
+  faulted: faulted
   feeder error: feeder error
   feeder not in automatic mode: feeder not in automatic mode
   filament sensor disabled: filament sensor disabled
@@ -3733,6 +3734,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env ignored: {}'
   idle: idle
   in unit {} slot {}: in unit {} slot {}
+  incompatible: incompatible
+  invalid: invalid
   just now: just now
   layers: layers
   left: left
@@ -3741,6 +3744,7 @@ translations:
   matched: matched
   mm before clog: mm before clog
   needs: needs
+  needs approval: needs approval
   never sleeps: never sleeps
   not detected: not detected
   not loaded: not loaded
@@ -3749,6 +3753,7 @@ translations:
   'off': 'off'
   on unit {}: on unit {}
   or type a macro name: or type a macro name
+  over memory budget: over memory budget
   passive: passive
   printer default: printer default
   prints: prints

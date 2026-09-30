@@ -217,4 +217,19 @@ TEST_CASE_METHOD(ListFx, "the host dying under an open consent dialog leaves the
     CHECK_FALSE(rig->block.contains("enabled"));
 }
 
+TEST_CASE_METHOD(ListFx, "populate_rows after the screen closed is a no-op",
+                 "[plugin][plugins_overlay]") {
+    open();
+    PluginsOverlay& ov = get_plugins_overlay();
+    lv_obj_t* held = ov.root();
+    ov.destroy_overlay_ui(held); // what destroy_on_close does when the overlay closes
+    // A same-named container on the now-active screen must not be adopted as
+    // the rows parent by a callback that outlived the screen.
+    lv_obj_t* decoy = lv_obj_create(lv_screen_active());
+    lv_obj_set_name(decoy, "plugins_rows");
+    ov.populate_rows();
+    CHECK(lv_obj_get_child_count(decoy) == 0);
+    lv_obj_delete(decoy);
+}
+
 #endif // HELIX_HAS_PLUGINS

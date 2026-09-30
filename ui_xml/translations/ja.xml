@@ -3405,6 +3405,7 @@
   <translation tag="extruder(s)" ja="エクストルーダー"/>
   <translation tag="extruders" ja="エクストルーダー"/>
   <translation tag="fans" ja="ファン"/>
+  <translation tag="faulted" ja="エラー発生"/>
   <translation tag="feeder error" ja="フィーダーエラー"/>
   <translation tag="feeder not in automatic mode" ja="フィーダーが自動モードではありません"/>
   <translation tag="filament sensor disabled" ja="フィラメントセンサーが無効"/>
@@ -3415,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" ja="helixscreen.env は無視されました：{}"/>
   <translation tag="idle" ja="アイドル"/>
   <translation tag="in unit {} slot {}" ja="ユニット {} スロット {}"/>
+  <translation tag="incompatible" ja="互換性なし"/>
+  <translation tag="invalid" ja="不正"/>
   <translation tag="just now" ja="たった今"/>
   <translation tag="layers" ja="レイヤー"/>
   <translation tag="left" ja="残り"/>
@@ -3423,6 +3426,7 @@
   <translation tag="matched" ja="一致"/>
   <translation tag="mm before clog" ja="詰まりまでの距離 (mm)"/>
   <translation tag="needs" ja="必要"/>
+  <translation tag="needs approval" ja="承認が必要"/>
   <translation tag="never sleeps" ja="スリープしない"/>
   <translation tag="not detected" ja="未検出"/>
   <translation tag="not loaded" ja="未装填"/>
@@ -3431,6 +3435,7 @@
   <translation tag="off" ja="オフ"/>
   <translation tag="on unit {}" ja="ユニット {}"/>
   <translation tag="or type a macro name" ja="またはマクロ名を入力"/>
+  <translation tag="over memory budget" ja="メモリ予算超過"/>
   <translation tag="passive" ja="パッシブ"/>
   <translation tag="printer default" ja="プリンター既定"/>
   <translation tag="prints" ja="印刷"/>

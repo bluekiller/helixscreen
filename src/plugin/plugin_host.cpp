@@ -19,6 +19,7 @@
 #include "plugin_settings_overlay.h"
 #include "plugin_xml_policy.h"
 #include "plugins_overlay.h"
+#include "translation_loader.h"
 #include "version.h"
 
 #include <spdlog/spdlog.h>
@@ -89,22 +90,25 @@ uint64_t read_mem_total() {
     return 0;
 }
 
+// TR_NOOP marks the literals for the extractor; the display site calls lv_tr
+// on the stored pointer (plugins_overlay.cpp), so the lookup happens at render
+// time against the loaded language pack.
 const char* plugin_status_name(PluginStatus s) {
     switch (s) {
     case PluginStatus::Disabled:
-        return "disabled";
+        return TR_NOOP("disabled");
     case PluginStatus::Loaded:
-        return "loaded";
+        return TR_NOOP("loaded");
     case PluginStatus::NeedsApproval:
-        return "needs approval";
+        return TR_NOOP("needs approval");
     case PluginStatus::Invalid:
-        return "invalid";
+        return TR_NOOP("invalid");
     case PluginStatus::Incompatible:
-        return "incompatible";
+        return TR_NOOP("incompatible");
     case PluginStatus::OverBudget:
-        return "over memory budget";
+        return TR_NOOP("over memory budget");
     case PluginStatus::Faulted:
-        return "faulted";
+        return TR_NOOP("faulted");
     }
     return "?";
 }
