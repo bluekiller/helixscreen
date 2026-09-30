@@ -551,14 +551,14 @@ Versioned migration system for upgrading existing user configs on update.
 
 **Adding a migration:**
 1. Bump `CURRENT_CONFIG_VERSION` in `include/config.h`
-2. Write `migrate_vN_to_vM()` in `src/system/config.cpp` (anonymous namespace)
-3. Add `if (version < M) migrate_vN_to_vM(config);` in `run_versioned_migrations()`
+2. Write `migrate_vN_to_vM(json& config, const std::string& config_path)` in `src/system/config_migrations.cpp` (anonymous namespace)
+3. Add `{M, migrate_vN_to_vM},` to the end of `kMigrations`
 4. Update `get_default_config()` if the new key needs a default for fresh installs
 5. Write tests in `tests/unit/test_config.cpp` with tags `[config][migration][versioning]`
 
 **Rules:** Migrations are append-only, idempotent, never overwrite user data, and log what they do.
 
-**Full docs:** [CONFIG_MIGRATION.md](CONFIG_MIGRATION.md) | **Key files:** `include/config.h`, `src/system/config.cpp`
+**Full docs:** [CONFIG_MIGRATION.md](CONFIG_MIGRATION.md) | **Key files:** `include/config.h`, `src/system/config_migrations.cpp`
 
 ---
 

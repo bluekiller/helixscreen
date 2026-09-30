@@ -2,7 +2,7 @@
 
 How the versioned config migration system works, how to add new migrations, and how migrations are tested.
 
-**Key files**: `include/config.h`, `src/system/config.cpp`, `tests/unit/test_config.cpp`
+**Key files**: `include/config.h`, `src/system/config_migrations.cpp` (the ladder), `src/system/config.cpp` (`Config::init()`), `tests/unit/test_config.cpp`
 
 ---
 
@@ -39,7 +39,7 @@ static constexpr int CURRENT_CONFIG_VERSION = 26;
 static constexpr int MIN_MIGRATABLE_CONFIG_VERSION = 9;
 ```
 
-The full migration ladder lives in `config.cpp`.
+The full migration ladder lives in `config_migrations.cpp`: one function per step and one ordered table, `kMigrations`, that `run_versioned_migrations()` walks.
 
 Two properties of the ladder worth knowing before you add to it:
 
@@ -99,9 +99,9 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
       If 0 < version < CURRENT and the document came from disk, copy
       settings.json to settings.json.pre-migration first
    b. If 0 < version < MIN_MIGRATABLE_CONFIG_VERSION: replace with defaults, stop
-   c. if (version < 4) migrate_v3_to_v4()   -- only version 0 reaches this
-   d. if (version < 10) migrate_v9_to_v10() ... through the head
-   e. Set config_version = CURRENT_CONFIG_VERSION
+   c. Run each kMigrations row whose to_version > version, in order
+      (v3->v4 is the only row below the floor; only version 0 reaches it)
+   d. Set config_version = CURRENT_CONFIG_VERSION
 4. Ensure required sections exist with defaults (printer, display, input, etc.)
 5. Save to disk if anything changed
 ```
@@ -127,40 +127,30 @@ Version 0 is not below the floor. The shipped presets carry no `config_version` 
 In `include/config.h`:
 
 ```cpp
-static constexpr int CURRENT_CONFIG_VERSION = 3;  // was 2
+static constexpr int CURRENT_CONFIG_VERSION = 27;  // was 26
 ```
 
 ### Step 2: Write the migration function
 
-In `src/system/config.cpp`, add a new static function in the anonymous namespace alongside the existing migrations:
+In `src/system/config_migrations.cpp`, add a static function in the anonymous namespace alongside the existing migrations:
 
 ```cpp
-/// Migration v2->v3: <description of what and why>
-static void migrate_v2_to_v3(json& config) {
-    // Your migration logic here.
-    // The config JSON is passed by reference -- modify it in place.
-    // Use spdlog::info() to log what changed.
+/// Migration v26->v27: <description of what and why>
+static void migrate_v26_to_v27(json& config, const std::string& /*config_path*/) {
+    // Modify config in place; spdlog::info() what changed.
 }
 ```
 
-### Step 3: Register it in `run_versioned_migrations()`
+`config_path` is the settings file's path, for a migration that folds in a sidecar file (`migrate_v13_to_v14`).
 
-Add one line to the chain:
+### Step 3: Add a row to `kMigrations`
 
 ```cpp
-static void run_versioned_migrations(json& config) {
-    int version = 0;
-    if (config.contains("config_version")) {
-        version = config["config_version"].get<int>();
-    }
-
-    if (version < 1) migrate_v0_to_v1(config);
-    if (version < 2) migrate_v1_to_v2(config);
-    if (version < 3) migrate_v2_to_v3(config);  // <-- ADD THIS
-
-    config["config_version"] = CURRENT_CONFIG_VERSION;
-}
+    {26, migrate_v25_to_v26},
+    {27, migrate_v26_to_v27},  // <-- ADD THIS
 ```
+
+A `static_assert` fails the build if the last row does not reach `CURRENT_CONFIG_VERSION`.
 
 ### Step 4: Update `get_default_config()` if needed
 

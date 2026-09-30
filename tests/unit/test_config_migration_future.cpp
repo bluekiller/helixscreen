@@ -25,7 +25,7 @@
 // migrations rewrite data on the way through.
 //
 // Driven through the public Config::init() path (the migration runner is a
-// static function in config.cpp), same as the v18/v21 migration tests.
+// static function in config_migrations.cpp), same as the v18/v21 migration tests.
 
 #include "../test_helpers/mock_config_storage.h"
 #include "config.h"
@@ -452,7 +452,7 @@ TEST_CASE_METHOD(MigrationFutureFixture,
 // Stamps below MIN_MIGRATABLE_CONFIG_VERSION are not replayed at all: init()
 // sets the document aside and starts from defaults.
 //
-// Stamp 0 is deliberately excluded: config.cpp:1681 treats config_version == 0
+// Stamp 0 is deliberately excluded: Config::init() treats config_version == 0
 // as "tarball default" and replaces the whole document from backup before any
 // migration runs, so it is a different code path, not a replay.
 
@@ -491,7 +491,7 @@ TEST_CASE_METHOD(MigrationFutureFixture,
 TEST_CASE_METHOD(MigrationFutureFixture,
                  "Config round trip: a rollback past v18 re-arms the touch calibration recheck",
                  "[config][migration][roundtrip]") {
-    // FINDING. migrate_v17_to_v18() (config.cpp:812-827) writes
+    // FINDING. migrate_v17_to_v18() writes
     // recheck_pending = true unconditionally — it has no "already done" guard,
     // because at the time it was written the version stamp was the guard.
     //
@@ -522,12 +522,12 @@ TEST_CASE_METHOD(MigrationFutureFixture,
                  "Config round trip: a rollback past v16 re-disables the screensaver on a "
                  "constrained tier",
                  "[config][migration][roundtrip]") {
-    // The fifth replay, invisible to the sweep above: migrate_v15_to_v16()
-    // (config.cpp:740) returns early on STANDARD hardware, which is what a
+    // A replay invisible to the sweep above: migrate_v15_to_v16()
+    // returns early on STANDARD hardware, which is what a
     // desktop test host detects, so every other test in this file exercises the
     // no-op branch. Forcing the tier is the only way to see the real one.
     //
-    // Milder than the other four — it re-fires only for a user who deliberately
+    // Milder than the v17→v18 replay — it re-fires only for a user who deliberately
     // re-selected Flying Toasters after the first migration, and the migration
     // is arguably right that the setting breaks prints on this hardware. Pinned
     // so the behaviour is a decision rather than an accident.

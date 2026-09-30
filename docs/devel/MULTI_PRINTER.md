@@ -19,7 +19,8 @@ Key properties:
 | File | Purpose |
 |------|---------|
 | `include/config.h` | Config class: `df()`, CRUD methods, `slugify()`, `CURRENT_CONFIG_VERSION` |
-| `src/system/config.cpp` | Config v4 schema, `migrate_v3_to_v4()`, multi-printer CRUD |
+| `src/system/config.cpp` | Config v4 schema, multi-printer CRUD |
+| `src/system/config_migrations.cpp` | `migrate_v3_to_v4()` |
 | `include/application.h` | `switch_printer()`, `add_printer_via_wizard()`, `cancel_add_printer_wizard()`, soft restart state |
 | `src/application/application.cpp` | Soft restart lifecycle: `tear_down_printer_state()`, `init_printer_state()` |
 | `include/ui_printer_switch_menu.h` | `PrinterSwitchMenu` context menu (extends `ContextMenu`) |
