@@ -153,19 +153,3 @@ TEST_CASE("PrintStartProfile: cosmos_cc1 ignores lines that are not a step",
             "Adaptive bed mesh requires nozzle z homing. Please enable nozzle z homing.", result));
     }
 }
-
-TEST_CASE("PrintStartProfile: cosmos_cc1 weights put the time in bed heating",
-          "[profile][print][cosmos]") {
-    auto profile = get_cosmos_profile();
-    REQUIRE(profile != nullptr);
-    REQUIRE_FALSE(profile->is_default());
-
-    const int bed = profile->get_phase_weight(PrintStartPhase::HEATING_BED);
-    int others = 0;
-    for (auto phase : {PrintStartPhase::HOMING, PrintStartPhase::SOAKING, PrintStartPhase::BED_MESH,
-                       PrintStartPhase::HEATING_NOZZLE, PrintStartPhase::PURGING}) {
-        REQUIRE(profile->get_phase_weight(phase) > 0);
-        others += profile->get_phase_weight(phase);
-    }
-    REQUIRE(bed > others);
-}

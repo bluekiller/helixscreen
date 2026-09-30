@@ -208,13 +208,6 @@ class PrintStartProfile {
         return progress_mode_;
     }
 
-    /**
-     * @brief Get phase weight for weighted progress calculation
-     *
-     * Returns the weight assigned to a phase, or 0 if not defined.
-     */
-    int get_phase_weight(helix::PrintStartPhase phase) const;
-
     // =========================================================================
     // Accessors
     // =========================================================================
@@ -344,7 +337,6 @@ class PrintStartProfile {
     std::vector<SignalFormat> signal_formats_;
     std::vector<ResponsePattern> response_patterns_;
     std::vector<ResponsePattern> state_patterns_;
-    std::unordered_map<helix::PrintStartPhase, int> phase_weights_;
     std::vector<SilentPhaseEntry> silent_progression_;
     std::string phase_object_name_;
     std::string phase_object_field_;

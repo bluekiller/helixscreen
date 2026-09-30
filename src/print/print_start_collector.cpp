@@ -1904,14 +1904,7 @@ int PrintStartCollector::calculate_progress() const {
 
 int PrintStartCollector::calculate_progress_locked() const {
     if (predicted_phase_weights_.empty()) {
-        // Fallback to profile weights if no predictions
-        if (!profile_)
-            return 0;
-        int total_weight = 0;
-        for (const auto& phase : detected_phases_) {
-            total_weight += profile_->get_phase_weight(phase);
-        }
-        return std::min(total_weight, 95);
+        return 0;
     }
 
     float progress = 0.0f;

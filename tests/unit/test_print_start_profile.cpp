@@ -381,48 +381,6 @@ TEST_CASE("PrintStartProfile: default patterns match AD5M START_PRINT lines",
 }
 
 // ============================================================================
-// Phase Weight Tests
-// ============================================================================
-
-TEST_CASE("PrintStartProfile: phase weights match expected values", "[profile][print]") {
-    auto profile = get_default_profile();
-    REQUIRE(profile != nullptr);
-
-    SECTION("Known phases have non-zero weights") {
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 10);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_BED) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::SOAKING) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::QGL) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::Z_TILT) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 10);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 5);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 5);
-    }
-
-    SECTION("Unknown/unused phases return 0") {
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::IDLE) == 0);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::COMPLETE) == 0);
-    }
-}
-
-TEST_CASE("PrintStartProfile: forge_x phase weights", "[profile][print]") {
-    auto profile = get_forge_x_profile();
-    REQUIRE(profile != nullptr);
-
-    // Only test if forge_x loaded (not default fallback)
-    if (profile->name().find("Forge") != std::string::npos) {
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::INITIALIZING) == 5);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 5);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_BED) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 25);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 10);
-    }
-}
-
-// ============================================================================
 // Forge-X Signal Format Matching Tests
 // ============================================================================
 
@@ -746,22 +704,6 @@ TEST_CASE("PrintStartProfile: creality_k1 profile loads successfully", "[profile
     }
 }
 
-TEST_CASE("PrintStartProfile: creality_k1 phase weights", "[profile][print][k1]") {
-    auto profile = get_creality_k1_profile();
-    REQUIRE(profile != nullptr);
-
-    if (profile->name().find("K1") == std::string::npos) {
-        SKIP("creality_k1.json not available");
-    }
-
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::INITIALIZING) == 5);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 10);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 15);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 15);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 30);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 20);
-}
-
 TEST_CASE("PrintStartProfile: creality_k1 patterns match real K1C gcode responses",
           "[profile][print][k1]") {
     auto profile = get_creality_k1_profile();
@@ -864,45 +806,35 @@ TEST_CASE("PrintStartProfile: creality_k1 full print sequence progression",
     PrintStartProfile::MatchResult result;
 
     // Walk through the real K1C print sequence and verify phases advance
-    // and weighted progress increases
     std::set<PrintStartPhase> detected;
-    int total_weight = 0;
 
     auto process = [&](const std::string& line) {
         if (profile->try_match_pattern(line, result)) {
-            if (detected.insert(result.phase).second) {
-                total_weight += profile->get_phase_weight(result.phase);
-            }
+            detected.insert(result.phase);
         }
     };
 
     process("// not prepare.");
     REQUIRE(detected.count(PrintStartPhase::INITIALIZING) == 1);
-    REQUIRE(total_weight == 5);
 
     process("// x_axes: xyz");
     REQUIRE(detected.count(PrintStartPhase::HOMING) == 1);
-    REQUIRE(total_weight == 15);
 
     process("// [CLEAR_NOZZLE_QUICK] src_pos[2]:3.28");
     REQUIRE(detected.count(PrintStartPhase::CLEANING) == 1);
-    REQUIRE(total_weight == 30);
 
     process("CX_PRINT_LEVELING_CALIBRATION");
     REQUIRE(detected.count(PrintStartPhase::BED_MESH) == 1);
-    REQUIRE(total_weight == 45);
 
     process("// can_break_flag = 0");
     REQUIRE(detected.count(PrintStartPhase::HEATING_NOZZLE) == 1);
-    REQUIRE(total_weight == 75);
 
     // Repeated temp reports should not add new phases
     process("B:56.8 /55.0 T0:175.3 /220.0");
-    REQUIRE(total_weight == 75);
+    REQUIRE(detected.size() == 5);
 
     process("// can_break_flag = 3");
     REQUIRE(detected.count(PrintStartPhase::PURGING) == 1);
-    REQUIRE(total_weight == 95);
 }
 
 // ============================================================================
@@ -1095,27 +1027,6 @@ TEST_CASE("PrintStartProfile: snapmaker_u1 carries no silent_progression",
     // Adaptive meshing must stay on — the U1 slicer overrides MESH_MIN/MAX so
     // the configfile probe_count (169) hugely overstates the real ~16 probes.
     REQUIRE(profile->adaptive_meshing());
-}
-
-TEST_CASE("PrintStartProfile: snapmaker_u1 phase weights sum reasonably",
-          "[profile][print][snapmaker]") {
-    auto profile = get_snapmaker_u1_profile();
-    REQUIRE(profile != nullptr);
-    if (profile->name().find("Snapmaker") == std::string::npos) {
-        SKIP("snapmaker_u1.json not available");
-    }
-
-    // Weights tuned from the REAL 2026-06-18 timeline: heating dominates wall
-    // time (bed 60C + nozzle 220C span almost the whole ~4 min), bed work
-    // (inspect ~1 min + plate detect + mesh ~1 min) is the next chunk, and the
-    // tool-switch / auto-feed / replenish steps land under INITIALIZING.
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 6);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_BED) == 22);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 22);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::INITIALIZING) == 14);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 26);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 5);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 5);
 }
 
 // ============================================================================
@@ -1933,14 +1844,7 @@ TEST_CASE("PrintStartProfile: the built-in fallback matches the shipped default.
         }
     }
 
-    SECTION("Both weigh the phases the same") {
+    SECTION("Both use the same progress mode") {
         CHECK(builtin->progress_mode() == shipped->progress_mode());
-        for (PrintStartPhase phase :
-             {PrintStartPhase::HOMING, PrintStartPhase::HEATING_BED, PrintStartPhase::SOAKING,
-              PrintStartPhase::HEATING_NOZZLE, PrintStartPhase::QGL, PrintStartPhase::Z_TILT,
-              PrintStartPhase::BED_MESH, PrintStartPhase::CLEANING, PrintStartPhase::PURGING}) {
-            CAPTURE(static_cast<int>(phase));
-            CHECK(builtin->get_phase_weight(phase) == shipped->get_phase_weight(phase));
-        }
     }
 }

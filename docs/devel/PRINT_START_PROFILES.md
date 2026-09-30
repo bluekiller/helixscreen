@@ -105,13 +105,13 @@ How evidence arbitrates once matched:
 
 - **`signal_formats` matches always apply.** Each hit calls `update_phase()` directly - this is what lets a sequential profile re-announce a phase that recurs (Forge-X passes through CLEANING several times), with a monotonic-progress guard so the bar never regresses.
 - **Pattern and status-signal matches apply only the first time a phase is detected** (`apply_profile_match()` checks the detected set). The exception is BED_MESH sub-phase relabeling: a new message while already in BED_MESH updates the label and restarts the probe counter.
-- **Weights do not pick winners between live matches** - the first source to reach a phase claims it. Weights size each phase's share of the progress bar (and double as the progress value in sequential mode); they are progress arithmetic, not arbitration.
+- **Weights do not pick winners between live matches** - the first source to reach a phase claims it. A pattern's `weight` is the progress value in sequential mode and is unused in weighted mode, where the ETA engine sizes each phase; it is progress arithmetic, not arbitration.
 
 ### Progress Modes
 
 | Mode | When to use | How it works |
 |------|-------------|--------------|
-| **`weighted`** | Unknown printers, generic macros | Each phase's weight is its share of the bar, and a missing phase simply contributes nothing. Once the ETA engine has composite weights, `calculate_progress_locked()` credits completed phases their full share and the in-flight phase a partial one (heating by attainment, bed mesh by probe count, everything else by elapsed against its prediction); before that it falls back to the plain sum of detected profile weights. Either way the result is capped at 95% until COMPLETE. |
+| **`weighted`** | Unknown printers, generic macros | Each phase's share of the bar comes from the ETA engine's composite weights (thermal model for heating, prediction history for the rest, computed in `start()`), and a missing phase simply contributes nothing. `calculate_progress_locked()` credits completed phases their full share and the in-flight phase a partial one (heating by attainment, bed mesh by probe count, everything else by elapsed against its prediction), capped at 95% until COMPLETE. |
 | **`sequential`** | Known firmware with deterministic output | Each signal maps to a specific 0-100% value. Progress jumps directly to that value. Smooth, predictable bar for printers we've profiled. |
 
 ---
@@ -242,7 +242,7 @@ Profiles live in `assets/config/print_start_profiles/{name}.json`. Every key exc
       // Message shown to user. Supports $1, $2, etc. for capture groups.
       "message": "Homing...",
 
-      // Weight for weighted mode. In sequential mode this field is ignored.
+      // Progress value (0-100) in sequential mode. Unused in weighted mode.
       "weight": 10
     }
   ],
@@ -293,15 +293,7 @@ Profiles live in `assets/config/print_start_profiles/{name}.json`. Every key exc
   // after both heaters reach target. No shipped profile uses it yet.
   "silent_progression": [
     {"phase": "PURGING", "message": "Purging...", "after_temps_ready_seconds": 8}
-  ],
-
-  // OPTIONAL: Override default weights for weighted progress calculation
-  // Keys are phase names (case-insensitive), values are integer weights
-  "phase_weights": {
-    "HOMING": 10,
-    "HEATING_BED": 20,
-    "HEATING_NOZZLE": 20
-  }
+  ]
 }
 ```
 
@@ -322,8 +314,6 @@ The declared object is subscribed automatically during discovery. Klipper notifi
 **A profile that declares a phase object but no `state_patterns` matches the state against its `response_patterns` instead** (`src/print/print_start_profile.cpp#try_match_state`). The two feeds carry one phase vocabulary, so a profile whose console and status wording overlap - the generic one, where both feeds say "Homing" and "Bed Mesh" - needs a single list and has no second copy to keep in step. Declaring `state_patterns` is how a profile whose two feeds need different text overrides that. A profile without `phase_object` ignores the frames entirely - the handler is a no-op, which is the fallback guarantee.
 
 **`status_signals`** - Edge-triggered physical predicates, for windows nobody narrates (a filament-change move, a heater coming up from cold). `when` is an AND-list over one object's status fields: `field` is a dot-path into the object, `index` optionally selects an array element, `op` is one of `eq ne gt lt near` (`tolerance` is read by `near`). The right-hand side is either a literal `value` or a sibling field of the same object (`ref_field`, plus optional `offset`) - which is how "temperature is more than 2 below target" is expressed. A rule fires on the false->true transition and re-arms when the predicate drops: physical states hold for windows while the frame keeps re-delivering them, console lines are events, and the engine treats them accordingly. A malformed rule is skipped **whole** - an AND that silently dropped one condition would widen the match. As with `phase_object`, a profile with no `status_signals` block never evaluates a frame.
-
-**`phase_weights`** - Only meaningful in `weighted` mode. If omitted, phases matched by response_patterns use their individual `weight` field. If provided, this map is used by `calculate_progress_locked()` to sum detected phase weights.
 
 **`adaptive_meshing` / `position_signals` / `cfs_signals`** - Toggles for the engine's built-in heuristic families (adaptive bed-mesh probe counting, nozzle-position inference through a silent prep window, Creality CFS tag lines). Only enable what you have verified on the hardware.
 
@@ -496,15 +486,7 @@ Profile: assets/config/print_start_profiles/thermobot.json
       "message": "Bed stabilizing at $1C...",
       "weight": 20
     }
-  ],
-
-  "phase_weights": {
-    "HEATING_BED": 20,
-    "HOMING": 15,
-    "HEATING_NOZZLE": 20,
-    "BED_MESH": 30,
-    "PURGING": 10
-  }
+  ]
 }
 ```
 
@@ -551,7 +533,7 @@ vocabulary (command echoes like `M190 S60`, macro prose like `Heating Bed: 100c`
 neither may claim such as `BED_MESH_CLEAR`) through `try_match_pattern()` and
 `try_match_state()` on both profiles and requires the same phase and message from each; it
 also pins the phase object and its subscription list, the heater inference rules field by
-field, and the phase weights. Editing `default.json` without editing
+field. Editing `default.json` without editing
 `make_builtin_default()` turns it red, and that is the whole mechanism - there is no code
 path that derives one from the other.
 

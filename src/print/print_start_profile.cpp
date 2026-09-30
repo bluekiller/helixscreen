@@ -250,14 +250,6 @@ std::shared_ptr<PrintStartProfile> PrintStartProfile::make_builtin_default() {
         profile->status_signals_.push_back(std::move(rule));
     }
 
-    profile->phase_weights_ = {
-        {PrintStartPhase::HOMING, 10},   {PrintStartPhase::HEATING_BED, 20},
-        {PrintStartPhase::SOAKING, 20},  {PrintStartPhase::HEATING_NOZZLE, 20},
-        {PrintStartPhase::QGL, 15},      {PrintStartPhase::Z_TILT, 15},
-        {PrintStartPhase::BED_MESH, 10}, {PrintStartPhase::CLEANING, 5},
-        {PrintStartPhase::PURGING, 5},
-    };
-
     spdlog::debug("[PrintStartProfile] Using built-in fallback profile");
     return profile;
 }
@@ -387,15 +379,6 @@ bool PrintStartProfile::evaluate_status_signal(const json& object_status,
     result.progress = rule.weight; // Caller interprets based on progress_mode
     result.hold_seconds = 0;
     return true;
-}
-
-// ============================================================================
-// PROGRESS
-// ============================================================================
-
-int PrintStartProfile::get_phase_weight(PrintStartPhase phase) const {
-    auto it = phase_weights_.find(phase);
-    return (it != phase_weights_.end()) ? it->second : 0;
 }
 
 // ============================================================================
@@ -581,23 +564,10 @@ bool PrintStartProfile::parse_json(const json& j, const std::string& source_path
                   });
     }
 
-    // Phase weights (optional)
-    if (j.contains("phase_weights") && j["phase_weights"].is_object()) {
-        for (auto it = j["phase_weights"].begin(); it != j["phase_weights"].end(); ++it) {
-            if (!it.value().is_number()) {
-                spdlog::warn("[PrintStartProfile] Non-numeric phase_weight for '{}' in {}",
-                             it.key(), source_path);
-                continue;
-            }
-            PrintStartPhase phase = parse_phase_name(it.key());
-            phase_weights_[phase] = it.value().get<int>();
-        }
-    }
-
     spdlog::debug("[PrintStartProfile] Parsed '{}': {} signal_formats, {} response_patterns, "
-                  "{} state_patterns, {} phase_weights, {} silent_progression, {} status_signals",
+                  "{} state_patterns, {} silent_progression, {} status_signals",
                   name_, signal_formats_.size(), response_patterns_.size(), state_patterns_.size(),
-                  phase_weights_.size(), silent_progression_.size(), status_signals_.size());
+                  silent_progression_.size(), status_signals_.size());
     return true;
 }
 
