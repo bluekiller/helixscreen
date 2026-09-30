@@ -219,6 +219,39 @@ TEST_CASE_METHOD(LVGLTestFixture, "a confirm dialog that cannot be shown holds n
     REQUIRE(b.t.run(R"(helix.ui.confirm("Two", "body"))"));
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "a bound object outlives its plugin's runtime safely",
+                 "[plugin][lua_bindings_ui]") {
+    sweep_retired_subjects();
+    size_t before = retired_subject_count();
+    lv_obj_t* label = nullptr;
+    {
+        BoundRuntime b({&install_ui_bindings});
+        REQUIRE(b.t.run(R"(s = helix.subject.string("status", "hi"))"));
+        label = lv_label_create(lv_screen_active());
+        lv_subject_t* subj = lv_xml_get_subject(nullptr, "test-plugin__status");
+        REQUIRE(subj);
+        lv_label_bind_text(label, subj, nullptr);
+    } // runtime destroyed while the label still observes the subject
+    CHECK(lv_xml_get_subject(nullptr, "test-plugin__status") == nullptr);
+    CHECK(retired_subject_count() == before + 1);
+    CHECK(std::string(lv_label_get_text(label)) == "hi");
+
+    lv_obj_delete(label); // detaches from a subject that must still be alive
+    sweep_retired_subjects();
+    CHECK(retired_subject_count() == before);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "an unobserved subject is freed at unload",
+                 "[plugin][lua_bindings_ui]") {
+    sweep_retired_subjects();
+    size_t before = retired_subject_count();
+    {
+        BoundRuntime b({&install_ui_bindings});
+        REQUIRE(b.t.run(R"(s = helix.subject.int("n", 1); s:observe(function() end))"));
+    }
+    CHECK(retired_subject_count() == before);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "toast and confirm validate their arguments",
                  "[plugin][bindings][ui]") {
     BoundRuntime b({&install_ui_bindings});

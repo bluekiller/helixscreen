@@ -106,4 +106,11 @@ PluginEventTarget parse_plugin_event(std::string_view user_data);
 bool dispatch_ui_handler(LuaRuntime& rt, const std::string& name,
                          const std::optional<std::string>& arg);
 
+/// Frees every retired plugin subject that no observer holds any more. Cheap; PluginHost
+/// calls it on every load and unload.
+void sweep_retired_subjects();
+
+/// Retired subjects still waiting for their observers to go.
+size_t retired_subject_count();
+
 } // namespace helix::plugin

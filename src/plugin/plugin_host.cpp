@@ -220,6 +220,7 @@ void PluginHost::consider(PluginInfo& info) {
 }
 
 bool PluginHost::load(PluginInfo& info) {
+    sweep_retired_subjects();
     const Manifest& m = *info.manifest;
     const std::string id = m.id;
     auto root = std::filesystem::path(dir_) / info.dir_name;
@@ -339,6 +340,7 @@ void PluginHost::unload(const std::string& id) {
     }
     l.ctx.reset();
     loaded_.erase(it);
+    sweep_retired_subjects();
 }
 
 void PluginHost::unload_all() {

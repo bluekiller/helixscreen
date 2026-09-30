@@ -28,6 +28,8 @@ constexpr size_t kMaxOpenConfirms = 1;
 struct ObserverCtx {
     LuaRuntime* rt;
     int fn_ref;
+    lv_observer_t* handle =
+        nullptr; ///< set by subject_observe; the closer removes it before retiring the subject
     bool armed =
         false; ///< lv_subject_add_observer reports the current value at once; Lua sees changes only
 };
@@ -53,6 +55,19 @@ UiState& ui_state(lua_State* L) {
     auto* s = static_cast<UiState*>(lua_touserdata(L, -1));
     lua_pop(L, 1);
     return *s;
+}
+
+// A process-lifetime list, never destroyed: an object deleted during process teardown still
+// finds its subject alive. LVGL deletes a parent before its children, so no root-level delete
+// hook can tell when a bound subtree is gone; retiring until the observer list empties is the
+// only point at which freeing is provably safe.
+std::vector<std::unique_ptr<SubjectEntry>>& retired_subjects() {
+    static auto* list = new std::vector<std::unique_ptr<SubjectEntry>>();
+    return *list;
+}
+
+bool unobserved(lv_subject_t& s) {
+    return lv_ll_get_head(&s.subs_ll) == nullptr;
 }
 
 bool is_valid_local_name(std::string_view n) {
@@ -122,7 +137,7 @@ int subject_observe(lua_State* L) {
     auto& ui = ui_state(L);
     ui.observers.push_back(std::make_unique<ObserverCtx>(ObserverCtx{&rt, rt.ref_value(L, 2)}));
     ObserverCtx* ctx = ui.observers.back().get();
-    lv_subject_add_observer(&s.subject, &on_subject_change, ctx);
+    ctx->handle = lv_subject_add_observer(&s.subject, &on_subject_change, ctx);
     ctx->armed = true;
     return 0;
 }
@@ -290,18 +305,44 @@ bool dispatch_ui_handler(LuaRuntime& rt, const std::string& name,
     return true;
 }
 
+// ponytail: retired subjects are freed at the next plugin load or unload rather than the
+// moment their last observer goes; a sweep on a timer is the upgrade if a device ever shows
+// the list growing.
+void sweep_retired_subjects() {
+    auto& list = retired_subjects();
+    for (auto it = list.begin(); it != list.end();) {
+        if (unobserved((*it)->subject)) {
+            lv_subject_deinit(&(*it)->subject);
+            it = list.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+size_t retired_subject_count() {
+    return retired_subjects().size();
+}
+
 void install_ui_bindings(PluginContext& ctx) {
     lua_State* L = ctx.rt.state();
     auto* state = new UiState;
     lua_pushlightuserdata(L, state);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &kUiStateKey);
     ctx.rt.on_close([state] {
+        for (auto& o : state->observers) {
+            if (o->handle)
+                lv_observer_remove(o->handle);
+        }
         for (auto& s : state->subjects) {
             // A later registration under the same name replaced the record's pointer, so
             // only a record still pointing at this subject is the plugin's to remove.
             if (lv_xml_get_subject(nullptr, s->full_name.c_str()) == &s->subject)
                 lv_xml_unregister_subject(nullptr, s->full_name.c_str());
-            lv_subject_deinit(&s->subject); // also removes every observer on it
+            if (unobserved(s->subject))
+                lv_subject_deinit(&s->subject);
+            else
+                retired_subjects().push_back(std::move(s));
         }
         delete state;
     });
