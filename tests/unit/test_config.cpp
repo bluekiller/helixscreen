@@ -1573,7 +1573,7 @@ TEST_CASE_METHOD(
 
     REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
     REQUIRE(test_config.get_active_printer_id() == "default");
-    REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") == "127.0.0.1");
+    REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") == "192.168.1.100");
     REQUIRE_FALSE(test_config.exists("/printers/ender3"));
     REQUIRE(log.count_containing("config_version 5") == 1);
 
@@ -3477,7 +3477,7 @@ TEST_CASE("Config::init() keeps tarball default when backup is corrupt",
 
 namespace {
 
-/// A below-floor document of an install whose printer lives on another host.
+/// A below-floor document of a remote-UI install: its printer lives on another host.
 json below_floor_backup() {
     return {{"config_version", 5},
             {"wizard_completed", true},
@@ -3528,6 +3528,30 @@ TEST_CASE("Config::init() keeps a below-floor backup restored over a corrupt con
     REQUIRE(test_config.get_active_printer_id() == "default");
     REQUIRE(read_json_file(env.config_path + ".pre-migration") == below_floor_backup());
     REQUIRE(read_json_file(env.backup_dir + "/settings.json.backup") == below_floor_backup());
+}
+
+TEST_CASE("Config::init() carries the Moonraker connection across the migration floor",
+          "[core][config][migration]") {
+    TarballTestEnv env("floor_connection");
+
+    SECTION("printers map") {
+        env.write_config(below_floor_backup());
+    }
+    SECTION("single /printer object") {
+        env.write_config({{"config_version", 3},
+                          {"printer",
+                           {{"moonraker_host", "192.168.1.77"},
+                            {"moonraker_port", 7126},
+                            {"moonraker_api_key", "abc123"}}}});
+    }
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") == "192.168.1.77");
+    REQUIRE(test_config.get<int>(test_config.df() + "moonraker_port") == 7126);
+    REQUIRE(test_config.is_wizard_required());
 }
 
 // ============================================================================

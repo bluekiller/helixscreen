@@ -678,6 +678,34 @@ std::string Config::resolve_path(const std::string& config_path) {
     return hfs::join_path(env_dir, hfs::filename(config_path));
 }
 
+/// Copy the Moonraker connection of @p old_doc's active printer into @p fresh's,
+/// so an install whose printer is on another host still reaches it after its
+/// document is replaced by defaults.
+static void carry_moonraker_connection(const json& old_doc, json& fresh) {
+    const json* printer = nullptr;
+    if (const auto printers = old_doc.find("printers");
+        printers != old_doc.end() && printers->is_object()) {
+        const auto it = printers->find(find_active_printer_key(old_doc));
+        if (it != printers->end()) {
+            printer = &*it;
+        }
+    } else if (const auto single = old_doc.find("printer");
+               single != old_doc.end() && single->is_object()) {
+        printer = &*single;
+    }
+    if (printer == nullptr) {
+        return;
+    }
+    json& target =
+        fresh["printers"][helix::json_util::safe_string(fresh, "active_printer_id", "default")];
+    for (const char* key : {"moonraker_host", "moonraker_port", "moonraker_api_key"}) {
+        const auto it = printer->find(key);
+        if (it != printer->end() && !it->is_null()) {
+            target[key] = *it;
+        }
+    }
+}
+
 void Config::init(const std::string& config_path) {
     std::string resolved_path = resolve_path(config_path);
     // Keyed off the env var, not off resolved_path != config_path: pointing
@@ -894,7 +922,9 @@ void Config::init(const std::string& config_path) {
                 spdlog::warn("[Config] config_version {} is older than this build migrates "
                              "(oldest: {}); starting from defaults, previous config kept at {}",
                              version_before, MIN_MIGRATABLE_CONFIG_VERSION, snapshot);
-                data = get_default_config("127.0.0.1", false);
+                json fresh = get_default_config("127.0.0.1", false);
+                carry_moonraker_connection(data, fresh);
+                data = std::move(fresh);
                 config_modified = true;
             } else {
                 helix::config_detail::run_versioned_migrations(data, path);
