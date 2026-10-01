@@ -203,8 +203,6 @@ void AppearanceSettingsOverlay::handle_explorer_theme_changed(int index) {
         return;
     }
 
-    preview_theme_name_ = theme_name;
-
     bool supports_dark = theme.supports_dark();
     bool supports_light = theme.supports_light();
 
@@ -299,7 +297,6 @@ void AppearanceSettingsOverlay::sync_explorer_to_active_theme() {
     cached_themes_ = helix::discover_themes(helix::get_themes_directory());
 
     original_theme_index_ = DisplaySettingsManager::instance().get_theme_index();
-    preview_theme_name_ = DisplaySettingsManager::instance().get_theme_name();
     original_theme_ = theme_manager_get_active_theme();
 
     preview_is_dark_ = theme_manager_is_dark_mode();

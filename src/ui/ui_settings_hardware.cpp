@@ -45,10 +45,6 @@ void HardwareSettingsOverlay::register_callbacks() {
         {"on_ams_settings_clicked",
          [](lv_event_t*) {
              auto& overlay = helix::ui::get_ams_device_operations_overlay();
-             if (!overlay.are_subjects_initialized()) {
-                 overlay.init_subjects();
-                 overlay.register_callbacks();
-             }
              overlay.show(get_hardware_settings_overlay().parent_screen_);
          }},
         {"on_fans_settings_clicked",
@@ -76,10 +72,6 @@ void HardwareSettingsOverlay::register_callbacks() {
         {"on_spoolman_settings_clicked",
          [](lv_event_t*) {
              auto& overlay = helix::ui::get_spoolman_overlay();
-             if (!overlay.are_subjects_initialized()) {
-                 overlay.init_subjects();
-                 overlay.register_callbacks();
-             }
              if (IMoonrakerAPI* api = get_moonraker_api()) {
                  overlay.set_api(api);
              }

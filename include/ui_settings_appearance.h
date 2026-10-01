@@ -75,8 +75,6 @@ class AppearanceSettingsOverlay : public OverlayBase {
     helix::ThemeData original_theme_;
     /// Current preview dark mode state
     bool preview_is_dark_{true};
-    /// Currently previewed theme name (for passing to editor)
-    std::string preview_theme_name_;
     /// Cached theme list (populated when explorer opens, avoids re-parsing on every toggle)
     std::vector<helix::ThemeInfo> cached_themes_;
 
