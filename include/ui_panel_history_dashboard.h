@@ -8,6 +8,7 @@
 #include "overlay_base.h"
 #include "print_history_data.h"
 #include "print_history_manager.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <vector>
@@ -74,17 +75,12 @@ class HistoryDashboardPanel : public OverlayBase {
      */
     void deinit_subjects();
 
-    /**
-     * @brief Register XML event callbacks
-     */
     void register_callbacks() override;
 
-    /**
-     * @brief Create the dashboard panel from XML
-     *
-     * @param parent Parent widget (screen)
-     * @return Root widget of the overlay
-     */
+    const char* xml_component() const override {
+        return "history_dashboard_panel";
+    }
+
     lv_obj_t* create(lv_obj_t* parent) override;
 
     [[nodiscard]] const char* get_name() const override {
@@ -135,18 +131,6 @@ class HistoryDashboardPanel : public OverlayBase {
         return cached_jobs_;
     }
 
-    //
-    // === Static Event Callbacks (registered with lv_xml_register_event_cb) ===
-    // Must be public for LVGL XML system registration
-    //
-
-    static void on_filter_day_clicked(lv_event_t* e);
-    static void on_filter_week_clicked(lv_event_t* e);
-    static void on_filter_month_clicked(lv_event_t* e);
-    static void on_filter_year_clicked(lv_event_t* e);
-    static void on_filter_all_clicked(lv_event_t* e);
-    static void on_view_history_clicked(lv_event_t* e);
-
   private:
     //
     // === Widget References ===
@@ -167,7 +151,6 @@ class HistoryDashboardPanel : public OverlayBase {
 
     // Containers
     lv_obj_t* stats_grid_ = nullptr;
-    lv_obj_t* charts_section_ = nullptr;
     lv_obj_t* empty_state_ = nullptr;
     lv_obj_t* btn_view_history_ = nullptr;
 
@@ -194,12 +177,6 @@ class HistoryDashboardPanel : public OverlayBase {
     HistoryTimeFilter current_filter_ = HistoryTimeFilter::ALL_TIME;
     std::vector<PrintHistoryJob> cached_jobs_; ///< Time-filtered subset for get_cached_jobs()
     bool is_active_ = false;                   ///< Track if panel is currently visible
-
-    // Parent screen reference
-    lv_obj_t* parent_screen_ = nullptr;
-
-    // Callback registration tracking
-    bool callbacks_registered_ = false;
 
     // Connection state observer to auto-refresh when connected (ObserverGuard handles cleanup)
     ObserverGuard connection_observer_;
@@ -326,9 +303,7 @@ class HistoryDashboardPanel : public OverlayBase {
     double get_trend_period_seconds() const;
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates instance on first call. Used by static callbacks.
- */
-HistoryDashboardPanel& get_global_history_dashboard_panel();
+/// Lazy singleton shared by the callbacks and the panels that open it.
+inline HistoryDashboardPanel& get_global_history_dashboard_panel() {
+    return helix::lazy_global<HistoryDashboardPanel>("HistoryDashboardPanel");
+}

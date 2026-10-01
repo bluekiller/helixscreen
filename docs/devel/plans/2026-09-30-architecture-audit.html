@@ -49,7 +49,8 @@ main { min-width: 0; }
 h2 { font-size: 1.25rem; margin: 36px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
 h3 { font-size: 1.02rem; margin: 22px 0 8px; color: var(--muted); }
 section > p.lede { color: var(--muted); margin-top: 0; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 20px 0 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 8px 0 0; }
+.tiles-label { margin: 20px 0 0; font-size: 0.9rem; color: var(--muted); }
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
 .tile .v { font-size: 1.35rem; font-weight: 650; line-height: 1.2; }
 .tile .k { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
@@ -104,16 +105,20 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>23213bc86</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>011543e4e</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
+<p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
-<div class="tile"><div class="v">-23,848 / +9,138</div><div class="k">lines in src/include/ui_xml since <code>5009a40e9</code> (net -14,710, measured; includes Lua plugins phase 2). Audit estimate ~35-40K removable</div></div>
-<div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary on Pi / MIPS / K2, measured; settings table -60 KB; observer core -371 KB pending merge</div></div>
-<div class="tile"><div class="v">768 / 792 / 472 KB</div><div class="k">mock .text on mips / k2 / u1</div></div>
-<div class="tile"><div class="v">1.5-4 MB</div><div class="k">RAM: overlays, bed mesh, print select, XML text</div></div>
-<div class="tile"><div class="v">8 of 22</div><div class="k">BUG/SEC findings shipped; 3 in progress, 3 new from reviews</div></div>
+<div class="tile"><div class="v">-16,158 lines</div><div class="k">net in src/include/ui_xml since <code>5009a40e9</code> (-28,562 / +12,404; includes Lua plugins phase 2)</div></div>
+<div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
+<div class="tile"><div class="v">8 of 22</div><div class="k">BUG/SEC findings shipped; 3 in progress, 3 new from reviews</div></div>
 <div class="tile"><div class="v">138</div><div class="k">findings: 52 done, 19 in progress, 65 open, 2 wontfix</div></div>
+</div>
+<p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
+<div class="tiles">
+<div class="tile"><div class="v">~35-40K lines</div><div class="k">removable in total per the audit; the shipped figure above counts against it, but also includes new feature code</div></div>
+<div class="tile"><div class="v">up to 1.5-4 MB RAM</div><div class="k">reclaimable: overlays kept after close, bed mesh frames, print select at boot, XML text. Estimated from object counts; field RSS by platform and version is being pulled from telemetry</div></div>
 </div>
 </header>
 

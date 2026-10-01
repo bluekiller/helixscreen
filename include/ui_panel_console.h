@@ -50,13 +50,15 @@
  */
 class ConsolePanel : public OverlayBase {
   public:
-    ConsolePanel();
     ~ConsolePanel() override;
 
     // === OverlayBase interface ===
     void init_subjects() override;
     void deinit_subjects();
     void register_callbacks() override;
+    const char* xml_component() const override {
+        return "console_panel";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     /// Freed on close; the next open rebuilds it.
     bool destroy_on_close() const override {
@@ -224,9 +226,6 @@ class ConsolePanel : public OverlayBase {
     lv_subject_t status_subject_{};
     lv_subject_t status_visible_subject_{}; ///< 1 = status text visible, 0 = hidden
     lv_subject_t has_entries_subject_{};    ///< 1 = has console entries, 0 = empty
-
-    // Callback registration tracking
-    bool callbacks_registered_ = false;
 };
 
 /**

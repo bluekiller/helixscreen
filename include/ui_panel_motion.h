@@ -97,6 +97,9 @@ class MotionPanel : public OverlayBase {
     void init_subjects() override;
     void deinit_subjects();
     void register_callbacks() override;
+    const char* xml_component() const override {
+        return "motion_panel";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "Motion Panel";
@@ -240,8 +243,6 @@ class MotionPanel : public OverlayBase {
     int gcode_z_centimm_ = 0;
 
     lv_obj_t* jog_pad_ = nullptr;
-    lv_obj_t* parent_screen_ = nullptr;
-    bool callbacks_registered_ = false;
 
     helix::JogCoalescer jog_coalescer_;
 

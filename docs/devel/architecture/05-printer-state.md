@@ -9,7 +9,7 @@ flowchart TB
     MR["Moonraker status JSON<br/>(already on the main thread — ch. 02)"]
     UI["Panels, home widgets, XML bindings"]
 
-    PS["PrinterState — get_printer_state()<br/>orchestrator: state_mutex_,<br/>126 fixed subject declarations"]
+    PS["PrinterState — get_printer_state()<br/>orchestrator,<br/>126 fixed subject declarations"]
 
     subgraph DOM["13 domain components, held by value"]
         D1["PrinterTemperatureState<br/>nozzle/bed/chamber + dynamic ExtruderInfo[]"]

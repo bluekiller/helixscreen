@@ -22,25 +22,15 @@
  */
 class ConsoleSettingsOverlay : public OverlayBase {
   public:
+    void register_callbacks() override;
     [[nodiscard]] const char* get_name() const override {
         return "Console Settings";
     }
     const char* xml_component() const override {
         return "console_settings_overlay";
     }
-
-    void register_callbacks() override;
-
-    /// Registers the XML callbacks at startup for the console panel, which
-    /// create()s and pushes this overlay without going through show().
-    void init_subjects() override {
-        register_callbacks();
-    }
 };
 
 inline ConsoleSettingsOverlay& get_global_console_settings() {
     return helix::lazy_global<ConsoleSettingsOverlay>("ConsoleSettingsOverlay");
 }
-
-/// The overlay is built on first use; nothing to do at startup.
-inline void init_global_console_settings() {}

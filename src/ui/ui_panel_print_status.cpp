@@ -177,6 +177,7 @@ static void log_tree_created(PrintState state, size_t available_mb) {
 }
 
 // Observer factory pattern
+using helix::ui::find_required;
 using helix::ui::observe_int_sync;
 using helix::ui::observe_print_state;
 using helix::ui::observe_string;
@@ -869,17 +870,47 @@ void PrintStatusPanel::init_subjects() {
     // (tune overlay subjects/callbacks registered by singleton on first show())
     // (light and timelapse callbacks are registered by light_timelapse_controls_.init_subjects())
     register_xml_callbacks({
-        {"on_print_status_tune", on_tune_clicked},
-        {"on_print_status_units_toggle", on_units_toggle_clicked},
-        {"on_print_status_camera", on_print_status_camera},
-        {"on_print_status_files", on_files_clicked},
-        {"on_print_status_reprint", on_reprint_clicked},
-        {"on_temp_card_clicked", on_temp_card_clicked},
-        {"on_print_status_graph_clicked", on_temp_graph_clicked},
-        {"on_print_status_objects", on_objects_clicked},
-        {"on_view_toggle", on_view_toggle_clicked},
-        {"on_print_status_dismiss_overlay", on_dismiss_overlay_clicked},
-        {"on_print_status_fans_clicked", on_fans_clicked},
+        {"on_print_status_tune",
+         [](lv_event_t*) { get_global_print_status_panel().handle_tune_button(); }},
+        {"on_print_status_units_toggle",
+         [](lv_event_t*) {
+             auto& settings = DisplaySettingsManager::instance();
+             settings.set_speed_flow_physical_units(!settings.get_speed_flow_physical_units());
+         }},
+        {"on_print_status_camera",
+         [](lv_event_t*) {
+#if HELIX_HAS_CAMERA
+             // No-ops when no webcam is configured or a fullscreen view is already
+             // open; reuses an attached home CameraWidget's stream when one exists
+             // (single-MJPEG-client safe).
+             helix::open_standalone_camera_fullscreen(lv_display_get_screen_active(nullptr));
+#else
+             spdlog::debug("[PrintStatusPanel] Camera support disabled in this build");
+#endif
+         }},
+        {"on_print_status_files",
+         [](lv_event_t*) { get_global_print_status_panel().handle_files_click(); }},
+        {"on_print_status_reprint",
+         [](lv_event_t*) { get_global_print_status_panel().handle_reprint_button(); }},
+        {"on_temp_card_clicked",
+         [](lv_event_t*) { get_global_print_status_panel().handle_temp_card_click(); }},
+        // The mini-graph is a summary; the full overlay is the detail view. Tapping it
+        // opens exactly what tapping the temp chips opens, so both entry points land on
+        // one code path rather than two that can drift.
+        {"on_print_status_graph_clicked",
+         [](lv_event_t*) { get_global_print_status_panel().handle_temp_card_click(); }},
+        {"on_print_status_objects",
+         [](lv_event_t*) { get_global_print_status_panel().handle_objects_toggle(); }},
+        {"on_view_toggle",
+         [](lv_event_t*) { get_global_print_status_panel().handle_view_toggle(); }},
+        {"on_print_status_dismiss_overlay",
+         [](lv_event_t*) {
+             // XML binding on each overlay hides when end_overlay_dismissed == 1.
+             lv_subject_set_int(&get_global_print_status_panel().end_overlay_dismissed_subject_, 1);
+             spdlog::debug("[PrintStatusPanel] Dismissed print end overlay");
+         }},
+        {"on_print_status_fans_clicked",
+         [](lv_event_t*) { get_global_print_status_panel().handle_fans_click(); }},
     });
 
     subjects_initialized_ = true;
@@ -966,8 +997,7 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     parent_screen_ = parent;
 
     // Create overlay root from XML
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, get_xml_component_name(), nullptr));
+    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, xml_component(), nullptr));
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -1002,16 +1032,10 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     ui_overlay_panel_setup_standard(overlay_root_, parent_screen_, "overlay_header",
                                     "overlay_content");
 
-    lv_obj_t* overlay_content = lv_obj_find_by_name(overlay_root_, "overlay_content");
-    if (!overlay_content) {
-        spdlog::error("[{}] overlay_content not found!", get_name());
-        return nullptr;
-    }
-
+    lv_obj_t* overlay_content = find_required(overlay_root_, "overlay_content", get_name());
     // Find thumbnail section for nested widgets
-    lv_obj_t* thumbnail_section = lv_obj_find_by_name(overlay_content, "thumbnail_section");
+    lv_obj_t* thumbnail_section = find_required(overlay_content, "thumbnail_section", get_name());
     if (!thumbnail_section) {
-        spdlog::error("[{}] thumbnail_section not found!", get_name());
         return nullptr;
     }
 
@@ -1117,7 +1141,7 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     }
 
     // Progress bar widget
-    progress_bar_ = lv_obj_find_by_name(overlay_content, "print_progress");
+    progress_bar_ = find_required(overlay_content, "print_progress", get_name());
     if (progress_bar_) {
         lv_bar_set_range(progress_bar_, 0, 100);
         // WORKAROUND: LVGL bar has a bug where setting value=0 when cur_value=0
@@ -1129,8 +1153,6 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
         // itself stays on the XML bind_value to print_progress_display.
         helix::ui::attach_bar_pause_markers(progress_bar_, printer_state_);
         spdlog::debug("[{}]   ✓ Progress bar", get_name());
-    } else {
-        spdlog::error("[{}]   ✗ Progress bar NOT FOUND", get_name());
     }
 
     // Preparing progress bar (shown during pre-print operations)
@@ -1199,13 +1221,10 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     // triggers a density + fit recompute. Direct lv_obj_add_event_cb is correct
     // here — SIZE_CHANGED has no XML binding equivalent (pattern from
     // ui_buffer_meter.cpp:52 and ui_ams_mini_status.cpp:540).
-    lv_obj_t* controls_section = lv_obj_find_by_name(overlay_root_, "controls_section");
-    if (controls_section) {
+    if (lv_obj_t* controls_section = find_required(overlay_root_, "controls_section", get_name())) {
         lv_obj_add_event_cb(controls_section, on_controls_size_changed, LV_EVENT_SIZE_CHANGED,
                             this);
         spdlog::debug("[{}] Registered SIZE_CHANGED on controls_section", get_name());
-    } else {
-        spdlog::warn("[{}] controls_section not found — SIZE_CHANGED not wired", get_name());
     }
 
     // Thermal tint for the temp-card heater icons. The binder owns its own
@@ -2250,70 +2269,8 @@ void PrintStatusPanel::handle_resize() {
 }
 
 // ============================================================================
-// STATIC TRAMPOLINES
+// EVENT HANDLERS
 // ============================================================================
-
-void PrintStatusPanel::on_temp_card_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_temp_card_clicked");
-    (void)e;
-    get_global_print_status_panel().handle_temp_card_click();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// The mini-graph is a summary; the full overlay is the detail view. Tapping it
-// opens exactly what tapping the temp chips opens, so both entry points land on
-// one code path rather than two that can drift.
-void PrintStatusPanel::on_temp_graph_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_temp_graph_clicked");
-    (void)e;
-    get_global_print_status_panel().handle_temp_card_click();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_dismiss_overlay_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_dismiss_overlay_clicked");
-    (void)e;
-    // XML binding on each overlay hides when end_overlay_dismissed == 1.
-    lv_subject_set_int(&get_global_print_status_panel().end_overlay_dismissed_subject_, 1);
-    spdlog::debug("[PrintStatusPanel] Dismissed print end overlay");
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_tune_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_tune_clicked");
-    (void)e;
-    get_global_print_status_panel().handle_tune_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_units_toggle_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_units_toggle_clicked");
-    (void)e;
-    auto& settings = DisplaySettingsManager::instance();
-    settings.set_speed_flow_physical_units(!settings.get_speed_flow_physical_units());
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_print_status_camera(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_print_status_camera");
-    (void)e;
-#if HELIX_HAS_CAMERA
-    // No-ops when no webcam is configured or a fullscreen view is already
-    // open; reuses an attached home CameraWidget's stream when one exists
-    // (single-MJPEG-client safe).
-    helix::open_standalone_camera_fullscreen(lv_display_get_screen_active(nullptr));
-#else
-    spdlog::debug("[PrintStatusPanel] Camera support disabled in this build");
-#endif
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_fans_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_fans_clicked");
-    (void)e;
-    get_global_print_status_panel().handle_fans_click();
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void PrintStatusPanel::handle_fans_click() {
     spdlog::debug("[{}] Fans clicked — opening fan control overlay", get_name());
@@ -2321,72 +2278,47 @@ void PrintStatusPanel::handle_fans_click() {
     helix::open_fan_control_overlay(parent_screen_);
 }
 
-void PrintStatusPanel::on_reprint_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_reprint_clicked");
-    (void)e;
-    get_global_print_status_panel().handle_reprint_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_files_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_files_clicked");
-    (void)e;
-    get_global_print_status_panel().handle_files_click();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintStatusPanel::on_objects_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_objects_clicked");
-    (void)e;
-    auto& panel = get_global_print_status_panel();
-
-    // Toggle the unified exclude panel (map+side-list in thumbnail mode,
-    // shrunk-viewer + side-list in 3D/2D mode).
-    if (panel.side_list_ && panel.side_list_->is_active()) {
-        panel.hide_exclude_map_view();
+// Toggle the unified exclude panel (map+side-list in thumbnail mode,
+// shrunk-viewer + side-list in 3D/2D mode).
+void PrintStatusPanel::handle_objects_toggle() {
+    if (side_list_ && side_list_->is_active()) {
+        hide_exclude_map_view();
     } else {
-        panel.show_exclude_map_view();
+        show_exclude_map_view();
     }
-    LVGL_SAFE_EVENT_CB_END();
 }
 
-void PrintStatusPanel::on_view_toggle_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatusPanel] on_view_toggle_clicked");
-    (void)e;
-    auto& panel = get_global_print_status_panel();
+void PrintStatusPanel::handle_view_toggle() {
+    complete_view_mode_ = !complete_view_mode_;
 
-    panel.complete_view_mode_ = !panel.complete_view_mode_;
-
-    if (panel.complete_view_mode_) {
+    if (complete_view_mode_) {
         // Complete view: show all layers solid (no ghost)
-        if (panel.gcode_viewer_) {
-            ui_gcode_viewer_set_print_progress(panel.gcode_viewer_, -1);
+        if (gcode_viewer_) {
+            ui_gcode_viewer_set_print_progress(gcode_viewer_, -1);
         }
     } else {
         // Progress view: restore current layer with ghost
-        if (panel.gcode_viewer_) {
+        if (gcode_viewer_) {
             int current_layer =
-                lv_subject_get_int(panel.printer_state_.get_print_layer_current_subject());
-            int total_layers =
-                lv_subject_get_int(panel.printer_state_.get_print_layer_total_subject());
-            int viewer_max_layer = ui_gcode_viewer_get_max_layer(panel.gcode_viewer_);
+                lv_subject_get_int(printer_state_.get_print_layer_current_subject());
+            int total_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject());
+            int viewer_max_layer = ui_gcode_viewer_get_max_layer(gcode_viewer_);
             int viewer_layer = current_layer;
             if (total_layers > 0 && viewer_max_layer > 0) {
                 viewer_layer = (current_layer * viewer_max_layer) / total_layers;
             }
-            ui_gcode_viewer_set_print_progress(panel.gcode_viewer_, viewer_layer);
+            ui_gcode_viewer_set_print_progress(gcode_viewer_, viewer_layer);
         }
     }
 
     const char* icon_text =
-        lv_xml_get_const(nullptr, panel.complete_view_mode_ ? "icon_layers" : "icon_cube");
+        lv_xml_get_const(nullptr, complete_view_mode_ ? "icon_layers" : "icon_cube");
     if (icon_text) {
-        lv_subject_copy_string(&panel.view_toggle_icon_subject_, icon_text);
+        lv_subject_copy_string(&view_toggle_icon_subject_, icon_text);
     }
 
     spdlog::debug("[PrintStatusPanel] View toggle: {}",
-                  panel.complete_view_mode_ ? "complete" : "progress");
-    LVGL_SAFE_EVENT_CB_END();
+                  complete_view_mode_ ? "complete" : "progress");
 }
 
 void PrintStatusPanel::on_resize_static() {

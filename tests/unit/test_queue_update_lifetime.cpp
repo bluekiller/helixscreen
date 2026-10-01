@@ -193,7 +193,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     caps.set_sensor_count(4);
 
     REQUIRE(UpdateQueue::instance().pending_count() > 0);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_spoolman_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasSpoolman)) == 0);
 
     // Tear down and stand back up on the same live object, which is what the
     // test-isolation and reconnect paths do — and the shape a destructor-only
@@ -205,11 +205,11 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     // Pre-fix each of these writes into a subject that was deinited underneath
     // it, and lv_subject_notify walks the freed observer list.
-    CHECK(lv_subject_get_int(caps.get_printer_has_spoolman_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_printer_has_timelapse_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_printer_has_webcam_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_power_device_count_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_sensor_count_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasSpoolman)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasTimelapse)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasWebcam)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::PowerDeviceCount)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::SensorCount)) == 0);
     CHECK(caps.get_webcam_stream_url().empty());
     CHECK(UpdateQueue::instance().pending_count() == 0);
 }
@@ -228,8 +228,8 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     // Without this the drop case above would pass vacuously — a guard that
     // swallowed everything would satisfy it just as well.
-    CHECK(lv_subject_get_int(caps.get_printer_has_spoolman_subject()) == 1);
-    CHECK(lv_subject_get_int(caps.get_power_device_count_subject()) == 3);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasSpoolman)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::PowerDeviceCount)) == 3);
 }
 
 // ============================================================================

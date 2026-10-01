@@ -257,15 +257,6 @@ class PrintStartAnalyzer {
                                                       const std::string& op_name,
                                                       std::string& out_param_name,
                                                       ParameterSemantic& out_semantic);
-
-    /**
-     * @brief Extract known parameters from macro gcode
-     *
-     * Looks for patterns like:
-     *   {% set BED = params.BED|default(60)|float %}
-     *   params.EXTRUDER
-     */
-    [[nodiscard]] static std::vector<std::string> extract_parameters(const std::string& gcode);
 };
 
 } // namespace helix
