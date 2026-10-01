@@ -2315,7 +2315,7 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
     }
 
     // The Fork module defines no BOX_MODIFY_TN_DATA. `_BOX_SLOT_SET` requires
-    // a material; explicit clears route through clear_box_slot_profile().
+    // a material; explicit clears route through clear_slot_override().
     if (macro_variant_ == CfsMacroVariant::Fork) {
         std::string slot_material;
         std::string slot_brand;
@@ -4701,9 +4701,6 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-}
-
-void AmsBackendCfs::clear_box_slot_profile(int slot_index) {
     if (macro_variant_ == CfsMacroVariant::Fork) {
         execute_gcode("_BOX_SLOT_CLEAR SLOT=" + std::to_string(slot_index));
     }

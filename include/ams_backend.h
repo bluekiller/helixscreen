@@ -41,6 +41,7 @@ class PrinterDiscovery;
 typedef struct _lv_subject_t lv_subject_t;
 
 #include <any>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -1972,6 +1973,57 @@ class AmsBackend {
      */
     virtual void clear_slot_override(int slot_index) {
         (void)slot_index;
+    }
+
+    // --- Cutter / purge-chute calibration ---
+    //
+    // Capability question: "does this filament system calibrate its cutter / purge
+    // chute through the UI?" Default is not_supported. The step-by-step contract (which
+    // callbacks fire when, and on which thread) is documented on the CFS implementation.
+
+    /// Sweep the cutter to find its position. @p on_result fires once with the outcome.
+    virtual AmsError
+    calibrate_cutter(std::function<void(bool ok, const std::string& line)> on_result = nullptr) {
+        (void)on_result;
+        return AmsErrorHelper::not_supported("Cutter calibration");
+    }
+
+    /// Home and park for chute calibration; @p on_ready fires when jogging may start.
+    virtual AmsError
+    start_chute_calibration(std::function<void()> on_ready = nullptr,
+                            std::function<void(const std::string& klipper_msg)> on_failed = nullptr,
+                            std::shared_ptr<std::atomic<bool>> cancel_requested = nullptr) {
+        (void)on_ready;
+        (void)on_failed;
+        (void)cancel_requested;
+        return AmsErrorHelper::not_supported("Purge chute calibration");
+    }
+
+    /// Jog the toolhead's Y by @p delta_mm during chute calibration.
+    virtual AmsError jog_chute_y(float delta_mm) {
+        (void)delta_mm;
+        return AmsErrorHelper::not_supported("Purge chute calibration");
+    }
+
+    /// Save the current toolhead position as the chute's extrude position.
+    virtual AmsError
+    save_chute_position(std::function<void()> on_saved = nullptr,
+                        std::function<void(const std::string& klipper_msg)> on_failed = nullptr) {
+        (void)on_saved;
+        (void)on_failed;
+        return AmsErrorHelper::not_supported("Purge chute calibration");
+    }
+
+    /// Abort path: re-park the toolhead once chute calibration has moved it.
+    virtual AmsError exit_chute_calibration() {
+        return AmsErrorHelper::not_supported("Purge chute calibration");
+    }
+
+    /// The position pair the last chute save reported; false when none was captured.
+    [[nodiscard]] virtual bool last_chute_saved_position(double& x_mm, double& y_mm) const {
+        (void)x_mm;
+        (void)y_mm;
+        return false;
     }
 
     /**
