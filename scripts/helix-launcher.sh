@@ -834,22 +834,8 @@ SPLASH_BIN="${BIN_DIR}/helix-splash"
 WATCHDOG_BIN="${BIN_DIR}/helix-watchdog"
 FALLBACK_BIN="${BIN_DIR}/helix-screen-fbdev"
 
-# Ensure SSL certificate verification works for HTTPS requests (e.g., update checker).
-# Static glibc builds embed OpenSSL with compiled-in cert paths from the Docker build
-# container, which don't exist on the target device. Set SSL_CERT_FILE to a valid path.
-if [ -z "${SSL_CERT_FILE:-}" ]; then
-    for _cert_path in \
-        /etc/ssl/certs/ca-certificates.crt \
-        /etc/pki/tls/certs/ca-bundle.crt \
-        /etc/ssl/cert.pem \
-        "${INSTALL_DIR}/certs/ca-certificates.crt"; do
-        if [ -f "$_cert_path" ]; then
-            export SSL_CERT_FILE="$_cert_path"
-            break
-        fi
-    done
-    unset _cert_path
-fi
+# CA trust is resolved by the app itself (src/system/tls_trust.cpp#find_ca_store):
+# an explicit SSL_CERT_FILE/SSL_CERT_DIR, then ${INSTALL_DIR}/certs, then system paths.
 
 helix_load_env_file
 
