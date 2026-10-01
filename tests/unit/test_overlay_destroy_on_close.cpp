@@ -24,6 +24,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "app_globals.h"
 #include "static_panel_registry.h"
 
 #include <array>
@@ -87,6 +88,19 @@ TEST_CASE_METHOD(DestroyOnCloseFixture, "Motion rebuilds its tree on reopen",
     auto& p = get_global_motion_panel();
     expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
                              [&] { return p.get_root(); });
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture, "Motion observers fired after close touch no freed tree",
+                 "[overlay_destroy_on_close][motion]") {
+    auto& p = get_global_motion_panel();
+    expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
+                             [&] { return p.get_root(); });
+    // The homed and position observers outlive the tree and reach for the jog pad.
+    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "xyz");
+    settle();
+    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "");
+    settle();
+    CHECK(p.get_root() == nullptr);
 }
 
 TEST_CASE_METHOD(DestroyOnCloseFixture, "Macro Buttons rebuilds its tree on reopen",

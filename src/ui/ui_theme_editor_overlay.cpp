@@ -191,6 +191,15 @@ void ThemeEditorOverlay::on_ui_destroyed() {
     // opened from them has no owner left.
     color_picker_.reset();
     editing_color_index_ = -1;
+    if (discard_dialog_) {
+        Modal::hide(discard_dialog_);
+        discard_dialog_ = nullptr;
+    }
+    pending_discard_action_ = nullptr;
+    if (save_as_dialog_) {
+        Modal::hide(save_as_dialog_);
+        save_as_dialog_ = nullptr;
+    }
     swatch_objects_.fill(nullptr);
     panel_ = nullptr;
 }
