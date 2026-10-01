@@ -48,7 +48,7 @@ using namespace helix::led;
 namespace helix::led {
 class LedControlOverlayTestAccess {
   public:
-    explicit LedControlOverlayTestAccess(helix::PrinterState& ps) : overlay_(ps) {
+    LedControlOverlayTestAccess() {
         overlay_.init_subjects();
     }
 
@@ -238,7 +238,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tab tap changes focus and not
     const nlohmann::json before = leds_config();
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("");
     REQUIRE(access.focused() == "neopixel chamber_light");
     access.tap_tab(1);
@@ -254,7 +254,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: opens on the requested device",
     add_native("neopixel sb_leds", true, false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel sb_leds");
 
     CHECK(access.focused() == "neopixel sb_leds");
@@ -267,7 +267,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: opens on the last focused devic
     add_native("neopixel sb_leds", true, false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("");
     access.tap_tab(1);
     access.activate("");
@@ -281,7 +281,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: falls back to the chamber light
     add_native("neopixel chamber_light", true, true);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel nonexistent");
 
     CHECK(access.focused() == "neopixel chamber_light");
@@ -296,7 +296,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     set_macros({lamp_macro()});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("macro:Lamp");
     REQUIRE(access.focused() == "macro:Lamp");
 
@@ -309,7 +309,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
 
 TEST_CASE_METHOD(LedApplyColorFixture, "overlay: overlay with no devices", "[led][overlay]") {
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("");
 
     CHECK(access.int_subject("led_tab_count") == 0);
@@ -330,7 +330,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: page subjects follow the classi
     set_macros({party_macro()});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
 
     CHECK(access.int_subject("led_page_lamp") == static_cast<int>(LampControl::PowerAndBrightness));
@@ -358,7 +358,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: tabs carry each device's displa
     set_macros({lamp_macro()});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("");
 
     CHECK(access.int_subject("led_tab_count") == 2);
@@ -372,7 +372,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: tab dots follow device state", 
     set_macros({lamp_macro()});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("");
     REQUIRE(access.int_subject("led_tab_dot_1") == static_cast<int>(PowerState::Unknown));
 
@@ -392,7 +392,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a state bump updates dots but n
     ctrl.update_from_status({{"neopixel chamber_light", {{"color_data", {{0.4, 0.4, 0.4, 0.0}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
     REQUIRE(access.int_subject("led_page_brightness") == 40);
 
@@ -419,7 +419,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: controls act on the focused dev
     add_native("neopixel strip_b", true, false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     access.tap_swatch(0);
 
@@ -448,7 +448,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a swatch keeps the brightness a
         {{"neopixel chamber_light", {{"color_data", {{0.0, 0.0, 0.0, 0.6}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
     REQUIRE(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
     access.tap_swatch(4);
@@ -469,7 +469,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the white section sets W on RGB
     add_native("neopixel chamber_light", true, true);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
     access.tap_white(static_cast<int>(WhiteTone::Neutral));
 
@@ -489,7 +489,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a single-channel strip dims thr
         {{"led case_light", {{"color_data", {{0.0, 0.0, 0.0, 1.0}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("led case_light");
     access.drag_brightness(15);
 
@@ -508,7 +508,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
         {{"led case_light", {{"color_data", {{0.0, 0.0, 0.0, 1.0}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("led case_light");
     REQUIRE(access.int_subject("led_page_list") == static_cast<int>(ListKind::LevelChips));
     REQUIRE(access.int_subject("led_page_level") == 100);
@@ -527,7 +527,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the None chip stops the focused
     add_effect("led_effect sparkle", "neopixel strip_b", true);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     REQUIRE(access.int_subject("led_active_chip") == 1);
 
@@ -547,7 +547,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an effect chip activates that e
     add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     REQUIRE(access.int_subject("led_active_chip") == -1);
 
@@ -564,7 +564,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a macro preset chip runs that m
     set_macros({party_macro()});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("macro:Party");
     access.tap_list_chip(1);
     drain();
@@ -583,7 +583,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     ctrl.set_last_brightness(60);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("led case_light");
     REQUIRE_FALSE(ctrl.native().has_strip_color("led case_light"));
     access.tap_level(100);
@@ -605,7 +605,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     ctrl.set_last_brightness(80);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel rgb");
     REQUIRE(access.int_subject("led_page_brightness") == 80);
     access.drag_brightness(50);
@@ -630,7 +630,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an output pin's slider sets tha
     LedController::instance().output_pin().add_pin(pin);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("output_pin enclosure");
     access.drag_brightness(40);
     drain();
@@ -648,7 +648,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: macro buttons run the focused d
     set_macros({lamp_macro(), toggle});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("macro:Lamp");
     CHECK(access.str_subject("led_page_note") == "ON: LIGHTS_ON | OFF: LIGHTS_OFF");
 
@@ -682,7 +682,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     auto& ctrl = LedController::instance();
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("macro:Lamp");
     access.tap_macro_on();
     drain();
@@ -710,7 +710,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: the active effect chip follows 
     add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     REQUIRE(access.int_subject("led_active_chip") == -1);
 
@@ -731,7 +731,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: an unrelated frame keeps a tapp
     add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     access.tap_list_chip(1);
 
@@ -750,7 +750,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     access.tap_list_chip(1);
 
@@ -768,7 +768,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     access.tap_list_chip(1);
 
@@ -788,7 +788,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a tapped effect chip no frame a
     add_effect("led_effect fire", "neopixel strip_a", false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel strip_a");
     access.tap_list_chip(0);
     process_lvgl(1000);
@@ -828,7 +828,6 @@ struct OverlayXmlFixture : public LVGLUITestFixture {
             p = lv_obj_create(test_screen());
         }
         NavigationManager::instance().set_panels(panels.data());
-        init_led_control_overlay(get_printer_state());
         root = helix::open_led_control_overlay(test_screen(), "neopixel chamber_light");
         drain();
         REQUIRE(root != nullptr);
@@ -994,7 +993,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a white read back from the stri
     add_native("neopixel rgb", true, false);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     // Dim enough that 8-bit levels scaled back to full brightness drift by a
     // few steps: the ring must still find the tone.
     for (int tone = 0; tone < 3; ++tone) {
@@ -1016,7 +1015,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
         {{"neopixel chamber_light", {{"color_data", {{0.5, 0.5, 0.5, 0.0}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
 
     CHECK(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
@@ -1031,7 +1030,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
         {{"neopixel chamber_light", {{"color_data", {{0.6, 0.0, 0.0, 0.3}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
 
     CHECK(access.int_subject("led_page_white_sel") == -1);
@@ -1050,7 +1049,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: a WLED page notes where its pre
     set_macros({party_macro()});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("printer_led");
     CHECK(access.str_subject("led_page_note") ==
           "Presets come from the WLED device. Edit them in the WLED app.");
@@ -1064,7 +1063,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
                  "[led][overlay]") {
     add_native("neopixel rgbw", true, true);
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     const auto presets = LedController::instance().color_presets();
     for (int pct : {100, 50, 10}) {
         for (size_t i = 0; i < presets.size(); ++i) {
@@ -1093,7 +1092,7 @@ TEST_CASE_METHOD(LedApplyColorFixture, "overlay: plain white on an RGB-only stri
         {{"neopixel rgb", {{"color_data", {{1.0, 1.0, 1.0}}}}}});
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel rgb");
 
     CHECK(access.int_subject("led_page_white_sel") == static_cast<int>(WhiteTone::Neutral));
@@ -1113,7 +1112,7 @@ TEST_CASE_METHOD(LedApplyColorFixture,
     LedController::instance().wled().add_strip(strip);
 
     helix::PrinterState ps;
-    LedControlOverlayTestAccess access(ps);
+    LedControlOverlayTestAccess access;
     access.activate("neopixel chamber_light");
     access.tap_swatch(0);
     REQUIRE(lv_color_to_u32(lv_subject_get_color(lv_xml_get_subject(nullptr, "led_page_color"))) !=

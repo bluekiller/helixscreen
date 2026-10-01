@@ -9,6 +9,7 @@
 
 #include "observer_factory.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "temp_graph_controller.h"
 
 #include <memory>
@@ -42,12 +43,14 @@ class TempGraphOverlay : public OverlayBase {
   public:
     enum class Mode { GraphOnly, Nozzle, Bed, Chamber };
 
-    TempGraphOverlay();
     ~TempGraphOverlay() override;
 
     // OverlayBase interface
     void init_subjects() override;
     void register_callbacks() override;
+    const char* xml_component() const override {
+        return "temp_graph_overlay";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "Temperature Graph";
@@ -59,19 +62,20 @@ class TempGraphOverlay : public OverlayBase {
     /**
      * @brief Open the overlay in a specific mode
      *
-     * Sets the mode and pushes the overlay via NavigationManager.
-     * Must be called after init_subjects/create on first use.
+     * Sets the mode and shows the overlay (OverlayBase::show).
      *
      * @param mode The display mode (determines which controls are shown)
      * @param parent_screen Parent screen for lazy creation
      */
     void open(Mode mode, lv_obj_t* parent_screen);
 
-    // Static event callbacks (for XML registration)
+  protected:
+    void before_show() override;
+
+  private:
     static void on_temp_graph_preset_clicked(lv_event_t* e);
     static void on_temp_graph_custom_clicked(lv_event_t* e);
 
-  private:
     friend class TempGraphOverlayTestAccess;
 
     /**
@@ -244,18 +248,13 @@ class TempGraphOverlay : public OverlayBase {
     // Subject management
     SubjectManager subjects_;
 
-    // Cached panel for lazy creation
-    lv_obj_t* cached_overlay_ = nullptr;
-
     // Color palette — uses shared TEMP_GRAPH_SERIES_COLORS from temp_graph_controller.h
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers cleanup with StaticPanelRegistry.
- */
-TempGraphOverlay& get_global_temp_graph_overlay();
+/// Lazy singleton shared by every entry point that opens the graph.
+inline TempGraphOverlay& get_global_temp_graph_overlay() {
+    return helix::lazy_global<TempGraphOverlay>("TempGraphOverlay");
+}
 
 /**
  * @brief Snapshot of klipper sensor names last visible on the full-screen overlay.

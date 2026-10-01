@@ -4,11 +4,6 @@
 #include "ui_print_tune_overlay.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_error_reporting.h"
-#include "ui_event_safety.h"
-#include "ui_nav_manager.h"
-#include "ui_panel_common.h"
-#include "ui_toast_manager.h"
 #include "ui_z_offset_indicator.h"
 
 #include "display_numbering.h"
@@ -19,10 +14,10 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
 #include "printer_state.h"
-#include "static_panel_registry.h"
 #include "tool_offsets.h"
 #include "tool_state.h"
 #include "tune_controller.h"
+#include "ui/ui_widget_helpers.h"
 #include "z_offset_utils.h"
 
 #include <spdlog/spdlog.h>
@@ -32,87 +27,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
 
 using namespace helix;
 
 // ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<PrintTuneOverlay> g_print_tune_overlay;
-
-PrintTuneOverlay& get_print_tune_overlay() {
-    if (!g_print_tune_overlay) {
-        g_print_tune_overlay = std::make_unique<PrintTuneOverlay>();
-        StaticPanelRegistry::instance().register_destroy("PrintTuneOverlay",
-                                                         []() { g_print_tune_overlay.reset(); });
-    }
-    return *g_print_tune_overlay;
-}
-
-// ============================================================================
-// XML EVENT CALLBACKS (free functions using global accessor)
-// ============================================================================
-
-// Speed adjust: increment/decrement by delta from user_data
-static void on_tune_speed_adjust_cb(lv_event_t* e) {
-    const char* delta_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (!delta_str)
-        return;
-    get_print_tune_overlay().handle_speed_adjust(atoi(delta_str));
-}
-
-// Flow adjust: increment/decrement by delta from user_data
-static void on_tune_flow_adjust_cb(lv_event_t* e) {
-    const char* delta_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (!delta_str)
-        return;
-    get_print_tune_overlay().handle_flow_adjust(atoi(delta_str));
-}
-
-static void on_tune_reset_clicked_cb(lv_event_t* /*e*/) {
-    get_print_tune_overlay().handle_reset();
-}
-
-static void on_tune_units_toggle_cb(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintTuneOverlay] on_tune_units_toggle");
-    auto& settings = helix::DisplaySettingsManager::instance();
-    settings.set_speed_flow_physical_units(!settings.get_speed_flow_physical_units());
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// Z-offset step amount selector (user_data = index "0"-"3")
-static void on_tune_z_target_cb(lv_event_t* e) {
-    const char* idx_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (!idx_str) {
-        return;
-    }
-    get_print_tune_overlay().handle_z_target_select(atoi(idx_str));
-}
-
-static void on_tune_z_step_cb(lv_event_t* e) {
-    const char* idx_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (!idx_str)
-        return;
-    get_print_tune_overlay().handle_z_step_select(atoi(idx_str));
-}
-
-// Z-offset direction adjust (user_data = "-1" closer or "1" farther)
-static void on_tune_z_adjust_cb(lv_event_t* e) {
-    const char* dir_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (!dir_str)
-        return;
-    get_print_tune_overlay().handle_z_adjust(atoi(dir_str));
-}
-
-// ============================================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================================
-
-PrintTuneOverlay::PrintTuneOverlay() {
-    spdlog::debug("[PrintTuneOverlay] Created");
-}
 
 PrintTuneOverlay::~PrintTuneOverlay() {
     // Clean up observers before subjects
@@ -128,71 +48,33 @@ PrintTuneOverlay::~PrintTuneOverlay() {
         subjects_initialized_ = false;
     }
 
-    // Panel widget is owned by LVGL parent, will be cleaned up when parent is deleted
-    tune_panel_ = nullptr;
-
     spdlog::trace("[PrintTuneOverlay] Destroyed");
 }
 
 // ============================================================================
-// SHOW (PUBLIC ENTRY POINT)
+// SHOW / CREATE
 // ============================================================================
 
 void PrintTuneOverlay::show(lv_obj_t* parent_screen, IMoonrakerAPI* api,
                             PrinterState& printer_state) {
-    spdlog::debug("[PrintTuneOverlay] show() called");
-
-    // Store dependencies
-    parent_screen_ = parent_screen;
     api_ = api;
     printer_state_ = &printer_state;
+    OverlayBase::show(parent_screen);
+}
 
-    // Initialize subjects if not already done (before XML creation)
-    if (!subjects_initialized_) {
-        init_subjects_internal();
+lv_obj_t* PrintTuneOverlay::create(lv_obj_t* parent) {
+    if (!OverlayBase::create(parent)) {
+        return nullptr;
     }
-
-    // Create panel lazily
-    if (!tune_panel_ && parent_screen_) {
-        tune_panel_ =
-            static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "print_tune_panel", nullptr));
-        if (!tune_panel_) {
-            spdlog::error("[PrintTuneOverlay] Failed to create panel from XML");
-            NOTIFY_ERROR(lv_tr("Failed to load print tune panel"));
-            return;
-        }
-
-        // Setup panel (back button, etc.)
-        setup_panel();
-        lv_obj_add_flag(tune_panel_, LV_OBJ_FLAG_HIDDEN);
-
-        // Keep base class in sync for cleanup and get_root()
-        overlay_root_ = tune_panel_;
-
-        spdlog::info("[PrintTuneOverlay] Panel created");
-    }
-
-    if (!tune_panel_) {
-        spdlog::error("[PrintTuneOverlay] Cannot show - panel not created");
-        return;
-    }
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(tune_panel_, this);
-
-    // Push onto navigation stack (on_activate will be called after animation)
-    NavigationManager::instance().push_overlay(tune_panel_);
+    setup_panel();
+    return overlay_root_;
 }
 
 // ============================================================================
-// INTERNAL: INITIALIZATION
+// INITIALIZATION
 // ============================================================================
 
-void PrintTuneOverlay::init_subjects_internal() {
-    if (subjects_initialized_) {
-        return;
-    }
-
+void PrintTuneOverlay::init_subjects() {
     // Initialize tune panel subjects
     UI_MANAGED_SUBJECT_STRING(tune_speed_subject_, tune_speed_buf_, "100%", "tune_speed_display",
                               subjects_);
@@ -228,20 +110,44 @@ void PrintTuneOverlay::init_subjects_internal() {
                               subjects_);
     UI_MANAGED_SUBJECT_STRING(tune_z_tool_label_subject_, tune_z_tool_label_buf_, "T0",
                               "tune_z_tool_label", subjects_);
+}
 
-    // Register XML event callbacks
+void PrintTuneOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_tune_speed_adjust", on_tune_speed_adjust_cb},
-        {"on_tune_flow_adjust", on_tune_flow_adjust_cb},
-        {"on_tune_reset_clicked", on_tune_reset_clicked_cb},
-        {"on_tune_units_toggle", on_tune_units_toggle_cb},
-        {"on_tune_z_step", on_tune_z_step_cb},
-        {"on_tune_z_target", on_tune_z_target_cb},
-        {"on_tune_z_adjust", on_tune_z_adjust_cb},
+        {"on_tune_speed_adjust",
+         [](lv_event_t* e) {
+             if (auto delta = helix::ui::event_user_int(e))
+                 get_print_tune_overlay().handle_speed_adjust(*delta);
+         }},
+        {"on_tune_flow_adjust",
+         [](lv_event_t* e) {
+             if (auto delta = helix::ui::event_user_int(e))
+                 get_print_tune_overlay().handle_flow_adjust(*delta);
+         }},
+        {"on_tune_reset_clicked", [](lv_event_t*) { get_print_tune_overlay().handle_reset(); }},
+        {"on_tune_units_toggle",
+         [](lv_event_t*) {
+             auto& settings = helix::DisplaySettingsManager::instance();
+             settings.set_speed_flow_physical_units(!settings.get_speed_flow_physical_units());
+         }},
+        // Z-offset step amount selector (user_data = index "0"-"3")
+        {"on_tune_z_step",
+         [](lv_event_t* e) {
+             if (auto idx = helix::ui::event_user_int(e))
+                 get_print_tune_overlay().handle_z_step_select(*idx);
+         }},
+        {"on_tune_z_target",
+         [](lv_event_t* e) {
+             if (auto target = helix::ui::event_user_int(e))
+                 get_print_tune_overlay().handle_z_target_select(*target);
+         }},
+        // Z-offset direction adjust (user_data = "-1" closer or "1" farther)
+        {"on_tune_z_adjust",
+         [](lv_event_t* e) {
+             if (auto dir = helix::ui::event_user_int(e))
+                 get_print_tune_overlay().handle_z_adjust(*dir);
+         }},
     });
-
-    subjects_initialized_ = true;
-    spdlog::debug("[PrintTuneOverlay] Subjects initialized");
 }
 
 // ============================================================================
@@ -259,16 +165,8 @@ void PrintTuneOverlay::on_deactivating(DeactivateReason) {
 }
 
 void PrintTuneOverlay::setup_panel() {
-    if (!tune_panel_ || !parent_screen_) {
-        return;
-    }
-
-    // Use standard overlay panel setup for back button handling
-    ui_overlay_panel_setup_standard(tune_panel_, parent_screen_, "overlay_header",
-                                    "overlay_content");
-
     // Update Z-offset icons based on printer kinematics
-    update_z_offset_icons(tune_panel_);
+    update_z_offset_icons(overlay_root_);
 
     // Observe speed-related subjects for the live speed/flow readouts
     if (printer_state_) {
@@ -319,7 +217,7 @@ void PrintTuneOverlay::setup_panel() {
 }
 
 void PrintTuneOverlay::sync_to_state() {
-    if (!tune_panel_ || !printer_state_) {
+    if (!printer_state_) {
         return;
     }
 
@@ -341,8 +239,8 @@ void PrintTuneOverlay::sync_to_state() {
     session_base_z_offset_ = current_z_offset_;
 
     // Sync the visual indicator
-    lv_obj_t* indicator = lv_obj_find_by_name(tune_panel_, "z_offset_indicator");
-    if (indicator) {
+    if (lv_obj_t* indicator =
+            helix::ui::find_required(overlay_root_, "z_offset_indicator", get_name())) {
         ui_z_offset_indicator_set_value(indicator, z_offset_microns);
     }
 
@@ -497,13 +395,10 @@ void PrintTuneOverlay::handle_z_offset_changed(double delta) {
     current_z_offset_ = r.new_offset_mm;
     update_tool_z_displays();
 
-    if (tune_panel_) {
-        lv_obj_t* indicator = lv_obj_find_by_name(tune_panel_, "z_offset_indicator");
-        if (indicator) {
-            ui_z_offset_indicator_set_value(indicator,
-                                            static_cast<int>(current_z_offset_ * 1000.0));
-            ui_z_offset_indicator_flash_direction(indicator, r.applied_delta_mm > 0 ? 1 : -1);
-        }
+    if (lv_obj_t* indicator =
+            helix::ui::find_required(overlay_root_, "z_offset_indicator", get_name())) {
+        ui_z_offset_indicator_set_value(indicator, static_cast<int>(current_z_offset_ * 1000.0));
+        ui_z_offset_indicator_flash_direction(indicator, r.applied_delta_mm > 0 ? 1 : -1);
     }
 }
 
@@ -637,9 +532,8 @@ void PrintTuneOverlay::handle_tool_z_offset_changed(double delta) {
     ts.set_tool_offset_local(tool_index, helix::Axis::Z, new_microns);
     update_tool_z_displays();
 
-    if (tune_panel_) {
-        if (lv_obj_t* indicator = lv_obj_find_by_name(tune_panel_, "z_offset_indicator")) {
-            ui_z_offset_indicator_flash_direction(indicator, delta > 0 ? 1 : -1);
-        }
+    if (lv_obj_t* indicator =
+            helix::ui::find_required(overlay_root_, "z_offset_indicator", get_name())) {
+        ui_z_offset_indicator_flash_direction(indicator, delta > 0 ? 1 : -1);
     }
 }

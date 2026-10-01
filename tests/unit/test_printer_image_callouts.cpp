@@ -556,7 +556,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         p = lv_obj_create(test_screen());
     }
     NavigationManager::instance().set_panels(panels.data());
-    init_led_control_overlay(state());
 
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);

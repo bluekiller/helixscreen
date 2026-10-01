@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_color_picker.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_nav_manager.h"
 
 #include "app_globals.h"
@@ -15,7 +14,6 @@
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
-#include "text_io.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -27,50 +25,19 @@
 using namespace helix;
 using namespace helix::led;
 
-// ============================================================================
-// GLOBAL INSTANCE
-// ============================================================================
-
-DEFINE_GLOBAL_OVERLAY_STORAGE(LedControlOverlay, g_led_control_overlay, get_led_control_overlay)
-
-void init_led_control_overlay(PrinterState& printer_state) {
-    INIT_GLOBAL_OVERLAY(LedControlOverlay, g_led_control_overlay, printer_state);
-}
-
 namespace helix {
 lv_obj_t* open_led_control_overlay(lv_obj_t* parent_screen, const std::string& device_id) {
     auto& overlay = get_led_control_overlay();
     overlay.request_focus(device_id);
-    lv_obj_t* panel = overlay.get_root();
-    if (!panel && parent_screen) {
-        if (!overlay.are_subjects_initialized()) {
-            overlay.init_subjects();
-        }
-        overlay.register_callbacks();
-
-        panel = overlay.create(parent_screen);
-        if (!panel) {
-            spdlog::error("[LedControlOverlay] Failed to create LED control overlay");
-        }
-    }
-    if (!panel) {
+    if (!overlay.show(parent_screen)) {
         overlay.request_focus("");
         return nullptr;
     }
-    // Registered before every push: a NavigationManager shutdown drops the
-    // registrations, and registering is idempotent.
-    NavigationManager::instance().register_overlay_instance(panel, &overlay);
-    NavigationManager::instance().push_overlay(panel);
-    return panel;
+    return overlay.get_root();
 }
 } // namespace helix
 
 namespace {
-
-int user_data_int(lv_event_t* e) {
-    const auto* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    return ud != nullptr ? helix::text_io::parse_leading<int>(ud).value_or(-1) : -1;
-}
 
 lv_color_t light_color() {
     return theme_manager_get_color("light_icon_on");
@@ -79,30 +46,11 @@ lv_color_t light_color() {
 } // namespace
 
 // ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-LedControlOverlay::LedControlOverlay(PrinterState& printer_state) {
-    // All printer data reaches this overlay through LedController; the parameter
-    // stays for the DEFINE_GLOBAL_OVERLAY_STORAGE construction signature.
-    (void)printer_state;
-    spdlog::trace("[{}] Constructor", get_name());
-}
-
-LedControlOverlay::~LedControlOverlay() {
-    if (!lv_is_initialized()) {
-        spdlog::trace("[LedControlOverlay] Destroyed (LVGL already deinit)");
-        return;
-    }
-    spdlog::trace("[LedControlOverlay] Destroyed");
-}
-
-// ============================================================================
 // OVERLAYBASE IMPLEMENTATION
 // ============================================================================
 
 void LedControlOverlay::init_subjects() {
-    init_subjects_guarded([this]() {
+    {
         UI_MANAGED_SUBJECT_INT(tab_count_, 0, "led_tab_count", subjects_);
         UI_MANAGED_SUBJECT_INT(focused_tab_, 0, "led_focused_tab", subjects_);
         UI_MANAGED_SUBJECT_INT(tabs_fade_, 0, "led_tabs_fade", subjects_);
@@ -130,39 +78,65 @@ void LedControlOverlay::init_subjects() {
         UI_MANAGED_SUBJECT_INT(active_chip_, -2, "led_active_chip", subjects_);
         UI_MANAGED_SUBJECT_INT(page_level_, 0, "led_page_level", subjects_);
         UI_MANAGED_SUBJECT_STRING(page_note_, page_note_buf_, "", "led_page_note", subjects_);
-    });
+    }
 }
 
 lv_obj_t* LedControlOverlay::create(lv_obj_t* parent) {
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "led_control_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
-
     lv_obj_add_event_cb(overlay_root_, on_root_deleted, LV_EVENT_DELETE, nullptr);
-
-    spdlog::trace("[{}] Created overlay", get_name());
     return overlay_root_;
 }
 
 void LedControlOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"led_tab_clicked_cb", on_tab_clicked_cb},
-        {"led_tabs_scrolled_cb", on_tabs_scrolled_cb},
-        {"led_power_cb", on_power_cb},
-        {"led_brightness_changed_cb", on_brightness_changed_cb},
-        {"led_level_cb", on_level_cb},
-        {"led_white_cb", on_white_cb},
-        {"led_swatch_cb", on_swatch_cb},
-        {"led_custom_color_cb", on_custom_color_cb},
-        {"led_list_chip_cb", on_list_chip_cb},
-        {"led_effects_none_cb", on_effects_none_cb},
-        {"led_macro_on_cb", on_macro_on_cb},
-        {"led_macro_off_cb", on_macro_off_cb},
-        {"led_macro_toggle_cb", on_macro_toggle_cb},
+        {"led_tab_clicked_cb",
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_tab_clicked(
+                 helix::ui::event_user_int(e).value_or(-1));
+         }},
+        {"led_tabs_scrolled_cb",
+         [](lv_event_t* e) {
+             auto* row = lv_event_get_current_target_obj(e);
+             auto& overlay = get_led_control_overlay();
+             if (row != nullptr && overlay.are_subjects_initialized()) {
+                 lv_subject_set_int(&overlay.tabs_fade_, lv_obj_get_scroll_right(row) > 0 ? 1 : 0);
+             }
+         }},
+        {"led_power_cb", [](lv_event_t*) { get_led_control_overlay().handle_power(); }},
+        {"led_brightness_changed_cb",
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_brightness(
+                 lv_slider_get_value(lv_event_get_target_obj(e)));
+         }},
+        {"led_level_cb",
+         [](lv_event_t* e) {
+             if (const int pct = helix::ui::event_user_int(e).value_or(-1); pct >= 0) {
+                 get_led_control_overlay().handle_brightness(pct);
+             }
+         }},
+        {"led_white_cb",
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_white(helix::ui::event_user_int(e).value_or(-1));
+         }},
+        {"led_swatch_cb",
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_swatch(helix::ui::event_user_int(e).value_or(-1));
+         }},
+        {"led_custom_color_cb",
+         [](lv_event_t*) { get_led_control_overlay().handle_custom_color(); }},
+        {"led_list_chip_cb",
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_list_chip(helix::ui::event_user_int(e).value_or(-1));
+         }},
+        {"led_effects_none_cb",
+         [](lv_event_t*) { get_led_control_overlay().handle_effects_none(); }},
+        {"led_macro_on_cb", [](lv_event_t*) { get_led_control_overlay().handle_macro_on(); }},
+        {"led_macro_off_cb", [](lv_event_t*) { get_led_control_overlay().handle_macro_off(); }},
+        {"led_macro_toggle_cb",
+         [](lv_event_t*) { get_led_control_overlay().handle_macro_toggle(); }},
     });
-    spdlog::trace("[{}] Callbacks registered", get_name());
 }
 
 void LedControlOverlay::request_focus(const std::string& device_id) {
@@ -232,11 +206,11 @@ void LedControlOverlay::on_root_deleted(lv_event_t* e) {
     // Resolved through the global, not user_data: a printer switch destroys the
     // overlay before freeing its tree, and the re-created overlay can be opened
     // on a new root before the old one is freed.
-    if (!g_led_control_overlay ||
-        g_led_control_overlay->overlay_root_ != lv_event_get_target_obj(e)) {
+    auto* overlay = helix::lazy_global_if_exists<LedControlOverlay>();
+    if (!overlay || overlay->overlay_root_ != lv_event_get_target_obj(e)) {
         return;
     }
-    g_led_control_overlay->overlay_root_ = nullptr;
+    overlay->overlay_root_ = nullptr;
 }
 
 // ============================================================================
@@ -763,99 +737,4 @@ void LedControlOverlay::apply_current_color() {
     double r = 0.0, g = 0.0, b = 0.0;
     unpack_rgb(current_color_, r, g, b);
     ctrl.native().set_color(focused_strip_, r * bf, g * bf, b * bf, current_white_ * bf);
-}
-
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void LedControlOverlay::on_tab_clicked_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] tab_clicked_cb");
-    get_led_control_overlay().handle_tab_clicked(user_data_int(e));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_tabs_scrolled_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] tabs_scrolled_cb");
-    auto* row = lv_event_get_current_target_obj(e);
-    auto& overlay = get_led_control_overlay();
-    if (row != nullptr && overlay.are_subjects_initialized()) {
-        lv_subject_set_int(&overlay.tabs_fade_, lv_obj_get_scroll_right(row) > 0 ? 1 : 0);
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_power_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] power_cb");
-    (void)e;
-    get_led_control_overlay().handle_power();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_brightness_changed_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] brightness_changed_cb");
-    auto* slider = lv_event_get_target_obj(e);
-    get_led_control_overlay().handle_brightness(lv_slider_get_value(slider));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_level_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] level_cb");
-    if (const int pct = user_data_int(e); pct >= 0) {
-        get_led_control_overlay().handle_brightness(pct);
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_white_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] white_cb");
-    get_led_control_overlay().handle_white(user_data_int(e));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_swatch_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] swatch_cb");
-    get_led_control_overlay().handle_swatch(user_data_int(e));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_custom_color_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] custom_color_cb");
-    (void)e;
-    get_led_control_overlay().handle_custom_color();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_list_chip_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] list_chip_cb");
-    get_led_control_overlay().handle_list_chip(user_data_int(e));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_effects_none_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] effects_none_cb");
-    (void)e;
-    get_led_control_overlay().handle_effects_none();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_macro_on_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] macro_on_cb");
-    (void)e;
-    get_led_control_overlay().handle_macro_on();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_macro_off_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] macro_off_cb");
-    (void)e;
-    get_led_control_overlay().handle_macro_off();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LedControlOverlay::on_macro_toggle_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LedControlOverlay] macro_toggle_cb");
-    (void)e;
-    get_led_control_overlay().handle_macro_toggle();
-    LVGL_SAFE_EVENT_CB_END();
 }
