@@ -23,6 +23,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lane_source_store.h"
 #include "panel_widget_manager.h"
+#include "rpc_error_correlation.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
 #include "standard_macros.h"
@@ -498,6 +499,11 @@ void HelixTestFixture::reset_all() {
     // dozens of tests in a fast suite. A record left by an error-routing test
     // would silence AmsErrorBridge's fallback toast in an unrelated later one.
     helix::fault_surface_correlation::clear_for_test();
+
+    // rpc_error_correlation records expire on wall clock too: a caller-handled
+    // message left by one test suppresses the same message's router toast in
+    // the next.
+    helix::rpc_error_correlation::clear_for_test();
 
     // PanelWidgetManager's panel_configs_ cache is a process-wide map keyed by
     // panel_id. Once a test calls get_widget_config("home") — directly or
