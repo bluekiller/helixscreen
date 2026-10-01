@@ -1936,14 +1936,20 @@ void MoonrakerDiscoverySequence::refresh_subscription() {
 
     json extras = current_extras();
     json objects = merge_subscription_objects(app, extras);
+    bool unchanged = false;
     {
         std::lock_guard<std::mutex> lock(subscription_mutex_);
         if (subscription_epoch_ != epoch)
             return;
         if (objects == last_sent_objects_) {
             refresh_in_flight_ = false;
-            return;
+            unchanged = true;
         }
+    }
+    if (unchanged) {
+        // A refresh asked for while the extras were sampled went pending behind this one.
+        drain_pending_refresh();
+        return;
     }
 
     if (!extras.empty()) {

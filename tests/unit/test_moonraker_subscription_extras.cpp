@@ -340,6 +340,39 @@ TEST_CASE("a refresh pending behind one in flight survives another drain",
     CHECK(client.subscribes[2] == helix::merge_subscription_objects(app, second));
 }
 
+TEST_CASE("a refresh asked for while extras are sampled is not stranded",
+          "[moonraker][subscription]") {
+    LVGLTestFixture fixture;
+    const json app = app_only_subscription();
+    const json plugin = {{"temperature_sensor spark", nullptr}};
+
+    RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
+    client.set_klippy_state(MoonrakerClientMock::KlippyState::READY);
+    bool armed = false;
+    bool fired = false;
+    json value = json::object();
+    client.set_subscription_extras_provider([&]() {
+        if (armed && !fired) {
+            fired = true;
+            // Test-only breach of the provider contract: stands in for a second thread
+            // calling refresh while the first one samples the extras.
+            client.refresh_subscription();
+            json sampled = value;
+            value = plugin;
+            return sampled;
+        }
+        return value;
+    });
+    REQUIRE(client.discover_real());
+    REQUIRE(client.subscribes.size() == 1);
+
+    armed = true;
+    client.refresh_subscription(); // samples {}, equal to what was last sent
+    REQUIRE(fired);
+    REQUIRE(client.subscribes.size() == 2);
+    CHECK(client.subscribes[1] == helix::merge_subscription_objects(app, plugin));
+}
+
 TEST_CASE("the refresh response reaches status callbacks", "[moonraker][subscription]") {
     LVGLTestFixture fixture;
     ProviderValue pv;
