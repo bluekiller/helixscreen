@@ -11,6 +11,8 @@
 #include "helix_version.h" // HELIX_VERSION for server.connection.identify
 #include "json_utils.h"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <utility>
 #include <vector>

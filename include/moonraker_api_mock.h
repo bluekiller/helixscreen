@@ -4,6 +4,7 @@
 #pragma once
 
 #include "moonraker_api.h"
+#include "moonraker_client.h"
 
 #include <functional>
 #include <map>

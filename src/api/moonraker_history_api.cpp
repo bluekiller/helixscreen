@@ -6,10 +6,10 @@
 #include "ui_format_utils.h"
 
 #include "display_settings_manager.h"
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "locale_formats.h"
 #include "moonraker_api_internal.h"
-#include "moonraker_client.h"
 #include "print_history_parse.h"
 
 #include <spdlog/spdlog.h>
@@ -199,7 +199,7 @@ void MoonrakerHistoryAPI::get_history_totals(HistoryTotalsCallback on_success,
 
     client_.send_jsonrpc(
         "server.history.totals", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             PrintHistoryTotals totals;
 
             if (response.contains("result") && response["result"].contains("job_totals") &&

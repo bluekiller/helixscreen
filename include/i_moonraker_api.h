@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "i_moonraker_client.h"   // for helix::ConnectionState, helix::SubscriptionId
 #include "i_moonraker_sub_apis.h" // sub-API interfaces returned by the accessors
 #include "json_fwd.h"
-#include "lvgl.h"             // lv_subject_t
-#include "moonraker_client.h" // for helix::ConnectionState, helix::SubscriptionId
+#include "lvgl.h" // lv_subject_t
 #include "moonraker_error.h"
 #include "moonraker_types.h" // SafetyLimits, PowerDevice, GcodeStoreEntry
 

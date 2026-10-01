@@ -7,6 +7,10 @@
 #include "wifi_backend_wpa_supplicant.h"
 #include "wifi_saved_config.h"
 
+#include <chrono>
+#include <future>
+#include <thread>
+
 #include "../catch_amalgamated.hpp"
 
 using helix::ConfigDirGuard;
@@ -94,8 +98,6 @@ class MinimalStubBackend : public WifiBackend {
     bool is_running() const override {
         return true;
     }
-    void register_event_callback(const std::string&,
-                                 std::function<void(const std::string&)>) override {}
     WiFiError trigger_scan() override {
         return WiFiErrorHelper::success();
     }
@@ -135,6 +137,46 @@ TEST_CASE("WifiBackend's base forget_network default is a failure, not a silent 
     // platform never had.
     CHECK_FALSE(result.success());
     CHECK(result.result == WiFiResult::NOT_SUPPORTED);
+}
+
+namespace {
+class DispatchingStubBackend : public MinimalStubBackend {
+  public:
+    using WifiBackend::dispatch_event;
+};
+} // namespace
+
+TEST_CASE("WifiBackend event handlers run outside the registry lock", "[wifi][events]") {
+    DispatchingStubBackend backend;
+    int late_calls = 0;
+    backend.register_event_callback("SCAN_COMPLETE", [&](const std::string&) {
+        // Re-entering the registry from a handler deadlocks if dispatch holds its lock.
+        backend.register_event_callback("CONNECTED", [&](const std::string&) { late_calls++; });
+    });
+
+    // Detached so a deadlock fails the test instead of hanging it.
+    std::promise<void> finished;
+    auto done = finished.get_future();
+    std::thread([&backend, p = std::move(finished)]() mutable {
+        backend.dispatch_event("SCAN_COMPLETE");
+        p.set_value();
+    }).detach();
+    REQUIRE(done.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+
+    backend.dispatch_event("CONNECTED");
+    CHECK(late_calls == 1);
+}
+
+TEST_CASE("WifiBackend keeps the first handler registered for an event", "[wifi][events]") {
+    DispatchingStubBackend backend;
+    int first = 0;
+    int second = 0;
+    backend.register_event_callback("CONNECTED", [&](const std::string&) { first++; });
+    backend.register_event_callback("CONNECTED", [&](const std::string&) { second++; });
+
+    backend.dispatch_event("CONNECTED");
+    CHECK(first == 1);
+    CHECK(second == 0);
 }
 
 TEST_CASE("forget_network on the mock backend removes a connected SSID", "[wifi][forget]") {
