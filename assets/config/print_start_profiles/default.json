@@ -41,16 +41,5 @@
       "message": "Heating Nozzle...",
       "weight": 15
     }
-  ],
-  "phase_weights": {
-    "HOMING": 10,
-    "HEATING_BED": 20,
-    "SOAKING": 20,
-    "HEATING_NOZZLE": 20,
-    "QGL": 15,
-    "Z_TILT": 15,
-    "BED_MESH": 10,
-    "CLEANING": 5,
-    "PURGING": 5
-  }
+  ]
 }

@@ -46,7 +46,8 @@
 #include "error_event.h"
 #include "gcode_error_router.h"
 #include "lvgl/lvgl.h"
-#include "moonraker_api.h" // concrete MoonrakerAPI/MoonrakerClient for upcast to interfaces
+#include "moonraker_api.h"    // concrete MoonrakerAPI for upcast to its interface
+#include "moonraker_client.h" // concrete MoonrakerClient for upcast to its interface
 #include "printer_state.h"
 #include "recovery_modal_presenter.h"
 

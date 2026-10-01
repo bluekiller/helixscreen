@@ -3,9 +3,9 @@
 
 #include "moonraker_job_api.h"
 
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "moonraker_api_internal.h"
-#include "moonraker_client.h"
 #include "moonraker_gcode_guards.h"
 #include "spdlog/spdlog.h"
 
@@ -95,7 +95,7 @@ void MoonrakerJobAPI::check_helix_plugin(BoolCallback on_result, ErrorCallback o
 
     client_.send_jsonrpc(
         "server.helix.status", json::object(),
-        [on_result](json response) {
+        [on_result](const json& response) {
             // Plugin is available
             bool enabled = true;
             std::string version = "unknown";
@@ -149,7 +149,7 @@ void MoonrakerJobAPI::start_modified_print(const std::string& original_filename,
 
     client_.send_jsonrpc(
         "server.helix.print_modified", params,
-        [on_success, original_filename](json response) {
+        [on_success, original_filename](const json& response) {
             ModifiedPrintResult result;
             if (response.contains("result")) {
                 const auto& r = response["result"];

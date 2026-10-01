@@ -20,6 +20,7 @@
 #include "ui_nav_manager.h"
 #include "ui_panel_motion.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
 #include "app_globals.h"
@@ -350,4 +351,18 @@ TEST_CASE_METHOD(MoveTabFixture, "a print or disabled nav gates the move grid",
     lv_obj_clear_state(preset, LV_STATE_DISABLED);
     click(preset);
     CHECK(all_scripts().empty());
+}
+
+TEST_CASE_METHOD(MoveTabFixture,
+                 "MotionPanel: a boot-time init_subjects() marks the panel initialized",
+                 "[motion][move-tab][init]") {
+    // SubjectInitializer initializes the panel before anything opens it; show()
+    // skips init_subjects() only when the panel reports itself initialized.
+    helix::ui::destroy_static_panels(); // the fixture's own panel is already initialized
+    auto& panel = get_global_motion_panel();
+    REQUIRE_FALSE(panel.are_subjects_initialized());
+
+    panel.init_subjects();
+
+    CHECK(panel.are_subjects_initialized());
 }

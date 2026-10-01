@@ -62,9 +62,6 @@ class WifiBackendNetworkManager : public WifiBackend {
     void stop() override;
     bool is_running() const override;
 
-    void register_event_callback(const std::string& name,
-                                 std::function<void(const std::string&)> callback) override;
-
     WiFiError trigger_scan() override;
     WiFiError get_scan_results(std::vector<WiFiNetwork>& networks) override;
     WiFiError connect_network(const std::string& ssid, const std::string& password,
@@ -83,10 +80,6 @@ class WifiBackendNetworkManager : public WifiBackend {
     std::atomic<bool> running_{false};
     std::mutex start_mutex_;     // Serializes start() against concurrent start_async()
     std::string wifi_interface_; ///< Detected WiFi interface (e.g., "wlan0")
-
-    // Event system (thread-safe)
-    std::mutex callbacks_mutex_;
-    std::map<std::string, std::function<void(const std::string&)>> callbacks_;
 
     // Async threads for scan/connect (same pattern as mock backend)
     std::thread scan_thread_;

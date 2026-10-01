@@ -67,7 +67,6 @@ enum class BeltMockFailure { // NAMESPACE_OK: sits beside MoonrakerClientMock, t
  * Useful for UI development and testing without physical hardware.
  *
  * Inherits from MoonrakerClient to provide drop-in replacement compatibility.
- * Overrides discover_printer() to populate test data without WebSocket connection.
  */
 class MoonrakerClientMock : public helix::MoonrakerClient {
   public:
@@ -326,14 +325,12 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
                 std::function<void()> on_disconnected) override;
 
     /**
-     * @brief Simulate printer hardware discovery
+     * @brief Run the real discovery sequence under discovery_mutex_
      *
-     * Overrides base class method to immediately populate hardware lists
-     * based on configured printer type and invoke completion callback.
-     * If Klippy state is not READY, invokes error callback instead.
-     *
-     * @param on_complete Callback invoked after discovery completes
-     * @param on_error Optional callback invoked if discovery fails
+     * Every RPC the sequence sends is answered synchronously by the method
+     * registry, so the whole sequence completes inside this call, rewriting
+     * discovery_'s name lists that the simulation thread reads under the lock.
+     * The callbacks run after the lock is released.
      */
     void
     discover_printer(std::function<void()> on_complete,
@@ -920,6 +917,11 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
 
     [[nodiscard]] bool is_mock_spoolman_enabled() const {
         return mock_spoolman_enabled_;
+    }
+
+    /// The webcams server.webcams.list answers with (HELIX_MOCK_WEBCAMS)
+    [[nodiscard]] const std::vector<WebcamInfo>& mock_webcams() const {
+        return mock_webcams_;
     }
 
     /// HELIX_MOCK_WEBCAMS: "Name[:service],Name[:service],..." -> the webcam
@@ -1963,14 +1965,15 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     // Protects the discovery_ name lists (heaters/fans/sensors/leds/filament_sensors)
     // against the temperature simulation thread.
     //
-    // connect() starts that thread, and discover_printer() then REASSIGNS those
+    // connect() starts that thread, and discovery then REASSIGNS those
     // vectors on the calling thread — `discovery_.fans() = {...}` frees every old
     // std::string buffer while the simulation loop is iterating them. ASan caught
     // this as two heap-use-after-frees (memcpy and memcmp on freed string data)
     // from FullStackTestFixture, whose constructor does exactly that sequence.
     //
     // Lock discipline, verified against the call graph — do not nest these:
-    //   LOCKED   populate_hardware(), populate_capabilities(),
+    //   LOCKED   discover_printer() (the whole synchronous real sequence),
+    //            populate_hardware(), populate_capabilities(),
     //            rebuild_hardware_from_lists(), the discovery-list setters below
     //            (assignment only), the simulation loop's per-iteration snapshot,
     //            and has_chamber_sensor() — the loop's third read path, which

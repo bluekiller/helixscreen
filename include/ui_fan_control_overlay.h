@@ -5,8 +5,10 @@
 #include "ui_fan_dial.h"
 #include "ui_observer_guard.h"
 
+#include "app_globals.h"
 #include "overlay_base.h"
 #include "printer_state.h"
+#include "static_panel_registry.h"
 #include "ui/animated_value.h"
 
 #include <memory>
@@ -45,26 +47,10 @@ class FanControlOverlay : public OverlayBase {
     // === OverlayBase Implementation ===
     //
 
-    /**
-     * @brief Initialize subjects for XML binding
-     *
-     * No local subjects needed - we use PrinterState's fans_version subject.
-     */
-    void init_subjects() override;
-
-    /**
-     * @brief Create overlay UI from XML
-     * @param parent Parent widget to attach overlay to (usually screen)
-     * @return Root object of overlay, or nullptr on failure
-     */
+    const char* xml_component() const override {
+        return "fan_control_overlay";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
-
-    /**
-     * @brief Register XML event callbacks
-     *
-     * Registers back button callback.
-     */
-    void register_callbacks() override;
 
     /**
      * @brief Get human-readable overlay name
@@ -206,12 +192,10 @@ class FanControlOverlay : public OverlayBase {
     void refresh_all_auto_fan_animations();
 };
 
-/**
- * @brief Get global FanControlOverlay instance
- * @return Reference to singleton instance
- * @throws std::runtime_error if not initialized
- */
-FanControlOverlay& get_fan_control_overlay();
+/// Lazy singleton bound to the global PrinterState.
+inline FanControlOverlay& get_fan_control_overlay() {
+    return helix::lazy_global<FanControlOverlay>("FanControlOverlay", get_printer_state());
+}
 
 namespace helix {
 /**
@@ -224,9 +208,3 @@ namespace helix {
  */
 lv_obj_t* open_fan_control_overlay(lv_obj_t* parent_screen);
 } // namespace helix
-
-/**
- * @brief Initialize global FanControlOverlay instance
- * @param printer_state Reference to global helix::PrinterState
- */
-void init_fan_control_overlay(helix::PrinterState& printer_state);

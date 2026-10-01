@@ -620,21 +620,6 @@ void WifiBackendWpaSupplicant::stop() {
     spdlog::debug("[WifiBackend] WiFi backend disabled");
 }
 
-void WifiBackendWpaSupplicant::register_event_callback(
-    const std::string& name, std::function<void(const std::string&)> callback) {
-    // THREAD SAFETY: Lock callbacks map during access
-    std::lock_guard<std::mutex> lock(callbacks_mutex_);
-
-    const auto& entry = callbacks.find(name);
-    if (entry == callbacks.end()) {
-        callbacks.insert({name, callback});
-        spdlog::debug("[WifiBackend] Registered callback '{}'", name);
-    } else {
-        // Callback already exists - could replace it, but parent doesn't
-        LOG_WARN_INTERNAL("Callback '{}' already registered (not replacing)", name);
-    }
-}
-
 // ============================================================================
 // System Validation and Permission Checking
 // ============================================================================
@@ -1222,28 +1207,7 @@ void WifiBackendWpaSupplicant::handle_wpa_events(void* data, int len) {
         resolve_scan();
     }
 
-    // THREAD SAFETY: Copy callback out under the mutex, then release BEFORE
-    // invoking. Holding callbacks_mutex_ across the callback invites deadlock
-    // if a handler acquires another backend lock or re-enters the backend.
-    std::function<void(const std::string&)> cb;
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = callbacks.find(callback_name);
-        if (it == callbacks.end()) {
-            spdlog::trace("[WifiBackend] No callback registered for event type: {}", callback_name);
-            return;
-        }
-        cb = it->second;
-    }
-
-    spdlog::debug("[WifiBackend] Dispatching {} event to callback", callback_name);
-    try {
-        cb(event);
-    } catch (const std::exception& e) {
-        LOG_ERROR_INTERNAL("Exception in callback '{}': {}", callback_name, e.what());
-    } catch (...) {
-        LOG_ERROR_INTERNAL("Unknown exception in callback '{}'", callback_name);
-    }
+    dispatch_event(callback_name, event);
 }
 
 void WifiBackendWpaSupplicant::_handle_wpa_events(hio_t* io, void* data, int readbyte) {
@@ -1253,31 +1217,6 @@ void WifiBackendWpaSupplicant::_handle_wpa_events(hio_t* io, void* data, int rea
         instance->handle_wpa_events(data, readbyte);
     } else {
         LOG_ERROR_INTERNAL("Static callback invoked with NULL context");
-    }
-}
-
-void WifiBackendWpaSupplicant::dispatch_event(const std::string& event_name,
-                                              const std::string& message) {
-    // Dispatch to a specific registered callback (for synthetic events like INIT_FAILED).
-    // Copy the callback out under the mutex, then release BEFORE invoking — same
-    // deadlock-avoidance rationale as handle_wpa_events().
-    std::function<void(const std::string&)> cb;
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = callbacks.find(event_name);
-        if (it == callbacks.end()) {
-            return;
-        }
-        cb = it->second;
-    }
-
-    spdlog::debug("[WifiBackend] Dispatching synthetic event '{}': {}", event_name, message);
-    try {
-        cb(message);
-    } catch (const std::exception& e) {
-        LOG_ERROR_INTERNAL("Exception in callback '{}': {}", event_name, e.what());
-    } catch (...) {
-        LOG_ERROR_INTERNAL("Unknown exception in callback '{}'", event_name);
     }
 }
 

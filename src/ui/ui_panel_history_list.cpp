@@ -20,14 +20,15 @@
 #include "display_settings_manager.h"
 #include "format_utils.h"
 #include "i_moonraker_api.h"
+#include "i_moonraker_client.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "moonraker_client.h"
 #include "observer_factory.h"
 #include "print_history_manager.h"
 #include "printer_state.h"
 #include "static_panel_registry.h"
 #include "thumbnail_cache.h"
 #include "ui/ui_cleanup_helpers.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -38,24 +39,10 @@
 #include <map>
 
 using namespace helix;
+using helix::ui::find_required;
 
 // MDI chevron-down symbol for dropdown arrows (replaces FontAwesome LV_SYMBOL_DOWN)
 static const char* MDI_CHEVRON_DOWN = "\xF3\xB0\x85\x80"; // F0140
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-static std::unique_ptr<HistoryListPanel> g_history_list_panel;
-
-HistoryListPanel& get_global_history_list_panel() {
-    if (!g_history_list_panel) {
-        g_history_list_panel = std::make_unique<HistoryListPanel>();
-        StaticPanelRegistry::instance().register_destroy("HistoryListPanel",
-                                                         []() { g_history_list_panel.reset(); });
-    }
-    return *g_history_list_panel;
-}
 
 // ============================================================================
 // Constructor
@@ -63,9 +50,7 @@ HistoryListPanel& get_global_history_list_panel() {
 
 HistoryListPanel::HistoryListPanel()
     : history_manager_(get_print_history_manager()),
-      search_debounce_([this](const std::string&) { do_debounced_search(); }) {
-    spdlog::trace("[{}] Constructor", get_name());
-}
+      search_debounce_([this](const std::string&) { do_debounced_search(); }) {}
 
 // Destructor - remove observer from history manager
 HistoryListPanel::~HistoryListPanel() {
@@ -75,10 +60,6 @@ HistoryListPanel::~HistoryListPanel() {
         mgr->remove_observer(&history_observer_);
         history_observer_ = nullptr;
     }
-    // Guard against static destruction order fiasco (spdlog may be gone)
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[HistoryListPanel] Destroyed");
-    }
 }
 
 // ============================================================================
@@ -86,13 +67,6 @@ HistoryListPanel::~HistoryListPanel() {
 // ============================================================================
 
 void HistoryListPanel::init_subjects() {
-    if (subjects_initialized_) {
-        spdlog::debug("[{}] Subjects already initialized", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Initializing subjects", get_name());
-
     // Initialize subject for panel state binding (0=LOADING, 1=EMPTY, 2=HAS_JOBS)
     UI_MANAGED_SUBJECT_INT(subject_panel_state_, 0, "history_list_panel_state", subjects_);
 
@@ -111,9 +85,6 @@ void HistoryListPanel::init_subjects() {
 
     // Initialize detail overlay subjects
     init_detail_subjects();
-
-    subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized", get_name());
 }
 
 void HistoryListPanel::deinit_subjects() {
@@ -133,14 +104,6 @@ void HistoryListPanel::deinit_subjects() {
 // ============================================================================
 
 void HistoryListPanel::register_callbacks() {
-    if (callbacks_registered_) {
-        spdlog::debug("[{}] Callbacks already registered", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Registering event callbacks", get_name());
-
-    // Register XML event callbacks for search, filter, sort, and detail overlay
     register_xml_callbacks({
         {"history_search_changed",
          [](lv_event_t* /*e*/) { get_global_history_list_panel().on_search_changed(); }},
@@ -148,19 +111,11 @@ void HistoryListPanel::register_callbacks() {
          [](lv_event_t* /*e*/) { get_global_history_list_panel().on_search_clear(); }},
         {"history_filter_status_changed",
          [](lv_event_t* e) {
-             lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-             if (dropdown) {
-                 int index = lv_dropdown_get_selected(dropdown);
-                 get_global_history_list_panel().on_status_filter_changed(index);
-             }
+             get_global_history_list_panel().on_status_filter_changed(helix::ui::event_selected(e));
          }},
         {"history_sort_changed",
          [](lv_event_t* e) {
-             lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-             if (dropdown) {
-                 int index = lv_dropdown_get_selected(dropdown);
-                 get_global_history_list_panel().on_sort_changed(index);
-             }
+             get_global_history_list_panel().on_sort_changed(helix::ui::event_selected(e));
          }},
         {"history_filters_toggle",
          [](lv_event_t* /*e*/) { get_global_history_list_panel().toggle_filters(); }},
@@ -171,9 +126,6 @@ void HistoryListPanel::register_callbacks() {
         {"history_detail_view_timelapse",
          [](lv_event_t* /*e*/) { get_global_history_list_panel().handle_view_timelapse(); }},
     });
-
-    callbacks_registered_ = true;
-    spdlog::debug("[{}] Event callbacks registered", get_name());
 }
 
 // ============================================================================
@@ -181,35 +133,19 @@ void HistoryListPanel::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* HistoryListPanel::create(lv_obj_t* parent) {
-    if (!parent) {
-        spdlog::error("[{}] Cannot create: null parent", get_name());
-        return nullptr;
-    }
-
-    spdlog::debug("[{}] Creating overlay from XML", get_name());
-
-    parent_screen_ = parent;
-
-    // Reset cleanup flag when (re)creating
-    cleanup_called_ = false;
-
-    // Create overlay from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "history_list_panel", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
     // Get widget references - list containers
-    list_content_ = lv_obj_find_by_name(overlay_root_, "list_content");
-    list_rows_ = lv_obj_find_by_name(overlay_root_, "list_rows");
-    empty_state_ = lv_obj_find_by_name(overlay_root_, "empty_state");
+    list_content_ = find_required(overlay_root_, "overlay_content", get_name());
+    list_rows_ = find_required(overlay_root_, "list_rows", get_name());
+    empty_state_ = find_required(overlay_root_, "empty_state", get_name());
 
     // Get widget references - filter controls
-    search_box_ = lv_obj_find_by_name(overlay_root_, "search_box");
-    filter_status_ = lv_obj_find_by_name(overlay_root_, "filter_status");
-    sort_dropdown_ = lv_obj_find_by_name(overlay_root_, "sort_dropdown");
+    search_box_ = find_required(overlay_root_, "search_box", get_name());
+    filter_status_ = find_required(overlay_root_, "filter_status", get_name());
+    sort_dropdown_ = find_required(overlay_root_, "sort_dropdown", get_name());
 
     // Seed the funnel accent state (the XML bind_style rules react to the subject).
     refresh_filter_indicator();
@@ -255,10 +191,6 @@ lv_obj_t* HistoryListPanel::create(lv_obj_t* parent) {
         },
         get_printer_state().get_subjects_lifetime());
 
-    // Initially hidden
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created successfully", get_name());
     return overlay_root_;
 }
 

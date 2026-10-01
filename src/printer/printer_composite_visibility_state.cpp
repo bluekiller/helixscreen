@@ -49,14 +49,14 @@ void PrinterCompositeVisibilityState::update_visibility(
     //                          || timelapse capability (no plugin gate)
     //                          || framework_option_count > 0
     const bool any_plugin_gated_cap =
-        lv_subject_get_int(capabilities.get_printer_has_bed_mesh_subject()) ||
-        lv_subject_get_int(capabilities.get_printer_has_qgl_subject()) ||
-        lv_subject_get_int(capabilities.get_printer_has_z_tilt_subject()) ||
-        lv_subject_get_int(capabilities.get_printer_has_nozzle_clean_subject()) ||
-        lv_subject_get_int(capabilities.get_printer_has_purge_line_subject());
+        lv_subject_get_int(capabilities.subject(Capability::HasBedMesh)) ||
+        lv_subject_get_int(capabilities.subject(Capability::HasQgl)) ||
+        lv_subject_get_int(capabilities.subject(Capability::HasZTilt)) ||
+        lv_subject_get_int(capabilities.subject(Capability::HasNozzleClean)) ||
+        lv_subject_get_int(capabilities.subject(Capability::HasPurgeLine));
 
     const bool any_visible = (plugin_installed && any_plugin_gated_cap) ||
-                             lv_subject_get_int(capabilities.get_printer_has_timelapse_subject()) ||
+                             lv_subject_get_int(capabilities.subject(Capability::HasTimelapse)) ||
                              framework_option_count > 0;
 
     const int new_any = any_visible ? 1 : 0;

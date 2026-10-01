@@ -7,7 +7,6 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <map>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -60,9 +59,6 @@ class WifiBackendMock : public WifiBackend {
     void start_async() override;
     void stop() override;
     bool is_running() const override;
-
-    void register_event_callback(const std::string& name,
-                                 std::function<void(const std::string&)> callback) override;
 
     WiFiError trigger_scan() override;
     WiFiError get_scan_results(std::vector<WiFiNetwork>& networks) override;
@@ -137,9 +133,6 @@ class WifiBackendMock : public WifiBackend {
     bool join_displaces_wired_link_{false};
     std::optional<helix::wifi::WifiInterface> resolved_interface_;
 
-    // Event system
-    std::map<std::string, std::function<void(const std::string&)>> callbacks_;
-
     // Async timers for scan/connect simulation (std::thread based - no LVGL dependency)
     std::thread scan_thread_;
     std::thread connect_thread_;
@@ -164,7 +157,6 @@ class WifiBackendMock : public WifiBackend {
 
     void init_mock_networks();
     void vary_signal_strengths(); // Add realism with signal variations
-    void fire_event(const std::string& event_name, const std::string& data = "");
 
     // Thread functions for async scan/connect simulation
     void scan_thread_func();
