@@ -1,135 +1,73 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-/**
- * @file ui_settings_sound.cpp
- * @brief Implementation of SoundSettingsOverlay
- */
-
 #include "ui_settings_sound.h"
 
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
 #include "ui_sound_preview_overlay.h"
 
 #include "alsa_device_enum.h"
 #include "audio_settings_manager.h"
 #include "format_utils.h"
 #include "sound_manager.h"
-#include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
-#include <memory>
 #include <string>
 
 namespace helix::settings {
 
-// ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
+using helix::ui::event_checked;
+using helix::ui::event_selected;
+using helix::ui::find_required;
 
-static std::unique_ptr<SoundSettingsOverlay> g_sound_settings_overlay;
+namespace {
 
-SoundSettingsOverlay& get_sound_settings_overlay() {
-    if (!g_sound_settings_overlay) {
-        g_sound_settings_overlay = std::make_unique<SoundSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "SoundSettingsOverlay", []() { g_sound_settings_overlay.reset(); });
-    }
-    return *g_sound_settings_overlay;
+void on_volume_released(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_volume_released");
+    SoundManager::instance().play_test_beep();
+    LVGL_SAFE_EVENT_CB_END();
 }
 
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-SoundSettingsOverlay::SoundSettingsOverlay() {
-    spdlog::debug("[{}] Created", get_name());
+int event_slider_value(lv_event_t* e) {
+    return lv_slider_get_value(lv_event_get_current_target_obj(e));
 }
 
-SoundSettingsOverlay::~SoundSettingsOverlay() {
-    spdlog::trace("[{}] Destroyed", get_name());
-}
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
-
-void SoundSettingsOverlay::init_subjects() {
-    // Every bound subject is owned by a settings manager and registered globally
-    // at startup.
-    subjects_initialized_ = true;
-}
+} // namespace
 
 void SoundSettingsOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_sounds_changed", on_sounds_changed},
-        {"on_volume_changed", on_volume_changed},
-        {"on_volume_commit", on_volume_commit},
-        {"on_ui_sounds_changed", on_ui_sounds_changed},
-        {"on_sound_theme_changed", on_sound_theme_changed},
-        {"on_audio_device_changed", on_audio_device_changed},
-        {"on_preview_sounds", on_preview_sounds},
-        {"on_test_tracker", on_test_tracker},
+        {"on_sounds_changed",
+         [](lv_event_t* e) {
+             get_sound_settings_overlay().handle_sounds_changed(event_checked(e));
+         }},
+        {"on_volume_changed",
+         [](lv_event_t* e) {
+             get_sound_settings_overlay().handle_volume_changed(event_slider_value(e));
+         }},
+        {"on_volume_commit",
+         [](lv_event_t* e) { AudioSettingsManager::instance().set_volume(event_slider_value(e)); }},
+        {"on_ui_sounds_changed",
+         [](lv_event_t* e) {
+             AudioSettingsManager::instance().set_ui_sounds_enabled(event_checked(e));
+         }},
+        {"on_sound_theme_changed",
+         [](lv_event_t* e) {
+             get_sound_settings_overlay().handle_sound_theme_changed(event_selected(e));
+         }},
+        {"on_audio_device_changed",
+         [](lv_event_t* e) {
+             get_sound_settings_overlay().handle_audio_device_changed(event_selected(e));
+         }},
+        {"on_preview_sounds",
+         [](lv_event_t*) { get_sound_settings_overlay().handle_preview_sounds(); }},
+        {"on_test_tracker",
+         [](lv_event_t*) { get_sound_settings_overlay().handle_test_tracker(); }},
     });
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
 }
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* SoundSettingsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "settings_sound_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
-
-void SoundSettingsOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-    NavigationManager::instance().push_overlay(overlay_root_);
-}
-
-// ============================================================================
-// LIFECYCLE
-// ============================================================================
 
 void SoundSettingsOverlay::on_activate() {
     OverlayBase::on_activate();
@@ -140,11 +78,8 @@ void SoundSettingsOverlay::on_activate() {
     init_audio_device_dropdown();
 
 #ifndef HELIX_HAS_TRACKER
-    if (overlay_root_) {
-        lv_obj_t* container = lv_obj_find_by_name(overlay_root_, "container_test_tracker");
-        if (container) {
-            lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
-        }
+    if (lv_obj_t* container = find_required(overlay_root_, "container_test_tracker", get_name())) {
+        lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
     }
 #endif
 }
@@ -154,101 +89,67 @@ void SoundSettingsOverlay::on_activate() {
 // ============================================================================
 
 void SoundSettingsOverlay::init_sounds_toggle() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* sounds_row = lv_obj_find_by_name(overlay_root_, "row_sounds");
-    if (sounds_row) {
-        lv_obj_t* toggle = lv_obj_find_by_name(sounds_row, "toggle");
-        if (toggle) {
-            if (AudioSettingsManager::instance().get_sounds_enabled()) {
-                lv_obj_add_state(toggle, LV_STATE_CHECKED);
-            } else {
-                lv_obj_remove_state(toggle, LV_STATE_CHECKED);
-            }
-            spdlog::trace("[{}] Sounds toggle initialized", get_name());
+    lv_obj_t* row = find_required(overlay_root_, "row_sounds", get_name());
+    if (lv_obj_t* toggle = find_required(row, "toggle", get_name())) {
+        if (AudioSettingsManager::instance().get_sounds_enabled()) {
+            lv_obj_add_state(toggle, LV_STATE_CHECKED);
+        } else {
+            lv_obj_remove_state(toggle, LV_STATE_CHECKED);
         }
     }
 }
 
 void SoundSettingsOverlay::init_volume_slider() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* volume_row = lv_obj_find_by_name(overlay_root_, "row_volume");
-    if (!volume_row)
-        return;
-
-    lv_obj_t* slider = lv_obj_find_by_name(volume_row, "slider");
-    if (slider) {
+    lv_obj_t* row = find_required(overlay_root_, "row_volume", get_name());
+    if (lv_obj_t* slider = find_required(row, "slider", get_name())) {
         int volume = AudioSettingsManager::instance().get_volume();
         lv_slider_set_value(slider, volume, LV_ANIM_OFF);
-
         helix::format::format_percent(volume, volume_value_buf_, sizeof(volume_value_buf_));
-
         lv_obj_add_event_cb(slider, on_volume_released, LV_EVENT_RELEASED, nullptr);
-
-        spdlog::debug("[{}] Volume slider initialized to {}%", get_name(), volume);
     }
-
-    lv_obj_t* value_label = lv_obj_find_by_name(volume_row, "value_label");
-    if (value_label) {
-        lv_label_set_text(value_label, volume_value_buf_);
+    if (lv_obj_t* label = find_required(row, "value_label", get_name())) {
+        lv_label_set_text(label, volume_value_buf_);
     }
 }
 
 void SoundSettingsOverlay::init_sound_theme_dropdown() {
-    if (!overlay_root_)
+    lv_obj_t* row = find_required(overlay_root_, "row_sound_theme", get_name());
+    lv_obj_t* dropdown = find_required(row, "dropdown", get_name());
+    if (!dropdown) {
         return;
+    }
+    auto themes = SoundManager::instance().get_available_themes();
+    std::string current_theme = AudioSettingsManager::instance().get_sound_theme();
 
-    lv_obj_t* theme_row = lv_obj_find_by_name(overlay_root_, "row_sound_theme");
-    if (!theme_row)
-        return;
-
-    lv_obj_t* dropdown = lv_obj_find_by_name(theme_row, "dropdown");
-    if (dropdown) {
-        auto& settings = AudioSettingsManager::instance();
-        auto themes = SoundManager::instance().get_available_themes();
-        std::string current_theme = settings.get_sound_theme();
-
-        std::string options;
-        int selected_index = 0;
-        for (int i = 0; i < static_cast<int>(themes.size()); i++) {
-            if (i > 0)
-                options += "\n";
-            options += themes[i];
-            if (themes[i] == current_theme) {
-                selected_index = i;
-            }
+    std::string options;
+    int selected_index = 0;
+    for (int i = 0; i < static_cast<int>(themes.size()); i++) {
+        if (i > 0)
+            options += "\n";
+        options += themes[i];
+        if (themes[i] == current_theme) {
+            selected_index = i;
         }
+    }
 
-        if (!options.empty()) {
-            lv_dropdown_set_options(dropdown, options.c_str());
-            lv_dropdown_set_selected(dropdown, static_cast<uint32_t>(selected_index));
-        }
-        spdlog::trace("[{}] Sound theme dropdown ({} themes, current={})", get_name(),
-                      themes.size(), current_theme);
+    if (!options.empty()) {
+        lv_dropdown_set_options(dropdown, options.c_str());
+        lv_dropdown_set_selected(dropdown, static_cast<uint32_t>(selected_index));
     }
 }
 
 void SoundSettingsOverlay::init_audio_device_dropdown() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* container = lv_obj_find_by_name(overlay_root_, "container_audio_device");
-    if (!container)
-        return;
-
     // Visibility is driven declaratively by the compound cond on
     // container_audio_device (sounds_enabled OR audio_device_available). On
     // non-ALSA backends the row is hidden by the binding, so there is nothing
-    // to populate — just return.
+    // to populate.
     if (!SoundManager::instance().has_alsa_backend()) {
         return;
     }
 
-    lv_obj_t* row = lv_obj_find_by_name(container, "row_audio_device");
-    lv_obj_t* dropdown = row ? lv_obj_find_by_name(row, "dropdown") : nullptr;
+    lv_obj_t* container = find_required(overlay_root_, "container_audio_device", get_name());
+    lv_obj_t* row = find_required(container, "row_audio_device", get_name());
+    lv_obj_t* dropdown = find_required(row, "dropdown", get_name());
     if (!dropdown)
         return;
 
@@ -299,39 +200,21 @@ void SoundSettingsOverlay::handle_audio_device_changed(int index) {
 }
 
 void SoundSettingsOverlay::handle_sounds_changed(bool enabled) {
-    spdlog::info("[{}] Sounds toggled: {}", get_name(), enabled ? "ON" : "OFF");
     AudioSettingsManager::instance().set_sounds_enabled(enabled);
-
     if (enabled) {
         SoundManager::instance().play_test_beep();
     }
 }
 
-void SoundSettingsOverlay::handle_volume_commit(int value) {
-    spdlog::info("[{}] Volume committed: {}%", get_name(), value);
-    AudioSettingsManager::instance().set_volume(value);
-}
-
 void SoundSettingsOverlay::handle_volume_changed(int value) {
-    // Per drag tick: subject + readout only. handle_volume_commit() persists.
+    // Per drag tick: subject + readout only. The commit callback persists.
     AudioSettingsManager::instance().preview_volume(value);
-
     helix::format::format_percent(value, volume_value_buf_, sizeof(volume_value_buf_));
 
-    if (overlay_root_) {
-        lv_obj_t* volume_row = lv_obj_find_by_name(overlay_root_, "row_volume");
-        if (volume_row) {
-            lv_obj_t* value_label = lv_obj_find_by_name(volume_row, "value_label");
-            if (value_label) {
-                lv_label_set_text(value_label, volume_value_buf_);
-            }
-        }
+    lv_obj_t* row = find_required(overlay_root_, "row_volume", get_name());
+    if (lv_obj_t* label = find_required(row, "value_label", get_name())) {
+        lv_label_set_text(label, volume_value_buf_);
     }
-}
-
-void SoundSettingsOverlay::handle_ui_sounds_changed(bool enabled) {
-    spdlog::info("[{}] UI Sounds toggled: {}", get_name(), enabled ? "ON" : "OFF");
-    AudioSettingsManager::instance().set_ui_sounds_enabled(enabled);
 }
 
 void SoundSettingsOverlay::handle_sound_theme_changed(int index) {
@@ -349,7 +232,6 @@ void SoundSettingsOverlay::handle_sound_theme_changed(int index) {
 }
 
 void SoundSettingsOverlay::handle_preview_sounds() {
-    spdlog::info("[{}] Opening sound preview", get_name());
     get_sound_preview_overlay().show(parent_screen_);
 }
 
@@ -366,76 +248,6 @@ void SoundSettingsOverlay::handle_test_tracker() {
 #else
     spdlog::warn("[{}] Tracker playback not available (HELIX_HAS_TRACKER not defined)", get_name());
 #endif
-}
-
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void SoundSettingsOverlay::on_audio_device_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_audio_device_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_sound_settings_overlay().handle_audio_device_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_sounds_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_sounds_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_sound_settings_overlay().handle_sounds_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_volume_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_volume_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = lv_slider_get_value(slider);
-    get_sound_settings_overlay().handle_volume_changed(value);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_volume_commit(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_volume_commit");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = lv_slider_get_value(slider);
-    get_sound_settings_overlay().handle_volume_commit(value);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_volume_released(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_volume_released");
-    SoundManager::instance().play_test_beep();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_ui_sounds_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_ui_sounds_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_sound_settings_overlay().handle_ui_sounds_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_sound_theme_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_sound_theme_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_sound_settings_overlay().handle_sound_theme_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_preview_sounds(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_preview_sounds");
-    get_sound_settings_overlay().handle_preview_sounds();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SoundSettingsOverlay::on_test_tracker(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SoundSettingsOverlay] on_test_tracker");
-    get_sound_settings_overlay().handle_test_tracker();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::settings

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "text_io.h"
+
 #include <algorithm>
 #include <cctype>
 #include <optional>
@@ -395,22 +397,6 @@ inline std::vector<std::string> get_all_perform_variations(OperationCategory cat
 // ============================================================================
 
 /**
- * @brief Convert string to uppercase
- */
-inline std::string to_upper(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), ::toupper);
-    return s;
-}
-
-/**
- * @brief Convert string to lowercase
- */
-inline std::string to_lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    return s;
-}
-
-/**
  * @brief Case-insensitive substring search (pure ASCII).
  *
  * Folds only A-Z/a-z, so it is locale-independent and leaves every other byte
@@ -459,7 +445,7 @@ inline bool contains_ci(std::string_view haystack, std::string_view needle) {
  * @brief Case-insensitive string equality
  */
 inline bool equals_ci(std::string_view a, std::string_view b) {
-    return to_upper(std::string(a)) == to_upper(std::string(b));
+    return helix::text_io::to_upper(a) == helix::text_io::to_upper(b);
 }
 
 /**
@@ -477,10 +463,10 @@ inline bool equals_ci(std::string_view a, std::string_view b) {
  */
 inline const OperationKeyword* find_keyword(const std::string& pattern) {
     // Always uppercase for case-insensitive comparison
-    std::string pat = to_upper(pattern);
+    std::string pat = helix::text_io::to_upper(pattern);
 
     for (size_t i = 0; i < OPERATION_KEYWORDS_COUNT; ++i) {
-        std::string keyword = to_upper(OPERATION_KEYWORDS[i].keyword);
+        std::string keyword = helix::text_io::to_upper(OPERATION_KEYWORDS[i].keyword);
 
         if (OPERATION_KEYWORDS[i].exact_match) {
             // G-codes: exact match only (avoid G28 matching inside FOO_G28_BAR)

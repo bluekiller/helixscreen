@@ -5,8 +5,8 @@
  * @file ui_callback_helpers.h
  * @brief Helpers to reduce boilerplate in panel/overlay callback registration
  *
- * For widget lookup by name, use the FIND_WIDGET / FIND_WIDGET_REQUIRED /
- * FIND_WIDGET_OPTIONAL macros in include/ui/ui_widget_helpers.h.
+ * For widget lookup by name, use helix::ui::find_required() / find_optional()
+ * in include/ui/ui_widget_helpers.h.
  *
  * @pattern Batch registration replaces repetitive lv_xml_register_event_cb() calls
  * @threading Main thread only
@@ -15,20 +15,59 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "ui/ui_event_trampoline.h"
 
 #include <spdlog/spdlog.h>
 
 #include <initializer_list>
+#include <optional>
+#include <type_traits>
+
+namespace helix::ui {
+
+/// Checked state of the widget the event is dispatched to (a toggle's value).
+inline bool event_checked(lv_event_t* e) {
+    return lv_obj_has_state(lv_event_get_current_target_obj(e), LV_STATE_CHECKED);
+}
+
+/// Selected index of the dropdown the event is dispatched to.
+inline int event_selected(lv_event_t* e) {
+    return static_cast<int>(lv_dropdown_get_selected(lv_event_get_current_target_obj(e)));
+}
+
+} // namespace helix::ui
 
 /**
  * @brief Entry for batch XML event callback registration
  *
- * Pairs a callback name (matching XML event_cb attribute) with
- * its C++ function pointer.
+ * Pairs a callback name (matching XML event_cb attribute) with either a
+ * function pointer or a captureless lambda. A lambda runs inside the exception
+ * guard, which logs the callback's name; per-instance state arrives through
+ * lv_event_get_user_data(), since the lambda cannot capture.
  */
 struct XmlCallbackEntry {
     const char* name;
     lv_event_cb_t callback;
+
+    XmlCallbackEntry(const char* n, lv_event_cb_t cb) : name(n), callback(cb) {}
+
+    template <typename F, typename = std::enable_if_t<std::is_class_v<F>>>
+    XmlCallbackEntry(const char* n, F f) : name(n), callback(guarded<F>(n, f)) {}
+
+  private:
+    // Every lambda expression is its own type, so these statics are per entry.
+    // C++17 cannot default-construct a lambda, hence the optional.
+    template <typename F> static lv_event_cb_t guarded(const char* n, F f) {
+        static_assert(std::is_empty_v<F>, "XML callbacks cannot capture; use user_data");
+        static const char* s_name;
+        static std::optional<F> s_fn;
+        s_name = n;
+        s_fn.emplace(f);
+        return [](lv_event_t* e) {
+            HELIX_TRAMPOLINE_GUARD_BEGIN (*s_fn)(e);
+            HELIX_TRAMPOLINE_GUARD_END_NAMED(s_name)
+        };
+    }
 };
 
 /**

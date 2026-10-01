@@ -16,6 +16,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cctype>
 
 #ifdef __APPLE__
@@ -127,23 +128,21 @@ int get_macos_cpu_cores() {
 // ============================================================================
 
 uint64_t parse_meminfo_kb(const std::string& content, const std::string& key) {
-    if (content.empty() || key.empty()) {
+    if (key.empty()) {
         return 0;
     }
-
     // Format: "MemTotal:        3884136 kB"
-    helix::Regex field_regex(key + R"(:\s+(\d+)\s+kB)");
-    helix::RegexMatch match;
-
-    if (helix::regex_search(content, match, field_regex) && match.size() > 1) {
-        const auto kb = helix::text_io::parse_leading<unsigned long long>(match[1].str());
-        if (!kb) {
-            spdlog::warn("Failed to parse {} value: out of range", key);
-            return 0;
+    const std::string prefix = key + ":";
+    for (size_t pos = 0; pos < content.size();) {
+        const size_t eol = std::min(content.find('\n', pos), content.size());
+        if (content.compare(pos, prefix.size(), prefix) == 0) {
+            return helix::text_io::parse_leading<unsigned long long>(
+                       std::string_view(content).substr(pos + prefix.size(),
+                                                        eol - pos - prefix.size()))
+                .value_or(0);
         }
-        return *kb;
+        pos = eol + 1;
     }
-
     return 0;
 }
 

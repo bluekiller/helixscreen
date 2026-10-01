@@ -23,6 +23,7 @@
 #include "moonraker_api.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
+#include "system/sha256_util.h"
 #include "system/telemetry_manager.h"
 
 #include <algorithm>
@@ -239,6 +240,20 @@ TEST_CASE("hash_device_id: different UUIDs produce different output", "[telemetr
     auto hash2 = TelemetryManager::hash_device_id("11111111-2222-4333-8444-555555555555", salt);
 
     REQUIRE(hash1 != hash2);
+}
+
+TEST_CASE("sha256_hex matches the FIPS 180-4 test vectors", "[telemetry][hash]") {
+    REQUIRE(helix::sha256_hex("") ==
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    REQUIRE(helix::sha256_hex("abc") ==
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    REQUIRE(helix::sha256_hex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq") ==
+            "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
+}
+
+TEST_CASE("hash_device_id: known value, so stored device ids stay stable", "[telemetry][hash]") {
+    REQUIRE(TelemetryManager::hash_device_id("550e8400-e29b-41d4-a716-446655440000", "test-salt") ==
+            "21fffeed629d1a1d7ff8bfcf6af51553abfc0ed61b5351a1f2aaa9ef513380b1");
 }
 
 TEST_CASE("hash_device_id: output is 64 hex characters (SHA-256)", "[telemetry][hash]") {

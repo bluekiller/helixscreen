@@ -5,7 +5,6 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_color_picker.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
@@ -17,6 +16,8 @@
 #include "app_globals.h"
 #include "filament_database.h"
 #include "i_moonraker_api.h"
+#include "static_panel_registry.h"
+#include "text_io.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -36,21 +37,6 @@ namespace {
 constexpr size_t MAX_VENDOR_NAME_LEN = 256;
 constexpr size_t MAX_VENDOR_URL_LEN = 2048;
 
-/// Return a lowercased copy of the input string
-std::string to_lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-    return s;
-}
-
-/// Return a whitespace-trimmed copy of the input string
-std::string trim(const std::string& s) {
-    auto start = s.find_first_not_of(" \t\n\r\f\v");
-    if (start == std::string::npos)
-        return "";
-    auto end = s.find_last_not_of(" \t\n\r\f\v");
-    return s.substr(start, end - start + 1);
-}
-
 /// Set a JSON temperature range object, only including fields with positive values
 void set_temp_range(nlohmann::json& data, const char* key, int min_val, int max_val) {
     if (min_val > 0 || max_val > 0) {
@@ -63,12 +49,6 @@ void set_temp_range(nlohmann::json& data, const char* key, int min_val, int max_
 }
 
 } // namespace
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(SpoolWizardOverlay, g_spool_wizard, get_global_spool_wizard)
 
 // ============================================================================
 // Constructor / Destructor
@@ -653,13 +633,13 @@ SpoolWizardOverlay::merge_vendors(const std::vector<VendorEntry>& external_vendo
 
     // Server vendors first (they have IDs, so they take priority)
     for (const auto& sv : server_vendors) {
-        by_name[to_lower(sv.name)] = sv;
+        by_name[helix::text_io::to_lower(sv.name)] = sv;
     }
 
     // Merge in external DB vendors -- mark from_database, keep server ID if already present
     for (const auto& ext : external_vendors) {
-        auto [it, inserted] =
-            by_name.try_emplace(to_lower(ext.name), VendorEntry{ext.name, -1, false, true});
+        auto [it, inserted] = by_name.try_emplace(helix::text_io::to_lower(ext.name),
+                                                  VendorEntry{ext.name, -1, false, true});
         if (!inserted) {
             it->second.from_database = true;
         }
@@ -672,7 +652,7 @@ SpoolWizardOverlay::merge_vendors(const std::vector<VendorEntry>& external_vendo
         result.push_back(std::move(entry));
     }
     std::sort(result.begin(), result.end(), [](const VendorEntry& a, const VendorEntry& b) {
-        return to_lower(a.name) < to_lower(b.name);
+        return helix::text_io::to_lower(a.name) < helix::text_io::to_lower(b.name);
     });
 
     return result;
@@ -685,11 +665,11 @@ SpoolWizardOverlay::filter_vendor_list(const std::vector<VendorEntry>& vendors,
         return vendors;
     }
 
-    std::string lower_query = to_lower(query);
+    std::string lower_query = helix::text_io::to_lower(query);
 
     std::vector<VendorEntry> result;
     for (const auto& v : vendors) {
-        if (to_lower(v.name).find(lower_query) != std::string::npos) {
+        if (helix::text_io::to_lower(v.name).find(lower_query) != std::string::npos) {
             result.push_back(v);
         }
     }
@@ -863,7 +843,7 @@ void SpoolWizardOverlay::set_new_vendor(const std::string& name, const std::stri
     new_vendor_name_ = name.substr(0, MAX_VENDOR_NAME_LEN);
     new_vendor_url_ = url.substr(0, MAX_VENDOR_URL_LEN);
 
-    bool valid = !trim(new_vendor_name_).empty();
+    bool valid = !helix::text_io::trim(new_vendor_name_).empty();
 
     if (subjects_initialized_) {
         lv_subject_set_int(&can_create_vendor_subject_, valid ? 1 : 0);
@@ -997,16 +977,16 @@ void SpoolWizardOverlay::on_wizard_confirm_create_vendor(lv_event_t* /*e*/) {
     spdlog::debug("[SpoolWizard] Confirm create vendor");
     auto& wiz = get_global_spool_wizard();
 
-    std::string name = trim(wiz.new_vendor_name_);
+    std::string name(helix::text_io::trim(wiz.new_vendor_name_));
     if (name.empty()) {
         spdlog::warn("[SpoolWizard] Cannot create vendor with empty name");
         return;
     }
 
     // Check for duplicate vendor name (case-insensitive)
-    std::string name_lower = to_lower(name);
+    std::string name_lower = helix::text_io::to_lower(name);
     for (const auto& v : wiz.all_vendors_) {
-        if (to_lower(v.name) == name_lower) {
+        if (helix::text_io::to_lower(v.name) == name_lower) {
             spdlog::warn("[SpoolWizard] Duplicate vendor name: '{}'", name);
             ToastManager::instance().show(ToastSeverity::WARNING, lv_tr("Vendor already exists"));
             return;
@@ -1027,7 +1007,7 @@ void SpoolWizardOverlay::on_wizard_confirm_create_vendor(lv_event_t* /*e*/) {
     wiz.all_vendors_.push_back(new_vendor);
     std::sort(wiz.all_vendors_.begin(), wiz.all_vendors_.end(),
               [](const VendorEntry& a, const VendorEntry& b) {
-                  return to_lower(a.name) < to_lower(b.name);
+                  return helix::text_io::to_lower(a.name) < helix::text_io::to_lower(b.name);
               });
     wiz.filtered_vendors_ = filter_vendor_list(wiz.all_vendors_, wiz.vendor_search_query_);
 
@@ -1049,7 +1029,8 @@ void SpoolWizardOverlay::on_wizard_confirm_create_vendor(lv_event_t* /*e*/) {
 
     // Find the new vendor's index in filtered list and highlight it
     for (size_t i = 0; i < wiz.filtered_vendors_.size(); i++) {
-        if (to_lower(wiz.filtered_vendors_[i].name) == to_lower(name)) {
+        if (helix::text_io::to_lower(wiz.filtered_vendors_[i].name) ==
+            helix::text_io::to_lower(name)) {
             // Set checked state on the matching row
             if (wiz.overlay_root_) {
                 lv_obj_t* vendor_list = lv_obj_find_by_name(wiz.overlay_root_, "vendor_list");
@@ -1085,7 +1066,7 @@ SpoolWizardOverlay::merge_filaments(const std::vector<FilamentInfo>& server_fila
     std::unordered_map<std::string, FilamentEntry> by_key;
 
     auto make_key = [](const std::string& material, const std::string& color_hex) {
-        return to_lower(material) + "|" + to_lower(color_hex);
+        return helix::text_io::to_lower(material) + "|" + helix::text_io::to_lower(color_hex);
     };
 
     // Helper to create a FilamentEntry from a FilamentInfo
@@ -1161,8 +1142,8 @@ SpoolWizardOverlay::merge_filaments(const std::vector<FilamentInfo>& server_fila
         result.push_back(std::move(entry));
     }
     std::sort(result.begin(), result.end(), [](const FilamentEntry& a, const FilamentEntry& b) {
-        std::string a_mat = to_lower(a.material);
-        std::string b_mat = to_lower(b.material);
+        std::string a_mat = helix::text_io::to_lower(a.material);
+        std::string b_mat = helix::text_io::to_lower(b.material);
         if (a_mat != b_mat)
             return a_mat < b_mat;
         return a.name < b.name;
@@ -1255,11 +1236,12 @@ void SpoolWizardOverlay::load_filaments() {
                             // Sort by material then name
                             std::sort(all_filaments_.begin(), all_filaments_.end(),
                                       [](const FilamentEntry& a, const FilamentEntry& b) {
-                                          std::string a_mat = to_lower(a.material);
-                                          std::string b_mat = to_lower(b.material);
+                                          std::string a_mat = helix::text_io::to_lower(a.material);
+                                          std::string b_mat = helix::text_io::to_lower(b.material);
                                           if (a_mat != b_mat)
                                               return a_mat < b_mat;
-                                          return to_lower(a.name) < to_lower(b.name);
+                                          return helix::text_io::to_lower(a.name) <
+                                                 helix::text_io::to_lower(b.name);
                                       });
 
                             if (subjects_initialized_) {
@@ -1703,10 +1685,12 @@ void SpoolWizardOverlay::on_wizard_confirm_create_filament(lv_event_t* /*e*/) {
     }
 
     // Check for duplicate (case-insensitive material + name match)
-    std::string mat_lower = to_lower(wiz.new_filament_material_);
-    std::string name_lower = to_lower(trim(wiz.new_filament_name_));
+    std::string mat_lower = helix::text_io::to_lower(wiz.new_filament_material_);
+    std::string name_lower =
+        helix::text_io::to_lower(std::string(helix::text_io::trim(wiz.new_filament_name_)));
     for (const auto& f : wiz.all_filaments_) {
-        if (to_lower(f.material) == mat_lower && to_lower(f.name) == name_lower) {
+        if (helix::text_io::to_lower(f.material) == mat_lower &&
+            helix::text_io::to_lower(f.name) == name_lower) {
             spdlog::warn("[SpoolWizard] Duplicate filament: {} '{}'", wiz.new_filament_material_,
                          wiz.new_filament_name_);
             ToastManager::instance().show(ToastSeverity::WARNING, lv_tr("Filament already exists"));
@@ -1751,8 +1735,8 @@ void SpoolWizardOverlay::on_wizard_confirm_create_filament(lv_event_t* /*e*/) {
     wiz.all_filaments_.push_back(new_fil);
     std::sort(wiz.all_filaments_.begin(), wiz.all_filaments_.end(),
               [](const FilamentEntry& a, const FilamentEntry& b) {
-                  std::string a_mat = to_lower(a.material);
-                  std::string b_mat = to_lower(b.material);
+                  std::string a_mat = helix::text_io::to_lower(a.material);
+                  std::string b_mat = helix::text_io::to_lower(b.material);
                   if (a_mat != b_mat)
                       return a_mat < b_mat;
                   return a.name < b.name;
@@ -1774,8 +1758,8 @@ void SpoolWizardOverlay::on_wizard_confirm_create_filament(lv_event_t* /*e*/) {
 
     // Find the new filament's index and set checked state
     for (size_t i = 0; i < wiz.all_filaments_.size(); i++) {
-        if (to_lower(wiz.all_filaments_[i].material) == mat_lower &&
-            to_lower(wiz.all_filaments_[i].name) == name_lower) {
+        if (helix::text_io::to_lower(wiz.all_filaments_[i].material) == mat_lower &&
+            helix::text_io::to_lower(wiz.all_filaments_[i].name) == name_lower) {
             if (wiz.overlay_root_) {
                 lv_obj_t* filament_list = lv_obj_find_by_name(wiz.overlay_root_, "filament_list");
                 if (filament_list) {

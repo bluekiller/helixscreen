@@ -30,7 +30,7 @@ The old one is deleted in the commit that migrates its last caller, and that com
 ratchet (a baseline file that only shrinks, same shape as `scripts/check_orphan_subjects.py`).
 
 **No behaviour change is the default; the exceptions are listed per workstream.** Where a
-migration does change behaviour (portrait back chevron in WS1, dropped callbacks in WS5,
+migration does change behaviour (back-button pressed style in WS1, dropped callbacks in WS5,
 test-time asserts in WS3), the section says so and the commit body says so.
 
 **Proof per commit, not per branch.** `make t F=` on the touched tags per commit; `make
@@ -56,7 +56,7 @@ migrations are deletions and have nothing to mutate).
   branch plus a per-instantiation `static WidgetRef created_root` to reconcile them. It has 23
   callers; the other overlays hand-roll `show()`.
 - Hand-rolled `create()`s skip `ui_overlay_panel_setup_standard`, so those overlays miss the
-  back-button pressed style and the portrait `chevron_up` swap
+  back-button pressed style
   (`src/ui/ui_panel_common.cpp#ui_overlay_panel_setup_standard`). That is a latent visual bug
   the migration fixes; see Risks.
 
@@ -224,13 +224,13 @@ get_global_console_panel().show(parent_screen_);
   registration; `show()` makes that pair unforgettable for migrated overlays.
 - Existing per-overlay tests (`test_overlay_*`, `test_led_settings_overlay`,
   `test_sensor_settings_overlay`, `test_printer_manager_overlay`, ...) run per batch.
-- One `scripts/screenshot.sh` pass over the settings recipes at landscape AND portrait after the
-  settings batch (the chevron change is the one visible difference).
+- One `scripts/screenshot.sh` pass over the settings recipes after the settings batch (the
+  back-button pressed state is the one visible difference).
 
 ### Risks
 
-- **Portrait chevron / pressed style appears on ~40 overlays that lacked it.** It is the
-  documented intent of `ui_overlay_panel_setup_standard`, but it is visible. Screenshot check.
+- **Pressed style appears on ~40 overlays that lacked it.** Low risk: it is the documented
+  intent of `ui_overlay_panel_setup_standard` and changes no geometry. Screenshot check.
 - **`register_callbacks()` timing.** Today some overlays register once at first init, the lazy
   helper registers on every create. `show()` takes the helper's behaviour (every create), which
   keeps the 5 "re-register before push" last-write-wins workarounds working. WS2's collision
@@ -1103,5 +1103,6 @@ in the same commit, rather than waiting for a tree-wide TestAccess pass.
 1. Deferrals: accepted. Object-scoped lifetime guards by default, `bg_cb` for background-thread sites. Sites whose callback must run even after the owner dies (e.g. `operation_guard_.end()`) get an explicit non-owner guard, reviewed per site.
 2. Observer type erasure: accepted with the kill rule. Measure `.text` after `refactor/observer-core`; under 150KB saved, or any frame-time regression, reverts to the naming fix only.
 3. `find_required()`: fail loudly in `--test` and unit tests, log and continue in release builds. The every-variant name gate is blocking.
-4. Back button: the overlay sweep gives every overlay the standard pressed style and portrait chevron. A portrait screenshot contact sheet goes to the maintainer before merge.
+4. Back button: the overlay sweep gives every overlay the standard pressed style.
 5. Sequencing: branches touching overlays, settings rows or home widgets start after `feature/lua-plugins-phase2` is on main, and convert its PluginSettingsOverlay, PluginsOverlay, PluginOverlayHost and LuaPanelWidget in the same pass.
+6. Overlay motion: overlays slide in from the right with a left back arrow in every orientation (maintainer, 2026-09-30). Bottom-sheet motion is for modals and pickers only.

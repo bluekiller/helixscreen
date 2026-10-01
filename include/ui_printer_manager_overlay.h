@@ -150,12 +150,6 @@ class PrinterManagerOverlay : public OverlayBase {
     std::string current_image_path_;
 
     // Cached panel pointers for lazy creation
-    lv_obj_t* bed_mesh_panel_ = nullptr;
-    lv_obj_t* spoolman_panel_ = nullptr;
-    lv_obj_t* screws_tilt_panel_ = nullptr;
-    lv_obj_t* input_shaper_panel_ = nullptr;
-    lv_obj_t* retraction_panel_ = nullptr;
-    lv_obj_t* timelapse_panel_ = nullptr;
 
     //
     // === Static Callbacks ===

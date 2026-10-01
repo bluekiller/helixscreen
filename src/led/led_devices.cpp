@@ -4,6 +4,7 @@
 
 #include "device_display_name.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "text_io.h"
 
 #include <spdlog/fmt/fmt.h>
 
@@ -17,13 +18,6 @@ namespace {
 
 constexpr const char* CHAMBER_LIGHT_NAMES[] = {"chamber_light", "chamber_LED", "case_light",
                                                "caselight"};
-
-std::string lowered(std::string s) {
-    for (auto& c : s) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    return s;
-}
 
 /// "neopixel chamber_light" -> "chamber_light"; an id without a prefix is its own name.
 std::string object_name(const std::string& id) {
@@ -40,12 +34,12 @@ bool contains(const std::vector<std::string>& v, const std::string& s) {
 std::string resolve_chamber_light(const std::vector<LedStripInfo>& devices,
                                   const std::string& fallback) {
     for (const char* wanted : CHAMBER_LIGHT_NAMES) {
-        const std::string want = lowered(wanted);
+        const std::string want = helix::text_io::to_lower(wanted);
         for (const auto& d : devices) {
             if (d.backend != LedBackendType::NATIVE && d.backend != LedBackendType::OUTPUT_PIN) {
                 continue;
             }
-            if (lowered(object_name(d.id)) == want) {
+            if (helix::text_io::to_lower(object_name(d.id)) == want) {
                 return d.id;
             }
         }

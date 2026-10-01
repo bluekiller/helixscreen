@@ -226,6 +226,7 @@ TEST_CASE("permissions", "[plugin][manifest]") {
 
     CHECK(is_readonly_moonraker_method("printer.objects.query"));
     CHECK(is_readonly_moonraker_method("machine.system_info"));
+    CHECK(is_readonly_moonraker_method("server.temperature_store"));
     CHECK_FALSE(is_readonly_moonraker_method("printer.gcode.script"));
     CHECK_FALSE(is_readonly_moonraker_method("server.files.delete_file"));
     CHECK_FALSE(is_readonly_moonraker_method("printer.objects.query.extra"));

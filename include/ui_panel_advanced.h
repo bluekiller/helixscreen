@@ -218,11 +218,6 @@ class AdvancedPanel : public PanelBase {
     //
     // === Cached Overlay Panels ===
     //
-
-    lv_obj_t* spoolman_panel_ = nullptr;
-    lv_obj_t* macros_panel_ = nullptr;
-    lv_obj_t* console_panel_ = nullptr;
-    lv_obj_t* history_dashboard_panel_ = nullptr;
 };
 
 /**

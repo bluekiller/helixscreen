@@ -5,6 +5,8 @@
 
 #include <chrono>
 #include <mutex>
+#include <string>
+#include <vector>
 
 // Test-only seam. TelemetryManager declares this class as a friend, so a test
 // can observe whether try_send() cleared its send-interval gate.
@@ -62,5 +64,18 @@ class TelemetryManagerTestAccess {
     static size_t events_dropped_since_send(const TelemetryManager& t) {
         std::lock_guard<std::mutex> lock(t.mutex_);
         return t.events_dropped_since_send_;
+    }
+
+    /// Setting changes waiting for the debounce flush, as "setting|old|new".
+    static std::vector<std::string> pending_setting_changes(const TelemetryManager& t) {
+        std::vector<std::string> out;
+        for (const auto& c : t.pending_settings_changes_) {
+            out.push_back(c.setting + "|" + c.old_value + "|" + c.new_value);
+        }
+        return out;
+    }
+
+    static void clear_pending_setting_changes(TelemetryManager& t) {
+        t.pending_settings_changes_.clear();
     }
 };

@@ -158,7 +158,9 @@ int make_subject(lua_State* L, bool is_string) {
     if (!is_valid_local_name(name))
         return luaL_error(L, "subject name '%s' must be 1-48 of [a-z0-9_-]", name.c_str());
     std::string full = plugin_owned_name(rt.plugin_id(), name);
-    if (lv_xml_get_subject(nullptr, full.c_str()))
+    // Existence probe: a miss is the normal case, so the quiet lookup keeps
+    // registration from warning on every new subject.
+    if (lv_xml_find_subject(nullptr, full.c_str()))
         return luaL_error(L, "subject '%s' already exists", full.c_str());
 
     auto entry = std::make_unique<SubjectEntry>();
@@ -434,7 +436,7 @@ void install_ui_bindings(PluginContext& ctx) {
         for (auto& s : state->subjects) {
             // A later registration under the same name replaced the record's pointer, so
             // only a record still pointing at this subject is the plugin's to remove.
-            if (lv_xml_get_subject(nullptr, s->full_name.c_str()) == &s->subject)
+            if (lv_xml_find_subject(nullptr, s->full_name.c_str()) == &s->subject)
                 lv_xml_unregister_subject(nullptr, s->full_name.c_str());
             if (unobserved(s->subject))
                 lv_subject_deinit(&s->subject);

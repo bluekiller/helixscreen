@@ -25,8 +25,13 @@ namespace helix {
 // obscure what the internal maps actually hold).
 class SnapmakerTestAccess {
   public:
+    /// Takes a notify frame or a bare status object (a query result).
     static void handle_status(AmsBackendSnapmaker& b, const nlohmann::json& n) {
-        b.handle_status_update(n);
+        if (n.contains("params")) {
+            b.handle_status_update(n);
+        } else {
+            b.handle_status(n);
+        }
     }
     /// Drive the boot path a live backend runs: construct the override store
     /// from the DB, load its records, and publish them. A unit test skips

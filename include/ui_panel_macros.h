@@ -9,6 +9,7 @@
 #include "lvgl.h"
 #include "macro_param_modal.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -48,6 +49,11 @@ class MacrosPanel : public OverlayBase {
     void deinit_subjects();
     void register_callbacks() override;
     lv_obj_t* create(lv_obj_t* parent) override;
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     const char* get_name() const override {
         return "Macros";
     }
@@ -180,4 +186,6 @@ class MacrosPanel : public OverlayBase {
  *
  * @return Reference to singleton MacrosPanel
  */
-MacrosPanel& get_global_macros_panel();
+inline MacrosPanel& get_global_macros_panel() {
+    return helix::lazy_global<MacrosPanel>("MacrosPanel");
+}

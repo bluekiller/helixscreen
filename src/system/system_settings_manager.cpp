@@ -58,12 +58,23 @@ static const char* LANGUAGE_OPTIONS_TEXT =
         ? "English\nDeutsch\nFrançais\nEspañol\nРусский\nPortuguês\nItaliano\n中文\n日本語"
         : "English\nDeutsch\nFrançais\nEspañol\nРусский\nPortuguês\nItaliano";
 
+using settings::Scope;
+// Row order is SystemSettingsManager::Key.
+static constexpr settings::PersistedSetting SYSTEM_SETTINGS[] = {
+    // 0=Stable, 1=Beta, 2=Dev
+    {"update_channel", "/update/channel", Scope::Global, false, 0, 0, 2, nullptr},
+    // Opt-in, default off
+    {"settings_telemetry_enabled", "/telemetry_enabled", Scope::Global, true, 0, 0, 1, nullptr},
+    // Default on: a device that has never seen this setting comes up with WiFi enabled
+    {"settings_wifi_enabled", "/wifi_enabled", Scope::Global, true, 1, 0, 1, nullptr},
+};
+
 SystemSettingsManager& SystemSettingsManager::instance() {
     static SystemSettingsManager instance;
     return instance;
 }
 
-SystemSettingsManager::SystemSettingsManager() {
+SystemSettingsManager::SystemSettingsManager() : settings_(SYSTEM_SETTINGS) {
     spdlog::trace("[SystemSettingsManager] Constructor");
 }
 
@@ -87,23 +98,7 @@ void SystemSettingsManager::init_subjects() {
     // Initialize locale formatting for the loaded language
     helix::ui::locale_set_language(lang_code);
 
-    // Update channel (default: 0 = Stable)
-    int update_channel = config->get<int>("/update/channel", 0);
-    update_channel = std::clamp(update_channel, 0, 2);
-    UI_MANAGED_SUBJECT_INT(update_channel_subject_, update_channel, "update_channel", subjects_);
-
-    // Telemetry (opt-in, default OFF)
-    bool telemetry_enabled = config->get<bool>("/telemetry_enabled", false);
-    UI_MANAGED_SUBJECT_INT(telemetry_enabled_subject_, telemetry_enabled ? 1 : 0,
-                           "settings_telemetry_enabled", subjects_);
-    spdlog::debug("[SystemSettingsManager] telemetry_enabled: {}", telemetry_enabled);
-
-    // WiFi radio on/off choice (default ON — a device that has never seen
-    // this setting must come up with WiFi enabled)
-    bool wifi_enabled = config->get<bool>("/wifi_enabled", true);
-    UI_MANAGED_SUBJECT_INT(wifi_enabled_subject_, wifi_enabled ? 1 : 0, "settings_wifi_enabled",
-                           subjects_);
-    spdlog::debug("[SystemSettingsManager] wifi_enabled: {}", wifi_enabled);
+    settings_.init(subjects_);
 
     // Log level. With nothing saved, report the level the persistent sinks
     // actually run at. spdlog::get_level() is the logger's floor, which sits at
@@ -127,9 +122,7 @@ void SystemSettingsManager::init_subjects() {
     StaticSubjectRegistry::instance().register_deinit(
         "SystemSettingsManager", []() { SystemSettingsManager::instance().deinit_subjects(); });
 
-    spdlog::debug("[SystemSettingsManager] Subjects initialized: language={}, update_channel={}, "
-                  "telemetry={}, wifi_enabled={}",
-                  lang_code, update_channel, telemetry_enabled, wifi_enabled);
+    spdlog::debug("[SystemSettingsManager] Subjects initialized: language={}", lang_code);
 }
 
 void SystemSettingsManager::deinit_subjects() {
@@ -236,24 +229,9 @@ int SystemSettingsManager::language_code_to_index(const std::string& code) {
 // UPDATE CHANNEL SETTINGS
 // =============================================================================
 
-int SystemSettingsManager::get_update_channel() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&update_channel_subject_));
-}
-
 void SystemSettingsManager::set_update_channel(int channel) {
-    int clamped = std::clamp(channel, 0, 2);
-    spdlog::info("[SystemSettingsManager] set_update_channel({})",
-                 clamped == 0 ? "Stable" : (clamped == 1 ? "Beta" : "Dev"));
-
-    // 1. Update subject (UI reacts)
-    lv_subject_set_int(&update_channel_subject_, clamped);
-
-    // 2. Persist to config
-    Config* config = Config::get_instance();
-    config->set<int>("/update/channel", clamped);
-    config->save();
-
-    // 3. Clear update checker cache (force re-check on new channel)
+    settings_.set(Key::UpdateChannel, channel);
+    // Force a re-check on the new channel
     UpdateChecker::instance().clear_cache();
 }
 
@@ -261,57 +239,9 @@ void SystemSettingsManager::set_update_channel(int channel) {
 // TELEMETRY SETTINGS
 // =============================================================================
 
-bool SystemSettingsManager::get_telemetry_enabled() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&telemetry_enabled_subject_)) != 0;
-}
-
 void SystemSettingsManager::set_telemetry_enabled(bool enabled) {
-    spdlog::info("[SystemSettingsManager] set_telemetry_enabled({})", enabled);
-
-    // Update subject (UI reacts)
-    lv_subject_set_int(&telemetry_enabled_subject_, enabled ? 1 : 0);
-
-    // Persist to config
-    Config* config = Config::get_instance();
-    config->set<bool>("/telemetry_enabled", enabled);
-    config->save();
-
-    // Apply to TelemetryManager
+    settings_.set(Key::TelemetryEnabled, enabled);
     TelemetryManager::instance().set_enabled(enabled);
-}
-
-// =============================================================================
-// WIFI SETTINGS
-// =============================================================================
-
-bool SystemSettingsManager::get_wifi_enabled() const {
-    // CAUTION: if called before init_subjects() has run, wifi_enabled_subject_
-    // is still zero-initialized (LV_SUBJECT_TYPE_INVALID). lv_subject_get_int()
-    // on that returns 0, which reads as "off" — the INVERSE of this setting's
-    // documented true/on default. WiFiManager's READY handler calls this to
-    // decide whether to force the radio off, so correctness here depends on
-    // init_subjects() always running before any WiFiManager is constructed.
-    // That ordering is structural today (Application::run() initializes
-    // subjects at Phase 9c, constructs WiFiManager no earlier than Phase 14b),
-    // not incidental — but a future phase reorder that breaks it would
-    // silently switch WiFi off on a remote printer with no physical access.
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&wifi_enabled_subject_)) != 0;
-}
-
-void SystemSettingsManager::set_wifi_enabled(bool enabled) {
-    spdlog::info("[SystemSettingsManager] set_wifi_enabled({})", enabled);
-
-    // Update subject (UI reacts)
-    lv_subject_set_int(&wifi_enabled_subject_, enabled ? 1 : 0);
-
-    // Persist to config
-    Config* config = Config::get_instance();
-    config->set<bool>("/wifi_enabled", enabled);
-    config->save();
-
-    // Deliberately does NOT call into WiFiManager. WiFiManager reasserts this
-    // stored value against the radio itself once its backend is ready; a call
-    // back into it from here would create a feedback loop.
 }
 
 // =============================================================================

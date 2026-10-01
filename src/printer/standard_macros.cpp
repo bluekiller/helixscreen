@@ -11,6 +11,7 @@
 #include "printer_discovery.h"
 #include "state/subject_macros.h"
 #include "static_subject_registry.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -127,16 +128,6 @@ const std::map<StandardMacroSlot, SlotMeta> SLOT_METADATA = {
     {StandardMacroSlot::ParkToolhead,   {"park_toolhead",   "Park Toolhead"}},
 };
 // clang-format on
-
-/**
- * @brief Convert string to uppercase for case-insensitive comparison
- */
-std::string to_upper(const std::string& str) {
-    std::string result = str;
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return std::toupper(c); });
-    return result;
-}
 
 } // namespace
 
@@ -523,7 +514,7 @@ std::string StandardMacros::try_detect(const helix::PrinterDiscovery& hardware,
     const auto& macros = hardware.macros();
 
     for (const auto& pattern : patterns) {
-        std::string upper_pattern = to_upper(pattern);
+        std::string upper_pattern = helix::text_io::to_upper(pattern);
         // Check if the pattern exists as a macro (both are uppercase)
         if (macros.find(upper_pattern) != macros.end()) {
             // Return the pattern as-is (Klipper macros are case-insensitive)

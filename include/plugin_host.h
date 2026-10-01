@@ -28,9 +28,6 @@ class PluginSettingsOverlay;
 /// What all plugins together may allocate: min(MemTotal / 16, 64 MB).
 size_t plugin_memory_budget(uint64_t mem_total_bytes);
 
-/// MemTotal from /proc/meminfo in bytes; 0 when unreadable.
-uint64_t read_mem_total();
-
 enum class PluginStatus {
     Disabled,
     Loaded,

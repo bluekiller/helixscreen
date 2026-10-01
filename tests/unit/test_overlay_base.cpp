@@ -15,11 +15,19 @@
  * regress back to sync safe_delete.
  */
 
+#include "ui_nav_manager.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/process_async_timers.h"
+#include "../test_helpers/update_queue_test_access.h"
 #include "overlay_base.h"
+#include "ui/ui_widget_helpers.h"
+
+#include <csignal>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "../catch_amalgamated.hpp"
 
@@ -116,4 +124,245 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // Async tick completes the deletion.
     REQUIRE_NOTHROW(process_async_timers());
     REQUIRE_FALSE(lv_obj_is_valid(root));
+}
+
+// ============================================================================
+// show(): the lazy create + register + push contract
+// ============================================================================
+
+namespace {
+
+/// Counts every hook show() drives. xml_component() null means create() is
+/// overridden with a plain lv_obj; non-null exercises the default create().
+class ShowOverlay : public OverlayBase {
+  public:
+    explicit ShowOverlay(const char* component = nullptr, bool destroy = false)
+        : component_(component), destroy_(destroy) {}
+
+    void init_subjects() override {
+        ++init_calls;
+    }
+    void register_callbacks() override {
+        ++register_calls;
+    }
+    lv_obj_t* create(lv_obj_t* parent) override {
+        ++create_calls;
+        if (component_) {
+            return OverlayBase::create(parent);
+        }
+        overlay_root_ = lv_obj_create(parent);
+        lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
+        return overlay_root_;
+    }
+    const char* xml_component() const override {
+        return component_;
+    }
+    bool destroy_on_close() const override {
+        return destroy_;
+    }
+    const char* get_name() const override {
+        return "ShowOverlay";
+    }
+
+    int init_calls = 0;
+    int register_calls = 0;
+    int create_calls = 0;
+    int before_show_calls = 0;
+    int ui_destroyed_calls = 0;
+
+  protected:
+    void before_show() override {
+        ++before_show_calls;
+    }
+    void on_ui_destroyed() override {
+        ++ui_destroyed_calls;
+    }
+
+  private:
+    const char* component_;
+    bool destroy_;
+};
+
+class ShowFixture : public LVGLUITestFixture {
+  protected:
+    lv_obj_t* base_ = nullptr;
+
+    ShowFixture() {
+        base_ = lv_obj_create(test_screen());
+        lv_obj_t* panels[UI_PANEL_COUNT] = {nullptr};
+        panels[static_cast<int>(helix::PanelId::Home)] = base_;
+        NavigationManager::instance().set_panels(panels);
+    }
+
+    ~ShowFixture() override {
+        lv_obj_delete(base_);
+    }
+
+    static void settle() {
+        for (int i = 0; i < 5; ++i) {
+            helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+            lv_timer_handler();
+        }
+    }
+
+    static void pop(OverlayBase& overlay) {
+        auto& nav = NavigationManager::instance();
+        REQUIRE(nav.is_panel_on_top(overlay.get_root()));
+        nav.go_back();
+        settle();
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(ShowFixture, "show() inits subjects once and creates once across shows",
+                 "[overlay_base][overlay_show]") {
+    ShowOverlay overlay;
+    lv_obj_t* first = nullptr;
+    for (int i = 0; i < 3; ++i) {
+        REQUIRE(overlay.show(test_screen()));
+        settle();
+        if (i == 0) {
+            first = overlay.get_root();
+        }
+        CHECK(overlay.get_root() == first);
+        CHECK(NavigationManager::instance().is_panel_on_top(first));
+        pop(overlay);
+    }
+    CHECK(overlay.init_calls == 1);
+    CHECK(overlay.are_subjects_initialized());
+    CHECK(overlay.create_calls == 1);
+    CHECK(overlay.register_calls == 1);
+    CHECK(overlay.before_show_calls == 3);
+    CHECK(lv_obj_is_valid(first));
+}
+
+TEST_CASE_METHOD(ShowFixture, "show() with destroy_on_close frees the tree on pop and re-creates",
+                 "[overlay_base][overlay_show]") {
+    ShowOverlay overlay(nullptr, /*destroy=*/true);
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    lv_obj_t* first = overlay.get_root();
+    REQUIRE(first != nullptr);
+
+    pop(overlay);
+    process_async_timers();
+    CHECK(overlay.get_root() == nullptr);
+    CHECK(overlay.ui_destroyed_calls == 1);
+    CHECK_FALSE(NavigationManager::instance().has_overlay_close_callback(first));
+
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    CHECK(overlay.get_root() != nullptr);
+    CHECK(overlay.create_calls == 2);
+    CHECK(overlay.register_calls == 2); // callbacks re-registered with every create
+    CHECK(overlay.init_calls == 1);
+    CHECK(NavigationManager::instance().is_panel_on_top(overlay.get_root()));
+    pop(overlay);
+    process_async_timers();
+}
+
+TEST_CASE_METHOD(ShowFixture,
+                 "show()'s close callback is a no-op once the object's lifetime has ended",
+                 "[overlay_base][overlay_show]") {
+    ShowOverlay overlay(nullptr, /*destroy=*/true);
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    lv_obj_t* root = overlay.get_root();
+
+    // What a printer switch does before destroying the object; the close
+    // callback it registered is still pending on the root.
+    overlay.cleanup();
+    NavigationManager::instance().go_back();
+    settle();
+    process_async_timers();
+    CHECK(overlay.ui_destroyed_calls == 0);
+    CHECK(overlay.get_root() == root);
+}
+
+TEST_CASE_METHOD(ShowFixture, "show() re-creates a root deleted out from under it",
+                 "[overlay_base][overlay_show]") {
+    ShowOverlay overlay;
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    lv_obj_t* first = overlay.get_root();
+    pop(overlay);
+    lv_obj_delete(first);
+
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    CHECK(overlay.create_calls == 2);
+    CHECK(overlay.ui_destroyed_calls == 1);
+    CHECK(lv_obj_is_valid(overlay.get_root()));
+    pop(overlay);
+}
+
+TEST_CASE_METHOD(ShowFixture, "the default create() builds xml_component() and survives rebuild()",
+                 "[overlay_base][overlay_show]") {
+    lv_xml_register_component_from_data(
+        "test_overlay_show_component",
+        "<component><view extends=\"lv_obj\"><lv_obj name=\"probe\"/></view></component>");
+    ShowOverlay overlay("test_overlay_show_component");
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    lv_obj_t* first = overlay.get_root();
+    REQUIRE(first != nullptr);
+    CHECK(helix::ui::find_required(first, "probe", "test") != nullptr);
+
+    REQUIRE(overlay.rebuild());
+    settle();
+    CHECK(overlay.get_root() != first);
+    CHECK(helix::ui::find_required(overlay.get_root(), "probe", "test") != nullptr);
+    CHECK(NavigationManager::instance().is_panel_on_top(overlay.get_root()));
+    pop(overlay);
+}
+
+TEST_CASE_METHOD(ShowFixture, "show() with no xml_component() and no create() override fails",
+                 "[overlay_base][overlay_show]") {
+    struct Bare : OverlayBase {
+        const char* get_name() const override {
+            return "Bare";
+        }
+    } overlay;
+    CHECK_FALSE(overlay.show(test_screen()));
+    CHECK(overlay.get_root() == nullptr);
+}
+
+TEST_CASE_METHOD(ShowFixture, "close() closes a shown overlay and is a no-op before any show",
+                 "[overlay_base][overlay_show]") {
+    ShowOverlay overlay;
+    overlay.close(); // no root yet
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    REQUIRE(NavigationManager::instance().is_panel_in_stack(overlay.get_root()));
+    overlay.close();
+    settle();
+    CHECK_FALSE(NavigationManager::instance().is_panel_in_stack(overlay.get_root()));
+}
+
+TEST_CASE_METHOD(ShowFixture,
+                 "show() aborts on a root whose close callback another owner holds (strict)",
+                 "[overlay_base][overlay_show]") {
+    ShowOverlay overlay;
+    REQUIRE(overlay.show(test_screen()));
+    settle();
+    pop(overlay);
+    // An owner-held overlay: the owner's callback deletes the object.
+    NavigationManager::instance().register_overlay_close_callback(overlay.get_root(), [] {});
+
+    std::fflush(nullptr);
+    pid_t pid = fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        std::signal(SIGABRT, SIG_DFL); // Catch2's handler would report instead of dying
+        helix::ui::set_strict_ui_checks(true);
+        overlay.show(test_screen());
+        _exit(0);
+    }
+    int status = 0;
+    REQUIRE(waitpid(pid, &status, 0) == pid);
+    CHECK(WIFSIGNALED(status));
+    CHECK(WTERMSIG(status) == SIGABRT);
+
+    NavigationManager::instance().unregister_overlay_close_callback(overlay.get_root());
 }

@@ -13,12 +13,22 @@
 
 using namespace helix;
 
+using settings::Scope;
+// Row order is AudioSettingsManager::Key.
+static constexpr settings::PersistedSetting AUDIO_SETTINGS[] = {
+    {"settings_sounds_enabled", "/sounds_enabled", Scope::Global, true, 0, 0, 1, nullptr},
+    {"settings_ui_sounds_enabled", "/ui_sounds_enabled", Scope::Global, true, 1, 0, 1, nullptr},
+    {"settings_volume", "/sounds/volume", Scope::Global, false, 80, 0, 100, nullptr},
+    // CompletionAlertMode: 0=Off, 1=Notification, 2=Alert
+    {"settings_completion_alert", "/completion_alert", Scope::Global, false, 2, 0, 2, nullptr},
+};
+
 AudioSettingsManager& AudioSettingsManager::instance() {
     static AudioSettingsManager instance;
     return instance;
 }
 
-AudioSettingsManager::AudioSettingsManager() {
+AudioSettingsManager::AudioSettingsManager() : settings_(AUDIO_SETTINGS) {
     spdlog::trace("[AudioSettingsManager] Constructor");
 }
 
@@ -30,27 +40,7 @@ void AudioSettingsManager::init_subjects() {
 
     spdlog::debug("[AudioSettingsManager] Initializing subjects");
 
-    Config* config = Config::get_instance();
-
-    // Sounds master switch (default: false)
-    bool sounds = config->get<bool>("/sounds_enabled", false);
-    UI_MANAGED_SUBJECT_INT(sounds_enabled_subject_, sounds ? 1 : 0, "settings_sounds_enabled",
-                           subjects_);
-
-    // UI sounds (default: true)
-    bool ui_sounds = config->get<bool>("/ui_sounds_enabled", true);
-    UI_MANAGED_SUBJECT_INT(ui_sounds_enabled_subject_, ui_sounds ? 1 : 0,
-                           "settings_ui_sounds_enabled", subjects_);
-
-    // Volume (0-100, default 80)
-    int volume = std::clamp(config->get<int>("/sounds/volume", 80), 0, 100);
-    UI_MANAGED_SUBJECT_INT(volume_subject_, volume, "settings_volume", subjects_);
-
-    // Completion alert mode (default: ALERT=2)
-    int completion_mode = config->get<int>("/completion_alert", 2);
-    completion_mode = std::max(0, std::min(2, completion_mode));
-    UI_MANAGED_SUBJECT_INT(completion_alert_subject_, completion_mode, "settings_completion_alert",
-                           subjects_);
+    settings_.init(subjects_);
 
     // Whether an ALSA backend with device selection is active (0/1). Seeded to
     // 0 here because SoundManager has not picked its backend yet at subject-init
@@ -64,9 +54,7 @@ void AudioSettingsManager::init_subjects() {
     StaticSubjectRegistry::instance().register_deinit(
         "AudioSettingsManager", []() { AudioSettingsManager::instance().deinit_subjects(); });
 
-    spdlog::debug("[AudioSettingsManager] Subjects initialized: sounds={}, ui_sounds={}, "
-                  "volume={}, completion_alert={}",
-                  sounds, ui_sounds, volume, completion_mode);
+    spdlog::debug("[AudioSettingsManager] Subjects initialized");
 }
 
 void AudioSettingsManager::deinit_subjects() {
@@ -84,38 +72,6 @@ void AudioSettingsManager::deinit_subjects() {
 // GETTERS / SETTERS
 // =============================================================================
 
-bool AudioSettingsManager::get_sounds_enabled() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&sounds_enabled_subject_)) != 0;
-}
-
-void AudioSettingsManager::set_sounds_enabled(bool enabled) {
-    spdlog::info("[AudioSettingsManager] set_sounds_enabled({})", enabled);
-
-    lv_subject_set_int(&sounds_enabled_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/sounds_enabled", enabled);
-    config->save();
-}
-
-bool AudioSettingsManager::get_ui_sounds_enabled() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&ui_sounds_enabled_subject_)) != 0;
-}
-
-void AudioSettingsManager::set_ui_sounds_enabled(bool enabled) {
-    spdlog::info("[AudioSettingsManager] set_ui_sounds_enabled({})", enabled);
-
-    lv_subject_set_int(&ui_sounds_enabled_subject_, enabled ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>("/ui_sounds_enabled", enabled);
-    config->save();
-}
-
-int AudioSettingsManager::get_volume() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&volume_subject_));
-}
-
 float AudioSettingsManager::get_volume_scaled() const {
     float normalized = static_cast<float>(get_volume()) / 100.0f;
     return normalized * normalized; // Quadratic curve for perceptual loudness
@@ -126,17 +82,8 @@ int AudioSettingsManager::preview_volume(int volume) {
     // Debug, not info: a drag emits one of these per tick.
     spdlog::debug("[AudioSettingsManager] preview_volume({})", volume);
 
-    lv_subject_set_int(&volume_subject_, volume);
+    lv_subject_set_int(settings_.subject(Key::Volume), volume);
     return volume;
-}
-
-void AudioSettingsManager::set_volume(int volume) {
-    volume = preview_volume(volume);
-    spdlog::info("[AudioSettingsManager] set_volume({})", volume);
-
-    Config* config = Config::get_instance();
-    config->set<int>("/sounds/volume", volume);
-    config->save();
 }
 
 std::string AudioSettingsManager::get_sound_theme() const {
@@ -162,20 +109,6 @@ void AudioSettingsManager::set_output_device(const std::string& pcm) {
 
     Config* config = Config::get_instance();
     config->set<std::string>("/sound/output_device", pcm);
-    config->save();
-}
-
-CompletionAlertMode AudioSettingsManager::get_completion_alert_mode() const {
-    int val = lv_subject_get_int(const_cast<lv_subject_t*>(&completion_alert_subject_));
-    return static_cast<CompletionAlertMode>(std::max(0, std::min(2, val)));
-}
-
-void AudioSettingsManager::set_completion_alert_mode(CompletionAlertMode mode) {
-    int val = static_cast<int>(mode);
-    spdlog::info("[AudioSettingsManager] set_completion_alert_mode({})", val);
-    lv_subject_set_int(&completion_alert_subject_, val);
-    Config* config = Config::get_instance();
-    config->set<int>("/completion_alert", val);
     config->save();
 }
 

@@ -21,9 +21,19 @@
     catch (...) {                                                                                  \
         spdlog::error("[" #PanelClass "] Unknown exception in on_" #name);                         \
     }
+// Same guard, logging a callback name known only at runtime.
+#define HELIX_TRAMPOLINE_GUARD_END_NAMED(name_expr)                                                \
+    }                                                                                              \
+    catch (const std::exception& ex) {                                                             \
+        spdlog::error("[{}] Exception in callback: {}", (name_expr), ex.what());                   \
+    }                                                                                              \
+    catch (...) {                                                                                  \
+        spdlog::error("[{}] Unknown exception in callback", (name_expr));                          \
+    }
 #else
 #define HELIX_TRAMPOLINE_GUARD_BEGIN {
 #define HELIX_TRAMPOLINE_GUARD_END(PanelClass, name) }
+#define HELIX_TRAMPOLINE_GUARD_END_NAMED(name_expr) }
 #endif
 
 /**

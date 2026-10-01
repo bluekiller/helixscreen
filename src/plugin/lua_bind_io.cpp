@@ -4,6 +4,7 @@
 #if HELIX_HAS_PLUGINS
 
 #include "lua_bindings.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -171,19 +172,8 @@ int storage_set(lua_State* L) {
     const std::string& path = context(L).storage_path;
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    std::string tmp = path + ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        out << text;
-        out.flush();
-        out.close();
-        // close() flushes what the destructor would; only a fully landed tmp may replace
-        // the good file.
-        if (!out)
-            return luaL_error(L, "helix.storage.set: cannot write %s", tmp.c_str());
-    }
-    if (std::rename(tmp.c_str(), path.c_str()) != 0)
-        return luaL_error(L, "helix.storage.set: cannot replace %s", path.c_str());
+    if (!helix::text_io::write_file_atomic(path, text))
+        return luaL_error(L, "helix.storage.set: cannot write %s", path.c_str());
     storage_of(L) = std::move(next);
     return 0;
 }

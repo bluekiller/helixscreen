@@ -111,7 +111,7 @@ Slot status arbitration across those sources, in parse order: extruder pins
 when status is still UNKNOWN, then the port sensor, then `print_task_config.filament_exist`.
 The active tool is detected from extruder pin state or `toolhead.extruder`, and
 `current_slot`/`current_tool` track the picked-up tool 1:1
-(`src/printer/ams_backend_snapmaker.cpp#handle_status_update`, `1456-1529`).
+(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `1456-1529`).
 
 ### RFID (filament_detect.info)
 
@@ -255,16 +255,16 @@ conservative prefix/suffix fallback for unknown future states
   multi-color print (`src/printer/ams_backend_snapmaker.cpp#friendly_channel_error`, `1321-1354`).
 - **`preload_finish` is terminal-for-latch but does not end the operation** — a re-unload
   of a staged feeder keeps that state while the nozzle heats, and dropping to Idle there
-  killed the unload step display mid-heat (`src/printer/ams_backend_snapmaker.cpp#handle_status_update`).
+  killed the unload step display mid-heat (`src/printer/ams_backend_snapmaker.cpp#handle_status`).
 
 A `*_finish` that clears the latch also demotes the slot LOADED -> AVAILABLE and clears
 `filament_loaded` for the active tool, but never resets `current_slot`/`current_tool`:
 those track the picked-up tool, and resetting them mis-routed a bare unload to T0 for a
 user printing TPU without feeders (field report recorded at
-`src/printer/ams_backend_snapmaker.cpp#handle_status_update`). Feeders reaching `unload_finish` are reported to
+`src/printer/ams_backend_snapmaker.cpp#handle_status`). Feeders reaching `unload_finish` are reported to
 `AmsState::mark_slot_unloaded()` after the mutex is released so `FilamentSensorManager`
 suppresses the runout modal during the expected pull-out grace window
-(`src/printer/ams_backend_snapmaker.cpp#handle_status_update`, `src/printer/ams_backend_snapmaker.cpp#handle_status_update`) — the deferral exists because
+(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `src/printer/ams_backend_snapmaker.cpp#handle_status`) — the deferral exists because
 calling into `AmsState` under our mutex inverted `add_backend()`'s lock order (TSan,
 2026-08-16).
 
@@ -297,7 +297,7 @@ because that signal cannot distinguish "stale encoder" from "preloaded 4 inches 
 the gear"; it is kept as detection infrastructure for a deferred follow-up
 (`src/printer/ams_backend_snapmaker.cpp`). The active tool's port-present flag it builds on
 is still published to `AmsState::set_active_tool_port_present()` on change (#991), which
-is what gates Resume in the runout dialog (`src/printer/ams_backend_snapmaker.cpp#handle_status_update`).
+is what gates Resume in the runout dialog (`src/printer/ams_backend_snapmaker.cpp#handle_status`).
 
 ### Pre-Print Remap (RemapStrategy::PrePrintSend)
 
@@ -348,14 +348,14 @@ swapped — clear the stale override; empty UID is "no signal" and never clears;
 observation only sets the baseline), then `mirror_firmware_to_lane_data()` under
 `OverwriteAlways` so OrcaSlicer's MoonrakerPrinterAgent sees the spool, then
 `apply_resolved_lane()` laying the lane's resolved identity back over firmware truth
-(`src/printer/ams_backend_snapmaker.cpp#handle_status_update`, `include/ams_backend.h#AmsBackend/apply_resolved_lane`).
+(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `include/ams_backend.h#AmsBackend/apply_resolved_lane`).
 
 Because the UID is a hardware identifier the UI cannot write, this backend registers no
 expected-echo value with the fingerprint tracker — user edits can never masquerade as a
 hardware swap (`include/ams_backend_snapmaker.h#AmsBackendSnapmaker`). Clears preserve
 firmware-populated fields (`brand`, `spool_name`, `total_weight_g`) and reset only
 override-exclusive ones (`spoolman_*`, `remaining_weight_g`, `color_name`, catalog
-identity) (`src/printer/ams_backend_snapmaker.cpp#clear_override_locked`).
+identity) (`src/printer/ams_backend_snapmaker.cpp#clear_override_fields`).
 
 User edits round-trip to firmware through `POST /printer/filament_detect/set`
 (`channel` + `info` with `VENDOR`/`MAIN_TYPE`/`SUB_TYPE`/`RGB_1`/`ALPHA`/temps) — an

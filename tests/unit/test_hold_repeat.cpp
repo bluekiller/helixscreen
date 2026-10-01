@@ -207,7 +207,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a Z jog blocked at the ceiling cancels the 
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -271,7 +272,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a hold that repeated jogs exactly once on r
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -380,7 +382,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "two taps at the Z limit warn twice", "[moti
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -423,7 +426,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a hold that moves then hits the ceiling sto
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -485,7 +489,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Z buttons disable at the ceiling and swap u
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -536,7 +541,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a coordinate tap sends one absolute single-
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -599,7 +605,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "an unhomed coordinate tap homes first then 
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -665,7 +672,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();
@@ -725,7 +733,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a diagonal along a wall moves the free axis
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     MotionPanel& panel = get_global_motion_panel();

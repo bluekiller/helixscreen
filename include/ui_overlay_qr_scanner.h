@@ -64,6 +64,11 @@ class QrScannerOverlay : public OverlayBase {
     void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
     void register_callbacks() override;
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     const char* get_name() const override {
         return "QR Scanner";
     }
@@ -135,7 +140,6 @@ class QrScannerOverlay : public OverlayBase {
     char status_buf_[128]{};
 
     // Cached widget pointers
-    lv_obj_t* cached_overlay_ = nullptr;
     lv_obj_t* viewfinder_ = nullptr;
     lv_obj_t* status_text_ = nullptr;
     lv_obj_t* success_flash_ = nullptr;
