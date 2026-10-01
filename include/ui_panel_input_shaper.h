@@ -553,9 +553,8 @@ class InputShaperPanel : public OverlayBase {
 };
 
 // Global instance accessor
-inline InputShaperPanel& get_global_input_shaper_panel() {
-    return helix::lazy_global<InputShaperPanel>("InputShaperPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+InputShaperPanel& get_global_input_shaper_panel();
 
 /**
  * @brief Register XML event callbacks for input shaper panel

@@ -251,9 +251,8 @@ class ZOffsetCalibrationPanel : public OverlayBase {
 };
 
 // Global instance accessor
-inline ZOffsetCalibrationPanel& get_global_zoffset_cal_panel() {
-    return helix::lazy_global<ZOffsetCalibrationPanel>("ZOffsetCalibrationPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+ZOffsetCalibrationPanel& get_global_zoffset_cal_panel();
 
 /**
  * @brief Initialize row click callback for opening from Advanced panel

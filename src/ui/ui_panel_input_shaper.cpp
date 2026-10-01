@@ -2154,3 +2154,7 @@ void InputShaperPanel::handle_help_clicked() {
     helix::ui::modal_alert(lv_tr("Input Shaper Help"), help_message, ModalSeverity::Info,
                            lv_tr("Got it"));
 }
+
+InputShaperPanel& get_global_input_shaper_panel() {
+    return helix::lazy_global<InputShaperPanel>("InputShaperPanel");
+}

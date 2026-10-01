@@ -510,4 +510,8 @@ void init_tool_offset_row_handler() {
     });
 }
 
+ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel() {
+    return helix::lazy_global<ToolOffsetCalibrationPanel>("ToolOffsetCalibrationPanel");
+}
+
 } // namespace helix::ui

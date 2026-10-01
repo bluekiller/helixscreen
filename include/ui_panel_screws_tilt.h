@@ -246,9 +246,8 @@ class ScrewsTiltPanel : public OverlayBase {
 };
 
 // Global instance accessor
-inline ScrewsTiltPanel& get_global_screws_tilt_panel() {
-    return helix::lazy_global<ScrewsTiltPanel>("ScrewsTiltPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+ScrewsTiltPanel& get_global_screws_tilt_panel();
 
 /**
  * @brief Register XML event callbacks for screws tilt panel

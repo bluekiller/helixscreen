@@ -496,6 +496,5 @@ class PIDCalibrationPanel : public OverlayBase {
 };
 
 // Global instance accessor
-inline PIDCalibrationPanel& get_global_pid_cal_panel() {
-    return helix::lazy_global<PIDCalibrationPanel>("PIDCalibrationPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+PIDCalibrationPanel& get_global_pid_cal_panel();

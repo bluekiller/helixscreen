@@ -796,3 +796,7 @@ void ScrewsTiltPanel::handle_share_clicked() {
     }
     // A failed show leaves the unique_ptr to free the instance.
 }
+
+ScrewsTiltPanel& get_global_screws_tilt_panel() {
+    return helix::lazy_global<ScrewsTiltPanel>("ScrewsTiltPanel");
+}

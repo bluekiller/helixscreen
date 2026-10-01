@@ -58,6 +58,8 @@ static constexpr const char* LEGACY_DB_KEY_REFRESH_INTERVAL = "ams_weight_refres
 // DESTRUCTOR
 // ============================================================================
 
+SpoolmanOverlay::SpoolmanOverlay() = default;
+
 SpoolmanOverlay::~SpoolmanOverlay() = default;
 
 // ============================================================================
@@ -1554,6 +1556,10 @@ void SpoolmanOverlay::remove_spoolman_config() {
                 });
             });
     });
+}
+
+SpoolmanOverlay& get_spoolman_overlay() {
+    return helix::lazy_global<SpoolmanOverlay>("SpoolmanOverlay");
 }
 
 } // namespace helix::ui

@@ -53,9 +53,7 @@ namespace helix::ui {
  */
 class SpoolmanOverlay : public OverlayBase {
   public:
-    /**
-     * @brief Destructor
-     */
+    SpoolmanOverlay();
     ~SpoolmanOverlay() override;
 
     //
@@ -476,8 +474,7 @@ class SpoolmanOverlay : public OverlayBase {
     friend class ::SpoolmanOverlayTestAccess;
 };
 
-inline SpoolmanOverlay& get_spoolman_overlay() {
-    return lazy_global<SpoolmanOverlay>("SpoolmanOverlay");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+SpoolmanOverlay& get_spoolman_overlay();
 
 } // namespace helix::ui

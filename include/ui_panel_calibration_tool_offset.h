@@ -187,8 +187,7 @@ class ToolOffsetCalibrationPanel : public OverlayBase {
 void init_tool_offset_row_handler();
 
 /// Singleton accessor (lazily created, destroyed via StaticPanelRegistry)
-inline ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel() {
-    return lazy_global<ToolOffsetCalibrationPanel>("ToolOffsetCalibrationPanel");
-}
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
+ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel();
 
 } // namespace helix::ui

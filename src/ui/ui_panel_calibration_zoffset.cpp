@@ -942,3 +942,7 @@ static void on_zoffset_row_clicked(lv_event_t* e) {
     overlay.set_api(get_moonraker_api());
     overlay.show(lv_display_get_screen_active(nullptr));
 }
+
+ZOffsetCalibrationPanel& get_global_zoffset_cal_panel() {
+    return helix::lazy_global<ZOffsetCalibrationPanel>("ZOffsetCalibrationPanel");
+}

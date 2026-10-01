@@ -1647,3 +1647,7 @@ void PIDCalibrationPanel::on_pid_preset_bed_material(lv_event_t* e) {
 static PIDCalibrationPanel* existing_pid_cal_panel() {
     return helix::lazy_global_if_exists<PIDCalibrationPanel>();
 }
+
+PIDCalibrationPanel& get_global_pid_cal_panel() {
+    return helix::lazy_global<PIDCalibrationPanel>("PIDCalibrationPanel");
+}
