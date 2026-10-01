@@ -7,6 +7,8 @@ variables live in [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md).
 
 These variables control the mock printer simulation, useful for development and testing without a real printer.
 
+A variable read as an on/off flag is on for `1`, `true`, `yes` or `on` (ASCII case-insensitive, surrounding whitespace ignored) and off for anything else, including `0`, `false`, `10` or an empty value (`include/env_knobs.h#env_truthy`).
+
 ### `HELIX_AMS_GATES`
 
 Set the number of filament gates in the mock AMS (Automatic Material System).
@@ -31,7 +33,7 @@ Make the mock advertise Moonraker-relative thumbnail paths and fetch them over r
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` / any non-empty, non-`0` value to enable |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | unset (thumbnails resolve from local files) |
 | **File** | `src/api/moonraker_client_mock_files.cpp` (advertised path), `src/api/moonraker_api_mock.cpp` (delegates to the real transfer API), served by `src/api/mock_http_file_server.cpp` |
 
@@ -84,7 +86,7 @@ Make the mock file server drop every `Range` header, answering `200` with the wh
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` / any non-empty, non-`0` value to enable |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | unset (ranges honoured: `206` slices, `416` for unsatisfiable) |
 | **File** | `src/api/mock_http_file_server.cpp` (`range_ignore_enabled`, applied in `apply_range`) |
 
@@ -113,7 +115,7 @@ Make `server.files.metadata` and `server.files.metascan` fail with a 404, as Moo
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` / any non-empty, non-`0` value to enable |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | unset (metadata answers normally) |
 | **File** | `src/api/moonraker_client_mock_files.cpp` |
 
@@ -146,7 +148,7 @@ Boot the mock printer straight into an active print so print-gated features can 
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` / any non-empty, non-`0` value to enable |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | unset (no auto-print) |
 | **File** | `src/application/moonraker_manager.cpp` (sets `mock_auto_start_print`); consumed in `src/api/moonraker_client_mock.cpp` |
 
@@ -173,7 +175,7 @@ HELIX_MOCK_AUTO_PRINT=1 ./build/bin/helix-screen --test -vv
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` / any non-empty, non-`0` value to enable |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | unset (verdict derived from the live websocket endpoint) |
 | **File** | `include/runtime_config.h` (`should_mock_remote_printer()`); consumed in `src/application/moonraker_manager.cpp` |
 
@@ -897,7 +899,7 @@ Force the K2 spaghetti-detection source's capability probe, so the Settings > Sa
 
 | Property | Value |
 |----------|-------|
-| **Values** | `0` or `1` (any non-zero integer reads as capable) |
+| **Values** | `1`, `true`, `yes` or `on` reads as capable; any other value as incapable |
 | **Default** | Unset: the real probe runs |
 | **File** | `src/printer/k2_stock_detection_source.cpp` |
 
@@ -912,7 +914,7 @@ Latch a fault into every synthesized dragonbreath status frame — the diagnosti
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — nominal frame (`fault: false`, null `fault_reason`) |
 | **File** | `src/api/moonraker_client_mock.cpp` |
 
@@ -928,7 +930,7 @@ Drop the appliance off its radio link: every synthesized dragonbreath status fra
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — nominal frame (`connected: true`) |
 | **File** | `src/api/moonraker_client_mock.cpp` |
 
@@ -944,7 +946,7 @@ Have the appliance drive the heater itself: every synthesized dragonbreath statu
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset - nominal frame (`source: "klipper"`) |
 | **File** | `src/api/moonraker_client_mock.cpp` |
 
@@ -960,7 +962,7 @@ Put the stock Panda Breath into its own auto cycle: the status frame reports `wo
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — the appliance idles with `work_on: false` |
 | **File** | `src/api/moonraker_client_mock.cpp` |
 
@@ -976,7 +978,7 @@ The stock counterpart to `HELIX_MOCK_DRAGONBREATH_OFFLINE`: every synthesized `p
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — nominal frame (`connected: true`) |
 | **File** | `src/api/moonraker_client_mock.cpp` |
 
@@ -998,7 +1000,7 @@ Make the mock report Kalico-style MPC heater control instead of Klipper's PID. T
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — Klipper PID (`pid_kp: 22.865`, `pid_ki: 1.292`, `pid_kd: 101.178`) |
 | **File** | `src/api/moonraker_client_mock_objects.cpp` |
 
@@ -1117,7 +1119,7 @@ Swap the input-shaper panel's injected demo results for a Kalico-shaped shaper l
 
 | Property | Value |
 |----------|-------|
-| **Values** | Exactly `1` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — standard Klipper shaper list |
 | **File** | `src/ui/ui_panel_input_shaper.cpp` (`inject_demo_results()`) |
 

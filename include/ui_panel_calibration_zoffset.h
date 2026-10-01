@@ -9,6 +9,7 @@
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "save_config_restart.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "z_offset_utils.h"
 
@@ -63,7 +64,6 @@ class ZOffsetCalibrationPanel : public OverlayBase {
         WARMING    ///< Bed warming before calibration (6)
     };
 
-    ZOffsetCalibrationPanel();
     ~ZOffsetCalibrationPanel() override;
 
     //
@@ -85,6 +85,9 @@ class ZOffsetCalibrationPanel : public OverlayBase {
      * @return Root object of overlay, or nullptr on failure
      */
     lv_obj_t* create(lv_obj_t* parent) override;
+    const char* xml_component() const override {
+        return "calibration_zoffset_panel";
+    }
 
     /**
      * @brief Get human-readable overlay name
@@ -123,6 +126,7 @@ class ZOffsetCalibrationPanel : public OverlayBase {
      * Pushes overlay onto navigation stack and registers with NavigationManager.
      * on_activate() will be called automatically after animation completes.
      */
+    using OverlayBase::show;
     void show();
 
     /**
@@ -155,19 +159,9 @@ class ZOffsetCalibrationPanel : public OverlayBase {
      */
     void on_calibration_result(bool success, const std::string& message);
 
-    // Static trampolines for XML event_cb (must be public for registration)
-    static void on_start_clicked(lv_event_t* e);
-    static void on_z_adjust(lv_event_t* e); ///< Single callback — delta from user_data string
-    static void on_accept_clicked(lv_event_t* e);
-    static void on_abort_clicked(lv_event_t* e);
-    static void on_done_clicked(lv_event_t* e);
-    static void on_retry_clicked(lv_event_t* e);
-    static void on_warm_bed_toggled(lv_event_t* e);
-
   private:
     // API reference
     // Note: overlay_root_ inherited from OverlayBase
-    lv_obj_t* parent_screen_ = nullptr;
     IMoonrakerAPI* api_ = nullptr;
 
     // State management
@@ -257,6 +251,7 @@ class ZOffsetCalibrationPanel : public OverlayBase {
 };
 
 // Global instance accessor
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
 ZOffsetCalibrationPanel& get_global_zoffset_cal_panel();
 
 /**

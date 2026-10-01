@@ -23,6 +23,7 @@
 #include "app_constants.h"
 #include "app_globals.h"
 #include "config.h"
+#include "env_knobs.h"
 #include "filament_sensor_manager.h"
 #include "host_identity.h"
 #include "i_moonraker_client.h"
@@ -261,7 +262,8 @@ void MoonrakerManager::process_notifications() {
     std::lock_guard<std::mutex> lock(m_notification_mutex);
 
     while (!m_notification_queue.empty()) {
-        json notification = std::move(m_notification_queue.front());
+        const uint64_t klippy_epoch = m_notification_queue.front().klippy_epoch;
+        json notification = std::move(m_notification_queue.front().body);
         m_notification_queue.pop();
 
         // Check for connection state change (queued from state_change_callback)
@@ -324,29 +326,10 @@ void MoonrakerManager::process_notifications() {
                 }
             }
         } else {
-            // Regular Moonraker notification — extract status and update directly
-            if (notification.contains("method") && notification.contains("params")) {
-                const auto& method_str = notification["method"];
-                if (method_str.is_string() &&
-                    method_str.get<std::string>() == "notify_status_update") {
-                    auto& params = notification["params"];
-                    if (params.is_array() && !params.empty()) {
-                        // params[1] is Klipper's eventtime, and the marker says
-                        // whether this is a replay of an earlier snapshot rather
-                        // than current traffic. PrinterState needs both to keep a
-                        // stale klippy state from overwriting a live one; this is
-                        // the production status path (PrinterState::
-                        // update_from_notification is not wired up here).
-                        const double eventtime = (params.size() > 1 && params[1].is_number())
-                                                     ? params[1].get<double>()
-                                                     : 0.0;
-                        const bool from_cached_snapshot = helix::json_util::safe_bool(
-                            notification, helix::CACHED_SNAPSHOT_MARKER, false);
-                        get_printer_state().update_from_status(params[0], eventtime,
-                                                               from_cached_snapshot);
-                        helix::ToolState::instance().update_from_status(params[0]);
-                    }
-                }
+            if (auto frame = helix::parse_status_notification(notification)) {
+                get_printer_state().update_from_status(*frame->status, frame->eventtime,
+                                                       frame->from_cached_snapshot, klippy_epoch);
+                helix::ToolState::instance().update_from_status(*frame->status);
             }
         }
     }
@@ -441,8 +424,7 @@ void MoonrakerManager::create_client(const RuntimeConfig& runtime_config) {
         // --test without driving the UI through a print-start flow. Sets the
         // existing mock_auto_start_print flag the mock consumes on connect().
         // Additive + env-gated: default --test behavior is unchanged.
-        const char* auto_print_env = std::getenv("HELIX_MOCK_AUTO_PRINT");
-        if (auto_print_env && auto_print_env[0] && std::string(auto_print_env) != "0") {
+        if (helix::env_flag("HELIX_MOCK_AUTO_PRINT")) {
             get_runtime_config()->mock_auto_start_print = true;
             if (!get_runtime_config()->gcode_test_file) {
                 get_runtime_config()->gcode_test_file = RuntimeConfig::get_default_test_file_path();
@@ -657,7 +639,7 @@ void MoonrakerManager::register_callbacks() {
             state_change["_connection_state"] = true;
             state_change["old_state"] = static_cast<int>(old_state);
             state_change["new_state"] = static_cast<int>(new_state);
-            m_notification_queue.push(state_change);
+            m_notification_queue.push({std::move(state_change), 0});
         });
 
     // Register notification callback to queue updates for main thread
@@ -666,7 +648,9 @@ void MoonrakerManager::register_callbacks() {
             return;
 
         std::lock_guard<std::mutex> lock(m_notification_mutex);
-        m_notification_queue.push(notification);
+        // Stamped on the WebSocket thread, the thread that resets the klippy
+        // freshness on close, so a frame always carries the session it arrived in.
+        m_notification_queue.push({notification, get_printer_state().klippy_epoch()});
     });
 }
 
@@ -838,7 +822,6 @@ void MoonrakerManager::init_print_start_collector() {
                                              s_arming.is_initial_transition(),
                                              current_print_duration)) {
                 if (!collector->is_active()) {
-                    collector->reset();
                     collector->start();
                     collector->enable_fallbacks();
                     spdlog::info("[MoonrakerManager] PRINT_START collector started");
@@ -912,7 +895,6 @@ void MoonrakerManager::init_print_start_collector() {
             if (collector->is_active()) {
                 return; // already tracking
             }
-            collector->reset();
             collector->start();
             collector->enable_fallbacks();
             spdlog::info("[MoonrakerManager] PRINT_START collector started (commit)");

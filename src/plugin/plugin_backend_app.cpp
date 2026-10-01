@@ -7,6 +7,7 @@
 
 #include "app_globals.h"
 #include "config.h"
+#include "helix_version.h"
 #include "http_executor.h"
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
@@ -281,7 +282,7 @@ PluginBackend make_app_backend() {
             req->timeout = static_cast<int>((timeout_ms + 999) / 1000);
             req->body = body;
             req->redirect = 0;
-            req->headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
+            req->headers["User-Agent"] = HELIX_USER_AGENT;
             if (headers.is_object()) {
                 for (auto it = headers.begin(); it != headers.end(); ++it) {
                     if (it.value().is_string())

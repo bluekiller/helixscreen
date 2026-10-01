@@ -6,6 +6,7 @@
 #include "ui_modal.h"
 
 #include "macro_param_defaults.h"
+#include "macro_params.h"
 
 #include <functional>
 #include <map>
@@ -16,43 +17,10 @@ namespace helix {
 
 struct MacroParamModalTestAccess; // test-only friend (tests/test_helpers/)
 
-/// What a parameter's |default(...) filter holds.
-enum class MacroDefaultKind {
-    Absent,     ///< No |default(...) filter
-    Literal,    ///< A number, a quoted string, or true/false/none: usable as the value itself
-    Expression, ///< Evaluated by Klipper when the macro runs (a variable lookup, arithmetic)
-};
-
-/// Parsed macro parameter with optional default value
-struct MacroParam {
-    std::string name; ///< Parameter name (uppercase, e.g., "EXTRUDER_TEMP")
-    /// Text inside |default(...): a literal with its quotes stripped, an expression
-    /// verbatim. Empty if none.
-    std::string default_value;
-    bool is_variable = false; ///< True for Klipper variable_* fields (SET_GCODE_VARIABLE)
-    MacroDefaultKind default_kind = MacroDefaultKind::Absent;
-};
-
-/// Parse macro parameters from a Klipper gcode_macro template.
-/// Detects params.NAME, params['NAME'], params["NAME"] references and
-/// extracts |default(VALUE) when present. Deduplicates by name.
-[[nodiscard]] std::vector<MacroParam> parse_macro_params(const std::string& gcode_template);
-
 /// The hint an empty field for @p param shows: its literal default, a translated
 /// "Printer default" when the macro computes its own, or the parameter name when
 /// it has no default.
 [[nodiscard]] std::string macro_param_placeholder(const MacroParam& param);
-
-/// Parse raw "KEY=VALUE KEY2=VALUE2" text into a parameter map.
-/// Keys are uppercased to match Klipper convention.
-[[nodiscard]] std::map<std::string, std::string>
-parse_raw_macro_params(const std::string& raw_text);
-
-/// Result from macro parameter modal: inline params and variable overrides
-struct MacroParamResult {
-    std::map<std::string, std::string> params;    ///< Inline params (MACRO KEY=VALUE)
-    std::map<std::string, std::string> variables; ///< Variable overrides (SET_GCODE_VARIABLE)
-};
 
 /// Callback invoked when user confirms macro execution with parameters
 using MacroExecuteCallback = std::function<void(const MacroParamResult& result)>;

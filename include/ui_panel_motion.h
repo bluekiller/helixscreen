@@ -11,6 +11,7 @@
 #include "jog_coalescer.h"
 #include "motion_presets.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "ui/ui_modal_guard.h"
 
@@ -96,6 +97,9 @@ class MotionPanel : public OverlayBase {
     void init_subjects() override;
     void deinit_subjects();
     void register_callbacks() override;
+    const char* xml_component() const override {
+        return "motion_panel";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "Motion Panel";
@@ -239,8 +243,6 @@ class MotionPanel : public OverlayBase {
     int gcode_z_centimm_ = 0;
 
     lv_obj_t* jog_pad_ = nullptr;
-    lv_obj_t* parent_screen_ = nullptr;
-    bool callbacks_registered_ = false;
 
     helix::JogCoalescer jog_coalescer_;
 
@@ -348,4 +350,6 @@ class MotionPanel : public OverlayBase {
     bool show_actual_ = false;
 };
 
-MotionPanel& get_global_motion_panel();
+inline MotionPanel& get_global_motion_panel() {
+    return helix::lazy_global<MotionPanel>("MotionPanel");
+}

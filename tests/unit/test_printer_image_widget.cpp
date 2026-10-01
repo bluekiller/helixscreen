@@ -4,6 +4,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
+#include "../test_helpers/process_async_timers.h"
 #include "app_globals.h"
 #include "config.h"
 #include "misc/lv_timer_private.h"
@@ -24,28 +25,20 @@ namespace {
 
 /// Call the first pending one-shot timer's callback. Returns whether one fired.
 /// Pumping them one at a time lets a test observe the state between two chained
-/// deferrals; neither this nor process_async_calls() drains the UpdateQueue, which
+/// deferrals; neither this nor process_async_timers() drains the UpdateQueue, which
 /// runs off a repeating timer.
 bool fire_one_async_call() {
     for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) {
         if (t->repeat_count > 0 && t->timer_cb) {
+            t->repeat_count--;
             t->timer_cb(t);
+            if (timer_is_live(t) && t->repeat_count == 0) {
+                lv_timer_delete(t);
+            }
             return true;
         }
     }
     return false;
-}
-
-/// Drain LVGL's one-shot timer queue (lv_async_call + our deferral timers) by
-/// calling each ready one-shot timer's callback once, repeating until none
-/// fire. Mirrors process_async_calls() in test_panel_widget_manager.cpp — a
-/// fixed process_lvgl(ms) elapse does not reliably fire period-0 one-shot
-/// timers created mid-tick, so we pump them explicitly.
-void process_async_calls() {
-    for (int safety = 0; safety < 50; ++safety) {
-        if (!fire_one_async_call())
-            break;
-    }
 }
 
 } // namespace
@@ -99,7 +92,7 @@ TEST_CASE_METHOD(XMLTestFixture, "PrinterImageWidget defers image refresh out of
     REQUIRE(lv_image_get_src(img) == nullptr);
 
     // Fire the deferred refresh timer and let layout settle.
-    process_async_calls();
+    process_async_timers();
     process_lvgl(5);
 
     // After a tick the deferred refresh ran and applied a source image.
@@ -110,7 +103,7 @@ TEST_CASE_METHOD(XMLTestFixture, "PrinterImageWidget defers image refresh out of
         // It must not crash and must (re)apply the source via the deferred timer.
         w.on_activate();
         // Drain any pending deferred refresh + cache timers from on_activate().
-        process_async_calls();
+        process_async_timers();
         process_lvgl(5);
         REQUIRE(lv_image_get_src(img) != nullptr);
     }
@@ -168,7 +161,7 @@ TEST_CASE_METHOD(XMLTestFixture, "PrinterImageWidget generates its image cache o
     // MISS: firing the cache check must not decode and resize on this thread. The
     // widget stays on the CONTAIN-scaled source until a worker reports back — the
     // same state a generation failure leaves behind, so nothing blanks meanwhile.
-    process_async_calls();
+    process_async_timers();
     INFO("a cache miss must hand the generation to a worker, not run it inline");
     CHECK(std::string(static_cast<const char*>(lv_image_get_src(img))) == source);
 
@@ -241,7 +234,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     // Content-sized cache check: must skip rather than submit a job sized off
     // the LV_SIZE_CONTENT sentinel. Nothing to assert directly here — the proof
     // is that a real size assigned right after still gets its cache entry.
-    process_async_calls();
+    process_async_timers();
 
     lv_obj_set_size(img, 120, 90);
     process_lvgl(5);
@@ -252,7 +245,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     std::error_code ec;
     std::filesystem::remove(cache_path, ec); // force a miss even on a warm cache
 
-    process_async_calls();
+    process_async_timers();
     INFO("a content-sized cache check must not wedge cache_job_inflight_ and block "
          "the next real-size generation");
     REQUIRE(wait_until([&]() {
@@ -327,7 +320,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     helix::PrinterImageWidget w;
     w.attach(widget_obj, test_screen());
     helix::ui::UpdateQueue::instance().drain();
-    process_async_calls();
+    process_async_timers();
 
     const char* first_raw = static_cast<const char*>(lv_image_get_src(img));
     REQUIRE(first_raw != nullptr);
@@ -339,7 +332,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     get_printer_state().set_printer_type_sync("Voron 2.4");
 
     helix::ui::UpdateQueue::instance().drain();
-    process_async_calls();
+    process_async_timers();
 
     const std::string after_src(static_cast<const char*>(lv_image_get_src(img)));
     INFO("the widget must re-resolve once the detected type lands in config");
@@ -352,7 +345,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     build_tree(widget_obj, img);
     w.attach(widget_obj, test_screen());
     helix::ui::UpdateQueue::instance().drain();
-    process_async_calls();
+    process_async_timers();
 
     const std::string recycled_src(static_cast<const char*>(lv_image_get_src(img)));
     INFO("a recycled instance must re-resolve the settled type from attach()");

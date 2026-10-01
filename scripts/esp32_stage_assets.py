@@ -219,17 +219,21 @@ def stage_translations(ui_xml_dir: Path, out_dir: Path,
 
 
 def stage_config(assets_dir: Path, out_dir: Path) -> int:
-    """Copy assets/config/{printer_database.json, printing_tips.json, themes/}.
-    Returns total raw bytes."""
+    """Copy assets/config/{printer_database.json, printing_tips.json, themes/,
+    print_start_profiles/default.json}. Returns total raw bytes."""
     total = 0
     config_dir = assets_dir / "config"
     dest_config = out_dir / "assets" / "config"
 
-    for name in ("printer_database.json", "printing_tips.json"):
+    for name in (
+        "printer_database.json",
+        "printing_tips.json",
+        "print_start_profiles/default.json",
+    ):
         src = config_dir / name
         if not src.is_file():
             continue
-        dest_config.mkdir(parents=True, exist_ok=True)
+        (dest_config / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest_config / name)
         total += src.stat().st_size
 
@@ -353,7 +357,7 @@ def main() -> int:
     print(f"  ui_xml (minified, excl. micro/ + translations.xml): {format_bytes(ui_xml_bytes)}")
     print(f"  translations ({', '.join(included_langs) if included_langs else 'none'}): "
           f"{format_bytes(translations_bytes)}")
-    print(f"  assets/config (printer_database, printing_tips, themes): {format_bytes(config_bytes)}")
+    print(f"  assets/config (printer_database, printing_tips, themes, default print-start profile): {format_bytes(config_bytes)}")
     print(f"  assets/filaments.json: {format_bytes(filaments_bytes)}")
     if printer_images_present:
         print(f"  assets/images/printers (build/esp32_printer_images/): "

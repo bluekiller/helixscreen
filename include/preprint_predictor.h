@@ -164,6 +164,18 @@ class PreprintPredictor {
     [[nodiscard]] static json entries_to_json(const std::vector<PreprintEntry>& entries);
 
     /**
+     * @brief Record one finished pre-print in Config's print_start_history
+     *
+     * Every stored entry is kept except the oldest of the new entry's own
+     * (temp bucket, window) population beyond MAX_ENTRIES, and the oldest
+     * overall beyond MAX_STORED_ENTRIES. Writes Config; does not save it.
+     */
+    static void append_to_config(const PreprintEntry& entry);
+
+    /// Cap on the whole stored history, across buckets and windows
+    static constexpr size_t MAX_STORED_ENTRIES = 15;
+
+    /**
      * @brief Load history from Config and return predicted total seconds
      *
      * Convenience method for UI code that needs the prediction without

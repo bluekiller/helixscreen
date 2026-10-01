@@ -62,7 +62,7 @@ constexpr int kSnapPendingInsertPasses = 8;
 }
 
 // Snapmaker's recognized filament SUB_TYPE product lines. The RFID read path
-// stores SUB_TYPE into SlotInfo::spool_name (see handle_status_update), but a
+// stores SUB_TYPE into SlotInfo::spool_name (see handle_status), but a
 // user can edit spool_name to a free-form string ("My Custom Spool"). Both the
 // apply_user_edit firmware round-trip (POST /printer/filament_detect/set) and the
 // #991 post-runout SET_PRINT_FILAMENT_CONFIG re-assert must only treat
@@ -259,17 +259,6 @@ std::optional<AmsAction> AmsBackendSnapmaker::step_action_locked() const {
     // under way is what gets published.
     return u1_step_action(system_info_.action == AmsAction::UNLOADING,
                           system_info_.operation_phase);
-}
-
-SlotInfo AmsBackendSnapmaker::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto* slot = system_info_.get_slot_global(slot_index);
-    if (slot) {
-        return *slot;
-    }
-    SlotInfo empty;
-    empty.slot_index = -1;
-    return empty;
 }
 
 SlotInfo* AmsBackendSnapmaker::cached_slot_locked(int slot_index) {
@@ -896,33 +885,6 @@ void AmsBackendSnapmaker::prepare_for_resume(int slot_index, ResumeReadyCallback
 // Configuration
 // ============================================================================
 
-namespace {
-
-/// Put @p info's filament fields on @p slot, covering every SlotInfo field the
-/// caller may set, so the UI does not snap back on the next get_slot_info read.
-void write_filament_fields(SlotInfo& slot, const SlotInfo& info) {
-    slot.color_name = info.color_name;
-    slot.color_rgb = info.color_rgb;
-    slot.material = info.material;
-    slot.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that dropped
-    // it would make the editor snap back to a different variant on the next
-    // get_slot_info().
-    slot.catalog_id = info.catalog_id;
-    slot.product_name = info.product_name;
-    slot.nozzle_temp_min = info.nozzle_temp_min;
-    slot.nozzle_temp_max = info.nozzle_temp_max;
-    slot.bed_temp = info.bed_temp;
-    slot.remaining_weight_g = info.remaining_weight_g;
-    slot.total_weight_g = info.total_weight_g;
-    slot.spoolman_id = info.spoolman_id;
-    slot.spoolman_filament_id = info.spoolman_filament_id;
-    slot.spoolman_vendor_id = info.spoolman_vendor_id;
-    slot.spool_name = info.spool_name;
-}
-
-} // namespace
-
 AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& info,
                                               const helix::ams::Observation& declared) {
     auto err = validate_slot_index(slot_index);
@@ -935,9 +897,9 @@ AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& in
         if (!slot)
             return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, NUM_TOOLS - 1);
 
-        write_filament_fields(*slot, info);
+        slot->assign_filament_fields(info);
 
-        // handle_status_update writes RFID and print_task_config fields
+        // handle_status writes RFID and print_task_config fields
         // unconditionally, so an edit kept only in memory is wiped by the next
         // Klipper status update. Stage the override into overrides_ so the edit
         // survives a restart; the lane's own declaration, filed when the edit is
@@ -980,7 +942,7 @@ AmsError AmsBackendSnapmaker::apply_user_edit(int slot_index, const SlotInfo& in
             info_obj["MAIN_TYPE"] = info.material;
         // SUB_TYPE is restricted to Snapmaker's known product lines per the
         // firmware spec. spool_name carries the SUB_TYPE on the read path
-        // (see handle_status_update), but UI-edited spool_name may be a free-
+        // (see handle_status), but UI-edited spool_name may be a free-
         // form string ("My Custom Spool"). Only round-trip when it matches a
         // known sub_type — otherwise omit and let firmware preserve whatever
         // it had. The free-form string still lives in lane_data. Shares the
@@ -1125,7 +1087,7 @@ AmsError AmsBackendSnapmaker::sync_external_identity(int slot_index, const SlotI
 
         // overrides_ is left alone and nothing reaches firmware: the next
         // Klipper status update overwrites a synced value.
-        write_filament_fields(*slot, info);
+        slot->assign_filament_fields(info);
     }
 
     // Pass slot_index as event data so AmsState can do a targeted slot sync.
@@ -1327,18 +1289,7 @@ std::optional<helix::ams::SpoolEvidence> evidence_from_fingerprint(const std::st
 // Status Update Handling
 // ============================================================================
 
-void AmsBackendSnapmaker::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update format: {"method":"notify_status_update","params":[{...}, timestamp]}
-    // Initial query responses send unwrapped status directly — handle both.
-    const nlohmann::json* status_ptr = &notification;
-    if (notification.contains("params") && notification["params"].is_array() &&
-        !notification["params"].empty()) {
-        status_ptr = &notification["params"][0];
-    }
-    const auto& status = *status_ptr;
-    if (!status.is_object())
-        return;
-
+void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     bool changed = false;
     // Set when the active-tool port-present flag changed this parse (#991), so
     // we publish to AmsState exactly once after releasing the mutex.
@@ -2327,7 +2278,7 @@ void AmsBackendSnapmaker::handle_status_update(const nlohmann::json& notificatio
         // print_task_config, filament_feed). Rather than hook the override logic
         // into each one, we run it once here at the tail — the tradeoff is that
         // get_slot_info during a partial parse would observe uncleared overrides,
-        // but since everything runs under mutex_ and handle_status_update is the
+        // but since everything runs under mutex_ and handle_status is the
         // only writer, there's no observable window.
         for (int i = 0; i < NUM_TOOLS; ++i) {
             auto* slot = system_info_.units[0].get_slot(i);
@@ -2496,57 +2447,19 @@ void AmsBackendSnapmaker::check_hardware_event_clear(SlotInfo& slot, int slot_in
     // hardware-event clears and user-initiated clears share one field-reset
     // policy. Caller already holds mutex_.
     (void)ovr_it; // erased inside clear_override_locked
-    clear_override_locked(slot_index, slot);
+    clear_override_locked(slot_index, &slot);
 }
 
-void AmsBackendSnapmaker::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets STRICTLY
-    // override-exclusive fields on the live SlotInfo so the cleared state is
-    // visible in the very next get_slot_info() read.
-    //
-    // Snapmaker field policy: brand / spool_name / total_weight_g come from
-    // the RFID tag in handle_status_update — we must NOT zero those here or
-    // we'd wipe newly-parsed firmware metadata. The override's copies of
-    // those fields disappear with the erase; firmware's copies stay.
-    // (color_name is not firmware-populated for Snapmaker — RFID has no
-    // color-name field — so it's override-exclusive and gets cleared.)
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-    // The echo guard goes with them: it was suspending readings of an
-    // identity this clear just removed, on a lane whose next frame is the
-    // machine's own state. Covers both callers - the Clear Spool gesture and
-    // the RFID swap, whose differing tag would disarm at withhold() anyway.
-    own_write_echoes_.abandon(slot_index);
-
-    // All three Spoolman handles die with the override. The full
-    // SlotInfo::clear_spoolman_link() is withheld here: it also zeroes
-    // spool_name, which Snapmaker RFID firmware owns and re-supplies.
+void AmsBackendSnapmaker::clear_override_fields(SlotInfo& slot) const {
+    // All three Spoolman handles go. The full SlotInfo::clear_spoolman_link()
+    // is withheld: it also zeroes spool_name, which the RFID tag re-supplies.
     slot.spoolman_id = 0;
     slot.spoolman_vendor_id = 0;
     slot.spoolman_filament_id = 0;
     slot.remaining_weight_g = -1.0f;
     slot.color_name.clear();
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
     slot.catalog_id.clear();
     slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value only — clear_async's Moonraker callback can fire
-        // after this function returns (MR tracker ~60s) and potentially
-        // after the backend itself is gone. Same rationale as save_async.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
 }
 
 void AmsBackendSnapmaker::clear_slot_override(int slot_index) {
@@ -2565,7 +2478,7 @@ void AmsBackendSnapmaker::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, *slot);
+        clear_override_locked(slot_index, slot);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));

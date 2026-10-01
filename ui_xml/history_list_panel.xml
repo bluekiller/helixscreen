@@ -14,7 +14,7 @@
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" flex_flow="column"
         style_pad_all="0" style_bg_opa="255" style_bg_color="#card_bg" style_radius="0" style_border_width="0">
     <!-- Header bar with back button and title -->
-    <header_bar name="header" title="Print History" title_tag="Print History"/>
+    <header_bar name="overlay_header" title="Print History" title_tag="Print History"/>
     <!-- Filter/Search Row -->
     <lv_obj name="filter_row"
             width="100%" height="content" flex_flow="column" style_flex_cross_place="center" scrollable="false"
@@ -68,7 +68,7 @@
       </lv_obj>
     </lv_obj>
     <!-- Content area - scrollable container with three state-based views -->
-    <lv_obj name="list_content"
+    <lv_obj name="overlay_content"
             width="100%" height="content" flex_grow="1" flex_flow="column" style_pad_top="#space_sm"
             style_pad_bottom="#space_md" style_pad_left="#space_md" style_pad_right="#space_md"
             style_pad_row="#space_sm" scrollable="true">

@@ -6,8 +6,7 @@
 #include "ui_shutdown_modal.h"
 
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 #include <functional>
 #include <string>
@@ -16,7 +15,7 @@ class IMoonrakerAPI;
 
 namespace helix {
 
-class ShutdownWidget : public PanelWidget {
+class ShutdownWidget : public TiledPanelWidget {
   public:
     explicit ShutdownWidget(IMoonrakerAPI* api);
     ~ShutdownWidget() override;
@@ -25,24 +24,6 @@ class ShutdownWidget : public PanelWidget {
     void detach() override;
     const char* id() const override {
         return "shutdown";
-    }
-
-    void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override {
-        (void)colspan;
-        (void)rowspan;
-        sizing_.measure_and_publish(width_px, height_px);
-    }
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
     }
 
     // XML event callback (public for early registration)
@@ -68,11 +49,6 @@ class ShutdownWidget : public PanelWidget {
     helix::AsyncLifetimeGuard lifetime_;
 
     void handle_click();
-
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_{"shutdown", TileSizing::Content{"", "", "Shutdown", false}};
 };
 
 void register_shutdown_widget();

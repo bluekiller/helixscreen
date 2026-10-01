@@ -33,6 +33,7 @@
 #include "static_panel_registry.h"
 #include "subject_debug_registry.h"
 #include "ui/ui_lazy_panel_helper.h"
+#include "ui/ui_widget_helpers.h"
 #include "wizard_config_paths.h"
 
 #include <lvgl/src/misc/cache/lv_cache.h>
@@ -43,33 +44,8 @@
 using namespace helix;
 
 // =============================================================================
-// Global Instance
+// Destructor
 // =============================================================================
-
-static std::unique_ptr<PrinterManagerOverlay> g_printer_manager_overlay;
-
-PrinterManagerOverlay& get_printer_manager_overlay() {
-    if (!g_printer_manager_overlay) {
-        g_printer_manager_overlay = std::make_unique<PrinterManagerOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "PrinterManagerOverlay", []() { g_printer_manager_overlay.reset(); });
-    }
-    return *g_printer_manager_overlay;
-}
-
-void destroy_printer_manager_overlay() {
-    g_printer_manager_overlay.reset();
-}
-
-// =============================================================================
-// Constructor / Destructor
-// =============================================================================
-
-PrinterManagerOverlay::PrinterManagerOverlay() {
-    std::memset(name_buf_, 0, sizeof(name_buf_));
-    std::memset(model_buf_, 0, sizeof(model_buf_));
-    std::memset(version_buf_, 0, sizeof(version_buf_));
-}
 
 PrinterManagerOverlay::~PrinterManagerOverlay() {
     if (lv_is_initialized()) {
@@ -98,31 +74,44 @@ void PrinterManagerOverlay::init_subjects() {
 // =============================================================================
 
 lv_obj_t* PrinterManagerOverlay::create(lv_obj_t* parent) {
-    if (!create_overlay_from_xml(parent, "printer_manager_overlay")) {
+    if (!create_overlay_from_xml(parent, xml_component())) {
         return nullptr;
     }
 
     // Find the printer image widget for programmatic image source setting
-    printer_image_obj_ = lv_obj_find_by_name(overlay_root_, "pm_printer_image");
+    printer_image_obj_ = helix::ui::find_required(overlay_root_, "pm_printer_image", get_name());
 
     // Find name editing widgets (visibility driven by pm_name_editing subject via XML bindings)
-    name_input_ = lv_obj_find_by_name(overlay_root_, "pm_printer_name_input");
+    name_input_ = helix::ui::find_required(overlay_root_, "pm_printer_name_input", get_name());
 
     // Register READY/CANCEL on textarea for name edit lifecycle
     // (acceptable exception to declarative rule — textarea lifecycle event, like DELETE cleanup)
     if (name_input_) {
-        lv_obj_add_event_cb(name_input_, pm_name_input_ready_cb, LV_EVENT_READY, nullptr);
-        lv_obj_add_event_cb(name_input_, pm_name_input_cancel_cb, LV_EVENT_CANCEL, nullptr);
+        lv_obj_add_event_cb(
+            name_input_,
+            [](lv_event_t*) {
+                LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] name_input_ready");
+                get_printer_manager_overlay().finish_name_edit();
+                LVGL_SAFE_EVENT_CB_END();
+            },
+            LV_EVENT_READY, nullptr);
+        lv_obj_add_event_cb(
+            name_input_,
+            [](lv_event_t*) {
+                LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] name_input_cancel");
+                get_printer_manager_overlay().cancel_name_edit();
+                LVGL_SAFE_EVENT_CB_END();
+            },
+            LV_EVENT_CANCEL, nullptr);
     }
 
     // Clicking the overlay content area while editing saves and dismisses the input.
     // LVGL DEFOCUSED events don't fire reliably on touchscreens, so we use a
     // click handler on the scrollable content instead.
-    auto* content = lv_obj_find_by_name(overlay_root_, "overlay_content");
-    if (content) {
+    if (auto* content = helix::ui::find_required(overlay_root_, "overlay_content", get_name())) {
         lv_obj_add_event_cb(
             content,
-            [](lv_event_t* e) {
+            [](lv_event_t*) {
                 auto& pm = get_printer_manager_overlay();
                 if (lv_subject_get_int(&pm.name_editing_) != 0) {
                     pm.finish_name_edit();
@@ -138,7 +127,8 @@ lv_obj_t* PrinterManagerOverlay::create(lv_obj_t* parent) {
     // bind_flag) because the chip already carries a printer_has_timelapse binding
     // and this helix-xml build has no compound-condition (subject_expr/cond) support.
     // Compiled out on desktop → zero desktop impact.
-    if (auto* timelapse_chip = lv_obj_find_by_name(overlay_root_, "pm_chip_timelapse")) {
+    if (auto* timelapse_chip =
+            helix::ui::find_required(overlay_root_, "pm_chip_timelapse", get_name())) {
         // DECLARATIVE_OK: compile-time capability (#if), no runtime subject exists
         lv_obj_add_flag(timelapse_chip, LV_OBJ_FLAG_HIDDEN);
     }
@@ -147,115 +137,74 @@ lv_obj_t* PrinterManagerOverlay::create(lv_obj_t* parent) {
     return overlay_root_;
 }
 
-// =============================================================================
-// Callbacks
-// =============================================================================
-
-void PrinterManagerOverlay::register_callbacks() {
-    register_xml_callbacks({
-        // Chip navigation callbacks
-        {"pm_chip_bed_mesh_clicked", on_chip_bed_mesh_clicked},
-        {"pm_chip_leds_clicked", on_chip_leds_clicked},
-        {"pm_chip_adxl_clicked", on_chip_adxl_clicked},
-        {"pm_chip_retraction_clicked", on_chip_retraction_clicked},
-        {"pm_chip_spoolman_clicked", on_chip_spoolman_clicked},
-        {"pm_chip_timelapse_clicked", on_chip_timelapse_clicked},
-        {"pm_chip_screws_tilt_clicked", on_chip_screws_tilt_clicked},
-        {"pm_chip_ams_clicked", on_chip_ams_clicked},
-        {"pm_chip_fans_clicked", on_chip_fans_clicked},
-        {"pm_chip_power_clicked", on_chip_power_clicked},
-        {"pm_chip_speaker_clicked", on_chip_speaker_clicked},
-        // Printer name click callback (inline rename)
-        {"pm_printer_name_clicked", pm_printer_name_clicked_cb},
-        // Image click callback (opens printer image picker)
-        {"on_change_printer_image_clicked", change_printer_image_clicked_cb},
-        // Model click callback (opens printer model picker)
-        {"on_change_printer_model_clicked", change_printer_model_clicked_cb},
-        // Manage printers callback (opens printer list)
-        {"pm_manage_printers_clicked", pm_manage_printers_clicked_cb},
-    });
-}
+namespace {
 
 // =============================================================================
 // Chip Navigation Callbacks
 // =============================================================================
 
-void PrinterManagerOverlay::on_chip_bed_mesh_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_bed_mesh_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Bed Mesh chip clicked");
 #if defined(HELIX_PLATFORM_ESP32)
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(
-        get_global_bed_mesh_panel, pm.bed_mesh_panel_, lv_display_get_screen_active(nullptr),
-        "Bed Mesh", "Printer Manager", true);
+    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(get_global_bed_mesh_panel,
+                                                          lv_display_get_screen_active(nullptr),
+                                                          "Bed Mesh", "Printer Manager");
 }
 
-void PrinterManagerOverlay::on_chip_leds_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_leds_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] LEDs chip clicked");
     auto& overlay = helix::settings::get_led_settings_overlay();
     overlay.show(lv_display_get_screen_active(nullptr));
 }
 
-void PrinterManagerOverlay::on_chip_adxl_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_adxl_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] ADXL chip clicked");
 #if defined(HELIX_PLATFORM_ESP32)
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<InputShaperPanel>(
-        get_global_input_shaper_panel, pm.input_shaper_panel_,
-        lv_display_get_screen_active(nullptr), "Input Shaper", "Printer Manager", true);
+    helix::ui::lazy_create_and_push_overlay<InputShaperPanel>(get_global_input_shaper_panel,
+                                                              lv_display_get_screen_active(nullptr),
+                                                              "Input Shaper", "Printer Manager");
 }
 
-void PrinterManagerOverlay::on_chip_retraction_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_retraction_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Retraction chip clicked");
-    auto& pm = get_printer_manager_overlay();
     helix::ui::lazy_create_and_push_overlay<RetractionSettingsOverlay>(
-        get_global_retraction_settings, pm.retraction_panel_, lv_display_get_screen_active(nullptr),
+        get_global_retraction_settings, lv_display_get_screen_active(nullptr),
         "Retraction Settings", "Printer Manager");
 }
 
-void PrinterManagerOverlay::on_chip_spoolman_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_spoolman_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Spoolman chip clicked");
-    auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(
-        get_global_spoolman_panel, pm.spoolman_panel_, lv_display_get_screen_active(nullptr),
-        "Spoolman", "Printer Manager");
+    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(get_global_spoolman_panel,
+                                                           lv_display_get_screen_active(nullptr),
+                                                           "Spoolman", "Printer Manager");
 }
 
-void PrinterManagerOverlay::on_chip_timelapse_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_timelapse_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Timelapse chip clicked");
-    auto& pm = get_printer_manager_overlay();
     helix::ui::lazy_create_and_push_overlay<TimelapseSettingsOverlay>(
-        get_global_timelapse_settings, pm.timelapse_panel_, lv_display_get_screen_active(nullptr),
-        "Timelapse Settings", "Printer Manager");
+        get_global_timelapse_settings, lv_display_get_screen_active(nullptr), "Timelapse Settings",
+        "Printer Manager");
 }
 
-void PrinterManagerOverlay::on_chip_screws_tilt_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_screws_tilt_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Screws Tilt chip clicked");
 #if defined(HELIX_PLATFORM_ESP32)
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
     get_global_screws_tilt_panel().set_client(get_moonraker_client(), get_moonraker_api());
-    auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(
-        get_global_screws_tilt_panel, pm.screws_tilt_panel_, lv_display_get_screen_active(nullptr),
-        "Bed Screws", "Printer Manager");
+    helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(get_global_screws_tilt_panel,
+                                                             lv_display_get_screen_active(nullptr),
+                                                             "Bed Screws", "Printer Manager");
 }
 
-void PrinterManagerOverlay::on_chip_ams_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_ams_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] AMS chip clicked");
 
     auto& ams_panel = get_global_ams_panel();
@@ -274,15 +223,13 @@ void PrinterManagerOverlay::on_chip_ams_clicked(lv_event_t* e) {
     }
 }
 
-void PrinterManagerOverlay::on_chip_fans_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_fans_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Fans chip clicked");
 
     helix::open_fan_control_overlay(lv_display_get_screen_active(nullptr));
 }
 
-void PrinterManagerOverlay::on_chip_power_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_power_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Power Devices chip clicked");
     auto& panel = get_global_power_panel();
     lv_obj_t* overlay = panel.get_or_create_overlay(lv_display_get_screen_active(nullptr));
@@ -291,87 +238,56 @@ void PrinterManagerOverlay::on_chip_power_clicked(lv_event_t* e) {
     }
 }
 
-void PrinterManagerOverlay::on_chip_speaker_clicked(lv_event_t* e) {
-    (void)e;
+void on_chip_speaker_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Speaker chip clicked");
     auto& overlay = helix::settings::get_sound_settings_overlay();
     overlay.show(lv_display_get_screen_active(nullptr));
 }
 
-// =============================================================================
-// Manage Printers
-// =============================================================================
-
-void PrinterManagerOverlay::pm_manage_printers_clicked_cb(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] manage_printers_clicked");
-    get_printer_manager_overlay().handle_manage_printers_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterManagerOverlay::handle_manage_printers_clicked() {
-    spdlog::info("[{}] Manage Printers clicked — opening printer list", get_name());
-    auto& overlay = helix::ui::get_printer_list_overlay();
-    overlay.show(lv_display_get_screen_active(nullptr));
-}
+} // namespace
 
 // =============================================================================
-// Printer Image Click
+// Callbacks
 // =============================================================================
 
-void PrinterManagerOverlay::change_printer_image_clicked_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] change_printer_image_clicked_cb");
-    (void)e;
-    get_printer_manager_overlay().handle_change_printer_image_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterManagerOverlay::handle_change_printer_image_clicked() {
-    spdlog::debug("[{}] Printer image clicked — opening image picker", get_name());
-    auto& overlay = helix::settings::get_printer_image_overlay();
-    overlay.show(lv_display_get_screen_active(nullptr));
-}
-
-// =============================================================================
-// Printer Model Click
-// =============================================================================
-
-void PrinterManagerOverlay::change_printer_model_clicked_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] change_printer_model_clicked_cb");
-    (void)e;
-    get_printer_manager_overlay().handle_change_printer_model_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterManagerOverlay::handle_change_printer_model_clicked() {
-    spdlog::debug("[{}] Printer model clicked — opening model picker", get_name());
-    auto& overlay = helix::settings::get_printer_type_overlay();
-    overlay.show(lv_display_get_screen_active(nullptr));
+void PrinterManagerOverlay::register_callbacks() {
+    register_xml_callbacks({
+        {"pm_chip_bed_mesh_clicked", on_chip_bed_mesh_clicked},
+        {"pm_chip_leds_clicked", on_chip_leds_clicked},
+        {"pm_chip_adxl_clicked", on_chip_adxl_clicked},
+        {"pm_chip_retraction_clicked", on_chip_retraction_clicked},
+        {"pm_chip_spoolman_clicked", on_chip_spoolman_clicked},
+        {"pm_chip_timelapse_clicked", on_chip_timelapse_clicked},
+        {"pm_chip_screws_tilt_clicked", on_chip_screws_tilt_clicked},
+        {"pm_chip_ams_clicked", on_chip_ams_clicked},
+        {"pm_chip_fans_clicked", on_chip_fans_clicked},
+        {"pm_chip_power_clicked", on_chip_power_clicked},
+        {"pm_chip_speaker_clicked", on_chip_speaker_clicked},
+        {"pm_printer_name_clicked",
+         [](lv_event_t*) { get_printer_manager_overlay().start_name_edit(); }},
+        {"on_change_printer_image_clicked",
+         [](lv_event_t*) {
+             spdlog::debug("[Printer Manager] Printer image clicked, opening image picker");
+             helix::settings::get_printer_image_overlay().show(
+                 lv_display_get_screen_active(nullptr));
+         }},
+        {"on_change_printer_model_clicked",
+         [](lv_event_t*) {
+             spdlog::debug("[Printer Manager] Printer model clicked, opening model picker");
+             helix::settings::get_printer_type_overlay().show(
+                 lv_display_get_screen_active(nullptr));
+         }},
+        {"pm_manage_printers_clicked",
+         [](lv_event_t*) {
+             spdlog::info("[Printer Manager] Manage Printers clicked, opening printer list");
+             helix::ui::get_printer_list_overlay().show(lv_display_get_screen_active(nullptr));
+         }},
+    });
 }
 
 // =============================================================================
 // Printer Name Editing
 // =============================================================================
-
-void PrinterManagerOverlay::pm_printer_name_clicked_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] pm_printer_name_clicked_cb");
-    (void)e;
-    get_printer_manager_overlay().start_name_edit();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterManagerOverlay::pm_name_input_ready_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] pm_name_input_ready_cb");
-    (void)e;
-    get_printer_manager_overlay().finish_name_edit();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterManagerOverlay::pm_name_input_cancel_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterManagerOverlay] pm_name_input_cancel_cb");
-    (void)e;
-    get_printer_manager_overlay().cancel_name_edit();
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void PrinterManagerOverlay::start_name_edit() {
     if (lv_subject_get_int(&name_editing_) != 0 || !name_input_)

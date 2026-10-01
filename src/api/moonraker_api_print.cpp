@@ -23,7 +23,7 @@ using namespace moonraker_internal;
 void MoonrakerAPI::is_printer_ready(BoolCallback on_result, ErrorCallback on_error) {
     client_.send_jsonrpc(
         "printer.info", json::object(),
-        [on_result](json response) {
+        [on_result](const json& response) {
             bool ready = false;
             if (response.contains("result") && response["result"].contains("state") &&
                 response["result"]["state"].is_string()) {
@@ -40,7 +40,7 @@ void MoonrakerAPI::get_print_state(StringCallback on_result, ErrorCallback on_er
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_result](json response) {
+        [on_result](const json& response) {
             std::string state = "unknown";
             if (response.contains("result") && response["result"].contains("status") &&
                 response["result"]["status"].contains("print_stats") &&
@@ -66,7 +66,7 @@ void MoonrakerAPI::check_continue_print_state(
 
     client_.send_jsonrpc(
         helix::CREALITY_DETECT_RPC, json::object(),
-        [on_result](json response) {
+        [on_result](const json& response) {
             helix::PlrDetectResult result;
             if (!helix::plr_parse_check_continue_response(response, result)) {
                 // result.completed stays false, which forbids resume downstream.

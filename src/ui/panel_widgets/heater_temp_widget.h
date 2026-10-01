@@ -8,8 +8,7 @@
 #include "ui_overlay_temp_graph.h"
 
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 class TemperatureService;
 
@@ -27,7 +26,7 @@ namespace helix {
 // subjects to observe, which icon/button names the XML uses, and which overlay
 // mode to open. That difference is captured by Config, so there is exactly one
 // implementation instead of three near-identical copies.
-class HeaterTempWidget : public PanelWidget {
+class HeaterTempWidget : public TiledPanelWidget {
   public:
     // Resolves the per-heater subjects from PrinterState. Captureless lambdas
     // convert to these plain function pointers, so each Config is a trivial,
@@ -57,24 +56,6 @@ class HeaterTempWidget : public PanelWidget {
         return cfg_.widget_id;
     }
 
-    void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override {
-        (void)colspan;
-        (void)rowspan;
-        sizing_.measure_and_publish(width_px, height_px);
-    }
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
-    }
-
     // Shared XML event callback. All three heater components register their
     // distinct callback names (temp_clicked_cb / bed_temp_clicked_cb /
     // chamber_temp_clicked_cb) against this one function — the bound widget is
@@ -101,21 +82,6 @@ class HeaterTempWidget : public PanelWidget {
     helix::AsyncLifetimeGuard lifetime_;
 
     void handle_temp_clicked();
-
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component. The three heaters draw the same shape, so one
-    /// worst-case budget covers them. temp_display draws the unit as its own
-    /// label beside the value, so the budget carries it too: a value measured
-    /// without the unit is narrower than the row that renders. Below 100 the
-    /// reading carries a decimal, which makes "88.8" the widest current. No
-    /// label is drawn. The nozzle glyph carries a tool digit whenever a second
-    /// tool appears, which can happen after this tile was sized, so it is
-    /// always budgeted. The glyph pulses while heating, so it is never scaled.
-    TileSizing sizing_{cfg_.widget_id,
-                       TileSizing::Content{"88.8 / 888\u00B0C", "88.8\u00B0C", "", true,
-                                           cfg_.heater == HeaterType::Nozzle ? "8" : "",
-                                           /*label_always_drawn=*/false, TileSizing::IconBox::Glyph,
-                                           /*icon_animates=*/true}};
 };
 
 // Per-heater configs — single source of truth shared by the widget factories

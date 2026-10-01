@@ -285,13 +285,6 @@ class ControlsPanel : public PanelBase {
     // === Lazily-Created Child Panels ===
     //
 
-    lv_obj_t* motion_panel_ = nullptr;
-    lv_obj_t* bed_mesh_panel_ = nullptr;
-    lv_obj_t* zoffset_panel_ = nullptr;
-    lv_obj_t* tool_offset_panel_ = nullptr;
-    lv_obj_t* pa_cal_panel_ = nullptr;
-    lv_obj_t* screws_panel_ = nullptr;
-
     /// LED quick-toggle for the Calibration & Tools grid cell. Reuses the same
     /// LedWidget that drives the home-dashboard light widget (stateful bulb icon
     /// reflecting on/off + brightness + LED color; tap toggles). Present only

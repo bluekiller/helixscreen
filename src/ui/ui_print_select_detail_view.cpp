@@ -40,6 +40,7 @@
 #include "text_io.h"
 #include "theme_manager.h"
 #include "tool_state.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -262,7 +263,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     }
 
     // Set responsive padding for content area
-    lv_obj_t* content_container = lv_obj_find_by_name(overlay_root_, "content_container");
+    lv_obj_t* content_container = find_required(overlay_root_, "content_container", get_name());
     if (content_container) {
         lv_coord_t padding = ui_get_header_content_padding();
         lv_obj_set_style_pad_all(content_container, padding, 0);
@@ -271,7 +272,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     // Store reference to print button for enable/disable state management
-    print_button_ = lv_obj_find_by_name(overlay_root_, "print_button");
+    print_button_ = find_required(overlay_root_, "print_button", get_name());
 
     // Find and configure G-code viewer widget
     gcode_viewer_ = lv_obj_find_by_name(overlay_root_, "detail_gcode_viewer");
@@ -325,7 +326,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     purge_line_checkbox_ = nullptr;
     timelapse_checkbox_ = nullptr;
     pre_print_options_container_ =
-        lv_obj_find_by_name(overlay_root_, "pre_print_options_container");
+        find_required(overlay_root_, "pre_print_options_container", get_name());
 
     // The options scroll area feeds two measured rules: the more-below cue
     // (scroll bottom > 0) and the portrait preview height. Scroll, size and
@@ -334,8 +335,8 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     // scroll area is the one event that also fires when the CONTENT grows
     // without any scrolling (option tiles or filament rows arriving after the
     // view is built), which scroll/size events alone would miss.
-    options_scroll_ = lv_obj_find_by_name(overlay_root_, "detail_options_scroll");
-    detail_card_ = lv_obj_find_by_name(overlay_root_, "detail_card");
+    options_scroll_ = find_required(overlay_root_, "detail_options_scroll", get_name());
+    detail_card_ = find_required(overlay_root_, "detail_card", get_name());
     if (options_scroll_) {
         for (lv_event_code_t code : {LV_EVENT_SCROLL, LV_EVENT_SCROLL_END, LV_EVENT_SIZE_CHANGED,
                                      LV_EVENT_LAYOUT_CHANGED}) {
@@ -369,8 +370,8 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     // NOT a second lv_obj_add_event_cb here, which would fire the remap opener
     // twice per tap. Whether the card is clickable at all, and whether it shows
     // the chevron that says so, both come from color_card_remappable.
-    lv_obj_t* mapping_card = lv_obj_find_by_name(overlay_root_, "filament_mapping_card");
-    lv_obj_t* mapping_rows = lv_obj_find_by_name(overlay_root_, "filament_mapping_rows");
+    lv_obj_t* mapping_card = find_required(overlay_root_, "filament_mapping_card", get_name());
+    lv_obj_t* mapping_rows = find_required(overlay_root_, "filament_mapping_rows", get_name());
     lv_obj_t* mapping_warning = lv_obj_find_by_name(overlay_root_, "filament_mapping_warning");
     filament_mapping_card_.create(mapping_card, mapping_rows, mapping_warning);
     // Route the card tap to the panel's single remap opener instead of the
@@ -386,9 +387,9 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     });
 
     // Look up history status display
-    history_status_row_ = lv_obj_find_by_name(overlay_root_, "history_status_row");
-    history_status_icon_ = lv_obj_find_by_name(overlay_root_, "history_status_icon");
-    history_status_label_ = lv_obj_find_by_name(overlay_root_, "history_status_label");
+    history_status_row_ = find_required(overlay_root_, "history_status_row", get_name());
+    history_status_icon_ = find_required(overlay_root_, "history_status_icon", get_name());
+    history_status_label_ = find_required(overlay_root_, "history_status_label", get_name());
 
     // Initialize print preparation manager (only if not already created —
     // survives destroy-on-close so callbacks set by PrintSelectPanel persist)

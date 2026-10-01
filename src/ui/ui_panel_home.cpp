@@ -111,7 +111,7 @@ HomePanel::~HomePanel() {
     for (auto& page : pages_) {
         for (auto& w : page.widgets) {
             if (w)
-                w->detach();
+                w->detach_tile();
         }
     }
     pages_.clear();
@@ -478,7 +478,7 @@ void HomePanel::teardown_carousel() {
     for (auto& page : pages_) {
         for (auto& w : page.widgets) {
             if (w)
-                w->detach();
+                w->detach_tile();
         }
     }
     pages_.clear();
@@ -589,7 +589,7 @@ void HomePanel::populate_page(int page_index, bool force) {
         auto& widgets = pages_[idx].widgets;
         for (auto& w : widgets) {
             if (w) {
-                w->detach();
+                w->detach_tile();
                 if (w->supports_reuse()) {
                     reuse[w->id()] = std::move(w);
                 }

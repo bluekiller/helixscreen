@@ -7,8 +7,7 @@
 #include "ui_observer_guard.h"
 
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 #include <memory>
 #include <string>
@@ -21,7 +20,7 @@ class ThermistorTestAccess;
 /// Home widget displaying a user-selected temperature sensor reading.
 /// Click opens a context menu to choose which sensor to monitor.
 /// Selection persists via PanelWidgetConfig per-widget config.
-class ThermistorWidget : public PanelWidget {
+class ThermistorWidget : public TiledPanelWidget {
   public:
     explicit ThermistorWidget(const std::string& instance_id);
     ~ThermistorWidget() override;
@@ -30,24 +29,6 @@ class ThermistorWidget : public PanelWidget {
     void attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) override;
     void detach() override;
     std::string get_component_name() const override;
-    void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override {
-        (void)colspan;
-        (void)rowspan;
-        sizing_.measure_and_publish(width_px, height_px);
-    }
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
-    }
-
     const char* id() const override {
         return instance_id_.c_str();
     }
@@ -151,10 +132,6 @@ class ThermistorWidget : public PanelWidget {
 
     /// this tile's component.
 
-    TileSizing sizing_{instance_id_,
-                       TileSizing::Content{"110.0\u00B0C", "110.0\u00B0C", "Sensor", true, "",
-                                           /*label_always_drawn=*/true, TileSizing::IconBox::Glyph,
-                                           /*icon_animates=*/false, /*label_is_identity=*/true}};
     std::string icon_name_; // Custom icon, empty = "thermometer" default
 
     lv_obj_t* widget_obj_ = nullptr;

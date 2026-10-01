@@ -198,17 +198,6 @@ class PrinterDetector {
     static std::string get_image_for_printer(const std::string& printer_name);
 
     /**
-     * @brief Get image filename for a printer by ID
-     *
-     * Looks up the image field from the printer database JSON using the printer ID.
-     * Returns just the filename (e.g., "voron-v2.png"), not the full path.
-     *
-     * @param printer_id Printer ID (e.g., "voron_2_4", "flashforge_adventurer_5m")
-     * @return Image filename if found, empty string if not found
-     */
-    static std::string get_image_for_printer_id(const std::string& printer_id);
-
-    /**
      * @brief Get console filter pattern preset for a printer
      *
      * Looks up the `console_filter_patterns` array from the database entry for
@@ -587,17 +576,6 @@ class PrinterDetector {
      * Safe to call multiple times (no-op after first). Use reload() to restore.
      */
     static void compact_database();
-
-    /**
-     * @brief Check if the configured printer type is a Voron variant
-     *
-     * Reads the printer type from config and does a case-insensitive check
-     * for "voron". Used to select Stealthburner toolhead rendering in the
-     * filament path canvas.
-     *
-     * @return true if printer type contains "Voron" (case-insensitive)
-     */
-    static bool is_voron_printer();
 
     /**
      * @brief Check if the detected printer is a PrintersForAnts (PFA) model

@@ -425,7 +425,7 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
 
     // Connect
     http_headers headers;
-    headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
+    headers["User-Agent"] = HELIX_USER_AGENT;
     return open(url, headers);
 }
 
@@ -796,8 +796,8 @@ void MoonrakerClient::on_ws_close() {
         // uptime, so a reboot (or a switch to a different printer) restarts it near
         // zero; carrying the old watermark across would make the next session's
         // genuinely-current frames look older than the last session's and be
-        // rejected for the life of the process. Touches two POD members under
-        // PrinterState's own mutex — no LVGL, safe from this event-loop thread.
+        // rejected for the life of the process. Touches two POD fields under their
+        // own lock, no LVGL: safe from this event-loop thread.
         get_printer_state().reset_klippy_state_freshness();
 
         if (was_connected_) {
@@ -1201,7 +1201,7 @@ void MoonrakerClient::get_gcode_store(
 
     send_jsonrpc(
         "server.gcode_store", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<GcodeStoreEntry> entries;
 
             // Parse response: {"result": {"gcode_store": [...]}}
@@ -1267,7 +1267,7 @@ void MoonrakerClient::get_temperature_store(std::function<void(const Temperature
 
     send_jsonrpc(
         "server.temperature_store", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             TemperatureStore store;
             if (response.contains("result")) {
                 store = parse_temperature_store(response["result"]);

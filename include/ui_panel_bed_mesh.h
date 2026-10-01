@@ -15,6 +15,7 @@
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "save_config_restart.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <array>
@@ -67,8 +68,16 @@ class BedMeshPanel : public OverlayBase {
     void deinit_subjects();
     void register_callbacks() override;
     lv_obj_t* create(lv_obj_t* parent) override;
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     const char* get_name() const override {
         return "Bed Mesh Panel";
+    }
+    const char* xml_component() const override {
+        return "bed_mesh_panel";
     }
 
     // === Lifecycle hooks ===
@@ -284,9 +293,6 @@ class BedMeshPanel : public OverlayBase {
     std::vector<std::vector<float>> pending_mesh_data_;
     bool has_pending_mesh_data_ = false;
 
-    lv_obj_t* parent_screen_ = nullptr;
-    bool callbacks_registered_ = false;
-
     /// What begin_calibration() planned: launch_calibration() sends its command,
     /// and on_calibration_complete() finishes where it says the mesh went.
     helix::bed_mesh::CalibrationPlan calibration_plan_;
@@ -368,4 +374,5 @@ class BedMeshPanel : public OverlayBase {
 };
 
 // Global instance accessor (needed by main.cpp)
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
 BedMeshPanel& get_global_bed_mesh_panel();

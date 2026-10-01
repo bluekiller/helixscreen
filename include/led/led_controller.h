@@ -229,6 +229,10 @@ class WledBackend {
     void poll_status(std::function<void()> on_complete = nullptr);
 
   private:
+    /// One wled_set_strip call; -1 leaves brightness or preset unchanged.
+    void send(const std::string& strip_name, const char* action, int brightness, int preset,
+              NativeBackend::SuccessCallback on_success, NativeBackend::ErrorCallback on_error);
+
     IMoonrakerAPI* api_ = nullptr;
     IMoonrakerClient* client_ = nullptr;
     std::vector<LedStripInfo> strips_;
@@ -277,6 +281,11 @@ class MacroBackend {
     [[nodiscard]] bool has_known_state(const std::string& macro_name) const;
 
   private:
+    /// Run the macro's gcode_field, or its toggle macro when that is empty.
+    void run(const std::string& macro_name, std::string LedMacroInfo::*gcode_field,
+             const char* what, NativeBackend::SuccessCallback on_success,
+             NativeBackend::ErrorCallback on_error);
+
     IMoonrakerAPI* api_ = nullptr;
     std::vector<LedMacroInfo> macros_;
 };

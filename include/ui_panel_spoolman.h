@@ -11,6 +11,7 @@
 
 #include "overlay_base.h"
 #include "spoolman_types.h" // For SpoolInfo
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -55,6 +56,9 @@ class SpoolmanPanel : public OverlayBase {
     const char* get_name() const override {
         return "Spoolman";
     }
+    const char* xml_component() const override {
+        return "spoolman_panel";
+    }
 
     // === Lifecycle hooks ===
     void on_activate() override;
@@ -76,9 +80,6 @@ class SpoolmanPanel : public OverlayBase {
   private:
     // ========== UI Widget Pointers ==========
     lv_obj_t* spool_list_ = nullptr;
-
-    // ========== Flags ==========
-    bool callbacks_registered_ = false;
 
     // ========== State ==========
     std::vector<SpoolInfo> cached_spools_;
@@ -139,16 +140,9 @@ class SpoolmanPanel : public OverlayBase {
     // === Label Printing ===
 
     // === Spool Wizard ===
-    lv_obj_t* wizard_panel_ = nullptr;
 
-    // ========== Static Event Callbacks ==========
-    static void on_spool_row_clicked(lv_event_t* e);
-    static void on_refresh_clicked(lv_event_t* e);
-    static void on_add_spool_clicked(lv_event_t* e);
+    // ========== Virtualized list scroll handler ==========
     static void on_scroll(lv_event_t* e);
-    static void on_search_changed(lv_event_t* e);
-    static void on_search_clear(lv_event_t* e);
-    static void on_location_filter_changed(lv_event_t* e);
 };
 
 // ============================================================================
@@ -161,4 +155,5 @@ class SpoolmanPanel : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
 SpoolmanPanel& get_global_spoolman_panel();

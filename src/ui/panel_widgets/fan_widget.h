@@ -8,8 +8,8 @@
 #include "ui_widget_ref.h"
 
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
 #include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 #include <memory>
 #include <string>
@@ -19,7 +19,7 @@ namespace helix {
 /// Home widget displaying a user-selected fan speed reading.
 /// Click opens a context menu to choose which fan to monitor.
 /// Selection persists via PanelWidgetConfig per-widget config.
-class FanWidget : public PanelWidget {
+class FanWidget : public TiledPanelWidget {
   public:
     explicit FanWidget(const std::string& instance_id);
     ~FanWidget() override;
@@ -37,18 +37,6 @@ class FanWidget : public PanelWidget {
     bool on_edit_configure() override;
 
     void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override;
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
-    }
 
     /// Called from static event callback
     void handle_clicked();
@@ -93,10 +81,6 @@ class FanWidget : public PanelWidget {
     };
 
     std::string instance_id_;
-    /// Constructed with the widget so its subjects exist before the manager
-    /// parses this tile's component; a binding whose subject is missing at
-    /// parse time is dropped permanently.
-    TileSizing sizing_;
     helix::ui::WidgetRef widget_obj_;
     helix::ui::WidgetRef parent_screen_;
     helix::ui::WidgetRef speed_label_;

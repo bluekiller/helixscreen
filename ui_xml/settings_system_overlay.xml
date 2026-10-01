@@ -33,7 +33,8 @@
         <setting_toggle_row name="row_telemetry"
                             label="Share Usage Data" label_tag="Share Usage Data" icon="chart_line"
                             description="Anonymous data to help improve HelixScreen"
-                            description_tag="Anonymous data to help improve HelixScreen" callback="on_telemetry_changed"/>
+                            description_tag="Anonymous data to help improve HelixScreen"
+                            subject="settings_telemetry_enabled" callback="on_telemetry_changed"/>
         <setting_action_row name="row_telemetry_view_data"
                             label="View Telemetry Data" label_tag="View Telemetry Data" icon="list"
                             description="See exactly what data will be sent"
@@ -48,7 +49,8 @@
                               description="Set logging verbosity for troubleshooting"
                               description_tag="Set logging verbosity for troubleshooting"
                               options="Warn&#10;Info&#10;Debug&#10;Trace"
-                              options_tag="Warn&#10;Info&#10;Debug&#10;Trace" callback="on_log_level_changed"/>
+                              options_tag="Warn&#10;Info&#10;Debug&#10;Trace" bind_selected="settings_log_level"
+                              callback="on_log_level_changed"/>
         <!-- ================================================================== -->
         <!-- RESTART -->
         <!-- ================================================================== -->

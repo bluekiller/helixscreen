@@ -81,7 +81,6 @@ TEST_CASE_METHOD(EntryFixture, "light chip follows the chamber light", "[led][en
 
 TEST_CASE_METHOD(EntryFixture, "the LED controls tile opens on the last focused device",
                  "[led][entry]") {
-    init_led_control_overlay(ps);
     REQUIRE(helix::open_led_control_overlay(test_screen(), "neopixel sb_leds") != nullptr);
     drain();
     NavigationManager::instance().go_back();
@@ -104,7 +103,6 @@ TEST_CASE_METHOD(EntryFixture, "a light button's › opens the overlay on that b
                             Case{"all", "neopixel chamber_light", "neopixel sb_leds"});
     INFO("light key: " << c.key);
 
-    init_led_control_overlay(ps);
     REQUIRE(helix::open_led_control_overlay(test_screen(), c.focused_before) != nullptr);
     drain();
     NavigationManager::instance().go_back();
@@ -116,7 +114,7 @@ TEST_CASE_METHOD(EntryFixture, "a light button's › opens the overlay on that b
     lv_obj_t* root = lv_obj_create(test_screen());
     lv_obj_t* more = lv_obj_create(root);
     lv_obj_add_event_cb(more, LedWidget::light_more_cb, LV_EVENT_CLICKED, nullptr);
-    w.attach(root, test_screen());
+    w.attach_tile(root, test_screen());
 
     lv_obj_send_event(more, LV_EVENT_CLICKED, nullptr);
     drain();
@@ -125,7 +123,7 @@ TEST_CASE_METHOD(EntryFixture, "a light button's › opens the overlay on that b
     CHECK(get_led_control_overlay().focused_device() == c.expected);
     NavigationManager::instance().go_back();
     drain();
-    w.detach();
+    w.detach_tile();
 }
 
 TEST_CASE_METHOD(EntryFixture, "the print-status light toggles only the chamber light",

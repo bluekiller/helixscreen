@@ -93,29 +93,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "TempGraphOverlay: get_name returns expected v
 // Subject Initialization
 // =============================================================================
 
-TEST_CASE_METHOD(LVGLTestFixture, "TempGraphOverlay: init_subjects sets initialized flag",
-                 "[temp_graph_overlay]") {
-    TempGraphOverlay overlay;
-
-    REQUIRE_FALSE(overlay.are_subjects_initialized());
-
-    overlay.init_subjects();
-
-    REQUIRE(overlay.are_subjects_initialized());
-}
-
-TEST_CASE_METHOD(LVGLTestFixture, "TempGraphOverlay: double init_subjects does not crash",
-                 "[temp_graph_overlay]") {
-    TempGraphOverlay overlay;
-
-    overlay.init_subjects();
-    REQUIRE(overlay.are_subjects_initialized());
-
-    // Second call should be a no-op (guarded by init_subjects_guarded)
-    overlay.init_subjects();
-    REQUIRE(overlay.are_subjects_initialized());
-}
-
 // =============================================================================
 // Global Accessor Pattern
 // =============================================================================
@@ -184,7 +161,6 @@ TEST_CASE_METHOD(
     {
         TempGraphOverlay overlay;
         overlay.init_subjects();
-        REQUIRE(overlay.are_subjects_initialized());
 
         // Exactly six subjects published: temp_graph_mode,
         // temp_graph_nozzle_badge, temp_graph_nozzle_temp,

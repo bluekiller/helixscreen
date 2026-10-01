@@ -9,6 +9,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/home_panel_test_access.h"
 #include "../test_helpers/plugin_host_test_support.h"
+#include "../test_helpers/process_async_timers.h"
 #include "../test_helpers/scope_exit.h"
 #include "config.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
@@ -249,7 +250,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     lv_obj_t* root = static_cast<lv_obj_t*>(
         lv_xml_create(lv_screen_active(), w->get_component_name().c_str(), nullptr));
     REQUIRE(root);
-    w->attach(root, lv_screen_active());
+    w->attach_tile(root, lv_screen_active());
     w->notify_size_changed(4, 2, 200, 100);
     drain();
     CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo__size_label"))) ==
@@ -260,7 +261,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     // The plugin is gone: no hook runs against freed Lua state, nothing crashes.
     w->on_activate();
     w->notify_size_changed(2, 2, 100, 100);
-    w->detach();
+    w->detach_tile();
     lv_obj_delete(root);
     w.reset();
 }
@@ -307,28 +308,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a widget whose component file is missing is i
     CHECK(helix::find_widget_def("widget-missing__tile") == nullptr);
 }
 
-namespace {
-/// Pump LVGL's one-shot timer queue (lv_async_call), as test_panel_widget_runtime_defs
-/// does: a fixed process_lvgl() elapse does not reliably fire period-0 timers created
-/// mid-tick.
-void process_async_calls() {
-    for (int safety = 0; safety < 50; ++safety) {
-        bool fired = false;
-        lv_timer_t* t = lv_timer_get_next(nullptr);
-        while (t) {
-            lv_timer_t* next = lv_timer_get_next(t);
-            if (t->repeat_count > 0 && t->timer_cb) {
-                t->timer_cb(t);
-                fired = true;
-                break;
-            }
-            t = next;
-        }
-        if (!fired)
-            break;
-    }
-}
-} // namespace
+namespace {} // namespace
 
 TEST_CASE_METHOD(LVGLTestFixture,
                  "an enabled reload rebuilds a placed home tile onto the new runtime",
@@ -379,7 +359,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     CHECK(rig.host->enable("widget-demo"));
     drain();
     process_lvgl(50);
-    process_async_calls();
+    process_async_timers();
     drain();
 
     size = lv_xml_get_subject(nullptr, "widget-demo__size");

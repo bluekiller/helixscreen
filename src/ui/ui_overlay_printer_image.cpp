@@ -13,8 +13,8 @@
 
 #include "ui_overlay_printer_image.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
-#include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_overlay_printer_image_tagger.h"
@@ -27,7 +27,7 @@
 #include "prerendered_images.h"
 #include "printer_image_manager.h"
 #include "printer_images.h"
-#include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 #include "usb_manager.h"
 #include "wizard_config_paths.h"
 
@@ -39,36 +39,14 @@
 namespace helix::settings {
 
 namespace hfs = fs;
+using helix::ui::find_required;
 
 // ============================================================================
-// SINGLETON ACCESSOR
+// DESTRUCTOR
 // ============================================================================
-
-static std::unique_ptr<PrinterImageOverlay> g_printer_image_overlay;
-
-PrinterImageOverlay& get_printer_image_overlay() {
-    if (!g_printer_image_overlay) {
-        g_printer_image_overlay = std::make_unique<PrinterImageOverlay>();
-        StaticPanelRegistry::instance().register_destroy("PrinterImageOverlay",
-                                                         []() { g_printer_image_overlay.reset(); });
-    }
-    return *g_printer_image_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-PrinterImageOverlay::PrinterImageOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
 
 PrinterImageOverlay::~PrinterImageOverlay() {
-    // SubjectManager handles subject deinit via RAII
-    if (subjects_initialized_) {
-        deinit_subjects_base(subjects_);
-    }
-    spdlog::trace("[{}] Destroyed", get_name());
+    deinit_subjects_base(subjects_);
 }
 
 // ============================================================================
@@ -76,10 +54,6 @@ PrinterImageOverlay::~PrinterImageOverlay() {
 // ============================================================================
 
 void PrinterImageOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
-
     // USB section visibility subject (0=hidden, 1=visible)
     UI_MANAGED_SUBJECT_INT(usb_visible_subject_, 0, "printer_image_usb_visible", subjects_);
 
@@ -94,71 +68,32 @@ void PrinterImageOverlay::init_subjects() {
                               "printer_image_preview_name", subjects_);
     UI_MANAGED_SUBJECT_INT(has_preview_subject_, 0, "printer_image_has_preview", subjects_);
     UI_MANAGED_SUBJECT_INT(tag_state_subject_, 0, "printer_image_tag_state", subjects_);
-
-    subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized", get_name());
 }
 
 void PrinterImageOverlay::register_callbacks() {
-    lv_xml_register_event_cb(nullptr, "on_printer_image_auto_detect", on_auto_detect);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_card_clicked", on_image_card_clicked);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_usb_clicked", on_usb_image_clicked);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_tag_parts", on_tag_parts);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_reset_tags", on_reset_tags);
-    spdlog::debug("[{}] Callbacks registered", get_name());
-}
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* PrinterImageOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "printer_image_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
-
-void PrinterImageOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Ensure subjects and callbacks are initialized
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    // Lazy create overlay
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Register for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack (on_activate will populate lists)
-    NavigationManager::instance().push_overlay(overlay_root_);
+    register_xml_callbacks({
+        {"on_printer_image_auto_detect",
+         [](lv_event_t*) { get_printer_image_overlay().handle_auto_detect(); }},
+        {"on_printer_image_card_clicked",
+         [](lv_event_t* e) {
+             const char* id = helix::ui::get_owned_user_string(lv_event_get_current_target_obj(e));
+             if (id) {
+                 get_printer_image_overlay().handle_image_selected(std::string(id));
+             }
+         }},
+        {"on_printer_image_usb_clicked",
+         [](lv_event_t* e) {
+             const char* path =
+                 helix::ui::get_owned_user_string(lv_event_get_current_target_obj(e));
+             if (path) {
+                 get_printer_image_overlay().handle_usb_import(std::string(path));
+             }
+         }},
+        {"on_printer_image_tag_parts",
+         [](lv_event_t*) { get_printer_image_overlay().handle_tag_parts(); }},
+        {"on_printer_image_reset_tags",
+         [](lv_event_t*) { get_printer_image_overlay().handle_reset_tags(); }},
+    });
 }
 
 // ============================================================================
@@ -327,9 +262,8 @@ void PrinterImageOverlay::populate_shipped_images() {
         return;
     }
 
-    lv_obj_t* list = lv_obj_find_by_name(overlay_root_, "shipped_images_list");
+    lv_obj_t* list = find_required(overlay_root_, "shipped_images_list", get_name());
     if (!list) {
-        spdlog::warn("[{}] shipped_images_list not found", get_name());
         return;
     }
 
@@ -349,9 +283,8 @@ void PrinterImageOverlay::populate_custom_images() {
         return;
     }
 
-    lv_obj_t* list = lv_obj_find_by_name(overlay_root_, "custom_images_list");
+    lv_obj_t* list = find_required(overlay_root_, "custom_images_list", get_name());
     if (!list) {
-        spdlog::warn("[{}] custom_images_list not found", get_name());
         return;
     }
 
@@ -439,9 +372,8 @@ void PrinterImageOverlay::scan_usb_drives() {
 }
 
 void PrinterImageOverlay::populate_usb_images(const std::string& mount_path) {
-    lv_obj_t* list = lv_obj_find_by_name(overlay_root_, "usb_images_list");
+    lv_obj_t* list = find_required(overlay_root_, "usb_images_list", get_name());
     if (!list) {
-        spdlog::warn("[{}] usb_images_list not found", get_name());
         return;
     }
 
@@ -535,50 +467,6 @@ void PrinterImageOverlay::handle_image_selected(const std::string& image_id) {
     // Update preview panel
     std::string preview_path = get_preview_path_for_id(image_id);
     update_preview(image_id, display_name, preview_path);
-}
-
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void PrinterImageOverlay::on_auto_detect(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_auto_detect");
-    get_printer_image_overlay().handle_auto_detect();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageOverlay::on_image_card_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_image_card_clicked");
-    // Get the row root (current_target = obj with the handler = setting_action_row view)
-    auto* row = lv_event_get_current_target_obj(e);
-    const char* id = helix::ui::get_owned_user_string(row);
-    if (id) {
-        get_printer_image_overlay().handle_image_selected(std::string(id));
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageOverlay::on_tag_parts(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_tag_parts");
-    get_printer_image_overlay().handle_tag_parts();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageOverlay::on_reset_tags(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_reset_tags");
-    get_printer_image_overlay().handle_reset_tags();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageOverlay::on_usb_image_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageOverlay] on_usb_image_clicked");
-    // Get the row root (current_target = obj with the handler = setting_action_row view)
-    auto* row = lv_event_get_current_target_obj(e);
-    const char* path = helix::ui::get_owned_user_string(row);
-    if (path) {
-        get_printer_image_overlay().handle_usb_import(std::string(path));
-    }
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::settings

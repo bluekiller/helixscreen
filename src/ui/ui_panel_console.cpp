@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_overlay_console_settings.h"
@@ -23,7 +22,9 @@
 #include "printer_detector.h"
 #include "printer_state.h"
 #include "settings_manager.h"
+#include "static_panel_registry.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -34,11 +35,7 @@
 #include <utility>
 #include <vector>
 
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(ConsolePanel, g_console_panel, get_global_console_panel)
+using helix::ui::find_required;
 
 namespace {
 
@@ -69,10 +66,6 @@ std::string format_timestamp(double timestamp) {
 // Constructor
 // ============================================================================
 
-ConsolePanel::ConsolePanel() {
-    spdlog::trace("[{}] Constructor", get_name());
-}
-
 ConsolePanel::~ConsolePanel() {
     deinit_subjects();
 }
@@ -82,15 +75,13 @@ ConsolePanel::~ConsolePanel() {
 // ============================================================================
 
 void ConsolePanel::init_subjects() {
-    init_subjects_guarded([this]() {
-        // Initialize status subject for reactive binding
-        UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, lv_tr("Loading history..."),
-                                  "console_status", subjects_);
-        // Status label visibility (1 = visible, 0 = hidden)
-        UI_MANAGED_SUBJECT_INT(status_visible_subject_, 1, "console_status_visible", subjects_);
-        // Entry presence (1 = has entries, 0 = empty/show empty state)
-        UI_MANAGED_SUBJECT_INT(has_entries_subject_, 0, "console_has_entries", subjects_);
-    });
+    // Initialize status subject for reactive binding
+    UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, lv_tr("Loading history..."),
+                              "console_status", subjects_);
+    // Status label visibility (1 = visible, 0 = hidden)
+    UI_MANAGED_SUBJECT_INT(status_visible_subject_, 1, "console_status_visible", subjects_);
+    // Entry presence (1 = has entries, 0 = empty/show empty state)
+    UI_MANAGED_SUBJECT_INT(has_entries_subject_, 0, "console_has_entries", subjects_);
 }
 
 void ConsolePanel::deinit_subjects() {
@@ -167,14 +158,6 @@ ConsolePanel::entry_from_gcode_response(const nlohmann::json& msg) {
 // ============================================================================
 
 void ConsolePanel::register_callbacks() {
-    if (callbacks_registered_) {
-        spdlog::debug("[{}] Callbacks already registered", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Registering event callbacks", get_name());
-
-    // Register XML event callbacks for send, clear, and filter buttons
     register_xml_callbacks({
         {"on_console_send_clicked",
          [](lv_event_t* /*e*/) {
@@ -192,20 +175,9 @@ void ConsolePanel::register_callbacks() {
         {"on_console_settings_clicked",
          [](lv_event_t* /*e*/) {
              spdlog::debug("[Console] Settings gear clicked - opening overlay");
-             auto& overlay = get_global_console_settings();
-             auto* root = overlay.get_root();
-             if (!root) {
-                 root = overlay.create(lv_screen_active());
-             }
-             if (root) {
-                 NavigationManager::instance().register_overlay_instance(root, &overlay);
-                 NavigationManager::instance().push_overlay(root);
-             }
+             get_global_console_settings().show(lv_screen_active());
          }},
     });
-
-    callbacks_registered_ = true;
-    spdlog::debug("[{}] Event callbacks registered", get_name());
 }
 
 // ============================================================================
@@ -213,32 +185,20 @@ void ConsolePanel::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* ConsolePanel::create(lv_obj_t* parent) {
-    if (!create_overlay_from_xml(parent, "console_panel")) {
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
     // Find widget references
-    lv_obj_t* overlay_content = lv_obj_find_by_name(overlay_root_, "overlay_content");
-    if (overlay_content) {
-        console_container_ = lv_obj_find_by_name(overlay_content, "console_container");
-        empty_state_ =
-            console_container_ ? lv_obj_find_by_name(console_container_, "empty_state") : nullptr;
-        status_label_ = lv_obj_find_by_name(overlay_content, "status_message");
-
-        // Find the input row and get the text input
-        lv_obj_t* input_row = lv_obj_find_by_name(overlay_content, "input_row");
-        if (input_row) {
-            gcode_input_ = lv_obj_find_by_name(input_row, "gcode_input");
-            if (gcode_input_) {
-                spdlog::debug("[{}] Found gcode_input textarea", get_name());
-            }
-        }
-    }
-
+    lv_obj_t* overlay_content = find_required(overlay_root_, "overlay_content", get_name());
+    console_container_ = find_required(overlay_content, "console_container", get_name());
     if (!console_container_) {
-        spdlog::error("[{}] console_container not found!", get_name());
         return nullptr;
     }
+    empty_state_ = find_required(console_container_, "empty_state", get_name());
+    status_label_ = find_required(overlay_content, "status_message", get_name());
+    gcode_input_ = find_required(find_required(overlay_content, "input_row", get_name()),
+                                 "gcode_input", get_name());
 
     // Track user scroll position for smart auto-scroll behavior.
     // When user scrolls up to read history, auto-scroll is paused.
@@ -253,9 +213,7 @@ lv_obj_t* ConsolePanel::create(lv_obj_t* parent) {
         },
         LV_EVENT_SCROLL, this);
 
-    if (!gcode_input_) {
-        spdlog::warn("[{}] gcode_input not found - input disabled", get_name());
-    } else {
+    if (gcode_input_) {
         // Enter key submits the command (LV_EVENT_READY fires on Enter
         // in a one-line textarea)
         lv_obj_add_event_cb(
@@ -319,7 +277,6 @@ lv_obj_t* ConsolePanel::create(lv_obj_t* parent) {
     spdlog::debug("[{}] Timestamps {} (min_dim={})", get_name(),
                   show_timestamps_ ? "enabled" : "disabled", resp_res);
 
-    spdlog::info("[{}] Overlay created successfully", get_name());
     return overlay_root_;
 }
 

@@ -115,7 +115,7 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     }
 
     /**
-     * @brief Reset detected phases (for new print)
+     * @brief Reset all per-run state; start() runs the same reset
      */
     void reset();
 
@@ -775,6 +775,9 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
      * @brief Feed current temperature readings to ThermalRateModel during heating phases
      */
     void feed_thermal_sample();
+
+    /// Every per-run field back to its start-of-run value. Caller holds state_mutex_.
+    void reset_run_locked();
 
     /**
      * @brief Load prediction entries from helix::Config on start()

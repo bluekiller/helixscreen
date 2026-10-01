@@ -3,12 +3,13 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "temperature_controller.h"
 
 #include <string>
+#include <vector>
 
 namespace helix::settings {
 
@@ -25,9 +26,6 @@ namespace helix::settings {
  */
 class MaterialTempsOverlay : public OverlayBase {
   public:
-    MaterialTempsOverlay();
-    ~MaterialTempsOverlay() override;
-
     // === OverlayBase Interface ===
 
     void init_subjects() override;
@@ -37,12 +35,12 @@ class MaterialTempsOverlay : public OverlayBase {
         return "Material Temperatures";
     }
 
+    /// Custom create(): caches the list and edit views and intercepts the back button.
     lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
 
     void on_activate() override;
 
-    // === Event Handlers (public for static callbacks) ===
+    // === Event Handlers ===
 
     void handle_material_row_clicked(const std::string& material_name);
     void handle_save();
@@ -53,6 +51,10 @@ class MaterialTempsOverlay : public OverlayBase {
     /// chamber). Must hold the longest locale at the widest bound (ru is the
     /// longest today); test_material_temps_chamber pins that it does.
     static constexpr size_t kToastBufBytes = 128;
+
+  protected:
+    /// Every open starts on the list view.
+    void before_show() override;
 
   private:
     void populate_material_list();
@@ -93,15 +95,14 @@ class MaterialTempsOverlay : public OverlayBase {
     // === Static Callbacks ===
 
     static void on_material_row_clicked(lv_event_t* e);
-    static void on_material_save(lv_event_t* e);
-    static void on_material_reset_defaults(lv_event_t* e);
     static void on_back_clicked(lv_event_t* e);
-    static void on_macro_dropdown_changed(lv_event_t* e);
 };
 
 /**
  * @brief Global instance accessor (lazy singleton with StaticPanelRegistry cleanup)
  */
-MaterialTempsOverlay& get_material_temps_overlay();
+inline MaterialTempsOverlay& get_material_temps_overlay() {
+    return lazy_global<MaterialTempsOverlay>("MaterialTempsOverlay");
+}
 
 } // namespace helix::settings

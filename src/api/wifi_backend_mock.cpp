@@ -45,9 +45,9 @@ void WifiBackendMock::start_async() {
     // and fire READY so tests waiting on the event see it.
     WiFiError result = start();
     if (result.success()) {
-        fire_event("READY");
+        dispatch_event("READY");
     } else {
-        fire_event("INIT_FAILED", result.technical_msg);
+        dispatch_event("INIT_FAILED", result.technical_msg);
     }
 }
 
@@ -76,30 +76,6 @@ void WifiBackendMock::stop() {
 
 bool WifiBackendMock::is_running() const {
     return running_;
-}
-
-// ============================================================================
-// Event System
-// ============================================================================
-
-void WifiBackendMock::register_event_callback(const std::string& name,
-                                              std::function<void(const std::string&)> callback) {
-    callbacks_[name] = callback;
-    spdlog::trace("[WifiBackend] Mock: Registered callback for '{}'", name);
-}
-
-void WifiBackendMock::fire_event(const std::string& event_name, const std::string& data) {
-    spdlog::debug("[WifiBackend] fire_event ENTRY: event_name='{}'", event_name);
-    auto it = callbacks_.find(event_name);
-    if (it != callbacks_.end()) {
-        spdlog::debug("[WifiBackend] fire_event: found callback for '{}', about to invoke",
-                      event_name);
-        it->second(data);
-        spdlog::debug("[WifiBackend] fire_event: callback returned");
-    } else {
-        spdlog::debug("[WifiBackend] fire_event: no callback registered for '{}'", event_name);
-    }
-    spdlog::debug("[WifiBackend] fire_event EXIT");
 }
 
 // ============================================================================
@@ -168,7 +144,7 @@ void WifiBackendMock::scan_thread_func() {
     }
 
     spdlog::debug("[WifiBackend] Mock: Scan completed");
-    fire_event("SCAN_COMPLETE");
+    dispatch_event("SCAN_COMPLETE");
 }
 
 // ============================================================================
@@ -245,7 +221,7 @@ WiFiError WifiBackendMock::disconnect_network() {
 
     set_connected_state(false);
 
-    fire_event("DISCONNECTED", "reason=user_request");
+    dispatch_event("DISCONNECTED", "reason=user_request");
     return WiFiErrorHelper::success();
 }
 
@@ -253,7 +229,7 @@ WiFiError WifiBackendMock::set_radio_enabled(bool on) {
     radio_enabled_ = on;
     if (!on) {
         set_connected_state(false);
-        fire_event("DISCONNECTED", "");
+        dispatch_event("DISCONNECTED", "");
     }
     return WiFiErrorHelper::success();
 }
@@ -290,7 +266,7 @@ WiFiError WifiBackendMock::forget_network(const std::string& ssid) {
 
     if (connected_ && connected_ssid_ == ssid) {
         set_connected_state(false);
-        fire_event("DISCONNECTED", "reason=forgotten");
+        dispatch_event("DISCONNECTED", "reason=forgotten");
     }
 
     spdlog::info("[WifiBackend] Mock: Forgot network '{}'",
@@ -319,7 +295,7 @@ void WifiBackendMock::connect_thread_func() {
         if (it_timeout_check->network.signal_strength < 20 && (rng_() % 100) < 30) {
             spdlog::info("[WifiBackend] Mock: Connection timeout - weak signal ({}%)",
                          it_timeout_check->network.signal_strength);
-            fire_event("DISCONNECTED", "reason=timeout");
+            dispatch_event("DISCONNECTED", "reason=timeout");
             return;
         }
     }
@@ -333,7 +309,7 @@ void WifiBackendMock::connect_thread_func() {
     if (it == mock_networks_.end()) {
         LOG_ERROR_INTERNAL("[WifiBackend] Mock: Network '{}' disappeared during connection",
                            connecting_ssid_); // PII_OK: mock backend, fixture SSIDs
-        fire_event("DISCONNECTED", "reason=network_not_found");
+        dispatch_event("DISCONNECTED", "reason=network_not_found");
         return;
     }
 
@@ -342,7 +318,7 @@ void WifiBackendMock::connect_thread_func() {
         if (connecting_password_.empty()) {
             spdlog::info("[WifiBackend] Mock: Auth failed - no password for secured network '{}'",
                          connecting_ssid_); // PII_OK: mock backend, fixture SSIDs
-            fire_event("AUTH_FAILED", "reason=no_password");
+            dispatch_event("AUTH_FAILED", "reason=no_password");
             return;
         }
 
@@ -350,7 +326,7 @@ void WifiBackendMock::connect_thread_func() {
         if (connecting_password_ != it->password) {
             spdlog::debug("[WifiBackend] Mock: Auth failed - wrong password for '{}'",
                           connecting_ssid_); // PII_OK: mock backend, fixture SSIDs
-            fire_event("AUTH_FAILED", "reason=wrong_password");
+            dispatch_event("AUTH_FAILED", "reason=wrong_password");
             return;
         }
 
@@ -367,7 +343,7 @@ void WifiBackendMock::connect_thread_func() {
     spdlog::info("[WifiBackend] Mock: Connected to '{}', IP: {}", connecting_ssid_,
                  ip); // PII_OK: mock backend, fixture SSIDs
 
-    fire_event("CONNECTED", "ip=" + ip);
+    dispatch_event("CONNECTED", "ip=" + ip);
 }
 
 // ============================================================================

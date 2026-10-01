@@ -9,8 +9,13 @@
  * and progress calculation. No LVGL or Moonraker required - pure logic tests.
  */
 
+#include "../test_helpers/config_dir_guard.h"
+#include "../test_helpers/log_capture.h"
 #include "../test_helpers/print_start_profile_test_access.h"
 #include "print_start_profile.h"
+
+#include <filesystem>
+#include <fstream>
 
 #include "../catch_amalgamated.hpp"
 
@@ -381,48 +386,6 @@ TEST_CASE("PrintStartProfile: default patterns match AD5M START_PRINT lines",
 }
 
 // ============================================================================
-// Phase Weight Tests
-// ============================================================================
-
-TEST_CASE("PrintStartProfile: phase weights match expected values", "[profile][print]") {
-    auto profile = get_default_profile();
-    REQUIRE(profile != nullptr);
-
-    SECTION("Known phases have non-zero weights") {
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 10);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_BED) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::SOAKING) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::QGL) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::Z_TILT) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 10);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 5);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 5);
-    }
-
-    SECTION("Unknown/unused phases return 0") {
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::IDLE) == 0);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::COMPLETE) == 0);
-    }
-}
-
-TEST_CASE("PrintStartProfile: forge_x phase weights", "[profile][print]") {
-    auto profile = get_forge_x_profile();
-    REQUIRE(profile != nullptr);
-
-    // Only test if forge_x loaded (not default fallback)
-    if (profile->name().find("Forge") != std::string::npos) {
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::INITIALIZING) == 5);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 5);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_BED) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 15);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 20);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 25);
-        REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 10);
-    }
-}
-
-// ============================================================================
 // Forge-X Signal Format Matching Tests
 // ============================================================================
 
@@ -617,7 +580,7 @@ TEST_CASE("PrintStartProfile: missing profile falls back to default", "[profile]
     auto profile = PrintStartProfile::load("nonexistent_profile_xyz");
     REQUIRE(profile != nullptr);
 
-    // Should get the default profile (either from JSON or built-in)
+    // Should get the default profile
     REQUIRE(profile->name().find("Generic") != std::string::npos);
 
     // Should still have working patterns
@@ -643,17 +606,38 @@ TEST_CASE("PrintStartProfile: graceful handling of edge cases", "[profile][print
         // File won't exist, should fall back to default
     }
 
-    SECTION("Default profile is always available (built-in fallback)") {
-        // Even if no JSON files exist, load_default() should return a usable profile
+    SECTION("Default profile loads from default.json") {
         auto profile = PrintStartProfile::load_default();
         REQUIRE(profile != nullptr);
         REQUIRE_FALSE(profile->name().empty());
 
-        // Built-in patterns should work
         PrintStartProfile::MatchResult result;
         REQUIRE(profile->try_match_pattern("G28", result));
         REQUIRE(result.phase == PrintStartPhase::HOMING);
     }
+}
+
+TEST_CASE("PrintStartProfile: an unparseable default.json yields an empty Generic profile",
+          "[profile][print]") {
+    // A user copy of default.json outranks the shipped one, so a broken edit is
+    // the realistic way to lose the generic profile.
+    helix::ConfigDirGuard config_dir("print_start_profile_default");
+    std::filesystem::create_directories(config_dir.dir / "print_start_profiles");
+    std::ofstream(config_dir.dir / "print_start_profiles" / "default.json")
+        << R"({"name": "Generic", "response_patterns": [)";
+
+    helix::LogCapture log;
+    auto profile = PrintStartProfile::load_default();
+    REQUIRE(profile != nullptr);
+    CHECK(log.has_line_with({"error", "No readable default.json"}));
+    CHECK(profile->name() == "Generic");
+    CHECK(profile->is_default());
+    PrintStartProfile::MatchResult result;
+    CHECK_FALSE(profile->try_match_pattern("G28", result));
+    CHECK_FALSE(profile->has_phase_object());
+
+    // A named profile that is missing falls back to the same empty profile.
+    CHECK(PrintStartProfile::load("nonexistent_profile_xyz")->name() == "Generic");
 }
 
 // ============================================================================
@@ -744,22 +728,6 @@ TEST_CASE("PrintStartProfile: creality_k1 profile loads successfully", "[profile
     SECTION("Profile has signal formats for pre-preparation") {
         REQUIRE(profile->has_signal_formats());
     }
-}
-
-TEST_CASE("PrintStartProfile: creality_k1 phase weights", "[profile][print][k1]") {
-    auto profile = get_creality_k1_profile();
-    REQUIRE(profile != nullptr);
-
-    if (profile->name().find("K1") == std::string::npos) {
-        SKIP("creality_k1.json not available");
-    }
-
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::INITIALIZING) == 5);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 10);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 15);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 15);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 30);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 20);
 }
 
 TEST_CASE("PrintStartProfile: creality_k1 patterns match real K1C gcode responses",
@@ -864,45 +832,35 @@ TEST_CASE("PrintStartProfile: creality_k1 full print sequence progression",
     PrintStartProfile::MatchResult result;
 
     // Walk through the real K1C print sequence and verify phases advance
-    // and weighted progress increases
     std::set<PrintStartPhase> detected;
-    int total_weight = 0;
 
     auto process = [&](const std::string& line) {
         if (profile->try_match_pattern(line, result)) {
-            if (detected.insert(result.phase).second) {
-                total_weight += profile->get_phase_weight(result.phase);
-            }
+            detected.insert(result.phase);
         }
     };
 
     process("// not prepare.");
     REQUIRE(detected.count(PrintStartPhase::INITIALIZING) == 1);
-    REQUIRE(total_weight == 5);
 
     process("// x_axes: xyz");
     REQUIRE(detected.count(PrintStartPhase::HOMING) == 1);
-    REQUIRE(total_weight == 15);
 
     process("// [CLEAR_NOZZLE_QUICK] src_pos[2]:3.28");
     REQUIRE(detected.count(PrintStartPhase::CLEANING) == 1);
-    REQUIRE(total_weight == 30);
 
     process("CX_PRINT_LEVELING_CALIBRATION");
     REQUIRE(detected.count(PrintStartPhase::BED_MESH) == 1);
-    REQUIRE(total_weight == 45);
 
     process("// can_break_flag = 0");
     REQUIRE(detected.count(PrintStartPhase::HEATING_NOZZLE) == 1);
-    REQUIRE(total_weight == 75);
 
     // Repeated temp reports should not add new phases
     process("B:56.8 /55.0 T0:175.3 /220.0");
-    REQUIRE(total_weight == 75);
+    REQUIRE(detected.size() == 5);
 
     process("// can_break_flag = 3");
     REQUIRE(detected.count(PrintStartPhase::PURGING) == 1);
-    REQUIRE(total_weight == 95);
 }
 
 // ============================================================================
@@ -1097,27 +1055,6 @@ TEST_CASE("PrintStartProfile: snapmaker_u1 carries no silent_progression",
     REQUIRE(profile->adaptive_meshing());
 }
 
-TEST_CASE("PrintStartProfile: snapmaker_u1 phase weights sum reasonably",
-          "[profile][print][snapmaker]") {
-    auto profile = get_snapmaker_u1_profile();
-    REQUIRE(profile != nullptr);
-    if (profile->name().find("Snapmaker") == std::string::npos) {
-        SKIP("snapmaker_u1.json not available");
-    }
-
-    // Weights tuned from the REAL 2026-06-18 timeline: heating dominates wall
-    // time (bed 60C + nozzle 220C span almost the whole ~4 min), bed work
-    // (inspect ~1 min + plate detect + mesh ~1 min) is the next chunk, and the
-    // tool-switch / auto-feed / replenish steps land under INITIALIZING.
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HOMING) == 6);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_BED) == 22);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::HEATING_NOZZLE) == 22);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::INITIALIZING) == 14);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::BED_MESH) == 26);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::CLEANING) == 5);
-    REQUIRE(profile->get_phase_weight(PrintStartPhase::PURGING) == 5);
-}
-
 // ============================================================================
 // Creality K2 Profile Tests
 // ============================================================================
@@ -1279,7 +1216,6 @@ TEST_CASE("PrintStartProfile: the generic profile reads Klipper's display_status
           "[profile][print][phase_object]") {
     auto profile = get_default_profile();
     REQUIRE(profile != nullptr);
-    // The built-in fallback declares no phase object; the JSON is under test.
     REQUIRE(profile->name() == "Generic");
 
     // Klipper does not echo commands issued inside a gcode_macro, so a
@@ -1613,8 +1549,6 @@ TEST_CASE("PrintStartProfile: default profile carries only the two heating rules
           "[profile][print][status_signals]") {
     auto profile = get_default_profile();
     REQUIRE(profile != nullptr);
-    // The built-in fallback (used only when default.json cannot be read)
-    // carries no status signals; the JSON variant is the one under test.
     REQUIRE(profile->name() == "Generic");
 
     const auto& rules = profile->status_signals();
@@ -1783,164 +1717,4 @@ TEST_CASE("PrintStartProfile: status-signal predicate ops table",
     CHECK(result.phase == PrintStartPhase::HEATING_BED);
     CHECK(result.message == "and holds");
     CHECK(result.progress == 7);
-}
-
-// ============================================================================
-// Built-in Fallback Parity Tests
-//
-// default.json and the compiled-in fallback are one rule set written twice.
-// They agree on DECISIONS, not on regex text: each is free to spell a pattern
-// its own way, and what is pinned is where a given string lands.
-// ============================================================================
-
-TEST_CASE("PrintStartProfile: the built-in fallback matches the shipped default.json",
-          "[profile][print][parity]") {
-    auto shipped = get_default_profile();
-    auto builtin = PrintStartProfileTestAccess::builtin_default();
-    REQUIRE(shipped != nullptr);
-    REQUIRE(builtin != nullptr);
-
-    // Two distinct profiles, or every comparison below is the fallback against
-    // itself and cannot fail. An unreadable default.json is precisely what
-    // makes load_default() hand back the fallback, so pin the names first.
-    REQUIRE(shipped->name() == "Generic");
-    REQUIRE(builtin->name() == "Generic (built-in)");
-
-    SECTION("Both read Klipper's display_status for macro narration") {
-        REQUIRE(builtin->has_phase_object() == shipped->has_phase_object());
-        CHECK(builtin->phase_object_name() == shipped->phase_object_name());
-        CHECK(builtin->phase_object_field() == shipped->phase_object_field());
-        CHECK(builtin->required_status_objects() == shipped->required_status_objects());
-    }
-
-    SECTION("Both reach the same phase and the same label for the same text") {
-        const char* corpus[] = {
-            // Command echoes, the console feed's vocabulary
-            "G28",
-            "G28 X Y Z",
-            "Homing axes",
-            "Home All Axes",
-            "Home All",
-            "// homing started",
-            "M190 S60",
-            "M140 S60",
-            "M104 S150",
-            "M109 S250",
-            "QUAD_GANTRY_LEVEL",
-            "quad gantry level",
-            "Running QGL",
-            "Z_TILT_ADJUST",
-            "z tilt adjust",
-            "Z-tilt adjust",
-            "BED_MESH_CALIBRATE",
-            "BED_MESH_PROFILE LOAD=default",
-            "Loading bed mesh",
-            "mesh loading",
-            "BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1",
-            "CLEAN_NOZZLE",
-            "NOZZLE_CLEAN",
-            "NOZZLE_CLEAR",
-            "WIPE_NOZZLE",
-            "nozzle wipe",
-            "clean nozzle",
-            "VORON_PURGE",
-            "LINE_PURGE",
-            "PURGE_LINE",
-            "Prime Line",
-            "PrimeLine",
-            "Priming extruder",
-            "KAMP_ADAPTIVE_PURGE",
-            "purge line done",
-            "PRIME_LINE",
-            // Prose, the display_status feed's vocabulary
-            "Homing",
-            "Cleaning Nozzle",
-            "Cleaning nozzle...",
-            "Bed mesh",
-            "Bed Mesh",
-            "Priming Nozzle",
-            "Heating Bed: 100c",
-            "Heating chamber: 45c",
-            "// waiting for chamber",
-            "Bed soak - 2 minutes remaining",
-            "Bed soak finished",
-            "Heat soak",
-            // Neither may claim these
-            "BED_MESH_CLEAR",
-            "G29",
-            "M104",
-            "M140 S0",
-            "M104 S0",
-            "ok",
-            "// Klipper state: Ready",
-            "M141 S45",
-            "SMART_PARK",
-            "TOOLCHANGE TOOL=0",
-            "Leveling 3/9",
-            "Layer 12/240",
-        };
-
-        for (const char* text : corpus) {
-            CAPTURE(text);
-
-            PrintStartProfile::MatchResult from_json;
-            PrintStartProfile::MatchResult from_builtin;
-            const bool json_hit = shipped->try_match_pattern(text, from_json);
-            REQUIRE(builtin->try_match_pattern(text, from_builtin) == json_hit);
-            if (json_hit) {
-                CHECK(from_builtin.phase == from_json.phase);
-                CHECK(from_builtin.message == from_json.message);
-            }
-
-            // Neither declares state_patterns, so the phase-object feed runs
-            // the same list and must land in the same place.
-            PrintStartProfile::MatchResult state_json;
-            PrintStartProfile::MatchResult state_builtin;
-            const bool json_state_hit = shipped->try_match_state(text, state_json);
-            REQUIRE(builtin->try_match_state(text, state_builtin) == json_state_hit);
-            if (json_state_hit) {
-                CHECK(state_builtin.phase == state_json.phase);
-                CHECK(state_builtin.message == state_json.message);
-            }
-        }
-    }
-
-    SECTION("Both carry the same heater inference rules") {
-        const auto& json_rules = shipped->status_signals();
-        const auto& builtin_rules = builtin->status_signals();
-        REQUIRE(builtin_rules.size() == json_rules.size());
-        REQUIRE_FALSE(json_rules.empty());
-
-        for (size_t i = 0; i < json_rules.size(); ++i) {
-            CAPTURE(i, json_rules[i].name);
-            CHECK(builtin_rules[i].name == json_rules[i].name);
-            CHECK(builtin_rules[i].object == json_rules[i].object);
-            CHECK(builtin_rules[i].phase == json_rules[i].phase);
-            CHECK(builtin_rules[i].message == json_rules[i].message);
-            CHECK(builtin_rules[i].weight == json_rules[i].weight);
-
-            REQUIRE(builtin_rules[i].when.size() == json_rules[i].when.size());
-            for (size_t k = 0; k < json_rules[i].when.size(); ++k) {
-                CAPTURE(k, json_rules[i].when[k].field);
-                CHECK(builtin_rules[i].when[k].field == json_rules[i].when[k].field);
-                CHECK(builtin_rules[i].when[k].index == json_rules[i].when[k].index);
-                CHECK(builtin_rules[i].when[k].op == json_rules[i].when[k].op);
-                CHECK(builtin_rules[i].when[k].value == json_rules[i].when[k].value);
-                CHECK(builtin_rules[i].when[k].ref_field == json_rules[i].when[k].ref_field);
-                CHECK(builtin_rules[i].when[k].offset == json_rules[i].when[k].offset);
-                CHECK(builtin_rules[i].when[k].tolerance == json_rules[i].when[k].tolerance);
-            }
-        }
-    }
-
-    SECTION("Both weigh the phases the same") {
-        CHECK(builtin->progress_mode() == shipped->progress_mode());
-        for (PrintStartPhase phase :
-             {PrintStartPhase::HOMING, PrintStartPhase::HEATING_BED, PrintStartPhase::SOAKING,
-              PrintStartPhase::HEATING_NOZZLE, PrintStartPhase::QGL, PrintStartPhase::Z_TILT,
-              PrintStartPhase::BED_MESH, PrintStartPhase::CLEANING, PrintStartPhase::PURGING}) {
-            CAPTURE(static_cast<int>(phase));
-            CHECK(builtin->get_phase_weight(phase) == shipped->get_phase_weight(phase));
-        }
-    }
 }

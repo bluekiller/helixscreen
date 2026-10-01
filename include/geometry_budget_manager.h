@@ -39,7 +39,6 @@ class GeometryBudgetManager {
     static constexpr size_t TRIS_PER_SEG_N8 = 25;
     static constexpr size_t TRIS_PER_SEG_N4 = 11;
 
-    static size_t parse_meminfo_available_kb(const std::string& content);
     size_t calculate_budget(size_t available_kb) const;
     size_t read_system_available_kb() const;
     bool is_system_memory_critical() const;

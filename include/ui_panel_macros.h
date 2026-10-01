@@ -9,6 +9,7 @@
 #include "lvgl.h"
 #include "macro_param_modal.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -40,14 +41,21 @@
  */
 class MacrosPanel : public OverlayBase {
   public:
-    MacrosPanel();
     ~MacrosPanel() override;
 
     // === OverlayBase interface ===
     void init_subjects() override;
     void deinit_subjects();
     void register_callbacks() override;
+    const char* xml_component() const override {
+        return "macro_panel";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     const char* get_name() const override {
         return "Macros";
     }
@@ -73,19 +81,13 @@ class MacrosPanel : public OverlayBase {
         return overlay_root_;
     }
 
-    /**
-     * @brief XML event callbacks (registered globally via
-     * lv_xml_register_event_cb). Route to the singleton via the global accessor.
-     */
-    static void on_macro_row_clicked(lv_event_t* e);      ///< tap: toggle (edit) or run
-    static void on_macro_card_long_press(lv_event_t* e);  ///< long-press: enter edit mode
-    static void on_macro_defaults_clicked(lv_event_t* e); ///< edit-mode tune button per row
-    static void on_macros_edit_save(lv_event_t* e);       ///< header Save: persist + exit edit
-    static void
-    on_macros_back_clicked(lv_event_t* e); ///< header Back: exit edit mode, else pop overlay
-
   private:
     friend struct MacrosPanelTestAccess;
+
+    // === Event handlers (the XML callback table forwards here) ===
+    void handle_row_clicked(size_t index);      ///< tap: toggle (edit) or run
+    void handle_long_press();                   ///< long-press: enter edit mode
+    void handle_defaults_clicked(size_t index); ///< edit-mode tune button per row
 
     // === Edit-mode model ===
     /**
@@ -136,9 +138,6 @@ class MacrosPanel : public OverlayBase {
     bool ui_alive_ = false;                ///< true between create() and on_ui_destroyed()
     lv_obj_t* scroll_container_ = nullptr; ///< "macro_list" — reset to top on edit-mode transitions
 
-    // Flags
-    bool callbacks_registered_ = false;
-
     // === Per-row subject pools (grow-only; reclaimed on close) ===
     helix::xml::IndexedSubjectPool name_pool_{"macro_name",
                                               helix::xml::IndexedSubjectPool::Type::String};
@@ -180,4 +179,6 @@ class MacrosPanel : public OverlayBase {
  *
  * @return Reference to singleton MacrosPanel
  */
-MacrosPanel& get_global_macros_panel();
+inline MacrosPanel& get_global_macros_panel() {
+    return helix::lazy_global<MacrosPanel>("MacrosPanel");
+}

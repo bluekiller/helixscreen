@@ -114,7 +114,6 @@ void TempStackWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
     s_active_instance = this;
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Pressed feedback: dim each clickable row on touch
     for (const char* name :
@@ -348,8 +347,6 @@ void TempStackWidget::detach() {
         s_active_instance = nullptr;
     }
 
-    if (widget_obj_)
-        lv_obj_set_user_data(widget_obj_, nullptr);
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
 

@@ -59,6 +59,7 @@
 #include "lvgl/lvgl.h"
 #include "network_tester.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "wifi_backend.h"
 
@@ -133,6 +134,9 @@ class NetworkSettingsOverlay : public OverlayBase {
     const char* get_name() const override {
         return "Network Settings";
     }
+    const char* xml_component() const override {
+        return "network_settings_overlay";
+    }
 
     /**
      * @brief Called when overlay becomes visible
@@ -157,21 +161,12 @@ class NetworkSettingsOverlay : public OverlayBase {
     // === Public API ===
     //
 
-    /**
-     * @brief Show overlay panel
-     *
-     * Pushes overlay onto navigation stack and registers with NavigationManager.
-     * on_activate() will be called automatically after animation completes.
-     */
-    void show();
+    using OverlayBase::show;
 
-    /**
-     * @brief Hide overlay panel
-     *
-     * Pops overlay from navigation stack via NavigationManager::go_back().
-     * on_deactivate() will be called automatically before animation starts.
-     */
-    void hide();
+    /// Push the already-created overlay (callers that build it with create() themselves).
+    void show() {
+        OverlayBase::show(parent_screen_);
+    }
 
     /**
      * @brief Check if overlay is created
@@ -186,7 +181,6 @@ class NetworkSettingsOverlay : public OverlayBase {
   private:
     // Widget references (minimal - prefer subjects)
     // Note: overlay_root_ inherited from OverlayBase
-    lv_obj_t* parent_screen_ = nullptr;
     lv_obj_t* networks_list_ = nullptr;
 
     // Subject manager for automatic cleanup
@@ -236,7 +230,6 @@ class NetworkSettingsOverlay : public OverlayBase {
 
     // State tracking
     // Note: subjects_initialized_, visible_, cleanup_called_ inherited from OverlayBase
-    bool callbacks_registered_ = false;
 
     // Network test modal
     helix::ui::WidgetRef test_modal_;
@@ -334,24 +327,9 @@ class NetworkSettingsOverlay : public OverlayBase {
     void show_placeholder(bool show);
     void update_signal_icons(lv_obj_t* item, int icon_state);
 
-    // Static trampolines for LVGL callbacks
-    static void on_wlan_toggle_changed(lv_event_t* e);
-    static void on_refresh_clicked(lv_event_t* e);
-    static void on_test_network_clicked(lv_event_t* e);
-    static void on_add_other_clicked(lv_event_t* e);
-    static void on_network_item_clicked(lv_event_t* e);
-    // Scoped per [L039] to avoid colliding with other overlays' forget flows
-    // (barcode scanner, label printer) in the flat XML callback namespace.
-    static void on_network_settings_forget(lv_event_t* e);
-
-    // Network test modal callbacks
-    static void on_network_test_close(lv_event_t* e);
     void handle_network_test_close();
 
     // Hidden network modal callbacks
-    static void on_hidden_cancel_clicked(lv_event_t* e);
-    static void on_hidden_connect_clicked(lv_event_t* e);
-    static void on_security_changed(lv_event_t* e);
     void handle_hidden_cancel_clicked();
     void handle_hidden_connect_clicked();
     void handle_security_changed(lv_event_t* e);
@@ -360,9 +338,6 @@ class NetworkSettingsOverlay : public OverlayBase {
     void show_password_modal(const char* ssid);
     void hide_password_modal();
 
-    // Password modal callbacks
-    static void on_wifi_password_cancel(lv_event_t* e);
-    static void on_wifi_password_connect(lv_event_t* e);
     void handle_password_cancel_clicked();
     void handle_password_connect_clicked();
 };
@@ -371,9 +346,7 @@ class NetworkSettingsOverlay : public OverlayBase {
 // Global Instance Access
 // ============================================================================
 
-/**
- * @brief Get the global NetworkSettingsOverlay instance
- *
- * Creates the instance on first call. Singleton pattern.
- */
-NetworkSettingsOverlay& get_network_settings_overlay();
+/// The process-wide NetworkSettingsOverlay, built on first use.
+inline NetworkSettingsOverlay& get_network_settings_overlay() {
+    return helix::lazy_global<NetworkSettingsOverlay>("NetworkSettingsOverlay");
+}

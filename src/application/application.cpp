@@ -14,6 +14,7 @@
 #include "application.h"
 
 #include "detect_printer_cmd.h"
+#include "env_knobs.h"
 
 // Private LVGL header needed to read display->flush_cb for splash no-op swap
 #include "ui_overlay_timelapse_videos.h"
@@ -151,6 +152,7 @@
 
 #include "color_utils.h"
 #include "preflight_validator.h"
+#include "ui/ui_widget_helpers.h"
 
 // Developer-only showcase panel (ENABLE_DEV_PANELS, excluded from release
 // builds). Not wired into PanelFactory — kept as a live testbed for icon-font
@@ -554,7 +556,7 @@ int Application::run(int argc, char** argv) {
     // HELIX_CRASH_TEST=1 intentionally segfaults through a known call chain
     // to verify the signal handler's unwind on real hardware. Must run AFTER
     // install() so the generated crash.txt exercises the real handler.
-    if (const char* t = std::getenv("HELIX_CRASH_TEST"); t && *t && std::string(t) != "0") {
+    if (helix::env_flag("HELIX_CRASH_TEST")) {
         crash_handler::trigger_test_crash();
     }
 
@@ -883,6 +885,10 @@ int Application::run(int argc, char** argv) {
     // Update DisplaySettingsManager with theme mode support (must be after both theme and settings
     // init)
     DisplaySettingsManager::instance().on_theme_changed();
+
+    // --test fails loudly where the XML and the C++ disagree (a required
+    // widget missing from its component), as the unit tests do.
+    helix::ui::set_strict_ui_checks(get_runtime_config()->is_test_mode());
 
     // Phase 10: Create UI and wire panels
     if (!init_ui()) {
@@ -2236,7 +2242,8 @@ void Application::init_plugins() {
     };
     deps.settings_path = m_config->get_path();
     deps.helix_version = HELIX_VERSION;
-    deps.memory_budget = helix::plugin::plugin_memory_budget(helix::plugin::read_mem_total());
+    deps.memory_budget = helix::plugin::plugin_memory_budget(
+        uint64_t{helix::get_system_memory_info().total_kb} * 1024);
     helix::plugin::register_plugin_event_callback();
     m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
 

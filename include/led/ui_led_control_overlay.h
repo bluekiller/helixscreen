@@ -8,6 +8,7 @@
 #include "led/led_backend.h"
 #include "led/led_device_page.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -37,10 +38,10 @@ class LedControlOverlay : public OverlayBase {
     friend class LedControlOverlayTestAccess;
 
   public:
-    explicit LedControlOverlay(helix::PrinterState& printer_state);
-    ~LedControlOverlay() override;
-
     void init_subjects() override;
+    const char* xml_component() const override {
+        return "led_control_overlay";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     void register_callbacks() override;
 
@@ -128,20 +129,6 @@ class LedControlOverlay : public OverlayBase {
     void apply_current_color();
     void stop_focused_effects();
 
-    static void on_tab_clicked_cb(lv_event_t* e);
-    static void on_tabs_scrolled_cb(lv_event_t* e);
-    static void on_power_cb(lv_event_t* e);
-    static void on_brightness_changed_cb(lv_event_t* e);
-    static void on_level_cb(lv_event_t* e);
-    static void on_white_cb(lv_event_t* e);
-    static void on_swatch_cb(lv_event_t* e);
-    static void on_custom_color_cb(lv_event_t* e);
-    static void on_list_chip_cb(lv_event_t* e);
-    static void on_effects_none_cb(lv_event_t* e);
-    static void on_macro_on_cb(lv_event_t* e);
-    static void on_macro_off_cb(lv_event_t* e);
-    static void on_macro_toggle_cb(lv_event_t* e);
-
     SubjectManager subjects_;
 
     // Tab row
@@ -212,12 +199,9 @@ class LedControlOverlay : public OverlayBase {
 
 } // namespace helix::led
 
-/**
- * @brief Get global LedControlOverlay instance
- * @return Reference to singleton instance
- * @throws std::runtime_error if not initialized
- */
-helix::led::LedControlOverlay& get_led_control_overlay();
+inline helix::led::LedControlOverlay& get_led_control_overlay() {
+    return helix::lazy_global<helix::led::LedControlOverlay>("LedControlOverlay");
+}
 
 namespace helix {
 /**
@@ -232,9 +216,3 @@ namespace helix {
  */
 lv_obj_t* open_led_control_overlay(lv_obj_t* parent_screen, const std::string& device_id = "");
 } // namespace helix
-
-/**
- * @brief Initialize global LedControlOverlay instance
- * @param printer_state Reference to global helix::PrinterState
- */
-void init_led_control_overlay(helix::PrinterState& printer_state);

@@ -5,6 +5,7 @@
 
 #include "../test_fixtures.h"
 #include "../test_helpers/panel_widget_manager_test_access.h"
+#include "../test_helpers/process_async_timers.h"
 #include "../ui_test_utils.h"
 #include "config.h"
 #include "grid_layout.h"
@@ -22,30 +23,7 @@
 
 using namespace helix;
 
-namespace {
-
-/// Drain LVGL's async list (lv_async_call queue) by calling lv_timer_handler
-/// repeatedly until no one-shot timer fires. lv_async_call schedules its
-/// callback as a one-shot timer; lv_timer_handler dispatches it.
-void process_async_calls() {
-    for (int safety = 0; safety < 50; ++safety) {
-        bool fired = false;
-        lv_timer_t* t = lv_timer_get_next(nullptr);
-        while (t) {
-            lv_timer_t* next = lv_timer_get_next(t);
-            if (t->repeat_count > 0 && t->timer_cb) {
-                t->timer_cb(t);
-                fired = true;
-                break;
-            }
-            t = next;
-        }
-        if (!fired)
-            break;
-    }
-}
-
-} // namespace
+namespace {} // namespace
 
 TEST_CASE("PanelWidget: supports_reuse defaults to true", "[panel_widget]") {
     struct TestWidget : PanelWidget {
@@ -240,7 +218,7 @@ TEST_CASE("PanelWidgetManager coalesces multiple gate firings into one rebuild",
         REQUIRE(rebuild_count == 0);
 
         // Run LVGL's async list. Should fire exactly one rebuild.
-        process_async_calls();
+        process_async_timers();
         REQUIRE(rebuild_count == 1);
     }
 
@@ -252,7 +230,7 @@ TEST_CASE("PanelWidgetManager coalesces multiple gate firings into one rebuild",
             lv_subject_set_int(subj, 1);
         }
         q.drain();
-        process_async_calls();
+        process_async_timers();
         REQUIRE(rebuild_count == 1);
 
         // Second burst (different values) after first rebuild completed →
@@ -261,7 +239,7 @@ TEST_CASE("PanelWidgetManager coalesces multiple gate firings into one rebuild",
             lv_subject_set_int(subj, 2);
         }
         q.drain();
-        process_async_calls();
+        process_async_timers();
         REQUIRE(rebuild_count == 2);
     }
 
@@ -281,9 +259,11 @@ struct GridSpyWidget : helix::PanelWidget {
     static int s_layout_at_attach; // lv_obj_get_style_layout of parent at attach
     static int s_attach_count;
     static lv_obj_t* s_attached_widget;
+    static void* s_user_data_at_attach;
 
     void attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen*/) override {
         s_attached_widget = widget_obj;
+        s_user_data_at_attach = lv_obj_get_user_data(widget_obj);
         ++s_attach_count;
         lv_obj_t* parent = widget_obj ? lv_obj_get_parent(widget_obj) : nullptr;
         s_layout_at_attach =
@@ -304,6 +284,7 @@ struct GridSpyWidget : helix::PanelWidget {
 int GridSpyWidget::s_layout_at_attach = -2;
 int GridSpyWidget::s_attach_count = 0;
 lv_obj_t* GridSpyWidget::s_attached_widget = nullptr;
+void* GridSpyWidget::s_user_data_at_attach = nullptr;
 
 } // namespace
 
@@ -392,6 +373,8 @@ TEST_CASE_METHOD(XMLTestFixture,
     REQUIRE(GridSpyWidget::s_attached_widget != nullptr);
     // The attached widget is parented into the page container.
     REQUIRE(lv_obj_get_parent(GridSpyWidget::s_attached_widget) == container);
+    // The manager binds the tile root before attach(); the widget never sets it.
+    REQUIRE(GridSpyWidget::s_user_data_at_attach == widgets.front().get());
 
     // Restore global registry state for subsequent tests.
     helix::register_widget_factory("clock", original_clock_factory);
@@ -1389,7 +1372,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     CHECK(widgets[0].get() == clock_instance);
     CHECK(find_tile(container, "clock") == clock_tile);
 
-    process_async_calls();
+    process_async_timers();
     widgets.clear();
     lv_obj_delete(container);
     lv_subject_set_int(gate, gate_before);

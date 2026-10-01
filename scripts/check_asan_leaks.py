@@ -27,7 +27,8 @@ Each direct leak is attributed to its ORIGIN: the first stack frame that is our
 code. Frame #0 is always the sanitizer's own allocator interceptor, and the
 frames below the origin are libstdc++ plumbing and Catch2's runner, which are
 identical for hundreds of unrelated leaks. Skipped as not-our-code:
-libsanitizer, /usr/include/, /usr/lib/, tests/catch_amalgamated.*, and anything
+libsanitizer, /usr/include/, /usr/lib/, tests/catch_amalgamated.*, the observer
+factory (shared plumbing every observer allocates through), and anything
 whose path is absolute or escapes the tree with `../` (glibc's ../csu/,
 ../sysdeps/). Everything else — src/, include/, tests/unit/, lib/lvgl/,
 lib/helix-xml/ — is ours; a leak that originates in vendored LVGL is still one
@@ -168,6 +169,10 @@ RUN_MARKER_RE = re.compile(r'All tests passed|test cases:\s*\d+|assertions:\s*\d
 SKIP_PATH_PREFIXES = ('/usr/include/', '/usr/lib/')
 SKIP_PATH_SUBSTRINGS = ('libsanitizer/',)
 CATCH2_BASENAME = 'catch_amalgamated.'
+# Our code, but shared allocation plumbing: every observer context is allocated
+# here, so keying on it would fold every caller's leak into one key and hide a
+# new one. The origin is the frame that asked for the observer.
+PLUMBING_PATHS = ('src/ui/observer_factory.cpp', 'include/observer_factory.h')
 
 CEILING_BYTES = 'max-leaked-bytes'
 CEILING_OBJECTS = 'max-leaked-objects'
@@ -401,6 +406,8 @@ def is_our_code(path):
     if any(sub in path for sub in SKIP_PATH_SUBSTRINGS):
         return False
     if os.path.basename(path).startswith(CATCH2_BASENAME):
+        return False
+    if path in PLUMBING_PATHS:
         return False
     return True
 

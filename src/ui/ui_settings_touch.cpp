@@ -3,79 +3,11 @@
 
 #include "ui_settings_touch.h"
 
-#include "ui_nav_manager.h"
-
 #include "input_settings_manager.h"
-#include "static_panel_registry.h"
 
 #include <spdlog/spdlog.h>
 
-#include <memory>
-
 namespace helix::settings {
-
-static std::unique_ptr<TouchSettingsOverlay> g_touch_settings_overlay;
-
-TouchSettingsOverlay& get_touch_settings_overlay() {
-    if (!g_touch_settings_overlay) {
-        g_touch_settings_overlay = std::make_unique<TouchSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "TouchSettingsOverlay", []() { g_touch_settings_overlay.reset(); });
-    }
-    return *g_touch_settings_overlay;
-}
-
-TouchSettingsOverlay::TouchSettingsOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
-
-TouchSettingsOverlay::~TouchSettingsOverlay() {
-    spdlog::trace("[{}] Destroyed", get_name());
-}
-
-void TouchSettingsOverlay::init_subjects() {
-    // All bound subjects (settings_debug_touches, settings_scroll_guard,
-    // settings_scroll_limit) are owned by InputSettingsManager and registered
-    // globally at startup.
-    subjects_initialized_ = true;
-}
-
-void TouchSettingsOverlay::register_callbacks() {
-    // All row callbacks are registered globally by SettingsPanel so the
-    // top-level Touch Calibration entry can share them.
-}
-
-lv_obj_t* TouchSettingsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        return overlay_root_;
-    }
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "settings_touch_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
-
-void TouchSettingsOverlay::show(lv_obj_t* parent_screen) {
-    parent_screen_ = parent_screen;
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-    NavigationManager::instance().push_overlay(overlay_root_);
-}
 
 void TouchSettingsOverlay::on_activate() {
     OverlayBase::on_activate();

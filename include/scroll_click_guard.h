@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "env_knobs.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <lvgl.h>
 
 namespace helix {
@@ -38,7 +39,7 @@ struct ScrollClickGuard {
     /**
      * @brief Build a guard from the saved settings and their environment overrides
      *
-     * HELIX_SCROLL_GUARD ("1"/"true" enables, any other value disables) and
+     * HELIX_SCROLL_GUARD (env_truthy() enables, any other value disables) and
      * HELIX_SCROLL_GUARD_COOLDOWN_MS win over the saved values when set. The
      * cooldown is clamped to MIN_COOLDOWN_MS..MAX_COOLDOWN_MS.
      *
@@ -51,8 +52,7 @@ struct ScrollClickGuard {
         ScrollClickGuard guard;
         guard.enabled = saved_enabled;
         if (env_enabled) {
-            guard.enabled =
-                std::strcmp(env_enabled, "1") == 0 || std::strcmp(env_enabled, "true") == 0;
+            guard.enabled = env_truthy(env_enabled);
         }
         const int cooldown = env_cooldown ? std::atoi(env_cooldown) : saved_cooldown_ms;
         guard.cooldown_ms =

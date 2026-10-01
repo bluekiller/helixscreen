@@ -113,7 +113,7 @@ class PanelWidgetHarnessBase {
                 sizing->set_cell_metrics(cell_metrics_);
             }
         }
-        widget.attach(obj_, screen);
+        widget.attach_tile(obj_, screen);
         return true;
     }
 
@@ -157,7 +157,7 @@ template <typename W> class PanelWidgetHarness : public PanelWidgetHarnessBase {
     }
 
     ~PanelWidgetHarness() {
-        widget_.detach();
+        widget_.detach_tile();
     }
 
     PanelWidgetHarness(const PanelWidgetHarness&) = delete;
@@ -202,7 +202,7 @@ class RegistryWidgetHarness : public PanelWidgetHarnessBase {
 
     ~RegistryWidgetHarness() {
         if (owned_) {
-            owned_->detach();
+            owned_->detach_tile();
         }
         // Deleted here rather than left to the fixture's screen teardown: the
         // sweep builds every definition once per geometry, and a live tree of

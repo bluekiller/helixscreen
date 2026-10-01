@@ -161,6 +161,24 @@ TEST_CASE("PrintStartAnalyzer: Controllable operation detection", "[print_start]
     }
 }
 
+TEST_CASE("PrintStartAnalyzer: known parameters cover every Jinja access form",
+          "[print_start][parsing]") {
+    const std::string gcode = R"GCODE(
+{% set bed = params.BED|default(60)|float %}
+{% set ext = params['EXTRUDER']|default(200) %}
+{% set chamber = params["CHAMBER"]|default(0) %}
+{% if 'SKIP_MESH' in params %}
+{% endif %}
+{% if "NOZZLE_CLEAN" not in params %}
+{% endif %}
+{% set again = params.bed %}
+G28
+)GCODE";
+    const auto params = PrintStartAnalyzer::parse_macro("PRINT_START", gcode).known_params;
+    CHECK(params ==
+          std::vector<std::string>{"BED", "EXTRUDER", "CHAMBER", "SKIP_MESH", "NOZZLE_CLEAN"});
+}
+
 TEST_CASE("PrintStartAnalyzer: Partial controllability", "[print_start][parsing]") {
     auto result = PrintStartAnalyzer::parse_macro("PRINT_START", PARTIAL_CONTROLLABLE);
 

@@ -89,6 +89,8 @@ void open_abs_edit_view(XMLTestFixture& f) {
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
+    REQUIRE(f.register_component("header_bar"));
+    REQUIRE(f.register_component("overlay_panel"));
     REQUIRE(f.register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -105,6 +107,8 @@ TEST_CASE_METHOD(XMLTestFixture,
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("overlay_panel"));
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -129,6 +133,8 @@ TEST_CASE_METHOD(XMLTestFixture,
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("overlay_panel"));
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -188,6 +194,8 @@ TEST_CASE_METHOD(XMLTestFixture, "Chamber row is absent when the printer has no 
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 0);
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("overlay_panel"));
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -425,6 +433,8 @@ TEST_CASE_METHOD(XMLTestFixture,
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", chamber_heater);
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("overlay_panel"));
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -459,6 +469,8 @@ TEST_CASE_METHOD(XMLTestFixture, "A hidden chamber override cannot block the edi
 
     reset_material_temps_singleton();
     set_capability("printer_has_chamber_heater", 0);
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("overlay_panel"));
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();

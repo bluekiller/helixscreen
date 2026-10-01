@@ -128,8 +128,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "DisplayRotation: restart is signalled only on
                  "[display_settings][rotation]") {
     DisplaySettingsManager::instance().set_display_rotation(0);
 
-    // The return value is what drives the restart prompt in
-    // DisplaySettingsOverlay::handle_display_rotation_changed().
+    // The return value is what drives the restart prompt in the
+    // on_display_rotation_changed callback.
     REQUIRE(DisplaySettingsManager::instance().set_display_rotation(90) == true);
     REQUIRE(DisplaySettingsManager::instance().set_display_rotation(90) == false);
     REQUIRE(DisplaySettingsManager::instance().set_display_rotation(270) == true);

@@ -46,8 +46,8 @@
 
 #include "async_lifetime_guard.h"
 #include "i_moonraker_api.h"
+#include "i_moonraker_client.h"
 #include "moonraker_advanced_api.h"
-#include "moonraker_client.h"
 #include "moonraker_error.h"
 #include "moonraker_file_api.h"
 #include "moonraker_file_transfer_api.h"

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "width_sensor_widget.h"
-
 #include "format_utils.h"
 #include "observer_factory.h"
 #include "panel_widget_registry.h"
@@ -52,27 +50,6 @@ static void width_sensor_widget_init_subjects() {
 
 namespace helix {
 void register_width_sensor_widget() {
-    register_widget_factory(
-        "width_sensor", [](const std::string&) { return std::make_unique<WidthSensorWidget>(); });
     register_widget_subjects("width_sensor", width_sensor_widget_init_subjects);
 }
 } // namespace helix
-
-using namespace helix;
-
-WidthSensorWidget::~WidthSensorWidget() {
-    detach();
-}
-
-void WidthSensorWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen*/) {
-    widget_obj_ = widget_obj;
-    if (widget_obj_)
-        lv_obj_set_user_data(widget_obj_, this);
-}
-
-void WidthSensorWidget::detach() {
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-        widget_obj_ = nullptr;
-    }
-}

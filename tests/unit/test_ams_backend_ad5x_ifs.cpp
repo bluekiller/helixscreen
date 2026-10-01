@@ -362,7 +362,7 @@ TEST_CASE("AD5X IFS tool mapping reverse lookup", "[ams][ad5x_ifs]") {
 }
 
 // ==========================================================================
-// 6. Port sensor parsing via handle_status_update
+// 6. Port sensor parsing via handle_status
 // ==========================================================================
 
 TEST_CASE("AD5X IFS port sensor parsing", "[ams][ad5x_ifs]") {
@@ -384,7 +384,7 @@ TEST_CASE("AD5X IFS port sensor parsing", "[ams][ad5x_ifs]") {
 }
 
 // ==========================================================================
-// 7. Head sensor parsing via handle_status_update
+// 7. Head sensor parsing via handle_status
 // ==========================================================================
 
 TEST_CASE("AD5X IFS head sensor parsing", "[ams][ad5x_ifs]") {
@@ -4081,7 +4081,7 @@ TEST_CASE("AD5X IFS routes native Z-Mod head switch sensor namespace to head_fil
           "[ams][ad5x][ifs][1065]") {
     // The live AD5X publishes its head switch sensor as
     // "zmod_ifs_switch_sensor head_switch_sensor", not the stock
-    // "filament_switch_sensor head_switch_sensor". handle_status_update must route
+    // "filament_switch_sensor head_switch_sensor". handle_status must route
     // the zmod namespace to parse_head_sensor().
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(nullptr, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5945,7 +5945,7 @@ TEST_CASE("AD5X IFS bambufy prefix gets SHOW=0 to suppress _IFS_VARS echo",
 TEST_CASE("AD5X IFS repairs truncated lessWaste colors/types, leaves healthy state alone",
           "[ams][ad5x_ifs][1247]") {
     // nullptr api: the repair dispatch is captured by the execute_gcode
-    // override, and a null api keeps handle_status_update's JSON-poll backstop
+    // override, and a null api keeps handle_status's JSON-poll backstop
     // idle so the test queues no UpdateQueue work.
     GcodeCapturingBackend backend(nullptr, nullptr);
     Ad5xIfsTestAccess::set_has_ifs_vars(backend, true);
@@ -10036,7 +10036,7 @@ TEST_CASE("AD5X IFS unload: the motion false-negative arrives through the real s
     REQUIRE(Ad5xIfsTestAccess::head_switch_seen(backend));
     REQUIRE(Ad5xIfsTestAccess::head_switch_present(backend));
 
-    // Pin the active slot AFTER the frames — handle_status_update() recomputes
+    // Pin the active slot AFTER the frames — handle_status() recomputes
     // current_slot from tool_map_/seated_chan_ on every sensor change.
     Ad5xIfsTestAccess::set_current_slot(backend, 2, /*filament_loaded=*/true);
 
@@ -10602,7 +10602,7 @@ namespace {
 /// LVGL plus a live GLOBAL PrinterState.
 ///
 /// The runout detector reads `get_printer_state().get_print_state_enum_subject()`
-/// - the same global accessor handle_status_update() already uses to pick the
+/// - the same global accessor handle_status() already uses to pick the
 /// Adventurer5M.json poll cadence - NOT the PrinterState a MoonrakerAPIMock was
 /// constructed with. Driving the global is therefore what a test has to do; the
 /// two are separate objects and setting the wrong one silently proves nothing.

@@ -4,8 +4,7 @@
 #pragma once
 
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 #include <memory>
 
@@ -17,7 +16,7 @@ class EthernetManager;
 namespace helix {
 class WiFiManager;
 
-class NetworkWidget : public PanelWidget {
+class NetworkWidget : public TiledPanelWidget {
   public:
     NetworkWidget();
     ~NetworkWidget() override;
@@ -26,24 +25,6 @@ class NetworkWidget : public PanelWidget {
     void detach() override;
     const char* id() const override {
         return "network";
-    }
-
-    void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override {
-        (void)colspan;
-        (void)rowspan;
-        sizing_.measure_and_publish(width_px, height_px);
-    }
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
     }
 
     /// Called when panel activates — re-detects network and starts polling
@@ -60,10 +41,6 @@ class NetworkWidget : public PanelWidget {
     void on_hooked_root_deleted() override;
 
   private:
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_{"network", TileSizing::Content{"", "", "Network", false}};
     friend class NetworkWidgetTestAccess;
 
     lv_obj_t* widget_obj_ = nullptr;

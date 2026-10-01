@@ -16,13 +16,5 @@
     { "pattern": "Smart Park location", "phase": "HEATING_NOZZLE", "message": "Heating Nozzle...", "weight": 8 },
     { "pattern": "KAMP purge starting at", "phase": "PURGING", "message": "Purging...", "weight": 2 },
     { "pattern": "No skew profile defined|Skew profile '[^']*' found", "phase": "COMPLETE", "message": "Starting Print...", "weight": 0 }
-  ],
-  "phase_weights": {
-    "HOMING": 4,
-    "HEATING_BED": 75,
-    "SOAKING": 10,
-    "BED_MESH": 1,
-    "HEATING_NOZZLE": 8,
-    "PURGING": 2
-  }
+  ]
 }

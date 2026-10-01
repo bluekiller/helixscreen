@@ -236,8 +236,6 @@ TEST_CASE("PrinterState: Initialization sets default values", "[state][init]") {
 // Temperature Update Tests
 // ============================================================================
 // Note: Subjects store temperatures in decidegrees (temp * 10) for 0.1°C resolution.
-// Tests use update_from_status() directly since update_from_notification() uses
-// queue_update() via async_lifetime_.defer, which requires draining the UpdateQueue.
 
 TEST_CASE("PrinterState: Update extruder temperature from status", "[state][temp]") {
     lv_init_safe();
@@ -829,8 +827,6 @@ TEST_CASE("PrinterState: Printer and network status are independent", "[state][i
 // Invalid/Malformed Data Tests
 // ============================================================================
 // These tests verify update_from_status handles edge cases gracefully.
-// Note: update_from_notification validation (method/params checks) is tested
-// implicitly through integration tests with MoonrakerClientMock.
 
 TEST_CASE("PrinterState: Empty status object is handled", "[state][error]") {
     lv_init_safe();
@@ -970,7 +966,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     // Reset to known state first
     json standby_notification = {{"method", "notify_status_update"},
                                  {"params", {{{"print_stats", {{"state", "standby"}}}}, 0.0}}};
-    state.update_from_notification(standby_notification);
+    state.update_from_status(standby_notification["params"][0]);
 
     SECTION("Updates to PRINTING from notification") {
         json notification = {{"method", "notify_status_update"},
@@ -2045,27 +2041,48 @@ TEST_CASE("PrinterState::set_hardware: a chamber sensor override the printer rep
 // exception escapes — converting "the next narrow-subscription rollout
 // crashes Snapmaker users" into a CI failure.
 
-TEST_CASE("PrinterState: update_from_notification handles null method without throwing",
+TEST_CASE("parse_status_notification: only a notify_status_update yields a frame",
           "[state][regression][subscription-null]") {
-    lv_init_safe();
-    auto& state = get_printer_state();
-
-    nlohmann::json with_null = {
-        {"method", nullptr},
-        {"params", nlohmann::json::array({nlohmann::json::object()})},
+    const auto params = nlohmann::json::array({nlohmann::json::object()});
+    const nlohmann::json rejected[] = {
+        {{"method", nullptr}, {"params", params}},
+        {{"params", params}},
+        {{"method", 42}, {"params", params}},
+        {{"method", "notify_gcode_response"}, {"params", params}},
+        {{"method", "notify_status_update"}, {"params", nlohmann::json::array()}},
+        {{"method", "notify_status_update"}},
     };
-    REQUIRE_NOTHROW(state.update_from_notification(with_null));
+    for (const auto& notification : rejected) {
+        CAPTURE(notification.dump());
+        CHECK_FALSE(parse_status_notification(notification));
+    }
+}
 
-    nlohmann::json missing_method = {
-        {"params", nlohmann::json::array({nlohmann::json::object()})},
-    };
-    REQUIRE_NOTHROW(state.update_from_notification(missing_method));
+TEST_CASE("parse_status_notification: reads eventtime and the replay marker",
+          "[state][klippy][freshness]") {
+    const nlohmann::json status = {{"webhooks", {{"state", "ready"}}}};
 
-    nlohmann::json wrong_type = {
-        {"method", 42},
-        {"params", nlohmann::json::array({nlohmann::json::object()})},
-    };
-    REQUIRE_NOTHROW(state.update_from_notification(wrong_type));
+    const nlohmann::json live_frame = {{"method", "notify_status_update"},
+                                       {"params", nlohmann::json::array({status, 42.5})}};
+    auto live = parse_status_notification(live_frame);
+    REQUIRE(live);
+    CHECK(*live->status == status);
+    CHECK(live->eventtime == 42.5);
+    CHECK_FALSE(live->from_cached_snapshot);
+
+    const nlohmann::json replay_frame = {{"method", "notify_status_update"},
+                                         {"params", nlohmann::json::array({status})},
+                                         {CACHED_SNAPSHOT_MARKER, true}};
+    auto replay = parse_status_notification(replay_frame);
+    REQUIRE(replay);
+    CHECK(replay->eventtime == 0.0);
+    CHECK(replay->from_cached_snapshot);
+
+    const nlohmann::json untimed_frame = {{"method", "notify_status_update"},
+                                          {"params", nlohmann::json::array({status, "x"})}};
+    auto untimed = parse_status_notification(untimed_frame);
+    REQUIRE(untimed);
+    CHECK(untimed->eventtime == 0.0);
 }
 
 TEST_CASE("PrinterPrintState: update_from_status handles null print_stats fields",

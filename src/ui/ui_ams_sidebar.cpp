@@ -193,11 +193,6 @@ void AmsOperationSidebar::on_settings_clicked_cb(lv_event_t* e) {
     spdlog::info("[AmsSidebar] Opening AMS Device Operations overlay");
 
     auto& overlay = helix::ui::get_ams_device_operations_overlay();
-    if (!overlay.are_subjects_initialized()) {
-        overlay.init_subjects();
-        overlay.register_callbacks();
-    }
-
     auto* event_target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
     lv_obj_t* parent = lv_obj_get_screen(event_target);
     overlay.show(parent);

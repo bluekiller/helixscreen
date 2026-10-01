@@ -46,6 +46,7 @@
 #include "job_queue_state.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "preprint_predictor.h"
 #include "print_history_manager.h"
@@ -125,82 +126,6 @@ PrintSelectPanel& get_global_print_select_panel() {
             "[PrintSelectPanel] get_global_print_select_panel() called before panel created");
     }
     return *g_print_select_panel;
-}
-
-// ============================================================================
-// Static XML Event Callbacks (registered via lv_xml_register_event_cb)
-// ============================================================================
-
-static void on_print_select_view_toggle(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().toggle_view();
-}
-
-static void on_print_select_source_printer(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().on_source_printer_clicked();
-}
-
-static void on_print_select_source_usb(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().on_source_usb_clicked();
-}
-
-// Header column sort callbacks
-static void on_print_select_header_filename(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().sort_by(PrintSelectSortColumn::FILENAME);
-}
-
-static void on_print_select_header_size(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().sort_by(PrintSelectSortColumn::SIZE);
-}
-
-static void on_print_select_header_modified(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().sort_by(PrintSelectSortColumn::MODIFIED);
-}
-
-static void on_print_select_header_print_time(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().sort_by(PrintSelectSortColumn::PRINT_TIME);
-}
-
-// Detail view callbacks
-static void on_print_select_print_button(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().start_print();
-}
-
-static void on_print_select_delete_button(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().show_delete_confirmation();
-}
-
-static void on_toggle_sliced_colors(lv_event_t* e) {
-    auto* sw = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool checked = lv_obj_has_state(sw, LV_STATE_CHECKED);
-    get_global_print_select_panel().forward_sliced_colors_toggle(checked);
-}
-
-static void on_color_card_remap_help(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().show_remap_help();
-}
-
-static void on_print_select_detail_backdrop(lv_event_t* e) {
-    auto* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* current_target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    // Only close if clicking the backdrop itself, not child widgets
-    if (target == current_target) {
-        get_global_print_select_panel().hide_detail_view();
-    }
-}
-
-static void on_print_detail_back_clicked(lv_event_t* e) {
-    (void)e;
-    get_global_print_select_panel().hide_detail_view();
 }
 
 // ============================================================================
@@ -362,21 +287,48 @@ void PrintSelectPanel::init_subjects() {
 
     // Register XML event callbacks (must be done BEFORE XML is created)
     register_xml_callbacks({
-        {"on_print_select_view_toggle", on_print_select_view_toggle},
-        {"on_print_select_source_printer", on_print_select_source_printer},
-        {"on_print_select_source_usb", on_print_select_source_usb},
+        {"on_print_select_view_toggle",
+         [](lv_event_t*) { get_global_print_select_panel().toggle_view(); }},
+        {"on_print_select_source_printer",
+         [](lv_event_t*) { get_global_print_select_panel().on_source_printer_clicked(); }},
+        {"on_print_select_source_usb",
+         [](lv_event_t*) { get_global_print_select_panel().on_source_usb_clicked(); }},
         // List header sort callbacks
-        {"on_print_select_header_filename", on_print_select_header_filename},
-        {"on_print_select_header_size", on_print_select_header_size},
-        {"on_print_select_header_modified", on_print_select_header_modified},
-        {"on_print_select_header_print_time", on_print_select_header_print_time},
+        {"on_print_select_header_filename",
+         [](lv_event_t*) {
+             get_global_print_select_panel().sort_by(PrintSelectSortColumn::FILENAME);
+         }},
+        {"on_print_select_header_size",
+         [](lv_event_t*) { get_global_print_select_panel().sort_by(PrintSelectSortColumn::SIZE); }},
+        {"on_print_select_header_modified",
+         [](lv_event_t*) {
+             get_global_print_select_panel().sort_by(PrintSelectSortColumn::MODIFIED);
+         }},
+        {"on_print_select_header_print_time",
+         [](lv_event_t*) {
+             get_global_print_select_panel().sort_by(PrintSelectSortColumn::PRINT_TIME);
+         }},
         // Detail view callbacks
-        {"on_print_select_print_button", on_print_select_print_button},
-        {"on_print_select_delete_button", on_print_select_delete_button},
-        {"on_print_select_detail_backdrop", on_print_select_detail_backdrop},
-        {"on_print_detail_back_clicked", on_print_detail_back_clicked},
-        {"on_toggle_sliced_colors", on_toggle_sliced_colors},
-        {"on_color_card_remap_help", on_color_card_remap_help},
+        {"on_print_select_print_button",
+         [](lv_event_t*) { get_global_print_select_panel().start_print(); }},
+        {"on_print_select_delete_button",
+         [](lv_event_t*) { get_global_print_select_panel().show_delete_confirmation(); }},
+        {"on_print_select_detail_backdrop",
+         [](lv_event_t* e) {
+             // Only close if clicking the backdrop itself, not child widgets
+             if (lv_event_get_target(e) == lv_event_get_current_target(e)) {
+                 get_global_print_select_panel().hide_detail_view();
+             }
+         }},
+        {"on_print_detail_back_clicked",
+         [](lv_event_t*) { get_global_print_select_panel().hide_detail_view(); }},
+        {"on_toggle_sliced_colors",
+         [](lv_event_t* e) {
+             get_global_print_select_panel().forward_sliced_colors_toggle(
+                 helix::ui::event_checked(e));
+         }},
+        {"on_color_card_remap_help",
+         [](lv_event_t*) { get_global_print_select_panel().show_remap_help(); }},
     });
 
     subjects_initialized_ = true;

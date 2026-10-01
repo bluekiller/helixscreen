@@ -305,7 +305,8 @@ void register_shutdown_widget() {
     lv_xml_register_event_cb(nullptr, "on_shutdown_split_clicked", on_shutdown_split_clicked);
 }
 
-ShutdownWidget::ShutdownWidget(IMoonrakerAPI* api) : api_(api) {}
+ShutdownWidget::ShutdownWidget(IMoonrakerAPI* api)
+    : TiledPanelWidget("shutdown", TileSizing::Content{"", "", "Shutdown", false}), api_(api) {}
 
 ShutdownWidget::~ShutdownWidget() {
     detach();
@@ -314,11 +315,6 @@ ShutdownWidget::~ShutdownWidget() {
 void ShutdownWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
-
-    // Set user_data on the root lv_obj, NOT on the ui_button child.
-    // ui_button allocates its own UiButtonData in user_data — overwriting it
-    // leaks memory and breaks button style/contrast auto-updates.
-    lv_obj_set_user_data(widget_obj_, this);
 
     shutdown_btn_ = lv_obj_find_by_name(widget_obj_, "shutdown_button");
     if (shutdown_btn_) {
@@ -336,9 +332,6 @@ void ShutdownWidget::detach() {
         shutdown_modal_.hide();
     }
 
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     shutdown_btn_ = nullptr;
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;

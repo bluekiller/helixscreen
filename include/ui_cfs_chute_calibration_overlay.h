@@ -7,6 +7,7 @@
 
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <atomic>
@@ -29,7 +30,6 @@ namespace helix::ui {
  */
 class CfsChuteCalibrationOverlay : public OverlayBase {
   public:
-    CfsChuteCalibrationOverlay();
     ~CfsChuteCalibrationOverlay() override;
 
     // === OverlayBase Interface ===
@@ -41,8 +41,11 @@ class CfsChuteCalibrationOverlay : public OverlayBase {
         return "CFS Purge Chute Calibration";
     }
 
+    const char* xml_component() const override {
+        return "cfs_chute_calibration_overlay";
+    }
+
     lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
 
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;
@@ -64,13 +67,6 @@ class CfsChuteCalibrationOverlay : public OverlayBase {
     void save_position();
     void update_y_display(int centimm);
 
-    // Static XML event callbacks (user_data carries the jog delta as a string)
-    static void on_start_clicked(lv_event_t* e);
-    static void on_jog_clicked(lv_event_t* e);
-    static void on_save_clicked(lv_event_t* e);
-    static void on_cancel_clicked(lv_event_t* e);
-    static void on_done_clicked(lv_event_t* e);
-
     /// Live toolhead Y in mm, from the position subject; drives the readout
     /// and the jog clamp.
     double current_y_mm_ = 0.0;
@@ -83,15 +79,13 @@ class CfsChuteCalibrationOverlay : public OverlayBase {
     std::shared_ptr<std::atomic<bool>> cancel_requested_ =
         std::make_shared<std::atomic<bool>>(false);
 
-    lv_obj_t* overlay_root_ = nullptr;
-
     ObserverGuard y_observer_;
     SubjectManager subjects_;
-    bool subjects_initialized_ = false;
 };
 
-/// Singleton accessor. The instance is destroyed with the panel registry.
-CfsChuteCalibrationOverlay& get_cfs_chute_calibration_overlay();
+inline CfsChuteCalibrationOverlay& get_cfs_chute_calibration_overlay() {
+    return lazy_global<CfsChuteCalibrationOverlay>("CfsChuteCalibrationOverlay");
+}
 
 } // namespace helix::ui
 

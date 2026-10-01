@@ -131,9 +131,6 @@ void ClockWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Store this pointer for event callback recovery
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Populate clock values immediately for initial display
     update_clock();
 
@@ -149,7 +146,6 @@ void ClockWidget::detach() {
     }
 
     if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;

@@ -29,6 +29,7 @@
 #pragma once
 
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "touch_calibration.h"
 #include "touch_calibration_controller.h"
@@ -153,7 +154,7 @@ class TouchCalibrationOverlay : public OverlayBase, public helix::ui::ITouchCali
     void hide();
 
     //
-    // === Event Handlers (called by static trampolines) ===
+    // === Event Handlers (called from the XML callback table) ===
     //
 
     // helix::ui::ITouchCalibrationView - what the controller asks this view to draw
@@ -376,16 +377,19 @@ class TouchCalibrationOverlay : public OverlayBase, public helix::ui::ITouchCali
 /**
  * @brief Get the global TouchCalibrationOverlay instance
  *
- * Creates the instance on first call. Singleton pattern.
+ * Creates the instance on first call and registers it for cleanup with
+ * StaticPanelRegistry.
  *
  * @return Reference to the global TouchCalibrationOverlay
  */
-TouchCalibrationOverlay& get_touch_calibration_overlay();
+inline TouchCalibrationOverlay& get_touch_calibration_overlay() {
+    return lazy_global<TouchCalibrationOverlay>("TouchCalibrationOverlay");
+}
 
 /**
  * @brief Register touch calibration overlay event callbacks
  *
- * Registers static callback trampolines with lv_xml_register_event_cb().
+ * Registers the overlay's XML event callbacks.
  * Call during application initialization before creating overlay.
  */
 void register_touch_calibration_overlay_callbacks();

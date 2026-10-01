@@ -15,15 +15,14 @@
 #include "i_moonraker_api.h"
 #include "material_settings_manager.h"
 #include "printer_state.h"
-#include "static_panel_registry.h"
 #include "temperature_controller.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdlib>
-#include <memory>
 #include <vector>
 
 namespace helix::settings {
@@ -36,41 +35,10 @@ constexpr int BED_INPUT_ABS_MAX_C = 200;
 constexpr int CHAMBER_INPUT_ABS_MAX_C = 120;
 
 // ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<MaterialTempsOverlay> g_material_temps_overlay;
-
-MaterialTempsOverlay& get_material_temps_overlay() {
-    if (!g_material_temps_overlay) {
-        g_material_temps_overlay = std::make_unique<MaterialTempsOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "MaterialTempsOverlay", []() { g_material_temps_overlay.reset(); });
-    }
-    return *g_material_temps_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-MaterialTempsOverlay::MaterialTempsOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
-
-MaterialTempsOverlay::~MaterialTempsOverlay() {
-    spdlog::trace("[{}] Destroyed", get_name());
-}
-
-// ============================================================================
 // INITIALIZATION
 // ============================================================================
 
 void MaterialTempsOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
-
     // View toggle subject: 0=list, 1=editing
     UI_MANAGED_SUBJECT_INT(editing_subject_, 0, "material_editing", subjects_);
 
@@ -84,19 +52,16 @@ void MaterialTempsOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_INT(has_macro_subject_, 0, "material_has_macro", subjects_);
 
     UI_MANAGED_SUBJECT_INT(shipped_subject_, 1, "material_edit_is_shipped", subjects_);
-
-    subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized", get_name());
 }
 
 void MaterialTempsOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_material_save", on_material_save},
-        {"on_material_reset_defaults", on_material_reset_defaults},
-        {"on_macro_dropdown_changed", on_macro_dropdown_changed},
+        {"on_material_save", [](lv_event_t*) { get_material_temps_overlay().handle_save(); }},
+        {"on_material_reset_defaults",
+         [](lv_event_t*) { get_material_temps_overlay().handle_reset_defaults(); }},
+        {"on_macro_dropdown_changed",
+         [](lv_event_t*) { get_material_temps_overlay().handle_macro_dropdown_changed(); }},
     });
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
 }
 
 // ============================================================================
@@ -119,19 +84,17 @@ lv_obj_t* MaterialTempsOverlay::create(lv_obj_t* parent) {
     }
 
     // Cache view refs
-    list_view_ = lv_obj_find_by_name(overlay_root_, "material_list_view");
-    edit_view_ = lv_obj_find_by_name(overlay_root_, "material_edit_view");
-
-    if (edit_view_) {
-        macro_dropdown_ = lv_obj_find_by_name(edit_view_, "macro_dropdown");
-        macro_heating_switch_ = lv_obj_find_by_name(edit_view_, "macro_heating_switch");
-    }
+    list_view_ = helix::ui::find_required(overlay_root_, "material_list_view", get_name());
+    edit_view_ = helix::ui::find_required(overlay_root_, "material_edit_view", get_name());
+    macro_dropdown_ = helix::ui::find_required(edit_view_, "macro_dropdown", get_name());
+    macro_heating_switch_ =
+        helix::ui::find_required(edit_view_, "macro_heating_switch", get_name());
 
     // Rewire back button to intercept when in edit view
     // Exception to "NO lv_obj_add_event_cb" rule: need to intercept back for view switching
-    lv_obj_t* header = lv_obj_find_by_name(overlay_root_, "overlay_header");
+    lv_obj_t* header = helix::ui::find_required(overlay_root_, "overlay_header", get_name());
     if (header) {
-        lv_obj_t* back_button = lv_obj_find_by_name(header, "back_button");
+        lv_obj_t* back_button = helix::ui::find_required(header, "back_button", get_name());
         if (back_button) {
             uint32_t event_count = lv_obj_get_event_count(back_button);
             for (uint32_t i = event_count; i > 0; --i) {
@@ -148,35 +111,8 @@ lv_obj_t* MaterialTempsOverlay::create(lv_obj_t* parent) {
     return overlay_root_;
 }
 
-void MaterialTempsOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Ensure subjects and callbacks are initialized
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    // Lazy create overlay
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Reset to list view
+void MaterialTempsOverlay::before_show() {
     show_list_view();
-
-    // Register for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack
-    NavigationManager::instance().push_overlay(overlay_root_);
 }
 
 // ============================================================================
@@ -322,10 +258,14 @@ void MaterialTempsOverlay::show_edit_view(const std::string& material_name) {
     // column is hidden: handle_save() reads it back, which keeps a stored
     // chamber override intact on a printer whose heater is (currently) absent.
     if (edit_view_) {
-        lv_obj_t* nozzle_min_input = lv_obj_find_by_name(edit_view_, "edit_nozzle_min");
-        lv_obj_t* nozzle_max_input = lv_obj_find_by_name(edit_view_, "edit_nozzle_max");
-        lv_obj_t* bed_temp_input = lv_obj_find_by_name(edit_view_, "edit_bed_temp");
-        lv_obj_t* chamber_temp_input = lv_obj_find_by_name(edit_view_, "edit_chamber_temp");
+        lv_obj_t* nozzle_min_input =
+            helix::ui::find_required(edit_view_, "edit_nozzle_min", get_name());
+        lv_obj_t* nozzle_max_input =
+            helix::ui::find_required(edit_view_, "edit_nozzle_max", get_name());
+        lv_obj_t* bed_temp_input =
+            helix::ui::find_required(edit_view_, "edit_bed_temp", get_name());
+        lv_obj_t* chamber_temp_input =
+            helix::ui::find_required(edit_view_, "edit_chamber_temp", get_name());
 
         char buf[8];
         if (nozzle_min_input) {
@@ -400,10 +340,13 @@ void MaterialTempsOverlay::handle_save() {
     }
 
     // Read input values
-    lv_obj_t* nozzle_min_input = lv_obj_find_by_name(edit_view_, "edit_nozzle_min");
-    lv_obj_t* nozzle_max_input = lv_obj_find_by_name(edit_view_, "edit_nozzle_max");
-    lv_obj_t* bed_temp_input = lv_obj_find_by_name(edit_view_, "edit_bed_temp");
-    lv_obj_t* chamber_temp_input = lv_obj_find_by_name(edit_view_, "edit_chamber_temp");
+    lv_obj_t* nozzle_min_input =
+        helix::ui::find_required(edit_view_, "edit_nozzle_min", get_name());
+    lv_obj_t* nozzle_max_input =
+        helix::ui::find_required(edit_view_, "edit_nozzle_max", get_name());
+    lv_obj_t* bed_temp_input = helix::ui::find_required(edit_view_, "edit_bed_temp", get_name());
+    lv_obj_t* chamber_temp_input =
+        helix::ui::find_required(edit_view_, "edit_chamber_temp", get_name());
 
     if (!nozzle_min_input || !nozzle_max_input || !bed_temp_input || !chamber_temp_input) {
         return;
@@ -580,6 +523,8 @@ void MaterialTempsOverlay::handle_macro_dropdown_changed() {
 // STATIC CALLBACKS
 // ============================================================================
 
+// Attached with lv_obj_add_event_cb: the rows and the back button are built in
+// code, so there is no XML slot to register against.
 void MaterialTempsOverlay::on_material_row_clicked(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[MaterialTempsOverlay] on_material_row_clicked");
     auto* row = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
@@ -590,27 +535,9 @@ void MaterialTempsOverlay::on_material_row_clicked(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void MaterialTempsOverlay::on_material_save(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MaterialTempsOverlay] on_material_save");
-    get_material_temps_overlay().handle_save();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MaterialTempsOverlay::on_material_reset_defaults(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MaterialTempsOverlay] on_material_reset_defaults");
-    get_material_temps_overlay().handle_reset_defaults();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void MaterialTempsOverlay::on_back_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[MaterialTempsOverlay] on_back_clicked");
     get_material_temps_overlay().handle_back_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MaterialTempsOverlay::on_macro_dropdown_changed(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MaterialTempsOverlay] on_macro_dropdown_changed");
-    get_material_temps_overlay().handle_macro_dropdown_changed();
     LVGL_SAFE_EVENT_CB_END();
 }
 

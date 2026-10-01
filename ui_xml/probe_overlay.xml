@@ -8,7 +8,7 @@
     <!-- Header Bar -->
     <header_bar name="overlay_header" title="Probe" title_tag="Probe"/>
     <!-- Content Area -->
-    <lv_obj name="panel_content"
+    <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_all="#space_lg" style_pad_gap="#space_md" scrollable="true"
             flex_flow="column">
 

@@ -19,7 +19,7 @@
     <header_bar name="overlay_header"
                 title="Belt Tension" title_tag="Belt Tension" hide_action_button="true" action_button_icon="refresh"
                 action_button_callback="belt_tension_start_cb" action_button_disabled_cond="nav_buttons_enabled eq 0"/>
-    <lv_obj name="panel_content"
+    <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_top="0" style_pad_bottom="#space_md" style_pad_left="#space_lg"
             style_pad_right="#space_lg" style_pad_gap="#space_sm" scrollable="false" flex_flow="column">
       <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>

@@ -37,7 +37,14 @@ void register_active_spool_widget() {
     });
 }
 
-ActiveSpoolWidget::ActiveSpoolWidget(IMoonrakerAPI* api) : api_(api) {
+// The compact form: a spool one line of the rung's icon face square, over one
+// caption line whose text is either "Active Spool" or "No Spool". The caption is
+// budgeted whatever show_widget_labels says, because "No Spool" draws regardless.
+ActiveSpoolWidget::ActiveSpoolWidget(IMoonrakerAPI* api)
+    : TiledPanelWidget("active_spool", TileSizing::Content{"", "", "Active Spool", false, "",
+                                                           /*label_always_drawn=*/true,
+                                                           TileSizing::IconBox::Square}),
+      api_(api) {
     // Registered before the manager parses the component, which drops a
     // binding whose subject is missing at parse time.
     UI_MANAGED_SUBJECT_INT(wide_subject_, 0, "active_spool_wide", subjects_);
@@ -54,8 +61,6 @@ void ActiveSpoolWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     if (!widget_obj_)
         return;
-
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Register click handler via per-callback user_data
     auto* btn = lv_obj_find_by_name(widget_obj_, "spoolman_btn");
@@ -118,10 +123,6 @@ void ActiveSpoolWidget::detach() {
     spool_color_observer_.reset();
     current_slot_observer_.reset();
     slots_version_observer_.reset();
-
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
 
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;

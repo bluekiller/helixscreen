@@ -36,6 +36,7 @@
 #include "macro_executor.h"
 #include "macro_param_cache.h"
 #include "material_settings_manager.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "post_op_cooldown_manager.h"
 #include "preset_materials.h"
