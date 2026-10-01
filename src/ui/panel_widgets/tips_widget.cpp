@@ -77,9 +77,6 @@ void TipsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Store this pointer for event callback recovery
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Set user_data on the tip_container child (where event_cb is registered in XML)
     // so the callback can recover this widget instance via lv_obj_get_user_data()
     auto* tip_container = lv_obj_find_by_name(widget_obj_, "tip_container");
@@ -122,7 +119,6 @@ void TipsWidget::detach() {
         if (tip_container) {
             lv_obj_set_user_data(tip_container, nullptr);
         }
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;

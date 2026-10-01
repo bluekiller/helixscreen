@@ -177,10 +177,6 @@ void ThermistorWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     parent_screen_ = parent_screen;
     install_delete_hook(widget_obj);
 
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, this);
-    }
-
     if (is_carousel_mode()) {
         attach_carousel();
     } else {
@@ -440,9 +436,6 @@ void ThermistorWidget::detach() {
     }
     uninstall_delete_hook();
 
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     forget_tile_widgets();
 
     spdlog::debug("[ThermistorWidget] Detached");
