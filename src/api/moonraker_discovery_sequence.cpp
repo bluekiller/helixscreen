@@ -1910,8 +1910,11 @@ void MoonrakerDiscoverySequence::drain_pending_refresh() {
     bool again = false;
     {
         std::lock_guard<std::mutex> lock(subscription_mutex_);
-        again = refresh_pending_ && !refresh_in_flight_;
-        refresh_pending_ = false;
+        // A refresh in flight drains the flag itself when it settles.
+        if (refresh_pending_ && !refresh_in_flight_) {
+            refresh_pending_ = false;
+            again = true;
+        }
     }
     if (again)
         refresh_subscription();

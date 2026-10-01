@@ -306,6 +306,40 @@ TEST_CASE("a refresh asked for during the discovery subscribe is sent once it se
     CHECK(client.subscribes[1] == helix::merge_subscription_objects(app, plugin));
 }
 
+TEST_CASE("a refresh pending behind one in flight survives another drain",
+          "[moonraker][subscription]") {
+    LVGLTestFixture fixture;
+    const json app = app_only_subscription();
+    const json first = {{"temperature_sensor spark", nullptr}};
+    const json second = {{"temperature_sensor spark", nullptr},
+                         {"temperature_sensor bolt", nullptr}};
+
+    ProviderValue pv;
+    RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
+    // The discovery-complete callback runs after the subscribe is marked done and
+    // before that subscribe drains its pending refresh: the window a refresh callback
+    // on the WebSocket thread leaves while the main thread starts another.
+    bool staged = false;
+    client.set_on_discovery_complete([&](const helix::PrinterDiscovery&, const json&) {
+        if (staged)
+            return;
+        staged = true;
+        client.hold_next_subscribe = true;
+        pv.set(first);
+        client.refresh_subscription(); // in flight, held
+        pv.set(second);
+        client.refresh_subscription(); // pending behind it
+    });
+    REQUIRE(with_provider(client, pv).discover_real());
+    REQUIRE(staged);
+    REQUIRE(client.subscribes.size() == 2);
+    CHECK(client.subscribes[1] == helix::merge_subscription_objects(app, first));
+
+    client.release_held();
+    REQUIRE(client.subscribes.size() == 3);
+    CHECK(client.subscribes[2] == helix::merge_subscription_objects(app, second));
+}
+
 TEST_CASE("the refresh response reaches status callbacks", "[moonraker][subscription]") {
     LVGLTestFixture fixture;
     ProviderValue pv;
