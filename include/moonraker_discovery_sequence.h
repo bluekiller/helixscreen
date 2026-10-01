@@ -321,6 +321,9 @@ class MoonrakerDiscoverySequence {
 
     void reset_subscription_state();
 
+    /// Run a refresh that was asked for while none could be sent.
+    void drain_pending_refresh();
+
   public:
     /**
      * @brief Pure helper: build the `printer.objects.subscribe` objects map
@@ -382,9 +385,10 @@ class MoonrakerDiscoverySequence {
 
     // Per-connection subscription state, under subscription_mutex_.
     std::mutex subscription_mutex_;
-    bool subscribed_{false}; // the discovery subscribe of this connection succeeded
-    json last_app_objects_;  // build_subscription_objects() result of this connection
-    json last_sent_objects_; // objects map of the last subscribe Moonraker accepted
+    bool subscribed_{false};         // the discovery subscribe of this connection succeeded
+    json last_app_objects_;          // build_subscription_objects() result of this connection
+    json last_sent_objects_;         // objects map of the last subscribe Moonraker accepted
+    uint64_t subscription_epoch_{0}; // moves on with every disconnect and discovery subscribe
     bool refresh_in_flight_{false};
     bool refresh_pending_{false};
 

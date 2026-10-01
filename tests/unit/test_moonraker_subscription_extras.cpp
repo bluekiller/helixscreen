@@ -14,8 +14,10 @@
 #include "printer_discovery.h"
 #include "printer_state.h"
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,34 +27,62 @@ using json = nlohmann::json;
 
 namespace {
 
+/// Records every subscribe and fails or holds one the way the request tracker
+/// delivers it: a refusal, a timeout and a lost connection all arrive through the
+/// error callback, never the success callback.
 class RecordingClient : public MoonrakerClientMock {
   public:
     using MoonrakerClientMock::MoonrakerClientMock;
     using MoonrakerClientMock::send_jsonrpc;
 
-    helix::RequestId send_jsonrpc(const std::string& method, const json& params,
-                                  std::function<void(const json&)> cb) override {
+    helix::RequestId send_jsonrpc(
+        const std::string& method, const json& params, std::function<void(const json&)> success_cb,
+        std::function<void(const MoonrakerError&)> error_cb, uint32_t timeout_ms, bool silent,
+        std::optional<helix::rpc_error_policy::CallerIntent> intent) override {
         if (method == "printer.objects.subscribe") {
             json objects = params.contains("objects") ? params["objects"] : json::object();
             subscribes.push_back(objects);
             if (!fail_object.empty() && objects.contains(fail_object)) {
-                if (cb)
-                    cb(json{{"error", {{"code", 400}, {"message", "bad object"}}}});
+                if (error_cb)
+                    error_cb(fail_error);
+                return 0;
+            }
+            if (hold_next_subscribe) {
+                hold_next_subscribe = false;
+                held = [=]() {
+                    MoonrakerClientMock::send_jsonrpc(method, params, success_cb, error_cb,
+                                                      timeout_ms, silent, intent);
+                };
                 return 0;
             }
         }
-        return MoonrakerClientMock::send_jsonrpc(method, params, cb);
+        return MoonrakerClientMock::send_jsonrpc(method, params, success_cb, error_cb, timeout_ms,
+                                                 silent, intent);
     }
 
-    void discover_real() {
-        bool done = false;
-        MoonrakerClient::discover_printer([&done]() { done = true; }, [](const std::string&) {});
+    /// Runs the real discovery sequence; true once it reported completion.
+    bool discover_real() {
+        done = false;
+        MoonrakerClient::discover_printer([this]() { done = true; }, [](const std::string&) {});
         helix::ui::UpdateQueue::instance().drain();
-        REQUIRE(done);
+        return done;
+    }
+
+    void release_held() {
+        auto fn = std::move(held);
+        held = nullptr;
+        REQUIRE(fn);
+        fn();
+        helix::ui::UpdateQueue::instance().drain();
     }
 
     std::vector<json> subscribes;
     std::string fail_object;
+    MoonrakerError fail_error = MoonrakerError::from_json_rpc(
+        json{{"code", 400}, {"message", "bad object"}}, "printer.objects.subscribe");
+    bool hold_next_subscribe = false;
+    std::function<void()> held;
+    bool done = false;
 };
 
 struct ProviderValue {
@@ -72,7 +102,7 @@ struct ProviderValue {
 json app_only_subscription() {
     RecordingClient plain(MoonrakerClientMock::PrinterType::VORON_24);
     plain.set_klippy_state(MoonrakerClientMock::KlippyState::READY);
-    plain.discover_real();
+    REQUIRE(plain.discover_real());
     REQUIRE(plain.subscribes.size() == 1);
     return plain.subscribes.front();
 }
@@ -92,7 +122,7 @@ TEST_CASE("extras ride the first subscription", "[moonraker][subscription]") {
     ProviderValue pv;
     pv.set({{"temperature_sensor spark", nullptr}});
     RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
-    with_provider(client, pv).discover_real();
+    REQUIRE(with_provider(client, pv).discover_real());
 
     REQUIRE(client.subscribes.size() == 1);
     const json& sent = client.subscribes.front();
@@ -112,7 +142,7 @@ TEST_CASE("refresh adds and removes plugin objects without dropping app objects"
 
     ProviderValue pv;
     RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
-    with_provider(client, pv).discover_real();
+    REQUIRE(with_provider(client, pv).discover_real());
     REQUIRE(client.subscribes.size() == 1);
     CHECK(client.subscribes[0] == app); // an empty provider sends exactly the app objects
 
@@ -147,10 +177,10 @@ TEST_CASE("reconnect includes the extras", "[moonraker][subscription]") {
     LVGLTestFixture fixture;
     ProviderValue pv;
     RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
-    with_provider(client, pv).discover_real();
+    REQUIRE(with_provider(client, pv).discover_real());
 
     pv.set({{"temperature_sensor spark", nullptr}});
-    client.discover_real(); // a reconnect re-runs discovery on the same client
+    REQUIRE(client.discover_real()); // a reconnect re-runs discovery on the same client
     REQUIRE(client.subscribes.size() == 2);
     CHECK(client.subscribes.back().contains("temperature_sensor spark"));
 }
@@ -166,7 +196,7 @@ TEST_CASE("a subscribe error with extras falls back to the app objects",
     RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
     client.fail_object = "bogus_object";
     client.register_event_handler([&events](const MoonrakerEvent& e) { events.push_back(e.type); });
-    with_provider(client, pv).discover_real();
+    REQUIRE(with_provider(client, pv).discover_real());
 
     REQUIRE(client.subscribes.size() == 2);
     CHECK(client.subscribes[0].contains("bogus_object"));
@@ -190,7 +220,7 @@ TEST_CASE("a refresh error with extras re-sends the app objects", "[moonraker][s
     ProviderValue pv;
     RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
     client.fail_object = "bogus_object";
-    with_provider(client, pv).discover_real();
+    REQUIRE(with_provider(client, pv).discover_real());
     REQUIRE(client.subscribes.size() == 1);
 
     pv.set({{"bogus_object", nullptr}});
@@ -200,11 +230,87 @@ TEST_CASE("a refresh error with extras re-sends the app objects", "[moonraker][s
     CHECK(client.subscribes[2] == app);
 }
 
+TEST_CASE("a refused app subscription reports DISCOVERY_FAILED and completes discovery",
+          "[moonraker][subscription]") {
+    LVGLTestFixture fixture;
+    std::vector<MoonrakerEventType> events;
+    RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
+    client.set_klippy_state(MoonrakerClientMock::KlippyState::READY);
+    client.fail_object = "webhooks";
+    client.register_event_handler([&events](const MoonrakerEvent& e) { events.push_back(e.type); });
+
+    CHECK(client.discover_real());
+    CHECK(client.subscribes.size() == 1);
+    CHECK(std::count(events.begin(), events.end(), MoonrakerEventType::DISCOVERY_FAILED) == 1);
+}
+
+TEST_CASE("a timed-out subscribe with extras falls back without refusing them",
+          "[moonraker][subscription]") {
+    LVGLTestFixture fixture;
+    const json app = app_only_subscription();
+
+    ProviderValue pv;
+    pv.set({{"temperature_sensor spark", nullptr}});
+    RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
+    client.fail_object = "temperature_sensor spark";
+    client.fail_error = MoonrakerError::timeout("printer.objects.subscribe", 1000);
+    REQUIRE(with_provider(client, pv).discover_real());
+    REQUIRE(client.subscribes.size() == 2);
+    CHECK(client.subscribes[1] == app);
+
+    client.fail_object.clear();
+    client.refresh_subscription(); // not refused, so the same extras are tried again
+    REQUIRE(client.subscribes.size() == 3);
+    CHECK(client.subscribes[2].contains("temperature_sensor spark"));
+}
+
+TEST_CASE("a refresh lost with the connection does not stop later refreshes",
+          "[moonraker][subscription]") {
+    LVGLTestFixture fixture;
+    ProviderValue pv;
+    RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
+    REQUIRE(with_provider(client, pv).discover_real());
+
+    pv.set({{"temperature_sensor spark", nullptr}});
+    client.fail_object = "temperature_sensor spark";
+    client.fail_error = MoonrakerError::connection_lost("printer.objects.subscribe");
+    client.refresh_subscription();
+    REQUIRE(client.subscribes.size() == 2); // nothing re-sent on a lost connection
+
+    client.fail_object.clear();
+    client.refresh_subscription();
+    REQUIRE(client.subscribes.size() == 3);
+    CHECK(client.subscribes[2].contains("temperature_sensor spark"));
+}
+
+TEST_CASE("a refresh asked for during the discovery subscribe is sent once it settles",
+          "[moonraker][subscription]") {
+    LVGLTestFixture fixture;
+    const json app = app_only_subscription();
+
+    ProviderValue pv;
+    RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
+    client.hold_next_subscribe = true;
+    CHECK_FALSE(with_provider(client, pv).discover_real());
+    REQUIRE(client.subscribes.size() == 1);
+    CHECK(client.subscribes[0] == app);
+
+    const json plugin = {{"temperature_sensor spark", nullptr}};
+    pv.set(plugin);
+    client.refresh_subscription();
+    CHECK(client.subscribes.size() == 1); // nothing goes out while discovery is in flight
+
+    client.release_held();
+    CHECK(client.done);
+    REQUIRE(client.subscribes.size() == 2);
+    CHECK(client.subscribes[1] == helix::merge_subscription_objects(app, plugin));
+}
+
 TEST_CASE("the refresh response reaches status callbacks", "[moonraker][subscription]") {
     LVGLTestFixture fixture;
     ProviderValue pv;
     RecordingClient client(MoonrakerClientMock::PrinterType::VORON_24);
-    with_provider(client, pv).discover_real();
+    REQUIRE(with_provider(client, pv).discover_real());
 
     std::atomic<int> saw_app_object{0};
     client.register_notify_update([&saw_app_object](const json& msg) {

@@ -1726,10 +1726,13 @@ void MoonrakerDiscoverySequence::complete_discovery_subscription(uint64_t seq) {
     }
 
     {
+        // A refresh asked for meanwhile stays pending and is re-checked once this settles.
         std::lock_guard<std::mutex> lock(subscription_mutex_);
+        ++subscription_epoch_;
         last_app_objects_ = subscription_objects;
         last_sent_objects_ = json();
         subscribed_ = false;
+        refresh_in_flight_ = false;
     }
     send_discovery_subscribe(seq, hw, subscription_objects, current_extras());
 }
@@ -1744,26 +1747,45 @@ void MoonrakerDiscoverySequence::send_discovery_subscribe(uint64_t seq, const Pr
     json subscribe_params = {{"objects", objects}};
     const size_t num_subscribed = objects.size();
 
+    // A refused plugin object is reported by the warning below, and a refused app
+    // subscription by DISCOVERY_FAILED, so neither wants the generic toast.
+    const rpc_error_policy::CallerIntent intent{/*silent=*/carried_extras,
+                                                /*surfaces_errors=*/!carried_extras};
+
     client_.send_jsonrpc(
         "printer.objects.subscribe", subscribe_params,
-        [this, seq, num_subscribed, hw, app, extras, objects, carried_extras](json sub_response) {
+        [this, seq, num_subscribed, hw, objects](const json& sub_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
-            if (carried_extras && sub_response.contains("error")) {
-                spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: {}; "
-                             "subscribing the app objects alone",
-                             extras.dump(), sub_response["error"].dump());
-                reject_extras(extras);
-                send_discovery_subscribe(seq, hw, app, json::object());
-                return;
-            }
-            if (sub_response.contains("result")) {
+            {
                 std::lock_guard<std::mutex> lock(subscription_mutex_);
                 last_sent_objects_ = objects;
                 subscribed_ = true;
             }
             finish_discovery_subscription(hw, num_subscribed, sub_response);
-        });
+            drain_pending_refresh();
+        },
+        [this, seq, num_subscribed, hw, app, extras, carried_extras](const MoonrakerError& err) {
+            if (is_stale() || !is_current_sequence(seq))
+                return;
+            // The socket is gone; the next connection runs discovery again.
+            if (err.type == MoonrakerErrorType::CONNECTION_LOST)
+                return;
+            if (carried_extras) {
+                spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: {}; "
+                             "subscribing the app objects alone",
+                             extras.dump(), err.message);
+                // A timeout says nothing about the objects, so only a refusal is remembered.
+                if (!err.is_transport_loss())
+                    reject_extras(extras);
+                send_discovery_subscribe(seq, hw, app, json::object());
+                return;
+            }
+            finish_discovery_subscription(
+                hw, num_subscribed,
+                json{{"error", {{"code", err.code}, {"message", err.message}}}});
+        },
+        0, false, intent);
 }
 
 void MoonrakerDiscoverySequence::finish_discovery_subscription(const PrinterDiscovery& hw,
@@ -1831,11 +1853,9 @@ void MoonrakerDiscoverySequence::finish_discovery_subscription(const PrinterDisc
     }
 
     // Discovery complete - pass initial status to the callback so the caller
-    // can dispatch it AFTER initializing subsystems (init_fans, etc.).
-    // Previously dispatch_status_update was called here separately, but that
-    // used a different queue than the init_fans callback, causing a race where
-    // initial fan/sensor data was processed before subjects existed.
-    // Copy hardware_ under lock before invoking callback (#562, #777).
+    // can dispatch it AFTER initializing subsystems (init_fans, etc.); status
+    // dispatched from here would reach fan/sensor parsers before their subjects
+    // exist. Copy hardware_ under lock before invoking callback (#562, #777).
     json initial_status;
     if (sub_response.contains("result") && sub_response["result"].contains("status")) {
         initial_status = sub_response["result"]["status"];
@@ -1879,30 +1899,44 @@ void MoonrakerDiscoverySequence::reject_extras(const json& extras) {
 
 void MoonrakerDiscoverySequence::reset_subscription_state() {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
+    ++subscription_epoch_;
     subscribed_ = false;
     last_sent_objects_ = json();
     refresh_in_flight_ = false;
     refresh_pending_ = false;
 }
 
-void MoonrakerDiscoverySequence::refresh_subscription() {
-    json app;
+void MoonrakerDiscoverySequence::drain_pending_refresh() {
+    bool again = false;
     {
         std::lock_guard<std::mutex> lock(subscription_mutex_);
-        if (!subscribed_)
-            return;
-        if (refresh_in_flight_) {
+        again = refresh_pending_ && !refresh_in_flight_;
+        refresh_pending_ = false;
+    }
+    if (again)
+        refresh_subscription();
+}
+
+void MoonrakerDiscoverySequence::refresh_subscription() {
+    json app;
+    uint64_t epoch = 0;
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        if (!subscribed_ || refresh_in_flight_) {
             refresh_pending_ = true;
             return;
         }
         refresh_in_flight_ = true;
         app = last_app_objects_;
+        epoch = subscription_epoch_;
     }
 
     json extras = current_extras();
     json objects = merge_subscription_objects(app, extras);
     {
         std::lock_guard<std::mutex> lock(subscription_mutex_);
+        if (subscription_epoch_ != epoch)
+            return;
         if (objects == last_sent_objects_) {
             refresh_in_flight_ = false;
             return;
@@ -1912,53 +1946,52 @@ void MoonrakerDiscoverySequence::refresh_subscription() {
     if (!extras.empty()) {
         spdlog::info("[Moonraker Client] Subscribing {} plugin object(s)", extras.size());
     }
-    const uint64_t generation = client_.connection_generation();
+    // A refresh reports its own failures in the log; no request of it is the user's.
+    const rpc_error_policy::CallerIntent intent{/*silent=*/true, /*surfaces_errors=*/false};
     client_.send_jsonrpc(
         "printer.objects.subscribe", json{{"objects", objects}},
-        [this, generation, extras, objects](json response) {
-            if (client_.connection_generation() != generation) {
-                std::lock_guard<std::mutex> lock(subscription_mutex_);
-                refresh_in_flight_ = false;
-                refresh_pending_ = false;
-                return;
-            }
-            if (response.contains("result")) {
-                {
-                    std::lock_guard<std::mutex> lock(subscription_mutex_);
-                    last_sent_objects_ = objects;
-                }
-                if (response["result"].contains("status")) {
-                    client_.dispatch_status_update(response["result"]["status"]);
-                }
-            } else if (response.contains("error")) {
-                {
-                    // Whether Moonraker kept the previous subscription is unknown, so the
-                    // next refresh re-sends rather than comparing against it.
-                    std::lock_guard<std::mutex> lock(subscription_mutex_);
-                    last_sent_objects_ = json();
-                }
-                if (!extras.empty()) {
-                    spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: "
-                                 "{}; subscribing the app objects alone",
-                                 extras.dump(), response["error"].dump());
-                    reject_extras(extras);
-                    std::lock_guard<std::mutex> lock(subscription_mutex_);
-                    refresh_pending_ = true;
-                } else {
-                    spdlog::error("[Moonraker Client] Subscription refresh failed: {}",
-                                  response["error"].dump());
-                }
-            }
-            bool again = false;
+        [this, epoch, objects](const json& response) {
             {
                 std::lock_guard<std::mutex> lock(subscription_mutex_);
+                // Whoever moved the epoch on also reset the in-flight state.
+                if (subscription_epoch_ != epoch)
+                    return;
+                last_sent_objects_ = objects;
                 refresh_in_flight_ = false;
-                again = refresh_pending_;
-                refresh_pending_ = false;
             }
-            if (again)
-                refresh_subscription();
-        });
+            if (response.contains("result") && response["result"].contains("status")) {
+                client_.dispatch_status_update(response["result"]["status"]);
+            }
+            drain_pending_refresh();
+        },
+        [this, epoch, extras](const MoonrakerError& err) {
+            {
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                if (subscription_epoch_ != epoch)
+                    return;
+                // Whether Moonraker kept the previous subscription is unknown, so the
+                // next refresh re-sends rather than comparing against it.
+                last_sent_objects_ = json();
+                refresh_in_flight_ = false;
+                if (err.type == MoonrakerErrorType::CONNECTION_LOST) {
+                    // Discovery on the next connection subscribes the current extras.
+                    refresh_pending_ = false;
+                    return;
+                }
+            }
+            if (!extras.empty() && !err.is_transport_loss()) {
+                spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: {}; "
+                             "subscribing the app objects alone",
+                             extras.dump(), err.message);
+                reject_extras(extras);
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                refresh_pending_ = true;
+            } else {
+                spdlog::error("[Moonraker Client] Subscription refresh failed: {}", err.message);
+            }
+            drain_pending_refresh();
+        },
+        0, false, intent);
 }
 
 void MoonrakerDiscoverySequence::invoke_discovery_complete() {

@@ -190,16 +190,27 @@ class IMoonrakerClient {
 
     /// @brief Objects merged into every printer.objects.subscribe the discovery sequence sends
     ///
-    /// Called on the thread that builds the subscription; must be cheap and thread-safe, and
-    /// must not call back into this client. An empty function removes the provider: once this
-    /// returns, the previous provider is not running and is never called again.
+    /// The result is a printer.objects.subscribe objects map (object name to null or an array
+    /// of field names). It is unioned into the app's map and can never narrow it.
+    ///
+    /// Provider contract:
+    /// - It runs on the WebSocket thread (discovery and every reconnect) and on whichever
+    ///   thread calls refresh_subscription(), while the client holds an internal mutex.
+    /// - It returns a snapshot guarded by its own lock. It must not touch Lua, PluginHost,
+    ///   LVGL or the UpdateQueue, and must not call back into this client.
+    /// - It must not take a lock that a thread clearing the provider holds at that moment,
+    ///   or the clear deadlocks.
+    /// - Lifetime: the owner clears it with an empty function before anything it captures
+    ///   dies (the client outlives PluginHost). Once that call returns, the old provider is
+    ///   not running and is never called again.
     virtual void set_subscription_extras_provider(std::function<json()> provider) = 0;
 
     /// @brief Re-send printer.objects.subscribe with the app objects merged with current extras
     ///
-    /// A no-op before the first subscription of a connection completes (that subscription
-    /// already includes the extras) and while disconnected. Calls made while a refresh is in
-    /// flight coalesce into one more send after it answers. Safe from any thread.
+    /// Safe from any thread and cheap when nothing changed. A call made while no refresh can
+    /// be sent (before this connection's discovery subscribe completes, or while a refresh is
+    /// in flight) is remembered and re-checked once that settles. While disconnected it does
+    /// nothing; the next connection's discovery subscribes the current extras.
     virtual void refresh_subscription() = 0;
 
     // ========================================================================
