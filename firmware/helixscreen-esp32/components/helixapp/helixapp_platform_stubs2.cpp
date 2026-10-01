@@ -134,6 +134,7 @@ lv_obj_t* SpoolmanOverlay::create(lv_obj_t*) {
 void SpoolmanOverlay::on_ui_destroyed() {}
 void SpoolmanOverlay::on_activate() {}
 void SpoolmanOverlay::on_deactivating(DeactivateReason) {}
+void SpoolmanOverlay::before_show() {}
 SpoolmanOverlay& get_spoolman_overlay() {
     static SpoolmanOverlay overlay;
     return overlay;
