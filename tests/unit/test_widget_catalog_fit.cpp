@@ -256,6 +256,34 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     process_lvgl(10);
 }
 
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "Catalog: a fit predicate from a closed catalog does not mark the next open",
+                 "[widget_catalog][fit]") {
+    const std::string panel_id = "test_catalog_fit_reopen_clean";
+    seed_empty_layout(panel_id);
+    PanelWidgetConfig config(panel_id, *Config::get_instance());
+    config.load();
+
+    WidgetCatalogOverlay::show(
+        test_screen(), config, nullptr, nullptr,
+        [](const PanelWidgetDef& def) { return std::string(def.id) != REFUSED_ID; });
+    process_lvgl(10);
+    NavigationManager::instance().go_back();
+    process_lvgl(10);
+
+    // Closing drops every piece of catalog state, so an open with no predicate
+    // starts from a clean slate rather than the previous catalog's verdicts.
+    WidgetCatalogOverlay::show(test_screen(), config, nullptr);
+    process_lvgl(10);
+
+    lv_obj_t* row = result_row(REFUSED_ID);
+    CHECK(lv_obj_has_flag(row, LV_OBJ_FLAG_CLICKABLE));
+    CHECK_FALSE(label_contains(row, "Needs"));
+
+    NavigationManager::instance().go_back();
+    process_lvgl(10);
+}
+
 // The row tests above pass their own predicate; this one drives the production
 // wiring, so a refactor that drops the fits argument from open_widget_catalog's
 // show() call reverts to offering every row and goes red here.
