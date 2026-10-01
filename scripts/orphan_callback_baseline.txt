@@ -2,12 +2,8 @@
 # Accepted debt, shrink-only: register it, reference it, give each owner
 # its own name, or delete it - then re-run with --write-baseline.
 duplicate:on_network_item_clicked
-duplicate:on_touch_cal_accept_clicked
-duplicate:on_touch_cal_retry_clicked
 duplicate:on_wifi_password_cancel
 duplicate:on_wifi_password_connect
-duplicate:on_wizard_telemetry_changed
-duplicate:on_wizard_telemetry_info
 unreferenced:bed_temperature
 unreferenced:chamber_temperature
 unreferenced:on_ams_section_clicked

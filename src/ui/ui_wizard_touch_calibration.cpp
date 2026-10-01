@@ -144,8 +144,7 @@ void WizardTouchCalibrationStep::init_subjects() {
 void WizardTouchCalibrationStep::register_callbacks() {
     spdlog::debug("[{}] Registering callbacks", get_name());
 
-    lv_xml_register_event_cb(nullptr, "on_touch_cal_accept_clicked", on_accept_clicked_static);
-    lv_xml_register_event_cb(nullptr, "on_touch_cal_retry_clicked", on_retry_clicked_static);
+    lv_xml_register_event_cb(nullptr, "on_wizard_touch_cal_retry_clicked", on_retry_clicked_static);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_screen_touched", on_screen_touched_static);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_screen_released", on_screen_released_static);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_test_area_touched",
@@ -351,11 +350,6 @@ bool WizardTouchCalibrationStep::should_skip() const {
 // Static Event Handlers (Trampolines)
 // ============================================================================
 
-void WizardTouchCalibrationStep::on_accept_clicked_static(lv_event_t* e) {
-    (void)e;
-    get_wizard_touch_calibration_step()->handle_accept_clicked();
-}
-
 void WizardTouchCalibrationStep::on_retry_clicked_static(lv_event_t* e) {
     (void)e;
     get_wizard_touch_calibration_step()->handle_retry_clicked();
@@ -377,17 +371,6 @@ void WizardTouchCalibrationStep::on_test_area_touched_static(lv_event_t* e) {
 // ============================================================================
 // Instance Event Handlers
 // ============================================================================
-
-void WizardTouchCalibrationStep::handle_accept_clicked() {
-    spdlog::info("[{}] Accept calibration clicked", get_name());
-
-    if (!controller_.panel()) {
-        return;
-    }
-
-    // Accept triggers the completion callback with calibration data
-    controller_.panel()->accept();
-}
 
 void WizardTouchCalibrationStep::handle_retry_clicked() {
     spdlog::info("[{}] Retry calibration clicked", get_name());

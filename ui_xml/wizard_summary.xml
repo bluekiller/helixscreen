@@ -34,11 +34,11 @@
           <text_small text="Learn More"
                       translation_tag="Learn More" style_text_color="#primary" style_text_decor="underline"
                       clickable="false" event_bubble="true"/>
-          <event_cb trigger="clicked" callback="on_wizard_telemetry_info"/>
+          <event_cb trigger="clicked" callback="on_wizard_summary_telemetry_info"/>
         </ui_button>
         <ui_switch name="wizard_telemetry_toggle" size="tiny">
           <bind_state_if_eq subject="settings_telemetry_enabled" state="checked" ref_value="1"/>
-          <event_cb trigger="value_changed" callback="on_wizard_telemetry_changed"/>
+          <event_cb trigger="value_changed" callback="on_wizard_summary_telemetry_changed"/>
         </ui_switch>
       </lv_obj>
       <!-- Divider between telemetry and config summary -->
