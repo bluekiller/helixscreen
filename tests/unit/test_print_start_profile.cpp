@@ -10,6 +10,7 @@
  */
 
 #include "../test_helpers/config_dir_guard.h"
+#include "../test_helpers/log_capture.h"
 #include "../test_helpers/print_start_profile_test_access.h"
 #include "print_start_profile.h"
 
@@ -625,8 +626,10 @@ TEST_CASE("PrintStartProfile: an unparseable default.json yields an empty Generi
     std::ofstream(config_dir.dir / "print_start_profiles" / "default.json")
         << R"({"name": "Generic", "response_patterns": [)";
 
+    helix::LogCapture log;
     auto profile = PrintStartProfile::load_default();
     REQUIRE(profile != nullptr);
+    CHECK(log.has_line_with({"error", "No readable default.json"}));
     CHECK(profile->name() == "Generic");
     CHECK(profile->is_default());
     PrintStartProfile::MatchResult result;
