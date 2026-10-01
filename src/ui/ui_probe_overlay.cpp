@@ -812,23 +812,7 @@ void ProbeOverlay::handle_bed_mesh() {
     return;
 #endif
 
-    auto& panel = get_global_bed_mesh_panel();
-
-    // Lazy-create bed mesh overlay
-    if (!panel.get_root()) {
-        if (!panel.are_subjects_initialized()) {
-            panel.init_subjects();
-        }
-        panel.register_callbacks();
-        auto* root = panel.create(lv_display_get_screen_active(nullptr));
-        if (root) {
-            NavigationManager::instance().register_overlay_instance(root, &panel);
-        }
-    }
-
-    if (panel.get_root()) {
-        NavigationManager::instance().push_overlay(panel.get_root());
-    }
+    get_global_bed_mesh_panel().show(lv_display_get_screen_active(nullptr));
 }
 
 // ============================================================================

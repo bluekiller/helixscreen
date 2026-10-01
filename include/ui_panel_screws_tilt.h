@@ -5,6 +5,7 @@
 
 #include "calibration_types.h" // For ScrewTiltResult
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <array>
@@ -81,6 +82,10 @@ class ScrewsTiltPanel : public OverlayBase {
      * @brief Get human-readable overlay name
      * @return "Screws Tilt Adjust"
      */
+    const char* xml_component() const override {
+        return "screws_tilt_panel";
+    }
+
     const char* get_name() const override {
         return "Screws Tilt Adjust";
     }
@@ -107,14 +112,6 @@ class ScrewsTiltPanel : public OverlayBase {
     //
     // === Public API ===
     //
-
-    /**
-     * @brief Show overlay panel
-     *
-     * Pushes overlay onto navigation stack and registers with NavigationManager.
-     * on_activate() will be called automatically after animation completes.
-     */
-    void show();
 
     /**
      * @brief Set Moonraker client and API references
@@ -193,7 +190,6 @@ class ScrewsTiltPanel : public OverlayBase {
 
     // Widget references
     // Note: overlay_root_ inherited from OverlayBase
-    lv_obj_t* parent_screen_ = nullptr;
     helix::IMoonrakerClient* client_ = nullptr;
     IMoonrakerAPI* api_ = nullptr;
 
@@ -250,10 +246,9 @@ class ScrewsTiltPanel : public OverlayBase {
 };
 
 // Global instance accessor
-ScrewsTiltPanel& get_global_screws_tilt_panel();
-
-// Destroy the global instance (call during shutdown)
-void destroy_screws_tilt_panel();
+inline ScrewsTiltPanel& get_global_screws_tilt_panel() {
+    return helix::lazy_global<ScrewsTiltPanel>("ScrewsTiltPanel");
+}
 
 /**
  * @brief Register XML event callbacks for screws tilt panel
