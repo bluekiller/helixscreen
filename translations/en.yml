@@ -1934,6 +1934,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: Named actions in the LED Controls widget. Not shown under LED selection.
   Needs attention: Needs attention
   Needs the {} package to switch spools: Needs the {} package to switch spools
+  'Needs {}x{} free: remove or shrink a widget first': 'Needs {}x{} free: remove or shrink a widget first'
   Net Weight (g): Net Weight (g)
   Network: Network
   Network Address: Network Address
@@ -2071,6 +2072,7 @@ translations:
   Not connected to the printer: Not connected to the printer
   Not detected: Not detected
   Not enough frequency data from the sweeps. Try again.: 'Not enough frequency data from the sweeps. Try again.'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: Not enough room for this widget. Rearrange or remove widgets to make space.
   Not in your spools? Set it up: Not in your spools? Set it up
   Not now: Not now
   Not yet available on this display: Not yet available on this display

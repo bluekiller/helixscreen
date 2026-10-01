@@ -1864,6 +1864,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: LEDコントロールウィジェットの名前付きアクションです。LED選択には表示されません。
   Needs attention: 対応が必要
   Needs the {} package to switch spools: 'スプール切り替えには {} プラグインが必要です'
+  'Needs {}x{} free: remove or shrink a widget first': 空き {}x{} が必要です。先にウィジェットを削除または縮小してください
   Net Weight (g): 正味重量（g）
   Network: ネットワーク
   Network Address: ネットワークアドレス
@@ -2000,6 +2001,7 @@ translations:
   Not connected to the printer: プリンターに未接続
   Not detected: 検出されません
   Not enough frequency data from the sweeps. Try again.: '測定から十分な周波数データが得られませんでした。再試行してください。'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: このウィジェットを配置するスペースが足りません。スペースを確保するためにウィジェットを整理または削除してください。
   Not in your spools? Set it up: スプールにない？登録する
   Not now: 後で
   Not yet available on this display: 'このディスプレイではまだ利用できません'

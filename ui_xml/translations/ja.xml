@@ -1794,6 +1794,7 @@
   <translation tag="Named actions in the LED Controls widget. Not shown under LED selection." ja="LEDコントロールウィジェットの名前付きアクションです。LED選択には表示されません。"/>
   <translation tag="Needs attention" ja="対応が必要"/>
   <translation tag="Needs the {} package to switch spools" ja="スプール切り替えには {} プラグインが必要です"/>
+  <translation tag="Needs {}x{} free: remove or shrink a widget first" ja="空き {}x{} が必要です。先にウィジェットを削除または縮小してください"/>
   <translation tag="Net Weight (g)" ja="正味重量（g）"/>
   <translation tag="Network" ja="ネットワーク"/>
   <translation tag="Network Address" ja="ネットワークアドレス"/>
@@ -1924,6 +1925,7 @@
   <translation tag="Not connected to the printer" ja="プリンターに未接続"/>
   <translation tag="Not detected" ja="検出されません"/>
   <translation tag="Not enough frequency data from the sweeps. Try again." ja="測定から十分な周波数データが得られませんでした。再試行してください。"/>
+  <translation tag="Not enough room for this widget. Rearrange or remove widgets to make space." ja="このウィジェットを配置するスペースが足りません。スペースを確保するためにウィジェットを整理または削除してください。"/>
   <translation tag="Not in your spools? Set it up" ja="スプールにない？登録する"/>
   <translation tag="Not now" ja="後で"/>
   <translation tag="Not yet available on this display" ja="このディスプレイではまだ利用できません"/>

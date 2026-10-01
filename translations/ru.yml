@@ -1976,6 +1976,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: Именованные действия в виджете «Управление LED». Не отображаются в разделе «Выбор LED».
   Needs attention: Требует внимания
   Needs the {} package to switch spools: 'Для смены катушки нужен плагин {}'
+  'Needs {}x{} free: remove or shrink a widget first': 'Требуется {}x{} свободного места: сначала удалите или уменьшите виджет'
   Net Weight (g): Вес нетто (г)
   Network: Сеть
   Network Address: Сетевой адрес
@@ -2117,6 +2118,7 @@ translations:
   Not connected to the printer: Нет подключения к принтеру
   Not detected: Не обнаружено
   Not enough frequency data from the sweeps. Try again.: 'Недостаточно данных о частоте по результатам измерений. Попробуйте снова.'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: Недостаточно места для этого виджета. Измените раскладку или удалите виджеты, чтобы освободить место.
   Not in your spools? Set it up: Нет в ваших катушках? Настроить
   Not now: Не сейчас
   Not yet available on this display: 'Пока недоступно на этом дисплее'

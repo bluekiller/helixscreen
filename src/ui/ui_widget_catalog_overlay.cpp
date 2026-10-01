@@ -70,6 +70,7 @@ struct CatalogState {
     const PanelWidgetConfig* config = nullptr; // Owned by the caller (GridEditMode)
     WidgetSelectedCallback on_select;
     CatalogClosedCallback on_close;
+    WidgetFitCallback fits; // Null: every def fits the page the catalog opened from
 
     // Search state. Entries are parallel to the search_results children (one row
     // per registry def, both in registry order) and to nothing else — the
@@ -109,6 +110,7 @@ void release_catalog_state() {
     g_catalog_state.config = nullptr;
     g_catalog_state.on_select = nullptr;
     g_catalog_state.on_close = nullptr;
+    g_catalog_state.fits = nullptr;
     if (on_close) {
         on_close();
     }
@@ -247,7 +249,7 @@ std::string format_track_span(int tracks) {
 
 lv_obj_t* WidgetCatalogOverlay::create_row(lv_obj_t* parent, const char* name, const char* icon,
                                            const char* description, int colspan, int rowspan,
-                                           bool already_placed, bool hardware_gated) {
+                                           bool already_placed, bool unavailable) {
     // Row container: horizontal, fixed height
     lv_obj_t* row = lv_obj_create(parent);
     lv_obj_set_width(row, LV_PCT(100));
@@ -267,12 +269,12 @@ lv_obj_t* WidgetCatalogOverlay::create_row(lv_obj_t* parent, const char* name, c
 
     // Icon
     if (icon && icon[0] != '\0') {
-        const char* variant = (already_placed || hardware_gated) ? "muted" : "secondary";
+        const char* variant = (already_placed || unavailable) ? "muted" : "secondary";
         const char* icon_attrs[] = {"src", icon, "size", "sm", "variant", variant, nullptr};
         lv_xml_create(row, "icon", icon_attrs);
     }
 
-    if (already_placed || hardware_gated) {
+    if (already_placed || unavailable) {
         lv_obj_set_style_opa(row, LV_OPA_40, 0);
         lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
     } else {
@@ -385,6 +387,17 @@ static std::string with_gate_hint(const char* display_name, const PanelWidgetDef
         def.hardware_gate_hint ? lv_tr(def.hardware_gate_hint) : lv_tr("not detected");
     name += std::string(" (") + hint + ")";
     return name;
+}
+
+/// Appends the no-room reason to a widget's catalog name, sized to the minimum
+/// the placement search shrinks to and rendered in the cell unit the size
+/// badge uses.
+static std::string with_fit_hint(const char* display_name, const PanelWidgetDef& def) {
+    const std::string need =
+        fmt::format(fmt::runtime(lv_tr("Needs {}x{} free: remove or shrink a widget first")),
+                    format_track_span(def.effective_min_colspan()),
+                    format_track_span(def.effective_min_rowspan()));
+    return std::string(display_name) + " (" + need + ")";
 }
 
 /// Pointers to every registry def, in registry order — the def list behind the
@@ -648,15 +661,25 @@ lv_obj_t* WidgetCatalogOverlay::create_widget_row(
     // add a Power tile on a printer with no Moonraker power device, which then
     // rendered as a dead control.
     bool hardware_gated = is_hardware_gated(def);
-    std::string name_str =
-        hardware_gated ? with_gate_hint(display_name, def) : std::string(display_name);
 
     // Single-instance widget: is_placed(), not is_enabled() — a widget enabled
     // at (-1,-1) is on no grid, and the catalog is the only surface that can
     // give it a cell back. Dimming it there left it with no UI at all.
     bool already_placed = def.multi_instance ? false : config.is_placed(def.id);
 
-    if (!hardware_gated && def.multi_instance) {
+    // A placed or gated row is already dimmed for its own reason; the fit
+    // question only decides anything for a row that is otherwise offerable.
+    // The grid takes no input while the catalog is open, so the answer cannot
+    // change under an open catalog.
+    bool no_fit =
+        !hardware_gated && !already_placed && g_catalog_state.fits && !g_catalog_state.fits(def);
+
+    std::string name_str(display_name);
+    if (hardware_gated) {
+        name_str = with_gate_hint(display_name, def);
+    } else if (no_fit) {
+        name_str = with_fit_hint(display_name, def);
+    } else if (def.multi_instance) {
         auto it = multi_placed_count.find(def.id);
         int placed = it != multi_placed_count.end() ? it->second : 0;
         if (placed > 0) {
@@ -668,13 +691,13 @@ lv_obj_t* WidgetCatalogOverlay::create_widget_row(
 
     const char* desc = def.description ? lv_tr(def.description) : nullptr;
     lv_obj_t* row = create_row(parent, name_str.c_str(), def.icon, desc, def.colspan, def.rowspan,
-                               already_placed, hardware_gated);
+                               already_placed, hardware_gated || no_fit);
     // Named for the def id so tests and `ctl` can address the row directly.
     lv_obj_set_name(row, def.id);
 
-    // create_row() already stripped CLICKABLE when gated or placed; binding a
-    // handler anyway would leave a live callback on a dead row.
-    if (hardware_gated || already_placed) {
+    // create_row() already stripped CLICKABLE when gated, placed or unfit;
+    // binding a handler anyway would leave a live callback on a dead row.
+    if (hardware_gated || already_placed || no_fit) {
         return row;
     }
 
@@ -735,7 +758,8 @@ void WidgetCatalogOverlay::close() {
 }
 
 void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig& config,
-                                WidgetSelectedCallback on_select, CatalogClosedCallback on_close) {
+                                WidgetSelectedCallback on_select, CatalogClosedCallback on_close,
+                                WidgetFitCallback fits) {
     if (g_catalog_state.overlay_root) {
         spdlog::warn("[WidgetCatalog] Already open, ignoring duplicate show()");
         return;
@@ -778,6 +802,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     // below is only reachable once they are stored here.
     g_catalog_state.on_select = std::move(on_select);
     g_catalog_state.on_close = std::move(on_close);
+    g_catalog_state.fits = std::move(fits);
 
     // Create overlay from XML
     auto* overlay =

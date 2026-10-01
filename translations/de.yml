@@ -2005,6 +2005,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: Benannte Aktionen im LED-Steuerungs-Widget. Werden nicht unter LED-Auswahl angezeigt.
   Needs attention: Erfordert Aufmerksamkeit
   Needs the {} package to switch spools: 'Benötigt das Plugin {} für den Spulenwechsel'
+  'Needs {}x{} free: remove or shrink a widget first': 'Benötigt {}x{} an freiem Platz: zuerst ein Widget entfernen oder verkleinern'
   Net Weight (g): Nettogewicht (g)
   Network: Netzwerk
   Network Address: Netzwerkadresse
@@ -2146,6 +2147,7 @@ translations:
   Not connected to the printer: Nicht mit dem Drucker verbunden
   Not detected: Nicht erkannt
   Not enough frequency data from the sweeps. Try again.: 'Nicht genügend Frequenzdaten aus den Messungen. Versuchen Sie es erneut.'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: Nicht genug Platz für dieses Widget. Ordnen Sie Widgets neu an oder entfernen Sie welche, um Platz zu schaffen.
   Not in your spools? Set it up: Nicht in Ihren Spulen? Einrichten
   Not now: Nicht jetzt
   Not yet available on this display: 'Auf diesem Display noch nicht verfügbar'

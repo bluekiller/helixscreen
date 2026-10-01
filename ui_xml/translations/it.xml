@@ -1794,6 +1794,7 @@
   <translation tag="Named actions in the LED Controls widget. Not shown under LED selection." it="Azioni con nome nel widget Controlli LED. Non mostrate nella selezione LED."/>
   <translation tag="Needs attention" it="Richiede attenzione"/>
   <translation tag="Needs the {} package to switch spools" it="Richiede il plugin {} per cambiare bobina"/>
+  <translation tag="Needs {}x{} free: remove or shrink a widget first" it="Serve {}x{} liberi: prima rimuovi o riduci un widget"/>
   <translation tag="Net Weight (g)" it="Peso netto (g)"/>
   <translation tag="Network" it="Rete"/>
   <translation tag="Network Address" it="Indirizzo di rete"/>
@@ -1924,6 +1925,7 @@
   <translation tag="Not connected to the printer" it="Non connesso alla stampante"/>
   <translation tag="Not detected" it="Non rilevato"/>
   <translation tag="Not enough frequency data from the sweeps. Try again." it="Dati di frequenza insufficienti dalle misurazioni. Riprovare."/>
+  <translation tag="Not enough room for this widget. Rearrange or remove widgets to make space." it="Non c&apos;è abbastanza spazio per questo widget. Riorganizza o rimuovi widget per fare spazio."/>
   <translation tag="Not in your spools? Set it up" it="Non è tra le tue bobine? Configuralo"/>
   <translation tag="Not now" it="Non ora"/>
   <translation tag="Not yet available on this display" it="Non ancora disponibile su questo display"/>
