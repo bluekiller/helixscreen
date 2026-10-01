@@ -3,6 +3,7 @@
 #include "camera_widget.h"
 
 #include "lvgl.h"
+#include "observe_language.h"
 
 #if HELIX_HAS_CAMERA
 

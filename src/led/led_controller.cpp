@@ -18,6 +18,7 @@
 #include "moonraker_error.h"
 #include "observer_factory.h"
 #include "printer_discovery.h"
+#include "printer_state.h"
 #include "static_subject_registry.h"
 #include "text_io.h"
 

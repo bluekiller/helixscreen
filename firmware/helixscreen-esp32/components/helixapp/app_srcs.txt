@@ -303,6 +303,7 @@ src/ui/modals/clog_detection_config_modal.cpp
 src/ui/modals/favorite_macro_config_modal.cpp
 src/ui/modals/macro_param_modal.cpp
 src/ui/modals/ui_preflight_check_modal.cpp
+src/ui/observer_factory.cpp
 src/ui/operation_timeout_guard.cpp
 src/ui/overlay_base.cpp
 src/ui/page_scroll_auto_inject.cpp

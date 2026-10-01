@@ -21,6 +21,7 @@
 #include "i_moonraker_api.h"
 #include "jog_coalescer.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "settings_manager.h"
