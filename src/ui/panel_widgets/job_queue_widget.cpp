@@ -120,8 +120,11 @@ void JobQueueWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 }
 
 void JobQueueWidget::detach() {
-    // Invalidate lifetime guard so pending next-tick callbacks become no-ops
+    // Invalidate lifetime guard so pending next-tick callbacks become no-ops.
+    // That drops a queued rebuild, so the coalescing flag goes with it, or a
+    // recycled instance would never queue another.
     lifetime_.invalidate();
+    list_rebuild_pending_ = false;
 
     if (lv_is_initialized()) {
         count_observer_ = {};

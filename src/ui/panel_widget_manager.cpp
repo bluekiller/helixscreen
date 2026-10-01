@@ -1702,6 +1702,7 @@ void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
                 // ([L083] family), which is why this is raw lv_async_call
                 // and not run_next_tick. It escapes the UpdateQueue batch
                 // per CLAUDE.md "safe escape routes".
+                // LV_ASYNC_OK: allocation-free hot path, cancelled by slot address
                 lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &s); // LV_ASYNC_OK
             },
             gate_lifetime));
@@ -1747,6 +1748,7 @@ void PanelWidgetManager::notify_widget_defs_changed() {
         if (slot.pending)
             continue;
         slot.pending = true;
+        // LV_ASYNC_OK: same slot trampoline as setup_gate_observers, cancelled by address
         lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &slot); // LV_ASYNC_OK
     }
 }
