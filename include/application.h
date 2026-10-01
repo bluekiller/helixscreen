@@ -27,6 +27,7 @@ class Config;
 #if HELIX_HAS_PLUGINS
 namespace helix::plugin {
 class PluginHost;
+class PluginDirWatcher;
 class PluginSyncDriver;
 struct SyncResult;
 } // namespace helix::plugin
@@ -199,6 +200,10 @@ class Application {
     std::unique_ptr<helix::XmlHotReloader> m_hot_reloader;
 #if HELIX_HAS_PLUGINS
     std::unique_ptr<helix::plugin::PluginHost> m_plugin_host;
+    /// Hot-reloads plugins from HELIX_PLUGIN_DIR while it is the source (no
+    /// sync driver runs then). Holds a reference to m_plugin_host, so it must
+    /// be reset before the host at every teardown.
+    std::unique_ptr<helix::plugin::PluginDirWatcher> m_plugin_watcher;
     /// Syncs the Moonraker plugin folder into the host's cache dir. Holds a
     /// reference to m_plugin_host, so it must be reset before the host at
     /// every teardown, and rebuilt with it on a printer switch.

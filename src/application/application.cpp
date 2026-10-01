@@ -219,6 +219,7 @@
 #include "moonraker_performance_source.h"
 #include "performance_state.h"
 #if HELIX_HAS_PLUGINS
+#include "plugin_dir_watcher.h"
 #include "plugin_host.h"
 #include "plugin_source_app.h"
 #endif
@@ -2217,8 +2218,10 @@ bool Application::init_moonraker() {
 
 #if HELIX_HAS_PLUGINS
 void Application::init_plugins() {
-    // The driver holds a reference to the host, so it dies first; a printer
-    // switch rebuilds both against the new printer's cache.
+    // The watcher and the driver hold references to the host, so they die
+    // first; a printer switch rebuilds all of them against the new printer's
+    // cache.
+    m_plugin_watcher.reset();
     m_plugin_sync.reset();
     if (m_plugin_host) {
         m_plugin_host->unload_all();
@@ -2241,6 +2244,11 @@ void Application::init_plugins() {
     std::string cache;
     if (dir && *dir) {
         m_plugin_host->load_from(dir);
+        // Developer mode: no sync driver runs against a local dir, so a poll
+        // timer is the only thing that picks edits up while the app runs.
+        if (RuntimeConfig::hot_reload_enabled())
+            m_plugin_watcher =
+                std::make_unique<helix::plugin::PluginDirWatcher>(*m_plugin_host, dir);
     } else {
         // Boot offline from the last sync: the per-printer cache is the plugin dir.
         cache = helix::plugin::plugin_cache_dir_for(m_config->get_active_printer_id());
@@ -4876,6 +4884,7 @@ void Application::tear_down_printer_state() {
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
     }
+    m_plugin_watcher.reset();
     m_plugin_sync.reset();
     if (m_plugin_host) {
         m_plugin_host->unload_all();
@@ -5217,11 +5226,12 @@ void Application::shutdown() {
     // must run while the subjects (deinit_all below) and the Moonraker client
     // (m_moonraker.reset below) are still alive.
 #if HELIX_HAS_PLUGINS
-    // The driver holds a host reference, and its filelist handler must not
-    // outlive the driver it feeds.
+    // The watcher and the driver hold host references, and the driver's
+    // filelist handler must not outlive the driver it feeds.
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
     }
+    m_plugin_watcher.reset();
     m_plugin_sync.reset();
     if (m_plugin_host) {
         m_plugin_host->unload_all();
