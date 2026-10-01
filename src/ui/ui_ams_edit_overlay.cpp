@@ -324,81 +324,84 @@ void AmsEditOverlay::on_deactivating(DeactivateReason) {
 // ============================================================================
 
 void AmsEditOverlay::init_subjects() {
-    // Initialize string subjects with empty/default buffers (bound in
-    // create(), not XML-registered)
-    slot_indicator_buf_[0] = '-';
-    slot_indicator_buf_[1] = '-';
-    slot_indicator_buf_[2] = '\0';
-    temp_nozzle_buf_[0] = '\0';
-    temp_bed_buf_[0] = '\0';
-    snprintf(remaining_pct_buf_, sizeof(remaining_pct_buf_), "\xE2\x80\x94"); // "—"
+    init_subjects_guarded([this]() {
+        // Initialize string subjects with empty/default buffers (bound in
+        // create(), not XML-registered)
+        slot_indicator_buf_[0] = '-';
+        slot_indicator_buf_[1] = '-';
+        slot_indicator_buf_[2] = '\0';
+        temp_nozzle_buf_[0] = '\0';
+        temp_bed_buf_[0] = '\0';
+        snprintf(remaining_pct_buf_, sizeof(remaining_pct_buf_), "\xE2\x80\x94"); // "—"
 
-    lv_subject_init_string(&slot_indicator_subject_, slot_indicator_buf_, nullptr,
-                           sizeof(slot_indicator_buf_), "--");
-    subjects_.register_subject(&slot_indicator_subject_);
+        lv_subject_init_string(&slot_indicator_subject_, slot_indicator_buf_, nullptr,
+                               sizeof(slot_indicator_buf_), "--");
+        subjects_.register_subject(&slot_indicator_subject_);
 
-    lv_subject_init_string(&temp_nozzle_subject_, temp_nozzle_buf_, nullptr,
-                           sizeof(temp_nozzle_buf_), "");
-    subjects_.register_subject(&temp_nozzle_subject_);
+        lv_subject_init_string(&temp_nozzle_subject_, temp_nozzle_buf_, nullptr,
+                               sizeof(temp_nozzle_buf_), "");
+        subjects_.register_subject(&temp_nozzle_subject_);
 
-    lv_subject_init_string(&temp_bed_subject_, temp_bed_buf_, nullptr, sizeof(temp_bed_buf_), "");
-    subjects_.register_subject(&temp_bed_subject_);
+        lv_subject_init_string(&temp_bed_subject_, temp_bed_buf_, nullptr, sizeof(temp_bed_buf_),
+                               "");
+        subjects_.register_subject(&temp_bed_subject_);
 
-    lv_subject_init_string(&remaining_pct_subject_, remaining_pct_buf_, nullptr,
-                           sizeof(remaining_pct_buf_), "\xE2\x80\x94");
-    subjects_.register_subject(&remaining_pct_subject_);
+        lv_subject_init_string(&remaining_pct_subject_, remaining_pct_buf_, nullptr,
+                               sizeof(remaining_pct_buf_), "\xE2\x80\x94");
+        subjects_.register_subject(&remaining_pct_subject_);
 
-    // View state (VIEW_OVERVIEW..VIEW_COLOR) - registered globally
-    UI_MANAGED_SUBJECT_INT(view_mode_subject_, 0, "ams_edit_view", subjects_);
+        // View state (VIEW_OVERVIEW..VIEW_COLOR) - registered globally
+        UI_MANAGED_SUBJECT_INT(view_mode_subject_, 0, "ams_edit_view", subjects_);
 
-    // Picker state (0=loading, 1=empty, 2=content) - registered globally
-    UI_MANAGED_SUBJECT_INT(picker_state_subject_, 0, "edit_picker_state", subjects_);
+        // Picker state (0=loading, 1=empty, 2=content) - registered globally
+        UI_MANAGED_SUBJECT_INT(picker_state_subject_, 0, "edit_picker_state", subjects_);
 
-    // Header Save button dirty gate (1=disabled). Starts disabled — nothing
-    // is dirty when the editor opens.
-    UI_MANAGED_SUBJECT_INT(save_disabled_subject_, 1, "ams_edit_save_disabled", subjects_);
+        // Header Save button dirty gate (1=disabled). Starts disabled — nothing
+        // is dirty when the editor opens.
+        UI_MANAGED_SUBJECT_INT(save_disabled_subject_, 1, "ams_edit_save_disabled", subjects_);
 
-    // Header Save button visibility gate (1=hidden). Save only applies to
-    // the overview form; non-overview views (picker, details, color) hide
-    // it entirely. Written exclusively from set_view().
-    UI_MANAGED_SUBJECT_INT(save_hidden_subject_, 0, "ams_edit_save_hidden", subjects_);
+        // Header Save button visibility gate (1=hidden). Save only applies to
+        // the overview form; non-overview views (picker, details, color) hide
+        // it entirely. Written exclusively from set_view().
+        UI_MANAGED_SUBJECT_INT(save_hidden_subject_, 0, "ams_edit_save_hidden", subjects_);
 
-    // Managed-vs-untracked signal: drives the Spoolman mark, the Spool
-    // details row, and (Phase 5) the Save-to-Spoolman toggle default.
-    UI_MANAGED_SUBJECT_INT(is_managed_subject_, 0, "ams_edit_is_managed", subjects_);
+        // Managed-vs-untracked signal: drives the Spoolman mark, the Spool
+        // details row, and (Phase 5) the Save-to-Spoolman toggle default.
+        UI_MANAGED_SUBJECT_INT(is_managed_subject_, 0, "ams_edit_is_managed", subjects_);
 
-    // The slot's identity belongs to the linked spool. Paired in XML with
-    // printer_has_spoolman to decide whether the catalog selector or the
-    // read-only row shows.
-    UI_MANAGED_SUBJECT_INT(identity_is_spoolmans_subject_, 0, "ams_edit_identity_is_spoolmans",
-                           subjects_);
-    UI_MANAGED_SUBJECT_STRING(identity_text_subject_, identity_text_buf_, "",
-                              "ams_edit_identity_text", subjects_);
+        // The slot's identity belongs to the linked spool. Paired in XML with
+        // printer_has_spoolman to decide whether the catalog selector or the
+        // read-only row shows.
+        UI_MANAGED_SUBJECT_INT(identity_is_spoolmans_subject_, 0, "ams_edit_identity_is_spoolmans",
+                               subjects_);
+        UI_MANAGED_SUBJECT_STRING(identity_text_subject_, identity_text_buf_, "",
+                                  "ams_edit_identity_text", subjects_);
 
-    chip_text_buf_[0] = '\0';
-    lv_subject_init_string(&chip_text_subject_, chip_text_buf_, nullptr, sizeof(chip_text_buf_),
-                           "");
-    subjects_.register_subject(&chip_text_subject_);
+        chip_text_buf_[0] = '\0';
+        lv_subject_init_string(&chip_text_subject_, chip_text_buf_, nullptr, sizeof(chip_text_buf_),
+                               "");
+        subjects_.register_subject(&chip_text_subject_);
 
-    // Spoolman spool number shown beside the tracked mark on the overview
-    // card ("#19"). Named so the label binds via bind_text in XML rather than
-    // an imperative lv_label_set_text from update_ui().
-    UI_MANAGED_SUBJECT_STRING(spoolman_id_subject_, spoolman_id_buf_, "", "ams_edit_spoolman_id",
-                              subjects_);
+        // Spoolman spool number shown beside the tracked mark on the overview
+        // card ("#19"). Named so the label binds via bind_text in XML rather than
+        // an imperative lv_label_set_text from update_ui().
+        UI_MANAGED_SUBJECT_STRING(spoolman_id_subject_, spoolman_id_buf_, "",
+                                  "ams_edit_spoolman_id", subjects_);
 
 #if HELIX_HAS_LABEL_PRINTER
-    // Expose the label-printer readiness flag to XML so
-    // btn_detail_print_label can bind its `hidden` flag declaratively and
-    // track pairing/unpairing while the overlay is open. The subject is
-    // owned by LabelPrinterSettingsManager (NOT registered into subjects_ —
-    // it must outlive this overlay). Builds without HELIX_HAS_LABEL_PRINTER
-    // leave the subject unregistered; the XML binding then never installs
-    // and the button keeps its static hidden="true".
-    helix::LabelPrinterSettingsManager::instance().init_subjects();
-    lv_xml_register_subject(
-        nullptr, "label_printer_configured",
-        helix::LabelPrinterSettingsManager::instance().subject_printer_configured());
+        // Expose the label-printer readiness flag to XML so
+        // btn_detail_print_label can bind its `hidden` flag declaratively and
+        // track pairing/unpairing while the overlay is open. The subject is
+        // owned by LabelPrinterSettingsManager (NOT registered into subjects_ —
+        // it must outlive this overlay). Builds without HELIX_HAS_LABEL_PRINTER
+        // leave the subject unregistered; the XML binding then never installs
+        // and the button keeps its static hidden="true".
+        helix::LabelPrinterSettingsManager::instance().init_subjects();
+        lv_xml_register_subject(
+            nullptr, "label_printer_configured",
+            helix::LabelPrinterSettingsManager::instance().subject_printer_configured());
 #endif
+    });
 }
 
 void AmsEditOverlay::deinit_subjects() {

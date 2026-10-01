@@ -67,11 +67,13 @@ CfsChuteCalibrationOverlay::~CfsChuteCalibrationOverlay() {
 // ============================================================================
 
 void CfsChuteCalibrationOverlay::init_subjects() {
-    UI_MANAGED_SUBJECT_INT(s_cfs_chute_state, 0, "cfs_chute_state", subjects_);
-    UI_MANAGED_SUBJECT_STRING(s_cfs_chute_y_text, s_cfs_chute_y_buf, "0.00 mm",
-                              "cfs_chute_y_display", subjects_);
-    UI_MANAGED_SUBJECT_STRING(s_cfs_chute_saved_text, s_cfs_chute_saved_buf, "",
-                              "cfs_chute_saved_pos", subjects_);
+    init_subjects_guarded([this]() {
+        UI_MANAGED_SUBJECT_INT(s_cfs_chute_state, 0, "cfs_chute_state", subjects_);
+        UI_MANAGED_SUBJECT_STRING(s_cfs_chute_y_text, s_cfs_chute_y_buf, "0.00 mm",
+                                  "cfs_chute_y_display", subjects_);
+        UI_MANAGED_SUBJECT_STRING(s_cfs_chute_saved_text, s_cfs_chute_saved_buf, "",
+                                  "cfs_chute_saved_pos", subjects_);
+    });
 }
 
 void CfsChuteCalibrationOverlay::register_callbacks() {

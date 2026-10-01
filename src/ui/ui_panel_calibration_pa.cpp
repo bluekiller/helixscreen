@@ -81,60 +81,65 @@ PACalibrationPanel::~PACalibrationPanel() {
 // ============================================================================
 
 void PACalibrationPanel::init_subjects() {
-    UI_MANAGED_SUBJECT_INT(state_subject_, IDLE, "pa_cal_state", subjects_);
-    UI_MANAGED_SUBJECT_INT(multi_tool_, 0, "pa_cal_multi_tool", subjects_);
-    UI_MANAGED_SUBJECT_INT(tool_count_, 1, "pa_cal_tool_count", subjects_);
-    UI_MANAGED_SUBJECT_INT(inputs_live_, 1, "pa_cal_inputs_live", subjects_);
-    UI_MANAGED_SUBJECT_INT(progress_, 0, "pa_cal_progress", subjects_);
-    UI_MANAGED_SUBJECT_INT(result_plausible_, 1, "pa_cal_result_plausible", subjects_);
-    UI_MANAGED_SUBJECT_INT(action_is_stop_, 0, "pa_cal_action_is_stop", subjects_);
-    UI_MANAGED_SUBJECT_INT(has_last_, 0, "pa_cal_has_last", subjects_);
+    init_subjects_guarded([this]() {
+        UI_MANAGED_SUBJECT_INT(state_subject_, IDLE, "pa_cal_state", subjects_);
+        UI_MANAGED_SUBJECT_INT(multi_tool_, 0, "pa_cal_multi_tool", subjects_);
+        UI_MANAGED_SUBJECT_INT(tool_count_, 1, "pa_cal_tool_count", subjects_);
+        UI_MANAGED_SUBJECT_INT(inputs_live_, 1, "pa_cal_inputs_live", subjects_);
+        UI_MANAGED_SUBJECT_INT(progress_, 0, "pa_cal_progress", subjects_);
+        UI_MANAGED_SUBJECT_INT(result_plausible_, 1, "pa_cal_result_plausible", subjects_);
+        UI_MANAGED_SUBJECT_INT(action_is_stop_, 0, "pa_cal_action_is_stop", subjects_);
+        UI_MANAGED_SUBJECT_INT(has_last_, 0, "pa_cal_has_last", subjects_);
 
-    for (int i = 0; i < MAX_TOOLS; ++i) {
-        UI_MANAGED_SUBJECT_INT(tool_selected_[i], i == 0 ? 1 : 0,
-                               fmt::format("pa_cal_tool_selected_{}", i).c_str(), subjects_);
-        UI_MANAGED_SUBJECT_STRING(tool_sub_[i], tool_sub_buf_[i], "",
-                                  fmt::format("pa_cal_tool_sub_{}", i).c_str(), subjects_);
-    }
+        for (int i = 0; i < MAX_TOOLS; ++i) {
+            UI_MANAGED_SUBJECT_INT(tool_selected_[i], i == 0 ? 1 : 0,
+                                   fmt::format("pa_cal_tool_selected_{}", i).c_str(), subjects_);
+            UI_MANAGED_SUBJECT_STRING(tool_sub_[i], tool_sub_buf_[i], "",
+                                      fmt::format("pa_cal_tool_sub_{}", i).c_str(), subjects_);
+        }
 
-    for (int i = 0; i < PRESET_SLOTS; ++i) {
-        UI_MANAGED_SUBJECT_INT(preset_selected_[i], 0,
-                               fmt::format("pa_cal_preset_selected_{}", i).c_str(), subjects_);
-        UI_MANAGED_SUBJECT_STRING(preset_temp_[i], preset_temp_buf_[i], "",
-                                  fmt::format("pa_cal_preset_temp_{}", i).c_str(), subjects_);
-    }
+        for (int i = 0; i < PRESET_SLOTS; ++i) {
+            UI_MANAGED_SUBJECT_INT(preset_selected_[i], 0,
+                                   fmt::format("pa_cal_preset_selected_{}", i).c_str(), subjects_);
+            UI_MANAGED_SUBJECT_STRING(preset_temp_[i], preset_temp_buf_[i], "",
+                                      fmt::format("pa_cal_preset_temp_{}", i).c_str(), subjects_);
+        }
 
-    for (int i = 0; i < PHASE_COUNT; ++i) {
-        UI_MANAGED_SUBJECT_INT(phase_state_[i], 0, fmt::format("pa_cal_phase_state_{}", i).c_str(),
-                               subjects_);
-        UI_MANAGED_SUBJECT_STRING(phase_name_[i], phase_name_buf_[i], "",
-                                  fmt::format("pa_cal_phase_name_{}", i).c_str(), subjects_);
-        UI_MANAGED_SUBJECT_STRING(phase_meta_[i], phase_meta_buf_[i], "",
-                                  fmt::format("pa_cal_phase_meta_{}", i).c_str(), subjects_);
-    }
+        for (int i = 0; i < PHASE_COUNT; ++i) {
+            UI_MANAGED_SUBJECT_INT(phase_state_[i], 0,
+                                   fmt::format("pa_cal_phase_state_{}", i).c_str(), subjects_);
+            UI_MANAGED_SUBJECT_STRING(phase_name_[i], phase_name_buf_[i], "",
+                                      fmt::format("pa_cal_phase_name_{}", i).c_str(), subjects_);
+            UI_MANAGED_SUBJECT_STRING(phase_meta_[i], phase_meta_buf_[i], "",
+                                      fmt::format("pa_cal_phase_meta_{}", i).c_str(), subjects_);
+        }
 
-    UI_MANAGED_SUBJECT_STRING(temp_display_, temp_display_buf_, "245°", "pa_cal_temp_display",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(temp_note_, temp_note_buf_, "170-300 °C", "pa_cal_temp_note",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(phase_label_, phase_label_buf_, "", "pa_cal_phase_label", subjects_);
-    UI_MANAGED_SUBJECT_STRING(big_, big_buf_, "", "pa_cal_big", subjects_);
-    UI_MANAGED_SUBJECT_STRING(big_sub_, big_sub_buf_, "", "pa_cal_big_sub", subjects_);
-    UI_MANAGED_SUBJECT_STRING(remaining_, remaining_buf_, "--:--", "pa_cal_remaining", subjects_);
-    UI_MANAGED_SUBJECT_STRING(prog_foot_, prog_foot_buf_, "", "pa_cal_prog_foot", subjects_);
-    UI_MANAGED_SUBJECT_STRING(result_, result_buf_, "--", "pa_cal_result", subjects_);
-    UI_MANAGED_SUBJECT_STRING(keep_note_, keep_note_buf_, "", "pa_cal_keep_note", subjects_);
-    UI_MANAGED_SUBJECT_STRING(result_sanity_, result_sanity_buf_, "", "pa_cal_result_sanity",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(error_title_, error_title_buf_, "", "pa_cal_error_title", subjects_);
-    UI_MANAGED_SUBJECT_STRING(error_detail_, error_detail_buf_, "", "pa_cal_error_detail",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(error_hint_, error_hint_buf_, "", "pa_cal_error_hint", subjects_);
-    UI_MANAGED_SUBJECT_STRING(action_text_, action_text_buf_, "Start", "pa_cal_action_text",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(last_value_, last_value_buf_, "", "pa_cal_last_value", subjects_);
-    UI_MANAGED_SUBJECT_STRING(last_context_, last_context_buf_, "", "pa_cal_last_context",
-                              subjects_);
+        UI_MANAGED_SUBJECT_STRING(temp_display_, temp_display_buf_, "245°", "pa_cal_temp_display",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(temp_note_, temp_note_buf_, "170-300 °C", "pa_cal_temp_note",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(phase_label_, phase_label_buf_, "", "pa_cal_phase_label",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(big_, big_buf_, "", "pa_cal_big", subjects_);
+        UI_MANAGED_SUBJECT_STRING(big_sub_, big_sub_buf_, "", "pa_cal_big_sub", subjects_);
+        UI_MANAGED_SUBJECT_STRING(remaining_, remaining_buf_, "--:--", "pa_cal_remaining",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(prog_foot_, prog_foot_buf_, "", "pa_cal_prog_foot", subjects_);
+        UI_MANAGED_SUBJECT_STRING(result_, result_buf_, "--", "pa_cal_result", subjects_);
+        UI_MANAGED_SUBJECT_STRING(keep_note_, keep_note_buf_, "", "pa_cal_keep_note", subjects_);
+        UI_MANAGED_SUBJECT_STRING(result_sanity_, result_sanity_buf_, "", "pa_cal_result_sanity",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(error_title_, error_title_buf_, "", "pa_cal_error_title",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(error_detail_, error_detail_buf_, "", "pa_cal_error_detail",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(error_hint_, error_hint_buf_, "", "pa_cal_error_hint", subjects_);
+        UI_MANAGED_SUBJECT_STRING(action_text_, action_text_buf_, "Start", "pa_cal_action_text",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(last_value_, last_value_buf_, "", "pa_cal_last_value", subjects_);
+        UI_MANAGED_SUBJECT_STRING(last_context_, last_context_buf_, "", "pa_cal_last_context",
+                                  subjects_);
+    });
 }
 
 void PACalibrationPanel::register_callbacks() {

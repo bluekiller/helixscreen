@@ -48,52 +48,54 @@ AmsDeviceOperationsOverlay::~AmsDeviceOperationsOverlay() {
 // ============================================================================
 
 void AmsDeviceOperationsOverlay::init_subjects() {
-    // System info text (e.g. "System: AFC · v1.2.3")
-    UI_MANAGED_SUBJECT_STRING(system_info_subject_, system_info_buf_, "",
-                              "ams_device_ops_system_info", subjects_);
+    init_subjects_guarded([this]() {
+        // System info text (e.g. "System: AFC · v1.2.3")
+        UI_MANAGED_SUBJECT_STRING(system_info_subject_, system_info_buf_, "",
+                                  "ams_device_ops_system_info", subjects_);
 
-    // Status text
-    UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, lv_tr("Idle"), "ams_device_ops_status",
-                              subjects_);
+        // Status text
+        UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, lv_tr("Idle"),
+                                  "ams_device_ops_status", subjects_);
 
-    // Capability subjects
-    UI_MANAGED_SUBJECT_INT(supports_bypass_subject_, 0, "ams_device_ops_supports_bypass",
-                           subjects_);
-    UI_MANAGED_SUBJECT_INT(fw_supports_bypass_subject_, 0, "ams_device_ops_fw_supports_bypass",
-                           subjects_);
-    UI_MANAGED_SUBJECT_INT(hw_bypass_sensor_subject_, 0, "ams_device_ops_hw_bypass_sensor",
-                           subjects_);
-    UI_MANAGED_SUBJECT_INT(supports_auto_heat_subject_, 0, "ams_device_ops_supports_auto_heat",
-                           subjects_);
-    UI_MANAGED_SUBJECT_INT(has_backend_subject_, 0, "ams_device_ops_has_backend", subjects_);
-    UI_MANAGED_SUBJECT_INT(unload_after_print_configurable_subject_, 0,
-                           "ams_device_ops_unload_after_print_configurable", subjects_);
-    UI_MANAGED_SUBJECT_INT(bypass_is_virtual_subject_, 0, "ams_device_ops_bypass_is_virtual",
-                           subjects_);
+        // Capability subjects
+        UI_MANAGED_SUBJECT_INT(supports_bypass_subject_, 0, "ams_device_ops_supports_bypass",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(fw_supports_bypass_subject_, 0, "ams_device_ops_fw_supports_bypass",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(hw_bypass_sensor_subject_, 0, "ams_device_ops_hw_bypass_sensor",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(supports_auto_heat_subject_, 0, "ams_device_ops_supports_auto_heat",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(has_backend_subject_, 0, "ams_device_ops_has_backend", subjects_);
+        UI_MANAGED_SUBJECT_INT(unload_after_print_configurable_subject_, 0,
+                               "ams_device_ops_unload_after_print_configurable", subjects_);
+        UI_MANAGED_SUBJECT_INT(bypass_is_virtual_subject_, 0, "ams_device_ops_bypass_is_virtual",
+                               subjects_);
 
-    // Keep-spool-info-on-eject row visibility. Gates on
-    // AmsBackend::printer_reports_spool_ids() in update_from_backend().
-    UI_MANAGED_SUBJECT_INT(reports_spool_ids_subject_, 0, "ams_device_ops_reports_spool_ids",
-                           subjects_);
+        // Keep-spool-info-on-eject row visibility. Gates on
+        // AmsBackend::printer_reports_spool_ids() in update_from_backend().
+        UI_MANAGED_SUBJECT_INT(reports_spool_ids_subject_, 0, "ams_device_ops_reports_spool_ids",
+                               subjects_);
 
-    // Disables the keep-spool-info toggle when firmware retention owns the
-    // behavior. Gates on AmsBackend::printer_retains_spool_info() in
-    // update_from_backend().
-    UI_MANAGED_SUBJECT_INT(printer_retains_spool_info_subject_, 0,
-                           "ams_device_ops_printer_retains_spool_info", subjects_);
+        // Disables the keep-spool-info toggle when firmware retention owns the
+        // behavior. Gates on AmsBackend::printer_retains_spool_info() in
+        // update_from_backend().
+        UI_MANAGED_SUBJECT_INT(printer_retains_spool_info_subject_, 0,
+                               "ams_device_ops_printer_retains_spool_info", subjects_);
 
-    // QIDI Box gating + eject distance/velocity value displays
-    UI_MANAGED_SUBJECT_INT(is_qidi_subject_, 0, "ams_device_ops_is_qidi", subjects_);
-    UI_MANAGED_SUBJECT_STRING(qidi_eject_distance_display_subject_, qidi_eject_distance_buf_, "",
-                              "ams_device_ops_qidi_eject_distance_display", subjects_);
-    UI_MANAGED_SUBJECT_STRING(qidi_eject_velocity_display_subject_, qidi_eject_velocity_buf_, "",
-                              "ams_device_ops_qidi_eject_velocity_display", subjects_);
+        // QIDI Box gating + eject distance/velocity value displays
+        UI_MANAGED_SUBJECT_INT(is_qidi_subject_, 0, "ams_device_ops_is_qidi", subjects_);
+        UI_MANAGED_SUBJECT_STRING(qidi_eject_distance_display_subject_, qidi_eject_distance_buf_,
+                                  "", "ams_device_ops_qidi_eject_distance_display", subjects_);
+        UI_MANAGED_SUBJECT_STRING(qidi_eject_velocity_display_subject_, qidi_eject_velocity_buf_,
+                                  "", "ams_device_ops_qidi_eject_velocity_display", subjects_);
 
-    // "Reset Endless Spool" row visibility. Gates on
-    // EndlessSpoolCapabilities::editable() in update_from_backend().
-    UI_MANAGED_SUBJECT_INT(can_reset_endless_spool_subject_, 0,
-                           "ams_device_ops_can_reset_endless_spool", subjects_);
-    UI_MANAGED_SUBJECT_INT(can_abort_subject_, 0, "ams_device_ops_can_abort", subjects_);
+        // "Reset Endless Spool" row visibility. Gates on
+        // EndlessSpoolCapabilities::editable() in update_from_backend().
+        UI_MANAGED_SUBJECT_INT(can_reset_endless_spool_subject_, 0,
+                               "ams_device_ops_can_reset_endless_spool", subjects_);
+        UI_MANAGED_SUBJECT_INT(can_abort_subject_, 0, "ams_device_ops_can_abort", subjects_);
+    });
 }
 
 void AmsDeviceOperationsOverlay::register_callbacks() {

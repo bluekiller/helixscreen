@@ -67,47 +67,51 @@ SpoolWizardOverlay::~SpoolWizardOverlay() {
 // ============================================================================
 
 void SpoolWizardOverlay::init_subjects() {
-    // Step subject — drives step visibility in XML via bind_flag_if_not_eq
-    UI_MANAGED_SUBJECT_INT(step_subject_, static_cast<int32_t>(Step::VENDOR), "spool_wizard_step",
-                           subjects_);
+    init_subjects_guarded([this]() {
+        // Step subject — drives step visibility in XML via bind_flag_if_not_eq
+        UI_MANAGED_SUBJECT_INT(step_subject_, static_cast<int32_t>(Step::VENDOR),
+                               "spool_wizard_step", subjects_);
 
-    // Can proceed — drives Next/Create button disabled state
-    UI_MANAGED_SUBJECT_INT(can_proceed_subject_, 0, "spool_wizard_can_proceed", subjects_);
+        // Can proceed — drives Next/Create button disabled state
+        UI_MANAGED_SUBJECT_INT(can_proceed_subject_, 0, "spool_wizard_can_proceed", subjects_);
 
-    // Step label string — "Step 1 of 3"
-    std::snprintf(step_label_buf_, sizeof(step_label_buf_), "%s", lv_tr("Step 1 of 3"));
-    UI_MANAGED_SUBJECT_STRING(step_label_subject_, step_label_buf_, step_label_buf_,
-                              "spool_wizard_step_label", subjects_);
+        // Step label string — "Step 1 of 3"
+        std::snprintf(step_label_buf_, sizeof(step_label_buf_), "%s", lv_tr("Step 1 of 3"));
+        UI_MANAGED_SUBJECT_STRING(step_label_subject_, step_label_buf_, step_label_buf_,
+                                  "spool_wizard_step_label", subjects_);
 
-    // Creating spinner state
-    UI_MANAGED_SUBJECT_INT(creating_subject_, 0, "wizard_creating", subjects_);
+        // Creating spinner state
+        UI_MANAGED_SUBJECT_INT(creating_subject_, 0, "wizard_creating", subjects_);
 
-    // Selected vendor name display (step 1 header)
-    UI_MANAGED_SUBJECT_STRING(selected_vendor_name_subject_, selected_vendor_name_buf_, "",
-                              "wizard_selected_vendor_name", subjects_);
+        // Selected vendor name display (step 1 header)
+        UI_MANAGED_SUBJECT_STRING(selected_vendor_name_subject_, selected_vendor_name_buf_, "",
+                                  "wizard_selected_vendor_name", subjects_);
 
-    // Summary fields (step 2)
-    UI_MANAGED_SUBJECT_STRING(summary_vendor_subject_, summary_vendor_buf_, "",
-                              "wizard_summary_vendor", subjects_);
-    UI_MANAGED_SUBJECT_STRING(summary_filament_subject_, summary_filament_buf_, "",
-                              "wizard_summary_filament", subjects_);
+        // Summary fields (step 2)
+        UI_MANAGED_SUBJECT_STRING(summary_vendor_subject_, summary_vendor_buf_, "",
+                                  "wizard_summary_vendor", subjects_);
+        UI_MANAGED_SUBJECT_STRING(summary_filament_subject_, summary_filament_buf_, "",
+                                  "wizard_summary_filament", subjects_);
 
-    // Create vendor/filament form visibility toggles
-    UI_MANAGED_SUBJECT_INT(show_create_vendor_subject_, 0, "spool_wizard_show_create_vendor",
-                           subjects_);
-    UI_MANAGED_SUBJECT_INT(show_create_filament_subject_, 0, "spool_wizard_show_create_filament",
-                           subjects_);
+        // Create vendor/filament form visibility toggles
+        UI_MANAGED_SUBJECT_INT(show_create_vendor_subject_, 0, "spool_wizard_show_create_vendor",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(show_create_filament_subject_, 0,
+                               "spool_wizard_show_create_filament", subjects_);
 
-    // List state subjects
-    UI_MANAGED_SUBJECT_INT(vendor_count_subject_, -1, "spool_wizard_vendor_count", subjects_);
-    UI_MANAGED_SUBJECT_INT(filament_count_subject_, -1, "spool_wizard_filament_count", subjects_);
-    UI_MANAGED_SUBJECT_INT(vendors_loading_subject_, 0, "spool_wizard_vendors_loading", subjects_);
-    UI_MANAGED_SUBJECT_INT(filaments_loading_subject_, 0, "spool_wizard_filaments_loading",
-                           subjects_);
+        // List state subjects
+        UI_MANAGED_SUBJECT_INT(vendor_count_subject_, -1, "spool_wizard_vendor_count", subjects_);
+        UI_MANAGED_SUBJECT_INT(filament_count_subject_, -1, "spool_wizard_filament_count",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(vendors_loading_subject_, 0, "spool_wizard_vendors_loading",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(filaments_loading_subject_, 0, "spool_wizard_filaments_loading",
+                               subjects_);
 
-    // Can create vendor (form validation)
-    UI_MANAGED_SUBJECT_INT(can_create_vendor_subject_, 0, "spool_wizard_can_create_vendor",
-                           subjects_);
+        // Can create vendor (form validation)
+        UI_MANAGED_SUBJECT_INT(can_create_vendor_subject_, 0, "spool_wizard_can_create_vendor",
+                               subjects_);
+    });
 }
 
 void SpoolWizardOverlay::deinit_subjects() {

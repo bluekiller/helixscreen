@@ -72,17 +72,19 @@ AmsDeviceSectionDetailOverlay::~AmsDeviceSectionDetailOverlay() {
 // ============================================================================
 
 void AmsDeviceSectionDetailOverlay::init_subjects() {
+    init_subjects_guarded([this]() {
 #if HELIX_HAS_CFS
-    // Calibration status line subjects, consumed by
-    // ui_xml/components/cfs_cutter_status.xml. Init once per process: a second
-    // overlay instance must not memzero a subject whose observers are live.
-    if (!s_cfs_cutter_subjects_ready) {
-        s_cfs_cutter_subjects_ready = true;
-        UI_SUBJECT_INIT_AND_REGISTER_INT(s_cfs_cutter_phase, 0, "cfs_cutter_phase");
-        UI_SUBJECT_INIT_AND_REGISTER_STRING(s_cfs_cutter_status, s_cfs_cutter_status_buf, "",
-                                            "cfs_cutter_status");
-    }
+        // Calibration status line subjects, consumed by
+        // ui_xml/components/cfs_cutter_status.xml. Init once per process: a second
+        // overlay instance must not memzero a subject whose observers are live.
+        if (!s_cfs_cutter_subjects_ready) {
+            s_cfs_cutter_subjects_ready = true;
+            UI_SUBJECT_INIT_AND_REGISTER_INT(s_cfs_cutter_phase, 0, "cfs_cutter_phase");
+            UI_SUBJECT_INIT_AND_REGISTER_STRING(s_cfs_cutter_status, s_cfs_cutter_status_buf, "",
+                                                "cfs_cutter_status");
+        }
 #endif
+    });
 }
 
 // ============================================================================

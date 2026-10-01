@@ -67,21 +67,23 @@ SpoolmanOverlay::~SpoolmanOverlay() = default;
 // ============================================================================
 
 void SpoolmanOverlay::init_subjects() {
-    // Initialize sync enabled subject (default: true/enabled)
-    UI_MANAGED_SUBJECT_INT(sync_enabled_subject_, DEFAULT_SYNC_ENABLED ? 1 : 0,
-                           "ams_spoolman_sync_enabled", subjects_);
+    init_subjects_guarded([this]() {
+        // Initialize sync enabled subject (default: true/enabled)
+        UI_MANAGED_SUBJECT_INT(sync_enabled_subject_, DEFAULT_SYNC_ENABLED ? 1 : 0,
+                               "ams_spoolman_sync_enabled", subjects_);
 
-    // Initialize refresh interval subject (default: 30 seconds)
-    UI_MANAGED_SUBJECT_INT(refresh_interval_subject_, DEFAULT_REFRESH_INTERVAL_SECONDS,
-                           "ams_spoolman_refresh_interval", subjects_);
+        // Initialize refresh interval subject (default: 30 seconds)
+        UI_MANAGED_SUBJECT_INT(refresh_interval_subject_, DEFAULT_REFRESH_INTERVAL_SECONDS,
+                               "ams_spoolman_refresh_interval", subjects_);
 
-    // Initialize scanner device status subject
-    auto scanner_name = helix::SettingsManager::instance().get_scanner_device_name();
-    auto scanner_id = helix::SettingsManager::instance().get_scanner_device_id();
-    const char* status = scanner_id.empty() ? lv_tr("Auto-detect") : scanner_name.c_str();
-    snprintf(scanner_status_buf_, sizeof(scanner_status_buf_), "%s", status);
-    UI_MANAGED_SUBJECT_STRING(scanner_device_status_subject_, scanner_status_buf_,
-                              scanner_status_buf_, "scanner_device_status", subjects_);
+        // Initialize scanner device status subject
+        auto scanner_name = helix::SettingsManager::instance().get_scanner_device_name();
+        auto scanner_id = helix::SettingsManager::instance().get_scanner_device_id();
+        const char* status = scanner_id.empty() ? lv_tr("Auto-detect") : scanner_name.c_str();
+        snprintf(scanner_status_buf_, sizeof(scanner_status_buf_), "%s", status);
+        UI_MANAGED_SUBJECT_STRING(scanner_device_status_subject_, scanner_status_buf_,
+                                  scanner_status_buf_, "scanner_device_status", subjects_);
+    });
 }
 
 void SpoolmanOverlay::register_callbacks() {

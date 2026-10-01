@@ -64,52 +64,57 @@ std::vector<std::string> AmsEnvironmentOverlay::fallback_comfort_materials() {
 }
 
 void AmsEnvironmentOverlay::init_subjects() {
-    UI_MANAGED_SUBJECT_STRING(temp_text_subject_, temp_text_buf_, "--", "ams_env_overlay_temp_text",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(target_temp_text_subject_, target_temp_text_buf_, "",
-                              "ams_env_overlay_target_temp_text", subjects_);
-    UI_MANAGED_SUBJECT_STRING(humidity_text_subject_, humidity_text_buf_, "--",
-                              "ams_env_overlay_humidity_text", subjects_);
-    UI_MANAGED_SUBJECT_INT(humidity_visible_subject_, 0, "ams_env_overlay_humidity_visible",
-                           subjects_);
-    UI_MANAGED_SUBJECT_STRING(title_text_subject_, title_text_buf_, "",
-                              "ams_env_overlay_title_text", subjects_);
-    UI_MANAGED_SUBJECT_STRING(slots_text_subject_, slots_text_buf_, "",
-                              "ams_env_overlay_slots_text", subjects_);
-    UI_MANAGED_SUBJECT_INT(dryer_visible_subject_, 0, "ams_env_overlay_dryer_visible", subjects_);
-    UI_MANAGED_SUBJECT_INT(no_dryer_visible_subject_, 0, "ams_env_overlay_no_dryer_visible",
-                           subjects_);
-    UI_MANAGED_SUBJECT_INT(drying_active_subject_, 0, "ams_env_overlay_drying_active", subjects_);
-    UI_MANAGED_SUBJECT_STRING(drying_text_subject_, drying_text_buf_, "",
-                              "ams_env_overlay_drying_text", subjects_);
-    UI_MANAGED_SUBJECT_INT(drying_progress_subject_, 0, "ams_env_overlay_drying_progress",
-                           subjects_);
-    // Per-material comfort row subjects (4 rows max)
-    for (int i = 0; i < MAX_COMFORT_ROWS; ++i) {
-        char name[48];
-        snprintf(name, sizeof(name), "ams_env_comfort_%d_visible", i);
-        UI_MANAGED_SUBJECT_INT(comfort_visible_[i], 0, name, subjects_);
+    init_subjects_guarded([this]() {
+        UI_MANAGED_SUBJECT_STRING(temp_text_subject_, temp_text_buf_, "--",
+                                  "ams_env_overlay_temp_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(target_temp_text_subject_, target_temp_text_buf_, "",
+                                  "ams_env_overlay_target_temp_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(humidity_text_subject_, humidity_text_buf_, "--",
+                                  "ams_env_overlay_humidity_text", subjects_);
+        UI_MANAGED_SUBJECT_INT(humidity_visible_subject_, 0, "ams_env_overlay_humidity_visible",
+                               subjects_);
+        UI_MANAGED_SUBJECT_STRING(title_text_subject_, title_text_buf_, "",
+                                  "ams_env_overlay_title_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(slots_text_subject_, slots_text_buf_, "",
+                                  "ams_env_overlay_slots_text", subjects_);
+        UI_MANAGED_SUBJECT_INT(dryer_visible_subject_, 0, "ams_env_overlay_dryer_visible",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(no_dryer_visible_subject_, 0, "ams_env_overlay_no_dryer_visible",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(drying_active_subject_, 0, "ams_env_overlay_drying_active",
+                               subjects_);
+        UI_MANAGED_SUBJECT_STRING(drying_text_subject_, drying_text_buf_, "",
+                                  "ams_env_overlay_drying_text", subjects_);
+        UI_MANAGED_SUBJECT_INT(drying_progress_subject_, 0, "ams_env_overlay_drying_progress",
+                               subjects_);
+        // Per-material comfort row subjects (4 rows max)
+        for (int i = 0; i < MAX_COMFORT_ROWS; ++i) {
+            char name[48];
+            snprintf(name, sizeof(name), "ams_env_comfort_%d_visible", i);
+            UI_MANAGED_SUBJECT_INT(comfort_visible_[i], 0, name, subjects_);
 
-        snprintf(name, sizeof(name), "ams_env_comfort_%d_status", i);
-        UI_MANAGED_SUBJECT_INT(comfort_status_[i], 0, name, subjects_);
+            snprintf(name, sizeof(name), "ams_env_comfort_%d_status", i);
+            UI_MANAGED_SUBJECT_INT(comfort_status_[i], 0, name, subjects_);
 
-        snprintf(name, sizeof(name), "ams_env_comfort_%d_text", i);
-        UI_MANAGED_SUBJECT_STRING(comfort_text_[i], comfort_text_buf_[i], "", name, subjects_);
-    }
-    UI_MANAGED_SUBJECT_STRING(start_stop_text_subject_, start_stop_text_buf_, lv_tr("Start Drying"),
-                              "ams_env_overlay_start_stop_text", subjects_);
-    UI_MANAGED_SUBJECT_STRING(preset_text_subject_, preset_text_buf_, "",
-                              "ams_env_overlay_preset_text", subjects_);
-    // Zone selector + per-zone temperature ceiling.
-    UI_MANAGED_SUBJECT_INT(zone_count_subject_, 0, "env_zone_count", subjects_);
-    UI_MANAGED_SUBJECT_INT(zone_state_subject_, 0, "env_zone_state", subjects_);
-    UI_MANAGED_SUBJECT_STRING(temp_range_subject_, temp_range_buf_, "", "env_temp_range",
-                              subjects_);
-    UI_MANAGED_SUBJECT_INT(all_zones_visible_subject_, 0, "env_all_zones_visible", subjects_);
-    UI_MANAGED_SUBJECT_STRING(all_zones_text_subject_, all_zones_text_buf_, "",
-                              "env_all_zones_text", subjects_);
-    UI_MANAGED_SUBJECT_STRING(queued_banner_subject_, queued_banner_buf_, "",
-                              "env_queued_banner_text", subjects_);
+            snprintf(name, sizeof(name), "ams_env_comfort_%d_text", i);
+            UI_MANAGED_SUBJECT_STRING(comfort_text_[i], comfort_text_buf_[i], "", name, subjects_);
+        }
+        UI_MANAGED_SUBJECT_STRING(start_stop_text_subject_, start_stop_text_buf_,
+                                  lv_tr("Start Drying"), "ams_env_overlay_start_stop_text",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(preset_text_subject_, preset_text_buf_, "",
+                                  "ams_env_overlay_preset_text", subjects_);
+        // Zone selector + per-zone temperature ceiling.
+        UI_MANAGED_SUBJECT_INT(zone_count_subject_, 0, "env_zone_count", subjects_);
+        UI_MANAGED_SUBJECT_INT(zone_state_subject_, 0, "env_zone_state", subjects_);
+        UI_MANAGED_SUBJECT_STRING(temp_range_subject_, temp_range_buf_, "", "env_temp_range",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_INT(all_zones_visible_subject_, 0, "env_all_zones_visible", subjects_);
+        UI_MANAGED_SUBJECT_STRING(all_zones_text_subject_, all_zones_text_buf_, "",
+                                  "env_all_zones_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(queued_banner_subject_, queued_banner_buf_, "",
+                                  "env_queued_banner_text", subjects_);
+    });
 }
 
 void AmsEnvironmentOverlay::register_callbacks() {

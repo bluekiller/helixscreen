@@ -54,12 +54,15 @@ SpoolmanPanel::~SpoolmanPanel() {
 // ============================================================================
 
 void SpoolmanPanel::init_subjects() {
-    // Initialize panel state subject (starts in LOADING state)
-    UI_MANAGED_SUBJECT_INT(panel_state_subject_, static_cast<int32_t>(SpoolmanPanelState::LOADING),
-                           "spoolman_panel_state", subjects_);
+    init_subjects_guarded([this]() {
+        // Initialize panel state subject (starts in LOADING state)
+        UI_MANAGED_SUBJECT_INT(panel_state_subject_,
+                               static_cast<int32_t>(SpoolmanPanelState::LOADING),
+                               "spoolman_panel_state", subjects_);
 
-    UI_MANAGED_SUBJECT_STRING(header_title_subject_, header_title_buf_, "Spoolman",
-                              "spoolman_header_title", subjects_);
+        UI_MANAGED_SUBJECT_STRING(header_title_subject_, header_title_buf_, "Spoolman",
+                                  "spoolman_header_title", subjects_);
+    });
 }
 
 void SpoolmanPanel::deinit_subjects() {
@@ -112,9 +115,7 @@ void SpoolmanPanel::register_callbacks() {
              auto& wizard = get_global_spool_wizard();
              wizard.set_completion_callback([]() { get_global_spoolman_panel().refresh_spools(); });
 
-             helix::ui::lazy_create_and_push_overlay<SpoolWizardOverlay>(
-                 get_global_spool_wizard, lv_display_get_screen_active(nullptr), "Spool Wizard",
-                 "SpoolmanPanel");
+             wizard.show(lv_display_get_screen_active(nullptr));
          }},
         {"on_spoolman_search_changed",
          [](lv_event_t* e) {
