@@ -7,11 +7,9 @@
 #include "ui_component_keypad.h"
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
-#include "ui_fan_control_overlay.h"
 #include "ui_nav_manager.h"
 #include "ui_notification.h"
 #include "ui_notification_manager.h"
-#include "ui_overlay_console_settings.h"
 #include "ui_overlay_printer_image.h"
 #include "ui_overlay_retraction_settings.h"
 #include "ui_overlay_timelapse_install.h"
@@ -52,7 +50,6 @@
 #include "filament_sensor_manager.h"
 #include "filament_variants.h"
 #include "humidity_sensor_manager.h"
-#include "led/ui_led_control_overlay.h"
 #include "load_cell_manager.h"
 #include "lock_manager.h"
 #include "lvgl/lvgl.h"
@@ -281,16 +278,6 @@ void SubjectInitializer::init_panel_subjects(IMoonrakerAPI* api) {
 
     init_global_retraction_settings(api);
     get_global_retraction_settings().init_subjects();
-
-    init_global_console_settings();
-    get_global_console_settings().init_subjects();
-
-    // Fan control overlay (opened from Controls panel secondary fans list)
-    init_fan_control_overlay(get_printer_state());
-    get_fan_control_overlay().init_subjects();
-
-    // LED control overlay (opened from Home panel light long-press)
-    init_led_control_overlay(get_printer_state());
 
     // ConsolePanel is now lazy-initialized by AdvancedPanel (OverlayBase pattern)
 
