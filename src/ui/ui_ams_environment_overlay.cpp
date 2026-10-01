@@ -9,9 +9,9 @@
 #include "ui_ams_environment_overlay.h"
 
 #include "ui_ams_zone_overview_overlay.h"
+#include "ui_callback_helpers.h"
 #include "ui_component_keypad.h"
 #include "ui_error_reporting.h"
-#include "ui_event_safety.h"
 #include "ui_keyboard_manager.h"
 #include "ui_nav_manager.h"
 #include "ui_zone_presentation.h"
@@ -29,6 +29,7 @@
 #include "observer_factory.h"
 #include "preset_materials.h"
 #include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -39,33 +40,13 @@
 namespace helix::ui {
 
 // ============================================================================
-// SINGLETON ACCESSOR
+// DESTRUCTOR
 // ============================================================================
-
-static std::unique_ptr<AmsEnvironmentOverlay> g_ams_environment_overlay;
-
-AmsEnvironmentOverlay& get_ams_environment_overlay() {
-    if (!g_ams_environment_overlay) {
-        g_ams_environment_overlay = std::make_unique<AmsEnvironmentOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "AmsEnvironmentOverlay", []() { g_ams_environment_overlay.reset(); });
-    }
-    return *g_ams_environment_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-AmsEnvironmentOverlay::AmsEnvironmentOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
 
 AmsEnvironmentOverlay::~AmsEnvironmentOverlay() {
     if (subjects_initialized_ && lv_is_initialized()) {
         subjects_.deinit_all();
     }
-    spdlog::trace("[{}] Destroyed", get_name());
 }
 
 // ============================================================================
@@ -83,75 +64,105 @@ std::vector<std::string> AmsEnvironmentOverlay::fallback_comfort_materials() {
 }
 
 void AmsEnvironmentOverlay::init_subjects() {
-    init_subjects_guarded([this]() {
-        UI_MANAGED_SUBJECT_STRING(temp_text_subject_, temp_text_buf_, "--",
-                                  "ams_env_overlay_temp_text", subjects_);
-        UI_MANAGED_SUBJECT_STRING(target_temp_text_subject_, target_temp_text_buf_, "",
-                                  "ams_env_overlay_target_temp_text", subjects_);
-        UI_MANAGED_SUBJECT_STRING(humidity_text_subject_, humidity_text_buf_, "--",
-                                  "ams_env_overlay_humidity_text", subjects_);
-        UI_MANAGED_SUBJECT_INT(humidity_visible_subject_, 0, "ams_env_overlay_humidity_visible",
-                               subjects_);
-        UI_MANAGED_SUBJECT_STRING(title_text_subject_, title_text_buf_, "",
-                                  "ams_env_overlay_title_text", subjects_);
-        UI_MANAGED_SUBJECT_STRING(slots_text_subject_, slots_text_buf_, "",
-                                  "ams_env_overlay_slots_text", subjects_);
-        UI_MANAGED_SUBJECT_INT(dryer_visible_subject_, 0, "ams_env_overlay_dryer_visible",
-                               subjects_);
-        UI_MANAGED_SUBJECT_INT(no_dryer_visible_subject_, 0, "ams_env_overlay_no_dryer_visible",
-                               subjects_);
-        UI_MANAGED_SUBJECT_INT(drying_active_subject_, 0, "ams_env_overlay_drying_active",
-                               subjects_);
-        UI_MANAGED_SUBJECT_STRING(drying_text_subject_, drying_text_buf_, "",
-                                  "ams_env_overlay_drying_text", subjects_);
-        UI_MANAGED_SUBJECT_INT(drying_progress_subject_, 0, "ams_env_overlay_drying_progress",
-                               subjects_);
-        // Per-material comfort row subjects (4 rows max)
-        for (int i = 0; i < MAX_COMFORT_ROWS; ++i) {
-            char name[48];
-            snprintf(name, sizeof(name), "ams_env_comfort_%d_visible", i);
-            UI_MANAGED_SUBJECT_INT(comfort_visible_[i], 0, name, subjects_);
+    UI_MANAGED_SUBJECT_STRING(temp_text_subject_, temp_text_buf_, "--", "ams_env_overlay_temp_text",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(target_temp_text_subject_, target_temp_text_buf_, "",
+                              "ams_env_overlay_target_temp_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(humidity_text_subject_, humidity_text_buf_, "--",
+                              "ams_env_overlay_humidity_text", subjects_);
+    UI_MANAGED_SUBJECT_INT(humidity_visible_subject_, 0, "ams_env_overlay_humidity_visible",
+                           subjects_);
+    UI_MANAGED_SUBJECT_STRING(title_text_subject_, title_text_buf_, "",
+                              "ams_env_overlay_title_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(slots_text_subject_, slots_text_buf_, "",
+                              "ams_env_overlay_slots_text", subjects_);
+    UI_MANAGED_SUBJECT_INT(dryer_visible_subject_, 0, "ams_env_overlay_dryer_visible", subjects_);
+    UI_MANAGED_SUBJECT_INT(no_dryer_visible_subject_, 0, "ams_env_overlay_no_dryer_visible",
+                           subjects_);
+    UI_MANAGED_SUBJECT_INT(drying_active_subject_, 0, "ams_env_overlay_drying_active", subjects_);
+    UI_MANAGED_SUBJECT_STRING(drying_text_subject_, drying_text_buf_, "",
+                              "ams_env_overlay_drying_text", subjects_);
+    UI_MANAGED_SUBJECT_INT(drying_progress_subject_, 0, "ams_env_overlay_drying_progress",
+                           subjects_);
+    // Per-material comfort row subjects (4 rows max)
+    for (int i = 0; i < MAX_COMFORT_ROWS; ++i) {
+        char name[48];
+        snprintf(name, sizeof(name), "ams_env_comfort_%d_visible", i);
+        UI_MANAGED_SUBJECT_INT(comfort_visible_[i], 0, name, subjects_);
 
-            snprintf(name, sizeof(name), "ams_env_comfort_%d_status", i);
-            UI_MANAGED_SUBJECT_INT(comfort_status_[i], 0, name, subjects_);
+        snprintf(name, sizeof(name), "ams_env_comfort_%d_status", i);
+        UI_MANAGED_SUBJECT_INT(comfort_status_[i], 0, name, subjects_);
 
-            snprintf(name, sizeof(name), "ams_env_comfort_%d_text", i);
-            UI_MANAGED_SUBJECT_STRING(comfort_text_[i], comfort_text_buf_[i], "", name, subjects_);
-        }
-        UI_MANAGED_SUBJECT_STRING(start_stop_text_subject_, start_stop_text_buf_,
-                                  lv_tr("Start Drying"), "ams_env_overlay_start_stop_text",
-                                  subjects_);
-        UI_MANAGED_SUBJECT_STRING(preset_text_subject_, preset_text_buf_, "",
-                                  "ams_env_overlay_preset_text", subjects_);
-        // Zone selector + per-zone temperature ceiling.
-        UI_MANAGED_SUBJECT_INT(zone_count_subject_, 0, "env_zone_count", subjects_);
-        UI_MANAGED_SUBJECT_INT(zone_state_subject_, 0, "env_zone_state", subjects_);
-        UI_MANAGED_SUBJECT_STRING(temp_range_subject_, temp_range_buf_, "", "env_temp_range",
-                                  subjects_);
-        UI_MANAGED_SUBJECT_INT(all_zones_visible_subject_, 0, "env_all_zones_visible", subjects_);
-        UI_MANAGED_SUBJECT_STRING(all_zones_text_subject_, all_zones_text_buf_, "",
-                                  "env_all_zones_text", subjects_);
-        UI_MANAGED_SUBJECT_STRING(queued_banner_subject_, queued_banner_buf_, "",
-                                  "env_queued_banner_text", subjects_);
-    });
+        snprintf(name, sizeof(name), "ams_env_comfort_%d_text", i);
+        UI_MANAGED_SUBJECT_STRING(comfort_text_[i], comfort_text_buf_[i], "", name, subjects_);
+    }
+    UI_MANAGED_SUBJECT_STRING(start_stop_text_subject_, start_stop_text_buf_, lv_tr("Start Drying"),
+                              "ams_env_overlay_start_stop_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(preset_text_subject_, preset_text_buf_, "",
+                              "ams_env_overlay_preset_text", subjects_);
+    // Zone selector + per-zone temperature ceiling.
+    UI_MANAGED_SUBJECT_INT(zone_count_subject_, 0, "env_zone_count", subjects_);
+    UI_MANAGED_SUBJECT_INT(zone_state_subject_, 0, "env_zone_state", subjects_);
+    UI_MANAGED_SUBJECT_STRING(temp_range_subject_, temp_range_buf_, "", "env_temp_range",
+                              subjects_);
+    UI_MANAGED_SUBJECT_INT(all_zones_visible_subject_, 0, "env_all_zones_visible", subjects_);
+    UI_MANAGED_SUBJECT_STRING(all_zones_text_subject_, all_zones_text_buf_, "",
+                              "env_all_zones_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(queued_banner_subject_, queued_banner_buf_, "",
+                              "env_queued_banner_text", subjects_);
 }
 
 void AmsEnvironmentOverlay::register_callbacks() {
-    lv_xml_register_event_cb(nullptr, "on_ams_env_start_stop_clicked", on_start_stop_clicked);
-    lv_xml_register_event_cb(nullptr, "on_zone_tab_clicked", on_zone_tab_clicked);
-    lv_xml_register_event_cb(nullptr, "on_all_zones_clicked", on_all_zones_clicked);
-    lv_xml_register_event_cb(nullptr, "on_ams_env_temp_clicked", on_temp_input_clicked);
-    lv_xml_register_event_cb(nullptr, "on_ams_env_duration_clicked", on_duration_input_clicked);
+    register_xml_callbacks({
+        {"on_ams_env_start_stop_clicked",
+         [](lv_event_t*) { get_ams_environment_overlay().handle_start_stop(); }},
+        // The XML event_cb path always hands user_data through as a heap-owned string
+        // (lv_obj_xml_event_cb_apply lv_strdup's it), not an encoded integer.
+        {"on_zone_tab_clicked",
+         [](lv_event_t* e) {
+             if (const char* ud = static_cast<const char*>(lv_event_get_user_data(e))) {
+                 get_ams_environment_overlay().select_zone(static_cast<size_t>(atoi(ud)));
+             }
+         }},
+        {"on_all_zones_clicked",
+         [](lv_event_t*) {
+             AmsBackend* backend = AmsState::instance().get_backend();
+             if (!backend) {
+                 return;
+             }
+             auto& overlay = get_ams_environment_overlay();
+             // Pop this overlay off the stack before pushing the list. Left in place, a
+             // later row click's show_zone() finds this singleton already in the stack
+             // and NavigationManager ignores the push as a duplicate, so the row tap
+             // would silently do nothing.
+             if (NavigationManager::instance().is_panel_on_top(overlay.get_root())) {
+                 NavigationManager::instance().go_back();
+             }
+             get_ams_zone_overview_overlay().show(lv_screen_active(),
+                                                  backend->get_environment_zones(-1));
+         }},
+        {"on_ams_env_temp_clicked",
+         [](lv_event_t*) {
+             get_ams_environment_overlay().show_dryer_keypad(DryerField::Temperature);
+         }},
+        {"on_ams_env_duration_clicked",
+         [](lv_event_t*) {
+             get_ams_environment_overlay().show_dryer_keypad(DryerField::Duration);
+         }},
+    });
 
-    // Must be registered before ams_environment_overlay.xml is parsed: its zone
-    // strip's <repeat> instantiates <zone_tab>, which has to already be a known
-    // component name at that point.
+    // Both components must be registered before ams_environment_overlay.xml is parsed:
+    // its zone strip's <repeat> instantiates <zone_tab>, which has to already be a known
+    // component name at that point. The overlay registers itself too, so it is safe to
+    // open directly (e.g. CLI --ams-environment) without first visiting the AMS panel.
     if (!lv_xml_component_get_scope("zone_tab")) {
         lv_xml_register_component_from_file(
             helix::asset_component_uri("ui_xml/components/zone_tab.xml").c_str());
     }
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
+    if (!lv_xml_component_get_scope("ams_environment_overlay")) {
+        lv_xml_register_component_from_file(
+            helix::asset_component_uri("ui_xml/ams_environment_overlay.xml").c_str());
+    }
 }
 
 // ============================================================================
@@ -159,31 +170,13 @@ void AmsEnvironmentOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* AmsEnvironmentOverlay::create(lv_obj_t* parent) {
-    if (overlay_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    // Self-register our XML component if a host panel hasn't already. Makes the
-    // overlay safe to open directly (e.g. CLI --ams-environment) without first
-    // visiting the AMS panel, which is where lazy registration otherwise happens.
-    if (!lv_xml_component_get_scope("ams_environment_overlay")) {
-        lv_xml_register_component_from_file(
-            helix::asset_component_uri("ui_xml/ams_environment_overlay.xml").c_str());
-    }
-
-    overlay_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "ams_environment_overlay", nullptr));
-    if (!overlay_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Find widget pointers for dryer controls
-    preset_dropdown_ = lv_obj_find_by_name(overlay_, "preset_dropdown");
-    temp_input_ = lv_obj_find_by_name(overlay_, "temp_input");
-    duration_input_ = lv_obj_find_by_name(overlay_, "duration_input");
+    preset_dropdown_ = helix::ui::find_required(overlay_root_, "preset_dropdown", get_name());
+    temp_input_ = helix::ui::find_required(overlay_root_, "temp_input", get_name());
+    duration_input_ = helix::ui::find_required(overlay_root_, "duration_input", get_name());
 
     // Both fields are filled by the numeric keypad, so they opt out of the software
     // keyboard <text_input> gives every textarea by default. Without this a tap raises
@@ -191,17 +184,26 @@ lv_obj_t* AmsEnvironmentOverlay::create(lv_obj_t* parent) {
     KeyboardManager::instance().unregister_textarea(temp_input_);
     KeyboardManager::instance().unregister_textarea(duration_input_);
 
-    // Register textareas with keyboard manager for on-screen numeric input
-
-    // Register preset dropdown change callback imperatively (dropdown not in XML event_cb)
+    // The dropdown carries no XML event_cb, so the change handler is attached here.
     if (preset_dropdown_) {
-        lv_obj_add_event_cb(preset_dropdown_, on_preset_changed, LV_EVENT_VALUE_CHANGED, nullptr);
+        lv_obj_add_event_cb(
+            preset_dropdown_,
+            [](lv_event_t* e) {
+                auto* dropdown = lv_event_get_target_obj(e);
+                if (!dropdown || !lv_obj_is_valid(dropdown)) {
+                    return;
+                }
+                const int selected = static_cast<int>(lv_dropdown_get_selected(dropdown));
+                spdlog::debug("[AmsEnvironmentOverlay] Preset selected: {}", selected);
+                // Picking a preset by hand hands the fields back to the preset machinery.
+                auto& self = get_ams_environment_overlay();
+                self.dryer_inputs_edited_ = false;
+                self.apply_preset(selected);
+            },
+            LV_EVENT_VALUE_CHANGED, nullptr);
     }
 
-    lv_obj_add_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_;
+    return overlay_root_;
 }
 
 // ============================================================================
@@ -211,32 +213,17 @@ lv_obj_t* AmsEnvironmentOverlay::create(lv_obj_t* parent) {
 void AmsEnvironmentOverlay::show_zone(lv_obj_t* parent_screen,
                                       std::vector<helix::printer::EnvironmentZone> zones,
                                       size_t selected, bool with_selector) {
-    parent_screen_ = parent_screen;
     zones_ = std::move(zones);
     selected_zone_ = zones_.empty() ? 0 : std::min(selected, zones_.size() - 1);
     with_selector_ =
         with_selector && zones_.size() > 1 && zones_.size() <= helix::printer::kMaxZoneTabs;
+    show(parent_screen);
+}
 
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    if (!overlay_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
+void AmsEnvironmentOverlay::before_show() {
     rebuild_tabs();
     publish_selected_zone();
     restore_remembered_dryer_inputs();
-
-    NavigationManager::instance().register_overlay_instance(overlay_, this);
-    NavigationManager::instance().push_overlay(overlay_);
 }
 
 void AmsEnvironmentOverlay::restore_remembered_dryer_inputs() {
@@ -256,16 +243,6 @@ void AmsEnvironmentOverlay::restore_remembered_dryer_inputs() {
                  config->get<int>(config->df() + "ams/dryer_last_duration", 240));
         lv_textarea_set_text(duration_input_, buf);
     }
-}
-
-void AmsEnvironmentOverlay::on_temp_input_clicked(lv_event_t* e) {
-    (void)e;
-    get_ams_environment_overlay().show_dryer_keypad(DryerField::Temperature);
-}
-
-void AmsEnvironmentOverlay::on_duration_input_clicked(lv_event_t* e) {
-    (void)e;
-    get_ams_environment_overlay().show_dryer_keypad(DryerField::Duration);
 }
 
 void AmsEnvironmentOverlay::on_dryer_keypad_confirmed(float value, void* user_data) {
@@ -893,22 +870,17 @@ void AmsEnvironmentOverlay::auto_select_preset() {
 // STATIC CALLBACKS
 // ============================================================================
 
-void AmsEnvironmentOverlay::on_start_stop_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[AmsEnvironmentOverlay] on_start_stop_clicked");
-    LV_UNUSED(e);
-
-    auto& overlay = get_ams_environment_overlay();
+void AmsEnvironmentOverlay::handle_start_stop() {
     AmsBackend* backend = AmsState::instance().get_backend();
 
     if (!backend) {
         NOTIFY_WARNING("{}", lv_tr("No Multi-Filament System connected"));
     } else {
-        const int unit = overlay.acting_unit_index();
+        const int unit = acting_unit_index();
         // get_dryer_info() is a read: every backend already treats a negative unit as
         // "no per-unit data" and returns a safe default, so -1 costs nothing here.
         DryerInfo dryer = backend->get_dryer_info(unit);
-        const std::string zone_id =
-            overlay.zones_.empty() ? std::string{} : overlay.zones_[overlay.selected_zone_].id;
+        const std::string zone_id = zones_.empty() ? std::string{} : zones_[selected_zone_].id;
 
         if (dryer.active) {
             // Stop drying
@@ -936,13 +908,13 @@ void AmsEnvironmentOverlay::on_start_stop_clicked(lv_event_t* e) {
                 static_cast<float>(config->get<int>(config->df() + "ams/dryer_last_temp", 55));
             int duration_min = config->get<int>(config->df() + "ams/dryer_last_duration", 240);
 
-            if (overlay.temp_input_) {
-                const char* text = lv_textarea_get_text(overlay.temp_input_);
+            if (temp_input_) {
+                const char* text = lv_textarea_get_text(temp_input_);
                 if (text && text[0])
                     temp_c = static_cast<float>(atoi(text));
             }
-            if (overlay.duration_input_) {
-                const char* text = lv_textarea_get_text(overlay.duration_input_);
+            if (duration_input_) {
+                const char* text = lv_textarea_get_text(duration_input_);
                 if (text && text[0])
                     duration_min = atoi(text);
             }
@@ -981,60 +953,8 @@ void AmsEnvironmentOverlay::on_start_stop_clicked(lv_event_t* e) {
             }
         }
 
-        overlay.refresh();
+        refresh();
     }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void AmsEnvironmentOverlay::on_preset_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[AmsEnvironmentOverlay] on_preset_changed");
-
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    if (!dropdown || !lv_obj_is_valid(dropdown)) {
-        spdlog::warn("[AmsEnvironmentOverlay] on_preset_changed: invalid target");
-    } else {
-        int selected = static_cast<int>(lv_dropdown_get_selected(dropdown));
-        spdlog::debug("[AmsEnvironmentOverlay] Preset selected: {}", selected);
-        // Picking a preset by hand hands the fields back to the preset machinery.
-        get_ams_environment_overlay().dryer_inputs_edited_ = false;
-        get_ams_environment_overlay().apply_preset(selected);
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void AmsEnvironmentOverlay::on_zone_tab_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[AmsEnvironmentOverlay] on_zone_tab_clicked");
-
-    // The XML event_cb path always hands user_data through as a heap-owned string
-    // (lv_obj_xml_event_cb_apply lv_strdup's it), not an encoded integer.
-    const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    if (ud) {
-        get_ams_environment_overlay().select_zone(static_cast<size_t>(atoi(ud)));
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void AmsEnvironmentOverlay::on_all_zones_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[AmsEnvironmentOverlay] on_all_zones_clicked");
-    LV_UNUSED(e);
-
-    if (AmsBackend* backend = AmsState::instance().get_backend()) {
-        auto& overlay = get_ams_environment_overlay();
-        // Pop this overlay off the stack before pushing the list. Left in place, a
-        // later row click's show_zone() finds this singleton already in the stack
-        // and NavigationManager ignores the push as a duplicate, so the row tap
-        // would silently do nothing.
-        if (NavigationManager::instance().is_panel_on_top(overlay.get_root())) {
-            NavigationManager::instance().go_back();
-        }
-        get_ams_zone_overview_overlay().show(lv_screen_active(),
-                                             backend->get_environment_zones(-1));
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 void open_environment_for_unit(int unit_index) {

@@ -9,7 +9,7 @@
 #include "ui_ams_zone_overview_overlay.h"
 
 #include "ui_ams_environment_overlay.h"
-#include "ui_event_safety.h"
+#include "ui_callback_helpers.h"
 #include "ui_nav_manager.h"
 #include "ui_zone_presentation.h"
 
@@ -93,34 +93,10 @@ std::string overview_subtitle(const std::vector<helix::printer::EnvironmentZone>
 
 } // namespace
 
-// ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<AmsZoneOverviewOverlay> g_ams_zone_overview_overlay;
-
-AmsZoneOverviewOverlay& get_ams_zone_overview_overlay() {
-    if (!g_ams_zone_overview_overlay) {
-        g_ams_zone_overview_overlay = std::make_unique<AmsZoneOverviewOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "AmsZoneOverviewOverlay", []() { g_ams_zone_overview_overlay.reset(); });
-    }
-    return *g_ams_zone_overview_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-AmsZoneOverviewOverlay::AmsZoneOverviewOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
-
 AmsZoneOverviewOverlay::~AmsZoneOverviewOverlay() {
     if (subjects_initialized_ && lv_is_initialized()) {
         subjects_.deinit_all();
     }
-    spdlog::trace("[{}] Destroyed", get_name());
 }
 
 // ============================================================================
@@ -136,6 +112,25 @@ void AmsZoneOverviewOverlay::init_subjects() {
 }
 
 void AmsZoneOverviewOverlay::register_callbacks() {
+    register_xml_callbacks({
+        {"on_zone_row_clicked",
+         [](lv_event_t* e) {
+             // An XML event_cb's user_data is always a heap-owned string:
+             // lv_obj_xml_event_cb_apply strdups the attribute value. Reading it as an
+             // encoded integer yields the string's address, which is never a valid index.
+             const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
+             auto& self = get_ams_zone_overview_overlay();
+             if (!ud) {
+                 return;
+             }
+             const auto index = static_cast<size_t>(atoi(ud));
+             if (index < self.zones_.size()) {
+                 get_ams_environment_overlay().show_zone(lv_screen_active(), {self.zones_[index]},
+                                                         0, false);
+             }
+         }},
+    });
+
     // Registration must happen before create() parses ams_zone_overview_overlay.xml,
     // whose <repeat> instantiates <zone_row> — a name lv_xml has to already know.
     // A function-local static keeps this a one-time cost per process: a second
@@ -145,7 +140,6 @@ void AmsZoneOverviewOverlay::register_callbacks() {
         return;
     }
 
-    lv_xml_register_event_cb(nullptr, "on_zone_row_clicked", on_zone_row_clicked);
     lv_xml_register_component_from_file(
         helix::asset_component_uri("ui_xml/components/zone_row.xml").c_str());
 
@@ -160,51 +154,15 @@ void AmsZoneOverviewOverlay::register_callbacks() {
     spdlog::debug("[{}] Callbacks registered", get_name());
 }
 
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* AmsZoneOverviewOverlay::create(lv_obj_t* parent) {
-    if (overlay_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    if (!subjects_initialized_) {
-        init_subjects();
-    }
-    register_callbacks();
-
-    overlay_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "ams_zone_overview_overlay", nullptr));
-    if (!overlay_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    lv_obj_add_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_;
-}
-
-// ============================================================================
-// SHOW
-// ============================================================================
-
 void AmsZoneOverviewOverlay::show(lv_obj_t* parent_screen,
                                   std::vector<helix::printer::EnvironmentZone> zones) {
     zones_ = std::move(zones);
+    OverlayBase::show(parent_screen);
+}
 
-    if (!overlay_) {
-        create(parent_screen);
-    }
+void AmsZoneOverviewOverlay::before_show() {
     ui_alive_ = true;
     rebuild_rows();
-
-    NavigationManager::instance().register_overlay_instance(overlay_, this);
-    NavigationManager::instance().push_overlay(overlay_);
 }
 
 void AmsZoneOverviewOverlay::rebuild_rows() {
@@ -307,27 +265,6 @@ void AmsZoneOverviewOverlay::on_ui_destroyed() {
     verdict_pool_.reclaim();
     group_hidden_pool_.reclaim();
     group_text_pool_.reclaim();
-}
-
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void AmsZoneOverviewOverlay::on_zone_row_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[AmsZoneOverviewOverlay] on_zone_row_clicked");
-    // An XML event_cb's user_data is always a heap-owned string: lv_obj_xml_event_cb_apply
-    // strdups the attribute value. Reading it as an encoded integer yields the string's
-    // address, which is never a valid index.
-    const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    auto& self = get_ams_zone_overview_overlay();
-    if (ud) {
-        const auto index = static_cast<size_t>(atoi(ud));
-        if (index < self.zones_.size()) {
-            get_ams_environment_overlay().show_zone(lv_screen_active(), {self.zones_[index]}, 0,
-                                                    false);
-        }
-    }
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::ui
