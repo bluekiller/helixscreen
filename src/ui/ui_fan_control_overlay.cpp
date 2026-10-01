@@ -5,7 +5,6 @@
 
 #include "ui_error_reporting.h"
 #include "ui_fan_arc_resize.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_notification.h"
@@ -22,6 +21,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
 #include "ui/fan_spin_animation.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -127,40 +127,11 @@ void attach_long_press_rename(lv_obj_t* widget, const std::string& object_name,
 
 } // namespace
 
-// ============================================================================
-// GLOBAL INSTANCE
-// ============================================================================
-
-DEFINE_GLOBAL_OVERLAY_STORAGE(FanControlOverlay, g_fan_control_overlay, get_fan_control_overlay)
-
-void init_fan_control_overlay(PrinterState& printer_state) {
-    INIT_GLOBAL_OVERLAY(FanControlOverlay, g_fan_control_overlay, printer_state);
-}
-
 namespace helix {
 lv_obj_t* open_fan_control_overlay(lv_obj_t* parent_screen) {
     auto& overlay = get_fan_control_overlay();
     overlay.set_api(get_moonraker_api());
-    lv_obj_t* panel = overlay.get_root();
-    if (!panel && parent_screen) {
-        if (!overlay.are_subjects_initialized()) {
-            overlay.init_subjects();
-        }
-        overlay.register_callbacks();
-
-        panel = overlay.create(parent_screen);
-        if (!panel) {
-            spdlog::error("[FanControlOverlay] Failed to create fan control overlay");
-            return nullptr;
-        }
-    }
-    if (panel) {
-        // Registered before every push: a NavigationManager shutdown drops the
-        // registrations, and registering is idempotent.
-        NavigationManager::instance().register_overlay_instance(panel, &overlay);
-        NavigationManager::instance().push_overlay(panel);
-    }
-    return panel;
+    return overlay.show(parent_screen) ? overlay.get_root() : nullptr;
 }
 } // namespace helix
 
@@ -168,9 +139,7 @@ lv_obj_t* open_fan_control_overlay(lv_obj_t* parent_screen) {
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================================
 
-FanControlOverlay::FanControlOverlay(PrinterState& printer_state) : printer_state_(printer_state) {
-    spdlog::trace("[{}] Constructor", get_name());
-}
+FanControlOverlay::FanControlOverlay(PrinterState& printer_state) : printer_state_(printer_state) {}
 
 FanControlOverlay::~FanControlOverlay() {
     // LVGL may already be destroyed during static destruction
@@ -190,45 +159,19 @@ FanControlOverlay::~FanControlOverlay() {
 // OVERLAYBASE IMPLEMENTATION
 // ============================================================================
 
-void FanControlOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        spdlog::warn("[{}] init_subjects() called twice - ignoring", get_name());
-        return;
-    }
-
-    subjects_initialized_ = true;
-    spdlog::trace("[{}] Subjects initialized", get_name());
-}
-
 lv_obj_t* FanControlOverlay::create(lv_obj_t* parent) {
-    // Create overlay root from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "fan_control_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
     lv_obj_add_event_cb(overlay_root_, on_root_deleted, LV_EVENT_DELETE, nullptr);
 
-    // Find container widget
-    fans_container_ = lv_obj_find_by_name(overlay_root_, "fans_container");
-
-    if (!fans_container_) {
-        spdlog::error("[{}] Failed to find fans_container widget", get_name());
-    }
+    fans_container_ = helix::ui::find_required(overlay_root_, "fans_container", get_name());
 
     // Populate fans from current PrinterState
     populate_fans();
 
-    spdlog::trace("[{}] Created overlay with {} animated dials and {} auto fans", get_name(),
-                  animated_fan_dials_.size(), auto_fan_cards_.size());
-
     return overlay_root_;
-}
-
-void FanControlOverlay::register_callbacks() {
-    // Back button is handled by overlay_panel base component
-    spdlog::trace("[{}] Callbacks registered", get_name());
 }
 
 void FanControlOverlay::on_activate() {
@@ -327,13 +270,13 @@ void FanControlOverlay::on_root_deleted(lv_event_t* e) {
     // Resolved through the global, not user_data: a printer switch destroys the
     // overlay before freeing its tree, and the re-created overlay can be opened
     // on a new root before the old one is freed.
-    if (!g_fan_control_overlay ||
-        g_fan_control_overlay->overlay_root_ != lv_event_get_target_obj(e)) {
+    auto* overlay = helix::lazy_global_if_exists<FanControlOverlay>();
+    if (!overlay || overlay->overlay_root_ != lv_event_get_target_obj(e)) {
         return;
     }
     // LVGL sends LV_EVENT_DELETE before deleting the children, so the dials'
     // widgets are still alive here.
-    auto& self = *g_fan_control_overlay;
+    auto& self = *overlay;
     self.release_fan_widgets();
     self.fans_container_ = nullptr;
     self.overlay_root_ = nullptr;

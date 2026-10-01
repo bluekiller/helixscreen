@@ -76,8 +76,6 @@ void close_all() {
 struct FreshOverlays {
     FreshOverlays() {
         reset();
-        init_fan_control_overlay(get_printer_state());
-        init_led_control_overlay(get_printer_state());
     }
     ~FreshOverlays() {
         close_all();
@@ -245,7 +243,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::destroy_static_panels();
     REQUIRE(old_deletes == 0);
 
-    init_fan_control_overlay(get_printer_state());
     seed_nav_panels(test_screen());
     lv_obj_t* new_root = helix::open_fan_control_overlay(test_screen());
     REQUIRE(new_root != nullptr);
@@ -275,7 +272,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::destroy_static_panels();
     REQUIRE(old_deletes == 0);
 
-    init_led_control_overlay(get_printer_state());
     seed_nav_panels(test_screen());
     lv_obj_t* new_root = helix::open_led_control_overlay(test_screen());
     REQUIRE(new_root != nullptr);
