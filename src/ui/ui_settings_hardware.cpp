@@ -9,7 +9,6 @@
 #include "ui_panel_power.h"
 #include "ui_settings_fans.h"
 #include "ui_settings_led.h"
-#include "ui_settings_macro_buttons.h"
 #include "ui_settings_sensors.h"
 #include "ui_spoolman_overlay.h"
 
@@ -76,10 +75,6 @@ void HardwareSettingsOverlay::register_callbacks() {
                  overlay.set_api(api);
              }
              overlay.show(get_hardware_settings_overlay().parent_screen_);
-         }},
-        {"on_macro_buttons_clicked",
-         [](lv_event_t*) {
-             get_macro_buttons_overlay().show(get_hardware_settings_overlay().parent_screen_);
          }},
     });
 }

@@ -12,6 +12,7 @@
 #include "ui_overlay_retraction_settings.h"
 #include "ui_overlay_timelapse_settings.h"
 #include "ui_settings_machine_limits.h"
+#include "ui_settings_macro_buttons.h"
 #include "ui_settings_material_temps.h"
 #include "ui_settings_motion.h"
 
@@ -62,8 +63,11 @@ void PrintingSettingsOverlay::register_callbacks() {
          [](lv_event_t*) {
              get_global_retraction_settings().show(get_printing_settings_overlay().parent_screen_);
          }},
-        // on_timelapse_settings_clicked is also registered by SettingsPanel
         {"on_timelapse_settings_clicked", [](lv_event_t*) { open_timelapse_settings(); }},
+        {"on_macro_buttons_clicked",
+         [](lv_event_t*) {
+             get_macro_buttons_overlay().show(get_printing_settings_overlay().parent_screen_);
+         }},
     });
 }
 
