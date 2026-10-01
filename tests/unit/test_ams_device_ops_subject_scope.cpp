@@ -72,3 +72,41 @@ TEST_CASE_METHOD(XMLTestFixture,
         CHECK(lv_xml_get_subject(nullptr, name) == nullptr);
     }
 }
+
+namespace {
+int g_status_notifies = 0;
+void count_notify(lv_observer_t*, lv_subject_t*) {
+    ++g_status_notifies;
+}
+} // namespace
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "Device Operations initialises its subjects once when pre-inited before show",
+                 "[ams][device-ops][subject-scope]") {
+    StaticPanelRegistry::instance().destroy_all();
+    auto& overlay = get_ams_device_operations_overlay();
+
+    // The outside path: panels pre-init before show().
+    overlay.init_subjects();
+    REQUIRE(overlay.are_subjects_initialized());
+
+    // A second init through show() would re-init the subject and drop this observer.
+    lv_subject_t* status = lv_xml_get_subject(nullptr, "ams_device_ops_status");
+    REQUIRE(status != nullptr);
+    g_status_notifies = 0;
+    lv_observer_t* obs = lv_subject_add_observer(status, count_notify, nullptr);
+    g_status_notifies = 0;
+
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("ams_device_operations"));
+    overlay.show(test_screen());
+    overlay.show(test_screen());
+
+    lv_subject_notify(status);
+    CHECK(g_status_notifies >= 1);
+    CHECK(lv_xml_get_subject(nullptr, "ams_device_ops_status") == status);
+    lv_observer_remove(obs);
+
+    StaticPanelRegistry::instance().destroy_all();
+    CHECK(lv_xml_get_subject(nullptr, "ams_device_ops_status") == nullptr);
+}

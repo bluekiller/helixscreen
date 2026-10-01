@@ -44,6 +44,7 @@
 #include "temperature_controller.h"
 #include "theme_manager.h"
 #include "toolhead_homing.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -58,19 +59,11 @@ using namespace helix;
 #include <mutex>
 
 // ============================================================================
-// Forward declarations for static event callbacks
+// Forward declarations for the profile-row callbacks
 // ============================================================================
 static void on_profile_clicked_cb(lv_event_t* e);
 static void on_profile_rename_cb(lv_event_t* e);
 static void on_profile_delete_cb(lv_event_t* e);
-static void on_calibrate_header_clicked_cb(lv_event_t* e);
-static void on_calibrate_cancel_cb(lv_event_t* e);
-static void on_rename_cancel_cb(lv_event_t* e);
-static void on_rename_confirm_cb(lv_event_t* e);
-static void on_save_config_no_cb(lv_event_t* e);
-static void on_save_config_yes_cb(lv_event_t* e);
-static void on_emergency_stop_cb(lv_event_t* e);
-static void on_calibrate_start_cb(lv_event_t* e);
 
 // ============================================================================
 // Constructor / Destructor
@@ -93,8 +86,6 @@ BedMeshPanel::BedMeshPanel() {
         std::memset(profile_name_bufs_[static_cast<size_t>(i)].data(), 0, 64);
         std::memset(profile_range_bufs_[static_cast<size_t>(i)].data(), 0, 32);
     }
-
-    spdlog::trace("[BedMeshPanel] Instance created");
 }
 
 BedMeshPanel::~BedMeshPanel() {
@@ -233,34 +224,13 @@ void BedMeshPanel::deinit_subjects() {
 // ============================================================================
 
 lv_obj_t* BedMeshPanel::create(lv_obj_t* parent) {
-    if (!parent) {
-        spdlog::error("[{}] Cannot create: null parent", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    spdlog::debug("[{}] Creating overlay from XML", get_name());
-
-    parent_screen_ = parent;
-
-    // Reset cleanup flag when (re)creating
-    cleanup_called_ = false;
-
-    // Create overlay from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "bed_mesh_panel", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create from XML", get_name());
-        return nullptr;
-    }
-
-    // Use standard overlay panel setup
-    // Note: Back button is wired via header_bar.xml default callback (on_header_back_clicked)
-    ui_overlay_panel_setup_standard(overlay_root_, parent_screen_, "overlay_header",
-                                    "overlay_content");
-
-    lv_obj_t* overlay_content = lv_obj_find_by_name(overlay_root_, "overlay_content");
+    lv_obj_t* overlay_content =
+        helix::ui::find_required(overlay_root_, "overlay_content", get_name());
     if (!overlay_content) {
-        spdlog::error("[{}] overlay_content not found!", get_name());
         return overlay_root_;
     }
 
@@ -306,10 +276,6 @@ lv_obj_t* BedMeshPanel::create(lv_obj_t* parent) {
 
     apply_canvas_render_settings();
 
-    // Initially hidden
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created successfully", get_name());
     return overlay_root_;
 }
 
@@ -569,16 +535,10 @@ void BedMeshPanel::apply_portrait_canvas_height() {
 // ============================================================================
 
 void BedMeshPanel::register_callbacks() {
-    if (callbacks_registered_) {
-        spdlog::debug("[{}] Callbacks already registered", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Registering event callbacks", get_name());
-
     register_xml_callbacks({
         // Header calibrate button
-        {"on_bed_mesh_calibrate_clicked", on_calibrate_header_clicked_cb},
+        {"on_bed_mesh_calibrate_clicked",
+         [](lv_event_t*) { get_global_bed_mesh_panel().start_calibration(); }},
 
         // Profile row callbacks (5 profiles)
         {"on_profile_0_clicked", on_profile_clicked_cb},
@@ -599,24 +559,34 @@ void BedMeshPanel::register_callbacks() {
         {"on_profile_3_delete", on_profile_delete_cb},
         {"on_profile_4_delete", on_profile_delete_cb},
 
-        // Calibrate modal
-        {"on_bed_mesh_calibrate_cancel", on_calibrate_cancel_cb},
-
-        // Rename modal
-        {"on_bed_mesh_rename_cancel", on_rename_cancel_cb},
-        {"on_bed_mesh_rename_confirm", on_rename_confirm_cb},
+        // Calibrate and rename modals: both just close
+        {"on_bed_mesh_calibrate_cancel",
+         [](lv_event_t*) { get_global_bed_mesh_panel().hide_all_modals(); }},
+        {"on_bed_mesh_rename_cancel",
+         [](lv_event_t*) { get_global_bed_mesh_panel().hide_all_modals(); }},
+        {"on_bed_mesh_rename_confirm",
+         [](lv_event_t*) {
+             // Get the new name from the input field
+             lv_obj_t* input = lv_obj_find_by_name(lv_layer_top(), "rename_new_name_input");
+             if (!input) {
+                 input = lv_obj_find_by_name(lv_screen_active(), "rename_new_name_input");
+             }
+             const char* text = input ? lv_textarea_get_text(input) : nullptr;
+             get_global_bed_mesh_panel().rename_profile_checked(text ? text : "");
+         }},
 
         // Save config modal
-        {"on_bed_mesh_save_config_no", on_save_config_no_cb},
-        {"on_bed_mesh_save_config_yes", on_save_config_yes_cb},
+        {"on_bed_mesh_save_config_no",
+         [](lv_event_t*) { get_global_bed_mesh_panel().decline_save_config(); }},
+        {"on_bed_mesh_save_config_yes",
+         [](lv_event_t*) { get_global_bed_mesh_panel().confirm_save_config(); }},
 
         // Calibration modal - emergency stop and start
-        {"on_bed_mesh_emergency_stop", on_emergency_stop_cb},
-        {"on_bed_mesh_calibrate_start", on_calibrate_start_cb},
+        {"on_bed_mesh_emergency_stop",
+         [](lv_event_t*) { get_global_bed_mesh_panel().handle_emergency_stop(); }},
+        {"on_bed_mesh_calibrate_start",
+         [](lv_event_t*) { get_global_bed_mesh_panel().submit_calibration_name_field(); }},
     });
-
-    callbacks_registered_ = true;
-    spdlog::debug("[{}] Event callbacks registered", get_name());
 }
 
 // ============================================================================
@@ -2050,7 +2020,7 @@ void BedMeshPanel::cancel_overwrite() {
 }
 
 // ============================================================================
-// Static Event Callbacks
+// Profile Row Callbacks
 // ============================================================================
 
 // Helper to extract profile index from callback name
@@ -2094,45 +2064,6 @@ static void on_profile_delete_cb(lv_event_t* e) {
     if (index >= 0) {
         get_global_bed_mesh_panel().delete_profile(index);
     }
-}
-
-static void on_calibrate_header_clicked_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().start_calibration();
-}
-
-static void on_calibrate_cancel_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().hide_all_modals();
-}
-
-static void on_rename_cancel_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().hide_all_modals();
-}
-
-static void on_rename_confirm_cb(lv_event_t* /*e*/) {
-    // Get the new name from the input field
-    lv_obj_t* input = lv_obj_find_by_name(lv_layer_top(), "rename_new_name_input");
-    if (!input) {
-        input = lv_obj_find_by_name(lv_screen_active(), "rename_new_name_input");
-    }
-
-    const char* text = input ? lv_textarea_get_text(input) : nullptr;
-    get_global_bed_mesh_panel().rename_profile_checked(text ? text : "");
-}
-
-static void on_save_config_no_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().decline_save_config();
-}
-
-static void on_save_config_yes_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().confirm_save_config();
-}
-
-static void on_emergency_stop_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().handle_emergency_stop();
-}
-
-static void on_calibrate_start_cb(lv_event_t* /*e*/) {
-    get_global_bed_mesh_panel().submit_calibration_name_field();
 }
 
 BedMeshPanel& get_global_bed_mesh_panel() {

@@ -56,6 +56,9 @@ class SpoolmanPanel : public OverlayBase {
     const char* get_name() const override {
         return "Spoolman";
     }
+    const char* xml_component() const override {
+        return "spoolman_panel";
+    }
 
     // === Lifecycle hooks ===
     void on_activate() override;
@@ -77,9 +80,6 @@ class SpoolmanPanel : public OverlayBase {
   private:
     // ========== UI Widget Pointers ==========
     lv_obj_t* spool_list_ = nullptr;
-
-    // ========== Flags ==========
-    bool callbacks_registered_ = false;
 
     // ========== State ==========
     std::vector<SpoolInfo> cached_spools_;
@@ -141,14 +141,8 @@ class SpoolmanPanel : public OverlayBase {
 
     // === Spool Wizard ===
 
-    // ========== Static Event Callbacks ==========
-    static void on_spool_row_clicked(lv_event_t* e);
-    static void on_refresh_clicked(lv_event_t* e);
-    static void on_add_spool_clicked(lv_event_t* e);
+    // ========== Virtualized list scroll handler ==========
     static void on_scroll(lv_event_t* e);
-    static void on_search_changed(lv_event_t* e);
-    static void on_search_clear(lv_event_t* e);
-    static void on_location_filter_changed(lv_event_t* e);
 };
 
 // ============================================================================

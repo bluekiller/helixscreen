@@ -27,6 +27,7 @@
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -60,8 +61,6 @@ static constexpr size_t NUM_SHAPER_COLORS =
 // GLOBAL INSTANCE AND ROW CLICK HANDLER
 // ============================================================================
 
-static std::unique_ptr<InputShaperPanel> g_input_shaper_panel;
-
 // State subject (0=IDLE, 1=MEASURING, 2=RESULTS, 3=ERROR)
 static lv_subject_t s_input_shaper_state;
 
@@ -69,15 +68,6 @@ static lv_subject_t s_input_shaper_state;
 static void on_input_shaper_row_clicked(lv_event_t* e);
 IMoonrakerClient* get_moonraker_client();
 IMoonrakerAPI* get_moonraker_api();
-
-InputShaperPanel& get_global_input_shaper_panel() {
-    if (!g_input_shaper_panel) {
-        g_input_shaper_panel = std::make_unique<InputShaperPanel>();
-        StaticPanelRegistry::instance().register_destroy("InputShaperPanel",
-                                                         []() { g_input_shaper_panel.reset(); });
-    }
-    return *g_input_shaper_panel;
-}
 
 InputShaperPanel::~InputShaperPanel() {
     // Stop the analysis elapsed timer before anything it could touch goes away.
@@ -92,12 +82,6 @@ InputShaperPanel::~InputShaperPanel() {
 
     // Clear widget pointers (owned by LVGL)
     overlay_root_ = nullptr;
-    parent_screen_ = nullptr;
-
-    // Guard against static destruction order fiasco (spdlog may be gone)
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[InputShaper] Destroyed");
-    }
 }
 
 void init_input_shaper_row_handler() {
@@ -113,26 +97,11 @@ static void on_input_shaper_row_clicked(lv_event_t* e) {
     spdlog::debug("[InputShaper] Input Shaping row clicked");
 
     auto& panel = get_global_input_shaper_panel();
-
-    // Lazy-create the input shaper panel
+    // set_api() rebuilds the calibrator, which would drop an in-flight preflight.
     if (!panel.get_root()) {
-        spdlog::debug("[InputShaper] Creating input shaper panel...");
-
-        // Set API references before create
-        IMoonrakerClient* client = get_moonraker_client();
-        IMoonrakerAPI* api = get_moonraker_api();
-        panel.set_api(client, api);
-
-        lv_obj_t* screen = lv_display_get_screen_active(nullptr);
-        if (!panel.create(screen)) {
-            spdlog::error("[InputShaper] Failed to create input_shaper_panel");
-            return;
-        }
-        spdlog::info("[InputShaper] Panel created");
+        panel.set_api(get_moonraker_client(), get_moonraker_api());
     }
-
-    // Show the overlay (registers with NavigationManager and pushes)
-    panel.show();
+    panel.show(lv_display_get_screen_active(nullptr));
 }
 
 // ============================================================================
@@ -351,8 +320,8 @@ void InputShaperPanel::init_subjects() {
     // ordering was decided by panel-registry destruction rather than by the one
     // registry that exists to sequence it (#1180).
     StaticSubjectRegistry::instance().register_deinit("InputShaperPanel", []() {
-        if (g_input_shaper_panel) {
-            g_input_shaper_panel->deinit_subjects();
+        if (auto* panel = helix::lazy_global_if_exists<InputShaperPanel>()) {
+            panel->deinit_subjects();
         }
     });
 
@@ -379,27 +348,10 @@ void InputShaperPanel::deinit_subjects() {
 // ============================================================================
 
 lv_obj_t* InputShaperPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[InputShaper] Panel already created");
-        return overlay_root_;
-    }
-
-    parent_screen_ = parent;
-
-    spdlog::debug("[InputShaper] Creating overlay from XML");
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "input_shaper_panel", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[InputShaper] Failed to create overlay from XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
-
-    // Start hidden (push_overlay will show it)
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
     setup_widgets();
-
-    spdlog::info("[InputShaper] Overlay created successfully");
     return overlay_root_;
 }
 
@@ -423,11 +375,10 @@ void InputShaperPanel::setup_widgets() {
     create_chart_widgets();
 
     // Find legend dot widgets for programmatic color updates
-    legend_x_shaper_dot_ = lv_obj_find_by_name(overlay_root_, "legend_x_shaper_dot");
-    legend_y_shaper_dot_ = lv_obj_find_by_name(overlay_root_, "legend_y_shaper_dot");
-    if (!legend_x_shaper_dot_ || !legend_y_shaper_dot_) {
-        spdlog::warn("[InputShaper] Legend dot widget(s) not found in XML");
-    }
+    legend_x_shaper_dot_ =
+        helix::ui::find_required(overlay_root_, "legend_x_shaper_dot", get_name());
+    legend_y_shaper_dot_ =
+        helix::ui::find_required(overlay_root_, "legend_y_shaper_dot", get_name());
 
     spdlog::debug("[InputShaper] Widget setup complete");
 }
@@ -443,23 +394,6 @@ void InputShaperPanel::set_api(IMoonrakerClient* client, IMoonrakerAPI* api) {
     // Create calibrator with API for delegated operations
     calibrator_ = std::make_unique<helix::calibration::InputShaperCalibrator>(api_);
     spdlog::debug("[InputShaper] Calibrator created");
-}
-
-void InputShaperPanel::show() {
-    if (!overlay_root_) {
-        spdlog::error("[InputShaper] Cannot show: overlay not created");
-        return;
-    }
-
-    spdlog::debug("[InputShaper] Showing overlay");
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[InputShaper] Overlay shown");
 }
 
 // ============================================================================
@@ -566,9 +500,6 @@ void InputShaperPanel::cleanup() {
 
     // Call base class to set cleanup_called_ flag
     OverlayBase::cleanup();
-
-    // Clear references
-    parent_screen_ = nullptr;
 }
 
 void InputShaperPanel::on_ui_destroyed() {
@@ -1656,7 +1587,8 @@ void InputShaperPanel::create_chart_widgets() {
     auto tier = helix::PlatformCapabilities::detect().tier;
 
     // Create X axis chart
-    lv_obj_t* x_container = lv_obj_find_by_name(overlay_root_, "chart_container_x");
+    lv_obj_t* x_container =
+        helix::ui::find_required(overlay_root_, "chart_container_x", get_name());
     if (x_container) {
         x_chart_.chart = ui_frequency_response_chart_create(x_container);
         if (x_chart_.chart) {
@@ -1666,7 +1598,8 @@ void InputShaperPanel::create_chart_widgets() {
     }
 
     // Create Y axis chart
-    lv_obj_t* y_container = lv_obj_find_by_name(overlay_root_, "chart_container_y");
+    lv_obj_t* y_container =
+        helix::ui::find_required(overlay_root_, "chart_container_y", get_name());
     if (y_container) {
         y_chart_.chart = ui_frequency_response_chart_create(y_container);
         if (y_chart_.chart) {
@@ -2223,4 +2156,8 @@ void InputShaperPanel::handle_help_clicked() {
 
     helix::ui::modal_alert(lv_tr("Input Shaper Help"), help_message, ModalSeverity::Info,
                            lv_tr("Got it"));
+}
+
+InputShaperPanel& get_global_input_shaper_panel() {
+    return helix::lazy_global<InputShaperPanel>("InputShaperPanel");
 }

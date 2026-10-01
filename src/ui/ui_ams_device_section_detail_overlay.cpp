@@ -15,6 +15,8 @@
 #include "ui_text_input.h"
 #include "ui_utils.h"
 
+#include "ui/ui_widget_helpers.h"
+
 #if HELIX_HAS_CFS
 #include "ui_cfs_chute_calibration_overlay.h"
 #include "ui_modal.h"
@@ -56,29 +58,13 @@ static char s_cfs_cutter_status_buf[128];
 static bool s_cfs_cutter_subjects_ready = false;
 #endif
 
-static std::unique_ptr<AmsDeviceSectionDetailOverlay> g_ams_device_section_detail_overlay;
-
-AmsDeviceSectionDetailOverlay& get_ams_device_section_detail_overlay() {
-    if (!g_ams_device_section_detail_overlay) {
-        g_ams_device_section_detail_overlay = std::make_unique<AmsDeviceSectionDetailOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "AmsDeviceSectionDetailOverlay", []() { g_ams_device_section_detail_overlay.reset(); });
-    }
-    return *g_ams_device_section_detail_overlay;
-}
-
 // ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
+// DESTRUCTOR
 // ============================================================================
-
-AmsDeviceSectionDetailOverlay::AmsDeviceSectionDetailOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
 
 AmsDeviceSectionDetailOverlay::~AmsDeviceSectionDetailOverlay() {
     // The CFS status line's subjects are file-static (see set_cutter_row_state),
     // so they outlive every overlay instance and need no deinit here.
-    spdlog::trace("[{}] Destroyed", get_name());
 }
 
 // ============================================================================
@@ -86,30 +72,19 @@ AmsDeviceSectionDetailOverlay::~AmsDeviceSectionDetailOverlay() {
 // ============================================================================
 
 void AmsDeviceSectionDetailOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
-
+    init_subjects_guarded([this]() {
 #if HELIX_HAS_CFS
-    // Calibration status line subjects, consumed by
-    // ui_xml/components/cfs_cutter_status.xml. Init once per process: a second
-    // overlay instance must not memzero a subject whose observers are live.
-    if (!s_cfs_cutter_subjects_ready) {
-        s_cfs_cutter_subjects_ready = true;
-        UI_SUBJECT_INIT_AND_REGISTER_INT(s_cfs_cutter_phase, 0, "cfs_cutter_phase");
-        UI_SUBJECT_INIT_AND_REGISTER_STRING(s_cfs_cutter_status, s_cfs_cutter_status_buf, "",
-                                            "cfs_cutter_status");
-    }
+        // Calibration status line subjects, consumed by
+        // ui_xml/components/cfs_cutter_status.xml. Init once per process: a second
+        // overlay instance must not memzero a subject whose observers are live.
+        if (!s_cfs_cutter_subjects_ready) {
+            s_cfs_cutter_subjects_ready = true;
+            UI_SUBJECT_INIT_AND_REGISTER_INT(s_cfs_cutter_phase, 0, "cfs_cutter_phase");
+            UI_SUBJECT_INIT_AND_REGISTER_STRING(s_cfs_cutter_status, s_cfs_cutter_status_buf, "",
+                                                "cfs_cutter_status");
+        }
 #endif
-
-    subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized", get_name());
-}
-
-void AmsDeviceSectionDetailOverlay::register_callbacks() {
-    // No XML-defined callbacks needed — controls are created imperatively
-    // (documented exception for dynamic backend-driven controls).
-    spdlog::debug("[{}] Callbacks registered (none needed)", get_name());
+    });
 }
 
 // ============================================================================
@@ -117,73 +92,32 @@ void AmsDeviceSectionDetailOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* AmsDeviceSectionDetailOverlay::create(lv_obj_t* parent) {
-    if (overlay_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    // Create from XML component
-    overlay_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "ams_device_section_detail", nullptr));
-    if (!overlay_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Find the dynamic actions container
-    actions_container_ = lv_obj_find_by_name(overlay_, "section_actions_container");
-    if (!actions_container_) {
-        spdlog::warn("[{}] section_actions_container not found in XML", get_name());
-    }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_;
+    // The dynamic actions container
+    actions_container_ =
+        helix::ui::find_required(overlay_root_, "section_actions_container", get_name());
+    return overlay_root_;
 }
 
 void AmsDeviceSectionDetailOverlay::show(lv_obj_t* parent_screen, const std::string& section_id,
                                          const std::string& section_label) {
-    spdlog::debug("[{}] show() called for section '{}' ('{}')", get_name(), section_id,
-                  section_label);
-
-    parent_screen_ = parent_screen;
     section_id_ = section_id;
+    section_label_ = section_label;
+    OverlayBase::show(parent_screen);
+}
 
-    // Ensure subjects and callbacks are initialized
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    // Lazy create overlay
-    if (!overlay_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Update header title imperatively (overlay_panel title is static at XML creation)
-    lv_obj_t* header_title = lv_obj_find_by_name(overlay_, "header_title");
-    if (header_title) {
+void AmsDeviceSectionDetailOverlay::before_show() {
+    // The overlay_panel title is static at XML creation, so it is set here. The name
+    // comes from the extended overlay_panel, not this component's own XML.
+    if (lv_obj_t* header_title = lv_obj_find_by_name(overlay_root_, "header_title")) {
         std::string title = std::string(lv_tr("Multi-Filament System Management")) + ": " +
-                            lv_tr(section_label.c_str());
+                            lv_tr(section_label_.c_str());
         lv_label_set_text(header_title, title.c_str());
     }
-
-    // Update from backend
     refresh();
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_, this);
-
-    // Push onto navigation stack
-    NavigationManager::instance().push_overlay(overlay_);
 }
 
 void AmsDeviceSectionDetailOverlay::refresh() {

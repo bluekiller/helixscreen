@@ -21,6 +21,7 @@
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -35,22 +36,11 @@ using namespace helix;
 // GLOBAL INSTANCE AND ROW CLICK HANDLER
 // ============================================================================
 
-static std::unique_ptr<BeltTensionPanel> g_belt_tension_panel;
-
 // State subject (0=START, 1=RUNNING, 2=RESULTS, 3=ERROR)
 static lv_subject_t s_belt_tension_state;
 
 // Forward declarations
 static void on_belt_tension_row_clicked(lv_event_t* e);
-
-BeltTensionPanel& get_global_belt_tension_panel() {
-    if (!g_belt_tension_panel) {
-        g_belt_tension_panel = std::make_unique<BeltTensionPanel>();
-        StaticPanelRegistry::instance().register_destroy("BeltTensionPanel",
-                                                         []() { g_belt_tension_panel.reset(); });
-    }
-    return *g_belt_tension_panel;
-}
 
 BeltTensionPanel::~BeltTensionPanel() {
     // lifetime_'s destructor auto-invalidates all outstanding tokens.
@@ -74,13 +64,8 @@ BeltTensionPanel::~BeltTensionPanel() {
 
     // Clear widget pointers (owned by LVGL)
     overlay_root_ = nullptr;
-    parent_screen_ = nullptr;
     chart_host_running_ = nullptr;
     chart_host_results_ = nullptr;
-
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[BeltTension] Destroyed");
-    }
 }
 
 void init_belt_tension_row_handler() {
@@ -96,26 +81,8 @@ static void on_belt_tension_row_clicked(lv_event_t* e) {
     spdlog::debug("[BeltTension] Belt Tension row clicked");
 
     auto& panel = get_global_belt_tension_panel();
-
-    // Lazy-create the panel
-    if (!panel.get_root()) {
-        spdlog::debug("[BeltTension] Creating belt tension panel...");
-
-        // Set API references before create
-        auto* client = get_moonraker_client();
-        IMoonrakerAPI* api = get_moonraker_api();
-        panel.set_api(client, api);
-
-        lv_obj_t* screen = lv_display_get_screen_active(nullptr);
-        if (!panel.create(screen)) {
-            spdlog::error("[BeltTension] Failed to create panel_belt_tension");
-            return;
-        }
-        spdlog::info("[BeltTension] Panel created");
-    }
-
-    // Show the overlay
-    panel.show();
+    panel.set_api(get_moonraker_client(), get_moonraker_api());
+    panel.show(lv_display_get_screen_active(nullptr));
 }
 
 // ============================================================================
@@ -237,36 +204,20 @@ void BeltTensionPanel::deinit_subjects() {
 // ============================================================================
 
 lv_obj_t* BeltTensionPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[BeltTension] Panel already created");
-        return overlay_root_;
-    }
-
-    parent_screen_ = parent;
-
-    spdlog::debug("[BeltTension] Creating overlay from XML");
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "panel_belt_tension", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[BeltTension] Failed to create overlay from XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Start hidden (push_overlay will show it)
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
     // The chart is created imperatively inside these hosts; cache them once
     // per view build, the same contract create() gives overlay_root_.
-    chart_host_running_ = lv_obj_find_by_name(overlay_root_, "chart_host_running");
-    chart_host_results_ = lv_obj_find_by_name(overlay_root_, "chart_host_results");
+    chart_host_running_ = helix::ui::find_required(overlay_root_, "chart_host_running", get_name());
+    chart_host_results_ = helix::ui::find_required(overlay_root_, "chart_host_results", get_name());
 
     ensure_gate_observers();
     refresh_gate();
 
     // Set initial state
     set_view_state(ViewState::START);
-
-    spdlog::info("[BeltTension] Overlay created successfully");
     return overlay_root_;
 }
 

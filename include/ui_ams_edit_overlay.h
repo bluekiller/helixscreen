@@ -12,6 +12,7 @@
 #include "overlay_base.h"
 #include "spoolman_slot_saver.h"
 #include "spoolman_types.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <functional>
@@ -79,6 +80,9 @@ class AmsEditOverlay : public OverlayBase {
     // === OverlayBase interface ===
     void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
+    const char* xml_component() const override {
+        return "ams_edit_overlay";
+    }
     void register_callbacks() override;
     [[nodiscard]] const char* get_name() const override {
         return "AMS Slot Editor";
@@ -140,7 +144,6 @@ class AmsEditOverlay : public OverlayBase {
 
     void populate_detail_fields();
     void read_detail_fields();
-    static void on_detail_field_changed_cb(lv_event_t* e);
 
     // === Spool-edit view (VIEW_SPOOL_EDIT): identity + color + logistics ===
     FilamentCatalogSelector details_selector_;
@@ -161,9 +164,6 @@ class AmsEditOverlay : public OverlayBase {
     void handle_custom_color_changed(uint32_t rgb);
     void handle_color_hex_changed();
     void handle_color_apply();
-    static void on_color_swatch_cb(lv_event_t* e);
-    static void on_color_apply_cb(lv_event_t* e);
-    static void on_color_hex_changed_cb(lv_event_t* e);
 
     // === Subjects for XML binding ===
     SubjectManager subjects_;
@@ -249,7 +249,6 @@ class AmsEditOverlay : public OverlayBase {
     void handle_back();            ///< Header back: per-view routing (cancel on overview)
     void handle_card_clicked();    ///< Card tap: opens the spool-edit view
     void handle_change_filament(); ///< Row tap: picker (Spoolman) or spool-edit
-    void handle_setup_entry();
     void handle_save();
 
     // Pure decision for whether handle_save() should create a NEW Spoolman
@@ -357,38 +356,10 @@ class AmsEditOverlay : public OverlayBase {
 #endif
     void handle_scan_qr();
     void handle_tool_changed(int index);
-
-    // === Static Callback Registration ===
-    static bool callbacks_registered_;
-
-    // === Static Callbacks ===
-    static void on_back_cb(lv_event_t* e);
-    static void on_card_clicked_cb(lv_event_t* e);
-    static void on_change_filament_cb(lv_event_t* e);
-    static void on_setup_entry_cb(lv_event_t* e);
-    static void on_quick_swatch_cb(lv_event_t* e);
-    static void on_custom_color_cb(lv_event_t* e);
-    static void on_save_cb(lv_event_t* e);
-    static void on_print_label_cb(lv_event_t* e);
-    static void on_scan_qr_cb(lv_event_t* e);
-    static void on_picker_search_cb(lv_event_t* e);
-    static void on_picker_retry_cb(lv_event_t* e);
-    static void on_spool_item_cb(lv_event_t* e);
-    static void on_spool_item_edit_cb(lv_event_t* e);
-    static void on_tool_changed_cb(lv_event_t* e);
-
-    /**
-     * @brief Resolve the editor instance for a static XML callback.
-     * The editor is a process-lifetime singleton, so this is just the accessor
-     * (replaces the modal's s_active_instance_ routing).
-     */
-    static AmsEditOverlay* get_instance_from_event(lv_event_t* e);
 };
 
-/**
- * @brief Global instance accessor (creates on first use, registers cleanup
- *        with StaticPanelRegistry)
- */
-AmsEditOverlay& get_ams_edit_overlay();
+inline AmsEditOverlay& get_ams_edit_overlay() {
+    return lazy_global<AmsEditOverlay>("AmsEditOverlay");
+}
 
 } // namespace helix::ui

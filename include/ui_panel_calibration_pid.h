@@ -11,6 +11,7 @@
 #include "overlay_base.h"
 #include "pid_progress_tracker.h"
 #include "save_config_restart.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <lvgl.h>
@@ -141,6 +142,9 @@ class PIDCalibrationPanel : public OverlayBase {
     const char* get_name() const override {
         return "PID Calibration";
     }
+    const char* xml_component() const override {
+        return "calibration_pid_panel";
+    }
 
     /**
      * @brief Called when overlay becomes visible
@@ -238,7 +242,6 @@ class PIDCalibrationPanel : public OverlayBase {
   private:
     // Client/API references
     // Note: overlay_root_ inherited from OverlayBase
-    lv_obj_t* parent_screen_ = nullptr;
     IMoonrakerAPI* api_ = nullptr;
 
     /// Owns the SAVE_CONFIG contract: absorbs the rpc the restart drops
@@ -483,32 +486,15 @@ class PIDCalibrationPanel : public OverlayBase {
     void handle_fan_detailed_clicked();
     void handle_fan_thorough_clicked();
 
-    // Static trampolines
-    static void on_heater_extruder_clicked(lv_event_t* e);
-    static void on_heater_bed_clicked(lv_event_t* e);
-    static void on_temp_up(lv_event_t* e);
-    static void on_temp_down(lv_event_t* e);
-    static void on_start_clicked(lv_event_t* e);
-    static void on_abort_clicked(lv_event_t* e);
-    static void on_done_clicked(lv_event_t* e);
-    static void on_retry_clicked(lv_event_t* e);
     static void on_fan_slider_changed(lv_event_t* e);
-    // MPC method/config trampolines
-    static void on_method_pid_clicked(lv_event_t* e);
-    static void on_method_mpc_clicked(lv_event_t* e);
-    static void on_wattage_up(lv_event_t* e);
-    static void on_wattage_down(lv_event_t* e);
-    static void on_fan_quick_clicked(lv_event_t* e);
-    static void on_fan_detailed_clicked(lv_event_t* e);
-    static void on_fan_thorough_clicked(lv_event_t* e);
-    // Material preset trampolines (extruder)
+    // Material preset callbacks
     // One handler per heater; the preset slot is parsed from the clicked
     // button's name ("btn_preset_mN" / "btn_preset_bed_mN") and resolved to a
-    // material through helix::presets. Replaces the eight per-material
-    // trampolines that hardcoded PLA/PETG/ABS/PA/TPU.
+    // material through helix::presets.
     static void on_pid_preset_material(lv_event_t* e);
     static void on_pid_preset_bed_material(lv_event_t* e);
 };
 
 // Global instance accessor
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
 PIDCalibrationPanel& get_global_pid_cal_panel();

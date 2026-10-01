@@ -46,9 +46,11 @@ class SpoolWizardOverlay : public OverlayBase {
     void init_subjects() override;
     void deinit_subjects();
     void register_callbacks() override;
-    lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "SpoolWizard";
+    }
+    const char* xml_component() const override {
+        return "spool_wizard";
     }
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;
@@ -236,7 +238,6 @@ class SpoolWizardOverlay : public OverlayBase {
     // ========== Navigation state ==========
     Step current_step_ = Step::VENDOR;
     bool can_proceed_ = false;
-    bool callbacks_registered_ = false;
 
     // ========== Callbacks ==========
     CompletionCallback completion_callback_;
@@ -323,32 +324,12 @@ class SpoolWizardOverlay : public OverlayBase {
     void on_creation_error(const std::string& message, int rollback_vendor_id = -1,
                            int rollback_filament_id = -1);
 
-    // ========== Static event callbacks ==========
-    static void on_wizard_vendor_selected(lv_event_t* e);
-    static void on_wizard_back(lv_event_t* e);
-    static void on_wizard_next(lv_event_t* e);
-    static void on_wizard_create(lv_event_t* e);
-    static void on_wizard_show_create_vendor_modal(lv_event_t* e);
-    static void on_wizard_cancel_create_vendor(lv_event_t* e);
-    static void on_wizard_vendor_search_changed(lv_event_t* e);
-    static void on_wizard_new_vendor_name_changed(lv_event_t* e);
-    static void on_wizard_new_vendor_url_changed(lv_event_t* e);
-    static void on_wizard_confirm_create_vendor(lv_event_t* e);
-    static void on_wizard_filament_selected(lv_event_t* e);
-    static void on_wizard_show_create_filament_modal(lv_event_t* e);
-    static void on_wizard_cancel_create_filament(lv_event_t* e);
-    static void on_wizard_material_changed(lv_event_t* e);
-    static void on_wizard_new_filament_name_changed(lv_event_t* e);
-    static void on_wizard_pick_filament_color(lv_event_t* e);
-    static void on_wizard_nozzle_temp_changed(lv_event_t* e);
-    static void on_wizard_bed_temp_changed(lv_event_t* e);
-    static void on_wizard_filament_weight_changed(lv_event_t* e);
-    static void on_wizard_spool_weight_changed(lv_event_t* e);
-    static void on_wizard_confirm_create_filament(lv_event_t* e);
-    static void on_wizard_remaining_weight_changed(lv_event_t* e);
-    static void on_wizard_price_changed(lv_event_t* e);
-    static void on_wizard_lot_changed(lv_event_t* e);
-    static void on_wizard_notes_changed(lv_event_t* e);
+    // ========== Modal flows (row callbacks in the table call these) ==========
+    void show_create_vendor_modal();
+    void confirm_create_vendor();
+    void show_create_filament_modal();
+    void pick_filament_color();
+    void confirm_create_filament();
 };
 
 // ============================================================================

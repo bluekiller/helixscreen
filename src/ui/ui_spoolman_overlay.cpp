@@ -8,10 +8,12 @@
 
 #include "ui_spoolman_overlay.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
-#include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
+
+#include "ui/ui_widget_helpers.h"
 #if HELIX_HAS_LABEL_PRINTER
 #include "ui_settings_label_printer.h"
 #endif
@@ -53,84 +55,90 @@ static constexpr const char* LEGACY_DB_KEY_SYNC_ENABLED = "ams_spoolman_sync_ena
 static constexpr const char* LEGACY_DB_KEY_REFRESH_INTERVAL = "ams_weight_refresh_interval";
 
 // ============================================================================
-// SINGLETON ACCESSOR
+// DESTRUCTOR
 // ============================================================================
 
-static std::unique_ptr<SpoolmanOverlay> g_spoolman_overlay;
+SpoolmanOverlay::SpoolmanOverlay() = default;
 
-SpoolmanOverlay& get_spoolman_overlay() {
-    if (!g_spoolman_overlay) {
-        g_spoolman_overlay = std::make_unique<SpoolmanOverlay>();
-        StaticPanelRegistry::instance().register_destroy("SpoolmanOverlay",
-                                                         []() { g_spoolman_overlay.reset(); });
-    }
-    return *g_spoolman_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-SpoolmanOverlay::SpoolmanOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
-
-SpoolmanOverlay::~SpoolmanOverlay() {
-    spdlog::trace("[{}] Destroyed", get_name());
-}
+SpoolmanOverlay::~SpoolmanOverlay() = default;
 
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
 
 void SpoolmanOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
+    init_subjects_guarded([this]() {
+        // Initialize sync enabled subject (default: true/enabled)
+        UI_MANAGED_SUBJECT_INT(sync_enabled_subject_, DEFAULT_SYNC_ENABLED ? 1 : 0,
+                               "ams_spoolman_sync_enabled", subjects_);
 
-    // Initialize sync enabled subject (default: true/enabled)
-    UI_MANAGED_SUBJECT_INT(sync_enabled_subject_, DEFAULT_SYNC_ENABLED ? 1 : 0,
-                           "ams_spoolman_sync_enabled", subjects_);
+        // Initialize refresh interval subject (default: 30 seconds)
+        UI_MANAGED_SUBJECT_INT(refresh_interval_subject_, DEFAULT_REFRESH_INTERVAL_SECONDS,
+                               "ams_spoolman_refresh_interval", subjects_);
 
-    // Initialize refresh interval subject (default: 30 seconds)
-    UI_MANAGED_SUBJECT_INT(refresh_interval_subject_, DEFAULT_REFRESH_INTERVAL_SECONDS,
-                           "ams_spoolman_refresh_interval", subjects_);
-
-    // Initialize scanner device status subject
-    auto scanner_name = helix::SettingsManager::instance().get_scanner_device_name();
-    auto scanner_id = helix::SettingsManager::instance().get_scanner_device_id();
-    const char* status = scanner_id.empty() ? lv_tr("Auto-detect") : scanner_name.c_str();
-    snprintf(scanner_status_buf_, sizeof(scanner_status_buf_), "%s", status);
-    UI_MANAGED_SUBJECT_STRING(scanner_device_status_subject_, scanner_status_buf_,
-                              scanner_status_buf_, "scanner_device_status", subjects_);
-
-    subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized", get_name());
+        // Initialize scanner device status subject
+        auto scanner_name = helix::SettingsManager::instance().get_scanner_device_name();
+        auto scanner_id = helix::SettingsManager::instance().get_scanner_device_id();
+        const char* status = scanner_id.empty() ? lv_tr("Auto-detect") : scanner_name.c_str();
+        snprintf(scanner_status_buf_, sizeof(scanner_status_buf_), "%s", status);
+        UI_MANAGED_SUBJECT_STRING(scanner_device_status_subject_, scanner_status_buf_,
+                                  scanner_status_buf_, "scanner_device_status", subjects_);
+    });
 }
 
 void SpoolmanOverlay::register_callbacks() {
-    // Register sync toggle callback
-    lv_xml_register_event_cb(nullptr, "on_ams_spoolman_sync_toggled", on_sync_toggled);
-
-    // Register interval dropdown callback
-    lv_xml_register_event_cb(nullptr, "on_ams_spoolman_interval_changed", on_interval_changed);
-
+    register_xml_callbacks({
+        {"on_ams_spoolman_sync_toggled",
+         [](lv_event_t* e) {
+             const bool is_checked = event_checked(e);
+             auto& overlay = get_spoolman_overlay();
+             lv_subject_set_int(&overlay.sync_enabled_subject_, is_checked ? 1 : 0);
+             overlay.save_sync_enabled(is_checked);
+             overlay.set_poll_ref(is_checked);
+         }},
+        {"on_ams_spoolman_interval_changed",
+         [](lv_event_t* e) {
+             const int interval_seconds = dropdown_index_to_seconds(event_selected(e));
+             auto& overlay = get_spoolman_overlay();
+             lv_subject_set_int(&overlay.refresh_interval_subject_, interval_seconds);
+             overlay.save_refresh_interval(interval_seconds);
+             // The polling interval in AmsState is fixed at 30s; this setting only
+             // persists the preference until configurable polling is implemented.
+         }},
 #if HELIX_HAS_LABEL_PRINTER
-    // Label printer sub-panel launcher
-    lv_xml_register_event_cb(nullptr, "on_spoolman_label_printer_clicked",
-                             on_label_printer_clicked);
+        {"on_spoolman_label_printer_clicked",
+         [](lv_event_t*) {
+             helix::settings::get_label_printer_settings_overlay().show(
+                 get_spoolman_overlay().parent_screen_);
+         }},
 #endif
-
-    // Barcode scanner picker callback
-    lv_xml_register_event_cb(nullptr, "on_barcode_scanner_clicked", on_barcode_scanner_clicked);
-
-    // Server setup callbacks
-    lv_xml_register_event_cb(nullptr, "on_spoolman_connect_clicked", on_connect_clicked);
-    lv_xml_register_event_cb(nullptr, "on_spoolman_cancel_setup_clicked", on_cancel_setup_clicked);
-    lv_xml_register_event_cb(nullptr, "on_spoolman_change_clicked", on_change_clicked);
-    lv_xml_register_event_cb(nullptr, "on_spoolman_remove_clicked", on_remove_clicked);
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
+        {"on_barcode_scanner_clicked",
+         [](lv_event_t*) { get_spoolman_overlay().handle_barcode_scanner_clicked(); }},
+        {"on_spoolman_connect_clicked",
+         [](lv_event_t*) { get_spoolman_overlay().handle_connect_clicked(); }},
+        {"on_spoolman_cancel_setup_clicked",
+         [](lv_event_t*) {
+             // Restore default visibility: the subject bindings take over again.
+             auto& overlay = get_spoolman_overlay();
+             if (overlay.setup_card_)
+                 lv_obj_add_flag(overlay.setup_card_, LV_OBJ_FLAG_HIDDEN);
+             if (overlay.status_card_)
+                 lv_obj_remove_flag(overlay.status_card_, LV_OBJ_FLAG_HIDDEN);
+             overlay.set_setup_status("");
+             overlay.set_connecting(false);
+         }},
+        {"on_spoolman_change_clicked",
+         [](lv_event_t*) { get_spoolman_overlay().handle_change_clicked(); }},
+        {"on_spoolman_remove_clicked",
+         [](lv_event_t*) {
+             helix::ui::modal_confirm(
+                 lv_tr("Remove Spoolman?"),
+                 lv_tr("This will remove the Spoolman configuration from Moonraker and restart "
+                       "the service."),
+                 ModalSeverity::Warning, lv_tr("Remove"),
+                 [] { get_spoolman_overlay().remove_spoolman_config(); });
+         }},
+    });
 }
 
 // ============================================================================
@@ -138,81 +146,30 @@ void SpoolmanOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* SpoolmanOverlay::create(lv_obj_t* parent) {
-    if (overlay_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    // Create from XML component
-    overlay_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "spoolman_settings", nullptr));
-    if (!overlay_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Find control widgets for programmatic access
-    sync_toggle_ = lv_obj_find_by_name(overlay_, "sync_toggle");
-    interval_dropdown_ = lv_obj_find_by_name(overlay_, "interval_dropdown");
+    const char* owner = get_name();
+    sync_toggle_ = helix::ui::find_required(overlay_root_, "sync_toggle", owner);
+    interval_dropdown_ = helix::ui::find_required(overlay_root_, "interval_dropdown", owner);
 
     // Server setup widgets
-    host_input_ = lv_obj_find_by_name(overlay_, "spoolman_host_input");
-    port_input_ = lv_obj_find_by_name(overlay_, "spoolman_port_input");
-    setup_status_text_ = lv_obj_find_by_name(overlay_, "setup_status_text");
-    server_url_text_ = lv_obj_find_by_name(overlay_, "server_url_text");
-    connect_btn_ = lv_obj_find_by_name(overlay_, "connect_btn");
-    setup_card_ = lv_obj_find_by_name(overlay_, "setup_card");
-    status_card_ = lv_obj_find_by_name(overlay_, "status_card");
+    host_input_ = helix::ui::find_required(overlay_root_, "spoolman_host_input", owner);
+    port_input_ = helix::ui::find_required(overlay_root_, "spoolman_port_input", owner);
+    setup_status_text_ = helix::ui::find_required(overlay_root_, "setup_status_text", owner);
+    server_url_text_ = helix::ui::find_required(overlay_root_, "server_url_text", owner);
+    connect_btn_ = helix::ui::find_required(overlay_root_, "connect_btn", owner);
+    setup_card_ = helix::ui::find_required(overlay_root_, "setup_card", owner);
+    status_card_ = helix::ui::find_required(overlay_root_, "status_card", owner);
 
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_;
+    return overlay_root_;
 }
 
-void SpoolmanOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Ensure subjects and callbacks are initialized
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    // Lazy create overlay
-    if (!overlay_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Load settings from database
+void SpoolmanOverlay::before_show() {
     load_from_database();
-
-    // Update UI controls to match subject values
     update_ui_from_subjects();
-
-    // Show current server URL if connected
     update_server_url_display();
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_, this);
-
-    // Register close callback to destroy widget tree when overlay closes
-    NavigationManager::instance().register_overlay_close_callback(overlay_, [this]() {
-        // overlay_ is an alias for overlay_root_, so pass it directly
-        destroy_overlay_ui(overlay_);
-    });
-
-    // Push onto navigation stack
-    NavigationManager::instance().push_overlay(overlay_);
 }
 
 void SpoolmanOverlay::refresh() {
@@ -447,76 +404,6 @@ void SpoolmanOverlay::on_deactivating(DeactivateReason) {
 }
 
 // ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void SpoolmanOverlay::on_sync_toggled(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_sync_toggled");
-
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    if (!toggle || !lv_obj_is_valid(toggle)) {
-        spdlog::warn("[SpoolmanOverlay] Stale callback - toggle no longer valid");
-    } else {
-        bool is_checked = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-
-        spdlog::info("[SpoolmanOverlay] Sync toggle: {}", is_checked ? "enabled" : "disabled");
-
-        // Update subject
-        auto& overlay = get_spoolman_overlay();
-        lv_subject_set_int(&overlay.sync_enabled_subject_, is_checked ? 1 : 0);
-
-        // Save to database
-        overlay.save_sync_enabled(is_checked);
-
-        // Update Spoolman polling
-        overlay.set_poll_ref(is_checked);
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SpoolmanOverlay::on_interval_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_interval_changed");
-
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    if (!dropdown || !lv_obj_is_valid(dropdown)) {
-        spdlog::warn("[SpoolmanOverlay] Stale callback - dropdown no longer valid");
-    } else {
-        int selected = static_cast<int>(lv_dropdown_get_selected(dropdown));
-        int interval_seconds = dropdown_index_to_seconds(selected);
-
-        spdlog::info("[SpoolmanOverlay] Interval changed: {}s", interval_seconds);
-
-        // Update subject
-        auto& overlay = get_spoolman_overlay();
-        lv_subject_set_int(&overlay.refresh_interval_subject_, interval_seconds);
-
-        // Save to database
-        overlay.save_refresh_interval(interval_seconds);
-
-        // Note: The actual polling interval in AmsState is currently fixed at 30s.
-        // This setting is stored for future use when configurable polling is implemented.
-        // For now, we just persist the user's preference.
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// LABEL PRINTER SUB-PANEL
-// ============================================================================
-
-#if HELIX_HAS_LABEL_PRINTER
-void SpoolmanOverlay::on_label_printer_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_label_printer_clicked");
-    auto& overlay = helix::settings::get_label_printer_settings_overlay();
-    auto& spoolman = get_spoolman_overlay();
-    overlay.show(spoolman.parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-#endif
-
-// ============================================================================
 // SERVER SETUP
 // ============================================================================
 
@@ -545,12 +432,6 @@ void SpoolmanOverlay::set_connecting(bool connecting) {
 // BARCODE SCANNER PICKER
 // ============================================================================
 
-void SpoolmanOverlay::on_barcode_scanner_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_barcode_scanner_clicked");
-    get_spoolman_overlay().handle_barcode_scanner_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void SpoolmanOverlay::handle_barcode_scanner_clicked() {
     spdlog::debug("[{}] Barcode Scanner clicked - opening settings overlay", get_name());
     helix::ui::get_barcode_scanner_settings_overlay().show(parent_screen_);
@@ -568,12 +449,9 @@ void SpoolmanOverlay::update_scanner_status_text() {
 // SERVER SETUP
 // ============================================================================
 
-void SpoolmanOverlay::on_connect_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_connect_clicked");
-
-    auto& overlay = get_spoolman_overlay();
-    const char* host_raw = overlay.host_input_ ? lv_textarea_get_text(overlay.host_input_) : "";
-    const char* port_raw = overlay.port_input_ ? lv_textarea_get_text(overlay.port_input_) : "";
+void SpoolmanOverlay::handle_connect_clicked() {
+    const char* host_raw = host_input_ ? lv_textarea_get_text(host_input_) : "";
+    const char* port_raw = port_input_ ? lv_textarea_get_text(port_input_) : "";
 
     std::string host(host_raw ? host_raw : "");
     std::string port(port_raw ? port_raw : "");
@@ -590,19 +468,17 @@ void SpoolmanOverlay::on_connect_clicked(lv_event_t* /*e*/) {
         port = DEFAULT_SPOOLMAN_PORT;
 
     if (!SpoolmanSetup::validate_host(host)) {
-        overlay.set_setup_status(lv_tr("Please enter an IP address or hostname."), true);
+        set_setup_status(lv_tr("Please enter an IP address or hostname."), true);
         return;
     }
     if (!SpoolmanSetup::validate_port(port)) {
-        overlay.set_setup_status(lv_tr("Please enter a valid port (1-65535)."), true);
+        set_setup_status(lv_tr("Please enter a valid port (1-65535)."), true);
         return;
     }
 
-    overlay.set_connecting(true);
-    overlay.set_setup_status(lv_tr("Checking Spoolman server..."));
-    overlay.probe_spoolman_server(host, port);
-
-    LVGL_SAFE_EVENT_CB_END();
+    set_connecting(true);
+    set_setup_status(lv_tr("Checking Spoolman server..."));
+    probe_spoolman_server(host, port);
 }
 
 void SpoolmanOverlay::probe_spoolman_server(const std::string& host, const std::string& port) {
@@ -1585,60 +1461,27 @@ void SpoolmanOverlay::update_server_url_display() {
     });
 }
 
-void SpoolmanOverlay::on_change_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_change_clicked");
-    auto& overlay = get_spoolman_overlay();
-
-    if (overlay.api_) {
+void SpoolmanOverlay::handle_change_clicked() {
+    if (api_) {
         // Prefill from whichever loaded file actually defines [spoolman], not from an
         // assumed helixscreen.conf.
-        overlay.resolve_spoolman_target([&overlay](const SpoolmanConfigTarget& res) {
+        resolve_spoolman_target([this](const SpoolmanConfigTarget& res) {
             if (res.status != SpoolmanConfigTarget::Status::Defined)
                 return;
             auto url =
                 helix::MoonrakerConfigManager::get_section_value(res.content, "spoolman", "server");
             auto parsed = SpoolmanSetup::parse_url_components(url);
-            if (overlay.host_input_)
-                lv_textarea_set_text(overlay.host_input_, parsed.first.c_str());
-            if (overlay.port_input_)
-                lv_textarea_set_text(overlay.port_input_, parsed.second.c_str());
+            if (host_input_)
+                lv_textarea_set_text(host_input_, parsed.first.c_str());
+            if (port_input_)
+                lv_textarea_set_text(port_input_, parsed.second.c_str());
         });
     }
 
-    if (overlay.setup_card_)
-        lv_obj_remove_flag(overlay.setup_card_, LV_OBJ_FLAG_HIDDEN);
-    if (overlay.status_card_)
-        lv_obj_add_flag(overlay.status_card_, LV_OBJ_FLAG_HIDDEN);
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SpoolmanOverlay::on_cancel_setup_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_cancel_setup_clicked");
-
-    // Restore default visibility — let the subject bindings take over again
-    auto& overlay = get_spoolman_overlay();
-    if (overlay.setup_card_)
-        lv_obj_add_flag(overlay.setup_card_, LV_OBJ_FLAG_HIDDEN);
-    if (overlay.status_card_)
-        lv_obj_remove_flag(overlay.status_card_, LV_OBJ_FLAG_HIDDEN);
-    overlay.set_setup_status("");
-    overlay.set_connecting(false);
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SpoolmanOverlay::on_remove_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SpoolmanOverlay] on_remove_clicked");
-
-    helix::ui::modal_confirm(
-        lv_tr("Remove Spoolman?"),
-        lv_tr(
-            "This will remove the Spoolman configuration from Moonraker and restart the service."),
-        ModalSeverity::Warning, lv_tr("Remove"),
-        [] { get_spoolman_overlay().remove_spoolman_config(); });
-
-    LVGL_SAFE_EVENT_CB_END();
+    if (setup_card_)
+        lv_obj_remove_flag(setup_card_, LV_OBJ_FLAG_HIDDEN);
+    if (status_card_)
+        lv_obj_add_flag(status_card_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void SpoolmanOverlay::remove_spoolman_config() {
@@ -1715,6 +1558,10 @@ void SpoolmanOverlay::remove_spoolman_config() {
                 });
             });
     });
+}
+
+SpoolmanOverlay& get_spoolman_overlay() {
+    return helix::lazy_global<SpoolmanOverlay>("SpoolmanOverlay");
 }
 
 } // namespace helix::ui
