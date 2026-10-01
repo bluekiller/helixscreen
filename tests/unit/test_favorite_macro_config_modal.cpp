@@ -9,7 +9,6 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
-#include "../test_helpers/process_async_timers.h"
 #include "app_globals.h"
 #include "config.h"
 #include "favorite_macro_config_modal.h"
@@ -166,21 +165,8 @@ class ConfigModalDefaultsFixture : public XMLTestFixture {
         helix::MacroParamCache::instance().clear();
     }
     ~ConfigModalDefaultsFixture() override {
-        retire_modal();
         ModalStack::instance().clear();
         helix::MacroParamCache::instance().clear();
-    }
-
-    /// Hiding defers the dialog's deletion a tick, and the icon cells free their
-    /// IconCell data only on that delete, so the tick has to run before the modal
-    /// is dropped.
-    void retire_modal() {
-        if (modal_ && modal_->dialog()) {
-            modal_->hide();
-        }
-        helix::ui::UpdateQueue::instance().drain();
-        process_async_timers();
-        modal_.reset();
     }
 
     /// populate_from_configfile() clears the cache on every call, so every
@@ -216,7 +202,6 @@ class ConfigModalDefaultsFixture : public XMLTestFixture {
         wc.load();
         REQUIRE(wc.get_widget_config("favorite_macro:1").value("macro", "") == macro);
 
-        retire_modal();
         modal_ = std::make_unique<helix::FavoriteMacroConfigModal>("favorite_macro:1",
                                                                    "defaults_test_panel");
         modal_->show(lv_screen_active());
