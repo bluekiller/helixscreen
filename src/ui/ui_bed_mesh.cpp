@@ -58,14 +58,11 @@ typedef struct {
     std::unique_ptr<BedMeshRenderThread> render_thread;
     bool async_mode = false;
 
-    // Persistent blit buffer for async mode.
-    // lv_draw_image() defers the actual draw — the src pointer must remain valid
-    // until LVGL's SW draw unit processes the task.  A stack-local lv_draw_buf_t
-    // would be destroyed before the task runs, causing "Failed to open image".
-    // We copy the render thread's front buffer here (under the swap lock) and
-    // keep the lv_draw_buf_t pointing to it across frames.
+    // Draw descriptor for the async frame. lv_draw_image() defers the draw, so the
+    // lv_draw_buf_t must outlive the draw callback; it points straight into the
+    // render thread's consumer-owned frame (BedMeshRenderThread::acquire_frame),
+    // which stays unchanged until the next acquire_frame() on this thread.
     lv_draw_buf_t blit_draw_buf{};
-    std::vector<uint8_t> blit_pixel_data;
     int blit_width = 0;
     int blit_height = 0;
 } bed_mesh_widget_data_t;
@@ -155,36 +152,19 @@ static void bed_mesh_draw_cb(lv_event_t* e) {
 
     // Async mode: blit pre-rendered buffer from render thread
     if (data->async_mode && data->render_thread) {
-        // Lock the front buffer and copy into persistent blit buffer.
-        // lv_draw_image() defers the actual draw — by the time LVGL's SW draw
-        // unit processes the task, a stack-local lv_draw_buf_t would be destroyed.
-        // We copy the pixel data into widget-owned storage so the lv_draw_buf_t
-        // and its backing memory remain valid until the next draw callback.
-        {
-            auto locked = data->render_thread->lock_ready_buffer();
-            if (locked) {
-                const auto* buf = locked.buffer;
-                uint32_t data_size = (uint32_t)(buf->stride() * buf->height());
-
-                // Reallocate persistent buffer if dimensions changed
-                if (data->blit_width != buf->width() || data->blit_height != buf->height()) {
-                    data->blit_pixel_data.resize(data_size);
-                    data->blit_width = buf->width();
-                    data->blit_height = buf->height();
-                }
-
-                // Copy pixels under the swap lock
-                std::memcpy(data->blit_pixel_data.data(), buf->data(), data_size);
-
-                // (Re)initialize the persistent draw buf pointing to our copy
-                lv_draw_buf_init(&data->blit_draw_buf, (uint32_t)buf->width(),
-                                 (uint32_t)buf->height(), LV_COLOR_FORMAT_ARGB8888,
-                                 (uint32_t)buf->stride(), data->blit_pixel_data.data(), data_size);
-
-                spdlog::trace("[bed_mesh] Async blit {}x{} ({:.1f}ms render)", buf->width(),
-                              buf->height(), data->render_thread->last_render_time_ms());
-            }
-        } // swap lock released — blit_pixel_data is our own copy, safe to use
+        // A new frame is swapped in without a copy; otherwise the previous one is reused.
+        if (const helix::mesh::PixelBuffer* buf = data->render_thread->acquire_frame()) {
+            lv_draw_buf_init(&data->blit_draw_buf, (uint32_t)buf->width(), (uint32_t)buf->height(),
+                             LV_COLOR_FORMAT_ARGB8888, (uint32_t)buf->stride(),
+                             const_cast<uint8_t*>(buf->data()),
+                             (uint32_t)(buf->stride() * buf->height()));
+            data->blit_width = buf->width();
+            data->blit_height = buf->height();
+            spdlog::trace("[bed_mesh] Async blit {}x{} ({:.1f}ms render)", buf->width(),
+                          buf->height(), data->render_thread->last_render_time_ms());
+        } else {
+            data->blit_width = data->blit_height = 0;
+        }
 
         if (data->blit_width > 0 && data->blit_height > 0) {
             lv_draw_image_dsc_t img_dsc;
