@@ -59,32 +59,8 @@ static constexpr int32_t MODAL_EXIT_DURATION_MS = 150;     // anim_fast
 static constexpr int32_t MODAL_SCALE_START = 218; // ~85% scale
 static constexpr int32_t MODAL_SCALE_END = 256;   // 100% scale
 
-// ============================================================================
-// MODAL DIALOG SUBJECTS (singleton state)
-// ============================================================================
 namespace {
-bool g_subjects_initialized = false;
-SubjectManager g_subjects;
-lv_subject_t g_dialog_severity{};
-lv_subject_t g_dialog_show_cancel{};
-lv_subject_t g_dialog_primary_text{};
-lv_subject_t g_dialog_cancel_text{};
-constexpr const char* DEFAULT_PRIMARY_TEXT = "OK";
-constexpr const char* DEFAULT_CANCEL_TEXT = "Cancel";
-// Owned copies of whatever the caption subjects publish. modal_configure()
-// takes const char* and callers routinely hand it a loop-local std::string's
-// c_str() - the print-gate chain's GateCheckResult dies with its
-// run_gates_from() iteration - while the subject outlives the call
-// (lv_subject_set_pointer stores the pointer, no copy). Publishing the
-// caller's pointer left every later reader on freed stack: the still-live
-// previous dialog's bind_text observers, fired synchronously by the next
-// set_pointer, and ModalConfigRollback's constructor snapshot. The subjects
-// point into THESE strings instead, so they stay valid until the next
-// modal_configure() overwrites them. Reusing one buffer address across
-// configures loses nothing: LVGL cannot compare pointer subjects and always
-// notifies (ui_notification_manager's count buffer does the same).
-std::string g_dialog_primary_text_owned;
-std::string g_dialog_cancel_text_owned;
+bool g_callbacks_registered = false;
 } // namespace
 
 // Walk a widget tree depth-first, visiting every non-null object. The three
@@ -1225,21 +1201,10 @@ static void static_modal_close_cb(lv_event_t* e) {
 }
 
 void helix::ui::modal_init_subjects() {
-    if (g_subjects_initialized) {
-        spdlog::warn("[Modal] Subjects already initialized - skipping");
+    if (g_callbacks_registered) {
+        spdlog::warn("[Modal] Callbacks already registered - skipping");
         return;
     }
-
-    spdlog::trace("[Modal] Initializing modal dialog subjects");
-
-    // Initialize and register subjects with SubjectManager for automatic cleanup
-    UI_MANAGED_SUBJECT_INT(g_dialog_severity, static_cast<int>(ModalSeverity::Info),
-                           "dialog_severity", g_subjects);
-    UI_MANAGED_SUBJECT_INT(g_dialog_show_cancel, 0, "dialog_show_cancel", g_subjects);
-    UI_MANAGED_SUBJECT_POINTER(g_dialog_primary_text, const_cast<char*>(DEFAULT_PRIMARY_TEXT),
-                               "dialog_primary_text", g_subjects);
-    UI_MANAGED_SUBJECT_POINTER(g_dialog_cancel_text, const_cast<char*>(DEFAULT_CANCEL_TEXT),
-                               "dialog_cancel_text", g_subjects);
 
     // Register event callbacks for modals using static Modal::show() API
     register_xml_callbacks({
@@ -1248,62 +1213,27 @@ void helix::ui::modal_init_subjects() {
         {"on_print_complete_ok", static_modal_close_cb},
     });
 
-    g_subjects_initialized = true;
-    spdlog::trace("[Modal] Modal dialog subjects registered");
+    g_callbacks_registered = true;
 }
 
-void helix::ui::modal_deinit_subjects() {
-    if (!g_subjects_initialized) {
-        return;
-    }
-    g_subjects.deinit_all();
-    g_subjects_initialized = false;
-    spdlog::debug("[Modal] Modal dialog subjects deinitialized");
+helix::ui::ModalDialogAttrs::ModalDialogAttrs(std::string title, std::string message,
+                                              ModalSeverity severity, std::string primary,
+                                              std::string secondary, bool show_cancel)
+    : title_(std::move(title)), message_(std::move(message)), primary_(std::move(primary)),
+      secondary_(std::move(secondary)) {
+    hide_info_ = severity == ModalSeverity::Info ? "false" : "true";
+    hide_warning_ = severity == ModalSeverity::Warning ? "false" : "true";
+    hide_error_ = severity == ModalSeverity::Error ? "false" : "true";
+    hide_secondary_ = show_cancel ? "false" : "true";
 }
 
-void helix::ui::modal_configure(ModalSeverity severity, bool show_cancel, const char* primary_text,
-                                const char* cancel_text) {
-    if (!g_subjects_initialized) {
-        spdlog::error("[Modal] Cannot configure - subjects not initialized!");
-        return;
-    }
-
-    spdlog::debug("[Modal] Configuring dialog: severity={}, show_cancel={}, primary='{}', "
-                  "cancel='{}'",
-                  static_cast<int>(severity), show_cancel, primary_text ? primary_text : "(null)",
-                  cancel_text ? cancel_text : "(null)");
-
-    lv_subject_set_int(&g_dialog_severity, static_cast<int>(severity));
-    lv_subject_set_int(&g_dialog_show_cancel, show_cancel ? 1 : 0);
-
-    // Copy first, publish second: set_pointer fires the previous dialog's
-    // bind_text observers synchronously, and they read the buffer - so the
-    // owned copy must already hold the new text when they do. Publishing the
-    // caller's pointer here is what parked dead frame-locals in the subjects.
-    if (primary_text) {
-        g_dialog_primary_text_owned = primary_text;
-        lv_subject_set_pointer(&g_dialog_primary_text, g_dialog_primary_text_owned.data());
-    }
-    if (cancel_text) {
-        g_dialog_cancel_text_owned = cancel_text;
-        lv_subject_set_pointer(&g_dialog_cancel_text, g_dialog_cancel_text_owned.data());
-    }
-}
-
-lv_subject_t* helix::ui::modal_get_severity_subject() {
-    return &g_dialog_severity;
-}
-
-lv_subject_t* helix::ui::modal_get_show_cancel_subject() {
-    return &g_dialog_show_cancel;
-}
-
-lv_subject_t* helix::ui::modal_get_primary_text_subject() {
-    return &g_dialog_primary_text;
-}
-
-lv_subject_t* helix::ui::modal_get_cancel_text_subject() {
-    return &g_dialog_cancel_text;
+const char** helix::ui::ModalDialogAttrs::get() {
+    attrs_ = {"title",        title_.c_str(),   "message",        message_.c_str(),
+              "primary_text", primary_.c_str(), "secondary_text", secondary_.c_str(),
+              "hide_info",    hide_info_,       "hide_warning",   hide_warning_,
+              "hide_error",   hide_error_,      "hide_secondary", hide_secondary_,
+              nullptr};
+    return attrs_.data();
 }
 
 // ============================================================================
@@ -1328,60 +1258,6 @@ void helix::ui::modal_register_keyboard(lv_obj_t* modal, lv_obj_t* textarea) {
 
 namespace {
 
-/// Restores the shared modal_dialog subjects if a show fails.
-///
-/// modal_configure() writes the global severity/button-text subjects, and the
-/// dialog binds to them at XML-create time - so it must run BEFORE the build.
-/// If the build then fails, any modal_dialog still on screen would keep
-/// re-rendering through its bind_text/bind_flag_if_eq observers with the failed
-/// dialog's icon and captions. Construct this BEFORE modal_configure() so the
-/// snapshot is the previous state, and commit() on success.
-///
-/// The captions are snapshotted by VALUE, and the restore goes through
-/// modal_configure() again, which copies them into its own owned caption
-/// storage. No pointer into this transient object - or into a caller's
-/// frame - is ever left in a subject.
-class ModalConfigRollback {
-  public:
-    ModalConfigRollback()
-        : severity_(lv_subject_get_int(helix::ui::modal_get_severity_subject())),
-          show_cancel_(lv_subject_get_int(helix::ui::modal_get_show_cancel_subject())),
-          primary_(snapshot_caption(helix::ui::modal_get_primary_text_subject())),
-          cancel_(snapshot_caption(helix::ui::modal_get_cancel_text_subject())) {}
-
-    void commit() {
-        committed_ = true;
-    }
-
-    ~ModalConfigRollback() {
-        if (committed_) {
-            return;
-        }
-        // modal_configure() copies these into its owned caption storage and
-        // repoints the subjects there, so what the synchronous bind_text
-        // observers of any still-live previous dialog read outlives this
-        // rollback object. The snapshot has to be by value for the same
-        // reason the ctor above could take one: the subjects publish
-        // modal-owned copies, never a caller's buffer (the print-gate chain
-        // evaluates its gates into loop-locals, dead by the time the next
-        // gate's confirmation is built).
-        helix::ui::modal_configure(static_cast<ModalSeverity>(severity_), show_cancel_ != 0,
-                                   primary_.c_str(), cancel_.c_str());
-    }
-
-  private:
-    static std::string snapshot_caption(lv_subject_t* subject) {
-        const char* text = static_cast<const char*>(lv_subject_get_pointer(subject));
-        return text ? std::string(text) : std::string();
-    }
-
-    int32_t severity_;
-    int32_t show_cancel_;
-    std::string primary_;
-    std::string cancel_;
-    bool committed_ = false;
-};
-
 /// Payload for a deferred dismissal callback.
 /// The owner behind the confirmation/alert helpers.
 ///
@@ -1401,9 +1277,12 @@ class ModalConfigRollback {
 /// one exit animation cannot dispatch into freed memory.
 class ConfirmationModal : public Modal {
   public:
-    ConfirmationModal(std::string title, std::string message, std::function<void()> on_dismiss,
+    ConfirmationModal(std::string title, std::string message, ModalSeverity severity,
+                      std::string primary, std::string secondary, bool show_cancel,
+                      std::function<void()> on_dismiss,
                       std::optional<helix::LifetimeToken> owner_token)
-        : title_(std::move(title)), message_(std::move(message)),
+        : attrs_(std::move(title), std::move(message), severity, std::move(primary),
+                 std::move(secondary), show_cancel),
           on_dismiss_(std::move(on_dismiss)), owner_token_(std::move(owner_token)) {}
 
     /// The callbacks never touch a widget, so nothing of the caller's is
@@ -1416,11 +1295,11 @@ class ConfirmationModal : public Modal {
         has_cancel_ = has_cancel;
     }
 
-    /// Builds its own attrs so the strings outlive XML creation by construction
+    /// Owns its attr strings so they outlive XML creation by construction
     /// rather than by relying on lv_xml_create not retaining the caller's
     /// pointers - several call sites pass a local std::string's c_str().
     bool show_dialog() {
-        const char* attrs[] = {"title", title_.c_str(), "message", message_.c_str(), nullptr};
+        const char** attrs = attrs_.get();
         // lv_screen_active() (not nullptr) disambiguates the instance show()
         // from the static factory overload; the parameter is ignored anyway.
         return show(lv_screen_active(), attrs);
@@ -1541,8 +1420,7 @@ class ConfirmationModal : public Modal {
         LVGL_SAFE_EVENT_CB_END();
     }
 
-    std::string title_;
-    std::string message_;
+    helix::ui::ModalDialogAttrs attrs_;
     std::function<void()> on_dismiss_;
     std::optional<helix::LifetimeToken> owner_token_;
     std::function<void()> fn_confirm_;
@@ -1552,12 +1430,6 @@ class ConfirmationModal : public Modal {
 };
 
 /// The one build sequence behind both forms.
-///
-/// Ordering matters and used to be re-typed per helper: the rollback guard must
-/// be constructed BEFORE modal_configure() overwrites the shared subjects, or it
-/// snapshots the new dialog's own config and restores nothing. Four copies of
-/// that meant four chances to get it wrong, and one of them did. Here it is
-/// expressible once.
 lv_obj_t* build_confirmation(const char* title, const char* message, ModalSeverity severity,
                              const char* primary_text, const char* cancel_text, bool has_cancel,
                              std::function<void()> on_dismiss,
@@ -1568,14 +1440,11 @@ lv_obj_t* build_confirmation(const char* title, const char* message, ModalSeveri
         return nullptr;
     }
 
-    ModalConfigRollback rollback; // BEFORE configure - see above
-    helix::ui::modal_configure(severity, has_cancel,
-                               primary_text ? primary_text : "OK", // i18n: universal
-                               has_cancel ? (cancel_text ? cancel_text : lv_tr("Cancel"))
-                                          : nullptr);
-
-    auto owner = std::make_unique<ConfirmationModal>(title, message, std::move(on_dismiss),
-                                                     std::move(owner_token));
+    auto owner =
+        std::make_unique<ConfirmationModal>(title, message, severity,
+                                            primary_text ? primary_text : "OK", // i18n: universal
+                                            cancel_text ? cancel_text : lv_tr("Cancel"), has_cancel,
+                                            std::move(on_dismiss), std::move(owner_token));
     setup(*owner);
     if (!owner->show_dialog()) {
         spdlog::error("[Modal] Failed to create dialog: '{}'", title);
@@ -1587,7 +1456,6 @@ lv_obj_t* build_confirmation(const char* title, const char* message, ModalSeveri
     lv_obj_t* dialog = owner->dialog();
     lv_obj_t* backdrop = owner->backdrop();
     ModalStack::instance().assume_ownership(backdrop, std::move(owner));
-    rollback.commit();
     spdlog::debug("[Modal] Dialog shown: '{}'", title);
     return dialog;
 }

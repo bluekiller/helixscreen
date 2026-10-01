@@ -48,8 +48,7 @@ namespace {
 class FaultModalFixture : public XMLTestFixture {
   public:
     FaultModalFixture() {
-        // modal_configure() silently no-ops without these, leaving the button
-        // captions at their defaults — the app does this at startup.
+        // The app registers the modal callbacks at startup.
         helix::ui::modal_init_subjects();
         REQUIRE(register_component("modal_dialog"));
     }

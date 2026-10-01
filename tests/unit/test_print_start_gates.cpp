@@ -878,6 +878,7 @@ TEST_CASE("gate material_compatibility: names the gcode tool, not the physical l
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/print_start_controller_test_access.h"
+#include "../ui_test_utils.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
@@ -913,8 +914,7 @@ class GateRunnerFixture : public LVGLUITestFixture {
 
     GateRunnerFixture() {
         state.init_subjects(false);
-        // modal_configure() silently no-ops without these, leaving the button
-        // captions at their defaults - the app does this at startup.
+        // The app registers the modal callbacks at startup.
         helix::ui::modal_init_subjects();
         api = std::make_unique<MoonrakerAPIMock>(client, state);
         controller.set_api(api.get());
@@ -961,15 +961,8 @@ TEST_CASE("gate runner: proceed resumes at NEXT gate", "[print-start][gate-pipel
     CHECK(fx.cancelled == 0);
 }
 
-// Two Warn gates in a row is the chain that shipped the v0.99.118 ASan
-// overflow: gate N's modal_confirm parks result.proceed_label.c_str() - a
-// loop-local - in the shared caption subject, and gate N+1's modal_confirm
-// builds ModalConfigRollback, whose ctor snapshots that subject AFTER gate
-// N's iteration frame is gone. The suites only ever warned once per chain,
-// so nothing exercised the read. modal_configure() must copy captions into
-// storage the modal layer owns; the caption check below pins the visible
-// contract on top (the second dialog carries gate B's label, and a
-// same-address republish still notifies - LVGL skips nothing).
+// Gate captions are copied into the dialog, so the second warn shows gate B's
+// label even though gate A's loop-local label string is gone.
 TEST_CASE("gate runner: two chained warns - captions outlive the first gate's frame",
           "[print-start][gate-pipeline]") {
     GateRunnerFixture fx;
@@ -985,10 +978,8 @@ TEST_CASE("gate runner: two chained warns - captions outlive the first gate's fr
     REQUIRE(PrintStartControllerTestAccess::print_gate_modal(fx.controller) != nullptr);
     CHECK(PrintStartControllerTestAccess::gate_resume_index(fx.controller) == 1);
 
-    const char* primary = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_primary_text_subject()));
-    REQUIRE(primary != nullptr);
-    CHECK(std::string(primary) == "Proceed B");
+    CHECK(UITest::button_text(PrintStartControllerTestAccess::print_gate_modal(fx.controller),
+                              "btn_primary") == "Proceed B");
 }
 
 TEST_CASE("gate runner: cancel re-enables button and fires on_print_cancelled",
