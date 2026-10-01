@@ -19,6 +19,7 @@
 
 #include "moonraker_config_manager.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "system/moonraker_local_probe.h"
 
@@ -47,29 +48,15 @@ namespace helix::ui {
  * ## Usage:
  *
  * @code
- * auto& overlay = helix::ui::get_spoolman_overlay();
- * if (!overlay.are_subjects_initialized()) {
- *     overlay.init_subjects();
- *     overlay.register_callbacks();
- * }
- * overlay.show(parent_screen);
+ * helix::ui::get_spoolman_overlay().show(parent_screen);
  * @endcode
  */
 class SpoolmanOverlay : public OverlayBase {
   public:
     /**
-     * @brief Default constructor
-     */
-    SpoolmanOverlay();
-
-    /**
      * @brief Destructor
      */
     ~SpoolmanOverlay() override;
-
-    // Non-copyable
-    SpoolmanOverlay(const SpoolmanOverlay&) = delete;
-    SpoolmanOverlay& operator=(const SpoolmanOverlay&) = delete;
 
     //
     // === OverlayBase Interface ===
@@ -107,6 +94,15 @@ class SpoolmanOverlay : public OverlayBase {
         return "Spoolman";
     }
 
+    const char* xml_component() const override {
+        return "spoolman_settings";
+    }
+
+    /// The widget tree is large and only needed while the settings are open.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     /**
      * @brief Null widget pointers after destroy-on-close
      */
@@ -135,19 +131,6 @@ class SpoolmanOverlay : public OverlayBase {
     //
 
     /**
-     * @brief Show the overlay
-     *
-     * This method:
-     * 1. Ensures overlay is created (lazy init)
-     * 2. Loads current settings from Moonraker database
-     * 3. Updates subject values
-     * 4. Pushes overlay onto navigation stack
-     *
-     * @param parent_screen The parent screen for overlay creation
-     */
-    void show(lv_obj_t* parent_screen);
-
-    /**
      * @brief Refresh settings from Moonraker database
      *
      * Re-loads current values from the database and updates UI.
@@ -162,6 +145,10 @@ class SpoolmanOverlay : public OverlayBase {
     void set_api(IMoonrakerAPI* api) {
         api_ = api;
     }
+
+  protected:
+    /// Loads settings from the database and syncs the controls on every open.
+    void before_show() override;
 
   private:
     //
@@ -229,26 +216,6 @@ class SpoolmanOverlay : public OverlayBase {
     void set_poll_ref(bool want_ref);
 
     //
-    // === Static Callbacks ===
-    //
-
-    /**
-     * @brief Callback for sync toggle change
-     *
-     * Called when user toggles the sync enable switch.
-     * Saves setting to database and starts/stops polling.
-     */
-    static void on_sync_toggled(lv_event_t* e);
-
-    /**
-     * @brief Callback for interval dropdown change
-     *
-     * Called when user changes the polling interval.
-     * Saves setting to database.
-     */
-    static void on_interval_changed(lv_event_t* e);
-
-    //
     // === State ===
     //
 
@@ -310,16 +277,10 @@ class SpoolmanOverlay : public OverlayBase {
     static constexpr bool DEFAULT_SYNC_ENABLED = true;
     static constexpr int DEFAULT_REFRESH_INTERVAL_SECONDS = 30;
 
-#if HELIX_HAS_LABEL_PRINTER
-    // Label printer sub-panel launcher
-    static void on_label_printer_clicked(lv_event_t* e);
-#endif
-
     // === Barcode Scanner Picker ===
     lv_subject_t scanner_device_status_subject_;
     char scanner_status_buf_[64] = {0};
 
-    static void on_barcode_scanner_clicked(lv_event_t* e);
     void handle_barcode_scanner_clicked();
     void update_scanner_status_text();
 
@@ -500,10 +461,8 @@ class SpoolmanOverlay : public OverlayBase {
     void set_connecting(bool connecting);
 
     // === Server Setup Callbacks ===
-    static void on_connect_clicked(lv_event_t* e);
-    static void on_cancel_setup_clicked(lv_event_t* e);
-    static void on_change_clicked(lv_event_t* e);
-    static void on_remove_clicked(lv_event_t* e);
+    void handle_connect_clicked();
+    void handle_change_clicked();
 
     // === Server Setup Widgets ===
     lv_obj_t* host_input_ = nullptr;
@@ -517,14 +476,8 @@ class SpoolmanOverlay : public OverlayBase {
     friend class ::SpoolmanOverlayTestAccess;
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton SpoolmanOverlay
- */
-SpoolmanOverlay& get_spoolman_overlay();
+inline SpoolmanOverlay& get_spoolman_overlay() {
+    return lazy_global<SpoolmanOverlay>("SpoolmanOverlay");
+}
 
 } // namespace helix::ui
