@@ -3031,6 +3031,11 @@ void Application::setup_discovery_callbacks() {
                 });
             });
     }
+
+    // Plugin subscriptions ride the app's union subscription. The provider is a free
+    // function reading a process-wide registry, so it stays valid across plugin loads
+    // and needs no state of the plugin host's.
+    client->set_subscription_extras_provider(&helix::plugin::plugin_objects_union);
 #endif
 
     client->set_on_hardware_discovered([api, client, app](const helix::PrinterDiscovery& hardware) {
@@ -4883,6 +4888,9 @@ void Application::tear_down_printer_state() {
 #if HELIX_HAS_PLUGINS
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
+        // Before the plugin host goes: the registry's union stops being consulted, and
+        // the unload-time clears schedule no further refreshes.
+        m_moonraker->client()->set_subscription_extras_provider({});
     }
     m_plugin_watcher.reset();
     m_plugin_sync.reset();
@@ -5230,6 +5238,9 @@ void Application::shutdown() {
     // filelist handler must not outlive the driver it feeds.
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
+        // Before the plugin host goes: the registry's union stops being consulted, and
+        // the unload-time clears schedule no further refreshes.
+        m_moonraker->client()->set_subscription_extras_provider({});
     }
     m_plugin_watcher.reset();
     m_plugin_sync.reset();

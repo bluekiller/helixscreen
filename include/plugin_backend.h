@@ -48,9 +48,24 @@ struct PluginBackend {
     std::function<std::function<void()>(const std::string& notify_method,
                                         std::function<void(const json& msg)>)>
         on_notify;
+    /// Publishes `objects`, the plugin's merged printer.objects.subscribe map (object name
+    /// to null for every field or an array of field names). An empty object clears the
+    /// plugin's set. Main thread only.
+    std::function<void(const std::string& plugin_id, const json& objects)> set_plugin_objects;
 };
 
 PluginBackend make_app_backend();
+
+/// Sets one plugin's entry in the process-wide object registry behind
+/// make_app_backend's set_plugin_objects. An empty `objects` clears the entry. Both
+/// functions are thread-safe and never touch the Moonraker client.
+void publish_plugin_objects(const std::string& plugin_id, const json& objects);
+
+/// The union of every plugin's objects, merged with merge_subscription_objects. This is
+/// what the app installs as the client's subscription extras provider: it runs on the
+/// WebSocket thread while the client holds its internal mutex, so it only takes the
+/// registry's own lock and returns a copy.
+json plugin_objects_union();
 
 /// Where a plugin HTTP request may connect.
 struct HttpTarget {
