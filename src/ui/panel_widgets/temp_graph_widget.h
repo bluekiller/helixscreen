@@ -6,6 +6,7 @@
 #include "ui_breakpoint.h"
 #include "ui_modal.h"
 
+#include "async_lifetime_guard.h"
 #include "panel_widget.h"
 #include "temp_graph_controller.h"
 
@@ -93,15 +94,15 @@ class TempGraphWidget : public PanelWidget {
     ///
     /// Never rebuilds inline: the observer callback runs inside an UpdateQueue
     /// batch, and TempGraphController::detach() drains that same queue —
-    /// re-entrant process_pending is the #732 crash. lv_async_call runs from
+    /// re-entrant process_pending is the #732 crash. run_next_tick runs from
     /// lv_timer_handler, outside the batch.
     void schedule_discovery_rebuild();
 
-    /// lv_async_call trampoline for schedule_discovery_rebuild().
-    static void discovery_rebuild_async(void* self);
+    /// Body of the rebuild schedule_discovery_rebuild() queues.
+    void run_discovery_rebuild();
 
-    /// Cancel a queued discovery rebuild. Must run from both detach() and the
-    /// destructor, or the async fires on a freed `this`.
+    /// Cancel a queued discovery rebuild. Runs from detach(), so a recycled
+    /// instance does not rebuild on behalf of its previous attach.
     void cancel_discovery_rebuild();
 
     std::string instance_id_;
@@ -132,6 +133,7 @@ class TempGraphWidget : public PanelWidget {
 
     /// Coalesces repeated version bumps into a single queued rebuild.
     bool discovery_rebuild_pending_ = false;
+    helix::AsyncLifetimeGuard discovery_rebuild_guard_;
 
     /// Modal for sensor toggle + color picker configuration
     class TempGraphConfigModal : public Modal {

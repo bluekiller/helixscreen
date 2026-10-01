@@ -4,6 +4,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
+#include "ui_next_tick.h"
 #include "ui_pin_utils.h"
 #include "ui_utils.h"
 
@@ -93,7 +94,7 @@ void LockScreenOverlay::destroy_overlay() {
         if (dots) {
             lv_anim_delete(dots, nullptr);
         }
-        // Use lv_obj_delete_async — if called from an lv_async_call chain (e.g.,
+        // Use lv_obj_delete_async — if called from a next-tick chain (e.g.,
         // on_confirm → hide → destroy_overlay), synchronous deletion can corrupt
         // LVGL's event linked list in lv_event_mark_deleted (#543).
         lv_obj_delete_async(overlay_);
@@ -126,7 +127,7 @@ void LockScreenOverlay::on_digit(int digit) {
     // Auto-submit when max digits reached — defer to avoid UB if on_confirm()
     // destroys the overlay while we're still in on_digit()
     if (static_cast<int>(digit_buffer_.size()) == MAX_DIGITS) {
-        lv_async_call([](void*) { LockScreenOverlay::instance().on_confirm(); }, nullptr);
+        helix::ui::run_next_tick([]() { LockScreenOverlay::instance().on_confirm(); });
     }
 }
 
@@ -160,7 +161,7 @@ void LockScreenOverlay::on_confirm() {
     if (helix::LockManager::instance().try_unlock(digit_buffer_)) {
         spdlog::info("[LockScreen] Unlock successful");
         // Defer hide() to avoid deleting objects in input event handler
-        lv_async_call([](void*) { LockScreenOverlay::instance().hide(); }, nullptr);
+        helix::ui::run_next_tick([]() { LockScreenOverlay::instance().hide(); });
     } else {
         spdlog::info("[LockScreen] Wrong PIN entered");
         show_error("Wrong PIN");
@@ -209,7 +210,7 @@ void LockScreenOverlay::shake_dots() {
     if (!dots) {
         spdlog::warn("[LockScreen] lock_dots_container not found for shake animation");
         // Still clear digits after a delay
-        lv_async_call([](void*) { LockScreenOverlay::instance().clear_digits(); }, nullptr);
+        helix::ui::run_next_tick([]() { LockScreenOverlay::instance().clear_digits(); });
         return;
     }
 
@@ -227,7 +228,7 @@ void LockScreenOverlay::shake_dots() {
         // Reset translate after shake
         lv_obj_set_style_translate_x(static_cast<lv_obj_t*>(anim->var), 0, LV_PART_MAIN);
         // Clear digit buffer after animation — deferred so it runs on main thread
-        lv_async_call([](void*) { LockScreenOverlay::instance().clear_digits(); }, nullptr);
+        helix::ui::run_next_tick([]() { LockScreenOverlay::instance().clear_digits(); });
     });
     lv_anim_start(&a);
 

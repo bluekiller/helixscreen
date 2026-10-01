@@ -7,6 +7,7 @@
 #include "ui_error_reporting.h"
 #include "ui_heater_config.h"
 #include "ui_nav_manager.h"
+#include "ui_next_tick.h"
 #include "ui_temperature_utils.h"
 #include "ui_utils.h"
 
@@ -250,7 +251,7 @@ void TempGraphOverlay::on_activate() {
         if (controller_) {
             controller_->detach();
             auto* old = controller_.release();
-            lv_async_call([](void* p) { delete static_cast<helix::TempGraphController*>(p); }, old);
+            helix::ui::run_next_tick([old]() { delete old; });
         }
 
         helix::TempGraphControllerConfig cfg;

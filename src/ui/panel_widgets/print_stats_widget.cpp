@@ -4,6 +4,7 @@
 
 #include "ui_event_safety.h"
 #include "ui_filename_utils.h"
+#include "ui_next_tick.h"
 
 #include "app_globals.h"
 #include "i_moonraker_api.h"
@@ -191,18 +192,11 @@ void PrintStatsWidget::on_activate() {
     // ensure_covers_since(), not fetch(): fetch() means "the cached list is
     // wrong", so asking it for a populate while a request is already out
     // queues a second identical one.
-    auto token = lifetime_.token();
-    lv_async_call(
-        [](void* ctx) {
-            auto token_ptr = static_cast<helix::LifetimeToken*>(ctx);
-            if (!token_ptr->expired()) {
-                if (auto* history = get_print_history_manager()) {
-                    history->ensure_covers_since(week_ago_timestamp());
-                }
-            }
-            delete token_ptr;
-        },
-        new helix::LifetimeToken(token));
+    helix::ui::run_next_tick(lifetime_.token(), []() {
+        if (auto* history = get_print_history_manager()) {
+            history->ensure_covers_since(week_ago_timestamp());
+        }
+    });
 }
 
 void PrintStatsWidget::detach() {

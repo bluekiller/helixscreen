@@ -3,6 +3,7 @@
 
 #include "job_queue_widget.h"
 
+#include "ui_next_tick.h"
 #include "ui_utils.h"
 
 #include "app_globals.h"
@@ -99,30 +100,17 @@ void JobQueueWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             count_subj, this,
             [](JobQueueWidget* self, int /*count*/) {
                 // Defer rebuild (#80) AND use safe_clean_children inside
-                // rebuild_job_list (#776): lv_async_call moves the rebuild off
+                // rebuild_job_list (#776): run_next_tick moves the rebuild off
                 // the observer callback's stack, and safe_clean_children schedules
                 // child deletion via lv_obj_delete_async so sync lv_obj_clean()
                 // can't corrupt LVGL's event linked list.
                 if (!self->list_rebuild_pending_) {
                     self->list_rebuild_pending_ = true;
-                    struct RebuildCtx {
-                        helix::LifetimeToken token;
-                        JobQueueWidget* self;
-                    };
-                    auto* ctx = new RebuildCtx{self->lifetime_.token(), self};
-                    lv_async_call(
-                        [](void* data) {
-                            auto* ctx = static_cast<RebuildCtx*>(data);
-                            auto token = ctx->token;
-                            auto* widget = ctx->self;
-                            delete ctx;
-                            if (token.expired())
-                                return;
-                            widget->list_rebuild_pending_ = false;
-                            if (widget->job_list_container_)
-                                widget->rebuild_job_list();
-                        },
-                        ctx);
+                    helix::ui::run_next_tick(self->lifetime_.token(), [self]() {
+                        self->list_rebuild_pending_ = false;
+                        if (self->job_list_container_)
+                            self->rebuild_job_list();
+                    });
                 }
             },
             jqs ? jqs->get_subjects_lifetime() : SubjectLifetime{});
@@ -132,7 +120,7 @@ void JobQueueWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 }
 
 void JobQueueWidget::detach() {
-    // Invalidate lifetime guard so pending lv_async_call callbacks become no-ops
+    // Invalidate lifetime guard so pending next-tick callbacks become no-ops
     lifetime_.invalidate();
 
     if (lv_is_initialized()) {

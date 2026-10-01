@@ -1699,9 +1699,10 @@ void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
                 s.pending = true;
                 // Stable user_data — no allocation in the hot path. Avoids
                 // std::bad_alloc → terminate → SIGABRT on memory-tight AD5X
-                // ([L083] family). lv_async_call escapes the UpdateQueue
-                // batch per CLAUDE.md "safe escape routes".
-                lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &s);
+                // ([L083] family), which is why this is raw lv_async_call
+                // and not run_next_tick. It escapes the UpdateQueue batch
+                // per CLAUDE.md "safe escape routes".
+                lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &s); // LV_ASYNC_OK
             },
             gate_lifetime));
         spdlog::trace("[PanelWidgetManager] Observing gate subject '{}' for panel '{}'", name,
@@ -1746,7 +1747,7 @@ void PanelWidgetManager::notify_widget_defs_changed() {
         if (slot.pending)
             continue;
         slot.pending = true;
-        lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &slot);
+        lv_async_call(&PanelWidgetManager::gate_rebuild_trampoline, &slot); // LV_ASYNC_OK
     }
 }
 
