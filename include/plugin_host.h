@@ -82,11 +82,6 @@ class PluginHost {
         return plugins_;
     }
 
-    /// The directory the last load_from scanned.
-    const std::string& dir() const {
-        return dir_;
-    }
-
     /// Grants the manifest's current permissions and loads the plugin.
     bool enable(const std::string& id);
     void disable(const std::string& id);
