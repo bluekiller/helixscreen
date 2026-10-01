@@ -109,7 +109,7 @@ lv_obj_t* CfsChuteCalibrationOverlay::create(lv_obj_t* parent) {
     // Live toolhead Y: the save step writes whatever position the head is in,
     // so the readout is the value being calibrated.
     auto& ps = get_printer_state();
-    y_observer_ = observe_int_sync<CfsChuteCalibrationOverlay>(
+    y_observer_ = observe<int>(
         ps.get_position_y_subject(), this,
         [](CfsChuteCalibrationOverlay* self, int centimm) { self->update_y_display(centimm); },
         ps.get_subjects_lifetime());

@@ -234,7 +234,7 @@ class UpdateQueue {
      * @brief Process all pending callbacks immediately
      *
      * Call before destroying objects that may be referenced by queued callbacks.
-     * Deferred observer callbacks (from observe_int_sync) capture raw panel
+     * Deferred observer callbacks (from observe<int>) capture raw panel
      * pointers; if those callbacks run after the panel is destroyed, they
      * crash with use-after-free. Draining the queue while pointers are still
      * valid ensures those callbacks execute safely.

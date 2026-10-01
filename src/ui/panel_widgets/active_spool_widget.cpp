@@ -79,7 +79,7 @@ void ActiveSpoolWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     auto token = lifetime_.token();
 
     // External spool changes
-    spool_color_observer_ = helix::ui::observe_int_sync<ActiveSpoolWidget>(
+    spool_color_observer_ = helix::ui::observe<int>(
         AmsState::instance().get_external_spool_color_subject(), this,
         [token](ActiveSpoolWidget* self, int /*color*/) {
             if (token.expired())
@@ -89,7 +89,7 @@ void ActiveSpoolWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         AmsState::instance().get_subjects_lifetime());
 
     // AMS backend active slot changes
-    current_slot_observer_ = helix::ui::observe_int_sync<ActiveSpoolWidget>(
+    current_slot_observer_ = helix::ui::observe<int>(
         AmsState::instance().get_current_slot_subject(), this,
         [token](ActiveSpoolWidget* self, int /*slot*/) {
             if (token.expired())
@@ -99,7 +99,7 @@ void ActiveSpoolWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         AmsState::instance().get_subjects_lifetime());
 
     // AMS slot info changes (material/color edits)
-    slots_version_observer_ = helix::ui::observe_int_sync<ActiveSpoolWidget>(
+    slots_version_observer_ = helix::ui::observe<int>(
         AmsState::instance().get_slots_version_subject(), this,
         [token](ActiveSpoolWidget* self, int /*version*/) {
             if (token.expired())

@@ -53,7 +53,7 @@ void seed_preprint_phase(helix::PrintStartPhase phase) {
 /// Run the production wake path to completion. Two drains, because it is two
 /// hops: the queued AmsState::on_backend_event bodies sync the backend and bump
 /// ams_data_revision, and the observers that notification fires are themselves
-/// deferred back onto the queue by observe_int_sync.
+/// deferred back onto the queue by observe<int>.
 void settle_backend_events() {
     helix::ui::UpdateQueue::instance().drain();
     helix::ui::UpdateQueue::instance().drain();
@@ -67,12 +67,12 @@ class ActionRecorder {
         // Immediate rather than deferred: recording a published value must not
         // itself be reordered against the drains the tests count on. It only
         // appends, so it touches no observer lifecycle.
-        guard_ = helix::ui::observe_int_immediate<ActionRecorder>(
+        guard_ = helix::ui::observe<int>(
             subject, this,
             [](ActionRecorder* self, int value) {
                 self->seen_.push_back(static_cast<AmsAction>(value));
             },
-            AmsState::instance().get_subjects_lifetime());
+            AmsState::instance().get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
     }
 
     [[nodiscard]] bool saw(AmsAction action) const {

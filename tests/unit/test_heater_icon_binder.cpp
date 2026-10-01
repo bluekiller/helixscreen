@@ -217,7 +217,7 @@ TEST_CASE_METHOD(
     REQUIRE(binder.bind(root, state(), HeaterType::Nozzle));
     REQUIRE(lv_color_eq(icon_text_color(icon), expected_color(250, 0)));
 
-    // observe_int_sync() defers its handler through queue_update() — the icon
+    // observe<int>() defers its handler through queue_update() — the icon
     // must NOT change before a drain.
     lv_subject_set_int(target, 2000); // Heating
     REQUIRE(lv_color_eq(icon_text_color(icon), expected_color(250, 0)));
@@ -307,7 +307,7 @@ TEST_CASE_METHOD(XMLTestFixture,
                  "HeaterIconBinder: bed/chamber SubjectLifetime tokens survive subject teardown",
                  "[heater_binder]") {
     // bind() on Bed/Chamber must pass its SubjectLifetime token into
-    // observe_int_sync() (CLAUDE.md invariant #4, issue #705): if it doesn't,
+    // observe<int>() (CLAUDE.md invariant #4, issue #705): if it doesn't,
     // the ObserverGuard has no way to know the subject died, and reset()
     // below would call lv_observer_remove() on memory that
     // PrinterTemperatureState::deinit_subjects() already freed via

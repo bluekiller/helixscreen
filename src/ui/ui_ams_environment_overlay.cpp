@@ -375,8 +375,7 @@ void AmsEnvironmentOverlay::on_activate() {
     // and the system dryer subjects directly; each re-pulls via refresh() on change.
     // update_from_backend() only writes subject strings/ints — no synchronous widget
     // deletion — so running it inside the deferred observer callbacks is safe.
-    using helix::ui::observe_int_sync;
-    using helix::ui::observe_string;
+    using helix::ui::observe;
     auto& ams = AmsState::instance();
 
     auto refresh_if_visible = [](AmsEnvironmentOverlay* self) {
@@ -386,7 +385,7 @@ void AmsEnvironmentOverlay::on_activate() {
     };
 
     if (auto* s = ams.get_env_ind_temp_text_subject(acting_unit_index())) {
-        env_temp_observer_ = observe_string<AmsEnvironmentOverlay>(
+        env_temp_observer_ = observe<const char*>(
             s, this,
             [refresh_if_visible](AmsEnvironmentOverlay* self, const char*) {
                 refresh_if_visible(self);
@@ -394,7 +393,7 @@ void AmsEnvironmentOverlay::on_activate() {
             ams.get_subjects_lifetime());
     }
     if (auto* s = ams.get_env_ind_humidity_text_subject(acting_unit_index())) {
-        env_humidity_observer_ = observe_string<AmsEnvironmentOverlay>(
+        env_humidity_observer_ = observe<const char*>(
             s, this,
             [refresh_if_visible](AmsEnvironmentOverlay* self, const char*) {
                 refresh_if_visible(self);
@@ -402,13 +401,13 @@ void AmsEnvironmentOverlay::on_activate() {
             ams.get_subjects_lifetime());
     }
     if (auto* s = ams.get_dryer_active_subject()) {
-        dryer_active_observer_ = observe_int_sync<AmsEnvironmentOverlay>(
+        dryer_active_observer_ = observe<int>(
             s, this,
             [refresh_if_visible](AmsEnvironmentOverlay* self, int) { refresh_if_visible(self); },
             ams.get_subjects_lifetime());
     }
     if (auto* s = ams.get_dryer_current_temp_subject()) {
-        dryer_temp_observer_ = observe_int_sync<AmsEnvironmentOverlay>(
+        dryer_temp_observer_ = observe<int>(
             s, this,
             [refresh_if_visible](AmsEnvironmentOverlay* self, int) { refresh_if_visible(self); },
             ams.get_subjects_lifetime());

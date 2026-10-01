@@ -266,7 +266,7 @@ lv_obj_t* AmsDeviceOperationsOverlay::create(lv_obj_t* parent) {
     section_list_container_ =
         helix::ui::find_required(overlay_root_, "section_list_container", get_name());
 
-    action_observer_ = observe_int_sync<AmsDeviceOperationsOverlay>(
+    action_observer_ = observe<int>(
         AmsState::instance().get_ams_action_subject(), this,
         [](AmsDeviceOperationsOverlay* self, int) { self->update_abort_available(); },
         AmsState::instance().get_subjects_lifetime());

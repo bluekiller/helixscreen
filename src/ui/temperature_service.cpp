@@ -41,7 +41,7 @@
 #include <string>
 
 using namespace helix;
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 using helix::ui::temperature::deci_to_degrees_f;
 
 // ============================================================================
@@ -130,33 +130,33 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     // Subscribe to temperature subjects with individual ObserverGuards.
     // Nozzle observers are separate so they can be rebound when switching
     // extruders in multi-extruder setups (bed/chamber observers stay constant).
-    nozzle.temp_observer = observe_int_sync<TemperatureService>(
+    nozzle.temp_observer = observe<int>(
         printer_state_.get_active_extruder_temp_subject(), this,
         [](TemperatureService* self, int temp) { self->on_temp_changed(HeaterType::Nozzle, temp); },
         printer_state_.get_subjects_lifetime());
-    nozzle.target_observer = observe_int_sync<TemperatureService>(
+    nozzle.target_observer = observe<int>(
         printer_state_.get_active_extruder_target_subject(), this,
         [](TemperatureService* self, int target) {
             self->on_target_changed(HeaterType::Nozzle, target);
         },
         printer_state_.get_subjects_lifetime());
-    bed.temp_observer = observe_int_sync<TemperatureService>(
+    bed.temp_observer = observe<int>(
         printer_state_.get_bed_temp_subject(bed.temp_lifetime), this,
         [](TemperatureService* self, int temp) { self->on_temp_changed(HeaterType::Bed, temp); },
         bed.temp_lifetime);
-    bed.target_observer = observe_int_sync<TemperatureService>(
+    bed.target_observer = observe<int>(
         printer_state_.get_bed_target_subject(bed.target_lifetime), this,
         [](TemperatureService* self, int target) {
             self->on_target_changed(HeaterType::Bed, target);
         },
         bed.target_lifetime);
-    chamber.temp_observer = observe_int_sync<TemperatureService>(
+    chamber.temp_observer = observe<int>(
         printer_state_.get_chamber_temp_subject(chamber.temp_lifetime), this,
         [](TemperatureService* self, int temp) {
             self->on_temp_changed(HeaterType::Chamber, temp);
         },
         chamber.temp_lifetime);
-    chamber.target_observer = observe_int_sync<TemperatureService>(
+    chamber.target_observer = observe<int>(
         printer_state_.get_chamber_target_subject(chamber.target_lifetime), this,
         [](TemperatureService* self, int target) {
             self->on_target_changed(HeaterType::Chamber, target);
@@ -165,7 +165,7 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     // M141 cooling mode parks the ≤40°C setpoint on the cooling-fan target while
     // the heater target stays 0. Observe it too so the effective chamber setpoint
     // reflects "Maintaining" sets. recompute_chamber_target() reads BOTH subjects.
-    chamber.fan_target_observer = observe_int_sync<TemperatureService>(
+    chamber.fan_target_observer = observe<int>(
         printer_state_.get_chamber_fan_target_subject(chamber.fan_target_lifetime), this,
         [](TemperatureService* self, int /*fan_target*/) { self->recompute_chamber_target(); },
         chamber.fan_target_lifetime);
@@ -480,7 +480,7 @@ void TemperatureService::select_extruder(const std::string& name) {
     auto* target_subj = printer_state_.get_extruder_target_subject(name, target_lt);
 
     if (temp_subj) {
-        nozzle.temp_observer = observe_int_sync<TemperatureService>(
+        nozzle.temp_observer = observe<int>(
             temp_subj, this,
             [](TemperatureService* self, int temp) {
                 self->on_temp_changed(HeaterType::Nozzle, temp);
@@ -489,7 +489,7 @@ void TemperatureService::select_extruder(const std::string& name) {
         nozzle.current = lv_subject_get_int(temp_subj);
     }
     if (target_subj) {
-        nozzle.target_observer = observe_int_sync<TemperatureService>(
+        nozzle.target_observer = observe<int>(
             target_subj, this,
             [](TemperatureService* self, int target) {
                 self->on_target_changed(HeaterType::Nozzle, target);

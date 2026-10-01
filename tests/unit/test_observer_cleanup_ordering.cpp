@@ -79,7 +79,7 @@ class MockPanel {
     }
 
     void init_observers() {
-        observer_a_ = observe_int_sync<MockPanel>(
+        observer_a_ = observe<int>(
             &subject_, this,
             [](MockPanel* self, int /*val*/) {
                 if (!self->active_ || !self->widget_a_)
@@ -90,7 +90,7 @@ class MockPanel {
             },
             subject_never_freed());
 
-        observer_b_ = observe_int_sync<MockPanel>(
+        observer_b_ = observe<int>(
             &subject_, this,
             [](MockPanel* self, int /*val*/) {
                 if (!self->active_ || !self->widget_b_)
@@ -345,7 +345,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "Observer cleanup: subjects_initialized flag p
         }
 
         void init_observers() {
-            action_observer_ = observe_int_sync<AmsPanelLike>(
+            action_observer_ = observe<int>(
                 &subject_, this,
                 [](AmsPanelLike* self, int /*val*/) {
                     if (!self->subjects_initialized_ || !self->panel_)
@@ -456,7 +456,7 @@ class MockHomePanel {
 
     void init_observers() {
         // on_extruder_temp_changed pattern
-        temp_observer_ = observe_int_sync<MockHomePanel>(
+        temp_observer_ = observe<int>(
             &temp_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -466,7 +466,7 @@ class MockHomePanel {
             subject_never_freed());
 
         // on_extruder_target_changed pattern
-        target_observer_ = observe_int_sync<MockHomePanel>(
+        target_observer_ = observe<int>(
             &target_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -476,7 +476,7 @@ class MockHomePanel {
             subject_never_freed());
 
         // on_print_state_changed pattern (guards with subjects_initialized_ + widget)
-        state_observer_ = observe_int_sync<MockHomePanel>(
+        state_observer_ = observe<int>(
             &state_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_ || !self->print_card_thumb_ ||
@@ -487,7 +487,7 @@ class MockHomePanel {
             subject_never_freed());
 
         // on_print_progress_or_time_changed pattern
-        progress_observer_ = observe_int_sync<MockHomePanel>(
+        progress_observer_ = observe<int>(
             &progress_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -497,7 +497,7 @@ class MockHomePanel {
             subject_never_freed());
 
         // on_print_thumbnail_path_changed pattern
-        thumbnail_observer_ = observe_int_sync<MockHomePanel>(
+        thumbnail_observer_ = observe<int>(
             &thumbnail_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_ || !self->print_card_thumb_)
@@ -507,7 +507,7 @@ class MockHomePanel {
             subject_never_freed());
 
         // on_led_state_changed pattern
-        led_observer_ = observe_int_sync<MockHomePanel>(
+        led_observer_ = observe<int>(
             &led_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -517,7 +517,7 @@ class MockHomePanel {
             subject_never_freed());
 
         // refresh_printer_image pattern (guards with subjects_initialized_ + panel_)
-        printer_image_observer_ = observe_int_sync<MockHomePanel>(
+        printer_image_observer_ = observe<int>(
             &printer_image_subject_, this,
             [](MockHomePanel* self, int /*val*/) {
                 if (!self->subjects_initialized_ || !self->panel_)
@@ -708,7 +708,7 @@ class MockTemperatureService {
 
     void init_observers() {
         // on_temp_changed pattern — guards after throttle logic
-        temp_observer_ = observe_int_sync<MockTemperatureService>(
+        temp_observer_ = observe<int>(
             &temp_subject_, this,
             [](MockTemperatureService* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -718,7 +718,7 @@ class MockTemperatureService {
             subject_never_freed());
 
         // on_target_changed pattern
-        target_observer_ = observe_int_sync<MockTemperatureService>(
+        target_observer_ = observe<int>(
             &target_subject_, this,
             [](MockTemperatureService* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -728,7 +728,7 @@ class MockTemperatureService {
             subject_never_freed());
 
         // rebuild_extruder_segments_impl / select_extruder pattern
-        extruder_observer_ = observe_int_sync<MockTemperatureService>(
+        extruder_observer_ = observe<int>(
             &extruder_subject_, this,
             [](MockTemperatureService* self, int /*val*/) {
                 if (!self->subjects_initialized_)
@@ -873,7 +873,7 @@ class MockAnimator {
 
     void attach(lv_obj_t* icon) {
         icon_ = icon;
-        theme_observer_ = observe_int_sync<MockAnimator>(
+        theme_observer_ = observe<int>(
             &theme_subject_, this,
             [](MockAnimator* self, int /*val*/) {
                 if (!self->icon_)
@@ -1024,7 +1024,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     struct DummyPanel {
         int count = 0;
     } panel;
-    ObserverGuard guard_a = observe_int_sync<DummyPanel>(
+    ObserverGuard guard_a = observe<int>(
         &subject, &panel, [](DummyPanel* self, int) { self->count++; }, service_a_lifetime);
     drain();
 
@@ -1059,7 +1059,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "SubjectLifetime: guard still removes when sub
     struct DummyPanel {
         int count = 0;
     } panel;
-    ObserverGuard guard = observe_int_sync<DummyPanel>(
+    ObserverGuard guard = observe<int>(
         &subject, &panel, [](DummyPanel* self, int) { self->count++; }, observer_lifetime);
     drain();
 
@@ -1132,7 +1132,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
         int count = 0;
     } panel;
 
-    ObserverGuard guard = observe_int_sync<DummyPanel>(
+    ObserverGuard guard = observe<int>(
         &subject, &panel, [](DummyPanel* self, int) { self->count++; }, subject_never_freed());
     drain();
 

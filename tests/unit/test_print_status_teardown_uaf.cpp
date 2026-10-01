@@ -6,7 +6,7 @@
  *
  * PrintStatusPanel caches raw pointers into a widget tree whose lifetime it does
  * not own, and every PrinterState observer it registers lands as a queued
- * observe_int_sync lambda. The TSan nightly (08-30 and 08-31) died in exactly
+ * observe<int> lambda. The TSan nightly (08-30 and 08-31) died in exactly
  * that gap: a queued print-start-progress apply drained from a fixture
  * destructor AFTER lv_obj_delete(root) had freed the tree, so
  * on_print_start_progress_changed() ran lv_bar_set_value() on the freed
@@ -138,7 +138,7 @@ TEST_CASE_METHOD(
     "[print_status][teardown][uaf]") {
     REQUIRE(PrintStatusPanelTestAccess::preparing_progress_widget(panel()) != nullptr);
 
-    // A print-start-progress change fires the panel's observe_int_sync observer
+    // A print-start-progress change fires the panel's observe<int> observer
     // synchronously; the handler itself is queued. This is the pending lambda
     // the nightly drained after the tree was already gone.
     lv_subject_set_int(state().get_print_start_progress_subject(), 42);

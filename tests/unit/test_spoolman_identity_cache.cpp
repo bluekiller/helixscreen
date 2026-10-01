@@ -297,7 +297,7 @@ TEST_CASE_METHOD(IdentityCacheFixture,
     // must drop the cache, or a printer switch would keep serving names from the
     // previous Spoolman.
     lv_subject_set_int(&availability, 0);
-    drain(); // observe_int_sync() defers its handler through the UpdateQueue
+    drain(); // observe<int>() defers its handler through the UpdateQueue
 
     CHECK_FALSE(SpoolmanManager::find_identity(1).has_value());
     CHECK_FALSE(SpoolmanManager::is_identity_unresolvable(2));

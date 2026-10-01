@@ -244,11 +244,10 @@ void PACalibrationPanel::on_activate() {
     // The chips must show what is actually mounted. A toolchange started from
     // here takes ~20s and is confirmed by the printer, not by the tap, so the
     // selection follows ToolState rather than leading it.
-    // The lifetime is mandatory, not optional: observe_* takes it as a
-    // defaulted parameter, so omitting it is silent - the guard never learns
-    // the subject died and reset() then touches freed memory (#705).
+    // The lifetime is mandatory: without the subject owner's token the guard
+    // never learns the subject died and reset() touches freed memory (#705).
     auto& tool_state = helix::ToolState::instance();
-    active_tool_observer_ = helix::ui::observe_int_sync<PACalibrationPanel>(
+    active_tool_observer_ = helix::ui::observe<int>(
         tool_state.get_active_tool_subject(), this,
         [](PACalibrationPanel* self, int) { self->refresh_tools(); },
         tool_state.get_subjects_lifetime());
@@ -668,7 +667,7 @@ void PACalibrationPanel::start_heat_tracking() {
     heat_start_temp_ = helix::ui::temperature::deci_to_degrees_f(lv_subject_get_int(temp_subj));
     phase_start_tick_ms_ = lv_tick_get();
 
-    temp_observer_ = helix::ui::observe_int_sync<PACalibrationPanel>(
+    temp_observer_ = helix::ui::observe<int>(
         temp_subj, this, [](PACalibrationPanel* self, int value) { self->on_nozzle_temp(value); },
         temp_lifetime_);
 

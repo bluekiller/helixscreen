@@ -171,7 +171,7 @@ HTTP_CB_ENTRY_RE = re.compile(
 # Plain (non-critical) defer/queue_update inside a register lambda.
 # Match `tok.defer(`, `token.defer(`, `lifetime_.defer(`, and
 # `helix::ui::queue_update(` — but NOT their `_critical` variants. We
-# intentionally exclude observe_int_sync / observe_string callbacks because
+# intentionally exclude observe<int> / observe<const char*> callbacks because
 # those already fire on the main thread (no marshal needed).
 PLAIN_DEFER_RE = re.compile(
     r'\b(?:tok|token|lifetime_)\s*\.\s*defer\s*\('
@@ -505,7 +505,7 @@ def staged_files() -> list[Path]:
 
 # Directories scanned for Mechanism C (bg-thread tok.expired() + member access).
 # src/ui/ is intentionally excluded because observer callbacks (queue_update +
-# observe_int_sync) run on the main thread, where `tok.expired()` is fine —
+# observe<int>) run on the main thread, where `tok.expired()` is fine —
 # the script can't tell observer cbs from HTTP cbs without AST-level context.
 DEFAULT_SCAN_DIRS = (
     'src/printer',

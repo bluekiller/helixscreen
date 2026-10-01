@@ -218,11 +218,10 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
             self->update_visual_states();
         };
 
-        excluded_version_obs_ = observe_int_sync<ExcludeObjectMapView>(
-            state_->get_excluded_objects_version_subject(), this, rebuild_handler,
-            state_->get_subjects_lifetime());
+        excluded_version_obs_ = observe<int>(state_->get_excluded_objects_version_subject(), this,
+                                             rebuild_handler, state_->get_subjects_lifetime());
 
-        defined_version_obs_ = observe_int_sync<ExcludeObjectMapView>(
+        defined_version_obs_ = observe<int>(
             state_->get_defined_objects_version_subject(), this,
             [](ExcludeObjectMapView* self, int) {
                 if (!self->root_)
@@ -314,7 +313,7 @@ void ExcludeObjectMapView::build_object_rects() {
     if (!object_container_ || !state_ || !mapper_)
         return;
 
-    // build_object_rects runs from defined_version_obs_ (observe_int_sync,
+    // build_object_rects runs from defined_version_obs_ (observe<int>,
     // deferred via UpdateQueue) — sync clean inside that batch corrupts
     // LVGL's event linked list (#878). Use the async-clean helper. [L081]
     lv_obj_update_layout(object_container_);

@@ -656,6 +656,7 @@ class FilamentPanel : public PanelBase {
     /// (set_preset_filament), then refreshes labels/temps/highlight to reflect it.
     void apply_preset_pick(int slot, const helix::printer::EffectiveFilament& ef);
     void update_all_temps();       ///< Unified handler for temp observer bundle
+    void defer_temps_update();     ///< Queues update_all_temps() behind the cached values
     void check_pending_preheat();  ///< Called from update_all_temps()
     void cancel_pending_preheat(); ///< Reset preheat state + notify
     struct PreheatTempResult {

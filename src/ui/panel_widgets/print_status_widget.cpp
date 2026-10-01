@@ -234,10 +234,9 @@ PrintStatusWidget::~PrintStatusWidget() {
 }
 
 void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
-    using helix::ui::observe_int_immediate;
-    using helix::ui::observe_int_sync;
+    using helix::ui::Dispatch;
+    using helix::ui::observe;
     using helix::ui::observe_print_lifecycle;
-    using helix::ui::observe_string_immediate;
 
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
@@ -301,39 +300,39 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         },
         printer_state_.get_subjects_lifetime());
 
-    // Use observe_string_immediate: the thumbnail handler only calls lv_image_set_src
+    // Use Dispatch::Immediate: the thumbnail handler only calls lv_image_set_src
     // (no observer lifecycle changes), and set_print_thumbnail is always called
     // from the UI thread via queue_update. Immediate avoids the double-deferral that
     // caused stale reads when the subject changed between notification and handler.
-    print_thumbnail_path_observer_ = observe_string_immediate<PrintStatusWidget>(
+    print_thumbnail_path_observer_ = observe<const char*>(
         printer_state_.get_print_thumbnail_path_subject(), this,
         [](PrintStatusWidget* self, const char* path) {
             if (!self->widget_obj_)
                 return;
             self->on_print_thumbnail_path_changed(path);
         },
-        printer_state_.get_subjects_lifetime());
+        printer_state_.get_subjects_lifetime(), Dispatch::Immediate);
 
 #if defined(HELIX_PLATFORM_ESP32)
     // ESP32 has no disk thumbnail cache, so print_thumbnail_path stays empty and
     // the image arrives as a PSRAM buffer instead. Observe the generation counter
-    // ActivePrintMediaManager bumps when it installs one. observe_int_immediate
+    // ActivePrintMediaManager bumps when it installs one. observe<int>
     // for the same reason as the path observer above: the handler only does
     // lv_image_set_src plus a shared_ptr swap (no observer lifecycle changes, no
     // widget destruction), and the setter always runs on the UI thread — so the
     // extra deferral would only add a frame and a stale-read window.
-    print_psram_thumb_observer_ = observe_int_immediate<PrintStatusWidget>(
+    print_psram_thumb_observer_ = observe<int>(
         printer_state_.get_print_psram_thumb_gen_subject(), this,
         [](PrintStatusWidget* self, int /*gen*/) {
             if (!self->widget_obj_)
                 return;
             self->apply_esp_psram_thumbnail();
         },
-        printer_state_.get_subjects_lifetime());
+        printer_state_.get_subjects_lifetime(), Dispatch::Immediate);
 #endif
 
     auto& fsm = helix::FilamentSensorManager::instance();
-    filament_runout_observer_ = observe_int_sync<PrintStatusWidget>(
+    filament_runout_observer_ = observe<int>(
         fsm.get_any_runout_subject(), this,
         [](PrintStatusWidget* self, int any_runout) {
             if (!self->widget_obj_)
@@ -352,7 +351,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     auto* jq_count_subj = lv_xml_get_subject(nullptr, "job_queue_count");
     auto* jqs = get_job_queue_state();
     if (jq_count_subj) {
-        job_queue_count_observer_ = helix::ui::observe_int_sync<PrintStatusWidget>(
+        job_queue_count_observer_ = helix::ui::observe<int>(
             jq_count_subj, this,
             [](PrintStatusWidget* self, int /*count*/) {
                 if (!self->widget_obj_)
@@ -392,7 +391,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // Observe connection state to fetch history once connected (widget may
     // attach before the WebSocket connection is established)
-    connection_observer_ = helix::ui::observe_int_sync<PrintStatusWidget>(
+    connection_observer_ = helix::ui::observe<int>(
         printer_state_.get_printer_connection_state_subject(), this,
         [](PrintStatusWidget* /*self*/, int state) {
             if (state == static_cast<int>(ConnectionState::CONNECTED)) {
@@ -439,7 +438,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Re-run visibility when the breakpoint changes so the 'Print Library' header
     // hides on shrink-to-micro and returns on grow-past-micro.
     if (auto* bp_subj = theme_manager_get_breakpoint_subject()) {
-        breakpoint_observer_ = observe_int_sync<PrintStatusWidget>(
+        breakpoint_observer_ = observe<int>(
             bp_subj, this,
             [](PrintStatusWidget* self, int /*bp*/) {
                 if (self->widget_obj_)
@@ -1886,7 +1885,7 @@ void PrintStatusWidget::DetailedFormatter::update_nozzle_text() {
 
 bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
     const std::string& override_name) {
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     auto& ps = get_printer_state();
 
     // Skip rebind when the override hasn't changed — avoids needless
@@ -1905,11 +1904,11 @@ bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
 
     auto bind_auto = [&]() {
         current_nozzle_override_ = "auto";
-        nozzle_temp_observer_ = observe_int_sync<DetailedFormatter>(
+        nozzle_temp_observer_ = observe<int>(
             ps.get_active_extruder_temp_subject(), this,
             [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
             ps.get_subjects_lifetime());
-        nozzle_target_observer_ = observe_int_sync<DetailedFormatter>(
+        nozzle_target_observer_ = observe<int>(
             ps.get_active_extruder_target_subject(), this,
             [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
             ps.get_subjects_lifetime());
@@ -1939,10 +1938,10 @@ bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
     // Per-extruder subjects are dynamic — the lifetime token must be handed to the
     // observer too, or its guard never learns the subject was deinitialized when
     // PrinterTemperatureState::init_extruders() re-runs on heater rediscovery (#705).
-    nozzle_temp_observer_ = observe_int_sync<DetailedFormatter>(
+    nozzle_temp_observer_ = observe<int>(
         temp_sub, this, [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         nozzle_temp_lifetime_);
-    nozzle_target_observer_ = observe_int_sync<DetailedFormatter>(
+    nozzle_target_observer_ = observe<int>(
         tgt_sub, this, [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         nozzle_target_lifetime_);
     update_nozzle_text();
@@ -2122,23 +2121,23 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
         s_formatter_->subjects_.deinit_all();
     });
 
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     auto& ps = get_printer_state();
-    layer_current_observer_ = observe_int_sync<DetailedFormatter>(
+    layer_current_observer_ = observe<int>(
         ps.get_print_layer_current_subject(), this,
         [](DetailedFormatter* self, int) { self->update_layer_text(); },
         ps.get_subjects_lifetime());
-    layer_total_observer_ = observe_int_sync<DetailedFormatter>(
+    layer_total_observer_ = observe<int>(
         ps.get_print_layer_total_subject(), this,
         [](DetailedFormatter* self, int) { self->update_layer_text(); },
         ps.get_subjects_lifetime());
-    elapsed_observer_ = observe_int_sync<DetailedFormatter>(
+    elapsed_observer_ = observe<int>(
         ps.get_print_elapsed_subject(), this,
         [](DetailedFormatter* self, int) { self->update_time_text(); }, ps.get_subjects_lifetime());
-    time_left_observer_ = observe_int_sync<DetailedFormatter>(
+    time_left_observer_ = observe<int>(
         ps.get_print_time_left_subject(), this,
         [](DetailedFormatter* self, int) { self->update_time_text(); }, ps.get_subjects_lifetime());
-    filament_used_observer_ = observe_int_sync<DetailedFormatter>(
+    filament_used_observer_ = observe<int>(
         ps.get_print_filament_used_subject(), this,
         [](DetailedFormatter* self, int) { self->update_filament_text(); },
         ps.get_subjects_lifetime());
@@ -2147,11 +2146,11 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
     // PrinterState, but its lifetime token still has to be handed over — the
     // guard is what learns the subjects died when PrinterState deinits, instead
     // of leaving that to StaticSubjectRegistry ordering.
-    nozzle_temp_observer_ = observe_int_sync<DetailedFormatter>(
+    nozzle_temp_observer_ = observe<int>(
         ps.get_active_extruder_temp_subject(), this,
         [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         ps.get_subjects_lifetime());
-    nozzle_target_observer_ = observe_int_sync<DetailedFormatter>(
+    nozzle_target_observer_ = observe<int>(
         ps.get_active_extruder_target_subject(), this,
         [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         ps.get_subjects_lifetime());
@@ -2168,14 +2167,14 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
     // Multi-extruder: observe the tool-list version + active_tool to drive the
     // gate and the T<n> label. tools_version bumps on every tool-list rebuild,
     // including the ones that leave the count alone.
-    tools_version_observer_ = observe_int_sync<DetailedFormatter>(
+    tools_version_observer_ = observe<int>(
         ToolState::instance().get_tools_version_subject(), this,
         [](DetailedFormatter* self, int) {
             self->update_multi_tool();
             self->update_tool_label();
         },
         ToolState::instance().get_subjects_lifetime());
-    active_tool_observer_ = observe_int_sync<DetailedFormatter>(
+    active_tool_observer_ = observe<int>(
         ToolState::instance().get_active_tool_subject(), this,
         [](DetailedFormatter* self, int) { self->update_tool_label(); },
         ToolState::instance().get_subjects_lifetime());

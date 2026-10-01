@@ -472,7 +472,7 @@ TEST_CASE_METHOD(TempGraphOverlayPickFixture,
 TEST_CASE_METHOD(TempGraphOverlayPickFixture,
                  "TempGraphOverlay: activation settles - the update queue drains to empty",
                  "[temp_graph_overlay][active-extruder]") {
-    // lv_subject_add_observer notifies on attach, and observe_int_sync defers
+    // lv_subject_add_observer notifies on attach, and observe<int> defers
     // the handler through UpdateQueue, so arming the version watch queues one
     // repoint. That repoint must not re-arm the watch: a re-arming repoint
     // queues another repoint on every drain and the queue never empties while

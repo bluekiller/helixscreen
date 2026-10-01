@@ -5,7 +5,7 @@
 #include "ui_panel_notification_history.h"
 
 /// Drive the history-version observer body directly. In production this only
-/// ever runs from a queued UpdateQueue apply (observe_int_sync defers it), so
+/// ever runs from a queued UpdateQueue apply (observe<int> defers it), so
 /// a test cannot pin the same-version dedup guard without either the queue's
 /// exact publish/subscribe timing or this accessor.
 class NotificationHistoryPanelTestAccess {

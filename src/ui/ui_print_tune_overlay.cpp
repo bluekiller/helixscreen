@@ -170,25 +170,25 @@ void PrintTuneOverlay::setup_panel() {
 
     // Observe speed-related subjects for the live speed/flow readouts
     if (printer_state_) {
-        speed_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+        speed_observer_ = helix::ui::observe<int>(
             printer_state_->get_speed_factor_subject(), this,
             [](PrintTuneOverlay* self, int /*value*/) { self->update_display(); },
             printer_state_->get_subjects_lifetime());
-        live_velocity_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+        live_velocity_observer_ = helix::ui::observe<int>(
             printer_state_->get_live_velocity_subject(), this,
             [](PrintTuneOverlay* self, int /*value*/) { self->update_display(); },
             printer_state_->get_subjects_lifetime());
-        max_velocity_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+        max_velocity_observer_ = helix::ui::observe<int>(
             printer_state_->get_max_velocity_subject(), this,
             [](PrintTuneOverlay* self, int /*value*/) { self->update_display(); },
             printer_state_->get_subjects_lifetime());
-        extruder_vel_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+        extruder_vel_observer_ = helix::ui::observe<int>(
             printer_state_->get_live_extruder_velocity_subject(), this,
             [](PrintTuneOverlay* self, int /*value*/) { self->update_display(); },
             printer_state_->get_subjects_lifetime());
     }
     auto& display_settings = DisplaySettingsManager::instance();
-    units_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+    units_observer_ = helix::ui::observe<int>(
         display_settings.subject_speed_flow_physical_units(), this,
         [](PrintTuneOverlay* self, int /*value*/) { self->update_display(); },
         display_settings.get_subjects_lifetime());
@@ -203,11 +203,11 @@ void PrintTuneOverlay::setup_panel() {
         // The offsets live in tools_, so tools_version_, bumped on every
         // change to them, is the re-render trigger for the per-tool Z
         // readouts.
-        tools_version_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+        tools_version_observer_ = helix::ui::observe<int>(
             ts.get_tools_version_subject(), this,
             [](PrintTuneOverlay* self, int /*value*/) { self->update_tool_z_displays(); },
             ts_lifetime);
-        active_tool_observer_ = helix::ui::observe_int_sync<PrintTuneOverlay>(
+        active_tool_observer_ = helix::ui::observe<int>(
             ts.get_active_tool_subject(), this,
             [](PrintTuneOverlay* self, int /*value*/) { self->update_tool_z_displays(); },
             ts_lifetime);

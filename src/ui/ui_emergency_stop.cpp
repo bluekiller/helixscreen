@@ -102,7 +102,7 @@ constexpr int RECOVERY_RECHECK_MAX_RETRIES = 15;
 
 } // namespace
 
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 
 EmergencyStopOverlay& EmergencyStopOverlay::instance() {
     static EmergencyStopOverlay instance;
@@ -252,7 +252,7 @@ void EmergencyStopOverlay::create() {
     // pre-start block, and print_start_phase does not move on PRINTING->PAUSED,
     // so covering the button needed two subscriptions and a hand-rolled OR.
     // derive_print_state() does that merge once, for everyone.
-    print_state_observer_ = observe_int_sync<EmergencyStopOverlay>(
+    print_state_observer_ = observe<int>(
         printer_state_->get_print_lifecycle_subject(), this,
         [](EmergencyStopOverlay* self, int /*lifecycle*/) { self->update_visibility(); },
         ps_subjects);
@@ -263,7 +263,7 @@ void EmergencyStopOverlay::create() {
     klippy_state_initial_seen_ = false;
 
     // Subscribe to klippy state changes for recovery dialog auto-popup
-    klippy_state_observer_ = observe_int_sync<EmergencyStopOverlay>(
+    klippy_state_observer_ = observe<int>(
         printer_state_->get_klippy_state_subject(), this,
         [](EmergencyStopOverlay* self, int state) {
             auto klippy_state = static_cast<KlippyState>(state);

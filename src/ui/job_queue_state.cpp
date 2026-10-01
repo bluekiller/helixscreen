@@ -267,7 +267,7 @@ void JobQueueState::update_subjects() {
 
     // Count goes LAST, after cached_jobs_ and both text subjects are settled.
     // It is the rebuild trigger the queue surfaces observe, and PrintStatusWidget's
-    // observer runs synchronously (observe_int_sync) — publishing it first would
+    // observer runs synchronously (observe<int>) — publishing it first would
     // let that handler re-read a half-updated state. Main-thread only: the sole
     // caller is on_queue_fetched(), which fetch() reaches through tok.defer().
     lv_subject_set_int(&job_queue_count_subject_, count);

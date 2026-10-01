@@ -123,7 +123,7 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         auto& ps = get_printer_state();
         if (auto* version_subj = ps.get_extruder_version_subject()) {
             int initial_version = lv_subject_get_int(version_subj);
-            extruder_version_observer_ = helix::ui::observe_int_sync<TempGraphWidget>(
+            extruder_version_observer_ = helix::ui::observe<int>(
                 version_subj, this,
                 [initial_version](TempGraphWidget* self, int version) {
                     if (version == initial_version)

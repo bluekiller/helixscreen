@@ -109,7 +109,7 @@ bool HeaterIconBinder::attach_and_observe(lv_obj_t* icon) {
     auto token = lifetime_.token();
 
     if (current_subject_) {
-        current_observer_ = observe_int_sync<HeaterIconBinder>(
+        current_observer_ = observe<int>(
             current_subject_, this,
             [token](HeaterIconBinder* self, int value) {
                 if (token.expired())
@@ -120,7 +120,7 @@ bool HeaterIconBinder::attach_and_observe(lv_obj_t* icon) {
             current_lifetime_);
     }
     if (target_subject_) {
-        target_observer_ = observe_int_sync<HeaterIconBinder>(
+        target_observer_ = observe<int>(
             target_subject_, this,
             [token](HeaterIconBinder* self, int value) {
                 if (token.expired())
@@ -131,7 +131,7 @@ bool HeaterIconBinder::attach_and_observe(lv_obj_t* icon) {
             target_lifetime_);
     }
     if (mode_subject_) {
-        mode_observer_ = observe_int_sync<HeaterIconBinder>(
+        mode_observer_ = observe<int>(
             mode_subject_, this,
             [token](HeaterIconBinder* self, int value) {
                 if (token.expired())

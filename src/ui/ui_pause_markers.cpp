@@ -174,10 +174,10 @@ void attach_pause_markers(lv_obj_t* widget, helix::PrinterState& printer_state,
     auto* ctx = new PauseMarkerCtx{};
     ctx->ps = &printer_state;
     ctx->owner = widget;
-    ctx->version_guard = observe_int_immediate<PauseMarkerCtx>(
+    ctx->version_guard = observe<int>(
         printer_state.get_pause_markers_version_subject(), ctx,
         [](PauseMarkerCtx* self, int version) { pause_markers_invalidate(self, version); },
-        printer_state.get_subjects_lifetime());
+        printer_state.get_subjects_lifetime(), Dispatch::Immediate);
     lv_obj_add_event_cb(widget, draw_cb, LV_EVENT_DRAW_POST, ctx);
     lv_obj_add_event_cb(widget, pause_marker_delete_cb, LV_EVENT_DELETE, ctx);
     lv_obj_invalidate(widget);

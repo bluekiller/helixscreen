@@ -1178,14 +1178,14 @@ lv_obj_t* ui_ams_mini_status_create(lv_obj_t* parent, int32_t height) {
     // Auto-bind to AmsState: observe slots_version changes
     // slots_version is always bumped after slot_count changes, so one observer suffices
     // This makes the widget self-updating - no external wiring needed
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
 
     lv_subject_t* slots_version_subject = helix::AmsState::instance().get_slots_version_subject();
     if (slots_version_subject) {
         // Capture container (lv_obj_t*) instead of data pointer to prevent
         // use-after-free when deferred callback executes after widget deletion.
         // The registry lookup acts as a validity check. (fixes #83)
-        data->slots_version_observer = observe_int_sync<lv_obj_t>(
+        data->slots_version_observer = observe<int>(
             slots_version_subject, container,
             [](lv_obj_t* obj, int /* version */) {
                 auto* d = get_data(obj);
@@ -1211,7 +1211,7 @@ lv_obj_t* ui_ams_mini_status_create(lv_obj_t* parent, int32_t height) {
     // the active-loaded flags untouched.
     lv_subject_t* current_slot_subject = helix::AmsState::instance().get_current_slot_subject();
     if (current_slot_subject) {
-        data->current_slot_observer = observe_int_sync<lv_obj_t>(
+        data->current_slot_observer = observe<int>(
             current_slot_subject, container,
             [](lv_obj_t* obj, int /* slot */) {
                 auto* d = get_data(obj);
@@ -1502,14 +1502,14 @@ static void* ui_ams_mini_status_xml_create(lv_xml_parser_state_t* state, const c
 
     // Auto-bind to AmsState: observe slots_version changes
     // slots_version is always bumped after slot_count changes, so one observer suffices
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
 
     lv_subject_t* slots_version_subject = helix::AmsState::instance().get_slots_version_subject();
     if (slots_version_subject) {
         // Capture container (lv_obj_t*) instead of data pointer to prevent
         // use-after-free when deferred callback executes after widget deletion.
         // The registry lookup acts as a validity check. (fixes #83)
-        data->slots_version_observer = observe_int_sync<lv_obj_t>(
+        data->slots_version_observer = observe<int>(
             slots_version_subject, container,
             [](lv_obj_t* obj, int /* version */) {
                 auto* d = get_data(obj);
@@ -1534,7 +1534,7 @@ static void* ui_ams_mini_status_xml_create(lv_xml_parser_state_t* state, const c
     // the active-loaded flags untouched.
     lv_subject_t* current_slot_subject = helix::AmsState::instance().get_current_slot_subject();
     if (current_slot_subject) {
-        data->current_slot_observer = observe_int_sync<lv_obj_t>(
+        data->current_slot_observer = observe<int>(
             current_slot_subject, container,
             [](lv_obj_t* obj, int /* slot */) {
                 auto* d = get_data(obj);

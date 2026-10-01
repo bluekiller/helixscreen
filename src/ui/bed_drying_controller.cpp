@@ -81,7 +81,7 @@ void BedDryingController::await_unload(std::function<void()> on_done,
     unload_seen_busy_ = false;
     set_pre_run(PreRun::Unloading);
     auto& ams = AmsState::instance();
-    unload_watch_ = ui::observe_int_sync<BedDryingController>(
+    unload_watch_ = ui::observe<int>(
         ams.get_ams_action_subject(), this,
         [](BedDryingController* self, int value) {
             const auto action = static_cast<AmsAction>(value);

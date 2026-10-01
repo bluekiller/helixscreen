@@ -74,7 +74,7 @@ static void on_widget_created(lv_obj_t* widget) {
 
     // Set initial color from current subject value
     // Using observer factory for type-safe lambda observer
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     lv_subject_t* color_subject = helix::AmsState::instance().get_current_color_subject();
     if (color_subject) {
         int color_int = lv_subject_get_int(color_subject);
@@ -84,7 +84,7 @@ static void on_widget_created(lv_obj_t* widget) {
         // Capture widget (lv_obj_t*) instead of data pointer to prevent
         // use-after-free when deferred callback executes after widget deletion.
         // The registry lookup acts as a validity check. (fixes #83)
-        data->color_observer = observe_int_sync<lv_obj_t>(
+        data->color_observer = observe<int>(
             color_subject, widget,
             [](lv_obj_t* obj, int color_int) {
                 auto it = s_registry.find(obj);

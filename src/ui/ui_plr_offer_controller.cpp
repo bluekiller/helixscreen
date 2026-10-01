@@ -20,17 +20,17 @@ PlrOfferController::PlrOfferController() {
     auto& ps = get_printer_state();
 
     // Seed last_conn_state_ from the live subject BEFORE registering the conn
-    // observer. observe_int_sync fires once at registration with the current
+    // observer. observe<int> fires once at registration with the current
     // value, so seeding here means that first firing sees prev == next and does
     // not spuriously re-arm the latch.
     last_conn_state_ = lv_subject_get_int(ps.get_printer_connection_state_subject());
 
-    // pl_env_valid is the PRIMARY Snapmaker trigger. observe_int_sync fires once
+    // pl_env_valid is the PRIMARY Snapmaker trigger. observe<int> fires once
     // at registration with the current value (deferred via the update queue), so
     // a pl_env_valid that is ALREADY true when we register still offers via this
     // registration-fire; thereafter a genuine 0->1 edge offers. See
     // on_connection_state_changed for how reconnect manufactures that edge.
-    pl_valid_observer_ = observe_int_sync(
+    pl_valid_observer_ = observe<int>(
         ps.get_pl_env_valid_subject(), this,
         [](PlrOfferController* self, int value) { self->on_pl_env_valid_changed(value); },
         ps.get_subjects_lifetime());
@@ -41,7 +41,7 @@ PlrOfferController::PlrOfferController() {
     // thereafter a 0->1 edge does. The capability half (the discovered resume
     // macro) comes from discovery and is read live in evaluate_offer, so this
     // observer alone is enough.
-    interrupted_flag_observer_ = observe_int_sync(
+    interrupted_flag_observer_ = observe<int>(
         ps.get_plr_interrupted_flag_subject(), this,
         [](PlrOfferController* self, int value) { self->on_plr_interrupted_flag_changed(value); },
         ps.get_subjects_lifetime());
@@ -49,19 +49,19 @@ PlrOfferController::PlrOfferController() {
     // creality_plr_capable is the PRIMARY Creality trigger. Unlike Snapmaker's
     // flag this only says the FIRMWARE supports recovery — whether a snapshot
     // exists takes a separate, side-effectful probe.
-    creality_capable_observer_ = observe_int_sync(
+    creality_capable_observer_ = observe<int>(
         ps.get_creality_plr_capable_subject(), this,
         [](PlrOfferController* self, int value) { self->on_creality_capable_changed(value); },
         ps.get_subjects_lifetime());
 
-    conn_observer_ = observe_int_sync(
+    conn_observer_ = observe<int>(
         ps.get_printer_connection_state_subject(), this,
         [](PlrOfferController* self, int value) { self->on_connection_state_changed(value); },
         ps.get_subjects_lifetime());
 
     // Wizard-active edge: re-evaluate when the wizard closes so a
     // wizard-suppressed offer fires. See evaluate_offer for the full rationale.
-    wizard_observer_ = observe_int_sync(
+    wizard_observer_ = observe<int>(
         &get_wizard_active_subject(), this,
         [](PlrOfferController* self, int value) { self->on_wizard_active_changed(value); },
         get_app_globals_subjects_lifetime());

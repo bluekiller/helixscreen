@@ -242,7 +242,7 @@ class TempGraphOverlay : public OverlayBase {
     // once per activation by watch_extruder_version(); repoint_nozzle_card()
     // must not re-arm it, or every queued repoint re-fires itself and the
     // queue never drains (lv_subject_add_observer notifies on attach, and
-    // observe_int_sync defers the handler through queue_update).
+    // observe<int> defers the handler through queue_update).
     ObserverGuard extruder_version_observer_;
 
     // Subject management

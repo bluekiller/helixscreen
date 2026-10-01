@@ -72,7 +72,7 @@ std::vector<int> decimate_indices(const std::vector<int64_t>& timestamps_ms, int
 
 namespace helix {
 
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 using helix::ui::temperature::deci_to_degrees_f;
 
 // ============================================================================
@@ -331,11 +331,11 @@ void TempGraphController::reattach_observers() {
         s.lifetime = SubjectLifetime{};
     }
 
-    // Suppress the attach-time fire from observe_int_sync. Those fires push the
+    // Suppress the attach-time fire from observe<int>. Those fires push the
     // subject's PRE-reconnect value, and the live handler stamps it with a
     // fresh `now` — a phantom spike bridging the whole disconnect gap (#1245).
     //
-    // The suppression cannot be scoped to this function: observe_int_sync's
+    // The suppression cannot be scoped to this function: observe<int>'s
     // LVGL callback only *queues* the handler (observer_factory.h:344), so the
     // attach-time fires have not run yet when setup_observers() returns.
     // Restoring the flag inline here would restore it before a single one of
@@ -495,7 +495,7 @@ void TempGraphController::setup_observers() {
 
         if (unresolved_extruder > 0) {
             if (auto* extruder_version = ps.get_extruder_version_subject()) {
-                discovery_observer_ = observe_int_sync<TempGraphController>(
+                discovery_observer_ = observe<int>(
                     extruder_version, this,
                     [token = lifetime_.token(), gen = generation_](TempGraphController* self, int) {
                         if (token.expired() || gen != self->generation_)
@@ -509,7 +509,7 @@ void TempGraphController::setup_observers() {
         if (unresolved_sensor > 0) {
             auto& sensor_mgr = sensors::TemperatureSensorManager::instance();
             if (auto* sensor_count = sensor_mgr.get_sensor_count_subject()) {
-                sensor_discovery_observer_ = observe_int_sync<TempGraphController>(
+                sensor_discovery_observer_ = observe<int>(
                     sensor_count, this,
                     [token = lifetime_.token(), gen = generation_](TempGraphController* self, int) {
                         if (token.expired() || gen != self->generation_)
@@ -604,7 +604,7 @@ bool TempGraphController::attach_series_observers(size_t i) {
 
         if (temp_subj) {
             size_t idx = i;
-            s.temp_obs = observe_int_sync<TempGraphController>(
+            s.temp_obs = observe<int>(
                 temp_subj, this,
                 [token, gen, idx](TempGraphController* self, int temp_deci) {
                     if (token.expired() || gen != self->generation_)
@@ -667,7 +667,7 @@ bool TempGraphController::attach_series_observers(size_t i) {
 
         if (target_subj && s.show_target) {
             size_t idx = i;
-            s.target_obs = observe_int_sync<TempGraphController>(
+            s.target_obs = observe<int>(
                 target_subj, this,
                 [token, gen, idx](TempGraphController* self, int target_deci) {
                     if (token.expired() || gen != self->generation_)
@@ -707,7 +707,7 @@ void TempGraphController::setup_connection_observer() {
     // printer's sensor configuration changed) while preserving existing
     // chart data, chip visibility, and X-axis timestamps.
     //
-    // Transition detection: observe_int_sync fires once synchronously with the
+    // Transition detection: observe<int> fires once synchronously with the
     // current value when attached. Without tracking the previous state, every
     // re-attach would create a new observer that sync-fires CONNECTED and
     // triggers another re-attach — an infinite loop. By tracking prev_state,
@@ -718,7 +718,7 @@ void TempGraphController::setup_connection_observer() {
         auto conn_token = lifetime_.token();
         uint32_t conn_gen = generation_;
         auto prev_state = std::make_shared<int>(lv_subject_get_int(conn_subj));
-        connection_observer_ = observe_int_sync<TempGraphController>(
+        connection_observer_ = observe<int>(
             conn_subj, this,
             [conn_token, conn_gen, prev_state](TempGraphController* self, int state) {
                 if (conn_token.expired())

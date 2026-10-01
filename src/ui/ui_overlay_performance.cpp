@@ -45,7 +45,7 @@ lv_obj_t* UiOverlayPerformance::create(lv_obj_t* parent) {
         // down — otherwise reset() would call lv_observer_remove() on a freed
         // subject → UAF at lv_observer.c:584 ([L077], mirrors 056bb40e9 for
         // HelixSparkline on perf_history_tick).
-        mcu_names_observer_ = helix::ui::observe_string<UiOverlayPerformance>(
+        mcu_names_observer_ = helix::ui::observe<const char*>(
             names_subj, this,
             [](UiOverlayPerformance* self, const char* /*v*/) { self->rebuild_mcu_rows(); },
             helix::perf::PerformanceState::instance().subjects_lifetime());

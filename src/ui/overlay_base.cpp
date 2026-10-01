@@ -149,7 +149,7 @@ bool helix::ui::teardown_overlay_ui(lv_obj_t*& root, const char* owner_name, Tea
     spdlog::info("[{}] Destroying overlay UI to free memory", owner_name);
 
     // Drain deferred observer callbacks while all pointers are still valid.
-    // observe_int_sync queues lambdas via queue_update() that capture raw
+    // observe<int> queues lambdas via queue_update() that capture raw
     // panel pointers. Processing them here prevents use-after-free.
     auto freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
     helix::ui::UpdateQueue::instance().drain();

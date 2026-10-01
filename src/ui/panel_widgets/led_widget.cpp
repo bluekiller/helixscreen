@@ -196,7 +196,7 @@ void LedWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Rebind when discovery or the macro devices change the set of lights.
     auto token = lifetime_.token();
     auto& led_ctrl = led::LedController::instance();
-    led_version_observer_ = helix::ui::observe_int_sync<LedWidget>(
+    led_version_observer_ = helix::ui::observe<int>(
         led_ctrl.get_led_config_version_subject(), this,
         [token](LedWidget* self, int /*version*/) {
             if (token.expired())
@@ -204,9 +204,9 @@ void LedWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             self->bind_led();
         },
         led_ctrl.get_subjects_lifetime());
-    // observe_int_sync delivers through queue_update, so it can fire a tick
+    // observe<int> delivers through queue_update, so it can fire a tick
     // late; the tile shows its light's name and state from the first frame.
-    led_state_observer_ = helix::ui::observe_int_sync<LedWidget>(
+    led_state_observer_ = helix::ui::observe<int>(
         led_ctrl.get_led_state_version_subject(), this,
         [token](LedWidget* self, int /*version*/) {
             if (token.expired())

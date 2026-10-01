@@ -166,7 +166,7 @@ struct Harness {
     }
 
     void set_klippy(KlippyState state) {
-        // _sync writes the subject without the async hop, but observe_int_sync's
+        // _sync writes the subject without the async hop, but observe<int>'s
         // handler still lands on the UpdateQueue (observer_factory.h:371), so the
         // deferred-restore observer only runs on a drain. Skipping it makes the
         // retry look like it never fired.

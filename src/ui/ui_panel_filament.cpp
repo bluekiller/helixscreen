@@ -86,8 +86,7 @@ void reset_to_defaults() {
 }
 } // namespace helix::filament_presets
 
-using helix::ui::observe_int_async;
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 using helix::ui::temperature::deci_to_degrees;
 using helix::ui::temperature::format_target_or_off;
 using helix::ui::temperature::get_heating_state_color;
@@ -156,21 +155,32 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         {"filament_temp_graph_cb", on_temp_graph_clicked},
     });
 
-    // Subscribe to PrinterState temperatures using bundle pattern
-    // NOTE: Observers must defer UI updates via ui_queue_update() to avoid render-phase assertions
-    // [L029]
-    temp_observers_.setup_async(
+    // Subscribe to PrinterState temperatures using bundle pattern. Each handler caches its value
+    // inline and defers the UI update, which must not land in the render phase [L029].
+    temp_observers_.setup_sync(
         this, printer_state_,
-        [](FilamentPanel* self, int raw) { self->nozzle_current_ = deci_to_degrees(raw); },
-        [](FilamentPanel* self, int raw) { self->nozzle_target_ = deci_to_degrees(raw); },
-        [](FilamentPanel* self, int raw) { self->bed_current_ = deci_to_degrees(raw); },
-        [](FilamentPanel* self, int raw) { self->bed_target_ = deci_to_degrees(raw); },
-        [](FilamentPanel* self) { self->update_all_temps(); });
+        [](FilamentPanel* self, int raw) {
+            self->nozzle_current_ = deci_to_degrees(raw);
+            self->defer_temps_update();
+        },
+        [](FilamentPanel* self, int raw) {
+            self->nozzle_target_ = deci_to_degrees(raw);
+            self->defer_temps_update();
+        },
+        [](FilamentPanel* self, int raw) {
+            self->bed_current_ = deci_to_degrees(raw);
+            self->defer_temps_update();
+        },
+        [](FilamentPanel* self, int raw) {
+            self->bed_target_ = deci_to_degrees(raw);
+            self->defer_temps_update();
+        },
+        helix::ui::Dispatch::Immediate);
 
     // Subscribe to chamber temperature (optional - only if printer has chamber)
     // Note: We check are_subjects_initialized() because observers may fire immediately
     // upon registration, but subjects aren't initialized until init_subjects() is called.
-    chamber_temp_observer_ = observe_int_sync<FilamentPanel>(
+    chamber_temp_observer_ = observe<int>(
         printer_state_.get_chamber_temp_subject(), this,
         [](FilamentPanel* self, int raw) {
             self->chamber_current_ = deci_to_degrees(raw);
@@ -180,7 +190,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
             }
         },
         printer_state_.get_subjects_lifetime());
-    chamber_target_observer_ = observe_int_sync<FilamentPanel>(
+    chamber_target_observer_ = observe<int>(
         printer_state_.get_chamber_target_subject(), this,
         [](FilamentPanel* self, int raw) {
             self->chamber_target_ = raw; // Store decidegrees (matches PrinterState format)
@@ -194,7 +204,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // TemperatureService binds the mini graph to one extruder, so rebind it
     // when the active tool changes, or the graph plots an idle extruder while
     // the active one heats (#9).
-    active_tool_observer_ = observe_int_sync<FilamentPanel>(
+    active_tool_observer_ = observe<int>(
         helix::ToolState::instance().get_active_tool_subject(), this,
         [](FilamentPanel* self, int tool_idx) {
             self->update_nozzle_label();
@@ -228,11 +238,11 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // Re-evaluate Load/Unload/Purge gating whenever live AMS load state changes
     // (Task 5): the aggregate filament_loaded flag and the active-slot index.
     // Both are static AmsState subjects — no SubjectLifetime token needed.
-    ams_loaded_observer_ = observe_int_sync<FilamentPanel>(
+    ams_loaded_observer_ = observe<int>(
         AmsState::instance().get_filament_loaded_subject(), this,
         [](FilamentPanel* self, int) { self->update_filament_op_buttons(); },
         AmsState::instance().get_subjects_lifetime());
-    ams_current_slot_observer_ = observe_int_sync<FilamentPanel>(
+    ams_current_slot_observer_ = observe<int>(
         AmsState::instance().get_current_slot_subject(), this,
         [](FilamentPanel* self, int) { self->update_filament_op_buttons(); },
         AmsState::instance().get_subjects_lifetime());
@@ -248,7 +258,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // refuses during a host-side pre-print block. The lifetime token is mandatory —
     // PrinterState is a separate singleton whose subjects tests tear down while
     // this guard is alive (#705).
-    print_active_observer_ = observe_int_sync<FilamentPanel>(
+    print_active_observer_ = observe<int>(
         printer_state_.get_print_lifecycle_subject(), this,
         [](FilamentPanel* self, int) { self->update_filament_op_buttons(); },
         printer_state_.get_static_print_subjects_lifetime());
@@ -429,7 +439,7 @@ void FilamentPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     portrait_column_wired_ = nullptr;
 
     // Rebuild dropdown if tool list changes
-    tools_version_observer_ = observe_int_sync<FilamentPanel>(
+    tools_version_observer_ = observe<int>(
         helix::ToolState::instance().get_tools_version_subject(), this,
         [](FilamentPanel* self, int) {
             self->populate_extruder_dropdown();
@@ -441,7 +451,7 @@ void FilamentPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // sizing is owned by apply_left_column_sizing() (called from
     // update_multi_filament_card_visibility). At MICRO/TINY with no AMS the
     // spool card has almost no content, so the graph becomes the flex filler.
-    ams_type_observer_ = observe_int_sync<FilamentPanel>(
+    ams_type_observer_ = observe<int>(
         AmsState::instance().get_ams_type_subject(), this,
         [](FilamentPanel* self, int /*ams_type*/) {
             self->update_multi_filament_card_visibility();
@@ -452,7 +462,7 @@ void FilamentPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // means the backend finished; ERROR means it gave up — AFC's stuck-action
     // backstop resolves to ERROR and nothing else, so accepting only IDLE left the
     // guard armed and the button spinning until the 120s timeout (#1183).
-    ams_action_observer_ = observe_int_sync<FilamentPanel>(
+    ams_action_observer_ = observe<int>(
         AmsState::instance().get_ams_action_subject(), this,
         [](FilamentPanel* self, int action) {
             const bool idle = (action == static_cast<int>(AmsAction::IDLE));
@@ -703,7 +713,7 @@ void FilamentPanel::setup_orientation_rewire_observer() {
         return;
     }
 
-    // observe_int_IMMEDIATE, deliberately not the usual observe_int_sync:
+    // Dispatch::Immediate, deliberately not the usual deferred default:
     // filament_panel.xml's <if cond="ui_is_portrait eq 1"> is ALSO bound to
     // this subject and its rebuild (xml_frag_rebuild) runs synchronously
     // inside lv_subject_set_int(). LVGL notifies a subject's observers in
@@ -715,10 +725,10 @@ void FilamentPanel::setup_orientation_rewire_observer() {
     // The immediate registration fire is harmless: bind_widgets() is
     // idempotent (creation steps compare their container), so re-running it
     // against the tree setup() just bound creates nothing twice.
-    orientation_observer_ = helix::ui::observe_int_immediate<FilamentPanel>(
+    orientation_observer_ = helix::ui::observe<int>(
         portrait_subject, this,
         [](FilamentPanel* self, int /*is_portrait*/) { self->bind_widgets(); },
-        subject_never_freed());
+        subject_never_freed(), helix::ui::Dispatch::Immediate);
 }
 
 // ============================================================================
@@ -917,6 +927,10 @@ void FilamentPanel::sync_tool_dropdown_text() {
         label = helix::ui::tool_short_label(tools[selected].name, selected);
     }
     lv_dropdown_set_text(extruder_dropdown_, label.c_str());
+}
+
+void FilamentPanel::defer_temps_update() {
+    object_lifetime_.defer("FilamentPanel::temps", [this]() { update_all_temps(); });
 }
 
 void FilamentPanel::update_all_temps() {
@@ -1848,7 +1862,7 @@ void FilamentPanel::setup_external_spool_display() {
     update_external_spool_from_state();
 
     // Observe external spool color changes to reactively update display
-    external_spool_observer_ = observe_int_sync<FilamentPanel>(
+    external_spool_observer_ = observe<int>(
         AmsState::instance().get_external_spool_color_subject(), this,
         [](FilamentPanel* self, int /*color_int*/) {
             self->update_external_spool_from_state();

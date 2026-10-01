@@ -407,7 +407,7 @@ void SubjectInitializer::init_observers() {
     m_observers.push_back(TelemetryManager::instance().init_print_outcome_observer());
 
     // Panel usage tracking for telemetry
-    // Note: Uses raw ObserverGuard rather than observe_int_sync because there's no
+    // Note: Uses raw ObserverGuard rather than observe<int> because there's no
     // Panel* context — SubjectInitializer is not a Panel subclass.
     {
         auto* panel_subject = NavigationManager::instance().get_active_panel_subject();

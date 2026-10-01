@@ -368,7 +368,7 @@ void FilamentSensorWidget::rebind_source() {
     // Mirror the selected role subject into the one the XML binds. A runtime
     // source mux, not a compound condition, so <subject_expr> cannot express it.
     // DECLARATIVE_OK: the selection is user config, not a static relationship.
-    source_observer_ = helix::ui::observe_int_sync<FilamentSensorWidget>(
+    source_observer_ = helix::ui::observe<int>(
         src, this,
         [](FilamentSensorWidget* self, int value) {
             (void)self;

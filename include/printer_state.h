@@ -607,7 +607,7 @@ class PrinterState {
      * @brief Lifetime token for the "static" print subjects.
      *
      * Cross-singleton observers (e.g. AmsState's print-state observer) MUST
-     * pass this token to `observe_int_sync(...)` — otherwise an ObserverGuard
+     * pass this token to `observe<int>(...)` — otherwise an ObserverGuard
      * outliving a `deinit_subjects()` cycle in tests will UAF in
      * `lv_observer_remove()`.
      */
@@ -886,7 +886,7 @@ class PrinterState {
      * @brief Per-extruder filament_used (mm), 0-based.
      *
      * Dynamic subject — observers MUST capture the returned lifetime token and
-     * subscribe via observe_int_sync(..., lifetime). See
+     * subscribe via observe<int>(..., lifetime). See
      * PrinterPrintState::get_extruder_filament_used_subject for full contract.
      *
      * @param extruder_idx 0-based extruder index (0 = "extruder", 1 = "extruder1", ...)

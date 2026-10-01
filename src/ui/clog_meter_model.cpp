@@ -23,13 +23,13 @@ ClogMeterModel::ClogMeterModel(Callback on_change) : on_change_(std::move(on_cha
     // being constructed.
     auto lifetime = ams.get_subjects_lifetime();
     auto field = [this, lifetime](int ClogMeterSample::*member, lv_subject_t* subject) {
-        return observe_int_immediate<ClogMeterModel>(
+        return observe<int>(
             subject, this,
             [member](ClogMeterModel* self, int v) {
                 self->sample_.*member = v;
                 self->publish();
             },
-            lifetime);
+            lifetime, Dispatch::Immediate);
     };
 
     mode_obs_ = field(&ClogMeterSample::mode, ams.get_clog_meter_mode_subject());

@@ -202,7 +202,7 @@ class PrintExcludeObjectManager {
     ///
     /// Main-thread only — populated in `exclude_undo_timer_cb` (LVGL timer, main thread),
     /// cleared from `tok.defer` bodies (UpdateQueue drained on main) and from
-    /// `on_excluded_objects_changed` (observe_int_sync defers to UpdateQueue per L048).
+    /// `on_excluded_objects_changed` (observe<int> defers to UpdateQueue per L048).
     /// No mutex needed.
     std::unordered_set<std::string> awaiting_confirmation_;
 

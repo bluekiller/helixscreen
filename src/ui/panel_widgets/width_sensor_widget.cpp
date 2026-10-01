@@ -20,7 +20,7 @@ static void width_sensor_widget_init_subjects() {
     auto& wsm = helix::sensors::WidthSensorManager::instance();
 
     // Observe raw diameter (int, µm * 1000) and format to text subject
-    s_diameter_observer = helix::ui::observe_int_sync<helix::sensors::WidthSensorManager>(
+    s_diameter_observer = helix::ui::observe<int>(
         wsm.get_diameter_subject(), &wsm,
         [](helix::sensors::WidthSensorManager* m, int diameter) {
             auto* text_subj = m->get_diameter_text_subject();

@@ -179,9 +179,9 @@ void FanControlOverlay::on_activate() {
 
     // Subscribe to fans_version subject for structural changes (fan discovery)
     // Using observer factory for type-safe lambda observer
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     if (auto* fans_ver = printer_state_.get_fans_version_subject()) {
-        fans_observer_ = observe_int_sync<FanControlOverlay>(
+        fans_observer_ = observe<int>(
             fans_ver, this,
             [](FanControlOverlay* self, int /* version */) {
                 if (!self->is_visible())
@@ -206,7 +206,7 @@ void FanControlOverlay::on_activate() {
     }
 
     // Observe animation setting changes to refresh spin animations on all fan cards
-    anim_settings_observer_ = observe_int_sync<FanControlOverlay>(
+    anim_settings_observer_ = observe<int>(
         DisplaySettingsManager::instance().subject_animations_enabled(), this,
         [](FanControlOverlay* self, int /* enabled */) {
             if (self->is_visible()) {
@@ -478,7 +478,7 @@ void FanControlOverlay::send_fan_speed(const std::string& object_name, int speed
 }
 
 void FanControlOverlay::subscribe_to_fan_speeds() {
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
 
     // Bind AnimatedValue for each FanDial - provides smooth animation when speed changes
     for (auto& afd : animated_fan_dials_) {
@@ -501,7 +501,7 @@ void FanControlOverlay::subscribe_to_fan_speeds() {
     for (const auto& card : auto_fan_cards_) {
         SubjectLifetime lifetime;
         if (auto* subject = printer_state_.get_fan_speed_subject(card.object_name, lifetime)) {
-            fan_speed_observers_.push_back(observe_int_sync<FanControlOverlay>(
+            fan_speed_observers_.push_back(observe<int>(
                 subject, this,
                 [](FanControlOverlay* self, int /*speed*/) {
                     if (self->is_visible()) {

@@ -182,9 +182,9 @@ void AmsPanel::init_subjects() {
 
     // Register observers for state changes
     // Using observer factory for action and slot_count; others use traditional callbacks
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
 
-    slots_version_observer_ = observe_int_sync<AmsPanel>(
+    slots_version_observer_ = observe<int>(
         AmsState::instance().get_slots_version_subject(), this,
         [](AmsPanel* self, int) {
             if (!self->subjects_initialized_ || !self->panel_)
@@ -196,7 +196,7 @@ void AmsPanel::init_subjects() {
 
     // Simplified action observer - only handles panel-specific concerns
     // (path canvas heat glow and error modal). Step progress is handled by sidebar_.
-    action_observer_ = observe_int_sync<AmsPanel>(
+    action_observer_ = observe<int>(
         AmsState::instance().get_ams_action_subject(), this,
         [](AmsPanel* self, int action_int) {
             // Record the previous value before any early return so the
@@ -256,7 +256,7 @@ void AmsPanel::init_subjects() {
     // its subjects can be torn down while this guard is still alive (#705).
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - paired with the keep-raw
     // comparison below; see the marker there for the full reason.
-    print_state_observer_ = observe_int_sync<AmsPanel>(
+    print_state_observer_ = observe<int>(
         printer_state_.get_print_state_enum_subject(), this,
         [](AmsPanel* self, int print_state) {
             // Record before the teardown guard so the edge stays accurate
@@ -285,7 +285,7 @@ void AmsPanel::init_subjects() {
         },
         printer_state_.get_static_print_subjects_lifetime());
 
-    current_slot_observer_ = observe_int_sync<AmsPanel>(
+    current_slot_observer_ = observe<int>(
         AmsState::instance().get_current_slot_subject(), this,
         [](AmsPanel* self, int slot) {
             if (!self->subjects_initialized_ || !self->panel_)
@@ -319,7 +319,7 @@ void AmsPanel::init_subjects() {
 
     // Slot count observer for dynamic slot creation (non-scoped mode only).
     // Deferred via object_lifetime_ to avoid deleting children during LVGL layout refresh (#563).
-    slot_count_observer_ = observe_int_sync<AmsPanel>(
+    slot_count_observer_ = observe<int>(
         AmsState::instance().get_slot_count_subject(), this,
         [](AmsPanel* self, int new_count) {
             if (!self->panel_)
@@ -350,14 +350,14 @@ void AmsPanel::init_subjects() {
         }
     };
     path_segment_observer_ =
-        observe_int_sync<AmsPanel>(AmsState::instance().get_path_filament_segment_subject(), this,
-                                   path_handler, AmsState::instance().get_subjects_lifetime());
+        observe<int>(AmsState::instance().get_path_filament_segment_subject(), this, path_handler,
+                     AmsState::instance().get_subjects_lifetime());
     path_topology_observer_ =
-        observe_int_sync<AmsPanel>(AmsState::instance().get_path_topology_subject(), this,
-                                   path_handler, AmsState::instance().get_subjects_lifetime());
+        observe<int>(AmsState::instance().get_path_topology_subject(), this, path_handler,
+                     AmsState::instance().get_subjects_lifetime());
 
     // Backend count observer for multi-backend selector
-    backend_count_observer_ = observe_int_sync<AmsPanel>(
+    backend_count_observer_ = observe<int>(
         AmsState::instance().get_backend_count_subject(), this,
         [](AmsPanel* self, int /*count*/) {
             if (!self->backend_rebuild_pending_) {
@@ -374,7 +374,7 @@ void AmsPanel::init_subjects() {
     // NOTE: set_external_spool_info() calls lv_subject_set_int() directly (not via
     // ui_queue_update) which is safe because all current callers are on the LVGL thread.
     // If callers from background threads are added, those must use ui_queue_update().
-    external_spool_observer_ = observe_int_sync<AmsPanel>(
+    external_spool_observer_ = observe<int>(
         AmsState::instance().get_external_spool_color_subject(), this,
         [](AmsPanel* self, int /*color_int*/) {
             // Update path canvas bypass indicator
@@ -400,14 +400,14 @@ void AmsPanel::init_subjects() {
     // from the live mmu object, and our own default stands in as true until that
     // first status lands, so the node has to be able to appear and disappear
     // after the panel is built.
-    supports_bypass_observer_ = observe_int_sync<AmsPanel>(
+    supports_bypass_observer_ = observe<int>(
         AmsState::instance().get_supports_bypass_subject(), this,
         [](AmsPanel* self, int /*supported*/) { self->update_bypass_spool_from_state(); },
         AmsState::instance().get_subjects_lifetime());
 
     // The ring marks the node the printer is actually feeding from. Engaging
     // bypass touches no slot, so nothing else on this panel refreshes for it.
-    bypass_active_observer_ = observe_int_sync<AmsPanel>(
+    bypass_active_observer_ = observe<int>(
         AmsState::instance().get_bypass_active_subject(), this,
         [](AmsPanel* self, int /*active*/) { self->update_bypass_spool_from_state(); },
         AmsState::instance().get_subjects_lifetime());
@@ -775,12 +775,12 @@ void AmsPanel::setup_slot_path_observers(int slot_count) {
         int global_idx = i + slot_offset;
         // Segment subject — how far filament extends along this lane's path.
         if (auto* seg_subj = state.get_slot_segment_subject(global_idx)) {
-            slot_path_observers_.push_back(helix::ui::observe_int_sync<AmsPanel>(
+            slot_path_observers_.push_back(helix::ui::observe<int>(
                 seg_subj, this, on_slot_path_change, state.get_subjects_lifetime()));
         }
         // Toolhead-present subject — live per-slot motion/switch sensor.
         if (auto* th_subj = state.get_slot_toolhead_present_subject(global_idx)) {
-            slot_path_observers_.push_back(helix::ui::observe_int_sync<AmsPanel>(
+            slot_path_observers_.push_back(helix::ui::observe<int>(
                 th_subj, this, on_slot_path_change, state.get_subjects_lifetime()));
         }
     }

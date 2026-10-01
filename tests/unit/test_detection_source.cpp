@@ -42,7 +42,7 @@ TEST_CASE_METHOD(XMLTestFixture, "U1StockSource emits Spaghetti on paused+code2"
     });
     src.start();
 
-    // The print-state-enum observer is deferred via the UpdateQueue (observe_int_sync),
+    // The print-state-enum observer is deferred via the UpdateQueue (observe<int>),
     // so drain after each frame to run on_print_state() once the frame is fully parsed.
     auto drain = [] {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());

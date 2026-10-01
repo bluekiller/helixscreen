@@ -365,7 +365,7 @@ Status notifications arrive on the libhv WebSocket thread, but
 already-initialized `lv_subject_t` int in place) execute on the main thread,
 matching the surrounding code in `printer_print_state.cpp`.
 
-`PlrOfferController`'s observers are registered with `observe_int_sync`, which
+`PlrOfferController`'s observers are registered with `observe<int>`, which
 defers through `UpdateQueue`, so every callback body runs on the main thread.
 The one place that genuinely crosses the boundary is the probe response — a
 JSON-RPC callback that arrives on the WebSocket thread — so it is wrapped in

@@ -249,7 +249,7 @@ struct KeypadCeilingFixture {
 
     ~KeypadCeilingFixture() {
         // Ordered teardown, same rule as ParseFixture below. Constructing the
-        // panel installs observe_int_sync guards, and each one queues its apply
+        // panel installs observe<int> guards, and each one queues its apply
         // on the UpdateQueue; a fixture that returns with them still queued
         // hands them to whichever test drains next, which then notifies the
         // subjects that died here (#1166, #1146). Drain before each owner dies.

@@ -101,7 +101,7 @@ void ToolOffsetCalibrationPanel::on_activate() {
     // SET_TOOL_PARAMETER writes (and anything else that moves an offset) show
     // up without a refresh of our own. The lifetime token matters: without it
     // the guard never learns the subject died (#705).
-    tools_observer_ = helix::ui::observe_int_sync<ToolOffsetCalibrationPanel>(
+    tools_observer_ = helix::ui::observe<int>(
         tools.get_tools_version_subject(), this,
         [](ToolOffsetCalibrationPanel* self, int /*version*/) { self->on_tools_changed(); },
         tools.get_subjects_lifetime());
@@ -310,16 +310,16 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
         }
         on_run_finished(true, "");
     });
-    // The edge is the normal completion. observe_int_sync defers the handler
+    // The edge is the normal completion. observe<int> defers the handler
     // through the UpdateQueue, so the observer can be torn down from inside it.
     helix::PrinterState& ps = get_printer_state();
-    idle_wait_observer_ = helix::ui::observe_int_sync<ToolOffsetCalibrationPanel>(
+    idle_wait_observer_ = helix::ui::observe<int>(
         ps.get_idle_timeout_printing_subject(), this,
         [](ToolOffsetCalibrationPanel* self, int busy) {
             if (!self->idle_wait_active_ || busy == 1) {
                 return;
             }
-            // observe_int_sync defers through the UpdateQueue, so `busy` is the
+            // observe<int> defers through the UpdateQueue, so `busy` is the
             // value at notification time. A printer busy again by the time this
             // runs is still working through the macro, and completing the run
             // here would re-enable Save under a queue it still blocks. Read the
