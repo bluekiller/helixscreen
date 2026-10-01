@@ -37,7 +37,7 @@ using json = nlohmann::json;
 namespace {
 
 /// Drives the production paths: the WebSocket object path via
-/// handle_status_update(), and the REST fallback via the two poll parsers.
+/// handle_status(), and the REST fallback via the two poll parsers.
 class AcePerSlotLoadedHelper : public helix::AmsBackendAce {
   public:
     AcePerSlotLoadedHelper() : helix::AmsBackendAce(nullptr, nullptr) {}

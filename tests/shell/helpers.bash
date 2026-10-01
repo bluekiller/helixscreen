@@ -37,6 +37,22 @@ release_targets() {
         | sort -u
 }
 
+# Platforms release.yml builds: the plan job's FULL_MATRIX, one per line.
+# Shared by test_symbol_ci.bats and test_update_platform_coverage.bats.
+# Args: $1 = path to release.yml (default: .github/workflows/release.yml)
+release_matrix_platforms() {
+    python3 - "${1:-.github/workflows/release.yml}" <<'PY'
+import json, sys, yaml
+with open(sys.argv[1]) as fh:
+    doc = yaml.safe_load(fh)
+for step in doc["jobs"]["plan"]["steps"]:
+    matrix = (step.get("env") or {}).get("FULL_MATRIX")
+    if matrix:
+        for entry in json.loads(matrix):
+            print(entry["platform"])
+PY
+}
+
 # Mocking a command: which mechanism, and where each one stops
 #
 # The suite has two, and they fail at different boundaries. Pick by asking what

@@ -14,7 +14,7 @@
 // become one without discarding N-1 of them, so "the active printer's copy
 // wins" is the contract that has to be pinned, not an implementation detail.
 //
-// The migration is a static function in config.cpp, so it is driven through the
+// The migration is a static function in config_migrations.cpp, so it is driven through the
 // public Config::init() path exactly as the v18 tests do. A sandboxed
 // HELIX_CONFIG_DIR keeps backup-restore search paths inside the temp dir.
 

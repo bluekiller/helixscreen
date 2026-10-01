@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "env_knobs.h"
 #include "theme_token_table.h"
 
 #include <cstdlib>
@@ -9,7 +10,7 @@ namespace helix::theme_tokens {
 bool enabled() {
     static const bool on = [] {
         if (const char* env = std::getenv("HELIX_TOKEN_TABLE")) {
-            return env[0] == '1';
+            return env_truthy(env);
         }
         // Installed builds read the table; dev builds scan.
         //

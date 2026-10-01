@@ -11,6 +11,7 @@
 #include "json_utils.h"
 #include "klipper_extruder_naming.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "panel_widget_registry.h"
 #include "panel_widget_size.h"

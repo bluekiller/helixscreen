@@ -3,6 +3,8 @@
 
 #include "mock_http_file_server.h"
 
+#include "env_knobs.h"
+
 #ifdef HELIX_ENABLE_MOCKS
 
 #include "hv/HttpServer.h"
@@ -67,10 +69,7 @@ std::string make_gcode_header(const std::vector<uint8_t>& png) {
 /// libhv answers 200 with the whole body instead of slicing a 206: the
 /// behaviour of server forks that never implemented byte ranges.
 static bool range_ignore_enabled() {
-    static const bool enabled = [] {
-        const char* v = std::getenv("HELIX_MOCK_RANGE_IGNORE");
-        return v && v[0] && std::string(v) != "0";
-    }();
+    static const bool enabled = [] { return helix::env_flag("HELIX_MOCK_RANGE_IGNORE"); }();
     return enabled;
 }
 

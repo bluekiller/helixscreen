@@ -11,6 +11,9 @@
 #include "ui_event_safety.h"
 #include "ui_info_qr_modal.h"
 #include "ui_modal.h"
+#if HELIX_HAS_PLUGINS
+#include "plugins_overlay.h"
+#endif
 #include "ui_nav_manager.h"
 #include "ui_overlay_network_settings.h"
 #include "ui_overlay_performance.h"
@@ -329,6 +332,9 @@ void SettingsPanel::init_subjects() {
                            (install_suppressed && !externally_managed) ? 1 : 0,
                            "updates_unavailable", subjects_);
 
+    // 0 until Application::init_plugins creates a host, so the row stays hidden
+    UI_MANAGED_SUBJECT_INT(plugins_available_subject_, 0, "settings_plugins_available", subjects_);
+
     // Touch calibration status, filled by refresh_status_lines().
     UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, "",
                               "touch_cal_status", subjects_);
@@ -398,6 +404,7 @@ void SettingsPanel::init_subjects() {
         {"on_touch_input_clicked", on_touch_input_clicked},
         {"on_connection_clicked", on_connection_clicked},
         {"on_updates_clicked", on_updates_clicked},
+        {"on_plugins_clicked", on_plugins_clicked},
     });
 
     // Register sub-panel overlay callbacks (must happen before XML parsing)
@@ -1035,6 +1042,17 @@ void SettingsPanel::on_updates_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_updates_clicked");
     auto& overlay = helix::settings::get_updates_settings_overlay();
     overlay.show(get_global_settings_panel().parent_screen_);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_plugins_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_plugins_clicked");
+#if HELIX_HAS_PLUGINS
+    helix::plugin::show_plugins_overlay(get_global_settings_panel().parent_screen_,
+                                        "[SettingsPanel]");
+#else
+    // No plugin host on this build; the row stays hidden (subject never set).
+#endif
     LVGL_SAFE_EVENT_CB_END();
 }
 

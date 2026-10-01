@@ -27,6 +27,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "helix_install_roots.h"
+#include "helix_version.h"
 #include "hv/requests.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -39,6 +40,7 @@
 #include "system/sha256_util.h"
 #include "system/telemetry_manager.h"
 #include "system/tls_trust.h"
+#include "text_io.h"
 
 #include <cctype>
 #ifdef __ANDROID__
@@ -100,7 +102,7 @@ constexpr int RESTART_MARSHAL_TIMEOUT_MS = 5000;
 /// (DNS, connection, TLS, JNI) and body carries a short error message.
 static std::pair<int, std::string> do_http_get(const std::string& url,
                                                const std::string& accept = "") {
-    const std::string ua = std::string("HelixScreen/") + HELIX_VERSION;
+    const std::string ua = HELIX_USER_AGENT;
 
 #ifdef __ANDROID__
     return helix::android::https_get(url, ua, accept, HTTP_TIMEOUT_SECONDS);
@@ -1195,53 +1197,15 @@ UpdateChecker::repair_release_info(const std::string& install_root) {
     // itself rather than writing through it (prestonbrown/helixscreen#1176).
     const std::string target_path = helix::paths::write_target(path);
 
-    const std::string tmp_path = target_path + ".tmp";
-    {
-        std::ofstream o(tmp_path);
-        if (!o.is_open()) {
-            // Read-only rootfs or a root-owned install dir. Never fatal: the app
-            // boots fine, self-update just stays broken until the installer runs.
-            spdlog::warn("[UpdateChecker] Cannot repair release_info.json — open {} failed: {}",
-                         tmp_path, strerror(errno));
-            return ReleaseInfoRepair::Failed;
-        }
-        o << helix::json_util::safe_dump(repaired) << std::endl;
-        o.flush();
-        if (!o.good()) {
-            spdlog::warn("[UpdateChecker] Cannot repair release_info.json — write {} failed: {}",
-                         tmp_path, strerror(errno));
-            o.close();
-            std::remove(tmp_path.c_str());
-            return ReleaseInfoRepair::Failed;
-        }
-    }
-
-    // fsync the temp file before the rename, and the parent dir after, so a
-    // power cut on flash-backed storage cannot leave a zero-length file (#943).
-    {
-        int fd = ::open(tmp_path.c_str(), O_RDONLY);
-        if (fd >= 0) {
-            (void)::fsync(fd);
-            ::close(fd);
-        }
-    }
-
-    if (std::rename(tmp_path.c_str(), target_path.c_str()) != 0) {
-        spdlog::warn("[UpdateChecker] Cannot repair release_info.json — rename {} -> {} failed: {}",
-                     tmp_path, target_path, strerror(errno));
-        std::remove(tmp_path.c_str());
+    // Fsync so a power cut on flash-backed storage cannot leave a zero-length
+    // file (#943). A read-only rootfs or root-owned install dir is never fatal:
+    // the app boots fine, self-update just stays broken until the installer runs.
+    if (!helix::text_io::write_file_atomic(target_path,
+                                           helix::json_util::safe_dump(repaired) + "\n",
+                                           helix::text_io::Durability::Fsync)) {
+        spdlog::warn("[UpdateChecker] Cannot repair release_info.json: write {} failed: {}",
+                     target_path, strerror(errno));
         return ReleaseInfoRepair::Failed;
-    }
-
-    {
-        const std::string dir = std::filesystem::path(target_path).parent_path().string();
-        if (!dir.empty()) {
-            int dfd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
-            if (dfd >= 0) {
-                (void)::fsync(dfd);
-                ::close(dfd);
-            }
-        }
     }
 
     spdlog::info("[UpdateChecker] Repaired release_info.json at {}", target_path);
@@ -2909,18 +2873,18 @@ constexpr uint16_t EM_ARM_ = 0x28, EM_AARCH64_ = 0xB7, EM_X86_64_ = 0x3E, EM_MIP
 // Rows mirror the toolchains in mk/cross.mk. "ad5x" and "k1" name the board
 // behind the unified "mips" key.
 const std::vector<UpdateChecker::PlatformInfo> kPlatforms = {
-    {"pi", "Raspberry Pi", ELF64, LE, EM_AARCH64_, {}},
-    {"pi32", "Raspberry Pi (32-bit)", ELF32, LE, EM_ARM_, {}},
-    {"x86", "x86 Desktop", ELF64, LE, EM_X86_64_, {}},
-    {"ad5m", "FlashForge Adventurer 5M", ELF32, LE, EM_ARM_, kZmodDiagnosticFiles},
-    {"ad5x", "FlashForge Adventurer 5X", ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
-    {"mips", "MIPS (K1 series / AD5X)", ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
-    {"k1", "Creality K1", ELF32, LE, EM_MIPS_, {}},
-    {"k2", "Creality K2 Plus", ELF32, LE, EM_ARM_, {}},
-    {"cc1", "Elegoo Centauri Carbon", ELF32, LE, EM_ARM_, {}},
-    {"snapmaker-u1", "Snapmaker U1", ELF64, LE, EM_AARCH64_, {}},
+    {"pi", "Raspberry Pi", false, ELF64, LE, EM_AARCH64_, {}},
+    {"pi32", "Raspberry Pi (32-bit)", false, ELF32, LE, EM_ARM_, {}},
+    {"x86", "x86 Desktop", false, ELF64, LE, EM_X86_64_, {}},
+    {"ad5m", "FlashForge Adventurer 5M", true, ELF32, LE, EM_ARM_, kZmodDiagnosticFiles},
+    {"ad5x", "FlashForge Adventurer 5X", true, ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
+    {"mips", "MIPS (K1 series / AD5X)", true, ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
+    {"k1", "Creality K1", true, ELF32, LE, EM_MIPS_, {}},
+    {"k2", "Creality K2 Plus", true, ELF32, LE, EM_ARM_, {}},
+    {"cc1", "Elegoo Centauri Carbon", true, ELF32, LE, EM_ARM_, {}},
+    {"snapmaker-u1", "Snapmaker U1", true, ELF64, LE, EM_AARCH64_, {}},
     // The K-Touch ships a firmware image, never an ELF release zip.
-    {"esp32", "BTT K-Touch", 0, 0, 0, {}},
+    {"esp32", "BTT K-Touch", false, 0, 0, 0, {}},
 };
 
 } // namespace

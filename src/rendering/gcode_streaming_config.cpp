@@ -62,7 +62,11 @@ GCodeStreamingMode get_gcode_streaming_mode() {
         spdlog::debug("[GCodeStreaming] Mode from config: OFF");
         return GCodeStreamingMode::OFF;
     }
-    // Default to AUTO for any other value
+    // The streaming section's force_streaming is another spelling of "on"
+    if (config->get<bool>("/streaming/force_streaming", false)) {
+        spdlog::debug("[GCodeStreaming] Mode from config: ON (streaming.force_streaming)");
+        return GCodeStreamingMode::ON;
+    }
     spdlog::trace("[GCodeStreaming] Mode from config: AUTO");
 
     return GCodeStreamingMode::AUTO;
@@ -94,6 +98,13 @@ size_t calculate_streaming_threshold(size_t available_memory_kb, int threshold_p
 }
 
 bool should_use_gcode_streaming(size_t file_size_bytes, const MemoryInfo& mem) {
+    // A configured size ceiling only ever adds streaming: it never lets a file
+    // the RAM rule below would stream load whole.
+    const int threshold_mb = Config::get_instance()->get<int>("/streaming/threshold_mb", 0);
+    if (threshold_mb > 0 && file_size_bytes > static_cast<size_t>(threshold_mb) * 1024 * 1024) {
+        return true;
+    }
+
     // If we can't read memory info, be conservative
     if (mem.available_kb == 0) {
         spdlog::warn("[GCodeStreaming] Cannot read memory info, defaulting to streaming "

@@ -15,6 +15,8 @@ A value holding `$VAR`, `$(...)`, `${...}` or a backtick is skipped with a warni
 exported, so a line written for the old shell-evaluated file (a generated token, say) never
 becomes a readable literal. Generate the value first and write the result into the file.
 
+A variable read as an on/off flag is on for `1`, `true`, `yes` or `on` (ASCII case-insensitive, surrounding whitespace ignored) and off for anything else, including `0`, `false`, `10` or an empty value (`include/env_knobs.h#env_truthy`).
+
 Some keys carry a stricter rule, because root acts on the value:
 
 | Key | Accepted value |
@@ -30,7 +32,7 @@ Only these keys are read; any other key is ignored with one logged warning per k
 `HELIX_ALSA_DEVICE`, `HELIX_AUTO_QUIT_MS`, `HELIX_AUTO_SCREENSHOT`, `HELIX_BACKLIGHT_DEVICE`,
 `HELIX_COLOR_SWAP_RB`, `HELIX_DEBUG`, `HELIX_DEBUG_TOUCH`, `HELIX_DIAGNOSTIC_UPLOADS`,
 `HELIX_DISABLE_AUTO_UPDATES`, `HELIX_DISPLAY_BACKEND`, `HELIX_DISPLAY_ROTATION`, `HELIX_DPI`,
-`HELIX_DRM_DEVICE`, `HELIX_FB_DEVICE`, `HELIX_FORCE_STREAMING`, `HELIX_GCODE_MODE`,
+`HELIX_DRM_DEVICE`, `HELIX_FB_DEVICE`, `HELIX_GCODE_MODE`,
 `HELIX_GCODE_STREAMING`, `HELIX_KEYBOARD_DEVICE`, `HELIX_LOG_DEST`, `HELIX_LOG_FILE`,
 `HELIX_LOG_LEVEL`, `HELIX_MOUSE_DEVICE`, `HELIX_NICE`, `HELIX_NO_SPLASH`,
 `HELIX_REMOTE_CONTROL`, `HELIX_REMOTE_HTTP_TOKEN`, `HELIX_REMOTE_SOCKET`, `HELIX_REQUIRE_POINTER`, `HELIX_SCREEN_SIZE`, `HELIX_SCROLL_GUARD`,
@@ -127,11 +129,11 @@ Resolve design-token lookups from the compiled token table (`src/generated/theme
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` (use the compiled table), any other value (use the live scanner) |
+| **Values** | `1`, `true`, `yes` or `on` uses the compiled table; any other value uses the live scanner |
 | **Default** | Unset - on for ESP32 builds (`ui_xml/` ships there as a read-only frogfs image) and cross-built release targets (`HELIX_RELEASE_BUILD`), off for native dev builds |
 | **File** | `src/ui/theme_token_table_runtime.cpp` |
 
-Only the first character matters: a value starting with `1` turns the table on, so `HELIX_TOKEN_TABLE=0` forces the live scanner back on - useful on a device to confirm an edited `ui_xml/` token still parses, and the only way to move tokens there without a rebuild. A build can also flip its default on by defining `HELIX_TOKEN_TABLE_DEFAULT_ON`, which nothing needs now that release builds default on.
+Set, the flag rule decides, so `HELIX_TOKEN_TABLE=0` forces the live scanner back on - useful on a device to confirm an edited `ui_xml/` token still parses, and the only way to move tokens there without a rebuild. A build can also flip its default on by defining `HELIX_TOKEN_TABLE_DEFAULT_ON`, which nothing needs now that release builds default on.
 
 The table exists because aggregating tokens live reopens every top-level `ui_xml` file once per aggregation call, ~28 times a boot. That scan is most of what `theme_manager_init` spends on a slow filesystem - 7.2s of a 16.8s splash on a 480x272 QIDI Q2.
 
@@ -993,13 +995,15 @@ Control G-code streaming mode for memory-efficient loading of large files. Strea
 |----------|-------|
 | **Values** | `on` (always stream), `off` (always full load), `auto` (calculate based on RAM) |
 | **Default** | `auto` |
-| **Config** | `gcode_viewer.streaming_mode` in `settings.json` |
+| **Config** | `gcode_viewer.streaming_mode`, `streaming.force_streaming`, `streaming.threshold_mb` in `settings.json` |
 | **File** | `src/rendering/gcode_streaming_config.cpp` |
+
+The same decision governs the G-code viewer and the file rewrite in `GCodeFileModifier::apply()`.
 
 **Priority order:**
 1. Environment variable (highest) - for testing/debugging
-2. Config file setting - for user preference
-3. Auto-detection based on available RAM
+2. `gcode_viewer.streaming_mode` `on`/`off`, then `streaming.force_streaming: true` (= `on`)
+3. Auto-detection based on available RAM; a non-zero `streaming.threshold_mb` also streams any file above it
 
 ```bash
 # Force streaming mode (useful for testing streaming behavior)
@@ -1113,7 +1117,7 @@ Overrides the ALSA backend's idle-clock detection. Detection keeps the card cloc
 
 | Property | Value |
 |----------|-------|
-| **Values** | `1` (keep clock alive) / `0` (park when idle); any other non-empty value counts as `1` |
+| **Values** | `1`, `true`, `yes` or `on` keeps the clock alive; any other non-empty value parks it |
 | **Default** | unset - per-device detection |
 | **File** | `src/system/alsa_sound_backend.cpp`; detection in `include/alsa_clock_keepalive.h#device_needs_clock_keepalive` |
 
@@ -1543,30 +1547,6 @@ vim ui_xml/home_panel.xml
 # [PanelBase::rebuild] Home Panel — tearing down and re-creating
 ```
 
-### `HELIX_FORCE_STREAMING`
-
-Force `StreamingPolicy` to answer "stream" for every file-size question, regardless of the file's actual size or the device's RAM. `StreamingPolicy` is the single source of truth for whether a file operation goes disk-to-disk (streaming) or buffers in memory — G-code download and the exclude-objects file rewrite are its main consumers. Forcing it on lets you exercise the streaming path on a desktop with plenty of RAM.
-
-| Property | Value |
-|----------|-------|
-| **Values** | `1`, `true`, or `on`. Any other value (including `0` and `off`) falls through to the config file. |
-| **Default** | Unset — auto-decision from file size vs. a RAM-derived threshold |
-| **Config** | `/streaming/force_streaming` (bool), `/streaming/threshold_mb` (int, `0` = auto) |
-| **File** | `src/system/streaming_policy.cpp` |
-
-```bash
-# Always take the streaming path, even for a 200 KB file
-HELIX_FORCE_STREAMING=1 ./build/bin/helix-screen --test -vv
-```
-
-**Priority order:**
-1. `HELIX_FORCE_STREAMING` set to `1`/`true`/`on` (highest — returns immediately, config is never read)
-2. `/streaming/force_streaming` in `settings.json`
-3. `/streaming/threshold_mb` override, when non-zero
-4. Auto-detection from available RAM
-
-**Not the same as [`HELIX_GCODE_STREAMING`](#helix_gcode_streaming)**, which controls how the G-code *viewer* loads layers. This one governs file operations (download, modify) across the app. There is no "force off" value — to disable, leave it unset.
-
 ### `HELIX_FLOW_SEGMENT`
 
 Pin the filament-path animation to one segment so a single leg of the path can be inspected in isolation. Sets the active slot to 0 if none is set, forces `filament_segment` to the named value, and keeps a 30 ms repaint timer alive so the flow dots keep moving.
@@ -1685,7 +1665,7 @@ Deliberately segfault through a known call chain to verify that the crash handle
 
 | Property | Value |
 |----------|-------|
-| **Values** | Any non-empty value other than `0` |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Unset — no test crash |
 | **File** | `src/application/application.cpp` (calls `crash_handler::trigger_test_crash()`) |
 
@@ -1702,7 +1682,7 @@ Turn overlay-registration violations from a warning into a hard failure. Mirrors
 
 | Property | Value |
 |----------|-------|
-| **Values** | A value starting with `1`, `t`, `T`, `y`, or `Y` enables. Anything else leaves it off. |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Off |
 | **File** | `src/ui/ui_nav_manager.cpp` |
 
@@ -1721,7 +1701,7 @@ Abort instead of merely warning when the L081 `cluster:pstat-async-delete` Mecha
 
 | Property | Value |
 |----------|-------|
-| **Values** | A value starting with `1`, `t`, `T`, `y`, or `Y` enables. Anything else leaves it off. |
+| **Values** | `1`, `true`, `yes` or `on` enables; anything else leaves it off |
 | **Default** | Off for a plain run; `HelixTestFixture` opts in via `set_strict_bg_check(true)` |
 | **File** | `src/system/async_lifetime_guard.cpp` |
 

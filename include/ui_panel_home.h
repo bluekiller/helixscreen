@@ -10,6 +10,7 @@
 #include "panel_widget.h"
 #include "subject_managed_panel.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -134,6 +135,10 @@ class HomePanel : public PanelBase {
         /// The visible widget ids the placement was computed from; empty when
         /// nothing is cached, so the next populate rebuilds even an unchanged list.
         std::optional<std::vector<std::string>> visible_ids;
+        /// The runtime-widget generation visible_ids was built at. A plugin
+        /// reload re-registers the same ids with factories bound to a new
+        /// runtime, so an unchanged list alone must not skip the rebuild.
+        uint64_t widget_gen = 0;
     };
     /// One per config page, in page order.
     std::vector<CarouselPage> pages_;

@@ -120,7 +120,7 @@ non-settled states are easy to get wrong:
 
 ### Discovery Sequence
 
-Tool names must be provided via `set_discovered_tools()` before calling `start()`. The caller (typically `AmsState::init_backend_from_hardware()`) extracts tool names from `PrinterDiscovery::get_tool_names()`.
+Tool names must be provided via `set_discovered_tools()` before calling `start()`. `set_discovery()` does that from `PrinterDiscovery::tool_names()` when `AmsState::init_backends_from_hardware()` hands it the discovery snapshot.
 
 ---
 

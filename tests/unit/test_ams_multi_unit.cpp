@@ -1,10 +1,10 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "test_helpers/afc_test_access.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_happy_hare.h"
 #include "ams_types.h"
+#include "test_helpers/afc_test_access.h"
 
 #include <algorithm>
 #include <vector>
@@ -69,7 +69,7 @@ class AmsBackendAfcMultiUnitHelper : public AmsBackendAfc {
 
     /// Expose parse_afc_state for testing
     void test_parse_afc_state(const nlohmann::json& data) {
-        // Build the full notification format and route through handle_status_update
+        // Build the full notification format and route through handle_status
         nlohmann::json notification;
         nlohmann::json params;
         params["AFC"] = data;

@@ -160,7 +160,7 @@ an endless-spool *edit* in the
 ### Bypass / external spool
 
 Supported, with a different mechanism per dialect. `supports_bypass` starts `false`
-in the constructor and converges on the first full box frame in `handle_status_update`:
+in the constructor and converges on the first full box frame in `handle_status`:
 
 - **Flat schema:** true only when the Fork dialect is identified (`api_version == 1`)
   AND the payload carries an `external: true` entry (`find_external_slot_index()`,

@@ -8,6 +8,7 @@
 #include "grid_layout.h"
 #include "helix/ui/text_metrics.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "panel_widget_registry.h"
 #include "panel_widget_size.h"

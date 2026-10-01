@@ -58,6 +58,25 @@ void optional_string(const json& j, const char* key, std::string& out,
     out = it->get<std::string>();
 }
 
+// The consent dialog's header line and the plugin rows print these fields
+// verbatim, so a control character could forge dialog text and a runaway
+// length could push the permission lines off the visible body.
+constexpr size_t kMaxNameBytes = 48;
+constexpr size_t kMaxVersionBytes = 32;
+constexpr size_t kMaxAuthorBytes = 64;
+
+void check_display_field(const char* key, const std::string& v, size_t max_bytes,
+                         std::vector<std::string>& errors) {
+    bool single_line = std::none_of(v.begin(), v.end(), [](char c) {
+        unsigned char u = static_cast<unsigned char>(c);
+        return u < 0x20 || u == 0x7f;
+    });
+    if (v.size() > max_bytes || !single_line) {
+        errors.push_back(std::string("'") + key + "' must be a single line of at most " +
+                         std::to_string(max_bytes) + " bytes");
+    }
+}
+
 void check_range(SettingDecl& d, const json& s, std::vector<std::string>& local) {
     auto mn = s.find("min");
     auto mx = s.find("max");
@@ -88,7 +107,14 @@ void check_enum(SettingDecl& d, const json& s, std::vector<std::string>& local) 
             local.push_back("'options' must be a non-empty array of strings");
             return;
         }
-        d.options.push_back(o.get<std::string>());
+        const std::string& opt = o.get_ref<const std::string&>();
+        // The settings screen joins options with '\n' into one dropdown, so an
+        // option containing a newline would split into wrong entries.
+        if (opt.find('\n') != std::string::npos) {
+            local.push_back("'options' entries must not contain newlines");
+            return;
+        }
+        d.options.push_back(opt);
     }
     if (!d.default_value.is_null() &&
         (!d.default_value.is_string() ||
@@ -143,17 +169,74 @@ void parse_setting(const std::string& id, const json& s, size_t index, Manifest&
     } else if (type == SettingType::Action) {
         optional_string(s, "callback", d.callback, local);
         if (!is_owned_name(id, d.callback))
-            local.push_back("'callback' must be named " + id + "_<name>");
+            local.push_back("'callback' must be named " + id + "__<name>");
     } else if (type == SettingType::Info) {
         optional_string(s, "subject", d.subject, local);
         if (!is_owned_name(id, d.subject))
-            local.push_back("'subject' must be named " + id + "_<name>");
+            local.push_back("'subject' must be named " + id + "__<name>");
     }
 
     for (auto& e : local)
         errors.push_back(where + " ('" + d.key + "'): " + e);
     if (local.empty())
         m.settings.push_back(std::move(d));
+}
+
+void span_field(const json& w, const char* key, int& out, int lo, std::vector<std::string>& local) {
+    auto it = w.find(key);
+    if (it == w.end())
+        return;
+    if (!it->is_number_integer() || it->get<int>() < lo || it->get<int>() > kMaxWidgetCells) {
+        local.push_back(std::string("'") + key + "' must be an integer from " + std::to_string(lo) +
+                        " to " + std::to_string(kMaxWidgetCells));
+        return;
+    }
+    out = it->get<int>();
+}
+
+void parse_widgets(const json& arr, Manifest& m, std::vector<std::string>& errors) {
+    if (!arr.is_array()) {
+        errors.push_back("'widgets' must be an array");
+        return;
+    }
+    if (arr.size() > kMaxWidgetsPerPlugin) {
+        errors.push_back("'widgets' may list at most " + std::to_string(kMaxWidgetsPerPlugin));
+        return;
+    }
+    std::set<std::string> seen;
+    for (size_t i = 0; i < arr.size(); ++i) {
+        const std::string where = "widgets[" + std::to_string(i) + "]";
+        const json& w = arr[i];
+        if (!w.is_object()) {
+            errors.push_back(where + " must be an object");
+            continue;
+        }
+        WidgetDecl d;
+        std::vector<std::string> local;
+        require_string(w, "id", d.id, local);
+        require_string(w, "name", d.name, local);
+        require_string(w, "component", d.component, local);
+        optional_string(w, "icon", d.icon, local);
+        optional_string(w, "description", d.description, local);
+        if (!d.id.empty() && !is_owned_name(m.id, d.id))
+            local.push_back("'id' must be named " + m.id + "__<name>");
+        if (!d.component.empty() && !is_owned_name(m.id, d.component))
+            local.push_back("'component' must be named " + m.id + "__<name>");
+        span_field(w, "colspan", d.colspan, 1, local);
+        span_field(w, "rowspan", d.rowspan, 1, local);
+        span_field(w, "max_colspan", d.max_colspan, 0, local);
+        span_field(w, "max_rowspan", d.max_rowspan, 0, local);
+        if (d.max_colspan != 0 && d.max_colspan < d.colspan)
+            local.push_back("'max_colspan' must be 0 or at least 'colspan'");
+        if (d.max_rowspan != 0 && d.max_rowspan < d.rowspan)
+            local.push_back("'max_rowspan' must be 0 or at least 'rowspan'");
+        if (!d.id.empty() && !seen.insert(d.id).second)
+            local.push_back("duplicate widget id '" + d.id + "'");
+        for (const auto& e : local)
+            errors.push_back(where + ": " + e);
+        if (local.empty())
+            m.widgets.push_back(std::move(d));
+    }
 }
 
 } // namespace
@@ -166,11 +249,20 @@ bool is_valid_plugin_id(std::string_view id) {
 }
 
 bool is_owned_name(std::string_view id, std::string_view name) {
-    return name.size() > id.size() + 1 && name.substr(0, id.size()) == id && name[id.size()] == '_';
+    return name.size() > id.size() + kPluginNameSeparator.size() &&
+           name.substr(0, id.size()) == id &&
+           name.substr(id.size(), kPluginNameSeparator.size()) == kPluginNameSeparator;
+}
+
+std::string plugin_owned_name(std::string_view id, std::string_view rest) {
+    std::string name(id);
+    name += kPluginNameSeparator;
+    name += rest;
+    return name;
 }
 
 std::string_view owner_of(std::string_view name) {
-    auto pos = name.find('_');
+    auto pos = name.find(kPluginNameSeparator);
     return pos == std::string_view::npos ? std::string_view{} : name.substr(0, pos);
 }
 
@@ -191,8 +283,11 @@ ManifestParse parse_manifest(const std::string& text) {
     if (!m.id.empty() && !is_valid_plugin_id(m.id))
         r.errors.push_back("'id' must match ^[a-z][a-z0-9-]{1,31}$");
     require_string(j, "name", m.name, r.errors);
+    check_display_field("name", m.name, kMaxNameBytes, r.errors);
     require_string(j, "version", m.version, r.errors);
+    check_display_field("version", m.version, kMaxVersionBytes, r.errors);
     optional_string(j, "author", m.author, r.errors);
+    check_display_field("author", m.author, kMaxAuthorBytes, r.errors);
     optional_string(j, "description", m.description, r.errors);
     optional_string(j, "helix_version", m.helix_version, r.errors);
 
@@ -231,10 +326,13 @@ ManifestParse parse_manifest(const std::string& text) {
 
     if (auto it = j.find("settings_overlay"); it != j.end() && !it->is_null()) {
         if (!it->is_string() || !is_owned_name(m.id, it->get<std::string>()))
-            r.errors.push_back("'settings_overlay' must be a component named " + m.id + "_<name>");
+            r.errors.push_back("'settings_overlay' must be a component named " + m.id + "__<name>");
         else
             m.settings_overlay = it->get<std::string>();
     }
+
+    if (auto it = j.find("widgets"); it != j.end())
+        parse_widgets(*it, m, r.errors);
 
     if (r.errors.empty())
         r.manifest = std::move(m);

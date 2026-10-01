@@ -531,6 +531,8 @@ translations:
   Change Tool: Change Tool
   Change Tool While Paused: Change Tool While Paused
   Change heater control?: Change heater control?
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
   Change tool: Change tool
   Changes apply immediately. Adjust during print for tuning.: Changes apply immediately.
     Adjust during print for tuning.
@@ -685,6 +687,7 @@ translations:
   Connect a USB label printer first: Connect a USB label printer first
   Connect an ADXL345 accelerometer to calibrate: Connect an ADXL345 accelerometer
     to calibrate
+  Connect to servers on your network and the internet.: Connect to servers on your network and the internet.
   'Connect to your printer via SSH and run:': 'Connect to your printer via SSH and
     run:'
   Connected: Connected
@@ -983,10 +986,12 @@ translations:
   Enable brush wipe after purging: Enable brush wipe after purging
   Enable feed assist for active slot during printing: Enable feed assist for active slot during printing
   Enable or disable the hub cutter: Enable or disable the hub cutter
+  Enable plugin?: Enable plugin?
   Enable purging during tool changes: Enable purging during tool changes
   Enable/disable automatic backup spool switching: Enable/disable automatic backup spool switching
   Enable/disable quiet operation mode: Enable/disable quiet operation mode
   Enabled: Enabled
+  Enabled. Open its settings, or disable it?: Enabled. Open its settings, or disable it?
   Enclosed: Enclosed
   Enclosure: Enclosure
   Encoder: Encoder
@@ -1620,6 +1625,7 @@ translations:
   Keep clear of the printer while the toolhead is moving: Keep clear of the printer while the toolhead is moving
   Keep current: Keep current
   Keep hands clear. The printer moves on its own.: Keep hands clear. The printer moves on its own.
+  Keep its own data on this screen (up to 256 KB).: Keep its own data on this screen (up to 256 KB).
   Keep the bypass spool visible when bypass is off: Keep the bypass spool visible when bypass is off
   Kick away: Kick away
   Kinematics: Kinematics
@@ -2251,6 +2257,7 @@ translations:
   : "Plugin not responding after restart.\nIt may need more time to load."
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: Plugin removed. A config file needs attention - check the HelixScreen log for details.
   Plugin uninstalled successfully.: Plugin uninstalled successfully.
+  Plugins: Plugins
   Point camera at QR code on spool: Point camera at QR code on spool
   Polymaker: Polymaker
   Poor Accuracy: Poor Accuracy
@@ -2833,6 +2840,8 @@ translations:
   Self-Test: Self-Test
   Send G-code and read the replies: Send G-code and read the replies
   Send Report: Send Report
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
   Send commands directly to printer: Send commands directly to printer
   Send this crash report to help improve HelixScreen.: Send this crash report to help
     improve HelixScreen.
@@ -3271,6 +3280,7 @@ translations:
     sent
   This is what data would be sent if enabled: This is what data would be sent if enabled
   This may take up to 30 seconds: This may take up to 30 seconds
+  This plugin asks for no special permissions.: This plugin asks for no special permissions.
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : This plugin lets HelixScreen control print start options like bed mesh and QGL.
@@ -3290,6 +3300,7 @@ translations:
   This system does not support bypass mode: This system does not support bypass mode
   This tool probes each bed screw and tells you how much to adjust.: This tool probes
     each bed screw and tells you how much to adjust.
+  'This update asks for new permissions:': 'This update asks for new permissions:'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
@@ -3690,6 +3701,7 @@ translations:
   attempt {}: attempt {}
   bed: bed
   busy: busy
+  by: by
   by Preston Brown: by Preston Brown
   chamber heater: chamber heater
   complete: complete
@@ -3711,6 +3723,7 @@ translations:
   extruder(s): extruder(s)
   extruders: extruders
   fans: fans
+  faulted: faulted
   feeder error: feeder error
   feeder not in automatic mode: feeder not in automatic mode
   filament sensor disabled: filament sensor disabled
@@ -3721,6 +3734,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env ignored: {}'
   idle: idle
   in unit {} slot {}: in unit {} slot {}
+  incompatible: incompatible
+  invalid: invalid
   just now: just now
   layers: layers
   left: left
@@ -3729,6 +3744,7 @@ translations:
   matched: matched
   mm before clog: mm before clog
   needs: needs
+  needs approval: needs approval
   never sleeps: never sleeps
   not detected: not detected
   not loaded: not loaded
@@ -3737,6 +3753,7 @@ translations:
   'off': 'off'
   on unit {}: on unit {}
   or type a macro name: or type a macro name
+  over memory budget: over memory budget
   passive: passive
   printer default: printer default
   prints: prints

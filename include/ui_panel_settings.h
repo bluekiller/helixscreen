@@ -134,6 +134,8 @@ class SettingsPanel : public PanelBase {
     // neutral "updates aren't available" notice, mutually exclusive with the
     // firmware-managed notice above.
     lv_subject_t updates_unavailable_subject_;
+    // 1 once a plugin host exists: unhides the Plugins row (settings_panel.xml)
+    lv_subject_t plugins_available_subject_;
 
     // Touch calibration status subject
     lv_subject_t touch_cal_status_subject_;
@@ -294,6 +296,7 @@ class SettingsPanel : public PanelBase {
     static void on_touch_input_clicked(lv_event_t* e);
     static void on_connection_clicked(lv_event_t* e);
     static void on_updates_clicked(lv_event_t* e);
+    static void on_plugins_clicked(lv_event_t* e);
 
   private:
     // Static callbacks for overlays

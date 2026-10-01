@@ -281,6 +281,13 @@ class AmsBackendAceTestHelper : public AmsBackendAce {
         running_ = state;
     }
 
+    // parse_slots_response resizes units[0].slots without touching slot_count
+    // when the size is unchanged, so the two can disagree.
+    void set_stale_slot_count(int count) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        system_info_.units[0].slot_count = count;
+    }
+
     void set_test_action(AmsAction action) {
         std::lock_guard<std::mutex> lock(mutex_);
         system_info_.action = action;
@@ -680,6 +687,25 @@ TEST_CASE("ACE parse_status_response: dryer not active", "[ams][ace][parse]") {
 // ============================================================================
 // Slots Response Parsing Tests
 // ============================================================================
+
+TEST_CASE("ACE reads a slot where it writes it when slot_count is stale", "[ams][ace][parse]") {
+    AmsBackendAceTestHelper helper;
+    helper.test_parse_info_response(json{{"slot_count", 4}});
+    json data = {
+        {"slots",
+         {{{"index", 0}, {"color", "#FF0000"}, {"material", "PLA"}, {"status", "available"}},
+          {{"index", 1}, {"color", "#00FF00"}, {"material", "PETG"}, {"status", "available"}},
+          {{"index", 2}, {"color", "#0000FF"}, {"material", "ABS"}, {"status", "available"}},
+          {{"index", 3}, {"color", "#FFFFFF"}, {"material", "TPU"}, {"status", "available"}}}}};
+    REQUIRE(helper.test_parse_slots_response(data));
+    helper.set_stale_slot_count(2);
+
+    SlotInfo info = helper.get_slot_info(3);
+    info.material = "ASA";
+    REQUIRE(helper.sync_external_identity(3, info).success());
+
+    CHECK(helper.get_slot_info(3).material == "ASA");
+}
 
 TEST_CASE("ACE parse_slots_response: valid slots", "[ams][ace][parse]") {
     AmsBackendAceTestHelper helper;

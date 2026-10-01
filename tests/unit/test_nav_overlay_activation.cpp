@@ -292,6 +292,28 @@ TEST_CASE_METHOD(OverlayActivationFixture,
 }
 
 TEST_CASE_METHOD(OverlayActivationFixture,
+                 "Navbar tap during a close slide-out still runs that overlay's close callback",
+                 "[navigation][overlay][lifecycle]") {
+    auto& nav = NavigationManager::instance();
+    // The close callback of a popped overlay waits for its slide-out, so this case
+    // needs the real animations rather than the fixture's inline close path.
+    DisplaySettingsManager::instance().set_animations_enabled(true);
+    int closes = 0;
+    nav.register_overlay_close_callback(overlay_, [&closes] { ++closes; });
+
+    open_overlay();
+    process_lvgl(500); // slide-in complete
+    nav.go_back();
+    drain(); // popped; the slide-out is animating and the callback waits for its end
+    REQUIRE(closes == 0);
+
+    NavigationManagerTestAccess::switch_to_panel(nav, PanelId::Controls);
+    drain();
+    process_lvgl(500); // deferred callbacks, then whatever is left of the slide-out
+    CHECK(closes == 1);
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture,
                  "Navbar tap onto a different panel activates only the target",
                  "[navigation][overlay][lifecycle]") {
     auto& nav = NavigationManager::instance();

@@ -59,7 +59,6 @@ static void load_theme_colors(FilamentPathData* data) {
         theme_manager_get_color(dark_mode ? "filament_hub_bg_dark" : "filament_hub_bg_light");
     theme.color_hub_border = theme_manager_get_color(dark_mode ? "filament_hub_border_dark"
                                                                : "filament_hub_border_light");
-    theme.color_nozzle = lv_color_hex(NOZZLE_UNLOADED_COLOR);
     theme.color_text = theme_manager_get_color("text");
     theme.color_bg = theme_manager_get_color("card_bg");
     theme.color_success = theme_manager_get_color("success");

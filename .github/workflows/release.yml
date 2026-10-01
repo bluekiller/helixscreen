@@ -4,16 +4,36 @@ on:
   push:
     tags:
       - 'v*'  # Triggers on v1.0.0, v1.2.3-beta, etc.
+  # Always a dry run: exercises the whole pipeline on any ref without releasing
+  # anything. See RELEASE_MODE below for what it does instead of publishing.
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Comma-separated subset of the build matrix (e.g. "x86" or "pi,mips"); empty builds every platform'
+        type: string
+        default: ''
 
-# Ensure only one release workflow runs at a time
+# Ensure only one release workflow runs at a time per ref. The event name keeps
+# a dry run and a real release in separate groups, so neither can wait on or
+# cancel the other.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 # Every patch is judged from clean here (see build.yml for why the flag is
 # environment-wide rather than per-step).
 env:
   HELIX_PATCHES_FROM_CLEAN: "1"
+  # publish: a v* tag push, and nothing else. Every dispatch is dryrun.
+  #
+  # dryrun never touches anything users or other runs can see. Steps that only
+  # publish (GitHub release, Play Store, Discord, docs dispatch, R2 pruning) are
+  # gated on publish; the R2 uploads run in both modes but write under
+  # needs.plan.outputs.r2_prefix, which is dry-run/<run_id>/ in a dry run and
+  # empty in a release. dry-run-verify checks the result and deletes the prefix.
+  # tests/shell/test_release_dry_run.bats fails any publishing step that is
+  # neither gated nor prefixed.
+  RELEASE_MODE: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) && 'publish' || 'dryrun' }}
 
 jobs:
   # ============================================================================
@@ -64,11 +84,69 @@ jobs:
       run: make test-shell
 
   # ============================================================================
+  # Resolve the release mode, version, R2 prefix and platform matrix once
+  # ============================================================================
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      tag: ${{ steps.plan.outputs.tag }}
+      version: ${{ steps.plan.outputs.version }}
+      r2_prefix: ${{ steps.plan.outputs.r2_prefix }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      platforms: ${{ steps.plan.outputs.platforms }}
+
+    steps:
+    - name: Resolve mode, version and platform matrix
+      id: plan
+      env:
+        PLATFORMS: ${{ inputs.platforms }}
+        # The release platform matrix. A tag push builds all of it; a dry run may
+        # name a subset through the platforms input.
+        FULL_MATRIX: |
+          [
+            {"platform": "pi", "display_name": "Raspberry Pi", "build_target": "pi-both"},
+            {"platform": "pi32", "display_name": "Raspberry Pi 32-bit", "build_target": "pi32-both"},
+            {"platform": "ad5m", "display_name": "Flashforge AD5M"},
+            {"platform": "cc1", "display_name": "Elegoo Centauri Carbon 1"},
+            {"platform": "mips", "display_name": "Unified MIPS (K1 Series + AD5X)", "build_target": "mips", "build_dir": "mips"},
+            {"platform": "k2", "display_name": "Creality K2 Series"},
+            {"platform": "x86", "display_name": "x86_64 Debian", "build_target": "x86-both"},
+            {"platform": "snapmaker-u1", "display_name": "Snapmaker U1"}
+          ]
+      run: |
+        set -euo pipefail
+        # A dry run's version sorts below every real one, so even a manifest
+        # that escaped its prefix could never read as an update.
+        case "$RELEASE_MODE" in
+          publish) TAG="$GITHUB_REF_NAME"; PREFIX="" ;;
+          dryrun)  TAG="v0.0.0-dryrun.${GITHUB_RUN_ID}"; PREFIX="dry-run/${GITHUB_RUN_ID}/" ;;
+          *) echo "::error::RELEASE_MODE is '$RELEASE_MODE', expected publish or dryrun"; exit 1 ;;
+        esac
+        MATRIX=$(jq -c --arg wanted "$PLATFORMS" '
+          [$wanted | splits("[,[:space:]]+") | select(length > 0)] as $w
+          | ($w - map(.platform)) as $unknown
+          | if ($unknown | length) > 0 then error("unknown platform(s): \($unknown | join(", "))")
+            elif ($w | length) == 0 then {include: .}
+            else {include: map(select(.platform | IN($w[])))}
+            end' <<<"$FULL_MATRIX")
+        {
+          echo "mode=$RELEASE_MODE"
+          echo "tag=$TAG"
+          echo "version=${TAG#v}"
+          echo "r2_prefix=$PREFIX"
+          echo "matrix=$MATRIX"
+          echo "platforms=$(jq -r '[.include[].platform] | join(" ")' <<<"$MATRIX")"
+        } | tee -a "$GITHUB_OUTPUT"
+
+  # ============================================================================
   # Build embedded platform binaries using Docker cross-compilation
   # ============================================================================
   build-platforms:
     name: Build (${{ matrix.display_name }})
-    needs: [validate-shell]
+    needs: [validate-shell, plan]
     runs-on: ubuntu-22.04
     # The pi-both / pi32-both / x86-both cross-compiles are the long poles here:
     # a full DRM+GLES+thorvg build that lands at 58-70 min and grows with the
@@ -87,30 +165,7 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      matrix:
-        platform: [pi, pi32, ad5m, cc1, mips, k2, x86, snapmaker-u1]
-        include:
-          - platform: pi
-            display_name: "Raspberry Pi"
-            build_target: pi-both
-          - platform: pi32
-            display_name: "Raspberry Pi 32-bit"
-            build_target: pi32-both
-          - platform: ad5m
-            display_name: "Flashforge AD5M"
-          - platform: cc1
-            display_name: "Elegoo Centauri Carbon 1"
-          - platform: mips
-            display_name: "Unified MIPS (K1 Series + AD5X)"
-            build_target: mips
-            build_dir: mips
-          - platform: k2
-            display_name: "Creality K2 Series"
-          - platform: x86
-            display_name: "x86_64 Debian"
-            build_target: x86-both
-          - platform: snapmaker-u1
-            display_name: "Snapmaker U1"
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:
     - name: Checkout repository
@@ -262,7 +317,7 @@ jobs:
   # ============================================================================
   build-android:
     name: Build (Android)
-    needs: [validate-shell]
+    needs: [validate-shell, plan]
     runs-on: ubuntu-22.04
     timeout-minutes: 90
 
@@ -418,8 +473,10 @@ jobs:
 
     - name: Extract version
       id: version
+      env:
+        RELEASE_TAG: ${{ needs.plan.outputs.tag }}
       run: |
-        VERSION="${GITHUB_REF_NAME#v}"
+        VERSION="${RELEASE_TAG#v}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Rename APKs
@@ -523,8 +580,8 @@ jobs:
   # every other routing decision does.
   publish-android:
     name: Publish to Play Store (internal)
-    needs: [build-android, release]
-    if: needs.release.outputs.channel == 'stable'
+    needs: [build-android, release, plan]
+    if: needs.release.outputs.channel == 'stable' && needs.plan.outputs.mode == 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -586,9 +643,11 @@ jobs:
     # with no Android assets and nothing went red.
     # No cycle: publish-android needs [build-android, release], and build-android
     # needs only validate-shell.
-    needs: [build-platforms, build-android]
+    needs: [build-platforms, build-android, plan]
     permissions:
       contents: write  # Required to create releases
+    env:
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
     outputs:
       # Declared by RELEASE_CHANNEL on the branch being tagged, NOT derived from
       # the tag string. Downstream jobs (upload-r2, notify-website) consume these
@@ -638,7 +697,7 @@ jobs:
     - name: Verify Android artifacts are present
       run: |
         set -euo pipefail
-        VERSION="${GITHUB_REF_NAME#v}"
+        VERSION="${RELEASE_TAG#v}"
         missing=""
         for f in "helixscreen-android-arm64-v${VERSION}.apk" \
                  "helixscreen-android-x86_64-v${VERSION}.apk" \
@@ -724,7 +783,7 @@ jobs:
       run: |
         # Tag name is the full version with 'v' prefix (e.g., v1.2.3)
         # Used for release title and filename references
-        VERSION="${GITHUB_REF_NAME}"
+        VERSION="${RELEASE_TAG}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Version: $VERSION"
 
@@ -743,7 +802,12 @@ jobs:
         # status and an invalid RELEASE_CHANNEL would pass as a green step,
         # leaving every downstream channel expression empty.
         set -o pipefail
-        scripts/release-channel.sh --tag "$GITHUB_REF_NAME" | tee -a "$GITHUB_OUTPUT"
+        # A dry run has no tag to cross-check against the declared channel.
+        if [ "$RELEASE_MODE" = publish ]; then
+          scripts/release-channel.sh --tag "$GITHUB_REF_NAME" | tee -a "$GITHUB_OUTPUT"
+        else
+          scripts/release-channel.sh | tee -a "$GITHUB_OUTPUT"
+        fi
 
     - name: Generate release notes
       id: notes
@@ -865,6 +929,7 @@ jobs:
         fi
 
     - name: Create GitHub Release
+      if: env.RELEASE_MODE == 'publish'
       uses: softprops/action-gh-release@v3
       with:
         name: ${{ steps.version.outputs.version }}
@@ -882,8 +947,25 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # The dry-run stand-in for the release above: the same file set less the
+    # AAB (only Play consumes it), kept as a workflow artifact for
+    # dry-run-verify to compare against R2.
+    - name: Upload would-be release assets (dry run)
+      if: env.RELEASE_MODE == 'dryrun'
+      uses: actions/upload-artifact@v7
+      with:
+        name: dry-run-release-assets
+        path: |
+          release-files/*.tar.gz
+          release-files/*.zip
+          release-files/*.apk
+          release-files/*.sym.zst
+          release-files/install.sh
+        if-no-files-found: error
+        retention-days: 3
+
     - name: Notify Discord
-      if: success()
+      if: success() && env.RELEASE_MODE == 'publish'
       continue-on-error: true
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -956,15 +1038,17 @@ jobs:
   upload-r2:
     name: Upload to R2
     runs-on: ubuntu-latest
-    needs: [release]
+    needs: [release, plan]
     # NOT continue-on-error: a failed R2 publish means the new version is invisible
     # to every in-app updater (the manifest is the source of truth and is trusted on
     # any HTTP-200, never re-checked for staleness) and CDN installs 404. That is a
     # worse outcome than a red release run, so the job MUST fail the workflow loudly
     # — a green run with a stale manifest is the silent-failure trap from .github#952
     # / v0.99.80, where continue-on-error hid a real publish failure from alerting.
-    # Run for all tagged releases (including prereleases)
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Runs in both modes; every R2 key below starts with R2_PREFIX.
+    env:
+      R2_PREFIX: ${{ needs.plan.outputs.r2_prefix }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
 
     steps:
     - name: Checkout repository
@@ -1006,10 +1090,10 @@ jobs:
       id: version
       run: |
         # Strip 'v' prefix: v0.9.5 -> 0.9.5
-        VERSION="${GITHUB_REF_NAME#v}"
+        VERSION="${RELEASE_TAG#v}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION (tag: $GITHUB_REF_NAME)"
+        echo "tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION (tag: $RELEASE_TAG)"
 
     - name: Extract changelog for version
       id: notes
@@ -1030,7 +1114,7 @@ jobs:
         fi
 
         if [ -z "$NOTES" ]; then
-          NOTES="Release $GITHUB_REF_NAME"
+          NOTES="Release $RELEASE_TAG"
         fi
 
         # Use delimiter for multiline output
@@ -1087,7 +1171,7 @@ jobs:
         # that has served a prerelease its verdict is inverted.
         FAILED=0
         for CHANNEL in $UPLOAD_CHANNELS; do
-          MANIFEST_URL="${R2_PUBLIC_URL}/${CHANNEL}/manifest.json"
+          MANIFEST_URL="${R2_PUBLIC_URL}/${R2_PREFIX}${CHANNEL}/manifest.json"
           SERVED=$(curl -fsS --max-time 30 "$MANIFEST_URL" 2>/dev/null | jq -r '.version // empty' || true)
 
           if [ -z "$SERVED" ]; then
@@ -1149,6 +1233,10 @@ jobs:
         R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL }}
         UPLOAD_CHANNELS: ${{ steps.channels.outputs.channels }}
       run: |
+        [ "$RELEASE_MODE" = publish ] || [[ "$R2_PREFIX" == dry-run/?*/ ]] || {
+          echo "::error::dry run with R2_PREFIX='${R2_PREFIX}'; refusing to write live R2 paths"
+          exit 1
+        }
         chmod +x scripts/generate-manifest.sh
 
         # Retry wrapper for transient R2 errors. A 504 Gateway Timeout on a large
@@ -1174,12 +1262,12 @@ jobs:
 
         # 1. Upload the .tar.gz artifacts the manifest references. These MUST land
         #    before the manifest goes live so clients never 404 mid-download.
-        echo "=== Uploading tarballs to releases/v${RELEASE_VERSION}/ ==="
+        echo "=== Uploading tarballs to ${R2_PREFIX}releases/v${RELEASE_VERSION}/ ==="
         for tarball in release-files/*.tar.gz; do
           [ -f "$tarball" ] || continue
           filename=$(basename "$tarball")
-          echo "Uploading releases/v${RELEASE_VERSION}/${filename}..."
-          s3cp "$tarball" "s3://${R2_BUCKET}/releases/v${RELEASE_VERSION}/${filename}"
+          echo "Uploading ${R2_PREFIX}releases/v${RELEASE_VERSION}/${filename}..."
+          s3cp "$tarball" "s3://${R2_BUCKET}/${R2_PREFIX}releases/v${RELEASE_VERSION}/${filename}"
         done
 
         # 2. Upload the .zip artifacts, which the manifest now references as the
@@ -1187,12 +1275,12 @@ jobs:
         #    these MUST land before the manifest goes live so clients never 404
         #    following zip_url. (The tarball url/sha256 stay as the legacy fallback
         #    for pre-v0.99.31 clients, which never read zip_url.)
-        echo "=== Uploading zip artifacts to releases/v${RELEASE_VERSION}/ ==="
+        echo "=== Uploading zip artifacts to ${R2_PREFIX}releases/v${RELEASE_VERSION}/ ==="
         for zip in release-files/*.zip; do
           [ -f "$zip" ] || continue
           filename=$(basename "$zip")
-          echo "Uploading releases/v${RELEASE_VERSION}/${filename}..."
-          s3cp "$zip" "s3://${R2_BUCKET}/releases/v${RELEASE_VERSION}/${filename}"
+          echo "Uploading ${R2_PREFIX}releases/v${RELEASE_VERSION}/${filename}..."
+          s3cp "$zip" "s3://${R2_BUCKET}/${R2_PREFIX}releases/v${RELEASE_VERSION}/${filename}"
         done
 
         # 3. Generate and upload the per-channel manifests. This is the artifact
@@ -1208,15 +1296,15 @@ jobs:
             --tag "$RELEASE_TAG" \
             --notes "$RELEASE_NOTES" \
             --dir release-files \
-            --base-url "${R2_PUBLIC_URL}/releases/v${RELEASE_VERSION}" \
+            --base-url "${R2_PUBLIC_URL}/${R2_PREFIX}releases/v${RELEASE_VERSION}" \
             --output "release-files/manifest-${CHANNEL}.json"
 
           echo "Generated manifest for ${CHANNEL}:"
           cat "release-files/manifest-${CHANNEL}.json" | jq .
 
-          echo "Uploading ${CHANNEL}/manifest.json..."
+          echo "Uploading ${R2_PREFIX}${CHANNEL}/manifest.json..."
           s3cp "release-files/manifest-${CHANNEL}.json" \
-            "s3://${R2_BUCKET}/${CHANNEL}/manifest.json" \
+            "s3://${R2_BUCKET}/${R2_PREFIX}${CHANNEL}/manifest.json" \
             --content-type "application/json"
 
           # Verify the manifest is actually SERVED as this version. A successful
@@ -1225,10 +1313,10 @@ jobs:
           # version with no error (the v0.99.76 failure mode, .github#952). R2 is
           # strongly consistent and manifest.json is not edge-cached
           # (cf-cache-status: DYNAMIC), so a mismatch after a few reads is real.
-          echo "Verifying ${CHANNEL}/manifest.json serves v${RELEASE_VERSION}..."
+          echo "Verifying ${R2_PREFIX}${CHANNEL}/manifest.json serves v${RELEASE_VERSION}..."
           served=""
           for attempt in 1 2 3 4; do
-            served=$(curl -fsS "${R2_PUBLIC_URL}/${CHANNEL}/manifest.json" | jq -r '.version // empty')
+            served=$(curl -fsS "${R2_PUBLIC_URL}/${R2_PREFIX}${CHANNEL}/manifest.json" | jq -r '.version // empty')
             [ "$served" = "$RELEASE_VERSION" ] && break
             echo "  attempt ${attempt}: served '${served:-<none>}', expected '${RELEASE_VERSION}'; retrying in 5s..."
             sleep 5
@@ -1244,7 +1332,7 @@ jobs:
         # 4. Upload install.sh AFTER the manifest — it is not manifest-referenced,
         #    so a transient failure here must never gate release visibility.
         echo "Uploading install.sh..."
-        s3cp installer/install.sh "s3://${R2_BUCKET}/install.sh" \
+        s3cp installer/install.sh "s3://${R2_BUCKET}/${R2_PREFIX}install.sh" \
           --content-type "text/x-shellscript"
 
         # Symbol maps and debug info are published separately by the upload-symbols
@@ -1253,10 +1341,11 @@ jobs:
 
         echo "All uploads complete!"
         for CHANNEL in $UPLOAD_CHANNELS; do
-          echo "  ${CHANNEL}: ${R2_PUBLIC_URL}/${CHANNEL}/manifest.json"
+          echo "  ${CHANNEL}: ${R2_PUBLIC_URL}/${R2_PREFIX}${CHANNEL}/manifest.json"
         done
 
     - name: Clean up old releases (retain 5 most recent)
+      if: env.RELEASE_MODE == 'publish'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -1335,8 +1424,11 @@ jobs:
   upload-symbols:
     name: Upload Symbols to R2
     runs-on: ubuntu-latest
-    needs: [build-platforms]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-platforms, plan]
+    # Runs in both modes; every R2 key below starts with R2_PREFIX.
+    env:
+      R2_PREFIX: ${{ needs.plan.outputs.r2_prefix }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
 
     steps:
     - name: Checkout repository
@@ -1358,8 +1450,24 @@ jobs:
         path: artifacts
 
     - name: Flatten symbol files
+      env:
+        PLATFORMS: ${{ needs.plan.outputs.platforms }}
       run: |
         mkdir -p symbol-files
+        # download-artifact extracts straight into path, with no per-artifact
+        # directory, when its pattern matches exactly one artifact (a
+        # one-platform dry run). Put that lone artifact back under
+        # symbols-<platform>/ so the loop below sees one layout.
+        if ! compgen -G 'artifacts/symbols-*/' > /dev/null; then
+          read -ra plats <<< "$PLATFORMS"
+          if [ "${#plats[@]}" -ne 1 ]; then
+            echo "::error::no artifacts/symbols-*/ directories, and plan built '${PLATFORMS}', not one platform"
+            exit 1
+          fi
+          mkdir "artifacts/symbols-${plats[0]}"
+          find artifacts -mindepth 1 -maxdepth 1 ! -name "symbols-${plats[0]}" \
+            -exec mv -t "artifacts/symbols-${plats[0]}/" {} +
+        fi
         # mv (not cp) the selected symbol files into place: the source artifacts/
         # tree is discarded right after, and cp doubled ~6.7GB of debug symbols on
         # disk, which is what pushed the runner into ENOSPC (v0.99.80). Each source
@@ -1420,9 +1528,9 @@ jobs:
       id: version
       run: |
         # Strip 'v' prefix: v0.9.5 -> 0.9.5
-        VERSION="${GITHUB_REF_NAME#v}"
+        VERSION="${RELEASE_TAG#v}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION (tag: $GITHUB_REF_NAME)"
+        echo "Version: $VERSION (tag: $RELEASE_TAG)"
 
     - name: Upload symbols to R2
       env:
@@ -1432,6 +1540,10 @@ jobs:
         R2_BUCKET: ${{ vars.R2_BUCKET_NAME || 'helixscreen-releases' }}
         RELEASE_VERSION: ${{ steps.version.outputs.version }}
       run: |
+        [ "$RELEASE_MODE" = publish ] || [[ "$R2_PREFIX" == dry-run/?*/ ]] || {
+          echo "::error::dry run with R2_PREFIX='${R2_PREFIX}'; refusing to write live R2 paths"
+          exit 1
+        }
         # Retry wrapper for transient R2 errors (mirrors upload-r2's s3cp).
         s3cp() {
           local attempt=1 max=4
@@ -1461,11 +1573,18 @@ jobs:
           platform="${filename%.sym}"
           echo "Compressing ${platform}.sym..."
           zstd -19 --rm -q "$symfile"
-          echo "Uploading symbols/v${RELEASE_VERSION}/${platform}.sym.zst..."
+          echo "Uploading ${R2_PREFIX}symbols/v${RELEASE_VERSION}/${platform}.sym.zst..."
           s3cp "${symfile}.zst" \
-            "s3://${R2_BUCKET}/symbols/v${RELEASE_VERSION}/${platform}.sym.zst" \
+            "s3://${R2_BUCKET}/${R2_PREFIX}symbols/v${RELEASE_VERSION}/${platform}.sym.zst" \
             --content-type "application/zstd"
         done
+
+        # The .sym maps already exercise the upload path; a dry run skips the
+        # multi-GB debug info.
+        if [ "$RELEASE_MODE" != publish ]; then
+          echo "=== Dry run: skipping debug info upload ==="
+          exit 0
+        fi
 
         echo "=== Uploading debug info (zstd compressed) ==="
         # .sym files were zstd-compressed (--rm) above, so count the .sym.zst
@@ -1477,9 +1596,9 @@ jobs:
           platform="${filename%.debug}"
           echo "Compressing ${platform}.debug..."
           zstd -9 --rm -q "$dbgfile"
-          echo "Uploading symbols/v${RELEASE_VERSION}/${platform}.debug.zst..."
+          echo "Uploading ${R2_PREFIX}symbols/v${RELEASE_VERSION}/${platform}.debug.zst..."
           s3cp "${dbgfile}.zst" \
-            "s3://${R2_BUCKET}/symbols/v${RELEASE_VERSION}/${platform}.debug.zst" \
+            "s3://${R2_BUCKET}/${R2_PREFIX}symbols/v${RELEASE_VERSION}/${platform}.debug.zst" \
             --content-type "application/zstd"
           dbg_uploaded=$((dbg_uploaded + 1))
         done
@@ -1497,6 +1616,7 @@ jobs:
         echo "=== Symbol upload complete ==="
 
     - name: Prune old symbol maps (retain 5 most recent)
+      if: env.RELEASE_MODE == 'publish'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -1551,8 +1671,8 @@ jobs:
   notify-website:
     name: Trigger Docs Deploy
     runs-on: ubuntu-latest
-    needs: [release]
-    if: startsWith(github.ref, 'refs/tags/v') && needs.release.outputs.channel == 'stable'
+    needs: [release, plan]
+    if: needs.plan.outputs.mode == 'publish' && needs.release.outputs.channel == 'stable'
 
     steps:
     - name: Record dispatch time
@@ -1609,3 +1729,66 @@ jobs:
           exit 1
         done
         echo "::warning title=Docs deploy unverified::Timed out waiting for the docs deploy to finish. Check $repo."
+
+  # ============================================================================
+  # Dry run only: check what the run published, then delete it from R2
+  # ============================================================================
+  # always() so a failed upload or verification still removes the prefix. Both
+  # R2 steps refuse to run unless R2_PREFIX is a dry-run/<run_id>/ prefix.
+  dry-run-verify:
+    name: Verify dry run
+    runs-on: ubuntu-latest
+    needs: [plan, release, upload-r2, upload-symbols]
+    if: always() && needs.plan.outputs.mode == 'dryrun'
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET_NAME || 'helixscreen-releases' }}
+      R2_PREFIX: ${{ needs.plan.outputs.r2_prefix }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Free up disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+        df -h /
+
+    - name: Download would-be release assets
+      uses: actions/download-artifact@v8
+      with:
+        name: dry-run-release-assets
+        path: dry-run-assets
+
+    - name: Download the dry-run R2 prefix
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      run: |
+        [[ "$R2_PREFIX" == dry-run/?*/ ]] || { echo "::error::R2_PREFIX='${R2_PREFIX}' is not a dry-run prefix"; exit 1; }
+        # Symbols are uploaded here too, but nothing below checks them and the
+        # debug info runs to gigabytes.
+        aws s3 cp --recursive "s3://${R2_BUCKET}/${R2_PREFIX}" dry-run-r2 \
+          --exclude 'symbols/*' --endpoint-url "$R2_ENDPOINT"
+        find dry-run-r2 -type f | sort
+
+    - name: Verify release artifact against R2
+      env:
+        BASE_URL: ${{ vars.R2_PUBLIC_URL }}/${{ needs.plan.outputs.r2_prefix }}
+        VERSION: ${{ needs.plan.outputs.version }}
+        PLATFORMS: ${{ needs.plan.outputs.platforms }}
+        CHANNELS: ${{ needs.release.outputs.channels }}
+      run: |
+        scripts/verify-dry-run-release.sh --artifact dry-run-assets --r2 dry-run-r2 \
+          --base-url "$BASE_URL" --version "$VERSION" \
+          --platforms "$PLATFORMS" --channels "$CHANNELS"
+
+    - name: Delete the dry-run R2 prefix
+      if: always()
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      run: |
+        [[ "$R2_PREFIX" == dry-run/?*/ ]] || { echo "::error::R2_PREFIX='${R2_PREFIX}' is not a dry-run prefix"; exit 1; }
+        aws s3 rm --recursive "s3://${R2_BUCKET}/${R2_PREFIX}" --endpoint-url "$R2_ENDPOINT"

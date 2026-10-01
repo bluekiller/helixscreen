@@ -67,7 +67,6 @@ AmsBackendAce::AmsBackendAce(IMoonrakerAPI* api, IMoonrakerClient* client)
 }
 
 AmsBackendAce::~AmsBackendAce() {
-    // lifetime_ destructor calls invalidate() automatically
     stop_rest_fallback();
 }
 
@@ -121,7 +120,7 @@ void AmsBackendAce::on_started() {
         return;
     }
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     // Query all known Klipper object names directly (works if driver has
     // get_status()). Native Anycubic GoKlipper registers the object as
@@ -197,21 +196,14 @@ void AmsBackendAce::on_stopping() {
     // on_stopping() is called with mutex_ held — do NOT lock mutex_ here.
     // stop_rest_fallback uses its own rest_stop_mutex_, which is safe.
     stop_rest_fallback();
-    lifetime_.invalidate();
+    op_lifetime_.invalidate();
 }
 
-void AmsBackendAce::handle_status_update(const json& notification) {
+void AmsBackendAce::handle_status(const json& status_obj) {
     if (use_rest_fallback_)
         return; // Using REST polling, ignore subscriptions
 
-    // notify_status_update format: {"params": [{...}, timestamp]}
-    const json* status = &notification;
-    if (notification.contains("params") && notification["params"].is_array() &&
-        !notification["params"].empty()) {
-        status = &notification["params"][0];
-    }
-    if (!status->is_object())
-        return;
+    const json* status = &status_obj;
 
     // Native Anycubic GoKlipper publishes under `filament_hub`; community
     // ValgACE under `ace`; the Kobra S1 mainline-Python fork under
@@ -258,26 +250,6 @@ void AmsBackendAce::handle_status_update(const json& notification) {
 AmsSystemInfo AmsBackendAce::get_system_info() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return system_info_;
-}
-
-SlotInfo AmsBackendAce::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (system_info_.units.empty()) {
-        SlotInfo empty;
-        empty.slot_index = -1;
-        empty.global_index = -1;
-        return empty;
-    }
-
-    const auto& unit = system_info_.units[0];
-    if (slot_index < 0 || slot_index >= static_cast<int>(unit.slots.size())) {
-        SlotInfo empty;
-        empty.slot_index = -1;
-        empty.global_index = -1;
-        return empty;
-    }
-    return unit.slots[static_cast<size_t>(slot_index)];
 }
 
 // ============================================================================
@@ -367,7 +339,7 @@ AmsError AmsBackendAce::do_load_filament(int slot_index) {
     emit_event(EVENT_STATE_CHANGED);
 
     std::string gcode = "ACE_CHANGE_TOOL TOOL=" + std::to_string(slot_index);
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     return execute_gcode(
         gcode,
@@ -419,7 +391,7 @@ AmsError AmsBackendAce::do_unload_filament(int /*slot_index*/) {
     emit_event(EVENT_STATE_CHANGED);
 
     std::string gcode = "ACE_CHANGE_TOOL TOOL=-1";
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     return execute_gcode(
         gcode,
@@ -488,7 +460,7 @@ AmsError AmsBackendAce::cancel() {
 
     // Invalidate outstanding load/unload callbacks so they don't
     // overwrite state after cancel completes
-    lifetime_.invalidate();
+    op_lifetime_.invalidate();
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -601,6 +573,10 @@ std::vector<int> AmsBackendAce::get_tool_mapping() const {
 // ============================================================================
 // Bypass Mode (not supported)
 // ============================================================================
+
+void AmsBackendAce::set_discovery(const helix::PrinterDiscovery& discovery) {
+    set_bypass_macros(helix::resolve_bypass_macros_for(discovery));
+}
 
 void AmsBackendAce::set_bypass_macros(helix::BypassMacros macros) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -1463,7 +1439,7 @@ void AmsBackendAce::poll_info() {
     };
     auto state = std::make_shared<SyncState>();
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     api_->rest().call_rest_get("/server/ace/info", [this, state, token](const RestResponse& resp) {
         // L081 Mechanism C: defer member access to main thread. The synchronous
@@ -1505,7 +1481,7 @@ void AmsBackendAce::poll_status() {
 
     spdlog::trace("[ACE] Polling /server/ace/status");
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     api_->rest().call_rest_get("/server/ace/status", [this, token](const RestResponse& resp) {
         // L081 Mechanism C: defer member access (parse_status_response,
@@ -1551,7 +1527,7 @@ void AmsBackendAce::poll_slots() {
 
     spdlog::trace("[ACE] Polling /server/ace/slots");
 
-    auto token = lifetime_.token();
+    auto token = op_lifetime_.token();
 
     api_->rest().call_rest_get("/server/ace/slots", [this, token](const RestResponse& resp) {
         // L081 Mechanism C: defer member access (parse_slots_response,
@@ -2013,45 +1989,7 @@ void AmsBackendAce::judge_insert_locked(SlotInfo& slot, int slot_index,
     // hardware-event clears and user-initiated clears share one field-reset
     // policy. Caller already holds mutex_.
     (void)ovr_it;
-    clear_override_locked(slot_index, slot);
-}
-
-void AmsBackendAce::clear_override_locked(int slot_index, SlotInfo& slot) {
-    // Caller must hold mutex_. Erases the in-memory override, resets
-    // override-exclusive fields on the live SlotInfo so the cleared state
-    // is visible in the very next get_slot_info() read. ACE field policy:
-    // brand / spool_name / spoolman_* / weights / color_name are override-only
-    // (firmware doesn't populate them). Color and material come from the
-    // parse and are left alone so the new spool's firmware data surfaces.
-    overrides_.erase(slot_index);
-    // The lane's own records go with it: the erase above and this are one
-    // clear in two stores, and a clear that reached only one would leave
-    // resolve() still reporting the identity just removed.
-    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-
-    slot.brand.clear();
-    slot.clear_spoolman_link();
-    slot.remaining_weight_g = -1.0f;
-    slot.total_weight_g = -1.0f;
-    slot.color_name.clear();
-    // The catalog pick is override-exclusive on every backend — no AMS
-    // firmware carries a branded product id — so a clear always drops it.
-    // Leaving it would re-navigate the editor to the removed spool's
-    // product on the next open.
-    slot.catalog_id.clear();
-    slot.product_name.clear();
-
-    if (override_store_) {
-        // Capture by value — clear_async's Moonraker callback can fire after
-        // this returns (MR tracker ~60s) and potentially after the backend
-        // itself is gone. Same rationale as save_async.
-        const std::string tag = backend_log_tag();
-        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
-            }
-        });
-    }
+    clear_override_locked(slot_index, &slot);
 }
 
 void AmsBackendAce::clear_slot_override(int slot_index) {
@@ -2065,7 +2003,7 @@ void AmsBackendAce::clear_slot_override(int slot_index) {
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
-        clear_override_locked(slot_index, *slot);
+        clear_override_locked(slot_index, slot);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));

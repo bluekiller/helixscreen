@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
@@ -28,85 +28,28 @@ namespace helix::settings {
  * @class SafetySettingsOverlay
  * @brief Overlay for configuring safety and notification settings
  *
- * ## Usage:
- *
- * @code
- * auto& overlay = helix::settings::get_safety_settings_overlay();
- * overlay.show(parent_screen);
- * @endcode
+ * Every row callback writes straight through its settings manager; the rows
+ * that are not yet bound to their subject are re-synced on activate.
  */
 class SafetySettingsOverlay : public OverlayBase {
   public:
-    SafetySettingsOverlay();
-    ~SafetySettingsOverlay() override;
-
-    //
-    // === OverlayBase Interface ===
-    //
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "Safety & Alerts";
     }
-
-    void on_activate() override;
-
-    //
-    // === UI Creation ===
-    //
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_safety_overlay";
     }
 
-    //
-    // === Event Handlers (public for static callbacks) ===
-    //
-
-    void handle_estop_confirm_changed(bool enabled);
-    void handle_cancel_escalation_changed(bool enabled);
-    void handle_cancel_escalation_timeout_changed(int index);
-    void handle_completion_alert_changed(int index);
-    void handle_min_toast_severity_changed(int index);
-    void handle_macro_confirm_changed(bool enabled);
-    void handle_detection_enabled_changed(bool enabled);
-    void handle_detection_pause_changed(bool enabled);
+    void register_callbacks() override;
+    void on_activate() override;
 
   private:
-    //
-    // === Internal Methods ===
-    //
-
     void init_estop_toggle();
     void init_completion_alert_dropdown();
-
-    //
-    // === Static Callbacks ===
-    //
-
-    static void on_estop_confirm_changed(lv_event_t* e);
-    static void on_cancel_escalation_changed(lv_event_t* e);
-    static void on_cancel_escalation_timeout_changed(lv_event_t* e);
-    static void on_completion_alert_changed(lv_event_t* e);
-    static void on_min_toast_severity_changed(lv_event_t* e);
-    static void on_macro_confirm_changed(lv_event_t* e);
-    static void on_detection_enabled_changed(lv_event_t* e);
-    static void on_detection_pause_changed(lv_event_t* e);
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton SafetySettingsOverlay
- */
-SafetySettingsOverlay& get_safety_settings_overlay();
+inline SafetySettingsOverlay& get_safety_settings_overlay() {
+    return lazy_global<SafetySettingsOverlay>("SafetySettingsOverlay");
+}
 
 } // namespace helix::settings

@@ -18,6 +18,9 @@ using json = nlohmann::json;
 
 enum class SettingType { Bool, Int, Float, Enum, String, Action, Info };
 
+constexpr int kMaxWidgetCells = 8;
+constexpr size_t kMaxWidgetsPerPlugin = 8;
+
 /// One entry of the manifest's `settings` array.
 struct SettingDecl {
     std::string key;
@@ -31,6 +34,19 @@ struct SettingDecl {
     std::string subject;              ///< Info: subject name, owned by the plugin
 };
 
+/// One entry of the manifest's `widgets` array. Spans are in grid cells.
+struct WidgetDecl {
+    std::string id; ///< <plugin>__<name>
+    std::string name;
+    std::string icon; ///< icon name; empty when absent
+    std::string description;
+    std::string component; ///< <plugin>__<name>, a file in ui/
+    int colspan = 1;
+    int rowspan = 1;
+    int max_colspan = 0; ///< 0: not resizable on this axis
+    int max_rowspan = 0;
+};
+
 struct Manifest {
     std::string id;
     std::string name;
@@ -42,6 +58,7 @@ struct Manifest {
     int memory_mb = 2;
     std::vector<SettingDecl> settings;
     std::string settings_overlay; ///< XML component name, empty when absent
+    std::vector<WidgetDecl> widgets;
 };
 
 /// `manifest` is set only when `errors` is empty.
@@ -52,14 +69,24 @@ struct ManifestParse {
 
 ManifestParse parse_manifest(const std::string& text);
 
-/// `^[a-z][a-z0-9-]{1,31}$`. No underscore, so the first `_` of a registered name
-/// separates its owner.
+/// `^[a-z][a-z0-9-]{1,31}$`. No underscore, so the id cannot contain the
+/// ownership separator.
 bool is_valid_plugin_id(std::string_view id);
 
-/// True for `<id>_<rest>` with a non-empty rest.
+/// Separator between a plugin id and the rest of a name that plugin owns.
+/// Doubled because app names share the single-underscore space (`ams_*`,
+/// `extruder_target`, `settings_*`) and no app name contains `__`: only the
+/// double underscore proves the name is the plugin's.
+constexpr std::string_view kPluginNameSeparator = "__";
+
+/// The full form of a name a plugin owns: `<id>__<rest>`.
+std::string plugin_owned_name(std::string_view id, std::string_view rest);
+
+/// True for `<id>__<rest>` with a non-empty rest.
 bool is_owned_name(std::string_view id, std::string_view name);
 
-/// Everything before the first `_`; empty when there is none.
+/// The owning plugin id of `<id>__<rest>`; empty when the name is not in that
+/// form.
 std::string_view owner_of(std::string_view name);
 
 } // namespace helix::plugin

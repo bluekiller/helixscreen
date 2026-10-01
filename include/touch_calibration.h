@@ -3,12 +3,12 @@
 
 #pragma once
 
+#include "env_knobs.h"
 #include "text_io.h"
 
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
-#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,10 +23,7 @@ namespace helix {
  * Useful for diagnosing resistive touchscreen calibration issues.
  */
 inline bool is_touch_debug_enabled() {
-    static const bool enabled = [] {
-        const char* val = std::getenv("HELIX_DEBUG_TOUCH");
-        return val != nullptr && std::strcmp(val, "1") == 0;
-    }();
+    static const bool enabled = env_flag("HELIX_DEBUG_TOUCH");
     return enabled;
 }
 

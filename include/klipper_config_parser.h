@@ -81,7 +81,6 @@ class KlipperConfigParser {
     std::vector<std::string> section_order_;
     bool modified_ = false;
 
-    static std::string trim(const std::string& s);
     std::string get_multiline_value(size_t key_line_idx) const;
     void rebuild_indices_after_insert(size_t inserted_idx, const std::string& section,
                                       const std::string& key);

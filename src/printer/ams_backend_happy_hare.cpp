@@ -119,7 +119,7 @@ AmsBackendHappyHare::AmsBackendHappyHare(IMoonrakerAPI* api, IMoonrakerClient* c
     // Endless spool AVAILABILITY is unconditional for Happy Hare and lives in
     // get_endless_spool_capabilities(). This is the ENABLE bit, and it starts
     // false so nothing claims the feature is running before mmu.
-    // endless_spool_enabled arrives (see handle_status_update).
+    // endless_spool_enabled arrives (see handle_status).
     system_info_.endless_spool_enabled = false;
     // Bypass support is determined at runtime from mmu.has_bypass status field.
     // Starts false so the bypass UI stays absent until the firmware confirms it:
@@ -152,7 +152,9 @@ bool AmsBackendHappyHare::owns_filament_sensor(const std::string& bare_name,
 }
 
 AmsBackendHappyHare::~AmsBackendHappyHare() {
-    // lifetime_ destructor calls invalidate() automatically
+    // Expire queued callbacks before this class's members are destroyed; the
+    // base guard itself outlives them.
+    lifetime_.invalidate();
 }
 
 // ============================================================================
@@ -287,21 +289,6 @@ bool AmsBackendHappyHare::manages_active_spool() const {
     return system_info_.spoolman_mode != SpoolmanMode::OFF;
 }
 
-SlotInfo AmsBackendHappyHare::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    const auto* entry = slots_.get(slot_index);
-    if (entry) {
-        return entry->info;
-    }
-
-    // Return empty slot info for invalid index
-    SlotInfo empty;
-    empty.slot_index = -1;
-    empty.global_index = -1;
-    return empty;
-}
-
 SlotInfo* AmsBackendHappyHare::cached_slot_locked(int slot_index) {
     // A repaint needs no refresh_gate_statuses_locked() after it. The lane's
     // presence is the sensed record this backend files from gate_status_raw_,
@@ -394,19 +381,7 @@ bool AmsBackendHappyHare::slot_has_prep_sensor(int slot_index) const {
 // Moonraker Status Update Handling
 // ============================================================================
 
-void AmsBackendHappyHare::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendHappyHare::handle_status(const nlohmann::json& params) {
     spdlog::trace("[AMS HappyHare] Received status update");
 
     // Parse MMU core state if present.
@@ -2741,39 +2716,10 @@ void AmsBackendHappyHare::persist_override(int slot_index, const SlotInfo& info,
 void AmsBackendHappyHare::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-        // The Clear Spool gesture: the lane is being emptied deliberately, so
-        // the gate map's next frame is the machine's own reading, not an echo
-        // of the cleared edit.
-        own_write_echoes_.abandon(slot_index);
-
-        // Reset the override-exclusive fields on the live slot too: Happy Hare's
-        // gate map has no concept of brand / spool_name / total weight / colour
-        // name, so no firmware update will ever clear them.
-        if (helix::printer::SlotEntry* entry = slots_.get_mut(slot_index)) {
-            entry->info.brand.clear();
-            entry->info.clear_spoolman_link();
-            entry->info.remaining_weight_g = -1.0f;
-            entry->info.total_weight_g = -1.0f;
-            entry->info.color_name.clear();
-            // The catalog pick is override-exclusive on every backend — no AMS
-            // firmware carries a branded product id — so a clear always drops it.
-            // Leaving it would re-navigate the editor to the removed spool's
-            // product on the next open.
-            entry->info.catalog_id.clear();
-            entry->info.product_name.clear();
-        }
+        helix::printer::SlotEntry* entry = slots_.get_mut(slot_index);
+        clear_override_locked(slot_index, entry ? &entry->info : nullptr);
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        override_store_->clear_async(slot_index, [slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("[AMS HappyHare] override clear failed for gate {}: {}", slot_index,
-                             err);
-            }
-        });
-    }
 }
 
 void AmsBackendHappyHare::publish_external_spool_lane(const SlotInfo* spool) {
@@ -2802,36 +2748,7 @@ void AmsBackendHappyHare::publish_external_spool_lane(const SlotInfo* spool) {
 
 void AmsBackendHappyHare::write_gate_locked(int slot_index, SlotInfo& slot, const SlotInfo& info) {
     const int old_mapped_tool = slot.mapped_tool;
-
-    // Detect whether anything actually changed
-    bool changed = slot.color_name != info.color_name || slot.color_rgb != info.color_rgb ||
-                   slot.material != info.material || slot.brand != info.brand ||
-                   slot.catalog_id != info.catalog_id || slot.product_name != info.product_name ||
-                   slot.spoolman_id != info.spoolman_id || slot.spool_name != info.spool_name ||
-                   slot.remaining_weight_g != info.remaining_weight_g ||
-                   slot.total_weight_g != info.total_weight_g ||
-                   slot.nozzle_temp_min != info.nozzle_temp_min ||
-                   slot.nozzle_temp_max != info.nozzle_temp_max || slot.bed_temp != info.bed_temp ||
-                   slot.mapped_tool != info.mapped_tool;
-
-    // Update local state
-    slot.color_name = info.color_name;
-    slot.color_rgb = info.color_rgb;
-    slot.material = info.material;
-    slot.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that
-    // dropped it would make the editor snap back to a different variant on
-    // the next get_slot_info().
-    slot.catalog_id = info.catalog_id;
-    slot.product_name = info.product_name;
-    slot.spoolman_id = info.spoolman_id;
-    slot.spoolman_filament_id = info.spoolman_filament_id;
-    slot.spool_name = info.spool_name;
-    slot.remaining_weight_g = info.remaining_weight_g;
-    slot.total_weight_g = info.total_weight_g;
-    slot.nozzle_temp_min = info.nozzle_temp_min;
-    slot.nozzle_temp_max = info.nozzle_temp_max;
-    slot.bed_temp = info.bed_temp;
+    const bool changed = slot.assign_filament_fields(info) || info.mapped_tool != old_mapped_tool;
     // Tool mapping change goes through registry so reverse maps stay consistent.
     if (info.mapped_tool != old_mapped_tool && info.mapped_tool >= 0) {
         slots_.set_tool_mapping(slot_index, info.mapped_tool);
@@ -3459,7 +3376,7 @@ DryerInfo AmsBackendHappyHare::get_dryer_info(int unit) const {
 std::vector<helix::printer::EnvironmentZone>
 AmsBackendHappyHare::get_environment_zones(int unit) const {
     // filament_heaters_, environment_sensors_, gate_drying_states_ and heater_temp_ are
-    // all written from the status thread under mutex_ (handle_status_update for the
+    // all written from the status thread under mutex_ (handle_status for the
     // first three, apply_filament_heater_status for the last). Snapshot them once here
     // rather than reading each under no lock at all.
     std::vector<std::string> heaters;

@@ -134,9 +134,6 @@ class AmsEditOverlay : public OverlayBase {
     CompletionCallback completion_callback_;
     bool completion_fired_ = false; ///< Guards single-fire completion
 
-    /// Cached overlay widget for lazy_create_and_push_overlay
-    lv_obj_t* cached_overlay_widget_ = nullptr;
-
     // === Spool logistics (managed-slot fields inside VIEW_SPOOL_EDIT) ===
     SpoolInfo detail_original_; ///< as fetched on view entry
     SpoolInfo detail_working_;  ///< live field edits

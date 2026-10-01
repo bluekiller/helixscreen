@@ -48,6 +48,7 @@
 #include "lvgl/lvgl.h"
 
 #include <array>
+#include <optional>
 
 namespace helix::ui::fpath {
 
@@ -61,9 +62,6 @@ namespace pg = helix::ui::pathgeo;
 inline constexpr int32_t DEFAULT_WIDTH = 300;
 inline constexpr int32_t DEFAULT_HEIGHT = 200;
 inline constexpr int DEFAULT_SLOT_COUNT = 4;
-
-// Nozzle tip color when no filament is loaded (light charcoal)
-inline constexpr uint32_t NOZZLE_UNLOADED_COLOR = 0x3A3A3A;
 
 // LINEAR/HUB layout ratios (as fraction of widget height)
 // Entry points at very top to connect visually with slot grid above
@@ -143,7 +141,6 @@ struct ThemeCache {
     lv_color_t color_error;
     lv_color_t color_hub_bg;
     lv_color_t color_hub_border;
-    lv_color_t color_nozzle;
     lv_color_t color_text;
     lv_color_t color_bg;      // Canvas background (for hollow tube bore)
     lv_color_t color_success; // Success color (cached for draw callbacks)
@@ -434,9 +431,10 @@ void draw_flow_dots_path(lv_layer_t* layer, const pg::FilamentPath& path, lv_col
                          int32_t flow_offset, bool reverse);
 
 /// Toolhead/extruder glyph in the user's configured style. Applies the A4T
-/// style's 6/5 scale boost internally — pass the base scale.
-void draw_toolhead(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t color, int32_t scale,
-                   lv_opa_t opa = LV_OPA_COVER);
+/// style's 6/5 scale boost internally — pass the base scale. @p filament is
+/// the color at the nozzle, or nullopt when nothing is loaded there.
+void draw_toolhead(lv_layer_t* layer, int32_t cx, int32_t cy, std::optional<lv_color_t> filament,
+                   int32_t scale, lv_opa_t opa = LV_OPA_COVER);
 
 /// Y of the nozzle tip for the configured toolhead style (heat glow anchor).
 int32_t toolhead_tip_y(int32_t nozzle_y, int32_t extruder_scale);

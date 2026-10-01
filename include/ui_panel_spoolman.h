@@ -11,6 +11,7 @@
 
 #include "overlay_base.h"
 #include "spoolman_types.h" // For SpoolInfo
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -139,7 +140,6 @@ class SpoolmanPanel : public OverlayBase {
     // === Label Printing ===
 
     // === Spool Wizard ===
-    lv_obj_t* wizard_panel_ = nullptr;
 
     // ========== Static Event Callbacks ==========
     static void on_spool_row_clicked(lv_event_t* e);
@@ -161,4 +161,5 @@ class SpoolmanPanel : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
+// Defined out of line: the ESP32 build, which excludes this panel, supplies its own.
 SpoolmanPanel& get_global_spoolman_panel();

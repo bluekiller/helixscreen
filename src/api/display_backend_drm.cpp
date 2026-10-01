@@ -11,6 +11,7 @@
 #include "../../include/pending_startup_warnings.h"
 #include "config.h"
 #include "drm_rotation_strategy.h"
+#include "env_knobs.h"
 #include "helix_display_telemetry.h"
 #include "input_device_scanner.h"
 #include "refresh_timing_env.h"
@@ -818,7 +819,7 @@ void DisplayBackendDRM::open_pointer_devices() {
             // Setting the true emitted range here restores 1:1 mapping. To invert
             // an axis, swap min/max (e.g. MIN_Y=3200 MAX_Y=900).
             const char* swap_axes = std::getenv("HELIX_TOUCH_SWAP_AXES");
-            if (swap_axes != nullptr && strcmp(swap_axes, "1") == 0) {
+            if (helix::env_truthy(swap_axes)) {
                 if (pointer_is_evdev_) {
                     spdlog::info("[DRM Backend] Touch axes swapped (HELIX_TOUCH_SWAP_AXES=1)");
                     lv_evdev_set_swap_axes(pointer_, true);
@@ -978,7 +979,7 @@ void DisplayBackendDRM::open_pointer_devices() {
                 pipeline.declared_max_y = abs_y.maximum;
                 pipeline.stored = stored_range;
                 pipeline.swap_axes = env_swap_override
-                                         ? (strcmp(swap_axes, "1") == 0)
+                                         ? helix::env_truthy(swap_axes)
                                          : (stored_range.valid && stored_range.swap_axes);
                 if (!pointer_is_evdev_) {
                     // A libinput pointer has no evdev range stage at all, so

@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -34,6 +35,10 @@ class ErrorWindow {
 /// `<dir>/<path>.lua` then `<dir>/lib/<path>.lua` for a `require` name of [A-Za-z0-9_]
 /// segments joined by single dots. Empty for any other name.
 std::vector<std::string> require_candidates(const std::string& plugin_dir, const std::string& name);
+
+/// A path inside a plugin: '/'-separated segments of [A-Za-z0-9_.-], where no segment is
+/// empty, "." or "..". No leading '/', ends in ".lua", at most 128 bytes.
+bool is_plugin_relative_path(std::string_view path);
 
 /// One plugin's Lua state. Main thread only, except `Pending::resolve`.
 class LuaRuntime {

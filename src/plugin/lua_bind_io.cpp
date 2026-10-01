@@ -4,6 +4,7 @@
 #if HELIX_HAS_PLUGINS
 
 #include "lua_bindings.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -171,19 +172,8 @@ int storage_set(lua_State* L) {
     const std::string& path = context(L).storage_path;
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    std::string tmp = path + ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        out << text;
-        out.flush();
-        out.close();
-        // close() flushes what the destructor would; only a fully landed tmp may replace
-        // the good file.
-        if (!out)
-            return luaL_error(L, "helix.storage.set: cannot write %s", tmp.c_str());
-    }
-    if (std::rename(tmp.c_str(), path.c_str()) != 0)
-        return luaL_error(L, "helix.storage.set: cannot replace %s", path.c_str());
+    if (!helix::text_io::write_file_atomic(path, text))
+        return luaL_error(L, "helix.storage.set: cannot write %s", path.c_str());
     storage_of(L) = std::move(next);
     return 0;
 }
@@ -223,8 +213,7 @@ int settings_get(lua_State* L) {
     if (!d)
         return luaL_error(L, "helix.settings.get: '%s' is not declared in manifest.json",
                           key.c_str());
-    auto it = ctx.settings->find(key);
-    push_json(L, it != ctx.settings->end() && fits(*d, *it) ? *it : d->default_value);
+    push_json(L, effective_setting(*ctx.settings, *d));
     return 1;
 }
 
@@ -244,6 +233,13 @@ int settings_on_change(lua_State* L) {
 std::string plugin_storage_path(const std::string& settings_path, const std::string& id) {
     return (std::filesystem::path(settings_path).parent_path() / "plugin-data" / (id + ".json"))
         .string();
+}
+
+json effective_setting(const json& settings, const SettingDecl& d) {
+    auto it = settings.find(d.key);
+    if (it != settings.end() && fits(d, *it))
+        return *it;
+    return d.default_value;
 }
 
 bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& value) {

@@ -1,6 +1,6 @@
 # Lua Plugin System Design
 
-**Status:** Phase 1 (runtime) implemented on feature/lua-plugins; Phases 2 to 5 not started.
+**Status:** Phases 1 and 2 implemented; Phases 3 to 5 not started.
 **Replaces:** the `dlopen` C++ plugin system in `src/plugin/` and `docs/devel/PLUGIN_DEVELOPMENT.md`
 
 ## Why
@@ -56,17 +56,18 @@ printer_data/config/helixscreen/plugins/
     main.lua
     lib/            -- optional, reachable through require
     ui/             -- XML components
-      orca-cal_widget.xml
-      orca-cal_wizard.xml
+      orca-cal__widget.xml
+      orca-cal__wizard.xml
 ```
 
 ### Naming
 
 A plugin id matches `^[a-z][a-z0-9-]{1,31}$` and contains no underscore. Every XML component,
-XML callback and subject a plugin registers is named `<id>_<rest>`. Because the id has no
-underscore, the first `_` splits the owner out of any name, so two plugins can never collide in
-LVGL's global XML and subject scope. The loader rejects a plugin that registers a name without its
-own prefix.
+XML callback and subject a plugin registers is named `<id>__<rest>`: the separator is a double
+underscore, because app names share the single-underscore space (`ams_*`, `extruder_target`,
+`settings_*`) and no app name contains `__`, so only the double underscore proves a name is the
+plugin's. Two plugins can never collide in LVGL's global XML and subject scope, and the loader
+rejects a plugin that registers a name without its own prefix.
 
 ### manifest.json
 
@@ -82,11 +83,11 @@ own prefix.
   "memory_mb": 4,
   "widgets": [
     {
-      "id": "orca-cal_launcher",
+      "id": "orca-cal__launcher",
       "name": "Calibrate",
       "icon": "tune",
       "description": "Start a calibration test",
-      "component": "orca-cal_widget",
+      "component": "orca-cal__widget",
       "colspan": 1, "rowspan": 1,
       "max_colspan": 2, "max_rowspan": 1
     }
@@ -97,7 +98,7 @@ own prefix.
     {"key": "step", "type": "int", "label": "Temperature step", "min": 1, "max": 20, "default": 5},
     {"key": "test", "type": "enum", "label": "Default test",
      "options": ["temperature", "flow", "pressure_advance"], "default": "temperature"},
-    {"key": "test_link", "type": "action", "label": "Test companion connection", "callback": "orca-cal_ping"}
+    {"key": "test_link", "type": "action", "label": "Test companion connection", "callback": "orca-cal__ping"}
   ],
   "settings_overlay": null
 }
@@ -203,6 +204,8 @@ One path for reload, disable, removal, fault and shutdown:
 5. Invalidate its `AsyncLifetimeGuard` so pending replies, timers and HTTP results are dropped.
 6. `lua_close`.
 
+Subjects the plugin registered are unregistered at step 4 and freed once no object observes them.
+
 Reload is unload then load. A disabled or removed plugin's widgets disappear from the home panel;
 their ids stay in the saved layout and reappear when the plugin returns.
 
@@ -226,8 +229,8 @@ All under one global `helix`. Lua changes the screen only through subjects the X
 | Call | Notes |
 |---|---|
 | `helix.log.info/warn/error/debug(msg)` | spdlog, tagged with the plugin id |
-| `helix.subject.int(name, init)`, `helix.subject.string(name, init)` | `name` excludes the prefix; registered as `<id>_<name>`. Handle: `:get()`, `:set(v)`, `:observe(fn)` |
-| `helix.ui.on(name, fn)` | handles XML events addressed to `<id>_<name>` (see Event callbacks) |
+| `helix.subject.int(name, init)`, `helix.subject.string(name, init)` | `name` excludes the prefix; registered as `<id>__<name>`. Handle: `:get()`, `:set(v)`, `:observe(fn)` |
+| `helix.ui.on(name, fn)` | handles XML events addressed to `<id>__<name>` (see Event callbacks) |
 | `helix.ui.overlay(component, {on_close})` | pushes and registers through `PluginOverlayHost`; returns a handle with `:close()` |
 | `helix.ui.confirm(title, msg, {severity, confirm_text, on_confirm, on_cancel})` | wraps `modal_confirm`; dismissal reaches `on_cancel` |
 | `helix.ui.toast(msg, severity)` | |
@@ -260,8 +263,8 @@ life of the app. Plugin XML addresses a handler through `user_data`, optionally 
 after a colon:
 
 ```xml
-<event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal_start"/>
-<event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal_pick:3"/>
+<event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal__start"/>
+<event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal__pick:3"/>
 ```
 
 `plugin_event` splits the owner id at the first `_`, finds that loaded plugin, and calls the
@@ -331,7 +334,7 @@ Re-enable button. Other plugins keep running.
 A retained display list, so Lua never runs during rendering and there is no pixel buffer.
 
 ```lua
-local c = helix.canvas("graph")       -- binds to a <plugin_canvas name="orca-cal_graph"/> in XML
+local c = helix.canvas("graph")       -- binds to a <plugin_canvas name="orca-cal__graph"/> in XML
 c:clear()
 c:polyline(points, {color = "primary", width = 2})
 c:text(x, y, "215°", {font = "body", color = "text"})

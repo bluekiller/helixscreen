@@ -37,7 +37,7 @@ QIDI printers (Q1 Pro and newer) run forks of Klipper and Moonraker from [QIDITE
 
 All control runs through Klipper gcode macros and `SAVE_VARIABLE` — **no dedicated Moonraker endpoints**, no REST extension. State lives in `save_variables` and printer objects, same shape as AD5X IFS.
 
-**State the backend reads** (`parse_save_variables()` + `handle_status_update()`):
+**State the backend reads** (`parse_save_variables()` + `handle_status()`):
 
 | Source | Keys | Meaning |
 |--------|------|---------|

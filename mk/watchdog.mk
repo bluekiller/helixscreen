@@ -85,6 +85,7 @@ $(BUILD_DIR)/watchdog/%.o: src/%.cpp $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(ABI_STA
 # (added for #766 -s resolution support). These are small, dependency-free
 # modules that can be linked into watchdog as extra objects.
 WATCHDOG_EXTRA_OBJS := $(BUILD_DIR)/watchdog/config.o \
+                       $(BUILD_DIR)/watchdog/config_migrations.o \
                        $(BUILD_DIR)/watchdog/config_backup.o \
                        $(BUILD_DIR)/watchdog/config_storage_file.o \
                        $(BUILD_DIR)/watchdog/backlight_backend.o \
@@ -105,6 +106,11 @@ WATCHDOG_EXTRA_OBJS := $(BUILD_DIR)/watchdog/config.o \
 
 # Compile config for watchdog (with HELIX_WATCHDOG to guard get_runtime_config dependency)
 $(BUILD_DIR)/watchdog/config.o: src/system/config.cpp $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(ABI_STAMP) | $(BUILD_DIR)/watchdog
+	@echo "[CXX] $< (watchdog)"
+	$(Q)$(CXX) $(WATCHDOG_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Compile config_migrations for watchdog (config.cpp runs the migration ladder)
+$(BUILD_DIR)/watchdog/config_migrations.o: src/system/config_migrations.cpp $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(ABI_STAMP) | $(BUILD_DIR)/watchdog
 	@echo "[CXX] $< (watchdog)"
 	$(Q)$(CXX) $(WATCHDOG_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
@@ -157,7 +163,7 @@ $(BUILD_DIR)/watchdog/platform_capabilities.o: src/system/platform_capabilities.
 	@echo "[CXX] $< (watchdog)"
 	$(Q)$(CXX) $(WATCHDOG_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Regex engine; platform_capabilities.cpp parses /proc/meminfo and /proc/cpuinfo with it.
+# Regex engine; platform_capabilities.cpp parses /proc/cpuinfo with it.
 $(BUILD_DIR)/watchdog/helix_regex.o: src/system/helix_regex.cpp $(ABI_STAMP) | $(BUILD_DIR)/watchdog
 	@echo "[CXX] $< (watchdog)"
 	$(Q)$(CXX) $(WATCHDOG_CXXFLAGS) $(DEPFLAGS) -c $< -o $@

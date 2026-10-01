@@ -551,6 +551,8 @@ translations:
   Change Tool: Cambiar Herramienta
   Change Tool While Paused: Cambiar Herramienta en Pausa
   Change heater control?: '¿Cambiar el control del calentador?'
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : 'Cambia ajustes de la impresora a través de Moonraker, incluida la subida, reescritura y borrado de archivos en la carpeta de configuración de la impresora.'
   Change tool: Cambiar herramienta
   Changes apply immediately. Adjust during print for tuning.: Los cambios se aplican
     inmediatamente. Ajuste durante la impresión para afinar.
@@ -712,6 +714,7 @@ translations:
   Connect a USB label printer first: Conecte primero una impresora de etiquetas USB
   Connect an ADXL345 accelerometer to calibrate: Conecte un acelerómetro ADXL345 para
     calibrar
+  Connect to servers on your network and the internet.: 'Se conecta a servidores de tu red y de Internet.'
   'Connect to your printer via SSH and run:': 'Conéctese a su impresora vía SSH y
     ejecute:'
   Connected: Conectado
@@ -1022,10 +1025,12 @@ translations:
   Enable brush wipe after purging: 'Activar la limpieza con cepillo tras la purga'
   Enable feed assist for active slot during printing: 'Activar la asistencia de alimentación para la ranura activa durante la impresión'
   Enable or disable the hub cutter: 'Activar o desactivar el cortador del hub'
+  Enable plugin?: '¿Activar plugin?'
   Enable purging during tool changes: 'Activar la purga durante los cambios de herramienta'
   Enable/disable automatic backup spool switching: 'Activar/desactivar el cambio automático a la bobina de reserva'
   Enable/disable quiet operation mode: 'Activar/desactivar el modo de funcionamiento silencioso'
   Enabled: Activado
+  Enabled. Open its settings, or disable it?: 'Activado. ¿Abrir sus ajustes o desactivarlo?'
   Enclosed: Cerrada
 
   Enclosure: Cerramiento
@@ -1675,6 +1680,7 @@ translations:
   Keep current: Mantener actual
   Keep hands clear. The printer moves on its own.: Mantenga las manos alejadas. La impresora se mueve sola.
 
+  Keep its own data on this screen (up to 256 KB).: 'Guarda sus propios datos en esta pantalla (hasta 256 KB).'
   Keep the bypass spool visible when bypass is off: Mantener visible la bobina de bypass cuando el bypass está desactivado
   Kick away: 'Expulsar'
   Kinematics: Cinemática
@@ -2320,6 +2326,7 @@ translations:
   : "El plugin no responde tras reiniciar.\nPuede necesitar más tiempo."
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: Plugin eliminado. Un archivo de configuración requiere atención - revise el registro de HelixScreen para más detalles.
   Plugin uninstalled successfully.: Plugin desinstalado exitosamente.
+  Plugins: Plugins
   Point camera at QR code on spool: Apunte la cámara al código QR de la bobina
   Polymaker: Polymaker
   Poor Accuracy: Precisión Baja
@@ -2919,6 +2926,8 @@ translations:
   Self-Test: Autoprueba
   Send G-code and read the replies: Enviar G-code y leer las respuestas
   Send Report: Enviar Reporte
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : 'Envía cualquier comando G-code. Esto es control total de la impresora: todas las macros, incluidas las que ejecutan comandos de shell, son accesibles.'
   Send commands directly to printer: Enviar comandos directamente a la impresora
   Send this crash report to help improve HelixScreen.: Envíe este reporte de fallo
     para ayudar a mejorar HelixScreen.
@@ -3380,6 +3389,7 @@ translations:
   This is what data would be sent if enabled: Estos son los datos que se enviarían
     si se activa
   This may take up to 30 seconds: Esto puede tardar hasta 30 segundos
+  This plugin asks for no special permissions.: 'Este plugin no pide permisos especiales.'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : Este plugin permite que HelixScreen controle opciones de inicio de impresión como
@@ -3401,6 +3411,7 @@ translations:
   This system does not support bypass mode: 'Este sistema no es compatible con el modo bypass'
   This tool probes each bed screw and tells you how much to adjust.: Esta herramienta
     sondea cada tornillo de cama y le indica cuánto ajustar.
+  'This update asks for new permissions:': 'Esta actualización pide nuevos permisos:'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : Esto aplicará el Z-offset a su endstop y reiniciará Klipper para guardar la configuración.
@@ -3803,6 +3814,7 @@ translations:
   attempt {}: 'intento {}'
   bed: cama
   busy: 'ocupado'
+  by: 'de'
   by Preston Brown: por Preston Brown
   chamber heater: calentador de cámara
   complete: completo
@@ -3824,6 +3836,7 @@ translations:
   extruder(s): extrusor(es)
   extruders: extrusores
   fans: ventiladores
+  faulted: con fallos
   feeder error: 'error del alimentador'
   feeder not in automatic mode: 'alimentador no está en modo automático'
   filament sensor disabled: 'sensor de filamento desactivado'
@@ -3834,6 +3847,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env ignorado: {}'
   idle: inactivo
   in unit {} slot {}: 'en la unidad {} ranura {}'
+  incompatible: incompatible
+  invalid: no válido
   just now: justo ahora
   layers: capas
   left: restante
@@ -3842,6 +3857,7 @@ translations:
   matched: igualadas
   mm before clog: mm antes de obstrucción
   needs: necesita
+  needs approval: requiere aprobación
   never sleeps: nunca duerme
   not detected: no detectado
   not loaded: 'no cargado'
@@ -3855,6 +3871,7 @@ translations:
   Monitor for print abnormalities (camera-based): 'Monitorear anomalías de impresión (basado en cámara)'
   on unit {}: 'en la unidad {}'
   or type a macro name: o escriba un nombre de macro
+  over memory budget: por encima del presupuesto de memoria
   passive: pasivo
   printer default: valor por defecto de la impresora
   prints: impresiones

@@ -14,6 +14,7 @@
 #pragma once
 
 #include "ams_types.h" // For AmsType in backend_owns_runout_during_job()
+#include "env_knobs.h"
 
 #include <cstdio>      // For snprintf in get_default_test_file_path()
 #include <cstdlib>     // For getenv in should_mock_remote_printer()
@@ -71,10 +72,6 @@ struct RuntimeConfig {
 
     /// Test mode config file path (separate from production to avoid conflicts)
     static constexpr const char* TEST_CONFIG_PATH = "config/settings-test.json";
-
-    /// Legacy config file names (for migration from older versions)
-    static constexpr const char* LEGACY_PROD_CONFIG_PATH = "config/helixconfig.json";
-    static constexpr const char* LEGACY_TEST_CONFIG_PATH = "config/helixconfig-test.json";
 
     /**
      * @brief Get full path to default test G-code file
@@ -224,8 +221,7 @@ struct RuntimeConfig {
     bool should_mock_remote_printer() const {
         if (!test_mode)
             return false;
-        const char* env = std::getenv("HELIX_MOCK_REMOTE_PRINTER");
-        return env && env[0] && std::string(env) != "0";
+        return helix::env_flag("HELIX_MOCK_REMOTE_PRINTER");
     }
 
     /**

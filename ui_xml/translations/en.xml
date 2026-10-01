@@ -497,6 +497,7 @@
   <translation tag="Change Tool" en="Change Tool"/>
   <translation tag="Change Tool While Paused" en="Change Tool While Paused"/>
   <translation tag="Change heater control?" en="Change heater control?"/>
+  <translation tag="Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer&apos;s config folder." en="Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer&apos;s config folder."/>
   <translation tag="Change tool" en="Change tool"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." en="Changes apply immediately. Adjust during print for tuning."/>
   <translation tag="Changes are temporary and reset on printer reboot" en="Changes are temporary and reset on printer reboot"/>
@@ -634,6 +635,7 @@
   <translation tag="Connect" en="Connect"/>
   <translation tag="Connect a USB label printer first" en="Connect a USB label printer first"/>
   <translation tag="Connect an ADXL345 accelerometer to calibrate" en="Connect an ADXL345 accelerometer to calibrate"/>
+  <translation tag="Connect to servers on your network and the internet." en="Connect to servers on your network and the internet."/>
   <translation tag="Connect to your printer via SSH and run:" en="Connect to your printer via SSH and run:"/>
   <translation tag="Connected" en="Connected"/>
   <translation tag="Connected (%s)" en="Connected (%s)"/>
@@ -918,10 +920,12 @@
   <translation tag="Enable brush wipe after purging" en="Enable brush wipe after purging"/>
   <translation tag="Enable feed assist for active slot during printing" en="Enable feed assist for active slot during printing"/>
   <translation tag="Enable or disable the hub cutter" en="Enable or disable the hub cutter"/>
+  <translation tag="Enable plugin?" en="Enable plugin?"/>
   <translation tag="Enable purging during tool changes" en="Enable purging during tool changes"/>
   <translation tag="Enable/disable automatic backup spool switching" en="Enable/disable automatic backup spool switching"/>
   <translation tag="Enable/disable quiet operation mode" en="Enable/disable quiet operation mode"/>
   <translation tag="Enabled" en="Enabled"/>
+  <translation tag="Enabled. Open its settings, or disable it?" en="Enabled. Open its settings, or disable it?"/>
   <translation tag="Enclosed" en="Enclosed"/>
   <translation tag="Enclosure" en="Enclosure"/>
   <translation tag="Encoder" en="Encoder"/>
@@ -1505,6 +1509,7 @@
   <translation tag="Keep clear of the printer while the toolhead is moving" en="Keep clear of the printer while the toolhead is moving"/>
   <translation tag="Keep current" en="Keep current"/>
   <translation tag="Keep hands clear. The printer moves on its own." en="Keep hands clear. The printer moves on its own."/>
+  <translation tag="Keep its own data on this screen (up to 256 KB)." en="Keep its own data on this screen (up to 256 KB)."/>
   <translation tag="Keep the bypass spool visible when bypass is off" en="Keep the bypass spool visible when bypass is off"/>
   <translation tag="Kick away" en="Kick away"/>
   <translation tag="Kinematics" en="Kinematics"/>
@@ -2092,6 +2097,7 @@
   <translation tag="Plugin not responding after restart.&#10;It may need more time to load." en="Plugin not responding after restart.&#10;It may need more time to load."/>
   <translation tag="Plugin removed. A config file needs attention - check the HelixScreen log for details." en="Plugin removed. A config file needs attention - check the HelixScreen log for details."/>
   <translation tag="Plugin uninstalled successfully." en="Plugin uninstalled successfully."/>
+  <translation tag="Plugins" en="Plugins"/>
   <translation tag="Point camera at QR code on spool" en="Point camera at QR code on spool"/>
   <translation tag="Polymaker" en="Polymaker"/>
   <translation tag="Poor Accuracy" en="Poor Accuracy"/>
@@ -2630,6 +2636,7 @@
   <translation tag="Self-Test" en="Self-Test"/>
   <translation tag="Send G-code and read the replies" en="Send G-code and read the replies"/>
   <translation tag="Send Report" en="Send Report"/>
+  <translation tag="Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable." en="Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable."/>
   <translation tag="Send commands directly to printer" en="Send commands directly to printer"/>
   <translation tag="Send this crash report to help improve HelixScreen." en="Send this crash report to help improve HelixScreen."/>
   <translation tag="Sending..." en="Sending..."/>
@@ -3010,6 +3017,7 @@
   <translation tag="This is exactly the data that will be sent" en="This is exactly the data that will be sent"/>
   <translation tag="This is what data would be sent if enabled" en="This is what data would be sent if enabled"/>
   <translation tag="This may take up to 30 seconds" en="This may take up to 30 seconds"/>
+  <translation tag="This plugin asks for no special permissions." en="This plugin asks for no special permissions."/>
   <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." en="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps."/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" en="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" en="This printer cannot calibrate tool offsets automatically"/>
@@ -3021,6 +3029,7 @@
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." en="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes."/>
   <translation tag="This system does not support bypass mode" en="This system does not support bypass mode"/>
   <translation tag="This tool probes each bed screw and tells you how much to adjust." en="This tool probes each bed screw and tells you how much to adjust."/>
+  <translation tag="This update asks for new permissions:" en="This update asks for new permissions:"/>
   <translation tag="This will apply the Z-offset to your endstop and restart Klipper to save the configuration. The printer will briefly disconnect." en="This will apply the Z-offset to your endstop and restart Klipper to save the configuration. The printer will briefly disconnect."/>
   <translation tag="This will apply the Z-offset to your probe and restart Klipper to save the configuration. The printer will briefly disconnect." en="This will apply the Z-offset to your probe and restart Klipper to save the configuration. The printer will briefly disconnect."/>
   <translation tag="This will collect system info, logs, settings, and printer data to help diagnose issues. No passwords or sensitive data will be included." en="This will collect system info, logs, settings, and printer data to help diagnose issues. No passwords or sensitive data will be included."/>
@@ -3374,6 +3383,7 @@
   <translation tag="attempt {}" en="attempt {}"/>
   <translation tag="bed" en="bed"/>
   <translation tag="busy" en="busy"/>
+  <translation tag="by" en="by"/>
   <translation tag="by Preston Brown" en="by Preston Brown"/>
   <translation tag="chamber heater" en="chamber heater"/>
   <translation tag="complete" en="complete"/>
@@ -3395,6 +3405,7 @@
   <translation tag="extruder(s)" en="extruder(s)"/>
   <translation tag="extruders" en="extruders"/>
   <translation tag="fans" en="fans"/>
+  <translation tag="faulted" en="faulted"/>
   <translation tag="feeder error" en="feeder error"/>
   <translation tag="feeder not in automatic mode" en="feeder not in automatic mode"/>
   <translation tag="filament sensor disabled" en="filament sensor disabled"/>
@@ -3405,6 +3416,8 @@
   <translation tag="helixscreen.env ignored: {}" en="helixscreen.env ignored: {}"/>
   <translation tag="idle" en="idle"/>
   <translation tag="in unit {} slot {}" en="in unit {} slot {}"/>
+  <translation tag="incompatible" en="incompatible"/>
+  <translation tag="invalid" en="invalid"/>
   <translation tag="just now" en="just now"/>
   <translation tag="layers" en="layers"/>
   <translation tag="left" en="left"/>
@@ -3413,6 +3426,7 @@
   <translation tag="matched" en="matched"/>
   <translation tag="mm before clog" en="mm before clog"/>
   <translation tag="needs" en="needs"/>
+  <translation tag="needs approval" en="needs approval"/>
   <translation tag="never sleeps" en="never sleeps"/>
   <translation tag="not detected" en="not detected"/>
   <translation tag="not loaded" en="not loaded"/>
@@ -3421,6 +3435,7 @@
   <translation tag="off" en="off"/>
   <translation tag="on unit {}" en="on unit {}"/>
   <translation tag="or type a macro name" en="or type a macro name"/>
+  <translation tag="over memory budget" en="over memory budget"/>
   <translation tag="passive" en="passive"/>
   <translation tag="printer default" en="printer default"/>
   <translation tag="prints" en="prints"/>

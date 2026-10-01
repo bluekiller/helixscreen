@@ -440,9 +440,10 @@ class UpdateChecker {
     struct PlatformInfo {
         const char* key;
         const char* display_name;
-        uint8_t elf_class;    ///< 1 = ELFCLASS32, 2 = ELFCLASS64, 0 = no ELF release to check
-        uint8_t elf_data;     ///< EI_DATA: 1 = little-endian, 2 = big-endian
-        uint16_t elf_machine; ///< e_machine
+        bool has_printer_hardware; ///< false for generic hosts (Pi, x86) and the K-Touch
+        uint8_t elf_class;         ///< 1 = ELFCLASS32, 2 = ELFCLASS64, 0 = no ELF release to check
+        uint8_t elf_data;          ///< EI_DATA: 1 = little-endian, 2 = big-endian
+        uint16_t elf_machine;      ///< e_machine
         std::vector<std::string> diagnostic_files; ///< Moonraker paths; basename is the bundle key
     };
 

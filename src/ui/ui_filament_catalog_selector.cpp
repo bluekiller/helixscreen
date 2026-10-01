@@ -7,6 +7,7 @@
 #include "filament_favorites.h"
 #include "filament_variants.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "text_io.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -370,16 +371,6 @@ void FilamentCatalogSelector::populate_vendor_dropdown() {
     lv_dropdown_set_selected(dd, seed_idx);
 }
 
-namespace {
-
-std::string to_lower_copy(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-
-} // namespace
-
 std::string FilamentCatalogSelector::family_of(const std::string& type) {
     return filament::display_family(type);
 }
@@ -389,9 +380,10 @@ bool FilamentCatalogSelector::type_allowed(const std::string& type) const {
         return true;
     // Case-insensitive match: a backend whitelist may spell a type differently
     // than the catalog ("pla" vs "PLA").
-    const std::string type_lc = to_lower_copy(type);
-    return std::any_of(allowed_types_->begin(), allowed_types_->end(),
-                       [&](const std::string& a) { return to_lower_copy(a) == type_lc; });
+    const std::string type_lc = helix::text_io::to_lower(type);
+    return std::any_of(allowed_types_->begin(), allowed_types_->end(), [&](const std::string& a) {
+        return helix::text_io::to_lower(a) == type_lc;
+    });
 }
 
 void FilamentCatalogSelector::sync_type_group_visibility() {
@@ -431,7 +423,7 @@ void FilamentCatalogSelector::populate_type_dropdown() {
     for (const auto& type : catalog_.types_for_brand(current_vendor())) {
         if (!type_allowed(type))
             continue;
-        covered_types_lc.insert(to_lower_copy(type));
+        covered_types_lc.insert(helix::text_io::to_lower(type));
         std::string family = family_of(type);
         if (seen_family.insert(family).second)
             families.push_back(family);
@@ -445,10 +437,10 @@ void FilamentCatalogSelector::populate_type_dropdown() {
         // heading and keep the WHITELIST spelling, because current_type() is
         // read back as the material string on exactly this no-product path.
         for (const auto& allowed : *allowed_types_) {
-            if (covered_types_lc.count(to_lower_copy(allowed)))
+            if (covered_types_lc.count(helix::text_io::to_lower(allowed)))
                 continue;
             bool dup = std::any_of(families.begin(), families.end(), [&](const std::string& f) {
-                return to_lower_copy(f) == to_lower_copy(allowed);
+                return helix::text_io::to_lower(f) == helix::text_io::to_lower(allowed);
             });
             if (!dup)
                 families.push_back(allowed);
@@ -484,7 +476,7 @@ void FilamentCatalogSelector::populate_type_dropdown() {
         // widened by whatever a slot happens to claim.
         const std::string seed_family_now = family_of(*seed_type_);
         const bool dup = std::any_of(families.begin(), families.end(), [&](const std::string& f) {
-            return to_lower_copy(f) == to_lower_copy(seed_family_now);
+            return helix::text_io::to_lower(f) == helix::text_io::to_lower(seed_family_now);
         });
         if (!dup)
             families.push_back(seed_family_now);
@@ -528,11 +520,12 @@ FilamentCatalogSelector::ordered_products_for(const std::string& vendor,
         std::sort(products.begin(), products.end(),
                   [](const helix::printer::EffectiveFilament* a,
                      const helix::printer::EffectiveFilament* b) {
-                      const std::string na = to_lower_copy(a->name);
-                      const std::string nb = to_lower_copy(b->name);
+                      const std::string na = helix::text_io::to_lower(a->name);
+                      const std::string nb = helix::text_io::to_lower(b->name);
                       if (na != nb)
                           return na < nb;
-                      return to_lower_copy(a->brand) < to_lower_copy(b->brand);
+                      return helix::text_io::to_lower(a->brand) <
+                             helix::text_io::to_lower(b->brand);
                   });
         return products;
     }
@@ -549,21 +542,21 @@ FilamentCatalogSelector::ordered_products_for(const std::string& vendor,
     }
 
     const std::set<std::string> starred(favorite_ids.begin(), favorite_ids.end());
-    const std::string family_lc = to_lower_copy(family);
+    const std::string family_lc = helix::text_io::to_lower(family);
     // Variant grouping key: base-type products ("" sorts first) cluster ahead of
     // variants, and each variant type ("ASA-CF", "ASA-GF") forms its own
     // contiguous run so a heading reads as base-then-variants rather than one
     // interleaved alphabetical soup.
     auto variant_key = [&](const helix::printer::EffectiveFilament* p) -> std::string {
-        std::string type_lc = to_lower_copy(p->type);
+        std::string type_lc = helix::text_io::to_lower(p->type);
         return type_lc == family_lc ? std::string{} : type_lc;
     };
     // Within a variant run: 0 = the plain material whose name is just the type,
     // 1 = everything else (alphabetical), 2 = "Support..." (sunk to the bottom,
     // file order preserved).
     auto rank_of = [&](const helix::printer::EffectiveFilament* p) -> int {
-        std::string name_lc = to_lower_copy(p->name);
-        if (name_lc == to_lower_copy(p->type))
+        std::string name_lc = helix::text_io::to_lower(p->name);
+        if (name_lc == helix::text_io::to_lower(p->type))
             return 0;
         if (name_lc.rfind("support", 0) == 0)
             return 2;
@@ -589,7 +582,8 @@ FilamentCatalogSelector::ordered_products_for(const std::string& vendor,
                              return ra < rb;
                          if (ra != 1)
                              return false; // stable within ranks 0 and 2
-                         return to_lower_copy(a->name) < to_lower_copy(b->name);
+                         return helix::text_io::to_lower(a->name) <
+                                helix::text_io::to_lower(b->name);
                      });
     return products;
 }

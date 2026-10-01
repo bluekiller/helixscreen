@@ -3,6 +3,8 @@
 
 #include "filament_macro_profiles.h"
 
+#include "text_io.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -10,12 +12,6 @@
 
 namespace helix::filament_macros {
 namespace {
-
-std::string to_upper(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-    return s;
-}
 
 /// One stock macro, and what it does for itself.
 struct MacroProfile {
@@ -63,7 +59,7 @@ const MacroProfile* find_profile(const std::string& macro_name) {
     if (macro_name.empty()) {
         return nullptr;
     }
-    const std::string upper = to_upper(macro_name);
+    const std::string upper = helix::text_io::to_upper(macro_name);
     for (const MacroProfile& p : MACRO_PROFILES) {
         if (upper == p.name) {
             return &p;

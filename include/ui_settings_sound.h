@@ -13,40 +13,29 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
 class SoundSettingsOverlay : public OverlayBase {
   public:
-    SoundSettingsOverlay();
-    ~SoundSettingsOverlay() override;
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "Sound";
     }
-
-    void on_activate() override;
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_sound_overlay";
     }
 
+    void register_callbacks() override;
+    void on_activate() override;
+
     //
-    // === Event Handlers (public for static callbacks) ===
+    // === Event Handlers (public for the callback table) ===
     //
 
     void handle_sounds_changed(bool enabled);
     void handle_volume_changed(int value);
-    void handle_volume_commit(int value);
-    void handle_ui_sounds_changed(bool enabled);
     void handle_sound_theme_changed(int index);
     void handle_audio_device_changed(int index);
     void handle_preview_sounds();
@@ -60,19 +49,10 @@ class SoundSettingsOverlay : public OverlayBase {
 
     /// Volume value label text
     char volume_value_buf_[8]; // e.g., "100%"
-
-    static void on_sounds_changed(lv_event_t* e);
-    static void on_volume_changed(lv_event_t* e);
-    static void on_volume_commit(lv_event_t* e);
-    static void on_volume_released(lv_event_t* e);
-    static void on_ui_sounds_changed(lv_event_t* e);
-    static void on_sound_theme_changed(lv_event_t* e);
-    static void on_audio_device_changed(lv_event_t* e);
-    static void on_preview_sounds(lv_event_t* e);
-    static void on_test_tracker(lv_event_t* e);
 };
 
-/// Singleton accessor; registers the overlay with StaticPanelRegistry on first use.
-SoundSettingsOverlay& get_sound_settings_overlay();
+inline SoundSettingsOverlay& get_sound_settings_overlay() {
+    return lazy_global<SoundSettingsOverlay>("SoundSettingsOverlay");
+}
 
 } // namespace helix::settings

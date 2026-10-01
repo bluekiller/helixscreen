@@ -574,11 +574,9 @@ std_regex_pattern() {
 }
 
 # Allowed, with the reason:
-#   src/helix_splash.cpp, src/helix_watchdog.cpp - separate small binaries that
-#       each read one small settings file on the main thread (full rlimit stack)
-#   src/tools/                                   - host-only build tools
+#   src/tools/ - host-only build tools
 std_regex_lint_files() {
-    rtti_lint_files | grep -Ev '^src/(helix_splash|helix_watchdog)\.cpp$|^src/tools/'
+    rtti_lint_files | grep -Ev '^src/tools/'
 }
 
 check_no_std_regex() {
@@ -2851,11 +2849,13 @@ EOF
 # --- Our own servers are reached only through helix::tls::trusted_* ---
 # trusted_request()/trusted_download() verify the server certificate; a plain
 # requests:: call to the update, telemetry, crash or debug-bundle servers does not.
-# Requests to the printer's LAN services keep requests:: on purpose.
+# Uploads to the ingest workers go through helix::ingest::post, the one sender
+# that carries the API key. Requests to the printer's LAN services keep
+# requests:: on purpose.
 
 own_endpoint_http_offenders() {
     local root="$1" f
-    for f in update_checker telemetry_manager crash_reporter; do
+    for f in update_checker telemetry_manager crash_reporter ingest_client; do
         grep -nE '^[^/]*(requests::|HttpClient)' "$root/src/system/$f.cpp" | sed "s|^|$f.cpp:|"
     done
     # Any other file naming one of our hosts must reach it through trusted_*.
@@ -2870,6 +2870,8 @@ own_endpoint_http_offenders() {
          on && /^}/ { on = 0 }
          END { if (!seen) print "debug_bundle_collector.cpp: upload to WORKER_URL not found" }' \
         "$root/src/system/debug_bundle_collector.cpp"
+    grep -rnF '["X-API-Key"]' "$root/src" | grep -v '^[^:]*/src/system/ingest_client\.cpp:' |
+        sed 's|$| (ingest uploads go through helix::ingest::post)|'
 }
 
 @test "requests to our own servers go through helix::tls::trusted_*" {
@@ -2884,11 +2886,13 @@ own_endpoint_http_offenders() {
     printf '    // requests::request is fine in a comment\n' > "$d/update_checker.cpp"
     printf '    auto r = requests::request(req);\n' > "$d/telemetry_manager.cpp"
     printf '    hv::HttpClient cli;\n' > "$d/crash_reporter.cpp"
+    printf '    req->headers["X-API-Key"] = API_KEY;\n' > "$d/ingest_client.cpp"
     mkdir -p "$d/../ui"
     printf 'auto u = "https://api.github.com/x";\nauto r = requests::get(u);\n' > "$d/../ui/rogue.cpp"
     printf 'auto u = "https://helixscreen.org/x";\nauto r = helix::tls::trusted_request(q);\n' \
         > "$d/../ui/fine.cpp"
     printf 'auto u = "https://helixscreen.org/docs";\n' > "$d/../ui/link_only.cpp"
+    printf '    req->headers["X-API-Key"] = key;\n' > "$d/../ui/keyed.cpp"
     printf 'int f() {\n    auto r = requests::request(req);\n}\nvoid up() {\n    const std::string url = worker_url();\n    auto r = requests::request(req);\n}\n' \
         > "$d/debug_bundle_collector.cpp"
     run own_endpoint_http_offenders "${BATS_TEST_TMPDIR}/offender"
@@ -2901,4 +2905,42 @@ own_endpoint_http_offenders() {
     lacks "link_only.cpp" "$output"
     lacks "update_checker.cpp" "$output"
     lacks "debug_bundle_collector.cpp:2" "$output"
+    contains "keyed.cpp" "$output"
+    lacks "ingest_client.cpp" "$output"
+}
+
+# --- ui_xml never uses the plugin name separator ---
+# `__` separates a plugin id from the rest of a name that plugin owns
+# (plugin_manifest.h kPluginNameSeparator). An app file name or app-bound
+# attribute value containing it would sit inside the plugin namespace, where
+# the ownership checks would read it as plugin-owned.
+
+@test "no ui_xml file name contains the plugin separator" {
+    run find ui_xml -name '*__*'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "no ui_xml name, subject or cond attribute value contains the plugin separator" {
+    run grep -rEn '((^|[^_a-z0-9])subject|[_a-z0-9]+_subject|bind_[_a-z0-9]+|[_a-z0-9]*cond|name)="[^"]*__[^"]*"' ui_xml/
+    [ "$status" -eq 1 ]  # grep returns 1 when no matches found
+}
+
+@test "no app-registered XML subject name contains the plugin separator" {
+    # `subject="x__y"` in a bind_flag_if/bind_state_if/bind_style/bind_tile_rung child,
+    # a `cond=` expression, or a C++-registered subject (lv_xml_register_subject literal
+    # or INIT_SUBJECT_* macro name) would sit inside the plugin namespace: the policy
+    # would read it as plugin-owned and a plugin with id `x` could bind it. Plugin code
+    # is excluded because building `__` names is its job.
+    run bash -c "grep -rn -A 1 --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' 'lv_xml_register_subject(' src/ include/ | grep -E '\"[^\"]*__'"
+    [ "$status" -eq 1 ]
+    run grep -rnE --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' 'INIT_SUBJECT_[A-Z_]+\([[:space:]]*[_A-Za-z0-9]*__' src/ include/
+    [ "$status" -eq 1 ]
+    # register_subject_in_current_scope(name, ...) publishes the same scope entry as
+    # lv_xml_register_subject; UI_MANAGED_SUBJECT_* and UI_SUBJECT_INIT_AND_REGISTER_*
+    # take the XML name as a string-literal argument and publish through it. The name
+    # can sit on the call's next line, so -A 1; these macros also carry non-name
+    # literals (initial values), where a __ fails closed rather than slipping through.
+    run bash -c "grep -rn -A 1 --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' -E 'register_subject_in_current_scope\(|UI_MANAGED_SUBJECT_[A-Z_]+\(|UI_SUBJECT_INIT_AND_REGISTER_[A-Z_]+\(' src/ include/ | grep -E '\"[^\"]*__'"
+    [ "$status" -eq 1 ]
 }

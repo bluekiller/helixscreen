@@ -100,6 +100,30 @@ std::vector<std::string> require_candidates(const std::string& plugin_dir,
     return {plugin_dir + "/" + rel + ".lua", plugin_dir + "/lib/" + rel + ".lua"};
 }
 
+bool is_plugin_relative_path(std::string_view path) {
+    constexpr std::string_view kExt = ".lua";
+    if (path.empty() || path.size() > 128 || path.front() == '/' || path.size() <= kExt.size() ||
+        path.substr(path.size() - kExt.size()) != kExt)
+        return false;
+    size_t start = 0;
+    while (start <= path.size()) {
+        size_t end = path.find('/', start);
+        if (end == std::string_view::npos)
+            end = path.size();
+        std::string_view seg = path.substr(start, end - start);
+        if (seg.empty() || seg == "." || seg == "..")
+            return false;
+        for (char c : seg) {
+            bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                      c == '_' || c == '.' || c == '-';
+            if (!ok)
+                return false;
+        }
+        start = end + 1;
+    }
+    return true;
+}
+
 LuaRuntime::Pending::Pending(LuaRuntime* rt, lua_State* co, LifetimeToken token)
     : rt_(rt), co_(co), token_(std::move(token)),
       done_(std::make_shared<std::atomic<bool>>(false)) {}
@@ -244,6 +268,10 @@ bool LuaRuntime::run_string(const std::string& code, const std::string& chunk_na
 }
 
 bool LuaRuntime::run_file(const std::string& relative_path) {
+    if (!is_plugin_relative_path(relative_path)) {
+        report_error("refusing to run '" + relative_path + "': not a path inside the plugin");
+        return false;
+    }
     const std::string path = plugin_dir_ + "/" + relative_path;
     struct stat st {};
     if (::stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {

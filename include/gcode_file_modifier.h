@@ -14,19 +14,6 @@ namespace helix {
 namespace gcode {
 
 /**
- * @brief Maximum file size (in bytes) to load entirely into memory
- *
- * @deprecated Use StreamingPolicy::should_stream() instead.
- * This constant is retained for backward compatibility with tests.
- * The actual streaming decision is now controlled by StreamingPolicy,
- * which auto-detects based on available RAM or can be configured in
- * settings.json.
- *
- * Default: 5MB (safe for most embedded targets)
- */
-constexpr size_t MAX_BUFFERED_FILE_SIZE = 5 * 1024 * 1024;
-
-/**
  * @brief Type of modification to apply to G-code
  */
 enum class ModificationType {
@@ -217,8 +204,7 @@ class GCodeFileModifier {
      * @param filepath Path to the source G-code file
      * @return ModificationResult with success status and modified file path
      *
-     * @note This method is automatically called by apply() for files larger
-     *       than MAX_BUFFERED_FILE_SIZE.
+     * @note apply() calls this for files should_use_gcode_streaming() says to stream.
      */
     [[nodiscard]] ModificationResult apply_streaming(const std::string& filepath);
 

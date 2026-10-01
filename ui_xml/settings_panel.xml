@@ -60,6 +60,10 @@
         <bind_flag_if cond="show_update_settings eq 0 and updates_firmware_managed eq 0 and updates_unavailable eq 0"
                       flag="hidden"/>
       </setting_action_row>
+      <setting_action_row name="row_plugins"
+                          label="Plugins" label_tag="Plugins" icon="puzzle_outline" callback="on_plugins_clicked">
+        <bind_flag_if_eq subject="settings_plugins_available" flag="hidden" ref_value="0"/>
+      </setting_action_row>
       <setting_action_row name="row_help"
                           label="Help &amp; About" label_tag="Help &amp; About" icon="help" callback="on_help_clicked"/>
     </setting_group>

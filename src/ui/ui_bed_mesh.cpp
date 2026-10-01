@@ -12,6 +12,7 @@
 #include "bed_mesh_overlays.h"
 #include "bed_mesh_render_thread.h"
 #include "bed_mesh_renderer.h"
+#include "env_knobs.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_parser.h"
 #include "helix-xml/src/xml/lv_xml_widget.h"
@@ -603,8 +604,7 @@ static void* bed_mesh_xml_create(lv_xml_parser_state_t* state, const char** attr
     // set by bed_mesh_renderer_create() — no need to push them back in here.
 
     // Check for forced 2D mode via environment variable (for testing)
-    const char* force_2d = std::getenv("HELIX_BED_MESH_2D");
-    if (force_2d && std::strcmp(force_2d, "1") == 0) {
+    if (helix::env_flag("HELIX_BED_MESH_2D")) {
         bed_mesh_renderer_set_render_mode(data_ptr->renderer, BedMeshRenderMode::Force2D);
         spdlog::info("[bed_mesh] 2D heatmap mode forced via HELIX_BED_MESH_2D=1");
     }

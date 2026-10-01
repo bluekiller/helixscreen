@@ -5,11 +5,21 @@
 
 #include "plugin_host.h"
 
+#include "ui_nav_manager.h"
 #include "ui_toast_manager.h"
+#include "ui_utils.h"
 
+#include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
+#include "lua_panel_widget.h"
 #include "lvgl/lvgl.h"
+#include "panel_widget_manager.h"
+#include "panel_widget_registry.h"
+#include "plugin_settings_overlay.h"
+#include "plugin_xml_policy.h"
+#include "plugins_overlay.h"
+#include "translation_loader.h"
 #include "version.h"
 
 #include <spdlog/spdlog.h>
@@ -17,7 +27,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <sstream>
 
 namespace helix::plugin {
@@ -59,6 +68,8 @@ void register_plugin_event_callback() {
     if (registered)
         return;
     lv_xml_register_event_cb(nullptr, "plugin_event", &plugin_event_cb);
+    register_plugin_settings_callbacks();
+    register_plugins_overlay_callbacks();
     registered = true;
 }
 
@@ -66,40 +77,35 @@ size_t plugin_memory_budget(uint64_t mem_total_bytes) {
     return static_cast<size_t>(std::min<uint64_t>(mem_total_bytes / 16, uint64_t(64) << 20));
 }
 
-uint64_t read_mem_total() {
-    std::ifstream in("/proc/meminfo");
-    std::string key;
-    uint64_t kb = 0;
-    while (in >> key >> kb) {
-        if (key == "MemTotal:")
-            return kb * 1024;
-        in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    }
-    return 0;
-}
-
+// TR_NOOP marks the literals for the extractor; the display site calls lv_tr
+// on the stored pointer (plugins_overlay.cpp), so the lookup happens at render
+// time against the loaded language pack.
 const char* plugin_status_name(PluginStatus s) {
     switch (s) {
     case PluginStatus::Disabled:
-        return "disabled";
+        return TR_NOOP("disabled");
     case PluginStatus::Loaded:
-        return "loaded";
+        return TR_NOOP("loaded");
     case PluginStatus::NeedsApproval:
-        return "needs approval";
+        return TR_NOOP("needs approval");
     case PluginStatus::Invalid:
-        return "invalid";
+        return TR_NOOP("invalid");
     case PluginStatus::Incompatible:
-        return "incompatible";
+        return TR_NOOP("incompatible");
     case PluginStatus::OverBudget:
-        return "over memory budget";
+        return TR_NOOP("over memory budget");
     case PluginStatus::Faulted:
-        return "faulted";
+        return TR_NOOP("faulted");
     }
     return "?";
 }
 
 PluginHost::PluginHost(Deps deps) : deps_(std::move(deps)) {
     g_live_host = this;
+}
+
+PluginHost* PluginHost::live() {
+    return g_live_host;
 }
 
 PluginHost::~PluginHost() {
@@ -113,6 +119,7 @@ void PluginHost::load_from(const std::string& dir) {
     unload_all();
     plugins_.clear();
     dir_ = dir;
+    bulk_ = true;
 
     std::error_code ec;
     std::vector<std::string> names;
@@ -148,6 +155,11 @@ void PluginHost::load_from(const std::string& dir) {
     for (const auto& info : plugins_) {
         spdlog::info("[PluginHost] {}: {}{}", info.dir_name, plugin_status_name(info.status),
                      info.reason.empty() ? "" : " (" + info.reason + ")");
+    }
+    bulk_ = false;
+    if (widget_defs_dirty_) {
+        PanelWidgetManager::instance().notify_widget_defs_changed();
+        widget_defs_dirty_ = false;
     }
 }
 
@@ -187,16 +199,7 @@ void PluginHost::consider(PluginInfo& info) {
         return;
     }
 
-    PermissionSet granted;
-    if (auto p = entry.find("permissions"); p != entry.end() && p->is_array()) {
-        for (const auto& n : *p) {
-            if (!n.is_string())
-                continue;
-            if (auto perm = permission_from_string(n.get<std::string>()))
-                granted.insert(*perm);
-        }
-    }
-    auto grown = permission_growth(granted, m.permissions);
+    auto grown = permission_growth(granted(m.id), m.permissions);
     if (!grown.empty()) {
         info.status = PluginStatus::NeedsApproval;
         info.reason = "asks for new permissions:";
@@ -219,6 +222,7 @@ void PluginHost::consider(PluginInfo& info) {
 }
 
 bool PluginHost::load(PluginInfo& info) {
+    sweep_retired_subjects();
     const Manifest& m = *info.manifest;
     const std::string id = m.id;
     auto root = std::filesystem::path(dir_) / info.dir_name;
@@ -233,32 +237,61 @@ bool PluginHost::load(PluginInfo& info) {
     for (const auto& p : xmls) {
         if (!is_owned_name(id, p.stem().string())) {
             info.status = PluginStatus::Invalid;
-            info.reason = "component '" + p.stem().string() + "' must be named " + id + "_<name>";
+            info.reason = "component '" + p.stem().string() + "' must be named " + id + "__<name>";
+            return false;
+        }
+    }
+    std::vector<std::string> stems;
+    std::vector<std::string> buffers;
+    stems.reserve(xmls.size());
+    buffers.reserve(xmls.size());
+    for (const auto& p : xmls) {
+        stems.push_back(p.stem().string());
+        buffers.push_back(read_file(p));
+    }
+    // An app callback or an app subject named here would bypass every permission, so the
+    // policy runs before anything is registered, and the bytes it checked are the bytes
+    // that get registered.
+    for (size_t i = 0; i < xmls.size(); ++i) {
+        std::string why = check_plugin_xml(id, stems, buffers[i]);
+        if (!why.empty()) {
+            info.status = PluginStatus::Invalid;
+            info.reason = xmls[i].filename().string() + ": " + why;
             return false;
         }
     }
     // A plugin registering an existing name would replace the app's component (and unloading
     // would then remove it), so nothing is registered until every stem is free.
-    for (const auto& p : xmls) {
-        if (lv_xml_component_get_scope(p.stem().string().c_str())) {
+    for (const auto& stem : stems) {
+        if (lv_xml_component_get_scope(stem.c_str())) {
             info.status = PluginStatus::Invalid;
-            info.reason = "component '" + p.stem().string() + "' already exists";
+            info.reason = "component '" + stem + "' already exists";
+            return false;
+        }
+    }
+    // Every declared widget resolves to one of the plugin's own component files, or the
+    // home grid would later hand lv_xml_create a name nothing registered.
+    for (const WidgetDecl& d : m.widgets) {
+        if (std::find(stems.begin(), stems.end(), d.component) == stems.end()) {
+            info.status = PluginStatus::Invalid;
+            info.reason =
+                "widget '" + d.id + "' names component '" + d.component + "', which is not in ui/";
             return false;
         }
     }
 
     auto [it, inserted] = loaded_.try_emplace(id);
     Loaded& l = it->second;
-    for (const auto& p : xmls) {
-        std::string uri = "A:" + p.string();
-        if (lv_xml_register_component_from_file(uri.c_str()) != LV_RESULT_OK) {
+    l.gen = next_load_gen_++;
+    for (size_t i = 0; i < xmls.size(); ++i) {
+        if (lv_xml_register_component_from_data(stems[i].c_str(), buffers[i].c_str()) !=
+            LV_RESULT_OK) {
             info.status = PluginStatus::Invalid;
-            info.reason = "cannot load " + p.filename().string();
+            info.reason = "cannot load " + xmls[i].filename().string();
             unload(id);
             return false;
         }
-        std::string name = p.stem().string();
-        l.components.emplace_back(name, lv_xml_component_get_scope(name.c_str()));
+        l.components.emplace_back(stems[i], lv_xml_component_get_scope(stems[i].c_str()));
     }
 
     json block = deps_.read_block();
@@ -276,15 +309,21 @@ bool PluginHost::load(PluginInfo& info) {
     limits.memory_bytes = l.memory_bytes;
     LifetimeToken token = guard_.token();
     l.rt = std::make_unique<LuaRuntime>(
-        id, root.string(), limits, [this, token, id](const std::string& reason) {
-            token.defer("plugin_fault", [this, id, reason] { on_fault(id, reason); });
+        id, root.string(), limits, [this, token, id, gen = l.gen](const std::string& reason) {
+            token.defer("plugin_fault", [this, id, gen, reason] { on_fault(id, gen, reason); });
         });
     l.ctx = std::make_unique<PluginContext>(
         PluginContext{*l.rt, deps_.backend, m, &l.settings, [this, id] { save_settings(id); },
                       plugin_storage_path(deps_.settings_path, id)});
+    l.ui.open = [this, id](const std::string& component, std::function<void()> on_closed,
+                           const PluginUi::Attrs& attrs) {
+        return overlays_.open(id, component, std::move(on_closed), attrs);
+    };
+    l.ui.close = [this](int handle) { overlays_.close(handle); };
+    l.ctx->ui = &l.ui;
     for (Installer install :
          {&install_core_bindings, &install_ui_bindings, &install_printer_bindings,
-          &install_moonraker_bindings, &install_io_bindings})
+          &install_moonraker_bindings, &install_io_bindings, &install_widget_bindings})
         install(*l.ctx);
 
     if (!l.rt->run_file("main.lua")) {
@@ -292,6 +331,36 @@ bool PluginHost::load(PluginInfo& info) {
         info.reason = l.rt->faulted() ? l.rt->fault_reason() : "main.lua failed; see the log";
         unload(id);
         return false;
+    }
+
+    for (const WidgetDecl& d : m.widgets) {
+        helix::RuntimeWidgetDef def;
+        def.id = d.id;
+        def.display_name = d.name;
+        def.icon = d.icon.empty() ? "puzzle_outline" : d.icon;
+        def.description = d.description;
+        // Manifest spans are cells; the registry stores grid tracks.
+        constexpr int kT = helix::GridLayout::TRACKS_PER_CELL;
+        def.colspan = d.colspan * kT;
+        def.rowspan = d.rowspan * kT;
+        def.max_colspan = d.max_colspan * kT;
+        def.max_rowspan = d.max_rowspan * kT;
+        def.factory = [pid = id, wid = d.id, comp = d.component,
+                       tok = l.rt->token()](const std::string&) {
+            return std::make_unique<LuaPanelWidget>(pid, wid, comp, tok);
+        };
+        if (helix::register_runtime_widget_def(std::move(def))) {
+            l.widget_ids.push_back(d.id);
+        } else {
+            spdlog::warn("[PluginHost] {}: widget id '{}' is taken", id, d.id);
+        }
+    }
+    if (!l.widget_ids.empty()) {
+        widget_defs_dirty_ = true;
+        if (!bulk_) {
+            helix::PanelWidgetManager::instance().notify_widget_defs_changed();
+            widget_defs_dirty_ = false;
+        }
     }
     return true;
 }
@@ -302,6 +371,7 @@ void PluginHost::unload(const std::string& id) {
         return;
     Loaded& l = it->second;
     if (l.rt && !l.rt->faulted()) {
+        l.ctx->unloading = true;
         lua_State* L = l.rt->state();
         lua_getglobal(L, "on_unload");
         if (lua_isfunction(L, -1)) {
@@ -313,6 +383,25 @@ void PluginHost::unload(const std::string& id) {
             lua_pop(L, 1);
         }
     }
+    // Overlays go before the runtime does too, and silently: the plugin's on_close
+    // hooks point at a Lua state that is about to close.
+    overlays_.close_all(id);
+    // Its generated settings screen leaves the same way, through navigation, so
+    // the close callback that erases it runs on every path.
+    close_settings_screens(id);
+    // Widget definitions go before the runtime does: the async home rebuild this
+    // schedules dereferences nothing of the plugin's, and the tiles it retires are
+    // handed to deferred deletion while their subjects are still alive.
+    if (!l.widget_ids.empty()) {
+        for (const auto& wid : l.widget_ids)
+            helix::unregister_runtime_widget_def(wid);
+        l.widget_ids.clear();
+        widget_defs_dirty_ = true;
+        if (!bulk_) {
+            helix::PanelWidgetManager::instance().notify_widget_defs_changed();
+            widget_defs_dirty_ = false;
+        }
+    }
     l.rt.reset();
     for (const auto& [name, scope] : l.components) {
         if (lv_xml_component_get_scope(name.c_str()) == scope)
@@ -320,19 +409,26 @@ void PluginHost::unload(const std::string& id) {
     }
     l.ctx.reset();
     loaded_.erase(it);
+    sweep_retired_subjects();
 }
 
 void PluginHost::unload_all() {
     std::vector<std::string> ids;
     for (const auto& [id, l] : loaded_)
         ids.push_back(id);
+    // No notify at the end: shutdown tears the UI down after this, and a printer switch
+    // reloads through load_from, whose own end-of-scan notify covers what went here.
+    // widget_defs_dirty_ stays set for that caller.
+    bulk_ = true;
     for (const auto& id : ids)
         unload(id);
+    bulk_ = false;
 }
 
-void PluginHost::on_fault(const std::string& id, const std::string& reason) {
-    if (!loaded_.count(id))
-        return; // already unloaded by the load path
+void PluginHost::on_fault(const std::string& id, uint64_t gen, const std::string& reason) {
+    auto it = loaded_.find(id);
+    if (it == loaded_.end() || it->second.gen != gen)
+        return; // unloaded by the load path, or a newer load of the same id
     unload(id);
     if (PluginInfo* info = find(id)) {
         info->status = PluginStatus::Faulted;
@@ -389,6 +485,23 @@ bool PluginHost::enable(const std::string& id) {
     return info->status == PluginStatus::Loaded;
 }
 
+PermissionSet PluginHost::granted(const std::string& id) const {
+    PermissionSet out;
+    json entry = enabled_entry(id);
+    if (!entry.is_object())
+        return out;
+    auto p = entry.find("permissions");
+    if (p == entry.end() || !p->is_array())
+        return out;
+    for (const auto& n : *p) {
+        if (!n.is_string())
+            continue;
+        if (auto perm = permission_from_string(n.get<std::string>()))
+            out.insert(*perm);
+    }
+    return out;
+}
+
 void PluginHost::disable(const std::string& id) {
     unload(id);
     json block = deps_.read_block();
@@ -415,6 +528,92 @@ void PluginHost::dispatch_event(std::string_view user_data) {
     }
     if (!dispatch_ui_handler(*rt, target.name, target.arg))
         spdlog::debug("[PluginHost] plugin '{}' has no handler '{}'", target.id, target.name);
+}
+
+bool PluginHost::open_settings(const std::string& id) {
+    auto it = loaded_.find(id);
+    if (it == loaded_.end())
+        return false;
+    const Manifest& m = it->second.ctx->manifest;
+    if (!m.settings_overlay.empty())
+        return overlays_.open(id, m.settings_overlay, {}) != 0;
+    if (m.settings.empty())
+        return false;
+
+    auto screen =
+        std::make_unique<PluginSettingsOverlay>(id, m, it->second.settings, it->second.gen);
+    lv_obj_t* root = screen->create(lv_screen_active());
+    if (!root)
+        return false;
+    PluginSettingsOverlay* raw = screen.get();
+    settings_screens_.push_back(std::move(screen));
+
+    overlays_.push(root, raw, [this, raw] {
+        raw->on_nav_closed();
+        for (auto it = settings_screens_.begin(); it != settings_screens_.end(); ++it) {
+            if (it->get() == raw) {
+                settings_screens_.erase(it);
+                break;
+            }
+        }
+    });
+    return true;
+}
+
+bool PluginHost::set_setting(const std::string& id, const std::string& key, const json& value) {
+    auto it = loaded_.find(id);
+    if (it == loaded_.end())
+        return false;
+    return set_plugin_setting(*it->second.ctx, key, value);
+}
+
+PluginSettingsOverlay* PluginHost::settings_screen(const std::string& id) {
+    for (auto& s : settings_screens_)
+        if (s->plugin_id() == id)
+            return s.get();
+    return nullptr;
+}
+
+bool PluginHost::owns_row_binding(const void* ud) {
+    for (auto& s : settings_screens_)
+        if (s->binding_at(ud))
+            return true;
+    return false;
+}
+
+void PluginHost::close_settings_screens(const std::string& id) {
+    auto& nav = NavigationManager::instance();
+    // Newest first, matching pop order. Every screen leaves through navigation:
+    // the on-top root takes go_back's restore path, a buried one is dropped by
+    // close_overlay itself, and either way the close callback erases the screen.
+    for (auto it = settings_screens_.rbegin(); it != settings_screens_.rend(); ++it) {
+        if ((*it)->plugin_id() != id)
+            continue;
+        nav.close_overlay((*it)->root());
+    }
+}
+
+void PluginHost::handle_setting_row_event(lv_event_t* e, bool action) {
+    lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+    for (lv_obj_t* obj = target; obj; obj = lv_obj_get_parent(obj)) {
+        void* ud = lv_obj_get_user_data(obj);
+        if (!ud)
+            continue;
+        for (auto& s : settings_screens_) {
+            if (auto* b = s->binding_at(ud)) {
+                // A screen outlives its plugin until its close lands; a plugin
+                // reloaded under the same id must not take its rows.
+                auto lit = loaded_.find(s->plugin_id());
+                if (lit == loaded_.end() || lit->second.gen != s->load_gen())
+                    return;
+                if (action)
+                    s->on_row_action(*b);
+                else
+                    s->on_row_changed(*b, target);
+                return;
+            }
+        }
+    }
 }
 
 } // namespace helix::plugin

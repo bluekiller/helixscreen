@@ -505,6 +505,8 @@ translations:
   Change Tool: ツール交換
   Change Tool While Paused: 一時停止中のツール交換
   Change heater control?: ヒーターの制御を変更しますか？
+  ? Change printer settings through Moonraker, including uploading, rewriting and deleting files in the printer's config folder.
+  : 'Moonrakerを通じてプリンターの設定を変更します。プリンターの設定フォルダー内のファイルのアップロード、書き換え、削除を含みます。'
   Change tool: ツールを交換
   Changes apply immediately. Adjust during print for tuning.: 変更は即座に適用されます。印刷中に調整して最適化できます。
   Changes are temporary and reset on printer reboot: 変更は一時的で、プリンター再起動時にリセットされます
@@ -648,6 +650,7 @@ translations:
   Connect: 接続
   Connect a USB label printer first: 先にUSBラベルプリンターを接続してください
   Connect an ADXL345 accelerometer to calibrate: キャリブレーションには ADXL345 加速度センサーを接続してください
+  Connect to servers on your network and the internet.: 'ネットワークおよびインターネット上のサーバーに接続します。'
   'Connect to your printer via SSH and run:': 'SSHでプリンターに接続し、次を実行してください:'
   Connected: 接続済み
   Connected (%s): 接続済み (%s)
@@ -949,10 +952,12 @@ translations:
   Enable brush wipe after purging: 'パージ後のブラシワイプを有効化'
   Enable feed assist for active slot during printing: '印刷中、アクティブなスロットの送りアシストを有効化'
   Enable or disable the hub cutter: 'ハブカッターの有効／無効'
+  Enable plugin?: 'プラグインを有効化しますか？'
   Enable purging during tool changes: 'ツール交換時のパージを有効化'
   Enable/disable automatic backup spool switching: '予備スプールへの自動切り替えの有効／無効'
   Enable/disable quiet operation mode: '静音動作モードの有効／無効'
   Enabled: 有効
+  Enabled. Open its settings, or disable it?: '有効です。設定を開くか、無効化しますか？'
   Enclosed: 密閉
 
   Enclosure: 筐体
@@ -1562,6 +1567,7 @@ translations:
   Keep current: 現状維持
   Keep hands clear. The printer moves on its own.: 手を近づけないでください。プリンターは自動で動きます。
 
+  Keep its own data on this screen (up to 256 KB).: 'この画面に独自のデータを保存します（最大256 KB）。'
   Keep the bypass spool visible when bypass is off: バイパスオフ時もバイパススプールの表示を維持
   Kick away: 'かき出し'
   Kinematics: キネマティクス
@@ -2176,6 +2182,7 @@ translations:
   : "再起動後にプラグインが応答しません。\n読み込みに時間がかかる場合があります。"
   Plugin removed. A config file needs attention - check the HelixScreen log for details.: プラグインを削除しました。設定ファイルに対応が必要です。詳細は HelixScreen のログを確認してください。
   Plugin uninstalled successfully.: プラグインが正常にアンインストールされました。
+  Plugins: プラグイン
   Point camera at QR code on spool: スプールの QR コードにカメラを向けてください
   Polymaker: Polymaker
   Poor Accuracy: 精度不良
@@ -2735,6 +2742,8 @@ translations:
   Self-Test: セルフテスト
   Send G-code and read the replies: G-code を送信して応答を確認
   Send Report: レポートを送信
+  ? 'Send any G-code command. This is full control of the printer: every macro, including ones that run shell commands, is reachable.'
+  : '任意のG-codeコマンドを送信します。これはプリンターの完全な制御です。シェルコマンドを実行するものを含むすべてのマクロが実行可能になります。'
   Send commands directly to printer: プリンターに直接コマンドを送信
   Send this crash report to help improve HelixScreen.: HelixScreen の改善にこのクラッシュレポートを送信してください。
   Sending...: 送信中...
@@ -3151,6 +3160,7 @@ translations:
   This is exactly the data that will be sent: これが送信されるデータです
   This is what data would be sent if enabled: これは有効にした場合に送信されるデータです
   This may take up to 30 seconds: 最大30秒かかる場合があります
+  This plugin asks for no special permissions.: 'このプラグインは特別な権限を要求しません。'
   ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
     Once installed, use Configure PRINT_START below to enable optional steps.
   : このプラグインにより、HelixScreen がベッドメッシュや QGL などの印刷開始オプションを制御できます。インストール後、以下の「PRINT_START
@@ -3169,6 +3179,7 @@ translations:
   : 'プリンターのヘルパーマクロを現在のバージョンに置き換えます。印刷中のため、Klipper は印刷完了後に再起動されます。'
   This system does not support bypass mode: 'このシステムはバイパスモードに対応していません'
   This tool probes each bed screw and tells you how much to adjust.: このツールは各ベッドネジをプローブし、どのくらい調整が必要かを教えます。
+  'This update asks for new permissions:': 'この更新は新しい権限を要求します：'
   ? This will apply the Z-offset to your endstop and restart Klipper to save the configuration.
     The printer will briefly disconnect.
   : Z-offset をエンドストップに適用し、設定を保存するために Klipper を再起動します。プリンターは一時的に切断されます。
@@ -3543,6 +3554,7 @@ translations:
   attempt {}: '試行 {}'
   bed: ベッド
   busy: 'ビジー状態'
+  by: '作成者:'
   by Preston Brown: by Preston Brown
   chamber heater: チャンバーヒーター
   complete: 完了
@@ -3564,6 +3576,7 @@ translations:
   extruder(s): エクストルーダー
   extruders: エクストルーダー
   fans: ファン
+  faulted: エラー発生
   feeder error: 'フィーダーエラー'
   feeder not in automatic mode: 'フィーダーが自動モードではありません'
   filament sensor disabled: 'フィラメントセンサーが無効'
@@ -3574,6 +3587,8 @@ translations:
   'helixscreen.env ignored: {}': 'helixscreen.env は無視されました：{}'
   idle: アイドル
   in unit {} slot {}: 'ユニット {} スロット {}'
+  incompatible: 互換性なし
+  invalid: 不正
   just now: たった今
   layers: レイヤー
   left: 残り
@@ -3582,6 +3597,7 @@ translations:
   matched: 一致
   mm before clog: 詰まりまでの距離 (mm)
   needs: 必要
+  needs approval: 承認が必要
   never sleeps: スリープしない
   not detected: 未検出
   not loaded: '未装填'
@@ -3595,6 +3611,7 @@ translations:
   Monitor for print abnormalities (camera-based): '印刷異常を監視 (カメラベース)'
   on unit {}: 'ユニット {}'
   or type a macro name: またはマクロ名を入力
+  over memory budget: メモリ予算超過
   passive: パッシブ
   printer default: プリンター既定
   prints: 印刷

@@ -14,14 +14,7 @@
 #include "helix-xml/src/xml/lv_xml_widget.h"
 #include "helix-xml/src/xml/parsers/lv_xml_obj_parser.h"
 #include "lvgl/lvgl.h"
-#include "nozzle_renderer_a4t.h"
-#include "nozzle_renderer_anthead.h"
-#include "nozzle_renderer_bambu.h"
-#include "nozzle_renderer_creality_k1.h"
-#include "nozzle_renderer_creality_k2.h"
-#include "nozzle_renderer_jabberwocky.h"
-#include "nozzle_renderer_stealthburner.h"
-#include "settings_manager.h"
+#include "nozzle_renderer_dispatch.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -103,7 +96,6 @@ struct SystemPathData {
     lv_color_t color_idle;
     lv_color_t color_hub_bg;
     lv_color_t color_hub_border;
-    lv_color_t color_nozzle;
     lv_color_t color_text;
 
     // Theme-derived sizes
@@ -231,8 +223,6 @@ static void load_theme_colors(SystemPathData* data) {
         data->color_hub_border.blue == 0) {
         data->color_hub_border = theme_manager_get_color("border");
     }
-
-    data->color_nozzle = lv_color_hex(0x3A3A3A); // Light charcoal — unloaded nozzle tip
 
     data->color_text = theme_manager_get_color("text");
 
@@ -518,41 +508,13 @@ static int32_t calc_tool_x(int tool_index, int total_tools, int32_t x_off, int32
     return x_off + margin + (usable * tool_index) / (total_tools - 1);
 }
 
-// One dispatch point for the user's configured toolhead style.
-static void draw_toolhead_glyph(lv_layer_t* layer, int32_t cx, int32_t cy, lv_color_t color,
-                                int32_t scale) {
-    switch (helix::SettingsManager::instance().get_effective_toolhead_style()) {
-    case helix::ToolheadStyle::A4T:
-        draw_nozzle_a4t(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::ANTHEAD:
-        draw_nozzle_anthead(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::JABBERWOCKY:
-        draw_nozzle_jabberwocky(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::STEALTHBURNER:
-        draw_nozzle_stealthburner(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::CREALITY_K1:
-        draw_nozzle_creality_k1(layer, cx, cy, color, scale);
-        break;
-    case helix::ToolheadStyle::CREALITY_K2:
-        draw_nozzle_creality_k2(layer, cx, cy, color, scale);
-        break;
-    default:
-        draw_nozzle_bambu(layer, cx, cy, color, scale);
-        break;
-    }
-}
-
 // Per-draw layout + resolved colors/sizes shared by every phase.
 struct SysLayout {
     lv_area_t obj_coords{};
     int32_t width = 0, height = 0, x_off = 0, y_off = 0;
     int32_t entry_y = 0, merge_y = 0, hub_y = 0, hub_h = 0, tools_y = 0, nozzle_y = 0;
     int32_t center_x = 0; // shifted ~10% left in single-tool bypass layouts
-    lv_color_t idle_color, active_color_lv, hub_bg, hub_border, nozzle_color;
+    lv_color_t idle_color, active_color_lv, hub_bg, hub_border;
     int32_t line_idle = 0, line_active = 0, sensor_r = 0;
     bool multi_tool = false;
 };
@@ -582,7 +544,6 @@ static SysLayout compute_sys_layout(SystemPathData* data, const lv_area_t& obj_c
     L.active_color_lv = lv_color_hex(data->active_color);
     L.hub_bg = data->color_hub_bg;
     L.hub_border = data->color_hub_border;
-    L.nozzle_color = data->color_nozzle;
 
     // Sizes
     L.line_idle = data->line_width_idle;
@@ -972,8 +933,9 @@ static void draw_tool_row(lv_layer_t* layer, SystemPathData* data, const SysLayo
         int32_t tool_x = calc_tool_x(t, data->total_tools, L.x_off, L.width);
         bool is_active_tool = (t == data->active_tool) && data->filament_loaded;
 
-        lv_color_t noz_color = is_active_tool ? L.active_color_lv : L.nozzle_color;
-        draw_toolhead_glyph(layer, tool_x, L.tools_y, noz_color, small_scale);
+        draw_nozzle_for_style(layer, tool_x, L.tools_y,
+                              is_active_tool ? std::optional(L.active_color_lv) : std::nullopt,
+                              small_scale);
 
         // Tool badge below nozzle — use pre-formatted label from data
         if (data->label_font && t < SystemPathData::MAX_TOOLS) {
@@ -1129,14 +1091,16 @@ static void draw_output_to_nozzle(lv_layer_t* layer, SystemPathData* data, const
         draw_sensor_dot(layer, L.center_x, toolhead_sensor_y, th_dot_color, th_filled, L.sensor_r);
     }
 
-    lv_color_t noz_color = L.nozzle_color;
+    lv_color_t noz_color = L.idle_color;
     if (bp_active) {
         noz_color = lv_color_hex(data->bypass_color);
     } else if (unit_active) {
         noz_color = L.active_color_lv;
     }
 
-    draw_toolhead_glyph(layer, L.center_x, L.nozzle_y, noz_color, data->extruder_scale);
+    draw_nozzle_for_style(layer, L.center_x, L.nozzle_y,
+                          (unit_active || bp_active) ? std::optional(noz_color) : std::nullopt,
+                          data->extruder_scale);
 
     // Virtual tool badge beneath nozzle — only when multiple slots feed one toolhead
     if (data->total_tools <= 1 && data->current_tool >= 0 && data->label_font) {

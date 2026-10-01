@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "env_knobs.h"
 #include "moonraker_client_mock_internal.h"
 
 #include <spdlog/spdlog.h>
@@ -12,8 +13,7 @@
 namespace mock_internal {
 
 static bool is_mock_kalico() {
-    const char* env = std::getenv("HELIX_MOCK_KALICO");
-    return env && std::string(env) == "1";
+    return helix::env_flag("HELIX_MOCK_KALICO");
 }
 
 // Configfile sections for the resolved chamber heater, so

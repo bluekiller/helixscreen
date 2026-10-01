@@ -9,8 +9,11 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
+#include <map>
 #include <string_view>
+#include <utility>
 
 namespace helix {
 
@@ -148,6 +151,10 @@ static const std::vector<WidgetCategoryDef> s_widget_categories = {
     {WidgetCategory::Filament, "Filament", "Filament", "filament"},
     {WidgetCategory::Controls, "Controls", "Controls", "script_text"},
     {WidgetCategory::System, "System", "System", "power"},
+    // Last: plugin tiles are the least-reached group, and the row only
+    // appears once a runtime definition exists (populate_category_rows skips
+    // a category with nothing available on this printer).
+    {WidgetCategory::Plugins, TR_NOOP("Plugins"), TR_NOOP("Plugins"), "puzzle_outline"},
 };
 
 const std::vector<WidgetCategoryDef>& get_widget_categories() {
@@ -160,37 +167,93 @@ const WidgetCategoryDef* find_widget_category(WidgetCategory id) {
     return it != s_widget_categories.end() ? &*it : nullptr;
 }
 
+namespace {
+struct RuntimeSlot {
+    RuntimeWidgetDef def;
+    bool active = false;
+};
+// Node-based and never erased: a slot's `def.id` buffer lives for the process,
+// so LVGL user_data holding a def's id stays readable until the row rebuilds.
+std::map<std::string, RuntimeSlot, std::less<>>& runtime_slots() {
+    static auto* slots = new std::map<std::string, RuntimeSlot, std::less<>>();
+    return *slots;
+}
+std::vector<PanelWidgetDef> s_all_defs;
+bool s_all_defs_dirty = true;
+uint64_t s_runtime_generation = 0;
+size_t s_active_runtime_defs = 0;
+
+void rebuild_all_defs() {
+    s_all_defs = s_widget_defs;
+    for (auto& [id, slot] : runtime_slots()) {
+        (void)id;
+        if (!slot.active)
+            continue;
+        const RuntimeWidgetDef& r = slot.def;
+        PanelWidgetDef d{
+            r.id.c_str(), r.display_name.c_str(), r.icon.c_str(), r.description.c_str(), nullptr,
+            nullptr,      WidgetCategory::Plugins};
+        d.default_enabled = false;
+        d.colspan = r.colspan;
+        d.rowspan = r.rowspan;
+        d.max_colspan = r.max_colspan;
+        d.max_rowspan = r.max_rowspan;
+        d.factory = r.factory;
+        s_all_defs.push_back(d);
+    }
+    s_all_defs_dirty = false;
+}
+} // namespace
+
 const std::vector<PanelWidgetDef>& get_all_widget_defs() {
-    return s_widget_defs;
+    // With no runtime def the built-ins are the whole list, so there is no second
+    // copy of the table: builds that host no plugins (the ESP32 image) never make one.
+    if (s_active_runtime_defs == 0)
+        return s_widget_defs;
+    if (s_all_defs_dirty)
+        rebuild_all_defs();
+    return s_all_defs;
 }
 
 const PanelWidgetDef* find_widget_def(std::string_view id) {
-    auto it = std::find_if(s_widget_defs.begin(), s_widget_defs.end(),
+    const auto& defs = get_all_widget_defs();
+    auto it = std::find_if(defs.begin(), defs.end(),
                            [&id](const PanelWidgetDef& def) { return id == def.id; });
-    if (it != s_widget_defs.end())
+    if (it != defs.end())
         return &*it;
 
     // Multi-instance: strip ":N" suffix and retry
     auto colon = id.rfind(':');
     if (colon != std::string_view::npos) {
         auto base = id.substr(0, colon);
-        it = std::find_if(
-            s_widget_defs.begin(), s_widget_defs.end(),
-            [&base](const PanelWidgetDef& def) { return base == def.id && def.multi_instance; });
-        if (it != s_widget_defs.end())
+        it = std::find_if(defs.begin(), defs.end(), [&base](const PanelWidgetDef& def) {
+            return base == def.id && def.multi_instance;
+        });
+        if (it != defs.end())
             return &*it;
     }
     return nullptr;
 }
 
 size_t widget_def_count() {
-    return s_widget_defs.size();
+    return get_all_widget_defs().size();
 }
 
 void register_widget_factory(std::string_view id, WidgetFactory factory) {
     for (auto& def : s_widget_defs) {
         if (id == def.id) {
-            def.factory = std::move(factory);
+            def.factory = factory;
+            // Edit the published copy in place rather than marking it dirty: a
+            // rebuild replaces the whole vector, dropping edits a caller still
+            // holds through a def pointer (tests patch spans that way).
+            if (!s_all_defs_dirty) {
+                for (auto& d : s_all_defs) {
+                    if (id == d.id) {
+                        d.factory = factory;
+                        break;
+                    }
+                }
+            }
             return;
         }
     }
@@ -200,11 +263,68 @@ void register_widget_factory(std::string_view id, WidgetFactory factory) {
 void register_widget_subjects(std::string_view id, SubjectInitFn init_fn) {
     for (auto& def : s_widget_defs) {
         if (id == def.id) {
-            def.init_subjects = std::move(init_fn);
+            def.init_subjects = init_fn;
+            if (!s_all_defs_dirty) {
+                for (auto& d : s_all_defs) {
+                    if (id == d.id) {
+                        d.init_subjects = init_fn;
+                        break;
+                    }
+                }
+            }
             return;
         }
     }
     spdlog::warn("[PanelWidgetRegistry] Subject init registration failed: '{}' not found", id);
+}
+
+bool register_runtime_widget_def(RuntimeWidgetDef def) {
+    for (const auto& b : s_widget_defs) {
+        if (def.id == b.id)
+            return false;
+    }
+    auto& slots = runtime_slots();
+    auto it = slots.find(def.id);
+    if (it == slots.end()) {
+        std::string key = def.id;
+        slots.emplace(std::move(key), RuntimeSlot{std::move(def), true});
+        ++s_active_runtime_defs;
+    } else {
+        // Field by field, leaving `id` alone: its buffer is what catalog rows
+        // point at.
+        RuntimeWidgetDef& cur = it->second.def;
+        cur.display_name = std::move(def.display_name);
+        cur.icon = std::move(def.icon);
+        cur.description = std::move(def.description);
+        cur.colspan = def.colspan;
+        cur.rowspan = def.rowspan;
+        cur.max_colspan = def.max_colspan;
+        cur.max_rowspan = def.max_rowspan;
+        cur.factory = std::move(def.factory);
+        if (!it->second.active)
+            ++s_active_runtime_defs;
+        it->second.active = true;
+    }
+    s_all_defs_dirty = true;
+    ++s_runtime_generation;
+    return true;
+}
+
+void unregister_runtime_widget_def(std::string_view id) {
+    auto& slots = runtime_slots();
+    auto it = slots.find(id);
+    if (it == slots.end() || !it->second.active)
+        return;
+    it->second.active = false;
+    it->second.def.factory = nullptr;
+    if (--s_active_runtime_defs == 0)
+        std::vector<PanelWidgetDef>().swap(s_all_defs); // back to the built-in table alone
+    s_all_defs_dirty = true;
+    ++s_runtime_generation;
+}
+
+uint64_t runtime_widget_generation() {
+    return s_runtime_generation;
 }
 
 void init_widget_registrations() {

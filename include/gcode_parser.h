@@ -343,18 +343,11 @@ struct ParsedGCodeFile {
     /// clear_segments() has already freed, and a recomputed 0 would select
     /// tier 1 - the opposite failure.
     size_t drawable_segments{0};
-    float estimated_print_time_minutes{0.0f}; ///< From metadata (if available)
-    float total_filament_mm{0.0f};            ///< From metadata (if available)
 
     // Slicer metadata (parsed from comments)
-    std::string slicer_name;        ///< Slicer software name and version
     std::string filament_type;      ///< Filament material type (e.g., "PLA", "PETG")
     std::string filament_color_hex; ///< Filament color in hex format (e.g., "#26A69A")
-    std::string printer_model;      ///< Printer model name
     float nozzle_diameter_mm{0.0f}; ///< Nozzle diameter in mm
-    float filament_weight_g{0.0f};  ///< Total filament weight in grams
-    float filament_cost{0.0f};      ///< Estimated filament cost
-    int total_layer_count{0};       ///< Total layer count from metadata
 
     // Extrusion width metadata (from OrcaSlicer/PrusaSlicer headers)
     float extrusion_width_mm{0.0f}; ///< Default extrusion width (0 = use nozzle-based default)
@@ -682,8 +675,7 @@ class GCodeParser {
      * Extracts key-value pairs from slicer comments in OrcaSlicer/PrusaSlicer format.
      * Examples:
      * - "; filament_colour = #26A69A"
-     * - "; estimated printing time (normal mode) = 29m 25s"
-     * - "; printer_model = Flashforge Adventurer 5M Pro"
+     * - "; nozzle_diameter = 0.4"
      */
     void parse_metadata_comment(const std::string& line);
 
@@ -807,16 +799,9 @@ class GCodeParser {
     AABB global_bounds_;                         ///< Global bounding box
 
     // Parsed metadata (transferred to ParsedGCodeFile on finalize())
-    std::string metadata_slicer_name_;
     std::string metadata_filament_type_;
     std::string metadata_filament_color_;
-    std::string metadata_printer_model_;
     float metadata_nozzle_diameter_{0.0f};
-    float metadata_filament_length_{0.0f};
-    float metadata_filament_weight_{0.0f};
-    float metadata_filament_cost_{0.0f};
-    float metadata_print_time_{0.0f};
-    int metadata_layer_count_{0};
 
     // Extrusion width metadata
     float metadata_extrusion_width_{0.0f};
@@ -858,38 +843,27 @@ struct GCodeThumbnail {
 };
 
 /**
- * @brief Extract all thumbnails from G-code file header
+ * @brief Get the largest thumbnail embedded in a G-code file header
  *
  * Parses thumbnail blocks in the format:
  *   ; thumbnail begin WIDTHxHEIGHT SIZE
  *   ; <base64 data line 1>
- *   ; <base64 data line 2>
  *   ; ...
  *   ; thumbnail end
- *
- * @param filepath Path to the G-code file
- * @return Vector of thumbnails sorted largest-first. Empty if none found.
- */
-std::vector<GCodeThumbnail> extract_thumbnails(const std::string& filepath);
-
-/**
- * @brief Extract all thumbnails from G-code content string
- *
- * Same as extract_thumbnails() but works on string content instead of file.
- * Useful for processing downloaded gcode without writing to disk.
- *
- * @param content G-code content (typically first ~100KB of file header)
- * @return Vector of thumbnails sorted largest-first. Empty if none found.
- */
-std::vector<GCodeThumbnail> extract_thumbnails_from_content(const std::string& content);
-
-/**
- * @brief Get the largest thumbnail from a G-code file
+ * and Creality's "; png begin W*H SIZE" ... "; png end". Only the largest
+ * block is decoded.
  *
  * @param filepath Path to the G-code file
  * @return Largest thumbnail, or empty thumbnail if none found
  */
 GCodeThumbnail get_best_thumbnail(const std::string& filepath);
+
+/**
+ * @brief get_best_thumbnail() over G-code already in memory
+ *
+ * @param content G-code content (typically the first ~100KB of the file)
+ */
+GCodeThumbnail get_best_thumbnail_from_content(const std::string& content);
 
 /**
  * @brief Extract thumbnail and save to PNG file
@@ -913,14 +887,6 @@ bool save_thumbnail_to_file(const std::string& gcode_path, const std::string& ou
  * @return Path to cached PNG, or empty string if no thumbnail available
  */
 std::string get_cached_thumbnail(const std::string& gcode_path, const std::string& cache_dir);
-
-/**
- * @brief Decode base64 string to binary data
- *
- * @param encoded Base64 encoded string (may contain whitespace)
- * @return Decoded binary data
- */
-std::vector<uint8_t> base64_decode(const std::string& encoded);
 
 /**
  * @brief Basic metadata extracted from G-code header
@@ -1007,25 +973,23 @@ std::set<int> scan_tools_used_from_content(const std::string& content,
 /**
  * @brief Tool index of a standalone `Tn` line, or -1 when the line is not one.
  *
- * The single T-parse shared by every scan in the tree. Semantics mirror
- * GCodeParser::parse_tool_change_command(): strip a trailing `;` comment, trim
- * surrounding whitespace, then require exactly `T` followed by one or more
- * digits. `  T2 ; change` is a tool change; `T0 X1`, `TURN_OFF_HEATERS` and a
- * `Tn` inside a comment are not.
- *
- * Exposed because GCodeLayerIndex's scan needs the same answer and had grown a
- * looser copy of its own (`line[0] == 'T'` plus a digit run), which missed an
- * indented tool change and accepted `T0 X1`. The index and the full-file parser
- * disagreeing about what a tool change is puts the streamed and full-load
- * previews on different tool sets for the same file.
+ * The single T-parse shared by every scan in the tree: the full parser, the
+ * streaming layer index, the tools-used scans and the tool remapper. Strip a
+ * trailing `;` comment, trim surrounding whitespace, then require exactly `T`
+ * followed by one or more digits. `  T2 ; change` is a tool change; `T0 X1`,
+ * `TURN_OFF_HEATERS` and a `Tn` inside a comment are not. Scans disagreeing
+ * about what a tool change is put the streamed and full-load previews on
+ * different tool sets, and leave a remapped file on the original tool.
  *
  * Callers on a hot per-line path should pre-filter (first non-blank character
  * is `T`) before calling: this scans for `;` across the whole line.
  *
  * @param raw One raw G-code line, with or without a trailing `\r`.
+ * @param digits When non-null and @p raw is a tool change, receives the
+ *        [begin, end) offsets of the tool number within @p raw.
  * @return Tool index >= 0, or -1 if @p raw is not a standalone tool change.
  */
-int tool_index_for_line(const std::string& raw);
+int tool_index_for_line(const std::string& raw, std::pair<size_t, size_t>* digits = nullptr);
 
 /**
  * @brief Streaming, memory-safe variant of scan_tools_used_from_content() that

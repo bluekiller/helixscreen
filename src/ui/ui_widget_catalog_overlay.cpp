@@ -42,6 +42,26 @@ constexpr int kCatalogViewSearch = 1; // flat search results
 /// PanelWidgetManager gate-observer registration, held while the catalog is open.
 constexpr const char* kGateObserverKey = "widget_catalog";
 
+/// One registry def's identity as a row set was built from it. Runtime
+/// definitions can change the set under an open catalog (a plugin loading or
+/// faulting), and the def count and gate flags alone cannot see a same-count
+/// swap or a rename, so the id and display name ride along.
+struct DefRowIdentity {
+    std::string id;
+    std::string display_name;
+    std::string icon;
+    std::string description;
+    int colspan = 0;
+    int rowspan = 0;
+    bool gated = false;
+
+    bool operator==(const DefRowIdentity& other) const {
+        return gated == other.gated && colspan == other.colspan && rowspan == other.rowspan &&
+               id == other.id && display_name == other.display_name && icon == other.icon &&
+               description == other.description;
+    }
+};
+
 struct CatalogState {
     lv_obj_t* overlay_root = nullptr;
     lv_obj_t* backdrop = nullptr;      // Semi-transparent dark backdrop behind the catalog
@@ -61,10 +81,11 @@ struct CatalogState {
     // What category_root lists: that category's available widgets, or the
     // unavailable ones when empty. A gate change rebuilds the page from it.
     std::optional<WidgetCategory> page_category;
-    // is_hardware_gated() per registry def, as the current rows were built. Gate
-    // subjects also move between non-zero values (a second power device); only a
-    // change here alters any row.
-    std::vector<bool> gated;
+    // Each registry def's identity, as the current rows were built. Gate
+    // subjects also move between non-zero values (a second power device) without
+    // moving a widget in or out of the catalog; only a change here alters any
+    // row.
+    std::vector<DefRowIdentity> row_defs;
 };
 
 CatalogState g_catalog_state;
@@ -407,15 +428,22 @@ static std::vector<const PanelWidgetDef*> page_defs(std::optional<WidgetCategory
     return category ? available_in_category(*category) : gated_widget_defs();
 }
 
-/// is_hardware_gated() for every registry def, in registry order.
-static std::vector<bool> gate_snapshot() {
+/// The registry's identity as the current rows were built: one entry per def,
+/// in registry order, covering every field a row renders. refresh_gated_rows()
+/// rebuilds when this differs, so a runtime definition arriving or leaving under
+/// an open catalog rebuilds even when the def count and gate flags happen to be
+/// unchanged, and a same-id re-registration that moved a def's spans, icon or
+/// description rebuilds too.
+static std::vector<DefRowIdentity> def_row_snapshot() {
     const auto& defs = get_all_widget_defs();
-    std::vector<bool> gated;
-    gated.reserve(defs.size());
+    std::vector<DefRowIdentity> out;
+    out.reserve(defs.size());
     for (const auto& def : defs) {
-        gated.push_back(is_hardware_gated(def));
+        out.push_back({def.id, def.display_name ? def.display_name : "", def.icon ? def.icon : "",
+                       def.description ? def.description : "", def.colspan, def.rowspan,
+                       is_hardware_gated(def)});
     }
-    return gated;
+    return out;
 }
 
 /// Placed instances per multi_instance base ID.
@@ -802,7 +830,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
         return;
     }
 
-    g_catalog_state.gated = gate_snapshot();
+    g_catalog_state.row_defs = def_row_snapshot();
     populate_category_rows(group);
 
     // Search results: one row per registry def, in registry order, built once
@@ -945,11 +973,11 @@ void WidgetCatalogOverlay::refresh_gated_rows() {
     if (!g_catalog_state.overlay_root || !g_catalog_state.config) {
         return;
     }
-    std::vector<bool> gated = gate_snapshot();
-    if (gated == g_catalog_state.gated) {
+    std::vector<DefRowIdentity> row_defs = def_row_snapshot();
+    if (row_defs == g_catalog_state.row_defs) {
         return;
     }
-    g_catalog_state.gated = std::move(gated);
+    g_catalog_state.row_defs = std::move(row_defs);
     const PanelWidgetConfig& config = *g_catalog_state.config;
     lv_obj_t* root = g_catalog_state.overlay_root;
 
@@ -962,8 +990,11 @@ void WidgetCatalogOverlay::refresh_gated_rows() {
 
     // Rebuilt result rows stay parallel to entries (one per def, registry order)
     // and start out visible, so the query still in the box re-filters them.
+    // Entries are index-parallel to these rows: rebuilding one without the other
+    // leaves the query filtering rows by the wrong def's name.
     if (lv_obj_t* results = lv_obj_find_by_name(root, "search_results")) {
         helix::ui::safe_clean_children(results);
+        g_catalog_state.entries = build_catalog_entries();
         populate_rows(results, config, all_widget_def_ptrs());
         lv_obj_t* input = lv_obj_find_by_name(root, "catalog_search_input");
         const char* query = input ? lv_textarea_get_text(input) : nullptr;
@@ -976,7 +1007,8 @@ void WidgetCatalogOverlay::refresh_gated_rows() {
             populate_rows(scroll, config, page_defs(g_catalog_state.page_category));
         }
     }
-    spdlog::debug("[WidgetCatalog] Hardware gates changed; rebuilt the catalog rows");
+    spdlog::debug(
+        "[WidgetCatalog] Hardware gates or widget definitions changed; rebuilt the catalog rows");
 }
 
 } // namespace helix

@@ -14,7 +14,7 @@
 // that drives placement order survives, a deliberate hide survives, and the old
 // grid's row cache is carried onto the panel instead of being dropped.
 //
-// The migration is a static function in config.cpp, so it is driven through the
+// The migration is a static function in config_migrations.cpp, so it is driven through the
 // public Config::init() path exactly as the v21 tests do. A sandboxed
 // HELIX_CONFIG_DIR keeps backup-restore search paths inside the temp dir.
 

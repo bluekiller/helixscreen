@@ -7,6 +7,7 @@
 // Zero detections: no stdout, no output file, exit 0.
 #include "k2_stock_detection_source.h"
 
+#include "env_knobs.h"
 #include "http_executor.h"
 #include "hv/requests.h"
 #include "observer_factory.h"
@@ -173,7 +174,7 @@ void K2StockDetectionSource::refresh_capability() {
     // detection UI can be driven on a dev machine (--test mocks are never a
     // K2 and the detection binary does not exist there).
     if (const char* force = std::getenv("HELIX_MOCK_DETECTION_CAPABLE")) {
-        capable_ = std::atoi(force) != 0;
+        capable_ = helix::env_truthy(force);
     } else {
         capable_ = PrinterDetector::is_creality_k2() && access(DETECTION_BIN, X_OK) == 0;
     }
