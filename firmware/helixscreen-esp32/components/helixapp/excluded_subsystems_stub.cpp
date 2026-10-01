@@ -119,7 +119,7 @@ bool timelapse_viewer_available() {
 //
 // src/ui/ui_overlay_timelapse_install.cpp
 TimelapseInstallOverlay::TimelapseInstallOverlay(IMoonrakerAPI* api) : api_(api) {}
-void TimelapseInstallOverlay::init_subjects() {}
+void TimelapseInstallOverlay::register_callbacks() {}
 lv_obj_t* TimelapseInstallOverlay::create(lv_obj_t*) {
     return nullptr;
 }
@@ -136,13 +136,11 @@ void open_timelapse_install() {}
 
 // src/ui/ui_overlay_timelapse_settings.cpp
 TimelapseSettingsOverlay::TimelapseSettingsOverlay(IMoonrakerAPI* api) : api_(api) {}
-void TimelapseSettingsOverlay::init_subjects() {}
+void TimelapseSettingsOverlay::register_callbacks() {}
 lv_obj_t* TimelapseSettingsOverlay::create(lv_obj_t*) {
     return nullptr;
 }
 void TimelapseSettingsOverlay::on_activate() {}
-void TimelapseSettingsOverlay::on_deactivating(DeactivateReason) {}
-void TimelapseSettingsOverlay::cleanup() {}
 
 TimelapseSettingsOverlay& get_global_timelapse_settings() {
     static TimelapseSettingsOverlay overlay(nullptr);
