@@ -139,3 +139,18 @@ release_package_body() {
 @test "3D splash generation uses LZ4 compression" {
     grep -q '"--compress".*"LZ4"' scripts/gen_splash_3d.py
 }
+
+# ============================================================================
+# CA bundle ships in every release package
+# ============================================================================
+
+@test "release-package installs certs/ca-certificates.crt and fails without a bundle" {
+    release_package_body | grep -q 'certs/ca-certificates.crt' || fail "release-package no longer installs the CA bundle"
+    release_package_body | grep -q 'CA_BUNDLE' || fail "release-package has no host-bundle fallback"
+    release_package_body | grep -qE 'exit 1' || fail "release-package does not fail on a missing bundle"
+    local t missing=""
+    for t in $(release_targets "$CROSS_MK"); do
+        release_recipe "$t" | grep -q 'call release-package' || missing="$missing $t"
+    done
+    [ -z "$missing" ] || fail "release targets bypassing release-package:$missing"
+}

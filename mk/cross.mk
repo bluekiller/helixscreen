@@ -2962,6 +2962,9 @@ deploy-ad5m deploy-ad5m-fg deploy-cc1 deploy-cc1-fg deploy-k1-fg deploy-k1-dynam
 
 .PHONY: release-pi release-pi32 release-ad5m release-cc1 release-mips release-k1 release-ad5x release-k1-dynamic release-k2 release-snapmaker-u1 release-x86 release-all release-clean pi-fbdev-docker pi32-fbdev-docker pi-all-docker pi32-all-docker x86-fbdev-docker x86-all-docker
 
+# Host CA bundle packaged when a platform has no toolchain-extracted one.
+CA_BUNDLE ?= /etc/ssl/certs/ca-certificates.crt
+
 # Per-platform packaging facts consumed by release-package. A platform absent
 # from a list takes the default.
 REL_LABEL.pi := Pi
@@ -3065,12 +3068,18 @@ define release-package
 		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
 		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
 	fi
-	@# CA bundle for HTTPS verification, a fallback for devices without system certs
-	@if [ -f "build/$(1)/certs/ca-certificates.crt" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
-		cp build/$(1)/certs/ca-certificates.crt $(RELEASE_DIR)/helixscreen/certs/; \
-		echo "  $(DIM)Included CA certificates for HTTPS$(RESET)"; \
-	fi
+	@# CA bundle for HTTPS verification, the fallback for devices without system
+	@# certs. The toolchain image's copy (extract-ca-certs) wins; CI never runs
+	@# the *-docker targets, so the build host's bundle stands in. An absent or
+	@# empty bundle fails the release rather than shipping none.
+	@ca=build/$(1)/certs/ca-certificates.crt; [ -s "$$ca" ] || ca="$(CA_BUNDLE)"; \
+	if [ ! -s "$$ca" ]; then \
+		echo "$(RED)$(BOLD)✗ No CA bundle for $(1): build/$(1)/certs/ca-certificates.crt and CA_BUNDLE=$(CA_BUNDLE) are missing or empty.$(RESET)"; \
+		exit 1; \
+	fi; \
+	mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
+	cp "$$ca" $(RELEASE_DIR)/helixscreen/certs/ca-certificates.crt; \
+	echo "  $(DIM)Included CA certificates for HTTPS ($$ca)$(RESET)"
 	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
 	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,$(1))
 	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
