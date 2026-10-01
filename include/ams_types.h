@@ -955,13 +955,10 @@ struct SlotInfo {
     // Filament information
     std::string color_name;                      ///< Named color (e.g., "Red", "Blue")
     uint32_t color_rgb = AMS_DEFAULT_SLOT_COLOR; ///< RGB color for UI (0xRRGGBB)
-    /// The user picked color_rgb, so a grey equal to AMS_DEFAULT_SLOT_COLOR is a
-    /// chosen grey rather than "no color yet". Set by the editor only.
-    bool color_declared = false;
-    std::string multi_color_hexes; ///< Comma-separated hex codes for multi-color
-                                   ///< (e.g., "#D4AF37,#C0C0C0,#B87333")
-    std::string material;          ///< Material type (e.g., "PLA", "PETG", "ABS")
-    std::string brand;             ///< Brand name (e.g., "Polymaker", "eSUN")
+    std::string multi_color_hexes;               ///< Comma-separated hex codes for multi-color
+                                                 ///< (e.g., "#D4AF37,#C0C0C0,#B87333")
+    std::string material;                        ///< Material type (e.g., "PLA", "PETG", "ABS")
+    std::string brand;                           ///< Brand name (e.g., "Polymaker", "eSUN")
 
     // Catalog product identity — WHICH branded product, not just its material.
     //

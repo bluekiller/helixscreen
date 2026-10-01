@@ -249,18 +249,6 @@ TEST_CASE("SpoolmanSlotSaver save on an unlinked slot with no colour is incomple
     REQUIRE(got.missing.color);
 }
 
-TEST_CASE("missing_filament_fields: a grey the user picked is a colour, the default is not",
-          "[spoolman][slot-saver]") {
-    SlotInfo slot = make_test_slot();
-    slot.color_rgb = AMS_DEFAULT_SLOT_COLOR;
-
-    CHECK(SpoolmanSlotSaver::missing_filament_fields(slot).color);
-
-    slot.color_declared = true;
-    CHECK_FALSE(SpoolmanSlotSaver::missing_filament_fields(slot).color);
-    CHECK(SpoolmanSlotSaver::is_filament_complete(slot));
-}
-
 TEST_CASE("SpoolmanSlotSaver save does nothing when no changes detected",
           "[spoolman][slot_saver]") {
     PrinterState state;

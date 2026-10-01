@@ -25,9 +25,8 @@ MissingFilamentFields SpoolmanSlotSaver::missing_filament_fields(const SlotInfo&
     MissingFilamentFields missing;
     missing.brand = slot.brand.empty();
     missing.material = slot.material.empty();
-    // The default grey is a slot with no colour, not a grey filament, unless
-    // the user picked it.
-    missing.color = !slot.color_declared && !helix::ams::is_declarable_color(slot.color_rgb);
+    // The default grey is a slot with no colour, not a grey filament.
+    missing.color = !helix::ams::is_declarable_color(slot.color_rgb);
     return missing;
 }
 
