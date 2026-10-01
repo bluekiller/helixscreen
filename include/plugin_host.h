@@ -170,6 +170,12 @@ class PluginHost {
     uint64_t next_load_gen_ = 1;
 };
 
+/// The candidates the host can load after a rescan: present in `infos`, with a
+/// readable manifest, in a state the user could enable. A synced folder with
+/// no manifest, or one the host rejected, does not count as a new plugin.
+std::vector<std::string> loadable_plugin_ids(const std::vector<std::string>& candidates,
+                                             const std::vector<PluginInfo>& infos);
+
 /// Registers the `plugin_event` XML callback once per process. It forwards to the live host.
 void register_plugin_event_callback();
 

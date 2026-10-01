@@ -108,6 +108,23 @@ uint64_t read_mem_total() {
     return 0;
 }
 
+std::vector<std::string> loadable_plugin_ids(const std::vector<std::string>& candidates,
+                                             const std::vector<PluginInfo>& infos) {
+    std::vector<std::string> out;
+    for (const auto& id : candidates) {
+        for (const auto& info : infos) {
+            if (info.dir_name != id)
+                continue;
+            if (info.manifest.has_value() &&
+                (info.status == PluginStatus::Loaded || info.status == PluginStatus::Disabled ||
+                 info.status == PluginStatus::NeedsApproval))
+                out.push_back(id);
+            break;
+        }
+    }
+    return out;
+}
+
 // TR_NOOP marks the literals for the extractor; the display site calls lv_tr
 // on the stored pointer (plugins_overlay.cpp), so the lookup happens at render
 // time against the loaded language pack.

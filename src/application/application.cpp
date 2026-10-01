@@ -2286,6 +2286,9 @@ void Application::on_plugin_sync(const helix::plugin::SyncResult& result) {
         m_known_plugin_ids.insert(info.dir_name);
     update_plugins_row_visibility();
 
+    // Only a folder the host can actually load is "new": a synced dir with no
+    // manifest, or one the host rejected, cannot be enabled, so it never toasts.
+    fresh = helix::plugin::loadable_plugin_ids(fresh, m_plugin_host->plugins());
     if (fresh.empty())
         return;
     if (fresh.size() == 1) {

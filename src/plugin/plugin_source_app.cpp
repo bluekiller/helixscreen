@@ -74,7 +74,14 @@ SourceDeps make_moonraker_source_deps(IMoonrakerAPI* api) {
 }
 
 std::string plugin_cache_dir_for(const std::string& printer_id) {
-    const std::string id = printer_id.empty() ? std::string("default") : printer_id;
+    // The id comes from user-editable settings, so it is untrusted as a path
+    // component: keep every byte in [a-z0-9_-] and map the rest to '-', which
+    // cannot express '..', a separator or a leading '/'.
+    std::string id;
+    for (char c : printer_id)
+        id += (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ? c : '-';
+    if (id.empty())
+        id = "default";
     const std::filesystem::path dir = std::filesystem::path(get_helix_cache_dir("plugins")) / id;
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);

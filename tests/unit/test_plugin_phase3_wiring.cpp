@@ -174,4 +174,61 @@ TEST_CASE("plugin_cache_dir_for keys the cache by printer", "[plugin][wiring]") 
     CHECK(d == root + "/default");
 }
 
+TEST_CASE("plugin_cache_dir_for keeps a hostile printer id inside the cache root",
+          "[plugin][wiring]") {
+    TempDir tmp;
+    helix::ScopedEnv cache_env("HELIX_CACHE_DIR", tmp.path.string().c_str());
+    const std::string root = get_helix_cache_dir("plugins");
+
+    CHECK(plugin_cache_dir_for("../../x") == root + "/------x");
+    CHECK(plugin_cache_dir_for("/etc/passwd") == root + "/-etc-passwd");
+    CHECK(plugin_cache_dir_for("") == root + "/default");
+    CHECK(plugin_cache_dir_for("printer-1") == root + "/printer-1");
+    // Two ids differing only in a byte the map rewrites share one cache dir.
+    // Acceptable degradation: both stay per-printer and inside the cache root.
+    CHECK(plugin_cache_dir_for("printer/1") == plugin_cache_dir_for("printer-1"));
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a synced folder the host cannot load never counts as new",
+                 "[plugin][wiring]") {
+    TempDir cache;
+    FakeRemote remote;
+    remote.serve_fixture("hello");
+    remote.files["no-manifest/notes.txt"] = {"data", 100.0};
+    HostRig rig;
+    rig.host->load_from(cache.path.string());
+
+    std::vector<std::string> changed;
+    PluginSyncDriver driver(*rig.host, remote.deps(), cache.path.string());
+    driver.on_synced = [&changed](const SyncResult& result) { changed = result.changed; };
+    driver.sync_now();
+    drain();
+
+    REQUIRE(changed.size() == 2);
+    // A rescan drops a folder with no manifest from the host's rows, so the
+    // pick below only has to look at what the host kept.
+    CHECK(rig.info("no-manifest") == nullptr);
+    const std::vector<std::string> fresh = loadable_plugin_ids(changed, rig.host->plugins());
+    REQUIRE(fresh.size() == 1);
+    CHECK(fresh[0] == "hello");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "no new-plugin pick when every synced folder is unloadable",
+                 "[plugin][wiring]") {
+    TempDir cache;
+    FakeRemote remote;
+    remote.files["no-manifest/notes.txt"] = {"data", 100.0};
+    HostRig rig;
+    rig.host->load_from(cache.path.string());
+
+    std::vector<std::string> changed;
+    PluginSyncDriver driver(*rig.host, remote.deps(), cache.path.string());
+    driver.on_synced = [&changed](const SyncResult& result) { changed = result.changed; };
+    driver.sync_now();
+    drain();
+
+    REQUIRE(changed.size() == 1);
+    CHECK(loadable_plugin_ids(changed, rig.host->plugins()).empty());
+}
+
 #endif // HELIX_HAS_PLUGINS
