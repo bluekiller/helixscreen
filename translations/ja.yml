@@ -1824,6 +1824,7 @@ translations:
   Motor controller error: モーターコントローラーのエラー
   Motor parameter setup failed: モーターパラメーターの設定に失敗しました
   Motor speeds and acceleration: 'モーター速度と加速度'
+  Motors: モーター
   Motors Off: モーターオフ
   'Motors disable failed: {}': 'モーターの無効化に失敗しました: {}'
   Motors disabled: モーターを無効化しました
@@ -2974,6 +2975,7 @@ translations:
   Switching heater control to MPC. Klipper will restart.: ヒーター制御をMPCに切り替えます。Klipperが再起動します。
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。
   Switching to MPC requires a config change and Klipper restart.: MPCへの切り替えには設定変更とKlipperの再起動が必要です。
+  Sync during printing: 印刷中に同期
   Sync with Spoolman: Spoolman と同期
   Sysfs: Sysfs
   System: システム

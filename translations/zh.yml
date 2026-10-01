@@ -1818,6 +1818,7 @@ translations:
   Motor controller error: 电机控制器错误
   Motor parameter setup failed: 电机参数设置失败
   Motor speeds and acceleration: '电机速度与加速度'
+  Motors: 电机
   Motors Off: 关闭电机
   'Motors disable failed: {}': '禁用电机失败: {}'
   Motors disabled: 电机已禁用
@@ -2966,6 +2967,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: 切换到 MPC 会改变此加热器的控制方式，随后会进行校准。这需要在工作温度下耗时数分钟。
   Switching to MPC requires a config change and Klipper restart.: 切换到 MPC 需要修改配置并重启
     Klipper。
+  Sync during printing: 打印期间同步
   Sync with Spoolman: 与 Spoolman 同步
   Sysfs: Sysfs
   System: 系统

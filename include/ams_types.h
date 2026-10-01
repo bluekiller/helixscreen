@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 /**
@@ -2237,6 +2238,55 @@ struct DeviceAction {
     int slot_index = -1;              ///< If action is per-slot (-1 = system-wide)
     bool enabled = true;              ///< Whether action is currently available
     std::string disable_reason;       ///< Why disabled (if applicable)
+
+    // Factories for the four control types. Argument order is fixed: id, label, section, the
+    // type-specific fields, then optional icon and description. scripts/translations/
+    // cpp_tables.py reads the label and description positions of each call, so keep them literal.
+
+    static DeviceAction button(std::string id, std::string label, std::string section,
+                               std::string icon = {}, std::string description = {}) {
+        DeviceAction a;
+        a.id = std::move(id);
+        a.label = std::move(label);
+        a.section = std::move(section);
+        a.icon = std::move(icon);
+        a.description = std::move(description);
+        a.type = ActionType::BUTTON;
+        return a;
+    }
+
+    /// @p value is stored as given; its type (bool, float, ...) is what the UI casts back.
+    static DeviceAction toggle(std::string id, std::string label, std::string section,
+                               std::any value = {}, std::string icon = {},
+                               std::string description = {}) {
+        DeviceAction a = button(std::move(id), std::move(label), std::move(section),
+                                std::move(icon), std::move(description));
+        a.type = ActionType::TOGGLE;
+        a.current_value = std::move(value);
+        return a;
+    }
+
+    static DeviceAction slider(std::string id, std::string label, std::string section,
+                               std::any value, float min_value, float max_value, std::string unit,
+                               std::string icon = {}, std::string description = {}) {
+        DeviceAction a = toggle(std::move(id), std::move(label), std::move(section),
+                                std::move(value), std::move(icon), std::move(description));
+        a.type = ActionType::SLIDER;
+        a.min_value = min_value;
+        a.max_value = max_value;
+        a.unit = std::move(unit);
+        return a;
+    }
+
+    static DeviceAction dropdown(std::string id, std::string label, std::string section,
+                                 std::vector<std::string> options, std::any value,
+                                 std::string icon = {}, std::string description = {}) {
+        DeviceAction a = toggle(std::move(id), std::move(label), std::move(section),
+                                std::move(value), std::move(icon), std::move(description));
+        a.type = ActionType::DROPDOWN;
+        a.options = std::move(options);
+        return a;
+    }
 };
 
 } // namespace printer

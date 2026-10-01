@@ -1952,6 +1952,7 @@ translations:
   Motor controller error: Errore del controller del motore
   Motor parameter setup failed: Impostazione dei parametri del motore non riuscita
   Motor speeds and acceleration: 'Velocità dei motori e accelerazione'
+  Motors: Motori
   Motors Off: Motori spenti
   'Motors disable failed: {}': 'Disabilitazione motori fallita: {}'
   Motors disabled: Motori disabilitati
@@ -3181,6 +3182,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Il passaggio a MPC cambia come viene controllato questo riscaldatore, poi lo calibra. Richiede diversi minuti a temperatura.
   Switching to MPC requires a config change and Klipper restart.: Il passaggio a MPC
     richiede una modifica alla configurazione e il riavvio di Klipper.
+  Sync during printing: Sincronizza durante la stampa
   Sync with Spoolman: Sincronizza con Spoolman
   Sysfs: Sysfs
   System: Sistema

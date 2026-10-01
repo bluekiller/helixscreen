@@ -1892,6 +1892,7 @@ translations:
   Motor controller error: Motor controller error
   Motor parameter setup failed: Motor parameter setup failed
   Motor speeds and acceleration: Motor speeds and acceleration
+  Motors: Motors
   Motors Off: Motors Off
   'Motors disable failed: {}': 'Motors disable failed: {}'
   Motors disabled: Motors disabled
@@ -3085,6 +3086,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.
   Switching to MPC requires a config change and Klipper restart.: Switching to MPC
     requires a config change and Klipper restart.
+  Sync during printing: Sync during printing
   Sync with Spoolman: Sync with Spoolman
   Sysfs: Sysfs
   System: System
