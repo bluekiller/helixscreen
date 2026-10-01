@@ -26,11 +26,24 @@ CROSS_MK="${HELIX_TEST_CROSS_MK:-mk/cross.mk}"
 # 7-element array in the second test had already missed release-ad5x,
 # release-cc1 and release-x86.
 # Recipe body of target $1: the lines after it, up to the first line that is
-# neither indented nor blank.
+# neither indented nor blank. A recipe that delegates to the shared
+# release-package macro is followed by that macro's body, so the checks below
+# see what the target actually runs, and fail for a target that stops calling it.
 release_recipe() {
-    awk -v t="$1" '
+    local body
+    body=$(awk -v t="$1" '
         index($0, t ":") == 1 { inside = 1; next }
         inside && /^[^\t ]/ && NF { inside = 0 }
+        inside { print }
+    ' "$CROSS_MK")
+    printf '%s\n' "$body"
+    if printf '%s\n' "$body" | grep -q 'call release-package'; then release_package_body; fi
+}
+
+release_package_body() {
+    awk '
+        /^define release-package$/ { inside = 1; next }
+        inside && /^endef/ { inside = 0 }
         inside { print }
     ' "$CROSS_MK"
 }
@@ -125,4 +138,19 @@ release_recipe() {
 
 @test "3D splash generation uses LZ4 compression" {
     grep -q '"--compress".*"LZ4"' scripts/gen_splash_3d.py
+}
+
+# ============================================================================
+# CA bundle ships in every release package
+# ============================================================================
+
+@test "release-package installs certs/ca-certificates.crt and fails without a bundle" {
+    release_package_body | grep -q 'certs/ca-certificates.crt' || fail "release-package no longer installs the CA bundle"
+    release_package_body | grep -q 'CA_BUNDLE' || fail "release-package has no host-bundle fallback"
+    release_package_body | grep -qE 'exit 1' || fail "release-package does not fail on a missing bundle"
+    local t missing=""
+    for t in $(release_targets "$CROSS_MK"); do
+        release_recipe "$t" | grep -q 'call release-package' || missing="$missing $t"
+    done
+    [ -z "$missing" ] || fail "release targets bypassing release-package:$missing"
 }
