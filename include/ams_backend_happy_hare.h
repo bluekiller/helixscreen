@@ -485,36 +485,40 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     void initialize_slots(int gate_count);
 
     /**
-     * @brief Query configfile.settings.mmu to determine tip method
+     * @brief Query configfile.settings and the live mmu_machine object once
      *
-     * Reads form_tip_macro from Happy Hare config via Moonraker.
-     * If macro name contains "cut", sets TipMethod::CUT (e.g., _MMU_CUT_TIP).
-     * Otherwise sets TipMethod::TIP_FORM (e.g., _MMU_FORM_TIP).
-     * Called once during start().
+     * One printer.objects.query feeds apply_tip_method_config(),
+     * apply_selector_type_config(), apply_heater_config() and
+     * apply_config_defaults(). Called once during on_started().
      */
-    void query_tip_method_from_config();
+    void query_config_from_printer();
 
     /**
-     * @brief Query configfile.settings.mmu_machine to determine selector type
+     * @brief Set the tip method from [mmu] form_tip_macro
      *
-     * Reads selector_type from Happy Hare config via Moonraker.
+     * A macro name containing "cut" (e.g., _MMU_CUT_TIP) is TipMethod::CUT;
+     * anything else (e.g., _MMU_FORM_TIP) is TipMethod::TIP_FORM.
+     */
+    void apply_tip_method_config(const nlohmann::json& settings);
+
+    /**
+     * @brief Set selector_type_ and the unit topologies from mmu_machine
+     *
      * VirtualSelector = Type B (HUB topology), all others = Type A (LINEAR).
-     * Called once during on_started().
+     * @param live_mmu_machine The live mmu_machine status object (see apply_heater_config)
      */
-    void query_selector_type_from_config();
+    void apply_selector_type_config(const nlohmann::json& settings,
+                                    const nlohmann::json& live_mmu_machine);
 
     /**
-     * @brief Query configfile.settings.mmu_machine + mmu for heater name + max_temp
-     *
-     * Reads filament_heater from [mmu_machine] and heater_max_temp from [mmu].
-     * Called once during on_started().
+     * @brief Load [mmu] speed/distance defaults, then re-apply persisted overrides
      */
-    void query_heater_config_from_config();
+    void apply_config_defaults(const nlohmann::json& settings);
 
     /**
      * @brief Parse heater config settings into dryer_info_
      *
-     * Factored out of query_heater_config_from_config() for testability.
+     * Reads filament_heater from [mmu_machine] and heater_max_temp from [mmu].
      * @param settings The configfile.settings JSON object
      * @param live_mmu_machine The live mmu_machine status object. Happy Hare v4
      *        publishes filament_heater / environment_sensor there, per unit,
@@ -671,7 +675,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     std::string espooler_active_;
     int flowguard_encoder_mode_ = -1; ///< -1 = not yet received from Moonraker
 
-    void query_config_defaults();
     void load_persisted_overrides();
     void save_override(const std::string& key, float value);
     void save_override(const std::string& key, int value);

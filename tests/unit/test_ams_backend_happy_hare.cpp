@@ -5354,3 +5354,72 @@ TEST_CASE("Happy Hare recovery: a paused fault still leads with Resume",
         if (a.log_tag == "hh::recover")
             CHECK(a.style.empty());
 }
+
+// ============================================================================
+// Connect-time configfile query
+// ============================================================================
+
+namespace {
+
+/// Records every printer.objects.query and holds its success callback so the
+/// test decides when, and with what, the printer "answers".
+class QueryCapturingClient : public MoonrakerClientMock {
+  public:
+    QueryCapturingClient() : MoonrakerClientMock(MoonrakerClientMock::PrinterType::VORON_24) {}
+
+    using MoonrakerClientMock::send_jsonrpc;
+    helix::RequestId send_jsonrpc(
+        const std::string& method, const nlohmann::json& params,
+        std::function<void(const nlohmann::json&)> success_cb,
+        std::function<void(const MoonrakerError&)> error_cb, uint32_t timeout_ms = 0,
+        bool silent = false,
+        std::optional<helix::rpc_error_policy::CallerIntent> intent = std::nullopt) override {
+        if (method == "printer.objects.query") {
+            queries.push_back(params);
+            answer = std::move(success_cb);
+            return 0;
+        }
+        return MoonrakerClientMock::send_jsonrpc(method, params, std::move(success_cb),
+                                                 std::move(error_cb), timeout_ms, silent, intent);
+    }
+
+    std::vector<nlohmann::json> queries;
+    std::function<void(const nlohmann::json&)> answer;
+};
+
+} // namespace
+
+TEST_CASE("Happy Hare connect asks configfile once and applies it to every reader",
+          "[ams][happy_hare][config]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+
+    HappyHareTestAccess::on_started(helper);
+
+    REQUIRE(client.queries.size() == 1);
+    REQUIRE(client.answer);
+
+    client.answer(
+        nlohmann::json{{"result",
+                        {{"status",
+                          {{"configfile",
+                            {{"settings",
+                              {{"mmu",
+                                {{"form_tip_macro", "_MMU_CUT_TIP"},
+                                 {"gear_from_buffer_speed", "175"},
+                                 {"heater_max_temp", 65.0}}},
+                               {"mmu_machine",
+                                {{"selector_type", "VirtualSelector"},
+                                 {"filament_heater", "heater_generic box1_heater"}}}}}}}}}}}});
+    helix::ui::UpdateQueue::instance().drain();
+
+    CHECK(helper.get_system_info().tip_method == TipMethod::CUT);
+    CHECK(helper.get_topology() == PathTopology::HUB);
+    CHECK(helper.get_dryer_info().supported);
+    CHECK(helper.get_dryer_info().max_temp_c == Catch::Approx(65.0f));
+    CHECK(HappyHareTestAccess::config_defaults(helper).gear_from_buffer_speed ==
+          Catch::Approx(175.0f));
+    CHECK(HappyHareTestAccess::config_defaults(helper).loaded);
+}

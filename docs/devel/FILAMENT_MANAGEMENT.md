@@ -1986,7 +1986,7 @@ See [QIDI_BOX_HEATER.md](QIDI_BOX_HEATER.md) for full reverse-engineering detail
 
 ### Happy Hare Specifics
 
-Happy Hare's filament dryer is driven by the `MMU_HEATER` command and configured under `[mmu_machine]`. HelixScreen reads the dryer's object names from `configfile.settings` once at connect (`query_heater_config_from_config`), then tracks live state over the normal subscription push — **there is no polling**.
+Happy Hare's filament dryer is driven by the `MMU_HEATER` command and configured under `[mmu_machine]`. HelixScreen reads the dryer's object names from `configfile.settings` once at connect (`query_config_from_printer`, shared with the tip-method, selector-type and defaults readers), then tracks live state over the normal subscription push — **there is no polling**.
 
 **What HelixScreen supports today:**
 
