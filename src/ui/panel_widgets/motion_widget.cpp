@@ -29,7 +29,6 @@ MotionWidget::~MotionWidget() {
 void MotionWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
-    lv_obj_set_user_data(widget_obj_, this);
 
     btn_ = lv_obj_find_by_name(widget_obj_, "motion_button");
     if (btn_) {
@@ -38,9 +37,6 @@ void MotionWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 }
 
 void MotionWidget::detach() {
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     btn_ = nullptr;
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;

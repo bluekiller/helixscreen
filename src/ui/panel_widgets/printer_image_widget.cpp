@@ -225,9 +225,6 @@ void PrinterImageWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Store this pointer for event callback recovery
-    lv_obj_set_user_data(widget_obj_, this);
-
     // A raw lv_obj_delete() of the home page container gives the widget no
     // detach(), and the cache-generation continuation would then walk a freed
     // tree looking for the image child.
@@ -316,7 +313,6 @@ void PrinterImageWidget::detach() {
         if (container) {
             lv_obj_set_user_data(container, nullptr);
         }
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;
