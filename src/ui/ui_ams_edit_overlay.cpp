@@ -913,6 +913,7 @@ void AmsEditOverlay::handle_spool_edit_save(bool finish) {
     // Apply pending color (catalog carries no color — spec §3.3).
     if (details_color_set_) {
         working_info_.color_rgb = details_color_;
+        working_info_.color_declared = true;
         working_info_.color_name = helix::get_color_name_from_hex(details_color_);
         working_info_.multi_color_hexes.clear();
     }
