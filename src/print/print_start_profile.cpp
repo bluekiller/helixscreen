@@ -707,11 +707,12 @@ std::string PrintStartProfile::substitute_captures(const std::string& tmpl,
     result.reserve(tmpl.size() + 32);
 
     for (size_t i = 0; i < tmpl.size(); ++i) {
-        if (tmpl[i] == '$' && (i + 1) < tmpl.size() && std::isdigit(tmpl[i + 1])) {
+        if (tmpl[i] == '$' && (i + 1) < tmpl.size() &&
+            std::isdigit(static_cast<unsigned char>(tmpl[i + 1]))) {
             // Parse the group number (supports multi-digit: $1, $2, ..., $12, etc.)
             size_t start = i + 1;
             size_t end = start;
-            while (end < tmpl.size() && std::isdigit(tmpl[end])) {
+            while (end < tmpl.size() && std::isdigit(static_cast<unsigned char>(tmpl[end]))) {
                 ++end;
             }
             int group =
