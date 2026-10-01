@@ -71,7 +71,7 @@ release_recipe() {
     local t missing=""
     for t in $targets; do
         release_recipe "$t" \
-            | grep -qE 'cp scripts/\$\(INSTALLER_FILENAME\).*\$\(RELEASE_DIR\)' \
+            | grep -qE 'cp \$\(INSTALLER_BUNDLE\).*\$\(RELEASE_DIR\)' \
             || missing="$missing $t"
     done
     [ -z "$missing" ] || fail "release targets not packaging the installer:$missing"

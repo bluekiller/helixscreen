@@ -3218,9 +3218,6 @@ echo -n "🐚 Checking shell scripts (shellcheck)..."
 #              assignment site - SC1091 is excluded, so shellcheck cannot see
 #              those reads itself.
 #
-# install.sh / uninstall.sh are skipped: they are bundled artifacts of
-# install-dev.sh + lib/installer/, which are themselves checked here.
-#
 # Two codes are excluded for scripts/:
 #   SC3043 - "local is undefined in POSIX sh". Deliberate - the installer and
 #            launcher target BusyBox ash, which does implement local.
@@ -3240,9 +3237,6 @@ else
   SHELL_FILES="$SHELL_FILES $(find config -maxdepth 1 -name '*.init' 2>/dev/null || true)"
   SHELL_FILES="$SHELL_FILES $(git ls-files 'scripts/*.sh' 'scripts/**/*.sh' 2>/dev/null || true)"
 fi
-# Drop the generated bundles regardless of how the list was built.
-SHELL_FILES=$(printf '%s\n' $SHELL_FILES | \
-  grep -vE '^scripts/(install|uninstall)\.sh$' || true)
 
 if [ -n "$SHELL_FILES" ]; then
   if command -v shellcheck >/dev/null 2>&1; then

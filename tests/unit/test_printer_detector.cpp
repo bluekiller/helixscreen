@@ -6522,7 +6522,7 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // Auto-Save Confidence Gate
 // ============================================================================
 //
-// scripts/install.sh (and scripts/lib/installer/printer_seed.sh) have always
+// The installer (scripts/lib/installer/printer_seed.sh) has always
 // gated the install-time preset seed on HELIX_DETECT_MIN_CONFIDENCE=85 AND
 // HELIX_DETECT_MIN_MARGIN=10. The runtime path had no equivalent bar: it wrote
 // whatever scored above zero, and PRINTER_TYPE being non-empty then short-

@@ -6,7 +6,7 @@
 # restore_previous_ui_platform puts /etc/init.d/app back: it kills any
 # web-server the carve-out left running, enables app, verifies the S (boot)
 # link, and starts app for the session. Each case drives a GENERATED bundle,
-# scripts/uninstall.sh or scripts/install.sh, under /bin/sh, because those are
+# uninstall.sh or install.sh, under /bin/sh, because those are
 # what a user runs. The mock root supplies:
 #   - an rc.common stand-in that logs every dispatch to $EVENTS and writes
 #     only the rc.d links a case asks for
@@ -50,10 +50,11 @@ setup() {
     write_stock_app_service
     mock_pidof_webserver
 
+    # The suite's bundles, rewritten into per-test copies that address MOCK_ROOT.
+    patch_bundle "$UNINSTALL_BUNDLE" > "$BATS_TEST_TMPDIR/uninstall.sh"
+    patch_bundle "$INSTALL_BUNDLE" > "$BATS_TEST_TMPDIR/install.sh"
     export UNINSTALL_BUNDLE="$BATS_TEST_TMPDIR/uninstall.sh"
     export INSTALL_BUNDLE="$BATS_TEST_TMPDIR/install.sh"
-    patch_bundle "$WORKTREE_ROOT/scripts/uninstall.sh" > "$UNINSTALL_BUNDLE"
-    patch_bundle "$WORKTREE_ROOT/scripts/install.sh" > "$INSTALL_BUNDLE"
 
     # No path in REDIRECTED_HOST_PATHS may survive in either copy: one left
     # behind is a restore or uninstall step acting on this machine. Paths in

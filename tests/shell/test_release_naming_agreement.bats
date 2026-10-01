@@ -4,7 +4,7 @@
 # Three scripts split a release tarball name into platform and version by hand:
 # scripts/generate-manifest.sh (platform), scripts/dev-release.sh (platform) and
 # scripts/lib/installer/release.sh (version). The installer's copy cannot be
-# shared, because scripts/install.sh is bundled into a single file that carries
+# shared, because install.sh is bundled into a single file that carries
 # no sourcing path back into the repo.
 #
 # One rule written three times agrees by convention until it silently does not,

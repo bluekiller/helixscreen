@@ -256,7 +256,7 @@ The `core file size = 0` means **no automatic core dumps** for crash analysis
 
 ## Installer Caveats
 
-`scripts/install.sh` `check_disk_space()` runs `df` on
+`check_disk_space()` (`scripts/lib/installer/requirements.sh`) runs `df` on
 `dirname(INSTALL_DIR)`. On AD5X (`INSTALL_DIR=/srv/helixscreen`), that's
 `/srv` — which on this overlay setup either doesn't exist as its own mount
 or inherits from the **read-only `/dev/root` (12.5 MB, 100 % used)**.

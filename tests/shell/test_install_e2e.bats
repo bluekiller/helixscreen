@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# End-to-end runs of the bundled scripts/install.sh (prestonbrown/helixscreen#1600).
+# End-to-end runs of the bundled install.sh (prestonbrown/helixscreen#1600).
 #
 # Every other installer test calls one function; these run the whole script, so
 # the handoff between steps is what they pin. The bundle is rebuilt from

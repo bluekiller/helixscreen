@@ -654,14 +654,14 @@ load_restore_functions() {
 }
 
 @test "the bundled installer carries the directory protection" {
-    # scripts/install.sh is generated from lib/installer/; a stale bundle ships
+    # install.sh is generated from lib/installer/; a stale bundle ships
     # the old behaviour to everyone using curl | sh.
-    grep -q '^HELIX_USER_CONFIG_DIRS=' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q '_safe_remove_migrated_config_dir()' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'crash_history.json' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q '^HELIX_USER_CONFIG_DIRS=' "$INSTALL_BUNDLE"
+    grep -q '_safe_remove_migrated_config_dir()' "$INSTALL_BUNDLE"
+    grep -q 'crash_history.json' "$INSTALL_BUNDLE"
 }
 
 @test "the bundled uninstaller carries the directory protection" {
-    grep -q '^HELIX_USER_CONFIG_DIRS=' "$WORKTREE_ROOT/scripts/uninstall.sh"
-    grep -q '_safe_remove_migrated_config_dir()' "$WORKTREE_ROOT/scripts/uninstall.sh"
+    grep -q '^HELIX_USER_CONFIG_DIRS=' "$UNINSTALL_BUNDLE"
+    grep -q '_safe_remove_migrated_config_dir()' "$UNINSTALL_BUNDLE"
 }

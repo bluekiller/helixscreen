@@ -54,14 +54,9 @@ Modules use source guards (`_HELIX_*_SOURCED`) to prevent double-sourcing. The l
 | **Usage** | Development, from repo checkout | End-user, via `curl \| sh` |
 | **Modules** | Sources from `lib/installer/` at runtime | All modules inlined by `bundle-installer.sh` |
 | **Guard** | Checks `_HELIX_BUNDLED_INSTALLER` is unset | Sets `_HELIX_BUNDLED_INSTALLER=1` |
-| **Regeneration** | N/A | `./scripts/bundle-installer.sh -o scripts/install.sh` |
+| **Regeneration** | N/A | `make installer` (writes `build/installer/`) |
 
-When modifying any module in `lib/installer/`, you must regenerate the bundled scripts:
-
-```bash
-./scripts/bundle-installer.sh -o scripts/install.sh
-./scripts/bundle-uninstaller.sh -o scripts/uninstall.sh
-```
+The bundles are generated, never committed. `make installer` writes `build/installer/install.sh` and `build/installer/uninstall.sh`, rebuilding only when a module or bundler changed. Every consumer takes them from there: the `release-*` and `deploy-*` targets, `release.yml` (which builds once and publishes that file as both the GitHub release asset and the one-line installer at https://releases.helixscreen.org/install.sh), and `scripts/dev-release.sh`. The bats suite builds its own copies once per run in `tests/shell/setup_suite.bash` (`$INSTALL_BUNDLE`, `$UNINSTALL_BUNDLE`).
 
 The bundler uses `awk` to strip shebangs, SPDX headers, and source guards from each module, then concatenates them with the main orchestration code.
 
@@ -643,7 +638,7 @@ Moonraker update_manager is skipped on AD5M (typically no Mainsail/Fluidd web UI
 
 ## Uninstaller
 
-The uninstaller (`scripts/uninstall.sh`) reverses the installation:
+The uninstaller (`uninstall.sh`, bundled from `lib/installer/uninstall.sh` and its dependencies) reverses the installation:
 
 1. **Stop service** -- systemd or SysV, plus kill remaining processes (watchdog first to prevent crash dialog)
 2. **Remove service** -- Delete systemd unit or init script
@@ -849,11 +844,10 @@ Create tests/shell/test_myplatform.bats covering:
 - Any firmware-specific patching
 - Uninstall/restore behavior
 
-### Step 6: Regenerate Bundles
+### Step 6: Check the Bundles
 
 ```bash
-./scripts/bundle-installer.sh -o scripts/install.sh
-./scripts/bundle-uninstaller.sh -o scripts/uninstall.sh
+make installer    # build/installer/install.sh + uninstall.sh
 ```
 
 ### Step 7: Release Asset

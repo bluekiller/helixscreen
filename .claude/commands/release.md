@@ -165,16 +165,6 @@ make test-shell
 - If bats is not installed → STOP: "bats not found — install it before releasing." Show the installation instructions from the make output.
 - If tests fail → STOP: "Shell tests failed — fix before releasing." Show the failure output.
 
-### Regenerate bundled installers
-```bash
-bash scripts/bundle-installer.sh -o scripts/install.sh
-bash scripts/bundle-uninstaller.sh -o scripts/uninstall.sh
-```
-
-- Run `git diff --name-only` to check if `scripts/install.sh` or `scripts/uninstall.sh` changed
-- If either changed, they will be staged and included in the release commit (Step 6)
-- This ensures bundled installers are always in sync with their source modules
-
 ### Regenerate the XML linter schema
 
 `tools/xml-linter/schema/schema.json` is a committed snapshot of every constant and
@@ -286,7 +276,7 @@ Per project conventions — NEVER `git add -A` or `git add .`. Stage only the fi
 ```bash
 git add VERSION.txt CHANGELOG.md
 # Plus, if Step 2's regeneration changed them:
-#   scripts/install.sh scripts/uninstall.sh tools/xml-linter/schema/schema.json
+#   tools/xml-linter/schema/schema.json
 # Plus any other files modified in Step 5
 ```
 

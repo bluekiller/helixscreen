@@ -409,7 +409,7 @@ To use one of those commands, mock it: `mock_command_script "killall" 'exit 0'` 
 The sandbox installs itself as both a PATH shim and an exported bash function, because
 neither survives every boundary: PATH is lost when a callee **replaces** PATH instead of
 prepending (`env PATH="$bin" ...`, or a script that hardens PATH the way
-`scripts/install.sh` does), and a bash function is lost at a non-bash callee - which
+`install.sh` does), and a bash function is lost at a non-bash callee - which
 installer scripts are, since they are `#!/bin/sh`. `test_sandbox_gate.bats` proves each
 boundary and fails any test that lands in the gap between the two.
 

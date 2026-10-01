@@ -40,6 +40,17 @@
 HELIX_SANDBOX_COMMANDS="killall pkill pidof reboot shutdown halt poweroff telinit launchctl crontab mount umount diskutil mkfs addr2line"
 
 setup_suite() {
+    # The installer bundles are generated, never committed. Build them once per
+    # run from scripts/lib/installer/, so no test reads a bundle older than the
+    # modules it is meant to check.
+    export INSTALL_BUNDLE="$BATS_SUITE_TMPDIR/installer/install.sh"
+    export UNINSTALL_BUNDLE="$BATS_SUITE_TMPDIR/installer/uninstall.sh"
+    mkdir -p "$BATS_SUITE_TMPDIR/installer"
+    local repo
+    repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    sh "$repo/scripts/bundle-installer.sh" -o "$INSTALL_BUNDLE" >/dev/null
+    sh "$repo/scripts/bundle-uninstaller.sh" -o "$UNINSTALL_BUNDLE" >/dev/null
+
     export HELIX_TEST_SANDBOX_BIN="$BATS_SUITE_TMPDIR/sandbox-bin"
     export HELIX_TEST_SANDBOX_LEDGER="$BATS_SUITE_TMPDIR/escapes.tsv"
     # "enforce" fails the blocked call; "permissive" lets it return success.

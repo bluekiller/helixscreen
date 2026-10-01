@@ -553,7 +553,7 @@ _setup_zmod_ad5x_sandbox() {
 }
 
 @test "install.sh (bundled) also uses getconf LONG_BIT" {
-    grep -q 'getconf LONG_BIT' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'getconf LONG_BIT' "$INSTALL_BUNDLE"
 }
 
 @test "platform.sh has AD5X detection with /usr/prog check" {
@@ -701,12 +701,12 @@ _mock_detect_ad5m_firmware() {
 }
 
 @test "install.sh (bundled) runs the mod-flavor detector for ad5x" {
-    grep -q 'MOD_FLAVOR=$(detect_mod_flavor)' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'mod_check_chroot_context' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'MOD_FLAVOR=$(detect_mod_flavor)' "$INSTALL_BUNDLE"
+    grep -q 'mod_check_chroot_context' "$INSTALL_BUNDLE"
 }
 
 @test "uninstall.sh (bundled) still defines the compat wrappers" {
-    local uninst="$WORKTREE_ROOT/scripts/uninstall.sh"
+    local uninst="$UNINSTALL_BUNDLE"
     grep -q '^detect_ad5m_firmware()' "$uninst"
     grep -q '^ad5x_check_chroot_context()' "$uninst"
 }
@@ -822,8 +822,8 @@ _mock_k2_detect_platform() {
 # The bundled install.sh is what actually ships to users — make sure the
 # fix isn't only present in the modular sources.
 @test "install.sh (bundled) sets KLIPPER_HOME=/mnt/UDISK for k2" {
-    grep -qE 'platform.*=.*"k2"' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'KLIPPER_HOME="/mnt/UDISK"' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -qE 'platform.*=.*"k2"' "$INSTALL_BUNDLE"
+    grep -q 'KLIPPER_HOME="/mnt/UDISK"' "$INSTALL_BUNDLE"
 }
 
 # Same regression class as K2: K1 printer_data is at /usr/data/printer_data,
@@ -839,8 +839,8 @@ _mock_k2_detect_platform() {
 }
 
 @test "install.sh (bundled) sets KLIPPER_HOME=/usr/data for k1" {
-    grep -qE 'platform.*=.*"k1"' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'KLIPPER_HOME="/usr/data"' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -qE 'platform.*=.*"k1"' "$INSTALL_BUNDLE"
+    grep -q 'KLIPPER_HOME="/usr/data"' "$INSTALL_BUNDLE"
 }
 
 # Snapmaker U1: detect_klipper_user would normally find /home/lava via
@@ -857,8 +857,8 @@ _mock_k2_detect_platform() {
 }
 
 @test "install.sh (bundled) sets KLIPPER_HOME=/home/lava for snapmaker-u1" {
-    grep -qE 'platform.*=.*"snapmaker-u1"' "$WORKTREE_ROOT/scripts/install.sh"
-    grep -q 'KLIPPER_HOME="/home/lava"' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -qE 'platform.*=.*"snapmaker-u1"' "$INSTALL_BUNDLE"
+    grep -q 'KLIPPER_HOME="/home/lava"' "$INSTALL_BUNDLE"
 }
 
 # AD5M: /root/printer_data is the correct location (verified on hardware) —
@@ -975,8 +975,8 @@ _mock_u1_detect_platform() {
 }
 
 @test "install.sh (bundled) does NOT treat makerbase-client as an M1 marker (#1027)" {
-    refute grep -qE '\[ -f [^]]*makerbase-client' "$WORKTREE_ROOT/scripts/install.sh"
-    ! grep -qE 'list-unit-files.*makerbase-client' "$WORKTREE_ROOT/scripts/install.sh"
+    refute grep -qE '\[ -f [^]]*makerbase-client' "$INSTALL_BUNDLE"
+    ! grep -qE 'list-unit-files.*makerbase-client' "$INSTALL_BUNDLE"
 }
 
 # ============================================================================
@@ -1029,7 +1029,7 @@ _mock_m1_gate() {
 }
 
 @test "install.sh (bundled) vetoes M1 detection with the QIDI-class fingerprint (#1027)" {
-    grep -qE 'is_m1.*=.*true.*&&.*! _is_qidi_class_sbc' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -qE 'is_m1.*=.*true.*&&.*! _is_qidi_class_sbc' "$INSTALL_BUNDLE"
 }
 
 @test "_is_qidi_class_sbc keys on hostname linaro-alip + /home/mks" {
@@ -1045,7 +1045,7 @@ _mock_m1_gate() {
 }
 
 @test "install.sh (bundled) _is_qidi_class_sbc accepts /home/qidi (#1047)" {
-    grep -qE '/home/mks.*\|\|.*/home/qidi' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -qE '/home/mks.*\|\|.*/home/qidi' "$INSTALL_BUNDLE"
 }
 
 # ============================================================================
@@ -1125,7 +1125,7 @@ _mock_m1_gate() {
 }
 
 @test "install.sh (bundled) has get_download_platform" {
-    grep -q 'get_download_platform' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q 'get_download_platform' "$INSTALL_BUNDLE"
 }
 
 @test "main.sh passes download_platform (not platform) to download_release" {
@@ -1140,7 +1140,7 @@ _mock_m1_gate() {
 
 @test "install.sh (bundled) passes download_platform to download_release" {
     grep -q 'download_release "$version" "$download_platform"' \
-        "$WORKTREE_ROOT/scripts/install.sh"
+        "$INSTALL_BUNDLE"
 }
 
 @test "release_info.json picks pi/pi32 for m1 (not helixscreen-m1.zip)" {

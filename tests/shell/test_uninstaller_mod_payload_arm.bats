@@ -14,7 +14,7 @@
 # uninstall: display-mode restore FIRST (while the payload is still in place),
 # then the stanza, then the payload subtree.
 #
-# The tests drive the GENERATED scripts/uninstall.sh, because the arm's value
+# The tests drive the GENERATED uninstall.sh, because the arm's value
 # is reachability: a lib function nothing calls is the exact dead-code shape
 # test_uninstall_platform_restore_wiring.bats was written to catch.
 #
@@ -37,7 +37,7 @@ setup() {
           _HELIX_SERVICE_SOURCED _HELIX_MOONRAKER_SOURCED \
           _HELIX_CAMERA_SOURCED _HELIX_UNINSTALL_SOURCED
     # shellcheck disable=SC1090
-    . "$WORKTREE_ROOT/scripts/uninstall.sh"
+    . "$UNINSTALL_BUNDLE"
 
     # An AD5X-shaped mod host, post payload install:
     #   - payload root at the mod_data sibling of the mod tree (the probed
@@ -91,7 +91,7 @@ EOF
 
 @test "the uninstaller defines the payload uninstall" {
     type uninstall_mod_payload >/dev/null 2>&1 \
-        || fail "scripts/uninstall.sh has no uninstall_mod_payload"
+        || fail "uninstall.sh has no uninstall_mod_payload"
 }
 
 @test "armed run restores the mod display mode and removes the payload root" {
@@ -318,7 +318,7 @@ _bundle_main_body() {
     # main()'s own body with comments stripped, so a comment naming the arm
     # cannot satisfy the grep (the same trap the platform-restore wiring hit).
     awk '/^main\(\) \{/{c=1} c{print} c&&/^\}/{exit}' \
-        "$WORKTREE_ROOT/scripts/uninstall.sh" | sed 's/#.*//'
+        "$UNINSTALL_BUNDLE" | sed 's/#.*//'
 }
 
 @test "bundle main() accepts a --mod-payload flag" {
@@ -361,7 +361,7 @@ _bundle_main_body() {
 }
 
 @test "the bundle help text documents the arm" {
-    grep -q -- '--mod-payload' "$WORKTREE_ROOT/scripts/uninstall.sh"
+    grep -q -- '--mod-payload' "$UNINSTALL_BUNDLE"
 }
 
 # --- R2b: a root that is not recognisably ours is refused, never removed ---

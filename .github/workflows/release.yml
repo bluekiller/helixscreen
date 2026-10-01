@@ -64,18 +64,21 @@ jobs:
     - name: Install bats
       run: sudo npm install -g bats
 
-    - name: Verify bundled installers are up-to-date
-      run: |
-        bash scripts/bundle-installer.sh -o /tmp/install-regen.sh
-        bash scripts/bundle-uninstaller.sh -o /tmp/uninstall-regen.sh
-        diff scripts/install.sh /tmp/install-regen.sh || {
-          echo "::error::scripts/install.sh is stale — run: bash scripts/bundle-installer.sh -o scripts/install.sh"
-          exit 1
-        }
-        diff scripts/uninstall.sh /tmp/uninstall-regen.sh || {
-          echo "::error::scripts/uninstall.sh is stale — run: bash scripts/bundle-uninstaller.sh -o scripts/uninstall.sh"
-          exit 1
-        }
+    # The installer bundles are generated, never committed. Built once here: the
+    # release job attaches this install.sh to the GitHub release and upload-r2
+    # publishes the same file as the one-line installer. Each release tarball's
+    # copy comes from its own `make release-*`, which the bundlers' determinism
+    # (test_uninstall_hardening.bats) keeps byte-identical to this one.
+    - name: Build installer bundles
+      run: make installer
+
+    - name: Upload installer artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: installer
+        path: build/installer/install.sh
+        if-no-files-found: error
+        retention-days: 7
 
     - name: Run shell tests
       run: make test-shell
@@ -681,7 +684,7 @@ jobs:
         find artifacts -name '*.apk' -exec mv {} release-files/ \;
         find artifacts -name '*.aab' -exec mv {} release-files/ \;
         # Include install.sh so users can download it directly from the release
-        cp scripts/install.sh release-files/
+        cp artifacts/installer/install.sh release-files/
         echo "Release files:"
         ls -lh release-files/
 
@@ -1066,6 +1069,12 @@ jobs:
         pattern: release-*
         path: artifacts
 
+    - name: Download installer artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: installer
+        path: installer
+
     - name: Flatten release files
       run: |
         mkdir -p release-files
@@ -1323,7 +1332,7 @@ jobs:
         # 4. Upload install.sh AFTER the manifest — it is not manifest-referenced,
         #    so a transient failure here must never gate release visibility.
         echo "Uploading install.sh..."
-        s3cp scripts/install.sh "s3://${R2_BUCKET}/${R2_PREFIX}install.sh" \
+        s3cp installer/install.sh "s3://${R2_BUCKET}/${R2_PREFIX}install.sh" \
           --content-type "text/x-shellscript"
 
         # Symbol maps and debug info are published separately by the upload-symbols

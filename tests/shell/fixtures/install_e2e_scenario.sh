@@ -1,7 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Runs the bundled scripts/install.sh end to end against a throwaway root.
+# Runs the bundled install.sh end to end against a throwaway root.
 #
 # Invoked by test_install_e2e.bats as:
 #   unshare --user --map-root-user --mount --pid --fork bash <this> <work> <step>...

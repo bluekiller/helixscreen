@@ -65,7 +65,7 @@ PY
 #                               REPLACES PATH rather than prepending to it -
 #                               `env PATH="$bin" ...`, or a script that hardens
 #                               PATH by putting the stock system directories
-#                               first, as scripts/install.sh does.
+#                               first, as install.sh does.
 #
 #   name() { :; }; export -f    A bash function. Outranks PATH, so it survives
 #                               both of those. Lost at a non-bash callee, and

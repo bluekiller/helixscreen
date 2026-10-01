@@ -8,11 +8,9 @@ what each script is for; the script's own header carries the reasoning behind it
 ### Installation & Deployment
 | Script | Purpose |
 |--------|---------|
-| `install.sh` | **Auto-generated** single-file installer for end users (`curl\|sh`). Do NOT edit directly |
 | `install-dev.sh` | Modular dev installer - uses `lib/installer/` modules. Edit this one |
-| `uninstall.sh` | **Auto-generated** single-file uninstaller. Do NOT edit directly |
-| `bundle-installer.sh` | Bundles `install-dev.sh` + `lib/installer/*` → `install.sh` |
-| `bundle-uninstaller.sh` | Bundles uninstall modules → `uninstall.sh` |
+| `bundle-installer.sh` | Bundles `lib/installer/*` → `install.sh`, the single-file end-user installer (`curl\|sh`). Run through `make installer` → `build/installer/`; never committed |
+| `bundle-uninstaller.sh` | Bundles uninstall modules → `uninstall.sh` (`make installer` → `build/installer/`) |
 | `helix-launcher.sh` | Systemd-launched watchdog wrapper. Sources `helixscreen.env` for runtime config |
 | `check-deps.sh` | Validates build dependencies. `--minimal` for cross-compile environments |
 | `device-env-set.sh` | Idempotently set one `KEY=VALUE` in a deployed device's `helixscreen.env` over ssh. Deploys exclude that file, so this is the only thing that writes it; `sync-device-features` (`mk/cross.mk`) calls it per `bin/.build-features` |
@@ -198,7 +196,7 @@ each screen maps to a navigation recipe in `screenshot-recipes.sh`, the single s
 
 ## Key Patterns
 
-- **Auto-generated files**: `install.sh` and `uninstall.sh` are bundled from `install-dev.sh` + `lib/installer/`; edit those, then re-bundle
+- **Generated installers**: `install.sh` and `uninstall.sh` are bundled from `lib/installer/` by `make installer` into `build/installer/` and are not in git; edit the modules
 - **Telemetry credentials**: Scripts auto-load from `.env.telemetry` in project root. Set `HELIX_TELEMETRY_ADMIN_KEY` env var
 - **Asset regeneration**: via Makefile targets (`make regen-fonts`, `make regen-images`), not directly
 - **Python deps**: telemetry scripts need pandas; install `telemetry-requirements.txt` into the project `.venv/`

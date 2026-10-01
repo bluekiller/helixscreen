@@ -687,7 +687,7 @@ _flow_line() {
 }
 
 @test "install flow: bundled install.sh carries the call site" {
-    # scripts/install.sh is generated from the modules; a stale bundle would
+    # install.sh is generated from the modules; a stale bundle would
     # ship the old flow to every curl|sh user even with main.sh fixed.
-    grep -q '^    install_permission_rules "\$platform"$' "$WORKTREE_ROOT/scripts/install.sh"
+    grep -q '^    install_permission_rules "\$platform"$' "$INSTALL_BUNDLE"
 }

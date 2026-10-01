@@ -681,7 +681,7 @@ def extract_strings_from_cpp_directory(
 
         for cpp_path in cpp_files:
             # Skip generated files
-            if "generated" in str(cpp_path):
+            if "generated" in str(cpp_path.relative_to(directory)):
                 continue
             strings = extract_strings_from_cpp(cpp_path)
             result.update(strings)

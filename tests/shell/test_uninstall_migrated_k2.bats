@@ -18,7 +18,7 @@ setup() {
     load helpers
     install_gnu_sed_shim
 
-    . "$WORKTREE_ROOT/scripts/uninstall.sh"
+    . "$UNINSTALL_BUNDLE"
 
     export HELIX_INIT_SCRIPTS="" HELIX_PROCESSES="" PREVIOUS_UIS="" PREVIOUS_UI_SCRIPT=""
     export INIT_SYSTEM="sysv" AD5M_FIRMWARE="" SUDO=""
