@@ -43,6 +43,12 @@ class MoonrakerClientTestAccess {
         c.ws_callbacks_installed_ = true;
     }
 
+    // Run the WebSocket close handler as libhv does when the link drops. libhv's
+    // auto-reconnect follows without calling connect().
+    static void fire_ws_close(MoonrakerClient& c) {
+        c.on_ws_close();
+    }
+
     // Take the shared lock a WebSocket trampoline holds for as long as its callback
     // runs. A test holding it stands in for a callback that has not returned, which
     // is what disconnect()'s bounded drain is waiting on. Acquire it from a thread

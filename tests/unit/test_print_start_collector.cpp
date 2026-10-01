@@ -4787,8 +4787,7 @@ TEST_CASE_METHOD(PrintStartCollectorSequentialFixture,
         R"("response_patterns":[{"pattern":"sweep marker","phase":"BED_MESH","message":"Loading Bed Mesh...","weight":10}],)"
         R"("status_signals":[{"name":"sweep_zone","object":"toolhead",)"
         R"("when":[{"field":"position","index":1,"op":"gt","value":100}],)"
-        R"("phase":"BED_MESH","message":"Sweeping...","weight":10}],)"
-        R"("phase_weights":{"BED_MESH":10}})"));
+        R"("phase":"BED_MESH","message":"Sweeping...","weight":10}]})"));
     REQUIRE(profile != nullptr);
     collector().set_profile(profile);
     collector().start();

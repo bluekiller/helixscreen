@@ -8,51 +8,24 @@
 
 #include "ui_settings_telemetry_data.h"
 
-#include "ui_event_safety.h"
-#include "ui_nav_manager.h"
+#include "ui_callback_helpers.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
 
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "static_panel_registry.h"
 #include "system/telemetry_manager.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
-#include <memory>
-
 namespace helix::settings {
-
-// ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<TelemetryDataOverlay> g_telemetry_data_overlay;
-
-TelemetryDataOverlay& get_telemetry_data_overlay() {
-    if (!g_telemetry_data_overlay) {
-        g_telemetry_data_overlay = std::make_unique<TelemetryDataOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "TelemetryDataOverlay", []() { g_telemetry_data_overlay.reset(); });
-    }
-    return *g_telemetry_data_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-TelemetryDataOverlay::TelemetryDataOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
 
 TelemetryDataOverlay::~TelemetryDataOverlay() {
     if (subjects_initialized_) {
         deinit_subjects_base(subjects_);
     }
-    spdlog::trace("[{}] Destroyed", get_name());
 }
 
 // ============================================================================
@@ -75,68 +48,11 @@ void TelemetryDataOverlay::init_subjects() {
 }
 
 void TelemetryDataOverlay::register_callbacks() {
-    lv_xml_register_event_cb(nullptr, "on_telemetry_clear_queue", on_telemetry_clear_queue);
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
+    register_xml_callbacks({
+        {"on_telemetry_clear_queue",
+         [](lv_event_t*) { get_telemetry_data_overlay().handle_clear_queue(); }},
+    });
 }
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* TelemetryDataOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "telemetry_data_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
-
-void TelemetryDataOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Ensure subjects and callbacks are initialized
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    // Lazy create overlay
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Register for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack (on_activate will populate events)
-    NavigationManager::instance().push_overlay(overlay_root_);
-}
-
-// ============================================================================
-// LIFECYCLE HOOKS
-// ============================================================================
 
 void TelemetryDataOverlay::on_activate() {
     OverlayBase::on_activate();
@@ -150,10 +66,6 @@ void TelemetryDataOverlay::on_activate() {
 // ============================================================================
 
 void TelemetryDataOverlay::update_status() {
-    if (!subjects_initialized_) {
-        return;
-    }
-
     auto& telemetry = TelemetryManager::instance();
     bool enabled = telemetry.is_enabled();
     size_t count = telemetry.queue_size();
@@ -179,13 +91,8 @@ void TelemetryDataOverlay::update_status() {
 }
 
 void TelemetryDataOverlay::populate_events() {
-    if (!overlay_root_) {
-        return;
-    }
-
-    lv_obj_t* event_list = lv_obj_find_by_name(overlay_root_, "event_list");
+    lv_obj_t* event_list = helix::ui::find_required(overlay_root_, "event_list", get_name());
     if (!event_list) {
-        spdlog::warn("[{}] Could not find event_list widget", get_name());
         return;
     }
 
@@ -754,16 +661,6 @@ void TelemetryDataOverlay::handle_clear_queue() {
     // Refresh display
     update_status();
     populate_events();
-}
-
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void TelemetryDataOverlay::on_telemetry_clear_queue(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[TelemetryDataOverlay] on_telemetry_clear_queue");
-    get_telemetry_data_overlay().handle_clear_queue();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::settings

@@ -1858,6 +1858,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: 在 LED 控制小组件中显示为命名操作。不会出现在 LED 选择中。
   Needs attention: 需要处理
   Needs the {} package to switch spools: '切换料盘需要 {} 插件'
+  'Needs {}x{} free: remove or shrink a widget first': 需要 {}x{} 空位。请先移除或缩小小组件
   Net Weight (g): 净重（克）
   Network: 网络
   Network Address: 网络地址
@@ -1876,6 +1877,7 @@ translations:
   'New Spool: Step {} of {}': '新线轴: 第 {} 步,共 {} 步'
   New Version Available: 发现新版本
   New fan name: 新风扇名称
+  'New plugin available: {}. Enable it in Settings > Plugins.': '新插件可用：{}。请在设置 > 插件中启用。'
   New printer successfully added: 新打印机已成功添加
   New profile name: 新配置名称
   Next: 下一步
@@ -1992,6 +1994,7 @@ translations:
   Not connected to the printer: 未连接到打印机
   Not detected: 未检测到
   Not enough frequency data from the sweeps. Try again.: '扫频得到的频率数据不足，请重试。'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: 没有足够的空间放置此小组件。请重新排列或移除小组件以腾出空间。
   'Not in your spools? Set it up': 不在您的料盘中？立即设置
   Not now: 暂不
   Not yet available on this display: '此屏幕暂不支持'
@@ -3658,6 +3661,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} 需要 HelixPrint 插件。将打印原始文件。'
   '{} new': '{} 个新增'
   '{} new hardware available': '{} 个新硬件可用'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} 个新插件可用。请在设置 > 插件中启用。'
   '{} preset{}': '{} 个预设{}'
   '{} set to {}': '{} 已设为 {}'
   '{} set to {} {}': '{} 已设为 {} {}'

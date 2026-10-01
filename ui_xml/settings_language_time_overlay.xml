@@ -34,7 +34,8 @@
                               label="Time Format" label_tag="Time Format" icon="clock"
                               description="Choose 12-hour or 24-hour time display"
                               description_tag="Choose 12-hour or 24-hour time display" options="12 Hour&#10;24 Hour"
-                              options_tag="12 Hour&#10;24 Hour" callback="on_time_format_changed"/>
+                              options_tag="12 Hour&#10;24 Hour" bind_selected="settings_time_format"
+                              callback="on_time_format_changed"/>
       </setting_group>
       <!-- Bottom padding for scroll -->
       <lv_obj width="100%" scrollable="false">

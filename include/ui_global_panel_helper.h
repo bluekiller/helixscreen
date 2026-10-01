@@ -10,22 +10,11 @@
 #include <memory>
 #include <stdexcept>
 
-#define DEFINE_GLOBAL_PANEL(PanelType, global_var, getter_func)                                    \
-    static std::unique_ptr<PanelType> global_var;                                                  \
-    PanelType& getter_func() {                                                                     \
-        if (!global_var) {                                                                         \
-            global_var = std::make_unique<PanelType>();                                            \
-            StaticPanelRegistry::instance().register_destroy(#PanelType,                           \
-                                                             []() { global_var.reset(); });        \
-        }                                                                                          \
-        return *global_var;                                                                        \
-    }
-
 /**
  * @brief Define overlay global storage with strict getter (requires init)
  *
- * Unlike DEFINE_GLOBAL_PANEL which auto-initializes, this requires explicit
- * init. Use for overlays that need constructor arguments.
+ * Unlike helix::lazy_global, which constructs on first use, this requires an
+ * explicit init. Use for overlays that need constructor arguments.
  *
  * @code
  * // In .cpp file:

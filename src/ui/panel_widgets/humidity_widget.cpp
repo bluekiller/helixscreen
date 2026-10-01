@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "humidity_widget.h"
-
 #include "format_utils.h"
 #include "humidity_sensor_manager.h"
 #include "observer_factory.h"
@@ -68,27 +66,6 @@ static void humidity_widget_init_subjects() {
 
 namespace helix {
 void register_humidity_widget() {
-    register_widget_factory("humidity",
-                            [](const std::string&) { return std::make_unique<HumidityWidget>(); });
     register_widget_subjects("humidity", humidity_widget_init_subjects);
 }
 } // namespace helix
-
-using namespace helix;
-
-HumidityWidget::~HumidityWidget() {
-    detach();
-}
-
-void HumidityWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen*/) {
-    widget_obj_ = widget_obj;
-    if (widget_obj_)
-        lv_obj_set_user_data(widget_obj_, this);
-}
-
-void HumidityWidget::detach() {
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-        widget_obj_ = nullptr;
-    }
-}

@@ -228,11 +228,7 @@ class PrintStatusPanel : public OverlayBase {
     }
     //
 
-    /**
-     * @brief Get XML component name for lv_xml_create()
-     * @return "print_status_panel"
-     */
-    const char* get_xml_component_name() const {
+    const char* xml_component() const override {
         return "print_status_panel";
     }
 
@@ -703,26 +699,13 @@ class PrintStatusPanel : public OverlayBase {
     /// thread (observer callbacks + gcode-load paths).
     void recompute_scoped_runout();
 
-    //
-    // === Static Trampolines ===
-    //
-
-    static void on_temp_card_clicked(lv_event_t* e);
-    static void on_temp_graph_clicked(lv_event_t* e);
-    static void on_dismiss_overlay_clicked(lv_event_t* e);
-    static void on_tune_clicked(lv_event_t* e);
-    static void on_units_toggle_clicked(lv_event_t* e);
-    static void on_print_status_camera(lv_event_t* e);
-    static void on_reprint_clicked(lv_event_t* e);
-    static void on_files_clicked(lv_event_t* e);
-    static void on_objects_clicked(lv_event_t* e);
-    static void on_view_toggle_clicked(lv_event_t* e);
-    static void on_fans_clicked(lv_event_t* e);
     // SIZE_CHANGED on controls_section — triggers density + fit recompute.
     // Direct lv_obj_add_event_cb registration is correct here: SIZE_CHANGED
     // has no XML binding equivalent (only click/value events go through XML).
     static void on_controls_size_changed(lv_event_t* e);
     void handle_fans_click();
+    void handle_objects_toggle();
+    void handle_view_toggle();
 
     // Static resize callback (registered with ui_resize_handler)
     static void on_resize_static();

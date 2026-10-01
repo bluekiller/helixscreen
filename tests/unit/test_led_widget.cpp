@@ -159,7 +159,7 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: a vanished device resolves to the
     lv_obj_t* root = lv_obj_create(test_screen());
     lv_obj_t* button = lv_obj_create(root);
     lv_obj_add_event_cb(button, LedWidget::light_toggle_cb, LV_EVENT_CLICKED, nullptr);
-    w.attach(root, test_screen());
+    w.attach_tile(root, test_screen());
 
     CHECK(w.light_key() == saved);
     CHECK(name_of("led") == chamber_name);
@@ -170,7 +170,7 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: a vanished device resolves to the
     lv_obj_send_event(button, LV_EVENT_CLICKED, nullptr);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     CHECK(scripts_naming(client, "chamber_light") > 0);
-    w.detach();
+    w.detach_tile();
 }
 
 TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: All lights toggles every switchable device",
@@ -206,7 +206,7 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: a fresh button names and toggles 
     lv_obj_t* root = lv_obj_create(test_screen());
     lv_obj_t* button = lv_obj_create(root);
     lv_obj_add_event_cb(button, LedWidget::light_toggle_cb, LV_EVENT_CLICKED, nullptr);
-    w.attach(root, test_screen());
+    w.attach_tile(root, test_screen());
 
     CHECK(name_of("led") == "Chamber Light");
 
@@ -215,22 +215,22 @@ TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: a fresh button names and toggles 
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     CHECK(scripts_naming(client, "chamber_light") > 0);
     CHECK(scripts_naming(client, "sb_leds") == 0);
-    w.detach();
+    w.detach_tile();
 }
 
 TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: the name follows the chosen device",
                  "[led][light_button]") {
     LedWidget w("led", ps, api.get());
     w.set_config({{"led", "neopixel sb_leds"}});
-    w.attach(lv_obj_create(test_screen()), test_screen());
+    w.attach_tile(lv_obj_create(test_screen()), test_screen());
     CHECK(name_of("led") == "Sb LEDs");
-    w.detach();
+    w.detach_tile();
 
     LedWidget all("led:1", ps, api.get());
     all.set_config({{"led", "all"}});
-    all.attach(lv_obj_create(test_screen()), test_screen());
+    all.attach_tile(lv_obj_create(test_screen()), test_screen());
     CHECK(name_of("led:1") == "All lights");
-    all.detach();
+    all.detach_tile();
 }
 
 TEST_CASE_METHOD(LedWidgetFixture,
@@ -248,15 +248,15 @@ TEST_CASE_METHOD(LedWidgetFixture,
     first.set_config(nlohmann::json::object());
     second.set_config(nlohmann::json::object());
 
-    first.attach(lv_obj_create(test_screen()), test_screen());
-    second.attach(lv_obj_create(test_screen()), test_screen());
+    first.attach_tile(lv_obj_create(test_screen()), test_screen());
+    second.attach_tile(lv_obj_create(test_screen()), test_screen());
 
     CHECK(first.light_key() == "neopixel sb_leds");
     CHECK(second.light_key() == "neopixel sb_leds");
     CHECK(first.targets() == std::vector<std::string>{"neopixel sb_leds"});
     CHECK(cfg->try_get_json(cfg->df() + LIGHT_BUTTON_PENDING_PATH)->is_null());
-    first.detach();
-    second.detach();
+    first.detach_tile();
+    second.detach_tile();
 }
 
 TEST_CASE_METHOD(LedWidgetFixture, "LedWidget: the name follows a change in the set of devices",
@@ -359,7 +359,7 @@ TEST_CASE_METHOD(LedPickerFixture, "LedWidget: a picker tap picks the row the us
                  "[led][light_button]") {
     LedWidget w("led", state(), &api());
     w.set_config(nlohmann::json::object());
-    w.attach(lv_obj_create(test_screen()), test_screen());
+    w.attach_tile(lv_obj_create(test_screen()), test_screen());
     w.on_edit_configure();
     lv_obj_t* row = lv_obj_find_by_name(test_screen(), "led_picker_row_1");
     REQUIRE(row != nullptr);
@@ -371,7 +371,7 @@ TEST_CASE_METHOD(LedPickerFixture, "LedWidget: a picker tap picks the row the us
     process_lvgl(50);
 
     CHECK(w.light_key() == "neopixel sb_leds");
-    w.detach();
+    w.detach_tile();
 }
 
 namespace {

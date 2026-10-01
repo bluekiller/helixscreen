@@ -28,6 +28,7 @@
 #include "macro_patterns.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
+#include "moonraker_subscription_merge.h"
 #include "plr_backend.h"
 #include "power_device_state.h"
 #include "power_loss_sensor.h"
@@ -128,7 +129,7 @@ void MoonrakerDiscoverySequence::start(std::function<void()> on_complete,
 
     client_.send_jsonrpc(
         "server.connection.identify", identify_params,
-        [this, seq](json identify_response) {
+        [this, seq](const json& identify_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
 
@@ -163,7 +164,7 @@ void MoonrakerDiscoverySequence::discover_power_devices() {
     // Klippy is not ready (power devices only need Moonraker, not Klipper).
     client_.send_jsonrpc(
         "machine.device_power.devices", json::object(),
-        [](json response) {
+        [](const json& response) {
             std::vector<PowerDevice> devices;
             if (response.contains("result") && response["result"].contains("devices")) {
                 for (const auto& dev : response["result"]["devices"]) {
@@ -294,7 +295,7 @@ void MoonrakerDiscoverySequence::parse_system_info(const json& sys_response) {
 void MoonrakerDiscoverySequence::detect_webcam(json service_state) {
     client_.send_jsonrpc(
         "server.webcams.list", json::object(),
-        [service_state = std::move(service_state)](json response) {
+        [service_state = std::move(service_state)](const json& response) {
             std::vector<WebcamInfo> cams;
             if (response.contains("result") && response["result"].contains("webcams")) {
                 for (const auto& entry : response["result"]["webcams"]) {
@@ -415,7 +416,7 @@ void MoonrakerDiscoverySequence::continue_discovery(uint64_t seq) {
     // -32601 "Method not found", causing confusing error toasts. Gate here instead.
     client_.send_jsonrpc(
         "server.info", json(),
-        [this, seq](json server_info_response) {
+        [this, seq](const json& server_info_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
 
@@ -472,7 +473,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
     // Silent=true to suppress error toast if Klippy goes away between gate and this call
     client_.send_jsonrpc(
         "printer.objects.list", json(),
-        [this, seq](json response) {
+        [this, seq](const json& response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
             // Debug: Log raw response
@@ -545,7 +546,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 };
                 client_.send_jsonrpc(
                     "printer.objects.query", json{{"objects", claim_query}},
-                    [settle](json reply) {
+                    [settle](const json& reply) {
                         const json* status = nullptr;
                         auto result = reply.find("result");
                         if (result != reply.end() && result->is_object()) {
@@ -566,7 +567,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
             }
 
             // Step 2: Get server information
-            client_.send_jsonrpc("server.info", {}, [this, seq](json info_response) {
+            client_.send_jsonrpc("server.info", {}, [this, seq](const json& info_response) {
                 if (is_stale() || !is_current_sequence(seq))
                     return;
                 if (info_response.contains("result")) {
@@ -631,7 +632,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                             // overwrites the current pass's correct answer.
                             client_.send_jsonrpc(
                                 "server.spoolman.status", json::object(),
-                                [this, seq](json response) {
+                                [this, seq](const json& response) {
                                     if (is_stale() || !is_current_sequence(seq))
                                         return;
                                     bool connected = false;
@@ -676,7 +677,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                             // user's global timelapse on print start (#1094).
                             client_.send_jsonrpc(
                                 "machine.timelapse.get_settings", json::object(),
-                                [](json response) {
+                                [](const json& response) {
                                     bool enabled = false;
                                     if (response.contains("result")) {
                                         enabled = response["result"].value("enabled", false);
@@ -723,7 +724,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 // empty service_state that reads as "assume available".
                 client_.send_jsonrpc(
                     "machine.system_info", json::object(),
-                    [this](json sys_response) {
+                    [this](const json& sys_response) {
                         parse_system_info(sys_response);
 #if HELIX_HAS_CAMERA
                         detect_webcam(webcam::extract_service_state(sys_response));
@@ -749,7 +750,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 discover_sensors();
 
                 // Step 3: Get printer information
-                client_.send_jsonrpc("printer.info", {}, [this, seq](json printer_response) {
+                client_.send_jsonrpc("printer.info", {}, [this, seq](const json& printer_response) {
                     if (is_stale() || !is_current_sequence(seq))
                         return;
                     if (printer_response.contains("result")) {
@@ -815,7 +816,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                         "printer.objects.query",
                         {{"objects",
                           json::object({{"configfile", json::array({"config", "settings"})}})}},
-                        [this](json config_response) {
+                        [this](const json& config_response) {
                             if (config_response.contains("result") &&
                                 config_response["result"].contains("status") &&
                                 config_response["result"]["status"].contains("configfile") &&
@@ -1037,7 +1038,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                         client_.send_jsonrpc(
                             "printer.objects.query", {{"objects", mcu_query}},
                             [this, seq, mcu_obj, pending_mcu_queries, mcu_results,
-                             mcu_version_results, mcu_results_mutex](json mcu_response) {
+                             mcu_version_results, mcu_results_mutex](const json& mcu_response) {
                                 if (is_stale() || !is_current_sequence(seq))
                                     return;
                                 std::string chip_type;
@@ -1541,7 +1542,7 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
     // QIDI Box — box_extras carries box_drying_state.box<N>.{dry_state, end_time}
     // for the dryer countdown (issue #1019); save_variables carries slot/box state.
     // Both are also bootstrap-queried in AmsBackendQidi::on_started(); subscribing
-    // keeps drying-state changes pushing live to handle_status_update().
+    // keeps drying-state changes pushing live to handle_status().
     if (hw.mmu_type() == AmsType::QIDI_BOX) {
         subscription_objects["box_extras"] = nullptr;
         subscription_objects["save_variables"] = nullptr;
@@ -1724,103 +1725,282 @@ void MoonrakerDiscoverySequence::complete_discovery_subscription(uint64_t seq) {
                      hw.tool_names().size());
     }
 
-    json subscribe_params = {{"objects", subscription_objects}};
-    size_t num_subscribed = subscription_objects.size();
+    {
+        // A refresh asked for meanwhile stays pending and is re-checked once this settles.
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        ++subscription_epoch_;
+        last_app_objects_ = subscription_objects;
+        last_sent_objects_ = json();
+        subscribed_ = false;
+        refresh_in_flight_ = false;
+    }
+    send_discovery_subscribe(seq, hw, subscription_objects, current_extras());
+}
+
+void MoonrakerDiscoverySequence::send_discovery_subscribe(uint64_t seq, const PrinterDiscovery& hw,
+                                                          const json& app, const json& extras) {
+    json objects = merge_subscription_objects(app, extras);
+    const bool carried_extras = !extras.empty();
+    if (carried_extras) {
+        spdlog::info("[Moonraker Client] Subscribing {} plugin object(s)", extras.size());
+    }
+    json subscribe_params = {{"objects", objects}};
+    const size_t num_subscribed = objects.size();
+
+    // A refused plugin object is reported by the warning below, and a refused app
+    // subscription by DISCOVERY_FAILED, so neither wants the generic toast.
+    const rpc_error_policy::CallerIntent intent{/*silent=*/carried_extras,
+                                                /*surfaces_errors=*/!carried_extras};
 
     client_.send_jsonrpc(
         "printer.objects.subscribe", subscribe_params,
-        [this, seq, num_subscribed, hw](json sub_response) {
+        [this, seq, num_subscribed, hw, objects](const json& sub_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
-            if (sub_response.contains("result")) {
-                spdlog::info("[Moonraker Client] Subscription complete: {} objects subscribed",
-                             num_subscribed);
+            {
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                last_sent_objects_ = objects;
+                subscribed_ = true;
+            }
+            finish_discovery_subscription(hw, num_subscribed, sub_response);
+            drain_pending_refresh();
+        },
+        [this, seq, num_subscribed, hw, app, extras, carried_extras](const MoonrakerError& err) {
+            if (is_stale() || !is_current_sequence(seq))
+                return;
+            // The socket is gone; the next connection runs discovery again.
+            if (err.type == MoonrakerErrorType::CONNECTION_LOST)
+                return;
+            if (carried_extras) {
+                spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: {}; "
+                             "subscribing the app objects alone",
+                             extras.dump(), err.message);
+                // A timeout says nothing about the objects, so only a refusal is remembered.
+                if (!err.is_transport_loss())
+                    reject_extras(extras);
+                send_discovery_subscribe(seq, hw, app, json::object());
+                return;
+            }
+            finish_discovery_subscription(
+                hw, num_subscribed,
+                json{{"error", {{"code", err.code}, {"message", err.message}}}});
+        },
+        0, false, intent);
+}
 
-                // Per-filament operation temperatures are static firmware
-                // data published on the console, not through status, so the
-                // one capture belongs at connect time. No-ops on a printer
-                // whose firmware publishes none.
-                filament_temps::capture_on_connect(client_, hw);
+void MoonrakerDiscoverySequence::finish_discovery_subscription(const PrinterDiscovery& hw,
+                                                               size_t num_subscribed,
+                                                               const json& sub_response) {
+    if (sub_response.contains("result")) {
+        spdlog::info("[Moonraker Client] Subscription complete: {} objects subscribed",
+                     num_subscribed);
 
-                // Process initial state from subscription response
-                // Moonraker returns current values in result.status
-                if (sub_response["result"].contains("status")) {
-                    const auto& status = sub_response["result"]["status"];
-                    spdlog::info(
-                        "[Moonraker Client] Processing initial printer state from subscription");
+        // Per-filament operation temperatures are static firmware
+        // data published on the console, not through status, so the
+        // one capture belongs at connect time. No-ops on a printer
+        // whose firmware publishes none.
+        filament_temps::capture_on_connect(client_, hw);
 
-                    // DEBUG: Log print_stats specifically to diagnose startup sync issues
-                    if (status.contains("print_stats")) {
-                        spdlog::info("[Moonraker Client] INITIAL print_stats: {}",
-                                     status["print_stats"].dump());
-                    } else {
-                        spdlog::warn("[Moonraker Client] INITIAL status has NO print_stats!");
-                    }
+        // Process initial state from subscription response
+        // Moonraker returns current values in result.status
+        if (sub_response["result"].contains("status")) {
+            const auto& status = sub_response["result"]["status"];
+            spdlog::info("[Moonraker Client] Processing initial printer state from subscription");
 
-                    // A previous session can leave the U1's firmware holding
-                    // its screws-tilt calibration state, which refuses
-                    // unrelated filament operations until cleared. Connect
-                    // time is the only moment to act - never a live poll - so
-                    // a calibration another client is actively driving keeps
-                    // its state unless its own probe step proves nothing is
-                    // running.
-                    screws_tilt::reconcile_on_connect(client_, hw, status);
-                    // Same shape, one interlock over: a batch feed interrupted
-                    // by a lost connection strands the macro's `doing`, which
-                    // refuses every print start until cleared. Clearing is
-                    // safe only when no print owns the interlock - the guard
-                    // lives in the reconcile itself. The lookup key is the
-                    // config-case object name, matching the subscription.
-                    const std::string batch_macro =
-                        hw.macro_config_name(helix::macro_patterns::AUTO_FEEDING_BATCH);
-                    if (!batch_macro.empty()) {
-                        // A batch this process dispatched and has not seen
-                        // complete owns the interlock, so the reconcile must
-                        // not clear it on a mid-batch reconnect. The backends
-                        // answer the capability question; which one runs
-                        // batches is vendor knowledge that stays there.
-                        batch_feeding::reconcile_on_connect(
-                            client_, status, fmt::format("gcode_macro {}", batch_macro),
-                            AmsState::instance().any_filament_batch_in_flight());
-                    }
+            // DEBUG: Log print_stats specifically to diagnose startup sync issues
+            if (status.contains("print_stats")) {
+                spdlog::info("[Moonraker Client] INITIAL print_stats: {}",
+                             status["print_stats"].dump());
+            } else {
+                spdlog::warn("[Moonraker Client] INITIAL status has NO print_stats!");
+            }
+
+            // A previous session can leave the U1's firmware holding
+            // its screws-tilt calibration state, which refuses
+            // unrelated filament operations until cleared. Connect
+            // time is the only moment to act - never a live poll - so
+            // a calibration another client is actively driving keeps
+            // its state unless its own probe step proves nothing is
+            // running.
+            screws_tilt::reconcile_on_connect(client_, hw, status);
+            // Same shape, one interlock over: a batch feed interrupted
+            // by a lost connection strands the macro's `doing`, which
+            // refuses every print start until cleared. Clearing is
+            // safe only when no print owns the interlock - the guard
+            // lives in the reconcile itself. The lookup key is the
+            // config-case object name, matching the subscription.
+            const std::string batch_macro =
+                hw.macro_config_name(helix::macro_patterns::AUTO_FEEDING_BATCH);
+            if (!batch_macro.empty()) {
+                // A batch this process dispatched and has not seen
+                // complete owns the interlock, so the reconcile must
+                // not clear it on a mid-batch reconnect. The backends
+                // answer the capability question; which one runs
+                // batches is vendor knowledge that stays there.
+                batch_feeding::reconcile_on_connect(
+                    client_, status, fmt::format("gcode_macro {}", batch_macro),
+                    AmsState::instance().any_filament_batch_in_flight());
+            }
+        }
+    } else if (sub_response.contains("error")) {
+        spdlog::error("[Moonraker Client] Subscription failed: {}", sub_response["error"].dump());
+
+        // Emit discovery failed event (subscription is part of discovery)
+        std::string error_msg = sub_response["error"].dump();
+        client_.emit_event(MoonrakerEventType::DISCOVERY_FAILED,
+                           fmt::format("Failed to subscribe to printer updates: {}", error_msg),
+                           false); // Warning, not error - discovery still completes
+    }
+
+    // Discovery complete - pass initial status to the callback so the caller
+    // can dispatch it AFTER initializing subsystems (init_fans, etc.); status
+    // dispatched from here would reach fan/sensor parsers before their subjects
+    // exist. Copy hardware_ under lock before invoking callback (#562, #777).
+    json initial_status;
+    if (sub_response.contains("result") && sub_response["result"].contains("status")) {
+        initial_status = sub_response["result"]["status"];
+    }
+    if (on_discovery_complete_) {
+        PrinterDiscovery hw_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(hardware_mutex_);
+            hw_snapshot = hardware_;
+        }
+        on_discovery_complete_(hw_snapshot, initial_status);
+    }
+    discovery_completed_.store(true);
+    if (on_complete_discovery_) {
+        auto cb = std::move(on_complete_discovery_);
+        on_error_discovery_ = nullptr;
+        cb();
+    }
+}
+
+void MoonrakerDiscoverySequence::set_extras_provider(std::function<json()> provider) {
+    std::lock_guard<std::mutex> lock(extras_mutex_);
+    extras_provider_ = std::move(provider);
+}
+
+json MoonrakerDiscoverySequence::current_extras() {
+    std::lock_guard<std::mutex> lock(extras_mutex_);
+    if (!extras_provider_)
+        return json::object();
+    json extras = extras_provider_();
+    if (!extras.is_object() || extras.empty() ||
+        (!rejected_extras_.empty() && extras.dump() == rejected_extras_))
+        return json::object();
+    return extras;
+}
+
+void MoonrakerDiscoverySequence::reject_extras(const json& extras) {
+    std::lock_guard<std::mutex> lock(extras_mutex_);
+    rejected_extras_ = extras.dump();
+}
+
+void MoonrakerDiscoverySequence::reset_subscription_state() {
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    ++subscription_epoch_;
+    subscribed_ = false;
+    last_sent_objects_ = json();
+    refresh_in_flight_ = false;
+    refresh_pending_ = false;
+}
+
+void MoonrakerDiscoverySequence::drain_pending_refresh() {
+    bool again = false;
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        // A refresh in flight drains the flag itself when it settles.
+        if (refresh_pending_ && !refresh_in_flight_) {
+            refresh_pending_ = false;
+            again = true;
+        }
+    }
+    if (again)
+        refresh_subscription();
+}
+
+void MoonrakerDiscoverySequence::refresh_subscription() {
+    json app;
+    uint64_t epoch = 0;
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        if (!subscribed_ || refresh_in_flight_) {
+            refresh_pending_ = true;
+            return;
+        }
+        refresh_in_flight_ = true;
+        app = last_app_objects_;
+        epoch = subscription_epoch_;
+    }
+
+    json extras = current_extras();
+    json objects = merge_subscription_objects(app, extras);
+    bool unchanged = false;
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        if (subscription_epoch_ != epoch)
+            return;
+        if (objects == last_sent_objects_) {
+            refresh_in_flight_ = false;
+            unchanged = true;
+        }
+    }
+    if (unchanged) {
+        // A refresh asked for while the extras were sampled went pending behind this one.
+        drain_pending_refresh();
+        return;
+    }
+
+    if (!extras.empty()) {
+        spdlog::info("[Moonraker Client] Subscribing {} plugin object(s)", extras.size());
+    }
+    // A refresh reports its own failures in the log; no request of it is the user's.
+    const rpc_error_policy::CallerIntent intent{/*silent=*/true, /*surfaces_errors=*/false};
+    client_.send_jsonrpc(
+        "printer.objects.subscribe", json{{"objects", objects}},
+        [this, epoch, objects](const json& response) {
+            {
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                // Whoever moved the epoch on also reset the in-flight state.
+                if (subscription_epoch_ != epoch)
+                    return;
+                last_sent_objects_ = objects;
+                refresh_in_flight_ = false;
+            }
+            if (response.contains("result") && response["result"].contains("status")) {
+                client_.dispatch_status_update(response["result"]["status"]);
+            }
+            drain_pending_refresh();
+        },
+        [this, epoch, extras](const MoonrakerError& err) {
+            {
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                if (subscription_epoch_ != epoch)
+                    return;
+                // Whether Moonraker kept the previous subscription is unknown, so the
+                // next refresh re-sends rather than comparing against it.
+                last_sent_objects_ = json();
+                refresh_in_flight_ = false;
+                if (err.type == MoonrakerErrorType::CONNECTION_LOST) {
+                    // Discovery on the next connection subscribes the current extras.
+                    refresh_pending_ = false;
+                    return;
                 }
-            } else if (sub_response.contains("error")) {
-                spdlog::error("[Moonraker Client] Subscription failed: {}",
-                              sub_response["error"].dump());
-
-                // Emit discovery failed event (subscription is part of discovery)
-                std::string error_msg = sub_response["error"].dump();
-                client_.emit_event(
-                    MoonrakerEventType::DISCOVERY_FAILED,
-                    fmt::format("Failed to subscribe to printer updates: {}", error_msg),
-                    false); // Warning, not error - discovery still completes
             }
-
-            // Discovery complete - pass initial status to the callback so the caller
-            // can dispatch it AFTER initializing subsystems (init_fans, etc.).
-            // Previously dispatch_status_update was called here separately, but that
-            // used a different queue than the init_fans callback, causing a race where
-            // initial fan/sensor data was processed before subjects existed.
-            // Copy hardware_ under lock before invoking callback (#562, #777).
-            json initial_status;
-            if (sub_response.contains("result") && sub_response["result"].contains("status")) {
-                initial_status = sub_response["result"]["status"];
+            if (!extras.empty() && !err.is_transport_loss()) {
+                spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: {}; "
+                             "subscribing the app objects alone",
+                             extras.dump(), err.message);
+                reject_extras(extras);
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                refresh_pending_ = true;
+            } else {
+                spdlog::error("[Moonraker Client] Subscription refresh failed: {}", err.message);
             }
-            if (on_discovery_complete_) {
-                PrinterDiscovery hw_snapshot;
-                {
-                    std::lock_guard<std::mutex> lock(hardware_mutex_);
-                    hw_snapshot = hardware_;
-                }
-                on_discovery_complete_(hw_snapshot, initial_status);
-            }
-            discovery_completed_.store(true);
-            if (on_complete_discovery_) {
-                auto cb = std::move(on_complete_discovery_);
-                on_error_discovery_ = nullptr;
-                cb();
-            }
-        });
+            drain_pending_refresh();
+        },
+        0, false, intent);
 }
 
 void MoonrakerDiscoverySequence::invoke_discovery_complete() {

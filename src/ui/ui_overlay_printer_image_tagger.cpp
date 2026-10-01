@@ -2,16 +2,16 @@
 
 #include "ui_overlay_printer_image_tagger.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
-#include "ui_event_safety.h"
 #include "ui_nav_manager.h"
 
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "panel_widgets/callout_layout.h"
 #include "printer_image_manager.h"
 #include "printer_images.h"
-#include "static_panel_registry.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -21,6 +21,8 @@
 #include <type_traits>
 
 namespace helix::settings {
+
+using helix::ui::find_required;
 
 std::optional<ImageTagTarget> displayed_image_tag_target() {
     ImageTagTarget t;
@@ -61,8 +63,6 @@ const char* prompt_text(TagPrompt p) {
 constexpr const char* kChipParts[] = {"nozzle", "bed", "chamber", "fan", "light", "toolhead"};
 constexpr size_t kChipCount = std::size(kChipParts);
 
-std::unique_ptr<PrinterImageTaggerOverlay> g_tagger_overlay;
-
 } // namespace
 
 std::string review_chip_name(CalloutKind k) {
@@ -80,27 +80,11 @@ std::optional<NormPoint> tagger_tap_point(const lv_area_t& image_box, lv_point_t
     return image_point_at(fit, tap.x - image_box.x1, tap.y - image_box.y1);
 }
 
-PrinterImageTaggerOverlay& get_printer_image_tagger_overlay() {
-    if (!g_tagger_overlay) {
-        g_tagger_overlay = std::make_unique<PrinterImageTaggerOverlay>();
-        StaticPanelRegistry::instance().register_destroy("PrinterImageTaggerOverlay",
-                                                         []() { g_tagger_overlay.reset(); });
-    }
-    return *g_tagger_overlay;
-}
-
-PrinterImageTaggerOverlay::PrinterImageTaggerOverlay() = default;
-
 PrinterImageTaggerOverlay::~PrinterImageTaggerOverlay() {
-    if (subjects_initialized_) {
-        deinit_subjects_base(subjects_);
-    }
+    deinit_subjects_base(subjects_);
 }
 
 void PrinterImageTaggerOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
     UI_MANAGED_SUBJECT_STRING(prompt_subject_, prompt_buf_, "", "printer_image_tagger_prompt",
                               subjects_);
     UI_MANAGED_SUBJECT_POINTER(image_src_subject_, image_src_buf_, "printer_image_tagger_src",
@@ -114,23 +98,37 @@ void PrinterImageTaggerOverlay::init_subjects() {
                                review_chip_shown_subject(static_cast<CalloutKind>(k)).c_str(),
                                subjects_);
     }
-    subjects_initialized_ = true;
 }
 
 void PrinterImageTaggerOverlay::register_callbacks() {
-    lv_xml_register_event_cb(nullptr, "on_printer_image_tagger_tap", on_tap);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_tagger_skip", on_skip);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_tagger_undo", on_undo);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_tagger_cancel", on_cancel);
-    lv_xml_register_event_cb(nullptr, "on_printer_image_tagger_save", on_save);
+    register_xml_callbacks({
+        {"on_printer_image_tagger_tap",
+         [](lv_event_t*) { get_printer_image_tagger_overlay().handle_tap(); }},
+        {"on_printer_image_tagger_skip",
+         [](lv_event_t*) {
+             auto& self = get_printer_image_tagger_overlay();
+             if (self.session_.skip()) {
+                 self.refresh();
+             }
+         }},
+        {"on_printer_image_tagger_undo",
+         [](lv_event_t*) {
+             auto& self = get_printer_image_tagger_overlay();
+             self.session_.undo();
+             self.refresh();
+         }},
+        {"on_printer_image_tagger_cancel",
+         [](lv_event_t*) { NavigationManager::instance().go_back(); }},
+        {"on_printer_image_tagger_save",
+         [](lv_event_t*) { get_printer_image_tagger_overlay().handle_save(); }},
+    });
 }
 
 lv_obj_t* PrinterImageTaggerOverlay::create(lv_obj_t* parent) {
     if (overlay_root_) {
         return overlay_root_;
     }
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "printer_image_tagger_overlay", nullptr));
+    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, xml_component(), nullptr));
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -141,27 +139,18 @@ lv_obj_t* PrinterImageTaggerOverlay::create(lv_obj_t* parent) {
     return overlay_root_;
 }
 
-void PrinterImageTaggerOverlay::show(lv_obj_t* parent_screen, const ImageTagTarget& target) {
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-    if (!overlay_root_ && parent_screen) {
-        create(parent_screen);
-    }
-    if (!overlay_root_) {
-        return;
-    }
+bool PrinterImageTaggerOverlay::show(lv_obj_t* parent_screen, const ImageTagTarget& target) {
     target_ = target;
     session_ = {};
+    return OverlayBase::show(parent_screen);
+}
+
+void PrinterImageTaggerOverlay::before_show() {
     std::strncpy(image_src_buf_, target_.path.c_str(), sizeof(image_src_buf_) - 1);
     lv_subject_set_pointer(&image_src_subject_, image_src_buf_);
     refresh();
     spdlog::info("[{}] Tagging '{}' ({}x{})", get_name(), target_.key, target_.natural_w,
                  target_.natural_h);
-
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-    NavigationManager::instance().push_overlay(overlay_root_);
 }
 
 void PrinterImageTaggerOverlay::on_activate() {
@@ -185,8 +174,8 @@ void PrinterImageTaggerOverlay::refresh() {
 }
 
 void PrinterImageTaggerOverlay::place_review_chips() {
-    lv_obj_t* img = lv_obj_find_by_name(overlay_root_, "tagger_image");
-    lv_obj_t* layer = lv_obj_find_by_name(overlay_root_, "tagger_review_layer");
+    lv_obj_t* img = find_required(overlay_root_, "tagger_image", get_name());
+    lv_obj_t* layer = find_required(overlay_root_, "tagger_review_layer", get_name());
     if (!img || !layer) {
         return;
     }
@@ -222,7 +211,7 @@ void PrinterImageTaggerOverlay::place_review_chips() {
 
 void PrinterImageTaggerOverlay::handle_tap() {
     lv_indev_t* indev = lv_indev_active();
-    lv_obj_t* img = overlay_root_ ? lv_obj_find_by_name(overlay_root_, "tagger_image") : nullptr;
+    lv_obj_t* img = find_required(overlay_root_, "tagger_image", get_name());
     if (!indev || !img || session_.done()) {
         return;
     }
@@ -251,41 +240,6 @@ void PrinterImageTaggerOverlay::handle_save() {
     spdlog::info("[{}] Saved tags for '{}'", get_name(), target_.key);
     PrinterImageManager::instance().notify_image_changed();
     NavigationManager::instance().go_back();
-}
-
-void PrinterImageTaggerOverlay::on_tap(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageTagger] on_tap");
-    get_printer_image_tagger_overlay().handle_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageTaggerOverlay::on_skip(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageTagger] on_skip");
-    auto& self = get_printer_image_tagger_overlay();
-    if (self.session_.skip()) {
-        self.refresh();
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageTaggerOverlay::on_undo(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageTagger] on_undo");
-    auto& self = get_printer_image_tagger_overlay();
-    self.session_.undo();
-    self.refresh();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageTaggerOverlay::on_cancel(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageTagger] on_cancel");
-    NavigationManager::instance().go_back();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrinterImageTaggerOverlay::on_save(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrinterImageTagger] on_save");
-    get_printer_image_tagger_overlay().handle_save();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::settings

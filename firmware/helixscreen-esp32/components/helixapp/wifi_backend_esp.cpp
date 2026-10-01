@@ -54,7 +54,6 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
-#include <map>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -315,12 +314,12 @@ class WifiBackendEsp : public WifiBackend {
     void start_async() override {
         WiFiError result = start();
         if (result.success()) {
-            fire_event("READY");
+            dispatch_event("READY");
         } else if (result.result != WiFiResult::NOT_INITIALIZED) {
             // NOT_INITIALIZED here means "gate closed" (deferred, not a real
             // failure) — no INIT_FAILED noise for that; the retry_async()
             // after the gate opens is the real attempt.
-            fire_event("INIT_FAILED", result.technical_msg);
+            dispatch_event("INIT_FAILED", result.technical_msg);
         }
     }
 
@@ -346,18 +345,6 @@ class WifiBackendEsp : public WifiBackend {
 
     bool is_running() const override {
         return running_;
-    }
-
-    void register_event_callback(const std::string& name,
-                                 std::function<void(const std::string&)> callback) override {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = callbacks_.find(name);
-        if (it == callbacks_.end()) {
-            callbacks_.insert({name, std::move(callback)});
-        } else {
-            spdlog::warn("[WifiBackend] esp32: callback '{}' already registered (not replacing)",
-                         name);
-        }
     }
 
     WiFiError trigger_scan() override {
@@ -459,9 +446,6 @@ class WifiBackendEsp : public WifiBackend {
     std::mutex start_mutex_;
     esp_netif_t* netif_ = nullptr;
     bool handlers_registered_ = false;
-
-    std::mutex callbacks_mutex_;
-    std::map<std::string, std::function<void(const std::string&)>> callbacks_;
 
     std::mutex networks_mutex_;
     std::vector<WiFiNetwork> cached_networks_;
@@ -590,23 +574,6 @@ class WifiBackendEsp : public WifiBackend {
         return !current_psk_.empty();
     }
 
-    // ------------------------------------------------------------------
-    // Event plumbing
-    // ------------------------------------------------------------------
-
-    void fire_event(const std::string& event_name, const std::string& data = "") {
-        std::function<void(const std::string&)> cb;
-        {
-            std::lock_guard<std::mutex> lock(callbacks_mutex_);
-            auto it = callbacks_.find(event_name);
-            if (it == callbacks_.end()) {
-                return;
-            }
-            cb = it->second;
-        }
-        cb(data);
-    }
-
     void arm_assoc_timeout() {
         if (!assoc_timeout_timer_) {
             return;
@@ -637,7 +604,7 @@ class WifiBackendEsp : public WifiBackend {
     // threading rule). We do zero heap-heavy or teardown work here directly;
     // esp_wifi_connect()/disconnect() are lightweight driver calls (the
     // vendor's own reference pattern uses them directly from this context),
-    // and fire_event() just invokes the registered WiFiManager callback,
+    // and dispatch_event() just invokes the registered WiFiManager callback,
     // which marshals real UI/subject work via ui_queue_update itself.
     static void wifi_event_handler(void* arg, esp_event_base_t base, int32_t id, void* data) {
         auto* self = static_cast<WifiBackendEsp*>(arg);
@@ -713,9 +680,9 @@ class WifiBackendEsp : public WifiBackend {
 
         bool was_explicit = explicit_connect_pending_.exchange(false);
         if (was_explicit && has_password_configured()) {
-            fire_event("AUTH_FAILED", "Connection failed");
+            dispatch_event("AUTH_FAILED", "Connection failed");
         } else {
-            fire_event("DISCONNECTED");
+            dispatch_event("DISCONNECTED");
         }
 
         schedule_retry();
@@ -761,7 +728,7 @@ class WifiBackendEsp : public WifiBackend {
         }
 
         ESP_LOGI(TAG, "got ip: %s", ip_str);
-        fire_event("CONNECTED");
+        dispatch_event("CONNECTED");
     }
 
     void on_scan_done() {
@@ -815,7 +782,7 @@ class WifiBackendEsp : public WifiBackend {
             cached_networks_ = std::move(networks);
         }
         ESP_LOGI(TAG, "scan complete: %u networks", static_cast<unsigned>(num));
-        fire_event("SCAN_COMPLETE");
+        dispatch_event("SCAN_COMPLETE");
     }
 };
 

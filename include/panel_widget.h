@@ -60,6 +60,22 @@ class PanelWidget {
     /// Called before widget destruction. Clean up observers and state.
     virtual void detach() = 0;
 
+    /// Bind @p root as this widget's tile root, then attach(). Every caller that
+    /// hands a widget a tree goes through here, so the root's user_data
+    /// back-pointer (what panel_widget_from_event<T> reads) is set before
+    /// attach() on every reuse and no widget sets it itself.
+    void attach_tile(lv_obj_t* root, lv_obj_t* parent_screen);
+
+    /// detach(), then clear the root binding. Safe when the root was already
+    /// deleted out from under the widget.
+    void detach_tile();
+
+    /// The tile root between attach_tile() and detach_tile(); null once the tree
+    /// is deleted.
+    lv_obj_t* root() const {
+        return root_;
+    }
+
     /// Called when the owning panel becomes visible.
     virtual void on_activate() {}
 
@@ -261,6 +277,11 @@ class PanelWidget {
 
   private:
     static void on_root_deleted_event(lv_event_t* e);
+    static void on_bound_root_deleted(lv_event_t* e);
+    void bind_root(lv_obj_t* obj);
+    void unbind_root();
+
+    lv_obj_t* root_ = nullptr;
 
     /// Where the delete hook is currently installed. Kept separately from any
     /// widget-owned root pointer because those are cleared by paths that

@@ -206,7 +206,9 @@ extern "C" int helix_bt_pair(helix_bt_context* ctx, const char* mac) {
     return r;
 }
 
-extern "C" int helix_bt_is_connected(helix_bt_context* ctx, const char* mac) {
+// Reads one boolean org.bluez.Device1 property: 1 or 0, or a negative errno
+// with ctx->last_error set.
+static int read_device_bool(helix_bt_context* ctx, const char* mac, const char* property) {
     if (!ctx)
         return -EINVAL;
     if (!mac) {
@@ -222,18 +224,19 @@ extern "C" int helix_bt_is_connected(helix_bt_context* ctx, const char* mac) {
 
     std::string path = mac_to_dbus_path(mac);
     int r = 0;
-    int connected = 0;
+    int value = 0;
     std::string err;
 
     try {
         ctx->bus_thread->run_sync([&](sd_bus* bus) {
             sd_bus_error error = SD_BUS_ERROR_NULL;
             r = sd_bus_get_property_trivial(bus, "org.bluez", path.c_str(), "org.bluez.Device1",
-                                            "Connected", &error, 'b', &connected);
+                                            property, &error, 'b', &value);
             if (r < 0) {
-                fprintf(stderr, "[bt] is_connected check failed for %s: %s\n", mac,
+                fprintf(stderr, "[bt] %s check failed for %s: %s\n", property, mac,
                         error.message ? error.message : strerror(-r));
-                err = error.message ? error.message : "failed to read Connected property";
+                err = error.message ? error.message
+                                    : std::string("failed to read ") + property + " property";
             }
             sd_bus_error_free(&error);
         });
@@ -247,95 +250,19 @@ extern "C" int helix_bt_is_connected(helix_bt_context* ctx, const char* mac) {
         ctx->last_error = err.empty() ? strerror(-r) : err;
         return r;
     }
-    return connected ? 1 : 0;
+    return value ? 1 : 0;
+}
+
+extern "C" int helix_bt_is_connected(helix_bt_context* ctx, const char* mac) {
+    return read_device_bool(ctx, mac, "Connected");
 }
 
 extern "C" int helix_bt_is_bonded(helix_bt_context* ctx, const char* mac) {
-    if (!ctx)
-        return -EINVAL;
-    if (!mac) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        ctx->last_error = "null MAC address";
-        return -EINVAL;
-    }
-    if (!ctx->bus || !ctx->bus_thread) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        ctx->last_error = "bus not initialized";
-        return -ENODEV;
-    }
-
-    std::string path = mac_to_dbus_path(mac);
-    int r = 0;
-    int bonded = 0;
-    std::string err;
-
-    try {
-        ctx->bus_thread->run_sync([&](sd_bus* bus) {
-            sd_bus_error error = SD_BUS_ERROR_NULL;
-            r = sd_bus_get_property_trivial(bus, "org.bluez", path.c_str(), "org.bluez.Device1",
-                                            "Bonded", &error, 'b', &bonded);
-            if (r < 0) {
-                fprintf(stderr, "[bt] is_bonded check failed for %s: %s\n", mac,
-                        error.message ? error.message : strerror(-r));
-                err = error.message ? error.message : "failed to read Bonded property";
-            }
-            sd_bus_error_free(&error);
-        });
-    } catch (const std::exception& e) {
-        err = e.what();
-        r = -EIO;
-    }
-
-    if (r < 0) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        ctx->last_error = err.empty() ? strerror(-r) : err;
-        return r;
-    }
-    return bonded ? 1 : 0;
+    return read_device_bool(ctx, mac, "Bonded");
 }
 
 extern "C" int helix_bt_is_paired(helix_bt_context* ctx, const char* mac) {
-    if (!ctx)
-        return -EINVAL;
-    if (!mac) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        ctx->last_error = "null MAC address";
-        return -EINVAL;
-    }
-    if (!ctx->bus || !ctx->bus_thread) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        ctx->last_error = "bus not initialized";
-        return -ENODEV;
-    }
-
-    std::string path = mac_to_dbus_path(mac);
-    int r = 0;
-    int paired = 0;
-    std::string err;
-
-    try {
-        ctx->bus_thread->run_sync([&](sd_bus* bus) {
-            sd_bus_error error = SD_BUS_ERROR_NULL;
-            r = sd_bus_get_property_trivial(bus, "org.bluez", path.c_str(), "org.bluez.Device1",
-                                            "Paired", &error, 'b', &paired);
-            if (r < 0) {
-                fprintf(stderr, "[bt] is_paired check failed for %s: %s\n", mac,
-                        error.message ? error.message : strerror(-r));
-                err = error.message ? error.message : "failed to read Paired property";
-            }
-            sd_bus_error_free(&error);
-        });
-    } catch (const std::exception& e) {
-        err = e.what();
-        r = -EIO;
-    }
-
-    if (r < 0) {
-        std::lock_guard<std::mutex> lock(ctx->mutex);
-        ctx->last_error = err.empty() ? strerror(-r) : err;
-        return r;
-    }
-    return paired ? 1 : 0;
+    return read_device_bool(ctx, mac, "Paired");
 }
 
 extern "C" int helix_bt_remove_device(helix_bt_context* ctx, const char* mac) {

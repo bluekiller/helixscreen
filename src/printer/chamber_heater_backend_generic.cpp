@@ -2,18 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // VENDOR_OK: this file is the vendor-knowledge border for chamber heaters.
 #include "chamber_heater_backend.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
 
 namespace helix::chamber {
 namespace {
-
-std::string to_upper_copy(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-    return s;
-}
 
 bool has_standalone_token(const std::string& upper, const char* tok) {
     const std::string token = tok;
@@ -81,7 +76,7 @@ const GenericChamberHeaterBackend kGeneric;
 /// CHAMBER 100 > ENCLOSURE 90 > CAVITY 85 > standalone-token BOX 60; -1
 /// compound, -40 air-quality, floored at 1 when any keyword matched.
 int keyword_confidence(const std::string& object_name) {
-    std::string upper = to_upper_copy(object_name);
+    std::string upper = helix::text_io::to_upper(object_name);
     int score = 0;
     const char* keyword = nullptr;
     if (upper.find("CHAMBER") != std::string::npos) {

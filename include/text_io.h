@@ -210,6 +210,39 @@ inline std::vector<std::string_view> split_ws(std::string_view s) {
     return out;
 }
 
+/// `s` without leading and trailing C-locale whitespace (space \t \n \v \f \r).
+/// The view points into `s`; "" when `s` is all whitespace.
+inline std::string_view trim(std::string_view s) {
+    constexpr std::string_view ws = " \t\n\v\f\r";
+    const size_t first = s.find_first_not_of(ws);
+    if (first == std::string_view::npos) {
+        return {};
+    }
+    return s.substr(first, s.find_last_not_of(ws) - first + 1);
+}
+
+/// ASCII-only case mapping: bytes outside A-Z / a-z pass through untouched,
+/// whatever the process locale.
+inline std::string to_lower(std::string_view s) {
+    std::string out(s);
+    for (char& c : out) {
+        if (c >= 'A' && c <= 'Z') {
+            c = static_cast<char>(c - 'A' + 'a');
+        }
+    }
+    return out;
+}
+
+inline std::string to_upper(std::string_view s) {
+    std::string out(s);
+    for (char& c : out) {
+        if (c >= 'a' && c <= 'z') {
+            c = static_cast<char>(c - 'a' + 'A');
+        }
+    }
+    return out;
+}
+
 // ---------------------------------------------------------------------------
 // Numbers. Strict: the whole view must be the number, no surrounding
 // whitespace. One leading '+' is accepted, as std::stoi/stod and >> accept it.

@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 356C LLC
 
 #include "geometry_budget_manager.h"
+#include "platform_capabilities.h"
 
 #include <cerrno>
 #include <cstdlib>
@@ -21,27 +22,27 @@ MemFree:         1363424 kB
 MemAvailable:    3768880 kB
 Buffers:          104872 kB
 Cached:          2091048 kB)";
-    REQUIRE(GeometryBudgetManager::parse_meminfo_available_kb(meminfo) == 3768880);
+    REQUIRE(helix::parse_meminfo_kb(meminfo, "MemAvailable") == 3768880);
 }
 
 TEST_CASE("Budget: parse MemAvailable from 1GB system", "[gcode][budget]") {
     const std::string meminfo = R"(MemTotal:         999936 kB
 MemFree:          102400 kB
 MemAvailable:     307200 kB)";
-    REQUIRE(GeometryBudgetManager::parse_meminfo_available_kb(meminfo) == 307200);
+    REQUIRE(helix::parse_meminfo_kb(meminfo, "MemAvailable") == 307200);
 }
 
 TEST_CASE("Budget: parse MemAvailable returns 0 on missing field", "[gcode][budget]") {
     const std::string meminfo = R"(MemTotal:        3884136 kB
 MemFree:         1363424 kB)";
-    REQUIRE(GeometryBudgetManager::parse_meminfo_available_kb(meminfo) == 0);
+    REQUIRE(helix::parse_meminfo_kb(meminfo, "MemAvailable") == 0);
 }
 
 TEST_CASE("Budget: parse MemAvailable from AD5M (256MB)", "[gcode][budget]") {
     const std::string meminfo = R"(MemTotal:         253440 kB
 MemFree:           12288 kB
 MemAvailable:      38912 kB)";
-    REQUIRE(GeometryBudgetManager::parse_meminfo_available_kb(meminfo) == 38912);
+    REQUIRE(helix::parse_meminfo_kb(meminfo, "MemAvailable") == 38912);
 }
 
 // Budget calculation tests

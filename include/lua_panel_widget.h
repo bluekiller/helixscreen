@@ -37,18 +37,12 @@ class LuaPanelWidget : public helix::PanelWidget {
         return false;
     }
 
-  protected:
-    void on_hooked_root_deleted() override {
-        root_ = nullptr;
-    }
-
   private:
     void run(WidgetHook hook, const LuaRuntime::PushFn& args = {});
     std::string plugin_id_;
     std::string widget_id_;
     std::string component_;
     LifetimeToken runtime_;
-    lv_obj_t* root_ = nullptr;
 };
 
 } // namespace helix::plugin

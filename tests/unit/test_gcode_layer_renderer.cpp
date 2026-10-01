@@ -1530,11 +1530,8 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // finish WITHOUT rendering again, so the raw buffer sits built-but-uncopied
     // (ghost_thread_ready_ true, ghost_cache_valid_ false).
     frame();
-    int guard = 0;
-    while (renderer.is_ghost_build_running() && guard++ < 500) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    REQUIRE(guard < 500);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    REQUIRE_FALSE(renderer.is_ghost_build_running());
     REQUIRE(renderer.is_ghost_build_complete());
     REQUIRE_FALSE(renderer.has_ghost_output()); // built, not yet copied
 
@@ -1553,10 +1550,14 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // not "mid-build".
     REQUIRE_FALSE(renderer.has_ghost_output());
 
-    // And the rebuild completes normally, leaving real output.
-    guard = 0;
+    // And the rebuild completes normally, leaving real output. Joining the
+    // replacement build first leaves only the frame-driven copy and cache work,
+    // which finishes in a fixed number of frames whatever the machine's load.
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    int guard = 0;
     while ((renderer.is_ghost_build_running() || renderer.needs_more_frames()) && guard++ < 500) {
         frame();
+        GCodeLayerRendererTestAccess::join_ghost_build(renderer);
     }
     REQUIRE(guard < 500);
     REQUIRE(renderer.has_ghost_output());

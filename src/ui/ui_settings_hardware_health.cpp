@@ -20,99 +20,10 @@
 #include "hardware_validator.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "printer_state.h"
-#include "static_panel_registry.h"
 
 #include <spdlog/spdlog.h>
 
-#include <memory>
-
 namespace helix::settings {
-
-// ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<HardwareHealthOverlay> g_hardware_health_overlay;
-
-HardwareHealthOverlay& get_hardware_health_overlay() {
-    if (!g_hardware_health_overlay) {
-        g_hardware_health_overlay = std::make_unique<HardwareHealthOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "HardwareHealthOverlay", []() { g_hardware_health_overlay.reset(); });
-    }
-    return *g_hardware_health_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-HardwareHealthOverlay::HardwareHealthOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
-
-HardwareHealthOverlay::~HardwareHealthOverlay() {
-    spdlog::trace("[{}] Destroyed", get_name());
-}
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
-
-void HardwareHealthOverlay::register_callbacks() {
-    // No XML callbacks needed - on_hardware_health_clicked is registered in SettingsPanel
-    // Action button callbacks use lv_obj_add_event_cb (dynamic row creation)
-    spdlog::debug("[{}] Callbacks registered", get_name());
-}
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* HardwareHealthOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    // Create from XML component
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "hardware_health_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
-
-void HardwareHealthOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Lazy create overlay
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack (on_activate will be called, which populates issues)
-    NavigationManager::instance().push_overlay(overlay_root_);
-}
 
 // ============================================================================
 // LIFECYCLE HOOKS

@@ -19,6 +19,10 @@
 
 namespace helix {
 
+namespace {
+constexpr const char* HISTORY_PATH = "/print_start_history/entries";
+}
+
 void PreprintPredictor::load_entries(const std::vector<PreprintEntry>& entries,
                                      StartCondition condition) {
     entries_.clear();
@@ -273,8 +277,7 @@ int PreprintPredictor::predicted_total() const {
 std::vector<PreprintEntry> PreprintPredictor::load_entries_from_config() {
     auto* cfg = Config::get_instance();
 
-    auto entries_json =
-        cfg->get<nlohmann::json>("/print_start_history/entries", nlohmann::json::array());
+    auto entries_json = cfg->get<nlohmann::json>(HISTORY_PATH, nlohmann::json::array());
     if (!entries_json.is_array() || entries_json.empty()) {
         return {};
     }
@@ -368,6 +371,28 @@ json PreprintPredictor::entries_to_json(const std::vector<PreprintEntry>& entrie
         entries_json.push_back(std::move(entry_json));
     }
     return entries_json;
+}
+
+void PreprintPredictor::append_to_config(const PreprintEntry& entry) {
+    auto entries = load_entries_from_config();
+    entries.push_back(entry);
+
+    const auto same_population = [&entry](const PreprintEntry& e) {
+        return e.temp_bucket == entry.temp_bucket && e.window == entry.window;
+    };
+    auto population = std::count_if(entries.begin(), entries.end(), same_population);
+    for (auto it = entries.begin(); population > MAX_ENTRIES && it != entries.end();) {
+        if (same_population(*it)) {
+            it = entries.erase(it);
+            --population;
+        } else {
+            ++it;
+        }
+    }
+    while (entries.size() > MAX_STORED_ENTRIES) {
+        entries.erase(entries.begin());
+    }
+    Config::get_instance()->set<json>(HISTORY_PATH, entries_to_json(entries));
 }
 
 int PreprintPredictor::predicted_total_from_config() {

@@ -3,6 +3,7 @@
 
 #include "ui_overlay_temp_graph.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_component_keypad.h"
 #include "ui_error_reporting.h"
 #include "ui_heater_config.h"
@@ -24,6 +25,7 @@
 #include "temperature_service.h"
 #include "theme_manager.h"
 #include "tool_state.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -63,21 +65,6 @@ static bool mode_to_heater_type(TempGraphOverlay::Mode mode, helix::HeaterType& 
     default:
         return false;
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Global instance
-// ─────────────────────────────────────────────────────────────────────────────
-
-static std::unique_ptr<TempGraphOverlay> g_temp_graph_overlay;
-
-TempGraphOverlay& get_global_temp_graph_overlay() {
-    if (!g_temp_graph_overlay) {
-        g_temp_graph_overlay = std::make_unique<TempGraphOverlay>();
-        StaticPanelRegistry::instance().register_destroy("TempGraphOverlay",
-                                                         []() { g_temp_graph_overlay.reset(); });
-    }
-    return *g_temp_graph_overlay;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,8 +127,6 @@ void set_temp_graph_visibility_snapshot(std::optional<std::vector<std::string>> 
 // Construction / Destruction
 // ─────────────────────────────────────────────────────────────────────────────
 
-TempGraphOverlay::TempGraphOverlay() = default;
-
 TempGraphOverlay::~TempGraphOverlay() {
     controller_.reset();
 }
@@ -151,7 +136,7 @@ TempGraphOverlay::~TempGraphOverlay() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void TempGraphOverlay::init_subjects() {
-    init_subjects_guarded([this]() {
+    {
         // mode_ is set by open() before this first runs; seeding the subject
         // with the current value avoids a transient wrong-mode frame between
         // XML create and the first lv_subject_set_int in open().
@@ -174,24 +159,28 @@ void TempGraphOverlay::init_subjects() {
                                "temp_graph_nozzle_status_state", subjects_);
         UI_MANAGED_SUBJECT_STRING(nozzle_card_status_subject_, nozzle_card_status_buffer_, "",
                                   "temp_graph_nozzle_status", subjects_);
-    });
+    }
 }
 
 void TempGraphOverlay::register_callbacks() {
-    // Callbacks registered in xml_registration.cpp at startup (before XML parsing)
+    register_xml_callbacks({
+        {"on_temp_graph_preset_clicked", on_temp_graph_preset_clicked},
+        {"on_temp_graph_custom_clicked", on_temp_graph_custom_clicked},
+    });
 }
 
 lv_obj_t* TempGraphOverlay::create(lv_obj_t* parent) {
-    if (!create_overlay_from_xml(parent, "temp_graph_overlay")) {
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    chip_row_ = lv_obj_find_by_name(overlay_root_, "chip_row");
-    graph_container_ = lv_obj_find_by_name(overlay_root_, "graph_container");
-    nozzle_strip_ = lv_obj_find_by_name(overlay_root_, "nozzle_control_strip");
-    bed_strip_ = lv_obj_find_by_name(overlay_root_, "bed_control_strip");
-    chamber_strip_ = lv_obj_find_by_name(overlay_root_, "chamber_control_strip");
-    extruder_selector_row_ = lv_obj_find_by_name(overlay_root_, "extruder_selector_row");
+    chip_row_ = helix::ui::find_required(overlay_root_, "chip_row", get_name());
+    graph_container_ = helix::ui::find_required(overlay_root_, "graph_container", get_name());
+    nozzle_strip_ = helix::ui::find_required(overlay_root_, "nozzle_control_strip", get_name());
+    bed_strip_ = helix::ui::find_required(overlay_root_, "bed_control_strip", get_name());
+    chamber_strip_ = helix::ui::find_required(overlay_root_, "chamber_control_strip", get_name());
+    extruder_selector_row_ =
+        helix::ui::find_required(overlay_root_, "extruder_selector_row", get_name());
 
     return overlay_root_;
 }
@@ -370,35 +359,18 @@ void TempGraphOverlay::open(Mode mode, lv_obj_t* parent_screen) {
     // its confirm still targets the picked tool.
     picked_extruder_.clear();
 
-    // Lazy create
-    if (!cached_overlay_ && parent_screen) {
-        if (!are_subjects_initialized()) {
-            init_subjects();
-        }
+    show(parent_screen);
+}
 
-        cached_overlay_ = create(parent_screen);
-        if (!cached_overlay_) {
-            spdlog::error("[TempGraphOverlay] Failed to create overlay from XML");
-            NOTIFY_ERROR(lv_tr("Failed to open temperature graph"));
-            return;
-        }
+void TempGraphOverlay::before_show() {
+    // The pairing must survive a navbar panel switch.
+    NavigationManager::instance().register_overlay_instance(overlay_root_, this, true);
 
-        NavigationManager::instance().register_overlay_instance(cached_overlay_, this, true);
-        spdlog::info("[TempGraphOverlay] Overlay created");
-    }
-
-    // Sync the declarative mode subject on every open. Idempotent on the first
-    // open (init_subjects already seeded it with mode_), but necessary for
-    // subsequent opens where the caller chose a different mode than last time.
-    // XML bindings (strip visibility via bind_flag_if_not_eq, graph_outer width
-    // via temp_graph_full_width subject_expr) refire and reflow the overlay.
-    if (are_subjects_initialized()) {
-        lv_subject_set_int(&mode_subject_, static_cast<int>(mode_));
-    }
-
-    if (cached_overlay_) {
-        NavigationManager::instance().push_overlay(cached_overlay_);
-    }
+    // Sync the declarative mode subject on every open: the caller may have chosen
+    // a different mode than last time. XML bindings (strip visibility via
+    // bind_flag_if_not_eq, graph_outer width via temp_graph_full_width
+    // subject_expr) refire and reflow the overlay.
+    lv_subject_set_int(&mode_subject_, static_cast<int>(mode_));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

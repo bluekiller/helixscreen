@@ -22,6 +22,7 @@
 
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <chrono>
@@ -42,16 +43,7 @@ namespace helix::settings {
  */
 class AboutSettingsOverlay : public OverlayBase {
   public:
-    AboutSettingsOverlay();
     ~AboutSettingsOverlay() override;
-
-    // Non-copyable
-    AboutSettingsOverlay(const AboutSettingsOverlay&) = delete;
-    AboutSettingsOverlay& operator=(const AboutSettingsOverlay&) = delete;
-
-    //
-    // === OverlayBase Interface ===
-    //
 
     void init_subjects() override;
     void register_callbacks() override;
@@ -59,20 +51,15 @@ class AboutSettingsOverlay : public OverlayBase {
     const char* get_name() const override {
         return "About Settings";
     }
+    const char* xml_component() const override {
+        return "about_settings_overlay";
+    }
 
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;
 
-    //
-    // === UI Creation ===
-    //
-
+    /// Builds the overlay and its contributor marquee.
     lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
-    }
 
     //
     // === Public Methods ===
@@ -131,35 +118,12 @@ class AboutSettingsOverlay : public OverlayBase {
     char host_arch_value_buf_[64];
     char about_copyright_buf_[48];
 
-    // History dashboard overlay (lazy-created)
-    lv_obj_t* history_dashboard_panel_ = nullptr;
-
     // Debounce tracker restart on inadvertent re-open
     std::chrono::steady_clock::time_point last_deactivate_{};
-
-    //
-    // === Static Callbacks ===
-    //
-
-    static void on_about_printer_name_clicked(lv_event_t* e);
-    static void on_about_version_clicked(lv_event_t* e);
-    static void on_about_print_hours_clicked(lv_event_t* e);
-
-    //
-    // === Private Handlers ===
-    //
-
-    void handle_print_hours_clicked();
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton AboutSettingsOverlay
- */
-AboutSettingsOverlay& get_about_settings_overlay();
+inline AboutSettingsOverlay& get_about_settings_overlay() {
+    return lazy_global<AboutSettingsOverlay>("AboutSettingsOverlay");
+}
 
 } // namespace helix::settings

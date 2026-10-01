@@ -8,17 +8,17 @@
 #include "spdlog/spdlog.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 
 #ifdef __linux__
-#include <cerrno>
 #include <dirent.h>
-#include <fcntl.h>
 #include <fstream>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 // RAII guard for file descriptors to prevent leaks
 class FdGuard {

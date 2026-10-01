@@ -11,6 +11,7 @@
 #include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
+#include "ui_icon_picker.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -20,6 +21,7 @@
 #include "grid_layout.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "i_moonraker_api.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "panel_widget_registry.h"
 #include "panel_widget_size.h"
@@ -55,26 +57,12 @@ static const char* const FAN_ICONS[] = {
     // clang-format on
 };
 static constexpr size_t FAN_ICON_COUNT = std::size(FAN_ICONS);
-static constexpr int ICON_CELL_SIZE = 36;
 static constexpr const char* DEFAULT_FAN_ICON = "fan";
 
 /// Resolve a responsive spacing token to pixels, with a fallback.
 int resolve_space_token(const char* name, int fallback) {
     const char* s = lv_xml_get_const(nullptr, name);
     return s ? std::atoi(s) : fallback;
-}
-
-/// Apply highlight styling to an icon grid cell.
-void apply_icon_cell_highlight(lv_obj_t* cell, bool selected) {
-    if (selected) {
-        lv_obj_set_style_border_width(cell, 2, 0);
-        lv_obj_set_style_border_color(cell, theme_manager_get_color("primary"), 0);
-        lv_obj_set_style_bg_opa(cell, 20, 0);
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("primary"), 0);
-    } else {
-        lv_obj_set_style_border_width(cell, 0, 0);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-    }
 }
 
 } // namespace
@@ -139,7 +127,6 @@ bool FanStackWidget::is_carousel_mode() const {
 void FanStackWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Pressed feedback: dim widget on touch
     lv_obj_set_style_opa(widget_obj_, LV_OPA_70, LV_PART_MAIN | LV_STATE_PRESSED);
@@ -235,8 +222,6 @@ void FanStackWidget::detach() {
         carousel_pages_.clear();
     }
 
-    if (widget_obj_)
-        lv_obj_set_user_data(widget_obj_, nullptr);
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
     part_label_ = nullptr;
@@ -955,9 +940,7 @@ void FanStackWidget::handle_clicked() {
 
 void FanStackWidget::on_fan_stack_clicked(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[FanStackWidget] on_fan_stack_clicked");
-    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    auto* self = static_cast<FanStackWidget*>(lv_obj_get_user_data(target));
-    if (self) {
+    if (auto* self = panel_widget_from_event<FanStackWidget>(e)) {
         self->record_interaction();
         self->handle_clicked();
     } else {
@@ -1066,62 +1049,8 @@ void FanStackWidget::ConfigurePicker::on_created(lv_obj_t* backdrop) {
 
     std::string effective_icon = owner_.icon_name_.empty() ? DEFAULT_FAN_ICON : owner_.icon_name_;
 
-    for (size_t i = 0; i < FAN_ICON_COUNT; ++i) {
-        lv_obj_t* cell = lv_obj_create(icon_grid);
-        lv_obj_set_size(cell, ICON_CELL_SIZE, ICON_CELL_SIZE);
-        lv_obj_remove_flag(cell, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(cell, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-        lv_obj_set_style_radius(cell, 4, 0);
-        lv_obj_set_style_pad_all(cell, 0, 0);
-
-        // Pressed feedback
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("text_muted"),
-                                  LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(cell, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-
-        apply_icon_cell_highlight(cell, FAN_ICONS[i] == effective_icon);
-
-        // Icon glyph
-        const char* cp = helix::ui::icon::lookup_codepoint(FAN_ICONS[i]);
-        if (cp) {
-            lv_obj_t* icon = lv_label_create(cell);
-            lv_label_set_text(icon, cp);
-            lv_obj_set_style_text_font(icon, &mdi_icons_24, 0);
-            lv_obj_set_style_text_color(icon, theme_manager_get_color("text"), 0);
-            lv_obj_center(icon);
-            lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
-        }
-
-        lv_obj_set_user_data(cell, new RowPayload{this, FAN_ICONS[i]});
-
-        lv_obj_add_event_cb(
-            cell,
-            [](lv_event_t* e) {
-                LVGL_SAFE_EVENT_CB_BEGIN("[FanStackWidget] icon_cell_cb");
-                auto* target = lv_event_get_current_target_obj(e);
-                auto* payload = static_cast<RowPayload*>(lv_obj_get_user_data(target));
-                if (!payload)
-                    return;
-                // The card stays up after an icon change, so the payload outlives
-                // this call and the name can be passed straight through.
-                payload->picker->owner_.select_icon(payload->value);
-                LVGL_SAFE_EVENT_CB_END();
-            },
-            LV_EVENT_CLICKED, nullptr);
-
-        lv_obj_add_event_cb(
-            cell,
-            [](lv_event_t* e) {
-                LVGL_SAFE_EVENT_CB_BEGIN("[FanStackWidget] icon_cell_delete_cb");
-                auto* target = lv_event_get_current_target_obj(e);
-                delete static_cast<RowPayload*>(lv_obj_get_user_data(target));
-                lv_obj_set_user_data(target, nullptr);
-                LVGL_SAFE_EVENT_CB_END();
-            },
-            LV_EVENT_DELETE, nullptr);
-    }
+    helix::ui::populate_icon_grid(icon_grid, FAN_ICONS, FAN_ICON_COUNT, effective_icon,
+                                  [this](const char* name) { owner_.select_icon(name); });
 
     spdlog::debug("[FanStackWidget] Picker built with {} icons", FAN_ICON_COUNT);
 }
@@ -1139,14 +1068,7 @@ void FanStackWidget::ConfigurePicker::refresh_icon_highlights() {
     }
 
     std::string effective = owner_.icon_name_.empty() ? DEFAULT_FAN_ICON : owner_.icon_name_;
-    uint32_t grid_count = lv_obj_get_child_count(icon_grid);
-    for (uint32_t i = 0; i < grid_count; ++i) {
-        lv_obj_t* cell = lv_obj_get_child(icon_grid, i);
-        auto* payload = cell ? static_cast<RowPayload*>(lv_obj_get_user_data(cell)) : nullptr;
-        if (payload) {
-            apply_icon_cell_highlight(cell, payload->value == effective);
-        }
-    }
+    helix::ui::refresh_icon_grid(icon_grid, effective);
 }
 
 void FanStackWidget::select_fan(const std::string& object_name) {

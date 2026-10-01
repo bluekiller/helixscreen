@@ -109,6 +109,12 @@ struct ControlsPanelTestAccess {
         p.execute_macro(index);
     }
 
+    /// Open Bed Mesh the way its calibration card does, on @p screen.
+    static void open_bed_mesh(ControlsPanel& p, lv_obj_t* screen) {
+        p.parent_screen_ = screen;
+        p.handle_calibration_bed_mesh();
+    }
+
     static bool guard_active(ControlsPanel& p) {
         return p.operation_guard_.is_active();
     }

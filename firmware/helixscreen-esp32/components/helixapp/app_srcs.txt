@@ -166,7 +166,9 @@ src/printer/macro_executor.cpp
 src/printer/macro_modification_manager.cpp
 src/printer/macro_param_cache.cpp
 src/printer/macro_param_defaults.cpp
+src/printer/macro_params.cpp
 src/printer/pause_cause.cpp
+src/printer/printer_discovery_parse.cpp
 src/printer/power_device_state.cpp
 src/printer/power_loss_sensor.cpp
 src/printer/pre_print_option.cpp
@@ -245,6 +247,7 @@ src/system/network_tester.cpp
 src/system/panel_widget_config.cpp
 src/system/pending_startup_warnings.cpp
 src/system/performance_state.cpp
+src/system/persisted_setting.cpp
 src/system/platform_capabilities.cpp
 src/system/post_op_cooldown_manager.cpp
 src/system/log_redact.cpp
@@ -257,6 +260,7 @@ src/system/printer_name_sync.cpp
 src/system/runtime_config.cpp
 src/system/safety_settings_manager.cpp
 src/system/settings_manager.cpp
+src/system/sha256_util.cpp
 src/system/simulated_clock.cpp
 src/system/sound_manager.cpp
 src/system/sound_sequencer.cpp
@@ -301,6 +305,7 @@ src/ui/modals/clog_detection_config_modal.cpp
 src/ui/modals/favorite_macro_config_modal.cpp
 src/ui/modals/macro_param_modal.cpp
 src/ui/modals/ui_preflight_check_modal.cpp
+src/ui/observer_factory.cpp
 src/ui/operation_timeout_guard.cpp
 src/ui/overlay_base.cpp
 src/ui/page_scroll_auto_inject.cpp
@@ -435,6 +440,7 @@ src/ui/ui_heater_icon_binder.cpp
 src/ui/ui_heating_animator.cpp
 src/ui/ui_history_list_view.cpp
 src/ui/ui_icon.cpp
+src/ui/ui_icon_picker.cpp
 src/ui/ui_info_qr_modal.cpp
 src/ui/ui_job_queue_modal.cpp
 src/ui/ui_jog_pad.cpp
@@ -514,7 +520,6 @@ src/ui/ui_resume_dispatch.cpp
 src/ui/ui_runout_guidance_modal.cpp
 src/ui/ui_settings_about.cpp
 src/ui/ui_settings_appearance.cpp
-src/ui/ui_settings_connection.cpp
 src/ui/ui_settings_display.cpp
 src/ui/ui_settings_fans.cpp
 src/ui/ui_settings_hardware.cpp
@@ -531,7 +536,6 @@ src/ui/ui_settings_safety.cpp
 src/ui/ui_settings_security.cpp
 src/ui/ui_settings_sensors.cpp
 src/ui/ui_settings_sound.cpp
-src/ui/ui_settings_system.cpp
 src/ui/ui_settings_telemetry_data.cpp
 src/ui/ui_settings_touch.cpp
 src/ui/ui_settings_updates.cpp
@@ -693,6 +697,13 @@ src/print/print_start_profile.cpp
 #     probe_prep::database_rules(), which lives in printer_detector.cpp (already
 #     in this manifest); get_discovery()/get_macros() are header-inline.
 src/printer/probe_preparation.cpp
+#   resonance_console.cpp + shaper_csv_parser.cpp: moonraker_advanced_api.cpp
+#     (KEPT) drives the resonance-test and belt-compare collectors through their
+#     console-line and CSV parsers. Pure text parsing; deps are helix_regex.cpp
+#     and text_io.cpp (already in this manifest). The rest of src/calibration/
+#     stays excluded.
+src/calibration/resonance_console.cpp
+src/calibration/shaper_csv_parser.cpp
 
 # ===== mocks (CONFIG_HELIX_MOCK_PRINTER only) =====
 # MOCK: src/api/moonraker_api_mock.cpp

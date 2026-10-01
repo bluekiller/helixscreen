@@ -44,6 +44,15 @@ class GCodeLayerRendererTestAccess {
         return true;
     }
 
+    /// Block until a ghost build that render() started has exited. Joins the
+    /// worker instead of polling its flag against a budget, which a loaded
+    /// machine can outlast. No-op when no worker is running.
+    static void join_ghost_build(GCodeLayerRenderer& renderer) {
+        if (renderer.ghost_thread_.joinable()) {
+            renderer.ghost_thread_.join();
+        }
+    }
+
     /// True when the pass ran to completion rather than bailing out early.
     static bool ghost_completed(const GCodeLayerRenderer& renderer) {
         return renderer.ghost_thread_ready_.load();

@@ -27,7 +27,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <sstream>
 
 namespace helix::plugin {
@@ -62,6 +61,24 @@ std::string read_file(const std::filesystem::path& p) {
     return ss.str();
 }
 
+/// Reads `<dir>/<name>/manifest.json` into a PluginInfo: Invalid with the
+/// joined errors, Invalid for a directory/id mismatch, manifest set otherwise.
+PluginInfo read_plugin_info(const std::string& dir, const std::string& name) {
+    PluginInfo info;
+    info.dir_name = name;
+    auto parsed = parse_manifest(read_file(std::filesystem::path(dir) / name / "manifest.json"));
+    if (!parsed.manifest) {
+        info.status = PluginStatus::Invalid;
+        info.reason = join_errors(parsed.errors, "; ");
+    } else if (parsed.manifest->id != name) {
+        info.status = PluginStatus::Invalid;
+        info.reason = "directory name must match id '" + parsed.manifest->id + "'";
+    } else {
+        info.manifest = std::move(parsed.manifest);
+    }
+    return info;
+}
+
 } // namespace
 
 void register_plugin_event_callback() {
@@ -78,16 +95,21 @@ size_t plugin_memory_budget(uint64_t mem_total_bytes) {
     return static_cast<size_t>(std::min<uint64_t>(mem_total_bytes / 16, uint64_t(64) << 20));
 }
 
-uint64_t read_mem_total() {
-    std::ifstream in("/proc/meminfo");
-    std::string key;
-    uint64_t kb = 0;
-    while (in >> key >> kb) {
-        if (key == "MemTotal:")
-            return kb * 1024;
-        in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+std::vector<std::string> loadable_plugin_ids(const std::vector<std::string>& candidates,
+                                             const std::vector<PluginInfo>& infos) {
+    std::vector<std::string> out;
+    for (const auto& id : candidates) {
+        for (const auto& info : infos) {
+            if (info.dir_name != id)
+                continue;
+            if (info.manifest.has_value() &&
+                (info.status == PluginStatus::Loaded || info.status == PluginStatus::Disabled ||
+                 info.status == PluginStatus::NeedsApproval))
+                out.push_back(id);
+            break;
+        }
     }
-    return 0;
+    return out;
 }
 
 // TR_NOOP marks the literals for the extractor; the display site calls lv_tr
@@ -137,29 +159,20 @@ void PluginHost::load_from(const std::string& dir) {
     std::error_code ec;
     std::vector<std::string> names;
     for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        // Dot-named directories are the sync's scratch (a half-finished swap's
+        // .old-<id>, the .staging download area), never plugin rows.
+        const std::string name = entry.path().filename().string();
+        if (!name.empty() && name[0] == '.')
+            continue;
         if (entry.is_directory(ec) && std::filesystem::exists(entry.path() / "manifest.json", ec))
-            names.push_back(entry.path().filename().string());
+            names.push_back(name);
     }
     if (ec)
         spdlog::warn("[PluginHost] cannot scan {}: {}", dir, ec.message());
     std::sort(names.begin(), names.end());
 
-    for (const auto& name : names) {
-        PluginInfo info;
-        info.dir_name = name;
-        auto parsed =
-            parse_manifest(read_file(std::filesystem::path(dir) / name / "manifest.json"));
-        if (!parsed.manifest) {
-            info.status = PluginStatus::Invalid;
-            info.reason = join_errors(parsed.errors, "; ");
-        } else if (parsed.manifest->id != name) {
-            info.status = PluginStatus::Invalid;
-            info.reason = "directory name must match id '" + parsed.manifest->id + "'";
-        } else {
-            info.manifest = std::move(parsed.manifest);
-        }
-        plugins_.push_back(std::move(info));
-    }
+    for (const auto& name : names)
+        plugins_.push_back(read_plugin_info(dir, name));
 
     for (auto& info : plugins_) {
         if (info.manifest && info.status == PluginStatus::Disabled)
@@ -436,6 +449,52 @@ void PluginHost::unload_all() {
     for (const auto& id : ids)
         unload(id);
     bulk_ = false;
+}
+
+void PluginHost::rescan(const std::vector<std::string>& ids) {
+    if (dir_.empty()) {
+        spdlog::warn("[PluginHost] rescan before any load_from; nothing to do");
+        return;
+    }
+    bulk_ = true;
+    for (const auto& id : ids) {
+        // The ids come from a directory listing or a caller; only the id grammar
+        // keeps them inside dir_ (a "../x" would resolve outside it).
+        if (!is_valid_plugin_id(id)) {
+            spdlog::warn("[PluginHost] ignoring invalid plugin id '{}'", id);
+            continue;
+        }
+        unload(id);
+        auto it = std::find_if(plugins_.begin(), plugins_.end(),
+                               [&](const PluginInfo& p) { return p.dir_name == id; });
+        std::error_code ec;
+        bool present =
+            std::filesystem::exists(std::filesystem::path(dir_) / id / "manifest.json", ec);
+        if (!present) {
+            if (it != plugins_.end())
+                plugins_.erase(it);
+            spdlog::info("[PluginHost] {}: removed", id);
+            continue;
+        }
+        PluginInfo info = read_plugin_info(dir_, id);
+        if (it != plugins_.end()) {
+            *it = std::move(info);
+        } else {
+            auto pos = std::lower_bound(
+                plugins_.begin(), plugins_.end(), id,
+                [](const PluginInfo& p, const std::string& n) { return p.dir_name < n; });
+            it = plugins_.insert(pos, std::move(info));
+        }
+        if (it->manifest && it->status == PluginStatus::Disabled)
+            consider(*it);
+        spdlog::info("[PluginHost] {}: {}{}", it->dir_name, plugin_status_name(it->status),
+                     it->reason.empty() ? "" : " (" + it->reason + ")");
+    }
+    bulk_ = false;
+    if (widget_defs_dirty_) {
+        PanelWidgetManager::instance().notify_widget_defs_changed();
+        widget_defs_dirty_ = false;
+    }
 }
 
 void PluginHost::on_fault(const std::string& id, uint64_t gen, const std::string& reason) {

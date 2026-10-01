@@ -10,6 +10,7 @@
 #include "lvgl/lvgl.h"
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -18,7 +19,30 @@
 namespace helix {
 
 class PanelWidgetConfig;
+struct PanelWidgetDef;
 struct GridEditModeTestAccess; // test-only friend (tests/test_helpers/)
+
+/// A grid spot the catalog placement search found for a widget: the cell it
+/// lands on and the span it lands with, the span possibly shrunk from the
+/// def's default down to its minimum.
+struct CatalogPlacement {
+    int col = -1;
+    int row = -1;
+    int colspan = 0;
+    int rowspan = 0;
+};
+
+/// Where a widget added from the catalog lands on @p occupancy: the origin
+/// cell the catalog was opened from when it sits on a snap step, then the
+/// first free position, then the same search at progressively smaller spans
+/// down to the def's minimum, one snap step at a time. Returns nothing when
+/// even the minimum fits nowhere.
+///
+/// Pure over its inputs, so the catalog's fit predicate and the placement
+/// itself ask the same question and a test can drive a hand-built grid.
+std::optional<CatalogPlacement> find_catalog_placement(const GridLayout& occupancy,
+                                                       const PanelWidgetDef& def, int origin_col,
+                                                       int origin_row, int col_step, int row_step);
 
 /// Manages in-panel grid editing for the home dashboard.
 /// Handles enter/exit transitions, grid intersection dot overlay,
@@ -484,6 +508,10 @@ class GridEditMode {
     void finish_resize_snap();
 
     // Widget catalog placement
+    /// find_catalog_placement() over the scoped page: its live occupancy, the
+    /// origin cell the catalog remembered and the def's snap steps.
+    std::optional<CatalogPlacement> find_catalog_placement(const PanelWidgetDef& def) const;
+
     void place_widget_from_catalog(const std::string& widget_id);
 
     bool active_ = false;

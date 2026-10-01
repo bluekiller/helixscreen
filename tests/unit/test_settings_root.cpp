@@ -27,6 +27,7 @@
 #include "wifi_manager.h"
 
 #include <array>
+#include <filesystem>
 #include <string>
 #include <thread>
 #include <vector>
@@ -137,24 +138,46 @@ TEST_CASE_METHOD(RootFixture, "settings root: Updates shows on updates_unavailab
 }
 
 #if HELIX_HAS_PLUGINS
-TEST_CASE_METHOD(RootFixture, "settings root: Plugins stays hidden until a plugin host exists",
+TEST_CASE_METHOD(RootFixture, "settings root: Plugins shows only once a plugin exists",
                  "[settings][settings_root]") {
     lv_obj_t* row = find("row_plugins");
     REQUIRE(row);
     // settings_plugins_available defaults to 0, so the row must not show yet.
     CHECK(lv_obj_has_flag(row, LV_OBJ_FLAG_HIDDEN));
 
-    // init_plugins creates the host (an empty plugin dir loads nothing) and
-    // flips the visibility subject.
     helix::ConfigDirGuard guard("plugins-row");
-    helix::ScopedEnv plugin_dir("HELIX_PLUGIN_DIR", guard.dir.c_str());
+    // The host boots from the per-printer cache: HELIX_CACHE_DIR decides where
+    // that is, and no driver is built (no Moonraker here).
+    helix::plugin::test::TempDir cache_root;
+    helix::ScopedEnv cache_dir("HELIX_CACHE_DIR", cache_root.path.string().c_str());
+    helix::ScopedEnv no_plugin_dir("HELIX_PLUGIN_DIR", nullptr);
     helix::Config config;
     Application app;
     ApplicationTestAccess::neutralize_destructor(app);
     ApplicationTestAccess::set_config(app, &config);
+
+    const std::filesystem::path plugins =
+        cache_root.path / "plugins" /
+        (config.get_active_printer_id().empty() ? "default" : config.get_active_printer_id());
+
+    // A host over an empty cache exists, but no plugin does: still hidden.
+    std::filesystem::create_directories(plugins);
+    ApplicationTestAccess::init_plugins(app);
+    process_lvgl(5);
+    CHECK(lv_obj_has_flag(find("row_plugins"), LV_OBJ_FLAG_HIDDEN));
+
+    // One plugin in the cache: the row shows.
+    std::filesystem::copy("tests/fixtures/plugins/hello", plugins / "hello",
+                          std::filesystem::copy_options::recursive);
     ApplicationTestAccess::init_plugins(app);
     process_lvgl(5);
     CHECK_FALSE(lv_obj_has_flag(find("row_plugins"), LV_OBJ_FLAG_HIDDEN));
+
+    // Re-running against an empty cache hides it again.
+    std::filesystem::remove_all(plugins / "hello");
+    ApplicationTestAccess::init_plugins(app);
+    process_lvgl(5);
+    CHECK(lv_obj_has_flag(find("row_plugins"), LV_OBJ_FLAG_HIDDEN));
 }
 
 TEST_CASE_METHOD(RootFixture, "settings root: tapping Plugins opens the plugins overlay",

@@ -3,9 +3,9 @@
 
 #include "ui_panel_macros.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
@@ -16,17 +16,19 @@
 #include "app_globals.h"
 #include "device_display_name.h"
 #include "i_moonraker_api.h"
+#include "i_moonraker_client.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "macro_edit_logic.h"
 #include "macro_executor.h"
 #include "macro_param_cache.h"
 #include "macro_param_defaults.h"
-#include "moonraker_client.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "safety_settings_manager.h"
 #include "settings_manager.h"
+#include "static_panel_registry.h"
 #include "static_subject_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -37,19 +39,7 @@
 #include <cstdlib>
 #include <cstring>
 
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(MacrosPanel, g_macros_panel, get_global_macros_panel)
-
-// ============================================================================
-// Constructor
-// ============================================================================
-
-MacrosPanel::MacrosPanel() {
-    spdlog::debug("[MacrosPanel] Instance created");
-}
+using helix::ui::find_required;
 
 MacrosPanel::~MacrosPanel() {
     deinit_subjects();
@@ -60,7 +50,7 @@ MacrosPanel::~MacrosPanel() {
 // ============================================================================
 
 void MacrosPanel::init_subjects() {
-    init_subjects_guarded([this]() {
+    {
         // Legacy status subject (XML-bound; kept for macro_panel.xml).
         UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, status_buf_, "macros_status",
                                   subjects_);
@@ -73,18 +63,18 @@ void MacrosPanel::init_subjects() {
         UI_MANAGED_SUBJECT_INT(macros_edit_save_hidden_, 1, "macros_edit_save_hidden", subjects_);
 
         // Self-register cleanup so subjects deinit before lv_deinit().
-        // Test the pointer instead of calling get_global_macros_panel(): this
+        // Peek instead of calling get_global_macros_panel(): this
         // callback runs from StaticSubjectRegistry::deinit_all(), which is
         // sequenced AFTER StaticPanelRegistry::destroy_all() has already
         // destroyed the panel. The auto-creating getter would build a
         // replacement whose destructor then runs during static destruction,
         // with LVGL and spdlog already gone.
         StaticSubjectRegistry::instance().register_deinit("MacrosPanel", []() {
-            if (g_macros_panel) {
-                g_macros_panel->deinit_subjects();
+            if (auto* panel = helix::lazy_global_if_exists<MacrosPanel>()) {
+                panel->deinit_subjects();
             }
         });
-    });
+    }
 }
 
 void MacrosPanel::deinit_subjects() {
@@ -101,21 +91,32 @@ void MacrosPanel::deinit_subjects() {
 // ============================================================================
 
 void MacrosPanel::register_callbacks() {
-    if (callbacks_registered_) {
-        spdlog::debug("[{}] Callbacks already registered", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Registering event callbacks", get_name());
-
-    lv_xml_register_event_cb(nullptr, "on_macro_row_clicked", on_macro_row_clicked);
-    lv_xml_register_event_cb(nullptr, "on_macro_card_long_press", on_macro_card_long_press);
-    lv_xml_register_event_cb(nullptr, "on_macro_defaults_clicked", on_macro_defaults_clicked);
-    lv_xml_register_event_cb(nullptr, "on_macros_edit_save", on_macros_edit_save);
-    lv_xml_register_event_cb(nullptr, "on_macros_back_clicked", on_macros_back_clicked);
-
-    callbacks_registered_ = true;
-    spdlog::debug("[{}] Event callbacks registered", get_name());
+    // Row identity comes from the event_cb user_data ("$row_index" string).
+    register_xml_callbacks({
+        {"on_macro_row_clicked",
+         [](lv_event_t* e) {
+             if (auto i = helix::ui::event_user_int(e))
+                 get_global_macros_panel().handle_row_clicked(static_cast<size_t>(*i));
+         }},
+        {"on_macro_card_long_press",
+         [](lv_event_t*) { get_global_macros_panel().handle_long_press(); }},
+        {"on_macro_defaults_clicked",
+         [](lv_event_t* e) {
+             if (auto i = helix::ui::event_user_int(e))
+                 get_global_macros_panel().handle_defaults_clicked(static_cast<size_t>(*i));
+         }},
+        {"on_macros_edit_save",
+         [](lv_event_t*) { get_global_macros_panel().exit_edit_mode(true); }},
+        {"on_macros_back_clicked",
+         [](lv_event_t*) {
+             auto& self = get_global_macros_panel();
+             if (self.edit_mode_) {
+                 self.exit_edit_mode(false); // discard pending changes, stay on panel
+             } else {
+                 NavigationManager::instance().go_back(); // normal Back: close the overlay
+             }
+         }},
+    });
 }
 
 // ============================================================================
@@ -130,14 +131,14 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     // and then setting the real count in rebuild_rows() forces a clean build.
     lv_subject_set_int(&macro_row_count_, 0);
 
-    if (!create_overlay_from_xml(parent, "macro_panel")) {
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
     ui_alive_ = true;
 
     // Cache the scrollable rows container so edit-mode transitions can reset
     // scroll position (see enter_edit_mode()/exit_edit_mode()).
-    scroll_container_ = lv_obj_find_by_name(overlay_root_, "macro_list");
+    scroll_container_ = find_required(overlay_root_, "macro_list", get_name());
 
     // Rebuild reactively as macros arrive. When opened at startup (e.g.
     // `--test -p macros`) the panel is created before the queued
@@ -158,7 +159,6 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     refresh_macros();
     rebuild_rows();
 
-    spdlog::info("[{}] Overlay created successfully", get_name());
     return overlay_root_;
 }
 
@@ -474,116 +474,69 @@ void MacrosPanel::execute_with_params(const std::string& macro_name,
 }
 
 // ============================================================================
-// Static Callbacks
+// Event Handlers
 // ============================================================================
 
-void MacrosPanel::on_macro_row_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MacrosPanel] on_macro_row_clicked");
-
-    auto& self = get_global_macros_panel();
-
-    // Row identity comes from the event_cb user_data ("$row_index" string).
-    const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    if (ud) {
-        size_t i = static_cast<size_t>(atoi(ud));
-        if (i < self.displayed_.size()) {
-            if (self.edit_mode_) {
-                self.toggle_row(i);
-            } else {
-                self.fetch_params_and_execute(self.displayed_[i]);
-            }
-        }
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MacrosPanel::on_macro_card_long_press(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MacrosPanel] on_macro_card_long_press");
-
-    auto& self = get_global_macros_panel();
-    if (!self.edit_mode_) {
-        // Minimal scroll-suppression: LVGL fires LONG_PRESSED on hold duration
-        // alone, so a hold during a scroll drag would falsely enter edit mode.
-        // The macro list has no arcs/sliders, so a scroll-object check is
-        // sufficient (cf. HomePanel::should_suppress_edit_mode, which also
-        // guards arc/slider drags — not needed here).
-        lv_indev_t* indev = lv_indev_active();
-        // Return inside the SAFE_EVENT_CB try block; the single _END below
-        // closes it — do NOT call _END here (that would double-close the try).
-        if (indev && lv_indev_get_scroll_obj(indev)) {
-            return;
-        }
-        // Cancel the in-progress press so the row's click (run macro) does not
-        // fire on release now that we're switching into edit mode.
-        if (indev) {
-            lv_indev_reset(indev, nullptr);
-        }
-        self.enter_edit_mode();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MacrosPanel::on_macro_defaults_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MacrosPanel] on_macro_defaults_clicked");
-
-    auto& self = get_global_macros_panel();
-
-    const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    if (!ud) {
+void MacrosPanel::handle_row_clicked(size_t i) {
+    if (i >= displayed_.size()) {
         return;
     }
-    const size_t i = static_cast<size_t>(atoi(ud));
-    if (i >= self.displayed_.size()) {
+    if (edit_mode_) {
+        toggle_row(i);
+    } else {
+        fetch_params_and_execute(displayed_[i]);
+    }
+}
+
+void MacrosPanel::handle_long_press() {
+    if (edit_mode_) {
         return;
     }
-    const std::string& macro = self.displayed_[i];
+    // Minimal scroll-suppression: LVGL fires LONG_PRESSED on hold duration
+    // alone, so a hold during a scroll drag would falsely enter edit mode.
+    // The macro list has no arcs/sliders, so a scroll-object check is
+    // sufficient (cf. HomePanel::should_suppress_edit_mode, which also
+    // guards arc/slider drags - not needed here).
+    lv_indev_t* indev = lv_indev_active();
+    if (indev && lv_indev_get_scroll_obj(indev)) {
+        return;
+    }
+    // Cancel the in-progress press so the row's click (run macro) does not
+    // fire on release now that we're switching into edit mode.
+    if (indev) {
+        lv_indev_reset(indev, nullptr);
+    }
+    enter_edit_mode();
+}
+
+void MacrosPanel::handle_defaults_clicked(size_t i) {
+    if (i >= displayed_.size()) {
+        return;
+    }
+    const std::string& macro = displayed_[i];
 
     auto cached = helix::MacroParamCache::instance().get(macro);
     if (cached.knowledge != helix::MacroParamKnowledge::KNOWN_PARAMS) {
         // No declared parameter list to edit. The button is hidden for these
         // rows; this is the belt for a stale row index after a rebuild.
         spdlog::debug("[{}] No saved-defaults editor for '{}' (knowledge != KNOWN_PARAMS)",
-                      self.get_name(), macro);
+                      get_name(), macro);
         return;
     }
 
     lv_obj_t* screen = lv_screen_active();
     if (!screen) {
-        spdlog::warn("[{}] No active screen for the defaults editor of '{}'", self.get_name(),
-                     macro);
+        spdlog::warn("[{}] No active screen for the defaults editor of '{}'", get_name(), macro);
         return;
     }
 
-    auto token = self.lifetime_.token();
+    auto token = lifetime_.token();
     std::string name = macro;
-    self.param_modal_.show_for_defaults(
-        screen, name, cached.params, helix::MacroParamDefaults::instance().get(name),
-        [token, name](const helix::MacroParamDefaultRecord& record) {
-            if (token.expired())
-                return;
-            helix::MacroParamDefaults::instance().set(name, record);
-        });
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MacrosPanel::on_macros_edit_save(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MacrosPanel] on_macros_edit_save");
-    (void)e;
-    get_global_macros_panel().exit_edit_mode(true);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MacrosPanel::on_macros_back_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MacrosPanel] on_macros_back_clicked");
-    (void)e;
-    auto& self = get_global_macros_panel();
-    if (self.edit_mode_) {
-        self.exit_edit_mode(false); // discard pending changes, stay on panel
-    } else {
-        NavigationManager::instance().go_back(); // normal Back: close the overlay
-    }
-    LVGL_SAFE_EVENT_CB_END();
+    param_modal_.show_for_defaults(screen, name, cached.params,
+                                   helix::MacroParamDefaults::instance().get(name),
+                                   [token, name](const helix::MacroParamDefaultRecord& record) {
+                                       if (token.expired())
+                                           return;
+                                       helix::MacroParamDefaults::instance().set(name, record);
+                                   });
 }

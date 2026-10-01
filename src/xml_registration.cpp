@@ -580,11 +580,6 @@ void register_xml_components() {
     register_xml("motion_panel.xml");
     // TempGraphOverlay is the only temperature overlay.
     register_xml("temp_graph_overlay.xml");
-    // Register TempGraphOverlay event callbacks at startup (before XML is parsed)
-    lv_xml_register_event_cb(nullptr, "on_temp_graph_preset_clicked",
-                             TempGraphOverlay::on_temp_graph_preset_clicked);
-    lv_xml_register_event_cb(nullptr, "on_temp_graph_custom_clicked",
-                             TempGraphOverlay::on_temp_graph_custom_clicked);
     register_xml("fan_arc_core.xml");
     register_xml("fan_dial.xml");
     register_fan_dial_callbacks(); // Register FanDial event callbacks
@@ -618,7 +613,6 @@ void register_xml_components() {
 #if HELIX_HAS_CFS
     // CFS purge-chute calibration overlay (K1 dialect, pushed from the
     // device-section detail overlay's calibration action)
-    helix::ui::get_cfs_chute_calibration_overlay().init_subjects();
     register_xml("cfs_chute_calibration_overlay.xml");
 #endif
 

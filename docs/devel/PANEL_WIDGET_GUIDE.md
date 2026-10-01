@@ -129,14 +129,23 @@ rung that fits wins, so a tile grows its glyph rather than its text.
   larger size), because the clamp walks outward assuming the first accepting size is the
   nearest one. Edit mode's resize clamp and the load path both consult it through
   `helix::grow_span_to_fit()` (`include/grid_layout.h`), so the rule lives once.
-- **`helix::TileWidget`** (`src/ui/panel_widgets/tile_widget.h`) gives a TileSizing to
-  a tile that has no widget class of its own: `notifications` and `firmware_restart`.
+- **`helix::TiledPanelWidget`** (`src/ui/panel_widgets/tiled_panel_widget.h`) owns the
+  TileSizing and the four hooks that reach it (`on_size_changed`, `fits_at`, `xml_attrs`,
+  `tile_sizing`). A tile with behaviour derives from it and passes its TileSizing
+  arguments to the base initializer; a tile with its own fit rule overrides `fits_at()`.
+- **`helix::TileWidget`** (`src/ui/panel_widgets/tile_widget.h`) is a `TiledPanelWidget`
+  for a tile that has no widget class of its own: `notifications`, `firmware_restart`,
+  `humidity`, `width_sensor` and `lock` (rows of `kPureXmlTiles` in `tile_widget.cpp`).
   Every other centred-icon tile owns one on its own class, including the three heaters,
   which share `HeaterTempWidget`, and `power_device` and `filament`, whose classes sit
   outside `src/ui/panel_widgets/`. It is registered LAST and skips any id a class
   already took, because the last factory registration wins and a sizing-only shell
   would otherwise replace real behaviour. A tile that grows real behaviour stops using
-  it and implements `PanelWidget` directly.
+  it and derives `TiledPanelWidget` directly.
+- **The root's `user_data` is the base's.** `attach_tile()` binds the tile root (and
+  `root()` returns it) before `attach()`, `detach_tile()` clears it after `detach()`, on
+  every reuse, so a widget never sets or clears it. Anything that hands a widget a tree
+  calls those two, not `attach()`/`detach()` directly.
 
 On the XML side, every part of a tile binds its face with
 `<bind_tile_rung ladder="icon|value|label" subject="$tile_icon_subject"/>`

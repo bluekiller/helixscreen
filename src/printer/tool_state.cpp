@@ -602,8 +602,8 @@ void ToolState::query_tool_offsets(IMoonrakerClient* client,
     // lv_subject_set_int() off the main thread fires observers into LVGL
     // (CLAUDE.md § Threading invariant 1). bg_cb also drops the body if the
     // subjects were torn down while the request was in flight.
-    auto cb =
-        async_lifetime_.bg_cb("ToolState::query_tool_offsets", [this](nlohmann::json response) {
+    auto cb = async_lifetime_.bg_cb(
+        "ToolState::query_tool_offsets", [this](const nlohmann::json& response) {
             if (!response.contains("result") || !response["result"].contains("status")) {
                 spdlog::debug("[ToolState] Tool offset query returned no status");
                 return;

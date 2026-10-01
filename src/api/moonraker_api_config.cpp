@@ -22,7 +22,7 @@ void MoonrakerAPI::query_configfile(JsonCallback on_success, ErrorCallback on_er
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             // Navigate to result.status.configfile.config
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("configfile")) {

@@ -491,6 +491,40 @@ TEST_CASE("PrinterState: a post-init answer still wins over the latched one",
     CHECK_FALSE(state.is_spoolman_available());
 }
 
+TEST_CASE("PrinterCapabilitiesState: every setter's pre-init answer survives init",
+          "[printer_state][capabilities]") {
+    lv_init_safe();
+
+    PrinterDiscovery hardware;
+    hardware.parse_objects(nlohmann::json::array({"ff_pa", "timelapse"}));
+    CapabilityOverrides overrides;
+    overrides.set_hardware(hardware);
+
+    PrinterCapabilitiesState caps;
+    caps.set_hardware(hardware, overrides);
+    caps.set_has_individual_xyz_homing(false); // subject default is 1
+    caps.set_supports_belt_compare(true);
+    caps.set_has_chamber_sensor(true);
+    caps.set_has_chamber_heater_diagnostics(true);
+    caps.set_has_chamber_filter_fan(true);
+    caps.set_has_chamber_element_temp(true);
+    caps.set_has_chamber_dryer(true);
+
+    caps.init_subjects(false);
+
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasTimelapse)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasPaCal)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasIndividualXyzHoming)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::SupportsBeltCompare)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamber)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberElementTemp)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberDryer)) == 1);
+
+    caps.deinit_subjects();
+}
+
 // ============================================================================
 // External z-offset persistence override (prestonbrown/helixscreen#1401)
 // ============================================================================

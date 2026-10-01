@@ -150,7 +150,7 @@ static bool top_modal_shows_title(const char* title) {
     return existing_title && strcmp(existing_title, title) == 0;
 }
 
-// Async callbacks for helix::ui::async_call (run on the main thread)
+// Deferred notification bodies (run on the main thread)
 static void async_message_callback(void* user_data) {
     AsyncMessageData* data = (AsyncMessageData*)user_data;
     if (data && data->message[0] != '\0') {

@@ -8,6 +8,7 @@
 #include "klipper_config_editor.h"
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <lvgl.h>
@@ -34,9 +35,7 @@ class IMoonrakerAPI;
  * ## Usage:
  * ```cpp
  * ProbeOverlay& overlay = get_global_probe_overlay();
- * overlay.init_subjects();  // Once at startup
- * overlay.create(screen);   // Lazy create
- * overlay.show();           // Opens overlay
+ * overlay.show(screen);  // Creates on first open
  * ```
  */
 class ProbeOverlay : public OverlayBase {
@@ -54,6 +53,9 @@ class ProbeOverlay : public OverlayBase {
     const char* get_name() const override {
         return "Probe";
     }
+    const char* xml_component() const override {
+        return "probe_overlay";
+    }
 
     void on_activate() override;
 
@@ -61,7 +63,6 @@ class ProbeOverlay : public OverlayBase {
     // === Public API ===
     //
 
-    void show();
     void set_api(IMoonrakerAPI* api);
 
     //
@@ -206,7 +207,6 @@ class ProbeOverlay : public OverlayBase {
     lv_obj_t* edit_modal_ = nullptr;
 
     // Widget/client references
-    lv_obj_t* parent_screen_ = nullptr;
     friend struct ProbeOverlayTestAccess;
 
     IMoonrakerAPI* api_ = nullptr;
@@ -231,7 +231,9 @@ class ProbeOverlay : public OverlayBase {
 };
 
 // Global instance accessor
-ProbeOverlay& get_global_probe_overlay();
+inline ProbeOverlay& get_global_probe_overlay() {
+    return helix::lazy_global<ProbeOverlay>("ProbeOverlay");
+}
 
 /**
  * @brief Register XML event callbacks for probe overlay

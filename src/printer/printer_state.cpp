@@ -15,20 +15,16 @@
 
 #include "ui_update_queue.h"
 
-#include "accel_sensor_manager.h"
 #include "app_globals.h"
 #include "capability_overrides.h"
 #include "chamber_heater_assignment.h"
 #include "chamber_heater_backend.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "device_display_name.h"
-#include "filament_sensor_manager.h"
 #include "hardware_validator.h"
-#include "humidity_sensor_manager.h"
 #include "i_moonraker_client.h" // for helix::CACHED_SNAPSHOT_MARKER
 #include "json_utils.h"
 #include "led/led_controller.h"
-#include "load_cell_manager.h"
 #include "lvgl.h"
 #include "lvgl/src/display/lv_display_private.h" // For rendering_in_progress check
 #include "lvgl_debug_invalidate.h"
@@ -38,6 +34,7 @@
 #include "printer_cache_registry.h"
 #include "probe_sensor_manager.h"
 #include "runtime_config.h"
+#include "sensor_managers.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
 #include "system/crash_handler.h"
@@ -45,7 +42,6 @@
 #include "temperature_sensor_manager.h"
 #include "timelapse_state.h"
 #include "unit_conversions.h"
-#include "width_sensor_manager.h"
 #include "z_offset_persistence.h"
 
 #include <algorithm>
@@ -339,52 +335,27 @@ void PrinterState::reload_capability_overrides() {
     capability_overrides_.load_from_config();
 }
 
-void PrinterState::update_from_notification(const json& notification) {
-    // Moonraker notifications have structure:
-    // {"method": "notify_status_update", "params": [{...printer state...}, eventtime]}
-
-    auto method_it = notification.find("method");
-    if (method_it == notification.end() || !method_it->is_string() ||
-        !notification.contains("params")) {
-        return;
+std::optional<StatusFrame> helix::parse_status_notification(const json& notification) {
+    auto method = notification.find("method");
+    auto params = notification.find("params");
+    if (method == notification.end() || !method->is_string() ||
+        method->get_ref<const std::string&>() != "notify_status_update" ||
+        params == notification.end() || !params->is_array() || params->empty()) {
+        return std::nullopt;
     }
-
-    std::string method = method_it->get<std::string>();
-    if (method != "notify_status_update") {
-        return;
+    StatusFrame frame;
+    frame.status = &(*params)[0];
+    if (params->size() > 1 && (*params)[1].is_number()) {
+        frame.eventtime = (*params)[1].get<double>();
     }
-
-    // Extract printer state from params[0] and delegate to update_from_status
-    // CRITICAL: Defer to main thread via ui_queue_update to avoid LVGL assertion
-    // when subject updates trigger lv_obj_invalidate() during rendering
-    auto params = notification["params"];
-    if (params.is_array() && !params.empty()) {
-        // params[1] is Klipper's eventtime. It is monotonic-clock derived, so it
-        // survives a Klipper restart and only rewinds on a host reboot — a usable
-        // freshness key within one connection. Absent or non-numeric means the
-        // frame was synthesized rather than received.
-        const double eventtime =
-            (params.size() > 1 && params[1].is_number()) ? params[1].get<double>() : 0.0;
-        const bool from_cached_snapshot =
-            helix::json_util::safe_bool(notification, helix::CACHED_SNAPSHOT_MARKER);
-        async_lifetime_.defer("PrinterState::on_status_update", [this, state_json = params[0],
-                                                                 eventtime,
-                                                                 from_cached_snapshot]() {
-            // Debug check: log if we're somehow in render phase (should never happen)
-            if (lvgl_is_rendering()) {
-                spdlog::error("[PrinterState] async status update running during render phase!");
-                spdlog::error("[PrinterState] This should not happen - lv_async_call should run "
-                              "between frames");
-            }
-            update_from_status(state_json, eventtime, from_cached_snapshot);
-        });
-    }
+    frame.from_cached_snapshot =
+        helix::json_util::safe_bool(notification, helix::CACHED_SNAPSHOT_MARKER);
+    return frame;
 }
 
 void PrinterState::update_from_status(const json& state, double eventtime,
-                                      bool from_cached_snapshot) {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-
+                                      bool from_cached_snapshot,
+                                      std::optional<uint64_t> frame_epoch) {
     // Debug: Check if we're in render phase (this should never be true)
     LV_DEBUG_RENDER_STATE();
 
@@ -461,8 +432,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
                 }
             }
             // set_excluded_objects handles change detection and notification
-            // Note: We're inside state_mutex_ lock, but set_excluded_objects only modifies
-            // its own data and calls lv_subject_set_int which is safe
             set_excluded_objects(excluded);
         }
 
@@ -543,14 +512,19 @@ void PrinterState::update_from_status(const json& state, double eventtime,
         // untimestamped dispatch, and those are the current truth for their session.
         // The eventtime watermark covers the other case — two genuinely live frames
         // arriving out of order across the queues.
-        const bool stale = (from_cached_snapshot && klippy_state_from_live_) ||
-                           (eventtime > 0.0 && eventtime < klippy_state_eventtime_);
+        double watermark;
+        {
+            std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
+            watermark = klippy_state_eventtime_;
+        }
+        const bool stale = (from_cached_snapshot && klippy_state_from_live_.load()) ||
+                           (eventtime > 0.0 && eventtime < watermark);
 
         if (stale) {
             spdlog::debug("[PrinterState] Ignoring stale klippy webhooks (state='{}', "
                           "eventtime={} vs watermark={}, cached_snapshot={})",
                           helix::json_util::safe_string(webhooks, "state", "<absent>"), eventtime,
-                          klippy_state_eventtime_, from_cached_snapshot);
+                          watermark, from_cached_snapshot);
         } else {
             bool applied_state = false;
 
@@ -600,11 +574,17 @@ void PrinterState::update_from_status(const json& state, double eventtime,
             // A delta carrying just state_message must not latch "live seen" and
             // lock out the snapshot that still has to seed the state.
             if (applied_state) {
-                if (eventtime > 0.0) {
-                    klippy_state_eventtime_ = eventtime;
-                }
-                if (!from_cached_snapshot) {
-                    klippy_state_from_live_ = true;
+                // A frame received before the last reset belongs to the previous
+                // session, whose clock the watermark no longer measures, so it does
+                // not move the guard. Checked under the lock the reset takes.
+                std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
+                if (!frame_epoch || *frame_epoch == klippy_epoch_.load()) {
+                    if (eventtime > 0.0) {
+                        klippy_state_eventtime_ = eventtime;
+                    }
+                    if (!from_cached_snapshot) {
+                        klippy_state_from_live_ = true;
+                    }
                 }
             }
         }
@@ -633,17 +613,7 @@ void PrinterState::update_from_status(const json& state, double eventtime,
         calibration_state_.arm_busy_queue_toast();
     }
 
-    // Forward filament sensor updates to FilamentSensorManager
-    // The manager handles all sensor types: filament_switch_sensor and filament_motion_sensor
-    helix::FilamentSensorManager::instance().update_from_status(state);
-
-    // Forward updates to all other sensor managers
-    helix::sensors::HumiditySensorManager::instance().update_from_status(state);
-    helix::sensors::WidthSensorManager::instance().update_from_status(state);
-    helix::sensors::ProbeSensorManager::instance().update_from_status(state);
-    helix::sensors::AccelSensorManager::instance().update_from_status(state);
-    helix::sensors::TemperatureSensorManager::instance().update_from_status(state);
-    helix::sensors::LoadCellManager::instance().update_from_status(state);
+    helix::sensors::for_each_sensor_manager([&state](auto& m) { m.update_from_status(state); });
 }
 
 void PrinterState::reset_for_new_print() {
@@ -686,18 +656,15 @@ void PrinterState::set_network_status(int status) {
 
 void PrinterState::set_klippy_state(KlippyState state) {
     // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
-    // authoritative, and they must outrank any replayed snapshot from here on.
-    mark_klippy_state_live();
-
-    // Thread-safe wrapper: defer LVGL subject updates to main thread
+    // authoritative, and they must outrank any replayed snapshot from here on,
+    // including one already waiting in the notification queue.
+    klippy_state_from_live_.store(true);
     async_lifetime_.defer("PrinterState::set_klippy_state",
                           [this, state]() { set_klippy_state_internal(state); });
 }
 
 void PrinterState::set_klippy_state_sync(KlippyState state) {
-    mark_klippy_state_live();
-
-    // Direct call for main-thread use (testing, or when already on main thread)
+    klippy_state_from_live_.store(true);
     set_klippy_state_internal(state);
 }
 
@@ -711,14 +678,11 @@ void PrinterState::set_klippy_state_if_unseeded(KlippyState state) {
 }
 
 void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
-    {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        if (klippy_state_from_live_) {
-            spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
-                          "has already been applied",
-                          static_cast<int>(state));
-            return;
-        }
+    if (klippy_state_from_live_.load()) {
+        spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
+                      "has already been applied",
+                      static_cast<int>(state));
+        return;
     }
 
     // Deliberately does NOT mark the state live: printer.info is a seed, and the
@@ -727,15 +691,14 @@ void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
     set_klippy_state_internal(state);
 }
 
-void PrinterState::mark_klippy_state_live() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    klippy_state_from_live_ = true;
-}
-
 void PrinterState::reset_klippy_state_freshness() {
-    std::lock_guard<std::mutex> lock(state_mutex_);
+    // Synchronous on the caller's thread: the next session's frames arrive
+    // through a different queue than deferred UI work, so a queued reset could
+    // land after them and wipe their watermark.
+    std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
     klippy_state_eventtime_ = 0.0;
-    klippy_state_from_live_ = false;
+    klippy_state_from_live_.store(false);
+    ++klippy_epoch_;
 }
 
 void PrinterState::set_klippy_state_internal(KlippyState state) {
@@ -1150,7 +1113,7 @@ void PrinterState::set_kinematics(const std::string& kinematics) {
     bool is_corexy_family = (kinematics.find("corexy") != std::string::npos);
 
     // CoreXY with QGL = gantry moves on Z (e.g. Voron 2.4), otherwise bed moves
-    bool has_qgl = lv_subject_get_int(capabilities_state_.get_printer_has_qgl_subject()) != 0;
+    bool has_qgl = lv_subject_get_int(capabilities_state_.subject(Capability::HasQgl)) != 0;
     auto_detected_bed_moves_ = is_corexy_family && !has_qgl;
 
     // Apply with user override considered
@@ -1163,10 +1126,10 @@ void PrinterState::refresh_bed_drying_capability() {
     }
     const bool enclosed = bed_drying::is_enclosed(
         SettingsManager::instance().get_enclosure_style(), printer_db_enclosed_,
-        lv_subject_get_int(capabilities_state_.get_printer_has_chamber_heater_subject()) != 0);
+        lv_subject_get_int(capabilities_state_.subject(Capability::HasChamberHeater)) != 0);
     const AxisBounds bounds = motion_state_.get_axis_bounds();
     const bool can_dry = bed_drying::available(
-        lv_subject_get_int(capabilities_state_.get_printer_has_heater_bed_subject()) != 0, enclosed,
+        lv_subject_get_int(capabilities_state_.subject(Capability::HasHeaterBed)) != 0, enclosed,
         bounds.has_z, bounds.z_min, bounds.z_max);
     capabilities_state_.set_bed_drying(enclosed, can_dry);
 }
@@ -1439,7 +1402,7 @@ void PrinterState::apply_dynamic_options() {
     // These are NOT gcode lines — start_print() routes them to
     // `api_->timelapse().set_timelapse_enabled(...)`.
     if (!database_owns_timelapse &&
-        lv_subject_get_int(capabilities_state_.get_printer_has_timelapse_subject()) == 1) {
+        lv_subject_get_int(capabilities_state_.subject(Capability::HasTimelapse)) == 1) {
         PrePrintOption tl;
         tl.id = "timelapse";
         tl.label_key = "Timelapse";

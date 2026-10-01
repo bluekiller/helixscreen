@@ -3,6 +3,7 @@
 #include "camera_widget.h"
 
 #include "lvgl.h"
+#include "observe_language.h"
 
 #if HELIX_HAS_CAMERA
 
@@ -132,8 +133,6 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     camera_overlay_ = lv_obj_find_by_name(widget_obj_, "camera_overlay");
     camera_status_ = lv_obj_find_by_name(widget_obj_, "camera_status");
 
-    lv_obj_set_user_data(widget_obj_, this);
-
     language_observer_ = helix::ui::observe_language_change(this, [](CameraWidget* self) {
         if (s_camera_status_key) {
             self->set_status_key(s_camera_status_key);
@@ -220,9 +219,6 @@ void CameraWidget::detach() {
     // since been re-attached.
     uninstall_delete_hook();
 
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     forget_tile_widgets();
 
     auto it = std::find(s_attached_widgets.begin(), s_attached_widgets.end(), this);

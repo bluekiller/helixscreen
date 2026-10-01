@@ -5,161 +5,39 @@
  * @file ui_lazy_panel_helper.h
  * @brief Template helper for lazy panel creation and navigation
  *
- * Reduces boilerplate code for lazy-initialized overlay panels that follow
- * the common pattern:
- * 1. Check if cached panel is null
- * 2. Get global panel instance
- * 3. Initialize subjects if needed
- * 4. Register callbacks
- * 5. Create panel from XML
- * 6. Register with NavigationManager
- * 7. Push overlay
- *
- * @see AdvancedPanel for usage example
+ * lazy_create_and_push_overlay() forwards to OverlayBase::show();
+ * lazy_push_overlay() pushes a bare widget with no lifecycle object.
  */
 
 #pragma once
 
 #include "ui_nav_manager.h"
 #include "ui_toast_manager.h"
-#include "ui_utils.h"
-#include "ui_widget_ref.h"
+
+#include "overlay_base.h"
 
 #include <spdlog/spdlog.h>
 
 namespace helix::ui {
 
 /**
- * @brief Lazy-create and push an overlay panel
+ * @brief Open a global overlay through OverlayBase::show()
  *
- * This template helper encapsulates the common pattern for lazy panel
- * initialization. It handles the full lifecycle:
- * - First access: initializes, creates, and registers the panel
- * - Subsequent access: reuses the cached panel
- * - Always pushes the overlay for navigation
+ * The overlay object owns its root; callers keep no copy of it, because a
+ * destroy_on_close() overlay frees its tree on every close.
  *
- * @tparam PanelType The panel class type (must have are_subjects_initialized(),
- *                   init_subjects(), register_callbacks(), create(), get_name())
- * @tparam Getter Callable that returns PanelType& (e.g., get_global_spoolman_panel)
- *
- * @param getter Function that returns the global panel instance reference
- * @param cached_panel Reference to the cached lv_obj_t* pointer
- * @param parent_screen Parent screen for overlay creation
- * @param panel_display_name Human-readable name for error messages
+ * @param getter Returns the global overlay instance
+ * @param parent_screen Screen to build on
+ * @param panel_display_name Human-readable name for logging
  * @param caller_name Name of the calling panel (for logging)
- * @param destroy_on_close Free the widget tree when the overlay closes. Decided
- *                         by the caller that creates the tree; a caller that
- *                         adopts an existing tree registers no close callback.
- *
- * @return true if overlay was pushed, false on failure
- *
- * Example:
- * @code
- * void AdvancedPanel::handle_spoolman_clicked() {
- *     lazy_create_and_push_overlay(
- *         get_global_spoolman_panel,
- *         spoolman_panel_,
- *         parent_screen_,
- *         "Spoolman",
- *         get_name()
- *     );
- * }
- * @endcode
+ * @return true if the overlay was pushed
  */
 template <typename PanelType, typename Getter>
-bool lazy_create_and_push_overlay(Getter getter, lv_obj_t*& cached_panel, lv_obj_t* parent_screen,
-                                  const char* panel_display_name, const char* caller_name,
-                                  bool destroy_on_close = false) {
+bool lazy_create_and_push_overlay(Getter getter, lv_obj_t* parent_screen,
+                                  const char* panel_display_name, const char* caller_name) {
     spdlog::debug("[{}] {} clicked - opening panel", caller_name, panel_display_name);
-
-    PanelType& panel = getter();
-
-    // A printer switch destroys panel objects (StaticPanelRegistry::destroy_all)
-    // while their overlay widgets survive as hidden screen children, so a
-    // caller's cached widget can outlive the panel that created it. A cache the
-    // live panel did not create still carries the dead panel's bindings - XML
-    // subjects and raw-this C++ callbacks (the motion jog pad) - so pushing it
-    // fires them on freed memory. (Switch teardown now frees the orphaned
-    // widgets and PrinterCacheRegistry drops the static caches before it, so
-    // on that path this guard is a backstop; it still covers hot-reload
-    // rebuilds, where the panel object survives with a fresh root.)
-    if (cached_panel && cached_panel != panel.get_root()) {
-        if (panel.get_root() == nullptr) {
-            // The cache holds the dead panel's widget, still allocated: free it.
-            safe_delete_deferred(cached_panel);
-        } else {
-            // The panel already has a live widget another caller created (or a
-            // rebuild did). Adopt it: falling through to create() here would
-            // overwrite overlay_root_ and orphan that live widget. The cached
-            // pointer cannot be proved live (a rebuild may have freed it, or its
-            // address was reused), so it is dropped, not deleted; a still-
-            // allocated orphan in this shape is left for teardown, bounded at
-            // one per switch per extra caller.
-            cached_panel = panel.get_root();
-        }
-        spdlog::info("[{}] {} overlay cache stale - resynced to the live panel", caller_name,
-                     panel_display_name);
-    }
-
-    // A caller opening for the first time adopts the tree another caller
-    // created here: the panel holds one set of widget pointers, so a second
-    // create() would leave that tree pushed with nothing updating it.
-    // get_root() alone cannot say the tree is alive (a root freed with its
-    // screen still reads non-null, and lv_obj_is_valid() is fooled when a new
-    // widget reuses the address), so adoption keys on a handle LVGL nulls when
-    // the widget is deleted.
-    static WidgetRef created_root;
-    if (!cached_panel && created_root && created_root == panel.get_root()) {
-        cached_panel = created_root;
-    }
-
-    // Create panel on first access (lazy initialization)
-    if (!cached_panel && parent_screen) {
-        // Initialize subjects and callbacks if not already done
-        if (!panel.are_subjects_initialized()) {
-            panel.init_subjects();
-        }
-        panel.register_callbacks();
-
-        // Create overlay UI
-        cached_panel = panel.create(parent_screen);
-        if (!cached_panel) {
-            spdlog::error("[{}] Failed to create {} panel from XML", caller_name,
-                          panel_display_name);
-            ToastManager::instance().show(
-                ToastSeverity::ERROR, (std::string("Failed to open ") + panel_display_name).c_str(),
-                2000);
-            return false;
-        }
-        created_root = cached_panel;
-
-        // Register close callback to destroy widget tree when overlay closes.
-        // Frees 400-800KB per overlay. Subjects survive; next open re-creates widgets.
-        if (destroy_on_close) {
-            NavigationManager::instance().register_overlay_close_callback(
-                cached_panel, [&cached_panel, getter]() {
-                    PanelType& p = getter();
-                    p.destroy_overlay_ui(cached_panel);
-                });
-        }
-
-        spdlog::info("[{}] {} panel created{}", caller_name, panel_display_name,
-                     destroy_on_close ? " (destroy-on-close)" : "");
-    }
-
-    // Re-register with NavigationManager on every push. switch_to_panel_impl()
-    // clears overlay_instances_ on navbar switches (preserving only the
-    // persistent map), so a cached panel re-opened after a navbar tap was
-    // losing its registration → push_overlay warned "no
-    // register_overlay_instance call" (UMAX4U2G). register is idempotent
-    // (map keyed by widget pointer).
-    if (cached_panel) {
-        NavigationManager::instance().register_overlay_instance(cached_panel, &getter());
-        NavigationManager::instance().push_overlay(cached_panel);
-        return true;
-    }
-
-    return false;
+    // Qualified: some overlays declare a show() of their own that hides this one.
+    return getter().OverlayBase::show(parent_screen);
 }
 
 /**

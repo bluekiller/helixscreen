@@ -7,6 +7,7 @@
 #include "app_globals.h"
 #include "color_utils.h"
 #include "config.h"
+#include "device_display_name.h"
 #include "helix/xml/scoped_subject_registry.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
@@ -18,6 +19,7 @@
 #include "moonraker_error.h"
 #include "observer_factory.h"
 #include "printer_discovery.h"
+#include "printer_state.h"
 #include "static_subject_registry.h"
 #include "text_io.h"
 
@@ -230,23 +232,7 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
         // Check if this is an output_pin (not a native LED strip)
         if (led_id.rfind("output_pin ", 0) == 0) {
             LedStripInfo pin;
-            // Format display name from "output_pin Enclosure_LEDs" -> "Enclosure LEDs"
-            std::string raw_name = led_id.substr(11);
-            std::string display = raw_name;
-            for (auto& ch : display) {
-                if (ch == '_')
-                    ch = ' ';
-            }
-            // Title case
-            bool cap_next = true;
-            for (auto& ch : display) {
-                if (ch == ' ') {
-                    cap_next = true;
-                } else if (cap_next) {
-                    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-                    cap_next = false;
-                }
-            }
+            const std::string display = helix::prettify_name(led_id.substr(11));
             pin.name = display;
             pin.id = led_id;
             pin.backend = LedBackendType::OUTPUT_PIN;
@@ -267,7 +253,7 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
         // pins exist, avoiding a meaningless color picker on white-only chamber lights.
         strip.supports_color = false;
 
-        // Determine display name: strip prefix, replace underscores, title case
+        // The display name is the object name without its type prefix
         std::string raw_name;
         if (led_id.rfind("neopixel ", 0) == 0) {
             raw_name = led_id.substr(9);
@@ -287,39 +273,7 @@ void LedController::discover_from_hardware(const helix::PrinterDiscovery& hardwa
             strip.supports_white = false;
         }
 
-        // Convert raw_name to display name: replace underscores with spaces, title case
-        std::string display;
-        bool capitalize_next = true;
-        for (char c : raw_name) {
-            if (c == '_') {
-                display += ' ';
-                capitalize_next = true;
-            } else if (capitalize_next) {
-                display += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-                capitalize_next = false;
-            } else {
-                display += c;
-            }
-        }
-
-        // Fix known abbreviations that title-case gets wrong
-        auto fix_abbrev = [](std::string& s, const std::string& wrong, const std::string& right) {
-            size_t pos = 0;
-            while ((pos = s.find(wrong, pos)) != std::string::npos) {
-                // Only replace if it's a whole word (at start/end or surrounded by spaces)
-                bool at_start = (pos == 0 || s[pos - 1] == ' ');
-                bool at_end = (pos + wrong.size() == s.size() || s[pos + wrong.size()] == ' ');
-                if (at_start && at_end) {
-                    s.replace(pos, wrong.size(), right);
-                }
-                pos += right.size();
-            }
-        };
-        fix_abbrev(display, "Led", "LED");
-        fix_abbrev(display, "Rgb", "RGB");
-        fix_abbrev(display, "Rgbw", "RGBW");
-
-        strip.name = display;
+        strip.name = helix::prettify_name(raw_name);
 
         native_.add_strip(strip);
         spdlog::debug("[LedController] Discovered native LED strip: {} ({})", strip.name, strip.id);
@@ -458,40 +412,7 @@ void LedController::discover_wled_strips() {
                         raw_name = it.key();
                     }
 
-                    // Pretty-print: underscores to spaces, title case, fix abbreviations
-                    std::string display;
-                    bool cap_next = true;
-                    for (char c : raw_name) {
-                        if (c == '_') {
-                            display += ' ';
-                            cap_next = true;
-                        } else if (cap_next) {
-                            display +=
-                                static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-                            cap_next = false;
-                        } else {
-                            display += c;
-                        }
-                    }
-                    // Fix known abbreviations
-                    auto fix_wled_abbrev = [](std::string& s, const std::string& wrong,
-                                              const std::string& right) {
-                        size_t pos = 0;
-                        while ((pos = s.find(wrong, pos)) != std::string::npos) {
-                            bool at_start = (pos == 0 || s[pos - 1] == ' ');
-                            bool at_end =
-                                (pos + wrong.size() == s.size() || s[pos + wrong.size()] == ' ');
-                            if (at_start && at_end) {
-                                s.replace(pos, wrong.size(), right);
-                            }
-                            pos += right.size();
-                        }
-                    };
-                    fix_wled_abbrev(display, "Led", "LED");
-                    fix_wled_abbrev(display, "Rgb", "RGB");
-                    fix_wled_abbrev(display, "Rgbw", "RGBW");
-
-                    strip.name = display;
+                    strip.name = helix::prettify_name(raw_name);
                     spdlog::debug("[LedController] Discovered WLED strip: {} ({})", strip.name,
                                   strip.id);
                     discovered.push_back(std::move(strip));
@@ -670,6 +591,30 @@ void LedController::update_led_pin_config(const nlohmann::json& configfile_confi
 
 namespace {
 
+/// False, after logging and telling on_error, when a backend has no API yet.
+/// Application::init_core_subjects() runs init(nullptr, nullptr), so this is reachable.
+bool require_api(const IMoonrakerAPI* api, const char* call, const std::string& target,
+                 const NativeBackend::ErrorCallback& on_error) {
+    if (api != nullptr) {
+        return true;
+    }
+    spdlog::warn("[LED] {} called with no API ({})", call, target);
+    if (on_error) {
+        on_error(std::string(call) + ": no API available");
+    }
+    return false;
+}
+
+/// The MoonrakerError adapter every backend hands the API.
+std::function<void(const MoonrakerError&)>
+forward_error(const NativeBackend::ErrorCallback& on_error) {
+    return [on_error](const MoonrakerError& err) {
+        if (on_error) {
+            on_error(err.message);
+        }
+    };
+}
+
 /// True when every entry of a neopixel section's color_order has a W. Klipper
 /// reads the option as a comma list, one order for the whole chain or one per LED.
 bool color_order_has_white(const nlohmann::json& section) {
@@ -757,11 +702,7 @@ void NativeBackend::forget_state() {
 void NativeBackend::set_color(const std::string& strip_id, double r, double g, double b, double w,
                               SuccessCallback on_success, ErrorCallback on_error,
                               SuccessCallback on_queued) {
-    if (!api_) {
-        spdlog::warn("[NativeBackend] set_color called with no API (strip={})", strip_id);
-        if (on_error) {
-            on_error("NativeBackend: no API available");
-        }
+    if (!require_api(api_, "NativeBackend::set_color", strip_id, on_error)) {
         return;
     }
 
@@ -783,26 +724,12 @@ void NativeBackend::set_color(const std::string& strip_id, double r, double g, d
     // See include/rpc_error_policy.h.
     const bool caller_surfaces = (on_error != nullptr);
 
-    api_->set_led(
-        strip_id, r, g, b, w, std::move(on_success),
-        [on_error](const MoonrakerError& err) {
-            if (on_error) {
-                on_error(err.message);
-            }
-        },
-        std::move(on_queued), caller_surfaces);
+    api_->set_led(strip_id, r, g, b, w, std::move(on_success), forward_error(on_error),
+                  std::move(on_queued), caller_surfaces);
 }
 
 void NativeBackend::turn_off(const std::string& strip_id, SuccessCallback on_success,
                              ErrorCallback on_error, SuccessCallback on_queued) {
-    if (!api_) {
-        spdlog::warn("[NativeBackend] turn_off called with no API (strip={})", strip_id);
-        if (on_error) {
-            on_error("NativeBackend: no API available");
-        }
-        return;
-    }
-
     spdlog::debug("[NativeBackend] turn_off: {}", strip_id);
     // Set all channels to zero
     set_color(strip_id, 0.0, 0.0, 0.0, 0.0, std::move(on_success), std::move(on_error),
@@ -990,12 +917,7 @@ void LedEffectBackend::activate_effect(const std::string& effect_name,
                                        NativeBackend::ErrorCallback on_error,
                                        NativeBackend::SuccessCallback on_queued,
                                        bool caller_surfaces_errors) {
-    if (!api_) {
-        spdlog::warn("[LedEffectBackend] activate_effect called with no API (effect={})",
-                     effect_name);
-        if (on_error) {
-            on_error("No API connection available");
-        }
+    if (!require_api(api_, "LedEffectBackend::activate_effect", effect_name, on_error)) {
         return;
     }
 
@@ -1012,25 +934,15 @@ void LedEffectBackend::activate_effect(const std::string& effect_name,
     // Captured before the wrapper below, which is non-null on every call.
     const bool caller_surfaces = caller_surfaces_errors && (on_error != nullptr);
 
-    api_->execute_gcode(
-        gcode, std::move(on_success),
-        [on_error](const MoonrakerError& err) {
-            if (on_error) {
-                on_error(err.message);
-            }
-        },
-        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+    api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
+                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
 }
 
 void LedEffectBackend::stop_all_effects(NativeBackend::SuccessCallback on_success,
                                         NativeBackend::ErrorCallback on_error,
                                         NativeBackend::SuccessCallback on_queued,
                                         bool caller_surfaces_errors) {
-    if (!api_) {
-        spdlog::warn("[LedEffectBackend] stop_all_effects called with no API");
-        if (on_error) {
-            on_error("No API connection available");
-        }
+    if (!require_api(api_, "LedEffectBackend::stop_all_effects", "", on_error)) {
         return;
     }
 
@@ -1039,25 +951,15 @@ void LedEffectBackend::stop_all_effects(NativeBackend::SuccessCallback on_succes
     // Captured before the wrapper below, which is non-null on every call.
     const bool caller_surfaces = caller_surfaces_errors && (on_error != nullptr);
 
-    api_->execute_gcode(
-        "STOP_LED_EFFECTS", std::move(on_success),
-        [on_error](const MoonrakerError& err) {
-            if (on_error) {
-                on_error(err.message);
-            }
-        },
-        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+    api_->execute_gcode("STOP_LED_EFFECTS", std::move(on_success), forward_error(on_error),
+                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
 }
 
 void LedEffectBackend::stop_effect(const std::string& effect_name,
                                    NativeBackend::SuccessCallback on_success,
                                    NativeBackend::ErrorCallback on_error,
                                    NativeBackend::SuccessCallback on_queued) {
-    if (!api_) {
-        spdlog::warn("[LedEffectBackend] stop_effect called with no API (effect={})", effect_name);
-        if (on_error) {
-            on_error("No API connection available");
-        }
+    if (!require_api(api_, "LedEffectBackend::stop_effect", effect_name, on_error)) {
         return;
     }
 
@@ -1074,14 +976,8 @@ void LedEffectBackend::stop_effect(const std::string& effect_name,
     // Captured before the wrapper below, which is non-null on every call.
     const bool caller_surfaces = (on_error != nullptr);
 
-    api_->execute_gcode(
-        gcode, std::move(on_success),
-        [on_error](const MoonrakerError& err) {
-            if (on_error) {
-                on_error(err.message);
-            }
-        },
-        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+    api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
+                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
 }
 
 std::string LedEffectBackend::icon_hint_for_effect(const std::string& effect_name) {
@@ -1124,21 +1020,7 @@ std::string LedEffectBackend::display_name_for_effect(const std::string& config_
         return "";
     }
 
-    // Replace underscores with spaces and title case each word
-    std::string result;
-    bool capitalize_next = true;
-    for (char c : raw) {
-        if (c == '_') {
-            result += ' ';
-            capitalize_next = true;
-        } else if (capitalize_next) {
-            result += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-            capitalize_next = false;
-        } else {
-            result += c;
-        }
-    }
-    return result;
+    return helix::prettify_name(raw);
 }
 
 // ============================================================================
@@ -1154,110 +1036,51 @@ void WledBackend::clear() {
     strip_states_.clear();
 }
 
-void WledBackend::set_on(const std::string& strip_name, NativeBackend::SuccessCallback on_success,
-                         NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[WledBackend] set_on called with no API (strip={})", strip_name);
-        if (on_error) {
-            on_error("WledBackend: no API available");
-        }
+void WledBackend::send(const std::string& strip_name, const char* action, int brightness,
+                       int preset, NativeBackend::SuccessCallback on_success,
+                       NativeBackend::ErrorCallback on_error) {
+    if (!require_api(api_, "WledBackend", strip_name, on_error)) {
         return;
     }
+    spdlog::debug("[WledBackend] {} {} brightness={} preset={}", strip_name, action, brightness,
+                  preset);
+    api_->rest().wled_set_strip(strip_name, action, brightness, preset, std::move(on_success),
+                                forward_error(on_error));
+}
 
-    spdlog::debug("[WledBackend] set_on: {}", strip_name);
-    // Optimistic state tracking
-    strip_states_[strip_name].is_on = true;
-    api_->rest().wled_set_strip(strip_name, "on", -1, -1, on_success,
-                                [on_error](const MoonrakerError& err) {
-                                    if (on_error) {
-                                        on_error(err.message);
-                                    }
-                                });
+void WledBackend::set_on(const std::string& strip_name, NativeBackend::SuccessCallback on_success,
+                         NativeBackend::ErrorCallback on_error) {
+    if (api_) {
+        strip_states_[strip_name].is_on = true; // optimistic
+    }
+    send(strip_name, "on", -1, -1, std::move(on_success), std::move(on_error));
 }
 
 void WledBackend::set_off(const std::string& strip_name, NativeBackend::SuccessCallback on_success,
                           NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[WledBackend] set_off called with no API (strip={})", strip_name);
-        if (on_error) {
-            on_error("WledBackend: no API available");
-        }
-        return;
+    if (api_) {
+        strip_states_[strip_name].is_on = false; // optimistic
     }
-
-    spdlog::debug("[WledBackend] set_off: {}", strip_name);
-    // Optimistic state tracking
-    strip_states_[strip_name].is_on = false;
-    api_->rest().wled_set_strip(strip_name, "off", -1, -1, on_success,
-                                [on_error](const MoonrakerError& err) {
-                                    if (on_error) {
-                                        on_error(err.message);
-                                    }
-                                });
+    send(strip_name, "off", -1, -1, std::move(on_success), std::move(on_error));
 }
 
 void WledBackend::set_brightness(const std::string& strip_name, int brightness,
                                  NativeBackend::SuccessCallback on_success,
                                  NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[WledBackend] set_brightness called with no API (strip={})", strip_name);
-        if (on_error) {
-            on_error("WledBackend: no API available");
-        }
-        return;
-    }
-
-    // Convert 0-100% to 0-255 for WLED
-    brightness = std::clamp(brightness, 0, 100);
-    int wled_brightness = (brightness * 255) / 100;
-
-    spdlog::debug("[WledBackend] set_brightness: {} {}% -> WLED {}", strip_name, brightness,
-                  wled_brightness);
-    api_->rest().wled_set_strip(strip_name, "on", wled_brightness, -1, on_success,
-                                [on_error](const MoonrakerError& err) {
-                                    if (on_error) {
-                                        on_error(err.message);
-                                    }
-                                });
+    // WLED takes 0-255
+    const int wled_brightness = (std::clamp(brightness, 0, 100) * 255) / 100;
+    send(strip_name, "on", wled_brightness, -1, std::move(on_success), std::move(on_error));
 }
 
 void WledBackend::set_preset(const std::string& strip_name, int preset_id,
                              NativeBackend::SuccessCallback on_success,
                              NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[WledBackend] set_preset called with no API (strip={})", strip_name);
-        if (on_error) {
-            on_error("WledBackend: no API available");
-        }
-        return;
-    }
-
-    spdlog::debug("[WledBackend] set_preset: {} preset={}", strip_name, preset_id);
-    api_->rest().wled_set_strip(strip_name, "on", -1, preset_id, on_success,
-                                [on_error](const MoonrakerError& err) {
-                                    if (on_error) {
-                                        on_error(err.message);
-                                    }
-                                });
+    send(strip_name, "on", -1, preset_id, std::move(on_success), std::move(on_error));
 }
 
 void WledBackend::toggle(const std::string& strip_name, NativeBackend::SuccessCallback on_success,
                          NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[WledBackend] toggle called with no API (strip={})", strip_name);
-        if (on_error) {
-            on_error("WledBackend: no API available");
-        }
-        return;
-    }
-
-    spdlog::debug("[WledBackend] toggle: {}", strip_name);
-    api_->rest().wled_set_strip(strip_name, "toggle", -1, -1, on_success,
-                                [on_error](const MoonrakerError& err) {
-                                    if (on_error) {
-                                        on_error(err.message);
-                                    }
-                                });
+    send(strip_name, "toggle", -1, -1, std::move(on_success), std::move(on_error));
 }
 
 void WledBackend::update_strip_state(const std::string& strip_id, const WledStripState& state) {
@@ -1336,164 +1159,68 @@ void MacroBackend::clear() {
     macros_.clear();
 }
 
-void MacroBackend::execute_on(const std::string& macro_name,
-                              NativeBackend::SuccessCallback on_success,
-                              NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[MacroBackend] execute_on called with no API (macro={})", macro_name);
+void MacroBackend::run(const std::string& macro_name, std::string LedMacroInfo::*gcode_field,
+                       const char* what, NativeBackend::SuccessCallback on_success,
+                       NativeBackend::ErrorCallback on_error) {
+    if (!require_api(api_, "MacroBackend", macro_name, on_error)) {
+        return;
+    }
+    const LedMacroInfo* macro = find_macro(macros_, macro_name);
+    if (macro == nullptr) {
+        spdlog::warn("[MacroBackend] Macro not found: '{}'", macro_name);
         if (on_error) {
-            on_error("MacroBackend: no API available");
+            on_error("Macro not found: '" + macro_name + "'");
         }
         return;
     }
-
-    // Find macro by display_name
-    for (const auto& macro : macros_) {
-        if (macro.display_name == macro_name) {
-            std::string gcode;
-            if (!macro.on_macro.empty()) {
-                gcode = macro.on_macro;
-            } else if (!macro.toggle_macro.empty()) {
-                gcode = macro.toggle_macro;
-            } else {
-                spdlog::warn("[MacroBackend] No on macro configured for '{}'", macro_name);
-                if (on_error) {
-                    on_error("No on macro configured for '" + macro_name + "'");
-                }
-                return;
-            }
-            spdlog::debug("[MacroBackend] execute_on: {} -> {}", macro_name, gcode);
-            // Captured before the wrapper below, which is non-null on every call
-            // and would otherwise claim the report on the caller's behalf. See
-            // include/rpc_error_policy.h.
-            const bool caller_surfaces = (on_error != nullptr);
-            api_->execute_gcode(
-                gcode, on_success,
-                [on_error](const MoonrakerError& err) {
-                    if (on_error) {
-                        on_error(err.message);
-                    }
-                },
-                /*timeout_ms=*/0, /*silent=*/false, /*on_queued=*/nullptr, caller_surfaces);
-            return;
+    // A toggle macro stands in for a missing on or off one.
+    const std::string& gcode =
+        !(macro->*gcode_field).empty() ? macro->*gcode_field : macro->toggle_macro;
+    if (gcode.empty()) {
+        spdlog::warn("[MacroBackend] No {} macro configured for '{}'", what, macro_name);
+        if (on_error) {
+            on_error(fmt::format("No {} macro configured for '{}'", what, macro_name));
         }
+        return;
     }
+    spdlog::debug("[MacroBackend] {} {} -> {}", what, macro_name, gcode);
+    // Captured before forward_error(), which is non-null on every call and would
+    // otherwise claim the report on the caller's behalf. See include/rpc_error_policy.h.
+    const bool caller_surfaces = (on_error != nullptr);
+    api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
+                        /*timeout_ms=*/0, /*silent=*/false, /*on_queued=*/nullptr, caller_surfaces);
+}
 
-    spdlog::warn("[MacroBackend] Macro not found: '{}'", macro_name);
-    if (on_error) {
-        on_error("Macro not found: '" + macro_name + "'");
-    }
+void MacroBackend::execute_on(const std::string& macro_name,
+                              NativeBackend::SuccessCallback on_success,
+                              NativeBackend::ErrorCallback on_error) {
+    run(macro_name, &LedMacroInfo::on_macro, "on", std::move(on_success), std::move(on_error));
 }
 
 void MacroBackend::execute_off(const std::string& macro_name,
                                NativeBackend::SuccessCallback on_success,
                                NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[MacroBackend] execute_off called with no API (macro={})", macro_name);
-        if (on_error) {
-            on_error("MacroBackend: no API available");
-        }
-        return;
-    }
-
-    // Find macro by display_name
-    for (const auto& macro : macros_) {
-        if (macro.display_name == macro_name) {
-            std::string gcode;
-            if (!macro.off_macro.empty()) {
-                gcode = macro.off_macro;
-            } else if (!macro.toggle_macro.empty()) {
-                gcode = macro.toggle_macro;
-            } else {
-                spdlog::warn("[MacroBackend] No off macro configured for '{}'", macro_name);
-                if (on_error) {
-                    on_error("No off macro configured for '" + macro_name + "'");
-                }
-                return;
-            }
-            spdlog::debug("[MacroBackend] execute_off: {} -> {}", macro_name, gcode);
-            const bool caller_surfaces = (on_error != nullptr);
-            api_->execute_gcode(
-                gcode, on_success,
-                [on_error](const MoonrakerError& err) {
-                    if (on_error) {
-                        on_error(err.message);
-                    }
-                },
-                /*timeout_ms=*/0, /*silent=*/false, /*on_queued=*/nullptr, caller_surfaces);
-            return;
-        }
-    }
-
-    spdlog::warn("[MacroBackend] Macro not found: '{}'", macro_name);
-    if (on_error) {
-        on_error("Macro not found: '" + macro_name + "'");
-    }
+    run(macro_name, &LedMacroInfo::off_macro, "off", std::move(on_success), std::move(on_error));
 }
 
 void MacroBackend::execute_toggle(const std::string& macro_name,
                                   NativeBackend::SuccessCallback on_success,
                                   NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[MacroBackend] execute_toggle called with no API (macro={})", macro_name);
-        if (on_error) {
-            on_error("MacroBackend: no API available");
-        }
-        return;
-    }
-
-    // Find macro by display_name
-    for (const auto& macro : macros_) {
-        if (macro.display_name == macro_name) {
-            if (!macro.toggle_macro.empty()) {
-                spdlog::debug("[MacroBackend] execute_toggle: {} -> {}", macro_name,
-                              macro.toggle_macro);
-                const bool caller_surfaces = (on_error != nullptr);
-                api_->execute_gcode(
-                    macro.toggle_macro, on_success,
-                    [on_error](const MoonrakerError& err) {
-                        if (on_error) {
-                            on_error(err.message);
-                        }
-                    },
-                    /*timeout_ms=*/0, /*silent=*/false, /*on_queued=*/nullptr, caller_surfaces);
-            } else {
-                spdlog::warn("[MacroBackend] No toggle macro configured for '{}'", macro_name);
-                if (on_error) {
-                    on_error("No toggle macro configured for '" + macro_name + "'");
-                }
-            }
-            return;
-        }
-    }
-
-    spdlog::warn("[MacroBackend] Macro not found: '{}'", macro_name);
-    if (on_error) {
-        on_error("Macro not found: '" + macro_name + "'");
-    }
+    run(macro_name, &LedMacroInfo::toggle_macro, "toggle", std::move(on_success),
+        std::move(on_error));
 }
 
 void MacroBackend::execute_custom_action(const std::string& macro_gcode,
                                          NativeBackend::SuccessCallback on_success,
                                          NativeBackend::ErrorCallback on_error) {
-    if (!api_) {
-        spdlog::warn("[MacroBackend] execute_custom_action called with no API");
-        if (on_error) {
-            on_error("MacroBackend: no API available");
-        }
+    if (!require_api(api_, "MacroBackend::execute_custom_action", "", on_error)) {
         return;
     }
 
     spdlog::debug("[MacroBackend] execute_custom_action: {}", macro_gcode);
     const bool caller_surfaces = (on_error != nullptr);
-    api_->execute_gcode(
-        macro_gcode, on_success,
-        [on_error](const MoonrakerError& err) {
-            if (on_error) {
-                on_error(err.message);
-            }
-        },
-        /*timeout_ms=*/0, /*silent=*/false, /*on_queued=*/nullptr, caller_surfaces);
+    api_->execute_gcode(macro_gcode, on_success, forward_error(on_error),
+                        /*timeout_ms=*/0, /*silent=*/false, /*on_queued=*/nullptr, caller_surfaces);
 }
 
 bool MacroBackend::has_known_state(const std::string& macro_name) const {
@@ -1525,11 +1252,7 @@ void OutputPinBackend::set_value(const std::string& pin_id, double value,
                                  NativeBackend::SuccessCallback on_success,
                                  NativeBackend::ErrorCallback on_error,
                                  NativeBackend::SuccessCallback on_queued) {
-    if (!api_) {
-        spdlog::warn("[OutputPinBackend] set_value called with no API (pin={})", pin_id);
-        if (on_error) {
-            on_error("OutputPinBackend: no API available");
-        }
+    if (!require_api(api_, "OutputPinBackend::set_value", pin_id, on_error)) {
         return;
     }
 
@@ -1551,14 +1274,8 @@ void OutputPinBackend::set_value(const std::string& pin_id, double value,
     // Captured before the wrapper below, which is non-null on every call.
     const bool caller_surfaces = (on_error != nullptr);
 
-    api_->execute_gcode(
-        gcode, std::move(on_success),
-        [on_error](const MoonrakerError& err) {
-            if (on_error) {
-                on_error(err.message);
-            }
-        },
-        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+    api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
+                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
 }
 
 void OutputPinBackend::turn_on(const std::string& pin_id, NativeBackend::SuccessCallback on_success,
@@ -2108,8 +1825,6 @@ void LedController::update_from_status(const nlohmann::json& status) {
     const bool effects = effects_.update_from_status(status);
     const bool pins = output_pin_.update_from_status(status);
     if (native || effects || pins) {
-        // Runs inside PrinterState::update_from_status, under its state_mutex_: a
-        // led_state_version observer must not call back into PrinterState synchronously.
         bump_state_version();
     }
 }
@@ -2257,7 +1972,7 @@ void LedController::query_led_state() {
         return;
     }
     client_->send_jsonrpc(
-        "printer.objects.query", {{"objects", query_objects}}, [](nlohmann::json response) {
+        "printer.objects.query", {{"objects", query_objects}}, [](const nlohmann::json& response) {
             if (!response.contains("result") || !response["result"].contains("status")) {
                 spdlog::warn("[LedController] query_led_state: no result/status in response");
                 return;
@@ -2477,10 +2192,6 @@ void LedController::seed_auto_paired_macros() {
         info.display_name = pretty_print_macro(base);
         if (info.display_name.empty()) {
             info.display_name = base;
-        }
-        // pretty_print_macro title-cases, which reads wrong for a bare acronym.
-        if (info.display_name == "Led") {
-            info.display_name = "LED";
         }
         // Do not shadow a device the user named the same thing -- find_macro keys
         // on display_name and would resolve to whichever came first.

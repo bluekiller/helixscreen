@@ -3,19 +3,25 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_update_queue.h"
+
 #include "app_globals.h"
 #include "config.h"
+#include "helix_version.h"
 #include "http_executor.h"
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "moonraker_error.h"
+#include "moonraker_subscription_merge.h"
 #include "plugin_backend.h"
 
 #include <algorithm>
 #include <atomic>
 #include <ifaddrs.h>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <netdb.h>
 #include <sys/socket.h>
 
@@ -104,7 +110,69 @@ std::string configured_moonraker_host() {
     return "localhost";
 }
 
+/// One entry per plugin with live subscriptions. The registry is process-wide: the
+/// subscription extras provider reads it while the client holds its internal mutex, so
+/// every method takes only this registry's own lock and never calls the client.
+class PluginObjectRegistry {
+  public:
+    /// Returns true when the union changed (an entry was added, replaced or erased).
+    bool set(const std::string& id, const json& objects) {
+        std::lock_guard<std::mutex> lk(mu_);
+        if (!objects.is_object() || objects.empty())
+            return per_plugin_.erase(id) > 0;
+        auto [it, inserted] = per_plugin_.emplace(id, objects);
+        if (inserted)
+            return true;
+        if (it->second == objects)
+            return false;
+        it->second = objects;
+        return true;
+    }
+
+    json all() const {
+        std::lock_guard<std::mutex> lk(mu_);
+        json merged = json::object();
+        for (const auto& [id, objects] : per_plugin_)
+            merged = helix::merge_subscription_objects(merged, objects);
+        return merged;
+    }
+
+  private:
+    mutable std::mutex mu_;
+    std::map<std::string, json> per_plugin_;
+};
+
+PluginObjectRegistry& plugin_object_registry() {
+    static PluginObjectRegistry registry;
+    return registry;
+}
+
+/// One coalesced refresh per main-loop tick: ten plugins subscribing at load cost one
+/// printer.objects.subscribe. The client is looked up at fire time, so nothing captured
+/// here can dangle.
+void schedule_subscription_refresh() {
+    static std::atomic<bool> pending{false};
+    if (pending.exchange(true))
+        return;
+    helix::ui::queue_update("plugin_object_refresh", [] {
+        // Cleared before the refresh so sets arriving while it runs re-queue.
+        pending = false;
+        if (auto* client = get_moonraker_client())
+            client->refresh_subscription();
+    });
+}
+
 } // namespace
+
+void publish_plugin_objects(const std::string& plugin_id, const json& objects) {
+    if (!plugin_object_registry().set(plugin_id, objects))
+        return;
+    schedule_subscription_refresh();
+}
+
+json plugin_objects_union() {
+    return plugin_object_registry().all();
+}
 
 HttpTarget plan_http_target(const std::string& url, const std::vector<std::string>& forbidden_ips) {
     HttpTarget t;
@@ -214,7 +282,7 @@ PluginBackend make_app_backend() {
             req->timeout = static_cast<int>((timeout_ms + 999) / 1000);
             req->body = body;
             req->redirect = 0;
-            req->headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
+            req->headers["User-Agent"] = HELIX_USER_AGENT;
             if (headers.is_object()) {
                 for (auto it = headers.begin(); it != headers.end(); ++it) {
                     if (it.value().is_string())
@@ -256,6 +324,10 @@ PluginBackend make_app_backend() {
             if (auto* a = get_moonraker_api())
                 a->unregister_method_callback(method, name);
         };
+    };
+
+    b.set_plugin_objects = [](const std::string& plugin_id, const json& objects) {
+        publish_plugin_objects(plugin_id, objects);
     };
 
     return b;

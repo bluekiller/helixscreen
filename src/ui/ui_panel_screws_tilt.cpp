@@ -18,6 +18,7 @@
 #include "static_panel_registry.h"
 #include "theme_manager.h"
 #include "toolhead_homing.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -31,8 +32,6 @@ using namespace helix;
 // GLOBAL INSTANCE AND ROW CLICK HANDLER
 // ============================================================================
 
-static std::unique_ptr<ScrewsTiltPanel> s_screws_tilt_panel;
-
 // State subject (0=IDLE, 1=PROBING, 2=RESULTS, 3=ERROR)
 static lv_subject_t s_screws_tilt_state;
 
@@ -40,27 +39,6 @@ static lv_subject_t s_screws_tilt_state;
 static void on_screws_tilt_row_clicked(lv_event_t* e);
 IMoonrakerClient* get_moonraker_client();
 IMoonrakerAPI* get_moonraker_api();
-
-ScrewsTiltPanel& get_global_screws_tilt_panel() {
-    if (!s_screws_tilt_panel) {
-        s_screws_tilt_panel = std::make_unique<ScrewsTiltPanel>();
-        // Delegate to destroy_screws_tilt_panel() rather than resetting the
-        // pointer directly: it runs ScrewsTiltPanel::cleanup() first, which
-        // unregisters the overlay instance and sets the cleanup_called_ flag
-        // that the panel's deferred probe callbacks check before touching
-        // widgets.
-        StaticPanelRegistry::instance().register_destroy("ScrewsTiltPanel",
-                                                         []() { destroy_screws_tilt_panel(); });
-    }
-    return *s_screws_tilt_panel;
-}
-
-void destroy_screws_tilt_panel() {
-    if (s_screws_tilt_panel) {
-        s_screws_tilt_panel->cleanup();
-        s_screws_tilt_panel.reset();
-    }
-}
 
 void init_screws_tilt_row_handler() {
     lv_xml_register_event_cb(nullptr, "on_screws_tilt_row_clicked", on_screws_tilt_row_clicked);
@@ -71,41 +49,14 @@ void init_screws_tilt_row_handler() {
  * @brief Row click handler for opening screws tilt from Advanced panel
  *
  * Registered via init_screws_tilt_row_handler().
- * Lazy-creates the screws tilt panel on first click.
  */
 static void on_screws_tilt_row_clicked(lv_event_t* e) {
     (void)e;
     spdlog::debug("[ScrewsTilt] Bed leveling row clicked");
 
     auto& panel = get_global_screws_tilt_panel();
-
-    // Lazy-create the screws tilt panel
-    if (!panel.get_root()) {
-        spdlog::debug("[ScrewsTilt] Creating screws tilt panel...");
-
-        // Initialize subjects (must be before XML creation)
-        if (!panel.are_subjects_initialized()) {
-            panel.init_subjects();
-        }
-
-        // Set client and API before creating UI
-        IMoonrakerClient* client = get_moonraker_client();
-        IMoonrakerAPI* api = get_moonraker_api();
-        panel.set_client(client, api);
-
-        // Create the overlay UI
-        lv_obj_t* overlay = panel.create(lv_display_get_screen_active(nullptr));
-
-        if (!overlay) {
-            spdlog::error("[ScrewsTilt] Failed to create screws_tilt_panel");
-            return;
-        }
-
-        spdlog::info("[ScrewsTilt] Panel created and setup complete");
-    }
-
-    // Show the overlay (registers and pushes)
-    panel.show();
+    panel.set_client(get_moonraker_client(), get_moonraker_api());
+    panel.show(lv_display_get_screen_active(nullptr));
 }
 
 // ============================================================================
@@ -203,13 +154,12 @@ void ScrewsTiltPanel::deinit_subjects() {
 // ============================================================================
 
 ScrewsTiltPanel::~ScrewsTiltPanel() {
+    // cleanup() unregisters the overlay instance and sets the cleanup_called_ flag
+    // that the panel's deferred probe callbacks check before touching widgets.
+    cleanup();
+
     // Deinitialize subjects to disconnect observers before we're destroyed
     deinit_subjects();
-
-    // Guard against static destruction order fiasco (spdlog may be gone)
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[ScrewsTilt] Destroyed");
-    }
 }
 
 // ============================================================================
@@ -217,28 +167,10 @@ ScrewsTiltPanel::~ScrewsTiltPanel() {
 // ============================================================================
 
 lv_obj_t* ScrewsTiltPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[ScrewsTilt] Overlay already created, reusing");
-        return overlay_root_;
-    }
-
-    parent_screen_ = parent;
-
-    // Create UI from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "screws_tilt_panel", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[ScrewsTilt] Failed to create screws_tilt_panel XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
-
-    // Initially hidden
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    // Setup widget references
     setup_widgets();
-
-    spdlog::info("[ScrewsTilt] Overlay created");
     return overlay_root_;
 }
 
@@ -248,29 +180,16 @@ void ScrewsTiltPanel::setup_widgets() {
     }
 
     // Find display elements
-    bed_diagram_container_ = lv_obj_find_by_name(overlay_root_, "bed_diagram_container");
-    results_instruction_ = lv_obj_find_by_name(overlay_root_, "results_instruction");
+    bed_diagram_container_ =
+        helix::ui::find_required(overlay_root_, "bed_diagram_container", get_name());
+    results_instruction_ =
+        helix::ui::find_required(overlay_root_, "results_instruction", get_name());
 
     // Find screw dot widgets for color updates
-    screw_dots_[0] = lv_obj_find_by_name(overlay_root_, "screw_dot_0");
-    screw_dots_[1] = lv_obj_find_by_name(overlay_root_, "screw_dot_1");
-    screw_dots_[2] = lv_obj_find_by_name(overlay_root_, "screw_dot_2");
-    screw_dots_[3] = lv_obj_find_by_name(overlay_root_, "screw_dot_3");
-}
-
-void ScrewsTiltPanel::show() {
-    if (!overlay_root_) {
-        spdlog::error("[ScrewsTilt] Cannot show - overlay not created");
-        return;
-    }
-
-    spdlog::debug("[ScrewsTilt] Showing overlay");
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
+    screw_dots_[0] = helix::ui::find_required(overlay_root_, "screw_dot_0", get_name());
+    screw_dots_[1] = helix::ui::find_required(overlay_root_, "screw_dot_1", get_name());
+    screw_dots_[2] = helix::ui::find_required(overlay_root_, "screw_dot_2", get_name());
+    screw_dots_[3] = helix::ui::find_required(overlay_root_, "screw_dot_3", get_name());
 }
 
 void ScrewsTiltPanel::on_activate() {
@@ -876,4 +795,8 @@ void ScrewsTiltPanel::handle_share_clicked() {
         ModalStack::instance().assume_ownership(backdrop, std::move(modal));
     }
     // A failed show leaves the unique_ptr to free the instance.
+}
+
+ScrewsTiltPanel& get_global_screws_tilt_panel() {
+    return helix::lazy_global<ScrewsTiltPanel>("ScrewsTiltPanel");
 }

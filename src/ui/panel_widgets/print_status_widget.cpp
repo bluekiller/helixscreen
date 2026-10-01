@@ -30,11 +30,12 @@
 #include "filament_sensor_manager.h"
 #include "format_utils.h"
 #include "helix_fs.h"
+#include "i_moonraker_client.h"
 #include "job_queue_state.h"
 #include "klipper_extruder_naming.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_api.h"
-#include "moonraker_client.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
@@ -251,9 +252,6 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         config_["nozzle_tool_override"] = "auto";
         save_widget_config(config_);
     }
-
-    // Store this pointer for event callback recovery
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Cache widget references from XML
     print_card_thumb_ = lv_obj_find_by_name(widget_obj_, "print_card_thumb");
@@ -521,7 +519,6 @@ void PrintStatusWidget::detach() {
     compact_row_last_ = nullptr;
 
     if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;

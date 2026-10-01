@@ -27,9 +27,6 @@
 //     only need the symbol to resolve so the address-taking call sites link.
 //   * row-handler / event-callback initializers: no-op — the XML rows that
 //     would fire them are never created.
-//   * parse_shaper_csv: returns a default-constructed (empty) result — only
-//     reachable after a real input-shaper calibration run, which cannot happen
-//     on Stage A.
 //   * PIDCalibrationPanel member methods: no-op — set from subject_initializer
 //     wiring that runs but has no visible effect on the idle path.
 //
@@ -55,7 +52,6 @@
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "macro_manager.h"
-#include "shaper_csv_parser.h"
 #include "timelapse_state.h"
 #include "touch_calibration_wrapper.h"
 
@@ -123,7 +119,7 @@ bool timelapse_viewer_available() {
 //
 // src/ui/ui_overlay_timelapse_install.cpp
 TimelapseInstallOverlay::TimelapseInstallOverlay(IMoonrakerAPI* api) : api_(api) {}
-void TimelapseInstallOverlay::init_subjects() {}
+void TimelapseInstallOverlay::register_callbacks() {}
 lv_obj_t* TimelapseInstallOverlay::create(lv_obj_t*) {
     return nullptr;
 }
@@ -140,13 +136,11 @@ void open_timelapse_install() {}
 
 // src/ui/ui_overlay_timelapse_settings.cpp
 TimelapseSettingsOverlay::TimelapseSettingsOverlay(IMoonrakerAPI* api) : api_(api) {}
-void TimelapseSettingsOverlay::init_subjects() {}
+void TimelapseSettingsOverlay::register_callbacks() {}
 lv_obj_t* TimelapseSettingsOverlay::create(lv_obj_t*) {
     return nullptr;
 }
 void TimelapseSettingsOverlay::on_activate() {}
-void TimelapseSettingsOverlay::on_deactivating(DeactivateReason) {}
-void TimelapseSettingsOverlay::cleanup() {}
 
 TimelapseSettingsOverlay& get_global_timelapse_settings() {
     static TimelapseSettingsOverlay overlay(nullptr);
@@ -254,20 +248,6 @@ ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel() {
     return *reinterpret_cast<ToolOffsetCalibrationPanel*>(storage);
 }
 } // namespace helix::ui
-
-// parse_shaper_csv IS genuinely helix::calibration-namespaced (called qualified
-// from moonraker_advanced_api.cpp).
-namespace helix {
-namespace calibration {
-
-// src/calibration/shaper_csv_parser.cpp — default (empty) result; only reachable
-// after a real shaper calibration run, which cannot happen on Stage A.
-ShaperCsvData parse_shaper_csv(const std::string&, char) {
-    return ShaperCsvData{};
-}
-
-} // namespace calibration
-} // namespace helix
 
 // src/api/touch_calibration_wrapper.cpp is not in the cut, but the touch
 // calibration UI that drives it is (ui_touch_calibration_overlay.cpp,

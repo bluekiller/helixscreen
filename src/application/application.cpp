@@ -14,6 +14,7 @@
 #include "application.h"
 
 #include "detect_printer_cmd.h"
+#include "env_knobs.h"
 
 // Private LVGL header needed to read display->flush_cb for splash no-op swap
 #include "ui_overlay_timelapse_videos.h"
@@ -151,6 +152,7 @@
 
 #include "color_utils.h"
 #include "preflight_validator.h"
+#include "ui/ui_widget_helpers.h"
 
 // Developer-only showcase panel (ENABLE_DEV_PANELS, excluded from release
 // builds). Not wired into PanelFactory — kept as a live testbed for icon-font
@@ -219,7 +221,9 @@
 #include "moonraker_performance_source.h"
 #include "performance_state.h"
 #if HELIX_HAS_PLUGINS
+#include "plugin_dir_watcher.h"
 #include "plugin_host.h"
+#include "plugin_source_app.h"
 #endif
 #include "printer_discovery.h"
 #include "printer_state.h"
@@ -552,7 +556,7 @@ int Application::run(int argc, char** argv) {
     // HELIX_CRASH_TEST=1 intentionally segfaults through a known call chain
     // to verify the signal handler's unwind on real hardware. Must run AFTER
     // install() so the generated crash.txt exercises the real handler.
-    if (const char* t = std::getenv("HELIX_CRASH_TEST"); t && *t && std::string(t) != "0") {
+    if (helix::env_flag("HELIX_CRASH_TEST")) {
         crash_handler::trigger_test_crash();
     }
 
@@ -882,6 +886,10 @@ int Application::run(int argc, char** argv) {
     // init)
     DisplaySettingsManager::instance().on_theme_changed();
 
+    // --test fails loudly where the XML and the C++ disagree (a required
+    // widget missing from its component), as the unit tests do.
+    helix::ui::set_strict_ui_checks(get_runtime_config()->is_test_mode());
+
     // Phase 10: Create UI and wire panels
     if (!init_ui()) {
         shutdown();
@@ -1004,8 +1012,8 @@ int Application::run(int argc, char** argv) {
             get_global_home_panel().finalize_setup();
         }
 
-        // Phase 14: Load plugins (a no-op until HELIX_PLUGIN_DIR is set; the
-        // Moonraker plugin folder arrives in a later phase)
+        // Phase 14: Load plugins (HELIX_PLUGIN_DIR for authors, otherwise the
+        // per-printer cache of the Moonraker plugin folder, synced on connect)
 #if HELIX_HAS_PLUGINS
         init_plugins();
 #endif
@@ -2216,9 +2224,15 @@ bool Application::init_moonraker() {
 
 #if HELIX_HAS_PLUGINS
 void Application::init_plugins() {
-    const char* dir = std::getenv("HELIX_PLUGIN_DIR");
-    if (!dir || !*dir)
-        return; // the Moonraker plugin folder arrives in a later phase
+    // The watcher and the driver hold references to the host, so they die
+    // first; a printer switch rebuilds all of them against the new printer's
+    // cache.
+    m_plugin_watcher.reset();
+    m_plugin_sync.reset();
+    if (m_plugin_host) {
+        m_plugin_host->unload_all();
+        m_plugin_host.reset();
+    }
     helix::plugin::PluginHost::Deps deps;
     deps.backend = helix::plugin::make_app_backend();
     deps.read_block = [this] { return m_config->get<json>("/plugins", json::object()); };
@@ -2228,13 +2242,88 @@ void Application::init_plugins() {
     };
     deps.settings_path = m_config->get_path();
     deps.helix_version = HELIX_VERSION;
-    deps.memory_budget = helix::plugin::plugin_memory_budget(helix::plugin::read_mem_total());
+    deps.memory_budget = helix::plugin::plugin_memory_budget(
+        uint64_t{helix::get_system_memory_info().total_kb} * 1024);
     helix::plugin::register_plugin_event_callback();
     m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
-    m_plugin_host->load_from(dir);
-    // Panels are up by now, so the visibility subject exists: unhide the row.
+
+    const char* dir = std::getenv("HELIX_PLUGIN_DIR");
+    std::string cache;
+    if (dir && *dir) {
+        m_plugin_host->load_from(dir);
+        // Developer mode: no sync driver runs against a local dir, so a poll
+        // timer is the only thing that picks edits up while the app runs.
+        if (RuntimeConfig::hot_reload_enabled())
+            m_plugin_watcher =
+                std::make_unique<helix::plugin::PluginDirWatcher>(*m_plugin_host, dir);
+    } else {
+        // Boot offline from the last sync: the per-printer cache is the plugin dir.
+        cache = helix::plugin::plugin_cache_dir_for(m_config->get_active_printer_id());
+        m_plugin_host->load_from(cache);
+        // No driver without a Moonraker API (tests, early boot): the host still
+        // runs the cached plugins, only the sync is missing.
+        if (m_moonraker && m_moonraker->api()) {
+            m_plugin_sync = std::make_unique<helix::plugin::PluginSyncDriver>(
+                *m_plugin_host, helix::plugin::make_moonraker_source_deps(m_moonraker->api()),
+                cache);
+            m_plugin_sync->on_synced = [this](const helix::plugin::SyncResult& result) {
+                on_plugin_sync(result);
+            };
+            // Discovery completion is queued behind this boot, but a driver
+            // built once the connection is already up must not wait for the
+            // next reconnect to hear about plugins.
+            if (m_moonraker->api()->is_connected())
+                m_plugin_sync->sync_now();
+        }
+    }
+    m_known_plugin_ids.clear();
+    for (const auto& info : m_plugin_host->plugins())
+        m_known_plugin_ids.insert(info.dir_name);
+    update_plugins_row_visibility();
+}
+
+void Application::on_plugin_sync(const helix::plugin::SyncResult& result) {
+    std::vector<std::string> fresh;
+    for (const auto& id : result.changed) {
+        if (m_known_plugin_ids.count(id) == 0)
+            fresh.push_back(id);
+    }
+    m_known_plugin_ids.clear();
+    for (const auto& info : m_plugin_host->plugins())
+        m_known_plugin_ids.insert(info.dir_name);
+    update_plugins_row_visibility();
+
+    // Only a folder the host can actually load is "new": a synced dir with no
+    // manifest, or one the host rejected, cannot be enabled, so it never toasts.
+    fresh = helix::plugin::loadable_plugin_ids(fresh, m_plugin_host->plugins());
+    if (fresh.empty())
+        return;
+    if (fresh.size() == 1) {
+        // Prefer the manifest's display name; an unreadable manifest falls back
+        // to the directory name.
+        std::string name = fresh.front();
+        for (const auto& info : m_plugin_host->plugins()) {
+            if (info.dir_name == fresh.front()) {
+                if (info.manifest)
+                    name = info.manifest->name;
+                break;
+            }
+        }
+        std::string msg = fmt::format(
+            fmt::runtime(lv_tr("New plugin available: {}. Enable it in Settings > Plugins.")),
+            name);
+        ToastManager::instance().show(ToastSeverity::INFO, msg.c_str());
+        return;
+    }
+    std::string msg = fmt::format(
+        fmt::runtime(lv_tr("{} new plugins available. Enable them in Settings > Plugins.")),
+        fresh.size());
+    ToastManager::instance().show(ToastSeverity::INFO, msg.c_str());
+}
+
+void Application::update_plugins_row_visibility() {
     if (auto* subj = lv_xml_get_subject(nullptr, "settings_plugins_available"))
-        lv_subject_set_int(subj, 1);
+        lv_subject_set_int(subj, m_plugin_host && !m_plugin_host->plugins().empty() ? 1 : 0);
 }
 #endif
 
@@ -2934,6 +3023,31 @@ void Application::setup_discovery_callbacks() {
     // answer is LED on at Start's next chance, and the latch keeps it to one.
     helix::led::LedController::instance().set_on_wled_settled(helix::settle_light_buttons);
 
+#if HELIX_HAS_PLUGINS
+    // Moonraker pushes notify_filelist_changed for every file operation in
+    // every root; only the plugin folder may cost a sync. The predicate is
+    // pure and runs on the WebSocket thread, the sync request hops to the
+    // main thread through the lifetime token (unregistered in both teardowns
+    // before the driver dies).
+    {
+        auto token = m_async_lifetime.token();
+        client->register_method_callback(
+            "notify_filelist_changed", "PluginSync", [token, app](const nlohmann::json& msg) {
+                if (!helix::plugin::is_plugin_filelist_change(msg))
+                    return;
+                token.defer("Application::plugin_filelist_changed", [app]() {
+                    if (app->m_plugin_sync)
+                        app->m_plugin_sync->request_sync();
+                });
+            });
+    }
+
+    // Plugin subscriptions ride the app's union subscription. The provider is a free
+    // function reading a process-wide registry, so it stays valid across plugin loads
+    // and needs no state of the plugin host's.
+    client->set_subscription_extras_provider(&helix::plugin::plugin_objects_union);
+#endif
+
     client->set_on_hardware_discovered([api, client, app](const helix::PrinterDiscovery& hardware) {
         // Copy hardware into a mutable snapshot on the BG thread so the
         // queued main-thread callback owns a stable, non-aliased copy. Previous
@@ -2974,6 +3088,13 @@ void Application::setup_discovery_callbacks() {
             if (app->m_shutdown_complete) {
                 return;
             }
+
+#if HELIX_HAS_PLUGINS
+            // Every connect and reconnect re-syncs the plugin folder: it may
+            // have changed while the connection was down.
+            if (app->m_plugin_sync)
+                app->m_plugin_sync->sync_now();
+#endif
 
             // Copy snapshot into API's hardware data. Copy (not move) so we can
             // move the snapshot into set_hardware below — the snapshot is the
@@ -4775,6 +4896,15 @@ void Application::tear_down_printer_state() {
     //    Moonraker notify handlers, so they must run while the subjects (deinit
     //    at step 16) and the client (destroyed at step 18) are still alive.
 #if HELIX_HAS_PLUGINS
+    if (m_moonraker && m_moonraker->client()) {
+        m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
+        // Before the plugin host goes: the registry's union stops being consulted, so
+        // the refresh the unload-time clears schedule shrinks the subscription back to
+        // app objects instead of growing it.
+        m_moonraker->client()->set_subscription_extras_provider({});
+    }
+    m_plugin_watcher.reset();
+    m_plugin_sync.reset();
     if (m_plugin_host) {
         m_plugin_host->unload_all();
         m_plugin_host.reset();
@@ -5115,6 +5245,17 @@ void Application::shutdown() {
     // must run while the subjects (deinit_all below) and the Moonraker client
     // (m_moonraker.reset below) are still alive.
 #if HELIX_HAS_PLUGINS
+    // The watcher and the driver hold host references, and the driver's
+    // filelist handler must not outlive the driver it feeds.
+    if (m_moonraker && m_moonraker->client()) {
+        m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
+        // Before the plugin host goes: the registry's union stops being consulted, so
+        // the refresh the unload-time clears schedule shrinks the subscription back to
+        // app objects instead of growing it.
+        m_moonraker->client()->set_subscription_extras_provider({});
+    }
+    m_plugin_watcher.reset();
+    m_plugin_sync.reset();
     if (m_plugin_host) {
         m_plugin_host->unload_all();
         m_plugin_host.reset();

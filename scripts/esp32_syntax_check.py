@@ -68,22 +68,25 @@ def compile_args(entry):
 
 
 def rebase_path(tok, src_root, tree, fallback_root):
-    """Point a path under the configured source root at the tree being checked.
+    """Point every path under the configured source root at the tree being checked.
 
-    A path that does not exist there (build/generated in a never-built
-    checkout) falls back to the primary checkout's copy.
+    Rewrites the root wherever it sits in the token (-I, -isystem, -include,
+    -D values such as LV_CONF_PATH="...", -fmacro-prefix-map=). A path that
+    does not exist there (build/generated in a never-built checkout) falls
+    back to the primary checkout's copy.
     """
-    for prefix in ("", "-I", "-isystem", "-include"):
-        if prefix and not tok.startswith(prefix):
-            continue
-        path = tok[len(prefix):]
-        if path.startswith(src_root + "/"):
-            rel = path[len(src_root):].lstrip("/")
-            cand = os.path.join(tree, rel)
-            if not os.path.exists(cand) and os.path.exists(os.path.join(fallback_root, rel)):
-                cand = os.path.join(fallback_root, rel)
-            return prefix + cand
-    return tok
+    def sub(m):
+        rel = m.group(1)
+        if not rel:
+            return tree
+        cand = os.path.join(tree, rel)
+        if not os.path.exists(cand) and os.path.exists(os.path.join(fallback_root, rel)):
+            cand = os.path.join(fallback_root, rel)
+        return cand
+
+    # The root alone (-I<root>, a prefix map's <root>=) is a path too; a longer
+    # sibling name (<root>x/) is not.
+    return re.sub(re.escape(src_root) + r'(?:/+([^"\s\\=]*))?(?![^/"\s\\=])', sub, tok)
 
 
 def select_units(units, changed, read_source):

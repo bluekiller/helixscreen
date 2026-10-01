@@ -71,7 +71,6 @@ using helix::ui::temperature::deci_to_degrees;
 
 // Forward declarations for class-based API
 class MotionPanel;
-MotionPanel& get_global_motion_panel();
 
 using helix::ui::position::format_position;
 
@@ -94,14 +93,6 @@ ControlsPanel::~ControlsPanel() {
 
     deinit_subjects();
 
-    // Clean up lazily-created overlay panels to prevent dangling LVGL objects
-    // Note: safe_delete_obj handles shutdown guards (lv_is_initialized, is_destroying_all, etc.)
-    using helix::ui::safe_delete_obj;
-    safe_delete_obj(motion_panel_);
-    safe_delete_obj(bed_mesh_panel_);
-    safe_delete_obj(pa_cal_panel_);
-    safe_delete_obj(zoffset_panel_);
-    safe_delete_obj(screws_panel_);
     // Modal dialogs: ModalGuard handles cleanup automatically via RAII
     // See docs/DEVELOPER_QUICK_REFERENCE.md "Modal Dialog Lifecycle"
 }
@@ -368,7 +359,7 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, cell.c_str())) {
             led_widgets_[i] =
                 std::make_unique<helix::LedWidget>("controls_" + slot, printer_state_, api_);
-            led_widgets_[i]->attach(led_cell, parent_screen);
+            led_widgets_[i]->attach_tile(led_cell, parent_screen);
         }
     }
 
@@ -1214,8 +1205,8 @@ void ControlsPanel::handle_save_z_offset_cancel() {
 // ============================================================================
 
 void ControlsPanel::handle_quick_actions_clicked() {
-    helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel, motion_panel_,
-                                                         parent_screen_, "Motion", get_name());
+    helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel, parent_screen_,
+                                                         "Motion", get_name());
 }
 
 void ControlsPanel::handle_nozzle_temp_clicked() {
@@ -1563,8 +1554,8 @@ void ControlsPanel::handle_calibration_bed_mesh() {
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(
-        get_global_bed_mesh_panel, bed_mesh_panel_, parent_screen_, "Bed Mesh", get_name(), true);
+    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(get_global_bed_mesh_panel, parent_screen_,
+                                                          "Bed Mesh", get_name());
 }
 
 void ControlsPanel::handle_calibration_tool_offsets() {
@@ -1573,8 +1564,8 @@ void ControlsPanel::handle_calibration_tool_offsets() {
     return;
 #endif
     helix::ui::lazy_create_and_push_overlay<helix::ui::ToolOffsetCalibrationPanel>(
-        helix::ui::get_global_tool_offset_cal_panel, tool_offset_panel_, parent_screen_,
-        "Tool Offset Calibration", get_name());
+        helix::ui::get_global_tool_offset_cal_panel, parent_screen_, "Tool Offset Calibration",
+        get_name());
 }
 
 void ControlsPanel::handle_calibration_pa() {
@@ -1584,8 +1575,7 @@ void ControlsPanel::handle_calibration_pa() {
 #endif
     helix::ui::get_global_pa_cal_panel().set_api(get_moonraker_api());
     helix::ui::lazy_create_and_push_overlay<helix::ui::PACalibrationPanel>(
-        helix::ui::get_global_pa_cal_panel, pa_cal_panel_, parent_screen_, "Pressure Advance",
-        get_name());
+        helix::ui::get_global_pa_cal_panel, parent_screen_, "Pressure Advance", get_name());
 }
 
 void ControlsPanel::handle_calibration_zoffset() {
@@ -1596,8 +1586,7 @@ void ControlsPanel::handle_calibration_zoffset() {
     // Set the Moonraker client before lazy creation so it's available when calibration starts
     get_global_zoffset_cal_panel().set_api(get_moonraker_api());
     helix::ui::lazy_create_and_push_overlay<ZOffsetCalibrationPanel>(
-        get_global_zoffset_cal_panel, zoffset_panel_, parent_screen_, "Z-Offset Calibration",
-        get_name());
+        get_global_zoffset_cal_panel, parent_screen_, "Z-Offset Calibration", get_name());
 }
 
 void ControlsPanel::handle_calibration_screws() {
@@ -1607,7 +1596,7 @@ void ControlsPanel::handle_calibration_screws() {
 #endif
     get_global_screws_tilt_panel().set_client(get_moonraker_client(), get_moonraker_api());
     helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(
-        get_global_screws_tilt_panel, screws_panel_, parent_screen_, "Bed Screws", get_name());
+        get_global_screws_tilt_panel, parent_screen_, "Bed Screws", get_name());
 }
 
 void ControlsPanel::handle_calibration_motors() {

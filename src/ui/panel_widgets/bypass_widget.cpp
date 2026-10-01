@@ -21,7 +21,8 @@ void register_bypass_widget() {
     lv_xml_register_event_cb(nullptr, "bypass_widget_clicked_cb", BypassWidget::clicked_cb);
 }
 
-BypassWidget::BypassWidget() = default;
+BypassWidget::BypassWidget()
+    : TiledPanelWidget("bypass", TileSizing::Content{"", "", "Bypass", false}) {}
 
 BypassWidget::~BypassWidget() {
     detach();
@@ -33,7 +34,6 @@ void BypassWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     if (!widget_obj_) {
         return;
     }
-    lv_obj_set_user_data(widget_obj_, this);
 
     // External-spool color dot: styles cannot bind a dynamic color, so the
     // dot's bg color follows the color subject through the sanctioned
@@ -71,9 +71,6 @@ void BypassWidget::detach() {
     // recycled or screen torn down) and the controller's self-observer must
     // not fire the enable for a chain nobody is waiting on.
     toggle_.cancel_pending();
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
 }
 

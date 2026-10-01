@@ -20,6 +20,7 @@
 
 #include "ams_types.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 #include <lvgl/lvgl.h>
 
@@ -44,18 +45,9 @@ namespace helix::ui {
 class AmsDeviceOperationsOverlay : public OverlayBase {
   public:
     /**
-     * @brief Default constructor
-     */
-    AmsDeviceOperationsOverlay();
-
-    /**
      * @brief Destructor
      */
     ~AmsDeviceOperationsOverlay() override;
-
-    // Non-copyable
-    AmsDeviceOperationsOverlay(const AmsDeviceOperationsOverlay&) = delete;
-    AmsDeviceOperationsOverlay& operator=(const AmsDeviceOperationsOverlay&) = delete;
 
     //
     // === OverlayBase Interface ===
@@ -76,12 +68,7 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
      */
     void register_callbacks() override;
 
-    /**
-     * @brief Create the overlay UI (called lazily)
-     *
-     * @param parent Parent widget to attach overlay to (usually screen)
-     * @return Root object of overlay, or nullptr on failure
-     */
+    /// Also subscribes to the AMS action so Abort follows what the backend can cancel.
     lv_obj_t* create(lv_obj_t* parent) override;
 
     /**
@@ -92,22 +79,13 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
         return "Multi-Filament System Management";
     }
 
+    const char* xml_component() const override {
+        return "ams_device_operations";
+    }
+
     //
     // === Public API ===
     //
-
-    /**
-     * @brief Show the overlay
-     *
-     * This method:
-     * 1. Ensures overlay is created (lazy init)
-     * 2. Queries backend for capabilities and actions
-     * 3. Updates subjects and dynamic UI
-     * 4. Pushes overlay onto navigation stack
-     *
-     * @param parent_screen The parent screen for overlay creation
-     */
-    void show(lv_obj_t* parent_screen);
 
     /**
      * @brief Refresh the overlay from backend
@@ -117,6 +95,11 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
     void refresh();
 
   protected:
+    /// Re-queries the backend on every open.
+    void before_show() override {
+        refresh();
+    }
+
     /// Abort a pending unload->enable bypass chain when this surface goes away,
     /// matching BypassWidget::detach() and AmsOperationSidebar::cleanup(): the
     /// controller's self-observer must not fire an enable nobody is waiting on.
@@ -141,38 +124,6 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
 
     /// Convert AmsAction enum to human-readable string
     static const char* action_to_string(int action);
-
-    //
-    // === Static Callbacks ===
-    //
-
-    static void on_home_clicked(lv_event_t* e);
-    static void on_recover_clicked(lv_event_t* e);
-    static void on_abort_clicked(lv_event_t* e);
-    static void on_bypass_toggled(lv_event_t* e);
-
-    /// Callback for the AFC unload-after-print toggle (AFC backends only)
-    static void on_afc_unload_after_print_toggled(lv_event_t* e);
-    static void on_always_show_bypass_spool_toggled(lv_event_t* e);
-
-    /// Callback for the keep-spool-info-on-eject toggle (backends whose
-    /// firmware reports spool ids per lane only)
-    static void on_keep_spool_info_toggled(lv_event_t* e);
-    static void on_force_bypass_controls_toggled(lv_event_t* e);
-
-    /// Callback for the QIDI eject distance slider (QIDI Box backends only)
-    static void on_qidi_eject_distance_changed(lv_event_t* e);
-
-    /// Callback for the QIDI eject velocity slider (QIDI Box backends only)
-    static void on_qidi_eject_velocity_changed(lv_event_t* e);
-
-    /// Callback for section row click — pushes detail overlay
-    static void on_section_row_clicked(lv_event_t* e);
-
-    /// Callback for the "Reset Endless Spool" action row. Opens a confirmation
-    /// dialog (the reset wipes ALL failover config) and, on confirm, calls the
-    /// backend's reset_endless_spool().
-    static void on_reset_endless_spool_clicked(lv_event_t* e);
 
     //
     // === State ===
@@ -280,14 +231,8 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
     BypassToggleController bypass_toggle_;
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton AmsDeviceOperationsOverlay
- */
-AmsDeviceOperationsOverlay& get_ams_device_operations_overlay();
+inline AmsDeviceOperationsOverlay& get_ams_device_operations_overlay() {
+    return lazy_global<AmsDeviceOperationsOverlay>("AmsDeviceOperationsOverlay");
+}
 
 } // namespace helix::ui

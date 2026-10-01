@@ -20,6 +20,7 @@
 #include "ams_environment_zone.h"
 #include "helix/xml/indexed_subject_pool.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <lvgl/lvgl.h>
@@ -47,18 +48,17 @@ struct AmsEnvironmentOverlayTestAccess;
  */
 class AmsEnvironmentOverlay : public OverlayBase {
   public:
-    AmsEnvironmentOverlay();
     ~AmsEnvironmentOverlay() override;
-
-    // Non-copyable
-    AmsEnvironmentOverlay(const AmsEnvironmentOverlay&) = delete;
-    AmsEnvironmentOverlay& operator=(const AmsEnvironmentOverlay&) = delete;
 
     // === OverlayBase Interface ===
 
     void init_subjects() override;
     void register_callbacks() override;
     lv_obj_t* create(lv_obj_t* parent) override;
+
+    const char* xml_component() const override {
+        return "ams_environment_overlay";
+    }
 
     /// Subscribe to live AMS state changes and pull current data.
     void on_activate() override;
@@ -67,6 +67,8 @@ class AmsEnvironmentOverlay : public OverlayBase {
     void on_deactivating(DeactivateReason reason) override;
 
   protected:
+    void before_show() override;
+
     /// Reclaim the three zone-tab pools so a torn-down overlay does not leave
     /// their subjects registered. Mirrors MacrosPanel::on_ui_destroyed().
     void on_ui_destroyed() override;
@@ -129,11 +131,8 @@ class AmsEnvironmentOverlay : public OverlayBase {
     /// Auto-select preset based on loaded materials
     void auto_select_preset();
 
-    // === Static Callbacks ===
-
-    static void on_start_stop_clicked(lv_event_t* e);
-    static void on_temp_input_clicked(lv_event_t* e);
-    static void on_duration_input_clicked(lv_event_t* e);
+    /// Start or stop drying on the shown zone's unit.
+    void handle_start_stop();
 
     /// Which of the two dryer inputs a keypad session is filling.
     enum class DryerField { Temperature, Duration };
@@ -152,10 +151,6 @@ class AmsEnvironmentOverlay : public OverlayBase {
     /// again. Presets are a starting point, so the auto-selection stands down for the
     /// rest of a showing in which the user set a value themselves.
     bool dryer_inputs_edited_ = false;
-
-    static void on_preset_changed(lv_event_t* e);
-    static void on_zone_tab_clicked(lv_event_t* e);
-    static void on_all_zones_clicked(lv_event_t* e);
 
     /// Push the selected zone's values into the detail subjects.
     void publish_selected_zone();
@@ -277,14 +272,9 @@ class AmsEnvironmentOverlay : public OverlayBase {
                                                     helix::xml::IndexedSubjectPool::Type::Int};
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup.
- *
- * @return Reference to singleton AmsEnvironmentOverlay
- */
-AmsEnvironmentOverlay& get_ams_environment_overlay();
+inline AmsEnvironmentOverlay& get_ams_environment_overlay() {
+    return lazy_global<AmsEnvironmentOverlay>("AmsEnvironmentOverlay");
+}
 
 /**
  * @brief Open the environment UI for one unit.

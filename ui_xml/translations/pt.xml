@@ -1794,6 +1794,7 @@
   <translation tag="Named actions in the LED Controls widget. Not shown under LED selection." pt="Ações nomeadas no widget Controles LED. Não aparecem na seleção de LED."/>
   <translation tag="Needs attention" pt="Requer atenção"/>
   <translation tag="Needs the {} package to switch spools" pt="Precisa do plugin {} para trocar de carretel"/>
+  <translation tag="Needs {}x{} free: remove or shrink a widget first" pt="Precisa de {}x{} livres: primeiro remova ou reduza um widget"/>
   <translation tag="Net Weight (g)" pt="Peso Líquido (g)"/>
   <translation tag="Network" pt="Rede"/>
   <translation tag="Network Address" pt="Endereço de Rede"/>
@@ -1812,6 +1813,7 @@
   <translation tag="New Spool: Step {} of {}" pt="Nova Bobina: Passo {} de {}"/>
   <translation tag="New Version Available" pt="Nova Versão Disponível"/>
   <translation tag="New fan name" pt="Novo nome da ventoinha"/>
+  <translation tag="New plugin available: {}. Enable it in Settings &gt; Plugins." pt="Novo plugin disponível: {}. Ative-o em Configurações &gt; Plugins."/>
   <translation tag="New printer successfully added" pt="Nova impressora adicionada com sucesso"/>
   <translation tag="New profile name" pt="Novo nome do perfil"/>
   <translation tag="Next" pt="Próximo"/>
@@ -1923,6 +1925,7 @@
   <translation tag="Not connected to the printer" pt="Não conectado à impressora"/>
   <translation tag="Not detected" pt="Não detectado"/>
   <translation tag="Not enough frequency data from the sweeps. Try again." pt="Dados de frequência insuficientes nas medições. Tente novamente."/>
+  <translation tag="Not enough room for this widget. Rearrange or remove widgets to make space." pt="Não há espaço suficiente para este widget. Reorganize ou remova widgets para criar espaço."/>
   <translation tag="Not in your spools? Set it up" pt="Não está nos seus carretéis? Configure aqui"/>
   <translation tag="Not now" pt="Agora não"/>
   <translation tag="Not yet available on this display" pt="Ainda não disponível neste display"/>
@@ -3493,6 +3496,7 @@
   <translation tag="{} needs the HelixPrint plugin. Printing original file." pt="{} precisa do plugin HelixPrint. Imprimindo o arquivo original."/>
   <translation tag="{} new" pt="{} novo(s)"/>
   <translation tag="{} new hardware available" pt="{} novo hardware disponível"/>
+  <translation tag="{} new plugins available. Enable them in Settings &gt; Plugins." pt="{} novos plugins disponíveis. Ative-os em Configurações &gt; Plugins."/>
   <translation tag="{} preset{}" pt="{} predefinição{}"/>
   <translation tag="{} set to {}" pt="{} definido para {}"/>
   <translation tag="{} set to {} {}" pt="{} definido para {} {}"/>

@@ -40,6 +40,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "printer_discovery.h"
 #include "runtime_config.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -551,13 +552,6 @@ std::string AmsBackend::normalize_material(const std::string& material) const {
 }
 
 #ifdef HELIX_ENABLE_MOCKS
-// Helper: lowercase a string for case-insensitive comparison
-static std::string to_lower(const std::string& s) {
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return result;
-}
 
 // Helper to create mock backend with optional features.
 //
@@ -600,7 +594,7 @@ create_mock_with_features(int gate_count, IMoonrakerClient* mock_client = nullpt
     std::string ams_type;
 
     if (mock_ams_env) {
-        ams_type = to_lower(mock_ams_env);
+        ams_type = helix::text_io::to_lower(mock_ams_env);
     }
 
     // No explicit topology: let the printer persona choose one. A Creator 5 Pro
@@ -679,7 +673,7 @@ create_mock_with_features(int gate_count, IMoonrakerClient* mock_client = nullpt
     std::string state_scenario;
 
     if (mock_state_env) {
-        state_scenario = to_lower(mock_state_env);
+        state_scenario = helix::text_io::to_lower(mock_state_env);
     }
 
     if (!state_scenario.empty() && state_scenario != "idle") {
@@ -717,7 +711,7 @@ create_mock_with_features(int gate_count, IMoonrakerClient* mock_client = nullpt
     // Environment sensor mode (auto-detects from dryer state if not specified)
     const char* env_mode_env = std::getenv("HELIX_MOCK_AMS_ENV");
     if (env_mode_env) {
-        std::string env_mode = to_lower(env_mode_env);
+        std::string env_mode = helix::text_io::to_lower(env_mode_env);
         mock->set_environment_mode(env_mode);
         spdlog::info("[AMS Backend] Mock environment mode: {}", env_mode);
     }
@@ -736,7 +730,7 @@ static std::unique_ptr<AmsBackend> try_create_mock(IMoonrakerClient* mock_client
     }
 
     const char* mock_ams_env = std::getenv("HELIX_MOCK_AMS");
-    if (mock_ams_env && to_lower(mock_ams_env) == "none") {
+    if (mock_ams_env && helix::text_io::to_lower(mock_ams_env) == "none") {
         spdlog::info("[AMS Backend] Mock AMS disabled via HELIX_MOCK_AMS=none");
         return nullptr;
     }
@@ -746,7 +740,7 @@ static std::unique_ptr<AmsBackend> try_create_mock(IMoonrakerClient* mock_client
     // toolchanger_addon path against them. Declining here is what lets real
     // discovery run, the same escape hatch HELIX_MOCK_AMS=none uses.
     if (mock_ams_env) {
-        const std::string mode = to_lower(mock_ams_env);
+        const std::string mode = helix::text_io::to_lower(mock_ams_env);
         if (mode == "medusahc" || mode == "medusa" || mode == "mhc" || mode == "medusahc-fork" ||
             mode == "medusa-fork") {
             spdlog::info("[AMS Backend] HELIX_MOCK_AMS={} selects mock hardware, not a mock "

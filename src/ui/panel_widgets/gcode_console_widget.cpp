@@ -12,7 +12,6 @@
 #include "grid_layout.h"
 #include "i_moonraker_api.h"
 #include "panel_widget_registry.h"
-#include "printer_cache_registry.h"
 #include "theme_manager.h"
 #include "ui/ui_lazy_panel_helper.h"
 
@@ -43,15 +42,8 @@ void register_gcode_console_widget() {
     lv_xml_register_event_cb(nullptr, "gcode_console_clicked_cb", GCodeConsoleWidget::clicked_cb);
 }
 
-GCodeConsoleWidget::GCodeConsoleWidget() {
-    // console_panel_ is a static, so it survives the printer switch that
-    // destroys the ConsolePanel object - and teardown frees the orphaned
-    // overlay widget, which would leave the cache dangling. Every
-    // active-printer change fires this before teardown, so the cache never
-    // outlives its widget.
-    PrinterCacheRegistry::instance().register_invalidator("GCodeConsoleWidget",
-                                                          []() { console_panel_ = nullptr; });
-
+GCodeConsoleWidget::GCodeConsoleWidget()
+    : TiledPanelWidget("gcode_console", TileSizing::Content{"", "", "Console", false}) {
     // Registered here, not in attach(): the manager parses this tile's XML
     // before attach() runs, and the parser drops a binding whose subject is
     // missing at parse time.
@@ -78,8 +70,6 @@ void GCodeConsoleWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // clicked_cb finds this instance through the tile root's user data.
-    lv_obj_set_user_data(widget_obj_, this);
     rows_ = lv_obj_find_by_name(widget_obj_, "gcode_console_tail_rows");
     install_delete_hook(widget_obj_);
 }
@@ -91,7 +81,6 @@ void GCodeConsoleWidget::detach() {
     tail_active_ = false;
     if (widget_obj_) {
         publish_view();
-        lv_obj_set_user_data(widget_obj_, nullptr);
     }
     uninstall_delete_hook();
     widget_obj_ = nullptr;
@@ -290,9 +279,8 @@ void GCodeConsoleWidget::publish_view() {
 }
 
 void GCodeConsoleWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, console_panel_,
-                                                          parent_screen_, "Console",
-                                                          "GCodeConsoleWidget", true);
+    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, parent_screen_,
+                                                          "Console", "GCodeConsoleWidget");
 }
 
 void GCodeConsoleWidget::clicked_cb(lv_event_t* e) {

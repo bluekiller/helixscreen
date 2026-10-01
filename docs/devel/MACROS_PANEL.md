@@ -255,7 +255,9 @@ Two widget types appear on the home panel:
 MacrosPanel uses the global panel pattern for static callback access:
 
 ```cpp
-DEFINE_GLOBAL_PANEL(MacrosPanel, g_macros_panel, get_global_macros_panel)
+MacrosPanel& get_global_macros_panel() {
+    return helix::lazy_global<MacrosPanel>("MacrosPanel");
+}
 
 void MacrosPanel::on_macro_card_clicked(lv_event_t* e) {
     auto& self = get_global_macros_panel();

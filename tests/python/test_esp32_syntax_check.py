@@ -54,3 +54,25 @@ def test_paths_move_to_the_checked_tree_and_missing_ones_fall_back(tmp_path):
     assert rebase("/cfg//include") == f"{tree}/include"
     assert rebase("-I/cfg/build/generated") == f"-I{primary}/build/generated"
     assert rebase("-I/opt/esp/idf/components/log/include") == "-I/opt/esp/idf/components/log/include"
+
+
+def test_rebase_path_rewrites_tree_paths_embedded_in_define_values(tmp_path):
+    tree, primary = tmp_path / "tree", tmp_path / "primary"
+    (tree / "include").mkdir(parents=True)
+    (primary / "build").mkdir(parents=True)
+    rebase = lambda t: esc.rebase_path(t, "/cfg", str(tree), str(primary))
+    assert rebase('-DLV_CONF_PATH="/cfg/include/lv_conf.h"') == \
+        f'-DLV_CONF_PATH="{tree}/include/lv_conf.h"'
+    assert rebase("-DLV_CONF_PATH=/cfg/include/lv_conf.h") == \
+        f"-DLV_CONF_PATH={tree}/include/lv_conf.h"
+    assert rebase('-DX="/cfg/build"') == f'-DX="{primary}/build"'
+    assert rebase("-fmacro-prefix-map=/cfg/include=.") == f"-fmacro-prefix-map={tree}/include=."
+
+
+def test_rebase_path_rewrites_the_bare_root(tmp_path):
+    tree, primary = tmp_path / "tree", tmp_path / "primary"
+    tree.mkdir()
+    rebase = lambda t: esc.rebase_path(t, "/cfg", str(tree), str(primary))
+    assert rebase("-I/cfg") == f"-I{tree}"
+    assert rebase("-fmacro-prefix-map=/cfg=.") == f"-fmacro-prefix-map={tree}=."
+    assert rebase("-I/cfgx/include") == "-I/cfgx/include"

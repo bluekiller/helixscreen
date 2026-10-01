@@ -33,8 +33,13 @@ namespace helix {
 // Test access helper — friend class for accessing internals
 class Ad5xIfsTestAccess {
   public:
+    /// Takes a notify frame or a bare status object (a query result).
     static void handle_status(AmsBackendAd5xIfs& b, const json& n) {
-        b.handle_status_update(n);
+        if (n.contains("params")) {
+            b.handle_status_update(n);
+        } else {
+            b.handle_status(n);
+        }
     }
     // Put a whole Spoolman link on the live slot — the shape a linked slot
     // carries. The persisted override record has no filament-id field, so
@@ -141,7 +146,7 @@ class Ad5xIfsTestAccess {
         b.head_filament_ = detected;
     }
     // Pin the toolhead SWITCH pair independently of the conflated head_filament_.
-    // Production latches these only in the switch branch of handle_status_update();
+    // Production latches these only in the switch branch of handle_status();
     // tests need to express "switch says X while motion says Y", which is the
     // whole point of the pair existing. `seen=false` models motion-only firmware
     // that never publishes a switch sensor at all.
@@ -576,7 +581,7 @@ class Ad5xIfsTestAccess {
         std::lock_guard<std::mutex> lock(b.mutex_);
         return b.last_filament_op_dispatch_;
     }
-    // Run the predicate against the current clock, exactly as handle_status_update
+    // Run the predicate against the current clock, exactly as handle_status
     // does after check_action_timeout(). Returns whether it changed state.
     static bool evaluate_runout(AmsBackendAd5xIfs& b) {
         std::lock_guard<std::mutex> lock(b.mutex_);

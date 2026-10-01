@@ -8,7 +8,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 
@@ -26,7 +25,7 @@
 #include "runtime_config.h"
 #include "sheet_label_layout.h"
 #include "spoolman_types.h"
-#include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 #include "usb_printer_detector.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -37,6 +36,9 @@
 #include <thread>
 
 namespace helix::settings {
+
+using helix::ui::event_selected;
+using helix::ui::find_required;
 
 // ============================================================================
 // HELPERS
@@ -119,27 +121,8 @@ static std::vector<helix::LabelSize> get_sizes_for_current_printer() {
 }
 
 // ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<LabelPrinterSettingsOverlay> g_label_printer_overlay;
-
-LabelPrinterSettingsOverlay& get_label_printer_settings_overlay() {
-    if (!g_label_printer_overlay) {
-        g_label_printer_overlay = std::make_unique<LabelPrinterSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy("LabelPrinterSettingsOverlay",
-                                                         []() { g_label_printer_overlay.reset(); });
-    }
-    return *g_label_printer_overlay;
-}
-
-// ============================================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================================
-
-LabelPrinterSettingsOverlay::LabelPrinterSettingsOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
 
 LabelPrinterSettingsOverlay::~LabelPrinterSettingsOverlay() {
     stop_label_printer_discovery();
@@ -154,8 +137,6 @@ LabelPrinterSettingsOverlay::~LabelPrinterSettingsOverlay() {
         }
         bt_ctx_ = nullptr;
     }
-
-    spdlog::trace("[{}] Destroyed", get_name());
 }
 
 // ============================================================================
@@ -163,10 +144,6 @@ LabelPrinterSettingsOverlay::~LabelPrinterSettingsOverlay() {
 // ============================================================================
 
 void LabelPrinterSettingsOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        return;
-    }
-
     // Ensure manager subjects are initialized (reads config for initial value)
     LabelPrinterSettingsManager::instance().init_subjects();
 
@@ -188,75 +165,47 @@ void LabelPrinterSettingsOverlay::init_subjects() {
                           ? 1
                           : 0;
     UI_MANAGED_SUBJECT_INT(ipp_selected_subject_, ipp_initial, "ipp_selected", subjects_);
-
-    subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized", get_name());
 }
 
 void LabelPrinterSettingsOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_lp_label_size_changed", on_label_size_changed},
-        {"on_lp_preset_changed", on_preset_changed},
-        {"on_lp_test_print", on_test_print},
-        {"on_lp_printer_selected", on_printer_selected},
-        {"on_lp_type_changed", on_type_changed},
-        {"on_lp_usb_printer_selected", on_usb_printer_selected},
-        {"on_lp_bt_printer_selected", on_bt_printer_selected},
-        {"on_lp_bt_scan", on_bt_scan},
-        {"on_lp_bt_connect", on_bt_connect},
-        {"on_lp_bt_forget", on_bt_forget},
-        {"on_lp_label_count_changed", on_label_count_changed},
+        {"on_lp_label_size_changed",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_label_size_changed(event_selected(e));
+         }},
+        {"on_lp_preset_changed",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_preset_changed(event_selected(e));
+         }},
+        {"on_lp_test_print",
+         [](lv_event_t*) { get_label_printer_settings_overlay().handle_test_print(); }},
+        {"on_lp_printer_selected",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_printer_selected(event_selected(e));
+         }},
+        {"on_lp_type_changed",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_type_changed(event_selected(e));
+         }},
+        {"on_lp_usb_printer_selected",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_usb_printer_selected(event_selected(e));
+         }},
+        {"on_lp_bt_printer_selected",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_bt_printer_selected(event_selected(e));
+         }},
+        {"on_lp_bt_scan",
+         [](lv_event_t*) { get_label_printer_settings_overlay().handle_bt_scan(); }},
+        {"on_lp_bt_connect",
+         [](lv_event_t*) { get_label_printer_settings_overlay().handle_bt_connect(); }},
+        {"on_lp_bt_forget",
+         [](lv_event_t*) { get_label_printer_settings_overlay().handle_bt_forget(); }},
+        {"on_lp_label_count_changed",
+         [](lv_event_t* e) {
+             get_label_printer_settings_overlay().handle_label_count_changed(event_selected(e));
+         }},
     });
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
-}
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* LabelPrinterSettingsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "label_printer_settings", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
-
-void LabelPrinterSettingsOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-    NavigationManager::instance().push_overlay(overlay_root_);
 }
 
 // ============================================================================
@@ -308,7 +257,7 @@ void LabelPrinterSettingsOverlay::init_address_input() {
         return;
 
     auto& settings = LabelPrinterSettingsManager::instance();
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_address_port");
+    lv_obj_t* row = find_required(overlay_root_, "row_address_port", get_name());
     if (!row)
         return;
 
@@ -316,7 +265,14 @@ void LabelPrinterSettingsOverlay::init_address_input() {
     if (input) {
         lv_textarea_set_text(input, settings.get_printer_address().c_str());
         if (!inputs_initialized_) {
-            lv_obj_add_event_cb(input, on_address_done, LV_EVENT_DEFOCUSED, nullptr);
+            lv_obj_add_event_cb(
+                input,
+                [](lv_event_t*) {
+                    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] address_done");
+                    get_label_printer_settings_overlay().handle_address_changed();
+                    LVGL_SAFE_EVENT_CB_END();
+                },
+                LV_EVENT_DEFOCUSED, nullptr);
         }
         spdlog::trace("[{}] Address input initialized", get_name());
     }
@@ -327,7 +283,7 @@ void LabelPrinterSettingsOverlay::init_port_input() {
         return;
 
     auto& settings = LabelPrinterSettingsManager::instance();
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_address_port");
+    lv_obj_t* row = find_required(overlay_root_, "row_address_port", get_name());
     if (!row)
         return;
 
@@ -336,7 +292,14 @@ void LabelPrinterSettingsOverlay::init_port_input() {
         auto port_str = fmt::format("{}", settings.get_printer_port());
         lv_textarea_set_text(input, port_str.c_str());
         if (!inputs_initialized_) {
-            lv_obj_add_event_cb(input, on_port_done, LV_EVENT_DEFOCUSED, nullptr);
+            lv_obj_add_event_cb(
+                input,
+                [](lv_event_t*) {
+                    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] port_done");
+                    get_label_printer_settings_overlay().handle_port_changed();
+                    LVGL_SAFE_EVENT_CB_END();
+                },
+                LV_EVENT_DEFOCUSED, nullptr);
         }
         spdlog::trace("[{}] Port input initialized", get_name());
     }
@@ -346,7 +309,7 @@ void LabelPrinterSettingsOverlay::init_label_size_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* size_row = lv_obj_find_by_name(overlay_root_, "row_label_size");
+    lv_obj_t* size_row = find_required(overlay_root_, "row_label_size", get_name());
     if (!size_row)
         return;
 
@@ -390,7 +353,7 @@ void LabelPrinterSettingsOverlay::init_preset_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* preset_row = lv_obj_find_by_name(overlay_root_, "row_preset");
+    lv_obj_t* preset_row = find_required(overlay_root_, "row_preset", get_name());
     if (!preset_row)
         return;
 
@@ -428,7 +391,7 @@ void LabelPrinterSettingsOverlay::init_discovery_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_discovered_printers");
+    lv_obj_t* row = find_required(overlay_root_, "row_discovered_printers", get_name());
     if (!row)
         return;
 
@@ -523,7 +486,7 @@ void LabelPrinterSettingsOverlay::merge_and_update_discovery() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_discovered_printers");
+    lv_obj_t* row = find_required(overlay_root_, "row_discovered_printers", get_name());
     if (!row)
         return;
 
@@ -605,7 +568,7 @@ void LabelPrinterSettingsOverlay::handle_printer_selected(int index) {
 
     // Update address and port input fields
     if (overlay_root_) {
-        lv_obj_t* addr_row = lv_obj_find_by_name(overlay_root_, "row_address_port");
+        lv_obj_t* addr_row = find_required(overlay_root_, "row_address_port", get_name());
         if (addr_row) {
             lv_obj_t* addr_input = lv_obj_find_by_name(addr_row, "input_address");
             if (addr_input) {
@@ -639,7 +602,7 @@ void LabelPrinterSettingsOverlay::init_printer_type_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_printer_type");
+    lv_obj_t* row = find_required(overlay_root_, "row_printer_type", get_name());
     if (!row)
         return;
 
@@ -742,7 +705,7 @@ void LabelPrinterSettingsOverlay::init_label_count_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_label_count");
+    lv_obj_t* row = find_required(overlay_root_, "row_label_count", get_name());
     if (!row)
         return;
 
@@ -785,7 +748,7 @@ void LabelPrinterSettingsOverlay::init_usb_printer_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_usb_printers");
+    lv_obj_t* row = find_required(overlay_root_, "row_usb_printers", get_name());
     if (!row)
         return;
 
@@ -825,7 +788,7 @@ void LabelPrinterSettingsOverlay::on_usb_printers_detected(
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_usb_printers");
+    lv_obj_t* row = find_required(overlay_root_, "row_usb_printers", get_name());
     if (!row)
         return;
     lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
@@ -880,10 +843,7 @@ void LabelPrinterSettingsOverlay::handle_usb_printer_selected(int index) {
 // ============================================================================
 
 void LabelPrinterSettingsOverlay::handle_address_changed() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_address_port");
+    lv_obj_t* row = find_required(overlay_root_, "row_address_port", get_name());
     if (!row)
         return;
 
@@ -897,10 +857,7 @@ void LabelPrinterSettingsOverlay::handle_address_changed() {
 }
 
 void LabelPrinterSettingsOverlay::handle_port_changed() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_address_port");
+    lv_obj_t* row = find_required(overlay_root_, "row_address_port", get_name());
     if (!row)
         return;
 
@@ -931,25 +888,23 @@ void LabelPrinterSettingsOverlay::handle_label_size_changed(int index) {
         // Force QR-only for small square labels where text won't fit
         const auto& sz = sizes[index];
         bool force_qr = (sz.width_px <= 250 && sz.height_px > 0 && sz.height_px <= 250);
-        if (overlay_root_) {
-            lv_obj_t* preset_row = lv_obj_find_by_name(overlay_root_, "row_preset");
-            if (preset_row) {
-                lv_obj_t* dd = lv_obj_find_by_name(preset_row, "dropdown");
-                if (dd) {
-                    if (force_qr) {
-                        lv_dropdown_set_options(dd, lv_tr("QR Only"));
-                        lv_dropdown_set_selected(dd, 0);
-                        lv_obj_add_state(dd, LV_STATE_DISABLED);
-                        settings.set_label_preset(static_cast<int>(LabelPreset::MINIMAL));
-                    } else {
-                        // Restore full options
-                        auto opts = fmt::format("{}\n{}\n{}", lv_tr("Standard"), lv_tr("Compact"),
-                                                lv_tr("QR Only"));
-                        lv_dropdown_set_options(dd, opts.c_str());
-                        lv_dropdown_set_selected(
-                            dd, static_cast<uint32_t>(settings.get_label_preset()));
-                        lv_obj_remove_state(dd, LV_STATE_DISABLED);
-                    }
+        lv_obj_t* preset_row = find_required(overlay_root_, "row_preset", get_name());
+        if (preset_row) {
+            lv_obj_t* dd = lv_obj_find_by_name(preset_row, "dropdown");
+            if (dd) {
+                if (force_qr) {
+                    lv_dropdown_set_options(dd, lv_tr("QR Only"));
+                    lv_dropdown_set_selected(dd, 0);
+                    lv_obj_add_state(dd, LV_STATE_DISABLED);
+                    settings.set_label_preset(static_cast<int>(LabelPreset::MINIMAL));
+                } else {
+                    // Restore full options
+                    auto opts = fmt::format("{}\n{}\n{}", lv_tr("Standard"), lv_tr("Compact"),
+                                            lv_tr("QR Only"));
+                    lv_dropdown_set_options(dd, opts.c_str());
+                    lv_dropdown_set_selected(dd,
+                                             static_cast<uint32_t>(settings.get_label_preset()));
+                    lv_obj_remove_state(dd, LV_STATE_DISABLED);
                 }
             }
         }
@@ -1036,7 +991,7 @@ void LabelPrinterSettingsOverlay::init_bt_printer_dropdown() {
     if (!overlay_root_)
         return;
 
-    lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_bt_printers");
+    lv_obj_t* row = find_required(overlay_root_, "row_bt_printers", get_name());
     if (!row)
         return;
 
@@ -1078,13 +1033,13 @@ void LabelPrinterSettingsOverlay::init_bt_printer_dropdown() {
         lv_dropdown_set_selected(dropdown, 0);
 
         // Enable connect button (will update after async check)
-        lv_obj_t* btn = lv_obj_find_by_name(overlay_root_, "btn_bt_connect");
+        lv_obj_t* btn = find_required(overlay_root_, "btn_bt_connect", get_name());
         if (btn) {
             lv_obj_remove_state(btn, LV_STATE_DISABLED);
         }
 
         // Enable Forget button whenever a BT MAC is configured
-        lv_obj_t* forget_btn = lv_obj_find_by_name(overlay_root_, "btn_bt_forget");
+        lv_obj_t* forget_btn = find_required(overlay_root_, "btn_bt_forget", get_name());
         if (forget_btn) {
             lv_obj_remove_state(forget_btn, LV_STATE_DISABLED);
         }
@@ -1155,7 +1110,7 @@ void LabelPrinterSettingsOverlay::init_bt_printer_dropdown() {
     } else {
         lv_dropdown_set_options(dropdown, lv_tr("Press Scan to search"));
         // No saved BT printer — ensure Forget button is disabled
-        lv_obj_t* forget_btn = lv_obj_find_by_name(overlay_root_, "btn_bt_forget");
+        lv_obj_t* forget_btn = find_required(overlay_root_, "btn_bt_forget", get_name());
         if (forget_btn) {
             lv_obj_add_state(forget_btn, LV_STATE_DISABLED);
         }
@@ -1194,7 +1149,7 @@ void LabelPrinterSettingsOverlay::start_bt_discovery() {
     // Update UI to show scanning state
     lv_subject_set_int(&bt_scanning_subject_, 1);
     if (overlay_root_) {
-        lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_bt_printers");
+        lv_obj_t* row = find_required(overlay_root_, "row_bt_printers", get_name());
         if (row) {
             lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
             if (dropdown) {
@@ -1567,7 +1522,7 @@ void LabelPrinterSettingsOverlay::handle_bt_printer_selected(int index) {
 
     // Enable connect button when not connected
     if (overlay_root_) {
-        lv_obj_t* btn = lv_obj_find_by_name(overlay_root_, "btn_bt_connect");
+        lv_obj_t* btn = find_required(overlay_root_, "btn_bt_connect", get_name());
         if (btn) {
             if (!device.connected) {
                 lv_obj_remove_state(btn, LV_STATE_DISABLED);
@@ -1589,90 +1544,6 @@ void LabelPrinterSettingsOverlay::handle_bt_scan() {
     }
 }
 
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-void LabelPrinterSettingsOverlay::on_address_done(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_address_done");
-    get_label_printer_settings_overlay().handle_address_changed();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_port_done(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_port_done");
-    get_label_printer_settings_overlay().handle_port_changed();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_label_size_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_label_size_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_label_size_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_preset_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_preset_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_preset_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_test_print(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_test_print");
-    get_label_printer_settings_overlay().handle_test_print();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_printer_selected(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_printer_selected");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_printer_selected(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_type_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_type_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_type_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_usb_printer_selected(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_usb_printer_selected");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_usb_printer_selected(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_bt_printer_selected(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_bt_printer_selected");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_bt_printer_selected(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_bt_scan(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_bt_scan");
-    get_label_printer_settings_overlay().handle_bt_scan();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void LabelPrinterSettingsOverlay::on_label_count_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_label_count_changed");
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    get_label_printer_settings_overlay().handle_label_count_changed(index);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void LabelPrinterSettingsOverlay::handle_bt_connect() {
     auto& settings = LabelPrinterSettingsManager::instance();
     std::string mac = settings.get_bt_address();
@@ -1692,7 +1563,7 @@ void LabelPrinterSettingsOverlay::handle_bt_connect() {
 
     // Disable button while connecting
     if (overlay_root_) {
-        lv_obj_t* btn = lv_obj_find_by_name(overlay_root_, "btn_bt_connect");
+        lv_obj_t* btn = find_required(overlay_root_, "btn_bt_connect", get_name());
         if (btn)
             lv_obj_add_state(btn, LV_STATE_DISABLED);
     }
@@ -1807,18 +1678,12 @@ void LabelPrinterSettingsOverlay::handle_bt_connect() {
     } catch (const std::system_error& e) {
         spdlog::error("[LabelPrinterSettings] Failed to spawn pair thread: {}", e.what());
         if (overlay_root_) {
-            lv_obj_t* btn = lv_obj_find_by_name(overlay_root_, "btn_bt_connect");
+            lv_obj_t* btn = find_required(overlay_root_, "btn_bt_connect", get_name());
             if (btn)
                 lv_obj_remove_state(btn, LV_STATE_DISABLED);
         }
         ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Pairing failed"), 2000);
     }
-}
-
-void LabelPrinterSettingsOverlay::on_bt_connect(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_bt_connect");
-    get_label_printer_settings_overlay().handle_bt_connect();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 void LabelPrinterSettingsOverlay::handle_bt_forget() {
@@ -1833,10 +1698,10 @@ void LabelPrinterSettingsOverlay::handle_bt_forget() {
 
     // Disable Forget + Connect buttons while the unpair is in flight
     if (overlay_root_) {
-        if (auto* fbtn = lv_obj_find_by_name(overlay_root_, "btn_bt_forget")) {
+        if (auto* fbtn = find_required(overlay_root_, "btn_bt_forget", get_name())) {
             lv_obj_add_state(fbtn, LV_STATE_DISABLED);
         }
-        if (auto* cbtn = lv_obj_find_by_name(overlay_root_, "btn_bt_connect")) {
+        if (auto* cbtn = find_required(overlay_root_, "btn_bt_connect", get_name())) {
             lv_obj_add_state(cbtn, LV_STATE_DISABLED);
         }
     }
@@ -1912,12 +1777,6 @@ void LabelPrinterSettingsOverlay::handle_bt_forget() {
         spdlog::error("[LabelPrinterSettings] Failed to spawn forget thread: {}", e.what());
         ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Could not forget device"), 3000);
     }
-}
-
-void LabelPrinterSettingsOverlay::on_bt_forget(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[LabelPrinterSettings] on_bt_forget");
-    get_label_printer_settings_overlay().handle_bt_forget();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::settings

@@ -18,6 +18,7 @@
 #include "ams_environment_zone.h"
 #include "helix/xml/indexed_subject_pool.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <lvgl/lvgl.h>
@@ -29,15 +30,10 @@ namespace helix::ui {
 
 class AmsZoneOverviewOverlay : public OverlayBase {
   public:
-    AmsZoneOverviewOverlay();
     ~AmsZoneOverviewOverlay() override;
-
-    AmsZoneOverviewOverlay(const AmsZoneOverviewOverlay&) = delete;
-    AmsZoneOverviewOverlay& operator=(const AmsZoneOverviewOverlay&) = delete;
 
     void init_subjects() override;
     void register_callbacks() override;
-    lv_obj_t* create(lv_obj_t* parent) override;
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;
 
@@ -50,13 +46,18 @@ class AmsZoneOverviewOverlay : public OverlayBase {
         return "AMS Zone Overview";
     }
 
+    const char* xml_component() const override {
+        return "ams_zone_overview_overlay";
+    }
+
     /// Show the list for @p zones. The caller decides the set: one unit's zones from the
     /// environment indicator, every zone on the printer from the detail overlay's header.
     void show(lv_obj_t* parent_screen, std::vector<helix::printer::EnvironmentZone> zones);
 
-  private:
-    static void on_zone_row_clicked(lv_event_t* e);
+  protected:
+    void before_show() override;
 
+  private:
     /// Size the pools, fill them, then publish the count. Populating first keeps the
     /// repeat from binding to unset subjects and flashing on its first frame.
     void rebuild_rows();
@@ -91,7 +92,8 @@ class AmsZoneOverviewOverlay : public OverlayBase {
                                                     helix::xml::IndexedSubjectPool::Type::String};
 };
 
-/// Global instance accessor. Creates on first access and registers for cleanup.
-AmsZoneOverviewOverlay& get_ams_zone_overview_overlay();
+inline AmsZoneOverviewOverlay& get_ams_zone_overview_overlay() {
+    return lazy_global<AmsZoneOverviewOverlay>("AmsZoneOverviewOverlay");
+}
 
 } // namespace helix::ui

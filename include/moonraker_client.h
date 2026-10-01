@@ -673,6 +673,14 @@ class MoonrakerClient : public hv::WebSocketClient, public IMoonrakerClient {
      */
     void dispatch_status_update(const json& status, bool from_cached_snapshot = false) override;
 
+    void set_subscription_extras_provider(std::function<json()> provider) override {
+        discovery_.set_extras_provider(std::move(provider));
+    }
+
+    void refresh_subscription() override {
+        discovery_.refresh_subscription();
+    }
+
     /**
      * @brief Invoke an on_connected-style callback with exception safety.
      *

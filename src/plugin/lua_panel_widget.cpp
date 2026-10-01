@@ -24,22 +24,18 @@ void LuaPanelWidget::run(WidgetHook hook, const LuaRuntime::PushFn& args) {
         dispatch_widget_hook(*rt, widget_id_, hook, args);
 }
 
-void LuaPanelWidget::attach(lv_obj_t* widget_obj, lv_obj_t*) {
-    root_ = widget_obj;
-    install_delete_hook(root_);
+void LuaPanelWidget::attach(lv_obj_t*, lv_obj_t*) {
     run(WidgetHook::Attach);
 }
 
+// Runs only while the tile tree is alive; the base drops root() when it dies.
 void LuaPanelWidget::detach() {
-    if (!root_)
-        return;
-    run(WidgetHook::Detach);
-    uninstall_delete_hook();
-    root_ = nullptr;
+    if (root())
+        run(WidgetHook::Detach);
 }
 
 LuaPanelWidget::~LuaPanelWidget() {
-    detach();
+    detach_tile();
 }
 
 void LuaPanelWidget::on_size_changed(int colspan, int rowspan, int width_px, int height_px) {

@@ -12,6 +12,7 @@
 #include "overlay_base.h"
 #include "platform_capabilities.h"
 #include "resonance_console.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <cstdint>
@@ -88,6 +89,10 @@ class BeltTensionPanel : public OverlayBase {
     void deinit_subjects();
     lv_obj_t* create(lv_obj_t* parent) override;
 
+    const char* xml_component() const override {
+        return "panel_belt_tension";
+    }
+
     const char* get_name() const override {
         return "Belt Tension";
     }
@@ -101,6 +106,7 @@ class BeltTensionPanel : public OverlayBase {
     // === Public API ===
     //
 
+    using OverlayBase::show;
     void show();
     void set_api(helix::IMoonrakerClient* client, IMoonrakerAPI* api);
 
@@ -304,7 +310,9 @@ class BeltTensionPanel : public OverlayBase {
 };
 
 // Global instance accessor
-BeltTensionPanel& get_global_belt_tension_panel();
+inline BeltTensionPanel& get_global_belt_tension_panel() {
+    return helix::lazy_global<BeltTensionPanel>("BeltTensionPanel");
+}
 
 /**
  * @brief Register XML event callbacks for belt tension panel

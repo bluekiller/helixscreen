@@ -7,8 +7,7 @@
 
 #include "async_lifetime_guard.h"
 #include "console_filter_engine.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 #include "subject_managed_panel.h"
 
 #include <deque>
@@ -20,7 +19,7 @@ namespace helix {
 /// Console tile. Below two cells tall it is the adaptive icon tile; at two
 /// cells or taller it shows a live tail of the G-code console output. Either
 /// face opens the full console overlay when tapped.
-class GCodeConsoleWidget : public PanelWidget {
+class GCodeConsoleWidget : public TiledPanelWidget {
     friend class GCodeConsoleWidgetTestAccess;
 
   public:
@@ -44,16 +43,8 @@ class GCodeConsoleWidget : public PanelWidget {
 
     void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override;
 
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
     const char** xml_attrs() const override {
         return const_cast<const char**>(attrs_.data());
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
     }
 
     static void clicked_cb(lv_event_t* e);
@@ -69,7 +60,6 @@ class GCodeConsoleWidget : public PanelWidget {
     lv_obj_t* parent_screen_ = nullptr;
 
     // Static: multiple widget instances share the same global ConsolePanel singleton
-    static inline lv_obj_t* console_panel_ = nullptr;
 
     void handle_click();
 
@@ -90,10 +80,6 @@ class GCodeConsoleWidget : public PanelWidget {
     helix::ui::ConsoleFilterEngine filter_;
     helix::AsyncLifetimeGuard lifetime_;
 
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_{"gcode_console", TileSizing::Content{"", "", "Console", false}};
     std::string view_name_{"gcode_console_tail_view"};
     lv_subject_t view_subject_{};
     SubjectManager subjects_;

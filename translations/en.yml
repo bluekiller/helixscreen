@@ -1934,6 +1934,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: Named actions in the LED Controls widget. Not shown under LED selection.
   Needs attention: Needs attention
   Needs the {} package to switch spools: Needs the {} package to switch spools
+  'Needs {}x{} free: remove or shrink a widget first': 'Needs {}x{} free: remove or shrink a widget first'
   Net Weight (g): Net Weight (g)
   Network: Network
   Network Address: Network Address
@@ -1952,6 +1953,7 @@ translations:
   'New Spool: Step {} of {}': 'New Spool: Step {} of {}'
   New Version Available: New Version Available
   New fan name: New fan name
+  'New plugin available: {}. Enable it in Settings > Plugins.': 'New plugin available: {}. Enable it in Settings > Plugins.'
   New printer successfully added: New printer successfully added
   New profile name: New profile name
   Next: Next
@@ -2070,6 +2072,7 @@ translations:
   Not connected to the printer: Not connected to the printer
   Not detected: Not detected
   Not enough frequency data from the sweeps. Try again.: 'Not enough frequency data from the sweeps. Try again.'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: Not enough room for this widget. Rearrange or remove widgets to make space.
   Not in your spools? Set it up: Not in your spools? Set it up
   Not now: Not now
   Not yet available on this display: Not yet available on this display
@@ -3812,6 +3815,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} needs the HelixPrint plugin. Printing original file.'
   '{} new': '{} new'
   '{} new hardware available': '{} new hardware available'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} new plugins available. Enable them in Settings > Plugins.'
   '{} preset{}': '{} preset{}'
   '{} set to {}': '{} set to {}'
   '{} set to {} {}': '{} set to {} {}'

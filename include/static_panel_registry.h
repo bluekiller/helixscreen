@@ -5,7 +5,9 @@
 
 #include <atomic>
 #include <functional>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 // Incomplete LVGL object type - the registry only stores and hands back
@@ -132,3 +134,43 @@ class StaticPanelRegistry {
     std::vector<lv_obj_t*> orphaned_widgets_;
     static std::atomic<bool> s_destroying_all_;
 };
+
+namespace helix {
+
+namespace detail {
+/// One slot per T, whatever arguments lazy_global<T> is called with.
+template <typename T> std::unique_ptr<T>& lazy_global_slot() {
+    static std::unique_ptr<T> instance;
+    return instance;
+}
+} // namespace detail
+
+/**
+ * @brief The process-wide instance of T, constructed on first use
+ *
+ * Registers its destruction with StaticPanelRegistry, so destroy_all() (shutdown
+ * and printer switch) frees it and the next call builds a fresh one. @p args
+ * reach the constructor only on that first call. Main thread only.
+ */
+template <typename T, typename... Args> T& lazy_global(const char* name, Args&&... args) {
+    auto& instance = detail::lazy_global_slot<T>();
+    if (!instance) {
+        instance = std::make_unique<T>(std::forward<Args>(args)...);
+        StaticPanelRegistry::instance().register_destroy(
+            name, [] { detail::lazy_global_slot<T>().reset(); });
+    }
+    return *instance;
+}
+
+/**
+ * @brief The instance of T if one exists, without constructing it
+ *
+ * For StaticSubjectRegistry deinit callbacks: they run after destroy_all(), and
+ * reaching the instance through lazy_global() there would build a replacement
+ * whose destructor runs during static destruction.
+ */
+template <typename T> T* lazy_global_if_exists() {
+    return detail::lazy_global_slot<T>().get();
+}
+
+} // namespace helix

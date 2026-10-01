@@ -10,6 +10,7 @@
 #include "lvgl.h"
 #include "moonraker_types.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <chrono>
@@ -49,14 +50,21 @@
  */
 class ConsolePanel : public OverlayBase {
   public:
-    ConsolePanel();
     ~ConsolePanel() override;
 
     // === OverlayBase interface ===
     void init_subjects() override;
     void deinit_subjects();
     void register_callbacks() override;
+    const char* xml_component() const override {
+        return "console_panel";
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     [[nodiscard]] const char* get_name() const override {
         return "Console";
     }
@@ -218,9 +226,6 @@ class ConsolePanel : public OverlayBase {
     lv_subject_t status_subject_{};
     lv_subject_t status_visible_subject_{}; ///< 1 = status text visible, 0 = hidden
     lv_subject_t has_entries_subject_{};    ///< 1 = has console entries, 0 = empty
-
-    // Callback registration tracking
-    bool callbacks_registered_ = false;
 };
 
 /**
@@ -229,4 +234,6 @@ class ConsolePanel : public OverlayBase {
  *
  * Creates the instance on first call. Used by static callbacks.
  */
-ConsolePanel& get_global_console_panel();
+inline ConsolePanel& get_global_console_panel() {
+    return helix::lazy_global<ConsolePanel>("ConsolePanel");
+}

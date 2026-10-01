@@ -3,6 +3,7 @@
 
 #include "ui_panel_motion.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_component_keypad.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
@@ -11,7 +12,6 @@
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
 #include "ui_panel_controls.h"
-#include "ui_panel_singleton_macros.h"
 #include "ui_settings_motion.h"
 #include "ui_subject_registry.h"
 #include "ui_utils.h"
@@ -22,13 +22,16 @@
 #include "i_moonraker_api.h"
 #include "jog_coalescer.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "observe_language.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "settings_manager.h"
 #include "standard_macros.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "theme_manager.h"
 #include "toolhead_homing.h"
+#include "ui/ui_widget_helpers.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -43,6 +46,7 @@
 #include "hv/json.hpp"
 
 using namespace helix;
+using helix::ui::find_required;
 
 namespace {
 /// How far Park lifts the nozzle away from the plate before moving over it.
@@ -153,29 +157,26 @@ static std::string clean_gcode_error(const std::string& msg) {
     return cleaned;
 }
 
-// Forward declarations for XML event callbacks
-static void on_motion_z_button(lv_event_t* e);
-static void on_motion_z_button_pressed(lv_event_t* e);
-static void on_motion_z_button_released(lv_event_t* e);
-static void on_motion_z_button_press_lost(lv_event_t* e);
-static void on_motion_qgl(lv_event_t* e);
-static void on_motion_z_tilt(lv_event_t* e);
-static void on_jog_mode_fine(lv_event_t* e);
-static void on_jog_mode_coarse(lv_event_t* e);
-static void on_jog_mode_turbo(lv_event_t* e);
-static void on_motion_header_settings_clicked(lv_event_t* e);
-static void on_motion_pos_clicked(lv_event_t* e);
-static void on_motion_swap_coords_clicked(lv_event_t* e);
-static void on_motion_tab_clicked(lv_event_t* e);
-static void on_motion_preset_clicked(lv_event_t* e);
-static void on_motion_park_clicked(lv_event_t* e);
-static void on_motion_motors_off_clicked(lv_event_t* e);
-
-// ============================================================================
-// Global Instance (via DEFINE_GLOBAL_PANEL macro)
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(MotionPanel, motion)
+/// Bed-grid preset keys as they appear in motion_panel.xml user_data, in
+/// MotionPreset declaration order (rear row first, front row last).
+static std::optional<helix::MotionPreset> preset_from_key(const char* key) {
+    static const struct {
+        const char* key;
+        helix::MotionPreset preset;
+    } table[] = {
+        {"rear_left", helix::MotionPreset::RearLeft},     {"rear", helix::MotionPreset::Rear},
+        {"rear_right", helix::MotionPreset::RearRight},   {"left", helix::MotionPreset::Left},
+        {"center", helix::MotionPreset::Center},          {"right", helix::MotionPreset::Right},
+        {"front_left", helix::MotionPreset::FrontLeft},   {"front", helix::MotionPreset::Front},
+        {"front_right", helix::MotionPreset::FrontRight},
+    };
+    for (const auto& row : table) {
+        if (std::strcmp(key, row.key) == 0) {
+            return row.preset;
+        }
+    }
+    return std::nullopt;
+}
 
 // ============================================================================
 // Constructor
@@ -205,8 +206,6 @@ MotionPanel::MotionPanel() {
         cfg->set("/motion/jog_mode", static_cast<int>(current_mode_));
         cfg->save();
     }
-
-    spdlog::trace("[MotionPanel] Instance created");
 }
 
 MotionPanel::~MotionPanel() {
@@ -222,8 +221,8 @@ MotionPanel::~MotionPanel() {
 // ============================================================================
 
 void MotionPanel::init_subjects() {
+    // SubjectInitializer initializes this at boot, ahead of the first show().
     if (subjects_initialized_) {
-        spdlog::debug("[{}] Subjects already initialized", get_name());
         return;
     }
 
@@ -343,49 +342,75 @@ void MotionPanel::deinit_subjects() {
 // ============================================================================
 
 void MotionPanel::register_callbacks() {
-    if (callbacks_registered_) {
-        spdlog::debug("[{}] Callbacks already registered", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Registering event callbacks", get_name());
-
-    // Register unified Z-axis button callback (user_data from XML distinguishes buttons)
-    lv_xml_register_event_cb(nullptr, "on_motion_z_button", on_motion_z_button);
-    // Hold-to-repeat arms on press and stops on release / press lost
-    lv_xml_register_event_cb(nullptr, "on_motion_z_button_pressed", on_motion_z_button_pressed);
-    lv_xml_register_event_cb(nullptr, "on_motion_z_button_released", on_motion_z_button_released);
-    lv_xml_register_event_cb(nullptr, "on_motion_z_button_press_lost",
-                             on_motion_z_button_press_lost);
-
-    // Register leveling button callbacks (delegate to ControlsPanel singleton)
-    lv_xml_register_event_cb(nullptr, "on_motion_qgl", on_motion_qgl);
-    lv_xml_register_event_cb(nullptr, "on_motion_z_tilt", on_motion_z_tilt);
-
-    // Register jog mode toggle callbacks
-    lv_xml_register_event_cb(nullptr, "on_jog_mode_fine", on_jog_mode_fine);
-    lv_xml_register_event_cb(nullptr, "on_jog_mode_coarse", on_jog_mode_coarse);
-    lv_xml_register_event_cb(nullptr, "on_jog_mode_turbo", on_jog_mode_turbo);
-
-    // Header cog: opens the Motion settings overlay through its single opener
-    lv_xml_register_event_cb(nullptr, "on_motion_header_settings_clicked",
-                             on_motion_header_settings_clicked);
-
-    // Coordinate readouts: tap an axis pair for the keypad, tap the swap icon
-    // to flip commanded/actual display.
-    lv_xml_register_event_cb(nullptr, "on_motion_pos_clicked", on_motion_pos_clicked);
-    lv_xml_register_event_cb(nullptr, "on_motion_swap_coords_clicked",
-                             on_motion_swap_coords_clicked);
-
-    // Move tab: tab strip (user_data is the tab index), the nine bed presets
-    // (user_data is the preset key), Park and Motors off.
-    lv_xml_register_event_cb(nullptr, "on_motion_tab_clicked", on_motion_tab_clicked);
-    lv_xml_register_event_cb(nullptr, "on_motion_preset_clicked", on_motion_preset_clicked);
-    lv_xml_register_event_cb(nullptr, "on_motion_park_clicked", on_motion_park_clicked);
-    lv_xml_register_event_cb(nullptr, "on_motion_motors_off_clicked", on_motion_motors_off_clicked);
-
-    callbacks_registered_ = true;
-    spdlog::debug("[{}] Event callbacks registered", get_name());
+    register_xml_callbacks({
+        // Unified Z-axis button callback (user_data from XML distinguishes buttons)
+        {"on_motion_z_button",
+         [](lv_event_t* e) {
+             MotionPanel& panel = get_global_motion_panel();
+             // A hold that repeated must not add one extra jog on release; a plain
+             // tap (no repeat) jogs exactly once through this path as before.
+             const bool swallow = panel.z_hold_timer().swallow_click();
+             panel.z_hold_timer().cancel();
+             if (swallow) {
+                 spdlog::debug("[MotionPanel] Z click swallowed after hold repeat");
+             } else if (const char* button_id =
+                            static_cast<const char*>(lv_event_get_user_data(e))) {
+                 panel.handle_z_button(button_id);
+             }
+         }},
+        // Hold-to-repeat arms on press and stops on release / press lost
+        {"on_motion_z_button_pressed",
+         [](lv_event_t* e) {
+             if (const char* button_id = static_cast<const char*>(lv_event_get_user_data(e))) {
+                 get_global_motion_panel().begin_z_hold(
+                     button_id, static_cast<lv_obj_t*>(lv_event_get_current_target(e)));
+             }
+         }},
+        {"on_motion_z_button_released",
+         [](lv_event_t*) { get_global_motion_panel().z_hold_timer().release(); }},
+        {"on_motion_z_button_press_lost",
+         [](lv_event_t*) { get_global_motion_panel().z_hold_timer().cancel(); }},
+        // Leveling buttons delegate to the ControlsPanel singleton
+        {"on_motion_qgl", [](lv_event_t*) { get_global_controls_panel().handle_qgl(); }},
+        {"on_motion_z_tilt", [](lv_event_t*) { get_global_controls_panel().handle_z_tilt(); }},
+        {"on_jog_mode_fine",
+         [](lv_event_t*) { get_global_motion_panel().set_jog_mode(JogMode::Fine); }},
+        {"on_jog_mode_coarse",
+         [](lv_event_t*) { get_global_motion_panel().set_jog_mode(JogMode::Coarse); }},
+        {"on_jog_mode_turbo",
+         [](lv_event_t*) { get_global_motion_panel().set_jog_mode(JogMode::Turbo); }},
+        // Header cog: opens the Motion settings overlay through its single opener
+        {"on_motion_header_settings_clicked",
+         [](lv_event_t*) { helix::settings::show_motion_settings_overlay(); }},
+        // Coordinate readouts: tap an axis pair for the keypad (user_data is the axis
+        // letter), tap the swap icon to flip commanded/actual display.
+        {"on_motion_pos_clicked",
+         [](lv_event_t* e) {
+             const char* axis = static_cast<const char*>(lv_event_get_user_data(e));
+             if (axis && axis[0]) {
+                 get_global_motion_panel().open_axis_keypad(axis[0]);
+             }
+         }},
+        {"on_motion_swap_coords_clicked",
+         [](lv_event_t*) { get_global_motion_panel().toggle_coordinate_source(); }},
+        // Move tab: tab strip (user_data is the tab index), the nine bed presets
+        // (user_data is the preset key), Park and Motors off.
+        {"on_motion_tab_clicked",
+         [](lv_event_t* e) {
+             if (auto tab = helix::ui::event_user_int(e))
+                 get_global_motion_panel().set_motion_tab(*tab);
+         }},
+        {"on_motion_preset_clicked",
+         [](lv_event_t* e) {
+             const char* key = static_cast<const char*>(lv_event_get_user_data(e));
+             if (auto preset = key ? preset_from_key(key) : std::nullopt) {
+                 get_global_motion_panel().handle_preset(*preset);
+             }
+         }},
+        {"on_motion_park_clicked", [](lv_event_t*) { get_global_motion_panel().handle_park(); }},
+        {"on_motion_motors_off_clicked",
+         [](lv_event_t*) { get_global_motion_panel().handle_motors_off(); }},
+    });
 }
 
 // ============================================================================
@@ -393,13 +418,10 @@ void MotionPanel::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* MotionPanel::create(lv_obj_t* parent) {
-    overlay_root_ = create_overlay_from_xml(parent, "motion_panel");
-    if (!overlay_root_)
+    if (!OverlayBase::create(parent)) {
         return nullptr;
-
+    }
     setup_jog_pad();
-
-    spdlog::info("[{}] Overlay created successfully", get_name());
     return overlay_root_;
 }
 
@@ -447,7 +469,6 @@ void MotionPanel::on_ui_destroyed() {
     // overlay widget tree is ever destroyed (destroy-on-close, parent screen
     // teardown). Peers do the same — see BedMeshPanel::on_ui_destroyed.
     jog_pad_ = nullptr;
-    parent_screen_ = nullptr;
     jog_coalescer_.reset();
     stop_hold_repeat();
 }
@@ -526,16 +547,10 @@ void MotionPanel::fit_jog_pad() {
 
 void MotionPanel::setup_jog_pad() {
     // Find overlay_content to access motion panel widgets
-    lv_obj_t* overlay_content = lv_obj_find_by_name(overlay_root_, "overlay_content");
-    if (!overlay_content) {
-        spdlog::error("[{}] overlay_content not found!", get_name());
-        return;
-    }
-
+    lv_obj_t* overlay_content = find_required(overlay_root_, "overlay_content", get_name());
     // Find jog pad container from XML and replace it with the widget
-    lv_obj_t* jog_pad_container = lv_obj_find_by_name(overlay_content, "jog_pad_container");
+    lv_obj_t* jog_pad_container = find_required(overlay_content, "jog_pad_container", get_name());
     if (!jog_pad_container) {
-        spdlog::warn("[{}] jog_pad_container NOT FOUND in XML!", get_name());
         return;
     }
 
@@ -1341,166 +1356,6 @@ void MotionPanel::handle_motors_off() {
         return;
     }
     helix::ui::show_motors_off_confirm(get_moonraker_api(), motors_off_dialog_, lifetime_.token());
-}
-
-// ============================================================================
-// Static Callback for XML event_cb (Z-axis buttons)
-// ============================================================================
-
-static void on_motion_z_button(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_z_button");
-    MotionPanel& panel = get_global_motion_panel();
-    // A hold that repeated must not add one extra jog on release; a plain
-    // tap (no repeat) jogs exactly once through this path as before.
-    const bool swallow = panel.z_hold_timer().swallow_click();
-    panel.z_hold_timer().cancel();
-    if (!swallow) {
-        const char* button_id = static_cast<const char*>(lv_event_get_user_data(e));
-        if (button_id) {
-            panel.handle_z_button(button_id);
-        }
-    } else {
-        spdlog::debug("[MotionPanel] Z click swallowed after hold repeat");
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_z_button_pressed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_z_button_pressed");
-    const char* button_id = static_cast<const char*>(lv_event_get_user_data(e));
-    if (button_id) {
-        get_global_motion_panel().begin_z_hold(
-            button_id, static_cast<lv_obj_t*>(lv_event_get_current_target(e)));
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_z_button_released(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_z_button_released");
-    (void)e;
-    get_global_motion_panel().z_hold_timer().release();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_z_button_press_lost(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_z_button_press_lost");
-    (void)e;
-    get_global_motion_panel().z_hold_timer().cancel();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_qgl(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_qgl");
-    (void)e;
-    get_global_controls_panel().handle_qgl();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_z_tilt(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_z_tilt");
-    (void)e;
-    get_global_controls_panel().handle_z_tilt();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_jog_mode_fine(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_jog_mode_fine");
-    (void)e;
-    get_global_motion_panel().set_jog_mode(JogMode::Fine);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_jog_mode_coarse(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_jog_mode_coarse");
-    (void)e;
-    get_global_motion_panel().set_jog_mode(JogMode::Coarse);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_jog_mode_turbo(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_jog_mode_turbo");
-    (void)e;
-    get_global_motion_panel().set_jog_mode(JogMode::Turbo);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_header_settings_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_header_settings_clicked");
-    (void)e;
-    helix::settings::show_motion_settings_overlay();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_pos_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_pos_clicked");
-    // user_data from XML is the axis letter ("x", "y" or "z")
-    const char* axis = static_cast<const char*>(lv_event_get_user_data(e));
-    if (axis && axis[0]) {
-        get_global_motion_panel().open_axis_keypad(axis[0]);
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_swap_coords_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_swap_coords_clicked");
-    (void)e;
-    get_global_motion_panel().toggle_coordinate_source();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_tab_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_tab_clicked");
-    // The XML event_cb path hands user_data through as a heap-owned string
-    // (lv_obj_xml_event_cb_apply lv_strdup's it), same as the AMS zone tabs.
-    const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    if (ud) {
-        get_global_motion_panel().set_motion_tab(atoi(ud));
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-/// Bed-grid preset keys as they appear in motion_panel.xml user_data, in
-/// MotionPreset declaration order (rear row first, front row last).
-static std::optional<helix::MotionPreset> preset_from_key(const char* key) {
-    static const struct {
-        const char* key;
-        helix::MotionPreset preset;
-    } table[] = {
-        {"rear_left", helix::MotionPreset::RearLeft},     {"rear", helix::MotionPreset::Rear},
-        {"rear_right", helix::MotionPreset::RearRight},   {"left", helix::MotionPreset::Left},
-        {"center", helix::MotionPreset::Center},          {"right", helix::MotionPreset::Right},
-        {"front_left", helix::MotionPreset::FrontLeft},   {"front", helix::MotionPreset::Front},
-        {"front_right", helix::MotionPreset::FrontRight},
-    };
-    for (const auto& row : table) {
-        if (std::strcmp(key, row.key) == 0) {
-            return row.preset;
-        }
-    }
-    return std::nullopt;
-}
-
-static void on_motion_preset_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_preset_clicked");
-    const char* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    if (auto preset = ud ? preset_from_key(ud) : std::nullopt) {
-        get_global_motion_panel().handle_preset(*preset);
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_park_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_park_clicked");
-    (void)e;
-    get_global_motion_panel().handle_park();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_motion_motors_off_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionPanel] on_motion_motors_off_clicked");
-    (void)e;
-    get_global_motion_panel().handle_motors_off();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 // ============================================================================

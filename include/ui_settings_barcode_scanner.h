@@ -5,6 +5,7 @@
 #include "async_lifetime_guard.h"
 #include "input_device_scanner.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <atomic>
@@ -23,18 +24,17 @@ namespace helix::ui {
 /// settings "Barcode Scanner" row. Replaces the former ScannerPickerModal.
 class BarcodeScannerSettingsOverlay : public OverlayBase {
   public:
-    BarcodeScannerSettingsOverlay();
     ~BarcodeScannerSettingsOverlay() override;
 
     const char* get_name() const override {
         return "Barcode Scanner Settings";
     }
+    const char* xml_component() const override {
+        return "barcode_scanner_settings";
+    }
 
     void init_subjects() override;
     void register_callbacks() override;
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
 
   protected:
     void on_activate() override;
@@ -59,16 +59,6 @@ class BarcodeScannerSettingsOverlay : public OverlayBase {
     void pair_bt_device(const std::string& mac, const std::string& name);
     void handle_bt_forget(const std::string& mac);
     int selected_bt_index() const;
-
-    // XML event handlers
-    static void on_bs_scan_bluetooth(lv_event_t* e);
-    static void on_bs_refresh_usb(lv_event_t* e);
-    static void on_bs_keymap_changed(lv_event_t* e);
-    static void on_bs_row_clicked(lv_event_t* e);
-    static void on_bs_row_forget(lv_event_t* e);
-    static void on_bs_bt_scanner_selected(lv_event_t* e);
-    static void on_bs_bt_pair(lv_event_t* e);
-    static void on_bs_bt_forget(lv_event_t* e);
 
     // Subjects (global scope — single-instance overlay)
     SubjectManager subjects_; // declared ahead: tears down after the subjects it owns
@@ -105,10 +95,10 @@ class BarcodeScannerSettingsOverlay : public OverlayBase {
     bool bt_discovering_ = false;
 
     static BarcodeScannerSettingsOverlay* s_active_instance_;
-
-    friend BarcodeScannerSettingsOverlay& get_barcode_scanner_settings_overlay();
 };
 
-BarcodeScannerSettingsOverlay& get_barcode_scanner_settings_overlay();
+inline BarcodeScannerSettingsOverlay& get_barcode_scanner_settings_overlay() {
+    return lazy_global<BarcodeScannerSettingsOverlay>("BarcodeScannerSettingsOverlay");
+}
 
 } // namespace helix::ui

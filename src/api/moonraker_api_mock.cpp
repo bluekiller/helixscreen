@@ -6,14 +6,17 @@
 #include "ui_update_queue.h"
 
 #include "../tests/mocks/mock_printer_state.h"
+#include "env_knobs.h"
 #include "gcode_parser.h"
 #include "mock_planted_gcodes.h"
 #include "moonraker_client_mock.h"
 #include "moonraker_client_mock_internal.h"
+#include "plugin_source_app.h"
 #include "power_device_state.h"
 #include "runtime_config.h"
 #include "screws_tilt_parser.h"
 #include "sensor_state.h"
+#include "text_io.h"
 #include "timelapse_state.h"
 
 #include <spdlog/spdlog.h>
@@ -27,6 +30,7 @@
 #define TEST_GCODE_DIR RuntimeConfig::TEST_GCODE_DIR
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -503,6 +507,38 @@ std::map<std::string, std::string> MoonrakerFileTransferAPIMock::get_config_file
     return config_files_;
 }
 
+MoonrakerFileTransferAPIMock::ConfigRootFile
+MoonrakerFileTransferAPIMock::lookup_config_root(const std::string& root,
+                                                 const std::string& path) const {
+    ConfigRootFile out;
+    if (root != "config")
+        return out;
+    const std::string_view plugin_path(path);
+    const char* plugins_dir = std::getenv("HELIX_MOCK_PLUGINS_DIR");
+    std::error_code dir_ec;
+    if (plugins_dir && *plugins_dir && std::filesystem::is_directory(plugins_dir, dir_ec) &&
+        plugin_path.rfind(plugin::kPluginRootPath, 0) == 0) {
+        // The plugins directory owns the whole plugin folder: a miss inside it is a
+        // not-found, never a fall-through that could resolve some same-basename test file.
+        out.owned = true;
+        const std::filesystem::path local =
+            std::filesystem::path(plugins_dir) /
+            plugin_path.substr(std::string_view(plugin::kPluginRootPath).size());
+        std::ifstream in(local, std::ios::binary);
+        if (in)
+            out.content =
+                std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        return out;
+    }
+    if (!config_files_.empty()) {
+        auto it = config_files_.find(path);
+        if (it != config_files_.end())
+            out.content = it->second;
+        out.owned = true;
+    }
+    return out;
+}
+
 MoonrakerFileAPIMock::MoonrakerFileAPIMock(helix::IMoonrakerClient& client)
     : MoonrakerFileAPI(client) {}
 
@@ -513,28 +549,59 @@ void MoonrakerFileAPIMock::set_config_files(std::map<std::string, std::string> f
 void MoonrakerFileAPIMock::list_files(const std::string& root, const std::string& path,
                                       bool recursive, FileListCallback on_success,
                                       ErrorCallback on_error) {
-    if (root != "config" || config_files_.empty()) {
-        MoonrakerFileAPI::list_files(root, path, recursive, std::move(on_success),
-                                     std::move(on_error));
-        return;
+    if (root == "config") {
+        std::vector<FileInfo> listing;
+        for (const auto& [file_path, content] : config_files_) {
+            FileInfo info;
+            info.path = file_path;
+            auto slash = file_path.rfind('/');
+            info.filename = (slash == std::string::npos) ? file_path : file_path.substr(slash + 1);
+            info.size = content.size();
+            info.is_dir = false;
+            listing.push_back(info);
+        }
+
+        // HELIX_MOCK_PLUGINS_DIR serves the plugin folder of the config root from a local
+        // directory, so a --test run lists and syncs plugins exactly like a printer would.
+        // Runs before the fall-through: with no injected files the directory alone still
+        // owns the config root.
+        const char* plugins_dir = std::getenv("HELIX_MOCK_PLUGINS_DIR");
+        bool plugins_dir_active = false;
+        std::error_code dir_ec;
+        if (plugins_dir && *plugins_dir && std::filesystem::is_directory(plugins_dir, dir_ec)) {
+            plugins_dir_active = true;
+            std::error_code walk_ec;
+            for (std::filesystem::recursive_directory_iterator it(plugins_dir, walk_ec), end;
+                 !walk_ec && it != end; it.increment(walk_ec)) {
+                std::error_code file_ec;
+                if (!it->is_regular_file(file_ec) || file_ec)
+                    continue;
+                FileInfo info;
+                info.path = std::string(plugin::kPluginRootPath) +
+                            it->path().lexically_relative(plugins_dir).generic_string();
+                info.filename = it->path().filename().string();
+                info.size = it->file_size(file_ec);
+                std::error_code mtime_ec;
+                const auto mtime = std::filesystem::last_write_time(it->path(), mtime_ec);
+                if (!mtime_ec)
+                    info.modified = std::chrono::duration<double>(mtime.time_since_epoch()).count();
+                info.is_dir = false;
+                listing.push_back(info);
+            }
+            spdlog::debug("[MoonrakerAPIMock] HELIX_MOCK_PLUGINS_DIR={} listed into config root",
+                          plugins_dir);
+        }
+
+        if (!config_files_.empty() || plugins_dir_active) {
+            spdlog::debug("[MoonrakerAPIMock] list_files(config) serving {} mock files",
+                          listing.size());
+            if (on_success)
+                on_success(listing);
+            return;
+        }
     }
 
-    std::vector<FileInfo> listing;
-    for (const auto& [file_path, content] : config_files_) {
-        FileInfo info;
-        info.path = file_path;
-        auto slash = file_path.rfind('/');
-        info.filename = (slash == std::string::npos) ? file_path : file_path.substr(slash + 1);
-        info.size = content.size();
-        info.is_dir = false;
-        listing.push_back(info);
-    }
-
-    spdlog::debug("[MoonrakerAPIMock] list_files(config) serving {} injected files",
-                  listing.size());
-
-    if (on_success)
-        on_success(listing);
+    MoonrakerFileAPI::list_files(root, path, recursive, std::move(on_success), std::move(on_error));
 }
 
 void MoonrakerFileAPIMock::delete_file(const std::string& filename, SuccessCallback on_success,
@@ -684,15 +751,30 @@ void MoonrakerFileTransferAPIMock::download_file_partial(const std::string& root
                                                          const std::string& path, size_t max_bytes,
                                                          StringCallback on_success,
                                                          ErrorCallback on_error) {
+    spdlog::debug("[MoonrakerAPIMock] download_file_partial: root='{}', path='{}', max_bytes={}",
+                  root, path, max_bytes);
+
+    // Config root: serve HELIX_MOCK_PLUGINS_DIR and the injected config root by full path,
+    // mirroring the real partial download's head-range contract.
+    const ConfigRootFile config = lookup_config_root(root, path);
+    if (config.owned) {
+        if (!config.content) {
+            if (on_error)
+                on_error(MoonrakerError::file_not_found("download_file_partial",
+                                                        "Mock config file not found: " + path));
+            return;
+        }
+        if (on_success)
+            on_success(config.content->substr(0, max_bytes));
+        return;
+    }
+
     // Strip any leading directory components to get just the filename
     std::string filename = path;
     size_t last_slash = path.rfind('/');
     if (last_slash != std::string::npos) {
         filename = path.substr(last_slash + 1);
     }
-
-    spdlog::debug("[MoonrakerAPIMock] download_file_partial: root='{}', path='{}', max_bytes={}",
-                  root, path, max_bytes);
 
     // Find the test file using fallback path search
     std::string local_path = find_test_file(filename);
@@ -792,6 +874,32 @@ void MoonrakerFileTransferAPIMock::download_file_to_path(
     StringCallback on_success, ErrorCallback on_error, ProgressCallback on_progress) {
     (void)on_progress; // Progress callback ignored in mock
     download_destinations_.push_back(dest_path);
+
+    // Config root: serve HELIX_MOCK_PLUGINS_DIR and the injected config root by full path,
+    // so a config download lands on disk exactly what the in-memory root holds.
+    const ConfigRootFile config = lookup_config_root(root, path);
+    if (config.owned) {
+        if (!config.content) {
+            spdlog::warn("[MoonrakerAPIMock] File not found in config root: {}", path);
+            if (on_error) {
+                on_error(MoonrakerError::file_not_found("download_file_to_path",
+                                                        "Mock config file not found: " + path));
+            }
+            return;
+        }
+        if (!text_io::write_file(dest_path, *config.content)) {
+            spdlog::error("[MoonrakerAPIMock] Failed to create destination file: {}", dest_path);
+            if (on_error) {
+                on_error(MoonrakerError::unknown("Failed to create destination file: " + dest_path,
+                                                 "download_file_to_path"));
+            }
+            return;
+        }
+        if (on_success)
+            on_success(dest_path);
+        return;
+    }
+
     // Extract just the filename from the path
     std::string filename = path;
     size_t last_slash = path.find_last_of('/');
@@ -966,10 +1074,7 @@ void MoonrakerFileTransferAPIMock::download_thumbnail(const std::string& thumbna
     // download → HttpExecutor worker → decode → prescale → evict pipeline is
     // never executed under --test, which is the pipeline bundle 6F3QJLFG
     // implicates (#960). This is the only way to reach it without a printer.
-    static const bool remote_thumbs = [] {
-        const char* v = std::getenv("HELIX_MOCK_REMOTE_THUMBS");
-        return v && v[0] && std::string(v) != "0";
-    }();
+    static const bool remote_thumbs = [] { return helix::env_flag("HELIX_MOCK_REMOTE_THUMBS"); }();
     if (remote_thumbs) {
         MoonrakerFileTransferAPI::download_thumbnail(thumbnail_path, cache_path,
                                                      std::move(on_success), std::move(on_error));
@@ -1078,7 +1183,7 @@ void MoonrakerAPIMock::get_power_devices(PowerDevicesCallback on_success, ErrorC
     (void)on_error; // Mock never fails
 
     // Test empty state with: MOCK_EMPTY_POWER=1
-    if (std::getenv("MOCK_EMPTY_POWER")) {
+    if (helix::env_flag("MOCK_EMPTY_POWER")) {
         spdlog::info("[MoonrakerAPIMock] Returning empty power devices (MOCK_EMPTY_POWER set)");
         on_success({});
         return;

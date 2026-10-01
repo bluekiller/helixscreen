@@ -13,6 +13,7 @@
 #include "app_globals.h"
 #include "display_settings_manager.h"
 #include "grid_layout.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 #include "panel_widget.h"
 #include "panel_widget_config.h"
 #include "panel_widget_registry.h"
@@ -2619,6 +2620,83 @@ void GridEditMode::rebuild_lattice() {
 // Widget catalog integration
 // ---------------------------------------------------------------------------
 
+std::optional<CatalogPlacement> find_catalog_placement(const GridLayout& occupancy,
+                                                       const PanelWidgetDef& def, int origin_col,
+                                                       int origin_row, int col_step, int row_step) {
+    int colspan = def.colspan;
+    int rowspan = def.rowspan;
+
+    int place_col = -1;
+    int place_row = -1;
+
+    // Boundaries this widget may occupy. The search, the shrink steps below and
+    // the origin the catalog remembered all have to agree with it, or a
+    // whole-cell widget added from the catalog lands straddling a cell (#1126).
+    const bool origin_on_step = origin_col >= 0 && origin_row >= 0 && origin_col % col_step == 0 &&
+                                origin_row % row_step == 0;
+
+    // Try the catalog origin cell first
+    if (origin_on_step && occupancy.can_place(origin_col, origin_row, colspan, rowspan)) {
+        place_col = origin_col;
+        place_row = origin_row;
+    } else {
+        // Fall back to first available position
+        auto pos = occupancy.find_available(colspan, rowspan, col_step, row_step);
+        if (pos) {
+            place_col = pos->first;
+            place_row = pos->second;
+        }
+    }
+
+    // If default size doesn't fit, try progressively smaller sizes down to the minimum
+    if (place_col < 0 || place_row < 0) {
+        int min_c = def.effective_min_colspan();
+        int min_r = def.effective_min_rowspan();
+
+        if (min_c < colspan || min_r < rowspan) {
+            // Try shrinking rowspan first (wider but shorter), then colspan.
+            // One step at a time, not one track: shrinking a whole-cell widget
+            // by a single track produces a size edit mode would refuse to give
+            // it back.
+            for (int try_r = rowspan; try_r >= min_r && place_col < 0; try_r -= row_step) {
+                for (int try_c = colspan; try_c >= min_c && place_col < 0; try_c -= col_step) {
+                    if (try_c == colspan && try_r == rowspan)
+                        continue; // Already tried
+
+                    if (origin_on_step &&
+                        occupancy.can_place(origin_col, origin_row, try_c, try_r)) {
+                        place_col = origin_col;
+                        place_row = origin_row;
+                        colspan = try_c;
+                        rowspan = try_r;
+                    } else {
+                        auto pos = occupancy.find_available(try_c, try_r, col_step, row_step);
+                        if (pos) {
+                            place_col = pos->first;
+                            place_row = pos->second;
+                            colspan = try_c;
+                            rowspan = try_r;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (place_col < 0 || place_row < 0) {
+        return std::nullopt;
+    }
+    return CatalogPlacement{place_col, place_row, colspan, rowspan};
+}
+
+std::optional<CatalogPlacement>
+GridEditMode::find_catalog_placement(const PanelWidgetDef& def) const {
+    const GridLayout occupancy = page_occupancy("", Occupants::OnScreen);
+    const auto [col_step, row_step] = snap_step_for(def.id);
+    return helix::find_catalog_placement(occupancy, def, catalog_origin_col_, catalog_origin_row_,
+                                         col_step, row_step);
+}
+
 void GridEditMode::open_widget_catalog(lv_obj_t* screen) {
     if (!config_) {
         spdlog::warn("[GridEditMode] Cannot open catalog: no config");
@@ -2644,7 +2722,8 @@ void GridEditMode::open_widget_catalog(lv_obj_t* screen) {
             if (active_ && show_page_cb_) {
                 show_page_cb_(page_index_);
             }
-        });
+        },
+        [this](const PanelWidgetDef& def) { return find_catalog_placement(def).has_value(); });
 }
 
 void GridEditMode::place_widget_from_catalog(const std::string& widget_id) {
@@ -2659,97 +2738,35 @@ void GridEditMode::place_widget_from_catalog(const std::string& widget_id) {
         return;
     }
 
-    int colspan = def->colspan;
-    int rowspan = def->rowspan;
-
-    const GridLayout temp_grid = page_occupancy("", Occupants::OnScreen);
-
-    int place_col = -1;
-    int place_row = -1;
-
-    // Boundaries this widget may occupy. The search, the shrink steps below and
-    // the origin the catalog remembered all have to agree with it, or a
-    // whole-cell widget added from the catalog lands straddling a cell (#1126).
-    const auto [col_step, row_step] = snap_step_for(widget_id);
-    const bool origin_on_step = catalog_origin_col_ >= 0 && catalog_origin_row_ >= 0 &&
-                                catalog_origin_col_ % col_step == 0 &&
-                                catalog_origin_row_ % row_step == 0;
-
-    // Try the catalog origin cell first
-    if (origin_on_step &&
-        temp_grid.can_place(catalog_origin_col_, catalog_origin_row_, colspan, rowspan)) {
-        place_col = catalog_origin_col_;
-        place_row = catalog_origin_row_;
-    } else {
-        // Fall back to first available position
-        auto pos = temp_grid.find_available(colspan, rowspan, col_step, row_step);
-        if (pos) {
-            place_col = pos->first;
-            place_row = pos->second;
-        }
-    }
-
-    // If default size doesn't fit, try progressively smaller sizes down to the minimum
-    if (place_col < 0 || place_row < 0) {
-        int min_c = def->effective_min_colspan();
-        int min_r = def->effective_min_rowspan();
-
-        if (min_c < colspan || min_r < rowspan) {
-            // Try shrinking rowspan first (wider but shorter), then colspan.
-            // One step at a time, not one track: shrinking a whole-cell widget
-            // by a single track produces a size edit mode would refuse to give
-            // it back.
-            for (int try_r = rowspan; try_r >= min_r && place_col < 0; try_r -= row_step) {
-                for (int try_c = colspan; try_c >= min_c && place_col < 0; try_c -= col_step) {
-                    if (try_c == colspan && try_r == rowspan)
-                        continue; // Already tried
-
-                    if (origin_on_step && temp_grid.can_place(catalog_origin_col_,
-                                                              catalog_origin_row_, try_c, try_r)) {
-                        place_col = catalog_origin_col_;
-                        place_row = catalog_origin_row_;
-                        colspan = try_c;
-                        rowspan = try_r;
-                    } else {
-                        auto pos = temp_grid.find_available(try_c, try_r, col_step, row_step);
-                        if (pos) {
-                            place_col = pos->first;
-                            place_row = pos->second;
-                            colspan = try_c;
-                            rowspan = try_r;
-                        }
-                    }
-                }
-            }
-
-            if (place_col >= 0) {
-                spdlog::info("[GridEditMode] Widget '{}' shrunk to {}x{} to fit", widget_id,
-                             colspan, rowspan);
-            }
-        }
-    }
-
-    if (place_col < 0 || place_row < 0) {
+    const auto placement = find_catalog_placement(*def);
+    if (!placement) {
         spdlog::warn("[GridEditMode] No available grid position for widget '{}' ({}x{})", widget_id,
-                     colspan, rowspan);
+                     def->colspan, def->rowspan);
         ToastManager::instance().show(
             ToastSeverity::WARNING,
-            "Not enough room for this widget. Rearrange or remove widgets to make space.");
+            lv_tr("Not enough room for this widget. Rearrange or remove widgets to make space."));
         return;
+    }
+
+    // The search shrinks only when the default span fits nowhere, so a span
+    // smaller than the def's means the widget really landed shrunk.
+    if (placement->colspan != def->colspan || placement->rowspan != def->rowspan) {
+        spdlog::info("[GridEditMode] Widget '{}' shrunk to {}x{} to fit", widget_id,
+                     placement->colspan, placement->rowspan);
     }
 
     // The catalog offers a widget that holds no cell on any page
     // (PanelWidgetConfig::is_placed), so its entry may sit on another page,
     // disabled or enabled at (-1,-1); place_entry moves it here with its config.
-    if (config_->place_entry(widget_id, static_cast<size_t>(page_index_), place_col, place_row,
-                             colspan, rowspan) < 0) {
+    if (config_->place_entry(widget_id, static_cast<size_t>(page_index_), placement->col,
+                             placement->row, placement->colspan, placement->rowspan) < 0) {
         spdlog::warn("[GridEditMode] Cannot place '{}': page {} does not exist", widget_id,
                      page_index_);
         return;
     }
 
-    spdlog::info("[GridEditMode] Placed widget '{}' at ({},{}) {}x{}", widget_id, place_col,
-                 place_row, colspan, rowspan);
+    spdlog::info("[GridEditMode] Placed widget '{}' at ({},{}) {}x{}", widget_id, placement->col,
+                 placement->row, placement->colspan, placement->rowspan);
 
     // Reset catalog origin
     catalog_origin_col_ = -1;

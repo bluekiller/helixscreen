@@ -8,6 +8,7 @@
 #include "i_moonraker_api.h"
 #include "overlay_base.h"
 #include "pa_calibration.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <functional>
@@ -108,16 +109,18 @@ class PACalibrationPanel : public OverlayBase {
     /// last half-minute.
     static constexpr int MEASURE_SECONDS_ESTIMATE = 40;
 
-    PACalibrationPanel();
     ~PACalibrationPanel() override;
 
     void init_subjects() override;
     void deinit_subjects();
 
-    lv_obj_t* create(lv_obj_t* parent) override;
+    void register_callbacks() override;
 
     const char* get_name() const override {
         return "PA Calibration";
+    }
+    const char* xml_component() const override {
+        return "calibration_pa_panel";
     }
 
     void on_activate() override;
@@ -215,17 +218,7 @@ class PACalibrationPanel : public OverlayBase {
     /// machine, so it is refused outright while a run owns it.
     void select_tool(int tool);
 
-    // --- XML event trampolines ---
-    static void on_action_clicked(lv_event_t* e);
-    static void on_start_clicked(lv_event_t* e);
-    static void on_reset_clicked(lv_event_t* e);
-    static void on_tool_clicked(lv_event_t* e);
-    static void on_preset_clicked(lv_event_t* e);
-    static void on_temp_up(lv_event_t* e);
-    static void on_temp_down(lv_event_t* e);
-
     IMoonrakerAPI* api_ = nullptr;
-    lv_obj_t* parent_screen_ = nullptr;
 
     State state_ = IDLE;
     int selected_tool_ = 0;
@@ -325,5 +318,8 @@ class PACalibrationPanel : public OverlayBase {
 };
 
 /// Singleton accessor (lazily created, destroyed via StaticPanelRegistry)
-PACalibrationPanel& get_global_pa_cal_panel();
+inline PACalibrationPanel& get_global_pa_cal_panel() {
+    return lazy_global<PACalibrationPanel>("PACalibrationPanel");
+}
+
 } // namespace helix::ui

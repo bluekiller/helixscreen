@@ -11,6 +11,7 @@
 #include "overlay_base.h"
 #include "print_history_data.h"
 #include "print_history_manager.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <atomic>
@@ -133,17 +134,12 @@ class HistoryListPanel : public OverlayBase {
      */
     void deinit_subjects();
 
-    /**
-     * @brief Register XML event callbacks
-     */
     void register_callbacks() override;
 
-    /**
-     * @brief Create the list panel from XML
-     *
-     * @param parent Parent widget (screen)
-     * @return Root widget of the overlay
-     */
+    const char* xml_component() const override {
+        return "history_list_panel";
+    }
+
     lv_obj_t* create(lv_obj_t* parent) override;
 
     [[nodiscard]] const char* get_name() const override {
@@ -249,12 +245,6 @@ class HistoryListPanel : public OverlayBase {
 
     /// Observer callback for history manager changes
     helix::HistoryChangedCallback history_observer_;
-
-    // Parent screen reference
-    lv_obj_t* parent_screen_ = nullptr;
-
-    // Callback registration tracking
-    bool callbacks_registered_ = false;
 
     // Pagination state for infinite scroll
     static constexpr int PAGE_SIZE = 50; ///< Jobs per API request
@@ -536,9 +526,7 @@ class HistoryListPanel : public OverlayBase {
     void append_rows(size_t start_index);
 };
 
-/**
- * @brief Get global HistoryListPanel instance
- *
- * Creates instance on first call. Used by static callbacks.
- */
-HistoryListPanel& get_global_history_list_panel();
+/// Lazy singleton shared by the callbacks and the panels that open it.
+inline HistoryListPanel& get_global_history_list_panel() {
+    return helix::lazy_global<HistoryListPanel>("HistoryListPanel");
+}

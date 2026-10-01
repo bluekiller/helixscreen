@@ -10,8 +10,10 @@
 #include "plugin_backend.h"
 
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <random>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -57,6 +59,8 @@ struct FakeBackend {
     };
     std::vector<Request> requests;
     std::vector<std::pair<std::string, std::function<void(const json&)>>> notify;
+    /// Every set_plugin_objects call: (plugin id, its objects map).
+    std::vector<std::pair<std::string, json>> object_sets;
     int notify_unregistered = 0;
 
     PluginBackend backend() {
@@ -82,6 +86,9 @@ struct FakeBackend {
         b.on_notify = [this](const std::string& m, std::function<void(const json&)> h) {
             notify.emplace_back(m, std::move(h));
             return std::function<void()>([this] { ++notify_unregistered; });
+        };
+        b.set_plugin_objects = [this](const std::string& id, const json& objects) {
+            object_sets.emplace_back(id, objects);
         };
         return b;
     }
@@ -133,6 +140,14 @@ struct TempDir {
         return (path / name).string();
     }
 };
+
+/// A whole file as one string; empty when unreadable.
+inline std::string read_text(const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
 
 } // namespace helix::plugin::test
 

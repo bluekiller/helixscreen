@@ -49,14 +49,5 @@
       "message": "Flushing Filament...",
       "weight": 5
     }
-  ],
-  "phase_weights": {
-    "HOMING": 10,
-    "CLEANING": 5,
-    "HEATING_BED": 20,
-    "HEATING_NOZZLE": 20,
-    "Z_TILT": 10,
-    "BED_MESH": 10,
-    "PURGING": 5
-  }
+  ]
 }

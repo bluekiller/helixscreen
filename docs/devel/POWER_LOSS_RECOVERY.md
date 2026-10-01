@@ -360,8 +360,8 @@ suppressed entirely rather than showing a Resume button that cannot work.
 ## Threading
 
 Status notifications arrive on the libhv WebSocket thread, but
-`update_from_notification()` defers the whole payload to the main thread before
-`update_from_status()` runs, so the capability parsers (which only mutate an
+`MoonrakerManager` queues them and its main-thread drain calls
+`update_from_status()`, so the capability parsers (which only mutate an
 already-initialized `lv_subject_t` int in place) execute on the main thread,
 matching the surrounding code in `printer_print_state.cpp`.
 

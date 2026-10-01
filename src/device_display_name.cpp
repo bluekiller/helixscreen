@@ -3,6 +3,8 @@
 
 #include "device_display_name.h"
 
+#include "text_io.h"
+
 #include <algorithm>
 #include <cctype>
 #include <unordered_map>
@@ -82,24 +84,36 @@ const std::unordered_map<DeviceType, std::unordered_set<std::string>> SUFFIX_SKI
 
 // Special word replacements (case-insensitive input -> exact output)
 const std::unordered_map<std::string, std::string> SPECIAL_WORDS = {
-    {"led", "LED"},          {"leds", "LEDs"},    {"psu", "PSU"},
-    {"usb", "USB"},          {"ac", "AC"},        {"dc", "DC"},
-    {"io", "I/O"},           {"gpio", "GPIO"},    {"aux", "Auxiliary"},
-    {"temp", "Temperature"}, {"ctrl", "Control"}, {"pwr", "Power"},
-    {"enc", "Enclosure"},    {"cam", "Camera"},   {"sw", "Switch"},
-    {"btn", "Button"},       {"htr", "Heater"},   {"relay", "Relay"},
-    {"mcu", "MCU"},          {"cpu", "CPU"},      {"afc", "AFC"},
-    {"ercf", "ERCF"},        {"ams", "AMS"},      {"mmu", "MMU"},
-    {"btt", "BTT"},          {"tmc", "TMC"},
+    {"led", "LED"},
+    {"leds", "LEDs"},
+    {"psu", "PSU"},
+    {"usb", "USB"},
+    {"ac", "AC"},
+    {"dc", "DC"},
+    {"io", "I/O"},
+    {"gpio", "GPIO"},
+    {"aux", "Auxiliary"},
+    {"temp", "Temperature"},
+    {"ctrl", "Control"},
+    {"pwr", "Power"},
+    {"enc", "Enclosure"},
+    {"cam", "Camera"},
+    {"sw", "Switch"},
+    {"btn", "Button"},
+    {"htr", "Heater"},
+    {"relay", "Relay"},
+    {"mcu", "MCU"},
+    {"cpu", "CPU"},
+    {"afc", "AFC"},
+    {"ercf", "ERCF"},
+    {"ams", "AMS"},
+    {"mmu", "MMU"},
+    {"btt", "BTT"},
+    {"tmc", "TMC"},
+    {"rgb", "RGB"},
+    {"rgbw", "RGBW"},
+    {"neopixel", "NeoPixel"},
 };
-
-// Convert a single word to lowercase for comparison
-std::string to_lower(const std::string& str) {
-    std::string result = str;
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return result;
-}
 
 // Check if the prettified name contains any of the skip words for this type
 bool contains_type_word(const std::string& pretty_name, DeviceType type) {
@@ -108,7 +122,7 @@ bool contains_type_word(const std::string& pretty_name, DeviceType type) {
         return false;
     }
 
-    std::string lower_name = to_lower(pretty_name);
+    std::string lower_name = helix::text_io::to_lower(pretty_name);
 
     for (const auto& skip_word : it->second) {
         // Check if the skip word appears as a whole word in the name
@@ -162,7 +176,7 @@ std::string prettify_name(const std::string& snake_case_name) {
         }
 
         // Check for special word replacement
-        std::string lower_word = to_lower(current_word);
+        std::string lower_word = helix::text_io::to_lower(current_word);
         auto it = SPECIAL_WORDS.find(lower_word);
 
         if (it != SPECIAL_WORDS.end()) {
