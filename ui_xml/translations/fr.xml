@@ -1812,6 +1812,7 @@
   <translation tag="New Spool: Step {} of {}" fr="Nouvelle bobine : étape {} sur {}"/>
   <translation tag="New Version Available" fr="Nouvelle version disponible"/>
   <translation tag="New fan name" fr="Nouveau nom du ventilateur"/>
+  <translation tag="New plugin available: {}. Enable it in Settings &gt; Plugins." fr="Nouveau plugin disponible : {}. Activez-le dans Paramètres &gt; Plugins."/>
   <translation tag="New printer successfully added" fr="Nouvelle imprimante ajoutée avec succès"/>
   <translation tag="New profile name" fr="Nouveau nom de profil"/>
   <translation tag="Next" fr="Suivant"/>
@@ -3493,6 +3494,7 @@
   <translation tag="{} needs the HelixPrint plugin. Printing original file." fr="{} nécessite le plugin HelixPrint. Impression du fichier original."/>
   <translation tag="{} new" fr="{} nouveau(x)"/>
   <translation tag="{} new hardware available" fr="{} nouveau matériel disponible"/>
+  <translation tag="{} new plugins available. Enable them in Settings &gt; Plugins." fr="{} nouveaux plugins disponibles. Activez-les dans Paramètres &gt; Plugins."/>
   <translation tag="{} preset{}" fr="{} préréglage{}"/>
   <translation tag="{} set to {}" fr="{} réglé sur {}"/>
   <translation tag="{} set to {} {}" fr="{} réglé sur {} {}"/>

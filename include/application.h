@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -26,7 +27,9 @@ class Config;
 #if HELIX_HAS_PLUGINS
 namespace helix::plugin {
 class PluginHost;
-}
+class PluginSyncDriver;
+struct SyncResult;
+} // namespace helix::plugin
 #endif
 namespace helix {
 class ActionPromptManager;
@@ -110,6 +113,13 @@ class Application {
     bool run_wizard();
 #if HELIX_HAS_PLUGINS
     void init_plugins();
+    /// Toasts plugin ids a sync found that no earlier load or sync had shown,
+    /// then refreshes the Settings > Plugins row. Runs on the main thread from
+    /// the sync driver's completion.
+    void on_plugin_sync(const helix::plugin::SyncResult& result);
+    /// settings_plugins_available follows "the host exists and holds at least
+    /// one plugin", so the row appears only once there is something to show.
+    void update_plugins_row_visibility();
 #endif
 
     // Main loop
@@ -189,6 +199,13 @@ class Application {
     std::unique_ptr<helix::XmlHotReloader> m_hot_reloader;
 #if HELIX_HAS_PLUGINS
     std::unique_ptr<helix::plugin::PluginHost> m_plugin_host;
+    /// Syncs the Moonraker plugin folder into the host's cache dir. Holds a
+    /// reference to m_plugin_host, so it must be reset before the host at
+    /// every teardown, and rebuilt with it on a printer switch.
+    std::unique_ptr<helix::plugin::PluginSyncDriver> m_plugin_sync;
+    /// Plugin ids an earlier load or sync already showed; a sync finding an
+    /// id outside this set toasts "new plugin available".
+    std::set<std::string> m_known_plugin_ids;
 #endif
 
     // Action prompt system (Klipper action:prompt protocol)

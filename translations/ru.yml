@@ -1994,6 +1994,7 @@ translations:
   'New Spool: Step {} of {}': 'Новая катушка: шаг {} из {}'
   New Version Available: Доступна новая версия
   New fan name: Новое имя вентилятора
+  'New plugin available: {}. Enable it in Settings > Plugins.': 'Доступен новый плагин: {}. Включите его в разделе Настройки > Плагины.'
   New printer successfully added: Новый принтер успешно добавлен
   New profile name: Новое имя профиля
   Next: Далее
@@ -3888,6 +3889,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': 'Для {} нужен плагин HelixPrint. Печатается исходный файл.'
   '{} new': 'новых: {}'
   '{} new hardware available': 'Доступно нового оборудования: {}'
+  '{} new plugins available. Enable them in Settings > Plugins.': 'Доступно новых плагинов: {}. Включите их в разделе Настройки > Плагины.'
   '{} preset{}': '{} пресет{}'
   '{} set to {}': '{} установлено на {}'
   '{} set to {} {}': '{} установлено на {} {}'

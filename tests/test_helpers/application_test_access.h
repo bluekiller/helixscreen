@@ -106,10 +106,12 @@ class ApplicationTestAccess {
 
 #if HELIX_HAS_PLUGINS
     /// init_plugins() runs only from deep inside run()'s boot and the
-    /// printer-switch path. Flipping settings_plugins_available, which unhides
-    /// the Settings > Plugins row, is the externally observable part a test
-    /// can pin without a full boot. Needs m_config installed first
-    /// (set_config) and HELIX_PLUGIN_DIR to name a directory.
+    /// printer-switch path. Setting settings_plugins_available, which unhides
+    /// the Settings > Plugins row once the host holds at least one plugin, is
+    /// the externally observable part a test can pin without a full boot.
+    /// Needs m_config installed first (set_config); the host boots from
+    /// HELIX_PLUGIN_DIR when set, else the per-printer cache under
+    /// HELIX_CACHE_DIR. No sync driver is built without a Moonraker API.
     static void init_plugins(Application& app) {
         app.init_plugins();
     }

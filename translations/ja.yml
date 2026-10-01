@@ -1882,6 +1882,7 @@ translations:
   'New Spool: Step {} of {}': '新規スプール: ステップ {} / {}'
   New Version Available: 新バージョンあり
   New fan name: 新しいファン名
+  'New plugin available: {}. Enable it in Settings > Plugins.': '新しいプラグインが利用可能です: {}。設定 > プラグインで有効化してください。'
   New printer successfully added: 新しいプリンターを追加しました
   New profile name: 新しいプロファイル名
   Next: 次へ
@@ -3669,6 +3670,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} には HelixPrint プラグインが必要です。元のファイルを印刷します。'
   '{} new': '新規 {} 件'
   '{} new hardware available': '{} 個の新しいハードウェアが利用可能です'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} 個の新しいプラグインが利用可能です。設定 > プラグインで有効化してください。'
   '{} preset{}': '{} 個のプリセット{}'
   '{} set to {}': '{} を {} に設定しました'
   '{} set to {} {}': '{} を {} {} に設定しました'

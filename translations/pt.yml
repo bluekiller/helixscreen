@@ -2016,6 +2016,7 @@ translations:
   'New Spool: Step {} of {}': 'Nova Bobina: Passo {} de {}'
   New Version Available: Nova Versão Disponível
   New fan name: Novo nome da ventoinha
+  'New plugin available: {}. Enable it in Settings > Plugins.': 'Novo plugin disponível: {}. Ative-o em Configurações > Plugins.'
   New printer successfully added: Nova impressora adicionada com sucesso
   New profile name: Novo nome do perfil
   Next: Próximo
@@ -3937,6 +3938,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} precisa do plugin HelixPrint. Imprimindo o arquivo original.'
   '{} new': '{} novo(s)'
   '{} new hardware available': '{} novo hardware disponível'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} novos plugins disponíveis. Ative-os em Configurações > Plugins.'
   '{} preset{}': '{} predefinição{}'
   '{} set to {}': '{} definido para {}'
   '{} set to {} {}': '{} definido para {} {}'

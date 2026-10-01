@@ -1952,6 +1952,7 @@ translations:
   'New Spool: Step {} of {}': 'New Spool: Step {} of {}'
   New Version Available: New Version Available
   New fan name: New fan name
+  'New plugin available: {}. Enable it in Settings > Plugins.': 'New plugin available: {}. Enable it in Settings > Plugins.'
   New printer successfully added: New printer successfully added
   New profile name: New profile name
   Next: Next
@@ -3812,6 +3813,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} needs the HelixPrint plugin. Printing original file.'
   '{} new': '{} new'
   '{} new hardware available': '{} new hardware available'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} new plugins available. Enable them in Settings > Plugins.'
   '{} preset{}': '{} preset{}'
   '{} set to {}': '{} set to {}'
   '{} set to {} {}': '{} set to {} {}'

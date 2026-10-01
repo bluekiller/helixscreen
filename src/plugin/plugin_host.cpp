@@ -155,8 +155,13 @@ void PluginHost::load_from(const std::string& dir) {
     std::error_code ec;
     std::vector<std::string> names;
     for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        // Dot-named directories are the sync's scratch (a half-finished swap's
+        // .old-<id>, the .staging download area), never plugin rows.
+        const std::string name = entry.path().filename().string();
+        if (!name.empty() && name[0] == '.')
+            continue;
         if (entry.is_directory(ec) && std::filesystem::exists(entry.path() / "manifest.json", ec))
-            names.push_back(entry.path().filename().string());
+            names.push_back(name);
     }
     if (ec)
         spdlog::warn("[PluginHost] cannot scan {}: {}", dir, ec.message());

@@ -2023,6 +2023,7 @@ translations:
   'New Spool: Step {} of {}': 'Neue Spule: Schritt {} von {}'
   New Version Available: Neue Version verfügbar
   New fan name: Neuer Lüftername
+  'New plugin available: {}. Enable it in Settings > Plugins.': 'Neues Plugin verfügbar: {}. Aktivieren Sie es unter Einstellungen > Plugins.'
   New printer successfully added: Neuer Drucker erfolgreich hinzugefügt
   New profile name: Neuer Profilname
   Next: Weiter
@@ -3943,6 +3944,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} benötigt das HelixPrint-Plugin. Die Originaldatei wird gedruckt.'
   '{} new': '{} neu'
   '{} new hardware available': '{} neue Hardware verfügbar'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} neue Plugins verfügbar. Aktivieren Sie sie unter Einstellungen > Plugins.'
   '{} preset{}': '{} Voreinstellung{}'
   '{} set to {}': '{} auf {} gesetzt'
   '{} set to {} {}': '{} auf {} {} gesetzt'

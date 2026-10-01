@@ -1812,6 +1812,7 @@
   <translation tag="New Spool: Step {} of {}" zh="新线轴: 第 {} 步,共 {} 步"/>
   <translation tag="New Version Available" zh="发现新版本"/>
   <translation tag="New fan name" zh="新风扇名称"/>
+  <translation tag="New plugin available: {}. Enable it in Settings &gt; Plugins." zh="新插件可用：{}。请在设置 &gt; 插件中启用。"/>
   <translation tag="New printer successfully added" zh="新打印机已成功添加"/>
   <translation tag="New profile name" zh="新配置名称"/>
   <translation tag="Next" zh="下一步"/>
@@ -3493,6 +3494,7 @@
   <translation tag="{} needs the HelixPrint plugin. Printing original file." zh="{} 需要 HelixPrint 插件。将打印原始文件。"/>
   <translation tag="{} new" zh="{} 个新增"/>
   <translation tag="{} new hardware available" zh="{} 个新硬件可用"/>
+  <translation tag="{} new plugins available. Enable them in Settings &gt; Plugins." zh="{} 个新插件可用。请在设置 &gt; 插件中启用。"/>
   <translation tag="{} preset{}" zh="{} 个预设{}"/>
   <translation tag="{} set to {}" zh="{} 已设为 {}"/>
   <translation tag="{} set to {} {}" zh="{} 已设为 {} {}"/>

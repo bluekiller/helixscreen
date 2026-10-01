@@ -1876,6 +1876,7 @@ translations:
   'New Spool: Step {} of {}': '新线轴: 第 {} 步,共 {} 步'
   New Version Available: 发现新版本
   New fan name: 新风扇名称
+  'New plugin available: {}. Enable it in Settings > Plugins.': '新插件可用：{}。请在设置 > 插件中启用。'
   New printer successfully added: 新打印机已成功添加
   New profile name: 新配置名称
   Next: 下一步
@@ -3658,6 +3659,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} 需要 HelixPrint 插件。将打印原始文件。'
   '{} new': '{} 个新增'
   '{} new hardware available': '{} 个新硬件可用'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} 个新插件可用。请在设置 > 插件中启用。'
   '{} preset{}': '{} 个预设{}'
   '{} set to {}': '{} 已设为 {}'
   '{} set to {} {}': '{} 已设为 {} {}'
