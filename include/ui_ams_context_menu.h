@@ -7,6 +7,7 @@
 
 #include "ams_types.h"
 #include "display_numbering.h"
+#include "i_moonraker_api.h"
 
 #include <functional>
 #include <lvgl.h>
@@ -435,5 +436,28 @@ class AmsContextMenu : public ContextMenu {
     static void on_tool_changed_cb(lv_event_t* e);
     static void on_backup_changed_cb(lv_event_t* e);
 };
+
+class AmsOperationSidebar;
+
+/// What a panel that hosts slot context menus supplies. The getters are read when
+/// a menu action fires, not when the menu opens, because the panel can drop its
+/// sidebar or path canvas while a menu is still on screen.
+struct SlotMenuHost {
+    lv_obj_t* parent_screen = nullptr;
+    IMoonrakerAPI* api = nullptr;
+    const char* log_tag = "[AMS]";
+    std::function<lv_obj_t*()> path_canvas;
+    std::function<AmsOperationSidebar*()> sidebar;
+};
+
+/// Wire @p menu's action callback to the shared slot actions (LOAD, UNLOAD, EDIT,
+/// SPOOLMAN, SCAN_QR plus the backend-only ones) and show it at @p near_widget.
+/// AmsPanel and AmsOverviewPanel both open slot menus through this.
+void open_slot_context_menu(AmsContextMenu& menu, const SlotMenuHost& host, int slot_index,
+                            lv_obj_t* near_widget, lv_point_t click_pt);
+
+/// Open the slot editor for @p slot_index and commit what the user saves.
+void open_slot_editor(lv_obj_t* parent_screen, IMoonrakerAPI* api, int slot_index,
+                      bool open_on_picker = false);
 
 } // namespace helix::ui

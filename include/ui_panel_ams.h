@@ -284,7 +284,6 @@ class AmsPanel : public PanelBase {
     // === UI Module Helpers (internal, show modals with callbacks) ===
 
     void show_context_menu(int slot_index, lv_obj_t* near_widget, lv_point_t click_pt);
-    void show_edit_modal(int slot_index, bool open_on_picker = false);
     void show_loading_error_modal();
 
     /**

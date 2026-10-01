@@ -14,7 +14,7 @@
 #include "ui_nav_manager.h"
 #include "ui_position_utils.h"
 
-#include "ams_backend_cfs.h"
+#include "ams_backend.h"
 #include "ams_state.h"
 #include "app_globals.h"
 #include "jog_coalescer.h"
@@ -32,8 +32,6 @@
 
 namespace helix::ui {
 
-using helix::printer::AmsBackendCfs;
-
 // The step subject is static (like the z-offset calibration panel's): XML
 // bindings resolve it by name from the current scope, and SubjectManager
 // deinit on the singleton keeps observers disconnected across rebuilds.
@@ -45,13 +43,10 @@ static char s_cfs_chute_saved_buf[96];
 
 namespace {
 
-/// The CFS backend, or nullptr when the active filament system is not a CFS.
-AmsBackendCfs* chute_backend() {
-    auto* backend = AmsState::instance().get_backend();
-    if (!backend || backend->get_type() != AmsType::CFS) {
-        return nullptr;
-    }
-    return static_cast<AmsBackendCfs*>(backend);
+/// The active filament system, or nullptr when there is none. Backends without chute
+/// calibration answer every call with not_supported.
+AmsBackend* chute_backend() {
+    return AmsState::instance().get_backend();
 }
 
 } // namespace

@@ -2315,7 +2315,7 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
     }
 
     // The Fork module defines no BOX_MODIFY_TN_DATA. `_BOX_SLOT_SET` requires
-    // a material; explicit clears route through clear_box_slot_profile().
+    // a material; explicit clears route through clear_slot_override().
     if (macro_variant_ == CfsMacroVariant::Fork) {
         std::string slot_material;
         std::string slot_brand;
@@ -3882,64 +3882,15 @@ std::vector<helix::printer::DeviceSection> AmsBackendCfs::get_device_sections() 
 
 std::vector<helix::printer::DeviceAction> AmsBackendCfs::get_device_actions() const {
     using DA = helix::printer::DeviceAction;
-    using AT = helix::printer::ActionType;
     std::vector<DA> actions = {
-        DA{"refresh_rfid",
-           "Refresh RFID",
-           "",
-           "maintenance",
-           "Re-read spool RFID tags and remaining length",
-           AT::BUTTON,
-           {},
-           {},
-           0,
-           100,
-           "",
-           -1,
-           true,
-           ""},
-        DA{"toggle_auto_refill",
-           "Toggle Auto-Refill",
-           "",
-           "maintenance",
-           "Enable/disable automatic backup spool switching",
-           AT::TOGGLE,
-           {},
-           {},
-           0,
-           100,
-           "",
-           -1,
-           true,
-           ""},
-        DA{"nozzle_clean",
-           "Clean Nozzle",
-           "",
-           "maintenance",
-           "Wipe nozzle on silicone cleaning strip",
-           AT::BUTTON,
-           {},
-           {},
-           0,
-           100,
-           "",
-           -1,
-           true,
-           ""},
-        DA{"comm_test",
-           "Communication Test",
-           "",
-           "maintenance",
-           "Test RS-485 link to CFS units",
-           AT::BUTTON,
-           {},
-           {},
-           0,
-           100,
-           "",
-           -1,
-           true,
-           ""},
+        DA::button("refresh_rfid", "Refresh RFID", "maintenance", "",
+                   "Re-read spool RFID tags and remaining length"),
+        DA::toggle("toggle_auto_refill", "Toggle Auto-Refill", "maintenance", {}, "",
+                   "Enable/disable automatic backup spool switching"),
+        DA::button("nozzle_clean", "Clean Nozzle", "maintenance", "",
+                   "Wipe nozzle on silicone cleaning strip"),
+        DA::button("comm_test", "Communication Test", "maintenance", "",
+                   "Test RS-485 link to CFS units"),
     };
     if (macro_variant_ == CfsMacroVariant::K1) {
         // Both actions home the toolhead, so a print that owns the machine
@@ -3950,34 +3901,14 @@ std::vector<helix::printer::DeviceAction> AmsBackendCfs::get_device_actions() co
         if (print_blocks) {
             reason = "Printer is busy with a print";
         }
-        actions.push_back(DA{"calibrate_cutter",
-                             "Calibrate Cutter",
-                             "",
-                             "calibration",
-                             "Home and sweep the cutter to re-find its position",
-                             AT::BUTTON,
-                             {},
-                             {},
-                             0,
-                             100,
-                             "",
-                             -1,
-                             !print_blocks,
-                             reason});
-        actions.push_back(DA{"calibrate_purge_chute",
-                             "Calibrate Purge Chute",
-                             "",
-                             "calibration",
-                             "Guide the toolhead to the chute's extrude position",
-                             AT::BUTTON,
-                             {},
-                             {},
-                             0,
-                             100,
-                             "",
-                             -1,
-                             !print_blocks,
-                             reason});
+        for (DA a : {DA::button("calibrate_cutter", "Calibrate Cutter", "calibration", "",
+                                "Home and sweep the cutter to re-find its position"),
+                     DA::button("calibrate_purge_chute", "Calibrate Purge Chute", "calibration", "",
+                                "Guide the toolhead to the chute's extrude position")}) {
+            a.enabled = !print_blocks;
+            a.disable_reason = reason;
+            actions.push_back(std::move(a));
+        }
     }
     return actions;
 }
@@ -4770,9 +4701,6 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-}
-
-void AmsBackendCfs::clear_box_slot_profile(int slot_index) {
     if (macro_variant_ == CfsMacroVariant::Fork) {
         execute_gcode("_BOX_SLOT_CLEAR SLOT=" + std::to_string(slot_index));
     }

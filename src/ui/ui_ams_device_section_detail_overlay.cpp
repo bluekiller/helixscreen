@@ -489,12 +489,11 @@ static void confirm_cutter_calibration(const std::string& label) {
         ModalSeverity::Warning, lv_tr("Start"),
         [label]() {
             AmsBackend* backend = AmsState::instance().get_backend();
-            if (!backend || backend->get_type() != AmsType::CFS) {
+            if (!backend) {
                 return;
             }
-            auto* cfs = static_cast<helix::printer::AmsBackendCfs*>(backend);
             set_cutter_row_state(lv_tr("Calibrating... (about 1 minute)"), true);
-            AmsError result = cfs->calibrate_cutter([](bool ok, const std::string& line) {
+            AmsError result = backend->calibrate_cutter([](bool ok, const std::string& line) {
                 char axis = '\0';
                 double value_mm = 0.0;
                 std::string text;

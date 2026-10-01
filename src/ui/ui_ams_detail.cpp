@@ -20,10 +20,6 @@
 #include "printer_state.h" // PrinterState, complete for get_print_lifecycle()
 #include "ui/ams_drawing_utils.h"
 
-#if HELIX_HAS_CFS
-#include "ams_backend_cfs.h"
-#endif
-
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -833,13 +829,6 @@ bool ams_dispatch_backend_action(AmsContextMenu::MenuAction action, int slot,
         cleared.remaining_weight_g = -1;
         cleared.total_weight_g = -1;
         auto error = AmsState::instance().commit_slot_edit(slot, original, cleared);
-        if (error.success()) {
-#if HELIX_HAS_CFS
-            if (backend->get_type() == AmsType::CFS) {
-                static_cast<helix::printer::AmsBackendCfs*>(backend)->clear_box_slot_profile(slot);
-            }
-#endif
-        }
         if (error.success() || error.partially_applied) {
             // The commit clears what an edit can state - and, unlinked, a
             // colour pick, a typed weight or a colour name never engages as a
@@ -850,7 +839,8 @@ bool ams_dispatch_backend_action(AmsContextMenu::MenuAction action, int slot,
             // its message says so, so the record drops for it too.
             // clear_slot_override() carries no server unlink and no ToolState
             // clear, which is why it rides behind the commit, never instead
-            // of it.
+            // of it. Backends whose firmware keeps its own per-slot profile
+            // clear that here too.
             backend->clear_slot_override(slot);
         }
         if (error.success()) {

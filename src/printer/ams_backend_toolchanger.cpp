@@ -1583,40 +1583,11 @@ std::vector<helix::printer::DeviceAction> AmsBackendToolChanger::get_device_acti
     if (!feeder_.present) {
         return actions;
     }
-    // Designated initializers inside actions.push_back(), which is the shape
-    // scripts/translations/cpp_tables.py reads: the label and description below
-    // are offered for translation without naming them a second time anywhere.
-    // Every field listed: -Wmissing-field-initializers fires on an aggregate
-    // whose trailing members are omitted, even where they have defaults.
-    // Matches src/printer/afc_defaults.cpp.
-    actions.push_back({.id = "open_feeder",
-                       .label = "Open feeder",
-                       .icon = "lock_open",
-                       .section = "feeder",
-                       .description = "Release the filament",
-                       .type = helix::printer::ActionType::BUTTON,
-                       .current_value = {},
-                       .options = {},
-                       .min_value = 0,
-                       .max_value = 0,
-                       .unit = "",
-                       .slot_index = -1,
-                       .enabled = true,
-                       .disable_reason = ""});
-    actions.push_back({.id = "close_feeder",
-                       .label = "Close feeder",
-                       .icon = "lock",
-                       .section = "feeder",
-                       .description = "Grip the filament",
-                       .type = helix::printer::ActionType::BUTTON,
-                       .current_value = {},
-                       .options = {},
-                       .min_value = 0,
-                       .max_value = 0,
-                       .unit = "",
-                       .slot_index = -1,
-                       .enabled = true,
-                       .disable_reason = ""});
+    using DA = helix::printer::DeviceAction;
+    actions.push_back(
+        DA::button("open_feeder", "Open feeder", "feeder", "lock_open", "Release the filament"));
+    actions.push_back(
+        DA::button("close_feeder", "Close feeder", "feeder", "lock", "Grip the filament"));
 
     // Which macro each button sends. The command names forked upstream - the
     // original config exposes OPEN/CLOSE, the Python controller registers
@@ -1625,34 +1596,12 @@ std::vector<helix::printer::DeviceAction> AmsBackendToolChanger::get_device_acti
     // macros the printer actually reports beats a free-text field nobody can
     // typo-check.
     if (!feeder_.macro_options.empty()) {
-        actions.push_back({.id = "feeder_open_macro",
-                           .label = "Open feeder macro",
-                           .icon = "",
-                           .section = "feeder",
-                           .description = "Which macro the Open feeder button sends",
-                           .type = helix::printer::ActionType::DROPDOWN,
-                           .current_value = std::any(feeder_.open_choice),
-                           .options = feeder_.macro_options,
-                           .min_value = 0,
-                           .max_value = 0,
-                           .unit = "",
-                           .slot_index = -1,
-                           .enabled = true,
-                           .disable_reason = ""});
-        actions.push_back({.id = "feeder_close_macro",
-                           .label = "Close feeder macro",
-                           .icon = "",
-                           .section = "feeder",
-                           .description = "Which macro the Close feeder button sends",
-                           .type = helix::printer::ActionType::DROPDOWN,
-                           .current_value = std::any(feeder_.close_choice),
-                           .options = feeder_.macro_options,
-                           .min_value = 0,
-                           .max_value = 0,
-                           .unit = "",
-                           .slot_index = -1,
-                           .enabled = true,
-                           .disable_reason = ""});
+        actions.push_back(DA::dropdown("feeder_open_macro", "Open feeder macro", "feeder",
+                                       feeder_.macro_options, feeder_.open_choice, "",
+                                       "Which macro the Open feeder button sends"));
+        actions.push_back(DA::dropdown("feeder_close_macro", "Close feeder macro", "feeder",
+                                       feeder_.macro_options, feeder_.close_choice, "",
+                                       "Which macro the Close feeder button sends"));
     }
     return actions;
 }

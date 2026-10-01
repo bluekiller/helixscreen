@@ -3,9 +3,13 @@
 
 #include "ui_ams_context_menu.h"
 
+#include "ui_ams_detail.h"
+#include "ui_ams_edit_overlay.h"
+#include "ui_ams_sidebar.h"
 #include "ui_button.h"
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
+#include "ui_overlay_qr_scanner.h"
 #include "ui_toast_manager.h"
 
 #include "ams_backend.h"
@@ -18,7 +22,9 @@
 #include "filament_op_execute.h"
 #include "filament_op_slot_resolver.h"
 #include "filament_variants.h"
+#include "i_moonraker_api.h"
 #include "printer_state.h"
+#include "spoolman_types.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -1160,6 +1166,156 @@ int AmsContextMenu::get_current_backup_for_slot() const {
     // hides the row rather than rendering a permanent "None".
     return helix::printer::endless_spool_backup_for(backend_->get_endless_spool_config(),
                                                     get_item_index());
+}
+
+void open_slot_editor(lv_obj_t* parent_screen, IMoonrakerAPI* api, int slot_index,
+                      bool open_on_picker) {
+    if (!parent_screen) {
+        spdlog::warn("[AMS] Cannot show slot editor - no parent screen");
+        return;
+    }
+
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (!backend) {
+        NOTIFY_WARNING(lv_tr("Multi-Filament System not available"));
+        return;
+    }
+
+    get_ams_edit_overlay().show_for_slot(
+        parent_screen, slot_index, backend->get_slot_info(slot_index), api,
+        [](const AmsEditOverlay::EditResult& result) {
+            if (!result.saved || result.slot_index < 0) {
+                return;
+            }
+            AmsBackend* backend = AmsState::instance().get_backend();
+            if (!backend) {
+                return;
+            }
+            // Capture the pre-edit slot BEFORE the commit: its unlink arm (clear the
+            // server active spool) needs the old link.
+            SlotInfo original = backend->get_slot_info(result.slot_index);
+            AmsError err = AmsState::instance().commit_slot_edit(result.slot_index, original,
+                                                                 result.slot_info);
+            if (!err.success()) {
+                notify_ams_error(err);
+                return;
+            }
+            NOTIFY_INFO(lv_tr("{} updated"), lane_label(backend->lane_noun(), result.slot_index));
+        },
+        open_on_picker);
+}
+
+namespace {
+
+void scan_qr_into_slot(const SlotMenuHost& host, int slot) {
+    spdlog::info("{} SCAN_QR action for slot {}", host.log_tag, slot);
+#if !defined(                                                                                      \
+    HELIX_PLATFORM_ESP32) // the ESP32 build has no QR scanner overlay; its button stays hidden
+    const std::string tag = host.log_tag;
+    get_qr_scanner_overlay().show(host.parent_screen, slot, [slot, tag](const SpoolInfo& spool) {
+        AmsBackend* be = AmsState::instance().get_backend();
+        if (!be) {
+            return;
+        }
+        // Capture the pre-edit slot BEFORE the commit: its unlink arm (clear the
+        // server active spool) needs the old link.
+        SlotInfo original = be->get_slot_info(slot);
+        SlotInfo applied = original;
+        apply_spool_to_slot(applied, spool);
+        AmsError err = AmsState::instance().commit_slot_edit(slot, original, applied);
+        if (!err.success()) {
+            notify_ams_error(err);
+            return;
+        }
+        spdlog::info("{} QR scan assigned spool #{} to slot {}", tag, spool.id, slot);
+    });
+#endif
+}
+
+void dispatch_slot_menu_action(const SlotMenuHost& host, AmsContextMenu::MenuAction action,
+                               int slot) {
+    using MenuAction = AmsContextMenu::MenuAction;
+
+    // EJECT / RECOVER_POSITION / SELECT_GATE / CHECK_GATE / CLEAR_SPOOL are pure backend
+    // calls; see ams_dispatch_backend_action().
+    if (ams_dispatch_backend_action(action, slot,
+                                    host.path_canvas ? host.path_canvas() : nullptr)) {
+        return;
+    }
+
+    AmsBackend* backend = AmsState::instance().get_backend();
+    AmsOperationSidebar* sidebar = host.sidebar ? host.sidebar() : nullptr;
+
+    switch (action) {
+    case MenuAction::LOAD:
+        if (!backend) {
+            NOTIFY_WARNING(lv_tr("Multi-Filament System not available"));
+            return;
+        }
+        if (const AmsSystemInfo info = backend->get_system_info();
+            info.action != AmsAction::IDLE && info.action != AmsAction::ERROR) {
+            NOTIFY_WARNING(lv_tr("Multi-Filament System is busy: {}"),
+                           ams_action_to_string(info.action));
+            return;
+        }
+        // Preheat-aware load goes through the sidebar rather than a direct load.
+        if (sidebar) {
+            sidebar->handle_load_with_preheat(slot);
+        }
+        break;
+
+    case MenuAction::UNLOAD:
+        if (!backend) {
+            NOTIFY_WARNING(lv_tr("Multi-Filament System not available"));
+            return;
+        }
+        // Through the sidebar so start_operation(UNLOAD) builds the correct stepper
+        // (mirrors how LOAD routes via handle_load_with_preheat).
+        if (sidebar) {
+            sidebar->handle_unload(slot);
+        } else if (AmsError error = backend->unload_filament(slot);
+                   error.result != AmsResult::SUCCESS) {
+            notify_ams_error(error);
+        }
+        break;
+
+    case MenuAction::EDIT:
+        open_slot_editor(host.parent_screen, host.api, slot);
+        break;
+
+    case MenuAction::SPOOLMAN:
+        open_slot_editor(host.parent_screen, host.api, slot, /*open_on_picker=*/true);
+        break;
+
+    case MenuAction::SCAN_QR:
+        scan_qr_into_slot(host, slot);
+        break;
+
+    default:
+        break;
+    }
+}
+
+} // namespace
+
+void open_slot_context_menu(AmsContextMenu& menu, const SlotMenuHost& host, int slot_index,
+                            lv_obj_t* near_widget, lv_point_t click_pt) {
+    if (!host.parent_screen || !near_widget) {
+        return;
+    }
+
+    menu.set_action_callback([host](AmsContextMenu::MenuAction action, int slot) {
+        dispatch_slot_menu_action(host, action, slot);
+    });
+
+    // Whether to offer Unload is decoupled from the display LOADED status, so a runout
+    // that clears the head sensor does not disable Unload on the firmware's active slot
+    // (#995).
+    AmsBackend* backend = AmsState::instance().get_backend();
+    const bool is_loaded = backend && backend->can_unload_from_toolhead(slot_index);
+
+    menu.set_click_point(click_pt);
+    menu.show_near_widget(host.parent_screen, slot_index, near_widget, is_loaded, backend);
 }
 
 } // namespace helix::ui
