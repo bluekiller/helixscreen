@@ -346,6 +346,15 @@ void TempGraphOverlay::cleanup() {
     OverlayBase::cleanup();
 }
 
+void TempGraphOverlay::on_ui_destroyed() {
+    chip_row_ = nullptr;
+    graph_container_ = nullptr;
+    nozzle_strip_ = nullptr;
+    bed_strip_ = nullptr;
+    chamber_strip_ = nullptr;
+    extruder_selector_row_ = nullptr;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
