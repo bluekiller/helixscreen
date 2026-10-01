@@ -102,7 +102,7 @@ bool attachable(lv_subject_t* subject, const void* owner) {
     if (subject && owner) {
         return true;
     }
-    spdlog::warn("[observe] null {} - observer not attached", subject ? "owner" : "subject");
+    spdlog::debug("[observe] null {} - observer not attached", subject ? "owner" : "subject");
     return false;
 }
 

@@ -21,6 +21,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -714,5 +715,74 @@ TEST_CASE_METHOD(LVGLTestFixture, "Factory: null subject or owner returns an emp
     drain();
     CHECK(calls == 0);
 
+    lv_subject_deinit(&subject);
+}
+
+namespace {
+// Sets *flag when the handler holding it is destroyed. Moves hand the flag over,
+// so only the last live copy reports.
+struct DestroyProbe {
+    bool* flag;
+    explicit DestroyProbe(bool* f) : flag(f) {}
+    DestroyProbe(const DestroyProbe& o) : flag(o.flag) {}
+    DestroyProbe(DestroyProbe&& o) noexcept : flag(std::exchange(o.flag, nullptr)) {}
+    ~DestroyProbe() {
+        if (flag)
+            *flag = true;
+    }
+};
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "Factory: an immediate handler that resets its own guard outlives the call",
+                 "[factory][observer][safety]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    Recorder rec;
+    static bool handler_destroyed = false;
+    static bool destroyed_mid_call = true;
+    static ObserverGuard* self_guard = nullptr;
+    ObserverGuard guard;
+    self_guard = &guard;
+
+    guard = observe_int_immediate<Recorder>(
+        &subject, &rec,
+        [probe = DestroyProbe(&handler_destroyed)](Recorder* r, int v) {
+            r->ints.push_back(v);
+            if (v == 1) {
+                self_guard->reset();
+                destroyed_mid_call = handler_destroyed;
+            }
+        },
+        subject_never_freed());
+    handler_destroyed = false;
+
+    lv_subject_set_int(&subject, 1);
+    CHECK_FALSE(destroyed_mid_call);
+    CHECK(handler_destroyed);
+    CHECK_FALSE(guard);
+
+    lv_subject_set_int(&subject, 2);
+    CHECK(rec.ints == std::vector<int>{0, 1});
+
+    self_guard = nullptr;
+    lv_subject_deinit(&subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "Factory: a mutable immediate handler keeps its state across notifications",
+                 "[factory][observer]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    Recorder rec;
+
+    auto guard = observe_int_immediate<Recorder>(
+        &subject, &rec, [n = 0](Recorder* r, int) mutable { r->ints.push_back(++n); },
+        subject_never_freed());
+    lv_subject_set_int(&subject, 1);
+    lv_subject_set_int(&subject, 2);
+    CHECK(rec.ints == std::vector<int>{1, 2, 3});
+
+    guard.reset();
     lv_subject_deinit(&subject);
 }
