@@ -314,4 +314,10 @@ struct ColorReading {
 /// the colour is a decoded uint32_t asks this.
 [[nodiscard]] bool is_declarable_color(uint32_t rgb);
 
+/// The nearest colour to @p rgb that is_declarable_color accepts. A colour a
+/// user picks is a statement of intent, so a pick that lands exactly on the
+/// "no colour" marker becomes the visually identical 0x7F7F7F instead of being
+/// read back as no colour. Every colour picker routes its result through this.
+[[nodiscard]] uint32_t picked_color(uint32_t rgb);
+
 } // namespace helix::ams

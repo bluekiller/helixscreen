@@ -870,6 +870,10 @@ bool is_declarable_color(uint32_t rgb) {
     return rgb != AMS_DEFAULT_SLOT_COLOR;
 }
 
+uint32_t picked_color(uint32_t rgb) {
+    return is_declarable_color(rgb) ? rgb : 0x7F7F7F;
+}
+
 ColorReading read_lane_color(const std::string& raw) {
     // A value that is only whitespace and a prefix carries no colour to fail
     // to parse, so it is the producer saying the lane has none.
