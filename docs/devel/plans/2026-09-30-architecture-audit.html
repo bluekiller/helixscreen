@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>139d49e92</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>2e24eda5e</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">11 of 22</div><div class="k">BUG/SEC findings shipped; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 67 done, 17 in progress, 52 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 69 done, 29 in progress, 38 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -294,8 +294,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-6" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-6</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Stacked confirm dialogs overwrite each other's captions</span><span class="fimpact">Wrong button text/severity on lower dialog</span></summary>
+<details class="f" id="BUG-6" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-6</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-ui</code><span class="ftitle">Stacked confirm dialogs overwrite each other's captions</span><span class="fimpact">Wrong button text/severity on lower dialog</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -357,8 +357,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-10" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-10</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">PrintStatus G-code preview cache keyed only on filename hash</span><span class="fimpact">Stale or truncated preview geometry</span></summary>
+<details class="f" id="BUG-10" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-10</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-io</code><span class="ftitle">PrintStatus G-code preview cache keyed only on filename hash</span><span class="fimpact">Stale or truncated preview geometry</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -372,8 +372,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-11" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-11</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">ColorSensorManager can never discover a sensor</span><span class="fimpact">TD-1 colour sensors never appear</span></summary>
+<details class="f" id="BUG-11" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-11</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-sys</code><span class="ftitle">ColorSensorManager can never discover a sensor</span><span class="fimpact">TD-1 colour sensors never appear</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -403,8 +403,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-13" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-13</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Debug-bundle glob and config-editor glob disagree on **</span><span class="fimpact">Bundle collects a different include set</span></summary>
+<details class="f" id="BUG-13" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-13</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-io</code><span class="ftitle">Debug-bundle glob and config-editor glob disagree on **</span><span class="fimpact">Bundle collects a different include set</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -418,8 +418,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-14" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-14</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Thumbnail size cap checked after full decode</span><span class="fimpact">Up to 128MB decode spike on small boxes</span></summary>
+<details class="f" id="BUG-14" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-14</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-io</code><span class="ftitle">Thumbnail size cap checked after full decode</span><span class="fimpact">Up to 128MB decode spike on small boxes</span></summary>
 <div class="fbody">
 <p class="branch">Not shipped. <code>refactor/rendering-dedup</code> (<code>80556d11b</code>) now decodes only the largest thumbnail block, but the size cap is still checked after the decode.</p>
 <p><span class="badge unv">unverified</span></p>
@@ -450,8 +450,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-16" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-16</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Telemetry has no Android branch; debug-bundle redactor fails open</span><span class="fimpact">Android telemetry fails; unredacted uploads</span></summary>
+<details class="f" id="BUG-16" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-16</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-sys</code><span class="ftitle">Telemetry has no Android branch; debug-bundle redactor fails open</span><span class="fimpact">Android telemetry fails; unredacted uploads</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -465,8 +465,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-17" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-17</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">26 XML callback names registered from two files, last write wins</span><span class="fimpact">Latent wrong user_data cast in wifi rows</span></summary>
+<details class="f" id="BUG-17" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-17</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-sys</code><span class="ftitle">26 XML callback names registered from two files, last write wins</span><span class="fimpact">Latent wrong user_data cast in wifi rows</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -496,8 +496,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-18" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-18</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">ESP32: api-&gt;hardware() is never populated, so discovery consumers see empty data</span><span class="fimpact">bed_dimensions and friends read an empty discovery</span></summary>
+<details class="f" id="BUG-18" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-18</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-sys</code><span class="ftitle">ESP32: api-&gt;hardware() is never populated, so discovery consumers see empty data</span><span class="fimpact">bed_dimensions and friends read an empty discovery</span></summary>
 <div class="fbody">
 <p><span class="badge unv">unverified</span></p>
 <dl>
@@ -511,8 +511,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-19" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-19</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Spoolman "needs a color" toast fires when saving a custom grey colour</span><span class="fimpact">false error on a valid save</span></summary>
+<details class="f" id="BUG-19" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-19</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-ui</code><span class="ftitle">Spoolman "needs a color" toast fires when saving a custom grey colour</span><span class="fimpact">false error on a valid save</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_ams_edit_overlay.cpp#AmsEditOverlay::show_missing_filament_toast</code></dd>
@@ -524,8 +524,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-20" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-20</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Thumbnail header scan stops at the first G/M/T line</span><span class="fimpact">Cura files with M73 before the thumbnail show none</span></summary>
+<details class="f" id="BUG-20" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-20</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-io</code><span class="ftitle">Thumbnail header scan stops at the first G/M/T line</span><span class="fimpact">Cura files with M73 before the thumbnail show none</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/gcode_parser.cpp#scan_best_thumbnail</code></dd>
@@ -537,8 +537,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-21" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-21</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Debug-bundle fallback snapshot reads klipper_version_raw_ off the main thread</span><span class="fimpact">data race on a std::string during bundle upload</span></summary>
+<details class="f" id="BUG-21" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-21</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-sys</code><span class="ftitle">Debug-bundle fallback snapshot reads klipper_version_raw_ off the main thread</span><span class="fimpact">data race on a std::string during bundle upload</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/system/debug_bundle_collector.cpp#DebugBundleCollector::snapshot_printer_state</code>, <code>include/printer_versions_state.h#PrinterVersionsState</code></dd>
@@ -1076,8 +1076,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FW-11" data-tag="belt-suspenders" data-size="1.1" data-status="open">
-<summary><span class="fid">FW-11</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">modal_dialog captions live in 4 global subjects; pass per-dialog attributes</span><span class="fimpact">~-150 lines, fixes stacked-confirm captions</span></summary>
+<details class="f" id="FW-11" data-tag="belt-suspenders" data-size="1.1" data-status="progress">
+<summary><span class="fid">FW-11</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-ui</code><span class="ftitle">modal_dialog captions live in 4 global subjects; pass per-dialog attributes</span><span class="fimpact">~-150 lines, fixes stacked-confirm captions</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_modal.cpp#ModalConfigRollback</code>, <code>#modal_configure</code>, anon-ns <code>g_dialog_*</code> subjects and <code>g_dialog_*_owned</code>; <code>ui_xml/modal_dialog.xml</code>; <code>src/ui/lan_client_auth_router.cpp</code></dd>
@@ -1399,8 +1399,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-7" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">API-7</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Three hand-rolled glob implementations, two disagreeing on **</span><span class="fimpact">Debug bundle and config editor see same includes</span></summary>
+<details class="f" id="API-7" data-tag="dup" data-size="1.1" data-status="progress">
+<summary><span class="fid">API-7</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">fix/audit-bugs-io</code><span class="ftitle">Three hand-rolled glob implementations, two disagreeing on **</span><span class="fimpact">Debug bundle and config editor see same includes</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/remote/remote_control_server.cpp#glob_match</code>, <code>src/system/klipper_config_includes.cpp#config_glob_match</code>, <code>src/system/debug_bundle_collector.cpp#DebugBundleCollector::glob_match</code></dd>
@@ -1492,6 +1492,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="REN-6" data-tag="dup" data-size="1.1" data-status="open">
 <summary><span class="fid">REN-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Bed mesh: two full render backends and three frames in RAM</span><span class="fimpact">~-1,400 lines, -0.75-1.5MB RAM</span></summary>
 <div class="fbody">
+<p class="branch">The three-frames half shipped with <a href="#RAM-3">RAM-3</a> (<code>b0a1d3e05</code>). The two render backends remain.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/bed_mesh_renderer.cpp#bed_mesh_renderer_render</code> vs <code>#bed_mesh_renderer_render_to_buffer</code>, <code>src/rendering/bed_mesh_overlays.cpp</code>, <code>src/rendering/bed_mesh_rasterizer.cpp</code>, <code>src/rendering/bed_mesh_buffer.cpp</code>, <code>src/ui/ui_bed_mesh.cpp#bed_mesh_draw_cb</code>, <code>include/bed_mesh_render_thread.h</code></dd>
 <dt>Evidence</dt><dd><code>BedMeshPanel::ensure_async_rendering</code> enables async whenever data exists, so the LVGL sync backend almost never draws; twins are line-for-line (<code>render_reference_grids</code> 117 vs 112); 7 <code>GRADIENT_*</code> constants re-declared. Front + back + <code>blit_pixel_data</code> = 3 frames of 0.75-1.5MB each, full memcpy on every draw even with no new frame; blit buffer survives async shutdown (#1246). Grid extents pasted 4x, already disagreeing on <code>has_bed_bounds</code>.</dd>
@@ -1799,9 +1800,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <section id="sec-f"><h2>F. RAM</h2>
 <p class="lede"><strong>Field data (telemetry to 2026-09-26)</strong>: RAM stepped up at 0.99.108 on ad5x, k2 and k1 (+1-2.5 MB), most likely <code>10e336c15</code> sizing the debug ring from total RAM. That is deliberate; ad5m and cc1 stay on the 2000-line floor. ad5m startup RSS is about +13% against early 0.99, with private-dirty back to baseline by 1.0.1. cc1 is flat across 14 devices. 1.0.x is flat or down everywhere.</p>
 <details class="f" id="RAM-1" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram1-overlay-destroy-on-close</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
+<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">a7f96c8ba</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) removed the caller-held root caches (B7), and destroy-on-close now applies from every entry point for Bed Mesh, Console, Macros, Input Shaper, QrScanner and Plugins. The remaining flips follow the overlay sweeps and #1329.</p>
+<p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) removed the caller-held root caches and made Bed Mesh, Console, Macros, Input Shaper, QrScanner and Plugins destroy on close. <code>perf/ram1-overlay-destroy-on-close</code>, merged at <code>a7f96c8ba</code>, adds Motion, Macro Buttons, Motion Settings, Theme Editor, Temp Graph and the CFS Chute, Tool Offset and PA calibrations. Left: PID, Z Offset and Touch calibration (custom <code>show()</code>, timers and deferrals that write widgets); Color Picker is a modal, not an overlay.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/overlay_base.h#OverlayBase</code>, the ~70 <code>OverlayBase</code> subclasses under <code>src/ui/</code>, lazy-create sites using <code>destroy_on_close</code></dd>
 <dt>Evidence</dt><dd>Only 5 destroy their tree on close (QrScanner, SpoolmanOverlay, PrintSelectDetailView, PrintStatus in low-memory mode, AmsEdit); <code>destroy_on_close</code> used at 1 of 23 lazy sites. 90 overlay-ish components hold ~6,100 static objects (color_picker 280, input_shaper_panel 277, ams_edit_overlay 217, motion_panel 196, temp_graph_overlay 189). At a measured ~0.4-0.9 kB/object: typical session (15-25 overlays) 0.4-1.5 MB, every overlay opened 2.5-5.5 MB, against the AD5M 14-20 MB budget.</dd>
@@ -1813,9 +1814,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="RAM-2" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-2</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram2-print-select-lazy</code><span class="ftitle">PrintSelect and its detail view built at boot, 20 thumbnails fetched per connect</span><span class="fimpact">~150-250KB heap plus an I/O burst each connect</span></summary>
+<details class="f" id="RAM-2" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">RAM-2</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">2e24eda5e</code><span class="ftitle">PrintSelect and its detail view built at boot, 20 thumbnails fetched per connect</span><span class="fimpact">~150-250KB heap plus an I/O burst each connect</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>perf/ram2-print-select-lazy</code>, merged to main at <code>2e24eda5e</code>. The listing, metadata and thumbnails load on the first visit, not at boot or on each connect; the detail view builds on first use. History reprint and Print Last park their file until the listing lands.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/panel_factory.cpp#PanelFactory::setup_panels</code>, <code>src/ui/ui_panel_print_select.cpp#PrintSelectPanel::setup</code>, <code>#PrintSelectPanel::create_detail_view</code>, <code>#PrintSelectPanel::refresh_files</code>, <code>#PrintSelectPanel::fetch_metadata_range</code></dd>
 <dt>Evidence</dt><dd>Panel 24 + detail overlay 70 (+ a gcode viewer widget) + 24-card pool x 10 = ~330 declared elements (~450-550 lv_obj). <code>refresh_files()</code> runs at setup and on every CONNECTED edge, driving <code>populate_current_view</code> and <code>fetch_metadata_range(0, 20)</code>: up to 20 metadata RPCs and 20 thumbnail downloads/decodes even if Files is never opened. The 5 s poll is paused while hidden; the initial load is not. ESP32 already defers the root panel.</dd>
@@ -1827,9 +1829,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="RAM-3" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-3</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram3-bed-mesh-single-frame</code><span class="ftitle">Bed mesh keeps three full frames and memcpys one on every draw</span><span class="fimpact">0.75-1.5MB resident after first visit</span></summary>
+<details class="f" id="RAM-3" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">RAM-3</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">b0a1d3e05</code><span class="ftitle">Bed mesh keeps three full frames and memcpys one on every draw</span><span class="fimpact">0.75-1.5MB resident after first visit</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>perf/ram3-bed-mesh-single-frame</code>, merged to main at <code>b0a1d3e05</code>. Two frames handed over by pointer swap under the render mutex; the draw callback blits the consumer-owned frame with no copy, and both frames free on stop.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/bed_mesh_render_thread.h#BedMeshRenderThread</code> (front and back buffers), <code>src/ui/ui_bed_mesh.cpp#bed_mesh_draw_cb</code> (<code>blit_pixel_data</code>)</dd>
 <dt>Evidence</dt><dd>Each draw copies the whole front buffer into <code>blit_pixel_data</code> even when no new frame arrived; <code>blit_pixel_data</code> survives async shutdown (overlaps #1246). At an estimated 480x400 to 700x520, each frame is 0.75-1.5 MB. Cross-ref REN-6 (bed mesh 2 backends + 3 frames).</dd>
@@ -2085,8 +2088,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-5" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-5</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">mk/cross.mk release/deploy recipes copy-pasted x11, and they have drifted</span><span class="fimpact">CA certs bundled on some targets only</span></summary>
+<details class="f" id="TB-5" data-tag="dup" data-size="1.1" data-status="progress">
+<summary><span class="fid">TB-5</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/cross-mk-dedup</code><span class="ftitle">mk/cross.mk release/deploy recipes copy-pasted x11, and they have drifted</span><span class="fimpact">CA certs bundled on some targets only</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>mk/cross.mk</code> (<code>release-*</code>, <code>deploy-*</code>, <code>deploy-*-bin</code>, <code>*-docker</code> targets)</dd>
