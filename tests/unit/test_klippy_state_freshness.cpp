@@ -49,6 +49,13 @@ nlohmann::json webhooks_status(const char* klippy_state, const char* message = n
     return nlohmann::json{{"webhooks", webhooks}};
 }
 
+/// What MoonrakerManager's notification drain does with each frame.
+void apply_notification(PrinterState& state, const nlohmann::json& notification) {
+    if (auto frame = parse_status_notification(notification)) {
+        state.update_from_status(*frame->status, frame->eventtime, frame->from_cached_snapshot);
+    }
+}
+
 class KlippyFreshnessFixture : public LVGLTestFixture {
   public:
     KlippyFreshnessFixture() {
@@ -56,7 +63,7 @@ class KlippyFreshnessFixture : public LVGLTestFixture {
         // Wire the client's fan-out to PrinterState the way MoonrakerManager does,
         // so the cached-snapshot marker is exercised end to end rather than faked.
         client.register_notify_update(
-            [this](const nlohmann::json& n) { state.update_from_notification(n); });
+            [this](const nlohmann::json& n) { apply_notification(state, n); });
     }
 
     ~KlippyFreshnessFixture() override {
@@ -68,7 +75,7 @@ class KlippyFreshnessFixture : public LVGLTestFixture {
         nlohmann::json notification = {
             {"method", "notify_status_update"},
             {"params", nlohmann::json::array({webhooks_status(klippy_state, message), eventtime})}};
-        state.update_from_notification(notification);
+        apply_notification(state, notification);
         helix::ui::UpdateQueue::instance().drain();
     }
 
@@ -167,6 +174,7 @@ TEST_CASE_METHOD(KlippyFreshnessFixture, "Klippy freshness: reset re-arms cold s
     // Post-reboot Klipper restarts its clock, so the next session's frames carry
     // eventtimes far below the old watermark.
     state.reset_klippy_state_freshness();
+    helix::ui::UpdateQueue::instance().drain();
     live("ready", 3.0);
     CHECK(klippy() == KlippyState::READY);
 }
@@ -225,9 +233,7 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 }
 
 // ============================================================================
-// The production live path does NOT go through update_from_notification — it is
-// MoonrakerManager::process_notifications calling update_from_status(params[0],
-// eventtime, from_cached_snapshot) directly. Pin the overload it depends on.
+// The overload the production drain calls, without the envelope in between.
 // ============================================================================
 
 TEST_CASE_METHOD(KlippyFreshnessFixture,
@@ -244,6 +250,64 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 
     state.update_from_status(webhooks_status("ready"), 101.0);
     CHECK(klippy() == KlippyState::READY);
+}
+
+// ============================================================================
+// The reset and the status frames reach PrinterState through different queues:
+// frames through MoonrakerManager's notification queue, deferred UI work through
+// the UpdateQueue, which a panel rebuild or splash can hold frozen. A reset that
+// waited in the UpdateQueue would land after the next session's frames and wipe
+// their watermark.
+// ============================================================================
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: a reconnect while the UI queue is frozen keeps the new "
+                 "session's state",
+                 "[core][klippy][freshness]") {
+    live("ready", 100.0);
+    REQUIRE(klippy() == KlippyState::READY);
+
+    {
+        helix::ui::UpdateQueue::ScopedFreeze freeze(helix::ui::UpdateQueue::instance());
+        state.reset_klippy_state_freshness(); // the link drops
+        live("shutdown", 5.0);                // the next session's clock restarted
+        CHECK(klippy() == KlippyState::SHUTDOWN);
+    }
+    helix::ui::UpdateQueue::instance().drain();
+
+    replay("ready");
+    CHECK(klippy() == KlippyState::SHUTDOWN);
+}
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: notify_klippy_* outranks a snapshot already queued",
+                 "[core][klippy][freshness]") {
+    helix::ui::UpdateQueue::ScopedFreeze freeze(helix::ui::UpdateQueue::instance());
+    state.set_klippy_state(KlippyState::SHUTDOWN); // WebSocket thread
+    replay("ready");                               // drained before the UI queue
+    CHECK(klippy() != KlippyState::READY);
+}
+
+// ============================================================================
+// A status frame's fan-out runs observers synchronously. One that calls back into
+// PrinterState must not wedge the frame that notified it.
+// ============================================================================
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: an observer may call back into PrinterState mid-frame",
+                 "[core][klippy][freshness]") {
+    auto callback = [](lv_observer_t* observer, lv_subject_t*) {
+        auto* self = static_cast<KlippyFreshnessFixture*>(lv_observer_get_user_data(observer));
+        self->state.reset_klippy_state_freshness();
+        self->state.set_klippy_state_sync(KlippyState::SHUTDOWN);
+    };
+    lv_observer_t* observer =
+        lv_subject_add_observer(state.get_klippy_state_subject(), callback, this);
+
+    live("ready", 100.0);
+    CHECK(klippy() == KlippyState::SHUTDOWN);
+
+    lv_observer_remove(observer);
 }
 
 // ============================================================================
@@ -311,10 +375,9 @@ TEST_CASE_METHOD(KlippyFreshnessFixture, "Klippy freshness: null webhooks.state 
     };
 
     // Both sections drive update_from_status() DIRECTLY rather than through
-    // update_from_notification()/dispatch_status_update(). Those defer the parse
-    // onto the UpdateQueue, so a throw would escape during drain() — outside any
-    // REQUIRE_NOTHROW here, and swallowed by the queue. Wrapping the enqueue
-    // proves nothing; this calls the parse on the test's own stack.
+    // dispatch_status_update(), which defers the parse onto the UpdateQueue, so a
+    // throw would escape during drain() — outside any REQUIRE_NOTHROW here, and
+    // swallowed by the queue. This calls the parse on the test's own stack.
 
     SECTION("on a stale replay — the branch that formats the state into a log line") {
         live("shutdown", 100.0);

@@ -42,18 +42,14 @@
 #include "ui_wizard.h"
 
 #include "abort_manager.h"
-#include "accel_sensor_manager.h"
 #include "active_print_media_manager.h"
 #include "ams_state.h"
 #include "app_globals.h"
 #include "bed_drying_controller.h"
 #include "filament_catalog.h"
 #include "filament_database.h"
-#include "filament_sensor_manager.h"
 #include "filament_variants.h"
-#include "humidity_sensor_manager.h"
 #include "led/ui_led_control_overlay.h"
-#include "load_cell_manager.h"
 #include "lock_manager.h"
 #include "lvgl/lvgl.h"
 #include "material_settings_manager.h"
@@ -64,19 +60,17 @@
 #include "print_control_buttons.h"
 #include "print_start_navigation.h"
 #include "printer_state.h"
-#include "probe_sensor_manager.h"
 #include "runtime_config.h"
+#include "sensor_managers.h"
 #include "settings_manager.h"
 #include "spoolman_manager.h"
 #include "standard_macros.h"
 #include "system/telemetry_manager.h"
 #include "temperature_controller.h"
-#include "temperature_sensor_manager.h"
 #include "temperature_service.h"
 #include "timelapse_state.h"
 #include "tool_state.h"
 #include "usb_manager.h"
-#include "width_sensor_manager.h"
 #include "xml_registration.h"
 #include "z_offset_utils.h"
 
@@ -215,13 +209,7 @@ void SubjectInitializer::init_ams_subjects() {
 
     // Initialize sensor manager subjects BEFORE panels so XML bindings can work
     // Note: Each manager self-registers cleanup with StaticSubjectRegistry in init_subjects()
-    helix::FilamentSensorManager::instance().init_subjects();
-    helix::sensors::HumiditySensorManager::instance().init_subjects();
-    helix::sensors::WidthSensorManager::instance().init_subjects();
-    helix::sensors::ProbeSensorManager::instance().init_subjects();
-    helix::sensors::AccelSensorManager::instance().init_subjects();
-    helix::sensors::TemperatureSensorManager::instance().init_subjects();
-    helix::sensors::LoadCellManager::instance().init_subjects();
+    helix::sensors::for_each_sensor_manager([](auto& m) { m.init_subjects(); });
 }
 
 void SubjectInitializer::init_panel_subjects(IMoonrakerAPI* api) {

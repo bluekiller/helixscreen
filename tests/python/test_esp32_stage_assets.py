@@ -16,7 +16,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from esp32_stage_assets import minify_xml, stage_translations  # noqa: E402
+from esp32_stage_assets import minify_xml, stage_config, stage_translations  # noqa: E402
 
 
 def test_strips_single_line_comment():
@@ -149,3 +149,15 @@ def test_stage_translations_ships_cjk_only_when_asked(tmp_path):
 
     _, included = stage_translations(tmp_path / "ui_xml", tmp_path / "out", with_cjk=True)
     assert included == ["fr", "ja", "zh"]
+
+
+def test_stage_config_ships_the_default_print_start_profile(tmp_path):
+    profiles = tmp_path / "assets" / "config" / "print_start_profiles"
+    profiles.mkdir(parents=True)
+    (profiles / "default.json").write_text('{"name": "Generic"}', encoding="utf-8")
+    (profiles / "forge_x.json").write_text('{"name": "Forge-X"}', encoding="utf-8")
+
+    stage_config(tmp_path / "assets", tmp_path / "out")
+
+    staged = tmp_path / "out" / "assets" / "config" / "print_start_profiles"
+    assert sorted(p.name for p in staged.iterdir()) == ["default.json"]

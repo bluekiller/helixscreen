@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "macro_param_modal.h"
+#include "macro_params.h"
 
 #include <cstdint>
 #include <map>

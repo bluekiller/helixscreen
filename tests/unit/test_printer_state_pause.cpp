@@ -14,8 +14,6 @@ using namespace helix;
 // ============================================================================
 // pause_resume.is_paused Tracking Tests
 // ============================================================================
-// Tests use update_from_status() directly since update_from_notification() uses
-// queue_update() via async_lifetime_.defer, which requires draining the UpdateQueue.
 
 TEST_CASE("PrinterState tracks pause_resume.is_paused", "[printer-state][pause]") {
     lv_init_safe();

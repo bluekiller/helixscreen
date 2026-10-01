@@ -3,7 +3,8 @@
 
 /**
  * @file test_preprint_history_names.cpp
- * @brief The on-disk shape of a prediction-history entry's "phases" object.
+ * @brief The on-disk shape of a prediction-history entry's "phases" object,
+ * and how a new entry joins the stored history.
  *
  * Phases are stored by name. A name is stable across a phase being inserted in
  * the middle of the enum; an ordinal is not, and a stored ordinal read back
@@ -20,6 +21,7 @@
 #include "preprint_predictor.h"
 #include "print_start_phase.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
@@ -182,4 +184,83 @@ TEST_CASE_METHOD(HistoryConfigFixture, "Preprint history: a save/load round trip
     CHECK(loaded[0].phase_durations == entry.phase_durations);
     CHECK(loaded[0].total_seconds == entry.total_seconds);
     CHECK(loaded[0].temp_bucket == entry.temp_bucket);
+}
+
+namespace {
+
+json stored_entry(int total, int64_t timestamp, int bucket, int window) {
+    json e{{"total", total}, {"timestamp", timestamp}, {"phases", {{"HOMING", 20}}}};
+    if (bucket > 0) {
+        e["temp_bucket"] = bucket;
+    }
+    if (window > 0) {
+        e["window"] = window;
+    }
+    return e;
+}
+
+PreprintEntry new_entry(int total, int bucket, PreprintWindow window) {
+    PreprintEntry e;
+    e.total_seconds = total;
+    e.timestamp = 1800000000;
+    e.phase_durations[phase_key(PrintStartPhase::HOMING)] = 25;
+    e.temp_bucket = bucket;
+    e.window = window;
+    return e;
+}
+
+int count_total(const std::vector<PreprintEntry>& entries, int total) {
+    return static_cast<int>(std::count_if(entries.begin(), entries.end(), [total](const auto& e) {
+        return e.total_seconds == total;
+    }));
+}
+
+} // namespace
+
+TEST_CASE_METHOD(HistoryConfigFixture,
+                 "Preprint history: appending keeps the other window of the same bucket",
+                 "[print][predictor][history]") {
+    const int printer_edge = static_cast<int>(PreprintWindow::PrinterEdge);
+    seed_entries(json::array({stored_entry(100, 1700000001, 1, printer_edge),
+                              stored_entry(101, 1700000002, 1, printer_edge)}));
+
+    PreprintPredictor::append_to_config(new_entry(500, 1, PreprintWindow::HostPreStart));
+
+    const auto entries = PreprintPredictor::load_entries_from_config();
+    REQUIRE(entries.size() == 3);
+    CHECK(count_total(entries, 100) == 1);
+    CHECK(count_total(entries, 101) == 1);
+    CHECK(count_total(entries, 500) == 1);
+}
+
+TEST_CASE_METHOD(HistoryConfigFixture,
+                 "Preprint history: appending never duplicates a legacy entry",
+                 "[print][predictor][history]") {
+    seed_entries(json::array({stored_entry(90, 1700000001, 0, 0)}));
+
+    PreprintPredictor::append_to_config(new_entry(200, 1, PreprintWindow::PrinterEdge));
+    PreprintPredictor::append_to_config(new_entry(210, 1, PreprintWindow::PrinterEdge));
+
+    const auto entries = PreprintPredictor::load_entries_from_config();
+    CHECK(count_total(entries, 90) == 1);
+    CHECK(entries.size() == 3);
+}
+
+TEST_CASE_METHOD(HistoryConfigFixture,
+                 "Preprint history: a population is trimmed to its newest MAX_ENTRIES",
+                 "[print][predictor][history]") {
+    const int host = static_cast<int>(PreprintWindow::HostPreStart);
+    json seeded = json::array({stored_entry(7, 1600000000, 2, host)});
+    for (int i = 0; i < PreprintPredictor::MAX_ENTRIES; ++i) {
+        seeded.push_back(stored_entry(300 + i, 1700000000 + i, 1, host));
+    }
+    seed_entries(seeded);
+
+    PreprintPredictor::append_to_config(new_entry(999, 1, PreprintWindow::HostPreStart));
+
+    const auto entries = PreprintPredictor::load_entries_from_config();
+    CHECK(entries.size() == static_cast<size_t>(PreprintPredictor::MAX_ENTRIES) + 1);
+    CHECK(count_total(entries, 300) == 0);
+    CHECK(count_total(entries, 999) == 1);
+    CHECK(count_total(entries, 7) == 1);
 }

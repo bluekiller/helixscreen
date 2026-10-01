@@ -24,6 +24,7 @@
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
 
+using helix::Capability;
 using helix::PrinterCapabilitiesState;
 using helix::PrinterTemperatureState;
 
@@ -449,23 +450,23 @@ TEST_CASE("chamber diagnostics capability setters round-trip", "[chamber][capabi
     PrinterCapabilitiesState caps;
     caps.init_subjects(false);
 
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 0);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 0);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_element_temp_subject()) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 0);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberElementTemp)) == 0);
 
     caps.set_has_chamber_heater_diagnostics(true);
     caps.set_has_chamber_filter_fan(true);
     caps.set_has_chamber_element_temp(true);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 1);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 1);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_element_temp_subject()) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberElementTemp)) == 1);
 
     caps.set_has_chamber_heater_diagnostics(false);
     caps.set_has_chamber_filter_fan(false);
     caps.set_has_chamber_element_temp(false);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_element_temp_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberElementTemp)) == 0);
 }
 
 TEST_CASE("chamber required_status_objects lists only non-empty surfaces", "[chamber][subjects]") {
@@ -516,9 +517,9 @@ TEST_CASE("set_hardware wires diagnostics only when the resolved heater is the d
         state.set_hardware(hw);
 
         CHECK(ts.chamber_diagnostics_object() == "dragonbreath");
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 1);
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 1);
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_element_temp_subject()) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberElementTemp)) == 1);
 
         // End-to-end: a diagnostics frame through the full status path lands.
         state.update_from_status(faulted_diagnostics_status());
@@ -533,8 +534,8 @@ TEST_CASE("set_hardware wires diagnostics only when the resolved heater is the d
 
         CHECK(ts.chamber_heater_name() == "heater_generic ptc_heater");
         CHECK(ts.chamber_diagnostics_object().empty());
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 0);
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 0);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 0);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 0);
 
         // The frame is ignored — subjects keep their defaults.
         state.update_from_status(faulted_diagnostics_status());
@@ -550,8 +551,8 @@ TEST_CASE("set_hardware wires diagnostics only when the resolved heater is the d
 
         CHECK(ts.chamber_heater_name().empty());
         CHECK(ts.chamber_diagnostics_object().empty());
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 0);
-        CHECK(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 0);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 0);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 0);
 
         state.update_from_status(faulted_diagnostics_status());
         CHECK(lv_subject_get_int(ts.get_chamber_heater_fault_subject()) == 0);
@@ -591,9 +592,9 @@ TEST_CASE("set_hardware wires the stock panda_breath surfaces and no others",
     CHECK(hw.chamber_filter_fan_pin().empty());
 
     state.set_hardware(hw);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_heater_diagnostics_subject()) == 1);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_filter_fan_subject()) == 0);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_element_temp_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberElementTemp)) == 0);
 
     // The appliance holding its own auto target while our target reads 0 — the
     // state the rig sits in at rest.
@@ -761,21 +762,21 @@ TEST_CASE("set_hardware raises the dryer capability for a backend with one",
     stock.parse_objects(
         nlohmann::json{"heater_generic panda_breath", "panda_breath", "extruder", "heater_bed"});
     state.set_hardware(stock);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_dryer_subject()) == 1);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberDryer)) == 1);
 
     helix::PrinterDiscovery dragon;
     dragon.parse_objects(nlohmann::json{"heater_generic dragonbreath", "dragonbreath",
                                         "output_pin dragonbreath_filter", "extruder",
                                         "heater_bed"});
     state.set_hardware(dragon);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_dryer_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberDryer)) == 0);
 
     // A manual override to another heater detaches the backend's surfaces.
     state.set_hardware(stock);
-    REQUIRE(lv_subject_get_int(caps.get_printer_has_chamber_dryer_subject()) == 1);
+    REQUIRE(lv_subject_get_int(caps.subject(Capability::HasChamberDryer)) == 1);
     settings.set_chamber_heater_assignment("none");
     state.set_hardware(stock);
-    CHECK(lv_subject_get_int(caps.get_printer_has_chamber_dryer_subject()) == 0);
+    CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberDryer)) == 0);
 
     settings.set_chamber_heater_assignment("auto");
     settings.set_chamber_sensor_assignment("auto");

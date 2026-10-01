@@ -196,6 +196,27 @@ constexpr bool belt_path_kinematics(std::string_view kinematics) {
     return kinematics == "corexy" || kinematics == "limited_corexy";
 }
 
+/// One notify_status_update, unpacked. `status` points into the notification.
+struct StatusFrame {
+    const json* status = nullptr; ///< params[0], the printer objects that changed
+    double eventtime = 0.0;       ///< params[1]; 0 when the frame was synthesized
+    bool from_cached_snapshot = false;
+};
+
+/**
+ * @brief Unpack a Moonraker notification into the frame update_from_status() takes
+ *
+ * params[1] is Klipper's eventtime. It is monotonic-clock derived, so it survives
+ * a Klipper restart and only rewinds on a host reboot: a usable freshness key
+ * within one connection. CACHED_SNAPSHOT_MARKER says the frame is a replay of an
+ * earlier snapshot rather than current traffic.
+ *
+ * @return The frame, or nullopt for anything that is not a notify_status_update
+ */
+std::optional<StatusFrame> parse_status_notification(const json& notification);
+/// The frame points into the notification, so a temporary would leave it dangling.
+std::optional<StatusFrame> parse_status_notification(json&&) = delete;
+
 /**
  * @brief Printer state manager with LVGL 9 reactive subjects
  *
@@ -250,16 +271,6 @@ class PrinterState {
      * then deinitializes PrinterState's own subjects.
      */
     void deinit_subjects();
-
-    /**
-     * @brief Update state from Moonraker notification
-     *
-     * Extracts values from notify_status_update messages and updates subjects.
-     * Also maintains JSON cache for complex data.
-     *
-     * @param notification Parsed JSON notification from Moonraker
-     */
-    void update_from_notification(const json& notification);
 
     /**
      * @brief Update state from raw status data
@@ -1641,6 +1652,8 @@ class PrinterState {
      * is the point where the watermark stops being comparable. Without this the
      * next session's genuinely-current frames would look older than the previous
      * session's and be rejected forever.
+     *
+     * Safe from any thread; takes effect immediately.
      */
     void reset_klippy_state_freshness();
 
@@ -1779,7 +1792,7 @@ class PrinterState {
      * 0 = no power devices, used to hide/show power panel UI elements.
      */
     lv_subject_t* get_power_device_count_subject() {
-        return capabilities_state_.get_power_device_count_subject();
+        return capabilities_state_.subject(Capability::PowerDeviceCount);
     }
 
     /**
@@ -1798,7 +1811,7 @@ class PrinterState {
      * 0 = no sensors, used to hide/show sensor-related UI elements.
      */
     lv_subject_t* get_sensor_count_subject() {
-        return capabilities_state_.get_sensor_count_subject();
+        return capabilities_state_.subject(Capability::SensorCount);
     }
 
     /**
@@ -1831,7 +1844,7 @@ class PrinterState {
      * (reads a single int).
      */
     bool is_spoolman_available() const {
-        return lv_subject_get_int(capabilities_state_.get_printer_has_spoolman_subject()) == 1;
+        return lv_subject_get_int(capabilities_state_.subject(Capability::HasSpoolman)) == 1;
     }
 
     /**
@@ -1852,7 +1865,7 @@ class PrinterState {
      * thread (reads a single int).
      */
     bool is_job_queue_available() const {
-        return lv_subject_get_int(capabilities_state_.get_printer_has_job_queue_subject()) == 1;
+        return lv_subject_get_int(capabilities_state_.subject(Capability::HasJobQueue)) == 1;
     }
 
     /**
@@ -1889,12 +1902,12 @@ class PrinterState {
 
     /// Number of named webcams in the list (what a picker can offer)
     lv_subject_t* get_webcam_count_subject() const {
-        return capabilities_state_.get_webcam_count_subject();
+        return capabilities_state_.subject(Capability::WebcamCount);
     }
 
     /// True if at least one enabled webcam has been detected
     bool has_webcam() const {
-        return lv_subject_get_int(capabilities_state_.get_printer_has_webcam_subject()) == 1;
+        return lv_subject_get_int(capabilities_state_.subject(Capability::HasWebcam)) == 1;
     }
 
     /// Auto-pick MJPEG stream URL (empty if none)
@@ -2037,7 +2050,7 @@ class PrinterState {
      * Timelapse does not require helix_print plugin.
      */
     lv_subject_t* get_printer_has_timelapse_subject() {
-        return capabilities_state_.get_printer_has_timelapse_subject();
+        return capabilities_state_.subject(Capability::HasTimelapse);
     }
 
     /**
@@ -2050,14 +2063,14 @@ class PrinterState {
      * it misses *silently*, leaving the caller with no observer at all.
      */
     lv_subject_t* get_printer_has_spoolman_subject() {
-        return capabilities_state_.get_printer_has_spoolman_subject();
+        return capabilities_state_.subject(Capability::HasSpoolman);
     }
 
     /**
      * @brief Get capability subject for purge line (priming)
      */
     lv_subject_t* get_printer_has_purge_line_subject() {
-        return capabilities_state_.get_printer_has_purge_line_subject();
+        return capabilities_state_.subject(Capability::HasPurgeLine);
     }
 
     /**
@@ -2105,13 +2118,13 @@ class PrinterState {
      * Used for hiding redundant home buttons on deltas.
      */
     lv_subject_t* get_printer_has_individual_xyz_homing_subject() {
-        return capabilities_state_.get_printer_has_individual_xyz_homing_subject();
+        return capabilities_state_.subject(Capability::HasIndividualXyzHoming);
     }
 
     /// 1 if the printer's kinematics is one whose two belt paths the Belt
     /// Tension comparison can measure (corexy, limited_corexy), 0 otherwise.
     lv_subject_t* get_printer_supports_belt_compare_subject() {
-        return capabilities_state_.get_printer_supports_belt_compare_subject();
+        return capabilities_state_.subject(Capability::SupportsBeltCompare);
     }
 
     /**
@@ -2122,13 +2135,13 @@ class PrinterState {
      * Used for Z-offset UI to show appropriate directional icons.
      */
     lv_subject_t* get_printer_bed_moves_subject() {
-        return capabilities_state_.get_printer_bed_moves_subject();
+        return capabilities_state_.subject(Capability::BedMoves);
     }
     lv_subject_t* get_printer_is_enclosed_subject() {
-        return capabilities_state_.get_printer_is_enclosed_subject();
+        return capabilities_state_.subject(Capability::IsEnclosed);
     }
     lv_subject_t* get_printer_can_bed_dry_subject() {
-        return capabilities_state_.get_printer_can_bed_dry_subject();
+        return capabilities_state_.subject(Capability::CanBedDry);
     }
 
     /**
@@ -2139,7 +2152,7 @@ class PrinterState {
      * show/hide preset controls.
      */
     lv_subject_t* get_printer_has_chamber_heater_subject() {
-        return capabilities_state_.get_printer_has_chamber_heater_subject();
+        return capabilities_state_.subject(Capability::HasChamberHeater);
     }
 
     /**
@@ -2592,10 +2605,6 @@ class PrinterState {
     lv_subject_t printer_type_subject_;
     char printer_type_subject_buf_[128];
 
-    // JSON cache for complex data
-    json json_state_;
-    std::mutex state_mutex_;
-
     // Initialization guard to prevent multiple subject initializations
     bool subjects_initialized_ = false;
 
@@ -2644,21 +2653,23 @@ class PrinterState {
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;
 
-    /// Freshness watermark for klippy state. Guarded by state_mutex_ — the webhooks
-    /// parse reads/writes them while already holding it; every other accessor takes
-    /// it via mark_klippy_state_live() / reset_klippy_state_freshness().
+    /// Freshness watermark for klippy state. Written from the WebSocket thread
+    /// (set_klippy_state, reset_klippy_state_freshness) and the main thread (the
+    /// webhooks parse). klippy_freshness_mutex_ guards only the eventtime, and is
+    /// never held across anything else, so an observer can call back in.
     ///
     /// Highest Klipper eventtime that has carried a webhooks klippy state. Klipper
     /// derives it from the monotonic clock, so it survives a Klipper restart and only
     /// rewinds on a host reboot.
     double klippy_state_eventtime_ = 0.0;
+    std::mutex klippy_freshness_mutex_;
 
     /// True once a live-sourced klippy state has been applied. Latches the state
     /// against replayed snapshots (discovery re-dispatches its subscription
     /// response at the end of discovery) while still allowing that same snapshot
     /// to SEED the state when nothing live has arrived yet — which is the normal
     /// cold-start ordering.
-    bool klippy_state_from_live_ = false;
+    std::atomic<bool> klippy_state_from_live_{false};
     /// Last unrecognised webhooks.state string, so the warning fires once per
     /// distinct value rather than once per status frame.
     std::string last_unknown_klippy_state_;
@@ -2694,10 +2705,6 @@ class PrinterState {
     void set_os_version_internal(const std::string& version);
     void set_klippy_state_internal(KlippyState state);
     void set_printer_type_internal(const std::string& type);
-
-    /// Latch "a live klippy state has been applied". Takes state_mutex_, so it must
-    /// NOT be called from update_from_status(), which already holds it.
-    void mark_klippy_state_live();
 
     /// Main-thread half of set_klippy_state_if_unseeded(): re-checks the guard in
     /// the same serialized order as the webhooks parse, then applies.

@@ -394,8 +394,7 @@ Entries are stored in the main config file (`config/settings.json`) at the JSON 
 
 1. `PrintStartCollector::save_prediction_entry()` computes durations from `phase_enter_times_`, returning early on a fallback-timeout completion or when no phase was timed
 2. Adds the entry to the in-memory predictor via `add_entry()` (which enforces the FIFO trim to `MAX_ENTRIES`)
-3. Takes the predictor's entries - which cover only the temp bucket it loaded - and merges them with the entries already on disk that belong to *other* buckets, trimming the merged list to 15
-4. Schedules the serialization plus `Config::set()` and `Config::save()` onto the main thread via `queue_update()`. The same save flushes the thermal model's learned heating rates (`ThermalRateManager::save_to_config()`), which is where the heating half of an ETA lives
+3. Schedules `PreprintPredictor::append_to_config()` plus `Config::save()` onto the main thread via `queue_update()`. It appends to the entries already on disk and trims only the new entry's own (temp bucket, window) population to `MAX_ENTRIES`, then the whole list to `MAX_STORED_ENTRIES` (15), so a save never drops another bucket's or window's history. The same save flushes the thermal model's learned heating rates (`ThermalRateManager::save_to_config()`), which is where the heating half of an ETA lives
 
 ### Load Flow
 

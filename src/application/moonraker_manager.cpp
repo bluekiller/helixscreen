@@ -325,29 +325,10 @@ void MoonrakerManager::process_notifications() {
                 }
             }
         } else {
-            // Regular Moonraker notification — extract status and update directly
-            if (notification.contains("method") && notification.contains("params")) {
-                const auto& method_str = notification["method"];
-                if (method_str.is_string() &&
-                    method_str.get<std::string>() == "notify_status_update") {
-                    auto& params = notification["params"];
-                    if (params.is_array() && !params.empty()) {
-                        // params[1] is Klipper's eventtime, and the marker says
-                        // whether this is a replay of an earlier snapshot rather
-                        // than current traffic. PrinterState needs both to keep a
-                        // stale klippy state from overwriting a live one; this is
-                        // the production status path (PrinterState::
-                        // update_from_notification is not wired up here).
-                        const double eventtime = (params.size() > 1 && params[1].is_number())
-                                                     ? params[1].get<double>()
-                                                     : 0.0;
-                        const bool from_cached_snapshot = helix::json_util::safe_bool(
-                            notification, helix::CACHED_SNAPSHOT_MARKER, false);
-                        get_printer_state().update_from_status(params[0], eventtime,
-                                                               from_cached_snapshot);
-                        helix::ToolState::instance().update_from_status(params[0]);
-                    }
-                }
+            if (auto frame = helix::parse_status_notification(notification)) {
+                get_printer_state().update_from_status(*frame->status, frame->eventtime,
+                                                       frame->from_cached_snapshot);
+                helix::ToolState::instance().update_from_status(*frame->status);
             }
         }
     }
@@ -838,7 +819,6 @@ void MoonrakerManager::init_print_start_collector() {
                                              s_arming.is_initial_transition(),
                                              current_print_duration)) {
                 if (!collector->is_active()) {
-                    collector->reset();
                     collector->start();
                     collector->enable_fallbacks();
                     spdlog::info("[MoonrakerManager] PRINT_START collector started");
@@ -912,7 +892,6 @@ void MoonrakerManager::init_print_start_collector() {
             if (collector->is_active()) {
                 return; // already tracking
             }
-            collector->reset();
             collector->start();
             collector->enable_fallbacks();
             spdlog::info("[MoonrakerManager] PRINT_START collector started (commit)");
