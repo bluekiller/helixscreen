@@ -140,7 +140,6 @@ bool FanStackWidget::is_carousel_mode() const {
 void FanStackWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Pressed feedback: dim widget on touch
     lv_obj_set_style_opa(widget_obj_, LV_OPA_70, LV_PART_MAIN | LV_STATE_PRESSED);
@@ -236,8 +235,6 @@ void FanStackWidget::detach() {
         carousel_pages_.clear();
     }
 
-    if (widget_obj_)
-        lv_obj_set_user_data(widget_obj_, nullptr);
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
     part_label_ = nullptr;

@@ -76,7 +76,6 @@ ControlButtonsWidget::~ControlButtonsWidget() {
 
 void ControlButtonsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen*/) {
     widget_obj_ = widget_obj;
-    lv_obj_set_user_data(widget_obj_, this);
     // A new language can change whether the labels fit without any resize, so
     // the verdict is re-taken against the size the grid last granted.
     language_observer_ = helix::ui::observe_language_change(
@@ -86,9 +85,6 @@ void ControlButtonsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_scree
 
 void ControlButtonsWidget::detach() {
     language_observer_.reset();
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
     spdlog::debug("[ControlButtonsWidget] Detached");
 }

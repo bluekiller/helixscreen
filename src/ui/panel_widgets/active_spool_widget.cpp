@@ -55,8 +55,6 @@ void ActiveSpoolWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     if (!widget_obj_)
         return;
 
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Register click handler via per-callback user_data
     auto* btn = lv_obj_find_by_name(widget_obj_, "spoolman_btn");
     if (btn) {
@@ -118,10 +116,6 @@ void ActiveSpoolWidget::detach() {
     spool_color_observer_.reset();
     current_slot_observer_.reset();
     slots_version_observer_.reset();
-
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
 
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
