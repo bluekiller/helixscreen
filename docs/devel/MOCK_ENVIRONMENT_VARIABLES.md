@@ -135,6 +135,11 @@ Every regular file under the directory is listed in the config root under the pl
 HELIX_MOCK_PLUGINS_DIR=tests/fixtures/plugins ./build/bin/helix-screen --test -vv
 ```
 
+The mock answers `printer.objects.subscribe` itself, without the real discovery sequence, so a
+`--test` run never exercises the subscription merge that folds plugin objects into the app's
+union subscription; that path is covered by the real-sequence unit tests (the `[subscription]`
+tag).
+
 ### `HELIX_MOCK_AUTO_PRINT`
 
 Boot the mock printer straight into an active print so print-gated features can be exercised under `--test` without manually driving a print-start flow.
