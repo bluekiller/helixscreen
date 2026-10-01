@@ -9,7 +9,7 @@
  * - Jog Speed XY / Z (stored mm/min, displayed mm/s)
  * - Six step distances (Fine/Coarse/Turbo x inner/outer, mm)
  *
- * @pattern Overlay (lazy init, machine_limits shape)
+ * @pattern Overlay (lazy init)
  * @threading Main thread only
  *
  * @see SettingsManager jog accessors
@@ -20,7 +20,6 @@
 #include "ui_coalesced_timer.h"
 #include "ui_panel_motion.h"
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
 #include "subject_managed_panel.h"
 
@@ -56,7 +55,6 @@ enum class Field : int {
  */
 class MotionSettingsOverlay : public OverlayBase {
   public:
-    MotionSettingsOverlay();
     ~MotionSettingsOverlay() override;
 
     void set_api(IMoonrakerAPI* api);
@@ -67,10 +65,12 @@ class MotionSettingsOverlay : public OverlayBase {
 
     void init_subjects() override;
     void register_callbacks() override;
-    lv_obj_t* create(lv_obj_t* parent) override;
 
     const char* get_name() const override {
         return "Motion Settings";
+    }
+    const char* xml_component() const override {
+        return "motion_settings_overlay";
     }
 
     void on_activate() override;
@@ -93,16 +93,9 @@ class MotionSettingsOverlay : public OverlayBase {
     void handle_reset_distances();
 
   private:
-    // show() and the instance accessor are reachable only from
-    // ui_settings_motion.cpp: opening the overlay any other way skips
-    // set_api(), and the speed sliders silently lose their ceiling.
-    friend void show_motion_settings_overlay();
-
-    /**
-     * @brief Show the overlay (lazy create + push)
-     * @param parent_screen Screen to create the overlay on
-     */
-    void show(lv_obj_t* parent_screen);
+    // The instance accessor lives in ui_settings_motion.cpp: opening the
+    // overlay any other way skips set_api(), and the speed sliders silently
+    // lose their ceiling.
 
     /// Format one row's display buffer from SettingsManager.
     void format_display(size_t i);
@@ -172,13 +165,6 @@ class MotionSettingsOverlay : public OverlayBase {
     //
     // === Static Callbacks ===
     //
-
-    static void on_jog_speed_xy_changed(lv_event_t* e);
-    static void on_jog_speed_z_changed(lv_event_t* e);
-    static void on_reset_distances(lv_event_t* e);
-
-    /// Tap on a setting_value_field. user_data carries the Field index as text.
-    static void on_field_clicked(lv_event_t* e);
 
     /// ui_keypad_callback_t; user_data carries the overlay.
     static void on_keypad_value(float value, void* user_data);

@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "theme_loader.h"
 
@@ -28,36 +28,21 @@ namespace helix::settings {
 
 class AppearanceSettingsOverlay : public OverlayBase {
   public:
-    AppearanceSettingsOverlay();
-    ~AppearanceSettingsOverlay() override;
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "Appearance";
     }
-
-    void on_activate() override;
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_appearance_overlay";
     }
 
+    void init_subjects() override;
+    void register_callbacks() override;
+    void on_activate() override;
+
     //
-    // === Event Handlers (public for static callbacks) ===
+    // === Theme explorer (called from the callback table) ===
     //
 
-    void handle_animations_changed(bool enabled);
-    void handle_dark_mode_changed(bool enabled);
-    void handle_widget_labels_changed(bool enabled);
-    void handle_bed_mesh_mode_changed(int mode);
-    void handle_toolhead_style_changed(int index);
-    void handle_gcode_mode_changed(int index);
-    void handle_z_movement_style_changed(int index);
     void handle_theme_settings_clicked();
     /**
      * @brief Make the theme explorer treat the active theme as committed
@@ -69,7 +54,6 @@ class AppearanceSettingsOverlay : public OverlayBase {
      */
     void sync_explorer_to_active_theme();
 
-    // Theme explorer handlers
     void handle_theme_preset_changed(int index);
     void handle_apply_theme_clicked();
     void handle_edit_colors_clicked();
@@ -78,15 +62,10 @@ class AppearanceSettingsOverlay : public OverlayBase {
     void apply_preview_palette_to_screen_popups();
 
   private:
-    void init_animations_toggle();
-    void init_bed_mesh_dropdown();
     void init_toolhead_style_dropdown();
     void init_gcode_mode_dropdown();
-    void init_z_movement_dropdown();
     void init_theme_preset_dropdown(lv_obj_t* root);
 
-    /// Theme Editor overlay (secondary - for detailed color editing)
-    lv_obj_t* theme_settings_overlay_{nullptr};
     /// Theme Explorer overlay (primary - for browsing and selecting themes)
     lv_obj_t* theme_explorer_overlay_{nullptr};
 
@@ -107,25 +86,10 @@ class AppearanceSettingsOverlay : public OverlayBase {
 
     /// Subject for theme Apply button disabled state (1=disabled, 0=enabled)
     lv_subject_t theme_apply_disabled_subject_;
-
-    static void on_animations_changed(lv_event_t* e);
-    static void on_dark_mode_changed(lv_event_t* e);
-    static void on_widget_labels_changed(lv_event_t* e);
-    static void on_bed_mesh_mode_changed(lv_event_t* e);
-    static void on_toolhead_style_changed(lv_event_t* e);
-    static void on_gcode_mode_changed(lv_event_t* e);
-    static void on_z_movement_style_changed(lv_event_t* e);
-
-    // Theme explorer
-    static void on_theme_preset_changed(lv_event_t* e);
-    static void on_theme_settings_clicked(lv_event_t* e);
-    static void on_apply_theme_clicked(lv_event_t* e);
-    static void on_edit_colors_clicked(lv_event_t* e);
-    static void on_preview_dark_mode_toggled(lv_event_t* e);
-    static void on_preview_open_modal(lv_event_t* e);
 };
 
-/// Singleton accessor; registers the overlay with StaticPanelRegistry on first use.
-AppearanceSettingsOverlay& get_appearance_settings_overlay();
+inline AppearanceSettingsOverlay& get_appearance_settings_overlay() {
+    return lazy_global<AppearanceSettingsOverlay>("AppearanceSettingsOverlay");
+}
 
 } // namespace helix::settings
