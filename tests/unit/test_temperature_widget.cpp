@@ -58,7 +58,7 @@ TEST_CASE_METHOD(TempWidgetFixture,
 
     // Create and attach widget
     HeaterTempWidget widget(state(), tcp.get(), nozzle_temp_config());
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
 
     SECTION("user_data is on the container") {
         auto* recovered = static_cast<HeaterTempWidget*>(lv_obj_get_user_data(container));
@@ -72,13 +72,13 @@ TEST_CASE_METHOD(TempWidgetFixture,
     }
 
     SECTION("detach clears container user_data") {
-        widget.detach();
+        widget.detach_tile();
         auto* recovered = lv_obj_get_user_data(container);
         REQUIRE(recovered == nullptr);
     }
 
     // Clean up (detach is idempotent)
-    widget.detach();
+    widget.detach_tile();
 }
 
 TEST_CASE_METHOD(TempWidgetFixture,
@@ -92,7 +92,7 @@ TEST_CASE_METHOD(TempWidgetFixture,
     REQUIRE(btn != nullptr);
 
     HeaterTempWidget widget(state(), tcp.get(), nozzle_temp_config());
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
 
     // temp_clicked_cb now uses lv_event_get_user_data(e) (per-callback user_data)
     // rather than lv_obj_get_user_data(btn). Verify the container holds the widget
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(TempWidgetFixture,
     REQUIRE(recovered != nullptr);
     REQUIRE(recovered == &widget);
 
-    widget.detach();
+    widget.detach_tile();
 }
 
 TEST_CASE_METHOD(TempWidgetFixture,

@@ -408,7 +408,7 @@ lv_obj_t* create_tile(lv_obj_t* container, WidgetSlot& slot, const TileCell& cel
         if (auto* sizing = slot.instance->tile_sizing()) {
             sizing->set_content_root(widget);
         }
-        slot.instance->attach(widget, lv_scr_act());
+        slot.instance->attach_tile(widget, lv_scr_act());
 
         // Notify widget of its grid allocation and approximate pixel size.
         // notify_size_changed() records it first, so a widget that rebuilds
@@ -1493,7 +1493,7 @@ PanelWidgetManager::swap_gated_tiles(const std::string& panel_id, lv_obj_t* cont
         auto inst = std::find_if(widgets.begin(), widgets.end(),
                                  [&t](const auto& w) { return w && t.entry->id == w->id(); });
         if (inst != widgets.end()) {
-            (*inst)->detach();
+            (*inst)->detach_tile();
             widgets.erase(inst);
         }
         helix::ui::safe_delete_deferred(t.tile);
@@ -1858,6 +1858,7 @@ PanelWidgetConfig& PanelWidgetManager::get_widget_config(const std::string& pane
 // -- PanelWidget base class --
 
 PanelWidget::~PanelWidget() {
+    unbind_root();
     // The tile tree can outlive this widget: the manager drops non-reused
     // instances after a rebuild, and app shutdown destroys panels before
     // lv_deinit(). Uninstall the delete hook while the object is still valid,
@@ -1865,6 +1866,48 @@ PanelWidget::~PanelWidget() {
     // freed memory. A null delete_hook_root_ means the tree already died (the
     // hook fired) or detach() removed it — nothing left to uninstall.
     uninstall_delete_hook();
+}
+
+void PanelWidget::attach_tile(lv_obj_t* root, lv_obj_t* parent_screen) {
+    bind_root(root);
+    attach(root, parent_screen);
+}
+
+void PanelWidget::detach_tile() {
+    detach();
+    unbind_root();
+}
+
+void PanelWidget::bind_root(lv_obj_t* obj) {
+    unbind_root();
+    if (!obj) {
+        return;
+    }
+    root_ = obj;
+    lv_obj_set_user_data(obj, this);
+    // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
+    lv_obj_add_event_cb(obj, on_bound_root_deleted, LV_EVENT_DELETE, this);
+}
+
+void PanelWidget::unbind_root() {
+    if (!root_ || !lv_is_initialized()) {
+        root_ = nullptr;
+        return;
+    }
+    lv_obj_remove_event_cb_with_user_data(root_, on_bound_root_deleted, this);
+    if (lv_obj_get_user_data(root_) == this) {
+        lv_obj_set_user_data(root_, nullptr);
+    }
+    root_ = nullptr;
+}
+
+// A raw lv_obj_delete() of the tree gives the widget no detach(); the root
+// pointer must not outlive it.
+void PanelWidget::on_bound_root_deleted(lv_event_t* e) {
+    auto* self = static_cast<PanelWidget*>(lv_event_get_user_data(e));
+    if (self && lv_event_get_current_target(e) == self->root_) {
+        self->root_ = nullptr;
+    }
 }
 
 void PanelWidget::record_interaction() {
