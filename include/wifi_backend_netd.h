@@ -19,7 +19,6 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -95,9 +94,6 @@ class WifiBackendNetd : public WifiBackend, private hv::EventLoopThread {
     void start_async() override;
     void stop() override;
     bool is_running() const override;
-
-    void register_event_callback(const std::string& name,
-                                 std::function<void(const std::string&)> callback) override;
 
     WiFiError trigger_scan() override;
     WiFiError get_scan_results(std::vector<WiFiNetwork>& networks) override;
@@ -185,10 +181,6 @@ class WifiBackendNetd : public WifiBackend, private hv::EventLoopThread {
     /// Safe from any thread (hops to the loop).
     void flush_deferred_scan();
 
-    /// Fire a registered callback by name (copy under the map mutex, invoke
-    /// outside it — same deadlock-avoidance shape as the wpa backend).
-    void dispatch_event(const std::string& event_name, const std::string& message);
-
     // ========================================================================
     // Write path (any thread)
     // ========================================================================
@@ -271,9 +263,7 @@ class WifiBackendNetd : public WifiBackend, private hv::EventLoopThread {
     int fd_{-1};
     helix::netd::LineAssembler assembler_; ///< loop thread only
 
-    std::mutex cmd_mutex_;       ///< Serializes writers against the closer.
-    std::mutex callbacks_mutex_; ///< Protects the callbacks map.
-    std::map<std::string, std::function<void(const std::string&)>> callbacks_;
+    std::mutex cmd_mutex_; ///< Serializes writers against the closer.
 
     std::mutex snapshot_mutex_;
     helix::netd::NetdSnapshot snapshot_; ///< Last merged daemon state.

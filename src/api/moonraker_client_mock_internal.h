@@ -167,9 +167,8 @@ json get_mock_gcode_macro_config();
  *
  * Accelerometer modules have no get_status(), so Klipper never lists them in
  * printer.objects.list — configfile.config is the only place they appear.
- * Single source of truth for populate_capabilities(), discover_printer() and
- * the objects.query / objects.subscribe handlers, which previously carried
- * separate copies and disagreed: the query handler omitted it entirely.
+ * Single source of truth for populate_capabilities() and the objects.query /
+ * objects.subscribe handlers.
  */
 json get_mock_accel_config();
 
@@ -195,16 +194,10 @@ json get_mock_probe_config();
 /**
  * @brief Get mock Happy Hare "mmu" status (--real-ams)
  *
- * Minimal static 4-gate setup with a mix of loaded/empty gates. The only
- * reachable caller today is MoonrakerClientMock's post-discovery dispatch
- * that seeds AmsBackendHappyHare's initial state (moonraker_client_mock.cpp).
- * The objects.query and printer.objects.subscribe handlers in
- * moonraker_client_mock_objects.cpp also call this for a requested "mmu"
- * object, but neither is reached in practice: AmsBackendHappyHare's
- * printer.objects.query sites all request "configfile", never "mmu", and
- * printer.objects.subscribe is issued only by MoonrakerDiscoverySequence,
- * which MoonrakerClientMock::discover_printer() overrides and never calls.
- * Those branches are reserved for a future caller, not dead code to remove.
+ * Minimal static 4-gate setup with a mix of loaded/empty gates, answered for a
+ * requested "mmu" object by the objects.query and printer.objects.subscribe
+ * handlers. The discovery sequence's subscription delivers it to
+ * AmsBackendHappyHare as the initial state.
  */
 json get_mock_mmu_status();
 

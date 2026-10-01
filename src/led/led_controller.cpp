@@ -2258,7 +2258,7 @@ void LedController::query_led_state() {
         return;
     }
     client_->send_jsonrpc(
-        "printer.objects.query", {{"objects", query_objects}}, [](nlohmann::json response) {
+        "printer.objects.query", {{"objects", query_objects}}, [](const nlohmann::json& response) {
             if (!response.contains("result") || !response["result"].contains("status")) {
                 spdlog::warn("[LedController] query_led_state: no result/status in response");
                 return;

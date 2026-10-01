@@ -1076,7 +1076,7 @@ void MoonrakerAPIMock::get_power_devices(PowerDevicesCallback on_success, ErrorC
     (void)on_error; // Mock never fails
 
     // Test empty state with: MOCK_EMPTY_POWER=1
-    if (std::getenv("MOCK_EMPTY_POWER")) {
+    if (helix::env_flag("MOCK_EMPTY_POWER")) {
         spdlog::info("[MoonrakerAPIMock] Returning empty power devices (MOCK_EMPTY_POWER set)");
         on_success({});
         return;

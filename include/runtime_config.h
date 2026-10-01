@@ -13,13 +13,16 @@
 
 #pragma once
 
-#include "ams_types.h" // For AmsType in backend_owns_runout_during_job()
 #include "env_knobs.h"
 
 #include <cstdio>      // For snprintf in get_default_test_file_path()
 #include <cstdlib>     // For getenv in should_mock_remote_printer()
 #include <string>      // For std::string in should_mock_remote_printer()
 #include <sys/types.h> // For pid_t
+
+namespace helix {
+enum class AmsType; // defined in ams_types.h
+}
 
 /**
  * @brief Runtime configuration for development and testing
