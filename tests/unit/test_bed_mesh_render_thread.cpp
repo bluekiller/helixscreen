@@ -225,6 +225,14 @@ TEST_CASE("BedMeshRenderThread acquire_frame hands over each frame once without 
     SECTION("the consumer's buffer is not written while a render is pending") {
         const auto* shown = thread.acquire_frame();
         std::vector<uint8_t> snapshot(shown->data(), shown->data() + shown->stride() * 48);
+        // A different mesh makes any stray write into the shown buffer change its bytes.
+        {
+            std::lock_guard<std::mutex> lock(thread.render_mutex());
+            mesh.rows[1][1] = 0.9f;
+            mesh.rows[0][0] = -0.4f;
+            const float* p[3] = {mesh.rows[0], mesh.rows[1], mesh.rows[2]};
+            bed_mesh_renderer_set_mesh_data(mesh.renderer, p, 3, 3);
+        }
         // Rendering finishes into the other buffer and then stalls until acquire_frame().
         for (int i = 0; i < 3; i++) {
             thread.request_render();
