@@ -512,14 +512,19 @@ void PrinterState::update_from_status(const json& state, double eventtime,
         // untimestamped dispatch, and those are the current truth for their session.
         // The eventtime watermark covers the other case — two genuinely live frames
         // arriving out of order across the queues.
-        const bool stale = (from_cached_snapshot && klippy_state_from_live_) ||
-                           (eventtime > 0.0 && eventtime < klippy_state_eventtime_);
+        double watermark;
+        {
+            std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
+            watermark = klippy_state_eventtime_;
+        }
+        const bool stale = (from_cached_snapshot && klippy_state_from_live_.load()) ||
+                           (eventtime > 0.0 && eventtime < watermark);
 
         if (stale) {
             spdlog::debug("[PrinterState] Ignoring stale klippy webhooks (state='{}', "
                           "eventtime={} vs watermark={}, cached_snapshot={})",
                           helix::json_util::safe_string(webhooks, "state", "<absent>"), eventtime,
-                          klippy_state_eventtime_, from_cached_snapshot);
+                          watermark, from_cached_snapshot);
         } else {
             bool applied_state = false;
 
@@ -570,6 +575,7 @@ void PrinterState::update_from_status(const json& state, double eventtime,
             // lock out the snapshot that still has to seed the state.
             if (applied_state) {
                 if (eventtime > 0.0) {
+                    std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
                     klippy_state_eventtime_ = eventtime;
                 }
                 if (!from_cached_snapshot) {
@@ -644,13 +650,15 @@ void PrinterState::set_network_status(int status) {
 }
 
 void PrinterState::set_klippy_state(KlippyState state) {
-    helix::async::call_method(this, &PrinterState::set_klippy_state_sync, state);
+    // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
+    // authoritative, and they must outrank any replayed snapshot from here on,
+    // including one already waiting in the notification queue.
+    klippy_state_from_live_.store(true);
+    helix::async::call_method(this, &PrinterState::set_klippy_state_internal, state);
 }
 
 void PrinterState::set_klippy_state_sync(KlippyState state) {
-    // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
-    // authoritative, and they must outrank any replayed snapshot from here on.
-    klippy_state_from_live_ = true;
+    klippy_state_from_live_.store(true);
     set_klippy_state_internal(state);
 }
 
@@ -663,7 +671,7 @@ void PrinterState::set_klippy_state_if_unseeded(KlippyState state) {
 }
 
 void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
-    if (klippy_state_from_live_) {
+    if (klippy_state_from_live_.load()) {
         spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
                       "has already been applied",
                       static_cast<int>(state));
@@ -677,15 +685,12 @@ void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
 }
 
 void PrinterState::reset_klippy_state_freshness() {
-    // Queued behind any frame already waiting, so the watermark only resets
-    // between sessions. The next connection's first frame is a network round
-    // trip away, long after the queue drains.
-    helix::async::call_method(this, &PrinterState::reset_klippy_state_freshness_internal);
-}
-
-void PrinterState::reset_klippy_state_freshness_internal() {
+    // Synchronous on the caller's thread: the next session's frames arrive
+    // through a different queue than deferred UI work, so a queued reset could
+    // land after them and wipe their watermark.
+    std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
     klippy_state_eventtime_ = 0.0;
-    klippy_state_from_live_ = false;
+    klippy_state_from_live_.store(false);
 }
 
 void PrinterState::set_klippy_state_internal(KlippyState state) {

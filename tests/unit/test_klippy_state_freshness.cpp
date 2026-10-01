@@ -253,6 +253,42 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 }
 
 // ============================================================================
+// The reset and the status frames reach PrinterState through different queues:
+// frames through MoonrakerManager's notification queue, deferred UI work through
+// the UpdateQueue, which a panel rebuild or splash can hold frozen. A reset that
+// waited in the UpdateQueue would land after the next session's frames and wipe
+// their watermark.
+// ============================================================================
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: a reconnect while the UI queue is frozen keeps the new "
+                 "session's state",
+                 "[core][klippy][freshness]") {
+    live("ready", 100.0);
+    REQUIRE(klippy() == KlippyState::READY);
+
+    {
+        helix::ui::UpdateQueue::ScopedFreeze freeze(helix::ui::UpdateQueue::instance());
+        state.reset_klippy_state_freshness(); // the link drops
+        live("shutdown", 5.0);                // the next session's clock restarted
+        CHECK(klippy() == KlippyState::SHUTDOWN);
+    }
+    helix::ui::UpdateQueue::instance().drain();
+
+    replay("ready");
+    CHECK(klippy() == KlippyState::SHUTDOWN);
+}
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: notify_klippy_* outranks a snapshot already queued",
+                 "[core][klippy][freshness]") {
+    helix::ui::UpdateQueue::ScopedFreeze freeze(helix::ui::UpdateQueue::instance());
+    state.set_klippy_state(KlippyState::SHUTDOWN); // WebSocket thread
+    replay("ready");                               // drained before the UI queue
+    CHECK(klippy() != KlippyState::READY);
+}
+
+// ============================================================================
 // A status frame's fan-out runs observers synchronously. One that calls back into
 // PrinterState must not wedge the frame that notified it.
 // ============================================================================

@@ -1653,7 +1653,7 @@ class PrinterState {
      * next session's genuinely-current frames would look older than the previous
      * session's and be rejected forever.
      *
-     * Safe from any thread: the reset is queued to the main thread.
+     * Safe from any thread; takes effect immediately.
      */
     void reset_klippy_state_freshness();
 
@@ -2653,21 +2653,23 @@ class PrinterState {
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;
 
-    /// Freshness watermark for klippy state. Main thread only: WebSocket-thread
-    /// writers go through set_klippy_state() / reset_klippy_state_freshness(),
-    /// which queue their write.
+    /// Freshness watermark for klippy state. Written from the WebSocket thread
+    /// (set_klippy_state, reset_klippy_state_freshness) and the main thread (the
+    /// webhooks parse). klippy_freshness_mutex_ guards only the eventtime, and is
+    /// never held across anything else, so an observer can call back in.
     ///
     /// Highest Klipper eventtime that has carried a webhooks klippy state. Klipper
     /// derives it from the monotonic clock, so it survives a Klipper restart and only
     /// rewinds on a host reboot.
     double klippy_state_eventtime_ = 0.0;
+    std::mutex klippy_freshness_mutex_;
 
     /// True once a live-sourced klippy state has been applied. Latches the state
     /// against replayed snapshots (discovery re-dispatches its subscription
     /// response at the end of discovery) while still allowing that same snapshot
     /// to SEED the state when nothing live has arrived yet — which is the normal
     /// cold-start ordering.
-    bool klippy_state_from_live_ = false;
+    std::atomic<bool> klippy_state_from_live_{false};
     /// Last unrecognised webhooks.state string, so the warning fires once per
     /// distinct value rather than once per status frame.
     std::string last_unknown_klippy_state_;
@@ -2703,9 +2705,6 @@ class PrinterState {
     void set_os_version_internal(const std::string& version);
     void set_klippy_state_internal(KlippyState state);
     void set_printer_type_internal(const std::string& type);
-
-    /// Main-thread half of reset_klippy_state_freshness().
-    void reset_klippy_state_freshness_internal();
 
     /// Main-thread half of set_klippy_state_if_unseeded(): re-checks the guard in
     /// the same serialized order as the webhooks parse, then applies.

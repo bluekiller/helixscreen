@@ -259,7 +259,7 @@ class PrinterStateTestAccess {
         ps.discovery_ = helix::PrinterDiscovery();
         ps.last_unknown_klippy_state_.clear();
         ps.timelapse_default_enabled_ = false;
-        ps.reset_klippy_state_freshness_internal();
+        ps.reset_klippy_state_freshness();
     }
 
     static PrinterFanState& get_fan_state(PrinterState& ps) {
