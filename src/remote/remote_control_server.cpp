@@ -14,6 +14,7 @@
 #include "display_settings_manager.h"
 #include "http_executor.h"
 #include "input_settings_manager.h"
+#include "klipper_config_includes.h"
 #include "logging_init.h"
 #include "mock_scenarios.h"
 #ifdef HELIX_ENABLE_MOCKS
@@ -1077,31 +1078,6 @@ static bool is_glob(const std::string& s) {
     return s.find('*') != std::string::npos || s.find('?') != std::string::npos;
 }
 
-// Shell-style glob: '*' matches any run (including empty), '?' exactly one char.
-// Iterative with backtracking, so a pathological pattern can't blow the stack.
-static bool glob_match(const char* pat, const char* str) {
-    const char* star = nullptr;
-    const char* retry = str;
-    while (*str) {
-        if (*pat == '?' || *pat == *str) {
-            pat++;
-            str++;
-        } else if (*pat == '*') {
-            star = pat++; // remember where the star was
-            retry = str;  // and how much of str it had consumed
-        } else if (star) {
-            pat = star + 1; // backtrack: let the star eat one more char
-            str = ++retry;
-        } else {
-            return false;
-        }
-    }
-    while (*pat == '*') {
-        pat++;
-    }
-    return *pat == '\0';
-}
-
 // Every visible widget in a subtree whose name matches the pattern.
 //
 // A widget the author never named is not nameless: lv_obj_get_name_resolved()
@@ -1129,7 +1105,7 @@ static void collect_glob_matches(lv_obj_t* parent, const std::string& pattern,
         lv_obj_get_name_resolved(child, resolved, sizeof(resolved));
         const char* raw = lv_obj_get_name(child);
         const char* name = resolved[0] != '\0' ? resolved : raw;
-        if (name && name[0] != '\0' && glob_match(pattern.c_str(), name)) {
+        if (name && name[0] != '\0' && helix::system::config_glob_match(pattern, name)) {
             out.push_back(child);
         }
         collect_glob_matches(child, pattern, out);

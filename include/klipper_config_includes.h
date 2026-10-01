@@ -25,7 +25,8 @@ namespace helix::system {
 [[nodiscard]] std::string config_resolve_path(const std::string& current_file,
                                               const std::string& include_path);
 
-/// Simple glob pattern matching for Klipper include patterns (supports '*' and '?' wildcards)
+/// Glob match mirroring Python glob(recursive=True): `*` and `?` stay within one path
+/// segment, `**` spans separators. The one glob for include resolution and ctl widget names.
 [[nodiscard]] bool config_glob_match(const std::string& pattern, const std::string& text);
 
 /// Find all files in the map that match a glob pattern (resolved relative to current file)

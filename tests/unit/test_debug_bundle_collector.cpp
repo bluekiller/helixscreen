@@ -815,21 +815,28 @@ TEST_CASE("DebugBundleCollector: parse_include_patterns finds Klipper includes",
     }
 }
 
-TEST_CASE("DebugBundleCollector: glob_match does not let wildcards cross a slash",
+TEST_CASE("DebugBundleCollector: resolve_include_pattern follows config_glob_match",
           "[debug-bundle][printer-config]") {
-    CHECK(helix::DebugBundleCollector::glob_match("printer.cfg", "printer.cfg"));
-    CHECK(helix::DebugBundleCollector::glob_match("mod/*.cfg", "mod/base.cfg"));
-    CHECK(helix::DebugBundleCollector::glob_match("*.cfg", "printer.cfg"));
-    CHECK(helix::DebugBundleCollector::glob_match("mod/?.cfg", "mod/a.cfg"));
-
-    // The load-bearing case: Python glob (which Klipper uses) stops '*' at a
-    // separator, so a top-level "*.cfg" must not vacuum up the whole tree.
-    CHECK_FALSE(helix::DebugBundleCollector::glob_match("*.cfg", "mod/base.cfg"));
-    CHECK_FALSE(helix::DebugBundleCollector::glob_match("mod/*.cfg", "mod/sub/base.cfg"));
-    CHECK_FALSE(helix::DebugBundleCollector::glob_match("mod/?.cfg", "mod/ab.cfg"));
-
-    CHECK_FALSE(helix::DebugBundleCollector::glob_match("printer.cfg", "printer.cfg.bak"));
-    CHECK_FALSE(helix::DebugBundleCollector::glob_match("other.cfg", "printer.cfg"));
+    const std::vector<std::string> files = {"printer.cfg", "mod/base.cfg", "mod/sub/deep.cfg",
+                                            "mod/sub/x/deeper.cfg"};
+    struct Row {
+        const char* pattern;
+        std::vector<std::string> want;
+    };
+    const Row rows[] = {
+        {"printer.cfg", {"printer.cfg"}},
+        {"*.cfg", {"printer.cfg"}},
+        {"mod/*.cfg", {"mod/base.cfg"}},
+        {"mod/?ase.cfg", {"mod/base.cfg"}},
+        {"mod/**/*.cfg", {"mod/base.cfg", "mod/sub/deep.cfg", "mod/sub/x/deeper.cfg"}},
+        {"mod/**.cfg", {"mod/base.cfg", "mod/sub/deep.cfg", "mod/sub/x/deeper.cfg"}},
+        {"other.cfg", {}},
+    };
+    for (const auto& r : rows) {
+        INFO(r.pattern);
+        CHECK(helix::DebugBundleCollector::resolve_include_pattern(r.pattern, "printer.cfg",
+                                                                   files) == r.want);
+    }
 }
 
 TEST_CASE("DebugBundleCollector: resolve_include_pattern is relative to the including file",

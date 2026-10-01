@@ -14,6 +14,7 @@
 #include <mutex>
 #include <set>
 #include <string_view>
+#include <vector>
 
 namespace helix::system {
 
@@ -42,40 +43,31 @@ bool config_glob_match(const std::string& pattern, const std::string& text) {
     // single star cross separators makes `[include conf.d/*.cfg]` appear to pull
     // in conf.d/nested/*.cfg, so a section gets attributed to a file Klipper
     // never read - and an edit written there has no effect.
-    size_t pi = 0, ti = 0;
-    size_t star_pi = std::string::npos, star_ti = 0;
-    bool star_spans_dirs = false;
-
-    while (ti < text.size()) {
-        const bool have_pat = pi < pattern.size();
-        if (have_pat && pattern[pi] == '?' && text[ti] != '/') {
-            ++pi;
-            ++ti;
-        } else if (have_pat && pattern[pi] != '*' && pattern[pi] != '?' &&
-                   pattern[pi] == text[ti]) {
-            ++pi;
-            ++ti;
-        } else if (have_pat && pattern[pi] == '*') {
-            const bool doubled = (pi + 1 < pattern.size() && pattern[pi + 1] == '*');
-            star_pi = pi;
-            star_spans_dirs = doubled;
-            star_ti = ti;
-            pi += doubled ? 2 : 1;
-        } else if (star_pi != std::string::npos && (star_spans_dirs || text[star_ti] != '/')) {
-            // Backtrack: let the star swallow one more character. A plain star
-            // may not swallow a separator.
-            ++star_ti;
-            ti = star_ti;
-            pi = star_pi + (star_spans_dirs ? 2 : 1);
-        } else {
-            return false;
+    // dp[i][j]: pattern[i:] matches text[j:]. A table rather than one backtrack
+    // point, because `**/*.cfg` needs both stars to retry independently.
+    const size_t n = pattern.size(), m = text.size();
+    std::vector<char> dp((n + 1) * (m + 1), 0);
+    auto at = [&](size_t i, size_t j) -> char& { return dp[i * (m + 1) + j]; };
+    at(n, m) = 1;
+    for (size_t i = n; i-- > 0;) {
+        const char c = pattern[i];
+        for (size_t j = m + 1; j-- > 0;) {
+            bool ok = false;
+            if (c == '*') {
+                const bool doubled = (i + 1 < n && pattern[i + 1] == '*');
+                const size_t next = i + (doubled ? 2 : 1);
+                ok = at(next, j) || (j < m && (doubled || text[j] != '/') && at(i, j + 1));
+                // Python glob lets `a/**/b` match `a/b`: the directories are optional.
+                if (!ok && doubled && next < n && pattern[next] == '/') {
+                    ok = at(next + 1, j);
+                }
+            } else if (j < m) {
+                ok = (c == '?' ? text[j] != '/' : c == text[j]) && at(i + 1, j + 1);
+            }
+            at(i, j) = ok;
         }
     }
-
-    while (pi < pattern.size() && pattern[pi] == '*')
-        ++pi;
-
-    return pi == pattern.size();
+    return at(0, 0);
 }
 
 std::vector<std::string> config_match_glob(const std::map<std::string, std::string>& files,
