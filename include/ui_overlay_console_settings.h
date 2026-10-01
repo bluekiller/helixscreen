@@ -5,6 +5,7 @@
 
 #include "lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 /**
  * @file ui_overlay_console_settings.h
@@ -21,19 +22,25 @@
  */
 class ConsoleSettingsOverlay : public OverlayBase {
   public:
-    ConsoleSettingsOverlay();
-    ~ConsoleSettingsOverlay() override = default;
-
-    void init_subjects() override;
-    lv_obj_t* create(lv_obj_t* parent) override;
     [[nodiscard]] const char* get_name() const override {
         return "Console Settings";
     }
-
-    [[nodiscard]] const char* get_xml_component_name() const {
+    const char* xml_component() const override {
         return "console_settings_overlay";
+    }
+
+    void register_callbacks() override;
+
+    /// Registers the XML callbacks at startup for the console panel, which
+    /// create()s and pushes this overlay without going through show().
+    void init_subjects() override {
+        register_callbacks();
     }
 };
 
-ConsoleSettingsOverlay& get_global_console_settings();
-void init_global_console_settings();
+inline ConsoleSettingsOverlay& get_global_console_settings() {
+    return helix::lazy_global<ConsoleSettingsOverlay>("ConsoleSettingsOverlay");
+}
+
+/// The overlay is built on first use; nothing to do at startup.
+inline void init_global_console_settings() {}

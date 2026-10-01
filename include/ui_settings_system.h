@@ -12,10 +12,9 @@
  * - Log level
  * - Restart / Factory reset
  *
- * Most callbacks are delegated to the global SettingsPanel which already
- * owns the complex logic (factory reset dialog, etc.).
- * This overlay simply registers matching callback names and initializes
- * toggle/description state on activate.
+ * Its callbacks are registered by the global SettingsPanel, which owns the
+ * complex logic (factory reset dialog, etc.).
+ * The telemetry and log-level rows bind to their SystemSettingsManager subjects.
  *
  * @pattern Overlay (lazy init)
  * @threading Main thread only
@@ -25,6 +24,7 @@
 
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
@@ -32,55 +32,22 @@ namespace helix::settings {
  * @class SystemSettingsOverlay
  * @brief Overlay for system administration settings
  *
- * ## Usage:
- *
  * @code
- * auto& overlay = helix::settings::get_system_settings_overlay();
- * overlay.show(parent_screen);
+ * helix::settings::get_system_settings_overlay().show(parent_screen);
  * @endcode
  */
 class SystemSettingsOverlay : public OverlayBase {
   public:
-    SystemSettingsOverlay();
-    ~SystemSettingsOverlay() override;
-
-    //
-    // === OverlayBase Interface ===
-    //
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "System";
     }
-
-    void on_activate() override;
-
-    //
-    // === UI Creation ===
-    //
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_system_overlay";
     }
-
-  private:
-    void init_telemetry_toggle();
-    void init_log_level_dropdown();
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton SystemSettingsOverlay
- */
-SystemSettingsOverlay& get_system_settings_overlay();
+inline SystemSettingsOverlay& get_system_settings_overlay() {
+    return lazy_global<SystemSettingsOverlay>("SystemSettingsOverlay");
+}
 
 } // namespace helix::settings
