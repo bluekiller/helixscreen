@@ -338,3 +338,23 @@ TEST_CASE_METHOD(LVGLTestFixture, "a non-std exception names its type with no me
     CHECK(capture.contains("int"));
     CHECK(capture.contains("(no message)"));
 }
+
+// The unique_ptr forms own their payload even when the queue drops the
+// callback unrun (shutdown, a test fixture discarding the queue).
+TEST_CASE_METHOD(LVGLTestFixture, "queue_update frees its payload when the callback is dropped",
+                 "[update_queue]") {
+    auto alive = std::make_shared<int>(0);
+    std::weak_ptr<int> probe = alive;
+    auto widget = lv_obj_create(lv_screen_active());
+
+    helix::ui::queue_update<std::shared_ptr<int>>(std::make_unique<std::shared_ptr<int>>(alive),
+                                                  [](std::shared_ptr<int>*) {});
+    helix::ui::queue_update(widget, std::make_unique<std::shared_ptr<int>>(alive),
+                            [](lv_obj_t*, std::shared_ptr<int>*) {});
+    alive.reset();
+    REQUIRE_FALSE(probe.expired());
+
+    (void)helix::ui::UpdateQueueTestAccess::discard_pending(helix::ui::UpdateQueue::instance());
+    REQUIRE(probe.expired());
+    lv_obj_delete(widget);
+}

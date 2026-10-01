@@ -693,14 +693,11 @@ inline void queue_update(const char* tag, UpdateCallback callback) {
 template <typename T>
 void queue_update(std::unique_ptr<T> data, std::function<void(T*)> callback,
                   const char* file = __builtin_FILE(), int line = __builtin_LINE()) {
-    // Capture data and callback in a lambda
-    T* raw_ptr = data.release(); // Transfer ownership
-    queue_update(
-        [raw_ptr, callback = std::move(callback)]() {
-            std::unique_ptr<T> owned(raw_ptr); // Reclaim ownership for RAII
-            callback(owned.get());
-        },
-        file, line);
+    // shared_ptr, not a raw release: UpdateCallback must be copyable, and a
+    // callback the queue drops unrun must still free the payload.
+    queue_update([owned = std::shared_ptr<T>(std::move(data)),
+                  callback = std::move(callback)]() { callback(owned.get()); },
+                 file, line);
 }
 
 /**
@@ -721,31 +718,6 @@ inline void update_queue_init() {
  */
 inline void update_queue_shutdown() {
     UpdateQueue::instance().shutdown();
-}
-
-/**
- * @brief Drop-in replacement for lv_async_call
- *
- * Has the EXACT same signature as lv_async_call() but uses the UI update queue,
- * so it is safe to call from any thread and callbacks never run during a render.
- * Exceptions thrown by callbacks are caught and logged by UpdateQueue::process_pending().
- *
- * Migration: Simply replace `lv_async_call(` with `async_call(`
- *
- * @param async_xcb Callback function (same signature as lv_async_call)
- * @param user_data User data passed to callback
- * @return LV_RESULT_OK always (queue never fails)
- */
-inline lv_result_t async_call(lv_async_cb_t async_xcb, void* user_data,
-                              const char* file = __builtin_FILE(), int line = __builtin_LINE()) {
-    queue_update(
-        [async_xcb, user_data]() {
-            if (async_xcb) {
-                async_xcb(user_data);
-            }
-        },
-        file, line);
-    return LV_RESULT_OK;
 }
 
 // ============================================================================
@@ -771,10 +743,8 @@ inline lv_result_t async_call(lv_async_cb_t async_xcb, void* user_data,
 template <typename T, typename F>
 void queue_update(lv_obj_t* widget, std::unique_ptr<T> data, F&& callback,
                   const char* file = __builtin_FILE(), int line = __builtin_LINE()) {
-    T* raw_ptr = data.release();
     queue_update(
-        [widget, raw_ptr, cb = std::forward<F>(callback)]() {
-            std::unique_ptr<T> owned(raw_ptr); // RAII: always freed
+        [widget, owned = std::shared_ptr<T>(std::move(data)), cb = std::forward<F>(callback)]() {
             if (!lv_obj_is_valid(widget)) {
                 spdlog::debug(
                     "[UpdateQueue] Widget-safe guard: widget destroyed, skipping callback");
@@ -811,31 +781,15 @@ void queue_widget_update(lv_obj_t* widget, F&& callback, const char* file = __bu
 }
 
 /**
- * @brief Widget-safe drop-in replacement for lv_async_call
+ * @brief Invalidate a widget after the current render or observer chain
  *
- * Same as async_call(cb, user_data) but validates the widget first.
- * If the widget is destroyed before the callback fires, the callback is skipped.
- *
- * @param widget Widget that must still be valid when callback fires
- * @param async_xcb Callback function (same signature as lv_async_call)
- * @param user_data User data passed to callback
- * @return LV_RESULT_OK always (queue never fails)
+ * lv_obj_invalidate() asserts inside a draw callback and repaints with stale
+ * style state mid-observer, so animation exec callbacks, draw callbacks and
+ * observers defer it. Skipped if the widget is gone by then.
  */
-inline lv_result_t async_call(lv_obj_t* widget, lv_async_cb_t async_xcb, void* user_data,
-                              const char* file = __builtin_FILE(), int line = __builtin_LINE()) {
-    queue_update(
-        [widget, async_xcb, user_data]() {
-            if (!lv_obj_is_valid(widget)) {
-                spdlog::debug(
-                    "[UpdateQueue] Widget-safe guard: widget destroyed, skipping async_call");
-                return;
-            }
-            if (async_xcb) {
-                async_xcb(user_data);
-            }
-        },
-        file, line);
-    return LV_RESULT_OK;
+inline void queue_invalidate(lv_obj_t* obj, const char* file = __builtin_FILE(),
+                             int line = __builtin_LINE()) {
+    queue_widget_update(obj, [](lv_obj_t* o) { lv_obj_invalidate(o); }, file, line);
 }
 
 } // namespace helix::ui

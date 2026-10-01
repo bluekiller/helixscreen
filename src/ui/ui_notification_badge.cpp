@@ -123,14 +123,10 @@ void fit_badge_label_font(lv_obj_t* badge) {
 void badge_style_changed_cb(lv_event_t* e) {
     lv_obj_t* badge = lv_event_get_target_obj(e);
     // Defer to avoid setting styles during refresh_children_style cascade (#729)
-    helix::ui::async_call(
-        badge,
-        [](void* data) {
-            lv_obj_t* badge = static_cast<lv_obj_t*>(data);
-            update_badge_text_contrast(badge);
-            fit_badge_label_font(badge);
-        },
-        badge);
+    helix::ui::queue_widget_update(badge, [](lv_obj_t* b) {
+        update_badge_text_contrast(b);
+        fit_badge_label_font(b);
+    });
 }
 
 /**

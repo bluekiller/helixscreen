@@ -341,7 +341,7 @@ class GCodeViewerState {
     // Self-heals the failure mode where a continuation lv_obj_invalidate from
     // needs_more_frames() (gcode_viewer_draw_cb at LV_EVENT_DRAW_POST) was
     // dropped or coalesced inside UpdateQueue back-pressure (CLAUDE.md L081 —
-    // helix::ui::async_call routes through queue_update, no escape from a
+    // queue_invalidate routes through queue_update, no escape from a
     // batch). When that happens, cached_up_to_layer_ < target_layer is stuck
     // even though print_progress_layer_ is advancing on every Moonraker layer
     // event, and the user sees a visually-frozen 2D render despite numeric
@@ -847,9 +847,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
         if (st->layer_renderer_2d_->needs_more_frames()) {
             // IMPORTANT: Cannot call lv_obj_invalidate() during draw callback!
             // LVGL asserts if we invalidate while rendering_in_progress is true.
-            // Use widget-safe async_call to schedule invalidation after render completes.
-            helix::ui::async_call(
-                obj, [](void* data) { lv_obj_invalidate(static_cast<lv_obj_t*>(data)); }, obj);
+            // Schedule the widget-safe invalidation for after the render completes.
+            helix::ui::queue_invalidate(obj);
         }
 
         // Update ghost build progress label (streaming mode)
@@ -936,8 +935,7 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
             }
             // Repaint on the next tick now that the mode has flipped. Cannot
             // invalidate synchronously inside the draw callback.
-            helix::ui::async_call(
-                obj, [](void* data) { lv_obj_invalidate(static_cast<lv_obj_t*>(data)); }, obj);
+            helix::ui::queue_invalidate(obj);
             return;
         }
 
@@ -949,8 +947,7 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
             if (!st->renderer_->is_uploading()) {
                 st->needs_3d_refresh_ = false;
             }
-            helix::ui::async_call(
-                obj, [](void* data) { lv_obj_invalidate(static_cast<lv_obj_t*>(data)); }, obj);
+            helix::ui::queue_invalidate(obj);
         }
     }
 #endif

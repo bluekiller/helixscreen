@@ -974,17 +974,14 @@ void ui_button_apply(lv_xml_parser_state_t* state, const char** attrs) {
 
             // When subject changes, LVGL only redraws the label area — the
             // button background needs a full repaint. Defer invalidation via
-            // lv_async_call so it runs after the observer chain completes
+            // queue_invalidate so it runs after the observer chain completes
             // (invalidating mid-observer causes wrong style state).
             lv_subject_add_observer_obj(
                 subject,
                 [](lv_observer_t* obs, lv_subject_t*) {
                     lv_obj_t* parent_btn = static_cast<lv_obj_t*>(lv_observer_get_target_obj(obs));
                     if (parent_btn) {
-                        helix::ui::async_call(
-                            parent_btn,
-                            [](void* ud) { lv_obj_invalidate(static_cast<lv_obj_t*>(ud)); },
-                            parent_btn);
+                        helix::ui::queue_invalidate(parent_btn);
                     }
                 },
                 btn, nullptr);
