@@ -9,6 +9,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/home_panel_test_access.h"
 #include "../test_helpers/plugin_host_test_support.h"
+#include "../test_helpers/process_async_timers.h"
 #include "../test_helpers/scope_exit.h"
 #include "config.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
@@ -307,28 +308,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a widget whose component file is missing is i
     CHECK(helix::find_widget_def("widget-missing__tile") == nullptr);
 }
 
-namespace {
-/// Pump LVGL's one-shot timer queue (lv_async_call), as test_panel_widget_runtime_defs
-/// does: a fixed process_lvgl() elapse does not reliably fire period-0 timers created
-/// mid-tick.
-void process_async_calls() {
-    for (int safety = 0; safety < 50; ++safety) {
-        bool fired = false;
-        lv_timer_t* t = lv_timer_get_next(nullptr);
-        while (t) {
-            lv_timer_t* next = lv_timer_get_next(t);
-            if (t->repeat_count > 0 && t->timer_cb) {
-                t->timer_cb(t);
-                fired = true;
-                break;
-            }
-            t = next;
-        }
-        if (!fired)
-            break;
-    }
-}
-} // namespace
+namespace {} // namespace
 
 TEST_CASE_METHOD(LVGLTestFixture,
                  "an enabled reload rebuilds a placed home tile onto the new runtime",
@@ -379,7 +359,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     CHECK(rig.host->enable("widget-demo"));
     drain();
     process_lvgl(50);
-    process_async_calls();
+    process_async_timers();
     drain();
 
     size = lv_xml_get_subject(nullptr, "widget-demo__size");

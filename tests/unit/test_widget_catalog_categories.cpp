@@ -19,6 +19,7 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/config_test_access.h"
+#include "../test_helpers/process_async_timers.h"
 #include "../test_helpers/scope_exit.h"
 #include "config.h"
 #include "display_settings_manager.h"
@@ -130,28 +131,6 @@ void collect_labels(lv_obj_t* obj, std::vector<std::string>& out) {
             out.push_back(lv_label_get_text(child) ? lv_label_get_text(child) : "");
         }
         collect_labels(child, out);
-    }
-}
-
-/// Drain LVGL's one-shot timer queue (lv_async_call), mirroring the helper in
-/// test_panel_widget_manager.cpp: a fixed process_lvgl() elapse does not
-/// reliably fire period-0 one-shot timers created mid-tick, so pump them
-/// explicitly.
-void process_async_calls() {
-    for (int safety = 0; safety < 50; ++safety) {
-        bool fired = false;
-        lv_timer_t* t = lv_timer_get_next(nullptr);
-        while (t) {
-            lv_timer_t* next = lv_timer_get_next(t);
-            if (t->repeat_count > 0 && t->timer_cb) {
-                t->timer_cb(t);
-                fired = true;
-                break;
-            }
-            t = next;
-        }
-        if (!fired)
-            break;
     }
 }
 
@@ -1285,7 +1264,7 @@ RuntimeWidgetDef make_runtime_def(const char* id, const char* display_name) {
 /// async path notify_widget_defs_changed() queues through.
 void deliver_defs_change() {
     PanelWidgetManager::instance().notify_widget_defs_changed();
-    process_async_calls();
+    process_async_timers();
 }
 
 } // namespace

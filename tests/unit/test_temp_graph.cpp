@@ -5,6 +5,7 @@
 #include "../../include/theme_manager.h"
 #include "../../include/ui_temp_graph.h"
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/process_async_timers.h"
 #include "../ui_test_utils.h"
 #include "lvgl/lvgl.h"
 #include "misc/lv_timer_private.h"
@@ -83,24 +84,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "destroy defers chart deletion (L081)",
     ui_temp_graph_destroy(graph);
     REQUIRE(lv_obj_get_child_count(screen) == 1);
 
-    // Drain LVGL's lv_async_call queue without spinning lv_timer_handler (which
-    // wants tick input the test fixture doesn't drive). Mirrors the helper in
-    // test_panel_widget_manager.cpp.
-    for (int safety = 0; safety < 50; ++safety) {
-        bool fired = false;
-        lv_timer_t* t = lv_timer_get_next(nullptr);
-        while (t) {
-            lv_timer_t* next = lv_timer_get_next(t);
-            if (t->repeat_count > 0 && t->timer_cb) {
-                t->timer_cb(t);
-                fired = true;
-                break;
-            }
-            t = next;
-        }
-        if (!fired)
-            break;
-    }
+    process_async_timers();
     REQUIRE(lv_obj_get_child_count(screen) == 0);
 }
 
