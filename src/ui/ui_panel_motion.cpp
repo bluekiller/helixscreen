@@ -221,6 +221,11 @@ MotionPanel::~MotionPanel() {
 // ============================================================================
 
 void MotionPanel::init_subjects() {
+    // SubjectInitializer initializes this at boot, ahead of the first show().
+    if (subjects_initialized_) {
+        return;
+    }
+
     spdlog::debug("[{}] Initializing subjects", get_name());
 
     // Initialize position subjects with default placeholder values
@@ -283,6 +288,8 @@ void MotionPanel::init_subjects() {
 
     // Register PrinterState observers (RAII - auto-removed on destruction)
     register_position_observers();
+
+    subjects_initialized_ = true;
 
     // Sync initial position values (observers only fire on change, not on subscribe)
     // Without this, panel shows dashes until next position update even if printer is homed

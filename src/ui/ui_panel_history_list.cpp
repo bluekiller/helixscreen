@@ -138,7 +138,7 @@ lv_obj_t* HistoryListPanel::create(lv_obj_t* parent) {
     }
 
     // Get widget references - list containers
-    list_content_ = find_required(overlay_root_, "list_content", get_name());
+    list_content_ = find_required(overlay_root_, "overlay_content", get_name());
     list_rows_ = find_required(overlay_root_, "list_rows", get_name());
     empty_state_ = find_required(overlay_root_, "empty_state", get_name());
 
