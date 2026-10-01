@@ -359,7 +359,7 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, cell.c_str())) {
             led_widgets_[i] =
                 std::make_unique<helix::LedWidget>("controls_" + slot, printer_state_, api_);
-            led_widgets_[i]->attach(led_cell, parent_screen);
+            led_widgets_[i]->attach_tile(led_cell, parent_screen);
         }
     }
 

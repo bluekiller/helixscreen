@@ -249,7 +249,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     lv_obj_t* root = static_cast<lv_obj_t*>(
         lv_xml_create(lv_screen_active(), w->get_component_name().c_str(), nullptr));
     REQUIRE(root);
-    w->attach(root, lv_screen_active());
+    w->attach_tile(root, lv_screen_active());
     w->notify_size_changed(4, 2, 200, 100);
     drain();
     CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo__size_label"))) ==
@@ -260,7 +260,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     // The plugin is gone: no hook runs against freed Lua state, nothing crashes.
     w->on_activate();
     w->notify_size_changed(2, 2, 100, 100);
-    w->detach();
+    w->detach_tile();
     lv_obj_delete(root);
     w.reset();
 }

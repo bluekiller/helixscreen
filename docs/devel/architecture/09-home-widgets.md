@@ -7,7 +7,7 @@ Counts, recounted 2026-09-23 (method included so you can re-run it):
 | What | Count | Method |
 |------|-------|--------|
 | Widget defs in the registry | 38 (37 + `camera` behind `HELIX_HAS_CAMERA`) | rows of `s_widget_defs` ([`src/ui/panel_widget_registry.cpp#helix`](../../../src/ui/panel_widget_registry.cpp#L88)) |
-| `PanelWidget` subclasses | 34 | `rg -l 'public PanelWidget' include src -g '*.h' -g '*.cpp'` — 30 headers in `src/ui/panel_widgets/` plus `LockWidget` defined inside `lock_widget.cpp`, and the `favorite_macro`, `power_device`, `preheat` headers in `include/` |
+| `PanelWidget` subclasses | 32 | `rg -l 'public (Tiled)?PanelWidget' include src -g '*.h' -g '*.cpp'`; most sized tiles derive `TiledPanelWidget` |
 | XML components | 41 | `ls ui_xml/components/panel_widget_*.xml \| wc -l` |
 | Factory-less (pure XML) defs | 3 | `ams`, `notifications`, `firmware_restart` — no `register_*` call in `init_widget_registrations()` |
 | Hardware-gated defs | 12 (11 distinct gate subjects) | defs with a non-null `hardware_gate_subject` in the table below |
@@ -40,7 +40,7 @@ flowchart TB
 | [`src/ui/panel_widget_manager.cpp`](../../../src/ui/panel_widget_manager.cpp) | The coordinator: config load, gate checks, grid placement, tile creation, attach, reuse, coalesced rebuilds |
 | [`include/panel_widget_config.h`](../../../include/panel_widget_config.h) | `PanelWidgetConfig` / `PanelWidgetEntry` — per-printer layout JSON (pages, enabled flags, grid positions, per-widget config) |
 | [`src/ui/ui_panel_home.cpp`](../../../src/ui/ui_panel_home.cpp) | `HomePanel` — page carousel, per-page containers, the rebuild callback that feeds the reuse map |
-| `src/ui/panel_widgets/` | 31 of the widget implementations (one class per file pair, headers alongside; `LockWidget` lives in its `.cpp`) |
+| `src/ui/panel_widgets/` | 29 of the widget implementations (one class per file pair, headers alongside) |
 | [`src/ui/panel_widgets/fan_stack_widget.cpp`](../../../src/ui/panel_widgets/fan_stack_widget.cpp) | The richest widget: version-observer rebinding, two XML components, edit-mode configure picker |
 | [`src/ui/panel_widgets/camera_widget.cpp`](../../../src/ui/panel_widgets/camera_widget.cpp) | The reuse rationale: MJPEG stream that must survive LVGL tree rebuilds |
 | [`include/grid_edit_mode.h`](../../../include/grid_edit_mode.h) | Drag-to-rearrange edit mode; consumes widget IDs via `lv_obj_set_name` and drives rebuilds |
@@ -72,7 +72,7 @@ The catalog itself, as the registry defines it (gate subjects from the def table
 | `printer_image` | `PrinterImageWidget` | — |
 | `print_status` | `PrintStatusWidget` | — |
 | `shutdown` | `ShutdownWidget` | `platform_host_power_supported` |
-| `lock` | `LockWidget` | — |
+| `lock` | *`TileWidget` row* | — |
 | `power_device` | `PowerDeviceWidget` (`src/ui/widgets/`) | `power_device_count` |
 | `network` | `NetworkWidget` | — |
 | `firmware_restart` | *pure XML* | — |
@@ -93,8 +93,8 @@ The catalog itself, as the registry defines it (gate subjects from the def table
 | `bypass` | `BypassWidget` | `ams_supports_bypass` |
 | `active_spool` | `ActiveSpoolWidget` | — |
 | `filament` | `FilamentSensorWidget` | `filament_sensor_count` |
-| `humidity` | `HumidityWidget` | `humidity_sensor_count` |
-| `width_sensor` | `WidthSensorWidget` | `width_sensor_count` |
+| `humidity` | *`TileWidget` row* | `humidity_sensor_count` |
+| `width_sensor` | *`TileWidget` row* | `width_sensor_count` |
 | `favorite_macro` | `FavoriteMacroWidget` (`src/ui/widgets/`) | — |
 | `macros` | `MacrosWidget` | — |
 | `motion` | `MotionWidget` | — |

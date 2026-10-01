@@ -14,9 +14,8 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/panel_widget_size_harness.h"
-#include "src/ui/panel_widgets/humidity_widget.h"
+#include "panel_widget_registry.h"
 #include "src/ui/panel_widgets/tile_layout.h"
-#include "src/ui/panel_widgets/width_sensor_widget.h"
 #include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
@@ -25,9 +24,7 @@ using namespace helix;
 
 namespace {
 
-template <typename Widget>
-void check_faces_follow_pixels(PanelWidgetHarness<Widget>& h, const char* id,
-                               const char* value_name) {
+void check_faces_follow_pixels(PanelWidgetHarnessBase& h, const char* id, const char* value_name) {
     lv_obj_t* value = h.child(value_name);
     REQUIRE(value != nullptr);
     lv_obj_t* icon = h.child((std::string(id) + "_icon").c_str());
@@ -63,13 +60,19 @@ void check_faces_follow_pixels(PanelWidgetHarness<Widget>& h, const char* id,
 TEST_CASE_METHOD(LVGLUITestFixture, "humidity faces follow pixels, not colspan",
                  "[widget_size][humidity]") {
     require_font_tokens_distinct();
-    PanelWidgetHarness<HumidityWidget> h(test_screen());
+    init_widget_registrations();
+    const PanelWidgetDef* def = find_widget_def("humidity");
+    REQUIRE(def != nullptr);
+    RegistryWidgetHarness h(test_screen(), *def);
     check_faces_follow_pixels(h, "humidity", "humidity_value");
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "width_sensor faces follow pixels, not colspan",
                  "[widget_size][width_sensor]") {
     require_font_tokens_distinct();
-    PanelWidgetHarness<WidthSensorWidget> h(test_screen());
+    init_widget_registrations();
+    const PanelWidgetDef* def = find_widget_def("width_sensor");
+    REQUIRE(def != nullptr);
+    RegistryWidgetHarness h(test_screen(), *def);
     check_faces_follow_pixels(h, "width_sensor", "width_value");
 }

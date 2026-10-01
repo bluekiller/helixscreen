@@ -252,9 +252,6 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         save_widget_config(config_);
     }
 
-    // Store this pointer for event callback recovery
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Cache widget references from XML
     print_card_thumb_ = lv_obj_find_by_name(widget_obj_, "print_card_thumb");
     print_card_active_thumb_ = lv_obj_find_by_name(widget_obj_, "print_card_active_thumb");
@@ -521,7 +518,6 @@ void PrintStatusWidget::detach() {
     compact_row_last_ = nullptr;
 
     if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;

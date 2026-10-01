@@ -50,21 +50,21 @@ TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: factory registration", "[cloc
     REQUIRE(std::string(widget->id()) == "clock");
 }
 
-TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: attach sets user_data", "[clock_widget]") {
+TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: attach_tile binds user_data", "[clock_widget]") {
     ClockWidget widget;
     lv_obj_t* container = create_mock_clock(test_screen());
 
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
     REQUIRE(lv_obj_get_user_data(container) == &widget);
 
-    widget.detach();
+    widget.detach_tile();
     REQUIRE(lv_obj_get_user_data(container) == nullptr);
 }
 
 TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: timer lifecycle", "[clock_widget]") {
     ClockWidget widget;
     lv_obj_t* container = create_mock_clock(test_screen());
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
 
     SECTION("no timer before activation") {
         // Timer should not exist until on_activate() is called
@@ -109,17 +109,17 @@ TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: timer lifecycle", "[clock_wid
         widget.on_deactivate();
     }
 
-    widget.detach();
+    widget.detach_tile();
 }
 
 TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: detach stops timer", "[clock_widget]") {
     ClockWidget widget;
     lv_obj_t* container = create_mock_clock(test_screen());
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
     widget.on_activate();
 
     // Detach should stop the timer even if on_deactivate() wasn't called
-    widget.detach();
+    widget.detach_tile();
 
     // Processing LVGL timers after detach should not crash
     process_lvgl(100);
@@ -131,7 +131,7 @@ TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: subjects populated on attach"
     lv_obj_t* container = create_mock_clock(test_screen());
 
     // attach() calls update_clock() which populates subjects immediately
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
 
     auto* time_subj = lv_xml_get_subject(nullptr, "clock_time_text");
     auto* date_subj = lv_xml_get_subject(nullptr, "clock_date_text");
@@ -151,14 +151,14 @@ TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: subjects populated on attach"
     std::string uptime = lv_subject_get_string(uptime_subj);
     REQUIRE(uptime.find("Up: ") == 0);
 
-    widget.detach();
+    widget.detach_tile();
 }
 
 TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: timer fires during LVGL processing",
                  "[clock_widget]") {
     ClockWidget widget;
     lv_obj_t* container = create_mock_clock(test_screen());
-    widget.attach(container, test_screen());
+    widget.attach_tile(container, test_screen());
     widget.on_activate();
 
     // Processing LVGL for longer than the timer interval (1000ms) should
@@ -170,7 +170,7 @@ TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: timer fires during LVGL proce
     REQUIRE(std::string(lv_subject_get_string(time_subj)) != "--:--");
 
     widget.on_deactivate();
-    widget.detach();
+    widget.detach_tile();
 }
 
 // ---------------------------------------------------------------------------

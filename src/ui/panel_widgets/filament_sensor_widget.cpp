@@ -88,7 +88,8 @@ void FilamentSensorWidget::init_static_subjects() {
     });
 }
 
-FilamentSensorWidget::FilamentSensorWidget() = default;
+FilamentSensorWidget::FilamentSensorWidget()
+    : TiledPanelWidget("filament", TileSizing::Content{"", "", "Loaded", false}) {}
 
 FilamentSensorWidget::~FilamentSensorWidget() {
     detach();
@@ -97,7 +98,6 @@ FilamentSensorWidget::~FilamentSensorWidget() {
 void FilamentSensorWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Instances are recycled across grid rebuilds, so the source binding must be
     // (re)established here, not only in set_config().
@@ -112,9 +112,6 @@ void FilamentSensorWidget::detach() {
     // parent_screen_ is about to be torn down under it.
     tap_modal_.hide();
     lifetime_.invalidate();
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
 }
