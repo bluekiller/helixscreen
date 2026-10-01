@@ -1357,8 +1357,41 @@ void MoonrakerClientMock::rebuild_hardware_from_lists() {
 
 void MoonrakerClientMock::discover_printer(
     std::function<void()> on_complete, std::function<void(const std::string& reason)> on_error) {
-    std::lock_guard<std::mutex> discovery_lock(discovery_mutex_);
-    MoonrakerClient::discover_printer(std::move(on_complete), std::move(on_error));
+    // The sequence finishes inside the locked call, but its outcome is
+    // delivered after the lock is released: a caller's callback may read or
+    // rebuild the very lists the lock protects. The base class keeps the
+    // completion callback for force_reconnect(), so a later call goes straight
+    // through.
+    struct Outcome {
+        std::atomic<bool> deferring{true};
+        bool completed = false;
+        std::optional<std::string> failure;
+    };
+    auto outcome = std::make_shared<Outcome>();
+    {
+        std::lock_guard<std::mutex> discovery_lock(discovery_mutex_);
+        MoonrakerClient::discover_printer(
+            [outcome, on_complete]() {
+                if (outcome->deferring) {
+                    outcome->completed = true;
+                } else if (on_complete) {
+                    on_complete();
+                }
+            },
+            [outcome, on_error](const std::string& reason) {
+                if (outcome->deferring) {
+                    outcome->failure = reason;
+                } else if (on_error) {
+                    on_error(reason);
+                }
+            });
+    }
+    outcome->deferring = false;
+    if (outcome->completed && on_complete) {
+        on_complete();
+    } else if (outcome->failure && on_error) {
+        on_error(*outcome->failure);
+    }
 }
 
 bool MoonrakerClientMock::mock_toolchanger_selected() {

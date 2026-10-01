@@ -16,7 +16,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <future>
+#include <memory>
 #include <string>
+#include <thread>
 
 #include "../catch_amalgamated.hpp"
 
@@ -178,5 +181,32 @@ TEST_CASE_METHOD(HelixTestFixture, "MoonrakerClientMock: discover_printer regres
         // Hardware should have been populated
         // Default mock has heaters, sensors, etc.
         REQUIRE(client.hardware().heaters().empty() == false);
+    }
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "MoonrakerClientMock: discovery callbacks may touch the mock's hardware lists",
+                 "[moonraker][discovery][mock]") {
+    // Each discovery runs on a detached thread so a self-deadlock fails the
+    // test instead of hanging it; the thread shares ownership of the client.
+    auto run_discovery = [](MoonrakerClientMock::KlippyState state) {
+        auto client = std::make_shared<MoonrakerClientMock>();
+        client->set_klippy_state(state);
+        auto finished = std::make_shared<std::promise<void>>();
+        auto done = finished->get_future();
+        std::thread([client, finished]() {
+            client->discover_printer(
+                [client]() { client->set_fans({"fan"}); },
+                [client](const std::string&) { client->set_heaters({"extruder"}); });
+            finished->set_value();
+        }).detach();
+        return done.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+    };
+
+    SECTION("on_complete") {
+        CHECK(run_discovery(MoonrakerClientMock::KlippyState::READY));
+    }
+    SECTION("on_error") {
+        CHECK(run_discovery(MoonrakerClientMock::KlippyState::STARTUP));
     }
 }

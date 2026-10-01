@@ -330,6 +330,7 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
      * Every RPC the sequence sends is answered synchronously by the method
      * registry, so the whole sequence completes inside this call, rewriting
      * discovery_'s name lists that the simulation thread reads under the lock.
+     * The callbacks run after the lock is released.
      */
     void
     discover_printer(std::function<void()> on_complete,
