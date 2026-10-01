@@ -243,15 +243,20 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
 
     // Gate discretionary gcode (fan, temp, non-homing moves, LED) while a blocking
     // non-print operation holds Klipper's single-threaded gcode lock (homing,
-    // BED_MESH_CALIBRATE, QGL, PROBE_ACCURACY, manual probe). Split by danger below:
+    // BED_MESH_CALIBRATE, QGL, PROBE_ACCURACY, manual probe) or while a print
+    // start is under way — the START macro (heat soak, mesh, probing) holds the
+    // same gcode mutex for minutes while print_stats already reports PRINTING,
+    // which the blocking predicate excludes, so the print-start phase is gated on
+    // its own arm here (bundle SQJ8SAL7, FlashForge AD5X). Split by danger below:
     // a physical MOVE is refused (a late jog is dangerous); benign fan/temp/LED are
     // queued fire-and-forget with a single per-episode toast rather than lost or
     // timed out (bundle 7CT79XXK, Sovol SV08 calibration; #1108). Recovery, homing,
     // probe-control (TESTZ/ACCEPT/ABORT) and macros are never discretionary, so they
-    // pass. Real file prints are excluded by is_blocking_operation_active(). Self-busy
-    // from the app's own recent jog passes too (idle_timeout reports "Printing"
-    // during any move); only external blocking ops are gated.
-    if (helix::is_discretionary_gcode(gcode) && state_.is_external_blocking_operation_active()) {
+    // pass. Mid-print tweaks once the start sequence is done stay synchronous.
+    // Self-busy from the app's own recent jog passes too (idle_timeout reports
+    // "Printing" during any move); only external blocking ops are gated.
+    if (helix::is_discretionary_gcode(gcode) &&
+        (state_.is_external_blocking_operation_active() || state_.is_in_print_start())) {
         // A physical MOVE must never queue behind the blocking op: a jog that fires
         // minutes late, after the user has walked away, can crash the toolhead.
         // Refuse it up front (recovery/homing are non-discretionary and never reach
