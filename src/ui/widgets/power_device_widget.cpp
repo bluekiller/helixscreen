@@ -9,6 +9,7 @@
 #include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
+#include "ui_icon_picker.h"
 #include "ui_panel_power.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -67,21 +68,7 @@ static const char* const POWER_ICONS[] = {
     // clang-format on
 };
 static constexpr size_t POWER_ICON_COUNT = std::size(POWER_ICONS);
-static constexpr int ICON_CELL_SIZE = 36;
 static constexpr const char* DEFAULT_ICON = "power_cycle";
-
-/// Apply highlight styling to an icon grid cell.
-void apply_icon_cell_highlight(lv_obj_t* cell, bool selected) {
-    if (selected) {
-        lv_obj_set_style_border_width(cell, 2, 0);
-        lv_obj_set_style_border_color(cell, theme_manager_get_color("primary"), 0);
-        lv_obj_set_style_bg_opa(cell, 20, 0);
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("primary"), 0);
-    } else {
-        lv_obj_set_style_border_width(cell, 0, 0);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-    }
-}
 
 } // namespace
 
@@ -587,51 +574,11 @@ void PowerDeviceWidget::show_device_picker() {
 
     std::string effective_icon = icon_name_.empty() ? DEFAULT_ICON : icon_name_;
 
-    for (size_t i = 0; i < POWER_ICON_COUNT; ++i) {
-        lv_obj_t* cell = lv_obj_create(icon_grid);
-        lv_obj_set_size(cell, ICON_CELL_SIZE, ICON_CELL_SIZE);
-        lv_obj_remove_flag(cell, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(cell, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-        lv_obj_set_style_radius(cell, 4, 0);
-        lv_obj_set_style_pad_all(cell, 0, 0);
-
-        // Pressed feedback
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("text_muted"),
-                                  LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(cell, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-
-        apply_icon_cell_highlight(cell, POWER_ICONS[i] == effective_icon);
-
-        // Icon glyph
-        const char* cp = helix::ui::icon::lookup_codepoint(POWER_ICONS[i]);
-        if (cp) {
-            lv_obj_t* icon = lv_label_create(cell);
-            lv_label_set_text(icon, cp);
-            lv_obj_set_style_text_font(icon, &mdi_icons_24, 0);
-            lv_obj_set_style_text_color(icon, theme_manager_get_color("text"), 0);
-            lv_obj_center(icon);
-            lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
-        }
-
-        // Store index as user_data
-        lv_obj_set_user_data(cell, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
-
-        lv_obj_add_event_cb(
-            cell,
-            [](lv_event_t* e) {
-                LVGL_SAFE_EVENT_CB_BEGIN("[PowerDeviceWidget] icon_cell_cb");
-                auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                auto idx =
-                    static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(target)));
-                if (idx < POWER_ICON_COUNT && PowerDeviceWidget::s_active_picker_) {
-                    PowerDeviceWidget::s_active_picker_->select_icon(POWER_ICONS[idx]);
-                }
-                LVGL_SAFE_EVENT_CB_END();
-            },
-            LV_EVENT_CLICKED, nullptr);
-    }
+    helix::ui::populate_icon_grid(icon_grid, POWER_ICONS, POWER_ICON_COUNT, effective_icon,
+                                  [](const char* name) {
+                                      if (PowerDeviceWidget::s_active_picker_)
+                                          PowerDeviceWidget::s_active_picker_->select_icon(name);
+                                  });
 
     // === Sensor section (in right column, below icon grid) ===
     auto energy_ids = SensorState::instance().energy_sensor_ids();
@@ -878,15 +825,7 @@ void PowerDeviceWidget::select_icon(const std::string& name) {
         lv_obj_t* icon_grid = lv_obj_find_by_name(picker_backdrop_, "picker_icon_grid");
         if (icon_grid) {
             std::string effective_icon = icon_name_.empty() ? DEFAULT_ICON : icon_name_;
-            uint32_t grid_count = lv_obj_get_child_count(icon_grid);
-            for (uint32_t i = 0; i < grid_count; ++i) {
-                lv_obj_t* cell = lv_obj_get_child(icon_grid, i);
-                auto idx =
-                    static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(cell)));
-                if (idx < POWER_ICON_COUNT) {
-                    apply_icon_cell_highlight(cell, POWER_ICONS[idx] == effective_icon);
-                }
-            }
+            helix::ui::refresh_icon_grid(icon_grid, effective_icon);
         }
     }
 

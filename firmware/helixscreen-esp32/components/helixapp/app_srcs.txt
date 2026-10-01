@@ -438,6 +438,7 @@ src/ui/ui_heater_icon_binder.cpp
 src/ui/ui_heating_animator.cpp
 src/ui/ui_history_list_view.cpp
 src/ui/ui_icon.cpp
+src/ui/ui_icon_picker.cpp
 src/ui/ui_info_qr_modal.cpp
 src/ui/ui_job_queue_modal.cpp
 src/ui/ui_jog_pad.cpp

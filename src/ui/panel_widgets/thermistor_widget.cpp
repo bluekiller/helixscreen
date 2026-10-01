@@ -8,6 +8,7 @@
 #include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
+#include "ui_icon_picker.h"
 #include "ui_temperature_utils.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -63,7 +64,6 @@ static const char* const THERMISTOR_ICONS[] = {
     // clang-format on
 };
 static constexpr size_t THERMISTOR_ICON_COUNT = std::size(THERMISTOR_ICONS);
-static constexpr int ICON_CELL_SIZE = 36;
 static constexpr const char* DEFAULT_ICON = "thermometer";
 
 // Icons with distinct on/off glyphs. Config stores the ON variant;
@@ -84,19 +84,6 @@ static const char* to_on_variant(const char* icon) {
             return pair.on_icon;
     }
     return icon;
-}
-
-/// Apply highlight styling to an icon grid cell.
-void apply_icon_cell_highlight(lv_obj_t* cell, bool selected) {
-    if (selected) {
-        lv_obj_set_style_border_width(cell, 2, 0);
-        lv_obj_set_style_border_color(cell, theme_manager_get_color("primary"), 0);
-        lv_obj_set_style_bg_opa(cell, 20, 0);
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("primary"), 0);
-    } else {
-        lv_obj_set_style_border_width(cell, 0, 0);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-    }
 }
 
 /// Resolve a responsive spacing token to pixels, with a fallback.
@@ -843,54 +830,9 @@ void ThermistorWidget::ConfigurePicker::on_created(lv_obj_t* backdrop) {
         std::string effective_icon =
             owner_.icon_name_.empty() ? std::string(DEFAULT_ICON) : owner_.icon_name_;
 
-        for (size_t i = 0; i < THERMISTOR_ICON_COUNT; ++i) {
-            lv_obj_t* cell = lv_obj_create(icon_grid);
-            lv_obj_set_size(cell, ICON_CELL_SIZE, ICON_CELL_SIZE);
-            lv_obj_remove_flag(cell, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(cell, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_bg_opa(cell, 0, 0);
-            lv_obj_set_style_radius(cell, 4, 0);
-            lv_obj_set_style_pad_all(cell, 0, 0);
-
-            // Pressed feedback
-            lv_obj_set_style_bg_color(cell, theme_manager_get_color("text_muted"),
-                                      LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_bg_opa(cell, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-
-            apply_icon_cell_highlight(cell, THERMISTOR_ICONS[i] == effective_icon);
-
-            // Icon glyph
-            const char* cp = helix::ui::icon::lookup_codepoint(THERMISTOR_ICONS[i]);
-            if (cp) {
-                lv_obj_t* icon = lv_label_create(cell);
-                lv_label_set_text(icon, cp);
-                lv_obj_set_style_text_font(icon, &mdi_icons_24, 0);
-                lv_obj_set_style_text_color(icon, theme_manager_get_color("text"), 0);
-                lv_obj_center(icon);
-                lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-                lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
-            }
-
-            // Store index as user_data
-            lv_obj_set_user_data(cell, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
-
-            // The cell's user_data is the icon index, so the picker travels as the
-            // event's user_data instead. Both are needed to act on a tap.
-            lv_obj_add_event_cb(
-                cell,
-                [](lv_event_t* e) {
-                    LVGL_SAFE_EVENT_CB_BEGIN("[ThermistorWidget] icon_cell_cb");
-                    auto* picker = static_cast<ConfigurePicker*>(lv_event_get_user_data(e));
-                    auto* target = lv_event_get_current_target_obj(e);
-                    auto idx = static_cast<size_t>(
-                        reinterpret_cast<intptr_t>(lv_obj_get_user_data(target)));
-                    if (picker && idx < THERMISTOR_ICON_COUNT) {
-                        picker->owner_.select_icon(THERMISTOR_ICONS[idx]);
-                    }
-                    LVGL_SAFE_EVENT_CB_END();
-                },
-                LV_EVENT_CLICKED, this);
-        }
+        helix::ui::populate_icon_grid(icon_grid, THERMISTOR_ICONS, THERMISTOR_ICON_COUNT,
+                                      effective_icon,
+                                      [this](const char* name) { owner_.select_icon(name); });
     }
 
     spdlog::debug("[ThermistorWidget] Configure picker built with {} sensors", sensors.size());
@@ -908,14 +850,7 @@ void ThermistorWidget::ConfigurePicker::refresh_icon_highlights() {
 
     std::string effective_icon =
         owner_.icon_name_.empty() ? std::string(DEFAULT_ICON) : owner_.icon_name_;
-    uint32_t grid_count = lv_obj_get_child_count(icon_grid);
-    for (uint32_t i = 0; i < grid_count; ++i) {
-        lv_obj_t* cell = lv_obj_get_child(icon_grid, i);
-        auto idx = static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(cell)));
-        if (idx < THERMISTOR_ICON_COUNT) {
-            apply_icon_cell_highlight(cell, THERMISTOR_ICONS[idx] == effective_icon);
-        }
-    }
+    helix::ui::refresh_icon_grid(icon_grid, effective_icon);
 }
 
 void ThermistorWidget::ConfigurePicker::on_backdrop_clicked() {
