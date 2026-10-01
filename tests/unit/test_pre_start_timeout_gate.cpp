@@ -59,7 +59,8 @@ struct PreStartGateAPI : public MoonrakerAPIMock {
     void execute_gcode(const std::string& gcode, IMoonrakerAPI::SuccessCallback on_success,
                        IMoonrakerAPI::ErrorCallback on_error, uint32_t timeout_ms = 0,
                        bool /*silent*/ = false, IMoonrakerAPI::SuccessCallback = nullptr,
-                       bool /*caller_surfaces_errors*/ = true) override {
+                       bool /*caller_surfaces_errors*/ = true,
+                       bool /*bypass_busy_gate*/ = false) override {
         captured_gcode = gcode;
         captured_success = std::move(on_success);
         captured_error = std::move(on_error);

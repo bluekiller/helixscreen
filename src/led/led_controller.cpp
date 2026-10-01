@@ -701,7 +701,7 @@ void NativeBackend::forget_state() {
 
 void NativeBackend::set_color(const std::string& strip_id, double r, double g, double b, double w,
                               SuccessCallback on_success, ErrorCallback on_error,
-                              SuccessCallback on_queued) {
+                              SuccessCallback on_queued, bool silent) {
     if (!require_api(api_, "NativeBackend::set_color", strip_id, on_error)) {
         return;
     }
@@ -725,15 +725,15 @@ void NativeBackend::set_color(const std::string& strip_id, double r, double g, d
     const bool caller_surfaces = (on_error != nullptr);
 
     api_->set_led(strip_id, r, g, b, w, std::move(on_success), forward_error(on_error),
-                  std::move(on_queued), caller_surfaces);
+                  std::move(on_queued), caller_surfaces, silent);
 }
 
 void NativeBackend::turn_off(const std::string& strip_id, SuccessCallback on_success,
-                             ErrorCallback on_error, SuccessCallback on_queued) {
+                             ErrorCallback on_error, SuccessCallback on_queued, bool silent) {
     spdlog::debug("[NativeBackend] turn_off: {}", strip_id);
     // Set all channels to zero
     set_color(strip_id, 0.0, 0.0, 0.0, 0.0, std::move(on_success), std::move(on_error),
-              std::move(on_queued));
+              std::move(on_queued), silent);
 }
 
 void NativeBackend::StripColor::decompose(uint32_t& base_color, int& brightness_pct,
@@ -916,7 +916,7 @@ void LedEffectBackend::activate_effect(const std::string& effect_name,
                                        NativeBackend::SuccessCallback on_success,
                                        NativeBackend::ErrorCallback on_error,
                                        NativeBackend::SuccessCallback on_queued,
-                                       bool caller_surfaces_errors) {
+                                       bool caller_surfaces_errors, bool silent) {
     if (!require_api(api_, "LedEffectBackend::activate_effect", effect_name, on_error)) {
         return;
     }
@@ -935,13 +935,13 @@ void LedEffectBackend::activate_effect(const std::string& effect_name,
     const bool caller_surfaces = caller_surfaces_errors && (on_error != nullptr);
 
     api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
-                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+                        /*timeout_ms=*/0, silent, std::move(on_queued), caller_surfaces);
 }
 
 void LedEffectBackend::stop_all_effects(NativeBackend::SuccessCallback on_success,
                                         NativeBackend::ErrorCallback on_error,
                                         NativeBackend::SuccessCallback on_queued,
-                                        bool caller_surfaces_errors) {
+                                        bool caller_surfaces_errors, bool silent) {
     if (!require_api(api_, "LedEffectBackend::stop_all_effects", "", on_error)) {
         return;
     }
@@ -952,13 +952,13 @@ void LedEffectBackend::stop_all_effects(NativeBackend::SuccessCallback on_succes
     const bool caller_surfaces = caller_surfaces_errors && (on_error != nullptr);
 
     api_->execute_gcode("STOP_LED_EFFECTS", std::move(on_success), forward_error(on_error),
-                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+                        /*timeout_ms=*/0, silent, std::move(on_queued), caller_surfaces);
 }
 
 void LedEffectBackend::stop_effect(const std::string& effect_name,
                                    NativeBackend::SuccessCallback on_success,
                                    NativeBackend::ErrorCallback on_error,
-                                   NativeBackend::SuccessCallback on_queued) {
+                                   NativeBackend::SuccessCallback on_queued, bool silent) {
     if (!require_api(api_, "LedEffectBackend::stop_effect", effect_name, on_error)) {
         return;
     }
@@ -977,7 +977,7 @@ void LedEffectBackend::stop_effect(const std::string& effect_name,
     const bool caller_surfaces = (on_error != nullptr);
 
     api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
-                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+                        /*timeout_ms=*/0, silent, std::move(on_queued), caller_surfaces);
 }
 
 std::string LedEffectBackend::icon_hint_for_effect(const std::string& effect_name) {
@@ -1251,7 +1251,7 @@ void OutputPinBackend::forget_state() {
 void OutputPinBackend::set_value(const std::string& pin_id, double value,
                                  NativeBackend::SuccessCallback on_success,
                                  NativeBackend::ErrorCallback on_error,
-                                 NativeBackend::SuccessCallback on_queued) {
+                                 NativeBackend::SuccessCallback on_queued, bool silent) {
     if (!require_api(api_, "OutputPinBackend::set_value", pin_id, on_error)) {
         return;
     }
@@ -1275,28 +1275,31 @@ void OutputPinBackend::set_value(const std::string& pin_id, double value,
     const bool caller_surfaces = (on_error != nullptr);
 
     api_->execute_gcode(gcode, std::move(on_success), forward_error(on_error),
-                        /*timeout_ms=*/0, /*silent=*/false, std::move(on_queued), caller_surfaces);
+                        /*timeout_ms=*/0, silent, std::move(on_queued), caller_surfaces);
 }
 
 void OutputPinBackend::turn_on(const std::string& pin_id, NativeBackend::SuccessCallback on_success,
                                NativeBackend::ErrorCallback on_error,
-                               NativeBackend::SuccessCallback on_queued) {
-    set_value(pin_id, 1.0, std::move(on_success), std::move(on_error), std::move(on_queued));
+                               NativeBackend::SuccessCallback on_queued, bool silent) {
+    set_value(pin_id, 1.0, std::move(on_success), std::move(on_error), std::move(on_queued),
+              silent);
 }
 
 void OutputPinBackend::turn_off(const std::string& pin_id,
                                 NativeBackend::SuccessCallback on_success,
                                 NativeBackend::ErrorCallback on_error,
-                                NativeBackend::SuccessCallback on_queued) {
-    set_value(pin_id, 0.0, std::move(on_success), std::move(on_error), std::move(on_queued));
+                                NativeBackend::SuccessCallback on_queued, bool silent) {
+    set_value(pin_id, 0.0, std::move(on_success), std::move(on_error), std::move(on_queued),
+              silent);
 }
 
 void OutputPinBackend::set_brightness(const std::string& pin_id, int brightness_pct,
                                       NativeBackend::SuccessCallback on_success,
                                       NativeBackend::ErrorCallback on_error,
-                                      NativeBackend::SuccessCallback on_queued) {
+                                      NativeBackend::SuccessCallback on_queued, bool silent) {
     const double value = std::clamp(brightness_pct, 0, 100) / 100.0;
-    set_value(pin_id, value, std::move(on_success), std::move(on_error), std::move(on_queued));
+    set_value(pin_id, value, std::move(on_success), std::move(on_error), std::move(on_queued),
+              silent);
 }
 
 // Called from UI thread (via UpdateQueue dispatch in printer_state.cpp)
@@ -1568,7 +1571,7 @@ void LedController::save_config() {
 void LedController::send_look(const std::string& strip_id, uint32_t rgb, double w,
                               int brightness_pct, NativeBackend::SuccessCallback on_success,
                               NativeBackend::ErrorCallback on_error,
-                              NativeBackend::SuccessCallback on_queued) {
+                              NativeBackend::SuccessCallback on_queued, bool silent) {
     const auto* device = find_strip(native_.strips(), strip_id);
     if (device == nullptr) {
         return;
@@ -1578,10 +1581,10 @@ void LedController::send_look(const std::string& strip_id, uint32_t rgb, double 
     double r = 0.0, g = 0.0, b = 0.0;
     unpack_rgb(look.rgb, r, g, b);
     native_.set_color(strip_id, r * scale, g * scale, b * scale, look.w * scale,
-                      std::move(on_success), std::move(on_error), std::move(on_queued));
+                      std::move(on_success), std::move(on_error), std::move(on_queued), silent);
 }
 
-void LedController::set_power(const std::vector<std::string>& ids, bool on) {
+void LedController::set_power(const std::vector<std::string>& ids, bool on, bool silent) {
     if (ids.empty()) {
         spdlog::debug("[LedController] set_power({}) - no devices", on);
         return;
@@ -1599,7 +1602,7 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
         for (const auto& strip_id : ids) {
             for (const auto& effect : effects_.effects_for_strip(strip_id)) {
                 if (stopped.insert(effect.name).second) {
-                    effects_.stop_effect(effect.name);
+                    effects_.stop_effect(effect.name, nullptr, nullptr, nullptr, silent);
                 }
             }
         }
@@ -1664,10 +1667,10 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
             if (on) {
                 auto cbs = make_settle();
                 send_look(strip_id, last_color_.rgb, last_color_.white, last_brightness_, cbs.done,
-                          cbs.fail, cbs.queued);
+                          cbs.fail, cbs.queued, silent);
             } else {
                 auto cbs = make_settle();
-                native_.turn_off(strip_id, cbs.done, cbs.fail, cbs.queued);
+                native_.turn_off(strip_id, cbs.done, cbs.fail, cbs.queued, silent);
             }
             break;
 
@@ -1732,9 +1735,9 @@ void LedController::set_power(const std::vector<std::string>& ids, bool on) {
         case LedBackendType::OUTPUT_PIN: {
             auto cbs = make_settle();
             if (on) {
-                output_pin_.turn_on(strip_id, cbs.done, cbs.fail, cbs.queued);
+                output_pin_.turn_on(strip_id, cbs.done, cbs.fail, cbs.queued, silent);
             } else {
-                output_pin_.turn_off(strip_id, cbs.done, cbs.fail, cbs.queued);
+                output_pin_.turn_off(strip_id, cbs.done, cbs.fail, cbs.queued, silent);
             }
             break;
         }
@@ -1985,26 +1988,27 @@ void LedController::query_led_state() {
 }
 
 void LedController::set_look(const std::vector<std::string>& ids, uint32_t rgb, double w,
-                             int brightness_pct) {
+                             int brightness_pct, bool silent) {
     // Brightness 0 is off on every backend; send_look() reads 0 as "restore at
     // 100%", which is right for power-on and wrong here.
     if (brightness_pct <= 0) {
-        set_power(ids, false);
+        set_power(ids, false, silent);
         return;
     }
     for (const auto& strip_id : ids) {
         auto backend_type = backend_for_strip(strip_id);
         if (backend_type == LedBackendType::NATIVE) {
-            send_look(strip_id, rgb, w, brightness_pct);
+            send_look(strip_id, rgb, w, brightness_pct, nullptr, nullptr, nullptr, silent);
         } else if (backend_type == LedBackendType::OUTPUT_PIN) {
             // One channel: the look's brightness, as fit_look() gives a colorless device.
-            output_pin_.set_brightness(strip_id, brightness_pct);
+            output_pin_.set_brightness(strip_id, brightness_pct, nullptr, nullptr, nullptr, silent);
         }
     }
 }
 
-void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct) {
-    set_look(ids, last_color_.rgb, last_color_.white, brightness_pct);
+void LedController::set_brightness(const std::vector<std::string>& ids, int brightness_pct,
+                                   bool silent) {
+    set_look(ids, last_color_.rgb, last_color_.white, brightness_pct, silent);
 }
 
 bool LedController::get_led_on_at_start() const {

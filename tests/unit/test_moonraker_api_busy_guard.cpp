@@ -364,6 +364,101 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     CHECK_FALSE(error_called);
 }
 
+TEST_CASE_METHOD(BusyGuardApiFixture,
+                 "motion API refuses a jog while print start holds the gcode lock",
+                 "[busy_guard][mock][motion_guard]") {
+    // The motion API's gate is the refuse-always twin of the split: a jog queued
+    // behind the START macro fires minutes late, so it must be refused not_ready,
+    // not sent to wait out the macro.
+    set_print_state(PrintJobState::PRINTING);
+    set_print_start_phase(state, PrintStartPhase::HOMING);
+    REQUIRE(state.is_in_print_start());
+
+    api->motion().move_axis('X', 10.0, 6000.0, nullptr,
+                            [this](const MoonrakerError& err) { error_cb(err); });
+
+    REQUIRE(error_called);
+    CHECK(captured_error.type == MoonrakerErrorType::NOT_READY);
+    CHECK(mock_client.gcode_script_history().empty());
+
+    // Phase back to IDLE (mid-print tweaks): the same jog goes through.
+    set_print_start_phase(state, PrintStartPhase::IDLE);
+    REQUIRE_FALSE(state.is_in_print_start());
+    error_called = false;
+    mock_client.clear_gcode_script_history();
+
+    api->motion().move_axis('X', 10.0, 6000.0, nullptr,
+                            [this](const MoonrakerError& err) { error_cb(err); });
+
+    CHECK_FALSE(error_called);
+    REQUIRE(mock_client.last_send_method() == "printer.gcode.script");
+    CHECK_FALSE(mock_client.gcode_script_history().empty());
+}
+
+TEST_CASE_METHOD(BusyGuardApiFixture,
+                 "bypass_busy_gate sends the print-launch block synchronously during print start",
+                 "[busy_guard][mock]") {
+    // PrintStartController arms the preparing job BEFORE the pre-start block is
+    // sent, so is_in_print_start() is already true at dispatch. A purely
+    // discretionary block (a pre_start_gcode heater template) would be queued
+    // fire-and-forget and its on_success — the only trigger that launches the
+    // job — would never fire. The bypass keeps the launch send synchronous.
+    set_print_state(PrintJobState::PRINTING);
+    set_print_start_phase(state, PrintStartPhase::HOMING);
+    REQUIRE(state.is_in_print_start());
+
+    int success_calls = 0;
+    int queued_calls = 0;
+
+    SECTION("with the bypass: synchronous path, on_success fires") {
+        api->execute_gcode(
+            "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=200",
+            [&success_calls]() { success_calls++; },
+            [this](const MoonrakerError& err) { error_cb(err); }, 0, false,
+            [&queued_calls]() { queued_calls++; }, true, /*bypass_busy_gate=*/true);
+
+        CHECK(success_calls == 1);
+        CHECK(queued_calls == 0);
+        CHECK_FALSE(error_called);
+        REQUIRE(mock_client.last_send_method() == "printer.gcode.script");
+    }
+
+    SECTION("without the bypass: the same block is queued fire-and-forget") {
+        api->execute_gcode(
+            "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=200",
+            [&success_calls]() { success_calls++; },
+            [this](const MoonrakerError& err) { error_cb(err); }, 0, false,
+            [&queued_calls]() { queued_calls++; }, true, /*bypass_busy_gate=*/false);
+
+        CHECK(success_calls == 0);
+        CHECK(queued_calls == 1);
+        CHECK_FALSE(error_called);
+        REQUIRE(mock_client.last_send_method() == "printer.gcode.script");
+    }
+}
+
+TEST_CASE_METHOD(BusyGuardApiFixture,
+                 "silent discretionary send during print start leaves the busy toast unclaimed",
+                 "[busy_guard][mock][led]") {
+    // LedAutoState applies the state theme on every print-state change, so its
+    // SET_LED lands inside the gate's window at every print start. It is not a
+    // user command, and the #1108 toast exists to explain one — a silent send
+    // must neither show nor claim the once-per-episode latch. (The non-silent
+    // side — a user command claiming exactly once — is pinned by the first
+    // print-start case above.)
+    set_print_state(PrintJobState::PRINTING);
+    set_print_start_phase(state, PrintStartPhase::HOMING);
+    REQUIRE(state.is_in_print_start());
+
+    api->execute_gcode("SET_LED LED=my_leds RED=1.0 GREEN=1.0 BLUE=1.0 SYNC=0 TRANSMIT=1", nullptr,
+                       nullptr, /*timeout_ms=*/0, /*silent=*/true);
+
+    // Fire-and-forget to Klipper, but the toast latch is still armed: this claim
+    // succeeds only because the silent send took nothing.
+    REQUIRE(mock_client.last_send_method() == "printer.gcode.script");
+    CHECK(state.claim_busy_queue_toast());
+}
+
 // ============================================================================
 // Non-discretionary (recovery/homing) gcode is NEVER blocked by the busy guard
 // ============================================================================

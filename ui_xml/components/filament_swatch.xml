@@ -53,9 +53,8 @@
         scrollable="false" clickable="false" event_bubble="true">
     <style name="color_mismatch" selector="user_2"/>
     <!-- TOP band: gcode intended color. width="100%" makes it span the full
-         chip width (the parent's style_flex_cross_place="stretch" alone does NOT
-         widen a flex child whose default width is content-sized — without an
-         explicit width the band collapses to 0 and the whole chip vanishes).
+         chip width (a flex child's default width is content-sized, so without
+         an explicit width the band collapses to 0 and the whole chip vanishes).
          L082-safe: the swatch root is a FIXED 40px width, not content-sized.
          flex_grow fills half the height (main axis of the column). -->
     <lv_obj name="top_band"

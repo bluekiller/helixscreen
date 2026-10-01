@@ -177,14 +177,19 @@ std::vector<std::string> LedAutoState::targets() const {
 void LedAutoState::apply_action(const LedStateAction& action) {
     auto& ctrl = LedController::instance();
 
+    // silent=true on every send: these fire on printer-state transitions, not
+    // user input, so the busy-queue toast (which exists to explain a command
+    // the user made) must not be claimed by them — and the print-state change
+    // at every print start lands squarely inside the busy gate's window.
     if (action.action_type == "off") {
-        ctrl.set_power(targets(), false);
+        ctrl.set_power(targets(), false, /*silent=*/true);
     } else if (action.action_type == "color") {
-        ctrl.set_look(targets(), action.color, 0.0, action.brightness);
+        ctrl.set_look(targets(), action.color, 0.0, action.brightness, /*silent=*/true);
     } else if (action.action_type == "brightness") {
-        ctrl.set_brightness(targets(), action.brightness);
+        ctrl.set_brightness(targets(), action.brightness, /*silent=*/true);
     } else if (action.action_type == "effect") {
-        ctrl.effects().activate_effect(action.effect_name);
+        ctrl.effects().activate_effect(action.effect_name, nullptr, nullptr, nullptr, true,
+                                       /*silent=*/true);
     } else if (action.action_type == "wled_preset") {
         for (const auto& id : targets()) {
             if (ctrl.backend_for_strip(id) == LedBackendType::WLED) {

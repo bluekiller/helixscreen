@@ -71,7 +71,7 @@ class HomingGateAPI : public MoonrakerAPI {
     void execute_gcode(const std::string& gcode, IMoonrakerAPI::SuccessCallback on_success,
                        IMoonrakerAPI::ErrorCallback on_error, uint32_t timeout_ms = 0,
                        bool silent = false, IMoonrakerAPI::SuccessCallback on_queued = nullptr,
-                       bool caller_surfaces_errors = true) override {
+                       bool caller_surfaces_errors = true, bool bypass_busy_gate = false) override {
         if (gcode == "G28") {
             ++g28_count_;
             g28_success_ = std::move(on_success);

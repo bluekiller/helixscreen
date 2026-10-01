@@ -5661,8 +5661,8 @@ class GcodeRecordingApi : public MoonrakerAPIMock {
 
     void execute_gcode(const std::string& gcode, SuccessCallback on_success, ErrorCallback on_error,
                        uint32_t timeout_ms = 0, bool silent = false,
-                       SuccessCallback on_queued = nullptr,
-                       bool caller_surfaces_errors = true) override {
+                       SuccessCallback on_queued = nullptr, bool caller_surfaces_errors = true,
+                       bool bypass_busy_gate = false) override {
         (void)timeout_ms;
         (void)silent;
         (void)on_queued;

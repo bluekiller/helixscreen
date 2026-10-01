@@ -787,6 +787,10 @@ void PrintPreparationManager::start_print(const std::string& filename,
         // rather than on how long it took to arrive.
         pre_start_epoch_ =
             printer_state_ ? lv_subject_get_int(printer_state_->get_preparing_epoch_subject()) : 0;
+        // The busy gate must not queue this send fire-and-forget: its on_success
+        // is the only trigger that launches the job, so a discretionary block
+        // (a pre_start_gcode heater template) would never fire it and the print
+        // would never start.
         api_->execute_gcode(
             combined,
             [this, token, filename_to_print, ops_to_disable, on_navigate_to_status,
@@ -809,7 +813,9 @@ void PrintPreparationManager::start_print(const std::string& filename,
                                                              wrapped_completion);
                             });
             },
-            IMoonrakerAPI::PRE_START_MACRO_TIMEOUT_MS);
+            IMoonrakerAPI::PRE_START_MACRO_TIMEOUT_MS,
+            /*silent=*/false, /*on_queued=*/nullptr, /*caller_surfaces_errors=*/true,
+            /*bypass_busy_gate=*/true);
         return;
     }
 
