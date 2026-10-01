@@ -251,7 +251,7 @@ void dispatch_cancel_print(IMoonrakerAPI* api, std::string log_prefix,
     // two dialogs cancel the same print, so they must read the same. Severity
     // Error selects modal_dialog.xml's alert_octagon/danger icon, which is the
     // icon that component uses. (The primary button there carries an explicit
-    // danger variant that modal_dialog's severity binding does not drive — the
+    // danger variant that modal_dialog's severity attr does not drive — the
     // one cosmetic difference between the two.)
     //
     // Cancel and dismissal answer the question the same way: the print keeps

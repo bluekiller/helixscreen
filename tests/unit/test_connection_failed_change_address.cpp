@@ -22,6 +22,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
+#include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "config.h"
 #include "host_identity.h"
@@ -155,8 +156,7 @@ class ScopedGlobalClient {
 class ConnFailedFixture : public XMLTestFixture {
   public:
     ConnFailedFixture() {
-        // modal_configure() silently no-ops without these, leaving the button
-        // captions at their defaults — the app does this at startup.
+        // The app registers the modal callbacks at startup.
         helix::ui::modal_init_subjects();
         REQUIRE(register_component("modal_dialog"));
         REQUIRE(register_component("change_host_modal"));
@@ -185,10 +185,8 @@ TEST_CASE_METHOD(ConnFailedFixture, "Connection-failed prompt offers Reconnect",
     // Reconnect is the primary action now: a mid-print WiFi drop on Android
     // left users with a connection the retry loop could not revive, and the
     // old prompt's only actions were "fix the address" or dismiss.
-    const char* primary_text = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_primary_text_subject()));
-    REQUIRE(primary_text != nullptr);
-    CHECK(std::string(primary_text).find("Reconnect") != std::string::npos);
+    const std::string primary_text = UITest::button_text(Modal::get_top(), "btn_primary");
+    CHECK(primary_text.find("Reconnect") != std::string::npos);
 
     lv_obj_t* primary = lv_obj_find_by_name(dialog, "btn_primary");
     REQUIRE(primary != nullptr);
@@ -220,10 +218,8 @@ TEST_CASE_METHOD(ConnFailedFixture, "Connection-failed prompt offers Change Addr
     }
 
     // Address fixing is demoted to the secondary action, but still one tap.
-    const char* cancel_text = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_cancel_text_subject()));
-    REQUIRE(cancel_text != nullptr);
-    CHECK(std::string(cancel_text).find("Change Address") != std::string::npos);
+    const std::string cancel_text = UITest::button_text(Modal::get_top(), "btn_secondary");
+    CHECK(cancel_text.find("Change Address") != std::string::npos);
 
     lv_obj_t* secondary = lv_obj_find_by_name(dialog, "btn_secondary");
     REQUIRE(secondary != nullptr);
@@ -286,11 +282,9 @@ TEST_CASE_METHOD(ConnFailedFixture,
     // Single-action acknowledgement of a local Moonraker that is not up — no
     // address-editing action, but retrying the services IS meaningful here, so
     // the one action is Reconnect.
-    const char* primary_text = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_primary_text_subject()));
-    REQUIRE(primary_text != nullptr);
-    CHECK(std::string(primary_text).find("Change Address") == std::string::npos);
-    CHECK(std::string(primary_text).find("Reconnect") != std::string::npos);
+    const std::string primary_text = UITest::button_text(Modal::get_top(), "btn_primary");
+    CHECK(primary_text.find("Change Address") == std::string::npos);
+    CHECK(primary_text.find("Reconnect") != std::string::npos);
 
     lv_obj_t* primary = lv_obj_find_by_name(dialog, "btn_primary");
     REQUIRE(primary != nullptr);
@@ -325,15 +319,12 @@ TEST_CASE_METHOD(ConnFailedFixture, "A never-connected remote host still offers 
     // Confirmation-style dialog, not the alert the same-host path shows:
     // primary is Reconnect, and Change Address survives as the secondary
     // action (the merge of the reconnect-first flow moved it off primary).
-    const char* primary_text = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_primary_text_subject()));
-    REQUIRE(primary_text != nullptr);
-    CHECK(std::string(primary_text).find("Reconnect") != std::string::npos);
-    const char* cancel_text = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_cancel_text_subject()));
-    REQUIRE(cancel_text != nullptr);
-    CHECK(std::string(cancel_text).find("Change Address") != std::string::npos);
-    CHECK(lv_subject_get_int(helix::ui::modal_get_show_cancel_subject()) == 1);
+    const std::string primary_text = UITest::button_text(Modal::get_top(), "btn_primary");
+    CHECK(primary_text.find("Reconnect") != std::string::npos);
+    const std::string cancel_text = UITest::button_text(Modal::get_top(), "btn_secondary");
+    CHECK(cancel_text.find("Change Address") != std::string::npos);
+    CHECK_FALSE(lv_obj_has_flag(lv_obj_find_by_name(Modal::get_top(), "btn_secondary"),
+                                LV_OBJ_FLAG_HIDDEN));
 
     cfg->set<std::string>(key, prev);
     helix::invalidate_host_identity_cache();
@@ -354,10 +345,8 @@ TEST_CASE_METHOD(ConnFailedFixture, "An unconfigured host still offers Change Ad
     UpdateQueue::instance().drain();
     REQUIRE(Modal::get_top() != nullptr);
 
-    const char* cancel_text = static_cast<const char*>(
-        lv_subject_get_pointer(helix::ui::modal_get_cancel_text_subject()));
-    REQUIRE(cancel_text != nullptr);
-    CHECK(std::string(cancel_text).find("Change Address") != std::string::npos);
+    const std::string cancel_text = UITest::button_text(Modal::get_top(), "btn_secondary");
+    CHECK(cancel_text.find("Change Address") != std::string::npos);
 
     cfg->set<std::string>(key, prev);
     helix::invalidate_host_identity_cache();

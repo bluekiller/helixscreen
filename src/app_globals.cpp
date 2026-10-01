@@ -272,7 +272,6 @@ void app_globals_deinit_subjects() {
         return;
     }
     g_subjects.deinit_all();
-    helix::ui::modal_deinit_subjects(); // Clean up modal subjects
     g_subjects_initialized = false;
     spdlog::debug("[App Globals] Global subjects deinitialized");
 }

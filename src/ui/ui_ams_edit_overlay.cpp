@@ -22,6 +22,7 @@
 #include "filament_display_name.h"
 #include "filament_mapper.h"
 #include "format_utils.h"
+#include "lane_translation.h"
 #include "spoolman_manager.h"
 #include "static_panel_registry.h"
 #include "ui/ui_widget_helpers.h"
@@ -1652,12 +1653,12 @@ void AmsEditOverlay::apply_color(uint32_t rgb) {
     // Color staging always goes to the spool-edit working state — committed on
     // the spool-edit Save. The overview swatch entry point was retired, so
     // there is no direct-slot color edit path anymore.
-    details_color_ = rgb;
+    details_color_ = helix::ams::picked_color(rgb);
     details_color_set_ = true;
     lv_obj_t* preview =
         helix::ui::find_required(overlay_root_, "details_color_preview", get_name());
     if (preview) {
-        helix::ui::apply_swatch_color(preview, rgb, {});
+        helix::ui::apply_swatch_color(preview, details_color_, {});
     }
     set_view(VIEW_SPOOL_EDIT);
 }

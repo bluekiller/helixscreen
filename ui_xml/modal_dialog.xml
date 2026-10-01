@@ -8,6 +8,12 @@
     <prop name="title_tag" type="string" default=""/>
     <prop name="message" type="string"/>
     <prop name="message_tag" type="string" default=""/>
+    <prop name="primary_text" type="string" default="OK"/>
+    <prop name="secondary_text" type="string" default="Cancel"/>
+    <prop name="hide_info" type="string" default="false"/>
+    <prop name="hide_warning" type="string" default="true"/>
+    <prop name="hide_error" type="string" default="true"/>
+    <prop name="hide_secondary" type="string" default="true"/>
   </api>
   <!-- Dialog card (backdrop created programmatically) -->
   <view name="modal_dialog"
@@ -17,18 +23,10 @@
     <lv_obj width="100%"
             height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_lg"
             style_pad_bottom="#space_sm" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm">
-      <!-- INFO icon - shown when dialog_severity=0 (default) -->
-      <icon name="icon_info" src="info" size="md" variant="primary">
-        <bind_flag_if_not_eq subject="dialog_severity" flag="hidden" ref_value="0"/>
-      </icon>
-      <!-- WARNING icon - shown when dialog_severity=1 -->
-      <icon name="icon_warning" src="alert" size="md" variant="warning" hidden="true">
-        <bind_flag_if_not_eq subject="dialog_severity" flag="hidden" ref_value="1"/>
-      </icon>
-      <!-- ERROR icon - shown when dialog_severity=2 -->
-      <icon name="icon_error" src="alert_octagon" size="md" variant="danger" hidden="true">
-        <bind_flag_if_not_eq subject="dialog_severity" flag="hidden" ref_value="2"/>
-      </icon>
+      <!-- Exactly one severity icon is visible; the caller passes the hide_* flags. -->
+      <icon name="icon_info" src="info" size="md" variant="primary" hidden="$hide_info"/>
+      <icon name="icon_warning" src="alert" size="md" variant="warning" hidden="$hide_warning"/>
+      <icon name="icon_error" src="alert_octagon" size="md" variant="danger" hidden="$hide_error"/>
       <!-- Title -->
       <text_heading name="dialog_title" text="$title" translation_tag="$title_tag" style_text_align="left" flex_grow="1"/>
     </lv_obj>
@@ -42,11 +40,8 @@
                  width="100%" text="$message" translation_tag="$message_tag" style_text_align="left" long_mode="wrap"/>
     </lv_obj>
     <!-- Shared footer row: the cancel button (and its divider) stay hidden
-         until dialog_show_cancel turns 1, and both captions arrive by
-         subject. Callbacks are wired programmatically per-instance, not
-         via XML. -->
-    <modal_button_row hide_secondary="true"
-                      secondary_show_subject="dialog_show_cancel" secondary_subject="dialog_cancel_text"
-                      primary_subject="dialog_primary_text"/>
+         unless hide_secondary is "false". Callbacks are wired
+         programmatically per-instance, not via XML. -->
+    <modal_button_row hide_secondary="$hide_secondary" primary_text="$primary_text" secondary_text="$secondary_text"/>
   </view>
 </component>
