@@ -3782,22 +3782,6 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     std::string temp_path =
         cache_dir + "/print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
 
-    // Check if file already exists and is non-empty (cached from previous session)
-    size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
-    if (cached_size > 0) {
-        // Check if cached file is safe to render
-        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
-            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
-                         temp_path);
-            temp_gcode_path_ = temp_path;
-            load_gcode_file(temp_path.c_str(), filename);
-            return;
-        } else {
-            spdlog::debug("[{}] Cached file too large for 2D streaming, removing", get_name());
-            std::remove(temp_path.c_str());
-        }
-    }
-
     // Get file metadata to check size before downloading
     // This prevents OOM on memory-constrained devices like AD5M
     std::string metadata_filename = resolve_gcode_filename(filename);
@@ -3834,15 +3818,26 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     // Shared size gate: skip 2D streaming if the file would OOM the device,
     // otherwise stream it into the viewer. Used by both the standard "gcodes"
     // metadata path and the QIDI ".temp" shadow path.
-    auto stream_if_safe = [this, download_to_viewer](const std::string& root,
-                                                     const std::string& download_target,
-                                                     uint64_t size) {
+    auto stream_if_safe = [this, download_to_viewer, temp_path,
+                           filename](const std::string& root, const std::string& download_target,
+                                     uint64_t size) {
         if (!helix::is_gcode_2d_streaming_safe(size)) {
             auto mem = helix::get_system_memory_info();
             spdlog::warn("[{}] G-code too large for 2D streaming: file={} bytes, available "
                          "RAM={}MB - using thumbnail only",
                          get_name(), size, mem.available_mb());
             show_gcode_viewer(false);
+            return;
+        }
+
+        // The cache is keyed by file name alone; the server's size says whether
+        // it still holds this file.
+        const size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
+        if (helix::ui::preview_cache_is_current(cached_size, size)) {
+            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
+                         temp_path);
+            temp_gcode_path_ = temp_path;
+            load_gcode_file(temp_path.c_str(), filename);
             return;
         }
 

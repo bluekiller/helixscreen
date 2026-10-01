@@ -32,6 +32,10 @@ PreviewModeDecision live_preview_mode() {
 
 } // namespace
 
+bool preview_cache_is_current(size_t on_disk_bytes, uint64_t expected_bytes) {
+    return on_disk_bytes > 0 && (expected_bytes == 0 || on_disk_bytes == expected_bytes);
+}
+
 bool apply_preview_render_mode(lv_obj_t* viewer, const char* log_tag) {
     if (!viewer) {
         return false;
