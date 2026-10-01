@@ -30,6 +30,9 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/moonraker_client_test_access.h"
+#include "../test_helpers/printer_state_test_access.h"
+#include "app_globals.h"
 #include "i_moonraker_client.h"
 #include "moonraker_client.h"
 #include "printer_state.h"
@@ -318,6 +321,39 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 
     replay("ready"); // the new session's discovery snapshot cannot undo it
     CHECK(klippy() == KlippyState::SHUTDOWN);
+}
+
+TEST_CASE("Klippy freshness: an auto-reconnect leaves a queued old frame behind",
+          "[core][klippy][freshness]") {
+    // libhv reconnects without connect(), so connection_generation() cannot
+    // tell the sessions apart. The close handler's reset has to.
+    LVGLTestFixture lvgl;
+    PrinterState& ps = get_printer_state();
+    PrinterStateTestAccess::reset(ps);
+    ps.init_subjects(false);
+    MoonrakerClient client;
+    const auto klippy = [&ps] {
+        return static_cast<KlippyState>(lv_subject_get_int(ps.get_klippy_state_subject()));
+    };
+
+    apply_notification(ps, {{"method", "notify_status_update"},
+                            {"params", nlohmann::json::array({webhooks_status("ready"), 100.0})}});
+    const uint64_t old_epoch = ps.klippy_epoch();
+    const nlohmann::json queued = {
+        {"method", "notify_status_update"},
+        {"params", nlohmann::json::array({webhooks_status("ready"), 150.0})}};
+
+    const uint64_t generation = client.connection_generation();
+    MoonrakerClientTestAccess::fire_ws_close(client);
+    REQUIRE(client.connection_generation() == generation);
+
+    apply_notification(ps, queued, old_epoch);
+    apply_notification(ps, {{"method", "notify_status_update"},
+                            {"params", nlohmann::json::array({webhooks_status("shutdown"), 5.0})}});
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(klippy() == KlippyState::SHUTDOWN);
+
+    PrinterStateTestAccess::reset(ps);
 }
 
 // ============================================================================
