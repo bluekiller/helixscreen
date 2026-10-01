@@ -54,13 +54,13 @@ using json = nlohmann::json;
 namespace helix {
 
 // Friend shim (declared as friend in ams_backend_snapmaker.h) to reach the
-// protected handle_status_update() so tests can drive slot state through the
+// protected handle_status() so tests can drive slot state through the
 // real firmware parse. Distinct from test_ams_backend_snapmaker.cpp's
 // SnapmakerTestAccess to avoid an ODR clash when both TUs link.
 class RunoutScopeTestAccess {
   public:
     static void handle_status(AmsBackendSnapmaker& b, const json& n) {
-        b.handle_status_update(n);
+        b.handle_status(n);
     }
 
     // Set a sensor's role directly, bypassing set_sensor_role()'s single-RUNOUT

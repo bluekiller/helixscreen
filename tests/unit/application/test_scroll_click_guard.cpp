@@ -123,13 +123,14 @@ TEST_CASE("scroll guard settings come from config unless the environment overrid
         CHECK(guard.cooldown_ms == 150);
         CHECK(guard.scroll_limit_px == 12);
     }
-    SECTION("HELIX_SCROLL_GUARD enables with 1 or true") {
+    SECTION("HELIX_SCROLL_GUARD enables with a truthy value") {
         CHECK(ScrollClickGuard::from_settings(false, 80, "1", nullptr, 10).enabled);
         CHECK(ScrollClickGuard::from_settings(false, 80, "true", nullptr, 10).enabled);
+        CHECK(ScrollClickGuard::from_settings(false, 80, "yes", nullptr, 10).enabled);
     }
     SECTION("HELIX_SCROLL_GUARD disables with anything else") {
         CHECK_FALSE(ScrollClickGuard::from_settings(true, 80, "0", nullptr, 10).enabled);
-        CHECK_FALSE(ScrollClickGuard::from_settings(true, 80, "yes", nullptr, 10).enabled);
+        CHECK_FALSE(ScrollClickGuard::from_settings(true, 80, "enabled", nullptr, 10).enabled);
     }
     SECTION("HELIX_SCROLL_GUARD_COOLDOWN_MS wins over the saved cooldown") {
         CHECK(ScrollClickGuard::from_settings(true, 80, nullptr, "200", 10).cooldown_ms == 200);

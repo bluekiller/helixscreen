@@ -8,6 +8,7 @@
 #include "../tests/mocks/mock_printer_state.h"
 #include "app_globals.h"
 #include "chamber_heater_backend.h"
+#include "env_knobs.h"
 #include "gcode_parser.h"
 #include "macro_param_cache.h"
 #include "mock_persona.h"
@@ -97,13 +98,6 @@ bool is_chamber_heater_object(const std::string& obj) {
         return false;
     }
     return chamber::match(name).confidence > 0;
-}
-
-/// A HELIX_MOCK_* switch: set to "1" to arm it. Mock hooks are read per frame,
-/// so a test can flip one without rebuilding the client.
-bool mock_env_flag(const char* name) {
-    const char* v = std::getenv(name);
-    return v && v[0] == '1';
 }
 
 /// Does any registered backend expose this exact bare object as its
@@ -560,12 +554,12 @@ void MoonrakerClientMock::append_chamber_backend_status(json& status_obj, double
             const bool device_fan = !filter_on && chamber_target > 0.0;
             // Test hooks. Read per frame so one client crosses the
             // transition rather than having to be rebuilt.
-            const bool mock_fault = mock_env_flag("HELIX_MOCK_DRAGONBREATH_FAULT");
-            const bool mock_offline = mock_env_flag("HELIX_MOCK_DRAGONBREATH_OFFLINE");
+            const bool mock_fault = helix::env_flag("HELIX_MOCK_DRAGONBREATH_FAULT");
+            const bool mock_offline = helix::env_flag("HELIX_MOCK_DRAGONBREATH_OFFLINE");
             // The appliance holding its own target with neither our lease nor
             // a klipper source: the only frame shape that raises the External
             // marker (heating && !ours in the backend parse).
-            const bool mock_external = mock_env_flag("HELIX_MOCK_DRAGONBREATH_EXTERNAL");
+            const bool mock_external = helix::env_flag("HELIX_MOCK_DRAGONBREATH_EXTERNAL");
             // PTC element rides a few degrees above chamber air, drifting
             // with the same slow sine the other mock sensors use.
             const double ptc_temp =
@@ -590,11 +584,11 @@ void MoonrakerClientMock::append_chamber_backend_status(json& status_obj, double
             // object as captured live on the U1 rig (issue #1290).
             const double chamber_temp = chamber_temp_.load();
             const double chamber_target = chamber_target_.load();
-            const bool mock_offline = mock_env_flag("HELIX_MOCK_PANDA_BREATH_OFFLINE");
+            const bool mock_offline = helix::env_flag("HELIX_MOCK_PANDA_BREATH_OFFLINE");
             // Test hook: the appliance holding its own auto target while our
             // target reads 0 — the state the rig sits in at rest, and the
             // only one that raises the External badge.
-            const bool mock_auto = mock_env_flag("HELIX_MOCK_PANDA_BREATH_AUTO");
+            const bool mock_auto = helix::env_flag("HELIX_MOCK_PANDA_BREATH_AUTO");
             const bool klipper_driving = chamber_target > 0.0;
             // A drying cycle counts down on the simulated clock and ends by
             // itself, the way the appliance's own timer does.
@@ -765,6 +759,7 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     }
 
     set_connection_state(ConnectionState::CONNECTED);
+    sim_link_down_ = false;
 
     // Dispatch historical temperature data first (fills graph with 2-3 min of data)
     dispatch_historical_temperatures();
@@ -2390,6 +2385,7 @@ void MoonrakerClientMock::disconnect() {
     spdlog::info("[MoonrakerClientMock] Simulating disconnection");
     stop_temperature_simulation(false);
     set_connection_state(ConnectionState::DISCONNECTED);
+    sim_link_down_ = true;
 }
 
 int MoonrakerClientMock::send_jsonrpc(const std::string& method) {
@@ -2419,6 +2415,18 @@ RequestId MoonrakerClientMock::send_jsonrpc(const std::string& method, const jso
                                             std::optional<rpc_error_policy::CallerIntent> intent) {
     spdlog::trace("[MoonrakerClientMock] Mock send_jsonrpc: {} (with success/error callbacks)",
                   method);
+
+    // Mirror MoonrakerClient::send_jsonrpc, but only between an explicit
+    // disconnect() and the next successful connect(): a request on a dropped
+    // link is refused and reported to the error callback as CONNECTION_LOST,
+    // so code under test sees the same immediate failure production shows.
+    // Fixtures that never simulate a link keep getting answers.
+    if (sim_link_down_) {
+        if (error_cb) {
+            error_cb(MoonrakerError::connection_lost(method));
+        }
+        return INVALID_REQUEST_ID;
+    }
 
     // Same fallback inference MoonrakerRequestTracker::send() applies, so a
     // handler asking rpc_error_policy::decide() gets the hardware answer.
@@ -6285,8 +6293,7 @@ bool MoonrakerClientMock::simulate_pa_calibration(
     }
     record_gcode_script(script);
 
-    const char* fail_env = std::getenv("HELIX_MOCK_PA_FAIL");
-    const bool should_fail = fail_env && *fail_env && std::string(fail_env) != "0";
+    const bool should_fail = helix::env_flag("HELIX_MOCK_PA_FAIL");
 
     // Roughly what the real thing costs once the nozzle is already hot: a
     // handful of purge-and-measure cycles, not an instant answer.

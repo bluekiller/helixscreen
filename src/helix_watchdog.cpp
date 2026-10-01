@@ -37,6 +37,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
@@ -47,7 +48,6 @@
 #include <filesystem>
 #include <fstream>
 #include <lvgl.h>
-#include <regex>
 #include <signal.h>
 #include <string>
 #include <sys/reboot.h>
@@ -171,71 +171,21 @@ static void setup_signal_handlers() {
  * @return Timeout in seconds (0 = disabled), or default on failure
  */
 static int read_auto_restart_timeout() {
-    // writable_path honors HELIX_CONFIG_DIR (Yocto) or "config/" (tarball);
-    // legacy paths are kept for AD5M-style installs that predate either env.
-    std::vector<std::string> paths{
-        helix::writable_path("settings.json"),
-        helix::writable_path("helixconfig.json"),
-        "helixconfig.json",
-        "/opt/helixscreen/helixconfig.json",
-    };
-
-    for (const std::string& path : paths) {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            continue;
-        }
-
-        std::string content((std::istreambuf_iterator<char>(file)),
-                            std::istreambuf_iterator<char>());
-
-        // Look for "watchdog" section with "auto_restart_sec"
-        // Simple regex parsing to avoid JSON library dependency
-        std::regex timeout_regex(R"("auto_restart_sec"\s*:\s*(\d+))");
-        std::smatch match;
-        if (std::regex_search(content, match, timeout_regex) && match.size() > 1) {
-            int timeout = std::stoi(match[1].str());
-            spdlog::debug("[Watchdog] Read auto_restart_sec={} from {}", timeout, path);
-            return timeout;
-        }
+    std::string path;
+    const auto timeout = helix::read_settings_int("auto_restart_sec", &path);
+    if (!timeout) {
+        return DEFAULT_AUTO_RESTART_SEC;
     }
-
-    return DEFAULT_AUTO_RESTART_SEC;
+    spdlog::debug("[Watchdog] Read auto_restart_sec={} from {}", *timeout, path);
+    return *timeout;
 }
 
 /**
- * @brief Read brightness from settings.json (same as splash)
+ * @brief Configured brightness clamped to 10-100 (same as splash)
  */
 static int read_config_brightness(int default_value = 100) {
-    std::vector<std::string> paths{
-        helix::writable_path("settings.json"),
-        helix::writable_path("helixconfig.json"),
-        "helixconfig.json",
-        "/opt/helixscreen/helixconfig.json",
-    };
-
-    for (const std::string& path : paths) {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            continue;
-        }
-
-        std::string content((std::istreambuf_iterator<char>(file)),
-                            std::istreambuf_iterator<char>());
-
-        std::regex brightness_regex(R"("brightness"\s*:\s*(\d+))");
-        std::smatch match;
-        if (std::regex_search(content, match, brightness_regex) && match.size() > 1) {
-            int brightness = std::stoi(match[1].str());
-            if (brightness < 10)
-                brightness = 10;
-            if (brightness > 100)
-                brightness = 100;
-            return brightness;
-        }
-    }
-
-    return default_value;
+    const auto brightness = helix::read_settings_int("brightness");
+    return brightness ? std::clamp(*brightness, 10, 100) : default_value;
 }
 
 // =============================================================================
@@ -1349,8 +1299,11 @@ static int run_watchdog(const WatchdogArgs& args) {
         spdlog::warn("[Watchdog] Crash detected, showing recovery dialog{}",
                      crash_loop_detected ? " (loop detected)" : "");
 
+        // standalone_rotation adds the kernel's panel_orientation, which args.rotation
+        // leaves out: forwarding it to the app would override the app's own probe.
         DialogChoice choice =
-            show_crash_dialog(args.width, args.height, args.rotation, crash, crash_loop_detected);
+            show_crash_dialog(args.width, args.height, helix::standalone_rotation(args.rotation),
+                              crash, crash_loop_detected);
 
         if (choice == DialogChoice::RESTART_SYSTEM) {
             perform_system_restart();

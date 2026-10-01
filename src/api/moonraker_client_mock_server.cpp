@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "env_knobs.h"
 #include "moonraker_client_mock_internal.h"
 
 #include <spdlog/spdlog.h>
@@ -87,8 +88,8 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         []([[maybe_unused]] MoonrakerClientMock* self, [[maybe_unused]] const json& params,
            std::function<void(const json&)> success_cb,
            [[maybe_unused]] std::function<void(const MoonrakerError&)> error_cb) -> bool {
-        const char* env = std::getenv("HELIX_MOCK_JOB_QUEUE_AUTOMATIC_TRANSITION");
-        const bool automatic_transition = env != nullptr && std::string(env) == "1";
+        const bool automatic_transition =
+            helix::env_flag("HELIX_MOCK_JOB_QUEUE_AUTOMATIC_TRANSITION");
 
         json response = {
             {"jsonrpc", "2.0"},
@@ -325,8 +326,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         [](MoonrakerClientMock* /*self*/, const json& /*params*/,
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> error_cb) -> bool {
-        const char* env = std::getenv("HELIX_MOCK_HELIX_PLUGIN");
-        const bool installed = env != nullptr && std::string(env) == "1";
+        const bool installed = helix::env_flag("HELIX_MOCK_HELIX_PLUGIN");
         if (!installed) {
             // Moonraker answers an unknown endpoint with a JSON-RPC error, and
             // that error is what tells the app the plugin is absent rather than
@@ -432,8 +432,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         spdlog::debug("[MoonrakerClientMock] printer.info: state={}", state_str);
 
         // Detect HELIX_MOCK_KALICO env var for Kalico firmware simulation
-        const char* kalico_env = std::getenv("HELIX_MOCK_KALICO");
-        bool mock_kalico = kalico_env && std::string(kalico_env) == "1";
+        bool mock_kalico = helix::env_flag("HELIX_MOCK_KALICO");
         std::string app_name = mock_kalico ? "Kalico" : "Klipper";
 
         // Printer-type-specific hostname so PrinterDetector's hostname heuristic

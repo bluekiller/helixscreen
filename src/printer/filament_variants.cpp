@@ -129,14 +129,6 @@ const VariantAffix* find_variant_affix(std::string_view token) {
     return nullptr;
 }
 
-std::string_view trim(std::string_view s) {
-    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
-        s.remove_prefix(1);
-    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back())))
-        s.remove_suffix(1);
-    return s;
-}
-
 /// One pass of affix removal. Returns true if @p s was shortened. When
 /// @p removed is non-null it receives the table row that was stripped, or
 /// nullptr for the trailing-"+" rule (which has no row).
@@ -206,7 +198,7 @@ std::string_view family_override(std::string_view name) {
 
 std::set<std::string> filled_affixes_of(std::string_view name) {
     std::set<std::string> filled;
-    std::string_view work = trim(name);
+    std::string_view work = helix::text_io::trim(name);
     if (work.empty()) {
         return filled;
     }
@@ -414,7 +406,7 @@ const std::string* find_library_type(const std::string& candidate) {
 } // namespace
 
 std::string extract_base_material(std::string_view name) {
-    std::string_view work = trim(name);
+    std::string_view work = helix::text_io::trim(name);
     if (work.empty()) {
         return std::string(name);
     }
@@ -541,7 +533,7 @@ void merge_user_orca_overrides(const std::map<std::string, std::string>& overrid
 }
 
 std::string orca_match_type(std::string_view display_type) {
-    std::string work(trim(display_type));
+    std::string work(helix::text_io::trim(display_type));
     if (work.empty())
         return "";
 

@@ -2,8 +2,8 @@
 #include "lock_manager.h"
 
 #include "config.h"
-#include "picosha2.h"
 #include "static_subject_registry.h"
+#include "system/sha256_util.h"
 
 #include <spdlog/spdlog.h>
 
@@ -95,17 +95,7 @@ void LockManager::set_auto_lock(bool enabled) {
 }
 
 std::string LockManager::hash_pin(const std::string& pin) const {
-    // picosha2's hex helpers format through an ostringstream, which links std::locale.
-    std::array<unsigned char, picosha2::k_digest_size> digest{};
-    picosha2::hash256(pin.begin(), pin.end(), digest.begin(), digest.end());
-    static constexpr char kHex[] = "0123456789abcdef";
-    std::string hex;
-    hex.reserve(digest.size() * 2);
-    for (unsigned char b : digest) {
-        hex += kHex[b >> 4];
-        hex += kHex[b & 0xF];
-    }
-    return hex;
+    return sha256_hex(pin);
 }
 
 void LockManager::load_from_config() {

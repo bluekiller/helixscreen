@@ -12,6 +12,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "memory_monitor.h"
 #include "printer_detector.h"
+#include "text_io.h"
 #include "thermal_rate_model.h"
 
 #include <spdlog/spdlog.h>
@@ -42,19 +43,6 @@ std::string trim_trailing_ellipsis(const std::string& s) {
         }
     }
     return s.substr(0, end);
-}
-
-/// Strip leading/trailing whitespace, so a dispatched line and its console
-/// echo compare equal regardless of the block's trailing newline or the
-/// terminal's padding.
-std::string trim_whitespace(const std::string& s) {
-    const auto* ws = " \t\r\n";
-    const size_t begin = s.find_first_not_of(ws);
-    if (begin == std::string::npos) {
-        return {};
-    }
-    const size_t end = s.find_last_not_of(ws);
-    return s.substr(begin, end - begin + 1);
 }
 
 /// Status text shown while a phase is current.
@@ -404,8 +392,8 @@ void PrintStartCollector::note_host_side_pre_start(const std::string& dispatched
         size_t begin = 0;
         while (begin <= dispatched_block.size()) {
             const size_t newline = dispatched_block.find('\n', begin);
-            const std::string line = trim_whitespace(dispatched_block.substr(
-                begin, newline == std::string::npos ? std::string::npos : newline - begin));
+            const std::string line(helix::text_io::trim(dispatched_block.substr(
+                begin, newline == std::string::npos ? std::string::npos : newline - begin)));
             if (!line.empty()) {
                 host_pre_start_echo_lines_.push_back(line);
             }
@@ -969,7 +957,7 @@ void PrintStartCollector::check_fallback_completion() {
 // ============================================================================
 
 bool PrintStartCollector::is_own_pre_start_echo_locked(const std::string& line) const {
-    const std::string trimmed = trim_whitespace(line);
+    const std::string trimmed(helix::text_io::trim(line));
     if (trimmed.empty()) {
         return false;
     }

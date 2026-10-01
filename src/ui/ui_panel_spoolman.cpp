@@ -4,7 +4,6 @@
 #include "ui_panel_spoolman.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
@@ -15,6 +14,7 @@
 
 #include "ams_state.h"
 #include "app_globals.h"
+#include "static_panel_registry.h"
 #if HELIX_HAS_LABEL_PRINTER
 #include "ipp_print_modal.h"
 #include "label_printer_settings.h"
@@ -34,12 +34,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(SpoolmanPanel, g_spoolman_panel, get_global_spoolman_panel)
 
 // ============================================================================
 // Constructor
@@ -758,8 +752,8 @@ void SpoolmanPanel::on_add_spool_clicked(lv_event_t* /*e*/) {
     wizard.set_completion_callback([]() { get_global_spoolman_panel().refresh_spools(); });
 
     helix::ui::lazy_create_and_push_overlay<SpoolWizardOverlay>(
-        get_global_spool_wizard, panel.wizard_panel_, lv_display_get_screen_active(nullptr),
-        "Spool Wizard", "SpoolmanPanel");
+        get_global_spool_wizard, lv_display_get_screen_active(nullptr), "Spool Wizard",
+        "SpoolmanPanel");
 }
 
 void SpoolmanPanel::on_scroll(lv_event_t* e) {
@@ -851,3 +845,7 @@ void SpoolmanPanel::print_label_for_spool(int spool_id) {
     }
 }
 #endif
+
+SpoolmanPanel& get_global_spoolman_panel() {
+    return helix::lazy_global<SpoolmanPanel>("SpoolmanPanel");
+}

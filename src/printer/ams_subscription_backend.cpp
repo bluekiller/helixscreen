@@ -93,6 +93,21 @@ AmsError AmsSubscriptionBackend::start() {
     return AmsErrorHelper::success();
 }
 
+SlotInfo AmsSubscriptionBackend::get_slot_info(int slot_index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const SlotInfo* slot = slot_info_locked(slot_index);
+    return slot ? *slot : SlotInfo{};
+}
+
+void AmsSubscriptionBackend::handle_status_update(const nlohmann::json& notification) {
+    auto params = notification.find("params");
+    if (params == notification.end() || !params->is_array() || params->empty() ||
+        !(*params)[0].is_object()) {
+        return;
+    }
+    handle_status((*params)[0]);
+}
+
 void AmsSubscriptionBackend::stop() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!running_) {
@@ -106,18 +121,48 @@ void AmsSubscriptionBackend::stop() {
 
 std::uint64_t AmsSubscriptionBackend::own_write_echo_sequence(int slot_index) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (auto* echoes = own_write_echoes()) {
-        return echoes->staged_sequence(slot_index);
-    }
-    return 0;
+    return own_write_echoes_.staged_sequence(slot_index);
 }
 
 void AmsSubscriptionBackend::abandon_own_write_echoes(int slot_index,
                                                       std::uint64_t staged_sequence) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (auto* echoes = own_write_echoes()) {
-        echoes->abandon(slot_index, staged_sequence);
+    own_write_echoes_.abandon(slot_index, staged_sequence);
+}
+
+void AmsSubscriptionBackend::clear_override_locked(int slot_index, SlotInfo* slot) {
+    overrides_.erase(slot_index);
+    // The lane's own records go with it: a clear that reached only one store
+    // would leave resolve() still reporting the identity just removed.
+    helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
+    // The user just disowned the write, so what firmware repeats from here on
+    // is its own word again.
+    own_write_echoes_.abandon(slot_index);
+
+    if (slot) {
+        clear_override_fields(*slot);
     }
+
+    if (override_store_) {
+        // Capture by value: clear_async's Moonraker callback can fire after
+        // the backend itself is gone.
+        const std::string tag = backend_log_tag();
+        override_store_->clear_async(slot_index, [tag, slot_index](bool ok, std::string err) {
+            if (!ok) {
+                spdlog::warn("{} clear_async failed for slot {}: {}", tag, slot_index, err);
+            }
+        });
+    }
+}
+
+void AmsSubscriptionBackend::clear_override_fields(SlotInfo& slot) const {
+    slot.brand.clear();
+    slot.clear_spoolman_link();
+    slot.remaining_weight_g = -1.0f;
+    slot.total_weight_g = -1.0f;
+    slot.color_name.clear();
+    slot.catalog_id.clear();
+    slot.product_name.clear();
 }
 
 void AmsSubscriptionBackend::release_subscriptions() {
@@ -202,10 +247,10 @@ void AmsSubscriptionBackend::request_resync() {
                     // decides what files, and the promotion below
                     // is not this record's to judge.
                     bool write_in_flight = false;
-                    if (helix::ams::OwnWriteEchoes* echoes = self->own_write_echoes()) {
+                    {
                         std::lock_guard<std::mutex> lock(self->mutex_);
-                        echoes->strip_standing(slot, obs);
-                        write_in_flight = echoes->standing(slot);
+                        self->own_write_echoes_.strip_standing(slot, obs);
+                        write_in_flight = self->own_write_echoes_.standing(slot);
                     }
                     const helix::ams::LaneId lane = helix::ams::lane_id_for(block, slot);
                     // A record another tool wrote is the newest

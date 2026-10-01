@@ -1591,6 +1591,20 @@ TEST_CASE("platform table gives every Linux platform an ELF expectation",
     }
 }
 
+TEST_CASE("platform table marks which platforms name printer hardware",
+          "[update_checker][platform]") {
+    // Debug bundles compare this platform's display name against the user's
+    // printer pick; generic hosts have no hardware name to compare.
+    for (const char* key : {"pi", "pi32", "x86", "esp32"}) {
+        INFO("platform key: " << key);
+        REQUIRE_FALSE(UpdateChecker::find_platform(key)->has_printer_hardware);
+    }
+    for (const char* key : {"ad5m", "ad5x", "mips", "k1", "k2", "cc1", "snapmaker-u1"}) {
+        INFO("platform key: " << key);
+        REQUIRE(UpdateChecker::find_platform(key)->has_printer_hardware);
+    }
+}
+
 TEST_CASE("mips platform validates MIPS32 LE and captures the AD5X zmod files",
           "[update_checker][platform]") {
     const auto* p = UpdateChecker::find_platform("mips");

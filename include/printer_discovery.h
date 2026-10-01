@@ -17,6 +17,7 @@
 #include "filament_database.h" // filament::DEFAULT_DIAMETER_MM
 #include "openams_api.h"       // OpenAMS claims only a manager speaking its API
 #include "printer_detector.h"  // For BuildVolume struct
+#include "text_io.h"           // helix::text_io::to_upper
 
 #include <algorithm>
 #include <cctype>
@@ -498,7 +499,7 @@ class PrinterDiscovery {
      * @return true if the macro exists
      */
     [[nodiscard]] bool has_macro(const std::string& name) const {
-        return macros_.count(to_upper(name)) > 0;
+        return macros_.count(helix::text_io::to_upper(name)) > 0;
     }
 
     /**
@@ -519,7 +520,7 @@ class PrinterDiscovery {
      * here. Empty when no such macro exists.
      */
     [[nodiscard]] std::string macro_config_name(const std::string& name) const {
-        auto it = macro_config_names_.find(to_upper(name));
+        auto it = macro_config_names_.find(helix::text_io::to_upper(name));
         return it == macro_config_names_.end() ? std::string{} : it->second;
     }
 
@@ -535,7 +536,7 @@ class PrinterDiscovery {
     /// check misses the wrapped case (ZMOD's AUTO_FULL_BED_LEVEL reaches
     /// SAVE_CONFIG two levels down), which is why confirmations ask this.
     [[nodiscard]] bool macro_restarts_host(const std::string& name) const {
-        return host_restarting_macros_.count(to_upper(name)) > 0;
+        return host_restarting_macros_.count(helix::text_io::to_upper(name)) > 0;
     }
 
     [[nodiscard]] const std::unordered_set<std::string>& host_restarting_macros() const {
@@ -596,7 +597,7 @@ class PrinterDiscovery {
     /// another macro? Separate from macro_restarts_host() because the two differ
     /// in what the user is promised once the rpc comes back dropped.
     [[nodiscard]] bool macro_halts_host(const std::string& name) const {
-        return host_halting_macros_.count(to_upper(name)) > 0;
+        return host_halting_macros_.count(helix::text_io::to_upper(name)) > 0;
     }
 
     [[nodiscard]] const std::unordered_set<std::string>& host_halting_macros() const {
@@ -664,7 +665,7 @@ class PrinterDiscovery {
      * @return true if macro was detected
      */
     [[nodiscard]] bool has_helix_macro(const std::string& macro_name) const {
-        return helix_macros_.count(to_upper(macro_name)) > 0;
+        return helix_macros_.count(helix::text_io::to_upper(macro_name)) > 0;
     }
 
     /**
@@ -812,14 +813,6 @@ class PrinterDiscovery {
     }
 
   private:
-    // Helper: convert string to uppercase
-    static std::string to_upper(const std::string& str) {
-        std::string result = str;
-        std::transform(result.begin(), result.end(), result.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
-        return result;
-    }
-
     // Helper: natural sort — splits on trailing digits so "lane2" < "lane10"
     static void natural_sort(std::vector<std::string>& names);
 

@@ -128,7 +128,7 @@ void PrinterDiscovery::parse_objects(const nlohmann::json& objects) {
             continue;
         }
 
-        std::string upper_name = to_upper(name);
+        std::string upper_name = helix::text_io::to_upper(name);
 
         // ================================================================
         // Steppers (stepper_x, stepper_y, stepper_z, stepper_z1, etc.)
@@ -216,7 +216,7 @@ void PrinterDiscovery::parse_objects(const nlohmann::json& objects) {
             has_fan_feedback_ = true;
         } else if (name.rfind("output_pin ", 0) == 0) {
             std::string pin_name = name.substr(11); // Remove "output_pin " prefix
-            std::string upper_pin = to_upper(pin_name);
+            std::string upper_pin = helix::text_io::to_upper(pin_name);
 
             // Fan detection: name starts with "FAN" (e.g., fan0, fan1, fan2)
             if (upper_pin.rfind("FAN", 0) == 0) {
@@ -495,7 +495,7 @@ void PrinterDiscovery::parse_objects(const nlohmann::json& objects) {
         // ================================================================
         else if (name.rfind("gcode_macro ", 0) == 0) {
             std::string macro_name = name.substr(12); // Remove "gcode_macro " prefix
-            std::string upper_macro = to_upper(macro_name);
+            std::string upper_macro = helix::text_io::to_upper(macro_name);
 
             macros_.insert(upper_macro);
             // Klipper keeps the CONFIG case for the status object key

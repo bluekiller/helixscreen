@@ -11,6 +11,7 @@
 #include "jog_coalescer.h"
 #include "motion_presets.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "ui/ui_modal_guard.h"
 
@@ -348,4 +349,6 @@ class MotionPanel : public OverlayBase {
     bool show_actual_ = false;
 };
 
-MotionPanel& get_global_motion_panel();
+inline MotionPanel& get_global_motion_panel() {
+    return helix::lazy_global<MotionPanel>("MotionPanel");
+}

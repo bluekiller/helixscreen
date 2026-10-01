@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_color_picker.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_keyboard_manager.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
@@ -18,6 +17,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "settings_manager.h"
+#include "static_panel_registry.h"
 #include "theme_loader.h"
 #include "theme_manager.h"
 
@@ -30,13 +30,6 @@
 #include <sys/stat.h>
 
 using namespace helix;
-
-// ============================================================================
-// GLOBAL INSTANCE
-// ============================================================================
-
-// Auto-initializes on first access (no constructor args needed)
-DEFINE_GLOBAL_PANEL(ThemeEditorOverlay, g_theme_editor_overlay, get_theme_editor_overlay)
 
 // ============================================================================
 // CONSTRUCTOR / DESTRUCTOR

@@ -4,6 +4,7 @@
 #include "webcam_selection.h"
 
 #include "json_utils.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -11,12 +12,6 @@
 namespace helix {
 
 namespace {
-// Lowercase a copy of a string (ASCII) for case-insensitive suffix/substring checks.
-std::string to_lower_ascii(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
 
 bool ends_with(const std::string& s, const std::string& suffix) {
     return s.size() >= suffix.size() &&
@@ -33,7 +28,7 @@ std::string url_path(const std::string& url) {
 bool is_usable_snapshot_url(const std::string& snapshot_url) {
     if (snapshot_url.empty())
         return false;
-    std::string lower = to_lower_ascii(snapshot_url);
+    std::string lower = helix::text_io::to_lower(snapshot_url);
     // Reject HTML pages (e.g. /snapshot.html, /camera.html) — never a JPEG.
     if (ends_with(url_path(lower), ".html"))
         return false;

@@ -47,7 +47,7 @@ using namespace helix;
 using json = nlohmann::json;
 
 /// This file had no fixture at all, so nothing ever drained the UpdateQueue.
-/// handle_status_update() publishes first-gate port presence through
+/// handle_status() publishes first-gate port presence through
 /// AmsState::set_active_tool_port_present, which marshals to the main thread via
 /// AsyncLifetimeGuard::defer — the single largest named producer in the
 /// cross-test leak report (prestonbrown/helixscreen#1169). The drain sits in the
@@ -1215,7 +1215,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // leaf macro (no tool specifier), and the firmware defaulted to T0.
     //
     // current_slot / current_tool track which toolhead is PICKED UP (authority:
-    // toolhead.extruder, parsed at the top of handle_status_update). They are
+    // toolhead.extruder, parsed at the top of handle_status). They are
     // independent of whether feeder filament is at the nozzle. Only
     // filament_loaded should flip on unload_finish.
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
@@ -1841,7 +1841,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "MAIN_TYPE": "PETG"
         })");
         auto info = AmsBackendSnapmaker::parse_rfid_info(j);
-        // Parser stores fields as-is; brand fallback logic is in handle_status_update
+        // Parser stores fields as-is; brand fallback logic is in handle_status
         REQUIRE(info.vendor == "Generic");
         REQUIRE(info.manufacturer.empty());
         REQUIRE(info.main_type == "PETG");
@@ -2765,7 +2765,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
                  "[ams][snapmaker][firmware_writeback]") {
     // With the firmware-writeback path live, user edits round-trip to firmware
     // (paxx12 endpoint) and firmware-truth converges with user-truth on the
-    // very next status update. The auto-mirror tail in handle_status_update
+    // very next status update. The auto-mirror tail in handle_status
     // therefore overwrites lane_data unconditionally — picking up external
     // edits (CHANGE_ZCOLOR from a print, slicer, etc) AND keeping user edits
     // in sync. This test exercises that overwrite by seeding lane_data with

@@ -3,6 +3,7 @@
 #include "filament_temperature_source.h"
 
 #include "i_moonraker_client.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -46,12 +47,6 @@ const Provider* match(const PrinterDiscovery& hw) {
 bool ends_with(const std::string& s, const char* suffix) {
     const size_t slen = std::strlen(suffix);
     return s.size() >= slen && s.compare(s.size() - slen, slen, suffix) == 0;
-}
-
-std::string lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
 }
 
 /// True when every True/False in the payload sits where the schema puts a
@@ -177,10 +172,10 @@ parse_filament_temperatures(const std::string& response) {
         if (!temp) {
             continue;
         }
-        FilamentTemperatures& leaf =
-            table[FilamentKey{lower(stem.substr(0, first_us)),
-                              lower(stem.substr(first_us + 1, second_us - first_us - 1)),
-                              lower(stem.substr(second_us + 1))}];
+        FilamentTemperatures& leaf = table[FilamentKey{
+            helix::text_io::to_lower(stem.substr(0, first_us)),
+            helix::text_io::to_lower(stem.substr(first_us + 1, second_us - first_us - 1)),
+            helix::text_io::to_lower(stem.substr(second_us + 1))}];
         if (unload) {
             leaf.unload_c = temp;
         } else {
@@ -215,9 +210,9 @@ void clear_filament_temperatures() {
 
 std::optional<FilamentTemperatures> lookup_filament_temperatures(const SlotInfo& slot) {
     std::lock_guard<std::mutex> lock(g_table_mutex);
-    const std::string main = lower(slot.material);
-    const std::string vendor = lower(slot.brand);
-    const std::string sub = lower(slot.spool_name);
+    const std::string main = helix::text_io::to_lower(slot.material);
+    const std::string vendor = helix::text_io::to_lower(slot.brand);
+    const std::string sub = helix::text_io::to_lower(slot.spool_name);
     auto at = [&](const std::string& v,
                   const std::string& s) -> std::optional<FilamentTemperatures> {
         auto it = g_table.find(FilamentKey{v, main, s});

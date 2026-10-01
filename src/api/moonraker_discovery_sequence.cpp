@@ -1541,7 +1541,7 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
     // QIDI Box — box_extras carries box_drying_state.box<N>.{dry_state, end_time}
     // for the dryer countdown (issue #1019); save_variables carries slot/box state.
     // Both are also bootstrap-queried in AmsBackendQidi::on_started(); subscribing
-    // keeps drying-state changes pushing live to handle_status_update().
+    // keeps drying-state changes pushing live to handle_status().
     if (hw.mmu_type() == AmsType::QIDI_BOX) {
         subscription_objects["box_extras"] = nullptr;
         subscription_objects["save_variables"] = nullptr;

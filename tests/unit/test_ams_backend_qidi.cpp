@@ -238,7 +238,7 @@ TEST_CASE("QIDI Box parse_save_variables: value_t<N>=slot<M> maps tool N to slot
 }
 
 // =====================================================================
-// handle_status_update routes save_variables changes through to parse
+// handle_status routes save_variables changes through to parse
 // =====================================================================
 // Moonraker delivers save_variables changes inside notify_status_update as
 // `{"save_variables": {"variables": {...}}}`. The backend must extract the
@@ -374,7 +374,7 @@ TEST_CASE("QIDI Box RFID side-table resizes with box_count", "[ams][qidi_box]") 
 }
 
 // =====================================================================
-// handle_status_update: heater_box drying state + aht20_f humidity
+// handle_status: heater_box drying state + aht20_f humidity
 // =====================================================================
 // The QIDI Box has per-box drying: heater_generic heater_box<N> provides
 // temperature + target, aht20_f heater_box<N> provides humidity. Each physical
@@ -480,7 +480,7 @@ TEST_CASE("QIDI Box humidity is read from any matched box object", "[ams][qidi_b
 // of save_variables (and per-box heater objects when they exist). The
 // response shape is `{result: {status: {save_variables: {...}, ...}}}`.
 // apply_query_response unwraps the result.status envelope and feeds the
-// inner object through handle_status_update, reusing every parser we
+// inner object through handle_status, reusing every parser we
 // already test.
 
 TEST_CASE("QIDI Box apply_query_response unwraps result.status and parses", "[ams][qidi_box]") {

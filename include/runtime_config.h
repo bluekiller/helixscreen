@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include "env_knobs.h"
+
 #include <cstdio>      // For snprintf in get_default_test_file_path()
 #include <cstdlib>     // For getenv in should_mock_remote_printer()
 #include <string>      // For std::string in should_mock_remote_printer()
@@ -222,8 +224,7 @@ struct RuntimeConfig {
     bool should_mock_remote_printer() const {
         if (!test_mode)
             return false;
-        const char* env = std::getenv("HELIX_MOCK_REMOTE_PRINTER");
-        return env && env[0] && std::string(env) != "0";
+        return helix::env_flag("HELIX_MOCK_REMOTE_PRINTER");
     }
 
     /**

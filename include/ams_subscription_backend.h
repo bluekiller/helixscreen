@@ -10,25 +10,24 @@
 #include "filament_slot_override_store.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
+#include "lane_echo.h"
 
 #include <spdlog/spdlog.h>
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
 namespace helix {
-
-namespace ams {
-class OwnWriteEchoes;
-}
 
 /// Base class for AMS backends that use Moonraker subscription-based status updates.
 /// Extracts common lifecycle, event, and state query logic from AFC/HappyHare/ToolChanger.
 ///
 /// Derived classes MUST implement:
 ///   - get_type() - return backend-specific AmsType
-///   - handle_status_update() - parse backend-specific JSON notifications
+///   - handle_status() - parse the backend-specific status object
 ///   - backend_log_tag() - return log prefix like "[AMS AFC]"
 ///
 /// Derived classes MAY override:
@@ -71,6 +70,7 @@ class AmsSubscriptionBackend : public AmsBackend {
     [[nodiscard]] int get_current_tool() const final;
     [[nodiscard]] int get_current_slot() const final;
     [[nodiscard]] bool is_filament_loaded() const final;
+    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // --- Filament operations (final -- derived backends implement do_*) ---
     //
@@ -98,6 +98,18 @@ class AmsSubscriptionBackend : public AmsBackend {
     /// the base not_supported refusal.
     AmsError load_filament_batch(const std::vector<int>& slots) final;
     AmsError unload_filament_batch(const std::vector<int>& slots) final;
+
+    /// This backend's echo guard. A store other writers co-author can hold
+    /// the mirror of the backend's own write, so the resync strips from those
+    /// records any field still equal to a standing declaration. A backend
+    /// that never writes identity back to firmware never stages into it, and
+    /// an empty guard strips nothing.
+    ///
+    /// The guard stays under this backend's mutex_ discipline; the resync
+    /// takes the lock around its consult.
+    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() {
+        return &own_write_echoes_;
+    }
 
     // --- Shared utilities (public for AmsState and tests) ---
     void emit_event(const std::string& event, const std::string& data = "");
@@ -219,6 +231,13 @@ class AmsSubscriptionBackend : public AmsBackend {
         (void)slot;
     }
 
+    /// The SlotInfo get_slot_info() copies for @p slot_index, or nullptr when
+    /// there is none. The default reads system_info_; a backend keeping its
+    /// slots in a SlotRegistry answers from that. Caller holds mutex_.
+    [[nodiscard]] virtual const SlotInfo* slot_info_locked(int slot_index) const {
+        return system_info_.get_slot_global(slot_index);
+    }
+
     /// Called after subscription is established and running_ is set.
     /// Lock is NOT held. Safe to call emit_event().
     virtual void on_started() {}
@@ -246,8 +265,14 @@ class AmsSubscriptionBackend : public AmsBackend {
         return AmsErrorHelper::success();
     }
 
-    /// Handle incoming Moonraker status notification. Called from background thread.
-    virtual void handle_status_update(const nlohmann::json& notification) = 0;
+    /// Unwrap a notify_status_update frame (`{"params": [{status}, eventtime]}`)
+    /// and hand its status object to handle_status(). Any other shape is ignored.
+    void handle_status_update(const nlohmann::json& notification);
+
+    /// Parse one status object, `{<object_name>: <fields>, ...}`, as a notify
+    /// frame or a printer.objects.query result carries it. Runs on the main
+    /// thread.
+    virtual void handle_status(const nlohmann::json& status) = 0;
 
     /// Return log tag like "[AMS AFC]" for log messages.
     virtual const char* backend_log_tag() const = 0;
@@ -368,16 +393,21 @@ class AmsSubscriptionBackend : public AmsBackend {
         return nullptr;
     }
 
-    /// This backend's echo guard, or nullptr when it does not write identity
-    /// back to firmware. A store other writers co-author can hold the mirror
-    /// of the backend's own write, so the resync strips from those records
-    /// any field still equal to a standing declaration.
+    /// Clear @p slot_index's user override from every store holding it: the
+    /// in-memory map, the lane's records, the echo guard and the persisted
+    /// record. @p slot, when non-null, also loses clear_override_fields().
+    /// Caller holds mutex_.
+    void clear_override_locked(int slot_index, SlotInfo* slot);
+
+    /// Blank on @p slot the fields a user override supplies and this
+    /// backend's firmware never restates, so a clear shows in the very next
+    /// get_slot_info(). Fields firmware reports are left for the parse.
     ///
-    /// The returned guard stays under this backend's mutex_ discipline; the
-    /// resync takes the lock around its consult.
-    [[nodiscard]] virtual helix::ams::OwnWriteEchoes* own_write_echoes() {
-        return nullptr;
-    }
+    /// The default fits firmware that reports colour and material but no
+    /// brand, spool name, weights, colour name, Spoolman link or catalog pick.
+    /// The catalog pick is override-exclusive on every backend: no AMS
+    /// firmware carries a branded product id.
+    virtual void clear_override_fields(SlotInfo& slot) const;
 
     /// commit_user_edit()'s refusal hooks: a dispatch that failed outright
     /// wrote nothing firmware can echo, so the staging it created cancels
@@ -397,6 +427,16 @@ class AmsSubscriptionBackend : public AmsBackend {
     /// subscription lambda are expired when the backend is destroyed, preventing
     /// use-after-free when WebSocket dispatch races with clear_backends() (#621).
     helix::AsyncLifetimeGuard lifetime_;
+
+    /// The user's per-slot overrides and the Moonraker-DB store that persists
+    /// them, keyed by global slot index. Null store until the backend builds
+    /// it (it needs api_). Both under mutex_.
+    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
+    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
+
+    /// What the user's own write-back declared per slot, so firmware echoing
+    /// it is not filed as a reading. Under mutex_.
+    helix::ams::OwnWriteEchoes own_write_echoes_;
 
   private:
     /// The four gated operations, so motion can be classified per METHOD in one

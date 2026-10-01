@@ -268,9 +268,6 @@ class CrashReporter {
     /// Worker endpoint for auto-send
     static constexpr const char* CRASH_WORKER_URL = "https://crash.helixscreen.org/v1/report";
 
-    /// Shared ingest API key (same as telemetry — write-only, not a true secret)
-    static constexpr const char* INGEST_API_KEY = "hx-tel-v1-a7f3c9e2d1b84056";
-
     /// GitHub repo for issue URL generation
     static constexpr const char* GITHUB_REPO = "prestonbrown/helixscreen";
 

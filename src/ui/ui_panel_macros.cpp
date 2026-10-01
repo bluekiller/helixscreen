@@ -5,7 +5,6 @@
 
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
@@ -26,6 +25,7 @@
 #include "printer_state.h"
 #include "safety_settings_manager.h"
 #include "settings_manager.h"
+#include "static_panel_registry.h"
 #include "static_subject_registry.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -36,12 +36,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(MacrosPanel, g_macros_panel, get_global_macros_panel)
 
 // ============================================================================
 // Constructor
@@ -73,15 +67,15 @@ void MacrosPanel::init_subjects() {
         UI_MANAGED_SUBJECT_INT(macros_edit_save_hidden_, 1, "macros_edit_save_hidden", subjects_);
 
         // Self-register cleanup so subjects deinit before lv_deinit().
-        // Test the pointer instead of calling get_global_macros_panel(): this
+        // Peek instead of calling get_global_macros_panel(): this
         // callback runs from StaticSubjectRegistry::deinit_all(), which is
         // sequenced AFTER StaticPanelRegistry::destroy_all() has already
         // destroyed the panel. The auto-creating getter would build a
         // replacement whose destructor then runs during static destruction,
         // with LVGL and spdlog already gone.
         StaticSubjectRegistry::instance().register_deinit("MacrosPanel", []() {
-            if (g_macros_panel) {
-                g_macros_panel->deinit_subjects();
+            if (auto* panel = helix::lazy_global_if_exists<MacrosPanel>()) {
+                panel->deinit_subjects();
             }
         });
     });

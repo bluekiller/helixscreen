@@ -121,6 +121,11 @@ class InputShaperPanel : public OverlayBase {
      * @brief Get human-readable overlay name
      * @return "Input Shaper"
      */
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     const char* get_name() const override {
         return "Input Shaper";
     }

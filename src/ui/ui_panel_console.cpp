@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_global_panel_helper.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_overlay_console_settings.h"
@@ -23,6 +22,7 @@
 #include "printer_detector.h"
 #include "printer_state.h"
 #include "settings_manager.h"
+#include "static_panel_registry.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -33,12 +33,6 @@
 #include <ctime>
 #include <utility>
 #include <vector>
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-DEFINE_GLOBAL_PANEL(ConsolePanel, g_console_panel, get_global_console_panel)
 
 namespace {
 

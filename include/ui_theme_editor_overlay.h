@@ -11,6 +11,7 @@
 #include "ui_color_picker.h"
 
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "theme_loader.h"
 
 #include <array>
@@ -194,4 +195,6 @@ class ThemeEditorOverlay : public OverlayBase {
  * @brief Get global ThemeEditorOverlay instance
  * @return Reference to singleton instance (auto-initializes on first access)
  */
-ThemeEditorOverlay& get_theme_editor_overlay();
+inline ThemeEditorOverlay& get_theme_editor_overlay() {
+    return helix::lazy_global<ThemeEditorOverlay>("ThemeEditorOverlay");
+}

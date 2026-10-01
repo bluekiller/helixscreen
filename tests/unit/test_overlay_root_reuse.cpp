@@ -184,13 +184,15 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const uint32_t before = lv_obj_get_child_count(test_screen());
 
     lv_obj_t* first_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, first_cache, test_screen(), "Motion", "first"));
+    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel,
+                                                                 test_screen(), "Motion", "first"));
+    first_cache = get_global_motion_panel().get_root();
     REQUIRE(first_cache != nullptr);
 
     lv_obj_t* second_cache = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, second_cache, test_screen(), "Motion", "second"));
+        get_global_motion_panel, test_screen(), "Motion", "second"));
+    second_cache = get_global_motion_panel().get_root();
 
     CHECK(second_cache == first_cache);
     CHECK(get_global_motion_panel().get_root() == first_cache);
@@ -204,8 +206,9 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     seed_nav_panels(test_screen());
 
     lv_obj_t* first_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, first_cache, test_screen(), "Motion", "first"));
+    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel,
+                                                                 test_screen(), "Motion", "first"));
+    first_cache = get_global_motion_panel().get_root();
     REQUIRE(first_cache != nullptr);
 
     close_all();
@@ -215,7 +218,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     seed_nav_panels(test_screen());
     lv_obj_t* second_cache = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, second_cache, test_screen(), "Motion", "second"));
+        get_global_motion_panel, test_screen(), "Motion", "second"));
+    second_cache = get_global_motion_panel().get_root();
 
     REQUIRE(second_cache != nullptr);
     CHECK(get_global_motion_panel().get_root() == second_cache);
@@ -294,7 +298,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     lv_obj_t* old_cache = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, old_cache, test_screen(), "Motion", "before switch"));
+        get_global_motion_panel, test_screen(), "Motion", "before switch"));
+    old_cache = get_global_motion_panel().get_root();
     REQUIRE(old_cache != nullptr);
     int old_deletes = 0;
     lv_obj_add_event_cb(old_cache, count_delete, LV_EVENT_DELETE, &old_deletes);
@@ -306,7 +311,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     seed_nav_panels(test_screen());
     lv_obj_t* cache = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cache, test_screen(), "Motion", "after switch"));
+        get_global_motion_panel, test_screen(), "Motion", "after switch"));
+    cache = get_global_motion_panel().get_root();
 
     CHECK(cache != old_cache);
     CHECK(get_global_motion_panel().get_root() == cache);
