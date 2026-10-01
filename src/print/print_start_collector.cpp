@@ -381,6 +381,7 @@ void PrintStartCollector::reset_run_locked() {
     mesh_first_probe_time_ = {};
     mesh_last_probe_time_ = {};
     mesh_seconds_per_probe_ = 0.0f;
+    mesh_extrapolation_armed_ = false;
     mesh_entry_ext_target_ = 0;
     pre_mesh_points_.reset();
     pre_mesh_last_probe_time_ = {};
@@ -1649,6 +1650,11 @@ void PrintStartCollector::update_phase(PrintStartPhase phase, const char* messag
                           last_remaining_);
             last_remaining_ = 0;
         }
+        // The mesh-extrapolation anchor release is one-shot per phase: a later
+        // BED_MESH entry in the same run must get its own release.
+        if (current_phase_ != phase) {
+            mesh_extrapolation_armed_ = false;
+        }
         // Entering a leveling phase clears the pre-mesh probe buffer — any
         // stray probe lines that arrived before the QGL/Z_TILT regex hit
         // (rare, but possible if firmware emits a probe before the macro
@@ -2021,6 +2027,7 @@ void PrintStartCollector::update_eta_display() {
     int predicted_total;
     int current_snap = 0;
     int phase_elapsed_snap = 0;
+    bool mesh_live_snap = false;
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         if (predicted_phase_weights_.empty()) {
@@ -2072,11 +2079,36 @@ void PrintStartCollector::update_eta_display() {
                 }
             }
         }
+        // Live mesh extrapolation: the per-probe timing is armed and, for the
+        // current BED_MESH phase, it IS the remaining contribution — through
+        // the in-loop branch when history recorded the phase, or the
+        // unrecorded-phase fallback right below.
+        mesh_live_snap = current == static_cast<int>(PrintStartPhase::BED_MESH) &&
+                         mesh_probe_total_ > 0 && mesh_seconds_per_probe_ > 0.0f;
+        // A phase the printer runs but predictor history never mapped has no
+        // weights key, so the loop above contributed nothing for the mesh
+        // under way. No double count: the in-loop current-phase branch only
+        // runs when the key exists.
+        if (mesh_live_snap &&
+            predicted_phase_weights_.find(current) == predicted_phase_weights_.end()) {
+            remaining_f += mesh_seconds_per_probe_ *
+                           static_cast<float>(mesh_probe_total_ - mesh_probe_current_);
+        }
         remaining = static_cast<int>(remaining_f);
 
         predicted_total = static_cast<int>(predicted_total_seconds_);
         current_snap = current;
         phase_elapsed_snap = phase_elapsed;
+    }
+
+    // First tick where live extrapolation becomes the mesh's contribution:
+    // every publish before probe #2 armed the timing was a provisional guess,
+    // and the anchor those seeded would clamp the first honest value back down
+    // forever. Release it once; after this the extrapolated estimate only
+    // decreases, so the monotonic guards re-engage normally.
+    if (mesh_live_snap && !mesh_extrapolation_armed_) {
+        mesh_extrapolation_armed_ = true;
+        last_remaining_ = 0;
     }
 
     // --- Diagnostic: monotonic bias data collection ---

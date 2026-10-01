@@ -603,6 +603,10 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     helix::sim::SimulatedClock::time_point mesh_first_probe_time_;
     helix::sim::SimulatedClock::time_point mesh_last_probe_time_;
     float mesh_seconds_per_probe_ = 0.0f; ///< Running average from observed probe intervals
+    /// One-shot: live extrapolation has become this BED_MESH phase's ETA
+    /// contribution (releases the monotonic anchor once). Reset on phase
+    /// change and per run.
+    bool mesh_extrapolation_armed_ = false;
 
     /// Unique probe POINTS (not sample lines) counted from the "probe at X,Y"
     /// fallback, for firmware that emits no "Probing point N/M". Reset on

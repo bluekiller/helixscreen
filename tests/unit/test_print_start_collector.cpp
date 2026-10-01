@@ -2150,6 +2150,171 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
 }
 
 // ============================================================================
+// MESH ETA EXTRAPOLATION TESTS
+//
+// AD5X capture in bundle SQJ8SAL7: predictor history never recorded a
+// BED_MESH phase, so the weights map carried no mesh key — the mesh under
+// way contributed nothing to the estimate and the countdown stayed pinned at
+// the pre-telemetry seed (~6s) for a 160s mesh. A phase the printer runs but
+// history never mapped still owes its live per-probe extrapolation.
+// ============================================================================
+
+namespace {
+
+/// Start monitoring with deterministic predictor history. Temps sit at
+/// target when the heater targets arrive, so the thermal model adds no
+/// duration and `durations` become the weights verbatim; the 0→set target
+/// rise triggers the recompute that picks the loaded history up.
+void start_with_mesh_eta_history(PrintStartCollectorHeaterFixture& f, std::map<int, int> durations,
+                                 int total_seconds) {
+    f.set_all_temps(250, 0, 500, 0); // no heater targets yet
+    f.collector().start();
+    f.collector().enable_fallbacks();
+    PrintStartCollectorTestAccess::clear_prediction_history(f.collector());
+
+    helix::PreprintEntry e;
+    e.total_seconds = total_seconds;
+    e.timestamp = 1000;
+    e.temp_bucket = 1;
+    e.phase_durations = std::move(durations);
+    PrintStartCollectorTestAccess::load_prediction_entries(f.collector(), {e});
+
+    auto& rates = ThermalRateManager::instance();
+    rates.get_model("extruder").set_default_rate(1.0f);
+    rates.get_model("heater_bed").set_default_rate(1.0f);
+    f.drain_async_updates();
+
+    // Targets arrive at the current temperatures: zero degrees of climb.
+    f.set_all_temps(250, 250, 500, 500);
+    f.tick_fallbacks();
+}
+
+/// Home, then enter the mesh phase — the markers a stock macro echoes.
+void enter_mesh_via_markers(PrintStartCollectorHeaterFixture& f) {
+    f.send_gcode_response("G28");
+    f.send_gcode_response("BED_MESH_CALIBRATE");
+}
+
+/// Two "Probing point N/25" lines 6s apart: probe #2 arms the per-probe
+/// timing telemetry at 6.0s/probe with 23 probes left.
+void arm_probe_telemetry(PrintStartCollectorHeaterFixture& f,
+                         helix::sim::SimulatedClock::ManualScope& clock) {
+    f.send_gcode_response("Probing point 1/25");
+    clock.advance(std::chrono::seconds(6));
+    f.send_gcode_response("Probing point 2/25");
+}
+
+int published_remaining(PrintStartCollectorHeaterFixture& f) {
+    return lv_subject_get_int(f.state().get_preprint_remaining_subject());
+}
+
+} // namespace
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "Mesh phase absent from predictor history still counts down via probe "
+                 "extrapolation",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    // History maps homing and purging but never BED_MESH. Durations 32+32
+    // make each weight exactly 0.5 of the 256s recorded total.
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+    arm_probe_telemetry(*this, clock);
+
+    // Assert the setup armed the telemetry before asserting on its output.
+    REQUIRE(PrintStartCollectorTestAccess::get_mesh_probe_total(collector()) == 25);
+    REQUIRE(PrintStartCollectorTestAccess::get_mesh_probe_current(collector()) == 2);
+
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    // 23 probes left at 6s each (138s) plus the future purge phase (128s).
+    // A mesh key missing from the weights must still owe its extrapolation;
+    // only the purge term publishes otherwise.
+    REQUIRE(published_remaining(*this) == 266);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "Mesh extrapolation overrides the pre-telemetry seed once telemetry arms",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+
+    // Two ticks before probe #2 arms the telemetry: the mesh contributes
+    // nothing yet, so both publish the future-purge term alone and the second
+    // seeds the monotonic anchor with it.
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 128);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 128);
+    REQUIRE(PrintStartCollectorTestAccess::get_last_remaining(collector()) == 128);
+
+    arm_probe_telemetry(*this, clock);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    // The seed a pre-telemetry publish left must not pin the first honest
+    // extrapolation: 138s of mesh + 128s purge publishes raw, not clamped
+    // back to 128.
+    REQUIRE(published_remaining(*this) == 266);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "Mesh extrapolation with the phase in weights counts once and eases the seed",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    // History DOES map BED_MESH: durations 32/64/32 sum to 128 and the
+    // recorded total equals that sum, so each weight*total reproduces its
+    // recorded duration exactly.
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::BED_MESH), 64},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                128);
+    enter_mesh_via_markers(*this);
+
+    SECTION("no telemetry: the historical mesh duration still applies") {
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        // 64s of predicted mesh (no probes seen yet) + 32s purge.
+        REQUIRE(published_remaining(*this) == 96);
+    }
+
+    SECTION("telemetry armed: extrapolation replaces the historical duration once") {
+        arm_probe_telemetry(*this, clock);
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        // 23 probes at 6s replace the 64s prediction; counting the
+        // extrapolation on top of the weight would publish 308.
+        REQUIRE(published_remaining(*this) == 170);
+    }
+
+    SECTION("telemetry armed after a seed: the anchor releases here too") {
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        REQUIRE(published_remaining(*this) == 96);
+        arm_probe_telemetry(*this, clock);
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        // The anchor release must fire for the in-weights extrapolation
+        // branch as well, not only the unrecorded-phase one.
+        REQUIRE(published_remaining(*this) == 170);
+    }
+}
+
+// ============================================================================
 // ADAPTIVE TIMEOUT TESTS
 //
 // Tests for the adaptive timeout behavior introduced to prevent premature
