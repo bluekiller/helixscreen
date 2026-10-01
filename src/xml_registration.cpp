@@ -613,7 +613,6 @@ void register_xml_components() {
 #if HELIX_HAS_CFS
     // CFS purge-chute calibration overlay (K1 dialect, pushed from the
     // device-section detail overlay's calibration action)
-    helix::ui::get_cfs_chute_calibration_overlay().init_subjects();
     register_xml("cfs_chute_calibration_overlay.xml");
 #endif
 

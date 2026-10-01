@@ -97,7 +97,10 @@ static void on_input_shaper_row_clicked(lv_event_t* e) {
     spdlog::debug("[InputShaper] Input Shaping row clicked");
 
     auto& panel = get_global_input_shaper_panel();
-    panel.set_api(get_moonraker_client(), get_moonraker_api());
+    // set_api() rebuilds the calibrator, which would drop an in-flight preflight.
+    if (!panel.get_root()) {
+        panel.set_api(get_moonraker_client(), get_moonraker_api());
+    }
     panel.show(lv_display_get_screen_active(nullptr));
 }
 
