@@ -341,12 +341,25 @@ clear a pointer (drop rows, cancel a timer, clear a static owner). Raw `lv_obj_t
 are ratcheted by `scripts/check_cached_widget_pointers.py`; opt out with
 `// WIDGET_PTR_OK: <reason>`.
 
+### One deferral form per job
+
+| Form | Use |
+|------|-----|
+| `object_lifetime_.defer(tag, fn)` / `lifetime_.defer(tag, fn)` | main thread, work bound to an object |
+| `guard.bg_cb(tag, fn)` | built on the main thread, handed to a background API; it defers and guards |
+| `queue_update(tag, fn)` | work bound to no object: singletons reached through `instance()`, process-wide UI such as `BusyOverlay`, work that must run even if its requester is gone |
+| `queue_widget_update(obj, fn)` / `queue_invalidate(obj)` | work bound to a widget, skipped once `lv_obj_is_valid()` fails |
+| `run_next_tick(token, fn)` / `run_next_tick(fn)` | needs LVGL's async list (outside the current event dispatch and outside the UpdateQueue batch) |
+
+`lv_async_call(` outside `include/ui_next_tick.h`, the `void*` `async_call`, and
+`helix::async::` are lint-gated in `tests/shell/test_code_lint.bats`; the opt-out is
+`// LV_ASYNC_OK: <reason>`.
+
 ### Deprecated — do not use in new code
 
 `shared_ptr<bool> callback_guard_` / `alive_guard_`, `shared_ptr<atomic<bool>> alive_`,
-`shared_ptr<atomic<uint64_t>>` generation counters, `weak_ptr<bool>` for callback safety, and
-`async_call(guard_widget, cb, data)` for modal/overlay guards. All replaced by
-`AsyncLifetimeGuard`.
+`shared_ptr<atomic<uint64_t>>` generation counters, and `weak_ptr<bool>` for callback
+safety. All replaced by `AsyncLifetimeGuard`.
 
 ---
 
@@ -360,7 +373,6 @@ event linked list → SIGSEGV in `lv_event_mark_deleted` (#776, #190, #80).
 `process_pending()`:
 
 - `helix::ui::queue_update(...)` / `ui_queue_update(...)` lambdas
-- `helix::ui::async_call(cb, ud)` — our wrapper, **not** LVGL's native call
 - `register_overlay_close_callback(...)` lambdas
 - `AsyncLifetimeGuard::defer(...)` / `lifetime_.defer(...)` lambdas
 - `LifetimeToken::defer(...)` / `tok.defer(...)` lambdas
@@ -391,7 +403,7 @@ wrong; fix it.
 
 ```cpp
 // ❌ CRASH — sync deletion inside an UpdateQueue batch
-helix::ui::async_call([dialog]() {
+helix::ui::queue_update("close", [dialog]() {
     helix::ui::safe_delete(dialog);
 });
 
@@ -429,7 +441,8 @@ These genuinely run outside UpdateQueue batches:
   *structurally impossible* rather than merely time-shifted — the #983 teardown counterpart,
   for relayout racing the teardown of a grid during a modal close or panel rebuild.
 - `lv_obj_delete_async(obj)` — raw LVGL
-- `lv_async_call(cb, ud)` — raw LVGL, **not** our `helix::ui::async_call` wrapper
+- `helix::ui::run_next_tick(...)` (`include/ui_next_tick.h`), the one wrapper over raw
+  LVGL `lv_async_call`
 
 ---
 
@@ -665,7 +678,7 @@ INIT_SUBJECT_INT_VOLATILE(idle_timeout_printing, 0, subjects_, volatile_, regist
 ```
 
 `PrinterState::set_klippy_state_internal()` is the single chokepoint for every Klippy state
-change — the webhooks JSON parse, the `helix::async::call_method` wrapper, and
+change — the webhooks JSON parse, the deferred `set_klippy_state()`, and
 `set_klippy_state_sync()` all funnel through it — and it calls `reset_klippy_volatile()`
 on a genuine edge only.
 

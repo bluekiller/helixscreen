@@ -561,7 +561,7 @@ Follow the existing pattern:
 
 - All Moonraker API calls happen on background threads (libhv/WebSocket callbacks)
 - Never call `lv_subject_set_*()` from background threads
-- Use `helix::async::invoke()` (from `async_helpers.h`) to bounce results back to the LVGL thread
+- Use `lifetime_.bg_cb()` (from `async_lifetime_guard.h`) to bounce results back to the LVGL thread
 - Always capture `alive_` flag in async callbacks and check before accessing panel state
 
 ### Testing
