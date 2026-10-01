@@ -297,7 +297,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> /*error_cb*/) -> bool {
         json devices = json::array();
-        if (!std::getenv("MOCK_EMPTY_POWER")) {
+        if (!helix::env_flag("MOCK_EMPTY_POWER")) {
             auto device = [](const char* name, const char* type, const char* status, bool locked) {
                 return json{{"device", name},
                             {"type", type},
