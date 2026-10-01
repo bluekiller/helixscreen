@@ -355,7 +355,8 @@ std::optional<StatusFrame> helix::parse_status_notification(const json& notifica
 }
 
 void PrinterState::update_from_status(const json& state, double eventtime,
-                                      bool from_cached_snapshot) {
+                                      bool from_cached_snapshot,
+                                      std::optional<uint64_t> frame_epoch) {
     // Debug: Check if we're in render phase (this should never be true)
     LV_DEBUG_RENDER_STATE();
 
@@ -574,12 +575,17 @@ void PrinterState::update_from_status(const json& state, double eventtime,
             // A delta carrying just state_message must not latch "live seen" and
             // lock out the snapshot that still has to seed the state.
             if (applied_state) {
-                if (eventtime > 0.0) {
-                    std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-                    klippy_state_eventtime_ = eventtime;
-                }
-                if (!from_cached_snapshot) {
-                    klippy_state_from_live_ = true;
+                // A frame received before the last reset belongs to the previous
+                // session, whose clock the watermark no longer measures, so it does
+                // not move the guard. Checked under the lock the reset takes.
+                std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
+                if (!frame_epoch || *frame_epoch == klippy_epoch_.load()) {
+                    if (eventtime > 0.0) {
+                        klippy_state_eventtime_ = eventtime;
+                    }
+                    if (!from_cached_snapshot) {
+                        klippy_state_from_live_ = true;
+                    }
                 }
             }
         }
@@ -691,6 +697,7 @@ void PrinterState::reset_klippy_state_freshness() {
     std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
     klippy_state_eventtime_ = 0.0;
     klippy_state_from_live_.store(false);
+    ++klippy_epoch_;
 }
 
 void PrinterState::set_klippy_state_internal(KlippyState state) {

@@ -50,10 +50,16 @@ nlohmann::json webhooks_status(const char* klippy_state, const char* message = n
 }
 
 /// What MoonrakerManager's notification drain does with each frame.
-void apply_notification(PrinterState& state, const nlohmann::json& notification) {
+/// What MoonrakerManager's drain does with a frame it queued during @p epoch.
+void apply_notification(PrinterState& state, const nlohmann::json& notification, uint64_t epoch) {
     if (auto frame = parse_status_notification(notification)) {
-        state.update_from_status(*frame->status, frame->eventtime, frame->from_cached_snapshot);
+        state.update_from_status(*frame->status, frame->eventtime, frame->from_cached_snapshot,
+                                 epoch);
     }
+}
+
+void apply_notification(PrinterState& state, const nlohmann::json& notification) {
+    apply_notification(state, notification, state.klippy_epoch());
 }
 
 class KlippyFreshnessFixture : public LVGLTestFixture {
@@ -286,6 +292,32 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
     state.set_klippy_state(KlippyState::SHUTDOWN); // WebSocket thread
     replay("ready");                               // drained before the UI queue
     CHECK(klippy() != KlippyState::READY);
+}
+
+// ============================================================================
+// A frame queued before the link dropped is drained after the reset. Klipper's
+// clock restarts on a host reboot, so its eventtime must not become the next
+// session's watermark.
+// ============================================================================
+
+TEST_CASE_METHOD(KlippyFreshnessFixture,
+                 "Klippy freshness: a frame queued before a reset cannot block the next session",
+                 "[core][klippy][freshness]") {
+    live("ready", 100.0);
+    const uint64_t old_epoch = state.klippy_epoch();
+    const nlohmann::json queued = {
+        {"method", "notify_status_update"},
+        {"params", nlohmann::json::array({webhooks_status("ready"), 150.0})}};
+
+    state.reset_klippy_state_freshness(); // the link drops; `queued` is still in the queue
+    apply_notification(state, queued, old_epoch);
+    helix::ui::UpdateQueue::instance().drain();
+
+    live("shutdown", 5.0); // the rebooted host's clock restarted
+    CHECK(klippy() == KlippyState::SHUTDOWN);
+
+    replay("ready"); // the new session's discovery snapshot cannot undo it
+    CHECK(klippy() == KlippyState::SHUTDOWN);
 }
 
 // ============================================================================
