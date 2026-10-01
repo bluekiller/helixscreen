@@ -14,7 +14,6 @@
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
-#include "text_io.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -39,11 +38,6 @@ lv_obj_t* open_led_control_overlay(lv_obj_t* parent_screen, const std::string& d
 } // namespace helix
 
 namespace {
-
-int user_data_int(lv_event_t* e) {
-    const auto* ud = static_cast<const char*>(lv_event_get_user_data(e));
-    return ud != nullptr ? helix::text_io::parse_leading<int>(ud).value_or(-1) : -1;
-}
 
 lv_color_t light_color() {
     return theme_manager_get_color("light_icon_on");
@@ -98,7 +92,10 @@ lv_obj_t* LedControlOverlay::create(lv_obj_t* parent) {
 void LedControlOverlay::register_callbacks() {
     register_xml_callbacks({
         {"led_tab_clicked_cb",
-         [](lv_event_t* e) { get_led_control_overlay().handle_tab_clicked(user_data_int(e)); }},
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_tab_clicked(
+                 helix::ui::event_user_int(e).value_or(-1));
+         }},
         {"led_tabs_scrolled_cb",
          [](lv_event_t* e) {
              auto* row = lv_event_get_current_target_obj(e);
@@ -115,18 +112,24 @@ void LedControlOverlay::register_callbacks() {
          }},
         {"led_level_cb",
          [](lv_event_t* e) {
-             if (const int pct = user_data_int(e); pct >= 0) {
+             if (const int pct = helix::ui::event_user_int(e).value_or(-1); pct >= 0) {
                  get_led_control_overlay().handle_brightness(pct);
              }
          }},
         {"led_white_cb",
-         [](lv_event_t* e) { get_led_control_overlay().handle_white(user_data_int(e)); }},
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_white(helix::ui::event_user_int(e).value_or(-1));
+         }},
         {"led_swatch_cb",
-         [](lv_event_t* e) { get_led_control_overlay().handle_swatch(user_data_int(e)); }},
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_swatch(helix::ui::event_user_int(e).value_or(-1));
+         }},
         {"led_custom_color_cb",
          [](lv_event_t*) { get_led_control_overlay().handle_custom_color(); }},
         {"led_list_chip_cb",
-         [](lv_event_t* e) { get_led_control_overlay().handle_list_chip(user_data_int(e)); }},
+         [](lv_event_t* e) {
+             get_led_control_overlay().handle_list_chip(helix::ui::event_user_int(e).value_or(-1));
+         }},
         {"led_effects_none_cb",
          [](lv_event_t*) { get_led_control_overlay().handle_effects_none(); }},
         {"led_macro_on_cb", [](lv_event_t*) { get_led_control_overlay().handle_macro_on(); }},

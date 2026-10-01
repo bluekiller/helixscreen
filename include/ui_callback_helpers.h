@@ -15,11 +15,11 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "text_io.h"
 #include "ui/ui_event_trampoline.h"
 
 #include <spdlog/spdlog.h>
 
-#include <cstdlib>
 #include <initializer_list>
 #include <optional>
 #include <type_traits>
@@ -37,13 +37,13 @@ inline int event_selected(lv_event_t* e) {
 }
 
 /// The integer in the XML `user_data="..."` string the callback was bound with,
-/// or nullopt when the binding carries none.
+/// or nullopt when the binding carries none or it is not a number.
 inline std::optional<int> event_user_int(lv_event_t* e) {
     const char* s = static_cast<const char*>(lv_event_get_user_data(e));
     if (!s) {
         return std::nullopt;
     }
-    return std::atoi(s);
+    return helix::text_io::parse_leading<int>(s);
 }
 
 } // namespace helix::ui
