@@ -5,14 +5,14 @@
 
 #include "plugins_overlay.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_utils.h"
 
 #include "helix-xml/src/xml/lv_xml.h"
 #include "plugin_permissions.h"
-#include "static_panel_registry.h"
-#include "ui/ui_lazy_panel_helper.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -20,49 +20,28 @@
 
 namespace helix::plugin {
 
-namespace {
-
-std::unique_ptr<PluginsOverlay> g_plugins_overlay;
-
-} // namespace
-
-PluginsOverlay& get_plugins_overlay() {
-    if (!g_plugins_overlay) {
-        g_plugins_overlay = std::make_unique<PluginsOverlay>();
-        StaticPanelRegistry::instance().register_destroy("PluginsOverlay",
-                                                         []() { g_plugins_overlay.reset(); });
-    }
-    return *g_plugins_overlay;
-}
-
-void show_plugins_overlay(lv_obj_t* parent, const char* caller) {
-    helix::ui::lazy_create_and_push_overlay<PluginsOverlay>(get_plugins_overlay, parent, "Plugins",
-                                                            caller);
-}
-
-void PluginsOverlay::init_subjects() {
-    subjects_initialized_ = true; // rows read the host; the frame binds nothing
-}
-
 void PluginsOverlay::register_callbacks() {
-    register_plugins_overlay_callbacks();
-}
-
-const char* PluginsOverlay::get_name() const {
-    return "Plugins";
+    register_xml_callbacks({
+        {"plugin_list_row_clicked",
+         [](lv_event_t* e) {
+             PluginsOverlay& ov = get_plugins_overlay();
+             // The row root carries the binding; the tap may have landed on a child.
+             for (lv_obj_t* obj = static_cast<lv_obj_t*>(lv_event_get_target(e)); obj;
+                  obj = lv_obj_get_parent(obj)) {
+                 if (const std::string* id = ov.binding_at(lv_obj_get_user_data(obj))) {
+                     ov.activate(*id);
+                     return;
+                 }
+             }
+         }},
+    });
 }
 
 lv_obj_t* PluginsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_)
-        return overlay_root_; // a second caller adopts the tree the first built
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "plugins_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[Plugins] cannot create plugins_overlay");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
-    parent_screen_ = parent;
     populate_rows();
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN); // shown by push_overlay
     return overlay_root_;
 }
 
@@ -72,7 +51,7 @@ void PluginsOverlay::populate_rows() {
     // the active screen instead.
     if (!overlay_root_)
         return;
-    lv_obj_t* rows = lv_obj_find_by_name(overlay_root_, "plugins_rows");
+    lv_obj_t* rows = helix::ui::find_required(overlay_root_, "plugins_rows", get_name());
     if (!rows)
         return;
     helix::ui::safe_clean_children(rows);
@@ -189,30 +168,6 @@ void PluginsOverlay::activate(const std::string& id) {
     case PluginStatus::Incompatible:
         break; // the manifest itself is the problem; a dialog cannot fix it
     }
-}
-
-namespace {
-
-void plugin_list_row_clicked_cb(lv_event_t* e) {
-    PluginsOverlay& ov = get_plugins_overlay();
-    // The row root carries the binding; the tap may have landed on a child.
-    for (lv_obj_t* obj = static_cast<lv_obj_t*>(lv_event_get_target(e)); obj;
-         obj = lv_obj_get_parent(obj)) {
-        if (const std::string* id = ov.binding_at(lv_obj_get_user_data(obj))) {
-            ov.activate(*id);
-            return;
-        }
-    }
-}
-
-} // namespace
-
-void register_plugins_overlay_callbacks() {
-    static bool registered = false;
-    if (registered)
-        return;
-    lv_xml_register_event_cb(nullptr, "plugin_list_row_clicked", &plugin_list_row_clicked_cb);
-    registered = true;
 }
 
 } // namespace helix::plugin

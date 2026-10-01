@@ -35,7 +35,6 @@ inline constexpr int CONTRIBUTOR_COUNT = sizeof(CONTRIBUTORS) / sizeof(CONTRIBUT
 #include "system/diagnostics.h"
 #include "system/update_checker.h"
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "ui/ui_widget_helpers.h"
 #include "wizard_config_paths.h"
 
@@ -193,9 +192,7 @@ void AboutSettingsOverlay::register_callbacks() {
         {"on_about_print_hours_clicked",
          [](lv_event_t*) {
              auto& self = get_about_settings_overlay();
-             helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
-                 get_global_history_dashboard_panel, self.parent_screen_, "Print History",
-                 self.get_name());
+             get_global_history_dashboard_panel().show(self.parent_screen_);
          }},
     });
 }

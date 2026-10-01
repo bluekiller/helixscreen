@@ -39,7 +39,6 @@
 #include "overlay_base.h"
 #include "printer_cache_registry.h"
 #include "static_panel_registry.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <array>
 
@@ -72,8 +71,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a printer switch frees the orphaned motion 
     seed_nav_panels();
 
     // What MotionWidget::handle_click does.
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    REQUIRE(get_global_motion_panel().show(lv_screen_active()));
     helix::ui::UpdateQueue::instance().drain();
 
     lv_obj_t* orphan = get_global_motion_panel().get_root();
@@ -97,8 +95,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a printer switch frees the orphaned motion 
     // Reopen through the same path a user takes after the switch: a fresh
     // widget bound to the live panel, not a push of the freed orphan.
     seed_nav_panels();
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    REQUIRE(get_global_motion_panel().show(lv_screen_active()));
     helix::ui::UpdateQueue::instance().drain();
     lv_obj_t* reopened = get_global_motion_panel().get_root();
     REQUIRE(reopened != nullptr);
@@ -118,10 +115,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a printer switch frees every orphaned lazy 
 
     // Both are destroy-on-close; still open (on the stack) when the switch
     // runs, so the switch must free them.
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<ConsolePanel>(
-        get_global_console_panel, lv_screen_active(), "Console", "test"));
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MacrosPanel>(
-        get_global_macros_panel, lv_screen_active(), "Macros", "test"));
+    REQUIRE(get_global_console_panel().show(lv_screen_active()));
+    REQUIRE(get_global_macros_panel().show(lv_screen_active()));
     helix::ui::UpdateQueue::instance().drain();
 
     lv_obj_t* console_orphan = get_global_console_panel().get_root();

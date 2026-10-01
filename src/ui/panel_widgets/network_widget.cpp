@@ -367,15 +367,7 @@ void NetworkWidget::handle_network_clicked() {
     spdlog::info("[NetworkWidget] Network icon clicked - opening network settings directly");
 
     // Open Network settings overlay directly (same as Settings panel's Network row)
-    auto& overlay = get_network_settings_overlay();
-
-    if (!overlay.is_created()) {
-        overlay.init_subjects();
-        overlay.register_callbacks();
-        overlay.create(parent_screen_);
-    }
-
-    overlay.show();
+    get_network_settings_overlay().show(parent_screen_);
 }
 
 void NetworkWidget::signal_poll_timer_cb(lv_timer_t* timer) {

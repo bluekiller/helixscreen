@@ -28,7 +28,6 @@
 #include "spoolman_manager.h"
 #include "spoolman_types.h" // apply_spool_to_slot
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <spdlog/spdlog.h>
 

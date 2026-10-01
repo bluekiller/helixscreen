@@ -31,7 +31,6 @@
 #include "settings_manager.h"
 #include "static_panel_registry.h"
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "unit_conversions.h"
 
 #include <array>
@@ -95,8 +94,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "coordinate readouts follow the commanded/ac
     settings.set_motion_show_actual_position(false);
 
     lv_obj_t* cached = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    REQUIRE(get_global_motion_panel().show(lv_screen_active()));
     cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
@@ -171,8 +169,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "motion bounds follow the gcode origin, not 
     settings.set_jog_distance(helix::JogMode::Coarse, /*outer=*/false, 1.0f);
 
     lv_obj_t* cached = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    REQUIRE(get_global_motion_panel().show(lv_screen_active()));
     cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 

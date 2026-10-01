@@ -7,7 +7,6 @@
 #include "ui_panel_macros.h"
 
 #include "panel_widget_registry.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <spdlog/spdlog.h>
 
@@ -44,8 +43,7 @@ void MacrosWidget::detach() {
 }
 
 void MacrosWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(get_global_macros_panel, parent_screen_,
-                                                         "Macros", "MacrosWidget");
+    get_global_macros_panel().show(parent_screen_);
 }
 
 void MacrosWidget::clicked_cb(lv_event_t* e) {

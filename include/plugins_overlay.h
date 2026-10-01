@@ -8,6 +8,7 @@
 #include "overlay_base.h"
 #include "plugin_consent.h"
 #include "plugin_host.h"
+#include "static_panel_registry.h"
 
 #include <functional>
 #include <list>
@@ -25,7 +26,6 @@ class PluginsOverlay : public OverlayBase {
     using ConsentShower =
         std::function<void(const Manifest&, const std::vector<Permission>&, std::function<void()>)>;
 
-    void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
     void register_callbacks() override;
     /// Freed on close; the next open rebuilds it.
@@ -33,7 +33,12 @@ class PluginsOverlay : public OverlayBase {
         return true;
     }
 
-    const char* get_name() const override;
+    const char* get_name() const override {
+        return "Plugins";
+    }
+    const char* xml_component() const override {
+        return "plugins_overlay";
+    }
 
     lv_obj_t* root() const {
         return overlay_root_;
@@ -61,14 +66,9 @@ class PluginsOverlay : public OverlayBase {
 };
 
 /// The process-wide overlay instance (lazy, registered with StaticPanelRegistry).
-PluginsOverlay& get_plugins_overlay();
-
-/// Opens Settings > Plugins on `parent`.
-void show_plugins_overlay(lv_obj_t* parent, const char* caller);
-
-/// Registers the plugin_list_row_clicked XML callback once per process.
-/// Called from register_plugin_event_callback().
-void register_plugins_overlay_callbacks();
+inline PluginsOverlay& get_plugins_overlay() {
+    return lazy_global<PluginsOverlay>("PluginsOverlay");
+}
 
 } // namespace helix::plugin
 

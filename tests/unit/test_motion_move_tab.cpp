@@ -32,7 +32,6 @@
 #include "standard_macros.h"
 #include "static_panel_registry.h"
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <array>
 #include <string>
@@ -65,8 +64,7 @@ class MoveTabFixture : public LVGLUITestFixture {
         helix::SettingsManager::instance().init_subjects();
 
         lv_obj_t* cached = nullptr;
-        REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-            get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+        REQUIRE(get_global_motion_panel().show(lv_screen_active()));
         cached = get_global_motion_panel().get_root();
         drain();
 

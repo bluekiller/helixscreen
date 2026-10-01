@@ -12,7 +12,7 @@
  * observer): an unhomed axis reports 0.00, which must not read as a real
  * position. The muted look is a declarative bind_style pair on the
  * header_pos_* and row_pos_* labels, so the test drives a real MotionPanel
- * through the same lazy_create_and_push_overlay path the controls screen
+ * through the same OverlayBase::show path the controls screen
  * uses, flips homed_axes to "xy", and compares the label colors against the
  * theme tokens the styles name.
  */
@@ -25,7 +25,6 @@
 #include "app_globals.h"
 #include "static_panel_registry.h"
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <array>
 #include <lvgl.h>
@@ -48,8 +47,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "unhomed axes mute their coordinate readouts
     NavigationManager::instance().set_panels(panels.data());
 
     lv_obj_t* cached = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    REQUIRE(get_global_motion_panel().show(lv_screen_active()));
     cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 

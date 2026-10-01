@@ -1,26 +1,7 @@
 # XML event callbacks whose C++ registration and XML use disagree.
 # Accepted debt, shrink-only: register it, reference it, give each owner
 # its own name, or delete it - then re-run with --write-baseline.
-duplicate:on_about_clicked
-duplicate:on_ams_settings_clicked
-duplicate:on_cancel_escalation_changed
-duplicate:on_cancel_escalation_timeout_changed
-duplicate:on_completion_alert_changed
-duplicate:on_debug_bundle_clicked
-duplicate:on_discord_clicked
-duplicate:on_docs_clicked
-duplicate:on_estop_confirm_changed
-duplicate:on_fans_settings_clicked
-duplicate:on_filament_sensors_clicked
-duplicate:on_history_row_clicked
-duplicate:on_led_settings_clicked
-duplicate:on_machine_limits_clicked
-duplicate:on_macro_buttons_clicked
-duplicate:on_material_temps_clicked
 duplicate:on_network_item_clicked
-duplicate:on_power_devices_clicked
-duplicate:on_spoolman_settings_clicked
-duplicate:on_timelapse_settings_clicked
 duplicate:on_touch_cal_accept_clicked
 duplicate:on_touch_cal_retry_clicked
 duplicate:on_wifi_password_cancel

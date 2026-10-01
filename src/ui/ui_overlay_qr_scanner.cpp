@@ -18,7 +18,6 @@
 #include "i_moonraker_api.h"
 #include "printer_state.h"
 #include "sound_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "ui/ui_widget_helpers.h"
 
 #if HELIX_HAS_CAMERA
@@ -141,8 +140,7 @@ void QrScannerOverlay::show(lv_obj_t* parent, int slot_index, ResultCallback on_
     // Always use the active screen so the overlay renders above modals
     lv_obj_t* screen = lv_screen_active();
 
-    bool ok = lazy_create_and_push_overlay<QrScannerOverlay>(
-        get_qr_scanner_overlay, screen ? screen : parent, "QR Scanner", "QrScannerOverlay");
+    bool ok = OverlayBase::show(screen ? screen : parent);
     if (!ok) {
         spdlog::error("[{}] Failed to show overlay", get_name());
     }
