@@ -9,7 +9,7 @@
   <view name="network_settings_overlay"
         extends="overlay_panel" title="Network Settings" title_tag="Network Settings" bg_color="#screen_bg">
     <!-- Two-Column Content Area -->
-    <lv_obj name="content_area"
+    <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_all="#space_lg" style_pad_gap="#space_lg" scrollable="false"
             flex_flow="row" style_flex_main_place="start" style_flex_cross_place="start">
       <!-- ================================================================== -->
