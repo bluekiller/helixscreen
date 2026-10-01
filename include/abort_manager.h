@@ -287,7 +287,7 @@ class AbortManager {
     helix::ui::LvglTimerGuard cancel_timer_;
     helix::ui::LvglTimerGuard reconnect_timer_;
 
-    // Expires callbacks still in flight from a sequence the manager has left
+    // Invalidated by start_abort(), so replies from an earlier sequence are dropped
     helix::AsyncLifetimeGuard lifetime_;
 
     // ========================================================================

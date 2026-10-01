@@ -109,6 +109,8 @@ void AbortManager::start_abort() {
         spdlog::debug("[AbortManager] Already aborting, ignoring start_abort()");
         return;
     }
+    // A reply still in flight from the previous sequence must not advance this one
+    lifetime_.invalidate();
 
     spdlog::info("[AbortManager] Starting abort sequence");
     escalation_level_ = 0;

@@ -151,9 +151,9 @@ class HeldReplyApi : public MoonrakerAPIMock {
 
 } // namespace
 
-// A reply still in flight when the manager is reset belongs to the old
-// sequence; delivering it must not advance the next one.
-TEST_CASE_METHOD(AbortManagerTestFixture, "AbortManager: reply to a reset sequence is dropped",
+// A reply still in flight when a sequence ends belongs to that sequence;
+// delivering it must not advance the next one.
+TEST_CASE_METHOD(AbortManagerTestFixture, "AbortManager: reply to an earlier sequence is dropped",
                  "[abort][lifetime]") {
     PrinterState state;
     state.init_subjects(false);
@@ -165,13 +165,21 @@ TEST_CASE_METHOD(AbortManagerTestFixture, "AbortManager: reply to a reset sequen
     REQUIRE(AbortManager::instance().get_state() == AbortManager::State::PROBE_QUEUE);
     REQUIRE(api.held.size() == 1);
 
-    AbortManagerTestAccess::reset(AbortManager::instance());
+    // The first sequence ends, its M115 still unanswered, and a second starts.
+    AbortManagerTestAccess::on_reconnect_timeout(AbortManager::instance());
+    REQUIRE(AbortManager::instance().get_state() == AbortManager::State::COMPLETE);
     AbortManager::instance().start_abort();
     REQUIRE(AbortManager::instance().get_state() == AbortManager::State::PROBE_QUEUE);
+    REQUIRE(api.held.size() == 2);
 
     api.held[0]();
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(AbortManager::instance().get_state() == AbortManager::State::PROBE_QUEUE);
+
+    // The current sequence's own reply still advances it.
+    api.held[1]();
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(AbortManager::instance().get_state() != AbortManager::State::PROBE_QUEUE);
 }
 
 // ============================================================================
