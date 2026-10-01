@@ -18,6 +18,7 @@ class AbortManagerTestAccess {
   public:
     static void reset(AbortManager& m) {
         reset_state(m);
+        m.lifetime_.invalidate();
         m.kalico_status_ = AbortManager::KalicoStatus::UNKNOWN;
         m.commands_sent_ = 0;
         m.api_ = nullptr;

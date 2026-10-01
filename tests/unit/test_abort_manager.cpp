@@ -24,6 +24,8 @@
 #include "../ui_test_utils.h"
 #include "abort_manager.h"
 #include "app_globals.h"
+#include "moonraker_api_mock.h"
+#include "moonraker_client_mock.h"
 #include "safety_settings_manager.h"
 #include "settings_manager.h"
 
@@ -128,6 +130,49 @@ class AbortManagerTestFixture : public LVGLTestFixture {
         return AbortManager::instance().get_state_name();
     }
 };
+
+namespace {
+
+/// Keeps execute_gcode's success callbacks instead of answering, so a test can
+/// deliver a reply after the manager has moved on.
+class HeldReplyApi : public MoonrakerAPIMock {
+  public:
+    using MoonrakerAPIMock::MoonrakerAPIMock;
+
+    void execute_gcode(const std::string& /*gcode*/, SuccessCallback on_success,
+                       ErrorCallback /*on_error*/, uint32_t /*timeout_ms*/ = 0,
+                       bool /*silent*/ = false, SuccessCallback /*on_queued*/ = nullptr,
+                       bool /*caller_surfaces_errors*/ = true) override {
+        held.push_back(std::move(on_success));
+    }
+
+    std::vector<SuccessCallback> held;
+};
+
+} // namespace
+
+// A reply still in flight when the manager is reset belongs to the old
+// sequence; delivering it must not advance the next one.
+TEST_CASE_METHOD(AbortManagerTestFixture, "AbortManager: reply to a reset sequence is dropped",
+                 "[abort][lifetime]") {
+    PrinterState state;
+    state.init_subjects(false);
+    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
+    HeldReplyApi api(client, state);
+
+    AbortManager::instance().init(&api, nullptr);
+    AbortManager::instance().start_abort();
+    REQUIRE(AbortManager::instance().get_state() == AbortManager::State::PROBE_QUEUE);
+    REQUIRE(api.held.size() == 1);
+
+    AbortManagerTestAccess::reset(AbortManager::instance());
+    AbortManager::instance().start_abort();
+    REQUIRE(AbortManager::instance().get_state() == AbortManager::State::PROBE_QUEUE);
+
+    api.held[0]();
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(AbortManager::instance().get_state() == AbortManager::State::PROBE_QUEUE);
+}
 
 // ============================================================================
 // Initial State Tests
