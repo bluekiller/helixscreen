@@ -195,9 +195,11 @@ TEST_CASE_METHOD(HelixTestFixture,
         auto finished = std::make_shared<std::promise<void>>();
         auto done = finished->get_future();
         std::thread([client, finished]() {
-            client->discover_printer(
-                [client]() { client->set_fans({"fan"}); },
-                [client](const std::string&) { client->set_heaters({"extruder"}); });
+            // Raw pointer: the client keeps its completion callback, so a
+            // shared_ptr captured there would keep the client alive forever.
+            MoonrakerClientMock* raw = client.get();
+            client->discover_printer([raw]() { raw->set_fans({"fan"}); },
+                                     [raw](const std::string&) { raw->set_heaters({"extruder"}); });
             finished->set_value();
         }).detach();
         return done.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
