@@ -6,6 +6,7 @@
 #include "ui_error_reporting.h"
 #include "ui_keyboard_manager.h"
 #include "ui_nav_manager.h"
+#include "ui_next_tick.h"
 #include "ui_panel_home.h"
 #include "ui_subject_registry.h"
 #include "ui_timer_guard.h"
@@ -284,15 +285,8 @@ static void ui_wizard_purge_subtree_anims(lv_obj_t* root) {
 // race corrupts the global event linked list and aborts in libc (#848/#843).
 // The caller sets navigating=true first; the callback path clears it when
 // navigate_to_step finishes.
-static void navigate_to_step_async_cb(void* data) {
-    auto step =
-        static_cast<helix::wizard::StepId>(static_cast<int>(reinterpret_cast<intptr_t>(data)));
-    ui_wizard_navigate_to_step(step);
-}
-
 static void schedule_navigate_to_step(helix::wizard::StepId step) {
-    lv_async_call(navigate_to_step_async_cb,
-                  reinterpret_cast<void*>(static_cast<intptr_t>(static_cast<int>(step))));
+    helix::ui::run_next_tick([step]() { ui_wizard_navigate_to_step(step); });
 }
 
 // ============================================================================

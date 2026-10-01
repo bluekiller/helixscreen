@@ -11,8 +11,8 @@
  * - get_pre_print_option_set() const
  *
  * Note: Tests use set_printer_type_sync() which directly calls the internal
- * method. The async set_printer_type() defers to the main thread via
- * helix::async::call_method_ref() for thread safety from WebSocket callbacks.
+ * method. The async set_printer_type() defers to the main thread for thread
+ * safety from WebSocket callbacks.
  */
 
 #include "ui_update_queue.h"

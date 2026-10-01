@@ -885,6 +885,19 @@ std::optional<gcode::OperationType> file_embeddable_op_for_id(const std::string&
     return std::nullopt;
 }
 
+// Transfer callbacks run on the HTTP thread. BusyOverlay is process-wide, so
+// these updates belong to no object and still run if the manager is gone.
+void queue_busy_progress(const char* label, size_t done, size_t total) {
+    float pct =
+        (total > 0) ? (100.0f * static_cast<float>(done) / static_cast<float>(total)) : 0.0f;
+    helix::ui::queue_update("PrintPreparationManager::busy_progress",
+                            [label, pct]() { BusyOverlay::set_progress(label, pct); });
+}
+
+void queue_busy_hide() {
+    helix::ui::queue_update("PrintPreparationManager::busy_hide", []() { BusyOverlay::hide(); });
+}
+
 } // namespace
 
 std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disable() const {
@@ -1533,15 +1546,7 @@ void PrintPreparationManager::modify_and_print_streaming(
 
     // Progress callback for download - NOTE: called from HTTP thread
     auto download_progress = [](size_t received, size_t total) {
-        float pct = (total > 0)
-                        ? (100.0f * static_cast<float>(received) / static_cast<float>(total))
-                        : 0.0f;
-        helix::ui::async_call(
-            [](void* data) {
-                auto pct_val = static_cast<float>(reinterpret_cast<uintptr_t>(data)) / 100.0f;
-                BusyOverlay::set_progress("Downloading", pct_val);
-            },
-            reinterpret_cast<void*>(static_cast<uintptr_t>(pct * 100.0f)));
+        queue_busy_progress("Downloading", received, total);
     };
 
     // Step 1: Download file to disk (streaming, not memory)
@@ -1679,9 +1684,7 @@ void PrintPreparationManager::modify_and_print_streaming(
 
                                 auto on_print_error = [this, token, remote_temp_path](
                                                           const MoonrakerError& error) {
-                                    // Hide overlay on error (defer to main thread)
-                                    helix::ui::async_call([](void*) { BusyOverlay::hide(); },
-                                                          nullptr);
+                                    queue_busy_hide();
 
                                     NOTIFY_ERROR(lv_tr("Failed to start print: {}"), error.message);
                                     LOG_ERROR_INTERNAL(
@@ -1738,8 +1741,7 @@ void PrintPreparationManager::modify_and_print_streaming(
                     },
                     // Upload error - clean up local file. Runs on HTTP bg thread.
                     [this, token, modified_path](const MoonrakerError& error) {
-                        // Hide overlay on error (defer to main thread)
-                        helix::ui::async_call([](void*) { BusyOverlay::hide(); }, nullptr);
+                        queue_busy_hide();
 
                         // Clean up local file even on error (bg-safe filesystem op)
                         hfs::remove(modified_path);
@@ -1753,24 +1755,13 @@ void PrintPreparationManager::modify_and_print_streaming(
                     },
                     // Upload progress callback
                     [](size_t sent, size_t total) {
-                        float pct =
-                            (total > 0)
-                                ? (100.0f * static_cast<float>(sent) / static_cast<float>(total))
-                                : 0.0f;
-                        helix::ui::async_call(
-                            [](void* data) {
-                                auto pct_val =
-                                    static_cast<float>(reinterpret_cast<uintptr_t>(data)) / 100.0f;
-                                BusyOverlay::set_progress("Uploading", pct_val);
-                            },
-                            reinterpret_cast<void*>(static_cast<uintptr_t>(pct * 100.0f)));
+                        queue_busy_progress("Uploading", sent, total);
                     });
             }); // close PrintPreparationManager::modify_upload_kickoff defer
         },
         // Download error - clean up partial download. Runs on HTTP bg thread.
         [this, token, file_path, local_download_path](const MoonrakerError& error) {
-            // Hide overlay on error (defer to main thread)
-            helix::ui::async_call([](void*) { BusyOverlay::hide(); }, nullptr);
+            queue_busy_hide();
 
             // Clean up partial download if any (bg-safe filesystem op)
             hfs::remove(local_download_path);
@@ -1823,15 +1814,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
     BusyOverlay::show("Preparing print...");
 
     auto download_progress = [](size_t received, size_t total) {
-        float pct = (total > 0)
-                        ? (100.0f * static_cast<float>(received) / static_cast<float>(total))
-                        : 0.0f;
-        helix::ui::async_call(
-            [](void* data) {
-                auto pct_val = static_cast<float>(reinterpret_cast<uintptr_t>(data)) / 100.0f;
-                BusyOverlay::set_progress("Downloading", pct_val);
-            },
-            reinterpret_cast<void*>(static_cast<uintptr_t>(pct * 100.0f)));
+        queue_busy_progress("Downloading", received, total);
     };
 
     // Step 1: Download original file to disk (streaming).
@@ -1967,8 +1950,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
 
                                 auto on_print_error = [this, token, remote_temp_path](
                                                           const MoonrakerError& error) {
-                                    helix::ui::async_call([](void*) { BusyOverlay::hide(); },
-                                                          nullptr);
+                                    queue_busy_hide();
                                     NOTIFY_ERROR(lv_tr("Failed to start print: {}"), error.message);
                                     LOG_ERROR_INTERNAL(
                                         "[PrintPreparationManager] Remapped print start "
@@ -2003,7 +1985,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
                     },
                     // Upload error - runs on HTTP bg thread.
                     [this, token, modified_path](const MoonrakerError& error) {
-                        helix::ui::async_call([](void*) { BusyOverlay::hide(); }, nullptr);
+                        queue_busy_hide();
                         hfs::remove(modified_path);
                         NOTIFY_ERROR(lv_tr("Failed to upload remapped G-code: {}"), error.message);
                         LOG_ERROR_INTERNAL("[PrintPreparationManager] Remap upload failed: {}",
@@ -2013,23 +1995,13 @@ void PrintPreparationManager::modify_and_print_with_remap(
                     },
                     // Upload progress callback
                     [](size_t sent, size_t total) {
-                        float pct =
-                            (total > 0)
-                                ? (100.0f * static_cast<float>(sent) / static_cast<float>(total))
-                                : 0.0f;
-                        helix::ui::async_call(
-                            [](void* data) {
-                                auto pct_val =
-                                    static_cast<float>(reinterpret_cast<uintptr_t>(data)) / 100.0f;
-                                BusyOverlay::set_progress("Uploading", pct_val);
-                            },
-                            reinterpret_cast<void*>(static_cast<uintptr_t>(pct * 100.0f)));
+                        queue_busy_progress("Uploading", sent, total);
                     });
             });
         },
         // Download error - runs on HTTP bg thread.
         [this, token, file_path, local_download_path](const MoonrakerError& error) {
-            helix::ui::async_call([](void*) { BusyOverlay::hide(); }, nullptr);
+            queue_busy_hide();
             hfs::remove(local_download_path);
             NOTIFY_ERROR(lv_tr("Failed to download G-code for remap: {}"), error.message);
             LOG_ERROR_INTERNAL("[PrintPreparationManager] Remap download failed for {}: {}",

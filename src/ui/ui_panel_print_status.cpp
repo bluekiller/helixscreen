@@ -16,6 +16,7 @@
 #include "ui_gcode_viewer.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
+#include "ui_next_tick.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_common.h"
 #include "ui_panel_print_select.h"
@@ -2766,7 +2767,7 @@ void PrintStatusPanel::destroy_temp_graph(bool defer_delete) {
     temp_graph_controller_->detach();
     auto* old = temp_graph_controller_.release();
     if (defer_delete && lv_is_initialized()) {
-        lv_async_call([](void* p) { delete static_cast<helix::TempGraphController*>(p); }, old);
+        helix::ui::run_next_tick([old]() { delete old; });
     } else {
         delete old;
     }

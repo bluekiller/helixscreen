@@ -157,29 +157,14 @@ void PrintLightTimelapseControls::handle_timelapse_button() {
     if (api_) {
         api_->timelapse().set_timelapse_enabled(
             new_state,
-            [this, new_state]() {
-                spdlog::info("[PrintLightTimelapseControls] Timelapse {} successfully",
-                             new_state ? "enabled" : "disabled");
-
-                // Defer UI updates to LVGL thread - API callbacks may be on background thread
-                auto data_ptr = std::make_unique<std::pair<PrintLightTimelapseControls*, bool>>(
-                    this, new_state);
-                helix::ui::async_call(
-                    [](void* user_data) {
-                        // Wrap raw pointer in unique_ptr for RAII cleanup
-                        std::unique_ptr<std::pair<PrintLightTimelapseControls*, bool>> data(
-                            static_cast<std::pair<PrintLightTimelapseControls*, bool>*>(user_data));
-                        auto* self = data->first;
-                        bool enabled = data->second;
-
-                        // Update local state
-                        self->timelapse_enabled_ = enabled;
-
-                        self->refresh_timelapse_display();
-                        // data automatically freed via ~unique_ptr()
-                    },
-                    data_ptr.release());
-            },
+            lifetime_.bg_cb("PrintLightTimelapseControls::timelapse_set",
+                            [this, new_state]() {
+                                spdlog::info(
+                                    "[PrintLightTimelapseControls] Timelapse {} successfully",
+                                    new_state ? "enabled" : "disabled");
+                                timelapse_enabled_ = new_state;
+                                refresh_timelapse_display();
+                            }),
             [](const MoonrakerError& err) {
                 spdlog::error("[PrintLightTimelapseControls] Failed to toggle timelapse: {}",
                               err.message);

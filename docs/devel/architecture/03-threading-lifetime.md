@@ -94,7 +94,7 @@ void PrinterState::set_printer_connection_state(int state, const char* message) 
 }
 ```
 
-(verbatim from [`src/printer/printer_state.cpp#set_printer_connection_state`](../../../src/printer/printer_state.cpp#L670)). `set_klippy_state()` (`src/printer/printer_state.cpp#set_klippy_state`) uses the `helix::async::call_method()` flavor — same queue, less ceremony. Chapter 02 dissects both.
+(verbatim from [`src/printer/printer_state.cpp#set_printer_connection_state`](../../../src/printer/printer_state.cpp#L670)). `set_klippy_state()` (`src/printer/printer_state.cpp#set_klippy_state`) is the same shape. Chapter 02 dissects both.
 
 ### Guard one: `AsyncLifetimeGuard` — callbacks that outlive their owner
 
@@ -192,7 +192,7 @@ Read in this order; about 25 minutes total.
 1. [`include/ui_update_queue.h#helix::ui`](../../../include/ui_update_queue.h#L94) — the `UpdateQueue` class: timer creation in `init()` (`include/ui_update_queue.h#init`), the tagged drain `process_pending()` (`include/ui_update_queue.h#process_pending`), `ScopedFreeze` (`include/ui_update_queue.h#"class ScopedFreeze {"`). The comments on "why not `lv_async_call`" are the design argument in three lines.
 2. [`include/async_lifetime_guard.h#expired`](../../../include/async_lifetime_guard.h#L115) — `LifetimeToken::expired()` with the background-thread detector inline; then `include/async_lifetime_guard.h#"defer(const char* tag, F&& fn) const"` `defer()` and its pre-enqueue generation check (the doomed-callback drop), and `include/async_lifetime_guard.h#bg_cb` `bg_cb()` — read the doc comment for the short-form/long-form tradeoff.
 3. [`src/printer/detection_manager.cpp#init`](../../../src/printer/detection_manager.cpp#L26) — the two-line `bg_cb` in the wild: an observer registered with a marshalled callback, nothing else to it.
-4. [`src/printer/printer_state.cpp#set_printer_connection_state`](../../../src/printer/printer_state.cpp#L670) — `set_printer_connection_state()` (defer through the guard), then `src/printer/printer_state.cpp#set_klippy_state` `set_klippy_state()` (`call_method` flavor). The whole marshalling-setter pattern in twenty lines.
+4. [`src/printer/printer_state.cpp#set_printer_connection_state`](../../../src/printer/printer_state.cpp#L670) — `set_printer_connection_state()` (defer through the guard), then `src/printer/printer_state.cpp#set_klippy_state` `set_klippy_state()`. The whole marshalling-setter pattern in twenty lines.
 5. [`include/ui_observer_guard.h#SubjectLifetime`](../../../include/ui_observer_guard.h#L40) — the `SubjectLifetime` contract in the doc comment; then `reset()` (`include/ui_observer_guard.h#reset`) with its two death checks: token value (`include/ui_observer_guard.h#reset/"if (has_alive_token_)"`) and invalidation epoch (`include/ui_observer_guard.h#reset/"freed_by_deinit ="`).
 6. [`src/api/wifi_manager.cpp#handle_scan_complete`](../../../src/api/wifi_manager.cpp#L869) — `handle_scan_complete`: parse on the backend thread, `queue_update` the mutation. THREADING.md's other reference integration.
 7. [`include/http_executor.h#HttpExecutor`](../../../include/http_executor.h#L33) — the class comment: why the pools exist (EAGAIN history), the stop-timeout-detach semantics, and the self-wait deadlock warning on `run_sync`.

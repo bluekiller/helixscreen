@@ -19,7 +19,7 @@
 #include "../catch_amalgamated.hpp"
 
 // The mock routes the two halves of the sequence to different objects:
-// printer.emergency_stop queues helix::ui::async_call(SHUTDOWN) onto the
+// printer.emergency_stop queues helix::ui::queue_update(SHUTDOWN) onto the
 // process-global PrinterState (fires when the queue is drained), while
 // printer.firmware_restart sets THIS client's klippy_state to STARTUP
 // synchronously and returns it to READY on a background thread after 3 s

@@ -17,7 +17,7 @@
  *
  * **Thread Safety:**
  * All functions are thread-safe. They automatically detect if called from a
- * background thread and use helix::ui::async_call() to marshal to the LVGL main thread.
+ * background thread and use helix::ui::queue_update() to marshal to the LVGL main thread.
  * Safe to call from any thread (main thread, libhv callbacks, WiFi events, etc.).
  *
  * Also integrates with the reactive subject system so any module can emit

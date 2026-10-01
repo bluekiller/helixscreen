@@ -4,6 +4,7 @@
 #include "first_run_tour.h"
 
 #include "ui_nav_manager.h"
+#include "ui_next_tick.h"
 
 #include "app_globals.h"
 #include "config.h"
@@ -81,18 +82,15 @@ void FirstRunTour::maybe_start() {
         return;
     start_queued_ = true;
     // Defer one tick so the caller (e.g., HomePanel::on_activate) completes first.
-    // Raw lv_async_call with `this` is safe here because FirstRunTour is a
-    // function-local static (immortal lifetime) — see instance().
-    lv_async_call(
-        [](void* self) {
-            auto* tour = static_cast<FirstRunTour*>(self);
-            tour->start_queued_ = false;
-            // start() may have run the tour synchronously while this was queued.
-            if (tour->running_)
-                return;
-            tour->start_impl();
-        },
-        this);
+    // Unguarded `this` is safe here because FirstRunTour is a function-local
+    // static (immortal lifetime) — see instance().
+    helix::ui::run_next_tick([this]() {
+        start_queued_ = false;
+        // start() may have run the tour synchronously while this was queued.
+        if (running_)
+            return;
+        start_impl();
+    });
 }
 
 void FirstRunTour::start() {
@@ -131,7 +129,7 @@ void FirstRunTour::start_impl() {
         // Re-resolve the current step's target widget when the responsive
         // breakpoint changes. The breakpoint swap rebuilds panel widgets, so
         // the highlight_'s cached target pointer becomes stale. Defer one
-        // tick via lv_async_call so the new widget tree is built before we
+        // tick via run_next_tick so the new widget tree is built before we
         // look up the target by name.
         if (auto* bp_subj = theme_manager_get_breakpoint_subject()) {
             breakpoint_observer_ = helix::ui::observe_int_sync(
@@ -140,17 +138,14 @@ void FirstRunTour::start_impl() {
                     if (!self->running_ || !self->overlay_)
                         return;
                     // Defer: panel rebuild on breakpoint change is async; the
-                    // new widget tree isn't ready synchronously. Raw
-                    // lv_async_call with `this` is safe — FirstRunTour is a
-                    // function-local static (immortal lifetime).
-                    lv_async_call(
-                        [](void* s) {
-                            auto* tour = static_cast<FirstRunTour*>(s);
-                            if (!tour->running_ || !tour->overlay_)
-                                return;
-                            tour->render_current_step();
-                        },
-                        self);
+                    // new widget tree isn't ready synchronously. Unguarded
+                    // `self` is safe — FirstRunTour is a function-local static
+                    // (immortal lifetime).
+                    helix::ui::run_next_tick([self]() {
+                        if (!self->running_ || !self->overlay_)
+                            return;
+                        self->render_current_step();
+                    });
                 },
                 subject_never_freed());
         }

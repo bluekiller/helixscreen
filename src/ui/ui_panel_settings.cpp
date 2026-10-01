@@ -452,12 +452,10 @@ void SettingsPanel::handle_restart_helix_clicked() {
     ToastManager::instance().show(ToastSeverity::INFO, lv_tr("Restarting HelixScreen..."), 1500);
 
     // Schedule restart after brief delay to let toast display
-    helix::ui::async_call(
-        [](void*) {
-            spdlog::info("[SettingsPanel] Initiating restart...");
-            app_request_restart_service();
-        },
-        nullptr);
+    helix::ui::queue_update("SettingsPanel::restart", []() {
+        spdlog::info("[SettingsPanel] Initiating restart...");
+        app_request_restart_service();
+    });
 }
 
 void SettingsPanel::handle_factory_reset_clicked() {
@@ -520,12 +518,10 @@ void SettingsPanel::perform_factory_reset() {
                                   lv_tr("Settings reset to defaults. Restarting..."), 1500);
 
     // Schedule restart after brief delay to let toast display
-    helix::ui::async_call(
-        [](void*) {
-            spdlog::info("[SettingsPanel] Restarting after factory reset...");
-            app_request_restart_service();
-        },
-        nullptr);
+    helix::ui::queue_update("SettingsPanel::factory_reset_restart", []() {
+        spdlog::info("[SettingsPanel] Restarting after factory reset...");
+        app_request_restart_service();
+    });
 }
 
 void SettingsPanel::handle_hardware_health_clicked() {

@@ -50,7 +50,7 @@ class MoonrakerFileTransferAPI : public ITransfersAPI {
      * @brief Progress callback for file transfer operations
      *
      * Called periodically during download/upload with bytes transferred and total.
-     * NOTE: Called from background HTTP thread - use helix::ui::async_call() for UI updates.
+     * NOTE: Called from background HTTP thread - use helix::ui::queue_update() for UI updates.
      *
      * @param current Bytes transferred so far
      * @param total Total bytes to transfer

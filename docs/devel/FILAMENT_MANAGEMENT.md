@@ -261,7 +261,7 @@ no owning lane reads `false` rather than being blamed on an arbitrary lane.
 
 ### Threading Model
 
-All Moonraker/libhv callbacks arrive on a background thread. Backends update internal state under mutex, then `AmsState` posts subject updates to the LVGL thread via `lv_async_call()`. The UI never directly accesses backend state.
+All Moonraker/libhv callbacks arrive on a background thread. Backends update internal state under mutex, then `AmsState` posts subject updates to the LVGL thread via `helix::ui::queue_update()`. The UI never directly accesses backend state.
 
 ---
 

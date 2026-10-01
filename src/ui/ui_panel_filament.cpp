@@ -1303,9 +1303,8 @@ void FilamentPanel::handle_extrude_length_select(int amount) {
 // int subject bound to ui_button bind_op_state, replacing the old stacked
 // start/complete toasts. Errors/timeouts keep their toast. All setters below run
 // on the main thread (op_started from the click handler; op_succeeded/op_failed
-// inside the helix::ui::async_call bodies already used to marshal off the
-// WebSocket background thread). FilamentPanel is a global singleton, so `this` is
-// always valid — no AsyncLifetimeGuard needed here [L012].
+// inside the object_lifetime_.bg_cb bodies that marshal off the WebSocket
+// background thread).
 // ============================================================================
 
 constexpr uint32_t OP_DONE_REVERT_MS = 1500;     ///< how long the "done" checkmark shows
@@ -1598,29 +1597,22 @@ void FilamentPanel::execute_extrude() {
 
     api_->execute_gcode(
         gcode,
-        [this]() {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->op_succeeded(FilamentOp::Extrude); // checkmark, then auto-revert
-                },
-                this);
-        },
-        [this](const MoonrakerError& error) {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->op_failed(FilamentOp::Extrude);
-                },
-                this);
-            if (error.type == MoonrakerErrorType::TIMEOUT) {
-                NOTIFY_WARNING(lv_tr("Extrude may still be running — response timed out"));
-            } else {
-                NOTIFY_ERROR(lv_tr("Extrude failed: {}"), error.user_message());
-            }
-        },
+        object_lifetime_.bg_cb("FilamentPanel::extrude_ok",
+                               [this]() {
+                                   operation_guard_.end();
+                                   op_succeeded(FilamentOp::Extrude); // checkmark, then auto-revert
+                               }),
+        object_lifetime_.bg_cb(
+            "FilamentPanel::extrude_err",
+            [this](const MoonrakerError& error) {
+                operation_guard_.end();
+                op_failed(FilamentOp::Extrude);
+                if (error.type == MoonrakerErrorType::TIMEOUT) {
+                    NOTIFY_WARNING(lv_tr("Extrude may still be running — response timed out"));
+                } else {
+                    NOTIFY_ERROR(lv_tr("Extrude failed: {}"), error.user_message());
+                }
+            }),
         IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
 }
 
@@ -1673,32 +1665,25 @@ void FilamentPanel::execute_purge() {
     std::string gcode = filament_purge_fallback_gcode();
     op_started(FilamentOp::Purge); // on-button spinner replaces the start toast
 
-    api_->execute_gcode(
-        gcode,
-        [this]() {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->op_succeeded(FilamentOp::Purge);
-                },
-                this);
-        },
-        [this](const MoonrakerError& error) {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->op_failed(FilamentOp::Purge);
-                },
-                this);
-            if (error.type == MoonrakerErrorType::TIMEOUT) {
-                NOTIFY_WARNING(lv_tr("Purge may still be running — response timed out"));
-            } else {
-                NOTIFY_ERROR(lv_tr("Purge failed: {}"), error.user_message());
-            }
-        },
-        IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
+    api_->execute_gcode(gcode,
+                        object_lifetime_.bg_cb("FilamentPanel::purge_ok",
+                                               [this]() {
+                                                   operation_guard_.end();
+                                                   op_succeeded(FilamentOp::Purge);
+                                               }),
+                        object_lifetime_.bg_cb(
+                            "FilamentPanel::purge_err",
+                            [this](const MoonrakerError& error) {
+                                operation_guard_.end();
+                                op_failed(FilamentOp::Purge);
+                                if (error.type == MoonrakerErrorType::TIMEOUT) {
+                                    NOTIFY_WARNING(
+                                        lv_tr("Purge may still be running — response timed out"));
+                                } else {
+                                    NOTIFY_ERROR(lv_tr("Purge failed: {}"), error.user_message());
+                                }
+                            }),
+                        IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
 }
 
 void FilamentPanel::handle_retract_button() {
@@ -1736,32 +1721,25 @@ void FilamentPanel::execute_retract() {
     std::string gcode = fmt::format("M83\nG1 E-{} F{}", extrude_length_, speed_mm_min);
     op_started(FilamentOp::Retract); // on-button spinner replaces the start toast
 
-    api_->execute_gcode(
-        gcode,
-        [this]() {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->op_succeeded(FilamentOp::Retract);
-                },
-                this);
-        },
-        [this](const MoonrakerError& error) {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->op_failed(FilamentOp::Retract);
-                },
-                this);
-            if (error.type == MoonrakerErrorType::TIMEOUT) {
-                NOTIFY_WARNING(lv_tr("Retract may still be running — response timed out"));
-            } else {
-                NOTIFY_ERROR(lv_tr("Retract failed: {}"), error.user_message());
-            }
-        },
-        IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
+    api_->execute_gcode(gcode,
+                        object_lifetime_.bg_cb("FilamentPanel::retract_ok",
+                                               [this]() {
+                                                   operation_guard_.end();
+                                                   op_succeeded(FilamentOp::Retract);
+                                               }),
+                        object_lifetime_.bg_cb(
+                            "FilamentPanel::retract_err",
+                            [this](const MoonrakerError& error) {
+                                operation_guard_.end();
+                                op_failed(FilamentOp::Retract);
+                                if (error.type == MoonrakerErrorType::TIMEOUT) {
+                                    NOTIFY_WARNING(
+                                        lv_tr("Retract may still be running — response timed out"));
+                                } else {
+                                    NOTIFY_ERROR(lv_tr("Retract failed: {}"), error.user_message());
+                                }
+                            }),
+                        IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
 }
 
 // ============================================================================
@@ -2163,23 +2141,17 @@ void FilamentPanel::handle_extruder_changed() {
         [label = ts.tools()[selected].display_label]() {
             NOTIFY_SUCCESS(lv_tr("Switched to {}"), label);
         },
-        [this](const std::string& error) {
+        object_lifetime_.bg_cb("FilamentPanel::tool_change_err", [this](const std::string& error) {
             NOTIFY_ERROR(lv_tr("Tool change failed: {}"), error);
-            // Revert dropdown to actual active tool on UI thread
-            helix::ui::async_call(
-                [](void* ctx) {
-                    auto* panel = static_cast<FilamentPanel*>(ctx);
-                    if (panel->extruder_dropdown_) {
-                        int active = helix::ToolState::instance().active_tool_index();
-                        if (active >= 0) {
-                            lv_dropdown_set_selected(panel->extruder_dropdown_,
-                                                     static_cast<uint32_t>(active));
-                        }
-                        panel->sync_tool_dropdown_text();
-                    }
-                },
-                this);
-        });
+            // Revert dropdown to actual active tool
+            if (extruder_dropdown_) {
+                int active = helix::ToolState::instance().active_tool_index();
+                if (active >= 0) {
+                    lv_dropdown_set_selected(extruder_dropdown_, static_cast<uint32_t>(active));
+                }
+                sync_tool_dropdown_text();
+            }
+        }));
 }
 
 void FilamentPanel::on_extruder_dropdown_changed(lv_event_t* e) {
@@ -3144,38 +3116,30 @@ void FilamentPanel::run_filament_macro(const std::string& macro_name, const std:
     }
 
     std::string gcode = helix::build_macro_gcode(macro_name, params);
-    // FilamentPanel is a global singleton, so `this` capture is safe [L012]
-    api_->execute_gcode(
-        gcode,
-        [this]() {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    self->restore_heater_after_preheat();
-                    if (self->op_in_flight_) {
-                        self->op_succeeded(*self->op_in_flight_);
-                    }
-                },
-                this);
-        },
-        [this](const MoonrakerError& error) {
-            helix::ui::async_call(
-                [](void* ud) {
-                    auto* self = static_cast<FilamentPanel*>(ud);
-                    self->operation_guard_.end();
-                    if (self->op_in_flight_) {
-                        self->op_failed(*self->op_in_flight_);
-                    }
-                },
-                this);
-            if (error.type == MoonrakerErrorType::TIMEOUT) {
-                NOTIFY_WARNING(lv_tr("Macro may still be running — response timed out"));
-            } else {
-                NOTIFY_ERROR(lv_tr("Macro failed: {}"), error.user_message());
-            }
-        },
-        IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
+    api_->execute_gcode(gcode,
+                        object_lifetime_.bg_cb("FilamentPanel::macro_ok",
+                                               [this]() {
+                                                   operation_guard_.end();
+                                                   restore_heater_after_preheat();
+                                                   if (op_in_flight_) {
+                                                       op_succeeded(*op_in_flight_);
+                                                   }
+                                               }),
+                        object_lifetime_.bg_cb(
+                            "FilamentPanel::macro_err",
+                            [this](const MoonrakerError& error) {
+                                operation_guard_.end();
+                                if (op_in_flight_) {
+                                    op_failed(*op_in_flight_);
+                                }
+                                if (error.type == MoonrakerErrorType::TIMEOUT) {
+                                    NOTIFY_WARNING(
+                                        lv_tr("Macro may still be running — response timed out"));
+                                } else {
+                                    NOTIFY_ERROR(lv_tr("Macro failed: {}"), error.user_message());
+                                }
+                            }),
+                        IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);
 }
 
 void FilamentPanel::show_load_warning() {

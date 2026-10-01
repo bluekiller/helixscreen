@@ -311,7 +311,7 @@ static void position_anim_cb(void* var, int32_t value) {
     data->current_pos = value;
 
     // Defer invalidation to avoid calling during render phase
-    helix::ui::async_call(obj, [](void* d) { lv_obj_invalidate(static_cast<lv_obj_t*>(d)); }, obj);
+    helix::ui::queue_invalidate(obj);
 }
 
 static void arrow_progress_anim_cb(void* var, int32_t value) {
@@ -322,7 +322,7 @@ static void arrow_progress_anim_cb(void* var, int32_t value) {
 
     data->arrow_progress = value;
 
-    helix::ui::async_call(obj, [](void* d) { lv_obj_invalidate(static_cast<lv_obj_t*>(d)); }, obj);
+    helix::ui::queue_invalidate(obj);
 }
 
 static void arrow_opacity_anim_cb(void* var, int32_t value) {
@@ -333,7 +333,7 @@ static void arrow_opacity_anim_cb(void* var, int32_t value) {
 
     data->arrow_opacity = value;
 
-    helix::ui::async_call(obj, [](void* d) { lv_obj_invalidate(static_cast<lv_obj_t*>(d)); }, obj);
+    helix::ui::queue_invalidate(obj);
 }
 
 /// Called when draw-in animation completes; starts the fade-out phase

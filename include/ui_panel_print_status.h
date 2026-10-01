@@ -613,7 +613,7 @@ class PrintStatusPanel : public OverlayBase {
     void ensure_temp_graph();
     /// Detach the mini-graph's observers synchronously, then release the
     /// controller. Must run BEFORE the container is freed.
-    /// @param defer_delete Hand the deallocation to lv_async_call instead of
+    /// @param defer_delete Hand the deallocation to run_next_tick instead of
     ///        running it here. True on the on_ui_destroyed() path, which is a
     ///        close callback and may be inside an UpdateQueue batch (#696).
     ///        False from the destructor, where nothing will ever drain the async

@@ -5,6 +5,7 @@
 #include "ui_observer_guard.h"
 #include "ui_timer_guard.h"
 
+#include "async_lifetime_guard.h"
 #include "lvgl/lvgl.h"
 #include "moonraker_job_api.h"
 #include "printer_state.h"
@@ -46,7 +47,7 @@ namespace helix {
  *
  * Thread Safety:
  * - State is stored as std::atomic<State> for safe reads from any thread
- * - All UI updates use helix::ui::async_call() for thread safety
+ * - API callbacks reach the main thread through lifetime_.bg_cb()
  * - Callbacks from Moonraker WebSocket run on background thread
  *
  * Usage:
@@ -285,6 +286,9 @@ class AbortManager {
     helix::ui::LvglTimerGuard probe_timer_;
     helix::ui::LvglTimerGuard cancel_timer_;
     helix::ui::LvglTimerGuard reconnect_timer_;
+
+    // Invalidated by start_abort(), so replies from an earlier sequence are dropped
+    helix::AsyncLifetimeGuard lifetime_;
 
     // ========================================================================
     // State Machine Transitions

@@ -309,9 +309,7 @@ static void hue_touch_handler(lv_event_t* e) {
     // Re-render SV square with new hue
     render_sv_square(data);
     // Defer invalidation to avoid calling during render phase
-    helix::ui::async_call(
-        data->sv_image, [](void* d) { lv_obj_invalidate(static_cast<lv_obj_t*>(d)); },
-        data->sv_image);
+    helix::ui::queue_invalidate(data->sv_image);
 
     update_indicators(data);
     notify_color_changed(data);
@@ -492,9 +490,7 @@ void ui_hsv_picker_set_color_rgb(lv_obj_t* obj, uint32_t rgb) {
     render_sv_square(data);
     if (data->sv_image) {
         // Defer invalidation to avoid calling during render phase
-        helix::ui::async_call(
-            data->sv_image, [](void* d) { lv_obj_invalidate(static_cast<lv_obj_t*>(d)); },
-            data->sv_image);
+        helix::ui::queue_invalidate(data->sv_image);
     }
 
     update_indicators(data);
@@ -535,9 +531,7 @@ void ui_hsv_picker_set_hsv(lv_obj_t* obj, float hue, float sat, float val) {
     render_sv_square(data);
     if (data->sv_image) {
         // Defer invalidation to avoid calling during render phase
-        helix::ui::async_call(
-            data->sv_image, [](void* d) { lv_obj_invalidate(static_cast<lv_obj_t*>(d)); },
-            data->sv_image);
+        helix::ui::queue_invalidate(data->sv_image);
     }
 
     update_indicators(data);

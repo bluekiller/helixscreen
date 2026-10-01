@@ -3,6 +3,7 @@
 
 #include "temp_graph_widget.h"
 
+#include "ui_next_tick.h"
 #include "ui_overlay_temp_graph.h"
 
 #include "app_globals.h"
@@ -224,23 +225,19 @@ void TempGraphWidget::schedule_discovery_rebuild() {
         return; // Already queued — collapse the burst into one rebuild
     }
     discovery_rebuild_pending_ = true;
-    lv_async_call(discovery_rebuild_async, this);
+    helix::ui::run_next_tick(discovery_rebuild_guard_.token(),
+                             [this]() { run_discovery_rebuild(); });
 }
 
 void TempGraphWidget::cancel_discovery_rebuild() {
-    if (discovery_rebuild_pending_) {
-        if (lv_is_initialized()) {
-            lv_async_call_cancel(discovery_rebuild_async, this);
-        }
-        discovery_rebuild_pending_ = false;
-    }
+    discovery_rebuild_guard_.invalidate();
+    discovery_rebuild_pending_ = false;
 }
 
-void TempGraphWidget::discovery_rebuild_async(void* self) {
-    auto* widget = static_cast<TempGraphWidget*>(self);
-    widget->discovery_rebuild_pending_ = false;
+void TempGraphWidget::run_discovery_rebuild() {
+    discovery_rebuild_pending_ = false;
 
-    if (!widget->widget_obj_) {
+    if (!widget_obj_) {
         return; // Detached while queued
     }
 
@@ -248,14 +245,13 @@ void TempGraphWidget::discovery_rebuild_async(void* self) {
     // version bump (rediscovery of the same tools) must not tear the graph down
     // and throw away its trace — the controller re-resolves those subjects on
     // its own.
-    if (!merge_discovered_extruders(widget->config_, true)) {
+    if (!merge_discovered_extruders(config_, true)) {
         return;
     }
 
-    widget->save_widget_config(widget->config_);
-    spdlog::info("[TempGraphWidget] '{}' rebuilding: discovery added extruders",
-                 widget->instance_id_);
-    widget->rebuild_in_place();
+    save_widget_config(config_);
+    spdlog::info("[TempGraphWidget] '{}' rebuilding: discovery added extruders", instance_id_);
+    rebuild_in_place();
 }
 
 bool TempGraphWidget::on_edit_configure() {

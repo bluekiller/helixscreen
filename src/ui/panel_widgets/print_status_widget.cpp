@@ -8,6 +8,7 @@
 #include "ui_filename_utils.h"
 #include "ui_format_utils.h"
 #include "ui_nav_manager.h"
+#include "ui_next_tick.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_print_select.h"
 #include "ui_panel_print_status.h"
@@ -886,46 +887,28 @@ void PrintStatusWidget::defer_reset_print_card_to_idle() {
         return;
     }
     idle_reset_pending_ = true;
-    // Raw lv_async_call escapes the UpdateQueue::process_pending() batch (see
-    // CLAUDE.md "Safe escape routes"). live_instances() + widget_obj_ guard UAF
-    // if the widget is destroyed before the next tick; detach() clears the
-    // pending flag for a callback that will find the widget gone.
-    lv_async_call(
-        [](void* ud) {
-            auto* self = static_cast<PrintStatusWidget*>(ud);
-            // A callback queued before a detach finds the flag cleared, or
-            // re-armed by the next attach's own request, which it then serves.
-            if (live_instances().count(self) != 0 && self->widget_obj_ &&
-                self->idle_reset_pending_) {
-                self->idle_reset_pending_ = false;
-                self->reset_print_card_to_idle();
-            }
-        },
-        this);
+    // run_next_tick escapes the UpdateQueue::process_pending() batch (see
+    // CLAUDE.md "Safe escape routes"). detach() invalidates lifetime_, so a
+    // callback queued before it is skipped and the next attach queues its own.
+    helix::ui::run_next_tick(lifetime_.token(), [this]() {
+        if (widget_obj_ && idle_reset_pending_) {
+            idle_reset_pending_ = false;
+            reset_print_card_to_idle();
+        }
+    });
 }
 
 void PrintStatusWidget::defer_apply_active_thumbnail(const char* path) {
-    // Heap-allocate the payload so lv_async_call can carry it as void*, and copy
-    // the path: the subject may publish again before the tick, and the pointer it
-    // handed us is its own buffer. The LifetimeToken (not a live_instances()
-    // lookup) is what keeps this safe — detach() invalidates it, so a pending
-    // write cannot land on a widget that has already let go of its objects.
-    struct PendingThumb {
-        helix::LifetimeToken token;
-        PrintStatusWidget* self;
-        std::string path;
-    };
-    auto* pending = new PendingThumb{lifetime_.token(), this, path ? path : ""};
-
-    // Raw lv_async_call escapes the UpdateQueue::process_pending() batch this
+    // Copy the path: the subject may publish again before the tick, and the
+    // pointer it handed us is its own buffer. The LifetimeToken is what keeps
+    // this safe: detach() invalidates it, so a pending write cannot land on a
+    // widget that has already let go of its objects.
+    //
+    // run_next_tick escapes the UpdateQueue::process_pending() batch this
     // observer body runs in, the same escape defer_reset_print_card_to_idle()
     // makes for the idle sibling.
-    lv_async_call(
-        [](void* ud) {
-            std::unique_ptr<PendingThumb> p(static_cast<PendingThumb*>(ud));
-            if (p->token.expired())
-                return;
-            PrintStatusWidget* self = p->self;
+    helix::ui::run_next_tick(
+        lifetime_.token(), [self = this, thumb_path = std::string(path ? path : "")]() {
             if (!self->widget_obj_ || !self->print_card_active_thumb_)
                 return;
 
@@ -942,10 +925,9 @@ void PrintStatusWidget::defer_apply_active_thumbnail(const char* path) {
                 return;
             }
 
-            lv_image_set_src(self->print_card_active_thumb_, p->path.c_str());
-            spdlog::info("[PrintStatusWidget] Active print thumbnail updated: {}", p->path);
-        },
-        pending);
+            lv_image_set_src(self->print_card_active_thumb_, thumb_path.c_str());
+            spdlog::info("[PrintStatusWidget] Active print thumbnail updated: {}", thumb_path);
+        });
 }
 
 void PrintStatusWidget::reset_print_card_to_idle() {

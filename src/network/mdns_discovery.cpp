@@ -4,7 +4,8 @@
  * @brief mDNS discovery implementation for finding Moonraker printers
  *
  * @pattern PIMPL with background thread for network I/O
- * @threading Discovery runs on background thread; callbacks dispatched via helix::ui::async_call()
+ * @threading Discovery runs on background thread; callbacks dispatched via
+ * helix::ui::queue_update()
  * @gotchas Socket may fail on systems without network; handle gracefully
  *
  * @see wifi_manager.cpp for similar threading patterns

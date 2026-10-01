@@ -197,11 +197,10 @@ class SplitButtonLogCapture {
 // freed lv_obj is not sanitizer-poisoned. "It did not crash" is therefore an
 // outcome this test cannot fail on, and asserting it would be theatre.
 //
-// What IS falsifiable is the skip. helix::ui::async_call(widget, ...) logs
-// "Widget-safe guard: widget destroyed, skipping async_call" on the drop path.
-// Drop the widget argument at ui_split_button.cpp - i.e. revert the #980 fix to
-// a plain async_call - and that line disappears, so the first CHECK below goes
-// red. Verified by mutation.
+// What IS falsifiable is the skip. helix::ui::queue_widget_update() logs
+// "Widget-safe guard: widget destroyed, skipping callback" on the drop path.
+// Replace it at ui_split_button.cpp with an unguarded queue_update and that
+// line disappears, so the first CHECK below goes red.
 //
 // The second CHECK is the weaker half and is documented as such: under the
 // reverted fix the callback DOES run, but get_data() on the freed container

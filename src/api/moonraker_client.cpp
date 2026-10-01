@@ -5,7 +5,7 @@
  * @brief WebSocket client for Moonraker printer API communication
  *
  * @pattern libhv WebSocketClient with atomic state machine
- * @threading Callbacks run on libhv event loop thread - use helix::ui::async_call() for LVGL
+ * @threading Callbacks run on libhv event loop thread - use helix::ui::queue_update() for LVGL
  * @gotchas is_destroying_ flag blocks callbacks during destruction; skip cleanup during static
  * destruction
  *

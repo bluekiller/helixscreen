@@ -1668,7 +1668,8 @@ void PrintSelectPanel::set_api(IMoonrakerAPI* api) {
             "print_select_filelist_" + std::to_string(reinterpret_cast<uintptr_t>(this));
         auto* self = this;
         api_->register_method_callback(
-            "notify_filelist_changed", filelist_handler_name_, [self](const json& msg) {
+            "notify_filelist_changed", filelist_handler_name_,
+            [self, tok = object_lifetime_.token()](const json& msg) {
                 // Action + path only, never the raw payload. The full dump ran
                 // ~344 bytes a line, and an AFC printer fires this constantly
                 // (AFC rewrites AFC/AFC.var.unit on every SET_* command), so on
@@ -1721,10 +1722,14 @@ void PrintSelectPanel::set_api(IMoonrakerAPI* api) {
                 spdlog::info("[{}] notify_filelist_changed: {} {}", self->get_name(), action,
                              described);
 
-                // Check if we're on the printer source (not USB)
-                bool is_usb_active = self->usb_source_ && self->usb_source_->is_usb_active();
-                if (!is_usb_active) {
-                    // If detail view is open, just mark that files changed - will refresh on return
+                // Everything below reads panel state, so it runs on the main thread.
+                tok.defer("PrintSelectPanel::filelist_changed", [self]() {
+                    // Only the printer source lists these files, not USB
+                    if (self->usb_source_ && self->usb_source_->is_usb_active()) {
+                        return;
+                    }
+                    // If detail view is open, just mark that files changed - will refresh on
+                    // return
                     if (self->detail_view_open_) {
                         self->files_changed_while_detail_open_ = true;
                         spdlog::debug(
@@ -1732,21 +1737,13 @@ void PrintSelectPanel::set_api(IMoonrakerAPI* api) {
                             self->get_name());
                         return;
                     }
-
-                    // Use async call to refresh on main thread
-                    helix::ui::async_call(
-                        [](void* user_data) {
-                            auto* panel = static_cast<PrintSelectPanel*>(user_data);
-                            // Guard against async callback firing after display destruction
-                            if (!panel || !panel->panel_ || !lv_obj_is_valid(panel->panel_)) {
-                                return;
-                            }
-                            spdlog::debug("[{}] Refreshing file list due to external change",
-                                          panel->get_name());
-                            panel->refresh_files();
-                        },
-                        self);
-                }
+                    if (!self->panel_ || !lv_obj_is_valid(self->panel_)) {
+                        return;
+                    }
+                    spdlog::debug("[{}] Refreshing file list due to external change",
+                                  self->get_name());
+                    self->refresh_files();
+                });
             });
         spdlog::debug("[{}] Registered for notify_filelist_changed notifications", get_name());
     }
@@ -2278,47 +2275,44 @@ CardDimensions PrintSelectPanel::calculate_card_dimensions() {
 }
 
 void PrintSelectPanel::schedule_view_refresh() {
-    // async_call goes through the update queue: this may be called from the WebSocket thread
-    helix::ui::async_call(
-        [](void* user_data) {
-            auto* self = static_cast<PrintSelectPanel*>(user_data);
+    object_lifetime_.defer("PrintSelectPanel::schedule_view_refresh", [this]() {
+        auto* self = this;
 
-            // Guard against async callback firing after display destruction
-            if (!self->panel_ || !lv_obj_is_valid(self->panel_)) {
-                return;
-            }
+        // Guard against async callback firing after display destruction
+        if (!self->panel_ || !lv_obj_is_valid(self->panel_)) {
+            return;
+        }
 
-            // If a timer is already pending, reset it (debounce)
-            if (self->refresh_timer_) {
-                lv_timer_reset(self->refresh_timer_);
-                return;
-            }
+        // If a timer is already pending, reset it (debounce)
+        if (self->refresh_timer_) {
+            lv_timer_reset(self->refresh_timer_);
+            return;
+        }
 
-            // Create a one-shot timer to refresh views after debounce period
-            self->refresh_timer_ = lv_timer_create(
-                [](lv_timer_t* timer) {
-                    auto* panel = static_cast<PrintSelectPanel*>(lv_timer_get_user_data(timer));
-                    panel->refresh_timer_ = nullptr; // Clear before callback (timer auto-deletes)
+        // Create a one-shot timer to refresh views after debounce period
+        self->refresh_timer_ = lv_timer_create(
+            [](lv_timer_t* timer) {
+                auto* panel = static_cast<PrintSelectPanel*>(lv_timer_get_user_data(timer));
+                panel->refresh_timer_ = nullptr; // Clear before callback (timer auto-deletes)
 
-                    // Guard against timer firing after display destruction
-                    if (!panel->panel_ || !lv_obj_is_valid(panel->panel_)) {
-                        return;
-                    }
+                // Guard against timer firing after display destruction
+                if (!panel->panel_ || !lv_obj_is_valid(panel->panel_)) {
+                    return;
+                }
 
-                    spdlog::trace("[{}] Debounced metadata refresh - updating visible cards only",
-                                  panel->get_name());
+                spdlog::trace("[{}] Debounced metadata refresh - updating visible cards only",
+                              panel->get_name());
 
-                    // Only refresh CONTENT of currently visible cards - don't reset
-                    // spacers/positions This prevents flashing when metadata/thumbnails arrive
-                    // asynchronously
-                    panel->refresh_visible_content();
-                },
-                REFRESH_DEBOUNCE_MS, self);
+                // Only refresh CONTENT of currently visible cards - don't reset
+                // spacers/positions This prevents flashing when metadata/thumbnails arrive
+                // asynchronously
+                panel->refresh_visible_content();
+            },
+            REFRESH_DEBOUNCE_MS, self);
 
-            // Make it a one-shot timer
-            lv_timer_set_repeat_count(self->refresh_timer_, 1);
-        },
-        this);
+        // Make it a one-shot timer
+        lv_timer_set_repeat_count(self->refresh_timer_, 1);
+    });
 }
 
 void PrintSelectPanel::refresh_visible_content() {

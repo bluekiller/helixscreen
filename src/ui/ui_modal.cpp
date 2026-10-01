@@ -197,8 +197,8 @@ void ModalStack::remove(lv_obj_t* backdrop, bool free_owned_now) {
             if (free_owned_now) {
                 free_owned_instance(doomed);
             } else {
-                helix::ui::async_call(
-                    [](void* data) { free_owned_instance(static_cast<Modal*>(data)); }, doomed);
+                helix::ui::queue_update("ModalStack::free_owned",
+                                        [doomed]() { free_owned_instance(doomed); });
             }
         }
     }

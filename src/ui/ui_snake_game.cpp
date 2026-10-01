@@ -14,6 +14,7 @@
 #include "ui_snake_game.h"
 
 #include "ui_effects.h"
+#include "ui_next_tick.h"
 #include "ui_spool_drawing.h"
 #include "ui_utils.h"
 
@@ -1201,7 +1202,7 @@ void input_cb(lv_event_t* e) {
 
         if (key == LV_KEY_ESC) {
             // Defer destruction — never safe_delete() during input event processing
-            lv_async_call([](void*) { SnakeGame::hide(); }, nullptr);
+            helix::ui::run_next_tick([]() { SnakeGame::hide(); });
             return;
         }
 
@@ -1236,7 +1237,7 @@ void input_cb(lv_event_t* e) {
 
 void close_cb(lv_event_t* /*e*/) {
     // Defer destruction — never safe_delete() during input event processing
-    lv_async_call([](void*) { SnakeGame::hide(); }, nullptr);
+    helix::ui::run_next_tick([]() { SnakeGame::hide(); });
 }
 
 // ============================================================================

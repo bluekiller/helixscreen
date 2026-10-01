@@ -592,14 +592,12 @@ void ToolSwitcherWidget::dispatch_tool_change(int tool_index) {
             // highlight in the first place. Resync anyway: a backend that got
             // partway before failing leaves the subject as the only truth, and
             // this costs one rebuild on an error path.
-            helix::ui::async_call(
-                [](void*) {
-                    if (s_active_instance) {
-                        s_active_instance->on_active_tool_changed(
-                            ToolState::instance().active_tool_index());
-                    }
-                },
-                nullptr);
+            helix::ui::queue_update("ToolSwitcherWidget::resync_after_error", []() {
+                if (s_active_instance) {
+                    s_active_instance->on_active_tool_changed(
+                        ToolState::instance().active_tool_index());
+                }
+            });
         });
 }
 

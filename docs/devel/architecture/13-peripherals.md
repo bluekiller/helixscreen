@@ -199,7 +199,7 @@ bg-callback-to-defer pattern chapter 03 prescribes.
 ### mDNS discovery and the remote-control server
 
 **`MdnsDiscovery`** ([`include/mdns_discovery.h#"class MdnsDiscovery : public IMdnsDiscovery {"`](../../../include/mdns_discovery.h#L76)) finds Moonraker servers on the LAN: a PIMPL class with its
-own thread, re-querying every 3 seconds, results marshaled back through `helix::ui::async_call()`. Consumers
+own thread, re-querying every 3 seconds, results marshaled back through `helix::ui::queue_update()`. Consumers
 hold the `IMdnsDiscovery` interface (`include/mdns_discovery.h#IMdnsDiscovery`), not the concrete. Its two consumers are the first-run connection
 wizard ([`src/ui/ui_wizard_connection.cpp`](../../../src/ui/ui_wizard_connection.cpp)) and the label-printer settings screen (network Brother printers). A
 socket failure on a network-less box is expected and handled gracefully — discovery just returns nothing. HTTP

@@ -34,7 +34,7 @@ namespace helix {
  * - motors_enabled_: 0=disabled (Idle), 1=enabled (Ready/Printing)
  *
  * @note Thread safety: update_from_status() should be called from the main thread
- *       (typically via helix::async::invoke in PrinterState)
+ *       (typically deferred there by PrinterState)
  */
 class PrinterCalibrationState {
   public:

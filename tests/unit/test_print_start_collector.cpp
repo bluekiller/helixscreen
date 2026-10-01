@@ -687,7 +687,7 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
     /**
      * @brief Process pending async UI updates
      *
-     * Since set_print_start_state() uses helix::ui::async_call() to defer subject updates,
+     * Since set_print_start_state() defers subject updates through the UpdateQueue,
      * we need to drain the queue to see the updates in tests.
      */
     void drain_async_updates() {

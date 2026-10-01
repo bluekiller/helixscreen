@@ -549,7 +549,7 @@ class PrintStatusWidget : public PanelWidget {
     // inside reset_print_card_to_idle() so the async fetch completion publishes
     // to all three too, instead of leaving the hero on the placeholder.
     void set_thumb_on_widgets(const char* src);
-    // Schedule reset_print_card_to_idle() on the next LVGL tick via lv_async_call.
+    // Schedule reset_print_card_to_idle() on the next LVGL tick via run_next_tick.
     // Required when called from UpdateQueue::process_pending() contexts (subject
     // observers, token.defer bodies): reset_print_card_to_idle() does synchronous
     // lv_image_set_src which cascades into lv_obj_update_layout up to the page

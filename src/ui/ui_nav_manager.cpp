@@ -9,6 +9,7 @@
 #include "ui_fonts.h"
 #include "ui_keyboard_manager.h"
 #include "ui_modal.h"
+#include "ui_next_tick.h"
 #include "ui_panel_base.h"
 #include "ui_panel_home.h"
 #include "ui_update_queue.h"
@@ -147,16 +148,11 @@ bool overlay_registration_strict() {
 // animation callbacks, where a synchronous delete corrupts LVGL's event list
 // (prestonbrown/helixscreen#637).
 void defer_close_callback(OverlayCloseCallback callback) {
-    auto* deferred = new OverlayCloseCallback(std::move(callback));
-    lv_async_call(
-        [](void* data) {
-            auto* cb = static_cast<OverlayCloseCallback*>(data);
-            if (!g_nav_manager_destroyed) {
-                (*cb)();
-            }
-            delete cb;
-        },
-        deferred);
+    helix::ui::run_next_tick([cb = std::move(callback)]() {
+        if (!g_nav_manager_destroyed) {
+            cb();
+        }
+    });
 }
 } // namespace
 
@@ -234,7 +230,7 @@ void NavigationManager::clear_overlay_stack() {
             inst_it->second->on_deactivate(DeactivateReason::NavigateAway);
         }
 
-        // Defer close callback via lv_async_call so any object deletion happens
+        // Defer close callback via run_next_tick so any object deletion happens
         // OUTSIDE process_pending(). clear_overlay_stack() is called from subject
         // observers (connection loss, klippy shutdown) which fire inside
         // process_pending() — synchronous lv_obj_delete there corrupts LVGL's
@@ -293,7 +289,7 @@ void NavigationManager::overlay_slide_out_complete_cb(lv_anim_t* anim) {
     spdlog::trace("[NavigationManager] Overlay slide+fade-out complete, panel {} hidden",
                   (void*)panel);
 
-    // Defer close callback via lv_async_call so any object deletion happens AFTER the
+    // Defer close callback via run_next_tick so any object deletion happens AFTER the
     // current render cycle completes. Animation callbacks fire from inside
     // lv_timer_handler() → lv_display_refr_timer(), and deleting objects mid-layout
     // causes use-after-free in layout_update_core → lv_obj_scrollbar_invalidate.
@@ -794,7 +790,7 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 (void*)panel);
         }
 
-        // Defer close callback via lv_async_call — switch_to_panel_impl() can be
+        // Defer close callback via run_next_tick — switch_to_panel_impl() can be
         // called from subject observers inside process_pending(), and synchronous
         // lv_obj_delete in close callbacks corrupts LVGL's event list (#637).
         auto it = overlay_close_callbacks_.find(panel);
