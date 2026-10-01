@@ -767,8 +767,11 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     // Start live temperature simulation
     start_temperature_simulation();
 
-    // Dispatch initial state BEFORE calling on_connected (matches real Moonraker behavior)
-    // Real client sends initial state from subscription response - mock does it here
+    // Initial state for objects the printer.objects.subscribe handler does not
+    // answer (probes, filament sensors, exclude_object, bed_mesh, chamber
+    // sensor, mcu). It also repeats the subscribed heaters, print_stats and
+    // toolhead with the same values the discovery subscription delivers, which
+    // the status consumers treat as an unchanged frame.
     dispatch_initial_state();
 
     // Auto-start a print if configured (e.g., when testing print-status panel)
