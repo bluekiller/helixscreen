@@ -6,19 +6,21 @@
  * @brief The catalog says why a widget does not fit, instead of closing onto
  *        a toast.
  *
- * The placement search GridEditMode runs when a catalog row is tapped —
- * origin cell, first free position, then shrinking to the def's minimum —
- * also answers the question the catalog asks per row while it is open: does
- * this widget still fit the page the catalog was opened from? Both callers
- * share find_catalog_placement(), so a row can never claim room the placement
- * would refuse (or hide a widget the placement would shrink and place).
+ * The placement search GridEditMode runs when a catalog row is tapped (origin
+ * cell, first free position, then shrinking to the def's minimum) also answers
+ * the question the catalog asks per row while it is open: does this widget
+ * still fit the page the catalog was opened from? Both callers share
+ * find_catalog_placement(), so a row can never claim room the placement would
+ * refuse (or hide a widget the placement would shrink and place).
  *
  * The first block drives that search directly, against a hand-built
  * GridLayout. The second block opens the real catalog with a fit predicate
  * and asserts what a refused row renders: dimmed, unclickable, its name
  * carrying the minimum span the search shrinks to. A row the predicate
  * accepts keeps its click handler, and a catalog opened with no predicate
- * marks nothing — that is the shape every other caller of show() sees.
+ * marks nothing; that is the shape every other caller of show() sees. The
+ * last case drives the real GridEditMode entry instead, so the predicate
+ * itself cannot be dropped from the wiring without going red.
  */
 
 #include "ui_breakpoint.h"
@@ -32,6 +34,7 @@
 #include "grid_layout.h"
 #include "panel_widget_config.h"
 #include "panel_widget_registry.h"
+#include "theme_manager.h"
 
 #include <string>
 #include <vector>
@@ -63,6 +66,9 @@ constexpr int CELL = GridLayout::TRACKS_PER_CELL;
 // minimum is 2 cells by 1, the brief's own example string.
 constexpr const char* REFUSED_ID = "preheat";
 constexpr const char* OFFERED_ID = "macros";
+// Multi-instance base: 24 instances of it tile the full-page test below, where
+// 24 copies of a single-instance def would be dropped at parse as unknown ids.
+constexpr const char* TILE_ID = "favorite_macro";
 
 /// An empty one-page layout: nothing placed, so no row is dimmed as Placed.
 void seed_empty_layout(const std::string& panel_id) {
@@ -247,5 +253,101 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK_FALSE(label_contains(row, "Needs"));
 
     NavigationManager::instance().go_back();
+    process_lvgl(10);
+}
+
+// The row tests above pass their own predicate; this one drives the production
+// wiring, so a refactor that drops the fits argument from open_widget_catalog's
+// show() call reverts to offering every row and goes red here.
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "GridEditMode: the catalog it opens on a full page refuses rows",
+                 "[widget_catalog][fit][grid_edit]") {
+    lv_subject_t* bp_subj = theme_manager_get_breakpoint_subject();
+    REQUIRE(bp_subj != nullptr);
+    lv_subject_set_int(bp_subj, to_int(UiBreakpoint::Medium));
+
+    const std::string panel_id = "test_catalog_open_fit_refused";
+    auto* cfg = Config::get_instance();
+    // Twenty-four macro instances at 2x2 tracks tile the whole 12x8 Medium
+    // page, leaving no spot even a 1x1-cell minimum fits in.
+    nlohmann::json widgets = nlohmann::json::array();
+    for (int r = 0; r < 4; ++r) {
+        for (int c = 0; c < 6; ++c) {
+            widgets.push_back({{"id", std::string(TILE_ID) + ":" + std::to_string(r * 6 + c + 1)},
+                               {"enabled", true},
+                               {"col", c * 2},
+                               {"row", r * 2},
+                               {"colspan", 2},
+                               {"rowspan", 2}});
+        }
+    }
+    cfg->set<nlohmann::json>(
+        cfg->df() + "panel_widgets/" + panel_id,
+        nlohmann::json{{"main_page_index", 0},
+                       {"next_page_id", 2},
+                       {"pages", {{{"id", "main"}, {"widgets", std::move(widgets)}}}}});
+
+    PanelWidgetConfig config(panel_id, *cfg);
+    config.load();
+
+    // The container mirrors what PanelWidgetManager builds: a Medium 12x8
+    // track grid with one named tile per entry, laid out at the entry's cell.
+    // page_occupancy() only counts entries whose tile is on screen, so a bare
+    // container would read as an empty page and nothing would be refused.
+    // 715x475 is the geometry test_grid_edit_snap_anim_lifetime.cpp uses: a
+    // 12x8 Medium grid of exact 55px tracks.
+    const int gutter = theme_manager_get_spacing("space_xs");
+    REQUIRE(gutter > 0);
+    const auto dims = GridLayout::get_dimensions(UiBreakpoint::Medium, 715, 475);
+    REQUIRE(dims.cols == 12);
+    REQUIRE(dims.rows == 8);
+    std::vector<int32_t> col_dsc = GridLayout::make_col_dsc(dims.cols);
+    std::vector<int32_t> row_dsc = GridLayout::make_row_dsc(dims.rows);
+
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_remove_flag(container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(container, 0, 0);
+    lv_obj_set_style_border_width(container, 0, 0);
+    lv_obj_set_size(container, 715, 475);
+    lv_obj_set_grid_dsc_array(container, col_dsc.data(), row_dsc.data());
+    lv_obj_set_style_pad_column(container, gutter, 0);
+    lv_obj_set_style_pad_row(container, gutter, 0);
+
+    for (int r = 0; r < 4; ++r) {
+        for (int c = 0; c < 6; ++c) {
+            lv_obj_t* tile = lv_obj_create(container);
+            lv_obj_set_name(tile,
+                            (std::string(TILE_ID) + ":" + std::to_string(r * 6 + c + 1)).c_str());
+            lv_obj_remove_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_grid_cell(tile, LV_GRID_ALIGN_STRETCH, c * 2, 2, LV_GRID_ALIGN_STRETCH,
+                                 r * 2, 2);
+        }
+    }
+    lv_obj_update_layout(container);
+
+    // Premise checks: every entry still holds its cell after enter()'s sync,
+    // and every tile is reachable by name the way page_occupancy reads them.
+    int placed_entries = 0;
+    for (const auto& e : config.page_entries(0)) {
+        if (e.is_placed()) {
+            ++placed_entries;
+        }
+    }
+    CHECK(placed_entries == 24);
+
+    GridEditMode em;
+    em.enter(container, &config, /*page_index=*/0);
+    em.open_widget_catalog(test_screen());
+    process_lvgl(10);
+
+    lv_obj_t* refused = result_row(REFUSED_ID);
+    CHECK_FALSE(lv_obj_has_flag(refused, LV_OBJ_FLAG_CLICKABLE));
+    const auto* def = find_widget_def(REFUSED_ID);
+    REQUIRE(def != nullptr);
+    CHECK(label_contains(refused, expected_fit_reason(*def)));
+
+    NavigationManager::instance().go_back();
+    process_lvgl(10);
+    em.exit();
     process_lvgl(10);
 }

@@ -2680,11 +2680,6 @@ std::optional<CatalogPlacement> find_catalog_placement(const GridLayout& occupan
                     }
                 }
             }
-
-            if (place_col >= 0) {
-                spdlog::info("[GridEditMode] Widget '{}' shrunk to {}x{} to fit", def.id, colspan,
-                             rowspan);
-            }
         }
     }
 
@@ -2745,11 +2740,19 @@ void GridEditMode::place_widget_from_catalog(const std::string& widget_id) {
 
     const auto placement = find_catalog_placement(*def);
     if (!placement) {
-        spdlog::warn("[GridEditMode] No available grid position for widget '{}'", widget_id);
+        spdlog::warn("[GridEditMode] No available grid position for widget '{}' ({}x{})", widget_id,
+                     def->colspan, def->rowspan);
         ToastManager::instance().show(
             ToastSeverity::WARNING,
             lv_tr("Not enough room for this widget. Rearrange or remove widgets to make space."));
         return;
+    }
+
+    // The search shrinks only when the default span fits nowhere, so a span
+    // smaller than the def's means the widget really landed shrunk.
+    if (placement->colspan != def->colspan || placement->rowspan != def->rowspan) {
+        spdlog::info("[GridEditMode] Widget '{}' shrunk to {}x{} to fit", widget_id,
+                     placement->colspan, placement->rowspan);
     }
 
     // The catalog offers a widget that holds no cell on any page
