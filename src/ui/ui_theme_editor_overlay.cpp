@@ -186,6 +186,15 @@ void ThemeEditorOverlay::cleanup() {
     OverlayBase::cleanup();
 }
 
+void ThemeEditorOverlay::on_ui_destroyed() {
+    // The tree is gone: nothing may reach the swatches, and a picker or dialog
+    // opened from them has no owner left.
+    color_picker_.reset();
+    editing_color_index_ = -1;
+    swatch_objects_.fill(nullptr);
+    panel_ = nullptr;
+}
+
 // ============================================================================
 // THEME EDITOR API
 // ============================================================================

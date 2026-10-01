@@ -52,6 +52,11 @@ class ThemeEditorOverlay : public OverlayBase {
         return "Theme Editor";
     }
 
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     /**
      * @brief Called when overlay becomes visible
      */
@@ -61,6 +66,7 @@ class ThemeEditorOverlay : public OverlayBase {
      * @brief Clean up resources for async-safe destruction
      */
     void cleanup() override;
+    void on_ui_destroyed() override;
 
     //
     // === Theme Editor API ===

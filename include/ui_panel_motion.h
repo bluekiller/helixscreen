@@ -100,6 +100,10 @@ class MotionPanel : public OverlayBase {
     const char* xml_component() const override {
         return "motion_panel";
     }
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "Motion Panel";

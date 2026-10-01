@@ -60,6 +60,10 @@ class MacroButtonsOverlay : public OverlayBase {
     const char* xml_component() const override {
         return "macro_buttons_overlay";
     }
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
 
     /**
      * @brief Register event callbacks with lv_xml system

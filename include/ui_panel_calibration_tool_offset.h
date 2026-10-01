@@ -84,6 +84,10 @@ class ToolOffsetCalibrationPanel : public OverlayBase {
     const char* xml_component() const override {
         return "calibration_tool_offset_panel";
     }
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
     const char* get_name() const override {
         return "Tool Offset Calibration";
     }
