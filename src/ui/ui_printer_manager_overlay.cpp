@@ -32,7 +32,6 @@
 #include "printer_name_sync.h"
 #include "static_panel_registry.h"
 #include "subject_debug_registry.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "ui/ui_widget_helpers.h"
 #include "wizard_config_paths.h"
 
@@ -149,9 +148,7 @@ void on_chip_bed_mesh_clicked(lv_event_t*) {
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(get_global_bed_mesh_panel,
-                                                          lv_display_get_screen_active(nullptr),
-                                                          "Bed Mesh", "Printer Manager");
+    get_global_bed_mesh_panel().show(lv_display_get_screen_active(nullptr));
 }
 
 void on_chip_leds_clicked(lv_event_t*) {
@@ -166,30 +163,22 @@ void on_chip_adxl_clicked(lv_event_t*) {
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    helix::ui::lazy_create_and_push_overlay<InputShaperPanel>(get_global_input_shaper_panel,
-                                                              lv_display_get_screen_active(nullptr),
-                                                              "Input Shaper", "Printer Manager");
+    get_global_input_shaper_panel().show(lv_display_get_screen_active(nullptr));
 }
 
 void on_chip_retraction_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Retraction chip clicked");
-    helix::ui::lazy_create_and_push_overlay<RetractionSettingsOverlay>(
-        get_global_retraction_settings, lv_display_get_screen_active(nullptr),
-        "Retraction Settings", "Printer Manager");
+    get_global_retraction_settings().show(lv_display_get_screen_active(nullptr));
 }
 
 void on_chip_spoolman_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Spoolman chip clicked");
-    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(get_global_spoolman_panel,
-                                                           lv_display_get_screen_active(nullptr),
-                                                           "Spoolman", "Printer Manager");
+    get_global_spoolman_panel().show(lv_display_get_screen_active(nullptr));
 }
 
 void on_chip_timelapse_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] Timelapse chip clicked");
-    helix::ui::lazy_create_and_push_overlay<TimelapseSettingsOverlay>(
-        get_global_timelapse_settings, lv_display_get_screen_active(nullptr), "Timelapse Settings",
-        "Printer Manager");
+    get_global_timelapse_settings().show(lv_display_get_screen_active(nullptr));
 }
 
 void on_chip_screws_tilt_clicked(lv_event_t*) {
@@ -199,9 +188,7 @@ void on_chip_screws_tilt_clicked(lv_event_t*) {
     return;
 #endif
     get_global_screws_tilt_panel().set_client(get_moonraker_client(), get_moonraker_api());
-    helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(get_global_screws_tilt_panel,
-                                                             lv_display_get_screen_active(nullptr),
-                                                             "Bed Screws", "Printer Manager");
+    get_global_screws_tilt_panel().show(lv_display_get_screen_active(nullptr));
 }
 
 void on_chip_ams_clicked(lv_event_t*) {

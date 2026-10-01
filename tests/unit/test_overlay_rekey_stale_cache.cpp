@@ -18,7 +18,6 @@
 #include "../test_helpers/navigation_manager_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "overlay_base.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -129,15 +128,13 @@ TEST_CASE_METHOD(StaleCacheFixture,
     g_lazy_overlay = &overlay;
     lv_obj_t* cached = nullptr;
 
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<CachedOverlay>(get_lazy_overlay, test_screen(),
-                                                                   "Cached", "test"));
+    REQUIRE(get_lazy_overlay().show(test_screen()));
     cached = get_lazy_overlay().get_root();
     settle();
 
     close_and_rebuild(overlay);
 
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<CachedOverlay>(get_lazy_overlay, test_screen(),
-                                                                   "Cached", "test"));
+    REQUIRE(get_lazy_overlay().show(test_screen()));
     cached = get_lazy_overlay().get_root();
     settle();
 

@@ -51,7 +51,6 @@
 #include "tool_state.h"
 #include "ui/ui_cleanup_helpers.h"
 #include "ui/ui_event_trampoline.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "ui/ui_widget_helpers.h"
 #include "z_offset_utils.h"
 
@@ -1205,8 +1204,7 @@ void ControlsPanel::handle_save_z_offset_cancel() {
 // ============================================================================
 
 void ControlsPanel::handle_quick_actions_clicked() {
-    helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel, parent_screen_,
-                                                         "Motion", get_name());
+    get_global_motion_panel().show(parent_screen_);
 }
 
 void ControlsPanel::handle_nozzle_temp_clicked() {
@@ -1554,8 +1552,7 @@ void ControlsPanel::handle_calibration_bed_mesh() {
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(get_global_bed_mesh_panel, parent_screen_,
-                                                          "Bed Mesh", get_name());
+    get_global_bed_mesh_panel().show(parent_screen_);
 }
 
 void ControlsPanel::handle_calibration_tool_offsets() {
@@ -1563,9 +1560,7 @@ void ControlsPanel::handle_calibration_tool_offsets() {
     helix::ui::show_feature_unavailable_toast();
     return;
 #endif
-    helix::ui::lazy_create_and_push_overlay<helix::ui::ToolOffsetCalibrationPanel>(
-        helix::ui::get_global_tool_offset_cal_panel, parent_screen_, "Tool Offset Calibration",
-        get_name());
+    helix::ui::get_global_tool_offset_cal_panel().show(parent_screen_);
 }
 
 void ControlsPanel::handle_calibration_pa() {
@@ -1574,8 +1569,7 @@ void ControlsPanel::handle_calibration_pa() {
     return;
 #endif
     helix::ui::get_global_pa_cal_panel().set_api(get_moonraker_api());
-    helix::ui::lazy_create_and_push_overlay<helix::ui::PACalibrationPanel>(
-        helix::ui::get_global_pa_cal_panel, parent_screen_, "Pressure Advance", get_name());
+    helix::ui::get_global_pa_cal_panel().show(parent_screen_);
 }
 
 void ControlsPanel::handle_calibration_zoffset() {
@@ -1585,8 +1579,7 @@ void ControlsPanel::handle_calibration_zoffset() {
 #endif
     // Set the Moonraker client before lazy creation so it's available when calibration starts
     get_global_zoffset_cal_panel().set_api(get_moonraker_api());
-    helix::ui::lazy_create_and_push_overlay<ZOffsetCalibrationPanel>(
-        get_global_zoffset_cal_panel, parent_screen_, "Z-Offset Calibration", get_name());
+    get_global_zoffset_cal_panel().show(parent_screen_);
 }
 
 void ControlsPanel::handle_calibration_screws() {
@@ -1595,8 +1588,7 @@ void ControlsPanel::handle_calibration_screws() {
     return;
 #endif
     get_global_screws_tilt_panel().set_client(get_moonraker_client(), get_moonraker_api());
-    helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(
-        get_global_screws_tilt_panel, parent_screen_, "Bed Screws", get_name());
+    get_global_screws_tilt_panel().show(parent_screen_);
 }
 
 void ControlsPanel::handle_calibration_motors() {

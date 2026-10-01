@@ -270,9 +270,7 @@ void MacrosPanel::on_macro_card_clicked(lv_event_t* e) {
 Opening the MacrosPanel from any widget or panel:
 
 ```cpp
-helix::ui::lazy_create_and_push_overlay<MacrosPanel>(
-    get_global_macros_panel, macros_panel_, parent_screen_,
-    "Macros", "CallerName", true);
+get_global_macros_panel().show(parent_screen_);
 ```
 
 ### Async Safety

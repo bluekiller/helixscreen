@@ -26,7 +26,6 @@
 #include "panel_widgets/shutdown_widget.h"
 #include "printer_state.h"
 #include "static_panel_registry.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <spdlog/spdlog.h>
 
@@ -133,23 +132,19 @@ void AdvancedPanel::on_activate() {
 // ============================================================================
 
 void AdvancedPanel::handle_spoolman_clicked() {
-    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(get_global_spoolman_panel,
-                                                           parent_screen_, "Spoolman", get_name());
+    get_global_spoolman_panel().show(parent_screen_);
 }
 
 void AdvancedPanel::handle_macros_clicked() {
-    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(get_global_macros_panel, parent_screen_,
-                                                         "Macros", get_name());
+    get_global_macros_panel().show(parent_screen_);
 }
 
 void AdvancedPanel::handle_console_clicked() {
-    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, parent_screen_,
-                                                          "Console", get_name());
+    get_global_console_panel().show(parent_screen_);
 }
 
 void AdvancedPanel::handle_history_clicked() {
-    helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
-        get_global_history_dashboard_panel, parent_screen_, "Print History", get_name());
+    get_global_history_dashboard_panel().show(parent_screen_);
 }
 
 void AdvancedPanel::handle_configure_print_start_clicked() {

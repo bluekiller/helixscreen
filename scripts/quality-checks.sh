@@ -2009,6 +2009,24 @@ fi
 
 echo ""
 
+SECTION_START=$(date +%s)
+echo -n "🧱 Checking hand-rolled overlay boilerplate only shrinks..."
+# OverlayBase::show() owns the create-once lifecycle and lazy_global<T> the
+# instance; scripts/overlay_boilerplate_baseline.txt holds the shrink-only counts.
+if python3 scripts/check_overlay_boilerplate.py --baseline scripts/overlay_boilerplate_baseline.txt \
+    >/tmp/overlay_boilerplate.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/overlay_boilerplate.out
+else
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/overlay_boilerplate.out
+  EXIT_CODE=1
+fi
+
+echo ""
+
 if [ -f "scripts/check_raw_this_queue_update.py" ]; then
   # The ratchet has reached zero (#1165) — every queue_update() in src/ now routes
   # through an AsyncLifetimeGuard, so this is a hard gate, not a baseline.

@@ -13,7 +13,6 @@
 #include "i_moonraker_api.h"
 #include "panel_widget_registry.h"
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <spdlog/spdlog.h>
 
@@ -279,8 +278,7 @@ void GCodeConsoleWidget::publish_view() {
 }
 
 void GCodeConsoleWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(get_global_console_panel, parent_screen_,
-                                                          "Console", "GCodeConsoleWidget");
+    get_global_console_panel().show(parent_screen_);
 }
 
 void GCodeConsoleWidget::clicked_cb(lv_event_t* e) {

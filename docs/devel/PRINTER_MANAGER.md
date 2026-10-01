@@ -384,20 +384,15 @@ Capability chips are pill-shaped UI elements displayed in a flow-wrapped contain
 
 ### Chip Navigation Pattern
 
-Clickable chips use the `lazy_create_and_push_overlay` helper for lazy panel creation:
+Clickable chips open the panel through its global accessor's `OverlayBase::show()`, which creates it on first use:
 
 ```cpp
-void PrinterManagerOverlay::on_chip_bed_mesh_clicked(lv_event_t* e) {
-    auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(
-        get_global_bed_mesh_panel,          // global accessor
-        pm.bed_mesh_panel_,                 // cached panel pointer
-        lv_display_get_screen_active(nullptr),
-        "Bed Mesh", "Printer Manager");     // overlay name, source name
+void on_chip_bed_mesh_clicked(lv_event_t*) {
+    get_global_bed_mesh_panel().show(lv_display_get_screen_active(nullptr));
 }
 ```
 
-The panel pointer is cached as a member of `PrinterManagerOverlay` so the panel is only created once.
+The panel object owns its root, so the chip keeps no pointer to it.
 
 ---
 
@@ -442,11 +437,7 @@ The panel pointer is cached as a member of `PrinterManagerOverlay` so the panel 
    ```cpp
    void PrinterManagerOverlay::on_chip_my_feature_clicked(lv_event_t* e) {
        (void)e;
-       auto& pm = get_printer_manager_overlay();
-       helix::ui::lazy_create_and_push_overlay<MyFeaturePanel>(
-           get_global_my_feature_panel, pm.my_feature_panel_,
-           lv_display_get_screen_active(nullptr),
-           "My Feature", "Printer Manager");
+       get_global_my_feature_panel().show(lv_display_get_screen_active(nullptr));
    }
    ```
 

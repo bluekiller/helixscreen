@@ -7,7 +7,6 @@
 #include "ui_panel_motion.h"
 
 #include "panel_widget_registry.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <spdlog/spdlog.h>
 
@@ -44,8 +43,7 @@ void MotionWidget::detach() {
 }
 
 void MotionWidget::handle_click() {
-    helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel, parent_screen_,
-                                                         "Motion", "MotionWidget");
+    get_global_motion_panel().show(parent_screen_);
 }
 
 void MotionWidget::clicked_cb(lv_event_t* e) {

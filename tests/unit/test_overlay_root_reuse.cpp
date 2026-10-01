@@ -8,7 +8,7 @@
  * Run with: ./build/bin/helix-tests "[overlay-root-reuse]"
  *
  * The fan and LED control overlays, and every panel opened through
- * lazy_create_and_push_overlay, hold ONE set of widget pointers. Several
+ * OverlayBase::show, hold ONE set of widget pointers. Several
  * callers (home widgets, the Controls panel, print status, printer manager)
  * open the same singleton, so a caller opening for the first time must get the
  * tree that already exists: a second create() repoints the singleton at the
@@ -25,7 +25,6 @@
 #include "app_globals.h"
 #include "led/ui_led_control_overlay.h"
 #include "printer_state.h"
-#include "ui/ui_lazy_panel_helper.h"
 
 #include <array>
 
@@ -174,22 +173,19 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(lv_obj_find_by_name(reopened, "led_tab_row") != nullptr);
 }
 
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "lazy_create_and_push_overlay adopts the live tree another caller created",
+TEST_CASE_METHOD(LVGLUITestFixture, "OverlayBase::show adopts the live tree another caller created",
                  "[overlays][lazy_panel][overlay-root-reuse]") {
     FreshOverlays fresh;
     seed_nav_panels(test_screen());
     const uint32_t before = lv_obj_get_child_count(test_screen());
 
     lv_obj_t* first_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel,
-                                                                 test_screen(), "Motion", "first"));
+    REQUIRE(get_global_motion_panel().show(test_screen()));
     first_cache = get_global_motion_panel().get_root();
     REQUIRE(first_cache != nullptr);
 
     lv_obj_t* second_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, test_screen(), "Motion", "second"));
+    REQUIRE(get_global_motion_panel().show(test_screen()));
     second_cache = get_global_motion_panel().get_root();
 
     CHECK(second_cache == first_cache);
@@ -198,14 +194,13 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
-                 "lazy_create_and_push_overlay does not adopt a tree deleted out from under it",
+                 "OverlayBase::show does not adopt a tree deleted out from under it",
                  "[overlays][lazy_panel][overlay-root-reuse]") {
     FreshOverlays fresh;
     seed_nav_panels(test_screen());
 
     lv_obj_t* first_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(get_global_motion_panel,
-                                                                 test_screen(), "Motion", "first"));
+    REQUIRE(get_global_motion_panel().show(test_screen()));
     first_cache = get_global_motion_panel().get_root();
     REQUIRE(first_cache != nullptr);
 
@@ -215,8 +210,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // New widgets can take the freed root's address.
     seed_nav_panels(test_screen());
     lv_obj_t* second_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, test_screen(), "Motion", "second"));
+    REQUIRE(get_global_motion_panel().show(test_screen()));
     second_cache = get_global_motion_panel().get_root();
 
     REQUIRE(second_cache != nullptr);
@@ -286,15 +280,13 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 // After a printer switch the old tree stays allocated until a later tick, but
 // it belongs to the destroyed panel: a caller opening the new panel must get a
 // tree of its own.
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "lazy_create_and_push_overlay does not adopt the destroyed panel's tree",
+TEST_CASE_METHOD(LVGLUITestFixture, "OverlayBase::show does not adopt the destroyed panel's tree",
                  "[overlays][lazy_panel][switch][overlay-root-reuse]") {
     FreshOverlays fresh;
     seed_nav_panels(test_screen());
 
     lv_obj_t* old_cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, test_screen(), "Motion", "before switch"));
+    REQUIRE(get_global_motion_panel().show(test_screen()));
     old_cache = get_global_motion_panel().get_root();
     REQUIRE(old_cache != nullptr);
     int old_deletes = 0;
@@ -306,8 +298,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     seed_nav_panels(test_screen());
     lv_obj_t* cache = nullptr;
-    REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, test_screen(), "Motion", "after switch"));
+    REQUIRE(get_global_motion_panel().show(test_screen()));
     cache = get_global_motion_panel().get_root();
 
     CHECK(cache != old_cache);
