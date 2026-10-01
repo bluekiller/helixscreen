@@ -19,6 +19,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
 #include <initializer_list>
 #include <optional>
 #include <type_traits>
@@ -33,6 +34,16 @@ inline bool event_checked(lv_event_t* e) {
 /// Selected index of the dropdown the event is dispatched to.
 inline int event_selected(lv_event_t* e) {
     return static_cast<int>(lv_dropdown_get_selected(lv_event_get_current_target_obj(e)));
+}
+
+/// The integer in the XML `user_data="..."` string the callback was bound with,
+/// or nullopt when the binding carries none.
+inline std::optional<int> event_user_int(lv_event_t* e) {
+    const char* s = static_cast<const char*>(lv_event_get_user_data(e));
+    if (!s) {
+        return std::nullopt;
+    }
+    return std::atoi(s);
 }
 
 } // namespace helix::ui

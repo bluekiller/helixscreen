@@ -6,6 +6,7 @@
 #include "lvgl/lvgl.h"
 #include "observer_factory.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "z_offset_utils.h"
 
@@ -33,21 +34,12 @@ class PrinterState;
  */
 class PrintTuneOverlay : public OverlayBase {
   public:
-    PrintTuneOverlay();
     ~PrintTuneOverlay() override;
-
-    // Non-copyable
-    PrintTuneOverlay(const PrintTuneOverlay&) = delete;
-    PrintTuneOverlay& operator=(const PrintTuneOverlay&) = delete;
 
     /**
      * @brief Show the tune panel overlay
      *
-     * Lazy initialization - creates panel on first call. Handles:
-     * - Subject initialization
-     * - Panel creation from XML
-     * - Standard overlay setup (back button, scrolling)
-     * - Pushes onto navigation stack
+     * Stores the dependencies, then OverlayBase::show() builds and pushes it.
      *
      * @param parent_screen The parent screen for the overlay
      * @param api IMoonrakerAPI for sending G-code commands
@@ -134,7 +126,7 @@ class PrintTuneOverlay : public OverlayBase {
      * @return Tune panel widget, or nullptr if not set up
      */
     lv_obj_t* get_panel() const {
-        return tune_panel_;
+        return overlay_root_;
     }
 
     //
@@ -149,28 +141,13 @@ class PrintTuneOverlay : public OverlayBase {
         return "Print Tune";
     }
 
-    /**
-     * @brief Initialize subjects (OverlayBase pure virtual)
-     *
-     * This overlay uses init_subjects_internal() called from show().
-     * This method delegates to that implementation.
-     */
-    void init_subjects() override {
-        init_subjects_internal();
+    const char* xml_component() const override {
+        return "print_tune_panel";
     }
 
-    /**
-     * @brief Create overlay UI (OverlayBase pure virtual)
-     *
-     * This overlay uses show() for creation with additional parameters.
-     * This method returns nullptr; use show() instead.
-     *
-     * @param parent Unused - show() provides parent
-     * @return nullptr (use show() for proper creation)
-     */
-    lv_obj_t* create(lv_obj_t* /*parent*/) override {
-        return nullptr;
-    }
+    void init_subjects() override;
+    void register_callbacks() override;
+    lv_obj_t* create(lv_obj_t* parent) override;
 
     /**
      * @brief Called when overlay becomes visible
@@ -185,7 +162,6 @@ class PrintTuneOverlay : public OverlayBase {
     void on_deactivating(DeactivateReason reason) override;
 
   private:
-    void init_subjects_internal();
     void setup_panel();
     /// Renders the speed/flow headlines and their live readouts, led by
     /// whichever units the speed/flow preference picks.
@@ -199,7 +175,6 @@ class PrintTuneOverlay : public OverlayBase {
     IMoonrakerAPI* api_ = nullptr;
 
     helix::PrinterState* printer_state_ = nullptr;
-    lv_obj_t* tune_panel_ = nullptr;
 
     //
     // === Subject Management ===
@@ -278,13 +253,7 @@ class PrintTuneOverlay : public OverlayBase {
     ObserverGuard units_observer_;
 };
 
-/**
- * @brief Get the singleton PrintTuneOverlay instance
- *
- * Lazy singleton - creates on first access, registers with StaticPanelRegistry
- * for cleanup on shutdown. Used by XML event callbacks and panels that need
- * to show the tuning overlay.
- *
- * @return Reference to the shared PrintTuneOverlay instance
- */
-PrintTuneOverlay& get_print_tune_overlay();
+/// Lazy singleton; shared by the XML event callbacks and the panels that open it.
+inline PrintTuneOverlay& get_print_tune_overlay() {
+    return helix::lazy_global<PrintTuneOverlay>("PrintTuneOverlay");
+}
