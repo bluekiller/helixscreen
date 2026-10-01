@@ -69,8 +69,6 @@ void GCodeConsoleWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // clicked_cb finds this instance through the tile root's user data.
-    lv_obj_set_user_data(widget_obj_, this);
     rows_ = lv_obj_find_by_name(widget_obj_, "gcode_console_tail_rows");
     install_delete_hook(widget_obj_);
 }
@@ -82,7 +80,6 @@ void GCodeConsoleWidget::detach() {
     tail_active_ = false;
     if (widget_obj_) {
         publish_view();
-        lv_obj_set_user_data(widget_obj_, nullptr);
     }
     uninstall_delete_hook();
     widget_obj_ = nullptr;

@@ -82,9 +82,6 @@ void JobQueueWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Store this pointer for event callback recovery
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Find the scrollable job list container by name
     job_list_container_ = lv_obj_find_by_name(widget_obj_, "job_list_container");
     if (!job_list_container_) {
@@ -142,7 +139,6 @@ void JobQueueWidget::detach() {
     job_list_container_ = nullptr;
 
     if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;

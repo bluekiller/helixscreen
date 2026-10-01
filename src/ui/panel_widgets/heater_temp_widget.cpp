@@ -99,11 +99,6 @@ void HeaterTempWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Set user_data on the root lv_obj, NOT on the ui_button child.
-    // ui_button allocates its own UiButtonData in user_data — overwriting it
-    // leaks memory and breaks button style/contrast auto-updates.
-    lv_obj_set_user_data(widget_obj_, this);
-
     temp_btn_ = lv_obj_find_by_name(widget_obj_, cfg_.button_name);
     if (temp_btn_) {
         lv_obj_add_event_cb(temp_btn_, clicked_cb, LV_EVENT_CLICKED, this);
@@ -121,9 +116,6 @@ void HeaterTempWidget::detach() {
     lifetime_.invalidate();
     icon_binder_.unbind();
 
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     temp_btn_ = nullptr;
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;

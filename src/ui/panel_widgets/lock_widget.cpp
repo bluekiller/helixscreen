@@ -41,16 +41,9 @@ class LockWidget : public PanelWidget {
     void attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) override {
         (void)parent_screen;
         widget_obj_ = widget_obj;
-        // Edit mode reaches the live instance through the root's user data;
-        // without it the resize clamp cannot ask this tile whether a size fits
-        // and accepts whatever the drag produced.
-        lv_obj_set_user_data(widget_obj_, this);
     }
 
     void detach() override {
-        if (widget_obj_) {
-            lv_obj_set_user_data(widget_obj_, nullptr);
-        }
         widget_obj_ = nullptr;
     }
 

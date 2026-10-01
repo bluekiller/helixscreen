@@ -188,10 +188,6 @@ void LedWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         return;
     }
 
-    // Set user_data on the root lv_obj, NOT on the ui_button child.
-    // ui_button allocates its own UiButtonData in user_data — overwriting it
-    // leaks memory and breaks button style/contrast auto-updates.
-    lv_obj_set_user_data(widget_obj_, this);
     live_instances().insert(this);
 
     light_icon_ = lv_obj_find_by_name(widget_obj_, "light_icon");
@@ -229,9 +225,6 @@ void LedWidget::detach() {
     live_instances().erase(this);
 
     // Nullify widget pointers BEFORE resetting observers
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
     light_icon_ = nullptr;
