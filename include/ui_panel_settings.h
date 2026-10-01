@@ -96,6 +96,11 @@ class SettingsPanel : public PanelBase {
         return "settings_panel";
     }
 
+    /// Screen the settings overlays are built on.
+    lv_obj_t* parent_screen() const {
+        return parent_screen_;
+    }
+
     friend class SettingsPanelTestAccess;
 
   private:
@@ -205,31 +210,10 @@ class SettingsPanel : public PanelBase {
     // === Event Handlers ===
     //
 
-    void handle_led_settings_clicked();
-    void handle_security_settings_clicked();
-    void handle_estop_confirm_changed(bool enabled);
-    void handle_cancel_escalation_changed(bool enabled);
-    void handle_telemetry_changed(bool enabled);
-    void handle_telemetry_view_data_clicked();
-
-    void handle_debug_bundle_clicked();
-    void handle_discord_clicked();
-    void handle_docs_clicked();
-    void handle_printers_clicked();
-    void handle_filament_sensors_clicked();
-    void handle_fans_settings_clicked();
-    void handle_ams_settings_clicked();
-    void handle_spoolman_settings_clicked();
-    void handle_macro_buttons_clicked();
-    void handle_machine_limits_clicked();
-    void handle_material_temps_clicked();
     void handle_change_host_clicked();
-    void handle_network_clicked();
-    void handle_power_devices_clicked();
     void handle_touch_calibration_clicked();
     void handle_restart_helix_clicked();
     void handle_factory_reset_clicked();
-    void handle_about_clicked();
     // Note: populate_sensor_list() moved to SensorSettingsOverlay
     // Note: populate_macro_dropdowns() moved to MacroButtonsOverlay
     // Note: populate_hardware_issues() moved to HardwareHealthOverlay
@@ -250,66 +234,9 @@ class SettingsPanel : public PanelBase {
     // Dialog pointers accessible to static callbacks
     lv_obj_t* factory_reset_dialog_ = nullptr;
 
-  public:
-    //
-    // === XML Callbacks (public for global registration) ===
-    // These are registered before settings_panel.xml is parsed [L013]
-    //
-    static void on_led_settings_clicked(lv_event_t* e);
-    static void on_timelapse_settings_clicked(lv_event_t* e);
-    static void on_security_clicked(lv_event_t* e);
-    static void on_estop_confirm_changed(lv_event_t* e);
-    static void on_cancel_escalation_changed(lv_event_t* e);
-    static void on_debug_bundle_clicked(lv_event_t* e);
-    static void on_discord_clicked(lv_event_t* e);
-    static void on_docs_clicked(lv_event_t* e);
-    static void on_telemetry_changed(lv_event_t* e);
-    static void on_printers_clicked(lv_event_t* e);
-    static void on_filament_sensors_clicked(lv_event_t* e);
-    static void on_fans_settings_clicked(lv_event_t* e);
-    static void on_ams_settings_clicked(lv_event_t* e);
-    static void on_spoolman_settings_clicked(lv_event_t* e);
-    static void on_macro_buttons_clicked(lv_event_t* e);
-    static void on_machine_limits_clicked(lv_event_t* e);
-    static void on_material_temps_clicked(lv_event_t* e);
-    static void on_change_host_clicked(lv_event_t* e);
-    static void on_network_clicked(lv_event_t* e);
-    static void on_power_devices_clicked(lv_event_t* e);
-    static void on_touch_calibration_clicked(lv_event_t* e);
-    static void on_factory_reset_clicked(lv_event_t* e);
-    static void on_hardware_health_clicked(lv_event_t* e);
-    static void on_system_performance_clicked(lv_event_t* e);
-    static void on_telemetry_view_data(lv_event_t* e);
-    static void on_restart_helix_settings_clicked(lv_event_t* e);
-    static void on_about_clicked(lv_event_t* e);
-
-    // Category navigation callbacks (open sub-panel overlays)
-    static void on_display_clicked(lv_event_t* e);
-    static void on_appearance_clicked(lv_event_t* e);
-    static void on_sound_clicked(lv_event_t* e);
-    static void on_language_time_clicked(lv_event_t* e);
-    static void on_printing_clicked(lv_event_t* e);
-    static void on_devices_clicked(lv_event_t* e);
-    static void on_safety_clicked(lv_event_t* e);
-    static void on_system_clicked(lv_event_t* e);
-    static void on_help_clicked(lv_event_t* e);
-    static void on_touch_input_clicked(lv_event_t* e);
-    static void on_connection_clicked(lv_event_t* e);
-    static void on_updates_clicked(lv_event_t* e);
-    static void on_plugins_clicked(lv_event_t* e);
-
-  private:
-    // Static callbacks for overlays
-    static void on_restart_later_clicked(lv_event_t* e);
-    static void on_restart_now_clicked(lv_event_t* e);
-    static void on_header_back_clicked(lv_event_t* e);
-    // Note: on_brightness_changed is now in DisplaySettingsOverlay
-
-    // Note: Hardware save confirmation callbacks moved to HardwareHealthOverlay
-    // See ui_settings_hardware_health.h
-
-    // Note: Machine limits overlay callbacks are now in MachineLimitsOverlay class
-    // See ui_settings_machine_limits.h
+    // The root, Touch, Connection and System callback table lives in
+    // register_settings_panel_callbacks() and reaches the handlers above.
+    friend void register_settings_panel_callbacks();
 };
 
 // Global instance accessor (needed by main.cpp)

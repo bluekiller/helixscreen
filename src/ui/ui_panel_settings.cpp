@@ -3,12 +3,9 @@
 
 #include "ui_panel_settings.h"
 
-#include "ui_ams_device_operations_overlay.h"
 #include "ui_callback_helpers.h"
 #include "ui_change_host_modal.h"
 #include "ui_debug_bundle_modal.h"
-#include "ui_emergency_stop.h"
-#include "ui_event_safety.h"
 #include "ui_info_qr_modal.h"
 #include "ui_modal.h"
 #if HELIX_HAS_PLUGINS
@@ -17,12 +14,8 @@
 #include "ui_nav_manager.h"
 #include "ui_overlay_network_settings.h"
 #include "ui_overlay_performance.h"
-#include "ui_overlay_timelapse_settings.h"
-#include "ui_panel_history_dashboard.h"
 #include "ui_panel_memory_stats.h"
-#include "ui_panel_power.h"
 #include "ui_printer_list_overlay.h"
-#include "ui_settings_about.h"
 #include "ui_settings_appearance.h"
 #include "ui_settings_connection.h"
 #include "ui_settings_display.h"
@@ -32,24 +25,14 @@
 #include "ui_settings_language_time.h"
 #include "ui_settings_printing.h"
 #include "ui_settings_safety.h"
+#include "ui_settings_security.h"
+#include "ui_settings_sound.h"
 #include "ui_settings_system.h"
+#include "ui_settings_telemetry_data.h"
 #include "ui_settings_touch.h"
 #include "ui_settings_updates.h"
-#if HELIX_HAS_LABEL_PRINTER
-#include "ui_settings_label_printer.h"
-#endif
-#include "ui_settings_fans.h"
-#include "ui_settings_led.h"
-#include "ui_settings_machine_limits.h"
-#include "ui_settings_macro_buttons.h"
-#include "ui_settings_material_temps.h"
-#include "ui_settings_security.h"
-#include "ui_settings_sensors.h"
-#include "ui_settings_sound.h"
-#include "ui_settings_telemetry_data.h"
 #include "ui_severity_card.h"
 #include "ui_snake_game.h"
-#include "ui_spoolman_overlay.h"
 #include "ui_toast_manager.h"
 #include "ui_touch_calibration_overlay.h"
 #include "ui_update_queue.h"
@@ -57,7 +40,6 @@
 #include "ui_wizard_hardware_selector.h"
 
 #include "app_globals.h"
-#include "audio_settings_manager.h"
 #include "config.h"
 #include "device_display_name.h"
 #include "display_manager.h"
@@ -77,7 +59,6 @@
 #include "printer_hardware.h"
 #include "printer_state.h"
 #include "runtime_config.h"
-#include "safety_settings_manager.h"
 #include "settings_manager.h"
 #include "settings_root_status.h"
 #include "sound_manager.h"
@@ -87,7 +68,6 @@
 #include "system/update_checker.h"
 #include "system_settings_manager.h"
 #include "theme_manager.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "wifi_manager.h"
 #include "wizard_config_paths.h"
 
@@ -126,36 +106,6 @@ SettingsPanel::~SettingsPanel() {
 // PANELBASE IMPLEMENTATION
 // ============================================================================
 
-// Static callback for XML event_cb (registered with lv_xml_register_event_cb)
-static void on_completion_alert_dropdown_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    auto mode = static_cast<CompletionAlertMode>(index);
-    spdlog::info("[SettingsPanel] Completion alert changed: {} ({})", index,
-                 index == 0 ? "Off" : (index == 1 ? "Notification" : "Alert"));
-    AudioSettingsManager::instance().set_completion_alert_mode(mode);
-}
-
-// Static callback for cancel escalation timeout dropdown
-static void on_cancel_escalation_timeout_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    static constexpr int TIMEOUT_VALUES[] = {15, 30, 60, 120};
-    int seconds = TIMEOUT_VALUES[std::max(0, std::min(3, index))];
-    spdlog::info("[SettingsPanel] Cancel escalation timeout changed: {}s (index {})", seconds,
-                 index);
-    SafetySettingsManager::instance().set_cancel_escalation_timeout_seconds(seconds);
-}
-
-// Static callback for log level dropdown
-static void on_log_level_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
-    spdlog::info("[SettingsPanel] Log level changed: index {}", index);
-    SystemSettingsManager::instance().set_log_level_by_index(index);
-}
-
-// Touch & input setting callbacks (Settings → Touch & Input).
 // The slider rows nest as: row > slider_container > slider, so the row is
 // the slider's grandparent. Used by both drag-time syncs (here) and the
 // activation-time refresh in TouchSettingsOverlay::init_input_sliders.
@@ -165,105 +115,6 @@ static void sync_slider_value_label(lv_obj_t* slider, int value) {
         return;
     if (lv_obj_t* value_label = lv_obj_find_by_name(row, "value_label")) {
         lv_label_set_text_fmt(value_label, "%d", value);
-    }
-}
-
-static void on_debug_touches_changed(lv_event_t* e) {
-    lv_obj_t* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    InputSettingsManager::instance().set_debug_touches(lv_obj_has_state(toggle, LV_STATE_CHECKED));
-}
-
-static void on_scroll_limit_changed(lv_event_t* e) {
-    lv_obj_t* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = static_cast<int>(lv_slider_get_value(slider));
-    sync_slider_value_label(slider, value);
-    InputSettingsManager::instance().set_scroll_limit(value);
-    get_global_settings_panel().show_restart_prompt();
-}
-
-static void on_long_press_time_changed(lv_event_t* e) {
-    lv_obj_t* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = static_cast<int>(lv_slider_get_value(slider));
-    sync_slider_value_label(slider, value);
-    InputSettingsManager::instance().set_long_press_time(value);
-    // No restart prompt — set_long_press_time live-applies via lv_indev_set_long_press_time.
-}
-
-static void on_home_edit_mode_changed(lv_event_t* e) {
-    lv_obj_t* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    InputSettingsManager::instance().set_home_edit_mode_enabled(
-        lv_obj_has_state(toggle, LV_STATE_CHECKED));
-    // No restart prompt — should_suppress_edit_mode checks this live.
-}
-
-static void on_scroll_guard_changed(lv_event_t* e) {
-    lv_obj_t* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    InputSettingsManager::instance().set_scroll_guard(lv_obj_has_state(toggle, LV_STATE_CHECKED));
-    get_global_settings_panel().show_restart_prompt();
-}
-
-static void on_system_keyboard_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_system_keyboard_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    spdlog::info("[SettingsPanel] System keyboard toggled: {}", enabled ? "ON" : "OFF");
-    DisplaySettingsManager::instance().set_use_system_keyboard(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_hide_keyboard_with_hardware_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_hide_keyboard_with_hardware_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    spdlog::info("[SettingsPanel] Hide keyboard with hardware keyboard toggled: {}",
-                 enabled ? "ON" : "OFF");
-    DisplaySettingsManager::instance().set_hide_keyboard_with_hardware(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_keep_navbar_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_keep_navbar_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    spdlog::info("[SettingsPanel] Keep navbar toggled: {}", enabled ? "ON" : "OFF");
-    DisplaySettingsManager::instance().set_keep_navbar_visible(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_page_scroll_buttons_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_page_scroll_buttons_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    spdlog::info("[SettingsPanel] Page scroll buttons toggled: {}", enabled ? "ON" : "OFF");
-    DisplaySettingsManager::instance().set_page_scroll_buttons(enabled);
-    // Apply immediately to the current screen — this callback is the authoritative
-    // user-toggle signal (a subject observer can't be used; see PageScrollAutoInject::init).
-    helix::ui::PageScrollAutoInject::instance().on_setting_toggled(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// Note: Sensors overlay callbacks are now in SensorSettingsOverlay class
-// See ui_settings_sensors.cpp
-// Note: Macro Buttons overlay callbacks are now in MacroButtonsOverlay class
-// See ui_settings_macro_buttons.cpp
-
-// ============================================================================
-// MODAL DIALOG STATIC CALLBACKS (XML event_cb)
-// ============================================================================
-
-static void on_factory_reset_confirm(lv_event_t* e) {
-    (void)e;
-    spdlog::info("[SettingsPanel] User confirmed factory reset");
-    auto& panel = get_global_settings_panel();
-    panel.perform_factory_reset();
-}
-
-static void on_factory_reset_cancel(lv_event_t* e) {
-    (void)e;
-    spdlog::info("[SettingsPanel] User cancelled factory reset");
-    auto& panel = get_global_settings_panel();
-    if (panel.factory_reset_dialog_) {
-        NavigationManager::instance().go_back(); // Animation + callback will handle cleanup
     }
 }
 
@@ -357,100 +208,6 @@ void SettingsPanel::init_subjects() {
                               "settings_status_language_time", subjects_);
     UI_MANAGED_SUBJECT_STRING(settings_status_updates_subject_, settings_status_updates_buf_, "",
                               "settings_status_updates", subjects_);
-
-    // Register XML event callbacks for dropdowns, toggles, and action rows
-    register_xml_callbacks({
-        // Dropdowns
-        {"on_completion_alert_changed", on_completion_alert_dropdown_changed},
-        {"on_log_level_changed", on_log_level_changed},
-        {"on_debug_touches_changed", on_debug_touches_changed},
-        {"on_scroll_limit_changed", on_scroll_limit_changed},
-        {"on_long_press_time_changed", on_long_press_time_changed},
-        {"on_home_edit_mode_changed", on_home_edit_mode_changed},
-        {"on_scroll_guard_changed", on_scroll_guard_changed},
-        {"on_system_keyboard_changed", on_system_keyboard_changed},
-        {"on_hide_keyboard_with_hardware_changed", on_hide_keyboard_with_hardware_changed},
-        {"on_keep_navbar_changed", on_keep_navbar_changed},
-        {"on_page_scroll_buttons_changed", on_page_scroll_buttons_changed},
-
-        // Toggle switches
-        {"on_led_settings_clicked", on_led_settings_clicked},
-        // Note: on_retraction_row_clicked is registered by RetractionSettingsOverlay
-        {"on_security_clicked", on_security_clicked},
-        {"on_estop_confirm_changed", on_estop_confirm_changed},
-        {"on_cancel_escalation_changed", on_cancel_escalation_changed},
-        {"on_cancel_escalation_timeout_changed", on_cancel_escalation_timeout_changed},
-        {"on_telemetry_changed", SettingsPanel::on_telemetry_changed},
-        {"on_telemetry_view_data", SettingsPanel::on_telemetry_view_data},
-
-        // Action rows
-        {"on_printers_clicked", on_printers_clicked},
-        // Note: on_printer_image_clicked moved to PrinterManagerOverlay
-        {"on_filament_sensors_clicked", on_filament_sensors_clicked},
-        {"on_fans_settings_clicked", on_fans_settings_clicked},
-        {"on_timelapse_settings_clicked", on_timelapse_settings_clicked},
-    });
-
-    // Category navigation callbacks (open sub-panel overlays from top-level)
-    register_xml_callbacks({
-        {"on_display_clicked", on_display_clicked},
-        {"on_appearance_clicked", on_appearance_clicked},
-        {"on_sound_clicked", on_sound_clicked},
-        {"on_language_time_clicked", on_language_time_clicked},
-        {"on_printing_clicked", on_printing_clicked},
-        {"on_devices_clicked", on_devices_clicked},
-        {"on_safety_clicked", on_safety_clicked},
-        {"on_system_clicked", on_system_clicked},
-        {"on_help_clicked", on_help_clicked},
-        {"on_touch_input_clicked", on_touch_input_clicked},
-        {"on_connection_clicked", on_connection_clicked},
-        {"on_updates_clicked", on_updates_clicked},
-        {"on_plugins_clicked", on_plugins_clicked},
-    });
-
-    // Register sub-panel overlay callbacks (must happen before XML parsing)
-    helix::settings::get_display_settings_overlay().register_callbacks();
-    helix::settings::get_appearance_settings_overlay().register_callbacks();
-    helix::settings::get_sound_settings_overlay().register_callbacks();
-    helix::settings::get_language_time_settings_overlay().register_callbacks();
-    helix::settings::get_printing_settings_overlay().register_callbacks();
-    helix::settings::get_hardware_settings_overlay().register_callbacks();
-    helix::settings::get_safety_settings_overlay().register_callbacks();
-    helix::settings::get_system_settings_overlay().register_callbacks();
-    helix::settings::get_help_settings_overlay().register_callbacks();
-    helix::settings::get_touch_settings_overlay().register_callbacks();
-    helix::settings::get_connection_settings_overlay().register_callbacks();
-    helix::settings::get_updates_settings_overlay().register_callbacks();
-
-    // Note: Sensors overlay callbacks are now handled by SensorSettingsOverlay
-    // See ui_settings_sensors.h
-    helix::settings::get_sensor_settings_overlay().register_callbacks();
-
-    // Note: Fan Settings overlay callbacks are now handled by FanSettingsOverlay
-    helix::settings::get_fan_settings_overlay().register_callbacks();
-
-    // Settings action rows and overlay navigation callbacks
-    register_xml_callbacks({
-        {"on_ams_settings_clicked", on_ams_settings_clicked},
-        {"on_spoolman_settings_clicked", on_spoolman_settings_clicked},
-        {"on_macro_buttons_clicked", on_macro_buttons_clicked},
-        {"on_machine_limits_clicked", on_machine_limits_clicked},
-        {"on_network_clicked", on_network_clicked},
-        {"on_power_devices_clicked", on_power_devices_clicked},
-        {"on_factory_reset_clicked", on_factory_reset_clicked},
-        {"on_hardware_health_clicked", on_hardware_health_clicked},
-        {"on_system_performance_clicked", on_system_performance_clicked},
-
-        // Overlay callbacks
-        {"on_restart_later_clicked", on_restart_later_clicked},
-        {"on_restart_now_clicked", on_restart_now_clicked},
-
-        // Modal dialog callbacks
-        {"on_factory_reset_confirm", on_factory_reset_confirm},
-        {"on_factory_reset_cancel", on_factory_reset_cancel},
-        {"on_header_back_clicked", on_header_back_clicked},
-        // Note: on_brightness_changed is now handled by DisplaySettingsOverlay
-    });
 
     // Note: BedMeshPanel subjects are initialized in main.cpp during startup
 
@@ -631,36 +388,6 @@ void SettingsPanel::populate_led_chips() {
 // EVENT HANDLERS
 // ============================================================================
 
-void SettingsPanel::handle_estop_confirm_changed(bool enabled) {
-    spdlog::info("[{}] E-Stop confirmation toggled: {}", get_name(), enabled ? "ON" : "OFF");
-    SafetySettingsManager::instance().set_estop_require_confirmation(enabled);
-    // Update EmergencyStopOverlay immediately
-    EmergencyStopOverlay::instance().set_require_confirmation(enabled);
-}
-
-void SettingsPanel::handle_cancel_escalation_changed(bool enabled) {
-    spdlog::info("[{}] Cancel escalation toggled: {}", get_name(), enabled ? "ON" : "OFF");
-    SafetySettingsManager::instance().set_cancel_escalation_enabled(enabled);
-}
-
-void SettingsPanel::handle_telemetry_changed(bool enabled) {
-    spdlog::info("[{}] Telemetry toggled: {}", get_name(), enabled ? "ON" : "OFF");
-    SystemSettingsManager::instance().set_telemetry_enabled(enabled);
-    if (enabled) {
-        ToastManager::instance().show(
-            ToastSeverity::SUCCESS,
-            lv_tr("Thanks! TOTALLY anonymous usage data helps improve HelixScreen."), 4000);
-    }
-}
-
-void SettingsPanel::handle_telemetry_view_data_clicked() {
-    spdlog::debug("[{}] View Telemetry Data clicked - delegating to TelemetryDataOverlay",
-                  get_name());
-
-    auto& overlay = helix::settings::get_telemetry_data_overlay();
-    overlay.show(parent_screen_);
-}
-
 void SettingsPanel::show_restart_prompt() {
     // Already showing
     if (restart_prompt_dialog_) {
@@ -673,123 +400,6 @@ void SettingsPanel::show_restart_prompt() {
         // Clear pending flag so we don't show again until next change
         InputSettingsManager::instance().clear_restart_pending();
     }
-}
-
-void SettingsPanel::handle_debug_bundle_clicked() {
-    spdlog::info("[SettingsPanel] Upload Debug Bundle clicked");
-    DebugBundleModal::show_owned();
-}
-
-void SettingsPanel::handle_discord_clicked() {
-    spdlog::info("[SettingsPanel] Discord clicked");
-    helix::ui::InfoQrModal::show_owned({
-        .icon = "message",
-        .title = "Discord Community",
-        .message = lv_tr("Join the HelixScreen community on Discord for discussion, "
-                         "tips, troubleshooting help, and feature requests."),
-        .url = "https://discord.gg/RZCT2StKhr",
-        .url_text = "discord.gg/RZCT2StKhr",
-    });
-}
-
-void SettingsPanel::handle_docs_clicked() {
-    spdlog::info("[SettingsPanel] Documentation clicked");
-    helix::ui::InfoQrModal::show_owned({
-        .icon = "book",
-        .title = lv_tr("Documentation"),
-        .message = lv_tr("Browse guides, configuration references, and troubleshooting "
-                         "resources for HelixScreen."),
-        .url = "https://helixscreen.org/docs/guide/getting-started/",
-        .url_text = "helixscreen.org/docs",
-    });
-}
-
-void SettingsPanel::handle_security_settings_clicked() {
-    spdlog::debug("[{}] Security clicked - delegating to SecuritySettingsOverlay", get_name());
-
-    auto& overlay = helix::settings::get_security_settings_overlay();
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_led_settings_clicked() {
-    spdlog::debug("[{}] LED Settings clicked - delegating to LedSettingsOverlay", get_name());
-
-    auto& overlay = helix::settings::get_led_settings_overlay();
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_printers_clicked() {
-    spdlog::debug("[{}] Printers clicked - opening Printer List", get_name());
-
-    auto& overlay = helix::ui::get_printer_list_overlay();
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_filament_sensors_clicked() {
-    spdlog::debug("[{}] Sensors clicked - delegating to SensorSettingsOverlay", get_name());
-
-    auto& overlay = helix::settings::get_sensor_settings_overlay();
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_fans_settings_clicked() {
-    spdlog::debug("[{}] Fans clicked - delegating to FanSettingsOverlay", get_name());
-
-    auto& overlay = helix::settings::get_fan_settings_overlay();
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_ams_settings_clicked() {
-    spdlog::debug("[{}] AMS Settings clicked - opening Device Operations", get_name());
-
-    auto& overlay = helix::ui::get_ams_device_operations_overlay();
-    if (!overlay.are_subjects_initialized()) {
-        overlay.init_subjects();
-        overlay.register_callbacks();
-    }
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_spoolman_settings_clicked() {
-    spdlog::debug("[{}] Spoolman Settings clicked - opening Spoolman overlay", get_name());
-
-    auto& overlay = helix::ui::get_spoolman_overlay();
-    if (!overlay.are_subjects_initialized()) {
-        overlay.init_subjects();
-        overlay.register_callbacks();
-    }
-    IMoonrakerAPI* api = get_moonraker_api();
-    if (api) {
-        overlay.set_api(api);
-    }
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_macro_buttons_clicked() {
-    spdlog::debug("[{}] Macro Buttons clicked - delegating to MacroButtonsOverlay", get_name());
-
-    auto& overlay = helix::settings::get_macro_buttons_overlay();
-    overlay.show(parent_screen_);
-}
-
-// Note: populate_macro_dropdowns() moved to MacroButtonsOverlay::populate_dropdowns()
-// See ui_settings_macro_buttons.cpp
-// Note: populate_sensor_list() moved to SensorSettingsOverlay::populate_switch_sensors()
-// See ui_settings_sensors.cpp
-
-void SettingsPanel::handle_machine_limits_clicked() {
-    spdlog::debug("[{}] Machine Limits clicked - delegating to MachineLimitsOverlay", get_name());
-
-    auto& overlay = helix::settings::get_machine_limits_overlay();
-    overlay.set_api(api_);
-    overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_material_temps_clicked() {
-    spdlog::debug("[{}] Material Temperatures clicked", get_name());
-
-    auto& overlay = helix::settings::get_material_temps_overlay();
-    overlay.show(parent_screen_);
 }
 
 void SettingsPanel::handle_change_host_clicked() {
@@ -809,32 +419,6 @@ void SettingsPanel::handle_change_host_clicked() {
         const std::string host_display = host + ":" + std::to_string(port);
         lv_subject_copy_string(&printer_host_value_subject_, host_display.c_str());
     });
-}
-
-void SettingsPanel::handle_network_clicked() {
-    spdlog::debug("[{}] Network Settings clicked", get_name());
-
-    auto& overlay = get_network_settings_overlay();
-
-    if (!overlay.is_created()) {
-        overlay.init_subjects();
-        overlay.register_callbacks();
-        overlay.create(parent_screen_);
-    }
-
-    overlay.show();
-}
-
-void SettingsPanel::handle_power_devices_clicked() {
-    spdlog::debug("[{}] Power Devices clicked", get_name());
-
-    auto& panel = get_global_power_panel();
-    lv_obj_t* overlay = panel.get_or_create_overlay(parent_screen_);
-    if (overlay) {
-        NavigationManager::instance().push_overlay(overlay);
-    } else {
-        spdlog::error("[{}] Failed to open Power panel", get_name());
-    }
 }
 
 void SettingsPanel::handle_touch_calibration_clicked() {
@@ -952,271 +536,6 @@ void SettingsPanel::handle_hardware_health_clicked() {
     overlay.show(parent_screen_);
 }
 
-// Note: populate_hardware_issues() moved to HardwareHealthOverlay
-// See ui_settings_hardware_health.cpp
-
-// Note: handle_hardware_action() and related methods moved to HardwareHealthOverlay
-// See ui_settings_hardware_health.cpp
-
-// ============================================================================
-// CATEGORY NAVIGATION CALLBACKS (open sub-panel overlays)
-// ============================================================================
-
-void SettingsPanel::on_display_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_display_clicked");
-    auto& overlay = helix::settings::get_display_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_appearance_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_appearance_clicked");
-    auto& overlay = helix::settings::get_appearance_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_sound_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_sound_clicked");
-    auto& overlay = helix::settings::get_sound_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_language_time_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_language_time_clicked");
-    auto& overlay = helix::settings::get_language_time_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_printing_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_printing_clicked");
-    auto& overlay = helix::settings::get_printing_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_devices_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_devices_clicked");
-    auto& overlay = helix::settings::get_hardware_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_safety_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_safety_clicked");
-    auto& overlay = helix::settings::get_safety_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_system_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_system_clicked");
-    auto& overlay = helix::settings::get_system_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_help_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_help_clicked");
-    auto& overlay = helix::settings::get_help_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_touch_input_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_touch_input_clicked");
-    auto& overlay = helix::settings::get_touch_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_connection_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_connection_clicked");
-    auto& overlay = helix::settings::get_connection_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_updates_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_updates_clicked");
-    auto& overlay = helix::settings::get_updates_settings_overlay();
-    overlay.show(get_global_settings_panel().parent_screen_);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_plugins_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_plugins_clicked");
-#if HELIX_HAS_PLUGINS
-    helix::plugin::show_plugins_overlay(get_global_settings_panel().parent_screen_,
-                                        "[SettingsPanel]");
-#else
-    // No plugin host on this build; the row stays hidden (subject never set).
-#endif
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// STATIC TRAMPOLINES (XML event_cb pattern - use global singleton)
-// ============================================================================
-
-void SettingsPanel::on_estop_confirm_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_estop_confirm_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_global_settings_panel().handle_estop_confirm_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_cancel_escalation_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_cancel_escalation_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_global_settings_panel().handle_cancel_escalation_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_debug_bundle_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_debug_bundle_clicked");
-    get_global_settings_panel().handle_debug_bundle_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_discord_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_discord_clicked");
-    get_global_settings_panel().handle_discord_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_docs_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_docs_clicked");
-    get_global_settings_panel().handle_docs_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_telemetry_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_telemetry_changed");
-    auto* toggle = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    get_global_settings_panel().handle_telemetry_changed(enabled);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_telemetry_view_data(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_telemetry_view_data");
-    get_global_settings_panel().handle_telemetry_view_data_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_security_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_security_clicked");
-    get_global_settings_panel().handle_security_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_led_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_led_settings_clicked");
-    get_global_settings_panel().handle_led_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_timelapse_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_timelapse_settings_clicked");
-    open_timelapse_settings();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_printers_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_printers_clicked");
-    get_global_settings_panel().handle_printers_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_filament_sensors_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_filament_sensors_clicked");
-    get_global_settings_panel().handle_filament_sensors_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_fans_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_fans_settings_clicked");
-    get_global_settings_panel().handle_fans_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_ams_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_ams_settings_clicked");
-    get_global_settings_panel().handle_ams_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_spoolman_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_spoolman_settings_clicked");
-    get_global_settings_panel().handle_spoolman_settings_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_macro_buttons_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_macro_buttons_clicked");
-    get_global_settings_panel().handle_macro_buttons_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_machine_limits_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_machine_limits_clicked");
-    get_global_settings_panel().handle_machine_limits_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_material_temps_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_material_temps_clicked");
-    get_global_settings_panel().handle_material_temps_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_change_host_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_change_host_clicked");
-    get_global_settings_panel().handle_change_host_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_network_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_network_clicked");
-    get_global_settings_panel().handle_network_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_power_devices_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_power_devices_clicked");
-    get_global_settings_panel().handle_power_devices_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_touch_calibration_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_touch_calibration_clicked");
-    get_global_settings_panel().handle_touch_calibration_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_factory_reset_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_factory_reset_clicked");
-    get_global_settings_panel().handle_factory_reset_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_hardware_health_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_hardware_health_clicked");
-    get_global_settings_panel().handle_hardware_health_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_system_performance_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_system_performance_clicked");
-    get_global_settings_panel().handle_performance_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void SettingsPanel::handle_performance_clicked() {
     spdlog::debug("[{}] Performance clicked - opening overlay", get_name());
 
@@ -1234,120 +553,164 @@ void SettingsPanel::handle_performance_clicked() {
     NavigationManager::instance().push_overlay(overlay);
 }
 
-void SettingsPanel::on_restart_helix_settings_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_restart_helix_settings_clicked");
-    get_global_settings_panel().handle_restart_helix_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_about_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_about_clicked");
-    get_global_settings_panel().handle_about_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::handle_about_clicked() {
-    spdlog::debug("[{}] About clicked - opening AboutSettingsOverlay", get_name());
-    auto& overlay = helix::settings::get_about_settings_overlay();
-    overlay.show(parent_screen_);
-}
-
-// ============================================================================
-// STATIC TRAMPOLINES - OVERLAYS
-// ============================================================================
-
-// Note: Machine limits overlay callbacks are now in MachineLimitsOverlay class
-// See ui_settings_machine_limits.cpp
-
-void SettingsPanel::on_restart_later_clicked(lv_event_t* /* e */) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_restart_later_clicked");
-    auto& panel = get_global_settings_panel();
-    if (panel.restart_prompt_dialog_) {
-        helix::ui::modal_hide(panel.restart_prompt_dialog_);
-        panel.restart_prompt_dialog_ = nullptr;
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_restart_now_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_restart_now_clicked");
-    spdlog::info("[SettingsPanel] User requested restart (input settings changed)");
-    app_request_restart_service();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_header_back_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_header_back_clicked");
-    NavigationManager::instance().go_back();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 // ============================================================================
 // GLOBAL INSTANCE
 // ============================================================================
 
-static std::unique_ptr<SettingsPanel> g_settings_panel;
-
 SettingsPanel& get_global_settings_panel() {
-    if (!g_settings_panel) {
-        g_settings_panel = std::make_unique<SettingsPanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy("SettingsPanel",
-                                                         []() { g_settings_panel.reset(); });
-    }
-    return *g_settings_panel;
+    return helix::lazy_global<SettingsPanel>("SettingsPanel", get_printer_state(), nullptr);
 }
 
-// Register callbacks BEFORE settings_panel.xml registration per [L013]
+namespace {
+
+using helix::ui::event_checked;
+using helix::ui::event_selected;
+
+lv_obj_t* settings_screen() {
+    return get_global_settings_panel().parent_screen();
+}
+
+// A root or sub-page row that opens one overlay on the settings screen.
+template <auto Getter> auto nav_row() {
+    return [](lv_event_t*) { Getter().show(settings_screen()); };
+}
+
+} // namespace
+
+// Registered BEFORE settings_panel.xml per [L013]. The one table for every callback the
+// settings root and the Touch, Connection and System pages name; the other pages register
+// their own from OverlayBase::register_callbacks().
 void register_settings_panel_callbacks() {
     spdlog::trace("[SettingsPanel] Registering XML callbacks for settings_panel.xml");
 
+    using namespace helix::settings;
     register_xml_callbacks({
-        // Toggle callbacks used in settings_panel.xml
-        {"on_led_settings_clicked", SettingsPanel::on_led_settings_clicked},
-        {"on_timelapse_settings_clicked", SettingsPanel::on_timelapse_settings_clicked},
-        {"on_security_clicked", SettingsPanel::on_security_clicked},
-        {"on_estop_confirm_changed", SettingsPanel::on_estop_confirm_changed},
-        {"on_cancel_escalation_changed", SettingsPanel::on_cancel_escalation_changed},
-        {"on_cancel_escalation_timeout_changed", on_cancel_escalation_timeout_changed},
-        {"on_telemetry_changed", SettingsPanel::on_telemetry_changed},
-        {"on_telemetry_view_data", SettingsPanel::on_telemetry_view_data},
-        {"on_log_level_changed", on_log_level_changed},
-        {"on_debug_touches_changed", on_debug_touches_changed},
-        {"on_scroll_limit_changed", on_scroll_limit_changed},
-        {"on_long_press_time_changed", on_long_press_time_changed},
-        {"on_home_edit_mode_changed", on_home_edit_mode_changed},
-        {"on_scroll_guard_changed", on_scroll_guard_changed},
-        // Action row callbacks used in settings_panel.xml
-        {"on_printers_clicked", SettingsPanel::on_printers_clicked},
-        {"on_filament_sensors_clicked", SettingsPanel::on_filament_sensors_clicked},
-        {"on_fans_settings_clicked", SettingsPanel::on_fans_settings_clicked},
-        {"on_macro_buttons_clicked", SettingsPanel::on_macro_buttons_clicked},
-        {"on_machine_limits_clicked", SettingsPanel::on_machine_limits_clicked},
-        {"on_material_temps_clicked", SettingsPanel::on_material_temps_clicked},
-        {"on_network_clicked", SettingsPanel::on_network_clicked},
-        {"on_power_devices_clicked", SettingsPanel::on_power_devices_clicked},
-        {"on_touch_calibration_clicked", SettingsPanel::on_touch_calibration_clicked},
-        {"on_factory_reset_clicked", SettingsPanel::on_factory_reset_clicked},
-        {"on_hardware_health_clicked", SettingsPanel::on_hardware_health_clicked},
-        {"on_restart_helix_settings_clicked", SettingsPanel::on_restart_helix_settings_clicked},
-        {"on_about_clicked", SettingsPanel::on_about_clicked},
-        {"on_change_host_clicked", SettingsPanel::on_change_host_clicked},
-        // Help & Support callbacks
-        {"on_debug_bundle_clicked", SettingsPanel::on_debug_bundle_clicked},
-        {"on_discord_clicked", SettingsPanel::on_discord_clicked},
-        {"on_docs_clicked", SettingsPanel::on_docs_clicked},
-        // Category navigation callbacks (open sub-panel overlays)
-        {"on_display_clicked", SettingsPanel::on_display_clicked},
-        {"on_appearance_clicked", SettingsPanel::on_appearance_clicked},
-        {"on_sound_clicked", SettingsPanel::on_sound_clicked},
-        {"on_language_time_clicked", SettingsPanel::on_language_time_clicked},
-        {"on_printing_clicked", SettingsPanel::on_printing_clicked},
-        {"on_devices_clicked", SettingsPanel::on_devices_clicked},
-        {"on_safety_clicked", SettingsPanel::on_safety_clicked},
-        {"on_system_clicked", SettingsPanel::on_system_clicked},
-        {"on_help_clicked", SettingsPanel::on_help_clicked},
-        {"on_touch_input_clicked", SettingsPanel::on_touch_input_clicked},
-        {"on_connection_clicked", SettingsPanel::on_connection_clicked},
-        {"on_updates_clicked", SettingsPanel::on_updates_clicked},
+        // Root rows
+        {"on_display_clicked", nav_row<get_display_settings_overlay>()},
+        {"on_appearance_clicked", nav_row<get_appearance_settings_overlay>()},
+        {"on_sound_clicked", nav_row<get_sound_settings_overlay>()},
+        {"on_language_time_clicked", nav_row<get_language_time_settings_overlay>()},
+        {"on_printing_clicked", nav_row<get_printing_settings_overlay>()},
+        {"on_devices_clicked", nav_row<get_hardware_settings_overlay>()},
+        {"on_safety_clicked", nav_row<get_safety_settings_overlay>()},
+        {"on_system_clicked", nav_row<get_system_settings_overlay>()},
+        {"on_help_clicked", nav_row<get_help_settings_overlay>()},
+        {"on_touch_input_clicked", nav_row<get_touch_settings_overlay>()},
+        {"on_connection_clicked", nav_row<get_connection_settings_overlay>()},
+        {"on_updates_clicked", nav_row<get_updates_settings_overlay>()},
+        {"on_plugins_clicked",
+         [](lv_event_t*) {
+#if HELIX_HAS_PLUGINS
+             helix::plugin::show_plugins_overlay(settings_screen(), "[SettingsPanel]");
+#endif
+             // No plugin host on other builds; the row stays hidden (subject never set).
+         }},
+
+        // Connection page
+        {"on_printers_clicked", nav_row<helix::ui::get_printer_list_overlay>()},
+        {"on_network_clicked", nav_row<get_network_settings_overlay>()},
+        {"on_change_host_clicked",
+         [](lv_event_t*) { get_global_settings_panel().handle_change_host_clicked(); }},
+
+        // System page
+        {"on_security_clicked", nav_row<get_security_settings_overlay>()},
+        {"on_telemetry_view_data", nav_row<get_telemetry_data_overlay>()},
+        {"on_telemetry_changed",
+         [](lv_event_t* e) {
+             bool on = event_checked(e);
+             SystemSettingsManager::instance().set_telemetry_enabled(on);
+             if (on) {
+                 ToastManager::instance().show(
+                     ToastSeverity::SUCCESS,
+                     lv_tr("Thanks! TOTALLY anonymous usage data helps improve HelixScreen."),
+                     4000);
+             }
+         }},
+        {"on_log_level_changed",
+         [](lv_event_t* e) {
+             SystemSettingsManager::instance().set_log_level_by_index(event_selected(e));
+         }},
+        {"on_hardware_health_clicked",
+         [](lv_event_t*) { get_global_settings_panel().handle_hardware_health_clicked(); }},
+        {"on_system_performance_clicked",
+         [](lv_event_t*) { get_global_settings_panel().handle_performance_clicked(); }},
+        {"on_restart_helix_settings_clicked",
+         [](lv_event_t*) { get_global_settings_panel().handle_restart_helix_clicked(); }},
+        {"on_factory_reset_clicked",
+         [](lv_event_t*) { get_global_settings_panel().handle_factory_reset_clicked(); }},
+
+        // Touch page
+        {"on_touch_calibration_clicked",
+         [](lv_event_t*) { get_global_settings_panel().handle_touch_calibration_clicked(); }},
+        {"on_debug_touches_changed",
+         [](lv_event_t* e) {
+             InputSettingsManager::instance().set_debug_touches(event_checked(e));
+         }},
+        {"on_scroll_limit_changed",
+         [](lv_event_t* e) {
+             lv_obj_t* slider = lv_event_get_current_target_obj(e);
+             int value = static_cast<int>(lv_slider_get_value(slider));
+             sync_slider_value_label(slider, value);
+             InputSettingsManager::instance().set_scroll_limit(value);
+             get_global_settings_panel().show_restart_prompt();
+         }},
+        {"on_long_press_time_changed",
+         [](lv_event_t* e) {
+             lv_obj_t* slider = lv_event_get_current_target_obj(e);
+             int value = static_cast<int>(lv_slider_get_value(slider));
+             sync_slider_value_label(slider, value);
+             // set_long_press_time live-applies, so no restart prompt.
+             InputSettingsManager::instance().set_long_press_time(value);
+         }},
+        {"on_home_edit_mode_changed",
+         [](lv_event_t* e) {
+             // should_suppress_edit_mode checks this live, so no restart prompt.
+             InputSettingsManager::instance().set_home_edit_mode_enabled(event_checked(e));
+         }},
+        {"on_scroll_guard_changed",
+         [](lv_event_t* e) {
+             InputSettingsManager::instance().set_scroll_guard(event_checked(e));
+             get_global_settings_panel().show_restart_prompt();
+         }},
+        {"on_system_keyboard_changed",
+         [](lv_event_t* e) {
+             DisplaySettingsManager::instance().set_use_system_keyboard(event_checked(e));
+         }},
+        {"on_hide_keyboard_with_hardware_changed",
+         [](lv_event_t* e) {
+             DisplaySettingsManager::instance().set_hide_keyboard_with_hardware(event_checked(e));
+         }},
+        {"on_keep_navbar_changed",
+         [](lv_event_t* e) {
+             DisplaySettingsManager::instance().set_keep_navbar_visible(event_checked(e));
+         }},
+        {"on_page_scroll_buttons_changed",
+         [](lv_event_t* e) {
+             bool on = event_checked(e);
+             DisplaySettingsManager::instance().set_page_scroll_buttons(on);
+             // The callback is the authoritative user-toggle signal; a subject observer
+             // cannot be used (see PageScrollAutoInject::init).
+             helix::ui::PageScrollAutoInject::instance().on_setting_toggled(on);
+         }},
+
+        // Restart prompt, factory reset modal and the shared header back button
+        {"on_restart_later_clicked",
+         [](lv_event_t*) {
+             auto& panel = get_global_settings_panel();
+             if (panel.restart_prompt_dialog_) {
+                 helix::ui::modal_hide(panel.restart_prompt_dialog_);
+                 panel.restart_prompt_dialog_ = nullptr;
+             }
+         }},
+        {"on_restart_now_clicked", [](lv_event_t*) { app_request_restart_service(); }},
+        {"on_factory_reset_confirm",
+         [](lv_event_t*) { get_global_settings_panel().perform_factory_reset(); }},
+        {"on_factory_reset_cancel",
+         [](lv_event_t*) {
+             if (get_global_settings_panel().factory_reset_dialog_) {
+                 NavigationManager::instance().go_back(); // Animation + callback clean up
+             }
+         }},
+        {"on_header_back_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
     });
 }

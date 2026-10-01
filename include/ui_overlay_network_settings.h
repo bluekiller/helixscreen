@@ -46,10 +46,8 @@
  * ## Initialization Order (CRITICAL):
  *
  *   1. Register XML components (network_settings_overlay.xml, wifi_network_item.xml)
- *   2. init_subjects()
- *   3. register_callbacks()
- *   4. create(parent_screen)
- *   5. show() when ready to display
+ *   2. show(parent_screen) runs init_subjects(), register_callbacks() and create()
+ *      on first use, then pushes the overlay
  */
 
 #pragma once
@@ -160,13 +158,6 @@ class NetworkSettingsOverlay : public OverlayBase {
     //
     // === Public API ===
     //
-
-    using OverlayBase::show;
-
-    /// Push the already-created overlay (callers that build it with create() themselves).
-    void show() {
-        OverlayBase::show(parent_screen_);
-    }
 
     /**
      * @brief Check if overlay is created
