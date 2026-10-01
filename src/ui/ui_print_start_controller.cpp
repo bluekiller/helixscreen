@@ -863,7 +863,7 @@ void PrintStartController::observe_klippy_state_for_restore() {
     // here (we only get called from the not-ready branch), so the first fire is a
     // no-op. Without this the snapshot would sit until a full app restart, which
     // is the only other thing that replays pending_remap.json.
-    klippy_state_observer_ = observe_int_sync<PrintStartController>(
+    klippy_state_observer_ = observe<int>(
         subject, this,
         [](PrintStartController* self, int state_val) {
             if (static_cast<KlippyState>(state_val) != KlippyState::READY) {
@@ -1033,7 +1033,7 @@ void PrintStartController::observe_backend_for_retry() {
     if (!subject) {
         return;
     }
-    backend_retry_observer_ = observe_int_sync<PrintStartController>(
+    backend_retry_observer_ = observe<int>(
         subject, this,
         [](PrintStartController* self, int) {
             // A remap mid-job re-routes the tools of the print in progress.
@@ -1068,7 +1068,7 @@ void PrintStartController::observe_ams_data_for_confirmation() {
         return;
     }
 
-    ams_data_observer_ = observe_int_sync<PrintStartController>(
+    ams_data_observer_ = observe<int>(
         subject, this, [](PrintStartController* self, int) { self->check_restore_confirmed(); },
         AmsState::instance().get_subjects_lifetime());
 }

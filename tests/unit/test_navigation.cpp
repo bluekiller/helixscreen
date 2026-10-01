@@ -22,7 +22,7 @@ using namespace helix;
 // Test fixture for navigation tests.
 //
 // Derives from HelixTestFixture so the UpdateQueue is drained on the way out:
-// panel switching notifies subjects, and observe_int_sync defers every apply,
+// panel switching notifies subjects, and observe<int> defers every apply,
 // so a hand-rolled fixture returns with those applies still queued and hands
 // them to whichever test runs next (tests/CLAUDE.md, "inherit, don't hand-roll").
 class NavigationTestFixture : public HelixTestFixture {

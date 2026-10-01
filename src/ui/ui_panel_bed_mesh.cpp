@@ -327,7 +327,7 @@ bool BedMeshPanel::wire_canvas_and_content(lv_obj_t* overlay_content) {
     //
     // Usually overlay_content is fresh — from lv_xml_create() the first time,
     // from the <if> rebuild after each orientation flip. The exception is
-    // create(): observe_int_immediate fires at registration, so
+    // create(): observe<int> fires at registration, so
     // rewire_after_orientation_flip() runs once against the SAME
     // overlay_content that was just wired here. Remove before adding so that
     // path leaves one registration rather than two.
@@ -365,7 +365,7 @@ void BedMeshPanel::setup_orientation_rewire_observer() {
         return;
     }
 
-    // observe_int_IMMEDIATE, deliberately not the usual observe_int_sync:
+    // Dispatch::Immediate, deliberately not the usual deferred default:
     // bed_mesh_panel.xml's own <if cond="ui_is_portrait eq 1"> is ALSO bound
     // to this subject, and its rebuild (xml_frag_rebuild) runs SYNCHRONOUSLY
     // inside lv_subject_set_int() — not deferred. LVGL appends observers to
@@ -373,18 +373,18 @@ void BedMeshPanel::setup_orientation_rewire_observer() {
     // (lv_subject_notify, lv_observer.c), so registration order is
     // notification order: the <if>'s observer was added during the
     // lv_xml_create() call in create(), strictly before this one, so it
-    // always fires — and finishes its rebuild — first. observe_int_sync's
+    // always fires — and finishes its rebuild — first. observe<int>'s
     // deferral (helix::ui::queue_update()) would be exactly wrong here: it
     // would leave this rewire running on a LATER tick, after the old
     // overlay_content/canvas_ were already condemned and possibly freed.
-    // observe_int_immediate's stated precondition (no observer-lifecycle
+    // Dispatch::Immediate's stated precondition (no observer-lifecycle
     // mutation inside the callback) holds — rewire_after_orientation_flip()
     // only re-finds widgets and adds plain lv_obj_add_event_cb hooks, it
     // never touches an ObserverGuard or a ui_is_portrait subscription.
-    portrait_rewire_observer_ = helix::ui::observe_int_immediate<BedMeshPanel>(
+    portrait_rewire_observer_ = helix::ui::observe<int>(
         portrait_subject, this,
         [](BedMeshPanel* self, int /*is_portrait*/) { self->rewire_after_orientation_flip(); },
-        subject_never_freed());
+        subject_never_freed(), helix::ui::Dispatch::Immediate);
 }
 
 void BedMeshPanel::rewire_after_orientation_flip() {
@@ -827,7 +827,7 @@ void BedMeshPanel::setup_build_volume_observer() {
     // The subject dies only in ~MoonrakerAPI, and both teardown paths reset
     // m_panels and run StaticPanelRegistry::destroy_all() BEFORE m_moonraker,
     // so no observer guard can still be alive when it is freed.
-    build_volume_observer_ = helix::ui::observe_int_sync<BedMeshPanel>(
+    build_volume_observer_ = helix::ui::observe<int>(
         api->get_build_volume_version_subject(), this,
         [](BedMeshPanel* self, int /*version*/) {
             spdlog::debug("[{}] build_volume changed, refreshing bed bounds", self->get_name());

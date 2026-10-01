@@ -40,7 +40,7 @@ void BypassWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // observer path. Runs from attach() too — instances are recycled across
     // rebuilds. The dot is resolved by name inside the callback (not captured)
     // so a recycled instance never writes through a stale pointer.
-    spool_color_observer_ = helix::ui::observe_int_sync<BypassWidget>(
+    spool_color_observer_ = helix::ui::observe<int>(
         AmsState::instance().get_external_spool_color_subject(), this,
         [](BypassWidget* self, int color) {
             if (!self || !self->widget_obj_) {

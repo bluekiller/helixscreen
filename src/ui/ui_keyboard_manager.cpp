@@ -1225,7 +1225,7 @@ void KeyboardManager::init(lv_obj_t* parent) {
     // colour swap in theme_manager_apply_theme() reaches the key background but
     // not the derived skirt or press colours. theme_changed is a file-static
     // theme global, reseeded in place and never freed mid-process.
-    theme_observer_ = helix::ui::observe_int_sync<KeyboardManager>(
+    theme_observer_ = helix::ui::observe<int>(
         theme_manager_get_changed_subject(), this,
         [](KeyboardManager* self, int) { self->apply_key_styles(); }, subject_never_freed());
 

@@ -53,7 +53,7 @@ struct LongPressHarness {
     explicit LongPressHarness(LVGLUITestFixture& f) : fx(f) {
         manager = std::make_unique<PrintExcludeObjectManager>(fx.api(), fx.state(), nullptr);
         manager->init();
-        // observe_int_sync defers its initial-value callback through UpdateQueue;
+        // observe<int> defers its initial-value callback through UpdateQueue;
         // drain it so the first real drain isn't carrying a STANDBY fire-on-subscribe.
         UpdateQueue::instance().drain();
     }

@@ -508,7 +508,7 @@ static void ams_lane_spool_event_cb(lv_event_t* e) {
  *
  * Resolves AmsState's per-slot subjects (lane_state, color, fill, has_error,
  * error_severity) for data->backend_index and observes each with
- * observe_int_sync<lv_obj_t>.
+ * observe<int>.
  */
 static void setup_lane_spool_observers(LaneSpoolData* data) {
     if (data->slot_index < 0 || data->slot_index >= AmsState::MAX_SLOTS) {
@@ -516,7 +516,7 @@ static void setup_lane_spool_observers(LaneSpoolData* data) {
         return;
     }
 
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     AmsState& state = AmsState::instance();
 
     // Backend 0's subjects are static and die with AmsState's subjects; a
@@ -538,7 +538,7 @@ static void setup_lane_spool_observers(LaneSpoolData* data) {
     lv_obj_t* obj = data->sv.container;
 
     if (lane_state_subject) {
-        data->lane_state_observer = observe_int_sync<lv_obj_t>(
+        data->lane_state_observer = observe<int>(
             lane_state_subject, obj,
             [](lv_obj_t* o, int state_int) {
                 auto* d = get_lane_spool_data(o);
@@ -548,7 +548,7 @@ static void setup_lane_spool_observers(LaneSpoolData* data) {
             lifetime);
     }
     if (color_subject) {
-        data->color_observer = observe_int_sync<lv_obj_t>(
+        data->color_observer = observe<int>(
             color_subject, obj,
             [](lv_obj_t* o, int color_int) {
                 auto* d = get_lane_spool_data(o);
@@ -558,7 +558,7 @@ static void setup_lane_spool_observers(LaneSpoolData* data) {
             lifetime);
     }
     if (fill_subject) {
-        data->fill_observer = observe_int_sync<lv_obj_t>(
+        data->fill_observer = observe<int>(
             fill_subject, obj,
             [](lv_obj_t* o, int pct) {
                 auto* d = get_lane_spool_data(o);
@@ -570,7 +570,7 @@ static void setup_lane_spool_observers(LaneSpoolData* data) {
     if (severity_subject) {
         // Color before visibility, so a has_error flip never paints one frame
         // with the default color.
-        data->severity_observer = observe_int_sync<lv_obj_t>(
+        data->severity_observer = observe<int>(
             severity_subject, obj,
             [](lv_obj_t* o, int sev) {
                 auto* d = get_lane_spool_data(o);
@@ -582,7 +582,7 @@ static void setup_lane_spool_observers(LaneSpoolData* data) {
             lifetime);
     }
     if (has_error_subject) {
-        data->has_error_observer = observe_int_sync<lv_obj_t>(
+        data->has_error_observer = observe<int>(
             has_error_subject, obj,
             [](lv_obj_t* o, int has_error) {
                 auto* d = get_lane_spool_data(o);

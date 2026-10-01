@@ -5309,7 +5309,7 @@ void Application::shutdown() {
     AmsState::instance().clear_backends();
 
     // Drain deferred UI callbacks BEFORE destroying panels.
-    // observe_int_sync/observe_string defer via ui_queue_update(), so queued
+    // observe<int>/observe<const char*> defer via ui_queue_update(), so queued
     // callbacks may hold 'this' pointers to living panels. Processing them
     // after m_panels.reset() causes use-after-free (SIGSEGV).
     helix::ui::update_queue_shutdown();

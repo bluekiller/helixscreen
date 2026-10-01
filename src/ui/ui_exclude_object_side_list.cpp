@@ -121,12 +121,10 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterState* printer_state
             self->populate_rows();
         }
     };
-    excluded_version_obs_ = observe_int_sync<ExcludeObjectSideList>(
-        printer_state_->get_excluded_objects_version_subject(), this, repopulate,
-        printer_state_->get_subjects_lifetime());
-    defined_version_obs_ = observe_int_sync<ExcludeObjectSideList>(
-        printer_state_->get_defined_objects_version_subject(), this, repopulate,
-        printer_state_->get_subjects_lifetime());
+    excluded_version_obs_ = observe<int>(printer_state_->get_excluded_objects_version_subject(),
+                                         this, repopulate, printer_state_->get_subjects_lifetime());
+    defined_version_obs_ = observe<int>(printer_state_->get_defined_objects_version_subject(), this,
+                                        repopulate, printer_state_->get_subjects_lifetime());
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -194,7 +192,7 @@ void ExcludeObjectSideList::populate_rows() {
         return;
     }
 
-    // Observers above are observe_int_sync (deferred via UpdateQueue), so child
+    // Observers above are observe<int> (deferred via UpdateQueue), so child
     // teardown must go through the async-clean helper to stay outside the batch
     // (CLAUDE.md § "No sync widget deletion in queued callbacks").
     helix::ui::safe_clean_children(rows_container_);

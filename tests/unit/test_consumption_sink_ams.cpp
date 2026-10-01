@@ -34,7 +34,7 @@ struct AmsSlotSinkFixture : LVGLTestFixture {
         ams.deinit_subjects();
         // AmsState::init_subjects installs an observer on the global
         // PrinterState's print_state_enum subject — that subject must exist
-        // before init_subjects runs, otherwise observe_int_sync attaches to an
+        // before init_subjects runs, otherwise observe<int> attaches to an
         // uninitialized lv_subject_t. (Crashes on macOS where every test
         // shares one process; on Linux nightly the parallel shards happen to
         // have a prior test that already initialized PrinterState.)

@@ -812,7 +812,7 @@ ObserverGuard FanStackWidget::bind_fan_observer(const std::string& fan_name,
         return {};
 
     auto token = lifetime_.token();
-    auto guard = helix::ui::observe_int_sync<FanStackWidget>(
+    auto guard = helix::ui::observe<int>(
         subject, this,
         [token, on_update](FanStackWidget* /*self*/, int speed) {
             if (token.expired())
@@ -832,7 +832,7 @@ void FanStackWidget::setup_common_observers(std::function<void()> on_anim_change
     animations_enabled_ = DisplaySettingsManager::instance().get_animations_enabled();
 
     auto token = lifetime_.token();
-    anim_settings_observer_ = helix::ui::observe_int_sync<FanStackWidget>(
+    anim_settings_observer_ = helix::ui::observe<int>(
         DisplaySettingsManager::instance().subject_animations_enabled(), this,
         [token, on_anim_changed](FanStackWidget* self, int enabled) {
             if (token.expired())
@@ -842,7 +842,7 @@ void FanStackWidget::setup_common_observers(std::function<void()> on_anim_change
         },
         DisplaySettingsManager::instance().get_subjects_lifetime());
 
-    version_observer_ = helix::ui::observe_int_sync<FanStackWidget>(
+    version_observer_ = helix::ui::observe<int>(
         printer_state_.get_fans_version_subject(), this,
         [token, on_fans_version](FanStackWidget* /*self*/, int /*version*/) {
             if (token.expired())

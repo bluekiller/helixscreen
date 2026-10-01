@@ -88,7 +88,7 @@ void PrintLightTimelapseControls::init_subjects() {
                               "light_button_icon", subjects_);
 
     auto& leds = helix::led::LedController::instance();
-    led_state_observer_ = helix::ui::observe_int_sync<PrintLightTimelapseControls>(
+    led_state_observer_ = helix::ui::observe<int>(
         leds.get_led_state_version_subject(), this,
         [](PrintLightTimelapseControls* self, int /*version*/) { self->refresh_light_state(); },
         leds.get_subjects_lifetime());

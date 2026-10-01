@@ -59,7 +59,7 @@ ActivePrintMediaManager& get_active_print_media_manager() {
 ActivePrintMediaManager::ActivePrintMediaManager(PrinterState& printer_state)
     : printer_state_(printer_state) {
     // Observe print_filename_ subject to react to filename changes.
-    // Use observe_string_immediate so process_filename runs SYNCHRONOUSLY
+    // Use Dispatch::Immediate so process_filename runs SYNCHRONOUSLY
     // when the subject changes. This is critical: process_filename clears
     // the stale print_thumbnail_path_ from the previous print BEFORE any
     // deferred observers fire (e.g., print_start_navigation's push_overlay
@@ -69,25 +69,25 @@ ActivePrintMediaManager::ActivePrintMediaManager(PrinterState& printer_state)
     // Safety: process_filename only clears subjects, queues updates, and
     // starts async operations — no observer lifecycle changes or widget
     // destruction, so immediate dispatch is safe.
-    print_filename_observer_ = helix::ui::observe_string_immediate<ActivePrintMediaManager>(
+    print_filename_observer_ = helix::ui::observe<const char*>(
         printer_state_.get_print_filename_subject(), this,
         [](ActivePrintMediaManager* self, const char* filename) {
             self->process_filename(filename);
         },
-        printer_state_.get_subjects_lifetime());
+        printer_state_.get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
 
     // Adopt the preparing job's identity the moment a job starts preparing,
     // and release it when that claim did not become the running print. Doing
     // this here rather than at each start path is the point: the previous
     // arrangement required every caller to remember a second call, and one of
     // them (the reprint path) never did.
-    // observe_int_immediate, not _sync: _sync routes through queue_update, so the
-    // identity change would land AFTER a synchronously-dispatched filename
+    // Dispatch::Immediate, not the deferred default: deferral routes through
+    // queue_update, so the identity change would land AFTER a synchronously-dispatched filename
     // update had already early-returned on the stale override. Safe to dispatch
     // immediately by the same reasoning as the filename observer above - this
     // handler only mutates identity fields and queues updates; it touches no
     // observer lifecycle and destroys no widgets.
-    preparing_epoch_observer_ = helix::ui::observe_int_immediate<ActivePrintMediaManager>(
+    preparing_epoch_observer_ = helix::ui::observe<int>(
         printer_state_.get_preparing_epoch_subject(), this,
         [](ActivePrintMediaManager* self, int epoch) {
             if (epoch > 0) {
@@ -116,7 +116,7 @@ ActivePrintMediaManager::ActivePrintMediaManager(PrinterState& printer_state)
             // changed. Give it one fresh ladder now that the file must exist.
             self->rearm_media_if_incomplete();
         },
-        printer_state_.get_subjects_lifetime());
+        printer_state_.get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
 
     spdlog::debug("[ActivePrintMediaManager] Observer attached to print_filename subject");
 }

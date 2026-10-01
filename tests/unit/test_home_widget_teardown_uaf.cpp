@@ -177,7 +177,7 @@ TEST_CASE_METHOD(HomeWidgetTeardownFixture,
     UpdateQueue::instance().drain();
     REQUIRE(NozzleTempsTestAccess::row_temp_label(*widget, 0) != nullptr);
 
-    // An extruder-temp change fires the row's observe_int_sync observer
+    // An extruder-temp change fires the row's observe<int> observer
     // synchronously; the handler body is queued. This is the pending lambda a
     // screen teardown can drain after the tree is already gone.
     lv_subject_t* temp = state().get_extruder_temp_subject("extruder");

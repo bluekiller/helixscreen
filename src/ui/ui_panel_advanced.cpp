@@ -446,7 +446,7 @@ void AdvancedPanel::wire_macro_restart_observer() {
         return;
     }
 
-    macro_job_observer_ = helix::ui::observe_int_sync<AdvancedPanel>(
+    macro_job_observer_ = helix::ui::observe<int>(
         printer_state_.get_job_holds_machine_subject(), this,
         [](AdvancedPanel* self, int holds) {
             // The machine went idle by the same predicate the restart guard

@@ -291,7 +291,7 @@ void TemperatureController::set_chamber_dryer(const chamber::ChamberHeaterBacken
     // The cycle can end on the appliance's side (its timer, its own button),
     // so the bed assist follows the reported state rather than our commands.
     if (!dryer_active_observer_ && chamber_dryer().supported) {
-        dryer_active_observer_ = ui::observe_int_sync<TemperatureController>(
+        dryer_active_observer_ = ui::observe<int>(
             state_.get_chamber_dryer_active_subject(), this,
             [](TemperatureController* self, int active) {
                 self->on_chamber_dryer_active(active != 0);

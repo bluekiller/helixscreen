@@ -267,7 +267,7 @@ On any change, `compute_state_key()` determines the current state, and if it dif
 
 **Per-printer reload on switch.** `load_config()` reads from the active-printer path `<Config::df()>leds/auto_state/...` (i.e. `/printers/<active>/leds/auto_state/enabled`, `.../strips` and `.../mappings`), with a one-time migration from the legacy global `/led/auto_state/` path. Because `switch_printer()` runs teardown → `init_printer_state` → `connect_moonraker` → discovery, the discovery-path `init()` call automatically reloads the new printer's auto-state config on every printer switch — no extra wiring needed.
 
-**Main-thread-only.** `init()` (and thus `subscribe_observers()` via `observe_int_sync`) runs on the main thread: `init_subsystems_from_hardware()` is invoked inside a `queue_update()` drain. Do not call `init()` / `deinit()` from a background thread.
+**Main-thread-only.** `init()` (and thus `subscribe_observers()` via `observe<int>`) runs on the main thread: `init_subsystems_from_hardware()` is invoked inside a `queue_update()` drain. Do not call `init()` / `deinit()` from a background thread.
 
 ## Config Persistence
 
@@ -445,7 +445,7 @@ light button's target is set from that button's own edit-mode gear, not from Set
 - **LED commands**: Sent via `MoonrakerAPI` (through WebSocket, runs on libhv thread)
 - **Status updates**: `NativeBackend::update_from_status()`, `OutputPinBackend::update_from_status()`, and `WledBackend::update_strip_state()` called from Moonraker subscription handler (background thread), change callbacks dispatched to main thread
 - **UI updates**: All subject updates and widget manipulation on main thread only
-- **Auto-state lifecycle**: `LedAutoState::init()` / `deinit()` run on the main thread only (init via the `init_subsystems_from_hardware()` discovery path inside a `queue_update()` drain; deinit via `Application::tear_down_printer_state()`). Its `observe_int_sync` subscriptions defer callbacks through the UpdateQueue, so auto-state actions always apply on the main thread
+- **Auto-state lifecycle**: `LedAutoState::init()` / `deinit()` run on the main thread only (init via the `init_subsystems_from_hardware()` discovery path inside a `queue_update()` drain; deinit via `Application::tear_down_printer_state()`). Its `observe<int>` subscriptions defer callbacks through the UpdateQueue, so auto-state actions always apply on the main thread
 
 ## In-Flight Command Tracking
 

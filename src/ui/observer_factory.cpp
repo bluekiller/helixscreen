@@ -23,7 +23,6 @@ namespace {
  */
 template <typename V> struct LambdaObserverContext {
     std::shared_ptr<const std::function<void(V)>> fn;
-    std::shared_ptr<const std::function<void()>> then_deferred;
     std::shared_ptr<bool> alive = std::make_shared<bool>(true);
 };
 
@@ -53,7 +52,7 @@ template <typename Context> Context* context_of(lv_observer_t* obs) {
 void int_deferred_cb(lv_observer_t* obs, lv_subject_t* subj) {
     auto* c = context_of<IntContext>(obs);
     int value = lv_subject_get_int(subj);
-    helix::ui::queue_update("observe_int_sync::apply",
+    helix::ui::queue_update("observe<int>::apply",
                             [fn = c->fn, value, weak_alive = std::weak_ptr<bool>(c->alive)]() {
                                 if (weak_alive.expired())
                                     return;
@@ -67,23 +66,10 @@ void int_immediate_cb(lv_observer_t* obs, lv_subject_t* subj) {
     (*fn)(lv_subject_get_int(subj));
 }
 
-void int_async_cb(lv_observer_t* obs, lv_subject_t* subj) {
-    auto* c = context_of<IntContext>(obs);
-    auto fn = c->fn;
-    auto then_deferred = c->then_deferred;
-    std::weak_ptr<bool> weak_alive = c->alive;
-    (*fn)(lv_subject_get_int(subj));
-    helix::ui::queue_update("observe_int_async::update", [then_deferred, weak_alive]() {
-        if (weak_alive.expired())
-            return;
-        (*then_deferred)();
-    });
-}
-
 void string_deferred_cb(lv_observer_t* obs, lv_subject_t* subj) {
     auto* c = context_of<StringContext>(obs);
     const char* str = lv_subject_get_string(subj);
-    helix::ui::queue_update("observe_string_sync::apply",
+    helix::ui::queue_update("observe<const char*>::apply",
                             [fn = c->fn, str_copy = std::string(str ? str : ""),
                              weak_alive = std::weak_ptr<bool>(c->alive)]() {
                                 if (weak_alive.expired())
@@ -119,19 +105,13 @@ ObserverGuard attach(lv_subject_t* subject, lv_observer_cb_t cb, Context* ctx,
 } // namespace
 
 ObserverGuard observe_core(lv_subject_t* subject, const void* owner, std::function<void(int)> fn,
-                           Dispatch dispatch, const SubjectLifetime& lifetime,
-                           std::function<void()> then_deferred) {
+                           Dispatch dispatch, const SubjectLifetime& lifetime) {
     if (!attachable(subject, owner)) {
         return ObserverGuard();
     }
-    auto* ctx = new IntContext{
-        std::make_shared<const std::function<void(int)>>(std::move(fn)),
-        then_deferred ? std::make_shared<const std::function<void()>>(std::move(then_deferred))
-                      : nullptr};
-    lv_observer_cb_t cb = dispatch == Dispatch::Deferred ? int_deferred_cb
-                          : ctx->then_deferred           ? int_async_cb
-                                                         : int_immediate_cb;
-    return attach(subject, cb, ctx, lifetime);
+    auto* ctx = new IntContext{std::make_shared<const std::function<void(int)>>(std::move(fn))};
+    return attach(subject, dispatch == Dispatch::Deferred ? int_deferred_cb : int_immediate_cb, ctx,
+                  lifetime);
 }
 
 ObserverGuard observe_core(lv_subject_t* subject, const void* owner,

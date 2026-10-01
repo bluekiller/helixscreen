@@ -203,7 +203,7 @@ void ThermistorWidget::attach_single() {
         lv_subject_t* subject = tsm.get_temp_subject(selected_sensor_, temp_lifetime_);
         if (subject) {
             auto token = lifetime_.token();
-            temp_observer_ = helix::ui::observe_int_sync<ThermistorWidget>(
+            temp_observer_ = helix::ui::observe<int>(
                 subject, this,
                 [token](ThermistorWidget* self, int temp) {
                     if (token.expired())
@@ -229,7 +229,7 @@ void ThermistorWidget::attach_carousel() {
     // Observe sensor count to rebind when sensors are discovered
     auto& tsm = helix::sensors::TemperatureSensorManager::instance();
     auto token = lifetime_.token();
-    version_observer_ = helix::ui::observe_int_sync<ThermistorWidget>(
+    version_observer_ = helix::ui::observe<int>(
         tsm.get_sensor_count_subject(), this,
         [token](ThermistorWidget* self, int /*count*/) {
             if (token.expired())
@@ -375,7 +375,7 @@ void ThermistorWidget::bind_carousel_sensors() {
         SubjectLifetime& lifetime = carousel_lifetimes_.emplace_back();
         lv_subject_t* subject = tsm.get_temp_subject(klipper_name, lifetime);
         if (subject) {
-            auto obs = helix::ui::observe_int_sync<ThermistorWidget>(
+            auto obs = helix::ui::observe<int>(
                 subject, this,
                 [token, page_idx](ThermistorWidget* self, int decidegrees) {
                     if (token.expired())
@@ -500,7 +500,7 @@ void ThermistorWidget::select_sensor(const std::string& klipper_name) {
     lv_subject_t* subject = tsm.get_temp_subject(klipper_name, temp_lifetime_);
     if (subject) {
         auto token = lifetime_.token();
-        temp_observer_ = helix::ui::observe_int_sync<ThermistorWidget>(
+        temp_observer_ = helix::ui::observe<int>(
             subject, this,
             [token](ThermistorWidget* self, int temp) {
                 if (token.expired())

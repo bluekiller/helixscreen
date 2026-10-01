@@ -304,7 +304,7 @@ void AmsOperationSidebar::setup_step_progress() {
 
 void AmsOperationSidebar::init_observers() {
     // Action observer: drives step progress and load completion detection
-    action_observer_ = observe_int_sync<AmsOperationSidebar>(
+    action_observer_ = observe<int>(
         AmsState::instance().get_ams_action_subject(), this,
         [](AmsOperationSidebar* self, int action_int) {
             if (!self->active_ || !self->sidebar_root_)
@@ -348,7 +348,7 @@ void AmsOperationSidebar::init_observers() {
         AmsState::instance().get_subjects_lifetime());
 
     // Current slot observer: updates loaded card display and reset button label
-    current_slot_observer_ = observe_int_sync<AmsOperationSidebar>(
+    current_slot_observer_ = observe<int>(
         AmsState::instance().get_current_slot_subject(), this,
         [](AmsOperationSidebar* self, int /*slot_index*/) {
             if (!self->active_ || !self->sidebar_root_)
@@ -371,17 +371,17 @@ void AmsOperationSidebar::init_observers() {
     // move on at all. PrinterState is a separate singleton whose subjects tests
     // deinit between cases, so its observer takes the lifetime token (#705);
     // AmsState's does not.
-    filament_loaded_observer_ = observe_int_sync<AmsOperationSidebar>(
+    filament_loaded_observer_ = observe<int>(
         AmsState::instance().get_filament_loaded_subject(), this,
         [](AmsOperationSidebar* self, int) { self->refresh_button_gating(); },
         AmsState::instance().get_subjects_lifetime());
-    print_state_observer_ = observe_int_sync<AmsOperationSidebar>(
+    print_state_observer_ = observe<int>(
         printer_state_.get_print_lifecycle_subject(), this,
         [](AmsOperationSidebar* self, int) { self->refresh_button_gating(); },
         printer_state_.get_static_print_subjects_lifetime());
 
     // Active backend observer: re-syncs reset button label when the user switches backend tabs
-    active_backend_observer_ = observe_int_sync<AmsOperationSidebar>(
+    active_backend_observer_ = observe<int>(
         AmsState::instance().get_active_backend_subject(), this,
         [](AmsOperationSidebar* self, int /*active_index*/) {
             if (!self->active_ || !self->sidebar_root_)
@@ -395,7 +395,7 @@ void AmsOperationSidebar::init_observers() {
         AmsState::instance().get_subjects_lifetime());
 
     // Bypass spool color observer: refreshes loaded card when external spool changes
-    bypass_spool_observer_ = observe_int_sync<AmsOperationSidebar>(
+    bypass_spool_observer_ = observe<int>(
         AmsState::instance().get_external_spool_color_subject(), this,
         [](AmsOperationSidebar* self, int /*color_rgb*/) {
             if (!self->active_ || !self->sidebar_root_)
@@ -405,7 +405,7 @@ void AmsOperationSidebar::init_observers() {
         AmsState::instance().get_subjects_lifetime());
 
     // Color observer: reactively updates loaded card swatch color
-    color_observer_ = observe_int_sync<AmsOperationSidebar>(
+    color_observer_ = observe<int>(
         AmsState::instance().get_current_color_subject(), this,
         [](AmsOperationSidebar* self, int color_int) {
             if (!self->active_ || !self->sidebar_root_)
@@ -420,7 +420,7 @@ void AmsOperationSidebar::init_observers() {
         AmsState::instance().get_subjects_lifetime());
 
     // Extruder temp observer: checks pending preheat load + refreshes heat step
-    extruder_temp_observer_ = observe_int_sync<AmsOperationSidebar>(
+    extruder_temp_observer_ = observe<int>(
         printer_state_.get_active_extruder_temp_subject(), this,
         [](AmsOperationSidebar* self, int /*temp_deci*/) {
             if (!self->active_)
@@ -432,7 +432,7 @@ void AmsOperationSidebar::init_observers() {
 
     // Extruder target observer: refreshes heat step when target temp changes
     // (the macro raises the target before any visible action change)
-    extruder_target_observer_ = observe_int_sync<AmsOperationSidebar>(
+    extruder_target_observer_ = observe<int>(
         printer_state_.get_active_extruder_target_subject(), this,
         [](AmsOperationSidebar* self, int /*target_deci*/) {
             if (!self->active_)
@@ -446,7 +446,7 @@ void AmsOperationSidebar::init_observers() {
     // swaps between the live temp readout and the busy "Working…" label
     // (#1065 row 14). AmsState frees the subject in deinit_subjects(), so the
     // observer carries its subjects lifetime.
-    indeterminate_observer_ = observe_int_sync<AmsOperationSidebar>(
+    indeterminate_observer_ = observe<int>(
         AmsState::instance().get_ams_operation_indeterminate_subject(), this,
         [](AmsOperationSidebar* self, int /*indeterminate*/) {
             if (!self->active_)
@@ -722,7 +722,7 @@ void AmsOperationSidebar::recreate_step_progress_for_operation(StepOperationType
                     if (step_index_subject_ == ams.get_toolchange_step_subject()) {
                         lv_subject_set_int(step_index_subject_, 0);
                     }
-                    step_index_observer_ = observe_int_sync<AmsOperationSidebar>(
+                    step_index_observer_ = observe<int>(
                         step_index_subject_, this,
                         [](AmsOperationSidebar* self, int index) {
                             if (!self->active_ || !self->step_progress_)

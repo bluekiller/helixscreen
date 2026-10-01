@@ -78,7 +78,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     state.init_subjects(false);
 
     CountingPanel panel;
-    ObserverGuard guard = helix::ui::observe_int_sync<CountingPanel>(
+    ObserverGuard guard = helix::ui::observe<int>(
         state.get_print_progress_subject(), &panel,
         [](CountingPanel* p, int /*v*/) { p->notifications++; }, state.get_subjects_lifetime());
     REQUIRE(static_cast<bool>(guard));
@@ -108,7 +108,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     CountingPanel panel;
     {
-        ObserverGuard guard = helix::ui::observe_int_sync<CountingPanel>(
+        ObserverGuard guard = helix::ui::observe<int>(
             subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; },
             state.get_subjects_lifetime());
         REQUIRE(lv_ll_get_len(&subject->subs_ll) == baseline + 1);

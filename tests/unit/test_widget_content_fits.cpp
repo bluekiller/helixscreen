@@ -311,7 +311,7 @@ Rendered render_at(lv_obj_t* screen, const PanelWidgetDef& def, const CellMetric
         h.resize(c, r, static_cast<int>(grid_track_extent(m.cell_w, m.gutter, c)),
                  static_cast<int>(grid_track_extent(m.cell_h, m.gutter, r)));
         // Several widgets rebuild their content from an observer that fires
-        // through UpdateQueue rather than inline (observe_int_sync queues its
+        // through UpdateQueue rather than inline (observe<int> queues its
         // handler), so measuring before the drain measures the pre-rebuild tree.
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
         lv_obj_update_layout(h.root());

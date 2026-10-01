@@ -185,7 +185,7 @@ class PrinterPrintState {
      * Production-wise these subjects live for the process, but tests call
      * `deinit_subjects()` / `init_subjects()` between cases. Cross-singleton
      * observers (e.g. AmsState's print-state observer) MUST pass this token to
-     * `observe_int_sync(...)` — otherwise an ObserverGuard outliving a
+     * `observe<int>(...)` — otherwise an ObserverGuard outliving a
      * `deinit_subjects()` cycle will UAF in `lv_observer_remove()` (subject
      * deinit already freed the observer node).
      */
@@ -314,7 +314,7 @@ class PrinterPrintState {
      *
      * These subjects are still **dynamic** ([L077]): they are re-created on
      * `deinit_subjects()` / `init_subjects()` cycles. Observers MUST pass a
-     * SubjectLifetime token and subscribe via `observe_int_sync(..., lifetime)`
+     * SubjectLifetime token and subscribe via `observe<int>(..., lifetime)`
      * — otherwise ObserverGuard dangles on reconnect.
      *
      * @param extruder_idx 0-based extruder index (0 = "extruder", 1 = "extruder1", ...)

@@ -149,7 +149,7 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // transitions to 1, try starting the stream if we're active.
     lv_subject_t* gate = lv_xml_get_subject(nullptr, "printer_has_webcam");
     if (gate) {
-        webcam_observer_ = helix::ui::observe_int_sync<CameraWidget>(
+        webcam_observer_ = helix::ui::observe<int>(
             gate, this,
             [](CameraWidget* self, int val) {
                 if (val > 0) {
@@ -163,7 +163,7 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
                     }
                 } else {
                     // Only stop if the stream isn't being actively displayed.
-                    // observe_int_sync defers via queue_update(), so this callback can
+                    // observe<int> defers via queue_update(), so this callback can
                     // fire AFTER on_activate() already restarted the stream — killing it
                     // and leaving a gray rectangle. Also skip if fullscreen overlay is
                     // open — the stream must keep running for the fullscreen view.
@@ -180,7 +180,7 @@ void CameraWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // this widget is configured to show appears or disappears.
     lv_subject_t* list = lv_xml_get_subject(nullptr, "webcam_count");
     if (list) {
-        webcam_list_observer_ = helix::ui::observe_int_sync<CameraWidget>(
+        webcam_list_observer_ = helix::ui::observe<int>(
             list, this, [](CameraWidget* self, int /*count*/) { self->resync_source(); },
             get_printer_state().get_subjects_lifetime());
     }
@@ -289,7 +289,7 @@ void CameraWidget::on_activate() {
     // Observe edit mode changes to throttle camera fps
     if (!edit_mode_observer_) {
         lv_subject_t* edit_subj = &get_home_edit_mode_subject();
-        edit_mode_observer_ = helix::ui::observe_int_sync<CameraWidget>(
+        edit_mode_observer_ = helix::ui::observe<int>(
             edit_subj, this, [](CameraWidget* self, int /*val*/) { self->update_stream_fps(); },
             get_app_globals_subjects_lifetime());
     }

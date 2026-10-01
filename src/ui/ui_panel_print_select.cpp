@@ -719,10 +719,10 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Register observer on connection state to refresh files when printer connects
     // This handles the race condition where panel activates before WebSocket connection
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     lv_subject_t* connection_subject = printer_state_.get_printer_connection_state_subject();
     if (connection_subject) {
-        connection_observer_ = observe_int_sync<PrintSelectPanel>(
+        connection_observer_ = observe<int>(
             connection_subject, this,
             [](PrintSelectPanel* self, int state) {
                 if (state == static_cast<int>(ConnectionState::CONNECTED)) {
@@ -765,7 +765,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // holds the PREVIOUS job during a preparing window.
     lv_subject_t* print_state_subject = printer_state_.get_print_state_enum_subject();
     if (print_state_subject) {
-        print_state_observer_ = observe_int_sync<PrintSelectPanel>(
+        print_state_observer_ = observe<int>(
             print_state_subject, this,
             [](PrintSelectPanel* self, int) { self->update_print_button_state(); },
             printer_state_.get_subjects_lifetime());
@@ -778,7 +778,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // progress frame on.
     lv_subject_t* print_lifecycle_subject = printer_state_.get_print_lifecycle_subject();
     if (print_lifecycle_subject) {
-        print_lifecycle_observer_ = observe_int_sync<PrintSelectPanel>(
+        print_lifecycle_observer_ = observe<int>(
             print_lifecycle_subject, this,
             [](PrintSelectPanel* self, int) { self->update_print_button_state(); },
             printer_state_.get_subjects_lifetime());
@@ -788,7 +788,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // (before Moonraker reports state change, which can take seconds)
     lv_subject_t* print_in_progress_subject = printer_state_.get_print_in_progress_subject();
     if (print_in_progress_subject) {
-        print_in_progress_observer_ = observe_int_sync<PrintSelectPanel>(
+        print_in_progress_observer_ = observe<int>(
             print_in_progress_subject, this,
             [](PrintSelectPanel* self, int) { self->update_print_button_state(); },
             printer_state_.get_subjects_lifetime());
@@ -800,7 +800,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Only show modal when explicitly 0 (after discovery confirms plugin is missing)
     lv_subject_t* plugin_subject = printer_state_.get_helix_plugin_installed_subject();
     if (plugin_subject) {
-        helix_plugin_observer_ = observe_int_sync<PrintSelectPanel>(
+        helix_plugin_observer_ = observe<int>(
             plugin_subject, this,
             [](PrintSelectPanel* self, int plugin_state) {
                 // Only show modal when state is explicitly 0 (checked and not installed)

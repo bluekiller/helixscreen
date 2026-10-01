@@ -33,7 +33,7 @@
 #include <memory>
 
 using namespace helix;
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 
 // ============================================================================
 // STATIC STATE
@@ -158,7 +158,7 @@ void ZOffsetCalibrationPanel::setup_widgets() {
     // This replaces the fake timer with real state tracking
     PrinterState& ps = get_printer_state();
 
-    manual_probe_active_observer_ = observe_int_sync<ZOffsetCalibrationPanel>(
+    manual_probe_active_observer_ = observe<int>(
         ps.get_manual_probe_active_subject(), this,
         [](ZOffsetCalibrationPanel* self, int is_active) {
             spdlog::debug("[ZOffsetCal] manual_probe_active changed: {}", is_active);
@@ -192,7 +192,7 @@ void ZOffsetCalibrationPanel::setup_widgets() {
         },
         ps.get_subjects_lifetime());
 
-    manual_probe_z_observer_ = observe_int_sync<ZOffsetCalibrationPanel>(
+    manual_probe_z_observer_ = observe<int>(
         ps.get_manual_probe_z_position_subject(), this,
         [](ZOffsetCalibrationPanel* self, int z_microns) {
             // Only update Z display when in ADJUSTING state
@@ -378,7 +378,7 @@ void ZOffsetCalibrationPanel::begin_saving_restart_watch() {
     //     notify_klippy_disconnected(), so its success callback often never
     //     fires — without this the panel burns the full extension budget and
     //     then fails a save that actually succeeded.
-    klippy_state_observer_ = observe_int_sync<ZOffsetCalibrationPanel>(
+    klippy_state_observer_ = observe<int>(
         get_printer_state().get_klippy_state_subject(), this,
         [](ZOffsetCalibrationPanel* self, int state) {
             if (self->state_ != State::SAVING) {
@@ -479,7 +479,7 @@ void ZOffsetCalibrationPanel::start_calibration() {
         set_state(State::WARMING);
 
         PrinterState& ps = get_printer_state();
-        bed_temp_observer_ = observe_int_sync<ZOffsetCalibrationPanel>(
+        bed_temp_observer_ = observe<int>(
             ps.get_bed_temp_subject(bed_temp_lifetime_), this,
             [](ZOffsetCalibrationPanel* self, int temp_deci) {
                 if (self->state_ != State::WARMING)

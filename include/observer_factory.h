@@ -8,10 +8,9 @@
  * Provides template-based observer creation that eliminates boilerplate callback code.
  * All observers return ObserverGuard for automatic cleanup.
  *
- * Each observer takes a lambda handler and comes in a deferred form (observe_int_sync,
- * observe_string), an immediate form (*_immediate) and, for ints, a value-now /
- * update-later form (observe_int_async). All of them forward to one type-erased
- * detail::observe_core() per value type. Domain helpers wrap them for print state;
+ * One observe<V>() takes a lambda handler, deferred through the UpdateQueue by default or
+ * Dispatch::Immediate inside the subject notification. It forwards to one type-erased
+ * detail::observe_core() per value type. Domain helpers wrap it for print state;
  * observe_language_change() lives in observe_language.h.
  */
 
@@ -26,13 +25,14 @@
 
 #include <cstdint>
 #include <functional>
+#include <type_traits>
 
 namespace helix::ui {
 
 /// How an observer's handler runs relative to the subject notification.
 enum class Dispatch : uint8_t {
-    Deferred,  ///< From the UpdateQueue after the notification (observe_int_sync, observe_string)
-    Immediate, ///< Inside lv_subject notify (the *_immediate forms)
+    Deferred,  ///< From the UpdateQueue after the notification
+    Immediate, ///< Inside lv_subject notify
 };
 
 namespace detail {
@@ -41,10 +41,8 @@ namespace detail {
 // Each call site only binds its owner into a std::function; see observe_core() there for
 // the context layout and the teardown invariant it depends on.
 
-/// @p then_deferred, when set, is queued after every Immediate call (observe_int_async).
 ObserverGuard observe_core(lv_subject_t* subject, const void* owner, std::function<void(int)> fn,
-                           Dispatch dispatch, const SubjectLifetime& lifetime,
-                           std::function<void()> then_deferred = nullptr);
+                           Dispatch dispatch, const SubjectLifetime& lifetime);
 ObserverGuard observe_core(lv_subject_t* subject, const void* owner,
                            std::function<void(const char*)> fn, Dispatch dispatch,
                            const SubjectLifetime& lifetime);
@@ -58,100 +56,44 @@ std::function<void(V)> bind_owner(Panel* panel, Handler&& handler) {
 } // namespace detail
 
 /**
- * @brief Create deferred int observer with custom lambda handler
+ * @brief Observe an int or string subject with a lambda handler
  *
- * The handler is deferred via helix::ui::queue_update() to run after the current
- * subject notification completes. This prevents re-entrant observer
- * destruction crashes (issue #82). Safe default for all observer callbacks.
+ * @code
+ * guard_ = observe<int>(subject, this, [](Panel* self, int v) { ... }, lifetime);
+ * guard_ = observe<const char*>(subject, this, [](Panel* self, const char* s) { ... },
+ *                               lifetime, Dispatch::Immediate);
+ * @endcode
  *
- * @tparam Panel Panel class type
- * @tparam Handler Callable type: void(Panel*, int)
+ * The default Dispatch::Deferred queues the handler through helix::ui::queue_update() to run
+ * after the current subject notification completes, which prevents re-entrant observer
+ * destruction crashes (#82); string values are copied first so they stay valid. Use
+ * Dispatch::Immediate ONLY when the handler cannot modify observer lifecycle (no observer
+ * reassignment, no widget destruction, no ObserverGuard mutation), or when it must see the
+ * value before the notification returns.
+ *
+ * One handler instance serves every notification, so a `mutable` handler keeps its state.
+ * A handler needing "value now, UI work later" is Immediate plus an explicit
+ * lifetime_.defer() for the later half.
+ *
+ * @tparam V int or const char*; the subject's value type
+ * @tparam Owner Deduced from @p owner; the handler receives it as its first argument
  * @param subject LVGL subject to observe
- * @param panel Panel instance
- * @param handler Lambda called with panel and int value
+ * @param owner Object the handler acts on
+ * @param handler Callable void(Owner*, V)
  * @param lifetime Death signal for @p subject. Required: pass the subject
  *        owner's get_subjects_lifetime(), or subject_never_freed() only when
  *        the subject genuinely cannot be freed before process exit.
- * @return ObserverGuard for RAII cleanup; empty (with a warning) when @p subject
- *         or @p panel is null
+ * @return ObserverGuard for RAII cleanup; empty (with a debug log) when @p subject
+ *         or @p owner is null
  */
-template <typename Panel, typename Handler>
-ObserverGuard observe_int_sync(lv_subject_t* subject, Panel* panel, Handler&& handler,
-                               const SubjectLifetime& lifetime) {
-    return detail::observe_core(subject, panel,
-                                detail::bind_owner<int>(panel, std::forward<Handler>(handler)),
-                                Dispatch::Deferred, lifetime);
-}
-
-/**
- * @brief Create immediate (non-deferred) int observer with custom lambda handler
- *
- * The handler is called directly in the observer callback with no deferral.
- * Use ONLY when you are certain the callback will NOT modify observer lifecycle
- * (no observer reassignment, no widget destruction, no ObserverGuard mutation).
- * Prefer observe_int_sync() in all other cases.
- *
- * @tparam Panel Panel class type
- * @tparam Handler Callable type: void(Panel*, int)
- */
-template <typename Panel, typename Handler>
-ObserverGuard observe_int_immediate(lv_subject_t* subject, Panel* panel, Handler&& handler,
-                                    const SubjectLifetime& lifetime) {
-    return detail::observe_core(subject, panel,
-                                detail::bind_owner<int>(panel, std::forward<Handler>(handler)),
-                                Dispatch::Immediate, lifetime);
-}
-
-/**
- * @brief Create async int observer with value and update handlers
- *
- * Value handler is called synchronously, update handler via ui_queue_update().
- *
- * @tparam Panel Panel class type
- * @tparam ValueHandler Callable: void(Panel*, int)
- * @tparam UpdateHandler Callable: void(Panel*)
- */
-template <typename Panel, typename ValueHandler, typename UpdateHandler>
-ObserverGuard observe_int_async(lv_subject_t* subject, Panel* panel, ValueHandler&& value_handler,
-                                UpdateHandler&& update_handler, const SubjectLifetime& lifetime) {
-    return detail::observe_core(
-        subject, panel, detail::bind_owner<int>(panel, std::forward<ValueHandler>(value_handler)),
-        Dispatch::Immediate, lifetime,
-        [panel, u = std::forward<UpdateHandler>(update_handler)]() mutable { u(panel); });
-}
-
-/**
- * @brief Create deferred string observer with custom lambda handler
- *
- * The handler is deferred via helix::ui::queue_update() to run after the current
- * subject notification completes. String value is copied to ensure validity.
- *
- * @tparam Panel Panel class type
- * @tparam Handler Callable: void(Panel*, const char*)
- */
-template <typename Panel, typename Handler>
-ObserverGuard observe_string(lv_subject_t* subject, Panel* panel, Handler&& handler,
-                             const SubjectLifetime& lifetime) {
-    return detail::observe_core(
-        subject, panel, detail::bind_owner<const char*>(panel, std::forward<Handler>(handler)),
-        Dispatch::Deferred, lifetime);
-}
-
-/**
- * @brief Create immediate (non-deferred) string observer
- *
- * Use ONLY when the callback will NOT modify observer lifecycle.
- * Prefer observe_string() in all other cases.
- *
- * @tparam Panel Panel class type
- * @tparam Handler Callable: void(Panel*, const char*)
- */
-template <typename Panel, typename Handler>
-ObserverGuard observe_string_immediate(lv_subject_t* subject, Panel* panel, Handler&& handler,
-                                       const SubjectLifetime& lifetime) {
-    return detail::observe_core(
-        subject, panel, detail::bind_owner<const char*>(panel, std::forward<Handler>(handler)),
-        Dispatch::Immediate, lifetime);
+template <typename V, typename Owner, typename Handler>
+ObserverGuard observe(lv_subject_t* subject, Owner* owner, Handler&& handler,
+                      const SubjectLifetime& lifetime, Dispatch dispatch = Dispatch::Deferred) {
+    static_assert(std::is_same_v<V, int> || std::is_same_v<V, const char*>,
+                  "observe<V>: V is int or const char*");
+    return detail::observe_core(subject, owner,
+                                detail::bind_owner<V>(owner, std::forward<Handler>(handler)),
+                                dispatch, lifetime);
 }
 
 // ============================================================================
@@ -174,43 +116,24 @@ ObserverGuard observe_string_immediate(lv_subject_t* subject, Panel* panel, Hand
  * @param panel Panel instance
  * @param handler Lambda called with panel and typed PrintJobState
  * @param lifetime Death signal for @p subject. Required whenever the observing
- *        object can outlive the subject's owner — see observe_int_sync().
+ *        object can outlive the subject's owner — see observe<int>().
  *        print_state_enum belongs to PrinterState, so every caller that is not
  *        itself owned by PrinterState wants one.
+ * @param dispatch Typing and dispatch are orthogonal. Pass Dispatch::Immediate when the caller
+ *        reads the resulting state in the same turn (AbortManager's cancel detection does);
+ *        otherwise leave the deferred default.
  * @return ObserverGuard for RAII cleanup
  */
 template <typename Panel, typename Handler>
 ObserverGuard observe_print_state(lv_subject_t* subject, Panel* panel, Handler&& handler,
-                                  const SubjectLifetime& lifetime) {
-    return observe_int_sync<Panel>(
+                                  const SubjectLifetime& lifetime,
+                                  Dispatch dispatch = Dispatch::Deferred) {
+    return observe<int>(
         subject, panel,
         [handler = std::forward<Handler>(handler)](Panel* p, int state_int) {
             handler(p, static_cast<PrintJobState>(state_int));
         },
-        lifetime);
-}
-
-/**
- * @brief observe_print_state(), but firing SYNCHRONOUSLY like observe_int_immediate().
- *
- * Typing and dispatch mode are orthogonal, and a family that covers only one
- * dispatch mode is a trap: swapping observe_int_immediate() for
- * observe_print_state() to gain the typing silently moves the handler onto the
- * UpdateQueue. AbortManager's cancel detection reads the resulting state in the
- * same turn, so deferring it broke two tests the moment that swap was tried.
- *
- * Prefer the deferred observe_print_state() unless the caller genuinely needs
- * the value before returning.
- */
-template <typename Panel, typename Handler>
-ObserverGuard observe_print_state_immediate(lv_subject_t* subject, Panel* panel, Handler&& handler,
-                                            const SubjectLifetime& lifetime) {
-    return observe_int_immediate<Panel>(
-        subject, panel,
-        [handler = std::forward<Handler>(handler)](Panel* p, int state_int) {
-            handler(p, static_cast<PrintJobState>(state_int));
-        },
-        lifetime);
+        lifetime, dispatch);
 }
 
 /**
@@ -228,7 +151,7 @@ ObserverGuard observe_print_state_immediate(lv_subject_t* subject, Panel* panel,
  *        numbering, and passing the wrong subject is silent.
  * @param panel Panel instance
  * @param handler Lambda called with panel and typed PrintState
- * @param lifetime Death signal for @p subject. Same rule as observe_int_sync():
+ * @param lifetime Death signal for @p subject. Same rule as observe<int>():
  *        print_lifecycle belongs to PrinterState, so every caller not owned by
  *        PrinterState wants one.
  * @return ObserverGuard for RAII cleanup
@@ -236,7 +159,7 @@ ObserverGuard observe_print_state_immediate(lv_subject_t* subject, Panel* panel,
 template <typename Panel, typename Handler>
 ObserverGuard observe_print_lifecycle(lv_subject_t* subject, Panel* panel, Handler&& handler,
                                       const SubjectLifetime& lifetime) {
-    return observe_int_sync<Panel>(
+    return observe<int>(
         subject, panel,
         [handler = std::forward<Handler>(handler)](Panel* p, int state_int) {
             handler(p, static_cast<PrintState>(state_int));

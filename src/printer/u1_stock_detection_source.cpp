@@ -28,7 +28,7 @@ void U1StockSource::tune() {
 void U1StockSource::start() {
     if (!state_)
         return;
-    // Deferred (observe_int_sync) rather than immediate: PrinterPrintState sets the
+    // Deferred (observe<int>) rather than immediate: PrinterPrintState sets the
     // print-state-enum subject (line ~284) BEFORE it parses print_stats.exception
     // (line ~343) within a single update_from_status() frame. A synchronous observer
     // would read a stale exception code on the paused edge. Deferring via the
@@ -36,7 +36,7 @@ void U1StockSource::start() {
     // exception is latched. The callback fires on the main thread (queue drain).
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - U1 stock firmware raises
     // defect detection by pausing, so the edge is the printer's own.
-    state_observer_ = helix::ui::observe_int_sync<U1StockSource>(
+    state_observer_ = helix::ui::observe<int>(
         state_->get_print_state_enum_subject(), this,
         [](U1StockSource* self, int value) { self->on_print_state(value); },
         state_->get_subjects_lifetime());

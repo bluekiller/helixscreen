@@ -137,12 +137,13 @@ if (temp) {
 
 ```cpp
 // Observer triggers UI rebuild when extruder list changes
-add_observer(observe_int_async<TempPanel>(
+add_observer(observe<int>(
     pts.get_extruder_version_subject(),
     this,
     [](TempPanel* self, int32_t version) {
         self->rebuild_extruder_list();
-    }
+    },
+    get_printer_state().get_subjects_lifetime()
 ));
 ```
 

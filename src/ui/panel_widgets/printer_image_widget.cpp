@@ -244,7 +244,7 @@ void PrinterImageWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // attach() runs on every rebuild of a recycled instance, so re-arming here
     // keeps the observer alive across home-panel rebuilds.
-    printer_type_observer_ = helix::ui::observe_string<PrinterImageWidget>(
+    printer_type_observer_ = helix::ui::observe<const char*>(
         get_printer_state().get_printer_type_subject(), this,
         [](PrinterImageWidget* w, const char* /*type*/) { w->schedule_image_refresh(); },
         get_printer_state().get_subjects_lifetime());
@@ -736,12 +736,11 @@ void PrinterImageWidget::arm_callout_observers() {
     const SubjectLifetime life = ps.get_subjects_lifetime();
     for (lv_subject_t* s : {ps.get_active_extruder_temp_subject(),
                             ps.get_active_extruder_target_subject(), ps.get_fan_speed_subject()}) {
-        callout_observers_.push_back(
-            helix::ui::observe_int_sync<PrinterImageWidget>(s, this, on_change, life));
+        callout_observers_.push_back(helix::ui::observe<int>(s, this, on_change, life));
     }
     auto& leds = helix::led::LedController::instance();
-    callout_observers_.push_back(helix::ui::observe_int_sync<PrinterImageWidget>(
-        leds.get_led_state_version_subject(), this, on_change, leds.get_subjects_lifetime()));
+    callout_observers_.push_back(helix::ui::observe<int>(leds.get_led_state_version_subject(), this,
+                                                         on_change, leds.get_subjects_lifetime()));
     // A capability joins the budget, which decides the mode, whether or not any
     // chip text changes with it.
     const auto on_capability = [](PrinterImageWidget* w, int) {
@@ -749,11 +748,9 @@ void PrinterImageWidget::arm_callout_observers() {
         w->schedule_callout_layout();
     };
     for (lv_subject_t* s : {printer_has_led_subject(), ps.get_printer_has_chamber_heater_subject()})
-        callout_observers_.push_back(
-            helix::ui::observe_int_sync<PrinterImageWidget>(s, this, on_capability, life));
+        callout_observers_.push_back(helix::ui::observe<int>(s, this, on_capability, life));
     const auto observe_dynamic = [&](lv_subject_t* s, SubjectLifetime& lt) {
-        callout_observers_.push_back(
-            helix::ui::observe_int_sync<PrinterImageWidget>(s, this, on_change, lt));
+        callout_observers_.push_back(helix::ui::observe<int>(s, this, on_change, lt));
     };
     observe_dynamic(ps.get_bed_temp_subject(bed_temp_lt_), bed_temp_lt_);
     observe_dynamic(ps.get_bed_target_subject(bed_target_lt_), bed_target_lt_);
@@ -761,16 +758,16 @@ void PrinterImageWidget::arm_callout_observers() {
     observe_dynamic(ps.get_chamber_effective_target_subject(chamber_target_lt_),
                     chamber_target_lt_);
     auto& display = DisplaySettingsManager::instance();
-    callout_observers_.push_back(helix::ui::observe_int_sync<PrinterImageWidget>(
+    callout_observers_.push_back(helix::ui::observe<int>(
         display.subject_animations_enabled(), this, on_change, display.get_subjects_lifetime()));
     // The nozzle glyph draws the tool number beside it on a multi-tool printer,
     // which widens the nozzle and toolhead chips. Looked up by the names the
     // badge binds, so where ToolState never registered them there is no badge.
     const SubjectLifetime tools_life = ToolState::instance().get_subjects_lifetime();
-    callout_observers_.push_back(helix::ui::observe_int_sync<PrinterImageWidget>(
+    callout_observers_.push_back(helix::ui::observe<int>(
         lv_xml_get_subject(nullptr, "show_tool_badge"), this,
         [](PrinterImageWidget* w, int) { w->schedule_callout_layout(); }, tools_life));
-    callout_observers_.push_back(helix::ui::observe_string<PrinterImageWidget>(
+    callout_observers_.push_back(helix::ui::observe<const char*>(
         lv_xml_get_subject(nullptr, "tool_badge_text"), this,
         [](PrinterImageWidget* w, const char*) { w->schedule_callout_layout(); }, tools_life));
 

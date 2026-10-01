@@ -64,8 +64,7 @@
 #include <memory>
 
 using namespace helix;
-using helix::ui::observe_int_sync;
-using helix::ui::observe_string;
+using helix::ui::observe;
 using helix::ui::temperature::deci_to_degrees;
 
 // Forward declarations for class-based API
@@ -212,7 +211,7 @@ void ControlsPanel::init_subjects() {
                               "controls_z_offset", subjects_);
 
     // Observe homed_axes from PrinterState to update homing subjects using string observer
-    homed_axes_observer_ = observe_string<ControlsPanel>(
+    homed_axes_observer_ = observe<const char*>(
         printer_state_.get_homed_axes_subject(), this,
         [](ControlsPanel* self, const char* axes) {
             bool has_x = strchr(axes, 'x') != nullptr;
@@ -530,7 +529,7 @@ void ControlsPanel::register_observers() {
     // Subscribe to chamber temperature (current, raw heater target, and effective target).
     // Note: We check are_subjects_initialized() because observers may fire immediately
     // upon registration, but subjects aren't initialized until init_subjects() is called.
-    chamber_temp_observer_ = observe_int_sync<ControlsPanel>(
+    chamber_temp_observer_ = observe<int>(
         printer_state_.get_chamber_temp_subject(chamber_temp_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_temp_ = value;
@@ -540,7 +539,7 @@ void ControlsPanel::register_observers() {
         chamber_temp_lifetime_);
     // Raw heater target is kept for keypad seed only (shows the currently entered
     // heater setpoint when the user opens the keypad to edit the chamber target).
-    chamber_target_observer_ = observe_int_sync<ControlsPanel>(
+    chamber_target_observer_ = observe<int>(
         printer_state_.get_chamber_target_subject(chamber_target_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_target_ = value;
@@ -549,7 +548,7 @@ void ControlsPanel::register_observers() {
         chamber_target_lifetime_);
     // Effective target is the canonical display value: heater target when heating,
     // cooling-fan ceiling when maintaining, 0 when off — drives the status string.
-    chamber_effective_target_observer_ = observe_int_sync<ControlsPanel>(
+    chamber_effective_target_observer_ = observe<int>(
         printer_state_.get_chamber_effective_target_subject(chamber_effective_target_lifetime_),
         this,
         [](ControlsPanel* self, int value) {
@@ -560,7 +559,7 @@ void ControlsPanel::register_observers() {
         chamber_effective_target_lifetime_);
     // M141 control mode (Off/Heating/Maintaining) — needed so the status string
     // leads with the correct mode word rather than the raw thermal state.
-    chamber_mode_observer_ = observe_int_sync<ControlsPanel>(
+    chamber_mode_observer_ = observe<int>(
         printer_state_.get_chamber_mode_subject(chamber_mode_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_mode_ = value;
@@ -570,7 +569,7 @@ void ControlsPanel::register_observers() {
         chamber_mode_lifetime_);
 
     // Subscribe to fan updates (skip formatting when hidden)
-    fan_observer_ = observe_int_sync<ControlsPanel>(
+    fan_observer_ = observe<int>(
         printer_state_.get_fan_speed_subject(), this,
         [](ControlsPanel* self, int /* value */) {
             if (self->active_)
@@ -580,7 +579,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to multi-fan list changes (fires when fans are discovered/updated)
     // Skip widget rebuilds when hidden; on_activate() calls populate_secondary_fans()
-    fans_version_observer_ = observe_int_sync<ControlsPanel>(
+    fans_version_observer_ = observe<int>(
         printer_state_.get_fans_version_subject(), this,
         [](ControlsPanel* self, int /* version */) {
             if (!self->active_)
@@ -605,20 +604,20 @@ void ControlsPanel::register_observers() {
     // re-resolves every slot against the new list. Sampling once at setup() left
     // a button enabled for a macro that had gone away (and hidden for one that
     // had arrived) until the panel next deactivated.
-    macros_version_observer_ = observe_int_sync<ControlsPanel>(
+    macros_version_observer_ = observe<int>(
         StandardMacros::instance().get_macros_version_subject(), this,
         [](ControlsPanel* self, int /* version */) { self->refresh_macro_buttons(); },
         StandardMacros::instance().get_subjects_lifetime());
 
     // The light toggle's slot depends on whether an LED is controllable, which
     // discovery settles after setup.
-    led_controllable_observer_ = observe_int_sync<ControlsPanel>(
+    led_controllable_observer_ = observe<int>(
         helix::led::LedController::instance().get_led_controllable_subject(), this,
         [](ControlsPanel* self, int /* controllable */) { self->refresh_macro_buttons(); },
         helix::led::LedController::instance().get_subjects_lifetime());
 
     // Subscribe to active tool changes for dynamic nozzle label
-    active_tool_observer_ = observe_int_sync<ControlsPanel>(
+    active_tool_observer_ = observe<int>(
         helix::ToolState::instance().get_active_tool_subject(), this,
         [](ControlsPanel* self, int /* tool_idx */) {
             if (self->active_)
@@ -629,7 +628,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to temperature sensor count changes
     // Skip widget rebuilds when hidden; on_activate() calls populate_secondary_temps()
-    temp_sensor_count_observer_ = observe_int_sync<ControlsPanel>(
+    temp_sensor_count_observer_ = observe<int>(
         helix::sensors::TemperatureSensorManager::instance().get_sensor_count_subject(), this,
         [](ControlsPanel* self, int /* count */) {
             if (!self->active_)
@@ -650,7 +649,7 @@ void ControlsPanel::register_observers() {
         helix::sensors::TemperatureSensorManager::instance().get_subjects_lifetime());
 
     // Subscribe to pending Z-offset delta (for unsaved adjustment banner)
-    pending_z_offset_observer_ = observe_int_sync<ControlsPanel>(
+    pending_z_offset_observer_ = observe<int>(
         printer_state_.get_pending_z_offset_delta_subject(), this,
         [](ControlsPanel* self, int delta_microns) {
             if (self->active_)
@@ -682,7 +681,7 @@ void ControlsPanel::register_observers() {
         });
 
     // Subscribe to speed/flow factor updates (skip formatting when hidden)
-    speed_factor_observer_ = observe_int_sync<ControlsPanel>(
+    speed_factor_observer_ = observe<int>(
         printer_state_.get_speed_factor_subject(), this,
         [](ControlsPanel* self, int /* value */) {
             if (self->active_)
@@ -691,7 +690,7 @@ void ControlsPanel::register_observers() {
         printer_state_.get_subjects_lifetime());
 
     // Subscribe to gcode Z-offset for live tuning display (skip formatting when hidden)
-    gcode_z_offset_observer_ = observe_int_sync<ControlsPanel>(
+    gcode_z_offset_observer_ = observe<int>(
         printer_state_.get_gcode_z_offset_subject(), this,
         [](ControlsPanel* self, int /* offset_microns */) {
             if (self->active_)
@@ -701,7 +700,7 @@ void ControlsPanel::register_observers() {
 
     // The displayed Z-offset switches source between the live and the
     // firmware-persisted reading, so all three inputs have to retrigger it.
-    persisted_z_offset_observer_ = observe_int_sync<ControlsPanel>(
+    persisted_z_offset_observer_ = observe<int>(
         printer_state_.get_persisted_z_offset_subject(), this,
         [](ControlsPanel* self, int /* offset_microns */) {
             if (self->active_)
@@ -709,7 +708,7 @@ void ControlsPanel::register_observers() {
         },
         printer_state_.get_subjects_lifetime());
 
-    persisted_z_offset_valid_observer_ = observe_int_sync<ControlsPanel>(
+    persisted_z_offset_valid_observer_ = observe<int>(
         printer_state_.get_persisted_z_offset_valid_subject(), this,
         [](ControlsPanel* self, int /* valid */) {
             if (self->active_)
@@ -717,7 +716,7 @@ void ControlsPanel::register_observers() {
         },
         printer_state_.get_subjects_lifetime());
 
-    z_offset_print_active_observer_ = observe_int_sync<ControlsPanel>(
+    z_offset_print_active_observer_ = observe<int>(
         printer_state_.get_print_active_subject(), this,
         [](ControlsPanel* self, int /* print_active */) {
             if (self->active_)
@@ -923,7 +922,7 @@ void ControlsPanel::populate_secondary_fans() {
 
     // Bump generation counter FIRST — any in-flight deferred callbacks from previous
     // observers will see a stale generation and skip their update. This prevents
-    // use-after-free when observe_int_sync callbacks fire after widget deletion.
+    // use-after-free when observe<int> callbacks fire after widget deletion.
     ++fan_populate_gen_;
 
     // Cleanup order: lifetimes → observers → tracking → hide → delete widgets.
@@ -1658,7 +1657,7 @@ void ControlsPanel::on_fan_slider_changed(lv_event_t* e) {
 PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, save_z_offset)
 
 void ControlsPanel::subscribe_to_secondary_fan_speeds() {
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     secondary_fan_observers_.reserve(secondary_fan_rows_.size());
     secondary_fan_lifetimes_.reserve(secondary_fan_rows_.size());
 
@@ -1671,7 +1670,7 @@ void ControlsPanel::subscribe_to_secondary_fan_speeds() {
         // corrupts the subject's observer list when reset() later removes it).
         SubjectLifetime& lifetime = secondary_fan_lifetimes_.emplace_back();
         if (auto* subject = printer_state_.get_fan_speed_subject(row.object_name, lifetime)) {
-            secondary_fan_observers_.push_back(observe_int_sync<ControlsPanel>(
+            secondary_fan_observers_.push_back(observe<int>(
                 subject, this,
                 [name = row.object_name, gen](ControlsPanel* self, int speed_pct) {
                     if (gen != self->fan_populate_gen_)
@@ -1853,7 +1852,7 @@ void ControlsPanel::handle_secondary_temps_clicked() {
 }
 
 void ControlsPanel::subscribe_to_secondary_temp_subjects() {
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     secondary_temp_observers_.reserve(secondary_temp_rows_.size());
 
     const uint32_t gen = temp_populate_gen_;
@@ -1861,7 +1860,7 @@ void ControlsPanel::subscribe_to_secondary_temp_subjects() {
     for (const auto& row : secondary_temp_rows_) {
         SubjectLifetime lifetime;
         if (auto* subject = tsm.get_temp_subject(row.klipper_name, lifetime)) {
-            secondary_temp_observers_.push_back(observe_int_sync<ControlsPanel>(
+            secondary_temp_observers_.push_back(observe<int>(
                 subject, this,
                 [name = row.klipper_name, gen](ControlsPanel* self, int decidegrees) {
                     if (gen != self->temp_populate_gen_)

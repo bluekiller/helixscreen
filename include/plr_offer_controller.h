@@ -52,7 +52,7 @@ namespace helix::ui {
 ///     screen now fires. This is what makes wizard suppression temporary
 ///     instead of permanent.
 ///
-/// Observer callbacks all run on the main thread — observe_int_sync defers via
+/// Observer callbacks all run on the main thread — observe<int> defers via
 /// the update queue and plr_should_offer/plr_should_rearm are pure. The one
 /// genuine thread crossing is the probe response (a JSON-RPC callback on the
 /// WebSocket thread), which is wrapped in lifetime_.bg_cb().

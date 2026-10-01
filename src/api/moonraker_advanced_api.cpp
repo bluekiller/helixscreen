@@ -419,7 +419,7 @@ class CalibrationCollectorCore {
                     // deinit_subjects() on a printer switch (and by test
                     // re-init); the lifetime token makes the observer's
                     // removal skip the freed node instead of chasing it.
-                    fallback_.observer = helix::ui::observe_int_sync<CalibrationCollectorCore>(
+                    fallback_.observer = helix::ui::observe<int>(
                         idle_subject, this,
                         [idle_subject](CalibrationCollectorCore* self, int printing) {
                             self->on_idle_report(idle_subject, printing == 1);
@@ -482,7 +482,7 @@ class CalibrationCollectorCore {
 
   private:
     /// The armed fallback's view of the printer's busy flag, deferred out of
-    /// the subject notification by observe_int_sync().
+    /// the subject notification by observe<int>().
     void on_idle_report(lv_subject_t* subject, bool busy_now) {
         if (!fallback_.armed) {
             return;

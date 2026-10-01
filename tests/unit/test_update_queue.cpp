@@ -99,9 +99,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "queue resumes after thaw — buffered + post-
 }
 
 // ---------------------------------------------------------------------------
-// observe_int_sync + ScopedFreeze interaction
+// observe<int> + ScopedFreeze interaction
 //
-// observe_int_sync defers its initial callback via queue_update(). Under the
+// observe<int> defers its initial callback via queue_update(). Under the
 // buffer-not-drop semantics, an observer created during a freeze has its
 // initial fire diverted into frozen_buffer_ and spliced into pending_ when
 // the freeze releases, so it fires on the next drain — no manual rebind
@@ -116,8 +116,7 @@ struct FakePanel {
 };
 } // namespace
 
-TEST_CASE_METHOD(LVGLTestFixture,
-                 "observe_int_sync initial callback is buffered during ScopedFreeze",
+TEST_CASE_METHOD(LVGLTestFixture, "observe<int> initial callback is buffered during ScopedFreeze",
                  "[update_queue][observer]") {
     auto& q = UpdateQueue::instance();
     FakePanel panel;
@@ -135,7 +134,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
         // Create observer while frozen — the initial fire is queued via
         // queue_update(), goes into frozen_buffer_.
-        guard = helix::ui::observe_int_sync<FakePanel>(
+        guard = helix::ui::observe<int>(
             &subject, &panel, [](FakePanel* p, int value) { p->observed_value = value; },
             subject_never_freed());
 
@@ -152,7 +151,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     lv_subject_deinit(&subject);
 }
 
-TEST_CASE_METHOD(LVGLTestFixture, "observe_int_sync initial callback works without ScopedFreeze",
+TEST_CASE_METHOD(LVGLTestFixture, "observe<int> initial callback works without ScopedFreeze",
                  "[update_queue][observer]") {
     auto& q = UpdateQueue::instance();
     FakePanel panel;
@@ -162,7 +161,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "observe_int_sync initial callback works witho
 
     {
         // Create observer without freeze — initial fire should be delivered.
-        auto guard = helix::ui::observe_int_sync<FakePanel>(
+        auto guard = helix::ui::observe<int>(
             &subject, &panel, [](FakePanel* p, int value) { p->observed_value = value; },
             subject_never_freed());
 
@@ -173,7 +172,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "observe_int_sync initial callback works witho
     lv_subject_deinit(&subject);
 }
 
-TEST_CASE_METHOD(LVGLTestFixture, "observe_int_sync subsequent changes are delivered after thaw",
+TEST_CASE_METHOD(LVGLTestFixture, "observe<int> subsequent changes are delivered after thaw",
                  "[update_queue][observer]") {
     auto& q = UpdateQueue::instance();
     FakePanel panel;
@@ -186,7 +185,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "observe_int_sync subsequent changes are deliv
         auto freeze = q.scoped_freeze();
 
         // Initial fire buffered during freeze.
-        guard = helix::ui::observe_int_sync<FakePanel>(
+        guard = helix::ui::observe<int>(
             &subject, &panel, [](FakePanel* p, int value) { p->observed_value = value; },
             subject_never_freed());
     }

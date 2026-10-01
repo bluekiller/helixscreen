@@ -50,7 +50,7 @@ struct PrintStatusThumbFixture : public LVGLTestFixture {
         // Own the PrinterState rather than sharing the global one: the panel's
         // observer is registered against whatever reference it is handed, and a
         // path left behind by an earlier test would be delivered to it the
-        // moment it subscribes (observe_string_immediate fires on registration).
+        // moment it subscribes (observe<const char*> fires on registration).
         // register_xml=false keeps these subjects out of the process-wide XML
         // registry, which outlives this stack frame.
         state_.init_subjects(false);

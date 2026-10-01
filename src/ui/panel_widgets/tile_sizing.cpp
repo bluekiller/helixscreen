@@ -256,7 +256,7 @@ void TileSizing::follow_label_setting() {
     if (lv_xml_get_subject(nullptr, "show_widget_labels") != shown) {
         return;
     }
-    label_setting_observer_ = ui::observe_int_sync<TileSizing>(
+    label_setting_observer_ = ui::observe<int>(
         shown, this,
         [](TileSizing* self, int /*shown*/) {
             if (self->last_width_px_ >= 0) {

@@ -131,7 +131,7 @@ void ToolSwitcherWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     auto token = lifetime_.token();
 
     // Observe active tool changes
-    active_tool_observer_ = helix::ui::observe_int_sync<ToolSwitcherWidget>(
+    active_tool_observer_ = helix::ui::observe<int>(
         tool_state.get_active_tool_subject(), this,
         [token](ToolSwitcherWidget* self, int tool) {
             if (token.expired())
@@ -141,7 +141,7 @@ void ToolSwitcherWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         tool_state.get_subjects_lifetime());
 
     // Observe tool count changes to trigger rebuild
-    tool_count_observer_ = helix::ui::observe_int_sync<ToolSwitcherWidget>(
+    tool_count_observer_ = helix::ui::observe<int>(
         tool_state.get_tool_count_subject(), this,
         [token](ToolSwitcherWidget* self, int /*count*/) {
             if (token.expired())
@@ -165,7 +165,7 @@ void ToolSwitcherWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // ObserverGuard that outlives that cycle calls lv_observer_remove() on freed
     // memory (#705). The comment here used to claim none was needed; its two
     // sibling call sites (ui_panel_filament, ui_ams_sidebar) both pass it.
-    print_state_observer_ = helix::ui::observe_int_sync<ToolSwitcherWidget>(
+    print_state_observer_ = helix::ui::observe<int>(
         printer_state_.get_print_lifecycle_subject(), this,
         [token](ToolSwitcherWidget* self, int /*state*/) {
             if (token.expired())

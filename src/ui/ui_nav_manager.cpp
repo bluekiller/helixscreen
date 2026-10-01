@@ -36,7 +36,7 @@
 #include <spdlog/spdlog.h>
 
 using namespace helix;
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 
 #include <algorithm>
 #include <atomic>
@@ -893,7 +893,7 @@ void NavigationManager::init() {
     UI_MANAGED_SUBJECT_INT(overlay_backdrop_visible_subject_, 0, "overlay_backdrop_visible",
                            subjects_);
 
-    active_panel_observer_ = observe_int_sync<NavigationManager>(
+    active_panel_observer_ = observe<int>(
         &active_panel_subject_, this,
         [](NavigationManager* mgr, int value) { mgr->handle_active_panel_change(value); },
         get_subjects_lifetime());
@@ -954,13 +954,13 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
     }
 
     // Register connection state observer for redirect on disconnect
-    connection_state_observer_ = observe_int_sync<NavigationManager>(
+    connection_state_observer_ = observe<int>(
         get_printer_state().get_printer_connection_state_subject(), this,
         [](NavigationManager* mgr, int value) { mgr->handle_connection_state_change(value); },
         get_printer_state().get_subjects_lifetime());
 
     // Register klippy state observer for redirect on SHUTDOWN/ERROR
-    klippy_state_observer_ = observe_int_sync<NavigationManager>(
+    klippy_state_observer_ = observe<int>(
         get_printer_state().get_klippy_state_subject(), this,
         [](NavigationManager* mgr, int value) { mgr->handle_klippy_state_change(value); },
         get_printer_state().get_subjects_lifetime());
@@ -977,7 +977,7 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
     // Connection status dot — color reflects WebSocket connection state
     printer_dot_widget_ = lv_obj_find_by_name(navbar, "nav_printer_dot");
     if (printer_dot_widget_) {
-        printer_dot_observer_ = observe_int_sync<NavigationManager>(
+        printer_dot_observer_ = observe<int>(
             get_printer_state().get_printer_connection_state_subject(), this,
             [](NavigationManager* mgr, int state) {
                 if (!mgr->printer_dot_widget_)
@@ -1005,7 +1005,7 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
     // so the navbar the user sees is the backdrop's frozen snapshot, not the
     // widget the binding just un-hid. Re-take the snapshot so the change lands
     // immediately instead of waiting for the stack to pop.
-    printer_switcher_observer_ = observe_int_sync<NavigationManager>(
+    printer_switcher_observer_ = observe<int>(
         SettingsManager::instance().subject_show_printer_switcher(), this,
         [](NavigationManager* mgr, int /* shown */) { mgr->refresh_overlay_backdrop(); },
         SettingsManager::instance().get_subjects_lifetime());

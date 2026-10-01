@@ -50,7 +50,7 @@ void PrintControlButtons::init_subjects() {
     // lifecycle observer below recomputes the buttons. Collapsing them would
     // clear a pending Pause on the Idle -> Preparing edge, before the printer
     // has answered.
-    print_state_observer_ = observe_int_sync<PrintControlButtons>(
+    print_state_observer_ = observe<int>(
         get_printer_state().get_print_state_enum_subject(), this,
         [](PrintControlButtons* self, int) {
             // A real state change clears any optimistic
@@ -67,7 +67,7 @@ void PrintControlButtons::init_subjects() {
     // it moves independently of print_state_enum: during a host-side pre-start
     // block the printer keeps reporting the previous job, so nothing else here
     // would re-evaluate for the entire window.
-    print_lifecycle_observer_ = observe_int_sync<PrintControlButtons>(
+    print_lifecycle_observer_ = observe<int>(
         get_printer_state().get_print_lifecycle_subject(), this,
         [](PrintControlButtons* self, int) { self->recompute(); },
         get_printer_state().get_subjects_lifetime());

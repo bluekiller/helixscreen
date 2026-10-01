@@ -421,7 +421,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_slot: color subject updates spool",
     REQUIRE(color_subj != nullptr);
     lv_subject_set_int(color_subj, 0x0000FF); // Blue
 
-    // observe_int_sync defers callbacks via queue_update (#82), so the color
+    // observe<int> defers callbacks via queue_update (#82), so the color
     // observer fires on a later tick. process_lvgl() drains the UpdateQueue via
     // lv_timer_handler_safe(), so the deferred color apply runs here.
     process_lvgl(50);

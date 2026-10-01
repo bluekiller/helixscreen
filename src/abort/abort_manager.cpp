@@ -287,12 +287,12 @@ void AbortManager::send_cancel_print() {
         // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - the cancel macro's
         // completion is something the PRINTER reports, and Preparing is not a
         // state CANCEL_PRINT can produce.
-        cancel_state_observer_ = helix::ui::observe_print_state_immediate<AbortManager>(
+        cancel_state_observer_ = helix::ui::observe_print_state(
             printer_state_->get_print_state_enum_subject(), this,
             [](AbortManager* self, PrintJobState value) {
                 self->on_print_state_during_cancel(value);
             },
-            printer_state_->get_subjects_lifetime());
+            printer_state_->get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
         spdlog::debug("[AbortManager] Registered print_state_enum observer for cancel detection");
     }
 
@@ -421,12 +421,12 @@ void AbortManager::wait_for_reconnect() {
 
     // Register observer on klippy_state subject to detect when klippy becomes ready
     if (printer_state_) {
-        klippy_observer_ = helix::ui::observe_int_immediate<AbortManager>(
+        klippy_observer_ = helix::ui::observe<int>(
             printer_state_->get_klippy_state_subject(), this,
             [](AbortManager* self, int value) {
                 self->on_klippy_state_changed(static_cast<KlippyState>(value));
             },
-            printer_state_->get_subjects_lifetime());
+            printer_state_->get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
         spdlog::debug("[AbortManager] Registered klippy_state observer for reconnect detection");
     }
 }

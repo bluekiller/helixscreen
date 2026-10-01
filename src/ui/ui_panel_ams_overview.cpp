@@ -121,8 +121,8 @@ void AmsOverviewPanel::init_subjects() {
         // In detail mode, per-slot observers handle visual updates (color, pulse,
         // highlight) automatically — we only need to react to structural changes
         // (slot count changed) or refresh the overview cards.
-        using helix::ui::observe_int_sync;
-        slots_version_observer_ = observe_int_sync<AmsOverviewPanel>(
+        using helix::ui::observe;
+        slots_version_observer_ = observe<int>(
             AmsState::instance().get_slots_version_subject(), this,
             [](AmsOverviewPanel* self, int) {
                 if (!self->panel_)
@@ -153,7 +153,7 @@ void AmsOverviewPanel::init_subjects() {
 
         // Observe current_slot to reactively update lane highlights when the active
         // slot changes (e.g., slot selected without load/unload).
-        current_slot_observer_ = observe_int_sync<AmsOverviewPanel>(
+        current_slot_observer_ = observe<int>(
             AmsState::instance().get_current_slot_subject(), this,
             [](AmsOverviewPanel* self, int) {
                 if (!self->panel_)
@@ -177,7 +177,7 @@ void AmsOverviewPanel::init_subjects() {
         // NOTE: set_external_spool_info() calls lv_subject_set_int() directly (not via
         // ui_queue_update) which is safe because all current callers are on the LVGL thread.
         // If callers from background threads are added, those must use ui_queue_update().
-        external_spool_observer_ = observe_int_sync<AmsOverviewPanel>(
+        external_spool_observer_ = observe<int>(
             AmsState::instance().get_external_spool_color_subject(), this,
             [](AmsOverviewPanel* self, int /*color_int*/) {
                 // Delegate to existing refresh helper which reads full spool info
@@ -187,7 +187,7 @@ void AmsOverviewPanel::init_subjects() {
 
         // Engaging bypass changes no slot, so neither the path refresh nor the
         // external-spool observer above fires for it. The ring needs its own.
-        bypass_active_observer_ = observe_int_sync<AmsOverviewPanel>(
+        bypass_active_observer_ = observe<int>(
             AmsState::instance().get_bypass_active_subject(), this,
             [](AmsOverviewPanel* self, int /*active*/) { self->refresh_bypass_display(); },
             AmsState::instance().get_subjects_lifetime());

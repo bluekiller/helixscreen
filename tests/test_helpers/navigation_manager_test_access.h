@@ -48,7 +48,7 @@ class NavigationManagerTestAccess {
     }
 
     /// Drive the active-panel observer body directly. In production this only
-    /// ever runs from a queued UpdateQueue apply (observe_int_sync defers it),
+    /// ever runs from a queued UpdateQueue apply (observe<int> defers it),
     /// so a test cannot reach it without either the queue or this accessor.
     static void handle_active_panel_change(NavigationManager& nav, helix::PanelId panel_id) {
         nav.handle_active_panel_change(static_cast<int32_t>(panel_id));

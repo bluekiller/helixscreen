@@ -289,7 +289,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "print_status idle detailed filename spans t
         // here instead of inheriting whatever value another test left registered.
         // The guard is what puts it back: the preference is a process-global
         // subject that the global PrintStatusPanel watches through
-        // observe_int_sync, and HelixTestFixture restores it AFTER its own drain,
+        // observe<int>, and HelixTestFixture restores it AFTER its own drain,
         // so a value left flipped queues an apply callback nothing runs.
         ScopedAnimationsEnabled animations(true);
         REQUIRE(animations.available());

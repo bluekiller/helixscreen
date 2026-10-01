@@ -60,7 +60,7 @@ flowchart TD
 | [`src/application/subject_initializer.cpp`](../../../src/application/subject_initializer.cpp) | `SubjectInitializer` — sequences every `init_subjects()` in dependency phases |
 | [`include/state/subject_macros.h`](../../../include/state/subject_macros.h) | `INIT_SUBJECT_INT` / `INIT_SUBJECT_STRING` / `INIT_SUBJECT_INT_VOLATILE` |
 | [`include/state/volatile_subjects.h`](../../../include/state/volatile_subjects.h) | `VolatileSubjects` — reset table for Klippy-volatile subjects |
-| [`include/observer_factory.h`](../../../include/observer_factory.h) | `observe_int_sync<Panel>()` and friends; the sanctioned way C++ observes subjects |
+| [`include/observer_factory.h`](../../../include/observer_factory.h) | `observe<int>()` and friends; the sanctioned way C++ observes subjects |
 | [`include/ui_observer_guard.h`](../../../include/ui_observer_guard.h) | `ObserverGuard` (RAII observer cleanup) and `SubjectLifetime` (dynamic-subject death signal) |
 | [`include/static_subject_registry.h`](../../../include/static_subject_registry.h) | Self-registered subject cleanup; guarantees deinit before `lv_deinit()` |
 | [`src/printer/printer_temperature_state.cpp`](../../../src/printer/printer_temperature_state.cpp) | Representative state component: `bed_temp` and friends |
@@ -142,7 +142,7 @@ One wrinkle deserves its own macro: Moonraker sends **delta** status (changed fi
 
 ### Observing subjects from C++
 
-XML bindings are one kind of observer; C++ code attaches the other kind through the factories in [`include/observer_factory.h`](../../../include/observer_factory.h). The default choice is `observe_int_sync<Panel>()` (`include/observer_factory.h#observe_int_sync`). The real shape it appears in — `FanStackWidget` binding a dynamic per-fan subject — is the whole pattern in one place:
+XML bindings are one kind of observer; C++ code attaches the other kind through the factories in [`include/observer_factory.h`](../../../include/observer_factory.h). The default choice is `observe<int>()` (`include/observer_factory.h#observe`). The real shape it appears in — `FanStackWidget` binding a dynamic per-fan subject — is the whole pattern in one place:
 
 ```cpp
 SubjectLifetime lifetime;
@@ -151,7 +151,7 @@ if (!subject)
     return {};
 
 auto token = lifetime_.token();
-auto guard = helix::ui::observe_int_sync<FanStackWidget>(
+auto guard = helix::ui::observe<int>(
     subject, this,
     [token, on_update](FanStackWidget* /*self*/, int speed) {
         if (token.expired())
@@ -163,15 +163,15 @@ auto guard = helix::ui::observe_int_sync<FanStackWidget>(
 
 (verbatim from [`src/ui/panel_widgets/fan_stack_widget.cpp#lifetime`](../../../src/ui/panel_widgets/fan_stack_widget.cpp#L828), `bind_fan_observer()`). Note the two lifetimes in play: the `SubjectLifetime` handed to the factory tracks the *subject's* death (fans are rediscovered on reconnect), while the widget's own `lifetime_.token()` guards the deferred lambda against the *widget* dying before it runs.
 
-Two things the factory does for you that a hand-rolled `lv_subject_add_observer` does not. First, it **defers the handler through `queue_update()`** (`src/ui/observer_factory.cpp#"observe_int_sync::apply"`), so the body runs after the current subject-notification batch completes — a handler that reassigns a guard or destroys a widget mid-batch is the re-entrancy crash family (#82, #174). Second, the deferred lambda holds its own reference to the handler (which binds the panel pointer) plus a weak alive token, so the panel dying between queue and execute is a no-op, not a use-after-free. `observe_string`, `observe_int_immediate` (only when the callback provably never mutates observer lifecycle), and domain wrappers like `observe_print_state` round out the set. Every factory returns an `ObserverGuard` — RAII removal on destruction; `reset()` for cleanup, never `release()` (#579).
+Two things the factory does for you that a hand-rolled `lv_subject_add_observer` does not. First, it **defers the handler through `queue_update()`** (`src/ui/observer_factory.cpp#"observe<int>::apply"`), so the body runs after the current subject-notification batch completes — a handler that reassigns a guard or destroys a widget mid-batch is the re-entrancy crash family (#82, #174). Second, the deferred lambda holds its own reference to the handler (which binds the panel pointer) plus a weak alive token, so the panel dying between queue and execute is a no-op, not a use-after-free. `observe<const char*>` takes strings the same way, `Dispatch::Immediate` (only when the callback provably never mutates observer lifecycle) runs the handler inside the notification, and domain wrappers like `observe_print_state` round out the set. Every factory returns an `ObserverGuard` — RAII removal on destruction; `reset()` for cleanup, never `release()` (#579).
 
-The trap the defaulted parameter hides: the factories take `const SubjectLifetime& lifetime = {}`. `SubjectLifetime` is a `shared_ptr<bool>` ([`include/ui_observer_guard.h`](../../../include/ui_observer_guard.h)) that dynamic-subject owners — per-fan, per-sensor, per-extruder — flip to `false` before destroying the subject. **If you fetch a lifetime from an accessor, you must hand it to the `observe_*` call.** Omitting it compiles silently; the guard then has no token, never learns the subject died, and its `reset()` calls `lv_observer_remove()` on freed memory (#705). That is why accessors come in pairs — `get_bed_temp_subject()` and `get_bed_temp_subject(SubjectLifetime&)` ([`include/printer_state.h#"lv_subject_t* get_bed_temp_subject() {"`](../../../include/printer_state.h#L364)) — the second assigns the owner's token into your copy. Fetching the token and dropping it is the exact shape the lint gates and [`THREADING.md`](../THREADING.md) §5 exist to catch.
+The trap the required parameter still leaves: `observe<V>` takes `const SubjectLifetime& lifetime` with no default, so a call cannot omit it, but a `{}` or `subject_never_freed()` compiles. `SubjectLifetime` is a `shared_ptr<bool>` ([`include/ui_observer_guard.h`](../../../include/ui_observer_guard.h)) that dynamic-subject owners — per-fan, per-sensor, per-extruder — flip to `false` before destroying the subject. **If you fetch a lifetime from an accessor, you must hand it to the `observe_*` call.** Passing a different token compiles silently; the guard then has no token, never learns the subject died, and its `reset()` calls `lv_observer_remove()` on freed memory (#705). That is why accessors come in pairs — `get_bed_temp_subject()` and `get_bed_temp_subject(SubjectLifetime&)` ([`include/printer_state.h#"lv_subject_t* get_bed_temp_subject() {"`](../../../include/printer_state.h#L364)) — the second assigns the owner's token into your copy. Fetching the token and dropping it is the exact shape the lint gates and [`THREADING.md`](../THREADING.md) §5 exist to catch.
 
 ## Patterns & gotchas
 
 - **Never write a subject from a background thread.** `lv_subject_set_*()` fires observers that call widget APIs; from the libhv/HTTP/DBus threads that is LVGL off-thread. Queue the write: `queue_update(tag, fn)`, `run_on_main()` at subsystem boundaries, or the `set_*()` wrapper pattern in [`printer_state.cpp`](../../../src/printer/printer_state.cpp). [`THREADING.md`](../THREADING.md) is the source of truth; the gates [`check_l081_anti_pattern.py`](../../../scripts/check_l081_anti_pattern.py) and friends police the TOCTOU shapes around it.
 - **Equal-value sets do not notify.** `lv_subject_set_int()` notifies only on change (`lib/lvgl/src/core/lv_observer.c#lv_subject_set_int`); if observers must re-run on an unchanged value, call `lv_subject_notify()` explicitly (the bed-temp pattern, [`src/printer/printer_temperature_state.cpp#update_from_status`](../../../src/printer/printer_temperature_state.cpp#L456)).
-- **A fetched `SubjectLifetime` must reach the `observe_*` call.** The defaulted 4th parameter makes forgetting it compile. Corollary: use the `(name, lifetime)` accessor overloads, and dynamic subjects (fans, sensors, extruders) always need one.
+- **A fetched `SubjectLifetime` must reach the `observe_*` call.** The required 4th parameter forces a token, but not the right one. Corollary: use the `(name, lifetime)` accessor overloads, and dynamic subjects (fans, sensors, extruders) always need one.
 - **String subjects copy into a fixed buffer you own.** Size the `name_buf_` for the worst case; long values truncate, silently.
 - **Delta-status staleness is behavioral, not cosmetic.** If a subject's source field stops being sent on Klipper restart and its stale value gates anything, it belongs in `INIT_SUBJECT_INT_VOLATILE` — membership rules in [`THREADING.md`](../THREADING.md) §5.
 - **Every `init_subjects()` self-registers its `deinit_subjects()`** with `StaticSubjectRegistry`. External registration is the fragile pattern the registry header explicitly forbids.
@@ -202,6 +202,6 @@ Read in this order; about 25 minutes total.
 8. [`include/state/subject_macros.h#INIT_SUBJECT_INT`](../../../include/state/subject_macros.h#L65) — `INIT_SUBJECT_INT` and friends, including the `name_`/`name_buf_` convention; `include/state/subject_macros.h#INIT_SUBJECT_INT_VOLATILE` for the volatile variant.
 9. [`src/printer/printer_state.cpp#init_subjects`](../../../src/printer/printer_state.cpp#L300) — the tail of `init_subjects()`: macro use, then the `StaticSubjectRegistry::register_deinit` self-registration at `src/printer/printer_state.cpp#init_subjects/"register_deinit(\"PrinterState\","`.
 10. [`src/application/subject_initializer.cpp#init_core_subjects`](../../../src/application/subject_initializer.cpp#L294) — `init_core_subjects()` and the phase comments; skim the ordering rationale (navigation after PrinterState, observers last).
-11. [`include/observer_factory.h#helix::ui`](../../../include/observer_factory.h#L332) — `observe_int_sync`: the deferral, the alive token, and the load-bearing comment about why the synchronous body has no defense against a freed context.
+11. [`include/observer_factory.h#helix::ui`](../../../include/observer_factory.h#L332) — `observe<int>`: the deferral, the alive token, and the load-bearing comment about why the synchronous body has no defense against a freed context.
 12. [`include/ui_observer_guard.h`](../../../include/ui_observer_guard.h) — the `SubjectLifetime` contract and `ObserverGuard::reset()`; the file header names the dynamic-subject owners.
 13. [`src/printer/printer_calibration_state.cpp#init_subjects`](../../../src/printer/printer_calibration_state.cpp#L42) — the three `INIT_SUBJECT_INT_VOLATILE` subjects and the table they land in.

@@ -141,7 +141,7 @@ TEST_CASE_METHOD(ToolCalPanelFixture,
 TEST_CASE_METHOD(ToolCalPanelFixture,
                  "tool offset panel: a printer busy again by the idle edge keeps waiting",
                  "[ui_integration][toolchanger][tool_offset_cal]") {
-    // observe_int_sync defers through the UpdateQueue, so the handler runs with
+    // observe<int> defers through the UpdateQueue, so the handler runs with
     // the value the notification carried. A printer busy again by then is still
     // working through the macro, and completing the run would re-enable Save
     // under a queue it still blocks.

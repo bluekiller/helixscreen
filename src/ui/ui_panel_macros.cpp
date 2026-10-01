@@ -146,7 +146,7 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     // nav_buttons_enabled flips to 1 only after hardware is populated on the
     // main thread, so observing it re-runs rebuild_rows() once real macros
     // exist (this also covers reconnect / printer switch).
-    nav_enabled_observer_ = helix::ui::observe_int_sync<MacrosPanel>(
+    nav_enabled_observer_ = helix::ui::observe<int>(
         get_printer_state().get_nav_buttons_enabled_subject(), this,
         [](MacrosPanel* self, int) {
             // Re-fetch from the API (macros may have just been populated) then

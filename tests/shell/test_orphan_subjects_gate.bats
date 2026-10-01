@@ -52,7 +52,7 @@ void init_subjects() {
     lv_xml_register_subject(nullptr, "totally_dead_subject", &dead_member_);
     lv_xml_register_subject(nullptr, "live_subject", &live_member_);
 
-    observe_int_sync<Panel>(&live_member_, cb);
+    observe<int>(&live_member_, cb);
 }
 EOF
     run_gate
@@ -64,7 +64,7 @@ EOF
     cat > "$ROOT/src/demo.cpp" <<'EOF'
 void init_subjects() {
     lv_xml_register_subject(nullptr, "live_subject", &live_member_);
-    observe_int_sync<Panel>(&live_member_, cb);
+    observe<int>(&live_member_, cb);
 
     lv_xml_register_subject(nullptr, "totally_dead_subject", &dead_member_);
 }
@@ -102,7 +102,7 @@ void init_subjects() {
 }
 
 void SoundPanel::attach() {
-    observe_int_sync<SoundPanel>(&volume_value_subject_, on_volume);
+    observe<int>(&volume_value_subject_, on_volume);
 }
 EOF
     run_gate
@@ -146,7 +146,7 @@ void init_subjects() {
     lv_xml_register_subject(nullptr, "second_dead_subject", &second_member_);
     lv_xml_register_subject(nullptr, "live_subject", &live_member_);
 
-    observe_int_sync<Panel>(&live_member_, cb);
+    observe<int>(&live_member_, cb);
 }
 EOF
     run_gate
@@ -226,7 +226,7 @@ void Panel::init_subjects() {
     UI_MANAGED_SUBJECT_INT(dead_member_, 0, "managed_dead_subject", subjects_);
     UI_MANAGED_SUBJECT_INT(live_member_, 0, "managed_live_subject", subjects_);
 
-    observe_int_sync<Panel>(&live_member_, cb);
+    observe<int>(&live_member_, cb);
 }
 EOF
     run_gate
@@ -378,7 +378,7 @@ void WidthSensorManager::init_subjects() {
 EOF
     cat > "$ROOT/src/widget.cpp" <<'EOF'
 void WidthSensorWidget::attach() {
-    observe_int_sync<WidthSensorWidget>(wsm.get_diameter_subject(), cb);
+    observe<int>(wsm.get_diameter_subject(), cb);
 }
 EOF
     run_gate
@@ -514,7 +514,7 @@ void init_subjects() {
 }
 
 void Panel::attach() {
-    observe_int_sync<Panel>(&was_member_, cb);
+    observe<int>(&was_member_, cb);
 }
 EOF
     printf 'was_debt_subject  # src/demo.cpp:2\n' > "$ROOT/base.txt"

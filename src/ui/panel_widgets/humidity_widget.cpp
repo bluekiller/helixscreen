@@ -32,7 +32,7 @@ static void humidity_widget_init_subjects() {
     auto* raw_subj =
         helix::sensors::HumiditySensorManager::instance().get_chamber_humidity_subject();
     if (raw_subj) {
-        s_humidity_observer = helix::ui::observe_int_sync<lv_subject_t>(
+        s_humidity_observer = helix::ui::observe<int>(
             raw_subj, &s_chamber_humidity_text,
             [](lv_subject_t* target, int humidity_x10) {
                 char buf[8];
