@@ -77,12 +77,16 @@ def rebase_path(tok, src_root, tree, fallback_root):
     """
     def sub(m):
         rel = m.group(1)
+        if not rel:
+            return tree
         cand = os.path.join(tree, rel)
         if not os.path.exists(cand) and os.path.exists(os.path.join(fallback_root, rel)):
             cand = os.path.join(fallback_root, rel)
         return cand
 
-    return re.sub(re.escape(src_root) + r'/+([^"\s\\]*)', sub, tok)
+    # The root alone (-I<root>, a prefix map's <root>=) is a path too; a longer
+    # sibling name (<root>x/) is not.
+    return re.sub(re.escape(src_root) + r'(?:/+([^"\s\\=]*))?(?![^/"\s\\=])', sub, tok)
 
 
 def select_units(units, changed, read_source):

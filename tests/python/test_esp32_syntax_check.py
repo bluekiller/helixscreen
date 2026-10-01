@@ -67,3 +67,12 @@ def test_rebase_path_rewrites_tree_paths_embedded_in_define_values(tmp_path):
         f"-DLV_CONF_PATH={tree}/include/lv_conf.h"
     assert rebase('-DX="/cfg/build"') == f'-DX="{primary}/build"'
     assert rebase("-fmacro-prefix-map=/cfg/include=.") == f"-fmacro-prefix-map={tree}/include=."
+
+
+def test_rebase_path_rewrites_the_bare_root(tmp_path):
+    tree, primary = tmp_path / "tree", tmp_path / "primary"
+    tree.mkdir()
+    rebase = lambda t: esc.rebase_path(t, "/cfg", str(tree), str(primary))
+    assert rebase("-I/cfg") == f"-I{tree}"
+    assert rebase("-fmacro-prefix-map=/cfg=.") == f"-fmacro-prefix-map={tree}=."
+    assert rebase("-I/cfgx/include") == "-I/cfgx/include"
