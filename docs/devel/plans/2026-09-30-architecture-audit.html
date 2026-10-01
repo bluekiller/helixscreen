@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>de0cb1277</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>139d49e92</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">11 of 22</div><div class="k">BUG/SEC findings shipped; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 67 done, 10 in progress, 59 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 67 done, 17 in progress, 52 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -1228,8 +1228,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="AMS-7" data-tag="footprint" data-size="1.1" data-status="open">
-<summary><span class="fid">AMS-7</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Happy Hare queries configfile.settings 4 times at connect</span><span class="fimpact">3 fewer large RPCs and parses per HH connect</span></summary>
+<details class="f" id="AMS-7" data-tag="footprint" data-size="1.1" data-status="progress">
+<summary><span class="fid">AMS-7</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/ams-phase3-dedup</code><span class="ftitle">Happy Hare queries configfile.settings 4 times at connect</span><span class="fimpact">3 fewer large RPCs and parses per HH connect</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/printer/ams_backend_happy_hare.cpp#AmsBackendHappyHare::on_started</code>, <code>#query_tip_method_from_config</code>, <code>#query_selector_type_from_config</code>, <code>#query_heater_config_from_config</code>, <code>#query_config_defaults</code>, <code>src/api/moonraker_api_config.cpp#query_configfile</code></dd>
@@ -1242,8 +1242,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="AMS-8" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">AMS-8</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">DeviceAction built 4 different ways across backends</span><span class="fimpact">afc_defaults 485 to ~120 lines</span></summary>
+<details class="f" id="AMS-8" data-tag="dup" data-size="1.1" data-status="progress">
+<summary><span class="fid">AMS-8</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/ams-phase3-dedup</code><span class="ftitle">DeviceAction built 4 different ways across backends</span><span class="fimpact">afc_defaults 485 to ~120 lines</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>include/ams_types.h#DeviceAction</code>, <code>src/printer/ams_backend_ace.cpp</code>, <code>src/printer/ams_backend_cfs.cpp</code>, <code>src/printer/afc_defaults.cpp</code>, <code>src/printer/hh_defaults.cpp</code>, <code>src/printer/ams_backend_snapmaker.cpp</code></dd>
@@ -1256,8 +1256,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="AMS-9" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">AMS-9</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">AmsPanel and AmsOverviewPanel duplicate context-menu dispatch and editor</span><span class="fimpact">One slot menu and one editor entry point</span></summary>
+<details class="f" id="AMS-9" data-tag="dup" data-size="1.1" data-status="progress">
+<summary><span class="fid">AMS-9</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/ams-phase3-dedup</code><span class="ftitle">AmsPanel and AmsOverviewPanel duplicate context-menu dispatch and editor</span><span class="fimpact">One slot menu and one editor entry point</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_panel_ams.cpp#AmsPanel::show_context_menu</code>, <code>src/ui/ui_panel_ams_overview.cpp#AmsOverviewPanel::show_detail_context_menu</code>, <code>#AmsPanel::show_edit_modal</code> / <code>#AmsOverviewPanel::show_edit_modal</code>, <code>src/ui/ui_external_spool_menu.cpp</code></dd>
@@ -1781,8 +1781,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="VEN-5" data-tag="extensibility" data-size="1.1" data-status="open">
-<summary><span class="fid">VEN-5</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">3 static_cast&lt;AmsBackendCfs*&gt; downcasts in UI code</span><span class="fimpact">UI talks to AmsBackend only</span></summary>
+<details class="f" id="VEN-5" data-tag="extensibility" data-size="1.1" data-status="progress">
+<summary><span class="fid">VEN-5</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/ams-phase3-dedup</code><span class="ftitle">3 static_cast&lt;AmsBackendCfs*&gt; downcasts in UI code</span><span class="fimpact">UI talks to AmsBackend only</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_ams_detail.cpp#ams_dispatch_backend_action</code>, <code>src/ui/ui_ams_device_section_detail_overlay.cpp#confirm_cutter_calibration</code>, <code>src/ui/ui_cfs_chute_calibration_overlay.cpp#chute_backend</code></dd>
@@ -1798,8 +1798,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </section>
 <section id="sec-f"><h2>F. RAM</h2>
 <p class="lede"><strong>Field data (telemetry to 2026-09-26)</strong>: RAM stepped up at 0.99.108 on ad5x, k2 and k1 (+1-2.5 MB), most likely <code>10e336c15</code> sizing the debug ring from total RAM. That is deliberate; ad5m and cc1 stay on the 2000-line floor. ad5m startup RSS is about +13% against early 0.99, with private-dirty back to baseline by 1.0.1. cc1 is flat across 14 devices. 1.0.x is flat or down everywhere.</p>
-<details class="f" id="RAM-1" data-tag="footprint" data-size="1.1" data-status="open">
-<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
+<details class="f" id="RAM-1" data-tag="footprint" data-size="1.1" data-status="progress">
+<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram1-overlay-destroy-on-close</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
 <div class="fbody">
 <p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) removed the caller-held root caches (B7), and destroy-on-close now applies from every entry point for Bed Mesh, Console, Macros, Input Shaper, QrScanner and Plugins. The remaining flips follow the overlay sweeps and #1329.</p>
 <dl>
@@ -1813,8 +1813,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="RAM-2" data-tag="footprint" data-size="1.1" data-status="open">
-<summary><span class="fid">RAM-2</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">PrintSelect and its detail view built at boot, 20 thumbnails fetched per connect</span><span class="fimpact">~150-250KB heap plus an I/O burst each connect</span></summary>
+<details class="f" id="RAM-2" data-tag="footprint" data-size="1.1" data-status="progress">
+<summary><span class="fid">RAM-2</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram2-print-select-lazy</code><span class="ftitle">PrintSelect and its detail view built at boot, 20 thumbnails fetched per connect</span><span class="fimpact">~150-250KB heap plus an I/O burst each connect</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/application/panel_factory.cpp#PanelFactory::setup_panels</code>, <code>src/ui/ui_panel_print_select.cpp#PrintSelectPanel::setup</code>, <code>#PrintSelectPanel::create_detail_view</code>, <code>#PrintSelectPanel::refresh_files</code>, <code>#PrintSelectPanel::fetch_metadata_range</code></dd>
@@ -1827,8 +1827,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="RAM-3" data-tag="footprint" data-size="1.1" data-status="open">
-<summary><span class="fid">RAM-3</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Bed mesh keeps three full frames and memcpys one on every draw</span><span class="fimpact">0.75-1.5MB resident after first visit</span></summary>
+<details class="f" id="RAM-3" data-tag="footprint" data-size="1.1" data-status="progress">
+<summary><span class="fid">RAM-3</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram3-bed-mesh-single-frame</code><span class="ftitle">Bed mesh keeps three full frames and memcpys one on every draw</span><span class="fimpact">0.75-1.5MB resident after first visit</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>include/bed_mesh_render_thread.h#BedMeshRenderThread</code> (front and back buffers), <code>src/ui/ui_bed_mesh.cpp#bed_mesh_draw_cb</code> (<code>blit_pixel_data</code>)</dd>
@@ -2201,7 +2201,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="TB-13" data-tag="bug" data-size="1.1" data-status="done">
 <summary><span class="fid">TB-13</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">ad82fb335</code><span class="ftitle">Overlay tenant test under ASAN; ghost-worker test flake</span><span class="fimpact">flaky and ASAN-only red tests</span></summary>
 <div class="fbody">
-<p class="branch">Shipped: <code>fix/test-asan-and-flake</code>, merged to main at <code>ad82fb335</code>.</p>
+<p class="branch">Shipped: <code>fix/test-asan-and-flake</code>, merged to main at <code>ad82fb335</code>. The ASAN leak gate later breached its ceiling; the bulk (1,425 allocations) was helix-xml stranding <code>scope.extends</code> on re-registration, fixed at <code>139d49e92</code>, and the ceiling dropped from 1,220 objects / 131,841 B to 256 / 23,100 B.</p>
 <dl>
 <dt>Locations</dt><dd><code>tests/test_helpers/navigation_manager_test_access.h</code></dd>
 <dt>Evidence</dt><dd>The overlay address-tenant test waited for address reuse, which ASAN never gives; the ghost-worker test polled against a time budget.</dd>
