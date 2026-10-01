@@ -298,6 +298,7 @@ TEST_CASE("prettify_name() snake_case conversion", "[device_display_name][pretti
 
     SECTION("Special words replaced") {
         REQUIRE(prettify_name("psu_led_strip") == "PSU LED Strip");
+        REQUIRE(prettify_name("NeoPixel_rgbw") == "NeoPixel RGBW");
         REQUIRE(prettify_name("aux_gpio_relay") == "Auxiliary GPIO Relay");
     }
 }
