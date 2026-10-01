@@ -320,7 +320,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "set_temperature validates temperature
         REQUIRE(error_called);
         REQUIRE_FALSE(success_called);
         REQUIRE(captured_error.type == MoonrakerErrorType::VALIDATION_ERROR);
-        REQUIRE(captured_error.message.find("0-400") != std::string::npos);
+        REQUIRE(captured_error.message.find("0°C to 400°C") != std::string::npos);
     }
 
     SECTION("Zero temperature accepted") {
@@ -387,7 +387,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "set_fan_speed validates speed range",
         REQUIRE(error_called);
         REQUIRE_FALSE(success_called);
         REQUIRE(captured_error.type == MoonrakerErrorType::VALIDATION_ERROR);
-        REQUIRE(captured_error.message.find("0-100") != std::string::npos);
+        REQUIRE(captured_error.message.find("0% to 100%") != std::string::npos);
     }
 
     SECTION("Zero speed accepted (fan off)") {
@@ -443,7 +443,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "move_axis validates feedrate range",
         REQUIRE(error_called);
         REQUIRE_FALSE(success_called);
         REQUIRE(captured_error.type == MoonrakerErrorType::VALIDATION_ERROR);
-        REQUIRE(captured_error.message.find("0-50000") != std::string::npos);
+        REQUIRE(captured_error.message.find("0 to 50000mm/min") != std::string::npos);
     }
 
     SECTION("Zero feedrate accepted (use default)") {
@@ -499,7 +499,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "move_axis validates distance range",
         REQUIRE(error_called);
         REQUIRE_FALSE(success_called);
         REQUIRE(captured_error.type == MoonrakerErrorType::VALIDATION_ERROR);
-        REQUIRE(captured_error.message.find("-1000") != std::string::npos);
+        REQUIRE(captured_error.message.find("-1000.0mm to 1000.0mm") != std::string::npos);
     }
 
     SECTION("Minimum distance accepted (-1000mm)") {
@@ -564,7 +564,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "move_to_position validates position r
         REQUIRE(error_called);
         REQUIRE_FALSE(success_called);
         REQUIRE(captured_error.type == MoonrakerErrorType::VALIDATION_ERROR);
-        REQUIRE(captured_error.message.find("0-1000") != std::string::npos);
+        REQUIRE(captured_error.message.find("0.0mm to 1000.0mm") != std::string::npos);
     }
 
     SECTION("Zero position accepted") {
@@ -798,7 +798,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "Validation errors provide descriptive
             [this](const MoonrakerError& err) { this->error_callback(err); });
 
         REQUIRE(error_called);
-        REQUIRE(captured_error.message.find("0-100") != std::string::npos);
+        REQUIRE(captured_error.message.find("0% to 100%") != std::string::npos);
     }
 
     SECTION("Invalid identifier error explains character restriction") {
@@ -808,7 +808,7 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture, "Validation errors provide descriptive
             [this](const MoonrakerError& err) { this->error_callback(err); });
 
         REQUIRE(error_called);
-        REQUIRE(captured_error.message.find("illegal") != std::string::npos);
+        REQUIRE(captured_error.message.find("unsafe characters") != std::string::npos);
     }
 
     SECTION("Invalid axis error shows the character") {
@@ -1185,16 +1185,18 @@ TEST_CASE_METHOD(MoonrakerAPITestFixture,
     helix::ui::set_test_notification_error_hook(
         [&toasts](const std::string& msg) { toasts.push_back(msg); });
 
-    int errors = 0;
-    auto on_error = [&errors](const MoonrakerError& err) {
+    std::vector<std::string> shown;
+    auto on_error = [&shown](const MoonrakerError& err) {
         CHECK(err.type == MoonrakerErrorType::VALIDATION_ERROR);
-        errors++;
+        shown.push_back(err.user_message());
     };
 
-    SECTION("with on_error, no toast") {
+    SECTION("with on_error, no toast, and the caller gets the user-facing text") {
         api->motion().move_axis('A', 10.0, 3000.0, nullptr, on_error);
         api->set_fan_speed("fan;M112", 50.0, nullptr, on_error);
-        CHECK(errors == 2);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == "Invalid axis 'A'. Must be X, Y, Z, or E.");
+        CHECK(shown[1] == "Invalid fan name 'fan;M112'. Contains unsafe characters.");
         CHECK(toasts.empty());
     }
 

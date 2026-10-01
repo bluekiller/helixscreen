@@ -30,11 +30,12 @@ namespace helix {
  * @brief Report a rejected argument exactly once
  *
  * Through @p on_error when the caller passed one (the caller owns how the
- * failure surfaces), otherwise as an error toast carrying @p user_message.
+ * failure surfaces), otherwise as an error toast. Either way the user sees
+ * @p user_message; @p detail only reaches the log.
  * Defined in src/api/moonraker_api_validation.cpp.
  *
- * @param detail Developer-facing reason, carried in the MoonrakerError
- * @param user_message Toast text for callers that passed no on_error
+ * @param detail Developer-facing reason, logged at warn
+ * @param user_message Text a UI shows: the MoonrakerError message or the toast
  */
 void report_validation_error(const std::function<void(const MoonrakerError&)>& on_error,
                              const char* method, const std::string& detail,

@@ -11,7 +11,7 @@ void helix::report_validation_error(const std::function<void(const MoonrakerErro
                                     const std::string& user_message) {
     spdlog::warn("[Moonraker API] {}: {}", method, detail);
     if (on_error) {
-        on_error(MoonrakerError::validation_error(method, detail));
+        on_error(MoonrakerError::validation_error(method, user_message));
         return;
     }
     NOTIFY_ERROR("{}", user_message);
