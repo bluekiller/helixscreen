@@ -423,9 +423,7 @@ void PrintStatsWidget::handle_clicked() {
 
 void PrintStatsWidget::print_stats_clicked_cb(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatsWidget] print_stats_clicked_cb");
-    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    auto* self = static_cast<PrintStatsWidget*>(lv_obj_get_user_data(target));
-    if (self) {
+    if (auto* self = panel_widget_from_event<PrintStatsWidget>(e)) {
         self->handle_clicked();
     }
     LVGL_SAFE_EVENT_CB_END();
