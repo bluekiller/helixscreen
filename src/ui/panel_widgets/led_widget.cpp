@@ -118,8 +118,9 @@ PickerSubjects& picker_subjects() {
 // and API are accepted and not kept.
 LedWidget::LedWidget(const std::string& instance_id, PrinterState& /*printer_state*/,
                      IMoonrakerAPI* /*api*/)
-    : instance_id_(instance_id), sizing_(instance_id, TileSizing::Content{"", "", "Light", false}),
-      name_subject_name_(instance_id + "_led_name"), wide_subject_name_(instance_id + "_led_wide") {
+    : TiledPanelWidget(instance_id, TileSizing::Content{"", "", "Light", false}),
+      instance_id_(instance_id), name_subject_name_(instance_id + "_led_name"),
+      wide_subject_name_(instance_id + "_led_wide") {
     UI_MANAGED_SUBJECT_STRING(name_subject_, name_buf_, "", name_subject_name_.c_str(), subjects_);
     UI_MANAGED_SUBJECT_INT(wide_subject_, 0, wide_subject_name_.c_str(), subjects_);
 

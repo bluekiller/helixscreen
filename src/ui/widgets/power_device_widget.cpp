@@ -89,7 +89,11 @@ using namespace helix;
 
 PowerDeviceWidget* PowerDeviceWidget::s_active_picker_ = nullptr;
 
-PowerDeviceWidget::PowerDeviceWidget(const std::string& instance_id) : instance_id_(instance_id) {
+// The state is the reading ("LOCKED" is the widest), the device name the label,
+// drawn whatever show_widget_labels says, and the glyph sits in a disc that
+// scales with it.
+PowerDeviceWidget::PowerDeviceWidget(const std::string& instance_id)
+    : TiledPanelWidget(instance_id, status_content(false)), instance_id_(instance_id) {
     // Registered before the manager parses the component, which drops a
     // binding whose subject is missing at parse time.
     UI_MANAGED_SUBJECT_INT(has_status_subject_, 0, has_status_name_.c_str(), subjects_);

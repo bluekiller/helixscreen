@@ -163,7 +163,12 @@ lv_obj_t* create_sensor_row(lv_obj_t* list, const std::string& display_name,
 
 } // anonymous namespace
 
-ThermistorWidget::ThermistorWidget(const std::string& instance_id) : instance_id_(instance_id) {
+ThermistorWidget::ThermistorWidget(const std::string& instance_id)
+    : TiledPanelWidget(instance_id,
+                       TileSizing::Content{"110.0\u00B0C", "110.0\u00B0C", "Sensor", true, "",
+                                           /*label_always_drawn=*/true, TileSizing::IconBox::Glyph,
+                                           /*icon_animates=*/false, /*label_is_identity=*/true}),
+      instance_id_(instance_id) {
     std::strcpy(temp_buffer_, "--\xC2\xB0"
                               "C"); // "--°C"
 }

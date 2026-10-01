@@ -115,7 +115,13 @@ void run_macro_after_confirm(MacroExecCtx ctx) {
 
 using namespace helix;
 
-FavoriteMacroWidget::FavoriteMacroWidget(const std::string& widget_id) : widget_id_(widget_id) {}
+// The name is a dotted single line, so a representative word measures its
+// height; the glyph sits in a disc.
+FavoriteMacroWidget::FavoriteMacroWidget(const std::string& widget_id)
+    : TiledPanelWidget(widget_id,
+                       TileSizing::Content{"", "", "Macro", false, "", /*label_always_drawn=*/false,
+                                           TileSizing::IconBox::Disc}),
+      widget_id_(widget_id) {}
 
 FavoriteMacroWidget::~FavoriteMacroWidget() {
     detach();

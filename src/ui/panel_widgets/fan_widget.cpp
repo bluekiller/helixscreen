@@ -49,7 +49,7 @@ int resolve_space_token(const char* name, int fallback) {
 } // anonymous namespace
 
 FanWidget::FanWidget(const std::string& instance_id)
-    : instance_id_(instance_id), sizing_(instance_id) {
+    : TiledPanelWidget(instance_id), instance_id_(instance_id) {
     // Worst cases, not a live reading: a size accepted while the fan reads 5%
     // must still draw 100%.
     TileSizing::Content content{"100%",

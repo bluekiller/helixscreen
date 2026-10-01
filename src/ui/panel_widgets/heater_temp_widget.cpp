@@ -87,9 +87,22 @@ void register_chamber_temperature_widget() {
 
 } // namespace helix
 
+// The three heaters draw the same shape, so one worst-case budget covers them.
+// temp_display draws the unit as its own label beside the value, so the budget
+// carries it too: a value measured without the unit is narrower than the row
+// that renders. Below 100 the reading carries a decimal, which makes "88.8" the
+// widest current. No label is drawn. The nozzle glyph carries a tool digit
+// whenever a second tool appears, which can happen after this tile was sized,
+// so it is always budgeted. The glyph pulses while heating, so it is never
+// scaled.
 HeaterTempWidget::HeaterTempWidget(PrinterState& printer_state, TemperatureService* temp_panel,
                                    const Config& config)
-    : printer_state_(printer_state), temp_control_panel_(temp_panel), cfg_(config) {}
+    : TiledPanelWidget(config.widget_id,
+                       TileSizing::Content{"88.8 / 888\u00B0C", "88.8\u00B0C", "", true,
+                                           config.heater == HeaterType::Nozzle ? "8" : "",
+                                           /*label_always_drawn=*/false, TileSizing::IconBox::Glyph,
+                                           /*icon_animates=*/true}),
+      printer_state_(printer_state), temp_control_panel_(temp_panel), cfg_(config) {}
 
 HeaterTempWidget::~HeaterTempWidget() {
     detach();
