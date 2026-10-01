@@ -7,8 +7,7 @@
 #include "ui_widget_ref.h"
 
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 #include "subject_managed_panel.h"
 
 #include <memory>
@@ -17,7 +16,7 @@ class IMoonrakerAPI;
 
 namespace helix {
 
-class ActiveSpoolWidget : public PanelWidget {
+class ActiveSpoolWidget : public TiledPanelWidget {
   public:
     explicit ActiveSpoolWidget(IMoonrakerAPI* api);
     ~ActiveSpoolWidget() override;
@@ -33,13 +32,6 @@ class ActiveSpoolWidget : public PanelWidget {
     bool fits_at(int width_px, int height_px) const override {
         return is_wide_at(width_px, height_px) || sizing_.fits(width_px, height_px);
     }
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-    TileSizing* tile_sizing() override {
-        return &sizing_;
-    }
-
     static void clicked_cb(lv_event_t* e);
 
   private:
@@ -57,13 +49,6 @@ class ActiveSpoolWidget : public PanelWidget {
     helix::ui::WidgetRef brand_color_label_;
     helix::ui::WidgetRef weight_label_;
 
-    /// The compact form: a spool one line of the rung's icon face square, over
-    /// one caption line whose text is either "Active Spool" or "No Spool".
-    /// The caption is budgeted whatever show_widget_labels says, because
-    /// "No Spool" draws regardless.
-    TileSizing sizing_{"active_spool", TileSizing::Content{"", "", "Active Spool", false, "",
-                                                           /*label_always_drawn=*/true,
-                                                           TileSizing::IconBox::Square}};
     lv_subject_t wide_subject_{};   ///< 1 while the wide row is shown
     lv_subject_t loaded_subject_{}; ///< 1 while a spool is active
     SubjectManager subjects_;

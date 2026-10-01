@@ -64,7 +64,8 @@ void register_network_widget() {
 
 using namespace helix;
 
-NetworkWidget::NetworkWidget() = default;
+NetworkWidget::NetworkWidget()
+    : TiledPanelWidget("network", TileSizing::Content{"", "", "Network", false}) {}
 
 NetworkWidget::~NetworkWidget() {
     detach();

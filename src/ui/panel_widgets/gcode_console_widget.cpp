@@ -42,7 +42,8 @@ void register_gcode_console_widget() {
     lv_xml_register_event_cb(nullptr, "gcode_console_clicked_cb", GCodeConsoleWidget::clicked_cb);
 }
 
-GCodeConsoleWidget::GCodeConsoleWidget() {
+GCodeConsoleWidget::GCodeConsoleWidget()
+    : TiledPanelWidget("gcode_console", TileSizing::Content{"", "", "Console", false}) {
     // Registered here, not in attach(): the manager parses this tile's XML
     // before attach() runs, and the parser drops a binding whose subject is
     // missing at parse time.

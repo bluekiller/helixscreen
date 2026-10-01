@@ -37,7 +37,14 @@ void register_active_spool_widget() {
     });
 }
 
-ActiveSpoolWidget::ActiveSpoolWidget(IMoonrakerAPI* api) : api_(api) {
+// The compact form: a spool one line of the rung's icon face square, over one
+// caption line whose text is either "Active Spool" or "No Spool". The caption is
+// budgeted whatever show_widget_labels says, because "No Spool" draws regardless.
+ActiveSpoolWidget::ActiveSpoolWidget(IMoonrakerAPI* api)
+    : TiledPanelWidget("active_spool", TileSizing::Content{"", "", "Active Spool", false, "",
+                                                           /*label_always_drawn=*/true,
+                                                           TileSizing::IconBox::Square}),
+      api_(api) {
     // Registered before the manager parses the component, which drops a
     // binding whose subject is missing at parse time.
     UI_MANAGED_SUBJECT_INT(wide_subject_, 0, "active_spool_wide", subjects_);

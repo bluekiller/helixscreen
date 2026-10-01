@@ -88,7 +88,8 @@ void FilamentSensorWidget::init_static_subjects() {
     });
 }
 
-FilamentSensorWidget::FilamentSensorWidget() = default;
+FilamentSensorWidget::FilamentSensorWidget()
+    : TiledPanelWidget("filament", TileSizing::Content{"", "", "Loaded", false}) {}
 
 FilamentSensorWidget::~FilamentSensorWidget() {
     detach();

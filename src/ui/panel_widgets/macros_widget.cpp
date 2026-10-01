@@ -20,7 +20,8 @@ void register_macros_widget() {
     lv_xml_register_event_cb(nullptr, "macros_widget_clicked_cb", MacrosWidget::clicked_cb);
 }
 
-MacrosWidget::MacrosWidget() {}
+MacrosWidget::MacrosWidget()
+    : TiledPanelWidget("macros", TileSizing::Content{"", "", "Macros", false}) {}
 
 MacrosWidget::~MacrosWidget() {
     detach();

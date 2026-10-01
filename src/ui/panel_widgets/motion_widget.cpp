@@ -20,7 +20,8 @@ void register_motion_widget() {
     lv_xml_register_event_cb(nullptr, "motion_widget_clicked_cb", MotionWidget::clicked_cb);
 }
 
-MotionWidget::MotionWidget() {}
+MotionWidget::MotionWidget()
+    : TiledPanelWidget("motion", TileSizing::Content{"", "", "Motion", false}) {}
 
 MotionWidget::~MotionWidget() {
     detach();

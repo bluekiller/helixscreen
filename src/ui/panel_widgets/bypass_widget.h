@@ -8,8 +8,7 @@
 #include "ui_observer_guard.h"
 #include "ui_widget_ref.h"
 
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 #include <memory>
 
@@ -26,7 +25,7 @@ namespace helix {
 /// purge, which spool is on it — is answered from the same menu the AMS panels
 /// show, instead of the tile answering one of them and the rest living a panel
 /// away.
-class BypassWidget : public PanelWidget {
+class BypassWidget : public TiledPanelWidget {
   public:
     BypassWidget();
     ~BypassWidget() override;
@@ -37,31 +36,9 @@ class BypassWidget : public PanelWidget {
         return "bypass";
     }
 
-    void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override {
-        (void)colspan;
-        (void)rowspan;
-        sizing_.measure_and_publish(width_px, height_px);
-    }
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
-    }
-
     static void clicked_cb(lv_event_t* e);
 
   private:
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_{"bypass", TileSizing::Content{"", "", "Bypass", false}};
     helix::ui::WidgetRef widget_obj_;
     helix::ui::WidgetRef parent_screen_;
     helix::ui::BypassToggleController toggle_;

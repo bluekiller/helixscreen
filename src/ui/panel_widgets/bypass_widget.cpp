@@ -21,7 +21,8 @@ void register_bypass_widget() {
     lv_xml_register_event_cb(nullptr, "bypass_widget_clicked_cb", BypassWidget::clicked_cb);
 }
 
-BypassWidget::BypassWidget() = default;
+BypassWidget::BypassWidget()
+    : TiledPanelWidget("bypass", TileSizing::Content{"", "", "Bypass", false}) {}
 
 BypassWidget::~BypassWidget() {
     detach();

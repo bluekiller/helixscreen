@@ -305,7 +305,8 @@ void register_shutdown_widget() {
     lv_xml_register_event_cb(nullptr, "on_shutdown_split_clicked", on_shutdown_split_clicked);
 }
 
-ShutdownWidget::ShutdownWidget(IMoonrakerAPI* api) : api_(api) {}
+ShutdownWidget::ShutdownWidget(IMoonrakerAPI* api)
+    : TiledPanelWidget("shutdown", TileSizing::Content{"", "", "Shutdown", false}), api_(api) {}
 
 ShutdownWidget::~ShutdownWidget() {
     detach();
