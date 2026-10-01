@@ -2044,3 +2044,14 @@ TEST_CASE("DebugBundleCollector: config-dump elision buys back the line budget",
     REQUIRE(count_lines_with(last_n(condensed, 200), "Timer too close") == 1);
     REQUIRE(count_lines_with(last_n(condensed, 200), "Starting serial connect") == 1);
 }
+
+TEST_CASE("DebugBundleCollector: sanitize_json drops a subtree past the depth limit",
+          "[debug-bundle]") {
+    json deep = {{"leaf", "user@example.com"}};
+    for (int i = 0; i < 40; ++i)
+        deep = json{{"n", deep}};
+
+    const std::string out = helix::DebugBundleCollector::sanitize_json(deep).dump();
+    CHECK(out.find("user@example.com") == std::string::npos);
+    CHECK(out.find("[REDACTED]") != std::string::npos);
+}

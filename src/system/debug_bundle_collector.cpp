@@ -817,15 +817,15 @@ std::string DebugBundleCollector::sanitize_value(const std::string& value) {
 
         return result;
     } catch (const std::exception& e) {
-        spdlog::debug("[DebugBundle] sanitize_value regex failed: {}", e.what());
-        return value; // Return unsanitized rather than crash
+        spdlog::debug("[DebugBundle] sanitize_value failed: {}", e.what());
+        return "[REDACTED]"; // A value that cannot be checked is not uploaded
     }
 }
 
 json DebugBundleCollector::sanitize_json(const json& input, int depth) {
     if (depth > 32) {
-        spdlog::debug("[DebugBundle] sanitize_json hit depth limit, passing through");
-        return input;
+        spdlog::debug("[DebugBundle] sanitize_json hit depth limit, dropping subtree");
+        return "[REDACTED]";
     }
 
     if (input.is_object()) {
