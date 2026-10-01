@@ -188,6 +188,20 @@ class IMoonrakerClient {
     ///        mock-driven state change — is live.
     virtual void dispatch_status_update(const json& status, bool from_cached_snapshot = false) = 0;
 
+    /// @brief Objects merged into every printer.objects.subscribe the discovery sequence sends
+    ///
+    /// Called on the thread that builds the subscription; must be cheap and thread-safe, and
+    /// must not call back into this client. An empty function removes the provider: once this
+    /// returns, the previous provider is not running and is never called again.
+    virtual void set_subscription_extras_provider(std::function<json()> provider) = 0;
+
+    /// @brief Re-send printer.objects.subscribe with the app objects merged with current extras
+    ///
+    /// A no-op before the first subscription of a connection completes (that subscription
+    /// already includes the extras) and while disconnected. Calls made while a refresh is in
+    /// flight coalesce into one more send after it answers. Safe from any thread.
+    virtual void refresh_subscription() = 0;
+
     // ========================================================================
     // Connection State & Observers
     // ========================================================================

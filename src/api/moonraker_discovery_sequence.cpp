@@ -28,6 +28,7 @@
 #include "macro_patterns.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
+#include "moonraker_subscription_merge.h"
 #include "plr_backend.h"
 #include "power_device_state.h"
 #include "power_loss_sensor.h"
@@ -1724,102 +1725,239 @@ void MoonrakerDiscoverySequence::complete_discovery_subscription(uint64_t seq) {
                      hw.tool_names().size());
     }
 
-    json subscribe_params = {{"objects", subscription_objects}};
-    size_t num_subscribed = subscription_objects.size();
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        last_app_objects_ = subscription_objects;
+        last_sent_objects_ = json();
+        subscribed_ = false;
+    }
+    send_discovery_subscribe(seq, hw, subscription_objects, current_extras());
+}
+
+void MoonrakerDiscoverySequence::send_discovery_subscribe(uint64_t seq, const PrinterDiscovery& hw,
+                                                          const json& app, const json& extras) {
+    json objects = merge_subscription_objects(app, extras);
+    const bool carried_extras = !extras.empty();
+    if (carried_extras) {
+        spdlog::info("[Moonraker Client] Subscribing {} plugin object(s)", extras.size());
+    }
+    json subscribe_params = {{"objects", objects}};
+    const size_t num_subscribed = objects.size();
 
     client_.send_jsonrpc(
         "printer.objects.subscribe", subscribe_params,
-        [this, seq, num_subscribed, hw](json sub_response) {
+        [this, seq, num_subscribed, hw, app, extras, objects, carried_extras](json sub_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
+            if (carried_extras && sub_response.contains("error")) {
+                spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: {}; "
+                             "subscribing the app objects alone",
+                             extras.dump(), sub_response["error"].dump());
+                reject_extras(extras);
+                send_discovery_subscribe(seq, hw, app, json::object());
+                return;
+            }
             if (sub_response.contains("result")) {
-                spdlog::info("[Moonraker Client] Subscription complete: {} objects subscribed",
-                             num_subscribed);
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                last_sent_objects_ = objects;
+                subscribed_ = true;
+            }
+            finish_discovery_subscription(hw, num_subscribed, sub_response);
+        });
+}
 
-                // Per-filament operation temperatures are static firmware
-                // data published on the console, not through status, so the
-                // one capture belongs at connect time. No-ops on a printer
-                // whose firmware publishes none.
-                filament_temps::capture_on_connect(client_, hw);
+void MoonrakerDiscoverySequence::finish_discovery_subscription(const PrinterDiscovery& hw,
+                                                               size_t num_subscribed,
+                                                               const json& sub_response) {
+    if (sub_response.contains("result")) {
+        spdlog::info("[Moonraker Client] Subscription complete: {} objects subscribed",
+                     num_subscribed);
 
-                // Process initial state from subscription response
-                // Moonraker returns current values in result.status
-                if (sub_response["result"].contains("status")) {
-                    const auto& status = sub_response["result"]["status"];
-                    spdlog::info(
-                        "[Moonraker Client] Processing initial printer state from subscription");
+        // Per-filament operation temperatures are static firmware
+        // data published on the console, not through status, so the
+        // one capture belongs at connect time. No-ops on a printer
+        // whose firmware publishes none.
+        filament_temps::capture_on_connect(client_, hw);
 
-                    // DEBUG: Log print_stats specifically to diagnose startup sync issues
-                    if (status.contains("print_stats")) {
-                        spdlog::info("[Moonraker Client] INITIAL print_stats: {}",
-                                     status["print_stats"].dump());
-                    } else {
-                        spdlog::warn("[Moonraker Client] INITIAL status has NO print_stats!");
-                    }
+        // Process initial state from subscription response
+        // Moonraker returns current values in result.status
+        if (sub_response["result"].contains("status")) {
+            const auto& status = sub_response["result"]["status"];
+            spdlog::info("[Moonraker Client] Processing initial printer state from subscription");
 
-                    // A previous session can leave the U1's firmware holding
-                    // its screws-tilt calibration state, which refuses
-                    // unrelated filament operations until cleared. Connect
-                    // time is the only moment to act - never a live poll - so
-                    // a calibration another client is actively driving keeps
-                    // its state unless its own probe step proves nothing is
-                    // running.
-                    screws_tilt::reconcile_on_connect(client_, hw, status);
-                    // Same shape, one interlock over: a batch feed interrupted
-                    // by a lost connection strands the macro's `doing`, which
-                    // refuses every print start until cleared. Clearing is
-                    // safe only when no print owns the interlock - the guard
-                    // lives in the reconcile itself. The lookup key is the
-                    // config-case object name, matching the subscription.
-                    const std::string batch_macro =
-                        hw.macro_config_name(helix::macro_patterns::AUTO_FEEDING_BATCH);
-                    if (!batch_macro.empty()) {
-                        // A batch this process dispatched and has not seen
-                        // complete owns the interlock, so the reconcile must
-                        // not clear it on a mid-batch reconnect. The backends
-                        // answer the capability question; which one runs
-                        // batches is vendor knowledge that stays there.
-                        batch_feeding::reconcile_on_connect(
-                            client_, status, fmt::format("gcode_macro {}", batch_macro),
-                            AmsState::instance().any_filament_batch_in_flight());
-                    }
-                }
-            } else if (sub_response.contains("error")) {
-                spdlog::error("[Moonraker Client] Subscription failed: {}",
-                              sub_response["error"].dump());
-
-                // Emit discovery failed event (subscription is part of discovery)
-                std::string error_msg = sub_response["error"].dump();
-                client_.emit_event(
-                    MoonrakerEventType::DISCOVERY_FAILED,
-                    fmt::format("Failed to subscribe to printer updates: {}", error_msg),
-                    false); // Warning, not error - discovery still completes
+            // DEBUG: Log print_stats specifically to diagnose startup sync issues
+            if (status.contains("print_stats")) {
+                spdlog::info("[Moonraker Client] INITIAL print_stats: {}",
+                             status["print_stats"].dump());
+            } else {
+                spdlog::warn("[Moonraker Client] INITIAL status has NO print_stats!");
             }
 
-            // Discovery complete - pass initial status to the callback so the caller
-            // can dispatch it AFTER initializing subsystems (init_fans, etc.).
-            // Previously dispatch_status_update was called here separately, but that
-            // used a different queue than the init_fans callback, causing a race where
-            // initial fan/sensor data was processed before subjects existed.
-            // Copy hardware_ under lock before invoking callback (#562, #777).
-            json initial_status;
-            if (sub_response.contains("result") && sub_response["result"].contains("status")) {
-                initial_status = sub_response["result"]["status"];
+            // A previous session can leave the U1's firmware holding
+            // its screws-tilt calibration state, which refuses
+            // unrelated filament operations until cleared. Connect
+            // time is the only moment to act - never a live poll - so
+            // a calibration another client is actively driving keeps
+            // its state unless its own probe step proves nothing is
+            // running.
+            screws_tilt::reconcile_on_connect(client_, hw, status);
+            // Same shape, one interlock over: a batch feed interrupted
+            // by a lost connection strands the macro's `doing`, which
+            // refuses every print start until cleared. Clearing is
+            // safe only when no print owns the interlock - the guard
+            // lives in the reconcile itself. The lookup key is the
+            // config-case object name, matching the subscription.
+            const std::string batch_macro =
+                hw.macro_config_name(helix::macro_patterns::AUTO_FEEDING_BATCH);
+            if (!batch_macro.empty()) {
+                // A batch this process dispatched and has not seen
+                // complete owns the interlock, so the reconcile must
+                // not clear it on a mid-batch reconnect. The backends
+                // answer the capability question; which one runs
+                // batches is vendor knowledge that stays there.
+                batch_feeding::reconcile_on_connect(
+                    client_, status, fmt::format("gcode_macro {}", batch_macro),
+                    AmsState::instance().any_filament_batch_in_flight());
             }
-            if (on_discovery_complete_) {
-                PrinterDiscovery hw_snapshot;
+        }
+    } else if (sub_response.contains("error")) {
+        spdlog::error("[Moonraker Client] Subscription failed: {}", sub_response["error"].dump());
+
+        // Emit discovery failed event (subscription is part of discovery)
+        std::string error_msg = sub_response["error"].dump();
+        client_.emit_event(MoonrakerEventType::DISCOVERY_FAILED,
+                           fmt::format("Failed to subscribe to printer updates: {}", error_msg),
+                           false); // Warning, not error - discovery still completes
+    }
+
+    // Discovery complete - pass initial status to the callback so the caller
+    // can dispatch it AFTER initializing subsystems (init_fans, etc.).
+    // Previously dispatch_status_update was called here separately, but that
+    // used a different queue than the init_fans callback, causing a race where
+    // initial fan/sensor data was processed before subjects existed.
+    // Copy hardware_ under lock before invoking callback (#562, #777).
+    json initial_status;
+    if (sub_response.contains("result") && sub_response["result"].contains("status")) {
+        initial_status = sub_response["result"]["status"];
+    }
+    if (on_discovery_complete_) {
+        PrinterDiscovery hw_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(hardware_mutex_);
+            hw_snapshot = hardware_;
+        }
+        on_discovery_complete_(hw_snapshot, initial_status);
+    }
+    discovery_completed_.store(true);
+    if (on_complete_discovery_) {
+        auto cb = std::move(on_complete_discovery_);
+        on_error_discovery_ = nullptr;
+        cb();
+    }
+}
+
+void MoonrakerDiscoverySequence::set_extras_provider(std::function<json()> provider) {
+    std::lock_guard<std::mutex> lock(extras_mutex_);
+    extras_provider_ = std::move(provider);
+}
+
+json MoonrakerDiscoverySequence::current_extras() {
+    std::lock_guard<std::mutex> lock(extras_mutex_);
+    if (!extras_provider_)
+        return json::object();
+    json extras = extras_provider_();
+    if (!extras.is_object() || extras.empty() ||
+        (!rejected_extras_.empty() && extras.dump() == rejected_extras_))
+        return json::object();
+    return extras;
+}
+
+void MoonrakerDiscoverySequence::reject_extras(const json& extras) {
+    std::lock_guard<std::mutex> lock(extras_mutex_);
+    rejected_extras_ = extras.dump();
+}
+
+void MoonrakerDiscoverySequence::reset_subscription_state() {
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    subscribed_ = false;
+    last_sent_objects_ = json();
+    refresh_in_flight_ = false;
+    refresh_pending_ = false;
+}
+
+void MoonrakerDiscoverySequence::refresh_subscription() {
+    json app;
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        if (!subscribed_)
+            return;
+        if (refresh_in_flight_) {
+            refresh_pending_ = true;
+            return;
+        }
+        refresh_in_flight_ = true;
+        app = last_app_objects_;
+    }
+
+    json extras = current_extras();
+    json objects = merge_subscription_objects(app, extras);
+    {
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        if (objects == last_sent_objects_) {
+            refresh_in_flight_ = false;
+            return;
+        }
+    }
+
+    if (!extras.empty()) {
+        spdlog::info("[Moonraker Client] Subscribing {} plugin object(s)", extras.size());
+    }
+    const uint64_t generation = client_.connection_generation();
+    client_.send_jsonrpc(
+        "printer.objects.subscribe", json{{"objects", objects}},
+        [this, generation, extras, objects](json response) {
+            if (client_.connection_generation() != generation) {
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                refresh_in_flight_ = false;
+                refresh_pending_ = false;
+                return;
+            }
+            if (response.contains("result")) {
                 {
-                    std::lock_guard<std::mutex> lock(hardware_mutex_);
-                    hw_snapshot = hardware_;
+                    std::lock_guard<std::mutex> lock(subscription_mutex_);
+                    last_sent_objects_ = objects;
                 }
-                on_discovery_complete_(hw_snapshot, initial_status);
+                if (response["result"].contains("status")) {
+                    client_.dispatch_status_update(response["result"]["status"]);
+                }
+            } else if (response.contains("error")) {
+                {
+                    // Whether Moonraker kept the previous subscription is unknown, so the
+                    // next refresh re-sends rather than comparing against it.
+                    std::lock_guard<std::mutex> lock(subscription_mutex_);
+                    last_sent_objects_ = json();
+                }
+                if (!extras.empty()) {
+                    spdlog::warn("[Moonraker Client] Subscription with plugin objects {} failed: "
+                                 "{}; subscribing the app objects alone",
+                                 extras.dump(), response["error"].dump());
+                    reject_extras(extras);
+                    std::lock_guard<std::mutex> lock(subscription_mutex_);
+                    refresh_pending_ = true;
+                } else {
+                    spdlog::error("[Moonraker Client] Subscription refresh failed: {}",
+                                  response["error"].dump());
+                }
             }
-            discovery_completed_.store(true);
-            if (on_complete_discovery_) {
-                auto cb = std::move(on_complete_discovery_);
-                on_error_discovery_ = nullptr;
-                cb();
+            bool again = false;
+            {
+                std::lock_guard<std::mutex> lock(subscription_mutex_);
+                refresh_in_flight_ = false;
+                again = refresh_pending_;
+                refresh_pending_ = false;
             }
+            if (again)
+                refresh_subscription();
         });
 }
 

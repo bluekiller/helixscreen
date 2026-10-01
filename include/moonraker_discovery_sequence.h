@@ -81,7 +81,14 @@ class MoonrakerDiscoverySequence {
      */
     void reset_completion() {
         discovery_completed_.store(false);
+        reset_subscription_state();
     }
+
+    /// See IMoonrakerClient::set_subscription_extras_provider.
+    void set_extras_provider(std::function<json()> provider);
+
+    /// See IMoonrakerClient::refresh_subscription.
+    void refresh_subscription();
 
     /** @brief Check if identified to Moonraker */
     [[nodiscard]] bool is_identified() const {
@@ -296,6 +303,24 @@ class MoonrakerDiscoverySequence {
      */
     void complete_discovery_subscription(uint64_t seq);
 
+    /// Send the discovery subscribe for @p app merged with @p extras. A failure that carried
+    /// extras re-sends @p app alone; only a failure of the app objects themselves is reported.
+    void send_discovery_subscribe(uint64_t seq, const PrinterDiscovery& hw, const json& app,
+                                  const json& extras);
+
+    /// The discovery subscribe's response: initial state, discovery completion.
+    void finish_discovery_subscription(const PrinterDiscovery& hw, size_t num_subscribed,
+                                       const json& sub_response);
+
+    /// The provider's current extras, or an empty object when there is no provider or its
+    /// result is the one Moonraker last refused.
+    json current_extras();
+
+    /// Remember that Moonraker refused @p extras so they are not sent again unchanged.
+    void reject_extras(const json& extras);
+
+    void reset_subscription_state();
+
   public:
     /**
      * @brief Pure helper: build the `printer.objects.subscribe` objects map
@@ -348,6 +373,20 @@ class MoonrakerDiscoverySequence {
     std::string reported_machine_name_; // machine.system_info "machine_name"
     std::atomic<bool> identified_{false};
     std::atomic<bool> discovery_completed_{false};
+
+    // Plugin objects merged into the union subscription. The provider is called while
+    // extras_mutex_ is held, so clearing it waits out a call in progress.
+    std::mutex extras_mutex_;
+    std::function<json()> extras_provider_;
+    std::string rejected_extras_; // dump of the extras Moonraker last refused
+
+    // Per-connection subscription state, under subscription_mutex_.
+    std::mutex subscription_mutex_;
+    bool subscribed_{false}; // the discovery subscribe of this connection succeeded
+    json last_app_objects_;  // build_subscription_objects() result of this connection
+    json last_sent_objects_; // objects map of the last subscribe Moonraker accepted
+    bool refresh_in_flight_{false};
+    bool refresh_pending_{false};
 
     // Callbacks
     std::function<void(const PrinterDiscovery&)> on_hardware_discovered_;
