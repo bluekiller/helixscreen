@@ -28,6 +28,7 @@
 #include "thumbnail_processor.h"
 #include "timelapse_state.h"
 #include "timelapse_thumbnailer.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -57,7 +58,6 @@ static std::string default_timelapse_dir() {
 // ============================================================================
 
 static std::unique_ptr<TimelapseVideosOverlay> g_timelapse_videos;
-static lv_obj_t* g_timelapse_videos_panel = nullptr;
 
 TimelapseVideosOverlay& get_global_timelapse_videos() {
     if (!g_timelapse_videos) {
@@ -74,56 +74,33 @@ void init_global_timelapse_videos(IMoonrakerAPI* api) {
         return;
     }
     g_timelapse_videos = std::make_unique<TimelapseVideosOverlay>(api);
-    StaticPanelRegistry::instance().register_destroy("TimelapseVideosOverlay", []() {
-        if (g_timelapse_videos_panel) {
-            NavigationManager::instance().unregister_overlay_instance(g_timelapse_videos_panel);
-        }
-        g_timelapse_videos_panel = nullptr;
-        g_timelapse_videos.reset();
-    });
+    StaticPanelRegistry::instance().register_destroy("TimelapseVideosOverlay",
+                                                     []() { g_timelapse_videos.reset(); });
     spdlog::trace("[Timelapse Videos] TimelapseVideosOverlay initialized");
 }
 
-void open_timelapse_videos() {
+/// True when the overlay was pushed.
+static bool show_timelapse_videos() {
     spdlog::debug("[Timelapse Videos] Opening timelapse videos overlay");
+    return get_global_timelapse_videos().show(lv_display_get_screen_active(nullptr));
+}
 
-    if (!g_timelapse_videos) {
-        spdlog::error("[Timelapse Videos] Global instance not initialized!");
-        return;
-    }
-
-    // Lazy-create the panel
-    if (!g_timelapse_videos_panel) {
-        spdlog::debug("[Timelapse Videos] Creating timelapse videos panel...");
-        g_timelapse_videos_panel =
-            g_timelapse_videos->create(lv_display_get_screen_active(nullptr));
-
-        if (g_timelapse_videos_panel) {
-            NavigationManager::instance().register_overlay_instance(g_timelapse_videos_panel,
-                                                                    g_timelapse_videos.get());
-            spdlog::debug("[Timelapse Videos] Panel created and registered");
-        } else {
-            spdlog::error("[Timelapse Videos] Failed to create timelapse_videos_overlay");
-            return;
-        }
-    }
-
-    // Show the overlay - NavigationManager will call on_activate()
-    NavigationManager::instance().push_overlay(g_timelapse_videos_panel);
+void open_timelapse_videos() {
+    show_timelapse_videos();
 }
 
 void helix::ui::open_timelapse_video(const std::string& filename) {
-    open_timelapse_videos();
-    if (!g_timelapse_videos || !g_timelapse_videos_panel) {
+    if (!show_timelapse_videos()) {
         return;
     }
-    if (!g_timelapse_videos->can_play()) {
+    auto& overlay = get_global_timelapse_videos();
+    if (!overlay.can_play()) {
         spdlog::info("[Timelapse Videos] No video player on this host; showing the library for {}",
                      filename);
         ui_notification_info(lv_tr("No video player installed - showing the timelapse library"));
         return;
     }
-    g_timelapse_videos->play_video(filename);
+    overlay.play_video(filename);
 }
 
 bool helix::ui::timelapse_viewer_available() {
@@ -134,38 +111,39 @@ bool helix::ui::timelapse_viewer_available() {
 // CONSTRUCTOR
 // ============================================================================
 
-TimelapseVideosOverlay::TimelapseVideosOverlay(IMoonrakerAPI* api) : api_(api) {
-    spdlog::debug("[{}] Constructor", get_name());
-}
+TimelapseVideosOverlay::TimelapseVideosOverlay(IMoonrakerAPI* api) : api_(api) {}
 
 // ============================================================================
 // LIFECYCLE
 // ============================================================================
 
-void TimelapseVideosOverlay::init_subjects() {
-    spdlog::debug("[{}] init_subjects()", get_name());
-
-    // Register XML callbacks for the render button
+void TimelapseVideosOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_timelapse_render_now", on_render_now},
+        {"on_timelapse_render_now",
+         [](lv_event_t*) {
+             auto& self = get_global_timelapse_videos();
+             if (!self.api_) {
+                 spdlog::warn("[{}] Render requested but no API available", self.get_name());
+                 return;
+             }
+             spdlog::info("[{}] Rendering timelapse...", self.get_name());
+             self.api_->timelapse().render_timelapse(
+                 []() { spdlog::info("[Timelapse Videos] Render started successfully"); },
+                 [](const MoonrakerError& error) {
+                     spdlog::error("[Timelapse Videos] Render failed: {}", error.message);
+                 });
+         }},
     });
 }
 
 lv_obj_t* TimelapseVideosOverlay::create(lv_obj_t* parent) {
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "timelapse_videos_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    spdlog::debug("[{}] create() - finding widgets", get_name());
-
-    video_grid_container_ = lv_obj_find_by_name(overlay_root_, "video_grid_container");
-    video_grid_empty_ = lv_obj_find_by_name(overlay_root_, "video_grid_empty");
-
-    spdlog::debug("[{}] Widgets found: grid_container={} grid_empty={}", get_name(),
-                  video_grid_container_ != nullptr, video_grid_empty_ != nullptr);
+    video_grid_container_ =
+        helix::ui::find_required(overlay_root_, "video_grid_container", get_name());
+    video_grid_empty_ = helix::ui::find_required(overlay_root_, "video_grid_empty", get_name());
 
     return overlay_root_;
 }
@@ -296,13 +274,14 @@ TimelapseCardDimensions TimelapseVideosOverlay::calculate_card_dimensions() {
     lv_coord_t header_height = header ? lv_obj_get_height(header) : 56;
 
     // Get overlay_content padding
-    lv_obj_t* content = lv_obj_find_by_name(overlay_root_, "overlay_content");
+    lv_obj_t* content = helix::ui::find_required(overlay_root_, "overlay_content", get_name());
     lv_coord_t content_pad_top = content ? lv_obj_get_style_pad_top(content, LV_PART_MAIN) : 0;
     lv_coord_t content_pad_bottom =
         content ? lv_obj_get_style_pad_bottom(content, LV_PART_MAIN) : 0;
 
     // Check if render section is visible and get its height
-    lv_obj_t* render_section = lv_obj_find_by_name(overlay_root_, "render_section");
+    lv_obj_t* render_section =
+        helix::ui::find_required(overlay_root_, "render_section", get_name());
     lv_coord_t render_height = 0;
     if (render_section && !lv_obj_has_flag(render_section, LV_OBJ_FLAG_HIDDEN)) {
         render_height = lv_obj_get_height(render_section);
@@ -866,20 +845,6 @@ void TimelapseVideosOverlay::confirm_delete(const std::string& filename) {
 // STATIC EVENT HANDLERS
 // ============================================================================
 
-void TimelapseVideosOverlay::on_render_now(lv_event_t* /*e*/) {
-    if (!g_timelapse_videos || !g_timelapse_videos->api_) {
-        spdlog::warn("[Timelapse Videos] Render requested but no API available");
-        return;
-    }
-
-    spdlog::info("[Timelapse Videos] Rendering timelapse...");
-    g_timelapse_videos->api_->timelapse().render_timelapse(
-        []() { spdlog::info("[Timelapse Videos] Render started successfully"); },
-        [](const MoonrakerError& error) {
-            spdlog::error("[Timelapse Videos] Render failed: {}", error.message);
-        });
-}
-
 void TimelapseVideosOverlay::on_card_clicked(lv_event_t* e) {
     auto* self = static_cast<TimelapseVideosOverlay*>(lv_event_get_user_data(e));
     if (!self)
@@ -954,8 +919,6 @@ bool helix::ui::timelapse_viewer_available() {
 }
 
 TimelapseVideosOverlay::TimelapseVideosOverlay(IMoonrakerAPI* api) : api_(api) {}
-
-void TimelapseVideosOverlay::init_subjects() {}
 
 lv_obj_t* TimelapseVideosOverlay::create(lv_obj_t*) {
     return nullptr;

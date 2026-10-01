@@ -5,90 +5,22 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_effects.h"
-#include "ui_event_safety.h"
 #include "ui_nav_manager.h"
 #include "ui_toast_manager.h"
 
 #include "config.h"
 #include "display_manager.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "static_panel_registry.h"
 #include "touch_calibration.h"
 #include "touch_calibration_layout.h"
 #include "touch_calibration_wrapper.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
 #include <cstring>
 
 namespace helix::ui {
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-static std::unique_ptr<TouchCalibrationOverlay> g_touch_calibration_overlay;
-
-TouchCalibrationOverlay& get_touch_calibration_overlay() {
-    if (!g_touch_calibration_overlay) {
-        g_touch_calibration_overlay = std::make_unique<TouchCalibrationOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "TouchCalibrationOverlay", []() { g_touch_calibration_overlay.reset(); });
-    }
-    return *g_touch_calibration_overlay;
-}
-
-// ============================================================================
-// Static Trampolines for LVGL Callbacks
-// ============================================================================
-
-static void on_touch_cal_accept_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] accept clicked");
-    get_touch_calibration_overlay().handle_accept_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_retry_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] retry clicked");
-    get_touch_calibration_overlay().handle_retry_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_overlay_touched(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] screen touched");
-    get_touch_calibration_overlay().handle_screen_touched(e);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_overlay_released(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] screen released");
-    get_touch_calibration_overlay().handle_screen_released();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_back_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] back clicked");
-    get_touch_calibration_overlay().handle_back_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_cancel_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] cancel chip clicked");
-    get_touch_calibration_overlay().handle_cancel_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_hold_abort(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] hold abort");
-    get_touch_calibration_overlay().handle_hold_abort();
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void register_touch_calibration_overlay_callbacks() {
     get_touch_calibration_overlay().register_callbacks();
@@ -284,13 +216,20 @@ void TouchCalibrationOverlay::register_callbacks() {
     spdlog::debug("[{}] Registering event callbacks", get_name());
 
     register_xml_callbacks({
-        {"on_touch_cal_accept_clicked", on_touch_cal_accept_clicked},
-        {"on_touch_cal_retry_clicked", on_touch_cal_retry_clicked},
-        {"on_touch_cal_overlay_touched", on_touch_cal_overlay_touched},
-        {"on_touch_cal_overlay_released", on_touch_cal_overlay_released},
-        {"on_touch_cal_back_clicked", on_touch_cal_back_clicked},
-        {"on_touch_cal_cancel_clicked", on_touch_cal_cancel_clicked},
-        {"on_touch_cal_hold_abort", on_touch_cal_hold_abort},
+        {"on_touch_cal_accept_clicked",
+         [](lv_event_t*) { get_touch_calibration_overlay().handle_accept_clicked(); }},
+        {"on_touch_cal_retry_clicked",
+         [](lv_event_t*) { get_touch_calibration_overlay().handle_retry_clicked(); }},
+        {"on_touch_cal_overlay_touched",
+         [](lv_event_t* e) { get_touch_calibration_overlay().handle_screen_touched(e); }},
+        {"on_touch_cal_overlay_released",
+         [](lv_event_t*) { get_touch_calibration_overlay().handle_screen_released(); }},
+        {"on_touch_cal_back_clicked",
+         [](lv_event_t*) { get_touch_calibration_overlay().handle_back_clicked(); }},
+        {"on_touch_cal_cancel_clicked",
+         [](lv_event_t*) { get_touch_calibration_overlay().handle_cancel_clicked(); }},
+        {"on_touch_cal_hold_abort",
+         [](lv_event_t*) { get_touch_calibration_overlay().handle_hold_abort(); }},
     });
 
     spdlog::debug("[{}] Event callbacks registered", get_name());
@@ -322,10 +261,7 @@ lv_obj_t* TouchCalibrationOverlay::create(lv_obj_t* parent) {
 
     // Find crosshair and touch capture widgets. Reparenting to screen root
     // is deferred to show() so z-order lands above the pushed overlay panel.
-    crosshair_ = lv_obj_find_by_name(overlay_root_, "crosshair");
-    if (!crosshair_) {
-        spdlog::warn("[{}] Crosshair widget not found in XML", get_name());
-    }
+    crosshair_ = helix::ui::find_required(overlay_root_, "crosshair", get_name());
 
     // Initially hidden
     lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);

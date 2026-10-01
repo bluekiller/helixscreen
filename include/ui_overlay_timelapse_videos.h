@@ -23,11 +23,14 @@ class TimelapseVideosOverlay : public OverlayBase {
   public:
     explicit TimelapseVideosOverlay(IMoonrakerAPI* api);
 
-    void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
+    void register_callbacks() override;
 
     [[nodiscard]] const char* get_name() const override {
         return "Timelapse Videos";
+    }
+    [[nodiscard]] const char* xml_component() const override {
+        return "timelapse_videos_overlay";
     }
 
     void on_activate() override;
@@ -76,7 +79,6 @@ class TimelapseVideosOverlay : public OverlayBase {
 
     void confirm_delete(const std::string& filename);
 
-    static void on_render_now(lv_event_t* e);
     static void on_card_clicked(lv_event_t* e);
     static void on_card_long_pressed(lv_event_t* e);
 

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 #include <string>
 
@@ -28,7 +29,6 @@ namespace helix::settings {
  */
 class PrinterImageOverlay : public OverlayBase {
   public:
-    PrinterImageOverlay();
     ~PrinterImageOverlay() override;
 
     //
@@ -41,18 +41,14 @@ class PrinterImageOverlay : public OverlayBase {
     const char* get_name() const override {
         return "Printer Image";
     }
+    const char* xml_component() const override {
+        return "printer_image_overlay";
+    }
 
     void on_activate() override;
 
     //
-    // === UI Creation ===
-    //
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    //
-    // === Event Handlers (public for static callbacks) ===
+    // === Event Handlers (public for the callback table) ===
     //
 
     void handle_auto_detect();
@@ -65,16 +61,6 @@ class PrinterImageOverlay : public OverlayBase {
     void refresh_custom_images();
 
   private:
-    //
-    // === Static Callbacks ===
-    //
-
-    static void on_auto_detect(lv_event_t* e);
-    static void on_image_card_clicked(lv_event_t* e);
-    static void on_usb_image_clicked(lv_event_t* e);
-    static void on_tag_parts(lv_event_t* e);
-    static void on_reset_tags(lv_event_t* e);
-
     //
     // === Internal Methods ===
     //
@@ -120,14 +106,8 @@ class PrinterImageOverlay : public OverlayBase {
     lv_subject_t tag_state_subject_{};   // int: 0=untaggable, 1=untagged by user, 2=user tags
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton PrinterImageOverlay
- */
-PrinterImageOverlay& get_printer_image_overlay();
+inline PrinterImageOverlay& get_printer_image_overlay() {
+    return lazy_global<PrinterImageOverlay>("PrinterImageOverlay");
+}
 
 } // namespace helix::settings

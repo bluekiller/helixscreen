@@ -22,6 +22,7 @@
 #include "led/led_auto_state.h"
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <string>
@@ -45,12 +46,7 @@ class LedSettingsOverlay : public OverlayBase {
     friend class LedSettingsOverlayTestAccess;
 
   public:
-    LedSettingsOverlay();
     ~LedSettingsOverlay() override;
-
-    // Non-copyable
-    LedSettingsOverlay(const LedSettingsOverlay&) = delete;
-    LedSettingsOverlay& operator=(const LedSettingsOverlay&) = delete;
 
     //
     // === OverlayBase Interface ===
@@ -62,22 +58,18 @@ class LedSettingsOverlay : public OverlayBase {
     const char* get_name() const override {
         return "LED Settings";
     }
+    const char* xml_component() const override {
+        return "led_settings_overlay";
+    }
 
     void on_activate() override;
-
-    //
-    // === UI Creation ===
-    //
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
 
     bool is_created() const {
         return overlay_root_ != nullptr;
     }
 
     //
-    // === Event Handlers (public for static callbacks) ===
+    // === Event Handlers (called by the XML callback lambdas) ===
     //
 
     void handle_led_on_at_start_changed(bool enabled);
@@ -121,26 +113,10 @@ class LedSettingsOverlay : public OverlayBase {
     lv_subject_t led_on_at_start_subject_{};
     std::vector<std::string> action_type_options_; // Maps dropdown index to action type string
     int editing_macro_index_ = -1;                 // -1 = no macro device being edited
-
-    //
-    // === Static Callbacks ===
-    //
-
-    static void on_led_on_at_start_changed(lv_event_t* e);
-    static void on_startup_brightness_changed(lv_event_t* e);
-    static void on_startup_brightness_commit(lv_event_t* e);
-    static void on_auto_state_changed(lv_event_t* e);
-    static void on_add_macro_device(lv_event_t* e);
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton LedSettingsOverlay
- */
-LedSettingsOverlay& get_led_settings_overlay();
+inline LedSettingsOverlay& get_led_settings_overlay() {
+    return lazy_global<LedSettingsOverlay>("LedSettingsOverlay");
+}
 
 } // namespace helix::settings

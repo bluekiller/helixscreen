@@ -9,8 +9,6 @@
 #include "ui_settings_about.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_event_safety.h"
-#include "ui_nav_manager.h"
 #include "ui_panel_history_dashboard.h"
 #include "ui_settings_updates.h"
 #include "ui_snake_game.h"
@@ -34,11 +32,11 @@ inline constexpr int CONTRIBUTOR_COUNT = sizeof(CONTRIBUTORS) / sizeof(CONTRIBUT
 #include "helix_version.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "static_panel_registry.h"
 #include "system/diagnostics.h"
 #include "system/update_checker.h"
 #include "theme_manager.h"
 #include "ui/ui_lazy_panel_helper.h"
+#include "ui/ui_widget_helpers.h"
 #include "wizard_config_paths.h"
 
 #ifdef HELIX_HAS_TRACKER
@@ -50,38 +48,12 @@ inline constexpr int CONTRIBUTOR_COUNT = sizeof(CONTRIBUTORS) / sizeof(CONTRIBUT
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
-#include <memory>
-
 namespace helix::settings {
-
-// ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<AboutSettingsOverlay> g_about_settings_overlay;
-
-AboutSettingsOverlay& get_about_settings_overlay() {
-    if (!g_about_settings_overlay) {
-        g_about_settings_overlay = std::make_unique<AboutSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "AboutSettingsOverlay", []() { g_about_settings_overlay.reset(); });
-    }
-    return *g_about_settings_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-AboutSettingsOverlay::AboutSettingsOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
 
 AboutSettingsOverlay::~AboutSettingsOverlay() {
 #ifdef HELIX_HAS_TRACKER
     helix::SoundManager::instance().stop_tracker();
 #endif
-    spdlog::trace("[{}] Destroyed", get_name());
 }
 
 // ============================================================================
@@ -133,71 +105,107 @@ void AboutSettingsOverlay::init_subjects() {
     });
 }
 
+// 7-tap easter egg constants (shared by version and printer name callbacks)
+static constexpr int SECRET_TAP_COUNT = 7;
+static constexpr uint32_t SECRET_TAP_TIMEOUT_MS = 2000;
+
 void AboutSettingsOverlay::register_callbacks() {
     register_xml_callbacks({
-        {"on_about_printer_name_clicked", on_about_printer_name_clicked},
-        {"on_about_version_clicked", on_about_version_clicked},
-        {"on_about_print_hours_clicked", on_about_print_hours_clicked},
+        {"on_about_printer_name_clicked",
+         [](lv_event_t*) {
+             static int tap_count = 0;
+             static uint32_t last_tap_time = 0;
+
+             uint32_t now = lv_tick_get();
+
+             if (now - last_tap_time > SECRET_TAP_TIMEOUT_MS) {
+                 tap_count = 0;
+             }
+             last_tap_time = now;
+             tap_count++;
+
+             int remaining = SECRET_TAP_COUNT - tap_count;
+
+             if (remaining > 0 && remaining <= 3) {
+                 char buf[32];
+                 snprintf(buf, sizeof(buf), "%d more tap%s...", remaining,
+                          remaining == 1 ? "" : "s");
+                 ToastManager::instance().show(ToastSeverity::INFO, buf, 800);
+             } else if (remaining == 0) {
+                 tap_count = 0;
+                 spdlog::info("[AboutSettings] Snake easter egg triggered!");
+                 helix::SnakeGame::show();
+             }
+         }},
+        {"on_about_version_clicked",
+         [](lv_event_t*) {
+             static int tap_count = 0;
+             static uint32_t last_tap_time = 0;
+
+             uint32_t now = lv_tick_get();
+
+             if (now - last_tap_time > SECRET_TAP_TIMEOUT_MS) {
+                 tap_count = 0;
+             }
+             last_tap_time = now;
+             tap_count++;
+
+             int remaining = SECRET_TAP_COUNT - tap_count;
+
+             if (remaining > 0 && remaining <= 3) {
+                 Config* config = Config::get_instance();
+                 bool currently_on = config->is_beta_features_enabled();
+                 const char* action = currently_on ? lv_tr("disable") : lv_tr("enable");
+                 std::string msg =
+                     remaining == 1 ? fmt::format(lv_tr("1 more tap to {} beta features"), action)
+                                    : fmt::format(lv_tr("{} more taps to {} beta features"),
+                                                  remaining, action);
+                 ToastManager::instance().show(ToastSeverity::INFO, msg.c_str(), 1000);
+             } else if (remaining == 0) {
+                 Config* config = Config::get_instance();
+                 bool currently_enabled = config->is_beta_features_enabled();
+                 bool new_value = !currently_enabled;
+                 config->set("/beta_features", new_value);
+                 config->save();
+
+                 lv_subject_t* subject = lv_xml_get_subject(nullptr, "show_beta_features");
+                 if (subject) {
+                     lv_subject_set_int(subject, new_value ? 1 : 0);
+                 }
+
+                 // The two Update Channel rows swap on that subject, and toggling
+                 // beta also moves the effective channel whenever Dev is stored, so
+                 // the row arriving on screen needs its selection re-seeded. A root
+                 // of nullptr (Updates never opened) is a no-op.
+                 UpdatesSettingsOverlay::sync_update_channel_rows(
+                     get_updates_settings_overlay().get_root(),
+                     static_cast<int>(UpdateChecker::instance().get_channel()));
+
+                 ToastManager::instance().show(
+                     ToastSeverity::SUCCESS,
+                     new_value ? lv_tr("Beta features: ON") : lv_tr("Beta features: OFF"), 1500);
+                 spdlog::info("[AboutSettings] Beta features toggled via 7-tap secret: {}",
+                              new_value ? "ON" : "OFF");
+
+                 tap_count = 0;
+             }
+         }},
+        {"on_about_print_hours_clicked",
+         [](lv_event_t*) {
+             auto& self = get_about_settings_overlay();
+             helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
+                 get_global_history_dashboard_panel, self.parent_screen_, "Print History",
+                 self.get_name());
+         }},
     });
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
 }
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
 
 lv_obj_t* AboutSettingsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "about_settings_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!create_overlay_from_xml(parent, xml_component())) {
         return nullptr;
     }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    // Set up the contributor marquee
     setup_contributor_marquee();
-
-    spdlog::info("[{}] Overlay created", get_name());
     return overlay_root_;
-}
-
-void AboutSettingsOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Ensure subjects and callbacks are initialized
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    // Lazy create overlay
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Register for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack (on_activate will initialize widgets)
-    NavigationManager::instance().push_overlay(overlay_root_);
 }
 
 // ============================================================================
@@ -245,12 +253,9 @@ void AboutSettingsOverlay::on_deactivating(DeactivateReason) {
 // ============================================================================
 
 void AboutSettingsOverlay::setup_contributor_marquee() {
-    if (!overlay_root_)
-        return;
-
-    lv_obj_t* marquee_container = lv_obj_find_by_name(overlay_root_, "contributor_marquee");
+    lv_obj_t* marquee_container =
+        helix::ui::find_required(overlay_root_, "contributor_marquee", get_name());
     if (!marquee_container) {
-        spdlog::warn("[{}] contributor_marquee container not found", get_name());
         return;
     }
 
@@ -297,10 +302,9 @@ void AboutSettingsOverlay::populate_info_rows() {
 }
 
 void AboutSettingsOverlay::fetch_print_hours() {
-    // Ensure subjects are initialized (may be called before overlay is shown)
+    // Called after discovery, before the overlay is ever shown.
     if (!subjects_initialized_) {
         init_subjects();
-        register_callbacks();
     }
 
     auto* api = get_moonraker_api();
@@ -326,107 +330,6 @@ void AboutSettingsOverlay::fetch_print_hours() {
             "AboutSettingsOverlay::get_history_totals_error", [this](const MoonrakerError& err) {
                 spdlog::warn("[{}] Failed to fetch print hours: {}", get_name(), err.message);
             }));
-}
-
-// ============================================================================
-// STATIC CALLBACKS
-// ============================================================================
-
-// 7-tap easter egg constants (shared by version and printer name callbacks)
-static constexpr int SECRET_TAP_COUNT = 7;
-static constexpr uint32_t SECRET_TAP_TIMEOUT_MS = 2000;
-
-void AboutSettingsOverlay::on_about_printer_name_clicked(lv_event_t*) {
-    static int tap_count = 0;
-    static uint32_t last_tap_time = 0;
-
-    uint32_t now = lv_tick_get();
-
-    if (now - last_tap_time > SECRET_TAP_TIMEOUT_MS) {
-        tap_count = 0;
-    }
-    last_tap_time = now;
-    tap_count++;
-
-    int remaining = SECRET_TAP_COUNT - tap_count;
-
-    if (remaining > 0 && remaining <= 3) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%d more tap%s...", remaining, remaining == 1 ? "" : "s");
-        ToastManager::instance().show(ToastSeverity::INFO, buf, 800);
-    } else if (remaining == 0) {
-        tap_count = 0;
-        spdlog::info("[AboutSettings] Snake easter egg triggered!");
-        helix::SnakeGame::show();
-    }
-}
-
-void AboutSettingsOverlay::on_about_version_clicked(lv_event_t*) {
-    static int tap_count = 0;
-    static uint32_t last_tap_time = 0;
-
-    uint32_t now = lv_tick_get();
-
-    if (now - last_tap_time > SECRET_TAP_TIMEOUT_MS) {
-        tap_count = 0;
-    }
-    last_tap_time = now;
-    tap_count++;
-
-    int remaining = SECRET_TAP_COUNT - tap_count;
-
-    if (remaining > 0 && remaining <= 3) {
-        Config* config = Config::get_instance();
-        bool currently_on = config->is_beta_features_enabled();
-        const char* action = currently_on ? lv_tr("disable") : lv_tr("enable");
-        std::string msg =
-            remaining == 1
-                ? fmt::format(lv_tr("1 more tap to {} beta features"), action)
-                : fmt::format(lv_tr("{} more taps to {} beta features"), remaining, action);
-        ToastManager::instance().show(ToastSeverity::INFO, msg.c_str(), 1000);
-    } else if (remaining == 0) {
-        Config* config = Config::get_instance();
-        bool currently_enabled = config->is_beta_features_enabled();
-        bool new_value = !currently_enabled;
-        config->set("/beta_features", new_value);
-        config->save();
-
-        lv_subject_t* subject = lv_xml_get_subject(nullptr, "show_beta_features");
-        if (subject) {
-            lv_subject_set_int(subject, new_value ? 1 : 0);
-        }
-
-        // The two Update Channel rows swap on that subject, and toggling
-        // beta also moves the effective channel whenever Dev is stored, so
-        // the row arriving on screen needs its selection re-seeded. A root
-        // of nullptr (Updates never opened) is a no-op.
-        UpdatesSettingsOverlay::sync_update_channel_rows(
-            get_updates_settings_overlay().get_root(),
-            static_cast<int>(UpdateChecker::instance().get_channel()));
-
-        ToastManager::instance().show(
-            ToastSeverity::SUCCESS,
-            new_value ? lv_tr("Beta features: ON") : lv_tr("Beta features: OFF"), 1500);
-        spdlog::info("[AboutSettings] Beta features toggled via 7-tap secret: {}",
-                     new_value ? "ON" : "OFF");
-
-        tap_count = 0;
-    }
-}
-
-void AboutSettingsOverlay::on_about_print_hours_clicked(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[AboutSettings] on_about_print_hours_clicked");
-    get_about_settings_overlay().handle_print_hours_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// PRIVATE HANDLERS
-// ============================================================================
-
-void AboutSettingsOverlay::handle_print_hours_clicked() {
-    helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
-        get_global_history_dashboard_panel, parent_screen_, "Print History", get_name());
 }
 
 } // namespace helix::settings

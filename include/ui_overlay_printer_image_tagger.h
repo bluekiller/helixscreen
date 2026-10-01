@@ -5,6 +5,7 @@
 #include "overlay_base.h"
 #include "printer_image_regions.h"
 #include "src/ui/panel_widgets/callout_layout.h"
+#include "static_panel_registry.h"
 
 #include <optional>
 #include <string>
@@ -42,7 +43,6 @@ std::string review_chip_shown_subject(CalloutKind k);
  */
 class PrinterImageTaggerOverlay : public OverlayBase {
   public:
-    PrinterImageTaggerOverlay();
     ~PrinterImageTaggerOverlay() override;
 
     void init_subjects() override;
@@ -52,19 +52,19 @@ class PrinterImageTaggerOverlay : public OverlayBase {
     const char* get_name() const override {
         return "Printer Image Tagger";
     }
+    const char* xml_component() const override {
+        return "printer_image_tagger_overlay";
+    }
 
     void on_activate() override;
 
     /// Start tagging `target`.
-    void show(lv_obj_t* parent_screen, const ImageTagTarget& target);
+    bool show(lv_obj_t* parent_screen, const ImageTagTarget& target);
+
+  protected:
+    void before_show() override;
 
   private:
-    static void on_tap(lv_event_t* e);
-    static void on_skip(lv_event_t* e);
-    static void on_undo(lv_event_t* e);
-    static void on_cancel(lv_event_t* e);
-    static void on_save(lv_event_t* e);
-
     void handle_tap();
     void handle_save();
     /// Session state -> subjects; in review, lays the chips out as the home widget pins them.
@@ -86,6 +86,8 @@ class PrinterImageTaggerOverlay : public OverlayBase {
     lv_subject_t chip_shown_[6] = {};
 };
 
-PrinterImageTaggerOverlay& get_printer_image_tagger_overlay();
+inline PrinterImageTaggerOverlay& get_printer_image_tagger_overlay() {
+    return lazy_global<PrinterImageTaggerOverlay>("PrinterImageTaggerOverlay");
+}
 
 } // namespace helix::settings

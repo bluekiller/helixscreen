@@ -7,6 +7,7 @@
 #include "lvgl/lvgl.h"
 #include "mdns_discovery.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "usb_printer_detector.h"
 
@@ -19,7 +20,6 @@ namespace helix::settings {
 
 class LabelPrinterSettingsOverlay : public OverlayBase {
   public:
-    LabelPrinterSettingsOverlay();
     ~LabelPrinterSettingsOverlay() override;
 
     // OverlayBase interface
@@ -28,17 +28,17 @@ class LabelPrinterSettingsOverlay : public OverlayBase {
     const char* get_name() const override {
         return "Label Printer";
     }
+    const char* xml_component() const override {
+        return "label_printer_settings";
+    }
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;
 
-    // UI creation
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
     bool is_created() const {
         return overlay_root_ != nullptr;
     }
 
-    // Event handlers (public for static callbacks)
+    // Event handlers (called by the XML callback lambdas)
     void handle_address_changed();
     void handle_port_changed();
     void handle_label_size_changed(int index);
@@ -123,24 +123,10 @@ class LabelPrinterSettingsOverlay : public OverlayBase {
     void test_printing_subject_set(int val) {
         lv_subject_set_int(&test_printing_subject_, val);
     }
-
-  private:
-    // Static callbacks
-    static void on_address_done(lv_event_t* e);
-    static void on_port_done(lv_event_t* e);
-    static void on_label_size_changed(lv_event_t* e);
-    static void on_preset_changed(lv_event_t* e);
-    static void on_test_print(lv_event_t* e);
-    static void on_printer_selected(lv_event_t* e);
-    static void on_type_changed(lv_event_t* e);
-    static void on_usb_printer_selected(lv_event_t* e);
-    static void on_bt_printer_selected(lv_event_t* e);
-    static void on_bt_scan(lv_event_t* e);
-    static void on_bt_connect(lv_event_t* e);
-    static void on_bt_forget(lv_event_t* e);
-    static void on_label_count_changed(lv_event_t* e);
 };
 
-LabelPrinterSettingsOverlay& get_label_printer_settings_overlay();
+inline LabelPrinterSettingsOverlay& get_label_printer_settings_overlay() {
+    return lazy_global<LabelPrinterSettingsOverlay>("LabelPrinterSettingsOverlay");
+}
 
 } // namespace helix::settings

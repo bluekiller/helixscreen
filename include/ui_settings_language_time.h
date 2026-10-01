@@ -14,51 +14,30 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
 class LanguageTimeSettingsOverlay : public OverlayBase {
   public:
-    LanguageTimeSettingsOverlay();
-    ~LanguageTimeSettingsOverlay() override;
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "Language & Time";
     }
-
-    void on_activate() override;
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_language_time_overlay";
     }
 
-    //
-    // === Event Handlers (public for static callbacks) ===
-    //
-
-    void handle_language_changed(int index);
-    void handle_timezone_changed(int index);
-    void handle_time_format_changed(int index);
+    void register_callbacks() override;
+    void on_activate() override;
 
   private:
     void init_language_dropdown();
     void init_timezone_dropdown();
-    void init_time_format_dropdown();
-
-    static void on_language_changed(lv_event_t* e);
-    static void on_timezone_changed(lv_event_t* e);
-    static void on_time_format_changed(lv_event_t* e);
 };
 
-/// Singleton accessor; registers the overlay with StaticPanelRegistry on first use.
-LanguageTimeSettingsOverlay& get_language_time_settings_overlay();
+inline LanguageTimeSettingsOverlay& get_language_time_settings_overlay() {
+    return lazy_global<LanguageTimeSettingsOverlay>("LanguageTimeSettingsOverlay");
+}
 
 } // namespace helix::settings

@@ -19,29 +19,21 @@
 
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
 class UpdatesSettingsOverlay : public OverlayBase {
   public:
-    UpdatesSettingsOverlay();
-    ~UpdatesSettingsOverlay() override;
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "Updates";
     }
-
-    void on_activate() override;
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_updates_overlay";
     }
+
+    void register_callbacks() override;
+    void on_activate() override;
 
     /**
      * @brief Point both Update Channel rows at the channel the updater is using
@@ -71,16 +63,10 @@ class UpdatesSettingsOverlay : public OverlayBase {
 
   private:
     lv_obj_t* update_download_modal_ = nullptr;
-
-    static void on_about_update_channel_changed(lv_event_t* e);
-    static void on_about_check_updates_clicked(lv_event_t* e);
-    static void on_about_install_update_clicked(lv_event_t* e);
-    static void on_about_updates_unavailable_clicked(lv_event_t* e);
-    static void on_about_update_download_start(lv_event_t* e);
-    static void on_about_update_download_cancel(lv_event_t* e);
-    static void on_about_update_download_dismiss(lv_event_t* e);
 };
 
-UpdatesSettingsOverlay& get_updates_settings_overlay();
+inline UpdatesSettingsOverlay& get_updates_settings_overlay() {
+    return lazy_global<UpdatesSettingsOverlay>("UpdatesSettingsOverlay");
+}
 
 } // namespace helix::settings

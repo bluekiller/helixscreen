@@ -23,6 +23,7 @@
 #pragma once
 
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
 #include <lvgl.h>
@@ -42,27 +43,18 @@ namespace helix::settings {
  */
 class FanSettingsOverlay : public OverlayBase {
   public:
-    FanSettingsOverlay();
-    ~FanSettingsOverlay() override;
-
-    // Non-copyable
-    FanSettingsOverlay(const FanSettingsOverlay&) = delete;
-    FanSettingsOverlay& operator=(const FanSettingsOverlay&) = delete;
-
     /// Register event callbacks with lv_xml system
     void register_callbacks() override;
 
-    /// Create the overlay UI (called lazily)
+    /// Default create() plus the lookups for the dynamic row containers
     lv_obj_t* create(lv_obj_t* parent) override;
-
-    /// Show the overlay (populates fan lists first)
-    void show(lv_obj_t* parent_screen);
 
     const char* get_name() const override {
         return "Fans";
     }
-
-    void init_subjects() override {}
+    const char* xml_component() const override {
+        return "fan_settings_overlay";
+    }
 
     /// Called when overlay becomes visible — repopulates fan lists
     void on_activate() override;
@@ -102,14 +94,8 @@ class FanSettingsOverlay : public OverlayBase {
     bool rename_subject_initialized_ = false;
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton FanSettingsOverlay
- */
-FanSettingsOverlay& get_fan_settings_overlay();
+inline FanSettingsOverlay& get_fan_settings_overlay() {
+    return lazy_global<FanSettingsOverlay>("FanSettingsOverlay");
+}
 
 } // namespace helix::settings
