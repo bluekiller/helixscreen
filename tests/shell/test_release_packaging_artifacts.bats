@@ -26,11 +26,24 @@ CROSS_MK="${HELIX_TEST_CROSS_MK:-mk/cross.mk}"
 # 7-element array in the second test had already missed release-ad5x,
 # release-cc1 and release-x86.
 # Recipe body of target $1: the lines after it, up to the first line that is
-# neither indented nor blank.
+# neither indented nor blank. A recipe that delegates to the shared
+# release-package macro is followed by that macro's body, so the checks below
+# see what the target actually runs, and fail for a target that stops calling it.
 release_recipe() {
-    awk -v t="$1" '
+    local body
+    body=$(awk -v t="$1" '
         index($0, t ":") == 1 { inside = 1; next }
         inside && /^[^\t ]/ && NF { inside = 0 }
+        inside { print }
+    ' "$CROSS_MK")
+    printf '%s\n' "$body"
+    if printf '%s\n' "$body" | grep -q 'call release-package'; then release_package_body; fi
+}
+
+release_package_body() {
+    awk '
+        /^define release-package$/ { inside = 1; next }
+        inside && /^endef/ { inside = 0 }
         inside { print }
     ' "$CROSS_MK"
 }

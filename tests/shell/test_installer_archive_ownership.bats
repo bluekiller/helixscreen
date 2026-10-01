@@ -40,10 +40,9 @@ _release_tar_recipe_lines() {
     local total offending
     total=$(_release_tar_recipe_lines "$CROSS_MK" | wc -l)
     # Every platform must still be packaged; a drop to zero means the grep
-    # stopped matching rather than the tree becoming clean. One tar per
-    # release target — the unified mips target replaced the separate k1 and
-    # ad5x tars with one, so the floor is 9.
-    [ "$total" -ge 9 ]
+    # stopped matching rather than the tree becoming clean. Every release
+    # target tars through the one release-package macro.
+    [ "$total" -ge 1 ]
 
     offending=$(_release_tar_recipe_lines "$CROSS_MK" | grep -v 'TAR_OWNER_FLAGS' || true)
     if [ -n "$offending" ]; then
