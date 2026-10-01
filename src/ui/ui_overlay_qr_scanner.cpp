@@ -142,7 +142,6 @@ void QrScannerOverlay::on_ui_destroyed() {
     viewfinder_ = nullptr;
     status_text_ = nullptr;
     success_flash_ = nullptr;
-    cached_overlay_ = nullptr;
 }
 
 // ============================================================================
@@ -155,22 +154,20 @@ void QrScannerOverlay::show(lv_obj_t* parent, int slot_index, ResultCallback on_
     result_callback_ = std::move(on_result);
     cancel_callback_ = std::move(on_cancel);
 
-    spdlog::debug("[{}] show() called, parent={}, cached_overlay_={}", get_name(), fmt::ptr(parent),
-                  fmt::ptr(cached_overlay_));
+    spdlog::debug("[{}] show() called, parent={}", get_name(), fmt::ptr(parent));
 
     // Always use the active screen so the overlay renders above modals
     lv_obj_t* screen = lv_screen_active();
 
     bool ok = lazy_create_and_push_overlay<QrScannerOverlay>(
-        get_qr_scanner_overlay, cached_overlay_, screen ? screen : parent, "QR Scanner",
-        "QrScannerOverlay", true /* destroy_on_close */);
+        get_qr_scanner_overlay, screen ? screen : parent, "QR Scanner", "QrScannerOverlay");
     if (!ok) {
         spdlog::error("[{}] Failed to show overlay", get_name());
     }
 
     // Move to front so it renders above any open modals
-    if (cached_overlay_) {
-        helix::ui::bring_to_front(cached_overlay_);
+    if (overlay_root_) {
+        helix::ui::bring_to_front(overlay_root_);
     }
 }
 

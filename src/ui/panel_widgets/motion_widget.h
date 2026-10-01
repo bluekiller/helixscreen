@@ -9,8 +9,6 @@
 namespace helix {
 
 class MotionWidget : public PanelWidget {
-    friend class MotionWidgetTestAccess;
-
   public:
     MotionWidget();
     ~MotionWidget() override;
@@ -45,8 +43,6 @@ class MotionWidget : public PanelWidget {
     lv_obj_t* widget_obj_ = nullptr;
     lv_obj_t* btn_ = nullptr;
     lv_obj_t* parent_screen_ = nullptr;
-
-    static inline lv_obj_t* motion_panel_ = nullptr;
 
     void handle_click();
 

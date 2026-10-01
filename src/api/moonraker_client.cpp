@@ -425,7 +425,7 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
 
     // Connect
     http_headers headers;
-    headers["User-Agent"] = std::string("HelixScreen/") + HELIX_VERSION;
+    headers["User-Agent"] = HELIX_USER_AGENT;
     return open(url, headers);
 }
 

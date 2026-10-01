@@ -426,6 +426,21 @@ TEST_CASE("Happy Hare persistence: MMU_GATE_MAP basic format", "[ams][happy_hare
     REQUIRE(helper.has_gcode_starting_with("MMU_GATE_MAP GATE=0"));
 }
 
+TEST_CASE("Happy Hare sync_external_identity carries the whole Spoolman link",
+          "[ams][happy_hare]") {
+    AmsBackendHappyHareTestHelper helper;
+    helper.initialize_test_gates(4);
+
+    SlotInfo info;
+    info.spoolman_id = 42;
+    info.spoolman_filament_id = 77;
+    info.spoolman_vendor_id = 3;
+    helper.sync_external_identity(0, info);
+
+    const SlotInfo stored = helper.get_slot_info(0);
+    CHECK(stored.spoolman_filament_id == 77);
+    CHECK(stored.spoolman_vendor_id == 3);
+}
 TEST_CASE("Happy Hare persistence: MMU_GATE_MAP with color", "[ams][happy_hare][persistence]") {
     helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
     AmsBackendHappyHareTestHelper& helper = *helper_reg;

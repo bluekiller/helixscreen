@@ -15,31 +15,23 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
 class ConnectionSettingsOverlay : public OverlayBase {
   public:
-    ConnectionSettingsOverlay();
-    ~ConnectionSettingsOverlay() override;
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "Connection";
     }
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_connection_overlay";
     }
 };
 
-ConnectionSettingsOverlay& get_connection_settings_overlay();
+inline ConnectionSettingsOverlay& get_connection_settings_overlay() {
+    return lazy_global<ConnectionSettingsOverlay>("ConnectionSettingsOverlay");
+}
 
 } // namespace helix::settings

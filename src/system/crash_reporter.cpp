@@ -11,8 +11,8 @@
 #include "system/debug_bundle_collector.h"
 #include "system/diag_upload_gate.h"
 #include "system/diagnostics.h"
+#include "system/ingest_client.h"
 #include "system/log_collector.h"
-#include "system/tls_trust.h"
 
 #include <spdlog/spdlog.h>
 
@@ -24,13 +24,6 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
-
-#ifdef __ANDROID__
-#include "system/android_jni.h"
-
-#include <SDL.h>
-#include <jni.h>
-#endif
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -938,91 +931,6 @@ bool CrashReporter::is_duplicate(const CrashReport& report) const {
 // Auto-Send
 // =============================================================================
 
-#ifdef __ANDROID__
-/// HTTPS POST via Android's Java HttpURLConnection (JNI bridge).
-/// libhv is built without SSL on Android, so we use the platform TLS stack.
-/// Returns {status_code, response_body}; status 0 means network/JNI failure.
-static std::pair<int, std::string> android_https_post(const std::string& url,
-                                                      const std::string& body,
-                                                      const std::string& user_agent,
-                                                      const std::string& api_key, int timeout_sec) {
-    // SDL_AndroidGetJNIEnv() returns a per-thread JNI env (handles AttachCurrentThread)
-    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
-    if (!env) {
-        spdlog::error("[CrashReporter] Failed to get JNI env");
-        return {0, "JNI env unavailable"};
-    }
-
-    // Cached global ref owned by helix_activity_class() — never released here.
-    // The one caller reaches this from the main thread (send_with_bundle is
-    // marshaled back via token.defer), but the sole reason it works is that
-    // FindClass() needs Java frames on the stack; moving the send onto the
-    // bundle worker would silently turn every report into an HTTP 0.
-    jclass cls = helix::android::helix_activity_class(env);
-    if (!cls) {
-        return {0, "HelixActivity class not found"};
-    }
-
-    jmethodID method = env->GetStaticMethodID(
-        cls, "httpsPost",
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)"
-        "Ljava/lang/String;");
-    if (!method) {
-        spdlog::error("[CrashReporter] Failed to find httpsPost method");
-        env->ExceptionClear();
-        return {0, "httpsPost method not found"};
-    }
-
-    jstring j_url = env->NewStringUTF(url.c_str());
-    jstring j_body = env->NewStringUTF(body.c_str());
-    jstring j_ua = env->NewStringUTF(user_agent.c_str());
-    jstring j_key = env->NewStringUTF(api_key.c_str());
-
-    if (!j_url || !j_body || !j_ua || !j_key) {
-        if (j_url)
-            env->DeleteLocalRef(j_url);
-        if (j_body)
-            env->DeleteLocalRef(j_body);
-        if (j_ua)
-            env->DeleteLocalRef(j_ua);
-        if (j_key)
-            env->DeleteLocalRef(j_key);
-        env->ExceptionClear();
-        return {0, "JNI string allocation failed"};
-    }
-
-    auto j_result = static_cast<jstring>(env->CallStaticObjectMethod(
-        cls, method, j_url, j_body, j_ua, j_key, static_cast<jint>(timeout_sec)));
-
-    env->DeleteLocalRef(j_url);
-    env->DeleteLocalRef(j_body);
-    env->DeleteLocalRef(j_ua);
-    env->DeleteLocalRef(j_key);
-
-    if (!j_result || env->ExceptionCheck()) {
-        env->ExceptionClear();
-        return {0, "JNI call failed"};
-    }
-
-    const char* result_cstr = env->GetStringUTFChars(j_result, nullptr);
-    std::string result(result_cstr);
-    env->ReleaseStringUTFChars(j_result, result_cstr);
-    env->DeleteLocalRef(j_result);
-
-    // Parse "STATUS_CODE\nRESPONSE_BODY"
-    auto newline = result.find('\n');
-    if (newline == std::string::npos) {
-        return {0, result};
-    }
-    int status = 0;
-    try {
-        status = std::stoi(result.substr(0, newline));
-    } catch (...) {
-    }
-    return {status, result.substr(newline + 1)};
-}
-#endif // __ANDROID__
-
 namespace {
 
 /// The crash worker URL, overridable so tests can point the POST at a loopback
@@ -1052,31 +960,7 @@ bool CrashReporter::try_auto_send(const CrashReport& report) {
     try {
         json payload = report_to_json(report);
         std::string body = helix::json_util::safe_dump(payload);
-        std::string user_agent = std::string("HelixScreen/") + HELIX_VERSION;
-
-        int status = 0;
-        std::string resp_body;
-
-#ifdef __ANDROID__
-        // Android: use JNI bridge to Java's HttpURLConnection (libhv has no SSL)
-        auto [s, b] = android_https_post(crash_worker_url(), body, user_agent, INGEST_API_KEY, 15);
-        status = s;
-        resp_body = std::move(b);
-#else
-        // Desktop/embedded: use libhv directly
-        auto req = std::make_shared<HttpRequest>();
-        req->method = HTTP_POST;
-        req->url = crash_worker_url();
-        req->timeout = 15;
-        req->content_type = APPLICATION_JSON;
-        req->headers["User-Agent"] = user_agent;
-        req->headers["X-API-Key"] = INGEST_API_KEY;
-        req->body = std::move(body);
-
-        auto resp = helix::tls::trusted_request(req);
-        status = resp ? static_cast<int>(resp->status_code) : 0;
-        resp_body = resp ? resp->body : "";
-#endif
+        auto [status, resp_body] = helix::ingest::post(crash_worker_url(), body, 15);
 
         if (status >= 200 && status < 300) {
             spdlog::info("[CrashReporter] Crash report sent to worker (HTTP {})", status);

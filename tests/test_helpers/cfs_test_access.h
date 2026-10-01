@@ -35,6 +35,7 @@ class CfsTestAccess {
         return b.dispatch_action_script(std::move(gcode));
     }
 
+    /// Takes a notify frame, the shape the subscription delivers.
     static void handle_status(helix::printer::AmsBackendCfs& b, const nlohmann::json& n) {
         b.handle_status_update(n);
     }

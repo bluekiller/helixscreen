@@ -310,7 +310,7 @@ TEST_CASE("reprint_remap: the recorded crossover survives into the reprint gcode
 TEST_CASE("reprint_remap: a routing that cannot answer for every used tool refuses",
           "[snapmaker][preprint][reprint]") {
     SECTION("an entry the parser could not read (-1) poisons the whole answer") {
-        // handle_status_update records an out-of-range or non-integer head as -1
+        // handle_status records an out-of-range or non-integer head as -1
         // rather than clamping to head 0. One unroutable used tool makes the rest
         // a guess, and a partly-guessed map is still written to the firmware in
         // full.

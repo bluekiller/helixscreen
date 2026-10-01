@@ -4,7 +4,6 @@
 #include "settings_manager.h"
 
 #include "ui_panel_motion.h"
-#include "ui_subject_registry.h"
 
 #include "ams_backend.h"
 #include "ams_state.h"
@@ -109,12 +108,72 @@ float jog_distance_default(helix::JogMode mode, bool outer) {
 }
 } // namespace
 
+using settings::Scope;
+// Row order is SettingsManager::Key. PerPrinter rows follow the active printer.
+static constexpr settings::PersistedSetting SETTINGS[] = {
+    // 0=Auto, 1=Bed Moves, 2=Nozzle Moves
+    {"settings_z_movement_style", "z_movement_style", Scope::PerPrinter, false, 0, 0, 2,
+     "z_movement_style"},
+    // bed_drying::EnclosureStyle: 0=Auto, 1=Enclosed, 2=Open
+    {"settings_enclosure_style", "enclosure_style", Scope::PerPrinter, false, 0, 0, 2, nullptr},
+    // mm/s
+    {"settings_extrude_speed", "filament/extrude_speed", Scope::PerPrinter, false, 5, 1, 50,
+     "extrude_speed"},
+    // Jog feedrates in mm/min; defaults are the motion panel's shipped speeds.
+    {"settings_jog_speed_xy", "motion/jog_speed_xy", Scope::PerPrinter, false, 6000, 60, 60000,
+     "jog_speed_xy"},
+    {"settings_jog_speed_z", "motion/jog_speed_z", Scope::PerPrinter, false, 600, 60, 60000,
+     "jog_speed_z"},
+    // Motion panel readout: 0=commanded, 1=actual (live) position
+    {"settings_motion_show_actual_position", "motion/show_actual_position", Scope::PerPrinter, true,
+     0, 0, 1, "show_actual_position"},
+    // QIDI Box eject distance magnitude in mm, negated when assembled into FORCE_MOVE
+    {"settings_qidi_eject_distance", "ams/qidi_eject_distance", Scope::PerPrinter, false, 878, 100,
+     2000, "qidi_eject_distance"},
+    // mm/s
+    {"settings_qidi_eject_velocity", "ams/qidi_eject_velocity", Scope::PerPrinter, false, 100, 10,
+     300, "qidi_eject_velocity"},
+    // Per-printer: AUTO resolves from this printer's type, so the manual
+    // override follows the same printer.
+    {"settings_toolhead_style", "appearance/toolhead_style", Scope::PerPrinter, false, 0, 0, 7,
+     "toolhead_style"},
+    {"show_printer_switcher", "/printers/show_printer_switcher", Scope::Global, true, 0, 0, 1,
+     nullptr},
+    {"show_widget_labels", "/appearance/show_widget_labels", Scope::Global, true, 0, 0, 1, nullptr},
+    // Off: positional filament mapping
+    {"auto_color_map", "filament/auto_color_map", Scope::PerPrinter, true, 0, 0, 1, nullptr},
+    {"afc_unload_after_print", "ams/afc_unload_after_print", Scope::PerPrinter, true, 0, 0, 1,
+     nullptr},
+    // #1229
+    {"ams_always_show_bypass_spool", "ams/always_show_bypass_spool", Scope::PerPrinter, true, 0, 0,
+     1, nullptr},
+    // On: retention is the designed behavior
+    {"ams_keep_spool_info_on_eject", "ams/keep_spool_info_on_eject", Scope::PerPrinter, true, 1, 0,
+     1, nullptr},
+    {"ams_force_bypass_controls", "ams/force_bypass_controls", Scope::PerPrinter, true, 0, 0, 1,
+     nullptr},
+    // Filament systems that run their own cooldown (AFC) want ours off.
+    {"filament_auto_cooldown", "filament/auto_cooldown", Scope::PerPrinter, true, 1, 0, 1, nullptr},
+    {"console_filter_temps", "/console/filter_temps", Scope::Global, true, 1, 0, 1, nullptr},
+    {"console_filter_firmware_noise", "/console/filter_firmware_noise", Scope::Global, true, 1, 0,
+     1, nullptr},
+    {"detection_enabled", "/detection/enabled", Scope::Global, true, 1, 0, 1, "detection_enabled"},
+    // Off = warn only for prints HelixScreen pauses; a firmware-paused print
+    // always gets the response modal.
+    {"detection_pause_on_detect", "/detection/pause_on_detect", Scope::Global, true, 1, 0, 1,
+     "detection_pause_on_detect"},
+    // Snapmaker U1 built-in detector: 0=Off, 1=NotifyOnly, 2=DeferToSource.
+    // Per-printer: the detector only exists on the U1.
+    {"detection_policy_u1", "detection/policy_u1", Scope::PerPrinter, false, 2, 0, 2,
+     "detection_policy_u1"},
+};
+
 SettingsManager& SettingsManager::instance() {
     static SettingsManager instance;
     return instance;
 }
 
-SettingsManager::SettingsManager() {
+SettingsManager::SettingsManager() : settings_(SETTINGS) {
     spdlog::trace("[SettingsManager] Constructor");
 }
 
@@ -136,45 +195,13 @@ void SettingsManager::init_subjects() {
     SafetySettingsManager::instance().init_subjects();
     MaterialSettingsManager::instance().init();
 
-    // Z movement style (default: 0 = Auto)
-    int z_movement_style = config->get<int>(config->df() + "z_movement_style", 0);
-    z_movement_style = std::clamp(z_movement_style, 0, 2);
-    UI_MANAGED_SUBJECT_INT(z_movement_style_subject_, z_movement_style, "settings_z_movement_style",
-                           subjects_);
+    settings_.init(subjects_);
 
-    // Apply Z movement override to printer state (ensures non-Auto setting takes
-    // effect even if set_kinematics() hasn't run yet, e.g. on reconnect)
-    if (z_movement_style != 0) {
+    // Apply a non-Auto Z movement override to printer state now, even if
+    // set_kinematics() has not run yet (e.g. on reconnect).
+    if (get_z_movement_style() != ZMovementStyle::AUTO) {
         get_printer_state().apply_effective_bed_moves();
     }
-
-    // Enclosure override (default: 0 = Auto)
-    int enclosure_style = std::clamp(config->get<int>(config->df() + "enclosure_style", 0), 0, 2);
-    UI_MANAGED_SUBJECT_INT(enclosure_style_subject_, enclosure_style, "settings_enclosure_style",
-                           subjects_);
-
-    // Extrude/retract speed (default: 5 mm/s, range 1-50)
-    int extrude_speed = config->get<int>(config->df() + "filament/extrude_speed", 5);
-    extrude_speed = std::clamp(extrude_speed, 1, 50);
-    UI_MANAGED_SUBJECT_INT(extrude_speed_subject_, extrude_speed, "settings_extrude_speed",
-                           subjects_);
-
-    // Jog feedrates in mm/min. Defaults match the panel's shipped speeds, so an
-    // upgrade changes nothing until the user asks (range 60-60000).
-    int jog_speed_xy = config->get<int>(config->df() + "motion/jog_speed_xy", 6000);
-    jog_speed_xy = std::clamp(jog_speed_xy, 60, 60000);
-    UI_MANAGED_SUBJECT_INT(jog_speed_xy_subject_, jog_speed_xy, "settings_jog_speed_xy", subjects_);
-
-    int jog_speed_z = config->get<int>(config->df() + "motion/jog_speed_z", 600);
-    jog_speed_z = std::clamp(jog_speed_z, 60, 60000);
-    UI_MANAGED_SUBJECT_INT(jog_speed_z_subject_, jog_speed_z, "settings_jog_speed_z", subjects_);
-
-    // Coordinate readout source for the motion panel: commanded (default) or
-    // actual (live) position.
-    const int show_actual =
-        config->get<bool>(config->df() + "motion/show_actual_position", false) ? 1 : 0;
-    UI_MANAGED_SUBJECT_INT(motion_show_actual_position_subject_, show_actual,
-                           "settings_motion_show_actual_position", subjects_);
 
     // Jog step distances (Fine/Coarse/Turbo x inner/outer, mm). Read on every
     // jog rather than bound to a widget, so a cache is enough; the settings
@@ -188,110 +215,6 @@ void SettingsManager::init_subjects() {
             jog_distances_[m][outer] = std::clamp(mm, 0.01f, 200.0f);
         }
     }
-
-    // QIDI Box eject distance magnitude (default: 878 mm, range 100-2000).
-    // Stored positive; negated when assembled into the FORCE_MOVE gcode.
-    int qidi_eject_distance = config->get<int>(config->df() + "ams/qidi_eject_distance", 878);
-    qidi_eject_distance = std::clamp(qidi_eject_distance, 100, 2000);
-    UI_MANAGED_SUBJECT_INT(qidi_eject_distance_subject_, qidi_eject_distance,
-                           "settings_qidi_eject_distance", subjects_);
-
-    // QIDI Box eject velocity (default: 100 mm/s, range 10-300)
-    int qidi_eject_velocity = config->get<int>(config->df() + "ams/qidi_eject_velocity", 100);
-    qidi_eject_velocity = std::clamp(qidi_eject_velocity, 10, 300);
-    UI_MANAGED_SUBJECT_INT(qidi_eject_velocity_subject_, qidi_eject_velocity,
-                           "settings_qidi_eject_velocity", subjects_);
-
-    // Toolhead style (default: 0 = Auto). Per-printer: the AUTO case already
-    // resolves from this printer's type, so the manual override has to follow
-    // the same printer or two machines share one toolhead rendering.
-    int toolhead_style = config->get<int>(config->df() + "appearance/toolhead_style", 0);
-    toolhead_style = std::clamp(toolhead_style, 0, 7);
-    UI_MANAGED_SUBJECT_INT(toolhead_style_subject_, toolhead_style, "settings_toolhead_style",
-                           subjects_);
-
-    // Printer switcher navbar icon visibility (default: true = shown)
-    bool show_printer_switcher = config->get<bool>("/printers/show_printer_switcher", false);
-    UI_MANAGED_SUBJECT_INT(show_printer_switcher_subject_, show_printer_switcher ? 1 : 0,
-                           "show_printer_switcher", subjects_);
-
-    // Widget labels on icon-only home screen widgets (default: off)
-    bool show_widget_labels = config->get<bool>("/appearance/show_widget_labels", false);
-    UI_MANAGED_SUBJECT_INT(show_widget_labels_subject_, show_widget_labels ? 1 : 0,
-                           "show_widget_labels", subjects_);
-
-    // Auto color map for filament mapping (default: off — positional assignment)
-    bool auto_color_map = config->get<bool>(config->df() + "filament/auto_color_map", false);
-    UI_MANAGED_SUBJECT_INT(auto_color_map_subject_, auto_color_map ? 1 : 0, "auto_color_map",
-                           subjects_);
-
-    // AFC unload-after-print behavior (default: off — AFC leaves filament loaded
-    // unless the user's end-of-print macros retract it). Per-printer setting.
-    bool afc_unload_after_print =
-        config->get<bool>(config->df() + "ams/afc_unload_after_print", false);
-    UI_MANAGED_SUBJECT_INT(afc_unload_after_print_subject_, afc_unload_after_print ? 1 : 0,
-                           "afc_unload_after_print", subjects_);
-
-    // Always show the bypass spool on the Multi-Filament panel, even with bypass
-    // disengaged (default: off). AFC exposes a virtual bypass whether or not the
-    // user has one wired, so the node was drawn permanently — and painted with
-    // the loaded lane's filament, which read as "there is a spool on bypass" on
-    // machines that have none (#1229). Per-printer setting.
-    bool ams_always_show_bypass_spool =
-        config->get<bool>(config->df() + "ams/always_show_bypass_spool", false);
-    UI_MANAGED_SUBJECT_INT(ams_always_show_bypass_spool_subject_,
-                           ams_always_show_bypass_spool ? 1 : 0, "ams_always_show_bypass_spool",
-                           subjects_);
-
-    // Keep Spoolman spool info on a slot the firmware reports as ejected
-    // (default: on — retention is the designed behavior; the eject rule only
-    // arms on backends whose firmware reports spool ids). Per-printer setting.
-    bool ams_keep_spool_info =
-        config->get<bool>(config->df() + "ams/keep_spool_info_on_eject", true);
-    UI_MANAGED_SUBJECT_INT(ams_keep_spool_info_on_eject_subject_, ams_keep_spool_info ? 1 : 0,
-                           "ams_keep_spool_info_on_eject", subjects_);
-
-    // Show the bypass controls even when the firmware reports no bypass (default:
-    // off). Happy Hare's [mmu_machine] has_bypass defaults to 0 for mmu_vendor
-    // "Other" — what a Qidi Box under Happy Hare reports — so machines that can
-    // feed filament straight to the extruder still advertise none. Per-printer.
-    bool ams_force_bypass_controls =
-        config->get<bool>(config->df() + "ams/force_bypass_controls", false);
-    UI_MANAGED_SUBJECT_INT(ams_force_bypass_controls_subject_, ams_force_bypass_controls ? 1 : 0,
-                           "ams_force_bypass_controls", subjects_);
-
-    // Post-filament-operation nozzle cooldown (default: on). Filament systems that
-    // run their own cooldown (AFC) want ours out of the way. Per-printer setting.
-    bool filament_auto_cooldown = config->get<bool>(config->df() + "filament/auto_cooldown", true);
-    UI_MANAGED_SUBJECT_INT(filament_auto_cooldown_subject_, filament_auto_cooldown ? 1 : 0,
-                           "filament_auto_cooldown", subjects_);
-
-    // Console filters (defaults: both on — keeps the gcode console clean by default)
-    bool filter_temps = config->get<bool>("/console/filter_temps", true);
-    UI_MANAGED_SUBJECT_INT(console_filter_temps_subject_, filter_temps ? 1 : 0,
-                           "console_filter_temps", subjects_);
-    bool filter_firmware_noise = config->get<bool>("/console/filter_firmware_noise", true);
-    UI_MANAGED_SUBJECT_INT(console_filter_firmware_noise_subject_, filter_firmware_noise ? 1 : 0,
-                           "console_filter_firmware_noise", subjects_);
-
-    // Spaghetti detection master toggle (default: true — enabled out of the box)
-    bool detection_enabled = config->get<bool>("/detection/enabled", true);
-    UI_MANAGED_SUBJECT_INT(detection_enabled_subject_, detection_enabled ? 1 : 0,
-                           "detection_enabled", subjects_);
-
-    // Pause on detection (default: true; off = warn only for prints HelixScreen
-    // pauses, while a firmware-paused print always gets the response modal)
-    bool detection_pause = config->get<bool>("/detection/pause_on_detect", true);
-    UI_MANAGED_SUBJECT_INT(detection_pause_on_detect_subject_, detection_pause ? 1 : 0,
-                           "detection_pause_on_detect", subjects_);
-
-    // Per-source policy for Snapmaker U1 built-in detector (default: 2 =
-    // DeferToSource). Per-printer: the U1's detector only exists on the U1, so
-    // the policy belongs to that machine and is inert everywhere else.
-    int detection_policy_u1 = config->get<int>(config->df() + "detection/policy_u1", 2);
-    detection_policy_u1 = std::clamp(detection_policy_u1, 0, 2);
-    UI_MANAGED_SUBJECT_INT(detection_policy_u1_subject_, detection_policy_u1, "detection_policy_u1",
-                           subjects_);
 
     // Chamber assignment (default: "auto" = use name heuristics).
     // Legacy paths (printer/chamber_{sensor,heater}) moved to the canonical flat paths
@@ -367,31 +290,8 @@ void SettingsManager::set_moonraker_client(IMoonrakerClient* client) {
 // Z MOVEMENT STYLE
 // =============================================================================
 
-ZMovementStyle SettingsManager::get_z_movement_style() const {
-    int val = lv_subject_get_int(const_cast<lv_subject_t*>(&z_movement_style_subject_));
-    return static_cast<ZMovementStyle>(std::clamp(val, 0, 2));
-}
-
 void SettingsManager::set_z_movement_style(ZMovementStyle style) {
-    int val = static_cast<int>(style);
-    val = std::clamp(val, 0, 2);
-    spdlog::info("[SettingsManager] set_z_movement_style({})",
-                 val == 0 ? "Auto" : (val == 1 ? "Bed Moves" : "Nozzle Moves"));
-
-    auto old_val = std::to_string(lv_subject_get_int(&z_movement_style_subject_));
-
-    // 1. Update subject (UI reacts)
-    lv_subject_set_int(&z_movement_style_subject_, val);
-
-    // 2. Persist to config
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "z_movement_style", val);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("z_movement_style", old_val,
-                                                        std::to_string(val));
-
-    // 3. Apply override to printer state
+    settings_.set(Key::ZMovementStyle, static_cast<int>(style));
     get_printer_state().apply_effective_bed_moves();
 }
 
@@ -399,18 +299,8 @@ void SettingsManager::set_z_movement_style(ZMovementStyle style) {
 // BED DRYING
 // =============================================================================
 
-helix::bed_drying::EnclosureStyle SettingsManager::get_enclosure_style() const {
-    int val = lv_subject_get_int(const_cast<lv_subject_t*>(&enclosure_style_subject_));
-    return static_cast<helix::bed_drying::EnclosureStyle>(std::clamp(val, 0, 2));
-}
-
 void SettingsManager::set_enclosure_style(helix::bed_drying::EnclosureStyle style) {
-    const int val = std::clamp(static_cast<int>(style), 0, 2);
-    spdlog::info("[SettingsManager] set_enclosure_style({})", val);
-    lv_subject_set_int(&enclosure_style_subject_, val);
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "enclosure_style", val);
-    config->save();
+    settings_.set(Key::EnclosureStyle, static_cast<int>(style));
     get_printer_state().refresh_bed_drying_capability();
 }
 
@@ -463,11 +353,6 @@ bool SettingsManager::clear_bed_drying_record() {
 // TOOLHEAD STYLE
 // =============================================================================
 
-ToolheadStyle SettingsManager::get_toolhead_style() const {
-    int val = lv_subject_get_int(const_cast<lv_subject_t*>(&toolhead_style_subject_));
-    return static_cast<ToolheadStyle>(std::clamp(val, 0, 7));
-}
-
 ToolheadStyle SettingsManager::get_effective_toolhead_style() const {
     auto style = get_toolhead_style();
     if (style != ToolheadStyle::AUTO) {
@@ -506,19 +391,6 @@ ToolheadStyle SettingsManager::get_effective_toolhead_style() const {
     return ToolheadStyle::DEFAULT;
 }
 
-void SettingsManager::set_toolhead_style(ToolheadStyle style) {
-    int val = static_cast<int>(style);
-    val = std::clamp(val, 0, 7);
-    spdlog::info("[SettingsManager] set_toolhead_style({})", val);
-    auto old_val = std::to_string(lv_subject_get_int(&toolhead_style_subject_));
-    lv_subject_set_int(&toolhead_style_subject_, val);
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "appearance/toolhead_style", val);
-    config->save();
-    TelemetryManager::instance().notify_setting_changed("toolhead_style", old_val,
-                                                        std::to_string(val));
-}
-
 std::string SettingsManager::get_toolhead_style_options() {
     // The first two are words; the rest name toolhead products.
     return std::string(lv_tr("Auto")) + "\n" + lv_tr("Default") +
@@ -537,100 +409,6 @@ ToolheadStyle SettingsManager::dropdown_index_to_toolhead_style(int index) {
     if (index < 0 || index >= count)
         return ToolheadStyle::AUTO;
     return table[index];
-}
-
-// ============================================================================
-// Extrude/Retract Speed
-// ============================================================================
-
-int SettingsManager::get_extrude_speed() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&extrude_speed_subject_));
-}
-
-void SettingsManager::set_extrude_speed(int mm_per_sec) {
-    mm_per_sec = std::clamp(mm_per_sec, 1, 50);
-    spdlog::info("[SettingsManager] set_extrude_speed({} mm/s)", mm_per_sec);
-
-    auto old_val = std::to_string(lv_subject_get_int(&extrude_speed_subject_));
-
-    // 1. Update subject (UI reacts)
-    lv_subject_set_int(&extrude_speed_subject_, mm_per_sec);
-
-    // 2. Persist to config
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "filament/extrude_speed", mm_per_sec);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("extrude_speed", old_val,
-                                                        std::to_string(mm_per_sec));
-}
-
-// ============================================================================
-// Jog Feedrates
-// ============================================================================
-
-int SettingsManager::get_jog_speed_xy() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&jog_speed_xy_subject_));
-}
-
-void SettingsManager::set_jog_speed_xy(int mm_per_min) {
-    mm_per_min = std::clamp(mm_per_min, 60, 60000);
-    spdlog::info("[SettingsManager] set_jog_speed_xy({} mm/min)", mm_per_min);
-
-    auto old_val = std::to_string(lv_subject_get_int(&jog_speed_xy_subject_));
-
-    // 1. Update subject (UI reacts)
-    lv_subject_set_int(&jog_speed_xy_subject_, mm_per_min);
-
-    // 2. Persist to config
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "motion/jog_speed_xy", mm_per_min);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("jog_speed_xy", old_val,
-                                                        std::to_string(mm_per_min));
-}
-
-int SettingsManager::get_jog_speed_z() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&jog_speed_z_subject_));
-}
-
-void SettingsManager::set_jog_speed_z(int mm_per_min) {
-    mm_per_min = std::clamp(mm_per_min, 60, 60000);
-    spdlog::info("[SettingsManager] set_jog_speed_z({} mm/min)", mm_per_min);
-
-    auto old_val = std::to_string(lv_subject_get_int(&jog_speed_z_subject_));
-
-    // 1. Update subject (UI reacts)
-    lv_subject_set_int(&jog_speed_z_subject_, mm_per_min);
-
-    // 2. Persist to config
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "motion/jog_speed_z", mm_per_min);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("jog_speed_z", old_val,
-                                                        std::to_string(mm_per_min));
-}
-
-bool SettingsManager::get_motion_show_actual_position() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&motion_show_actual_position_subject_)) !=
-           0;
-}
-
-void SettingsManager::set_motion_show_actual_position(bool show) {
-    spdlog::info("[SettingsManager] set_motion_show_actual_position({})", show);
-
-    auto old_val = std::to_string(lv_subject_get_int(&motion_show_actual_position_subject_));
-
-    lv_subject_set_int(&motion_show_actual_position_subject_, show ? 1 : 0);
-
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "motion/show_actual_position", show);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("show_actual_position", old_val,
-                                                        show ? "1" : "0");
 }
 
 // ============================================================================
@@ -672,147 +450,6 @@ void SettingsManager::reset_jog_distances() {
     }
 }
 
-int SettingsManager::get_qidi_eject_distance() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&qidi_eject_distance_subject_));
-}
-
-void SettingsManager::set_qidi_eject_distance(int mm) {
-    mm = std::clamp(mm, 100, 2000);
-    spdlog::info("[SettingsManager] set_qidi_eject_distance({} mm)", mm);
-
-    auto old_val = std::to_string(lv_subject_get_int(&qidi_eject_distance_subject_));
-
-    lv_subject_set_int(&qidi_eject_distance_subject_, mm);
-
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "ams/qidi_eject_distance", mm);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("qidi_eject_distance", old_val,
-                                                        std::to_string(mm));
-}
-
-int SettingsManager::get_qidi_eject_velocity() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&qidi_eject_velocity_subject_));
-}
-
-void SettingsManager::set_qidi_eject_velocity(int mm_per_sec) {
-    mm_per_sec = std::clamp(mm_per_sec, 10, 300);
-    spdlog::info("[SettingsManager] set_qidi_eject_velocity({} mm/s)", mm_per_sec);
-
-    auto old_val = std::to_string(lv_subject_get_int(&qidi_eject_velocity_subject_));
-
-    lv_subject_set_int(&qidi_eject_velocity_subject_, mm_per_sec);
-
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "ams/qidi_eject_velocity", mm_per_sec);
-    config->save();
-
-    TelemetryManager::instance().notify_setting_changed("qidi_eject_velocity", old_val,
-                                                        std::to_string(mm_per_sec));
-}
-
-// ============================================================================
-// Printer Switcher Visibility
-// ============================================================================
-
-bool SettingsManager::get_show_printer_switcher() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&show_printer_switcher_subject_)) != 0;
-}
-
-void SettingsManager::set_show_printer_switcher(bool show) {
-    spdlog::info("[SettingsManager] set_show_printer_switcher({})", show);
-    lv_subject_set_int(&show_printer_switcher_subject_, show ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>("/printers/show_printer_switcher", show);
-    config->save();
-}
-
-// ============================================================================
-// Widget Labels
-// ============================================================================
-
-bool SettingsManager::get_show_widget_labels() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&show_widget_labels_subject_)) != 0;
-}
-
-void SettingsManager::set_show_widget_labels(bool show) {
-    spdlog::info("[SettingsManager] set_show_widget_labels({})", show);
-    lv_subject_set_int(&show_widget_labels_subject_, show ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>("/appearance/show_widget_labels", show);
-    config->save();
-}
-
-// ============================================================================
-// Auto Color Map
-// ============================================================================
-
-bool SettingsManager::get_auto_color_map() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&auto_color_map_subject_)) != 0;
-}
-
-void SettingsManager::set_auto_color_map(bool enabled) {
-    spdlog::info("[SettingsManager] set_auto_color_map({})", enabled);
-    lv_subject_set_int(&auto_color_map_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "filament/auto_color_map", enabled);
-    config->save();
-}
-
-bool SettingsManager::get_afc_unload_after_print() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&afc_unload_after_print_subject_)) != 0;
-}
-
-void SettingsManager::set_afc_unload_after_print(bool enabled) {
-    spdlog::info("[SettingsManager] set_afc_unload_after_print({})", enabled);
-    lv_subject_set_int(&afc_unload_after_print_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "ams/afc_unload_after_print", enabled);
-    config->save();
-}
-
-bool SettingsManager::get_ams_always_show_bypass_spool() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&ams_always_show_bypass_spool_subject_)) !=
-           0;
-}
-
-void SettingsManager::set_ams_always_show_bypass_spool(bool enabled) {
-    spdlog::info("[SettingsManager] set_ams_always_show_bypass_spool({})", enabled);
-    lv_subject_set_int(&ams_always_show_bypass_spool_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "ams/always_show_bypass_spool", enabled);
-    config->save();
-}
-
-bool SettingsManager::get_ams_keep_spool_info_on_eject() const {
-    // Before init_subjects() (app startup; plain unit tests without a fixture)
-    // the subject carries no value yet — the documented default (retain)
-    // applies. Otherwise an uninitialized read would report "off" and the
-    // backends' eject rule would clear overrides nobody asked to clear.
-    return subject_get_bool_or(ams_keep_spool_info_on_eject_subject_, true);
-}
-
-void SettingsManager::set_ams_keep_spool_info_on_eject(bool enabled) {
-    spdlog::info("[SettingsManager] set_ams_keep_spool_info_on_eject({})", enabled);
-    lv_subject_set_int(&ams_keep_spool_info_on_eject_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "ams/keep_spool_info_on_eject", enabled);
-    config->save();
-}
-
-bool SettingsManager::get_ams_force_bypass_controls() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&ams_force_bypass_controls_subject_)) != 0;
-}
-
-void SettingsManager::set_ams_force_bypass_controls(bool enabled) {
-    spdlog::info("[SettingsManager] set_ams_force_bypass_controls({})", enabled);
-    lv_subject_set_int(&ams_force_bypass_controls_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "ams/force_bypass_controls", enabled);
-    config->save();
-}
-
 bool SettingsManager::get_bypass_declared() const {
     Config* config = Config::get_instance();
     return config->get<bool>(config->df() + "ams/bypass_declared", false);
@@ -821,46 +458,6 @@ bool SettingsManager::get_bypass_declared() const {
 void SettingsManager::set_bypass_declared(bool declared) {
     Config* config = Config::get_instance();
     config->set<bool>(config->df() + "ams/bypass_declared", declared);
-    config->save();
-}
-
-bool SettingsManager::get_filament_auto_cooldown() const {
-    return subject_get_bool_or(filament_auto_cooldown_subject_, true);
-}
-
-void SettingsManager::set_filament_auto_cooldown(bool enabled) {
-    spdlog::info("[SettingsManager] set_filament_auto_cooldown({})", enabled);
-    lv_subject_set_int(&filament_auto_cooldown_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>(config->df() + "filament/auto_cooldown", enabled);
-    config->save();
-}
-
-// ============================================================================
-// Console Filters
-// ============================================================================
-
-bool SettingsManager::get_console_filter_temps() const {
-    return subject_get_bool_or(console_filter_temps_subject_, true);
-}
-
-void SettingsManager::set_console_filter_temps(bool enabled) {
-    spdlog::info("[SettingsManager] set_console_filter_temps({})", enabled);
-    lv_subject_set_int(&console_filter_temps_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>("/console/filter_temps", enabled);
-    config->save();
-}
-
-bool SettingsManager::get_console_filter_firmware_noise() const {
-    return subject_get_bool_or(console_filter_firmware_noise_subject_, true);
-}
-
-void SettingsManager::set_console_filter_firmware_noise(bool enabled) {
-    spdlog::info("[SettingsManager] set_console_filter_firmware_noise({})", enabled);
-    lv_subject_set_int(&console_filter_firmware_noise_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>("/console/filter_firmware_noise", enabled);
     config->save();
 }
 
@@ -962,36 +559,6 @@ bool SettingsManager::hidden_macros_key_exists() const {
 // Spaghetti Detection Settings
 // ============================================================================
 
-bool SettingsManager::get_detection_enabled() const {
-    return subject_get_bool_or(detection_enabled_subject_, true);
-}
-
-void SettingsManager::set_detection_enabled(bool enabled) {
-    spdlog::info("[SettingsManager] set_detection_enabled({})", enabled);
-    auto old_val = std::to_string(lv_subject_get_int(&detection_enabled_subject_));
-    lv_subject_set_int(&detection_enabled_subject_, enabled ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>("/detection/enabled", enabled);
-    config->save();
-    TelemetryManager::instance().notify_setting_changed("detection_enabled", old_val,
-                                                        std::to_string(enabled ? 1 : 0));
-}
-
-bool SettingsManager::get_detection_pause_on_detect() const {
-    return subject_get_bool_or(detection_pause_on_detect_subject_, true);
-}
-
-void SettingsManager::set_detection_pause_on_detect(bool pause) {
-    spdlog::info("[SettingsManager] set_detection_pause_on_detect({})", pause);
-    auto old_val = std::to_string(lv_subject_get_int(&detection_pause_on_detect_subject_));
-    lv_subject_set_int(&detection_pause_on_detect_subject_, pause ? 1 : 0);
-    Config* config = Config::get_instance();
-    config->set<bool>("/detection/pause_on_detect", pause);
-    config->save();
-    TelemetryManager::instance().notify_setting_changed("detection_pause_on_detect", old_val,
-                                                        std::to_string(pause ? 1 : 0));
-}
-
 bool SettingsManager::is_detection_seeded() const {
     return Config::get_instance()->get<bool>("/detection/seeded", false);
 }
@@ -1000,22 +567,6 @@ void SettingsManager::mark_detection_seeded() {
     Config* config = Config::get_instance();
     config->set<bool>("/detection/seeded", true);
     config->save();
-}
-
-int SettingsManager::get_detection_policy_u1() const {
-    return lv_subject_get_int(const_cast<lv_subject_t*>(&detection_policy_u1_subject_));
-}
-
-void SettingsManager::set_detection_policy_u1(int policy) {
-    policy = std::clamp(policy, 0, 2);
-    spdlog::info("[SettingsManager] set_detection_policy_u1({})", policy);
-    auto old_val = std::to_string(lv_subject_get_int(&detection_policy_u1_subject_));
-    lv_subject_set_int(&detection_policy_u1_subject_, policy);
-    Config* config = Config::get_instance();
-    config->set<int>(config->df() + "detection/policy_u1", policy);
-    config->save();
-    TelemetryManager::instance().notify_setting_changed("detection_policy_u1", old_val,
-                                                        std::to_string(policy));
 }
 
 // ============================================================================

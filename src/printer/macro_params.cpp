@@ -4,6 +4,7 @@
 #include "macro_params.h"
 
 #include "helix_regex.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -15,31 +16,21 @@ using namespace helix;
 
 namespace {
 
-std::string_view trim(std::string_view text) {
-    while (!text.empty() && std::isspace(static_cast<unsigned char>(text.front()))) {
-        text.remove_prefix(1);
-    }
-    while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) {
-        text.remove_suffix(1);
-    }
-    return text;
-}
-
 /// The argument of a `|default(...)` filter that directly opens @p rest, read to
 /// its matching parenthesis so nested calls and quoted parentheses stay whole.
 /// nullopt when no such filter follows, or its parenthesis never closes.
 std::optional<std::string_view> default_filter_argument(std::string_view rest) {
     static constexpr std::string_view KEYWORD = "default";
 
-    rest = trim(rest);
+    rest = helix::text_io::trim(rest);
     if (rest.empty() || rest.front() != '|') {
         return std::nullopt;
     }
-    rest = trim(rest.substr(1));
+    rest = helix::text_io::trim(rest.substr(1));
     if (rest.substr(0, KEYWORD.size()) != KEYWORD) {
         return std::nullopt;
     }
-    rest = trim(rest.substr(KEYWORD.size()));
+    rest = helix::text_io::trim(rest.substr(KEYWORD.size()));
     if (rest.empty() || rest.front() != '(') {
         return std::nullopt;
     }
@@ -138,8 +129,7 @@ std::vector<MacroParam> helix::parse_macro_params(const std::string& gcode_templ
             name = match[3].str();
 
         // Normalize to uppercase
-        std::transform(name.begin(), name.end(), name.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
+        name = helix::text_io::to_upper(name);
 
         // Skip duplicates
         if (seen.count(name)) {
@@ -151,7 +141,7 @@ std::vector<MacroParam> helix::parse_macro_params(const std::string& gcode_templ
         param.name = name;
         const std::string_view rest = std::string_view(gcode_template).substr(match.end());
         if (auto argument = default_filter_argument(rest)) {
-            std::string_view text = trim(*argument);
+            std::string_view text = helix::text_io::trim(*argument);
             param.default_kind = classify_default(text);
             if (param.default_kind == MacroDefaultKind::Literal && is_quoted_string(text)) {
                 text = text.substr(1, text.size() - 2);
@@ -177,8 +167,7 @@ std::vector<MacroParam> helix::parse_macro_params(const std::string& gcode_templ
         else if (match[2].matched)
             name = match[2].str();
 
-        std::transform(name.begin(), name.end(), name.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
+        name = helix::text_io::to_upper(name);
 
         if (seen.count(name)) {
             continue;
@@ -209,8 +198,7 @@ std::map<std::string, std::string> helix::parse_raw_macro_params(const std::stri
         if (eq == std::string::npos || eq == 0)
             continue;
         std::string key = token.substr(0, eq);
-        std::transform(key.begin(), key.end(), key.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
+        key = helix::text_io::to_upper(key);
         result[key] = token.substr(eq + 1);
     }
     return result;

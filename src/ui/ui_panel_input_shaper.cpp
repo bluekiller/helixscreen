@@ -14,6 +14,7 @@
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
+#include "env_knobs.h"
 #include "format_utils.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
@@ -1955,8 +1956,7 @@ void InputShaperPanel::handle_chip_y_clicked(int index) {
 void InputShaperPanel::inject_demo_results() {
     spdlog::info("[InputShaper] Injecting demo results for screenshot mode");
 
-    const char* kalico_env = std::getenv("INPUT_SHAPER_DEMO_KALICO");
-    bool kalico_demo = kalico_env && std::string(kalico_env) == "1";
+    bool kalico_demo = helix::env_flag("INPUT_SHAPER_DEMO_KALICO");
 
     // Mock shaper options: Kalico reports smooth shapers + discrete, standard Klipper reports 5
     std::vector<ShaperOption> shaper_options;

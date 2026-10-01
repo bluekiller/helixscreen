@@ -32,13 +32,13 @@ namespace {
 /// from a whitespace-separated KEY=VALUE token list. Returns 0 when absent or
 /// non-numeric.
 int temp_from_call_line(const std::string& line, const char* key) {
-    const std::string key_upper = helix::to_upper(key);
+    const std::string key_upper = helix::text_io::to_upper(key);
     for (std::string_view token_view : helix::text_io::split_ws(line)) {
         const std::string token(token_view);
         const size_t eq = token.find('=');
         if (eq == std::string::npos)
             continue;
-        if (helix::to_upper(token.substr(0, eq)) != key_upper)
+        if (helix::text_io::to_upper(token.substr(0, eq)) != key_upper)
             continue;
         const auto parsed = helix::text_io::parse_leading<float>(token.substr(eq + 1));
         return parsed ? static_cast<int>(*parsed) : 0;
@@ -232,7 +232,7 @@ template <typename NextLine> ScanResult GCodeOpsDetector::scan_lines(NextLine ne
         // Skip comment-only lines and empty lines (but still track byte offset)
         if (!line.empty() && line[0] != ';') {
             // Check for PRINT_START or START_PRINT macro call (case-insensitive)
-            std::string upper_line = helix::to_upper(line);
+            std::string upper_line = helix::text_io::to_upper(line);
 
             // Capture the PRINT_START call info (first occurrence only)
             if (!result.print_start.found) {
@@ -290,8 +290,8 @@ void GCodeOpsDetector::check_line(const std::string& line, size_t line_number, s
         bool found = false;
 
         // Always case-insensitive, but exact_match controls exact vs substring
-        std::string upper_trimmed = helix::to_upper(trimmed);
-        std::string upper_pattern = helix::to_upper(pattern.pattern);
+        std::string upper_trimmed = helix::text_io::to_upper(trimmed);
+        std::string upper_pattern = helix::text_io::to_upper(pattern.pattern);
 
         if (pattern.exact_match) {
             // G-codes: exact match at start of line (avoid G28 inside FOO_G28_BAR)
@@ -393,7 +393,7 @@ namespace {
  * Returns false for: "FALSE", "0", "NO", or non-numeric strings
  */
 bool is_truthy_value(const std::string& value) {
-    std::string upper_value = helix::to_upper(value);
+    std::string upper_value = helix::text_io::to_upper(value);
 
     if (upper_value == "TRUE" || upper_value == "1" || upper_value == "YES") {
         return true;
@@ -415,7 +415,7 @@ void GCodeOpsDetector::parse_start_print_params(const std::string& line, size_t 
     // Parse parameters like: START_PRINT EXTRUDER_TEMP=220 BED_TEMP=60 FORCE_LEVELING=true
     // Uses shared parameter matching from operation_patterns.h
 
-    std::string upper_line = helix::to_upper(line);
+    std::string upper_line = helix::text_io::to_upper(line);
 
     // Parse all KEY=VALUE pairs from the line
     // We scan for patterns like "KEY=" and extract the value
@@ -521,7 +521,7 @@ GCodeOpsDetector::find_first_command(std::string_view content,
         ++line_number;
         const std::string_view word =
             command_word(content.substr(line_start, line_end - line_start));
-        if (!word.empty() && commands.count(helix::to_upper(std::string(word))) > 0) {
+        if (!word.empty() && commands.count(helix::text_io::to_upper(word)) > 0) {
             return CommandHit{std::string(word), line_number};
         }
         line_start = line_end + 1;

@@ -12,7 +12,6 @@
 #include "json_utils.h"
 #include "klipper_extruder_naming.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "operation_patterns.h"
 #include "print_start_analyzer.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
@@ -314,7 +313,7 @@ namespace helix {
 // start of a name and a trailing '$' to its end, so "^box$" names exactly the
 // Klipper object "box" and not a "gcode_macro BOX_UNLOAD" that contains it.
 bool has_pattern(const std::vector<std::string>& objects, const std::string& pattern) {
-    std::string pattern_lower = helix::to_lower(pattern);
+    std::string pattern_lower = helix::text_io::to_lower(pattern);
 
     const bool at_start = !pattern_lower.empty() && pattern_lower.front() == '^';
     const bool at_end = pattern_lower.size() > (at_start ? 1u : 0u) && pattern_lower.back() == '$';
@@ -326,7 +325,7 @@ bool has_pattern(const std::vector<std::string>& objects, const std::string& pat
     }
 
     return std::any_of(objects.begin(), objects.end(), [&](const std::string& obj) {
-        std::string obj_lower = helix::to_lower(obj);
+        std::string obj_lower = helix::text_io::to_lower(obj);
         if (at_start && at_end)
             return obj_lower == core;
         if (at_start)
@@ -386,7 +385,7 @@ std::vector<std::string> get_field_data(const PrinterHardwareData& hardware,
 int count_z_steppers(const std::vector<std::string>& steppers) {
     int count = 0;
     for (const auto& stepper : steppers) {
-        std::string stepper_lower = helix::to_lower(stepper);
+        std::string stepper_lower = helix::text_io::to_lower(stepper);
 
         // Match stepper_z, stepper_z1, stepper_z2, stepper_z3 patterns
         if (stepper_lower.find("stepper_z") == 0) {
@@ -558,8 +557,8 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         // Match against printer kinematics type (corexy, cartesian, delta, etc.)
         std::string pattern = helix::json_util::safe_string(heuristic, "pattern");
         if (!hardware.kinematics.empty()) {
-            std::string kinematics_lower = helix::to_lower(hardware.kinematics);
-            std::string pattern_lower = helix::to_lower(pattern);
+            std::string kinematics_lower = helix::text_io::to_lower(hardware.kinematics);
+            std::string pattern_lower = helix::text_io::to_lower(pattern);
 
             if (kinematics_lower.find(pattern_lower) != std::string::npos) {
                 spdlog::debug("[PrinterDetector] Matched kinematics '{}' (confidence: {})", pattern,
@@ -574,8 +573,8 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         // when kinematics is known; an empty/unreported value never excludes.
         std::string pattern = helix::json_util::safe_string(heuristic, "pattern");
         if (!hardware.kinematics.empty()) {
-            std::string kinematics_lower = helix::to_lower(hardware.kinematics);
-            std::string pattern_lower = helix::to_lower(pattern);
+            std::string kinematics_lower = helix::text_io::to_lower(hardware.kinematics);
+            std::string pattern_lower = helix::text_io::to_lower(pattern);
             if (kinematics_lower.find(pattern_lower) != std::string::npos) {
                 spdlog::debug("[PrinterDetector] Excluded by kinematics '{}'", pattern);
                 return HEURISTIC_EXCLUDE;
@@ -631,8 +630,8 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         // Match against MCU chip type
         std::string pattern = helix::json_util::safe_string(heuristic, "pattern");
         if (!hardware.mcu.empty()) {
-            std::string mcu_lower = helix::to_lower(hardware.mcu);
-            std::string pattern_lower = helix::to_lower(pattern);
+            std::string mcu_lower = helix::text_io::to_lower(hardware.mcu);
+            std::string pattern_lower = helix::text_io::to_lower(pattern);
 
             if (mcu_lower.find(pattern_lower) != std::string::npos) {
                 spdlog::debug("[PrinterDetector] Matched MCU '{}' (confidence: {})", pattern,
@@ -667,8 +666,8 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         // Case-insensitive substring match of cpu_arch against pattern
         std::string pattern = helix::json_util::safe_string(heuristic, "pattern");
         if (!hardware.cpu_arch.empty()) {
-            std::string cpu_lower = helix::to_lower(hardware.cpu_arch);
-            std::string pattern_lower = helix::to_lower(pattern);
+            std::string cpu_lower = helix::text_io::to_lower(hardware.cpu_arch);
+            std::string pattern_lower = helix::text_io::to_lower(pattern);
 
             if (cpu_lower.find(pattern_lower) != std::string::npos) {
                 spdlog::debug("[PrinterDetector] Matched CPU arch '{}' (confidence: {})", pattern,
@@ -680,13 +679,13 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         // Match against board names found in temperature_sensor objects
         // Board names appear as "temperature_sensor <BOARD_NAME>" in the objects list
         std::string pattern = helix::json_util::safe_string(heuristic, "pattern");
-        std::string pattern_lower = helix::to_lower(pattern);
+        std::string pattern_lower = helix::text_io::to_lower(pattern);
 
         for (const auto& obj : hardware.printer_objects) {
             if (obj.rfind("temperature_sensor ", 0) == 0 ||
                 obj.rfind("temperature_host ", 0) == 0) {
                 std::string sensor_name = obj.substr(obj.find(' ') + 1);
-                std::string sensor_lower = helix::to_lower(sensor_name);
+                std::string sensor_lower = helix::text_io::to_lower(sensor_name);
 
                 if (sensor_lower.find(pattern_lower) != std::string::npos) {
                     spdlog::debug("[PrinterDetector] Matched board '{}' in sensor '{}' "
@@ -701,14 +700,14 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         // G-code macros appear as "gcode_macro <NAME>" in the objects list
         // macro_exclude: if the macro IS present, exclude this printer entirely
         std::string pattern = helix::json_util::safe_string(heuristic, "pattern");
-        std::string pattern_lower = helix::to_lower(pattern);
+        std::string pattern_lower = helix::text_io::to_lower(pattern);
 
         for (const auto& obj : hardware.printer_objects) {
             // Check if object is a G-code macro
             if (obj.rfind("gcode_macro ", 0) == 0) {
                 // Extract macro name (everything after "gcode_macro ")
                 std::string macro_name = obj.substr(12);
-                std::string macro_lower = helix::to_lower(macro_name);
+                std::string macro_lower = helix::text_io::to_lower(macro_name);
 
                 if (macro_lower.find(pattern_lower) != std::string::npos) {
                     if (type == "macro_exclude") {
@@ -1020,9 +1019,9 @@ const json* find_printer_entry(const std::string& printer_name) {
     if (!g_database.data.contains("printers") || !g_database.data["printers"].is_array()) {
         return nullptr;
     }
-    const std::string wanted = helix::to_lower(printer_name);
+    const std::string wanted = helix::text_io::to_lower(printer_name);
     for (const auto& printer : g_database.data["printers"]) {
-        if (helix::to_lower(helix::json_util::safe_string(printer, "name")) == wanted) {
+        if (helix::text_io::to_lower(helix::json_util::safe_string(printer, "name")) == wanted) {
             return &printer;
         }
     }
@@ -1111,11 +1110,13 @@ PrinterDetector::get_console_filter_patterns(const std::string& printer_name) {
         sets = &g_database.data["console_filter_sets"];
     }
 
-    const std::string needle = helix::to_lower(printer_name);
+    const std::string needle = helix::text_io::to_lower(printer_name);
 
     for (const auto& printer : g_database.data["printers"]) {
-        const std::string db_name = helix::to_lower(helix::json_util::safe_string(printer, "name"));
-        const std::string db_id = helix::to_lower(helix::json_util::safe_string(printer, "id"));
+        const std::string db_name =
+            helix::text_io::to_lower(helix::json_util::safe_string(printer, "name"));
+        const std::string db_id =
+            helix::text_io::to_lower(helix::json_util::safe_string(printer, "id"));
         if (db_name != needle && db_id != needle) {
             continue;
         }
@@ -1167,7 +1168,7 @@ std::string PrinterDetector::get_name_for_preset(const std::string& preset_name)
         return "";
     }
 
-    std::string preset_lower = helix::to_lower(preset_name);
+    std::string preset_lower = helix::text_io::to_lower(preset_name);
 
     // Entries sharing a preset are one family. The entry marked
     // "preset_default" names the family when nothing narrower is known; a
@@ -1175,7 +1176,7 @@ std::string PrinterDetector::get_name_for_preset(const std::string& preset_name)
     std::string first_match;
     for (const auto& printer : g_database.data["printers"]) {
         std::string db_preset = helix::json_util::safe_string(printer, "preset");
-        std::string db_preset_lower = helix::to_lower(db_preset);
+        std::string db_preset_lower = helix::text_io::to_lower(db_preset);
 
         if (db_preset_lower == preset_lower) {
             if (helix::json_util::safe_bool(printer, "preset_default", false)) {
@@ -1278,7 +1279,7 @@ namespace {
 std::string extract_kinematics(const json& printer) {
     // Check compacted field first (available after compact())
     if (printer.contains("_kinematics") && printer["_kinematics"].is_string()) {
-        std::string pattern = helix::to_lower(printer["_kinematics"].get<std::string>());
+        std::string pattern = helix::text_io::to_lower(printer["_kinematics"].get<std::string>());
         return pattern;
     }
 
@@ -1287,7 +1288,8 @@ std::string extract_kinematics(const json& printer) {
     }
     for (const auto& h : printer["heuristics"]) {
         if (helix::json_util::safe_string(h, "type") == "kinematics_match") {
-            std::string pattern = helix::to_lower(helix::json_util::safe_string(h, "pattern"));
+            std::string pattern =
+                helix::text_io::to_lower(helix::json_util::safe_string(h, "pattern"));
             return pattern;
         }
     }
@@ -1408,7 +1410,7 @@ void build_filtered_list(const std::string& kinematics_filter) {
         return;
     }
 
-    std::string filter_lower = helix::to_lower(kinematics_filter);
+    std::string filter_lower = helix::text_io::to_lower(kinematics_filter);
 
     for (const auto& printer : g_database.data["printers"]) {
         if (!helix::json_util::safe_bool(printer, "enabled", true))
@@ -1471,10 +1473,10 @@ int PrinterDetector::find_list_index(const std::string& printer_name) {
     g_list_cache.build();
 
     // Case-insensitive search
-    std::string name_lower = helix::to_lower(printer_name);
+    std::string name_lower = helix::text_io::to_lower(printer_name);
 
     for (size_t i = 0; i < g_list_cache.names.size(); ++i) {
-        std::string cached_lower = helix::to_lower(g_list_cache.names[i]);
+        std::string cached_lower = helix::text_io::to_lower(g_list_cache.names[i]);
 
         if (cached_lower == name_lower) {
             return static_cast<int>(i);
@@ -1539,10 +1541,10 @@ int PrinterDetector::find_list_index(const std::string& printer_name,
         return find_list_index(printer_name);
     build_filtered_list(kinematics);
 
-    std::string name_lower = helix::to_lower(printer_name);
+    std::string name_lower = helix::text_io::to_lower(printer_name);
 
     for (size_t i = 0; i < g_filtered_list_cache.names.size(); ++i) {
-        std::string cached_lower = helix::to_lower(g_filtered_list_cache.names[i]);
+        std::string cached_lower = helix::text_io::to_lower(g_filtered_list_cache.names[i]);
         if (cached_lower == name_lower) {
             return static_cast<int>(i);
         }
@@ -1961,7 +1963,8 @@ static bool printer_type_contains(const std::string& needle) {
         return false;
     }
 
-    return helix::to_lower(printer_type).find(helix::to_lower(needle)) != std::string::npos;
+    return helix::text_io::to_lower(printer_type).find(helix::text_io::to_lower(needle)) !=
+           std::string::npos;
 }
 
 bool PrinterDetector::is_pfa_printer() {
@@ -2010,7 +2013,7 @@ std::string PrinterDetector::screws_tilt_direction_override() {
         return "";
     }
     const std::string value =
-        helix::to_lower(helix::json_util::safe_string(*printer, "screws_tilt_direction"));
+        helix::text_io::to_lower(helix::json_util::safe_string(*printer, "screws_tilt_direction"));
     return (value == "cw" || value == "ccw") ? value : "";
 }
 

@@ -188,9 +188,9 @@ void PrinterManagerOverlay::on_chip_bed_mesh_clicked(lv_event_t* e) {
     return;
 #endif
     auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(
-        get_global_bed_mesh_panel, pm.bed_mesh_panel_, lv_display_get_screen_active(nullptr),
-        "Bed Mesh", "Printer Manager", true);
+    helix::ui::lazy_create_and_push_overlay<BedMeshPanel>(get_global_bed_mesh_panel,
+                                                          lv_display_get_screen_active(nullptr),
+                                                          "Bed Mesh", "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_leds_clicked(lv_event_t* e) {
@@ -208,9 +208,9 @@ void PrinterManagerOverlay::on_chip_adxl_clicked(lv_event_t* e) {
     return;
 #endif
     auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<InputShaperPanel>(
-        get_global_input_shaper_panel, pm.input_shaper_panel_,
-        lv_display_get_screen_active(nullptr), "Input Shaper", "Printer Manager", true);
+    helix::ui::lazy_create_and_push_overlay<InputShaperPanel>(get_global_input_shaper_panel,
+                                                              lv_display_get_screen_active(nullptr),
+                                                              "Input Shaper", "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_retraction_clicked(lv_event_t* e) {
@@ -218,7 +218,7 @@ void PrinterManagerOverlay::on_chip_retraction_clicked(lv_event_t* e) {
     spdlog::debug("[Printer Manager] Retraction chip clicked");
     auto& pm = get_printer_manager_overlay();
     helix::ui::lazy_create_and_push_overlay<RetractionSettingsOverlay>(
-        get_global_retraction_settings, pm.retraction_panel_, lv_display_get_screen_active(nullptr),
+        get_global_retraction_settings, lv_display_get_screen_active(nullptr),
         "Retraction Settings", "Printer Manager");
 }
 
@@ -226,9 +226,9 @@ void PrinterManagerOverlay::on_chip_spoolman_clicked(lv_event_t* e) {
     (void)e;
     spdlog::debug("[Printer Manager] Spoolman chip clicked");
     auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(
-        get_global_spoolman_panel, pm.spoolman_panel_, lv_display_get_screen_active(nullptr),
-        "Spoolman", "Printer Manager");
+    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(get_global_spoolman_panel,
+                                                           lv_display_get_screen_active(nullptr),
+                                                           "Spoolman", "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_timelapse_clicked(lv_event_t* e) {
@@ -236,8 +236,8 @@ void PrinterManagerOverlay::on_chip_timelapse_clicked(lv_event_t* e) {
     spdlog::debug("[Printer Manager] Timelapse chip clicked");
     auto& pm = get_printer_manager_overlay();
     helix::ui::lazy_create_and_push_overlay<TimelapseSettingsOverlay>(
-        get_global_timelapse_settings, pm.timelapse_panel_, lv_display_get_screen_active(nullptr),
-        "Timelapse Settings", "Printer Manager");
+        get_global_timelapse_settings, lv_display_get_screen_active(nullptr), "Timelapse Settings",
+        "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_screws_tilt_clicked(lv_event_t* e) {
@@ -249,9 +249,9 @@ void PrinterManagerOverlay::on_chip_screws_tilt_clicked(lv_event_t* e) {
 #endif
     get_global_screws_tilt_panel().set_client(get_moonraker_client(), get_moonraker_api());
     auto& pm = get_printer_manager_overlay();
-    helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(
-        get_global_screws_tilt_panel, pm.screws_tilt_panel_, lv_display_get_screen_active(nullptr),
-        "Bed Screws", "Printer Manager");
+    helix::ui::lazy_create_and_push_overlay<ScrewsTiltPanel>(get_global_screws_tilt_panel,
+                                                             lv_display_get_screen_active(nullptr),
+                                                             "Bed Screws", "Printer Manager");
 }
 
 void PrinterManagerOverlay::on_chip_ams_clicked(lv_event_t* e) {

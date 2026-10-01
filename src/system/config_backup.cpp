@@ -8,8 +8,8 @@
 #include "text_io.h"
 
 #include <cerrno>
-#include <cstdio>
 #include <cstring>
+#include <optional>
 #include <sys/stat.h>
 
 namespace hfs = helix::fs;

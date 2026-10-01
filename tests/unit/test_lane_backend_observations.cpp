@@ -4619,21 +4619,6 @@ class StartedStorelessToolChanger : public AmsBackendToolChanger {
     }
 };
 
-/// A resync filer that also writes identity back: firmware mirrors the write
-/// into the shared namespace, so the re-read faces the backend's own edit
-/// spelled as a stored record. ToolChanger parses no identity of its own; the
-/// guard is what a write-back backend hands the resync on its behalf.
-class GuardedToolChanger : public AmsBackendToolChanger {
-  public:
-    using AmsBackendToolChanger::AmsBackendToolChanger;
-
-    helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &echoes_;
-    }
-
-    helix::ams::OwnWriteEchoes echoes_;
-};
-
 /// An AFC backend a resync can run on: only the two reachability gates are
 /// flipped, so the guard the consult finds has to come from AmsBackendAfc's
 /// own override, which is what the case below pins.
@@ -4801,7 +4786,11 @@ TEST_CASE_METHOD(LVGLTestFixture, "a resync withholds the fields of a write this
     // abandoned edit on the lane as a stored record the moment the override
     // is cleared, which is the harm the guard exists for, on the one path
     // that reaches the store without passing a live frame.
-    RegisteredBackend<GuardedToolChanger> harness(nullptr, nullptr);
+    // ToolChanger parses no identity of its own; staging into its echo guard
+    // stands in for a write-back backend whose firmware mirrors the write into
+    // the shared namespace, so the re-read faces the backend's own edit
+    // spelled as a stored record.
+    RegisteredBackend<AmsBackendToolChanger> harness(nullptr, nullptr);
     LaneDataDb db;
     db.seed("T0",
             nlohmann::json{
@@ -4811,10 +4800,10 @@ TEST_CASE_METHOD(LVGLTestFixture, "a resync withholds the fields of a write this
     helix::ams::Observation declared(helix::ams::ObservationSource::LocalUser);
     declared.material = "PETG";
     declared.color_rgb = 0x00FF00u;
-    harness->echoes_.stage(0, declared);
+    harness->own_write_echoes()->stage(0, declared);
     // A stored record names no spool, so the boundary read through it is
     // empty: the producer saying nothing, which is not a change.
-    harness->echoes_.arm(0, "");
+    harness->own_write_echoes()->arm(0, "");
 
     harness->request_resync();
     helix::ui::UpdateQueue::instance().drain();

@@ -4,8 +4,10 @@
 #include "memory_utils.h"
 
 #include "app_globals.h"
+#include "env_knobs.h"
 #include "gcode_layer_cache.h"
 #include "gcode_layer_index.h"
+#include "platform_capabilities.h"
 #include "system/helix_paths.h"
 #include "text_io.h"
 
@@ -141,24 +143,10 @@ MemoryInfo get_system_memory_info() {
     MemoryInfo info;
 
 #ifdef __linux__
-    tio::LineReader meminfo("/proc/meminfo");
-    if (!meminfo)
-        return info;
-
-    std::string line;
-    while (meminfo.next(line)) {
-        // Parse lines like "MemTotal:       1234567 kB"
-        if (line.compare(0, 9, "MemTotal:") == 0) {
-            info.total_kb =
-                static_cast<size_t>(tio::parse_leading<long long>(line.substr(9)).value_or(0));
-        } else if (line.compare(0, 13, "MemAvailable:") == 0) {
-            info.available_kb =
-                static_cast<size_t>(tio::parse_leading<long long>(line.substr(13)).value_or(0));
-        } else if (line.compare(0, 8, "MemFree:") == 0) {
-            info.free_kb =
-                static_cast<size_t>(tio::parse_leading<long long>(line.substr(8)).value_or(0));
-        }
-    }
+    const std::string meminfo = tio::read_file("/proc/meminfo").value_or("");
+    info.total_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "MemTotal"));
+    info.available_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "MemAvailable"));
+    info.free_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "MemFree"));
 
     // Fallback: if MemAvailable not present (older kernels), estimate from free + buffers/cache
     if (info.available_kb == 0 && info.free_kb > 0) {
@@ -196,8 +184,7 @@ MemoryInfo get_system_memory_info() {
 bool is_gcode_3d_render_safe(size_t file_size_bytes) {
     // Environment variable to force memory failure for testing
     // Usage: HELIX_FORCE_GCODE_MEMORY_FAIL=1 ./helix-screen --test
-    const char* force_fail = std::getenv("HELIX_FORCE_GCODE_MEMORY_FAIL");
-    if (force_fail && force_fail[0] == '1') {
+    if (helix::env_flag("HELIX_FORCE_GCODE_MEMORY_FAIL")) {
         spdlog::debug(
             "[memory_utils] HELIX_FORCE_GCODE_MEMORY_FAIL=1 - forcing memory check failure");
         return false;
@@ -269,8 +256,7 @@ bool is_gcode_2d_streaming_safe_impl(size_t file_size_bytes, size_t available_kb
 
 bool is_gcode_2d_streaming_safe(size_t file_size_bytes) {
     // Environment variable to force memory failure for testing
-    const char* force_fail = std::getenv("HELIX_FORCE_GCODE_MEMORY_FAIL");
-    if (force_fail && force_fail[0] == '1') {
+    if (helix::env_flag("HELIX_FORCE_GCODE_MEMORY_FAIL")) {
         spdlog::debug(
             "[memory_utils] HELIX_FORCE_GCODE_MEMORY_FAIL=1 - forcing memory check failure");
         return false;

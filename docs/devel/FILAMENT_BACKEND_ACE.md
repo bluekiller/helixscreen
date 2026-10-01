@@ -181,7 +181,7 @@ manager's `current_index` is the only seat signal.
 | `model`, `firmware`, `boot_firmware`, `protocol` (`"ace1_json"`), `usb_port`, `usb_path`, `connection_state` | Identity/telemetry (`"Anycubic Color Engine Pro"` / `"V1.3.856"` captured) |
 
 **How the backend reads it** (`src/printer/ams_backend_ace.cpp#on_started`,
-`#handle_status_update`): the slot-bearing `ace_instance_N` object is parsed first
+`#handle_status`): the slot-bearing `ace_instance_N` object is parsed first
 (`select_ace_object`), then a manager-shaped `ace` riding the same query response
 or notify frame is parsed after it — slots land first, the seat stamps onto them. A
 manager-only notify frame (e.g. `current_index` flipping to `-1` on a TR) is parsed on its

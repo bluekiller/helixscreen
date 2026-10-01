@@ -1171,21 +1171,8 @@ AmsError AmsBackendMock::write_slot(int slot_index, const SlotInfo& info) {
         }
 
         // Update filament info
-        entry->info.color_name = info.color_name;
-        entry->info.color_rgb = info.color_rgb;
+        entry->info.assign_filament_fields(info);
         entry->info.multi_color_hexes = info.multi_color_hexes;
-        entry->info.material = info.material;
-        entry->info.brand = info.brand;
-        entry->info.catalog_id = info.catalog_id;
-        entry->info.product_name = info.product_name;
-        entry->info.spoolman_id = info.spoolman_id;
-        entry->info.spoolman_filament_id = info.spoolman_filament_id;
-        entry->info.spool_name = info.spool_name;
-        entry->info.remaining_weight_g = info.remaining_weight_g;
-        entry->info.total_weight_g = info.total_weight_g;
-        entry->info.nozzle_temp_min = info.nozzle_temp_min;
-        entry->info.nozzle_temp_max = info.nozzle_temp_max;
-        entry->info.bed_temp = info.bed_temp;
         // Tool mapping change goes through registry so reverse maps stay consistent.
         if (info.mapped_tool != old_mapped_tool && info.mapped_tool >= 0) {
             slots_.set_tool_mapping(slot_index, info.mapped_tool);

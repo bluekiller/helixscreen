@@ -7,6 +7,7 @@
 #include "json_utils.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -16,12 +17,6 @@
 namespace helix::probe_prep {
 
 namespace {
-
-std::string to_upper(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-    return s;
-}
 
 /**
  * Evaluate one `when` entry. Returns false for anything this build does not
@@ -41,7 +36,7 @@ bool predicate_holds(const nlohmann::json& pred,
     }
 
     if (type == "macro_match") {
-        return macros_upper.count(to_upper(pattern)) > 0;
+        return macros_upper.count(helix::text_io::to_upper(pattern)) > 0;
     }
 
     // Same semantics as the detection heuristic: substring, '^'/'$' anchors.
@@ -101,9 +96,9 @@ bool suppressed_by_resolved_macro(const nlohmann::json& rule, const std::string&
     if (it == rule.end() || !it->is_array()) {
         return false;
     }
-    const std::string wanted = to_upper(resolved_macro);
+    const std::string wanted = helix::text_io::to_upper(resolved_macro);
     return std::any_of(it->begin(), it->end(), [&](const nlohmann::json& entry) {
-        return entry.is_string() && to_upper(entry.get<std::string>()) == wanted;
+        return entry.is_string() && helix::text_io::to_upper(entry.get<std::string>()) == wanted;
     });
 }
 

@@ -106,14 +106,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     AmsBackendAd5xIfs(IMoonrakerAPI* api, helix::IMoonrakerClient* client);
     ~AmsBackendAd5xIfs() override;
 
-    /// The write target (IFS_SET_MATERIAL / Adventurer5M.json / _IFS_VARS) is
-    /// republished through the same ffmColor/ffmType fields a real reading
-    /// uses, so this backend's parses filter their own writes through this
-    /// guard.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
     static constexpr int NUM_PORTS = 4;
     static constexpr int TOOL_MAP_SIZE = 16;
     static constexpr int UNMAPPED_PORT = 5;
@@ -226,7 +218,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     [[nodiscard]] helix::FirmwareRouting firmware_default_routing() const override;
 
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
     [[nodiscard]] bool is_bypass_active() const override;
 
     // Unload-action gate (also suppresses Load for the same slot). Keeps the
@@ -599,12 +590,16 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
   protected:
     void on_started() override;
     void on_stopping() override;
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS AD5X-IFS]";
     }
 
     SlotInfo* cached_slot_locked(int slot_index) override;
+    [[nodiscard]] const SlotInfo* slot_info_locked(int slot_index) const override {
+        const auto* entry = slots_.get(slot_index);
+        return entry ? &entry->info : nullptr;
+    }
 
     /// IFS firmware states colour, material, presence and the tool map, and
     /// nothing else on the resolver-owned identity: brand, spool name, colour
@@ -808,13 +803,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // changed (i.e. save_async was issued); false on the in-sync short-circuit.
     bool sync_override_to_firmware_locked(int slot_index, uint32_t firmware_color,
                                           const std::string& firmware_material);
-    // Shared helper for every override-clear path (eject detected in
-    // parse_adventurer_json and explicit user request via clear_slot_override).
-    // Caller must hold mutex_. Erases overrides_[slot_index], resets
-    // override-exclusive fields on the provided SlotInfo (brand, spool_name,
-    // spoolman_*, weights, color_name), and fires clear_async on the override
-    // store. Firmware-sourced fields are left untouched.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
     // External-CHANGE_ZCOLOR counterpart to clear_override_locked. Caller must
     // hold mutex_. An external CHANGE_ZCOLOR is a deliberate firmware edit of
     // color/material — firmware truth must win for THOSE fields — but brand /
@@ -996,7 +984,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     /// Push a correctly-shaped `colors=`/`types=` pair into `_IFS_VARS` after
     /// parse_save_variables() observed a truncated lessWaste array (the
     /// persisted damage from the #1247 bug — SAVE_VARIABLE keeps it across
-    /// reboots). Called from handle_status_update() with mutex_ released
+    /// reboots). Called from handle_status() with mutex_ released
     /// because execute_gcode() blocks.
     void dispatch_ifs_vars_repair();
     AmsError write_ifs_var(const std::string& key, const std::string& value);
@@ -1156,7 +1144,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     int find_first_tool_for_port(int port_1based) const;
 
     // Map active_tool_ -> system_info_.current_slot via tool_map_. Single source
-    // of truth shared by handle_status_update and apply_zcolor_result so the
+    // of truth shared by handle_status and apply_zcolor_result so the
     // seated slot updates immediately when IFS_STATUS reports a new Chan instead
     // of waiting for the next status frame. Caller must hold mutex_.
     void recompute_current_slot_locked();
@@ -1242,13 +1230,13 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // Guarded by mutex_.
     std::array<bool, NUM_PORTS> identity_statement_fresh_{};
 
+    // The base's own_write_echoes_, on this backend:
     // What the user declared in an edit of each port, staged against the
     // write's boundary so this backend does not file its own write-back echo
     // (IFS_SET_MATERIAL / Adventurer5M.json / _IFS_VARS all re-publish through
     // the ffmColor/ffmType fields a real reading uses). The boundary is
     // presence itself: a transition names a different physical occupant, which
     // is the only token this hardware offers. All access under mutex_.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
 
     // Presence-edge bookkeeping shared by every presence source (per-port
     // sensors, IFS_STATUS Ports, GET_ZCOLOR slot lines, the pre-SILENT JSON
@@ -1425,7 +1413,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // Set by parse_save_variables() when a lessWaste `<prefix>_colors` or
     // `_types` save_variables array arrives with fewer than TOOL_MAP_SIZE
     // entries — the truncation signature of the #1247 mirror bug. Consumed
-    // (read + cleared) by handle_status_update() under the same lock hold,
+    // (read + cleared) by handle_status() under the same lock hold,
     // then dispatched after unlock. Guarded by mutex_.
     bool ifs_vars_repair_staged_ = false;
 
@@ -1513,7 +1501,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // A real purge runs far longer than the generic 90 s phase window (raza616:
     // ~3 min whole-op from cold; Vger1700 hit the 90 s ERROR twice mid-purge,
     // #1065). PURGING gets its own budget AND its clock is reset on
-    // ifs_motion_sensor activity (see handle_status_update), so the budget is
+    // ifs_motion_sensor activity (see handle_status), so the budget is
     // effectively "time since filament last moved" — a long-but-healthy purge is
     // never falsely failed, a genuinely stalled one still surfaces ERROR.
     static constexpr int PURGING_TIMEOUT_SECONDS = 240;
@@ -1543,7 +1531,7 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     std::chrono::steady_clock::time_point last_phase_progress_time_;
     int last_progress_temp_deci_ = 0; // deci-degrees of the last progress-noting temp frame
 
-    // Rate-limit gate for the JSON-content poll. handle_status_update kicks
+    // Rate-limit gate for the JSON-content poll. handle_status kicks
     // poll_adventurer_json() if at least kJsonPollInterval has elapsed since
     // the last kick — replaces the old 15s unconditional GET_ZCOLOR backstop.
     // Default-constructed time_point is the epoch, so the first status update
@@ -1592,24 +1580,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     /// Give up a Z-Mod change's SELECTING: action back to IDLE, channel
     /// ignored until it reads idle again. Caller holds mutex_.
     void release_zmod_change_locked(const char* reason);
-
-    // User-provided per-slot metadata (brand, spool name, spoolman IDs, remaining
-    // weight, etc.) layered over firmware-reported state.
-    //
-    // Write paths (both hold mutex_):
-    //   - on_started(): initial bulk load from Moonraker DB lane_data.
-    //     Swap happens under mutex_ so a concurrent status notification can
-    //     never see a torn map.
-    //   - apply_user_edit(): the user's edit is staged here and
-    //     persisted. What the slot shows comes from the lane, not from this
-    //     map: AmsBackend::commit_user_edit() files the declaration once
-    //     apply_user_edit() returns, then repaint_slot_from_lane() repaints.
-    //
-    // Read under mutex_ by the persist, firmware-mirror and lock-release
-    // paths. The paint path (apply_resolved_lane) reads the lane source store
-    // and never this map.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
 
     // Resolved on-disk path of Adventurer5M.json when helix-screen runs on the
     // same host as Moonraker. Empty string means "fall back to Moonraker HTTP

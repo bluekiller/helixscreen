@@ -49,7 +49,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "unhomed axes mute their coordinate readouts
 
     lv_obj_t* cached = nullptr;
     REQUIRE(helix::ui::lazy_create_and_push_overlay<MotionPanel>(
-        get_global_motion_panel, cached, lv_screen_active(), "Motion", "test"));
+        get_global_motion_panel, lv_screen_active(), "Motion", "test"));
+    cached = get_global_motion_panel().get_root();
     helix::ui::UpdateQueue::instance().drain();
 
     lv_obj_t* root = get_global_motion_panel().get_root();

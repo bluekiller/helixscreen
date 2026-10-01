@@ -6,6 +6,7 @@
 #include "i_moonraker_api.h"
 #include "lane_translation.h"
 #include "spoolman_manager.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -16,16 +17,6 @@
 #include "hv/json.hpp"
 
 namespace helix {
-
-namespace {
-
-std::string to_lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-
-} // namespace
 
 SpoolmanSlotSaver::SpoolmanSlotSaver(IMoonrakerAPI* api, float filament_diameter_mm)
     : api_(api), filament_diameter_mm_(filament_diameter_mm) {}
@@ -409,11 +400,11 @@ void SpoolmanSlotSaver::update_weight(int spool_id, float weight_g,
 
 void SpoolmanSlotSaver::find_or_create_vendor(const std::string& vendor_name,
                                               VendorCallback on_found, ErrorCallback on_error) {
-    const std::string needle = to_lower(vendor_name);
+    const std::string needle = helix::text_io::to_lower(vendor_name);
     api_->spoolman().get_spoolman_vendors(
         [this, vendor_name, needle, on_found, on_error](const std::vector<VendorInfo>& vendors) {
             for (const auto& v : vendors) {
-                if (to_lower(v.name) == needle) {
+                if (helix::text_io::to_lower(v.name) == needle) {
                     spdlog::debug("[SpoolmanSlotSaver] Reusing vendor '{}' -> id={}", v.name, v.id);
                     if (on_found)
                         on_found(v.id);

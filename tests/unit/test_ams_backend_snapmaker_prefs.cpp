@@ -12,7 +12,7 @@ using namespace helix;
 
 namespace {
 /// An unwrapped status object carrying only print_task_config — the shape the
-/// initial query response sends and handle_status_update accepts directly.
+/// initial query response sends and handle_status() takes.
 nlohmann::json frame(const nlohmann::json& ptc_fields) {
     nlohmann::json params = nlohmann::json::object();
     params["print_task_config"] = ptc_fields;

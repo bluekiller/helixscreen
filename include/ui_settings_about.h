@@ -132,7 +132,6 @@ class AboutSettingsOverlay : public OverlayBase {
     char about_copyright_buf_[48];
 
     // History dashboard overlay (lazy-created)
-    lv_obj_t* history_dashboard_panel_ = nullptr;
 
     // Debounce tracker restart on inadvertent re-open
     std::chrono::steady_clock::time_point last_deactivate_{};

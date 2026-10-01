@@ -23,6 +23,7 @@
 #include "app_constants.h"
 #include "app_globals.h"
 #include "config.h"
+#include "env_knobs.h"
 #include "filament_sensor_manager.h"
 #include "host_identity.h"
 #include "i_moonraker_client.h"
@@ -422,8 +423,7 @@ void MoonrakerManager::create_client(const RuntimeConfig& runtime_config) {
         // --test without driving the UI through a print-start flow. Sets the
         // existing mock_auto_start_print flag the mock consumes on connect().
         // Additive + env-gated: default --test behavior is unchanged.
-        const char* auto_print_env = std::getenv("HELIX_MOCK_AUTO_PRINT");
-        if (auto_print_env && auto_print_env[0] && std::string(auto_print_env) != "0") {
+        if (helix::env_flag("HELIX_MOCK_AUTO_PRINT")) {
             get_runtime_config()->mock_auto_start_print = true;
             if (!get_runtime_config()->gcode_test_file) {
                 get_runtime_config()->gcode_test_file = RuntimeConfig::get_default_test_file_path();

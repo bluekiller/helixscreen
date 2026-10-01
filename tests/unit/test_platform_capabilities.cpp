@@ -94,6 +94,14 @@ TEST_CASE("RAM detection: handle empty content", "[platform][meminfo][edge]") {
     REQUIRE(ram_mb == 0);
 }
 
+TEST_CASE("parse_meminfo_kb matches a key only at the start of a line",
+          "[platform][meminfo][edge]") {
+    const std::string meminfo = "SwapCached:        77 kB\nCached:          2624748 kB\n";
+    REQUIRE(parse_meminfo_kb(meminfo, "Cached") == 2624748);
+    REQUIRE(parse_meminfo_kb(meminfo, "Swap") == 0);
+    REQUIRE(parse_meminfo_kb("MemAvailable:\t8192 kB", "MemAvailable") == 8192);
+}
+
 // ============================================================================
 // CPU Core Detection Tests (/proc/cpuinfo parsing)
 // ============================================================================

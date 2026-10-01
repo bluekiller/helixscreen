@@ -37,11 +37,6 @@ struct Tables {
 std::mutex g_table_mutex;
 Tables g_tables;
 
-std::string lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    return s;
-}
-
 int get_int(const nlohmann::json& j, const char* key) {
     auto it = j.find(key);
     return (it != j.end() && it->is_number()) ? it->get<int>() : 0;
@@ -151,9 +146,9 @@ Tables build_tables(const std::string& asset_path, const std::string& overlay_pa
             continue;
         }
         drop_non_numeric_fields(patch, name, overlay_path);
-        const std::string key = lower(std::string(resolve_alias(name)));
+        const std::string key = helix::text_io::to_lower(std::string(resolve_alias(name)));
         auto hit = std::find_if(rows.begin(), rows.end(), [&](const nlohmann::json& r) {
-            return lower(helix::json_util::safe_string(r, "name")) == key;
+            return helix::text_io::to_lower(helix::json_util::safe_string(r, "name")) == key;
         });
         if (hit != rows.end()) {
             // The shipped spelling stays canonical; the patch may name it in any case.

@@ -465,7 +465,6 @@ class DebugBundleCollector {
 
   private:
     static constexpr const char* WORKER_URL = "https://crash.helixscreen.org/v1/debug-bundle";
-    static constexpr const char* INGEST_API_KEY = "hx-tel-v1-a7f3c9e2d1b84056";
 
     /// WORKER_URL with the HELIX_BUNDLE_WORKER_URL test override applied. The
     /// override exists so a test that reaches the real upload path posts to a

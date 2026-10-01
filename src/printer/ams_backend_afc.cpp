@@ -247,7 +247,9 @@ AmsBackendAfc::AmsBackendAfc(IMoonrakerAPI* api, IMoonrakerClient* client)
 }
 
 AmsBackendAfc::~AmsBackendAfc() {
-    // lifetime_ destructor calls invalidate() automatically
+    // Expire queued callbacks before this class's members are destroyed; the
+    // base guard itself outlives them.
+    lifetime_.invalidate();
 }
 
 // ============================================================================
@@ -371,6 +373,11 @@ void AmsBackendAfc::set_discovered_lanes(const std::vector<std::string>& lane_na
         hub_names_ = hub_names;
         spdlog::debug("[AMS AFC] Set {} discovered hubs", hub_names_.size());
     }
+}
+
+void AmsBackendAfc::set_discovery(const helix::PrinterDiscovery& discovery) {
+    set_discovered_lanes(discovery.afc_lane_names(), discovery.afc_hub_names());
+    set_discovered_sensors(discovery.filament_sensor_names());
 }
 
 void AmsBackendAfc::set_discovered_sensors(const std::vector<std::string>& sensor_names) {
@@ -552,21 +559,6 @@ void AmsBackendAfc::maybe_drain_message_queue() {
 
     spdlog::debug("[AMS AFC] Draining next queued message");
     clear_message_queue();
-}
-
-SlotInfo AmsBackendAfc::get_slot_info(int slot_index) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    const auto* entry = slots_.get(slot_index);
-    if (entry) {
-        return entry->info;
-    }
-
-    // Return empty slot info for invalid index
-    SlotInfo empty;
-    empty.slot_index = -1;
-    empty.global_index = -1;
-    return empty;
 }
 
 SlotInfo* AmsBackendAfc::cached_slot_locked(int slot_index) {
@@ -929,14 +921,6 @@ std::vector<std::string> split_lower_words(const std::string& line) {
     return out;
 }
 
-std::string to_lower_copy(const std::string& s) {
-    std::string out;
-    out.reserve(s.size());
-    for (unsigned char c : s)
-        out.push_back(static_cast<char>(std::tolower(c)));
-    return out;
-}
-
 /// Highest tool number a lane may claim. Anything above this is treated as
 /// garbage rather than grown into, so a malformed field cannot size a vector.
 constexpr int AFC_MAX_TOOL_NUMBER = 64;
@@ -1030,7 +1014,7 @@ AmsBackendAfc::match_bare_narration_phase(const std::string& line) const {
 }
 
 bool AmsBackendAfc::is_narration_drift_candidate(const std::string& line) const {
-    const std::string s = to_lower_copy(line);
+    const std::string s = helix::text_io::to_lower(line);
 
     // Every AFC narration line either names the system (`AFC_Cut:`, `AFC_Brush:`)
     // or names a lane. Looser than the matchers on purpose: the hint exists to
@@ -1143,19 +1127,7 @@ PathSegment AmsBackendAfc::compute_filament_segment_unlocked() const {
 // Moonraker Status Update Handling
 // ============================================================================
 
-void AmsBackendAfc::handle_status_update(const nlohmann::json& notification) {
-    // notify_status_update has format: { "method": "notify_status_update", "params": [{ ... },
-    // timestamp] }
-    if (!notification.contains("params") || !notification["params"].is_array() ||
-        notification["params"].empty()) {
-        return;
-    }
-
-    const auto& params = notification["params"][0];
-    if (!params.is_object()) {
-        return;
-    }
-
+void AmsBackendAfc::handle_status(const nlohmann::json& params) {
     bool state_changed = false;
     std::string deferred_error_event; // Collect error event to emit outside lock
 
@@ -2037,7 +2009,7 @@ void AmsBackendAfc::parse_afc_state(const nlohmann::json& afc_data,
         }
 
         // If we got unit-lane data from object format, re-organize into multi-unit layout.
-        // NOTE: This runs under mutex_ lock (held by handle_status_update caller),
+        // NOTE: This runs under mutex_ lock (held by handle_status caller),
         // so system_info_ modifications are safe from concurrent get_system_info() reads.
         if (!unit_lane_map_.empty()) {
             if (!slots_.is_initialized() && !discovered_lane_names_.empty()) {
@@ -2934,7 +2906,7 @@ bool AmsBackendAfc::printer_retains_spool_info() const {
 
 void AmsBackendAfc::maybe_reassert_retained_spool_link(int slot_index,
                                                        const std::string& lane_name) {
-    // Callers hold mutex_ (parse_afc_stepper via handle_status_update).
+    // Callers hold mutex_ (parse_afc_stepper via handle_status).
     //
     // The #1289 convergence gap: with "Keep Spool Info on Eject" on we keep
     // a lane's spool identity in our override namespace, but AFC itself —
@@ -3750,17 +3722,13 @@ void AmsBackendAfc::query_initial_state() {
     client_->send_jsonrpc(
         "printer.objects.query", params,
         [this, token](const nlohmann::json& response) {
-            // L081 Mechanism C: handle_status_update mutates members + emits events.
+            // L081 Mechanism C: handle_status mutates members + emits events.
             token.defer("AmsBackendAfc::query_initial_state_success", [this, response]() {
                 // Response structure:
                 // {"jsonrpc": "2.0", "result": {"eventtime": ..., "status": {...}}, "id": ...}
                 if (response.contains("result") && response["result"].contains("status") &&
                     response["result"]["status"].is_object()) {
-                    // The status object format is the same as notify_status_update params
-                    // Wrap it in a format that handle_status_update expects
-                    nlohmann::json notification = {
-                        {"params", nlohmann::json::array({response["result"]["status"]})}};
-                    handle_status_update(notification);
+                    handle_status(response["result"]["status"]);
                     spdlog::info("[AMS AFC] Initial state loaded");
                 } else {
                     spdlog::warn("[AMS AFC] Initial state query returned unexpected format");
@@ -3828,7 +3796,7 @@ bool AmsBackendAfc::has_toolchanger() const {
     return std::any_of(unit_infos_.begin(), unit_infos_.end(), [](const AfcUnitInfo& u) {
         // `type` is user-overridable (`config.get("type", "Toolchanger")`), so
         // compare case-insensitively rather than pinning the exact spelling.
-        return to_lower_copy(u.type) == "toolchanger";
+        return helix::text_io::to_lower(u.type) == "toolchanger";
     });
 }
 
@@ -3872,7 +3840,7 @@ void AmsBackendAfc::query_afc_configfile_topology() {
                 std::unordered_map<std::string, std::string> found;
                 bool saw_toolchanger = false;
                 for (auto it = settings.begin(); it != settings.end(); ++it) {
-                    const std::string key = to_lower_copy(it.key());
+                    const std::string key = helix::text_io::to_lower(it.key());
                     if (key.rfind(TOOLCHANGER_PREFIX, 0) == 0) {
                         saw_toolchanger = true;
                         continue;
@@ -3932,7 +3900,7 @@ std::string AmsBackendAfc::klipper_extruder_name_unlocked(const std::string& sec
     // containing "extruder" (AFC_extruder.py:384), so a config can carry one
     // that no numbering can read, and the section name is the better guess
     // then. Checking here rather than at each caller keeps one fallback chain.
-    const auto it = extruder_klipper_names_.find(to_lower_copy(section_name));
+    const auto it = extruder_klipper_names_.find(helix::text_io::to_lower(section_name));
     if (it != extruder_klipper_names_.end() && helix::tool_number_for_extruder(it->second)) {
         return it->second;
     }
@@ -3983,7 +3951,7 @@ int AmsBackendAfc::tool_index_for_extruder_unlocked(const std::string& ext_name)
     }
 
     if (extruder_tool_index_warned_.insert(ext_name).second) {
-        const auto it = extruder_klipper_names_.find(to_lower_copy(ext_name));
+        const auto it = extruder_klipper_names_.find(helix::text_io::to_lower(ext_name));
         if (it != extruder_klipper_names_.end()) {
             spdlog::warn("[AMS AFC] Cannot determine a tool number for AFC_extruder '{}': its "
                          "extruder_name is '{}', which is not a Klipper extruder object name "
@@ -4613,7 +4581,7 @@ void AmsBackendAfc::initialize_slots(const std::vector<std::string>& lane_names)
  * Rebuilds system_info_.units from unit_lane_map_ (unit_name → [lane_names]),
  * preserving existing slot data (colors, materials, status) by matching lane names.
  *
- * @pre mutex_ must be held by caller (via handle_status_update → parse_afc_state)
+ * @pre mutex_ must be held by caller (via handle_status → parse_afc_state)
  * @pre slots_ must be initialized (slots exist in system_info_.units[0])
  */
 void AmsBackendAfc::reorganize_slots() {
@@ -4984,33 +4952,8 @@ void AmsBackendAfc::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         lane_name = slots_.name_of(slot_index);
-        overrides_.erase(slot_index);
-        helix::ams::reset_lane_to_machine_readings(lane_id(slot_index));
-        // The clear is deliberate: any echo guard this slot still holds was
-        // suspending readings of an identity the user just removed, so it
-        // ends here rather than suppressing the next frame.
-        own_write_echoes_.abandon(slot_index);
-
-        // Also reset the override-exclusive fields on the live slot, so the
-        // clear shows up in the very next get_slot_info(). AFC has no concept
-        // of brand / spool_name / total weight / colour name, so no firmware
-        // update will ever clear them for us; dropping only the store entry
-        // would leave the previous spool's identity on screen indefinitely.
-        // colour and material come from the parse, and the writes below empty
-        // them in firmware.
-        if (helix::printer::SlotEntry* entry = slots_.get_mut(slot_index)) {
-            entry->info.brand.clear();
-            entry->info.clear_spoolman_link();
-            entry->info.remaining_weight_g = -1.0f;
-            entry->info.total_weight_g = -1.0f;
-            entry->info.color_name.clear();
-            // The catalog pick is override-exclusive on every backend — no AMS
-            // firmware carries a branded product id — so a clear always drops it.
-            // Leaving it would re-navigate the editor to the removed spool's
-            // product on the next open.
-            entry->info.catalog_id.clear();
-            entry->info.product_name.clear();
-        }
+        helix::printer::SlotEntry* entry = slots_.get_mut(slot_index);
+        clear_override_locked(slot_index, entry ? &entry->info : nullptr);
     }
     // An empty SET_SPOOL_ID only runs AFC's clear_values() when AFC has
     // Spoolman configured and the lane does not remember its spool, so an
@@ -5024,13 +4967,6 @@ void AmsBackendAfc::clear_slot_override(int slot_index) {
         execute_gcode(fmt::format("SET_WEIGHT LANE={} WEIGHT=0", lane_name));
     }
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
-    if (override_store_) {
-        override_store_->clear_async(slot_index, [slot_index](bool ok, std::string err) {
-            if (!ok) {
-                spdlog::warn("[AMS AFC] override clear failed for slot {}: {}", slot_index, err);
-            }
-        });
-    }
 }
 
 void AmsBackendAfc::publish_external_spool_lane(const SlotInfo* spool) {
@@ -5474,36 +5410,7 @@ std::string set_weight_command(const std::string& lane_name, float remaining_wei
 
 void AmsBackendAfc::write_lane_locked(int slot_index, SlotInfo& slot, const SlotInfo& info) {
     const int old_mapped_tool = slot.mapped_tool;
-
-    // Detect whether anything actually changed
-    bool changed = slot.color_name != info.color_name || slot.color_rgb != info.color_rgb ||
-                   slot.material != info.material || slot.brand != info.brand ||
-                   slot.catalog_id != info.catalog_id || slot.product_name != info.product_name ||
-                   slot.spoolman_id != info.spoolman_id || slot.spool_name != info.spool_name ||
-                   slot.remaining_weight_g != info.remaining_weight_g ||
-                   slot.total_weight_g != info.total_weight_g ||
-                   slot.nozzle_temp_min != info.nozzle_temp_min ||
-                   slot.nozzle_temp_max != info.nozzle_temp_max || slot.bed_temp != info.bed_temp ||
-                   slot.mapped_tool != info.mapped_tool;
-
-    // Update local state
-    slot.color_name = info.color_name;
-    slot.color_rgb = info.color_rgb;
-    slot.material = info.material;
-    slot.brand = info.brand;
-    // Carry the catalog product identity through a sync too: one that
-    // dropped it would make the editor snap back to a different variant on
-    // the next get_slot_info().
-    slot.catalog_id = info.catalog_id;
-    slot.product_name = info.product_name;
-    slot.spoolman_id = info.spoolman_id;
-    slot.spoolman_filament_id = info.spoolman_filament_id;
-    slot.spool_name = info.spool_name;
-    slot.remaining_weight_g = info.remaining_weight_g;
-    slot.total_weight_g = info.total_weight_g;
-    slot.nozzle_temp_min = info.nozzle_temp_min;
-    slot.nozzle_temp_max = info.nozzle_temp_max;
-    slot.bed_temp = info.bed_temp;
+    const bool changed = slot.assign_filament_fields(info) || info.mapped_tool != old_mapped_tool;
     // Tool mapping change goes through registry so reverse maps stay consistent.
     if (info.mapped_tool != old_mapped_tool && info.mapped_tool >= 0) {
         slots_.set_tool_mapping(slot_index, info.mapped_tool);

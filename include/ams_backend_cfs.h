@@ -151,7 +151,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
 
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
-    [[nodiscard]] SlotInfo get_slot_info(int slot_index) const override;
 
     // Path visualization
     [[nodiscard]] PathTopology get_topology() const override {
@@ -161,7 +160,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     [[nodiscard]] PathSegment get_slot_filament_segment(int slot_index) const override;
     [[nodiscard]] PathSegment infer_error_segment() const override;
 
-    /// handle_status_update() stamps SlotStatus::LOADED on the seated bay —
+    /// handle_status() stamps SlotStatus::LOADED on the seated bay —
     /// the lane a unit names in T{n}.filament, once the toolhead switch says
     /// filament actually arrived — so the per-slot status carries the answer
     /// the aggregate pair used to hold alone. Before that stamp existed the
@@ -571,7 +570,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// recursive).
     [[nodiscard]] std::vector<helix::RecoveryAction> build_recovery_actions() const override;
 
-    void handle_status_update(const nlohmann::json& notification) override;
+    void handle_status(const nlohmann::json& status) override;
     const char* backend_log_tag() const override {
         return "[AMS CFS]";
     }
@@ -621,14 +620,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
                                                 const std::string& catalog_id, uint32_t color_rgb,
                                                 const helix::ams::Observation* declared = nullptr);
 
-    /// Both CFS write paths (BOX_MODIFY_TN_DATA, the fork's _BOX_SLOT_SET)
-    /// are republished by firmware through the same material_type /
-    /// color_value fields a real RFID read uses, so this backend's parses
-    /// filter their own writes through this guard.
-    [[nodiscard]] helix::ams::OwnWriteEchoes* own_write_echoes() override {
-        return &own_write_echoes_;
-    }
-
   private:
     friend class helix::CfsTestAccess;
 
@@ -655,7 +646,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// and never touches this (#1270).
     uint64_t firmware_map_generation_ = 0;
 
-    /// Box schema last seen on the wire, latched by handle_status_update.
+    /// Box schema last seen on the wire, latched by handle_status.
     ///
     /// Separate axis from macro_variant_ above: the dialect is latched once in
     /// the constructor from the printer model, but the schema cannot be — the
@@ -698,9 +689,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// holds mutex_.
     SlotInfo* bay_locked(int slot_index);
 
-    // Callback lifetime management
-    helix::AsyncLifetimeGuard lifetime_;
-
     /// Dispatch a load/unload/swap CR_BOX_* script with proper completion
     /// semantics: ensures the toolhead is homed, sends the gcode, and flips
     /// `system_info_.action` back to IDLE *only when Klipper finishes the
@@ -719,7 +707,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
 
     /// Undo the derived LOADED stamp, putting back whatever the last parse
     /// wrote there. Caller must hold mutex_. Runs at the TOP of
-    /// handle_status_update so check_hardware_event_clear, the lane_data mirror
+    /// handle_status so check_hardware_event_clear, the lane_data mirror
     /// and apply_resolved_lane all see firmware truth rather than a synthesized
     /// seat; restoring the saved status (rather than assuming AVAILABLE) is
     /// what keeps a bay firmware called EMPTY from acquiring a phantom spool
@@ -731,7 +719,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// must hold mutex_. CFS publishes the seated bay across two signals that
     /// arrive on separate frames — the per-unit T{n}.filament letter names the
     /// lane, the toolhead filament_switch_sensor says whether anything reached
-    /// the nozzle — so this runs at the END of handle_status_update, after both
+    /// the nozzle — so this runs at the END of handle_status, after both
     /// branches have had their say, and again after the optimistic current_slot
     /// writes in load_filament()/change_tool().
     ///
@@ -751,7 +739,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// mutating `slot` in place. Override wins for every non-default field;
     /// default sentinels (empty strings, spoolman_id 0, weights -1, color_rgb 0)
     /// fall through to firmware-reported data. Callers must hold mutex_.
-    /// Called from handle_status_update AFTER firmware parse populates the slot
+    /// Called from handle_status AFTER firmware parse populates the slot
     /// and AFTER check_hardware_event_clear, so the final SlotInfo visible via
     /// get_slot_info reflects the override layer.
 
@@ -785,7 +773,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     ///
     /// Returns true iff the override was cleared, so the caller can skip the
     /// lane_data mirror for this parse (a DELETE and a POST against the same
-    /// lane_data key in one pass is a write race — see handle_status_update).
+    /// lane_data key in one pass is a write race — see handle_status).
     [[nodiscard]] bool check_hardware_event_clear(SlotInfo& slot, int slot_index,
                                                   const std::string& observed_uid);
 
@@ -808,13 +796,9 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// Returns true iff the override was cleared.
     [[nodiscard]] bool clear_stale_override_on_removal_locked(SlotInfo& slot, int slot_index);
 
-    // Shared helper used by every override-clear path (hardware event and
-    // explicit user request). Caller must hold mutex_. Erases
-    // overrides_[slot_index], resets strictly override-exclusive fields on
-    // the provided SlotInfo (spool_name, spoolman_*, remaining_weight_g), and
-    // fires clear_async. Brand / color_name / total_weight_g are preserved —
-    // firmware populates them from the RFID material database.
-    void clear_override_locked(int slot_index, SlotInfo& slot);
+    /// Brand / color_name / total_weight_g are kept: firmware populates them
+    /// from the RFID material database.
+    void clear_override_fields(SlotInfo& slot) const override;
 
     /// Runout-episode bookkeeping (#1390). filament_runout is a box-wide
     /// STICKY latch (set by "spool used up", cleared only by a successful
@@ -833,7 +817,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// (whatever empties the lane next is a deliberate unload, not this
     /// runout) or when strip_spoolman_link_on_runout_locked consumes it.
     ///
-    /// Caller must hold mutex_. Runs inside handle_status_update AFTER the
+    /// Caller must hold mutex_. Runs inside handle_status AFTER the
     /// current_slot update (the capture reads the settled active lane) and
     /// BEFORE the override convergence loop (the strip reads runout_lane_).
     void update_runout_episode_locked();
@@ -873,13 +857,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // not a bay and has no lane override.
     int runout_lane_ = -1;
 
-    // Persistent per-slot overrides. Writers (on_started bulk load,
-    // apply_user_edit, check_hardware_event_clear) all hold
-    // mutex_. Reads happen inside the parse path's lane_data mirror and the
-    // clear helpers, which are also called under mutex_.
-    std::unique_ptr<helix::ams::FilamentSlotOverrideStore> override_store_;
-    std::unordered_map<int, helix::ams::FilamentSlotOverride> overrides_;
-
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
     helix::ams::FilamentSlotOverrideStore* lane_record_store() override {
@@ -892,12 +869,12 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // other RFID-fingerprint backend (Snapmaker). All access under mutex_.
     helix::ams::SlotFingerprintTracker rfid_tracker_;
 
+    // The base's own_write_echoes_, on this backend:
     // What the user declared in an edit of each bay, staged against the
     // write so this backend does not file its own write-back echo as the
     // box's RFID reading. The suppression ends when the user disowns the
     // write (Clear Spool) or the fingerprint's own swap detection fires.
     // All access under mutex_.
-    helix::ams::OwnWriteEchoes own_write_echoes_;
 
     // Insert-edge bookkeeping for docs/specs/filament_slots.md §6: the last
     // presence this backend derived for each bay, and the tag evidence it
@@ -987,7 +964,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// under mutex_.
     std::unordered_map<int, bool> bay_tag_resolved_;
 
-    /// Insert probes blocked by the busy gate in handle_status_update
+    /// Insert probes blocked by the busy gate in handle_status
     /// (#1387): unit number -> bay bitmask, OR-merged so a bay re-inserted
     /// while still deferred keeps one entry. Entries leave the set on the
     /// first idle poll's dispatch: one deferred probe is retried exactly
@@ -1002,7 +979,7 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     std::map<int, int> collect_insert_probes_locked(const nlohmann::json& box);
 
     // Firmware-observed material_type code vocabulary, harvested from box
-    // status by handle_status_update and consulted by
+    // status by handle_status and consulted by
     // push_slot_identity_to_firmware. Keys are 5-char stripped catalog ids /
     // "brand|type" / "type"; values are the FULL 6-char codes exactly as the
     // firmware reported them (brand prefix included) — those full forms are
