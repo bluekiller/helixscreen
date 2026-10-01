@@ -5,6 +5,7 @@
 
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
@@ -21,51 +22,22 @@ namespace helix::settings {
  */
 class HardwareSettingsOverlay : public OverlayBase {
   public:
-    HardwareSettingsOverlay();
-    ~HardwareSettingsOverlay() override;
-
-    // === OverlayBase Interface ===
-
-    void init_subjects() override;
     void register_callbacks() override;
 
     const char* get_name() const override {
         return "Devices";
     }
-
-    void on_activate() override;
-
-    // === UI Creation ===
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_hardware_overlay";
     }
 
-  private:
-    // === Static Callbacks ===
-
-    static void on_camera_view_clicked(lv_event_t* e);
-    static void on_ams_settings_clicked(lv_event_t* e);
-    static void on_fans_settings_clicked(lv_event_t* e);
-    static void on_filament_sensors_clicked(lv_event_t* e);
-    static void on_led_settings_clicked(lv_event_t* e);
-    static void on_power_devices_clicked(lv_event_t* e);
-    static void on_spoolman_settings_clicked(lv_event_t* e);
-    static void on_macro_buttons_clicked(lv_event_t* e);
+    /// Default create() plus the live Hardware Health row binding.
+    lv_obj_t* create(lv_obj_t* parent) override;
 };
 
-/**
- * @brief Global instance accessor
- *
- * Creates the overlay on first access and registers it for cleanup
- * with StaticPanelRegistry.
- *
- * @return Reference to singleton HardwareSettingsOverlay
- */
-HardwareSettingsOverlay& get_hardware_settings_overlay();
+inline HardwareSettingsOverlay& get_hardware_settings_overlay() {
+    return lazy_global<HardwareSettingsOverlay>("HardwareSettingsOverlay");
+}
 
 /**
  * @brief Bind the Hardware Health row to live validation state

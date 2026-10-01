@@ -15,36 +15,31 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "static_panel_registry.h"
 
 namespace helix::settings {
 
 class TouchSettingsOverlay : public OverlayBase {
   public:
-    TouchSettingsOverlay();
-    ~TouchSettingsOverlay() override;
-
-    void init_subjects() override;
-    void register_callbacks() override;
-
     const char* get_name() const override {
         return "TouchInput";
     }
-
-    void on_activate() override;
-
-    lv_obj_t* create(lv_obj_t* parent) override;
-    void show(lv_obj_t* parent_screen);
-
-    bool is_created() const {
-        return overlay_root_ != nullptr;
+    const char* xml_component() const override {
+        return "settings_touch_overlay";
     }
+
+    // Row callbacks are registered globally by SettingsPanel so the top-level
+    // Touch Calibration entry can share them; the bound subjects are owned by
+    // InputSettingsManager.
+    void on_activate() override;
 
   private:
     void init_input_sliders();
 };
 
-TouchSettingsOverlay& get_touch_settings_overlay();
+inline TouchSettingsOverlay& get_touch_settings_overlay() {
+    return lazy_global<TouchSettingsOverlay>("TouchSettingsOverlay");
+}
 
 } // namespace helix::settings

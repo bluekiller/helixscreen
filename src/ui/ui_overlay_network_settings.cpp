@@ -21,6 +21,7 @@
 #include "network_tester.h"
 #include "static_panel_registry.h"
 #include "system_settings_manager.h"
+#include "ui/ui_widget_helpers.h"
 #include "wifi_manager.h"
 #include "wifi_radio_toggle.h"
 #include "wifi_ui_utils.h"
@@ -35,21 +36,6 @@
 #include <memory>
 
 using namespace helix;
-
-// ============================================================================
-// Global Instance
-// ============================================================================
-
-static std::unique_ptr<NetworkSettingsOverlay> g_network_settings_overlay;
-
-NetworkSettingsOverlay& get_network_settings_overlay() {
-    if (!g_network_settings_overlay) {
-        g_network_settings_overlay = std::make_unique<NetworkSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "NetworkSettingsOverlay", []() { g_network_settings_overlay.reset(); });
-    }
-    return *g_network_settings_overlay;
-}
 
 // ============================================================================
 // Helper Types
@@ -163,11 +149,6 @@ NetworkSettingsOverlay::~NetworkSettingsOverlay() {
 // ============================================================================
 
 void NetworkSettingsOverlay::init_subjects() {
-    if (subjects_initialized_) {
-        spdlog::debug("[NetworkSettingsOverlay] Subjects already initialized");
-        return;
-    }
-
     spdlog::debug("[NetworkSettingsOverlay] Initializing subjects");
 
     // WiFi subjects
@@ -214,33 +195,36 @@ void NetworkSettingsOverlay::init_subjects() {
 // ============================================================================
 
 void NetworkSettingsOverlay::register_callbacks() {
-    if (callbacks_registered_) {
-        spdlog::debug("[NetworkSettingsOverlay] Callbacks already registered");
-        return;
-    }
-
-    spdlog::debug("[NetworkSettingsOverlay] Registering event callbacks");
-
     register_xml_callbacks({
-        {"on_wlan_toggle_changed", on_wlan_toggle_changed},
-        {"on_refresh_clicked", on_refresh_clicked},
-        {"on_test_network_clicked", on_test_network_clicked},
-        {"on_add_other_clicked", on_add_other_clicked},
-        {"on_network_item_clicked", on_network_item_clicked},
-        {"on_network_settings_forget", on_network_settings_forget},
+        {"on_wlan_toggle_changed",
+         [](lv_event_t* e) { get_network_settings_overlay().handle_wlan_toggle_changed(e); }},
+        {"on_refresh_clicked",
+         [](lv_event_t*) { get_network_settings_overlay().handle_refresh_clicked(); }},
+        {"on_test_network_clicked",
+         [](lv_event_t*) { get_network_settings_overlay().handle_test_network_clicked(); }},
+        {"on_add_other_clicked",
+         [](lv_event_t*) { get_network_settings_overlay().handle_add_other_clicked(); }},
+        {"on_network_item_clicked",
+         [](lv_event_t* e) { get_network_settings_overlay().handle_network_item_clicked(e); }},
+        // Scoped name: the XML callback namespace is flat and other overlays have forget flows.
+        {"on_network_settings_forget",
+         [](lv_event_t*) { get_network_settings_overlay().handle_network_settings_forget(); }},
         // Network test modal
-        {"on_network_test_close", on_network_test_close},
+        {"on_network_test_close",
+         [](lv_event_t*) { get_network_settings_overlay().handle_network_test_close(); }},
         // Hidden network modal
-        {"on_hidden_cancel_clicked", on_hidden_cancel_clicked},
-        {"on_hidden_connect_clicked", on_hidden_connect_clicked},
-        {"on_security_changed", on_security_changed},
+        {"on_hidden_cancel_clicked",
+         [](lv_event_t*) { get_network_settings_overlay().handle_hidden_cancel_clicked(); }},
+        {"on_hidden_connect_clicked",
+         [](lv_event_t*) { get_network_settings_overlay().handle_hidden_connect_clicked(); }},
+        {"on_security_changed",
+         [](lv_event_t* e) { get_network_settings_overlay().handle_security_changed(e); }},
         // Password modal
-        {"on_wifi_password_cancel", on_wifi_password_cancel},
-        {"on_wifi_password_connect", on_wifi_password_connect},
+        {"on_wifi_password_cancel",
+         [](lv_event_t*) { get_network_settings_overlay().handle_password_cancel_clicked(); }},
+        {"on_wifi_password_connect",
+         [](lv_event_t*) { get_network_settings_overlay().handle_password_connect_clicked(); }},
     });
-
-    callbacks_registered_ = true;
-    spdlog::debug("[NetworkSettingsOverlay] Event callbacks registered");
 }
 
 // ============================================================================
@@ -248,18 +232,6 @@ void NetworkSettingsOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* NetworkSettingsOverlay::create(lv_obj_t* parent_screen) {
-    if (!parent_screen) {
-        spdlog::error("[NetworkSettingsOverlay] Cannot create: null parent_screen");
-        return nullptr;
-    }
-
-    spdlog::debug("[NetworkSettingsOverlay] Creating overlay from XML");
-
-    parent_screen_ = parent_screen;
-
-    // Reset cleanup flag when (re)creating
-    cleanup_called_ = false;
-
     // Register wifi_network_item component first
     static bool network_item_registered = false;
     if (!network_item_registered) {
@@ -269,26 +241,16 @@ lv_obj_t* NetworkSettingsOverlay::create(lv_obj_t* parent_screen) {
         spdlog::debug("[NetworkSettingsOverlay] Registered wifi_network_item component");
     }
 
-    // Create overlay from XML
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent_screen, "network_settings_overlay", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[NetworkSettingsOverlay] Failed to create from XML");
+    if (!OverlayBase::create(parent_screen)) {
         return nullptr;
     }
 
-    // Get reference to networks_list for population
-    networks_list_ = lv_obj_find_by_name(overlay_root_, "networks_list");
+    networks_list_ = helix::ui::find_required(overlay_root_, "networks_list", get_name());
     if (!networks_list_) {
-        spdlog::error("[NetworkSettingsOverlay] networks_list not found in XML");
         return nullptr;
     }
 
     // Note: Back button is wired via header_bar.xml default callback (on_header_back_clicked)
-
-    // Initially hidden
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     // Initialize WiFi manager - use global singleton
     if (!wifi_manager_) {
@@ -324,40 +286,6 @@ lv_obj_t* NetworkSettingsOverlay::create(lv_obj_t* parent_screen) {
 
     spdlog::info("[NetworkSettingsOverlay] Overlay created successfully");
     return overlay_root_;
-}
-
-// ============================================================================
-// Show/Hide
-// ============================================================================
-
-void NetworkSettingsOverlay::show() {
-    if (!overlay_root_) {
-        spdlog::error("[NetworkSettingsOverlay] Cannot show: overlay not created");
-        return;
-    }
-
-    spdlog::debug("[NetworkSettingsOverlay] Showing overlay");
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[NetworkSettingsOverlay] Overlay shown");
-}
-
-void NetworkSettingsOverlay::hide() {
-    if (!overlay_root_) {
-        return;
-    }
-
-    spdlog::debug("[NetworkSettingsOverlay] Hiding overlay");
-
-    // Pop from navigation stack - on_deactivate() will be called by NavigationManager
-    NavigationManager::instance().go_back();
-
-    spdlog::info("[NetworkSettingsOverlay] Overlay hidden");
 }
 
 // ============================================================================
@@ -1563,67 +1491,6 @@ void NetworkSettingsOverlay::handle_network_forget_cancel() {
 }
 
 // ============================================================================
-// Static Trampolines for LVGL Callbacks
-// ============================================================================
-
-void NetworkSettingsOverlay::on_wlan_toggle_changed(lv_event_t* e) {
-    auto& self = get_network_settings_overlay();
-    self.handle_wlan_toggle_changed(e);
-}
-
-void NetworkSettingsOverlay::on_refresh_clicked(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_refresh_clicked();
-}
-
-void NetworkSettingsOverlay::on_test_network_clicked(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_test_network_clicked();
-}
-
-void NetworkSettingsOverlay::on_add_other_clicked(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_add_other_clicked();
-}
-
-void NetworkSettingsOverlay::on_network_item_clicked(lv_event_t* e) {
-    auto& self = get_network_settings_overlay();
-    self.handle_network_item_clicked(e);
-}
-
-void NetworkSettingsOverlay::on_network_settings_forget(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_network_settings_forget();
-}
-
-void NetworkSettingsOverlay::on_network_test_close(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_network_test_close();
-}
-
-void NetworkSettingsOverlay::on_hidden_cancel_clicked(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_hidden_cancel_clicked();
-}
-
-void NetworkSettingsOverlay::on_hidden_connect_clicked(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_hidden_connect_clicked();
-}
-
-void NetworkSettingsOverlay::on_security_changed(lv_event_t* e) {
-    auto& self = get_network_settings_overlay();
-    self.handle_security_changed(e);
-}
-
-// ============================================================================
 // Password Modal Implementation
 // ============================================================================
 
@@ -1773,16 +1640,4 @@ void NetworkSettingsOverlay::handle_password_connect_clicked() {
                 }
             });
         });
-}
-
-void NetworkSettingsOverlay::on_wifi_password_cancel(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_password_cancel_clicked();
-}
-
-void NetworkSettingsOverlay::on_wifi_password_connect(lv_event_t* e) {
-    (void)e;
-    auto& self = get_network_settings_overlay();
-    self.handle_password_connect_clicked();
 }

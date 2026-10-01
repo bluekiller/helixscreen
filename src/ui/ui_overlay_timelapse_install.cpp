@@ -4,6 +4,7 @@
 #include "ui_overlay_timelapse_install.h"
 
 #include "ui_button.h"
+#include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
 #include "ui_nav_manager.h"
 #include "ui_step_progress.h"
@@ -17,6 +18,7 @@
 #include "moonraker_config_manager.h"
 #include "moonraker_types.h"
 #include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -29,7 +31,6 @@ using namespace helix;
 // ============================================================================
 
 static std::unique_ptr<TimelapseInstallOverlay> g_timelapse_install;
-static lv_obj_t* g_timelapse_install_panel = nullptr;
 
 TimelapseInstallOverlay& get_global_timelapse_install() {
     if (!g_timelapse_install) {
@@ -45,48 +46,9 @@ void init_global_timelapse_install(IMoonrakerAPI* api) {
         return;
     }
     g_timelapse_install = std::make_unique<TimelapseInstallOverlay>(api);
-    StaticPanelRegistry::instance().register_destroy("TimelapseInstallOverlay", []() {
-        if (g_timelapse_install_panel) {
-            NavigationManager::instance().unregister_overlay_instance(g_timelapse_install_panel);
-        }
-        g_timelapse_install_panel = nullptr;
-        g_timelapse_install.reset();
-    });
+    StaticPanelRegistry::instance().register_destroy("TimelapseInstallOverlay",
+                                                     []() { g_timelapse_install.reset(); });
     spdlog::trace("[Timelapse Install] Initialized");
-}
-
-// ============================================================================
-// ROW CLICK CALLBACK (opens overlay from Advanced panel)
-// ============================================================================
-
-/// Opens the install overlay; called from advanced panel timelapse setup row
-static void open_timelapse_install_overlay() {
-    if (!g_timelapse_install) {
-        spdlog::error("[Timelapse Install] Global instance not initialized!");
-        return;
-    }
-
-    // Lazy-create the panel
-    if (!g_timelapse_install_panel) {
-        spdlog::debug("[Timelapse Install] Creating install overlay panel...");
-        g_timelapse_install_panel =
-            g_timelapse_install->create(lv_display_get_screen_active(nullptr));
-
-        if (!g_timelapse_install_panel) {
-            spdlog::error("[Timelapse Install] Failed to create timelapse_install_overlay");
-            return;
-        }
-        spdlog::debug("[Timelapse Install] Panel created");
-    }
-
-    // Re-register before every push: switch_to_panel_impl() clears the
-    // non-persistent overlay_instances_ map on navbar switches, so a cached
-    // panel re-opened after a navbar tap would otherwise be pushed unregistered
-    // (no on_deactivate on dismiss, leaving the wizard's async wifi-scan
-    // callbacks ungated by wizard_active_). Idempotent (keyed by widget).
-    NavigationManager::instance().register_overlay_instance(g_timelapse_install_panel,
-                                                            g_timelapse_install.get());
-    NavigationManager::instance().push_overlay(g_timelapse_install_panel);
 }
 
 // ============================================================================
@@ -95,28 +57,28 @@ static void open_timelapse_install_overlay() {
 
 TimelapseInstallOverlay::TimelapseInstallOverlay(IMoonrakerAPI* api) : api_(api) {}
 
-void TimelapseInstallOverlay::init_subjects() {
-    lv_xml_register_event_cb(nullptr, "on_timelapse_install_action", on_action_clicked);
-    spdlog::trace("[{}] Event callbacks registered", get_name());
+void TimelapseInstallOverlay::register_callbacks() {
+    register_xml_callbacks({{"on_timelapse_install_action", [](lv_event_t*) {
+                                 auto& self = get_global_timelapse_install();
+                                 if (self.action_callback_) {
+                                     self.action_callback_();
+                                 }
+                             }}});
 }
 
 lv_obj_t* TimelapseInstallOverlay::create(lv_obj_t* parent) {
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, get_xml_component_name(), nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Find key widgets by name
-    status_label_ = lv_obj_find_by_name(overlay_root_, "status_text");
-    action_btn_ = lv_obj_find_by_name(overlay_root_, "action_button");
-    ssh_container_ = lv_obj_find_by_name(overlay_root_, "ssh_instructions_container");
+    status_label_ = helix::ui::find_required(overlay_root_, "status_text", get_name());
+    action_btn_ = helix::ui::find_required(overlay_root_, "action_button", get_name());
+    ssh_container_ =
+        helix::ui::find_required(overlay_root_, "ssh_instructions_container", get_name());
 
-    // action_btn_ is a ui_button — use ui_button_set_text() to update its label
-
-    // Create step progress widget programmatically (dynamic content)
-    lv_obj_t* step_container = lv_obj_find_by_name(overlay_root_, "step_container");
+    // Step progress widget is built programmatically (dynamic content)
+    lv_obj_t* step_container =
+        helix::ui::find_required(overlay_root_, "step_container", get_name());
     if (step_container) {
         ui_step_t steps[] = {{lv_tr("Checking webcam"), StepState::Pending},
                              {lv_tr("Checking plugin"), StepState::Pending},
@@ -131,10 +93,6 @@ lv_obj_t* TimelapseInstallOverlay::create(lv_obj_t* parent) {
     hide_action_button();
     if (ssh_container_)
         lv_obj_add_flag(ssh_container_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::debug("[{}] create() - widgets found: status={} action={} ssh={} steps={}", get_name(),
-                  status_label_ != nullptr, action_btn_ != nullptr, ssh_container_ != nullptr,
-                  step_progress_ != nullptr);
 
     return overlay_root_;
 }
@@ -714,21 +672,9 @@ void TimelapseInstallOverlay::step_verify() {
 }
 
 // ============================================================================
-// EVENT CALLBACKS
-// ============================================================================
-
-void TimelapseInstallOverlay::on_action_clicked(lv_event_t* /*e*/) {
-    if (!g_timelapse_install)
-        return;
-    if (g_timelapse_install->action_callback_) {
-        g_timelapse_install->action_callback_();
-    }
-}
-
-// ============================================================================
 // PUBLIC OPENER (called from advanced panel)
 // ============================================================================
 
 void open_timelapse_install() {
-    open_timelapse_install_overlay();
+    get_global_timelapse_install().show(lv_display_get_screen_active(nullptr));
 }

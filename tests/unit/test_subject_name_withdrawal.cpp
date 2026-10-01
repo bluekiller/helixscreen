@@ -37,16 +37,8 @@
 
 #include "../catch_amalgamated.hpp"
 
-namespace helix::settings {
-DisplaySettingsOverlay& get_display_settings_overlay();
-AppearanceSettingsOverlay& get_appearance_settings_overlay();
-MaterialTempsOverlay& get_material_temps_overlay();
-LabelPrinterSettingsOverlay& get_label_printer_settings_overlay();
-} // namespace helix::settings
-
 namespace helix::ui {
 SpoolmanOverlay& get_spoolman_overlay();
-BarcodeScannerSettingsOverlay& get_barcode_scanner_settings_overlay();
 } // namespace helix::ui
 
 WizardInputShaperStep* get_wizard_input_shaper_step();

@@ -109,10 +109,19 @@ def calls(text: str, func: str):
         yield text.count("\n", 0, m.start()) + 1, args
 
 
+_COMMENT_OR_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"|/\*.*?\*/|//[^\n]*', re.S)
+
+
 def strip_comments(text: str) -> str:
-    # Blank out comments but keep line numbers and annotation-free code.
-    text = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
-    return re.sub(r"//[^\n]*", "", text)
+    # Blank out comments but keep line numbers; a "//" inside a string literal
+    # (a URL) is not a comment.
+    def blank(m: re.Match) -> str:
+        t = m.group(0)
+        if t[0] == '"':
+            return t
+        return re.sub(r"[^\n]", " ", t) if t[1] == "*" else ""
+
+    return _COMMENT_OR_STRING.sub(blank, text)
 
 
 class XmlTree:
@@ -159,6 +168,8 @@ class XmlTree:
                 in_decl = in_decl or el.tag in DECLARATION_TAGS
                 if not in_decl:
                     tags.add(el.tag)
+                    if el.get("extends"):
+                        tags.add(el.get("extends"))
                     n = el.get("name")
                     if n and "$" not in n:
                         names.add(n)

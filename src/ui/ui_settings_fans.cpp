@@ -8,6 +8,7 @@
 
 #include "ui_settings_fans.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
 #include "ui_fan_control_overlay.h"
 #include "ui_modal.h"
@@ -19,118 +20,33 @@
 #include "config.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "printer_state.h"
-#include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
 #include <cstring>
-#include <memory>
-
-// ============================================================================
-// STATIC RENAME MODAL CALLBACKS
-// ============================================================================
-
-static void on_fan_rename_confirm(lv_event_t* /*e*/) {
-    helix::settings::get_fan_settings_overlay().confirm_rename();
-}
-
-static void on_fan_rename_cancel(lv_event_t* /*e*/) {
-    helix::settings::get_fan_settings_overlay().cancel_rename();
-}
 
 namespace helix::settings {
 
-// ============================================================================
-// SINGLETON ACCESSOR
-// ============================================================================
-
-static std::unique_ptr<FanSettingsOverlay> g_fan_settings_overlay;
-
-FanSettingsOverlay& get_fan_settings_overlay() {
-    if (!g_fan_settings_overlay) {
-        g_fan_settings_overlay = std::make_unique<FanSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy("FanSettingsOverlay",
-                                                         []() { g_fan_settings_overlay.reset(); });
-    }
-    return *g_fan_settings_overlay;
-}
-
-// ============================================================================
-// CONSTRUCTOR / DESTRUCTOR
-// ============================================================================
-
-FanSettingsOverlay::FanSettingsOverlay() {
-    spdlog::debug("[{}] Created", get_name());
-}
-
-FanSettingsOverlay::~FanSettingsOverlay() {
-    spdlog::trace("[{}] Destroyed", get_name());
-}
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
+using helix::ui::find_required;
 
 void FanSettingsOverlay::register_callbacks() {
-    lv_xml_register_event_cb(nullptr, "on_fan_rename_confirm", on_fan_rename_confirm);
-    lv_xml_register_event_cb(nullptr, "on_fan_rename_cancel", on_fan_rename_cancel);
-    spdlog::debug("[{}] Callbacks registered", get_name());
+    register_xml_callbacks({
+        {"on_fan_rename_confirm", [](lv_event_t*) { get_fan_settings_overlay().confirm_rename(); }},
+        {"on_fan_rename_cancel", [](lv_event_t*) { get_fan_settings_overlay().cancel_rename(); }},
+    });
 }
 
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
 lv_obj_t* FanSettingsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
-    spdlog::debug("[{}] Creating overlay...", get_name());
-
-    // Create from XML component
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "fan_settings_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Find containers for dynamic row population
-    controllable_list_ = lv_obj_find_by_name(overlay_root_, "controllable_fans_list");
-    auto_list_ = lv_obj_find_by_name(overlay_root_, "auto_fans_list");
-    no_fans_placeholder_ = lv_obj_find_by_name(overlay_root_, "no_fans_placeholder");
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::info("[{}] Overlay created", get_name());
+    // Containers for dynamic row population
+    controllable_list_ = find_required(overlay_root_, "controllable_fans_list", get_name());
+    auto_list_ = find_required(overlay_root_, "auto_fans_list", get_name());
+    no_fans_placeholder_ = find_required(overlay_root_, "no_fans_placeholder", get_name());
     return overlay_root_;
-}
-
-void FanSettingsOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    parent_screen_ = parent_screen;
-
-    // Lazy create overlay
-    if (!overlay_root_ && parent_screen_) {
-        create(parent_screen_);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show - overlay not created", get_name());
-        return;
-    }
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Populate fan lists (also called on_activate for re-entry)
-    populate_fans();
-
-    // Push onto navigation stack
-    NavigationManager::instance().push_overlay(overlay_root_);
 }
 
 // ============================================================================
@@ -286,28 +202,20 @@ void FanSettingsOverlay::populate_fans() {
     update_section_count("auto_fan_count", auto_count);
 
     // Show/hide sections based on fan counts
-    lv_obj_t* controllable_section = lv_obj_find_by_name(overlay_root_, "controllable_section");
-    lv_obj_t* auto_section = lv_obj_find_by_name(overlay_root_, "auto_section");
+    lv_obj_t* controllable_section =
+        find_required(overlay_root_, "controllable_section", get_name());
+    lv_obj_t* auto_section = find_required(overlay_root_, "auto_section", get_name());
 
     if (controllable_section) {
-        if (controllable_count > 0)
-            lv_obj_remove_flag(controllable_section, LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_add_flag(controllable_section, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_flag(controllable_section, LV_OBJ_FLAG_HIDDEN, controllable_count == 0);
     }
     if (auto_section) {
-        if (auto_count > 0)
-            lv_obj_remove_flag(auto_section, LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_add_flag(auto_section, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_flag(auto_section, LV_OBJ_FLAG_HIDDEN, auto_count == 0);
     }
 
     // Show empty state if no fans at all
     if (no_fans_placeholder_) {
-        if (fans.empty())
-            lv_obj_remove_flag(no_fans_placeholder_, LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_add_flag(no_fans_placeholder_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_flag(no_fans_placeholder_, LV_OBJ_FLAG_HIDDEN, !fans.empty());
     }
 
     // Populate row lists

@@ -35,7 +35,7 @@
         <setting_toggle_row name="row_animations"
                             label="Animations" label_tag="Animations" icon="animation"
                             description="Enable UI motion effects" description_tag="Enable UI motion effects"
-                            callback="on_animations_changed"/>
+                            subject="settings_animations_enabled" callback="on_animations_changed"/>
         <!-- Widget Labels -->
         <setting_toggle_row name="row_widget_labels"
                             label="Widget Labels" label_tag="Widget Labels" icon="view_grid"
@@ -65,13 +65,14 @@
                               description="How Z-axis movement is displayed"
                               description_tag="How Z-axis movement is displayed"
                               options="Auto&#10;Bed Moves&#10;Nozzle Moves"
-                              options_tag="Auto&#10;Bed Moves&#10;Nozzle Moves" callback="on_z_movement_style_changed"/>
+                              options_tag="Auto&#10;Bed Moves&#10;Nozzle Moves"
+                              bind_selected="settings_z_movement_style" callback="on_z_movement_style_changed"/>
         <setting_dropdown_row name="row_bed_mesh_mode"
                               label="Bed Mesh Render" label_tag="Bed Mesh Render" icon="grid_large"
                               description="Choose rendering mode for bed mesh visualization"
                               description_tag="Choose rendering mode for bed mesh visualization"
                               options="Auto&#10;3D View&#10;2D Heatmap" options_tag="Auto&#10;3D View&#10;2D Heatmap"
-                              callback="on_bed_mesh_mode_changed"/>
+                              bind_selected="settings_bed_mesh_render_mode" callback="on_bed_mesh_mode_changed"/>
       </setting_group>
       <!-- Bottom padding for scroll -->
       <lv_obj width="100%" scrollable="false">

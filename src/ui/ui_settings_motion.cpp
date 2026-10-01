@@ -3,11 +3,9 @@
 
 #include "ui_settings_motion.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_component_keypad.h"
-#include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
-#include "ui_toast_manager.h"
 
 #include "app_globals.h"
 #include "i_moonraker_api.h"
@@ -21,7 +19,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <memory>
 
 namespace helix::settings {
 
@@ -111,15 +108,8 @@ bool field_in_range(int raw) {
 // GLOBAL INSTANCE
 // ============================================================================
 
-static std::unique_ptr<MotionSettingsOverlay> g_motion_settings_overlay;
-
 static MotionSettingsOverlay& get_motion_settings_overlay() {
-    if (!g_motion_settings_overlay) {
-        g_motion_settings_overlay = std::make_unique<MotionSettingsOverlay>();
-        StaticPanelRegistry::instance().register_destroy(
-            "MotionSettingsOverlay", []() { g_motion_settings_overlay.reset(); });
-    }
-    return *g_motion_settings_overlay;
+    return lazy_global<MotionSettingsOverlay>("MotionSettingsOverlay");
 }
 
 void show_motion_settings_overlay() {
@@ -131,10 +121,6 @@ void show_motion_settings_overlay() {
 // ============================================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================================
-
-MotionSettingsOverlay::MotionSettingsOverlay() {
-    spdlog::trace("[{}] Constructor", get_name());
-}
 
 MotionSettingsOverlay::~MotionSettingsOverlay() {
     // persist_timer_ cancels itself as a member; a still-pending write dies
@@ -151,73 +137,47 @@ void MotionSettingsOverlay::set_api(IMoonrakerAPI* api) {
 // ============================================================================
 
 void MotionSettingsOverlay::init_subjects() {
-    init_subjects_guarded([this]() {
-        for (size_t i = 0; i < FIELD_COUNT; ++i) {
-            format_display(i);
-            UI_MANAGED_SUBJECT_STRING(display_subjects_[i], display_buffers_[i],
-                                      display_buffers_[i], SUBJECT_NAMES[i], subjects_);
-        }
-        UI_MANAGED_SUBJECT_STRING(jog_speed_max_subject_, jog_speed_max_buf_, "500",
-                                  "jog_speed_max_display", subjects_);
-    });
+    for (size_t i = 0; i < FIELD_COUNT; ++i) {
+        format_display(i);
+        UI_MANAGED_SUBJECT_STRING(display_subjects_[i], display_buffers_[i], display_buffers_[i],
+                                  SUBJECT_NAMES[i], subjects_);
+    }
+    UI_MANAGED_SUBJECT_STRING(jog_speed_max_subject_, jog_speed_max_buf_, "500",
+                              "jog_speed_max_display", subjects_);
 }
 
 void MotionSettingsOverlay::register_callbacks() {
-    lv_xml_register_event_cb(nullptr, "on_jog_speed_xy_changed", on_jog_speed_xy_changed);
-    lv_xml_register_event_cb(nullptr, "on_jog_speed_z_changed", on_jog_speed_z_changed);
-    lv_xml_register_event_cb(nullptr, "on_motion_field_clicked", on_field_clicked);
-    lv_xml_register_event_cb(nullptr, "on_reset_distances", on_reset_distances);
-
-    spdlog::debug("[{}] Callbacks registered", get_name());
+    register_xml_callbacks({
+        {"on_jog_speed_xy_changed",
+         [](lv_event_t* e) {
+             get_motion_settings_overlay().handle_jog_speed_changed(
+                 /*is_z=*/false, lv_slider_get_value(lv_event_get_current_target_obj(e)));
+         }},
+        {"on_jog_speed_z_changed",
+         [](lv_event_t* e) {
+             get_motion_settings_overlay().handle_jog_speed_changed(
+                 /*is_z=*/true, lv_slider_get_value(lv_event_get_current_target_obj(e)));
+         }},
+        {"on_motion_field_clicked",
+         [](lv_event_t* e) {
+             const char* index_str = static_cast<const char*>(lv_event_get_user_data(e));
+             if (!index_str) {
+                 return;
+             }
+             const int raw = static_cast<int>(std::strtol(index_str, nullptr, 10));
+             if (field_in_range(raw)) {
+                 get_motion_settings_overlay().handle_field_clicked(static_cast<Field>(raw));
+             } else {
+                 spdlog::warn("[MotionSettingsOverlay] Ignoring out-of-range field index {}", raw);
+             }
+         }},
+        {"on_reset_distances",
+         [](lv_event_t*) { get_motion_settings_overlay().handle_reset_distances(); }},
+    });
 }
 
 void MotionSettingsOverlay::deinit_subjects() {
     deinit_subjects_base(subjects_);
-}
-
-// ============================================================================
-// UI CREATION
-// ============================================================================
-
-lv_obj_t* MotionSettingsOverlay::create(lv_obj_t* parent) {
-    if (!parent) {
-        spdlog::error("[{}] NULL parent", get_name());
-        return nullptr;
-    }
-
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "motion_settings_overlay", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay from XML", get_name());
-        return nullptr;
-    }
-
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-    spdlog::info("[{}] Overlay created", get_name());
-
-    return overlay_root_;
-}
-
-void MotionSettingsOverlay::show(lv_obj_t* parent_screen) {
-    spdlog::debug("[{}] show() called", get_name());
-
-    if (!subjects_initialized_) {
-        init_subjects();
-        register_callbacks();
-    }
-
-    if (!overlay_root_ && parent_screen) {
-        create(parent_screen);
-    }
-
-    if (!overlay_root_) {
-        spdlog::error("[{}] Failed to create overlay", get_name());
-        ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Failed to load overlay"), 2000);
-        return;
-    }
-
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-    NavigationManager::instance().push_overlay(overlay_root_);
 }
 
 // ============================================================================
@@ -458,22 +418,8 @@ void MotionSettingsOverlay::handle_reset_distances() {
 }
 
 // ============================================================================
-// STATIC CALLBACKS
+// KEYPAD
 // ============================================================================
-
-void MotionSettingsOverlay::on_field_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionSettingsOverlay] on_field_clicked");
-    const char* index_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (index_str) {
-        const int raw = static_cast<int>(std::strtol(index_str, nullptr, 10));
-        if (field_in_range(raw)) {
-            get_motion_settings_overlay().handle_field_clicked(static_cast<Field>(raw));
-        } else {
-            spdlog::warn("[MotionSettingsOverlay] Ignoring out-of-range field index {}", raw);
-        }
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void MotionSettingsOverlay::on_keypad_value(float value, void* user_data) {
     auto* self = static_cast<MotionSettingsOverlay*>(user_data);
@@ -481,28 +427,6 @@ void MotionSettingsOverlay::on_keypad_value(float value, void* user_data) {
         return;
     }
     self->handle_keypad_value(self->pending_keypad_field_, static_cast<double>(value));
-}
-
-void MotionSettingsOverlay::on_jog_speed_xy_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionSettingsOverlay] on_jog_speed_xy_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    get_motion_settings_overlay().handle_jog_speed_changed(/*is_z=*/false,
-                                                           lv_slider_get_value(slider));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MotionSettingsOverlay::on_jog_speed_z_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionSettingsOverlay] on_jog_speed_z_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    get_motion_settings_overlay().handle_jog_speed_changed(/*is_z=*/true,
-                                                           lv_slider_get_value(slider));
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void MotionSettingsOverlay::on_reset_distances(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[MotionSettingsOverlay] on_reset_distances");
-    get_motion_settings_overlay().handle_reset_distances();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 } // namespace helix::settings

@@ -10,7 +10,8 @@
       <setting_toggle_row name="row_printer_switcher"
                           label="Show Printer Switcher" label_tag="Show Printer Switcher" icon="printer_3d"
                           description="Show printer icon in navigation bar"
-                          description_tag="Show printer icon in navigation bar" callback="on_printer_switcher_changed"/>
+                          description_tag="Show printer icon in navigation bar" subject="show_printer_switcher"
+                          callback="on_printer_switcher_changed"/>
       <setting_section_header title="PRINTERS" title_tag="PRINTERS" hide_icon="true"/>
       <!-- Dynamic printer rows populated by C++ -->
       <lv_obj name="printer_list_container"
