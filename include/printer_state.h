@@ -2377,8 +2377,8 @@ class PrinterState {
      * Stores the type name and fetches the PrePrintOptionSet from the printer
      * database via PrinterDetector::get_pre_print_option_set().
      *
-     * Thread-safe: Uses helix::async::call_method_ref() to defer LVGL subject
-     * updates to the main thread. Safe to call from WebSocket callbacks.
+     * Thread-safe: defers LVGL subject updates to the main thread. Safe to call from WebSocket
+     * callbacks.
      *
      * @param type Printer type name (e.g., "FlashForge Adventurer 5M Pro")
      */
@@ -2681,7 +2681,7 @@ class PrinterState {
     // ============================================================================
     // These methods contain the actual LVGL subject updates and must only be called
     // from the main thread. Public setters such as set_klipper_version() reach them
-    // through queue_update (helix::async::call_method), ensuring thread safety.
+    // through async_lifetime_.defer(), ensuring thread safety.
 
     friend class PrinterStateTestAccess;
     friend class PrinterTemperatureStateTestAccess;

@@ -965,7 +965,7 @@ class PrinterPrintState {
     /**
      * @brief Internal setter for print-in-progress flag
      *
-     * Called via helix::async::invoke from set_print_in_progress().
+     * Called on the main thread from set_print_in_progress().
      */
     void set_print_in_progress_internal(bool in_progress);
 

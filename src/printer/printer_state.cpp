@@ -17,7 +17,6 @@
 
 #include "accel_sensor_manager.h"
 #include "app_globals.h"
-#include "async_helpers.h"
 #include "capability_overrides.h"
 #include "chamber_heater_assignment.h"
 #include "chamber_heater_backend.h"
@@ -691,7 +690,8 @@ void PrinterState::set_klippy_state(KlippyState state) {
     mark_klippy_state_live();
 
     // Thread-safe wrapper: defer LVGL subject updates to main thread
-    helix::async::call_method(this, &PrinterState::set_klippy_state_internal, state);
+    async_lifetime_.defer("PrinterState::set_klippy_state",
+                          [this, state]() { set_klippy_state_internal(state); });
 }
 
 void PrinterState::set_klippy_state_sync(KlippyState state) {
@@ -706,7 +706,8 @@ void PrinterState::set_klippy_state_if_unseeded(KlippyState state) {
     // in the same serialized order as the webhooks parse. Checking on the caller's
     // thread would race: a live frame could land between the check and the apply,
     // and printer.info's older answer would win anyway.
-    helix::async::call_method(this, &PrinterState::set_klippy_state_if_unseeded_internal, state);
+    async_lifetime_.defer("PrinterState::set_klippy_state_if_unseeded",
+                          [this, state]() { set_klippy_state_if_unseeded_internal(state); });
 }
 
 void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
@@ -739,7 +740,7 @@ void PrinterState::reset_klippy_state_freshness() {
 
 void PrinterState::set_klippy_state_internal(KlippyState state) {
     // Single chokepoint for every Klippy state change: the webhooks JSON parse, the
-    // helix::async::call_method wrapper, and set_klippy_state_sync all land here.
+    // deferred set_klippy_state(), and set_klippy_state_sync all land here.
     const bool changed = network_state_.set_klippy_state_internal(state);
     if (!changed) {
         return;
@@ -918,7 +919,8 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
 
 void PrinterState::set_klipper_version(const std::string& version) {
     // Thread-safe wrapper: defer LVGL subject updates to main thread
-    helix::async::call_method_ref(this, &PrinterState::set_klipper_version_internal, version);
+    async_lifetime_.defer("PrinterState::set_klipper_version",
+                          [this, version]() { set_klipper_version_internal(version); });
 }
 
 void PrinterState::set_klipper_version_internal(const std::string& version) {
@@ -927,7 +929,8 @@ void PrinterState::set_klipper_version_internal(const std::string& version) {
 
 void PrinterState::set_moonraker_version(const std::string& version) {
     // Thread-safe wrapper: defer LVGL subject updates to main thread
-    helix::async::call_method_ref(this, &PrinterState::set_moonraker_version_internal, version);
+    async_lifetime_.defer("PrinterState::set_moonraker_version",
+                          [this, version]() { set_moonraker_version_internal(version); });
 }
 
 void PrinterState::set_moonraker_version_internal(const std::string& version) {
@@ -935,7 +938,8 @@ void PrinterState::set_moonraker_version_internal(const std::string& version) {
 }
 
 void PrinterState::set_os_version(const std::string& version) {
-    helix::async::call_method_ref(this, &PrinterState::set_os_version_internal, version);
+    async_lifetime_.defer("PrinterState::set_os_version",
+                          [this, version]() { set_os_version_internal(version); });
 }
 
 void PrinterState::set_os_version_internal(const std::string& version) {
@@ -1244,7 +1248,8 @@ void PrinterState::set_print_outcome(PrintOutcome outcome) {
 
 void PrinterState::set_printer_type(const std::string& type) {
     // Thread-safe wrapper: defer updates to main thread
-    helix::async::call_method_ref(this, &PrinterState::set_printer_type_internal, type);
+    async_lifetime_.defer("PrinterState::set_printer_type",
+                          [this, type]() { set_printer_type_internal(type); });
 }
 
 void PrinterState::set_printer_type_sync(const std::string& type) {
@@ -1255,12 +1260,14 @@ void PrinterState::set_printer_type_sync(const std::string& type) {
 void PrinterState::set_z_offset_external_persistence(const std::string& provider_name) {
     // Discovery calls this from the WebSocket thread; the body touches
     // subjects, so it runs on the main thread like every other setter here.
-    helix::async::call_method_ref(this, &PrinterState::set_z_offset_external_persistence_internal,
-                                  provider_name);
+    async_lifetime_.defer(
+        "PrinterState::set_z_offset_external_persistence",
+        [this, provider_name]() { set_z_offset_external_persistence_internal(provider_name); });
 }
 
 void PrinterState::clear_z_offset_external_persistence() {
-    helix::async::call_method(this, &PrinterState::clear_z_offset_external_persistence_internal);
+    async_lifetime_.defer("PrinterState::clear_z_offset_external_persistence",
+                          [this]() { clear_z_offset_external_persistence_internal(); });
 }
 
 void PrinterState::clear_z_offset_external_persistence_internal() {

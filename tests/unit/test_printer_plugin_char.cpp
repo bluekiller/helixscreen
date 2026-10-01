@@ -12,7 +12,7 @@
  * - helix_plugin_installed_ (int, tri-state: -1=unknown, 0=not installed, 1=installed)
  *
  * Update mechanisms:
- * - set_helix_plugin_installed(bool) - async update via helix::async::invoke
+ * - set_helix_plugin_installed(bool) - async update via the UpdateQueue
  *
  * Query methods:
  * - service_has_helix_plugin() - returns true only when value is 1
