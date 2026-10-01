@@ -41,9 +41,9 @@ struct BundleOptions {
     bool include_klipper_logs = false;
     bool include_moonraker_logs = false;
     std::string user_note;
-    /// Filled by upload_async() on the main thread. Left uncaptured by direct
-    /// collect() callers, which are main-thread themselves and get a snapshot
-    /// taken inline instead.
+    /// Filled by upload_async() on the main thread. collect() never reads
+    /// PrinterState itself, so a caller that leaves this uncaptured gets empty
+    /// printer and moonraker sections.
     PrinterSnapshot printer;
 };
 

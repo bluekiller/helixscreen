@@ -112,10 +112,10 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
     }
 
     try {
-        // upload_async() captures this on the main thread; a direct caller is
-        // main-thread itself, so taking it inline there is equally safe.
-        bundle["printer"] = collect_printer_info(
-            options.printer.captured ? options.printer : snapshot_printer_state());
+        // Only upload_async() may fill options.printer: it captures on the main
+        // thread, and this runs on the slow lane where PrinterState is not safe
+        // to read. An uncaptured snapshot renders as an empty section.
+        bundle["printer"] = collect_printer_info(options.printer);
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect printer info: {}", e.what());
         bundle["printer"] = json{{"error", e.what()}};
@@ -201,8 +201,7 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
     }
 
     try {
-        bundle["moonraker"] = collect_moonraker_info(
-            options.printer.captured ? options.printer : snapshot_printer_state());
+        bundle["moonraker"] = collect_moonraker_info(options.printer);
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect moonraker info: {}", e.what());
         bundle["moonraker"] = json{{"error", e.what()}};
@@ -817,15 +816,15 @@ std::string DebugBundleCollector::sanitize_value(const std::string& value) {
 
         return result;
     } catch (const std::exception& e) {
-        spdlog::debug("[DebugBundle] sanitize_value regex failed: {}", e.what());
-        return value; // Return unsanitized rather than crash
+        spdlog::debug("[DebugBundle] sanitize_value failed: {}", e.what());
+        return "[REDACTED]"; // A value that cannot be checked is not uploaded
     }
 }
 
 json DebugBundleCollector::sanitize_json(const json& input, int depth) {
     if (depth > 32) {
-        spdlog::debug("[DebugBundle] sanitize_json hit depth limit, passing through");
-        return input;
+        spdlog::debug("[DebugBundle] sanitize_json hit depth limit, dropping subtree");
+        return "[REDACTED]";
     }
 
     if (input.is_object()) {

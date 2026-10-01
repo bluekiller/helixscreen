@@ -1,11 +1,16 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_update_queue.h"
+
 #include "../helix_test_fixture.h"
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/printer_state_test_access.h"
+#include "../ui_test_utils.h"
 #include "app_constants.h"
 #include "app_globals.h"
 #include "config.h"
+#include "printer_state.h"
 #include "system/debug_bundle_collector.h"
 #include "system/update_checker.h"
 #include "test_helpers/scoped_update_urls.h"
@@ -2043,4 +2048,29 @@ TEST_CASE("DebugBundleCollector: config-dump elision buys back the line budget",
     auto condensed = helix::DebugBundleCollector::condense_klipper_log(raw);
     REQUIRE(count_lines_with(last_n(condensed, 200), "Timer too close") == 1);
     REQUIRE(count_lines_with(last_n(condensed, 200), "Starting serial connect") == 1);
+}
+
+TEST_CASE("DebugBundleCollector: sanitize_json drops a subtree past the depth limit",
+          "[debug-bundle]") {
+    json deep = {{"leaf", "user@example.com"}};
+    for (int i = 0; i < 40; ++i)
+        deep = json{{"n", deep}};
+
+    const std::string out = helix::DebugBundleCollector::sanitize_json(deep).dump();
+    CHECK(out.find("user@example.com") == std::string::npos);
+    CHECK(out.find("[REDACTED]") != std::string::npos);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "DebugBundleCollector: collect() leaves an uncaptured printer snapshot empty",
+                 "[debug-bundle]") {
+    PrinterState& state = get_printer_state();
+    PrinterStateTestAccess::reset(state);
+    state.init_subjects(false);
+    state.set_klipper_version("v9.9.9-bundle-race-probe");
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    REQUIRE(state.get_klipper_version_raw() == "v9.9.9-bundle-race-probe");
+
+    const json bundle = helix::DebugBundleCollector::collect();
+    CHECK(bundle["printer"].dump().find("bundle-race-probe") == std::string::npos);
 }
