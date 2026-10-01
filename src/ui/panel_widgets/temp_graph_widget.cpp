@@ -74,9 +74,6 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Store self-pointer for click callback routing
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Build default config if not yet configured
     if (config_.empty() || !config_.contains("sensors")) {
         build_default_config();
@@ -161,9 +158,6 @@ void TempGraphWidget::detach() {
     language_observer_.reset();
     controller_.reset();
 
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
 

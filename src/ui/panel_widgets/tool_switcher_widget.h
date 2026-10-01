@@ -6,8 +6,7 @@
 
 #include "ams_error.h"
 #include "async_lifetime_guard.h"
-#include "panel_widget.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 #include "subject_managed_panel.h"
 
 #include <cstdint>
@@ -19,7 +18,7 @@ namespace helix {
 class PrinterState;
 class ToolSwitcherTestAccess;
 
-class ToolSwitcherWidget : public PanelWidget {
+class ToolSwitcherWidget : public TiledPanelWidget {
   public:
     explicit ToolSwitcherWidget(PrinterState& printer_state);
     ~ToolSwitcherWidget() override;
@@ -34,12 +33,6 @@ class ToolSwitcherWidget : public PanelWidget {
     /// is a sized tile and refuses what TileSizing cannot draw.
     bool fits_at(int width_px, int height_px) const override {
         return !is_compact_at(width_px, height_px) || sizing_.fits(width_px, height_px);
-    }
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-    TileSizing* tile_sizing() override {
-        return &sizing_;
     }
     bool has_overlay_open() const override {
         return picker_.is_visible();
@@ -98,9 +91,6 @@ class ToolSwitcherWidget : public PanelWidget {
     // LVGL keeps pointers into grid_col_dsc_/grid_row_dsc_ rather than copies.
     lv_obj_t* pill_container_ = nullptr;
 
-    /// The compact form's value is the active tool's label, budgeted at the
-    /// widest label any tool carries (set on every size change).
-    TileSizing sizing_{"tool_switcher", TileSizing::Content{"", "", "", true}};
     /// 1 while the compact form is shown; XML hides the other form.
     lv_subject_t compact_subject_{};
     lv_subject_t active_label_subject_{};

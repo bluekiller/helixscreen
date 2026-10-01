@@ -43,7 +43,8 @@ void register_tool_switcher_widget() {
 }
 
 ToolSwitcherWidget::ToolSwitcherWidget(PrinterState& printer_state)
-    : printer_state_(printer_state) {
+    : TiledPanelWidget("tool_switcher", TileSizing::Content{"", "", "", true}),
+      printer_state_(printer_state) {
     // Registered before the manager parses the component, which drops a
     // binding whose subject is missing at parse time.
     UI_MANAGED_SUBJECT_INT(compact_subject_, 0, "tool_switcher_compact", subjects_);

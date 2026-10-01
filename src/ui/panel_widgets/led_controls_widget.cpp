@@ -30,11 +30,6 @@ void LedControlsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
 
-    // Set user_data on the root lv_obj, NOT on the ui_button child.
-    // ui_button allocates its own UiButtonData in user_data — overwriting it
-    // leaks memory and breaks button style/contrast auto-updates.
-    lv_obj_set_user_data(widget_obj_, this);
-
     // Register click handler via per-callback user_data
     lv_obj_t* btn = lv_obj_find_by_name(widget_obj_, "led_controls_button");
     if (btn) {
@@ -43,9 +38,6 @@ void LedControlsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 }
 
 void LedControlsWidget::detach() {
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
 }

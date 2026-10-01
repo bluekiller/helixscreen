@@ -281,9 +281,11 @@ struct GridSpyWidget : helix::PanelWidget {
     static int s_layout_at_attach; // lv_obj_get_style_layout of parent at attach
     static int s_attach_count;
     static lv_obj_t* s_attached_widget;
+    static void* s_user_data_at_attach;
 
     void attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen*/) override {
         s_attached_widget = widget_obj;
+        s_user_data_at_attach = lv_obj_get_user_data(widget_obj);
         ++s_attach_count;
         lv_obj_t* parent = widget_obj ? lv_obj_get_parent(widget_obj) : nullptr;
         s_layout_at_attach =
@@ -304,6 +306,7 @@ struct GridSpyWidget : helix::PanelWidget {
 int GridSpyWidget::s_layout_at_attach = -2;
 int GridSpyWidget::s_attach_count = 0;
 lv_obj_t* GridSpyWidget::s_attached_widget = nullptr;
+void* GridSpyWidget::s_user_data_at_attach = nullptr;
 
 } // namespace
 
@@ -392,6 +395,8 @@ TEST_CASE_METHOD(XMLTestFixture,
     REQUIRE(GridSpyWidget::s_attached_widget != nullptr);
     // The attached widget is parented into the page container.
     REQUIRE(lv_obj_get_parent(GridSpyWidget::s_attached_widget) == container);
+    // The manager binds the tile root before attach(); the widget never sets it.
+    REQUIRE(GridSpyWidget::s_user_data_at_attach == widgets.front().get());
 
     // Restore global registry state for subsequent tests.
     helix::register_widget_factory("clock", original_clock_factory);

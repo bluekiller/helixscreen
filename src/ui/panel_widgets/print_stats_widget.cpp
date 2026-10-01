@@ -140,7 +140,6 @@ PrintStatsWidget::~PrintStatsWidget() {
 void PrintStatsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     widget_obj_ = widget_obj;
     parent_screen_ = parent_screen;
-    lv_obj_set_user_data(widget_obj_, this);
 
     // Pressed feedback: dim on touch
     lv_obj_set_style_opa(widget_obj_, LV_OPA_70, LV_PART_MAIN | LV_STATE_PRESSED);
@@ -221,7 +220,6 @@ void PrintStatsWidget::detach() {
     uninstall_delete_hook();
 
     if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
     parent_screen_ = nullptr;
@@ -425,9 +423,7 @@ void PrintStatsWidget::handle_clicked() {
 
 void PrintStatsWidget::print_stats_clicked_cb(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[PrintStatsWidget] print_stats_clicked_cb");
-    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    auto* self = static_cast<PrintStatsWidget*>(lv_obj_get_user_data(target));
-    if (self) {
+    if (auto* self = panel_widget_from_event<PrintStatsWidget>(e)) {
         self->handle_clicked();
     }
     LVGL_SAFE_EVENT_CB_END();

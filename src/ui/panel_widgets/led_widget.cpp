@@ -118,8 +118,9 @@ PickerSubjects& picker_subjects() {
 // and API are accepted and not kept.
 LedWidget::LedWidget(const std::string& instance_id, PrinterState& /*printer_state*/,
                      IMoonrakerAPI* /*api*/)
-    : instance_id_(instance_id), sizing_(instance_id, TileSizing::Content{"", "", "Light", false}),
-      name_subject_name_(instance_id + "_led_name"), wide_subject_name_(instance_id + "_led_wide") {
+    : TiledPanelWidget(instance_id, TileSizing::Content{"", "", "Light", false}),
+      instance_id_(instance_id), name_subject_name_(instance_id + "_led_name"),
+      wide_subject_name_(instance_id + "_led_wide") {
     UI_MANAGED_SUBJECT_STRING(name_subject_, name_buf_, "", name_subject_name_.c_str(), subjects_);
     UI_MANAGED_SUBJECT_INT(wide_subject_, 0, wide_subject_name_.c_str(), subjects_);
 
@@ -188,10 +189,6 @@ void LedWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         return;
     }
 
-    // Set user_data on the root lv_obj, NOT on the ui_button child.
-    // ui_button allocates its own UiButtonData in user_data — overwriting it
-    // leaks memory and breaks button style/contrast auto-updates.
-    lv_obj_set_user_data(widget_obj_, this);
     live_instances().insert(this);
 
     light_icon_ = lv_obj_find_by_name(widget_obj_, "light_icon");
@@ -229,9 +226,6 @@ void LedWidget::detach() {
     live_instances().erase(this);
 
     // Nullify widget pointers BEFORE resetting observers
-    if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
-    }
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
     light_icon_ = nullptr;

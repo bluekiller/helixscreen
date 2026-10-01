@@ -5,6 +5,7 @@
 #include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
+#include "ui_icon_picker.h"
 
 #include "app_globals.h"
 #include "device_display_name.h"
@@ -65,20 +66,7 @@ static constexpr uint32_t ICON_COLORS[] = {
 };
 static constexpr size_t ICON_COLOR_COUNT = std::size(ICON_COLORS);
 
-static constexpr int ICON_CELL_SIZE = 36;
 static constexpr int COLOR_SWATCH_SIZE = 28;
-
-void apply_icon_cell_highlight(lv_obj_t* cell, bool selected) {
-    if (selected) {
-        lv_obj_set_style_border_width(cell, 2, 0);
-        lv_obj_set_style_border_color(cell, theme_manager_get_color("primary"), 0);
-        lv_obj_set_style_bg_opa(cell, 20, 0);
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("primary"), 0);
-    } else {
-        lv_obj_set_style_border_width(cell, 0, 0);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-    }
-}
 
 void apply_color_swatch_highlight(lv_obj_t* swatch, bool selected) {
     lv_obj_set_style_border_width(swatch, selected ? 2 : 1, 0);
@@ -302,36 +290,8 @@ void FavoriteMacroConfigModal::populate_icon_grid() {
 
     std::string effective = icon_name_.empty() ? "play" : icon_name_;
 
-    for (size_t i = 0; i < CURATED_ICON_COUNT; ++i) {
-        lv_obj_t* cell = lv_obj_create(icon_grid_);
-        lv_obj_set_size(cell, ICON_CELL_SIZE, ICON_CELL_SIZE);
-        lv_obj_remove_flag(cell, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(cell, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_bg_opa(cell, 0, 0);
-        lv_obj_set_style_radius(cell, 4, 0);
-        lv_obj_set_style_pad_all(cell, 0, 0);
-
-        lv_obj_set_style_bg_color(cell, theme_manager_get_color("text_muted"),
-                                  LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(cell, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-
-        apply_icon_cell_highlight(cell, CURATED_ICONS[i] == effective);
-
-        const char* cp = helix::ui::icon::lookup_codepoint(CURATED_ICONS[i]);
-        if (cp) {
-            lv_obj_t* icon = lv_label_create(cell);
-            lv_label_set_text(icon, cp);
-            lv_obj_set_style_text_font(icon, &mdi_icons_24, 0);
-            lv_obj_set_style_text_color(icon, theme_manager_get_color("text"), 0);
-            lv_obj_center(icon);
-            lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
-        }
-
-        lv_obj_set_user_data(cell, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
-        lv_obj_add_event_cb(cell, FavoriteMacroConfigModal::icon_cell_cb, LV_EVENT_CLICKED,
-                            nullptr);
-    }
+    helix::ui::populate_icon_grid(icon_grid_, CURATED_ICONS, CURATED_ICON_COUNT, effective,
+                                  [this](const char* name) { select_icon(name); });
 
     spdlog::debug("[FavoriteMacroConfigModal] Populated icon grid ({} icons)", CURATED_ICON_COUNT);
 }
@@ -382,13 +342,7 @@ void FavoriteMacroConfigModal::refresh_highlights() {
 
     if (icon_grid_) {
         std::string effective = icon_name_.empty() ? "play" : icon_name_;
-        uint32_t count = lv_obj_get_child_count(icon_grid_);
-        for (uint32_t i = 0; i < count; ++i) {
-            lv_obj_t* cell = lv_obj_get_child(icon_grid_, i);
-            auto idx = static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(cell)));
-            apply_icon_cell_highlight(cell,
-                                      idx < CURATED_ICON_COUNT && CURATED_ICONS[idx] == effective);
-        }
+        helix::ui::refresh_icon_grid(icon_grid_, effective);
     }
 
     if (color_grid_) {
@@ -439,16 +393,6 @@ void FavoriteMacroConfigModal::macro_row_cb(lv_event_t* e) {
     auto* name_ptr = static_cast<std::string*>(lv_obj_get_user_data(target));
     if (name_ptr && s_active_) {
         s_active_->select_macro(*name_ptr);
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FavoriteMacroConfigModal::icon_cell_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FavoriteMacroConfigModal] icon_cell_cb");
-    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    auto idx = static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(target)));
-    if (idx < CURATED_ICON_COUNT && s_active_) {
-        s_active_->select_icon(CURATED_ICONS[idx]);
     }
     LVGL_SAFE_EVENT_CB_END();
 }

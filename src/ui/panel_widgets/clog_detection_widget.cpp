@@ -44,8 +44,6 @@ void ClogDetectionWidget::attach(lv_obj_t* widget_obj, lv_obj_t* /*parent_screen
     if (!widget_obj_)
         return;
 
-    lv_obj_set_user_data(widget_obj_, this);
-
     carousel_ = lv_obj_find_by_name(widget_obj_, "filament_health_carousel");
     if (!carousel_) {
         spdlog::warn("[ClogDetectionWidget] filament_health_carousel not found");
@@ -118,7 +116,6 @@ void ClogDetectionWidget::detach() {
     has_buffer_page_ = false;
 
     if (widget_obj_) {
-        lv_obj_set_user_data(widget_obj_, nullptr);
         widget_obj_ = nullptr;
     }
 }

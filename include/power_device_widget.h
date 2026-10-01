@@ -8,7 +8,7 @@
 #include "async_lifetime_guard.h"
 #include "panel_widget.h"
 #include "sensor_state.h"
-#include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 
 #include <string>
 #include <vector>
@@ -24,7 +24,7 @@ struct PowerDeviceWidgetTestAccess; // test-only friend (tests/test_helpers/)
 /// instance IDs like "power_device:1", "power_device:2", etc.
 /// Tap toggles device power; configure button opens device picker.
 /// When unconfigured, tap also opens picker.
-class PowerDeviceWidget : public PanelWidget {
+class PowerDeviceWidget : public TiledPanelWidget {
   public:
     explicit PowerDeviceWidget(const std::string& instance_id);
     ~PowerDeviceWidget() override;
@@ -41,24 +41,6 @@ class PowerDeviceWidget : public PanelWidget {
     }
     const char* id() const override {
         return instance_id_.c_str();
-    }
-
-    void on_size_changed(int colspan, int rowspan, int width_px, int height_px) override {
-        (void)colspan;
-        (void)rowspan;
-        sizing_.measure_and_publish(width_px, height_px);
-    }
-
-    bool fits_at(int width_px, int height_px) const override {
-        return sizing_.fits(width_px, height_px);
-    }
-
-    const char** xml_attrs() const override {
-        return sizing_.subject_attrs();
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
     }
 
     void handle_clicked();
@@ -136,12 +118,6 @@ class PowerDeviceWidget : public PanelWidget {
     /// shows none, and reserving it would leave the badge above an empty gap.
     void apply_status_presence();
 
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently. The state is the reading ("LOCKED" is the
-    /// widest), the device name the label, drawn whatever show_widget_labels
-    /// says, and the glyph sits in a disc that scales with it.
-    TileSizing sizing_{instance_id_.c_str(), status_content(false)};
     /// 1 while a device is configured, so the state line is drawn.
     lv_subject_t has_status_subject_{};
     std::string has_status_name_ = instance_id_ + "_has_status";

@@ -10,8 +10,8 @@
 #include "async_lifetime_guard.h"
 #include "led/led_backend.h"
 #include "led/led_devices.h"
-#include "panel_widget.h"
 #include "src/ui/panel_widgets/tile_sizing.h"
+#include "src/ui/panel_widgets/tiled_panel_widget.h"
 #include "subject_managed_panel.h"
 
 #include <string>
@@ -50,7 +50,7 @@ LightIconLook light_icon_look(const std::vector<led::DeviceState>& states);
 
 /// One light button: on the home grid it drives the device its `led` config
 /// names, "all" for every switchable device, or the chamber light when unset.
-class LedWidget : public PanelWidget {
+class LedWidget : public TiledPanelWidget {
   public:
     LedWidget(const std::string& instance_id, PrinterState& printer_state, IMoonrakerAPI* api);
     ~LedWidget() override;
@@ -80,10 +80,6 @@ class LedWidget : public PanelWidget {
 
     const char** xml_attrs() const override {
         return const_cast<const char**>(attrs_.data());
-    }
-
-    TileSizing* tile_sizing() override {
-        return &sizing_;
     }
 
     /// Point this button at @p key (a device id or LIGHT_BUTTON_ALL) and save it.
@@ -148,10 +144,6 @@ class LedWidget : public PanelWidget {
     helix::ui::WidgetRef parent_screen_;
     helix::ui::WidgetRef light_icon_;
 
-    /// Built with the widget so its subjects exist before the manager parses
-    /// this tile's component; a binding whose subject is missing at parse time
-    /// is dropped permanently.
-    TileSizing sizing_;
     SubjectManager subjects_;
     lv_subject_t name_subject_{};
     char name_buf_[64] = {};
