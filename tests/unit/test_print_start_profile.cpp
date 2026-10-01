@@ -9,8 +9,12 @@
  * and progress calculation. No LVGL or Moonraker required - pure logic tests.
  */
 
+#include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/print_start_profile_test_access.h"
 #include "print_start_profile.h"
+
+#include <filesystem>
+#include <fstream>
 
 #include "../catch_amalgamated.hpp"
 
@@ -610,6 +614,27 @@ TEST_CASE("PrintStartProfile: graceful handling of edge cases", "[profile][print
         REQUIRE(profile->try_match_pattern("G28", result));
         REQUIRE(result.phase == PrintStartPhase::HOMING);
     }
+}
+
+TEST_CASE("PrintStartProfile: an unparseable default.json yields an empty Generic profile",
+          "[profile][print]") {
+    // A user copy of default.json outranks the shipped one, so a broken edit is
+    // the realistic way to lose the generic profile.
+    helix::ConfigDirGuard config_dir("print_start_profile_default");
+    std::filesystem::create_directories(config_dir.dir / "print_start_profiles");
+    std::ofstream(config_dir.dir / "print_start_profiles" / "default.json")
+        << R"({"name": "Generic", "response_patterns": [)";
+
+    auto profile = PrintStartProfile::load_default();
+    REQUIRE(profile != nullptr);
+    CHECK(profile->name() == "Generic");
+    CHECK(profile->is_default());
+    PrintStartProfile::MatchResult result;
+    CHECK_FALSE(profile->try_match_pattern("G28", result));
+    CHECK_FALSE(profile->has_phase_object());
+
+    // A named profile that is missing falls back to the same empty profile.
+    CHECK(PrintStartProfile::load("nonexistent_profile_xyz")->name() == "Generic");
 }
 
 // ============================================================================
