@@ -58,3 +58,20 @@ TEST_CASE_METHOD(UnvisitedPrintSelectFixture,
     REQUIRE(PrintSelectPanelTestAccess::list_contains(*panel_, file.name()));
     REQUIRE(PrintSelectPanelTestAccess::detail_view_visible(*panel_));
 }
+
+TEST_CASE_METHOD(UnvisitedPrintSelectFixture,
+                 "First file selection shows the no-thumbnail placeholder in the new detail view",
+                 "[print_select][lazy]") {
+    PlantedGcode file("lazy_nothumb.gcode");
+    REQUIRE(file.on_disk());
+    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    drain();
+    REQUIRE_FALSE(PrintSelectPanelTestAccess::detail_view_built(*panel_));
+
+    REQUIRE(panel_->select_file_by_name(file.name()));
+    drain();
+
+    lv_obj_t* icon = lv_obj_find_by_name(test_screen(), "detail_no_thumbnail_icon");
+    REQUIRE(icon != nullptr);
+    REQUIRE_FALSE(lv_obj_has_flag(icon, LV_OBJ_FLAG_HIDDEN));
+}

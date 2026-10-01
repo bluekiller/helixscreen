@@ -619,6 +619,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 if (!panel->select_file_by_name(pending)) {
                     spdlog::warn("[{}] Pending file selection '{}' not found in file list",
                                  panel->get_name(), pending);
+                    ui_notification_warning("File not found in print list");
                 }
             }
 
@@ -2016,6 +2017,8 @@ void PrintSelectPanel::set_selected_file(const char* filename, const char* thumb
                                          const char* filament_weight, const char* layer_count,
                                          const char* print_height, time_t modified_timestamp,
                                          const char* layer_height, const char* filament_type) {
+    // The thumbnail toggles below act on the detail view's widgets.
+    create_detail_view();
     lv_subject_copy_string(&selected_filename_subject_, filename);
 
     // Display filename strips .gcode extension for cleaner UI
