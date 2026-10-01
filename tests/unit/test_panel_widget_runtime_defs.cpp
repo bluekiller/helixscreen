@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/process_async_timers.h"
 #include "../test_helpers/scope_exit.h"
 #include "misc/lv_timer_private.h"
 #include "panel_widget_manager.h"
@@ -13,31 +14,7 @@
 
 using namespace helix;
 
-namespace {
-
-/// Drain LVGL's one-shot timer queue (lv_async_call), mirroring the helper in
-/// test_panel_widget_manager.cpp: a fixed process_lvgl() elapse does not
-/// reliably fire period-0 one-shot timers created mid-tick, so pump them
-/// explicitly.
-void process_async_calls() {
-    for (int safety = 0; safety < 50; ++safety) {
-        bool fired = false;
-        lv_timer_t* t = lv_timer_get_next(nullptr);
-        while (t) {
-            lv_timer_t* next = lv_timer_get_next(t);
-            if (t->repeat_count > 0 && t->timer_cb) {
-                t->timer_cb(t);
-                fired = true;
-                break;
-            }
-            t = next;
-        }
-        if (!fired)
-            break;
-    }
-}
-
-} // namespace
+namespace {} // namespace
 
 TEST_CASE("runtime widget defs register, list and unregister", "[widget_registry]") {
     size_t base = get_all_widget_defs().size();
@@ -87,7 +64,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "changed definitions rebuild every widget list
     mgr.setup_gate_observers("test_catalog", [&] { ++catalog; });
     mgr.notify_widget_defs_changed();
     process_lvgl(50);
-    process_async_calls();
+    process_async_timers();
     CHECK(home == 1);
     CHECK(catalog == 1);
     PanelWidgetManager::clear_gate_observers("test_home");
