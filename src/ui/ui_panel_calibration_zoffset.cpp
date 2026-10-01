@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
-#include "ui_event_safety.h"
 #include "ui_nav_manager.h"
 #include "ui_temperature_utils.h"
 #include "ui_z_offset_indicator.h"
@@ -22,6 +21,7 @@
 #include "probe_sensor_types.h"
 #include "static_panel_registry.h"
 #include "toolhead_homing.h"
+#include "ui/ui_widget_helpers.h"
 #include "z_offset_persistence.h"
 #include "z_offset_utils.h"
 
@@ -52,10 +52,6 @@ static constexpr int DEFAULT_WARM_BED_TEMP = 45;
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================================
 
-ZOffsetCalibrationPanel::ZOffsetCalibrationPanel() {
-    spdlog::trace("[ZOffsetCal] Instance created");
-}
-
 ZOffsetCalibrationPanel::~ZOffsetCalibrationPanel() {
     // Applying [L011]: No mutex in destructors
 
@@ -69,16 +65,10 @@ ZOffsetCalibrationPanel::~ZOffsetCalibrationPanel() {
 
     // Clear widget pointers (owned by LVGL)
     overlay_root_ = nullptr;
-    parent_screen_ = nullptr;
     saved_z_offset_display_ = nullptr;
     z_position_display_ = nullptr;
     final_offset_label_ = nullptr;
     error_message_ = nullptr;
-
-    // Guard against static destruction order fiasco (spdlog may be gone)
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[ZOffsetCal] Destroyed");
-    }
 }
 
 // ============================================================================
@@ -103,13 +93,28 @@ void ZOffsetCalibrationPanel::init_subjects() {
     // Register XML event callbacks (once globally)
     if (!s_callbacks_registered) {
         register_xml_callbacks({
-            {"on_zoffset_start_clicked", on_start_clicked},
-            {"on_zoffset_abort_clicked", on_abort_clicked},
-            {"on_zoffset_accept_clicked", on_accept_clicked},
-            {"on_zoffset_done_clicked", on_done_clicked},
-            {"on_zoffset_retry_clicked", on_retry_clicked},
-            {"on_zoffset_z_adjust", on_z_adjust},
-            {"on_zoffset_warm_bed_toggled", on_warm_bed_toggled},
+            {"on_zoffset_start_clicked",
+             [](lv_event_t*) { get_global_zoffset_cal_panel().handle_start_clicked(); }},
+            {"on_zoffset_abort_clicked",
+             [](lv_event_t*) { get_global_zoffset_cal_panel().handle_abort_clicked(); }},
+            {"on_zoffset_accept_clicked",
+             [](lv_event_t*) { get_global_zoffset_cal_panel().handle_accept_clicked(); }},
+            {"on_zoffset_done_clicked",
+             [](lv_event_t*) { get_global_zoffset_cal_panel().handle_done_clicked(); }},
+            {"on_zoffset_retry_clicked",
+             [](lv_event_t*) { get_global_zoffset_cal_panel().handle_retry_clicked(); }},
+            {"on_zoffset_z_adjust",
+             [](lv_event_t* e) {
+                 const char* delta_str = static_cast<const char*>(lv_event_get_user_data(e));
+                 if (delta_str) {
+                     float delta = strtof(delta_str, nullptr);
+                     spdlog::debug("[ZOffsetCal] Z adjust: {} (from user_data \"{}\")", delta,
+                                   delta_str);
+                     get_global_zoffset_cal_panel().handle_z_adjust(delta);
+                 }
+             }},
+            {"on_zoffset_warm_bed_toggled",
+             [](lv_event_t*) { get_global_zoffset_cal_panel().handle_warm_bed_toggled(); }},
         });
 
         s_callbacks_registered = true;
@@ -123,30 +128,10 @@ void ZOffsetCalibrationPanel::init_subjects() {
 // ============================================================================
 
 lv_obj_t* ZOffsetCalibrationPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[ZOffsetCal] Overlay already created");
-        return overlay_root_;
-    }
-
-    parent_screen_ = parent;
-
-    spdlog::debug("[ZOffsetCal] Creating overlay from XML");
-
-    // Create from XML
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "calibration_zoffset_panel", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[ZOffsetCal] Failed to create panel from XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
-
-    // Initially hidden (will be shown by show())
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    // Setup widget references
     setup_widgets();
-
-    spdlog::info("[ZOffsetCal] Overlay created");
     return overlay_root_;
 }
 
@@ -160,10 +145,11 @@ void ZOffsetCalibrationPanel::setup_widgets() {
     // Event handlers are registered via init_subjects() before XML creation
 
     // Find display elements (for programmatic updates not covered by subject bindings)
-    saved_z_offset_display_ = lv_obj_find_by_name(overlay_root_, "saved_z_offset_display");
-    z_position_display_ = lv_obj_find_by_name(overlay_root_, "z_position_display");
-    final_offset_label_ = lv_obj_find_by_name(overlay_root_, "final_offset_label");
-    error_message_ = lv_obj_find_by_name(overlay_root_, "error_message");
+    saved_z_offset_display_ =
+        helix::ui::find_required(overlay_root_, "saved_z_offset_display", get_name());
+    z_position_display_ = helix::ui::find_required(overlay_root_, "z_position_display", get_name());
+    final_offset_label_ = helix::ui::find_required(overlay_root_, "final_offset_label", get_name());
+    error_message_ = helix::ui::find_required(overlay_root_, "error_message", get_name());
 
     // Set initial state
     set_state(State::IDLE);
@@ -280,7 +266,8 @@ void ZOffsetCalibrationPanel::on_activate() {
 
     // Reset the visual indicator
     if (overlay_root_) {
-        lv_obj_t* indicator = lv_obj_find_by_name(overlay_root_, "z_offset_indicator");
+        lv_obj_t* indicator =
+            helix::ui::find_required(overlay_root_, "z_offset_indicator", get_name());
         if (indicator) {
             ui_z_offset_indicator_set_value(indicator, 0);
         }
@@ -335,8 +322,6 @@ void ZOffsetCalibrationPanel::cleanup() {
 
     // Call base class to set cleanup_called_ flag
     OverlayBase::cleanup();
-
-    parent_screen_ = nullptr;
 }
 
 // ============================================================================
@@ -827,7 +812,8 @@ void ZOffsetCalibrationPanel::handle_z_adjust(float delta) {
 
     // Flash the direction indicator
     if (overlay_root_) {
-        lv_obj_t* indicator = lv_obj_find_by_name(overlay_root_, "z_offset_indicator");
+        lv_obj_t* indicator =
+            helix::ui::find_required(overlay_root_, "z_offset_indicator", get_name());
         if (indicator) {
             ui_z_offset_indicator_flash_direction(indicator, delta > 0 ? 1 : -1);
         }
@@ -892,7 +878,8 @@ void ZOffsetCalibrationPanel::update_z_position(float z_position) {
 
     // Update the visual indicator (convert mm to microns)
     if (overlay_root_) {
-        lv_obj_t* indicator = lv_obj_find_by_name(overlay_root_, "z_offset_indicator");
+        lv_obj_t* indicator =
+            helix::ui::find_required(overlay_root_, "z_offset_indicator", get_name());
         if (indicator) {
             int microns = static_cast<int>(z_position * 1000.0f);
             ui_z_offset_indicator_set_value(indicator, microns);
@@ -919,79 +906,11 @@ void ZOffsetCalibrationPanel::on_calibration_result(bool success, const std::str
 }
 
 // ============================================================================
-// STATIC TRAMPOLINES
-// ============================================================================
-
-void ZOffsetCalibrationPanel::on_start_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_start_clicked");
-    get_global_zoffset_cal_panel().handle_start_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ZOffsetCalibrationPanel::on_z_adjust(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_adjust");
-    const char* delta_str = static_cast<const char*>(lv_event_get_user_data(e));
-    if (delta_str) {
-        float delta = strtof(delta_str, nullptr);
-        spdlog::debug("[ZOffsetCal] Z adjust: {} (from user_data \"{}\")", delta, delta_str);
-        get_global_zoffset_cal_panel().handle_z_adjust(delta);
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ZOffsetCalibrationPanel::on_accept_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_accept_clicked");
-    get_global_zoffset_cal_panel().handle_accept_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ZOffsetCalibrationPanel::on_abort_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_abort_clicked");
-    get_global_zoffset_cal_panel().handle_abort_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ZOffsetCalibrationPanel::on_done_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_done_clicked");
-    get_global_zoffset_cal_panel().handle_done_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ZOffsetCalibrationPanel::on_retry_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_retry_clicked");
-    get_global_zoffset_cal_panel().handle_retry_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ZOffsetCalibrationPanel::on_warm_bed_toggled(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_warm_bed_toggled");
-    get_global_zoffset_cal_panel().handle_warm_bed_toggled();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
 // GLOBAL INSTANCE AND ROW CLICK HANDLER
 // ============================================================================
 
-static std::unique_ptr<ZOffsetCalibrationPanel> g_zoffset_cal_panel;
-
 // Forward declarations
 static void on_zoffset_row_clicked(lv_event_t* e);
-
-ZOffsetCalibrationPanel& get_global_zoffset_cal_panel() {
-    if (!g_zoffset_cal_panel) {
-        g_zoffset_cal_panel = std::make_unique<ZOffsetCalibrationPanel>();
-        StaticPanelRegistry::instance().register_destroy("ZOffsetCalibrationPanel",
-                                                         []() { g_zoffset_cal_panel.reset(); });
-    }
-    return *g_zoffset_cal_panel;
-}
 
 void init_zoffset_row_handler() {
     lv_xml_register_event_cb(nullptr, "on_zoffset_row_clicked", on_zoffset_row_clicked);
@@ -1020,13 +939,6 @@ static void on_zoffset_row_clicked(lv_event_t* e) {
     spdlog::debug("[ZOffsetCal] Z-Offset row clicked");
 
     auto& overlay = get_global_zoffset_cal_panel();
-
-    // Lazy-create the Z-Offset calibration panel
-    if (!overlay.get_root()) {
-        overlay.init_subjects();
-        overlay.set_api(get_moonraker_api());
-        overlay.create(lv_display_get_screen_active(nullptr));
-    }
-
-    overlay.show();
+    overlay.set_api(get_moonraker_api());
+    overlay.show(lv_display_get_screen_active(nullptr));
 }

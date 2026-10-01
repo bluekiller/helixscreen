@@ -23,6 +23,7 @@
 #include "static_subject_registry.h"
 #include "temperature_service.h"
 #include "thermal_rate_model.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -75,8 +76,6 @@ PIDCalibrationPanel::PIDCalibrationPanel() {
     std::memset(buf_mpc_fan_transfer_, 0, sizeof(buf_mpc_fan_transfer_));
     std::memset(buf_fan_speed_text_, 0, sizeof(buf_fan_speed_text_));
     std::memset(buf_wattage_display_, 0, sizeof(buf_wattage_display_));
-
-    spdlog::trace("[PIDCal] Instance created");
 }
 
 PIDCalibrationPanel::~PIDCalibrationPanel() {
@@ -90,12 +89,6 @@ PIDCalibrationPanel::~PIDCalibrationPanel() {
 
     // Clear widget pointers (owned by LVGL)
     overlay_root_ = nullptr;
-    parent_screen_ = nullptr;
-
-    // Guard against static destruction order fiasco (spdlog may be gone)
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[PIDCal] Destroyed");
-    }
 }
 
 // ============================================================================
@@ -196,26 +189,39 @@ void PIDCalibrationPanel::init_subjects() {
     // Register XML event callbacks (once globally)
     if (!s_callbacks_registered) {
         register_xml_callbacks({
-            {"on_pid_heater_extruder", on_heater_extruder_clicked},
-            {"on_pid_heater_bed", on_heater_bed_clicked},
-            {"on_pid_temp_up", on_temp_up},
-            {"on_pid_temp_down", on_temp_down},
-            {"on_pid_start", on_start_clicked},
-            {"on_pid_abort", on_abort_clicked},
-            {"on_pid_done", on_done_clicked},
-            {"on_pid_retry", on_retry_clicked},
-            // Material preset callbacks — one per heater, slot read from the
-            // button name (replaces 8 per-material trampolines).
+            {"on_pid_heater_extruder",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_heater_extruder_clicked(); }},
+            {"on_pid_heater_bed",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_heater_bed_clicked(); }},
+            {"on_pid_temp_up", [](lv_event_t*) { get_global_pid_cal_panel().handle_temp_up(); }},
+            {"on_pid_temp_down",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_temp_down(); }},
+            {"on_pid_start",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_start_clicked(); }},
+            {"on_pid_abort",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_abort_clicked(); }},
+            {"on_pid_done", [](lv_event_t*) { get_global_pid_cal_panel().handle_done_clicked(); }},
+            {"on_pid_retry",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_retry_clicked(); }},
+            // Material preset callbacks: one per heater, slot read from the
+            // button name.
             {"on_pid_preset_material", on_pid_preset_material},
             {"on_pid_preset_bed_material", on_pid_preset_bed_material},
             // MPC method/config callbacks
-            {"on_cal_method_pid", on_method_pid_clicked},
-            {"on_cal_method_mpc", on_method_mpc_clicked},
-            {"on_cal_wattage_up", on_wattage_up},
-            {"on_cal_wattage_down", on_wattage_down},
-            {"on_cal_fan_quick", on_fan_quick_clicked},
-            {"on_cal_fan_detailed", on_fan_detailed_clicked},
-            {"on_cal_fan_thorough", on_fan_thorough_clicked},
+            {"on_cal_method_pid",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_method_pid_clicked(); }},
+            {"on_cal_method_mpc",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_method_mpc_clicked(); }},
+            {"on_cal_wattage_up",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_wattage_up(); }},
+            {"on_cal_wattage_down",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_wattage_down(); }},
+            {"on_cal_fan_quick",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_fan_quick_clicked(); }},
+            {"on_cal_fan_detailed",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_fan_detailed_clicked(); }},
+            {"on_cal_fan_thorough",
+             [](lv_event_t*) { get_global_pid_cal_panel().handle_fan_thorough_clicked(); }},
         });
         s_callbacks_registered = true;
     }
@@ -239,29 +245,10 @@ void PIDCalibrationPanel::deinit_subjects() {
 // ============================================================================
 
 lv_obj_t* PIDCalibrationPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[PIDCal] Overlay already created");
-        return overlay_root_;
-    }
-
-    parent_screen_ = parent;
-
-    spdlog::debug("[PIDCal] Creating overlay from XML");
-
-    // Create from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "calibration_pid_panel", nullptr));
-    if (!overlay_root_) {
-        spdlog::error("[PIDCal] Failed to create panel from XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
-
-    // Initially hidden (will be shown by show())
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
-    // Setup widget references
     setup_widgets();
-
-    spdlog::info("[PIDCal] Overlay created");
     return overlay_root_;
 }
 
@@ -273,7 +260,7 @@ void PIDCalibrationPanel::setup_widgets() {
 
     // Fan speed slider — imperative lv_obj_add_event_cb is required here because
     // XML event_cb does not support VALUE_CHANGED events (continuous slider updates).
-    fan_slider_ = lv_obj_find_by_name(overlay_root_, "fan_speed_slider");
+    fan_slider_ = helix::ui::find_required(overlay_root_, "fan_speed_slider", get_name());
     if (fan_slider_) {
         lv_obj_add_event_cb(fan_slider_, on_fan_slider_changed, LV_EVENT_VALUE_CHANGED, this);
     }
@@ -434,7 +421,6 @@ void PIDCalibrationPanel::cleanup() {
     OverlayBase::cleanup();
 
     // Clear references
-    parent_screen_ = nullptr;
 }
 
 // ============================================================================
@@ -563,7 +549,8 @@ void PIDCalibrationPanel::setup_pid_graph() {
     if (pid_graph_)
         return; // Already set up
 
-    lv_obj_t* container = lv_obj_find_by_name(overlay_root_, "pid_temp_graph_container");
+    lv_obj_t* container =
+        helix::ui::find_required(overlay_root_, "pid_temp_graph_container", get_name());
     if (!container) {
         spdlog::warn("[{}] pid_temp_graph_container not found", get_name());
         return;
@@ -1578,64 +1565,8 @@ void PIDCalibrationPanel::handle_fan_thorough_clicked() {
 }
 
 // ============================================================================
-// STATIC TRAMPOLINES (for XML event_cb)
+// EVENT CALLBACKS
 // ============================================================================
-
-void PIDCalibrationPanel::on_heater_extruder_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_heater_extruder_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_heater_extruder_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_heater_bed_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_heater_bed_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_heater_bed_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_temp_up(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_temp_up");
-    (void)e;
-    get_global_pid_cal_panel().handle_temp_up();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_temp_down(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_temp_down");
-    (void)e;
-    get_global_pid_cal_panel().handle_temp_down();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_start_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_start_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_start_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_abort_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_abort_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_abort_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_done_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_done_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_done_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_retry_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_retry_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_retry_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
 
 void PIDCalibrationPanel::on_fan_slider_changed(lv_event_t* e) {
     auto* panel = static_cast<PIDCalibrationPanel*>(lv_event_get_user_data(e));
@@ -1713,71 +1644,6 @@ void PIDCalibrationPanel::on_pid_preset_bed_material(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-// MPC method/config trampolines
-void PIDCalibrationPanel::on_method_pid_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_method_pid_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_method_pid_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_method_mpc_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_method_mpc_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_method_mpc_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_wattage_up(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_wattage_up");
-    (void)e;
-    get_global_pid_cal_panel().handle_wattage_up();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_wattage_down(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_wattage_down");
-    (void)e;
-    get_global_pid_cal_panel().handle_wattage_down();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_fan_quick_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_fan_quick_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_fan_quick_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_fan_detailed_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_fan_detailed_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_fan_detailed_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PIDCalibrationPanel::on_fan_thorough_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PIDCal] on_fan_thorough_clicked");
-    (void)e;
-    get_global_pid_cal_panel().handle_fan_thorough_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// GLOBAL INSTANCE
-// ============================================================================
-
-static std::unique_ptr<PIDCalibrationPanel> g_pid_cal_panel;
-
-PIDCalibrationPanel& get_global_pid_cal_panel() {
-    if (!g_pid_cal_panel) {
-        g_pid_cal_panel = std::make_unique<PIDCalibrationPanel>();
-        StaticPanelRegistry::instance().register_destroy("PIDCalibrationPanel",
-                                                         []() { g_pid_cal_panel.reset(); });
-    }
-    return *g_pid_cal_panel;
-}
-
 static PIDCalibrationPanel* existing_pid_cal_panel() {
-    return g_pid_cal_panel.get();
+    return helix::lazy_global_if_exists<PIDCalibrationPanel>();
 }

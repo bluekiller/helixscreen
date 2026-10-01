@@ -22,6 +22,7 @@
 #include "static_panel_registry.h"
 #include "text_io.h"
 #include "toolhead_homing.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -41,21 +42,10 @@ using helix::sensors::ProbeSensorType;
 // GLOBAL INSTANCE AND ROW CLICK HANDLER
 // ============================================================================
 
-static std::unique_ptr<ProbeOverlay> g_probe_overlay;
-
 // Forward declarations
 static void on_probe_row_clicked(lv_event_t* e);
 IMoonrakerAPI* get_moonraker_api();
 IMoonrakerClient* get_moonraker_client();
-
-ProbeOverlay& get_global_probe_overlay() {
-    if (!g_probe_overlay) {
-        g_probe_overlay = std::make_unique<ProbeOverlay>();
-        StaticPanelRegistry::instance().register_destroy("ProbeOverlay",
-                                                         []() { g_probe_overlay.reset(); });
-    }
-    return *g_probe_overlay;
-}
 
 ProbeOverlay::~ProbeOverlay() {
     if (subjects_initialized_) {
@@ -64,11 +54,6 @@ ProbeOverlay::~ProbeOverlay() {
     }
 
     overlay_root_ = nullptr;
-    parent_screen_ = nullptr;
-
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[Probe] Destroyed");
-    }
 }
 
 void init_probe_row_handler() {
@@ -81,23 +66,8 @@ static void on_probe_row_clicked(lv_event_t* e) {
     spdlog::debug("[Probe] Probe row clicked");
 
     auto& overlay = get_global_probe_overlay();
-
-    // Lazy-create the probe overlay
-    if (!overlay.get_root()) {
-        spdlog::debug("[Probe] Creating probe overlay...");
-
-        IMoonrakerAPI* api = get_moonraker_api();
-        overlay.set_api(api);
-
-        lv_obj_t* screen = lv_display_get_screen_active(nullptr);
-        if (!overlay.create(screen)) {
-            spdlog::error("[Probe] Failed to create probe_overlay");
-            return;
-        }
-        spdlog::info("[Probe] Overlay created");
-    }
-
-    overlay.show();
+    overlay.set_api(get_moonraker_api());
+    overlay.show(lv_display_get_screen_active(nullptr));
 }
 
 // ============================================================================
@@ -378,51 +348,13 @@ void ProbeOverlay::init_subjects() {
 }
 
 lv_obj_t* ProbeOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[Probe] Overlay already created");
-        return overlay_root_;
-    }
-
-    parent_screen_ = parent;
-
-    // Ensure subjects are initialized before XML creation
-    if (!subjects_initialized_) {
-        init_subjects();
-    }
-
-    spdlog::debug("[Probe] Creating overlay from XML");
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "probe_overlay", nullptr));
-
-    if (!overlay_root_) {
-        spdlog::error("[Probe] Failed to create overlay from XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
 
-    // Start hidden (push_overlay will show it)
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
-
     // Cache type panel container for later swapping
-    type_panel_container_ = lv_obj_find_by_name(overlay_root_, "probe_type_panel");
-
-    spdlog::info("[Probe] Overlay created successfully");
+    type_panel_container_ = helix::ui::find_required(overlay_root_, "probe_type_panel", get_name());
     return overlay_root_;
-}
-
-void ProbeOverlay::show() {
-    if (!overlay_root_) {
-        spdlog::error("[Probe] Cannot show: overlay not created");
-        return;
-    }
-
-    spdlog::debug("[Probe] Showing overlay");
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[Probe] Overlay shown");
 }
 
 void ProbeOverlay::on_activate() {
@@ -867,15 +799,8 @@ void ProbeOverlay::handle_zoffset_cal() {
 #endif
 
     auto& overlay = get_global_zoffset_cal_panel();
-
-    // Lazy-create z-offset overlay
-    if (!overlay.get_root()) {
-        overlay.init_subjects();
-        overlay.set_api(get_moonraker_api());
-        overlay.create(lv_display_get_screen_active(nullptr));
-    }
-
-    overlay.show();
+    overlay.set_api(get_moonraker_api());
+    overlay.show(lv_display_get_screen_active(nullptr));
 }
 
 void ProbeOverlay::handle_bed_mesh() {

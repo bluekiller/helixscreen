@@ -9,6 +9,7 @@
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "save_config_restart.h"
+#include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "tool_offset_calibration.h"
 
@@ -74,17 +75,15 @@ class ToolOffsetCalibrationPanel : public OverlayBase {
     /// on_run_rpc_error().
     static constexpr uint32_t CALIBRATION_TIMEOUT_MS = 900000; // 15 min
 
-    ToolOffsetCalibrationPanel();
     ~ToolOffsetCalibrationPanel() override;
-
-    ToolOffsetCalibrationPanel(const ToolOffsetCalibrationPanel&) = delete;
-    ToolOffsetCalibrationPanel& operator=(const ToolOffsetCalibrationPanel&) = delete;
-    ToolOffsetCalibrationPanel(ToolOffsetCalibrationPanel&&) = delete;
-    ToolOffsetCalibrationPanel& operator=(ToolOffsetCalibrationPanel&&) = delete;
 
     // === OverlayBase Interface ===
     void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
+    void register_callbacks() override;
+    const char* xml_component() const override {
+        return "calibration_tool_offset_panel";
+    }
     const char* get_name() const override {
         return "Tool Offset Calibration";
     }
@@ -143,11 +142,6 @@ class ToolOffsetCalibrationPanel : public OverlayBase {
     /// The confirmation text: heat, probe, what to check first
     std::string start_prompt() const;
 
-    // XML event trampolines
-    static void on_start_clicked(lv_event_t* e);
-    static void on_stop_clicked(lv_event_t* e);
-    static void on_save_clicked(lv_event_t* e);
-
     /// A calibration rpc is in flight (or being waited out, see
     /// begin_idle_wait). Cleared by its completion, a failure, or Stop.
     bool run_active_ = false;
@@ -193,6 +187,8 @@ class ToolOffsetCalibrationPanel : public OverlayBase {
 void init_tool_offset_row_handler();
 
 /// Singleton accessor (lazily created, destroyed via StaticPanelRegistry)
-ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel();
+inline ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel() {
+    return lazy_global<ToolOffsetCalibrationPanel>("ToolOffsetCalibrationPanel");
+}
 
 } // namespace helix::ui

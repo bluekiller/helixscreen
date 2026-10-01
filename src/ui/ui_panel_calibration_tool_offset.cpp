@@ -2,9 +2,9 @@
 
 #include "ui_panel_calibration_tool_offset.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
-#include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_update_queue.h"
@@ -21,7 +21,6 @@
 #include "static_panel_registry.h"
 #include "tool_offsets.h"
 #include "tool_state.h"
-#include "ui/ui_lazy_panel_helper.h"
 #include "z_offset_utils.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -33,37 +32,15 @@ namespace helix::ui {
 
 namespace cal = helix::tool_offset_calibration;
 
-namespace {
-
-std::unique_ptr<ToolOffsetCalibrationPanel> g_panel;
-
-} // namespace
-
-ToolOffsetCalibrationPanel& get_global_tool_offset_cal_panel() {
-    if (!g_panel) {
-        g_panel = std::make_unique<ToolOffsetCalibrationPanel>();
-        StaticPanelRegistry::instance().register_destroy("ToolOffsetCalibrationPanel",
-                                                         []() { g_panel.reset(); });
-    }
-    return *g_panel;
-}
-
 // ============================================================================
 // LIFECYCLE
 // ============================================================================
-
-ToolOffsetCalibrationPanel::ToolOffsetCalibrationPanel() {
-    spdlog::trace("[ToolOffsetCal] Instance created");
-}
 
 ToolOffsetCalibrationPanel::~ToolOffsetCalibrationPanel() {
     idle_wait_observer_.reset();
     tools_observer_.reset();
     subjects_.deinit_all();
     subjects_initialized_ = false;
-    if (!StaticPanelRegistry::is_destroyed()) {
-        spdlog::trace("[ToolOffsetCal] Destroyed");
-    }
 }
 
 void ToolOffsetCalibrationPanel::init_subjects() {
@@ -77,30 +54,26 @@ void ToolOffsetCalibrationPanel::init_subjects() {
     // row count is a fixed subject.
     UI_MANAGED_SUBJECT_INT(tool_count_, 0, "tool_cal_tool_count", subjects_);
 
-    static const std::pair<const char*, lv_event_cb_t> callbacks[] = {
-        {"on_tool_cal_start", on_start_clicked},
-        {"on_tool_cal_stop", on_stop_clicked},
-        {"on_tool_cal_save", on_save_clicked},
-    };
-    for (const auto& [name, cb] : callbacks) {
-        lv_xml_register_event_cb(nullptr, name, cb);
-    }
-
     subjects_initialized_ = true;
-    spdlog::debug("[ToolOffsetCal] Subjects initialized");
+}
+
+void ToolOffsetCalibrationPanel::register_callbacks() {
+    register_xml_callbacks({
+        {"on_tool_cal_start",
+         [](lv_event_t*) { get_global_tool_offset_cal_panel().start_calibration(); }},
+        {"on_tool_cal_stop",
+         [](lv_event_t*) { get_global_tool_offset_cal_panel().abort_in_progress_calibration(); }},
+        {"on_tool_cal_save",
+         [](lv_event_t*) { get_global_tool_offset_cal_panel().save_offsets(); }},
+    });
 }
 
 lv_obj_t* ToolOffsetCalibrationPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        return overlay_root_;
-    }
-    parent_screen_ = parent;
     // Start the <repeat> at zero rows: on_ui_destroyed() reclaimed the pools,
     // so a stale count would build rows bound to unregistered subjects.
     // refresh_rows() below sizes the pools and sets the real count.
     lv_subject_set_int(&tool_count_, 0);
-    if (!create_overlay_from_xml(parent, "calibration_tool_offset_panel")) {
-        spdlog::error("[ToolOffsetCal] Failed to create overlay from XML");
+    if (!OverlayBase::create(parent)) {
         return nullptr;
     }
     // Build the rows now: a hot-reload rebuild while hidden does not re-run
@@ -171,7 +144,6 @@ void ToolOffsetCalibrationPanel::cleanup() {
         NavigationManager::instance().unregister_overlay_instance(overlay_root_);
     }
     OverlayBase::cleanup();
-    parent_screen_ = nullptr;
 }
 
 // ============================================================================
@@ -528,49 +500,14 @@ void ToolOffsetCalibrationPanel::on_tools_changed() {
 }
 
 // ============================================================================
-// XML EVENT TRAMPOLINES
-// ============================================================================
-
-void ToolOffsetCalibrationPanel::on_start_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ToolOffsetCal] start");
-    get_global_tool_offset_cal_panel().start_calibration();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ToolOffsetCalibrationPanel::on_stop_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ToolOffsetCal] stop");
-    get_global_tool_offset_cal_panel().abort_in_progress_calibration();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void ToolOffsetCalibrationPanel::on_save_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ToolOffsetCal] save");
-    get_global_tool_offset_cal_panel().save_offsets();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
 // ADVANCED-PANEL ROW ENTRY
 // ============================================================================
 
-namespace {
-
-void on_tool_offset_row_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[ToolOffsetCal] advanced row");
-    lv_obj_t* screen = lv_screen_active();
-    helix::ui::lazy_create_and_push_overlay<ToolOffsetCalibrationPanel>(
-        get_global_tool_offset_cal_panel, screen, "Tool Offset Calibration", "AdvancedPanel");
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-} // namespace
-
 void init_tool_offset_row_handler() {
-    lv_xml_register_event_cb(nullptr, "on_tool_offset_row_clicked", on_tool_offset_row_clicked);
+    register_xml_callbacks({
+        {"on_tool_offset_row_clicked",
+         [](lv_event_t*) { get_global_tool_offset_cal_panel().show(lv_screen_active()); }},
+    });
 }
 
 } // namespace helix::ui

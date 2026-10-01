@@ -5,7 +5,6 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
-#include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_temperature_utils.h"
@@ -67,10 +66,6 @@ int material_nozzle_temp(const std::string& name) {
 // CONSTRUCTION
 // ============================================================================
 
-PACalibrationPanel::PACalibrationPanel() {
-    spdlog::trace("[PACal] Instance created");
-}
-
 PACalibrationPanel::~PACalibrationPanel() {
     // A raw timer cancelled only in cleanup() stays armed on a freed `this`
     // when StaticPanelRegistry::destroy_all() runs before lv_deinit()
@@ -79,7 +74,6 @@ PACalibrationPanel::~PACalibrationPanel() {
     if (!StaticPanelRegistry::is_destroyed()) {
         deinit_subjects();
     }
-    spdlog::trace("[PACal] Instance destroyed");
 }
 
 // ============================================================================
@@ -87,11 +81,6 @@ PACalibrationPanel::~PACalibrationPanel() {
 // ============================================================================
 
 void PACalibrationPanel::init_subjects() {
-    if (subjects_initialized_) {
-        spdlog::debug("[{}] Subjects already initialized", get_name());
-        return;
-    }
-
     UI_MANAGED_SUBJECT_INT(state_subject_, IDLE, "pa_cal_state", subjects_);
     UI_MANAGED_SUBJECT_INT(multi_tool_, 0, "pa_cal_multi_tool", subjects_);
     UI_MANAGED_SUBJECT_INT(tool_count_, 1, "pa_cal_tool_count", subjects_);
@@ -146,20 +135,88 @@ void PACalibrationPanel::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(last_value_, last_value_buf_, "", "pa_cal_last_value", subjects_);
     UI_MANAGED_SUBJECT_STRING(last_context_, last_context_buf_, "", "pa_cal_last_context",
                               subjects_);
+}
 
-    subjects_initialized_ = true;
-
+void PACalibrationPanel::register_callbacks() {
     register_xml_callbacks({
-        {"on_pa_cal_action", on_action_clicked},
-        {"on_pa_cal_start", on_start_clicked},
-        {"on_pa_cal_reset", on_reset_clicked},
-        {"on_pa_cal_tool", on_tool_clicked},
-        {"on_pa_cal_preset", on_preset_clicked},
-        {"on_pa_cal_temp_up", on_temp_up},
-        {"on_pa_cal_temp_down", on_temp_down},
+        {"on_pa_cal_action",
+         [](lv_event_t*) {
+             auto& panel = get_global_pa_cal_panel();
+             if (panel.state_ == HEATING || panel.state_ == MEASURING) {
+                 panel.stop_run(/*user_requested=*/true);
+             } else {
+                 panel.confirm_and_start();
+             }
+         }},
+        {"on_pa_cal_start", [](lv_event_t*) { get_global_pa_cal_panel().confirm_and_start(); }},
+        {"on_pa_cal_reset",
+         [](lv_event_t*) {
+             // Back to the setup screen, not straight into another run: after seeing a
+             // number the usual next move is to change the tool or the temperature, and
+             // re-running the identical measurement is rarely what was meant.
+             auto& panel = get_global_pa_cal_panel();
+             panel.set_state(IDLE);
+             lv_subject_set_int(&panel.progress_, 0);
+         }},
+        {"on_pa_cal_tool",
+         [](lv_event_t* e) {
+             // user_data carries the tool index as a string ("0".."3"), the same
+             // convention as the tool offset panel's per-row buttons.
+             const char* arg = static_cast<const char*>(lv_event_get_user_data(e));
+             if (arg && *arg) {
+                 auto& panel = get_global_pa_cal_panel();
+                 if (panel.state_ == IDLE || panel.state_ == COMPLETE || panel.state_ == ERROR) {
+                     const int tool = std::atoi(arg);
+                     panel.selected_tool_ = tool;
+                     // Pressure advance belongs to an extruder, and the firmware
+                     // measures whichever one is mounted - so picking a tool here has to
+                     // actually mount it, not just tint a chip.
+                     panel.select_tool(tool);
+                     panel.refresh_tools();
+                     // A new tool means a new extruder and a new answer; a stale result
+                     // card beside a different tool would be a lie.
+                     if (panel.state_ != IDLE) {
+                         panel.set_state(IDLE);
+                     }
+                 }
+             }
+         }},
+        {"on_pa_cal_preset",
+         [](lv_event_t* e) {
+             const char* arg = static_cast<const char*>(lv_event_get_user_data(e));
+             if (arg && *arg) {
+                 auto& panel = get_global_pa_cal_panel();
+                 if (panel.state_ == IDLE || panel.state_ == COMPLETE || panel.state_ == ERROR) {
+                     const int slot = std::atoi(arg);
+                     const std::string name = helix::presets::name(slot);
+                     if (!name.empty()) {
+                         panel.selected_preset_ = slot;
+                         panel.target_temp_ =
+                             std::clamp(material_nozzle_temp(name), TEMP_MIN, TEMP_MAX);
+                         panel.refresh_presets();
+                         panel.update_temp_display();
+                     }
+                 }
+             }
+         }},
+        {"on_pa_cal_temp_up",
+         [](lv_event_t*) {
+             auto& panel = get_global_pa_cal_panel();
+             panel.target_temp_ = std::min(panel.target_temp_ + TEMP_STEP, TEMP_MAX);
+             // The temperature no longer matches the preset that set it.
+             panel.selected_preset_ = -1;
+             panel.refresh_presets();
+             panel.update_temp_display();
+         }},
+        {"on_pa_cal_temp_down",
+         [](lv_event_t*) {
+             auto& panel = get_global_pa_cal_panel();
+             panel.target_temp_ = std::max(panel.target_temp_ - TEMP_STEP, TEMP_MIN);
+             panel.selected_preset_ = -1;
+             panel.refresh_presets();
+             panel.update_temp_display();
+         }},
     });
-
-    spdlog::debug("[{}] Subjects and callbacks registered", get_name());
 }
 
 void PACalibrationPanel::deinit_subjects() {
@@ -170,19 +227,6 @@ void PACalibrationPanel::deinit_subjects() {
 // ============================================================================
 // LIFECYCLE
 // ============================================================================
-
-lv_obj_t* PACalibrationPanel::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::debug("[{}] Overlay already created", get_name());
-        return overlay_root_;
-    }
-    parent_screen_ = parent;
-    if (!create_overlay_from_xml(parent, "calibration_pa_panel")) {
-        return nullptr;
-    }
-    spdlog::info("[{}] Overlay created", get_name());
-    return overlay_root_;
-}
 
 void PACalibrationPanel::on_activate() {
     OverlayBase::on_activate();
@@ -756,116 +800,4 @@ std::string PACalibrationPanel::selected_heater() const {
 // EVENT TRAMPOLINES
 // ============================================================================
 
-void PACalibrationPanel::on_action_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_action_clicked");
-    auto& panel = get_global_pa_cal_panel();
-    if (panel.state_ == HEATING || panel.state_ == MEASURING) {
-        panel.stop_run(/*user_requested=*/true);
-    } else {
-        panel.confirm_and_start();
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PACalibrationPanel::on_reset_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_reset_clicked");
-    // Back to the setup screen, not straight into another run: after seeing a
-    // number the usual next move is to change the tool or the temperature, and
-    // re-running the identical measurement is rarely what was meant.
-    auto& panel = get_global_pa_cal_panel();
-    panel.set_state(IDLE);
-    lv_subject_set_int(&panel.progress_, 0);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PACalibrationPanel::on_start_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_start_clicked");
-    get_global_pa_cal_panel().confirm_and_start();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PACalibrationPanel::on_tool_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_tool_clicked");
-    // user_data carries the tool index as a string ("0".."3"), the same
-    // convention as the tool offset panel's per-row buttons.
-    const char* arg = static_cast<const char*>(lv_event_get_user_data(e));
-    if (arg && *arg) {
-        auto& panel = get_global_pa_cal_panel();
-        if (panel.state_ == IDLE || panel.state_ == COMPLETE || panel.state_ == ERROR) {
-            const int tool = std::atoi(arg);
-            panel.selected_tool_ = tool;
-            // Pressure advance belongs to an extruder, and the firmware
-            // measures whichever one is mounted - so picking a tool here has to
-            // actually mount it, not just tint a chip.
-            panel.select_tool(tool);
-            panel.refresh_tools();
-            // A new tool means a new extruder and a new answer; a stale result
-            // card beside a different tool would be a lie.
-            if (panel.state_ != IDLE) {
-                panel.set_state(IDLE);
-            }
-        }
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PACalibrationPanel::on_preset_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_preset_clicked");
-    const char* arg = static_cast<const char*>(lv_event_get_user_data(e));
-    if (arg && *arg) {
-        auto& panel = get_global_pa_cal_panel();
-        if (panel.state_ == IDLE || panel.state_ == COMPLETE || panel.state_ == ERROR) {
-            const int slot = std::atoi(arg);
-            const std::string name = helix::presets::name(slot);
-            if (!name.empty()) {
-                panel.selected_preset_ = slot;
-                panel.target_temp_ = std::clamp(material_nozzle_temp(name), TEMP_MIN, TEMP_MAX);
-                panel.refresh_presets();
-                panel.update_temp_display();
-            }
-        }
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PACalibrationPanel::on_temp_up(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_temp_up");
-    auto& panel = get_global_pa_cal_panel();
-    panel.target_temp_ = std::min(panel.target_temp_ + TEMP_STEP, TEMP_MAX);
-    // The temperature no longer matches the preset that set it.
-    panel.selected_preset_ = -1;
-    panel.refresh_presets();
-    panel.update_temp_display();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PACalibrationPanel::on_temp_down(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[PACal] on_temp_down");
-    auto& panel = get_global_pa_cal_panel();
-    panel.target_temp_ = std::max(panel.target_temp_ - TEMP_STEP, TEMP_MIN);
-    panel.selected_preset_ = -1;
-    panel.refresh_presets();
-    panel.update_temp_display();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// GLOBAL INSTANCE
-// ============================================================================
-
-static std::unique_ptr<PACalibrationPanel> g_pa_cal_panel;
-
-PACalibrationPanel& get_global_pa_cal_panel() {
-    if (!g_pa_cal_panel) {
-        g_pa_cal_panel = std::make_unique<PACalibrationPanel>();
-        StaticPanelRegistry::instance().register_destroy("PACalibrationPanel",
-                                                         []() { g_pa_cal_panel.reset(); });
-    }
-    return *g_pa_cal_panel;
-}
 } // namespace helix::ui
