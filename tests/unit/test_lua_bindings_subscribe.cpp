@@ -91,6 +91,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a true subscription sees whole objects",
                                      tostring(s.extruder.power))
         end)
     )"));
+    REQUIRE(b.fake.notify.size() == 1);
     b.fake.notify[0].second(
         json{{"params", {{{"extruder", {{"temperature", 30.0}, {"power", 0.4}}}}, 1.0}}});
     drain();
@@ -123,6 +124,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a cancelled subscription stops delivering",
         h:cancel()
         h:cancel()
     )"));
+    REQUIRE(b.fake.notify.size() == 1);
     b.fake.notify[0].second(json{{"params", {{{"extruder", {{"temperature", 30.0}}}}, 1.0}}});
     drain();
     for (auto& r : b.fake.requests)
@@ -157,6 +159,24 @@ TEST_CASE_METHOD(LVGLTestFixture, "subscribe enforces its limits", "[plugin][lua
     )"));
     CHECK(n.t.global("ok") == "false");
     CHECK(n.t.global("err").find("at most 64") != std::string::npos);
+
+    BoundRuntime v({&install_moonraker_bindings});
+    REQUIRE(v.t.run(R"(
+        fields = {}
+        for i = 1, 33 do fields[i] = "f" .. i end
+        ok, err = pcall(helix.moonraker.subscribe, { extruder = fields }, function() end)
+        ok2, err2 = pcall(helix.moonraker.subscribe, { extruder = { 123 } }, function() end)
+        ok3, err3 = pcall(helix.moonraker.subscribe, { extruder = false }, function() end)
+        ok4, err4 = pcall(helix.moonraker.subscribe, "extruder", function() end)
+    )"));
+    CHECK(v.t.global("ok") == "false");
+    CHECK(v.t.global("err").find("at most 32 fields") != std::string::npos);
+    CHECK(v.t.global("ok2") == "false");
+    CHECK(v.t.global("err2").find("field names must be strings") != std::string::npos);
+    CHECK(v.t.global("ok3") == "false");
+    CHECK(v.t.global("err3").find("values are true or a list of field names") != std::string::npos);
+    CHECK(v.t.global("ok4") == "false");
+    CHECK(v.fake.object_sets.empty());
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "the object registry unions plugins",

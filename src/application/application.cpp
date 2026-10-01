@@ -4888,8 +4888,9 @@ void Application::tear_down_printer_state() {
 #if HELIX_HAS_PLUGINS
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
-        // Before the plugin host goes: the registry's union stops being consulted, and
-        // the unload-time clears schedule no further refreshes.
+        // Before the plugin host goes: the registry's union stops being consulted, so
+        // the refresh the unload-time clears schedule shrinks the subscription back to
+        // app objects instead of growing it.
         m_moonraker->client()->set_subscription_extras_provider({});
     }
     m_plugin_watcher.reset();
@@ -5238,8 +5239,9 @@ void Application::shutdown() {
     // filelist handler must not outlive the driver it feeds.
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
-        // Before the plugin host goes: the registry's union stops being consulted, and
-        // the unload-time clears schedule no further refreshes.
+        // Before the plugin host goes: the registry's union stops being consulted, so
+        // the refresh the unload-time clears schedule shrinks the subscription back to
+        // app objects instead of growing it.
         m_moonraker->client()->set_subscription_extras_provider({});
     }
     m_plugin_watcher.reset();
