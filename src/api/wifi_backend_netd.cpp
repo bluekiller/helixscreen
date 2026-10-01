@@ -252,18 +252,6 @@ bool WifiBackendNetd::is_running() const {
     return init_succeeded_.load();
 }
 
-void WifiBackendNetd::register_event_callback(const std::string& name,
-                                              std::function<void(const std::string&)> callback) {
-    std::lock_guard<std::mutex> lock(callbacks_mutex_);
-    const auto& entry = callbacks_.find(name);
-    if (entry == callbacks_.end()) {
-        callbacks_.insert({name, callback});
-        spdlog::debug("[WifiBackendNetd] Registered callback '{}'", name);
-    } else {
-        spdlog::warn("[WifiBackendNetd] Callback '{}' already registered (not replacing)", name);
-    }
-}
-
 // ============================================================================
 // Init / connection management (loop thread)
 // ============================================================================
@@ -701,28 +689,6 @@ void WifiBackendNetd::finish_scan(helix::netd::Ack::Kind completing) {
     }
     spdlog::debug("[WifiBackendNetd] Scan complete ({} rows)", rows);
     dispatch_event("SCAN_COMPLETE", "");
-}
-
-void WifiBackendNetd::dispatch_event(const std::string& event_name, const std::string& message) {
-    // Copy the callback out under the mutex, release BEFORE invoking —
-    // holding callbacks_mutex_ across the callback invites deadlock if a
-    // handler re-enters the backend.
-    std::function<void(const std::string&)> cb;
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        const auto it = callbacks_.find(event_name);
-        if (it == callbacks_.end())
-            return;
-        cb = it->second;
-    }
-    spdlog::debug("[WifiBackendNetd] Dispatching '{}'", event_name);
-    try {
-        cb(message);
-    } catch (const std::exception& e) {
-        spdlog::error("[WifiBackendNetd] Exception in callback '{}': {}", event_name, e.what());
-    } catch (...) {
-        spdlog::error("[WifiBackendNetd] Unknown exception in callback '{}'", event_name);
-    }
 }
 
 // ============================================================================

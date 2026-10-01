@@ -15,6 +15,7 @@
 #include "helix_regex.h"
 #include "json_utils.h"
 #include "moonraker_api.h"
+#include "moonraker_validation.h"
 #include "observer_factory.h"
 #include "operation_timeout_guard.h"
 #include "printer_state.h"
@@ -225,7 +226,7 @@ void MoonrakerAdvancedAPI::get_excluded_objects(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::set<std::string> excluded;
 
             if (response.contains("result") && response["result"].contains("status") &&
@@ -258,7 +259,7 @@ void MoonrakerAdvancedAPI::get_available_objects(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success](json response) {
+        [on_success](const json& response) {
             std::vector<std::string> objects;
 
             if (response.contains("result") && response["result"].contains("status") &&
@@ -2702,7 +2703,7 @@ void MoonrakerAdvancedAPI::get_input_shaper_config(InputShaperConfigCallback on_
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             InputShaperConfig config;
             // A field present with a type we cannot read fails the whole read,
             // like a parse error does.
@@ -2791,7 +2792,7 @@ void MoonrakerAdvancedAPI::get_machine_limits(MachineLimitsCallback on_success,
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [on_success, on_error](json response) {
+        [on_success, on_error](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("toolhead")) {
                 spdlog::warn("[Moonraker API] Toolhead object not available in response");
@@ -2860,12 +2861,9 @@ void MoonrakerAdvancedAPI::set_machine_limits(const MachineLimits& limits,
     }
 
     if (!has_params) {
-        spdlog::warn("[Moonraker API] set_machine_limits called with no valid parameters");
-        if (on_error) {
-            MoonrakerError err =
-                MoonrakerError::validation_error("", "No valid machine limit parameters provided");
-            on_error(err);
-        }
+        helix::report_validation_error(on_error, "set_machine_limits",
+                                       "No valid machine limit parameters provided",
+                                       "No machine limits to apply.");
         return;
     }
 
@@ -2884,24 +2882,16 @@ void MoonrakerAdvancedAPI::execute_macro(const std::string& name,
                                          uint32_t timeout_ms, bool suppress_auto_toast) {
     // Validate macro name - only allow alphanumeric, underscore (standard Klipper macro names)
     if (name.empty()) {
-        spdlog::error("[Moonraker API] execute_macro() called with empty name");
-        if (on_error) {
-            MoonrakerError err =
-                MoonrakerError::validation_error("execute_macro", "Macro name cannot be empty");
-            on_error(err);
-        }
+        helix::report_validation_error(on_error, "execute_macro", "Macro name cannot be empty",
+                                       "Cannot run a macro without a name.");
         return;
     }
 
     for (char c : name) {
         if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
-            spdlog::error("[Moonraker API] Invalid macro name '{}' contains illegal character '{}'",
-                          name, c);
-            if (on_error) {
-                MoonrakerError err = MoonrakerError::validation_error(
-                    "execute_macro", "Macro name contains illegal characters");
-                on_error(err);
-            }
+            helix::report_validation_error(
+                on_error, "execute_macro", "Macro name contains illegal characters",
+                fmt::format("Invalid macro name '{}'. Contains unsafe characters.", name));
             return;
         }
     }
@@ -2976,7 +2966,7 @@ void MoonrakerAdvancedAPI::get_heater_pid_values(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [heater, on_complete, on_error](json response) {
+        [heater, on_complete, on_error](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("configfile") ||
                 !response["result"]["status"]["configfile"].contains("settings")) {
@@ -3044,7 +3034,7 @@ void MoonrakerAdvancedAPI::get_heater_control_type(
 
     client_.send_jsonrpc(
         "printer.objects.query", params,
-        [heater, on_complete, on_error](json response) {
+        [heater, on_complete, on_error](const json& response) {
             if (!response.contains("result") || !response["result"].contains("status") ||
                 !response["result"]["status"].contains("configfile") ||
                 !response["result"]["status"]["configfile"].contains("settings")) {

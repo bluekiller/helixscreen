@@ -820,7 +820,7 @@ void BedMeshPanel::setup_moonraker_subscription() {
     auto token = lifetime_.token();
 
     SubscriptionId id =
-        api->subscribe_notifications([this, api, token](nlohmann::json notification) {
+        api->subscribe_notifications([this, api, token](const nlohmann::json& notification) {
             // Check if this notification contains bed_mesh data BEFORE deferring to main thread
             if (!notification.contains("params") || !notification["params"].is_array() ||
                 notification["params"].empty()) {
@@ -1404,13 +1404,16 @@ void BedMeshPanel::start_calibration_probing() {
     json params = {{"objects", json::object({{"configfile", json::array({"settings"})}})}};
     api->get_client().send_jsonrpc(
         "printer.objects.query", params,
-        [this, api, token](json response) {
+        [this, api, token](const json& response) {
             // BG: parse JSON without touching `this`. Member call (launch_calibration)
             // happens inside the defer below.
             int expected = 0;
             int samples = 1;
+            static const json::json_pointer kSettings("/result/status/configfile/settings");
+            static const json kNoSettings = json::object();
             try {
-                const auto& settings = response["result"]["status"]["configfile"]["settings"];
+                const json& settings =
+                    response.contains(kSettings) ? response[kSettings] : kNoSettings;
                 if (settings.contains("bed_mesh") && settings["bed_mesh"].contains("probe_count")) {
                     const auto& pc = settings["bed_mesh"]["probe_count"];
                     if (pc.is_array() && pc.size() >= 2) {
@@ -1780,7 +1783,7 @@ void BedMeshPanel::read_stored_meshes(std::function<void(helix::bed_mesh::Stored
     json params = {{"objects", json::object({{"bed_mesh", json::array({"profiles"})}})}};
     api->get_client().send_jsonrpc(
         "printer.objects.query", params,
-        [token, on_read](json response) {
+        [token, on_read](const json& response) {
             // BG: parse here, hand the result to the main thread.
             auto meshes = std::make_shared<helix::bed_mesh::StoredMeshes>();
             if (response.contains("result") && response["result"].contains("status") &&

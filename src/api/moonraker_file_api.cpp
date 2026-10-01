@@ -5,9 +5,9 @@
 
 #include "ui_error_reporting.h"
 
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "moonraker_api_internal.h"
-#include "moonraker_client.h"
 #include "spdlog/spdlog.h"
 #include "text_io.h"
 
@@ -66,7 +66,7 @@ MoonrakerFileAPI::MoonrakerFileAPI(helix::IMoonrakerClient& client) : client_(cl
 void MoonrakerFileAPI::get_file_roots(FileRootsCallback on_success, ErrorCallback on_error) {
     client_.send_jsonrpc(
         "server.files.roots", json::object(),
-        [on_success](json response) {
+        [on_success](const json& response) {
             // parse_file_roots() never throws — an unexpected shape yields an empty
             // list, which callers already have to handle (older forks omit the call).
             on_success(helix::parse_file_roots(response));
@@ -98,7 +98,7 @@ void MoonrakerFileAPI::list_files(const std::string& root, const std::string& pa
 
     client_.send_jsonrpc(
         "server.files.list", params,
-        [this, on_success, on_error](json response) {
+        [this, on_success, on_error](const json& response) {
             std::vector<FileInfo> files = parse_file_list(response);
             spdlog::trace("[FileAPI] Found {} files", files.size());
             on_success(files);
@@ -128,7 +128,7 @@ void MoonrakerFileAPI::get_directory(const std::string& root, const std::string&
 
     client_.send_jsonrpc(
         "server.files.get_directory", params,
-        [this, full_path, on_success, on_error](json response) {
+        [this, full_path, on_success, on_error](const json& response) {
             std::vector<FileInfo> files = parse_file_list(response);
             spdlog::debug("[FileAPI] get_directory response for '{}': {} items", full_path,
                           files.size());
@@ -156,7 +156,7 @@ void MoonrakerFileAPI::get_file_metadata(const std::string& filename,
 
     client_.send_jsonrpc(
         "server.files.metadata", params,
-        [this, on_success, on_error](json response) {
+        [this, on_success, on_error](const json& response) {
             FileMetadata metadata = parse_file_metadata(response);
             on_success(metadata);
         },
@@ -239,7 +239,7 @@ void MoonrakerFileAPI::metascan_file(const std::string& filename, FileMetadataCa
 
     const helix::RequestId id = client_.send_jsonrpc(
         "server.files.metascan", params,
-        [this, on_success, filename, finish](json response) {
+        [this, on_success, filename, finish](const json& response) {
             finish();
             FileMetadata metadata = parse_file_metadata(response);
             spdlog::debug("[FileAPI] Metascan successful for: {}", filename);

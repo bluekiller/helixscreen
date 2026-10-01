@@ -128,7 +128,7 @@ void MoonrakerDiscoverySequence::start(std::function<void()> on_complete,
 
     client_.send_jsonrpc(
         "server.connection.identify", identify_params,
-        [this, seq](json identify_response) {
+        [this, seq](const json& identify_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
 
@@ -163,7 +163,7 @@ void MoonrakerDiscoverySequence::discover_power_devices() {
     // Klippy is not ready (power devices only need Moonraker, not Klipper).
     client_.send_jsonrpc(
         "machine.device_power.devices", json::object(),
-        [](json response) {
+        [](const json& response) {
             std::vector<PowerDevice> devices;
             if (response.contains("result") && response["result"].contains("devices")) {
                 for (const auto& dev : response["result"]["devices"]) {
@@ -294,7 +294,7 @@ void MoonrakerDiscoverySequence::parse_system_info(const json& sys_response) {
 void MoonrakerDiscoverySequence::detect_webcam(json service_state) {
     client_.send_jsonrpc(
         "server.webcams.list", json::object(),
-        [service_state = std::move(service_state)](json response) {
+        [service_state = std::move(service_state)](const json& response) {
             std::vector<WebcamInfo> cams;
             if (response.contains("result") && response["result"].contains("webcams")) {
                 for (const auto& entry : response["result"]["webcams"]) {
@@ -415,7 +415,7 @@ void MoonrakerDiscoverySequence::continue_discovery(uint64_t seq) {
     // -32601 "Method not found", causing confusing error toasts. Gate here instead.
     client_.send_jsonrpc(
         "server.info", json(),
-        [this, seq](json server_info_response) {
+        [this, seq](const json& server_info_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
 
@@ -472,7 +472,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
     // Silent=true to suppress error toast if Klippy goes away between gate and this call
     client_.send_jsonrpc(
         "printer.objects.list", json(),
-        [this, seq](json response) {
+        [this, seq](const json& response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
             // Debug: Log raw response
@@ -545,7 +545,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 };
                 client_.send_jsonrpc(
                     "printer.objects.query", json{{"objects", claim_query}},
-                    [settle](json reply) {
+                    [settle](const json& reply) {
                         const json* status = nullptr;
                         auto result = reply.find("result");
                         if (result != reply.end() && result->is_object()) {
@@ -566,7 +566,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
             }
 
             // Step 2: Get server information
-            client_.send_jsonrpc("server.info", {}, [this, seq](json info_response) {
+            client_.send_jsonrpc("server.info", {}, [this, seq](const json& info_response) {
                 if (is_stale() || !is_current_sequence(seq))
                     return;
                 if (info_response.contains("result")) {
@@ -631,7 +631,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                             // overwrites the current pass's correct answer.
                             client_.send_jsonrpc(
                                 "server.spoolman.status", json::object(),
-                                [this, seq](json response) {
+                                [this, seq](const json& response) {
                                     if (is_stale() || !is_current_sequence(seq))
                                         return;
                                     bool connected = false;
@@ -676,7 +676,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                             // user's global timelapse on print start (#1094).
                             client_.send_jsonrpc(
                                 "machine.timelapse.get_settings", json::object(),
-                                [](json response) {
+                                [](const json& response) {
                                     bool enabled = false;
                                     if (response.contains("result")) {
                                         enabled = response["result"].value("enabled", false);
@@ -723,7 +723,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 // empty service_state that reads as "assume available".
                 client_.send_jsonrpc(
                     "machine.system_info", json::object(),
-                    [this](json sys_response) {
+                    [this](const json& sys_response) {
                         parse_system_info(sys_response);
 #if HELIX_HAS_CAMERA
                         detect_webcam(webcam::extract_service_state(sys_response));
@@ -749,7 +749,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 discover_sensors();
 
                 // Step 3: Get printer information
-                client_.send_jsonrpc("printer.info", {}, [this, seq](json printer_response) {
+                client_.send_jsonrpc("printer.info", {}, [this, seq](const json& printer_response) {
                     if (is_stale() || !is_current_sequence(seq))
                         return;
                     if (printer_response.contains("result")) {
@@ -815,7 +815,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                         "printer.objects.query",
                         {{"objects",
                           json::object({{"configfile", json::array({"config", "settings"})}})}},
-                        [this](json config_response) {
+                        [this](const json& config_response) {
                             if (config_response.contains("result") &&
                                 config_response["result"].contains("status") &&
                                 config_response["result"]["status"].contains("configfile") &&
@@ -1037,7 +1037,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                         client_.send_jsonrpc(
                             "printer.objects.query", {{"objects", mcu_query}},
                             [this, seq, mcu_obj, pending_mcu_queries, mcu_results,
-                             mcu_version_results, mcu_results_mutex](json mcu_response) {
+                             mcu_version_results, mcu_results_mutex](const json& mcu_response) {
                                 if (is_stale() || !is_current_sequence(seq))
                                     return;
                                 std::string chip_type;
@@ -1729,7 +1729,7 @@ void MoonrakerDiscoverySequence::complete_discovery_subscription(uint64_t seq) {
 
     client_.send_jsonrpc(
         "printer.objects.subscribe", subscribe_params,
-        [this, seq, num_subscribed, hw](json sub_response) {
+        [this, seq, num_subscribed, hw](const json& sub_response) {
             if (is_stale() || !is_current_sequence(seq))
                 return;
             if (sub_response.contains("result")) {

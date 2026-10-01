@@ -18,7 +18,9 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -383,11 +385,13 @@ class WifiBackend {
      * - "DISCONNECTED" - Disconnected from network
      * - "AUTH_FAILED" - Authentication failed (wrong password, etc.)
      *
+     * One handler per event name: a second registration for a name is ignored.
+     *
      * @param name Event type identifier
      * @param callback Handler function
      */
-    virtual void register_event_callback(const std::string& name,
-                                         std::function<void(const std::string&)> callback) = 0;
+    void register_event_callback(const std::string& name,
+                                 std::function<void(const std::string&)> callback);
 
     // ========================================================================
     // Network Scanning
@@ -651,7 +655,19 @@ class WifiBackend {
     static std::unique_ptr<WifiBackend> create(bool silent = false);
 
   protected:
+    /**
+     * @brief Invoke the handler registered for @p event_name, if any
+     *
+     * The handler runs outside the registry lock, so it may re-enter the
+     * backend or take other backend locks without deadlocking.
+     */
+    void dispatch_event(const std::string& event_name, const std::string& data = "");
+
     bool silent_ = false; ///< When true, suppress error modals on startup
+
+  private:
+    std::mutex event_callbacks_mutex_;
+    std::map<std::string, std::function<void(const std::string&)>> event_callbacks_;
 };
 
 namespace helix {

@@ -11,8 +11,8 @@
 
 #include "app_globals.h"
 #include "filament_sensor_manager.h"
+#include "i_moonraker_client.h"
 #include "lvgl/lvgl.h"
-#include "moonraker_client.h"
 #include "printer_hardware.h"
 #include "printer_state.h"
 #include "static_panel_registry.h"
