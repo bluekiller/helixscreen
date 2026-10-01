@@ -39,7 +39,7 @@ std::string config_resolve_path(const std::string& current_file, const std::stri
 bool config_glob_match(const std::string& pattern, const std::string& text) {
     // Mirrors Python's glob.glob(pattern, recursive=True), which is what Klipper
     // resolves [include] with (klippy/configfile.py). Under recursive=True only
-    // `**` spans directories; a single `*` and `?` never match a '/'. Letting a
+    // a whole-segment `**` spans directories; a single `*` and `?` never match a '/'. Letting a
     // single star cross separators makes `[include conf.d/*.cfg]` appear to pull
     // in conf.d/nested/*.cfg, so a section gets attributed to a file Klipper
     // never read - and an edit written there has no effect.
@@ -54,7 +54,11 @@ bool config_glob_match(const std::string& pattern, const std::string& text) {
         for (size_t j = m + 1; j-- > 0;) {
             bool ok = false;
             if (c == '*') {
-                const bool doubled = (i + 1 < n && pattern[i + 1] == '*');
+                // Only a whole-segment `**` spans directories; glued to a name
+                // (`mod/**.cfg`) Python reads it as a plain `*`.
+                const bool doubled = i + 1 < n && pattern[i + 1] == '*' &&
+                                     (i == 0 || pattern[i - 1] == '/') &&
+                                     (i + 2 == n || pattern[i + 2] == '/');
                 const size_t next = i + (doubled ? 2 : 1);
                 ok = at(next, j) || (j < m && (doubled || text[j] != '/') && at(i, j + 1));
                 // Python glob lets `a/**/b` match `a/b`: the directories are optional.

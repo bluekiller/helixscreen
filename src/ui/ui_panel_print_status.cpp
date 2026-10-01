@@ -3846,7 +3846,7 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
         download_to_viewer(root, download_target);
     };
 
-    auto load_existing_gcode_path = [this, token, filename, stream_if_safe](
+    auto load_existing_gcode_path = [this, token, filename, temp_path, stream_if_safe](
                                         const std::string& metadata_target, const std::string& root,
                                         const std::string& download_target) {
         api_->files().get_file_metadata(
@@ -3857,21 +3857,34 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
                                 stream_if_safe(root, download_target, metadata.size);
                             });
             },
-            [this, token, filename](const MoonrakerError& err) {
-                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, err]() {
+            [this, token, filename, temp_path](const MoonrakerError& err) {
+                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, temp_path,
+                                                                     err]() {
                     // Metadata only decides whether we need to DOWNLOAD the file.
-                    // If the viewer already has geometry — loaded from the cached
-                    // copy, or from a local path that Moonraker cannot resolve —
-                    // a metadata miss must not tear down a working render. Also
-                    // reachable on a transient failure while the file is still
-                    // being scanned. This error is silent (no toast), so hiding
-                    // the viewer here just left a blank preview for the rest of
-                    // the print.
+                    // If the viewer already has geometry, or a cached copy exists
+                    // (size unknown, so any non-empty copy is trusted), a metadata
+                    // miss must not blank the preview. Reachable on a flaky link or
+                    // while Moonraker is rescanning. This error is silent (no
+                    // toast), so hiding the viewer here would leave a blank preview
+                    // for the rest of the print.
                     if (gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_)) {
                         spdlog::debug("[{}] G-code metadata unavailable for '{}': {} - keeping "
                                       "already-loaded render",
                                       get_name(), filename, err.message);
                         return;
+                    }
+                    const size_t cached_size =
+                        static_cast<size_t>(tio::file_size(temp_path).value_or(0));
+                    if (helix::ui::preview_cache_is_current(cached_size, 0)) {
+                        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
+                            spdlog::info("[{}] G-code metadata unavailable for '{}': {} - using "
+                                         "cached copy ({} bytes)",
+                                         get_name(), filename, err.message, cached_size);
+                            temp_gcode_path_ = temp_path;
+                            load_gcode_file(temp_path.c_str(), filename);
+                            return;
+                        }
+                        std::remove(temp_path.c_str());
                     }
                     spdlog::debug(
                         "[{}] Failed to get G-code metadata for '{}': {} - skipping 3D render",

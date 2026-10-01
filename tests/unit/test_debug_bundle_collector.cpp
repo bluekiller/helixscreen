@@ -829,7 +829,7 @@ TEST_CASE("DebugBundleCollector: resolve_include_pattern follows config_glob_mat
         {"mod/*.cfg", {"mod/base.cfg"}},
         {"mod/?ase.cfg", {"mod/base.cfg"}},
         {"mod/**/*.cfg", {"mod/base.cfg", "mod/sub/deep.cfg", "mod/sub/x/deeper.cfg"}},
-        {"mod/**.cfg", {"mod/base.cfg", "mod/sub/deep.cfg", "mod/sub/x/deeper.cfg"}},
+        {"mod/**.cfg", {"mod/base.cfg"}},
         {"other.cfg", {}},
     };
     for (const auto& r : rows) {
