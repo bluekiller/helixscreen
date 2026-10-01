@@ -3782,22 +3782,6 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     std::string temp_path =
         cache_dir + "/print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
 
-    // Check if file already exists and is non-empty (cached from previous session)
-    size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
-    if (cached_size > 0) {
-        // Check if cached file is safe to render
-        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
-            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
-                         temp_path);
-            temp_gcode_path_ = temp_path;
-            load_gcode_file(temp_path.c_str(), filename);
-            return;
-        } else {
-            spdlog::debug("[{}] Cached file too large for 2D streaming, removing", get_name());
-            std::remove(temp_path.c_str());
-        }
-    }
-
     // Get file metadata to check size before downloading
     // This prevents OOM on memory-constrained devices like AD5M
     std::string metadata_filename = resolve_gcode_filename(filename);
@@ -3834,9 +3818,9 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     // Shared size gate: skip 2D streaming if the file would OOM the device,
     // otherwise stream it into the viewer. Used by both the standard "gcodes"
     // metadata path and the QIDI ".temp" shadow path.
-    auto stream_if_safe = [this, download_to_viewer](const std::string& root,
-                                                     const std::string& download_target,
-                                                     uint64_t size) {
+    auto stream_if_safe = [this, download_to_viewer, temp_path,
+                           filename](const std::string& root, const std::string& download_target,
+                                     uint64_t size) {
         if (!helix::is_gcode_2d_streaming_safe(size)) {
             auto mem = helix::get_system_memory_info();
             spdlog::warn("[{}] G-code too large for 2D streaming: file={} bytes, available "
@@ -3846,12 +3830,23 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
             return;
         }
 
+        // The cache is keyed by file name alone; the server's size says whether
+        // it still holds this file.
+        const size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
+        if (helix::ui::preview_cache_is_current(cached_size, size)) {
+            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
+                         temp_path);
+            temp_gcode_path_ = temp_path;
+            load_gcode_file(temp_path.c_str(), filename);
+            return;
+        }
+
         spdlog::debug("[{}] G-code size {} bytes - safe to render, streaming to disk...",
                       get_name(), size);
         download_to_viewer(root, download_target);
     };
 
-    auto load_existing_gcode_path = [this, token, filename, stream_if_safe](
+    auto load_existing_gcode_path = [this, token, filename, temp_path, stream_if_safe](
                                         const std::string& metadata_target, const std::string& root,
                                         const std::string& download_target) {
         api_->files().get_file_metadata(
@@ -3862,21 +3857,34 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
                                 stream_if_safe(root, download_target, metadata.size);
                             });
             },
-            [this, token, filename](const MoonrakerError& err) {
-                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, err]() {
+            [this, token, filename, temp_path](const MoonrakerError& err) {
+                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, temp_path,
+                                                                     err]() {
                     // Metadata only decides whether we need to DOWNLOAD the file.
-                    // If the viewer already has geometry — loaded from the cached
-                    // copy, or from a local path that Moonraker cannot resolve —
-                    // a metadata miss must not tear down a working render. Also
-                    // reachable on a transient failure while the file is still
-                    // being scanned. This error is silent (no toast), so hiding
-                    // the viewer here just left a blank preview for the rest of
-                    // the print.
+                    // If the viewer already has geometry, or a cached copy exists
+                    // (size unknown, so any non-empty copy is trusted), a metadata
+                    // miss must not blank the preview. Reachable on a flaky link or
+                    // while Moonraker is rescanning. This error is silent (no
+                    // toast), so hiding the viewer here would leave a blank preview
+                    // for the rest of the print.
                     if (gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_)) {
                         spdlog::debug("[{}] G-code metadata unavailable for '{}': {} - keeping "
                                       "already-loaded render",
                                       get_name(), filename, err.message);
                         return;
+                    }
+                    const size_t cached_size =
+                        static_cast<size_t>(tio::file_size(temp_path).value_or(0));
+                    if (helix::ui::preview_cache_is_current(cached_size, 0)) {
+                        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
+                            spdlog::info("[{}] G-code metadata unavailable for '{}': {} - using "
+                                         "cached copy ({} bytes)",
+                                         get_name(), filename, err.message, cached_size);
+                            temp_gcode_path_ = temp_path;
+                            load_gcode_file(temp_path.c_str(), filename);
+                            return;
+                        }
+                        std::remove(temp_path.c_str());
                     }
                     spdlog::debug(
                         "[{}] Failed to get G-code metadata for '{}': {} - skipping 3D render",

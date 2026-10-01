@@ -1416,8 +1416,10 @@ GCodeThumbnail scan_best_thumbnail(NextLine next_line, std::string_view source) 
             base64 += line.substr(2);
         }
 
-        // Stop at the first G-code command: thumbnails live in the header
-        if (!line.empty() && (line[0] == 'G' || line[0] == 'M' || line[0] == 'T')) {
+        // Thumbnails live in the header, but slicers emit setup commands (M73,
+        // M104, G21, ...) around them. The first motion command ends the header.
+        if (!in_block && line.size() > 2 && line[0] == 'G' && line[1] >= '0' && line[1] <= '3' &&
+            (line[2] == ' ' || line[2] == '\t')) {
             break;
         }
     }

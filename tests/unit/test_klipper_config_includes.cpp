@@ -312,7 +312,8 @@ TEST_CASE("config_glob_match - single star stops at directory separator",
 
     SECTION("Double star crosses separators") {
         CHECK(config_glob_match("conf.d/**/*.cfg", "conf.d/nested/deep.cfg"));
-        CHECK(config_glob_match("conf.d/**.cfg", "conf.d/nested/deep.cfg"));
+        CHECK_FALSE(config_glob_match("conf.d/**.cfg", "conf.d/nested/deep.cfg"));
+        CHECK(config_glob_match("conf.d/**.cfg", "conf.d/deep.cfg"));
     }
 
     SECTION("Question mark does not match a separator") {

@@ -366,12 +366,6 @@ class DebugBundleCollector {
     /// resolve_include_pattern()'s job.
     static std::vector<std::string> parse_include_patterns(const std::string& body);
 
-    /// Shell-glob match used to resolve an `[include]` pattern against the
-    /// config-root file listing (public for testing). `*` and `?` do NOT cross
-    /// a '/', matching Python glob, so `[include mod/*.cfg]` picks up
-    /// `mod/a.cfg` but not `mod/sub/a.cfg`.
-    static bool glob_match(const std::string& pattern, const std::string& path);
-
     /// Resolve one `[include]` pattern, relative to the including file's
     /// directory, against a config-root-relative file listing (public for
     /// testing). Returns matches in listing order.

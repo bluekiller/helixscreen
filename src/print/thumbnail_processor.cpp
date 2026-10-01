@@ -576,6 +576,21 @@ ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::
     // — breadcrumb::note() is written for concurrent producers.
     crash_handler::breadcrumb::note("thumb", "decode_begin", static_cast<long>(png_data.size()));
 
+    // Read the dimensions from the header first: the decode allocates
+    // width*height*4 bytes, which on a 128 MB device must not be attempted for
+    // an image over the cap.
+    if (!stbi_info_from_memory(png_data.data(), static_cast<int>(png_data.size()), &src_width,
+                               &src_height, &src_channels)) {
+        result.error = std::string("Failed to read PNG header: ") + stbi_failure_reason();
+        return result;
+    }
+    if (src_width > MAX_SOURCE_DIMENSION || src_height > MAX_SOURCE_DIMENSION) {
+        result.error = "Source image too large (" + std::to_string(src_width) + "x" +
+                       std::to_string(src_height) + ", max " +
+                       std::to_string(MAX_SOURCE_DIMENSION) + ")";
+        return result;
+    }
+
     // stbi_load_from_memory returns RGBA data (4 channels) when we request it
     unsigned char* src_pixels = stbi_load_from_memory(
         png_data.data(), static_cast<int>(png_data.size()), &src_width, &src_height, &src_channels,
@@ -584,15 +599,6 @@ ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::
 
     if (!src_pixels) {
         result.error = std::string("Failed to decode PNG: ") + stbi_failure_reason();
-        return result;
-    }
-
-    // Safety check: reject excessively large decoded images
-    if (src_width > MAX_SOURCE_DIMENSION || src_height > MAX_SOURCE_DIMENSION) {
-        stbi_image_free(src_pixels);
-        result.error = "Source image too large (" + std::to_string(src_width) + "x" +
-                       std::to_string(src_height) + ", max " +
-                       std::to_string(MAX_SOURCE_DIMENSION) + ")";
         return result;
     }
 

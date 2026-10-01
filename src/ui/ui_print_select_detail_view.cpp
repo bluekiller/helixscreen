@@ -726,7 +726,7 @@ void PrintSelectDetailView::ensure_gcode_downloaded(
     const size_t on_disk_bytes =
         tio::open_file(path, "rb") ? static_cast<size_t>(tio::file_size(path).value_or(0)) : 0;
     if (on_disk_bytes > 0) {
-        if (current_file_size_bytes_ == 0 || on_disk_bytes == current_file_size_bytes_) {
+        if (helix::ui::preview_cache_is_current(on_disk_bytes, current_file_size_bytes_)) {
             cb(true, path);
             return;
         }

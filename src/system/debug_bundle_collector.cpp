@@ -14,6 +14,7 @@
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
 #include "json_utils.h"
+#include "klipper_config_includes.h"
 #include "log_redact.h"
 #include "logging_init.h"
 #include "platform_capabilities.h"
@@ -1428,37 +1429,6 @@ std::vector<std::string> DebugBundleCollector::parse_include_patterns(const std:
     return patterns;
 }
 
-bool DebugBundleCollector::glob_match(const std::string& pattern, const std::string& path) {
-    // Iterative wildcard match with backtracking. '*' and '?' do not cross '/',
-    // matching Python's glob (which is what Klipper's configfile.py uses), so
-    // "mod/*.cfg" does not reach into "mod/sub/".
-    size_t p = 0, s = 0;
-    size_t star = std::string::npos; // last '*' in the pattern
-    size_t star_s = 0;               // where that '*' started consuming
-    while (s < path.size()) {
-        const bool lit_match =
-            p < pattern.size() && (pattern[p] == '?' ? path[s] != '/' : pattern[p] == path[s]);
-        if (lit_match) {
-            ++p;
-            ++s;
-        } else if (p < pattern.size() && pattern[p] == '*') {
-            star = p++;
-            star_s = s;
-        } else if (star != std::string::npos && path[star_s] != '/') {
-            // Give the '*' one more character, unless that character is a
-            // separator it is not allowed to swallow.
-            p = star + 1;
-            s = ++star_s;
-        } else {
-            return false;
-        }
-    }
-    while (p < pattern.size() && pattern[p] == '*') {
-        ++p;
-    }
-    return p == pattern.size();
-}
-
 std::vector<std::string>
 DebugBundleCollector::resolve_include_pattern(const std::string& pattern,
                                               const std::string& including_file,
@@ -1480,7 +1450,7 @@ DebugBundleCollector::resolve_include_pattern(const std::string& pattern,
 
     std::vector<std::string> matches;
     for (const auto& path : available) {
-        if (glob_match(full, path)) {
+        if (helix::system::config_glob_match(full, path)) {
             matches.push_back(path);
         }
     }
