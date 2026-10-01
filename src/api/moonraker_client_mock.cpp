@@ -5927,6 +5927,10 @@ void MoonrakerClientMock::temperature_simulation_loop() {
                 cb(notification);
             }
         }
+        // The live WebSocket path delivers notify_status_update to method-callback
+        // registrants too (plugin subscriptions among them), so the simulated frames
+        // reach the same listeners the real ones would.
+        dispatch_method_callback("notify_status_update", notification);
 
         // Log every 40 ticks (~10 seconds) to confirm loop is running
         if (tick % 40 == 0) {

@@ -1998,6 +1998,7 @@ translations:
   Named actions in the LED Controls widget. Not shown under LED selection.: Ações nomeadas no widget Controles LED. Não aparecem na seleção de LED.
   Needs attention: Requer atenção
   Needs the {} package to switch spools: 'Precisa do plugin {} para trocar de carretel'
+  'Needs {}x{} free: remove or shrink a widget first': 'Precisa de {}x{} livres: primeiro remova ou reduza um widget'
   Net Weight (g): Peso Líquido (g)
   Network: Rede
   Network Address: Endereço de Rede
@@ -2016,6 +2017,7 @@ translations:
   'New Spool: Step {} of {}': 'Nova Bobina: Passo {} de {}'
   New Version Available: Nova Versão Disponível
   New fan name: Novo nome da ventoinha
+  'New plugin available: {}. Enable it in Settings > Plugins.': 'Novo plugin disponível: {}. Ative-o em Configurações > Plugins.'
   New printer successfully added: Nova impressora adicionada com sucesso
   New profile name: Novo nome do perfil
   Next: Próximo
@@ -2139,6 +2141,7 @@ translations:
   Not connected to the printer: Não conectado à impressora
   Not detected: Não detectado
   Not enough frequency data from the sweeps. Try again.: 'Dados de frequência insuficientes nas medições. Tente novamente.'
+  Not enough room for this widget. Rearrange or remove widgets to make space.: Não há espaço suficiente para este widget. Reorganize ou remova widgets para criar espaço.
   Not in your spools? Set it up: Não está nos seus carretéis? Configure aqui
   Not now: Agora não
   Not yet available on this display: 'Ainda não disponível neste display'
@@ -3937,6 +3940,7 @@ translations:
   '{} needs the HelixPrint plugin. Printing original file.': '{} precisa do plugin HelixPrint. Imprimindo o arquivo original.'
   '{} new': '{} novo(s)'
   '{} new hardware available': '{} novo hardware disponível'
+  '{} new plugins available. Enable them in Settings > Plugins.': '{} novos plugins disponíveis. Ative-os em Configurações > Plugins.'
   '{} preset{}': '{} predefinição{}'
   '{} set to {}': '{} definido para {}'
   '{} set to {} {}': '{} definido para {} {}'

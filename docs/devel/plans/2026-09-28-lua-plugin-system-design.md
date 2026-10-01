@@ -1,6 +1,6 @@
 # Lua Plugin System Design
 
-**Status:** Phases 1 and 2 implemented; Phases 3 to 5 not started.
+**Status:** Phases 1 to 3 implemented; Phases 4 and 5 not started.
 **Replaces:** the `dlopen` C++ plugin system in `src/plugin/` and `docs/devel/PLUGIN_DEVELOPMENT.md`
 
 ## Why
@@ -155,12 +155,16 @@ absolute paths rejected.
 ### Boot
 
 1. `PluginHost` reads the `plugins` settings block and loads every enabled plugin from the local
-   cache (`~/helixscreen/plugin-cache/<id>/`). Plugin widgets exist at boot and work offline.
+   cache (`get_helix_cache_dir("plugins")/<printer_id>/<id>/`: per-platform persistent,
+   non-tmpfs storage, because a Moonraker web update deletes the install directory; one cache
+   per printer id, so a printer switch shows only that printer's plugins). Plugin widgets exist
+   at boot and work offline.
 2. On Moonraker connect, `PluginSource` lists `config/helixscreen/plugins/`, compares size and
    mtime against the cache, downloads what changed, and deletes cache entries whose source is
    gone. Every plugin whose files changed is reloaded.
 
 `HELIX_PLUGIN_DIR=<path>` makes a local directory the source instead of Moonraker, for authors.
+No Moonraker sync runs while it is set.
 
 ### Settings block
 
@@ -211,9 +215,12 @@ their ids stay in the saved layout and reappear when the plugin returns.
 
 ### Hot reload
 
-`XmlHotReloader` watches the cache directory, so an XML change applies within its poll interval.
-A Lua change reloads the plugin. With a Moonraker source, the change arrives through Moonraker's
-file-list notifications and the mirror.
+Any change to a plugin's files reloads the whole plugin through `PluginHost::rescan`; nothing
+re-registers a changed file in place, so changed XML always passes the plugin XML policy check
+again. With a Moonraker source, the change arrives through Moonraker's file-list notifications,
+debounced into one sync of the mirror. With `HELIX_PLUGIN_DIR`, a polling watcher (native dev
+builds, the `HELIX_HOT_RELOAD` default) fingerprints each plugin directory once a second and
+rescans what changed.
 
 ### Shutdown
 
@@ -237,7 +244,7 @@ All under one global `helix`. Lua changes the screen only through subjects the X
 | `helix.widget(id, {on_attach, on_detach, on_size, on_activate, on_deactivate})` | handlers for a manifest-declared widget; `on_size(cols, rows, w, h)` |
 | `helix.printer.get(name)`, `helix.printer.watch(name, fn)` | read-only, a fixed table of Lua-facing names decoupled from our subject names (see Printer state) |
 | `helix.moonraker.query(objects)` | printer objects, Klipper's stable contract |
-| `helix.moonraker.subscribe(objects, fn)` | **Phase 3.** Moonraker's `printer.objects.subscribe` replaces the connection's whole subscription, so plugin objects have to be merged into the app's union subscription in `MoonrakerDiscoverySequence`, which is WebSocket critical-path work. Until then, poll with `query` on a timer |
+| `helix.moonraker.subscribe(objects, fn)` | Plugin objects are merged into the app's union subscription; a subscribe error re-sends the app's objects alone, so a plugin never costs the app its subscription. First values arrive from one `printer.objects.query`, then `notify_status_update` deltas. Per plugin: at most 8 subscriptions, 16 objects, 32 fields per object |
 | `helix.moonraker.on_agent_event(name, fn)` | Moonraker agent events: the channel to companions such as an Orca plugin |
 | `helix.settings.get(key)`, `helix.settings.on_change(key, fn)` | the plugin's schema settings |
 | `helix.timer.after(ms, fn)`, `helix.timer.every(ms, fn)` | return a handle with `:cancel()` |

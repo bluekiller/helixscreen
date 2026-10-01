@@ -55,6 +55,7 @@ src/api/moonraker_client_mock_print.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_client_mock_queue.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_client_mock_server.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_discovery_sequence.cpp  # not in the v1 Core+AMS cut
+src/api/moonraker_subscription_merge.cpp  # only moonraker_discovery_sequence.cpp uses it
 src/api/moonraker_file_transfer_api.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_request_tracker.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_rest_api.cpp  # not in the v1 Core+AMS cut
@@ -304,3 +305,6 @@ src/plugin/plugin_overlay_host.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_settings_overlay.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_consent.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugins_overlay.cpp  # not in the v1 Core+AMS cut
+src/plugin/plugin_source.cpp  # not in the v1 Core+AMS cut
+src/plugin/plugin_source_app.cpp  # not in the v1 Core+AMS cut
+src/plugin/plugin_dir_watcher.cpp  # not in the v1 Core+AMS cut

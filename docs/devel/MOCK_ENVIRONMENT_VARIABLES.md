@@ -121,6 +121,27 @@ Make `server.files.metadata` and `server.files.metascan` fail with a 404, as Moo
 
 With metadata unavailable, the UI falls back to reading thumbnails and layer counts straight out of the gcode file, which is the per-file path that #1706 froze. This knob forces that fallback without needing a metadata-less server.
 
+### `HELIX_MOCK_PLUGINS_DIR`
+
+Serve the `config/helixscreen/plugins/` folder of the mock printer from a local directory, so a `--test` run lists and downloads plugins exactly like a printer would.
+
+| Property | Value |
+|----------|-------|
+| **Values** | path to a directory (each `<dir>/<id>/<file>` is served as `config/helixscreen/plugins/<id>/<file>`) |
+| **Default** | unset (the config root holds only injected files; plugin downloads are not served) |
+| **File** | `src/api/moonraker_api_mock.cpp` (`MoonrakerFileAPIMock::list_files`, `MoonrakerFileTransferAPIMock::lookup_config_root`) |
+
+Every regular file under the directory is listed in the config root under the plugin prefix, with real size and mtime, and downloads (both the partial and the to-path forms) return the fixture bytes. Point it at `tests/fixtures/plugins` or your own plugin folder to exercise the plugin sync pipeline end to end without a printer:
+
+```bash
+HELIX_MOCK_PLUGINS_DIR=tests/fixtures/plugins ./build/bin/helix-screen --test -vv
+```
+
+The mock answers `printer.objects.subscribe` itself, without the real discovery sequence, so a
+`--test` run never exercises the subscription merge that folds plugin objects into the app's
+union subscription; that path is covered by the real-sequence unit tests (the `[subscription]`
+tag).
+
 ### `HELIX_MOCK_AUTO_PRINT`
 
 Boot the mock printer straight into an active print so print-gated features can be exercised under `--test` without manually driving a print-start flow.

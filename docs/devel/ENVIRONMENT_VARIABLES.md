@@ -1332,14 +1332,18 @@ SCREWS_AUTO_START=1 ./build/bin/helix-screen --test &
 
 ### `HELIX_PLUGIN_DIR`
 
-Directory of Lua plugins, one subdirectory per plugin. Unset: no plugins load. A development
-override until the Moonraker plugin folder lands.
+Directory of Lua plugins, one subdirectory per plugin. While set, this local directory is the
+plugin source instead of the printer's `config/helixscreen/plugins/` folder: no Moonraker sync
+runs. In native dev builds, plugin hot reload is on by default under the same
+`HELIX_HOT_RELOAD` gate as XML hot reload: the app polls the directory about once a second and
+reloads each plugin whose files changed (`HELIX_HOT_RELOAD=0` disables it; cross-compiled
+release builds default it off).
 
 | Property | Value |
 |----------|-------|
 | **Values** | Any readable directory path holding `<id>/manifest.json` subdirectories |
-| **Default** | Unset (no plugins load) |
-| **File** | `src/application/application.cpp` (`init_plugins`), `src/plugin/plugin_host.cpp` |
+| **Default** | Unset (plugins come from the per-printer cache, synced from Moonraker) |
+| **File** | `src/application/application.cpp` (`init_plugins`), `src/plugin/plugin_dir_watcher.cpp` |
 
 ```bash
 HELIX_PLUGIN_DIR=$PWD/tests/fixtures/plugins ./build/bin/helix-screen --test -vv

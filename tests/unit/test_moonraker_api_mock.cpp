@@ -18,8 +18,11 @@
 #include "printer_state.h"
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <unistd.h>
 
 #include "../catch_amalgamated.hpp"
@@ -722,4 +725,97 @@ TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
     // Verify spool 2 is now active and spool 1 is not
     REQUIRE(spool1->is_active == false);
     REQUIRE(spool2->is_active == true);
+}
+
+// ============================================================================
+// Simulation Frames as Method Callbacks
+// ============================================================================
+
+TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
+                 "MoonrakerClientMock simulation delivers status frames to method callbacks",
+                 "[mock][api][moonraker]") {
+    std::mutex mu;
+    std::condition_variable cv;
+    int frames = 0;
+
+    // The live WebSocket path reaches notify_status_update registrants (plugin
+    // subscriptions among them); the simulated frames the mock pushes each tick
+    // must arrive through that same door, not only through register_notify_update.
+    client_.register_method_callback(
+        "notify_status_update", "sim_status_probe", [&](const json& msg) {
+            std::lock_guard<std::mutex> lk(mu);
+            if (msg.contains("params") && msg["params"].is_array() && !msg["params"].empty() &&
+                msg["params"][0].is_object()) {
+                ++frames;
+            }
+            cv.notify_all();
+        });
+
+    client_.start_temperature_simulation();
+    bool delivered = false;
+    {
+        std::unique_lock<std::mutex> lk(mu);
+        delivered = cv.wait_for(lk, std::chrono::seconds(10), [&] { return frames >= 2; });
+    }
+    client_.stop_temperature_simulation();
+
+    REQUIRE(delivered);
+    CHECK(frames >= 2);
+}
+
+// ============================================================================
+// Config-Root Downloads
+// ============================================================================
+
+TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
+                 "MoonrakerAPIMock download_file_to_path serves the injected config root",
+                 "[mock][api][download][moonraker]") {
+    const std::string body = R"({"id": "union-probe"})";
+    api_->set_config_files({{"plugins/union-probe/manifest.json", body}});
+
+    const std::string dest_path =
+        "/tmp/helix_test_config_download_" + std::to_string(getpid()) + ".json";
+    std::remove(dest_path.c_str());
+
+    bool success_called = false;
+    std::string received_path;
+    bool error_called = false;
+    MoonrakerError received_error;
+    api_->transfers().download_file_to_path(
+        "config", "plugins/union-probe/manifest.json", dest_path,
+        [&](const std::string& path) {
+            received_path = path;
+            success_called = true;
+        },
+        [&](const MoonrakerError& err) {
+            received_error = err;
+            error_called = true;
+        });
+
+    REQUIRE(success_called);
+    CHECK_FALSE(error_called);
+    CHECK(received_path == dest_path);
+
+    std::ifstream file(dest_path, std::ios::binary);
+    std::ostringstream streamed;
+    streamed << file.rdbuf();
+    file.close();
+    CHECK(streamed.str() == body);
+    std::remove(dest_path.c_str());
+
+    // A path the config root does not hold is a not-found, never a fall-through
+    // that could resolve some same-basename file from the test asset dirs.
+    bool absent_ok = false;
+    MoonrakerError absent_error;
+    bool absent_error_called = false;
+    api_->transfers().download_file_to_path(
+        "config", "plugins/union-probe/nope.json", dest_path,
+        [&](const std::string&) { absent_ok = true; },
+        [&](const MoonrakerError& err) {
+            absent_error = err;
+            absent_error_called = true;
+        });
+    CHECK_FALSE(absent_ok);
+    REQUIRE(absent_error_called);
+    CHECK(absent_error.method == "download_file_to_path");
 }

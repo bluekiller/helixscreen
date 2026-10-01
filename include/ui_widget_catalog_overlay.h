@@ -22,6 +22,10 @@ using WidgetSelectedCallback = std::function<void(const std::string& widget_id)>
 /// Callback invoked when the catalog overlay is closed (selection or back navigation).
 using CatalogClosedCallback = std::function<void()>;
 
+/// Callback the catalog asks whether a def still fits the page it was opened
+/// from. Null (or absent) means everything fits.
+using WidgetFitCallback = std::function<bool(const PanelWidgetDef&)>;
+
 /// Shows a half-width overlay listing the widget categories available for grid
 /// placement. Picking a category dives into a sub-page listing that category's
 /// widgets, using the same header/back contract as the settings sub-pages.
@@ -39,8 +43,12 @@ class WidgetCatalogOverlay {
     /// @param config         Current widget config (to determine which are already placed)
     /// @param on_select      Called with the chosen widget ID when user taps a row
     /// @param on_close       Called when the overlay is closed for any reason
+    /// @param fits           Asked per def whether it fits the page the catalog
+    ///                       was opened from; a row it refuses is shown dimmed
+    ///                       and unclickable, its name carrying the reason
     static void show(lv_obj_t* parent_screen, const PanelWidgetConfig& config,
-                     WidgetSelectedCallback on_select, CatalogClosedCallback on_close = nullptr);
+                     WidgetSelectedCallback on_select, CatalogClosedCallback on_close = nullptr,
+                     WidgetFitCallback fits = nullptr);
 
     /// Widget defs belonging to @p category, in registry order.
     ///
@@ -99,10 +107,12 @@ class WidgetCatalogOverlay {
                                        const PanelWidgetConfig& config,
                                        const std::unordered_map<std::string, int>& multi_placed);
 
-    /// Create a single catalog row widget
+    /// Create a single catalog row widget. @p unavailable dims the row and
+    /// strips its click for a reason outside the row itself: the hardware is
+    /// missing here, or the page has no room for the widget's minimum span.
     static lv_obj_t* create_row(lv_obj_t* parent, const char* name, const char* icon,
                                 const char* description, int colspan, int rowspan,
-                                bool already_placed, bool hardware_gated);
+                                bool already_placed, bool unavailable);
 };
 
 } // namespace helix

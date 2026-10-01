@@ -69,6 +69,12 @@ class PluginHost {
     void load_from(const std::string& dir);
     void unload_all();
 
+    /// Reloads, adds or removes only the named plugins: each id with a manifest
+    /// on disk is unloaded (when loaded), re-read and reconsidered; each id
+    /// whose manifest is gone is unloaded and dropped. Ids not named keep
+    /// their runtime and generation.
+    void rescan(const std::vector<std::string>& ids);
+
     /// The host the app runs, or nullptr.
     static PluginHost* live();
 
@@ -155,6 +161,12 @@ class PluginHost {
     std::vector<std::unique_ptr<PluginSettingsOverlay>> settings_screens_;
     uint64_t next_load_gen_ = 1;
 };
+
+/// The candidates the host can load after a rescan: present in `infos`, with a
+/// readable manifest, in a state the user could enable. A synced folder with
+/// no manifest, or one the host rejected, does not count as a new plugin.
+std::vector<std::string> loadable_plugin_ids(const std::vector<std::string>& candidates,
+                                             const std::vector<PluginInfo>& infos);
 
 /// Registers the `plugin_event` XML callback once per process. It forwards to the live host.
 void register_plugin_event_callback();

@@ -3,6 +3,8 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_update_queue.h"
+
 #include "app_globals.h"
 #include "http_executor.h"
 #include "plugin_backend.h"
@@ -99,3 +101,20 @@ TEST_CASE("app backend http refuses the printer's own host", "[plugin][backend]"
 }
 
 #endif // HELIX_HAS_PLUGINS
+
+TEST_CASE("app backend set_plugin_objects reaches the object union", "[plugin][backend]") {
+    auto b = make_app_backend();
+
+    // The registry behind plugin_objects_union() is process-wide, so the probe
+    // entry is cleared before the case ends whatever its assertions did.
+    b.set_plugin_objects("union_probe_plugin", json{{"union_probe_object", {"field"}}});
+    const json unioned = plugin_objects_union();
+    CHECK(unioned.contains("union_probe_object"));
+
+    // An empty object clears the plugin's entry.
+    b.set_plugin_objects("union_probe_plugin", json::object());
+    CHECK_FALSE(plugin_objects_union().contains("union_probe_object"));
+
+    // Publishing schedules a coalesced subscription refresh on the UI queue.
+    helix::ui::UpdateQueue::instance().drain();
+}

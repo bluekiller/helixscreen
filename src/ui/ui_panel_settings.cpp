@@ -332,7 +332,8 @@ void SettingsPanel::init_subjects() {
                            (install_suppressed && !externally_managed) ? 1 : 0,
                            "updates_unavailable", subjects_);
 
-    // 0 until Application::init_plugins creates a host, so the row stays hidden
+    // 0 until Application::init_plugins loads at least one plugin, so the row
+    // stays hidden until there is something to show
     UI_MANAGED_SUBJECT_INT(plugins_available_subject_, 0, "settings_plugins_available", subjects_);
 
     // Touch calibration status, filled by refresh_status_lines().
