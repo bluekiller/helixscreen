@@ -290,73 +290,70 @@ void EmergencyStopOverlay::create() {
             } else if (klippy_state == KlippyState::READY) {
                 // Auto-dismiss recovery dialog when Klipper is back to READY
                 // NOTE: Must defer to main thread - observer may fire from WebSocket thread
-                helix::ui::async_call(
-                    [](void*) {
-                        auto& inst = EmergencyStopOverlay::instance();
+                helix::ui::queue_update("KlipperRecovery::klippy_ready", []() {
+                    auto& inst = EmergencyStopOverlay::instance();
 
-                        // Sampled before the flag reset below. An expected
-                        // restart (recovery Restart button, a panel's
-                        // SAVE_CONFIG, power/host flows) suppresses the
-                        // recovery dialog by design, so the dialog-dismiss
-                        // path below cannot signal completion for those flows
-                        // - the restart flag and suppression window are the
-                        // record that this READY ends a UI-initiated restart.
-                        // Mutual coverage: if the suppression window expires
-                        // before klippy returns, the recovery dialog shows and
-                        // the dialog path below fires instead. The flag is
-                        // atomic and klippy is READY here, so the extra tick
-                        // of trueness cannot swallow a real SHUTDOWN.
-                        const bool expected_restart = inst.is_expected_restart();
+                    // Sampled before the flag reset below. An expected
+                    // restart (recovery Restart button, a panel's
+                    // SAVE_CONFIG, power/host flows) suppresses the
+                    // recovery dialog by design, so the dialog-dismiss
+                    // path below cannot signal completion for those flows
+                    // - the restart flag and suppression window are the
+                    // record that this READY ends a UI-initiated restart.
+                    // Mutual coverage: if the suppression window expires
+                    // before klippy returns, the recovery dialog shows and
+                    // the dialog path below fires instead. The flag is
+                    // atomic and klippy is READY here, so the extra tick
+                    // of trueness cannot swallow a real SHUTDOWN.
+                    const bool expected_restart = inst.is_expected_restart();
 
-                        // Reset restart flag - operation complete. The deadline
-                        // behind it is only a backstop for the restart that
-                        // never gets here; a READY still ends the window
-                        // immediately.
-                        inst.restart_expires_at_.store(0, std::memory_order_relaxed);
+                    // Reset restart flag - operation complete. The deadline
+                    // behind it is only a backstop for the restart that
+                    // never gets here; a READY still ends the window
+                    // immediately.
+                    inst.restart_expires_at_.store(0, std::memory_order_relaxed);
 
-                        // Klippy came back, so anything the suppression window
-                        // was holding describes a state that no longer exists.
-                        // Drop it before the re-check timer can surface a
-                        // recovery dialog for a shutdown that already resolved.
-                        inst.pending_recovery_reason_.store(static_cast<int>(RecoveryReason::NONE),
-                                                            std::memory_order_relaxed);
+                    // Klippy came back, so anything the suppression window
+                    // was holding describes a state that no longer exists.
+                    // Drop it before the re-check timer can surface a
+                    // recovery dialog for a shutdown that already resolved.
+                    inst.pending_recovery_reason_.store(static_cast<int>(RecoveryReason::NONE),
+                                                        std::memory_order_relaxed);
 
-                        // Klipper is back, so any "Printer Error" alert raised
-                        // while it was down describes a condition that no longer
-                        // exists. Leaving them up made a recovered printer look
-                        // broken and forced an OK per cascaded fault (#1266).
-                        // Independent of recovery_dialog_ below: the user may
-                        // have recovered from another client without HelixScreen
-                        // ever showing its own recovery dialog.
-                        helix::ui::dismiss_fault_modals();
+                    // Klipper is back, so any "Printer Error" alert raised
+                    // while it was down describes a condition that no longer
+                    // exists. Leaving them up made a recovered printer look
+                    // broken and forced an OK per cascaded fault (#1266).
+                    // Independent of recovery_dialog_ below: the user may
+                    // have recovered from another client without HelixScreen
+                    // ever showing its own recovery dialog.
+                    helix::ui::dismiss_fault_modals();
 
-                        // Guard against async callback firing after display destruction
-                        if (inst.recovery_dialog_) {
-                            if (!ModalStack::instance().backdrop_for(inst.recovery_dialog_)) {
-                                // Dialog was dismissed externally — clear stale pointer
-                                inst.recovery_dialog_ = nullptr;
-                            } else {
-                                spdlog::info(
-                                    "[KlipperRecovery] Klipper is READY, dismissing recovery "
-                                    "dialog");
-                                inst.dismiss_recovery_dialog();
-                                ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                              lv_tr("Printer ready"), 3000);
-                            }
-                        } else if (expected_restart) {
-                            // The restart completed with the dialog suppressed
-                            // by its initiating flow, so still say so. Direct
-                            // ToastManager call, deliberately not
-                            // ui_notification_*: every severity there writes a
-                            // history row, and klippy-being-ready is not
-                            // history. A READY with nothing expected (first
-                            // ready at app start) stays silent - the status
-                            // icon already carries it.
+                    // Guard against async callback firing after display destruction
+                    if (inst.recovery_dialog_) {
+                        if (!ModalStack::instance().backdrop_for(inst.recovery_dialog_)) {
+                            // Dialog was dismissed externally — clear stale pointer
+                            inst.recovery_dialog_ = nullptr;
+                        } else {
+                            spdlog::info("[KlipperRecovery] Klipper is READY, dismissing recovery "
+                                         "dialog");
+                            inst.dismiss_recovery_dialog();
                             ToastManager::instance().show(ToastSeverity::SUCCESS,
                                                           lv_tr("Printer ready"), 3000);
                         }
-                    },
-                    nullptr);
+                    } else if (expected_restart) {
+                        // The restart completed with the dialog suppressed
+                        // by its initiating flow, so still say so. Direct
+                        // ToastManager call, deliberately not
+                        // ui_notification_*: every severity there writes a
+                        // history row, and klippy-being-ready is not
+                        // history. A READY with nothing expected (first
+                        // ready at app start) stays silent - the status
+                        // icon already carries it.
+                        ToastManager::instance().show(ToastSeverity::SUCCESS,
+                                                      lv_tr("Printer ready"), 3000);
+                    }
+                });
             }
         },
         ps_subjects);
@@ -574,9 +571,9 @@ bool EmergencyStopOverlay::show_recovery_for_main(RecoveryReason reason) {
             spdlog::info("[KlipperRecovery] Connection dropped while SHUTDOWN dialog showing, "
                          "updating buttons");
             recovery_reason_ = RecoveryReason::DISCONNECTED;
-            helix::ui::async_call(
-                [](void*) { EmergencyStopOverlay::instance().update_recovery_dialog_content(); },
-                nullptr);
+            helix::ui::queue_update("KlipperRecovery::update_dialog", []() {
+                EmergencyStopOverlay::instance().update_recovery_dialog_content();
+            });
         } else {
             spdlog::debug("[KlipperRecovery] Recovery dialog already visible, ignoring {}",
                           recovery_reason_str(reason));
@@ -595,23 +592,21 @@ bool EmergencyStopOverlay::show_recovery_for_main(RecoveryReason reason) {
     // is no longer the thread hop it once was — it is kept because the dialog is
     // built one tick later, after any modal currently mid-teardown has finished
     // leaving the stack. The re-entrancy guard below covers the gap.
-    helix::ui::async_call(
-        [](void*) {
-            auto& inst = EmergencyStopOverlay::instance();
-            // Guard: dialog may have been shown by another async call in the meantime
-            if (inst.recovery_dialog_) {
-                if (ModalStack::instance().backdrop_for(inst.recovery_dialog_)) {
-                    return;
-                }
-                // Dialog was dismissed externally — clear stale pointer
-                inst.recovery_dialog_ = nullptr;
+    helix::ui::queue_update("KlipperRecovery::show_dialog", []() {
+        auto& inst = EmergencyStopOverlay::instance();
+        // Guard: dialog may have been shown by another deferred call in the meantime
+        if (inst.recovery_dialog_) {
+            if (ModalStack::instance().backdrop_for(inst.recovery_dialog_)) {
+                return;
             }
-            spdlog::info("[KlipperRecovery] Showing recovery dialog (reason: {})",
-                         recovery_reason_str(inst.recovery_reason_));
-            inst.show_recovery_dialog();
-            inst.update_recovery_dialog_content();
-        },
-        nullptr);
+            // Dialog was dismissed externally — clear stale pointer
+            inst.recovery_dialog_ = nullptr;
+        }
+        spdlog::info("[KlipperRecovery] Showing recovery dialog (reason: {})",
+                     recovery_reason_str(inst.recovery_reason_));
+        inst.show_recovery_dialog();
+        inst.update_recovery_dialog_content();
+    });
 
     return true;
 }

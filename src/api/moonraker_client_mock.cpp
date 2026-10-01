@@ -4702,9 +4702,9 @@ void MoonrakerClientMock::emergency_stop_internal() {
     dispatch_print_state_notification("error");
 
     // Set klippy state to SHUTDOWN (must defer to main thread)
-    helix::ui::async_call(
-        [](void*) { get_printer_state().set_klippy_state_sync(helix::KlippyState::SHUTDOWN); },
-        nullptr);
+    helix::ui::queue_update("MoonrakerClientMock::estop_shutdown", []() {
+        get_printer_state().set_klippy_state_sync(helix::KlippyState::SHUTDOWN);
+    });
 }
 
 bool MoonrakerClientMock::toggle_filament_runout() {

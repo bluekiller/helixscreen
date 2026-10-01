@@ -5,6 +5,7 @@
 
 #include "ui_observer_guard.h"
 
+#include "async_lifetime_guard.h"
 #include "subject_managed_panel.h"
 
 #include <lvgl/lvgl.h>
@@ -125,6 +126,8 @@ class PrintLightTimelapseControls {
     lv_subject_t timelapse_label_subject_;
     char timelapse_button_buf_[8] = ""; // MDI video/video-off icon
     char timelapse_label_buf_[16] = "Off";
+
+    helix::AsyncLifetimeGuard lifetime_;
 };
 
 /**

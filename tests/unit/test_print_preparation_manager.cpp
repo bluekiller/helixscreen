@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_busy_overlay.h"
 #include "ui_filename_utils.h"
 #include "ui_print_preparation_manager.h"
 
@@ -3411,6 +3412,31 @@ TEST_CASE_METHOD(HelixTestFixture,
     const auto& downloads = api.transfers_mock().download_destinations();
     REQUIRE(downloads.size() == 1);
     CHECK_FALSE(std::filesystem::exists(downloads[0]));
+}
+
+// BusyOverlay is process-wide, so the transfer error that hides it is bound to
+// no object: it must still run when the manager that showed it is gone.
+TEST_CASE_METHOD(HelixTestFixture,
+                 "PrintPreparationManager: a failed download hides the busy overlay after the "
+                 "manager is destroyed",
+                 "[print_preparation][remap][lifetime]") {
+    lv_init_safe();
+    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
+    PrinterState state;
+    state.init_subjects(false);
+    MoonrakerAPIMock api(mock_client, state);
+
+    {
+        PrintPreparationManager manager;
+        manager.set_dependencies(&api, &state);
+        state.begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
+        manager.modify_and_print_with_remap("no_such_file.gcode", {{1, 2}}, nullptr);
+        REQUIRE(BusyOverlay::is_pending());
+    }
+
+    drain_until_quiet();
+    CHECK_FALSE(BusyOverlay::is_pending());
+    CHECK_FALSE(BusyOverlay::is_visible());
 }
 
 TEST_CASE_METHOD(HelixTestFixture,

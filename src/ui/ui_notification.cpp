@@ -6,7 +6,7 @@
  * @brief Thread-safe notification toast system callable from any thread
  *
  * @pattern Auto-detects background thread context; marshals to main thread
- * @threading Safe from any thread - automatically uses helix::ui::async_call() when needed
+ * @threading Safe from any thread - automatically defers via helix::ui::queue_update() when needed
  *
  * @see "Thread-safe:" comment in show() implementation
  */
@@ -348,7 +348,7 @@ static void show_notification(const char* title, const char* message, ToastSever
         data->severity = severity;
         data->duration_ms = duration_ms;
 
-        helix::ui::async_call(async_message_callback, data);
+        helix::ui::queue_update("Notification::show", [data]() { async_message_callback(data); });
     }
 }
 
@@ -387,14 +387,11 @@ void ui_notification_info_with_action(const char* title, const char* message, co
             spdlog::error("[Notification] Failed to allocate for async action notification");
             return;
         }
-        helix::ui::async_call(
-            [](void* user_data) {
-                auto* e = static_cast<NotificationHistoryEntry*>(user_data);
-                NotificationHistory::instance().add(*e);
-                helix::ui::notification_refresh_from_history();
-                delete e;
-            },
-            data);
+        helix::ui::queue_update("Notification::history_only", [data]() {
+            NotificationHistory::instance().add(*data);
+            helix::ui::notification_refresh_from_history();
+            delete data;
+        });
     }
 
     spdlog::info("[Notification] History-only notification: '{}' action='{}'", message, action);
@@ -586,7 +583,7 @@ static void show_error_notification(const char* title, const char* message, bool
         data->modal = modal;
         data->fault = fault;
 
-        helix::ui::async_call(async_error_callback, data);
+        helix::ui::queue_update("Notification::error", [data]() { async_error_callback(data); });
     }
 }
 

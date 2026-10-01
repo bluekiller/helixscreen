@@ -507,12 +507,10 @@ void SpoolEditModal::handle_save() {
 
     auto on_error = [spool_id](const MoonrakerError& err) {
         spdlog::error("[SpoolEditModal] Failed to save spool {}: {}", spool_id, err.message);
-        helix::ui::async_call(
-            [](void*) {
-                ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Failed to save spool"),
-                                              3000);
-            },
-            nullptr);
+        helix::ui::queue_update("SpoolEditModal::save_failed", []() {
+            ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Failed to save spool"),
+                                          3000);
+        });
     };
 
     // Send spool PATCH first, then filament PATCH if needed
