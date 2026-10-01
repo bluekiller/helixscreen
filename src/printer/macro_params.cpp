@@ -185,7 +185,7 @@ std::map<std::string, std::string> helix::parse_raw_macro_params(const std::stri
     std::map<std::string, std::string> result;
     size_t pos = 0;
     while (pos < raw_text.size()) {
-        while (pos < raw_text.size() && std::isspace(raw_text[pos]))
+        while (pos < raw_text.size() && std::isspace(static_cast<unsigned char>(raw_text[pos])))
             ++pos;
         if (pos >= raw_text.size())
             break;

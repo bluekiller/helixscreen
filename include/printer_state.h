@@ -290,7 +290,15 @@ class PrinterState {
      *        dispatches untimestamped status, and those ARE current.
      */
     void update_from_status(const json& status, double eventtime = 0.0,
-                            bool from_cached_snapshot = false);
+                            bool from_cached_snapshot = false,
+                            std::optional<uint64_t> frame_epoch = std::nullopt);
+
+    /// Which connection session a status frame belongs to. Advances on every
+    /// reset_klippy_state_freshness(); stamp a frame with it where it is
+    /// received, and hand the stamp to update_from_status().
+    [[nodiscard]] uint64_t klippy_epoch() const {
+        return klippy_epoch_.load();
+    }
 
     //
     // Subject accessors for XML binding
@@ -2663,6 +2671,10 @@ class PrinterState {
     /// rewinds on a host reboot.
     double klippy_state_eventtime_ = 0.0;
     std::mutex klippy_freshness_mutex_;
+
+    /// Session counter behind klippy_epoch(). A frame stamped with an older
+    /// value was received before the last reset.
+    std::atomic<uint64_t> klippy_epoch_{0};
 
     /// True once a live-sourced klippy state has been applied. Latches the state
     /// against replayed snapshots (discovery re-dispatches its subscription

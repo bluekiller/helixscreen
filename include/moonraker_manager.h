@@ -403,8 +403,15 @@ class MoonrakerManager {
     std::unique_ptr<helix::IMoonrakerClient> m_client;
     std::unique_ptr<MoonrakerAPI> m_api;
 
+    /// A notification and the klippy session it was received in (see
+    /// PrinterState::klippy_epoch()).
+    struct QueuedNotification {
+        nlohmann::json body;
+        uint64_t klippy_epoch = 0;
+    };
+
     // Thread-safe notification queue
-    std::queue<nlohmann::json> m_notification_queue;
+    std::queue<QueuedNotification> m_notification_queue;
     mutable std::mutex m_notification_mutex;
 
     // Print start collector (monitors PRINT_START macro progress)

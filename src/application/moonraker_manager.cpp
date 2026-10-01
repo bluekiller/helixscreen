@@ -262,7 +262,8 @@ void MoonrakerManager::process_notifications() {
     std::lock_guard<std::mutex> lock(m_notification_mutex);
 
     while (!m_notification_queue.empty()) {
-        json notification = std::move(m_notification_queue.front());
+        const uint64_t klippy_epoch = m_notification_queue.front().klippy_epoch;
+        json notification = std::move(m_notification_queue.front().body);
         m_notification_queue.pop();
 
         // Check for connection state change (queued from state_change_callback)
@@ -327,7 +328,7 @@ void MoonrakerManager::process_notifications() {
         } else {
             if (auto frame = helix::parse_status_notification(notification)) {
                 get_printer_state().update_from_status(*frame->status, frame->eventtime,
-                                                       frame->from_cached_snapshot);
+                                                       frame->from_cached_snapshot, klippy_epoch);
                 helix::ToolState::instance().update_from_status(*frame->status);
             }
         }
@@ -638,7 +639,7 @@ void MoonrakerManager::register_callbacks() {
             state_change["_connection_state"] = true;
             state_change["old_state"] = static_cast<int>(old_state);
             state_change["new_state"] = static_cast<int>(new_state);
-            m_notification_queue.push(state_change);
+            m_notification_queue.push({std::move(state_change), 0});
         });
 
     // Register notification callback to queue updates for main thread
@@ -647,7 +648,9 @@ void MoonrakerManager::register_callbacks() {
             return;
 
         std::lock_guard<std::mutex> lock(m_notification_mutex);
-        m_notification_queue.push(notification);
+        // Stamped on the WebSocket thread, the thread that resets the klippy
+        // freshness on close, so a frame always carries the session it arrived in.
+        m_notification_queue.push({notification, get_printer_state().klippy_epoch()});
     });
 }
 
