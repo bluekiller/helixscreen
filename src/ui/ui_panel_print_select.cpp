@@ -435,6 +435,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         bool same_dir = (self->current_path_ == self->last_populated_path_);
         self->populate_current_view(same_dir);
         self->last_populated_path_ = self->current_path_;
+        self->file_list_loaded_ = true;
         self->update_empty_state();
     });
 
@@ -598,6 +599,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 spdlog::trace("[{}] File list unchanged, skipping repopulation", panel->get_name());
             }
             panel->last_populated_path_ = panel->current_path_;
+            panel->file_list_loaded_ = true;
 
             panel->update_empty_state();
 
@@ -617,6 +619,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 if (!panel->select_file_by_name(pending)) {
                     spdlog::warn("[{}] Pending file selection '{}' not found in file list",
                                  panel->get_name(), pending);
+                    ui_notification_warning("File not found in print list");
                 }
             }
 
@@ -679,8 +682,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
             });
         });
 
-    // Create detail view (confirmation dialog created on-demand)
-    create_detail_view();
+    // The controller exists from boot so a crash-recovery remap restores
+    // without a visit; only its detail view is lazy.
+    create_print_controller();
+
+    // The detail view is built by the first show_detail_view() /
+    // show_delete_confirmation(); most sessions never open one.
 
     // Register resize callback
     // Note: register_resize_callback expects a C callback, so we use a static trampoline
@@ -959,6 +966,13 @@ void PrintSelectPanel::hide_context_banner() {
 }
 
 void PrintSelectPanel::refresh_files(bool force) {
+    // Listing, metadata and thumbnail traffic waits for the first visit; every
+    // caller before it (setup, set_api, connect edges) is superseded by the
+    // refresh on_activate() issues.
+    if (first_activation_) {
+        spdlog::debug("[{}] refresh_files() deferred until first activation", get_name());
+        return;
+    }
     hide_context_banner();
     if (!file_provider_) {
         spdlog::warn("[{}] Cannot refresh files: file provider not initialized", get_name());
@@ -2003,6 +2017,8 @@ void PrintSelectPanel::set_selected_file(const char* filename, const char* thumb
                                          const char* filament_weight, const char* layer_count,
                                          const char* print_height, time_t modified_timestamp,
                                          const char* layer_height, const char* filament_type) {
+    // The thumbnail toggles below act on the detail view's widgets.
+    create_detail_view();
     lv_subject_copy_string(&selected_filename_subject_, filename);
 
     // Display filename strips .gcode extension for cleaner UI
@@ -2103,6 +2119,7 @@ void PrintSelectPanel::set_selected_file(const char* filename, const char* thumb
 }
 
 void PrintSelectPanel::show_detail_view() {
+    create_detail_view();
     // Track that detail view is open (for smart refresh skip on return)
     detail_view_open_ = true;
     files_changed_while_detail_open_ = false;
@@ -2171,6 +2188,7 @@ void PrintSelectPanel::hide_detail_view() {
 }
 
 void PrintSelectPanel::show_delete_confirmation() {
+    create_detail_view();
     if (!detail_view_) {
         spdlog::warn("[{}] Cannot show delete confirmation: detail_view_ not initialized",
                      get_name());
@@ -2620,6 +2638,27 @@ void PrintSelectPanel::update_sort_indicators() {
     }
 }
 
+void PrintSelectPanel::create_print_controller() {
+    if (print_controller_) {
+        return;
+    }
+    // Create and wire up print start controller
+    print_controller_ = std::make_unique<helix::ui::PrintStartController>(printer_state_, api_);
+    print_controller_->set_can_print_subject(&can_print_subject_);
+    print_controller_->set_update_print_button([this]() { update_print_button_state(); });
+    print_controller_->set_hide_detail_view([this]() { hide_detail_view(); });
+    print_controller_->set_show_detail_view([this]() { show_detail_view(); });
+    print_controller_->set_navigate_to_print_status(
+        [this]() { PrintStatusPanel::push_overlay(parent_screen_); });
+    // The queued-job start consumes its entry here, on Moonraker's
+    // confirmation that the print actually started — the tap alone proves
+    // nothing (the start can still fail or be backed out).
+    print_controller_->set_on_print_started([this]() { finish_pending_queued_job(); });
+
+    // Crash recovery: restore firmware mapping if app restarted mid-print
+    print_controller_->recover_pending_remap();
+}
+
 void PrintSelectPanel::create_detail_view() {
     if (detail_view_) {
         // The detail overlay lives under parent_screen_, not panel_, so it
@@ -2669,22 +2708,9 @@ void PrintSelectPanel::create_detail_view() {
             [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
     }
 
-    // Create and wire up print start controller
-    print_controller_ = std::make_unique<helix::ui::PrintStartController>(printer_state_, api_);
-    print_controller_->set_detail_view(detail_view_.get());
-    print_controller_->set_can_print_subject(&can_print_subject_);
-    print_controller_->set_update_print_button([this]() { update_print_button_state(); });
-    print_controller_->set_hide_detail_view([this]() { hide_detail_view(); });
-    print_controller_->set_show_detail_view([this]() { show_detail_view(); });
-    print_controller_->set_navigate_to_print_status(
-        [this]() { PrintStatusPanel::push_overlay(parent_screen_); });
-    // The queued-job start consumes its entry here, on Moonraker's
-    // confirmation that the print actually started — the tap alone proves
-    // nothing (the start can still fail or be backed out).
-    print_controller_->set_on_print_started([this]() { finish_pending_queued_job(); });
-
-    // Crash recovery: restore firmware mapping if app restarted mid-print
-    print_controller_->recover_pending_remap();
+    if (print_controller_) {
+        print_controller_->set_detail_view(detail_view_.get());
+    }
 
     spdlog::debug("[{}] Detail view module initialized", get_name());
 }
@@ -3370,6 +3396,13 @@ void PrintSelectPanel::on_file_clicked_static(lv_event_t* e) {
 }
 
 bool PrintSelectPanel::select_file_by_name(const std::string& filename) {
+    // Before the first listing arrives the file cannot be found yet; the
+    // listing's completion consumes the pending selection.
+    if (!file_list_loaded_) {
+        set_pending_file_selection(filename);
+        return true;
+    }
+
     // Search for the file in the current file list
     for (size_t i = 0; i < file_list_.size(); ++i) {
         const auto& file = file_list_[i];
