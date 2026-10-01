@@ -43,9 +43,10 @@ class PluginSettingsOverlay : public OverlayBase {
                           uint64_t load_gen);
     ~PluginSettingsOverlay() override;
 
-    void init_subjects() override;
     lv_obj_t* create(lv_obj_t* parent) override;
-    const char* get_name() const override;
+    const char* get_name() const override {
+        return "PluginSettings";
+    }
 
     const std::string& plugin_id() const {
         return plugin_id_;
@@ -89,8 +90,8 @@ class PluginSettingsOverlay : public OverlayBase {
     json settings_; ///< snapshot the rows were built from
 };
 
-/// Registers the plugin_setting_changed / plugin_setting_action XML callbacks
-/// once per process. Called from register_plugin_event_callback().
+/// Registers the plugin_setting_changed / plugin_setting_action XML callbacks.
+/// Called from register_plugin_event_callback().
 void register_plugin_settings_callbacks();
 
 } // namespace helix::plugin

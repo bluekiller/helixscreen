@@ -5,6 +5,7 @@
 
 #include "plugin_host.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_nav_manager.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
@@ -18,7 +19,6 @@
 #include "panel_widget_registry.h"
 #include "plugin_settings_overlay.h"
 #include "plugin_xml_policy.h"
-#include "plugins_overlay.h"
 #include "translation_loader.h"
 #include "version.h"
 
@@ -34,12 +34,6 @@ namespace helix::plugin {
 namespace {
 
 PluginHost* g_live_host = nullptr;
-
-void plugin_event_cb(lv_event_t* e) {
-    auto* user_data = static_cast<const char*>(lv_event_get_user_data(e));
-    if (g_live_host && user_data)
-        g_live_host->dispatch_event(user_data);
-}
 
 // Named for its one job: generic names like join() at file scope register as
 // shipped free functions and turn every test helper of the same name into a
@@ -85,9 +79,15 @@ void register_plugin_event_callback() {
     static bool registered = false;
     if (registered)
         return;
-    lv_xml_register_event_cb(nullptr, "plugin_event", &plugin_event_cb);
+    register_xml_callbacks({
+        {"plugin_event",
+         [](lv_event_t* e) {
+             auto* user_data = static_cast<const char*>(lv_event_get_user_data(e));
+             if (g_live_host && user_data)
+                 g_live_host->dispatch_event(user_data);
+         }},
+    });
     register_plugin_settings_callbacks();
-    register_plugins_overlay_callbacks();
     registered = true;
 }
 

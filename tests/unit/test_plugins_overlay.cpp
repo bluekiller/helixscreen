@@ -63,6 +63,7 @@ class ListFx : public LVGLUITestFixture {
     void open(json initial = json::object()) {
         rig = std::make_unique<HostRig>(std::move(initial));
         rig->host->load_from(PLUGINS_DIR);
+        get_plugins_overlay().register_callbacks(); // show() does this before every create
         root = get_plugins_overlay().create(lv_screen_active());
         REQUIRE(root != nullptr);
     }

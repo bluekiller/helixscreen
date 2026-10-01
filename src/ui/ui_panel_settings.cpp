@@ -598,13 +598,10 @@ void register_settings_panel_callbacks() {
         {"on_touch_input_clicked", nav_row<get_touch_settings_overlay>()},
         {"on_connection_clicked", nav_row<get_connection_settings_overlay>()},
         {"on_updates_clicked", nav_row<get_updates_settings_overlay>()},
-        {"on_plugins_clicked",
-         [](lv_event_t*) {
+// Without a plugin host the Plugins row stays hidden, so it needs no callback.
 #if HELIX_HAS_PLUGINS
-             helix::plugin::show_plugins_overlay(settings_screen(), "[SettingsPanel]");
+        {"on_plugins_clicked", nav_row<helix::plugin::get_plugins_overlay>()},
 #endif
-             // No plugin host on other builds; the row stays hidden (subject never set).
-         }},
 
         // Connection page
         {"on_printers_clicked", nav_row<helix::ui::get_printer_list_overlay>()},

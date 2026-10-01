@@ -5,6 +5,7 @@
 
 #include "plugin_settings_overlay.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_nav_manager.h"
 #include "ui_utils.h"
 
@@ -13,6 +14,7 @@
 #include "plugin_host.h"
 #include "plugin_xml_policy.h"
 #include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -67,8 +69,10 @@ std::string row_value_text(const SettingDecl& d, int32_t units) {
 void sync_value_label(const PluginSettingsOverlay::RowBinding& b) {
     if (b.decl.type != SettingType::Int && b.decl.type != SettingType::Float)
         return;
-    lv_obj_t* slider = lv_obj_find_by_name(b.row, "slider");
-    lv_obj_t* label = lv_obj_find_by_name(b.row, "value_label");
+    // required-names: setting_slider_row
+    lv_obj_t* slider = helix::ui::find_required(b.row, "slider", "PluginSettings");
+    // required-names: setting_slider_row
+    lv_obj_t* label = helix::ui::find_required(b.row, "value_label", "PluginSettings");
     if (slider && label)
         lv_label_set_text(label, row_value_text(b.decl, lv_slider_get_value(slider)).c_str());
 }
@@ -157,14 +161,6 @@ PluginSettingsOverlay::~PluginSettingsOverlay() {
     helix::ui::safe_delete_deferred(overlay_root_);
 }
 
-void PluginSettingsOverlay::init_subjects() {
-    subjects_initialized_ = true; // rows bind to the plugin's own subjects, not ours
-}
-
-const char* PluginSettingsOverlay::get_name() const {
-    return "PluginSettings";
-}
-
 lv_obj_t* PluginSettingsOverlay::create(lv_obj_t* parent) {
     const std::string title = title_.empty() ? plugin_id_ : title_;
     const char* pairs[] = {"title", title.c_str(), nullptr};
@@ -175,7 +171,7 @@ lv_obj_t* PluginSettingsOverlay::create(lv_obj_t* parent) {
     }
     parent_screen_ = parent;
 
-    lv_obj_t* rows = lv_obj_find_by_name(overlay_root_, "settings_rows");
+    lv_obj_t* rows = helix::ui::find_required(overlay_root_, "settings_rows", get_name());
     if (!rows) {
         spdlog::error("[PluginSettings] {}: plugin_settings_overlay has no settings_rows",
                       plugin_id_);
@@ -232,7 +228,8 @@ bool PluginSettingsOverlay::build_row(lv_obj_t* rows, const SettingDecl& d, cons
     // applied: setting state fires the row's own value_changed, which walks here.
     lv_obj_set_user_data(row, &b);
     if (d.type == SettingType::Int || d.type == SettingType::Float)
-        if (lv_obj_t* slider = lv_obj_find_by_name(row, "slider"))
+        // required-names: setting_slider_row
+        if (lv_obj_t* slider = helix::ui::find_required(row, "slider", get_name()))
             lv_obj_add_event_cb(slider, slider_value_changed_cb, LV_EVENT_VALUE_CHANGED, &b);
     apply_row_state(b);
     return true;
@@ -241,7 +238,8 @@ bool PluginSettingsOverlay::build_row(lv_obj_t* rows, const SettingDecl& d, cons
 void PluginSettingsOverlay::apply_row_state(const RowBinding& b) {
     switch (b.decl.type) {
     case SettingType::Bool:
-        if (lv_obj_t* toggle = lv_obj_find_by_name(b.row, "toggle")) {
+        // required-names: setting_toggle_row
+        if (lv_obj_t* toggle = helix::ui::find_required(b.row, "toggle", get_name())) {
             if (b.stored.is_boolean() && b.stored.get<bool>())
                 lv_obj_add_state(toggle, LV_STATE_CHECKED);
             else
@@ -250,7 +248,8 @@ void PluginSettingsOverlay::apply_row_state(const RowBinding& b) {
         break;
     case SettingType::Int:
     case SettingType::Float:
-        if (lv_obj_t* slider = lv_obj_find_by_name(b.row, "slider")) {
+        // required-names: setting_slider_row
+        if (lv_obj_t* slider = helix::ui::find_required(b.row, "slider", get_name())) {
             int32_t v = 0;
             if (b.decl.type == SettingType::Int)
                 v = static_cast<int32_t>(int_of(b.stored));
@@ -261,7 +260,8 @@ void PluginSettingsOverlay::apply_row_state(const RowBinding& b) {
         }
         break;
     case SettingType::Enum:
-        if (lv_obj_t* dropdown = lv_obj_find_by_name(b.row, "dropdown")) {
+        // required-names: setting_dropdown_row
+        if (lv_obj_t* dropdown = helix::ui::find_required(b.row, "dropdown", get_name())) {
             if (b.stored.is_string()) {
                 const std::string& s = b.stored.get_ref<const std::string&>();
                 for (size_t i = 0; i < b.decl.options.size(); ++i) {
@@ -274,7 +274,8 @@ void PluginSettingsOverlay::apply_row_state(const RowBinding& b) {
         }
         break;
     case SettingType::String:
-        if (lv_obj_t* input = lv_obj_find_by_name(b.row, "value_input"))
+        // required-names: setting_text_row
+        if (lv_obj_t* input = helix::ui::find_required(b.row, "value_input", get_name()))
             lv_textarea_set_text(
                 input, b.stored.is_string() ? b.stored.get_ref<const std::string&>().c_str() : "");
         break;
@@ -335,27 +336,19 @@ void PluginSettingsOverlay::on_nav_closed() {
     destroy_overlay_ui(overlay_root_);
 }
 
-namespace {
-
-void plugin_setting_changed_cb(lv_event_t* e) {
-    if (PluginHost* host = PluginHost::live())
-        host->handle_setting_row_event(e, false);
-}
-
-void plugin_setting_action_cb(lv_event_t* e) {
-    if (PluginHost* host = PluginHost::live())
-        host->handle_setting_row_event(e, true);
-}
-
-} // namespace
-
 void register_plugin_settings_callbacks() {
-    static bool registered = false;
-    if (registered)
-        return;
-    lv_xml_register_event_cb(nullptr, "plugin_setting_changed", &plugin_setting_changed_cb);
-    lv_xml_register_event_cb(nullptr, "plugin_setting_action", &plugin_setting_action_cb);
-    registered = true;
+    register_xml_callbacks({
+        {"plugin_setting_changed",
+         [](lv_event_t* e) {
+             if (PluginHost* host = PluginHost::live())
+                 host->handle_setting_row_event(e, false);
+         }},
+        {"plugin_setting_action",
+         [](lv_event_t* e) {
+             if (PluginHost* host = PluginHost::live())
+                 host->handle_setting_row_event(e, true);
+         }},
+    });
 }
 
 } // namespace helix::plugin
