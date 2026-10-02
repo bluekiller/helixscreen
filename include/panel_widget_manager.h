@@ -24,6 +24,11 @@ typedef struct _lv_event_t lv_event_t;
 
 namespace helix {
 
+/// The death signal of the owner that registers hardware-gate subject @p name, or null when
+/// no owner is mapped. A token from any other owner would read as defended while defending
+/// nothing, and an owner-token guard no longer falls back to the invalidation epoch.
+SubjectLifetime gate_subject_lifetime(const char* name);
+
 class PanelWidget;
 
 /// Map of widget ID → reusable PanelWidget instance, passed into populate_widgets
