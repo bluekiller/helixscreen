@@ -407,7 +407,7 @@ The name says size, but the value is a resolution: it selects the display mode, 
 | **Default** | Auto-detected from display hardware |
 | **File** | `src/system/cli_args.cpp#parse_screen_size_string` (reached from `src/application/application.cpp` via `EnvironmentConfig::get_screen_size()`) |
 | **Priority** | The `-s` command-line flag takes precedence over this variable |
-| **Case** | Case-insensitive: the value is lowercased before matching, which also normalises the separator, so `1920X1080` and `MEDIUM` parse (`src/system/cli_args.cpp#ascii_lower`) |
+| **Case** | Case-insensitive: the value is lowercased before matching, which also normalises the separator, so `1920X1080` and `MEDIUM` parse (`src/system/cli_args.cpp#parse_screen_size_string/"helix::text_io::to_lower(size_str)"`) |
 
 Named presets and their resolutions:
 

@@ -256,6 +256,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -4712,7 +4713,7 @@ namespace {
  * @brief RAII latch for Application::m_soft_restart_in_progress.
  *
  * Every soft-restart path runs tear_down_printer_state() + init_printer_state(),
- * a 16-step rebuild that includes a Moonraker connect and can throw. Clearing the
+ * a rebuild that includes a Moonraker connect and can throw. Clearing the
  * re-entrancy flag by hand on each exit path leaves it stuck true whenever an exit
  * is not the one that was hand-coded, and a stuck flag makes every later printer
  * switch or add a silent no-op until the process restarts.
@@ -4863,34 +4864,93 @@ void Application::cancel_add_printer_wizard() {
 
 void Application::tear_down_printer_state() {
     spdlog::info("[Application] Tearing down printer state...");
+    teardown_printer_scope(TeardownScope::PrinterSwitch);
+    spdlog::info("[Application] Printer state torn down");
+}
 
-    // Teardown mirrors shutdown() ordering. Subjects stay alive until step 12
-    // so ObserverGuards can properly call lv_observer_remove() during destruction.
+// The one ordered teardown behind both soft restart (PrinterSwitch: the process and LVGL
+// stay alive, init_printer_state() rebuilds afterwards) and shutdown() (ProcessExit:
+// lv_deinit() frees every widget and the process ends). Steps that differ are guarded by
+// `exiting` and say why; everything else runs identically in both scopes. Subjects stay
+// alive until StaticSubjectRegistry::deinit_all() so ObserverGuards can call
+// lv_observer_remove() while destroying.
+void Application::teardown_printer_scope(TeardownScope scope) {
+    const bool exiting = scope == TeardownScope::ProcessExit;
+    auto destroy_panels = [exiting] {
+        if (exiting) {
+            StaticPanelRegistry::instance().destroy_all();
+        } else {
+            helix::ui::destroy_static_panels();
+        }
+    };
 
-    // 0. Clear wizard cancel callback (prevent stale captures across soft restart)
+    // A callback armed for the old printer's wizard must not fire against the next one.
     set_wizard_cancel_callback(nullptr);
 
-    // 1. Clear app_globals BEFORE destroying managers to prevent
-    //    destructors from accessing destroyed objects.
-    //    Also clear SoundManager's client ref so the M300 sequencer thread
-    //    won't call gcode_script() on a dangling pointer after m_moonraker.reset() (#714).
-    SoundManager::instance().set_moonraker_client(nullptr);
+    // A switch freezes the UpdateQueue before the disconnect: work the WebSocket thread
+    // enqueues from here on is buffered, and update_queue_shutdown() below discards the
+    // buffer, so it never runs against the plugins, history managers and AMS backends
+    // destroyed in between. Exit needs no freeze; update_queue_shutdown() gates the queue
+    // off for good.
+    std::optional<helix::ui::UpdateQueue::ScopedFreeze> queue_freeze;
+    if (!exiting) {
+        queue_freeze.emplace(helix::ui::UpdateQueue::instance(), "teardown_printer_scope");
+    }
+
+    // Disconnect the WebSocket client FIRST to stop background threads (mock simulation,
+    // WebSocket I/O). Otherwise a notification delivered mid-teardown can trigger new API
+    // requests (history fetch, metascan, webcam detection). The client object stays valid
+    // for the unregister_method_callback() calls below.
+    if (m_moonraker && m_moonraker->client()) {
+        m_moonraker->client()->disconnect();
+    }
+
+    // Clear SoundManager's client ref so the M300 sequencer thread won't call
+    // gcode_script() on a dangling pointer (#714). Exit skips host recovery:
+    // SoundManager::shutdown() runs below, so re-opening audio hardware would only be
+    // torn down again.
+    SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/!exiting);
+
+    // Clear app_globals BEFORE destroying managers so destructors (e.g. PrintSelectPanel)
+    // never reach destroyed objects.
     set_moonraker_manager(nullptr);
     set_moonraker_api(nullptr);
     set_moonraker_client(nullptr);
+    set_job_queue_state(nullptr); // the object itself dies after deinit_all(), below
     set_print_history_manager(nullptr);
     set_temperature_history_manager(nullptr);
 
-    // 2. Deactivate overlays and clear navigation registries
+    // Deactivate overlays and clear navigation registries
     NavigationManager::instance().shutdown();
 
-    // 3. Stop UpdateChecker auto-check timer (fires API calls on background thread)
+    // Detach page-scroll-buttons controllers (gutters + observers) while panel widgets are
+    // still alive, before m_panels.reset() / destroy_all() tear down the containers they
+    // point at.
+    helix::ui::PageScrollAutoInject::instance().shutdown();
+
     UpdateChecker::instance().stop_auto_check();
 
-    // 4. Unload plugins. Plugin closers remove printer-subject observers and
-    //    Moonraker notify handlers, so they must run while the subjects (deinit
-    //    at step 16) and the client (destroyed at step 18) are still alive.
+    if (exiting) {
+        // Process-level singletons: they persist across a printer switch.
+        // The banner goes before UpdateChecker so its observers release cleanly (#705).
+        UpgradeBanner::instance().shutdown();
+        UpdateChecker::instance().shutdown();    // cancels pending checks
+        TelemetryManager::instance().shutdown(); // persists queue, joins send thread
+        helix::CrashHistory::instance().shutdown();
+        AfcMessageDedup::instance().shutdown();
+        // Before the client is destroyed: the M300 backend's sender lambda references it
+        // and the sequencer thread must be stopped first (#714).
+        SoundManager::instance().shutdown();
+        PostOpCooldownManager::instance().shutdown(); // cancel pending cooldown timers
+    }
+
+    // Unload plugins before destroying what they depend on: plugin closers remove
+    // printer-subject observers and Moonraker notify handlers, so they must run while the
+    // subjects (deinit_all below) and the Moonraker client (m_moonraker.reset below) are
+    // still alive.
 #if HELIX_HAS_PLUGINS
+    // The watcher and the driver hold host references, and the driver's filelist handler
+    // must not outlive the driver it feeds.
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
         // Before the plugin host goes: the registry's union stops being consulted, so
@@ -4906,33 +4966,18 @@ void Application::tear_down_printer_state() {
     }
 #endif
 
-    // 5. Freeze update queue to prevent new callbacks during teardown
-    auto queue_freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
-
-    // 5b. Disconnect WebSocket thread to stop background callbacks
-    if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->disconnect();
-    }
-
-    // 6. Discard pending async callbacks queued by background threads.
-    //    Must happen AFTER disconnect (no more producers) and BEFORE destroying
-    //    objects referenced by queued callbacks.
-    helix::ui::update_queue_shutdown();
-
-    // 6b. Clear global pointer to JobQueueState (prevents access via global pointer).
-    //     Actual destruction deferred to after StaticSubjectRegistry::deinit_all()
-    //     so the registered lambda doesn't run on freed memory.
-    set_job_queue_state(nullptr);
-
-    // 7. Release history managers
+    // History managers MUST be reset before moonraker (they use the client for
+    // unregistration). JobQueueState is reset AFTER deinit_all() because it owns LVGL
+    // subjects that panels still observe: destroying it early frees subject memory while
+    // panel ObserverGuards still hold observer pointers into those lists.
     m_history_manager.reset();
     m_temp_history_manager.reset();
 
-    // 8. Unregister the connection-scoped method callbacks. The about overlay dies in
-    //    StaticPanelRegistry::destroy_all() below and the AMS external-spool and layer
-    //    subjects in StaticSubjectRegistry::deinit_all(), while the client survives to
-    //    step 18. external_spool_sync additionally dereferences a raw IMoonrakerAPI*
-    //    that the manager owns, straight from the WebSocket thread.
+    // Unregister the connection-scoped method callbacks whose bodies reach panels or
+    // subjects: StaticPanelRegistry::destroy_all() and StaticSubjectRegistry::deinit_all()
+    // both run well before the client is released. external_spool_sync additionally
+    // dereferences a raw IMoonrakerAPI* that the manager owns, straight from the WebSocket
+    // thread.
     if (m_moonraker && m_moonraker->client()) {
         m_moonraker->client()->unregister_method_callback("notify_timelapse_event",
                                                           "timelapse_state");
@@ -4945,110 +4990,166 @@ void Application::tear_down_printer_state() {
         m_moonraker->client()->unregister_method_callback("notify_gcode_response", "layer_tracker");
     }
 
-    // 8b. Unsubscribe power device and sensor state
+    // Unsubscribe power device and sensor state
     if (m_moonraker && m_moonraker->api()) {
         helix::PowerDeviceState::instance().unsubscribe(*m_moonraker->api());
         helix::SensorState::instance().unsubscribe(*m_moonraker->api());
     }
 
-    // 9. Unregister action prompt callback
+    // Unregister the action prompt callback before moonraker is destroyed
     if (m_moonraker && m_moonraker->client() && m_action_prompt_manager) {
         m_moonraker->client()->unregister_method_callback("notify_gcode_response",
                                                           "action_prompt_manager");
     }
+    // AmsState outlives Application: its mock gcode injection callback would dangle.
     AmsState::instance().set_gcode_response_callback(nullptr);
     m_action_prompt_modal.reset();
     helix::ActionPromptManager::set_instance(nullptr);
     m_action_prompt_manager.reset();
 
-    // 10. Clear AMS backends (hold subscription guards with raw client pointers)
+    // Stop AMS backend subscriptions BEFORE destroying MoonrakerClient: backends hold
+    // SubscriptionGuards with raw client pointers and must unsubscribe while the client's
+    // mutex is still alive.
     AmsState::instance().clear_backends();
 
-    // 10b. Deinit LedAutoState before LedController/subjects — it observes
-    //      PrinterState subjects and drives LedController in apply_action().
-    helix::led::LedAutoState::instance().deinit();
+    // Drain deferred UI callbacks BEFORE destroying panels. observe<int> and
+    // observe<const char*> defer via ui_queue_update(), so queued callbacks may hold
+    // `this` pointers to living panels; running them after m_panels.reset() is a
+    // use-after-free.
+    helix::ui::update_queue_shutdown();
 
-    // 11. Deinit LedController (holds API/client pointers about to be freed)
-    helix::led::LedController::instance().deinit();
+    if (!exiting) {
+        // Singletons that outlive this printer and hold API/client pointers or observe
+        // PrinterState subjects about to be freed. LedAutoState drives LedController, so
+        // it goes first.
+        helix::led::LedAutoState::instance().deinit();
+        helix::led::LedController::instance().deinit();
+    }
 
-    // 12. Release PanelFactory and SubjectInitializer
+    // Stop ALL LVGL animations before destroying panels: they hold widget pointers, and
+    // completion callbacks fired by lv_anim_delete_all() would dereference freed objects
+    // if the panels were already gone.
+    lv_anim_delete_all();
+
     m_panels.reset();
     m_subjects.reset();
 
-    // 13. Kill all LVGL animations (hold widget pointers)
-    lv_anim_delete_all();
+    if (exiting && m_display) {
+        // Guard for early exit paths like --help
+        m_display->restore_display_on_shutdown();
+    }
 
-    // 13b. Clear ModalStack tracking (widgets destroyed by lv_obj_del below)
-    ModalStack::instance().clear();
+    if (!exiting) {
+        // The widgets this tracks are destroyed by the tree delete below; lv_deinit() does
+        // that on exit.
+        ModalStack::instance().clear();
+    }
 
-    // 13c. Stop the consumption tracker BEFORE destroying overlays — same
-    //      ordering rationale as Application::shutdown() (#927). Self-registration
-    //      with StaticSubjectRegistry would otherwise run stop() AFTER destroy_all(),
-    //      which is the configuration that tripped a UAF on AD5X.
+    // Stop the consumption tracker BEFORE destroying overlays. Overlay teardown can free
+    // the tracker's PrinterState observer struct, and a later ObserverGuard::reset() then
+    // dereferences freed memory (#927). Its self-registration with StaticSubjectRegistry
+    // remains as a backstop and is a no-op once the observers are null.
     helix::FilamentConsumptionTracker::instance().stop();
 
-    // 14. Destroy all static panel/overlay globals (releases ObserverGuards).
-    //     Subjects are still alive here, so lv_observer_remove() works correctly.
-    //     The overlay roots the panel destructors hand back are freed right
-    //     here: LVGL is alive, the destroy_all() window is closed, and on a
-    //     soft restart nothing else deletes them - each open overlay is
-    //     400-800KB that would otherwise stay allocated as a hidden screen
-    //     child once per switch. Application::shutdown() keeps calling
-    //     destroy_all() directly: lv_deinit() frees every widget there.
-    helix::ui::destroy_static_panels();
+    // Destroy ALL static panel/overlay globals (releases ObserverGuards, deinits local
+    // subjects). LVGL must still be initialized so lv_observer_remove() can remove
+    // unsubscribe_on_delete_cb from widget event lists. A switch frees the overlay roots
+    // the panel destructors hand back (400-800KB each, parented to the screen, nothing
+    // else deletes them); exit leaves them for lv_deinit(), because deleting widgets
+    // inside this window reopens the crash it exists to avoid.
+    destroy_panels();
 
-    // 15. Release global observer guards that observe subjects about to be freed
-    ui_notification_deinit();
-    helix::deinit_active_print_media_manager();
+    if (!exiting) {
+        // Release global observer guards that observe subjects about to be freed.
+        ui_notification_deinit();
+        helix::deinit_active_print_media_manager();
+    }
 
-    // 16. Deinit core singleton subjects (LIFO order via StaticSubjectRegistry).
-    //     lv_subject_deinit() removes+frees all remaining observers from each subject.
+    // Deinit core singleton subjects (PrinterState, AmsState, SettingsManager, ...) BEFORE
+    // lv_deinit(). lv_subject_deinit() calls lv_observer_remove() for each observer, which
+    // removes unsubscribe_on_delete_cb from widget event lists, so widgets then delete
+    // without firing stale unsubscribe callbacks on corrupted linked lists.
     StaticSubjectRegistry::instance().deinit_all();
 
-    // 16b. Destroy JobQueueState (after deinit_all so its registered lambda runs safely)
+    // Sweep any panel singleton a deinit callback lazily re-created on its way out (a
+    // callback reaching through an auto-creating get_global_*_panel() getter builds a
+    // replacement). Destroying it here, while LVGL and spdlog are up, keeps its destructor
+    // off the static-destruction path. No-op when nothing resurrected.
+    destroy_panels();
+
+    // After deinit_all() so JobQueueState's registered cleanup lambda runs on a live
+    // object; before m_moonraker.reset() so client unregistration works.
     m_job_queue_state.reset();
 
-    // 17. Invalidate all observer guards. From this point, any ObserverGuard::reset()
-    //     in surviving singletons (not destroyed by StaticPanelRegistry) will release
-    //     instead of calling lv_observer_remove() on freed observer pointers.
-    //     This protects the reinit path where old guards get reassigned.
+    if (exiting) {
+        // Destroy runtime CJK fonts before LVGL shutdown
+        helix::system::CjkFontManager::instance().shutdown();
+    }
+
+    // Invalidate all ObserverGuards so any reset() in surviving destructors releases
+    // instead of calling lv_observer_remove() on freed observer pointers.
+    // lv_subject_deinit() (via deinit_all() above) frees each observer it iterates, so
+    // without this MoonrakerManager's ObserverGuard members would call
+    // lv_observer_remove() on freed memory (lv_observer.c, lv_ll_remove).
     ObserverGuard::invalidate_all();
 
-    // 17b. Tear down GcodeErrorRouter before MoonrakerClient — its dtor
-    //      unregisters the notify_gcode_response handler and the
-    //      gcode_store_replay connected observer; both touch the client.
-    //      Reset the router BEFORE the presenter (presenter must outlive router).
-    //      AmsErrorBridge also holds a reference to the presenter — reset it first.
+    // Tear down GcodeErrorRouter before MoonrakerClient: its dtor unregisters the live and
+    // replay callbacks, both of which touch the client. Reset the router BEFORE the
+    // presenter (the presenter must outlive it), and AmsErrorBridge, which also holds a
+    // presenter reference, before that.
     m_gcode_narration_router.reset();
     m_lan_client_auth_router.reset();
     m_gcode_error_router.reset();
     m_ams_error_bridge.reset();
     m_recovery_presenter.reset();
 
-    // 18. Release MoonrakerManager
+    // Destroy MoonrakerManager (its ObserverGuards now release without touching freed
+    // observer memory thanks to invalidate_all() above).
     m_moonraker.reset();
 
-    // 19. Reset KeyboardManager (widget pointers become dangling after tree delete)
-    KeyboardManager::instance().reset();
+    if (exiting) {
+        // No code path can submit new HTTP work now. Stop the executors: drains the
+        // currently-executing item and breaks promises on anything still queued.
+        helix::http::HttpExecutor::stop_all();
 
-    // 20. Delete LVGL widget tree (panels already released references)
-    //     DO NOT call lv_deinit() — display stays alive.
-    //     On the cancel_add_printer_wizard() soft-restart path this runs inside a
-    //     queue_update() batch, so a synchronous lv_obj_del() would delete inside
-    //     UpdateQueue::process_pending() and can corrupt LVGL's global event list
-    //     alongside other batched deletions (#776/#190/#80). m_app_layout is also
-    //     the Home widget grid — a #983-prone structure where a relayout racing
-    //     teardown could iterate a freed container. safe_delete_subtree() detaches
-    //     the tree off-screen synchronously (so the immediate init_printer_state()
-    //     rebuild sees a clean m_screen), forces LV_LAYOUT_NONE, and frees it on
-    //     the async path outside the batch.
+        // Shutdown display (calls lv_deinit). All observer callbacks were removed above,
+        // so widget deletion touches no observer linked list.
+        m_display.reset();
+
+        // Theme manager subjects (theme_changed_subject, swatch descriptions) are
+        // file-scope statics not tracked by StaticSubjectRegistry, so they are torn down
+        // by hand, and only HERE, after the display is gone.
+        //
+        // They must outlive m_display.reset(), because that is what runs lv_xml_deinit():
+        // a component scope holding a <subject_expr> owns RAW lv_observer_t* pointers
+        // (lv_xml_subject_expr_t::observers) attached to these subjects, and releases them
+        // with lv_observer_remove(). Those are not ObserverGuards, so
+        // ObserverGuard::invalidate_all() does not cover them; deinitialising the subjects
+        // first frees every observer on them and the later scope teardown reads freed
+        // memory.
+        //
+        // Running last is safe: lv_xml_deinit() detaches the <subject_expr> observers
+        // before lv_deinit(), and lv_deinit() removes the object-bound ones, so these
+        // subjects have no subscribers left by now.
+        theme_manager_deinit();
+        return;
+    }
+
+    KeyboardManager::instance().reset(); // widget pointers dangle after the tree delete
+
+    // Delete the LVGL widget tree (panels already released their references). The display
+    // stays alive, so no lv_deinit(). cancel_add_printer_wizard() reaches here inside a
+    // queue_update() batch, where a synchronous lv_obj_del() would delete inside
+    // UpdateQueue::process_pending() and can corrupt LVGL's global event list (#776/#190/#80);
+    // m_app_layout is also the Home widget grid, where a relayout racing teardown could
+    // iterate a freed container (#983). safe_delete_subtree() detaches the tree off-screen
+    // synchronously (so the immediate init_printer_state() rebuild sees a clean m_screen),
+    // forces LV_LAYOUT_NONE, and frees it asynchronously outside the batch.
     if (m_app_layout) {
         helix::ui::safe_delete_subtree(m_app_layout);
         m_app_layout = nullptr;
     }
     m_overlay_panels = {};
-
-    spdlog::info("[Application] Printer state torn down");
 }
 
 void Application::init_printer_state() {
@@ -5178,245 +5279,7 @@ void Application::shutdown() {
 
     spdlog::info("[Application] Shutting down...");
 
-    // Disconnect the WebSocket client FIRST to stop background threads
-    // (mock simulation, WebSocket I/O). This prevents races where the
-    // background thread delivers notifications that trigger new API requests
-    // (history fetch, metascan, webcam detection) after we've started teardown.
-    // The client object remains valid for later unregister_method_callback() calls.
-    if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->disconnect();
-    }
-
-    // Clear SoundManager's client ref so the M300 sequencer thread
-    // won't call gcode_script() on a dangling pointer (#714). No host
-    // recovery: SoundManager::shutdown() runs below in this same teardown, so
-    // re-opening audio hardware here would only be torn down again.
-    SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/false);
-
-    // Clear app_globals references BEFORE destroying managers to prevent
-    // destructors (e.g., PrintSelectPanel) from accessing destroyed objects
-    set_moonraker_manager(nullptr);
-    set_moonraker_api(nullptr);
-    set_moonraker_client(nullptr);
-    set_job_queue_state(nullptr);
-    set_print_history_manager(nullptr);
-    set_temperature_history_manager(nullptr);
-
-    // Deactivate UI and clear navigation registries
-    NavigationManager::instance().shutdown();
-
-    // Detach page-scroll-buttons controllers (removes gutters + observers) while
-    // panel widgets are still alive — must run before m_panels.reset() /
-    // StaticPanelRegistry::destroy_all() below tear down the containers it holds
-    // pointers to.
-    helix::ui::PageScrollAutoInject::instance().shutdown();
-
-    // Tear down the upgrade banner before UpdateChecker so its observers
-    // release cleanly (subject-lifetime-before-observer per #705).
-    UpgradeBanner::instance().shutdown();
-
-    // Stop auto-check timer before full shutdown
-    UpdateChecker::instance().stop_auto_check();
-    // Shutdown UpdateChecker (cancels pending checks)
-    UpdateChecker::instance().shutdown();
-
-    // Shutdown TelemetryManager (persists queue, joins send thread)
-    TelemetryManager::instance().shutdown();
-
-    // Shutdown CrashHistory
-    helix::CrashHistory::instance().shutdown();
-    AfcMessageDedup::instance().shutdown();
-
-    // Shutdown SoundManager BEFORE clearing moonraker client — the M300
-    // backend's sender lambda references client_ and the sequencer thread
-    // must be stopped before the client is destroyed (#714).
-    SoundManager::instance().shutdown();
-
-    // Shutdown PostOpCooldownManager (cancel pending cooldown timers)
-    PostOpCooldownManager::instance().shutdown();
-
-    // Unload plugins before destroying managers they depend on: plugin closers
-    // remove printer-subject observers and Moonraker notify handlers, so they
-    // must run while the subjects (deinit_all below) and the Moonraker client
-    // (m_moonraker.reset below) are still alive.
-#if HELIX_HAS_PLUGINS
-    // The watcher and the driver hold host references, and the driver's
-    // filelist handler must not outlive the driver it feeds.
-    if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
-        // Before the plugin host goes: the registry's union stops being consulted, so
-        // the refresh the unload-time clears schedule shrinks the subscription back to
-        // app objects instead of growing it.
-        m_moonraker->client()->set_subscription_extras_provider({});
-    }
-    m_plugin_watcher.reset();
-    m_plugin_sync.reset();
-    if (m_plugin_host) {
-        m_plugin_host->unload_all();
-        m_plugin_host.reset();
-    }
-#endif
-
-    // Reset managers in reverse order (MoonrakerManager handles print_start_collector cleanup)
-    // History managers MUST be reset before moonraker (use client for unregistration).
-    // JobQueueState is reset AFTER StaticSubjectRegistry::deinit_all() because it owns
-    // LVGL subjects that panels still observe — destroying it early frees the subject
-    // memory while panel ObserverGuards still hold observer pointers into those lists.
-    m_history_manager.reset();
-    m_temp_history_manager.reset();
-
-    // Unregister the connection-scoped method callbacks whose bodies reach panels or
-    // subjects: StaticPanelRegistry::destroy_all() and StaticSubjectRegistry::deinit_all()
-    // both run well before the client is released. external_update_restart is absent by
-    // design - it captures nothing and reaches only UpdateChecker statics and the
-    // filesystem, so it has no state here to outlive.
-    if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->unregister_method_callback("notify_timelapse_event",
-                                                          "timelapse_state");
-        m_moonraker->client()->unregister_method_callback("notify_history_changed",
-                                                          "AboutOverlay_print_hours");
-        m_moonraker->client()->unregister_method_callback("notify_active_spool_set",
-                                                          "external_spool_sync");
-        m_moonraker->client()->unregister_method_callback("notify_gcode_response", "layer_tracker");
-    }
-
-    // Unsubscribe power device and sensor state
-    if (m_moonraker && m_moonraker->api()) {
-        helix::PowerDeviceState::instance().unsubscribe(*m_moonraker->api());
-        helix::SensorState::instance().unsubscribe(*m_moonraker->api());
-    }
-
-    // Unregister action prompt callback before moonraker is destroyed
-    if (m_moonraker && m_moonraker->client() && m_action_prompt_manager) {
-        m_moonraker->client()->unregister_method_callback("notify_gcode_response",
-                                                          "action_prompt_manager");
-    }
-    // Clear mock gcode injection callback before destroying ActionPromptManager
-    // (AmsState singleton outlives Application — callback would dangle)
-    AmsState::instance().set_gcode_response_callback(nullptr);
-    m_action_prompt_modal.reset();
-    helix::ActionPromptManager::set_instance(nullptr);
-    m_action_prompt_manager.reset();
-
-    // Stop AMS backend subscriptions BEFORE destroying MoonrakerClient.
-    // Backends hold SubscriptionGuards with raw MoonrakerClient* pointers —
-    // they must unsubscribe while the client's mutex is still alive.
-    AmsState::instance().clear_backends();
-
-    // Drain deferred UI callbacks BEFORE destroying panels.
-    // observe<int>/observe<const char*> defer via ui_queue_update(), so queued
-    // callbacks may hold 'this' pointers to living panels. Processing them
-    // after m_panels.reset() causes use-after-free (SIGSEGV).
-    helix::ui::update_queue_shutdown();
-
-    // Stop ALL LVGL animations before destroying panels.
-    // Animations hold widget pointers; completion callbacks fired during
-    // lv_anim_delete_all() would dereference freed objects if panels are gone.
-    lv_anim_delete_all();
-
-    m_panels.reset();
-    m_subjects.reset();
-
-    // Restore display backlight (guard for early exit paths like --help)
-    if (m_display) {
-        m_display->restore_display_on_shutdown();
-    }
-
-    // Stop the consumption tracker BEFORE destroying overlays. Bundle VHTR49QJ
-    // (#927, AD5X v0.99.53) crashed in stop() when it ran AFTER destroy_all():
-    // something in overlay teardown was freeing the tracker's PrinterState
-    // observer struct, and the subsequent ObserverGuard::reset() dereferenced
-    // freed memory. Removing observers first guarantees they're out of every
-    // subject's subs_ll before any other teardown step touches LVGL. The
-    // self-registration in start() is still wired up as a backstop — it runs
-    // again during deinit_all() but is a no-op because observers are already
-    // null after this call.
-    helix::FilamentConsumptionTracker::instance().stop();
-
-    // Destroy ALL static panel/overlay globals via self-registration pattern.
-    // This deinits local subjects (via SubjectManager) and releases ObserverGuards.
-    // Must happen while LVGL is still initialized so lv_observer_remove() can
-    // properly remove unsubscribe_on_delete_cb from widget event lists.
-    StaticPanelRegistry::instance().destroy_all();
-
-    // Deinitialize core singleton subjects (PrinterState, AmsState, SettingsManager, etc.)
-    // BEFORE lv_deinit(). lv_subject_deinit() calls lv_observer_remove() for each
-    // observer, which removes unsubscribe_on_delete_cb from widget event lists.
-    // After this, widgets have no observer callbacks, so lv_deinit() deletes them
-    // cleanly without firing stale unsubscribe callbacks on corrupted linked lists.
-    StaticSubjectRegistry::instance().deinit_all();
-
-    // Sweep any panel singleton a deinit callback lazily re-created on its way
-    // out (a callback reaching through an auto-creating get_global_*_panel()
-    // getter builds a replacement instance). Destroying it here, while LVGL and
-    // spdlog are still up, keeps its destructor off the static-destruction path
-    // where those subsystems are already gone. No-op when nothing resurrected.
-    StaticPanelRegistry::instance().destroy_all();
-
-    // Destroy JobQueueState AFTER deinit_all() so its registered cleanup lambda runs
-    // while the object is still alive. Must still be before m_moonraker.reset() so
-    // client unregistration works. (Mirrors soft-restart path ordering.)
-    m_job_queue_state.reset();
-
-    // Destroy runtime CJK fonts before LVGL shutdown
-    helix::system::CjkFontManager::instance().shutdown();
-
-    // NOTE: theme_manager_deinit() is deliberately NOT called here. It has to run
-    // after m_display.reset() — see the call below.
-
-    // Invalidate all ObserverGuards so any reset() call in surviving destructors
-    // releases instead of calling lv_observer_remove() on freed observer pointers.
-    // CRITICAL: lv_subject_deinit() (called via deinit_all() above) iterates
-    // subs_ll and calls lv_observer_remove() on EACH observer, FREEING each one.
-    // Without this guard, MoonrakerManager's ObserverGuard members destruct below
-    // and call lv_observer_remove(observer_) on freed memory → SIGSEGV at
-    // lv_observer.c:584 in lv_ll_remove(&observer->subject->subs_ll, observer).
-    // This UAF chain is the L081 family seen in #888 (Snapmaker U1), #891 (AD5X),
-    // and #893 (Pi). teardown_printer_state() has carried this guard since #816/#673;
-    // the global shutdown path was missing it.
-    ObserverGuard::invalidate_all();
-
-    // Tear down GcodeErrorRouter before MoonrakerClient (its dtor unregisters
-    // the live + replay callbacks; both touch the client).
-    // Reset the router BEFORE the presenter (presenter must outlive router).
-    // AmsErrorBridge also holds a reference to the presenter — reset it first.
-    m_gcode_narration_router.reset();
-    m_lan_client_auth_router.reset();
-    m_gcode_error_router.reset();
-    m_ams_error_bridge.reset();
-    m_recovery_presenter.reset();
-
-    // Destroy MoonrakerManager (its ObserverGuards now release without
-    // touching freed observer memory thanks to invalidate_all() above).
-    m_moonraker.reset();
-
-    // MoonrakerManager is gone, so no code path can submit new HTTP work.
-    // Stop the executors — drains the currently-executing item and breaks
-    // promises on anything still queued.
-    helix::http::HttpExecutor::stop_all();
-
-    // Shutdown display (calls lv_deinit). All observer callbacks were already
-    // removed above, so widget deletion is clean — no observer linked list access.
-    m_display.reset();
-
-    // Theme manager subjects (theme_changed_subject, swatch descriptions) are
-    // file-scope statics not tracked by StaticSubjectRegistry, so they are torn
-    // down by hand — and only HERE, after the display is gone.
-    //
-    // They must outlive m_display.reset(), because that is what runs
-    // lv_xml_deinit(): a component scope holding a <subject_expr> owns RAW
-    // lv_observer_t* pointers (lv_xml_subject_expr_t::observers) attached to
-    // these subjects, and releases them with lv_observer_remove(). Those raw
-    // pointers are not ObserverGuards, so ObserverGuard::invalidate_all() above
-    // does not cover them. Deinitialising the subjects first frees every
-    // observer on them (lv_subject_deinit -> lv_observer.c:468) and the later
-    // scope teardown then reads freed memory — a heap-use-after-free that
-    // aborted every single `ctl shutdown`.
-    //
-    // Running last is safe: lv_xml_deinit() detaches the <subject_expr>
-    // observers before lv_deinit(), and lv_deinit() removes the object-bound
-    // ones, so these subjects have no subscribers left by the time we get here.
-    theme_manager_deinit();
+    teardown_printer_scope(TeardownScope::ProcessExit);
 
     // Uninstall crash handler last — clean shutdown reached this point, so a
     // SIGBUS/SIGSEGV after this is the kernel's problem, not ours.
