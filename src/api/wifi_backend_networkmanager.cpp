@@ -12,6 +12,7 @@
 // Linux Implementation: NetworkManager fallback via nmcli
 // ============================================================================
 
+#include "text_io.h"
 #include "wifi_5ghz_detection.h"
 
 #include <algorithm>
@@ -317,8 +318,7 @@ bool WifiBackendNetworkManager::is_polkit_permission_error(const std::string& st
 
     // Case-insensitive search for common polkit/permission denial indicators
     std::string lower = stderr_output;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    lower = helix::text_io::to_lower(lower);
 
     return lower.find("not authorized") != std::string::npos ||
            lower.find("permission denied") != std::string::npos ||

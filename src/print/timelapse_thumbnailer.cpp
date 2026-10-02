@@ -3,6 +3,8 @@
 
 #include "timelapse_thumbnailer.h"
 
+#include "text_io.h"
+
 #include <algorithm>
 #include <functional>
 
@@ -35,7 +37,7 @@ bool is_video_file(const std::string& filename) {
     if (dot == std::string::npos)
         return false;
     auto ext = filename.substr(dot);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    ext = helix::text_io::to_lower(ext);
     return ext == ".mp4" || ext == ".mkv" || ext == ".avi";
 }
 

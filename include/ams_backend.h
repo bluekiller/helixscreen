@@ -245,6 +245,16 @@ class AmsBackend {
     }
 
     /**
+     * @brief Toolhead style this backend implies when the printer database has none
+     *
+     * Same vocabulary as the database's toolhead_style field (e.g. "creality_k2");
+     * empty means no opinion.
+     */
+    [[nodiscard]] virtual std::string toolhead_style_hint() const {
+        return {};
+    }
+
+    /**
      * @brief Get information about a specific slot
      * @param slot_index Slot index (0 to total_slots-1)
      * @return SlotInfo struct (copy, safe for caller to hold)

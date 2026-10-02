@@ -806,15 +806,15 @@ class PrinterState {
     /**
      * @brief print_stats.power_loss presence — Creality-fork PLR capability.
      *
-     * See PrinterPrintState::get_creality_plr_capable_subject().
+     * See PrinterPrintState::get_plr_power_loss_signal_subject().
      */
-    lv_subject_t* get_creality_plr_capable_subject() {
-        return print_domain_.get_creality_plr_capable_subject();
+    lv_subject_t* get_plr_power_loss_signal_subject() {
+        return print_domain_.get_plr_power_loss_signal_subject();
     }
 
     /// True when print_stats.power_loss has been seen (Creality Klipper fork).
-    [[nodiscard]] bool is_creality_plr_capable() const {
-        return print_domain_.is_creality_plr_capable();
+    [[nodiscard]] bool is_plr_power_loss_signal() const {
+        return print_domain_.is_plr_power_loss_signal();
     }
 
     /**
@@ -2504,6 +2504,8 @@ class PrinterState {
     void set_active_printer_name(const std::string& name);
 
   private:
+    void unregister_static_deinit();
+
     /// RAII manager for automatic subject cleanup - deinits all subjects on destruction
     SubjectManager subjects_;
 

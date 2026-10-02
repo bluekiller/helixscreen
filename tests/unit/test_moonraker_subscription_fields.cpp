@@ -369,6 +369,66 @@ TEST_CASE("Subscription: AFC objects narrow per type", "[moonraker][subscription
     }
 }
 
+// The subscription is a strict allowlist, so a field dropped from these lists
+// silently never reaches the AFC parsers. Pin the lists exactly.
+TEST_CASE("Subscription: AFC field lists are exactly the parsers' inputs",
+          "[moonraker][subscription][afc]") {
+    DiscoveryFixture fx;
+    fx.add("AFC", {"afc"});
+    fx.add("afc", {"afc"});
+    fx.add("AFC_stepper lane1", {"afc"});
+    fx.add("AFC_lane lane2", {"afc"});
+    fx.add("AFC_hub turtle1", {"afc"});
+    fx.add("AFC_buffer buffer1", {"afc"});
+    fx.add("AFC_extruder extruder", {"afc"});
+    fx.add("AFC_BoxTurtle turtle1", {"afc"});
+    json subs = fx.build();
+
+    const json state = json::array({"connected",
+                                    "bypass_state",
+                                    "quiet_mode",
+                                    "current_load",
+                                    "current_lane",
+                                    "current_state",
+                                    "current_tool",
+                                    "current_toolchange",
+                                    "error_state",
+                                    "filament_loaded",
+                                    "lane_loaded",
+                                    "led_state",
+                                    "message",
+                                    "name",
+                                    "number_of_toolchanges",
+                                    "num_extruders",
+                                    "status",
+                                    "system",
+                                    "tool_sensor_after_extruder",
+                                    "tool_stn",
+                                    "tool_stn_unload",
+                                    "type",
+                                    "units",
+                                    "lanes",
+                                    "hubs",
+                                    "extruders",
+                                    "buffers"});
+    const json stepper =
+        json::array({"buffer_status", "color", "current_map", "dist_hub", "extruder",
+                     "filament_status", "hub", "load", "loaded_to_hub", "map", "material", "prep",
+                     "runout_lane", "spool_id", "status", "tool_loaded", "weight"});
+
+    CHECK(subs["AFC"] == state);
+    CHECK(subs["afc"] == state);
+    CHECK(subs["AFC_stepper lane1"] == stepper);
+    CHECK(subs["AFC_lane lane2"] == stepper);
+    CHECK(subs["AFC_hub turtle1"] == json::array({"state", "afc_bowden_length"}));
+    CHECK(subs["AFC_buffer buffer1"] ==
+          json::array({"state", "distance_to_fault", "error_sensitivity", "fault_detection_enabled",
+                       "lanes"}));
+    CHECK(subs["AFC_extruder extruder"] ==
+          json::array({"lane_loaded", "tool_end_status", "tool_start_status"}));
+    CHECK(subs["AFC_BoxTurtle turtle1"] == json::array({"lanes", "extruders", "hubs", "buffers"}));
+}
+
 TEST_CASE("Subscription: bed_mesh covers moonraker_advanced_api parser",
           "[moonraker][subscription]") {
     DiscoveryFixture fx;

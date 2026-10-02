@@ -19,6 +19,7 @@
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -198,7 +199,7 @@ void FilamentSensorManager::discover_sensors(const std::vector<std::string>& kli
         // (e.g., "runout", "fsensor_runout", "runout_sensor")
         // Only assign if no other sensor already has RUNOUT role
         std::string lower_name = sensor_name;
-        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+        lower_name = helix::text_io::to_lower(lower_name);
         if (lower_name.find("runout") != std::string::npos) {
             bool runout_already_assigned = false;
             for (const auto& s : sensors_) {

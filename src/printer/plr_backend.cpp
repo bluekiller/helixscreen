@@ -101,6 +101,15 @@ int plr_parse_interrupted_flag(const nlohmann::json& status) {
     return wi_it->get<bool>() ? 1 : 0;
 }
 
+bool plr_parse_power_loss_signal(const nlohmann::json& status) {
+    auto stats_it = status.find("print_stats");
+    if (stats_it == status.end() || !stats_it->is_object()) {
+        return false;
+    }
+    auto pl_it = stats_it->find("power_loss");
+    return pl_it != stats_it->end() && pl_it->is_number();
+}
+
 bool plr_creality_recovery_available(const PlrDetectResult& r) {
     // `completed` is load-bearing, not a redundancy check: it certifies that the
     // probe ran this connection, which is what set print_stats.power_loss=1 in

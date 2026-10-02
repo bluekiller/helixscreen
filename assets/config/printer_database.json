@@ -1030,7 +1030,8 @@
           "confidence": 75,
           "reason": "4 independent Z steppers (QGL configuration)"
         }
-      ]
+      ],
+      "toolhead_style": "anthead"
     },
     {
       "id": "pfa_stealthfork",
@@ -1074,7 +1075,8 @@
           "confidence": 60,
           "reason": "Z tilt adjust present (Trident-style 3-point leveling)"
         }
-      ]
+      ],
+      "toolhead_style": "anthead"
     },
     {
       "id": "voron_trident",

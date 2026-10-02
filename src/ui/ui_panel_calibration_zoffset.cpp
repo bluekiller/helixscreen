@@ -211,27 +211,6 @@ void ZOffsetCalibrationPanel::setup_widgets() {
 }
 
 // ============================================================================
-// SHOW
-// ============================================================================
-
-void ZOffsetCalibrationPanel::show() {
-    if (!overlay_root_) {
-        spdlog::error("[ZOffsetCal] Cannot show: overlay not created");
-        return;
-    }
-
-    spdlog::debug("[ZOffsetCal] Showing overlay");
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[ZOffsetCal] Overlay shown");
-}
-
-// ============================================================================
 // LIFECYCLE HOOKS
 // ============================================================================
 
@@ -322,6 +301,17 @@ void ZOffsetCalibrationPanel::cleanup() {
 
     // Call base class to set cleanup_called_ flag
     OverlayBase::cleanup();
+}
+
+void ZOffsetCalibrationPanel::on_ui_destroyed() {
+    // The tree is gone: no observer or late result may reach its labels. The
+    // run itself lives in state_ and the state subject.
+    saved_z_offset_display_ = nullptr;
+    z_position_display_ = nullptr;
+    final_offset_label_ = nullptr;
+    error_message_ = nullptr;
+    manual_probe_active_observer_.reset();
+    manual_probe_z_observer_.reset();
 }
 
 // ============================================================================

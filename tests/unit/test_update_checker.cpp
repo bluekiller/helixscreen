@@ -28,6 +28,7 @@
 #include "app_constants.h"
 #include "config.h"
 #include "lvgl.h"
+#include "platform_table.h"
 #include "version.h"
 
 #include <algorithm>
@@ -78,7 +79,7 @@ std::string asset_json(const std::string& name) {
  * @brief The tarball name a release publishes for this build's platform
  */
 std::string platform_tarball(const std::string& version) {
-    return "helixscreen-" + UpdateChecker::get_platform_key() + "-v" + version + ".tar.gz";
+    return "helixscreen-" + helix::platform::current_key() + "-v" + version + ".tar.gz";
 }
 
 } // anonymous namespace
@@ -158,7 +159,7 @@ TEST_CASE("GitHub release JSON parsing", "[update_checker][json]") {
         // GitHub's own source archives. The tarball wins: devices still on
         // v0.99.30 or earlier gunzip whatever url the asset list hands them.
         const std::string tarball = platform_tarball("2.0.0");
-        const std::string zip = "helixscreen-" + UpdateChecker::get_platform_key() + ".zip";
+        const std::string zip = "helixscreen-" + helix::platform::current_key() + ".zip";
         const std::string json_str = R"({
             "tag_name": "v2.0.0",
             "body": "Release",
@@ -322,6 +323,7 @@ TEST_CASE("Update checker error scenarios", "[update_checker][error]") {
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
+#include "platform_table.h"
 #include "print_lifecycle_state.h"
 #include "printer_state.h"
 #include "system/update_checker.h"
@@ -1506,14 +1508,14 @@ TEST_CASE("extract_installer_from_tarball: works with empty PATH (systemd regres
 // Platform Key & Architecture Validation
 // ============================================================================
 
-TEST_CASE("get_platform_key returns a known platform", "[update_checker][platform]") {
-    std::string platform = UpdateChecker::get_platform_key();
+TEST_CASE("current_key returns a known platform", "[update_checker][platform]") {
+    std::string platform = helix::platform::current_key();
     REQUIRE(!platform.empty());
 
     // Must be one of the supported platform keys. Keep in sync with the
     // release matrix in .github/workflows/release.yml and the #ifdef ladder in
-    // UpdateChecker::get_platform_key(). Adding a platform without an entry
-    // here — AND a matching #elif in get_platform_key — silently bricks
+    // helix::platform::current_key(). Adding a platform without an entry
+    // here — AND a matching #elif in current_key — silently bricks
     // in-app updates for that platform (falls through to "pi", so the device
     // downloads the Pi tarball and ends up with missing shared libs).
     std::vector<std::string> known_platforms = {"pi",   "pi32", "x86", "ad5m",  "k1",          "k2",
@@ -1528,14 +1530,13 @@ TEST_CASE("get_platform_key returns a known platform", "[update_checker][platfor
     REQUIRE(found);
 }
 
-TEST_CASE("get_platform_key matches compiled binary architecture",
-          "[update_checker][platform][arch]") {
+TEST_CASE("current_key matches compiled binary architecture", "[update_checker][platform][arch]") {
 #ifndef __linux__
     SKIP("Linux-only: requires /proc/self/exe and ELF binary format");
 #else
     // The platform key must agree with what we actually compiled as.
     // This catches the bug where uname() returned "aarch64" on a pi32 build.
-    std::string platform = UpdateChecker::get_platform_key();
+    std::string platform = helix::platform::current_key();
 
     // Check that our own binary's ELF class matches the platform expectation
     FILE* f = fopen("/proc/self/exe", "rb");
@@ -1556,26 +1557,26 @@ TEST_CASE("get_platform_key matches compiled binary architecture",
 
     // Native dev builds report "pi" whatever the host, so only the class is
     // comparable here, not the machine.
-    const auto* expected = UpdateChecker::find_platform(platform);
+    const auto* expected = helix::platform::find(platform);
     REQUIRE(expected != nullptr);
     REQUIRE(elf_class == expected->elf_class);
 #endif
 }
 
-TEST_CASE("get_platform_display_name returns non-empty string for all known platforms",
+TEST_CASE("display_name returns non-empty string for all known platforms",
           "[update_checker][platform]") {
-    // Mirror the known_platforms list from "get_platform_key returns a known platform".
-    // Every key that get_platform_key() can return MUST have a display name.
+    // Mirror the known_platforms list from "current_key returns a known platform".
+    // Every key that helix::platform::current_key() can return MUST have a display name.
     std::vector<std::string> known_platforms = {"pi",   "pi32", "x86", "ad5m",  "k1",          "k2",
                                                 "ad5x", "mips", "cc1", "esp32", "snapmaker-u1"};
 
     for (const auto& key : known_platforms) {
         INFO("platform key: " << key);
-        std::string name = UpdateChecker::get_platform_display_name(key);
+        std::string name = helix::platform::display_name(key);
         REQUIRE(!name.empty());
         // Self-update ELF validation and debug-bundle file capture read the
         // same row, so a key without one silently loses both.
-        REQUIRE(UpdateChecker::find_platform(key) != nullptr);
+        REQUIRE(helix::platform::find(key) != nullptr);
     }
 }
 
@@ -1585,7 +1586,7 @@ TEST_CASE("platform table gives every Linux platform an ELF expectation",
     for (const char* key :
          {"pi", "pi32", "x86", "ad5m", "k1", "k2", "ad5x", "mips", "cc1", "snapmaker-u1"}) {
         INFO("platform key: " << key);
-        const auto* p = UpdateChecker::find_platform(key);
+        const auto* p = helix::platform::find(key);
         REQUIRE(p != nullptr);
         REQUIRE(p->elf_class != 0);
     }
@@ -1597,69 +1598,69 @@ TEST_CASE("platform table marks which platforms name printer hardware",
     // printer pick; generic hosts have no hardware name to compare.
     for (const char* key : {"pi", "pi32", "x86", "esp32"}) {
         INFO("platform key: " << key);
-        REQUIRE_FALSE(UpdateChecker::find_platform(key)->has_printer_hardware);
+        REQUIRE_FALSE(helix::platform::find(key)->has_printer_hardware);
     }
     for (const char* key : {"ad5m", "ad5x", "mips", "k1", "k2", "cc1", "snapmaker-u1"}) {
         INFO("platform key: " << key);
-        REQUIRE(UpdateChecker::find_platform(key)->has_printer_hardware);
+        REQUIRE(helix::platform::find(key)->has_printer_hardware);
     }
 }
 
 TEST_CASE("mips platform validates MIPS32 LE and captures the AD5X zmod files",
           "[update_checker][platform]") {
-    const auto* p = UpdateChecker::find_platform("mips");
+    const auto* p = helix::platform::find("mips");
     REQUIRE(p != nullptr);
     REQUIRE(p->elf_class == 1);   // ELFCLASS32
     REQUIRE(p->elf_data == 1);    // ELFDATA2LSB
     REQUIRE(p->elf_machine == 8); // EM_MIPS
 
-    const auto* ad5x = UpdateChecker::find_platform("ad5x");
+    const auto* ad5x = helix::platform::find("ad5x");
     REQUIRE(ad5x != nullptr);
     REQUIRE(!ad5x->diagnostic_files.empty());
     REQUIRE(p->diagnostic_files == ad5x->diagnostic_files);
 }
 
 TEST_CASE("elf_header_matches checks class, endianness and machine", "[update_checker][platform]") {
-    const auto* mips = UpdateChecker::find_platform("mips");
+    const auto* mips = helix::platform::find("mips");
     REQUIRE(mips != nullptr);
 
     // 0x7f ELF, class 1, data 1 (LE), e_machine at bytes 18-19.
     uint8_t hdr[20] = {0x7f, 'E', 'L', 'F', 1, 1};
     hdr[18] = 0x08;
-    REQUIRE(UpdateChecker::elf_header_matches(*mips, hdr));
+    REQUIRE(helix::platform::elf_header_matches(*mips, hdr));
 
     SECTION("big-endian MIPS is rejected") {
         hdr[5] = 2;
         hdr[18] = 0x00;
         hdr[19] = 0x08;
-        REQUIRE_FALSE(UpdateChecker::elf_header_matches(*mips, hdr));
+        REQUIRE_FALSE(helix::platform::elf_header_matches(*mips, hdr));
     }
     SECTION("ARM is rejected") {
         hdr[18] = 0x28;
-        REQUIRE_FALSE(UpdateChecker::elf_header_matches(*mips, hdr));
+        REQUIRE_FALSE(helix::platform::elf_header_matches(*mips, hdr));
     }
     SECTION("64-bit is rejected") {
         hdr[4] = 2;
-        REQUIRE_FALSE(UpdateChecker::elf_header_matches(*mips, hdr));
+        REQUIRE_FALSE(helix::platform::elf_header_matches(*mips, hdr));
     }
 }
 
-TEST_CASE("get_platform_display_name returns correct strings for known platforms",
+TEST_CASE("display_name returns correct strings for known platforms",
           "[update_checker][platform]") {
     // Exact display name strings — changing them breaks debug bundle dashboard parsing.
-    REQUIRE(UpdateChecker::get_platform_display_name("pi") == "Raspberry Pi");
-    REQUIRE(UpdateChecker::get_platform_display_name("pi32") == "Raspberry Pi (32-bit)");
-    REQUIRE(UpdateChecker::get_platform_display_name("x86") == "x86 Desktop");
-    REQUIRE(UpdateChecker::get_platform_display_name("ad5m") == "FlashForge Adventurer 5M");
-    REQUIRE(UpdateChecker::get_platform_display_name("ad5x") == "FlashForge Adventurer 5X");
-    REQUIRE(UpdateChecker::get_platform_display_name("mips") == "MIPS (K1 series / AD5X)");
-    REQUIRE(UpdateChecker::get_platform_display_name("k1") == "Creality K1");
-    REQUIRE(UpdateChecker::get_platform_display_name("k2") == "Creality K2 Plus");
-    REQUIRE(UpdateChecker::get_platform_display_name("cc1") == "Elegoo Centauri Carbon");
-    REQUIRE(UpdateChecker::get_platform_display_name("snapmaker-u1") == "Snapmaker U1");
-    REQUIRE(UpdateChecker::get_platform_display_name("esp32") == "BTT K-Touch");
+    REQUIRE(helix::platform::display_name("pi") == "Raspberry Pi");
+    REQUIRE(helix::platform::display_name("pi32") == "Raspberry Pi (32-bit)");
+    REQUIRE(helix::platform::display_name("x86") == "x86 Desktop");
+    REQUIRE(helix::platform::display_name("ad5m") == "FlashForge Adventurer 5M");
+    REQUIRE(helix::platform::display_name("ad5x") == "FlashForge Adventurer 5X");
+    REQUIRE(helix::platform::display_name("mips") == "MIPS (K1 series / AD5X)");
+    REQUIRE(helix::platform::display_name("k1") == "Creality K1");
+    REQUIRE(helix::platform::display_name("k2") == "Creality K2 Plus");
+    REQUIRE(helix::platform::display_name("cc1") == "Elegoo Centauri Carbon");
+    REQUIRE(helix::platform::display_name("snapmaker-u1") == "Snapmaker U1");
+    REQUIRE(helix::platform::display_name("esp32") == "BTT K-Touch");
     // Unknown keys fall back to the key itself.
-    REQUIRE(UpdateChecker::get_platform_display_name("unknown-platform") == "unknown-platform");
+    REQUIRE(helix::platform::display_name("unknown-platform") == "unknown-platform");
 }
 
 // ============================================================================
@@ -1924,7 +1925,7 @@ TEST_CASE("extract_zip_member fails for a member that isn't in the archive",
 namespace {
 
 std::string expected_asset_name() {
-    return "helixscreen-" + UpdateChecker::get_platform_key() + ".zip";
+    return "helixscreen-" + helix::platform::current_key() + ".zip";
 }
 
 // Read a whole file; returns "" when it cannot be opened.
@@ -2286,7 +2287,7 @@ TEST_CASE("compare_channel_version: prerelease suffixes order by precedence",
 
 TEST_CASE("parse_github_release: a platform prefix does not select a longer platform's tarball",
           "[update_checker][github]") {
-    const std::string platform = UpdateChecker::get_platform_key();
+    const std::string platform = helix::platform::current_key();
     // "pi" on a host test build; the test only needs SOME known key.
     REQUIRE_FALSE(platform.empty());
 

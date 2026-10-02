@@ -167,7 +167,6 @@ void TimelapseState::reset() {}
 // ===========================================================================
 
 void PIDCalibrationPanel::set_temp_control_panel(TemperatureService*) {}
-void PIDCalibrationPanel::show() {}
 
 // ===========================================================================
 // More global-scope accessors + wiring initializers. NOTE: these panel classes

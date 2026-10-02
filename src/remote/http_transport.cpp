@@ -4,6 +4,7 @@
 #include "http_transport.h"
 
 #include "remote_control_server.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -144,11 +145,9 @@ namespace {
 // Case-insensitive search for a header value; returns "" if absent.
 std::string header_value(const std::string& headers, const std::string& name) {
     std::string lc_headers = headers;
-    std::transform(lc_headers.begin(), lc_headers.end(), lc_headers.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    lc_headers = helix::text_io::to_lower(lc_headers);
     std::string needle = name;
-    std::transform(needle.begin(), needle.end(), needle.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    needle = helix::text_io::to_lower(needle);
     needle += ":";
 
     size_t pos = lc_headers.find("\r\n" + needle);

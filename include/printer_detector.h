@@ -578,15 +578,6 @@ class PrinterDetector {
     static void compact_database();
 
     /**
-     * @brief Check if the detected printer is a PrintersForAnts (PFA) model
-     *
-     * Used to select AntHead toolhead rendering when toolhead style is Auto.
-     *
-     * @return true if printer type contains "PFA" (case-insensitive)
-     */
-    static bool is_pfa_printer();
-
-    /**
      * @brief Get the native toolhead style for a printer from the database
      * @param printer_name Printer name (case-insensitive match)
      * @return Toolhead style string (e.g., "creality_k1") or empty if none

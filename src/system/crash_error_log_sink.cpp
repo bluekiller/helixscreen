@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "system/crash_error_log_sink.h"
 
+#include <cstring>
+
 namespace helix {
 
 CrashErrorLogSink& CrashErrorLogSink::instance() {
@@ -21,6 +23,12 @@ CrashErrorLogSink::CrashErrorLogSink() {
     // stores these pointers; install() does not clear them, so order vs.
     // install() doesn't matter.
     crash_handler::register_error_log_ring(&ring_[0][0], CAP, &next_);
+}
+
+void CrashErrorLogSink::clear_for_test() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::memset(ring_, 0, sizeof(ring_));
+    next_ = 0;
 }
 
 void CrashErrorLogSink::sink_it_(const spdlog::details::log_msg& msg) {

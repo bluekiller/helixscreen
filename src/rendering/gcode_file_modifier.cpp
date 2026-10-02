@@ -510,7 +510,7 @@ bool GCodeFileModifier::disable_macro_parameter(const DetectedOperation& op) {
 
     // Check if original value was boolean-like
     std::string upper_value = op.param_value;
-    std::transform(upper_value.begin(), upper_value.end(), upper_value.begin(), ::toupper);
+    upper_value = helix::text_io::to_upper(upper_value);
     if (upper_value == "TRUE" || upper_value == "YES") {
         replacement = op.param_name + "=FALSE";
     }

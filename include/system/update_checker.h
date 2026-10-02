@@ -420,39 +420,6 @@ class UpdateChecker {
     /** @brief Thread-safe copy of the diagnostics snapshot. Safe from any thread. */
     ConfigSnapshot config_snapshot() const;
 
-    /** @brief Get platform key for current build ("pi", "ad5m", "k1") */
-    static std::string get_platform_key();
-
-    /**
-     * @brief Map a platform key to its human-readable display name.
-     * @param key  Platform key as returned by get_platform_key().
-     * @return Display name (e.g. "Raspberry Pi", "Creality K1").
-     *         Falls back to @p key itself for unrecognised values.
-     *
-     * Canonical single source of truth for the key→name map; call sites in
-     * debug_bundle_collector.cpp and elsewhere must use this instead of
-     * maintaining their own copies.
-     */
-    static std::string get_platform_display_name(const std::string& key);
-
-    /// Everything keyed on a platform key: its display name, the ELF header its
-    /// release binary must carry, and the Moonraker files a debug bundle captures.
-    struct PlatformInfo {
-        const char* key;
-        const char* display_name;
-        bool has_printer_hardware; ///< false for generic hosts (Pi, x86) and the K-Touch
-        uint8_t elf_class;         ///< 1 = ELFCLASS32, 2 = ELFCLASS64, 0 = no ELF release to check
-        uint8_t elf_data;          ///< EI_DATA: 1 = little-endian, 2 = big-endian
-        uint16_t elf_machine;      ///< e_machine
-        std::vector<std::string> diagnostic_files; ///< Moonraker paths; basename is the bundle key
-    };
-
-    /// Table row for @p key, or nullptr for an unknown key.
-    static const PlatformInfo* find_platform(const std::string& key);
-
-    /// True when the first 20 bytes of an ELF file match @p platform's expectation.
-    static bool elf_header_matches(const PlatformInfo& platform, const uint8_t (&header)[20]);
-
     /**
      * @brief Find a local install.sh by searching well-known paths
      * @param extra_search_paths Additional paths to search (prepended to default list)

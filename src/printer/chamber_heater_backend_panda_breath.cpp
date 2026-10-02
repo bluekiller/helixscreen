@@ -3,6 +3,7 @@
 // VENDOR_OK: stock Panda Breath firmware knowledge lives here and nowhere else.
 // Status schema verified live against the U1 rig 2026-09-16 (issue #1290).
 #include "chamber_heater_backend.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -36,10 +37,7 @@ class PandaBreathBackend : public ChamberHeaterBackend {
     }
 
     int discovery_confidence(const std::string& object_name) const override {
-        std::string lower;
-        for (char c : object_name) {
-            lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-        }
+        const std::string lower = helix::text_io::to_lower(object_name);
         if (lower.find("panda_breath") != std::string::npos ||
             lower.find("pandabreath") != std::string::npos) {
             return 95;

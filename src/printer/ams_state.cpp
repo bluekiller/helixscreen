@@ -146,10 +146,7 @@ AmsState& AmsState::instance() {
 
 const char* AmsState::get_logo_path(const std::string& type_name) {
     // Normalize to lowercase for matching
-    std::string lower_name = type_name;
-    for (auto& c : lower_name) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
+    std::string lower_name = helix::text_io::to_lower(type_name);
 
     // Strip common suffixes like " (mock)", " (test)", etc.
     size_t paren_pos = lower_name.find(" (");

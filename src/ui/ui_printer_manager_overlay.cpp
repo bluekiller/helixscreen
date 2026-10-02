@@ -365,6 +365,11 @@ void PrinterManagerOverlay::on_deactivating(DeactivateReason) {
     }
 }
 
+void PrinterManagerOverlay::on_ui_destroyed() {
+    printer_image_obj_ = nullptr;
+    name_input_ = nullptr;
+}
+
 // =============================================================================
 // Refresh Printer Info
 // =============================================================================

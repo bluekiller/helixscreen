@@ -307,6 +307,40 @@ lv_obj_t* resolve_path(const std::string& path, lv_obj_t* base, std::vector<lv_o
     return cur;
 }
 
+void collect_widgets(lv_obj_t* root, const std::function<bool(const char* name)>& pred,
+                     std::vector<lv_obj_t*>& out, bool include_hidden) {
+    if (!root) {
+        return;
+    }
+    const uint32_t count = lv_obj_get_child_count(root);
+    for (uint32_t i = 0; i < count; ++i) {
+        lv_obj_t* child = lv_obj_get_child(root, i);
+        if (!child || (!include_hidden && lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN))) {
+            continue;
+        }
+        char resolved[128];
+        lv_obj_get_name_resolved(child, resolved, sizeof(resolved));
+        const char* name = resolved[0] != '\0' ? resolved : lv_obj_get_name(child);
+        if (name && pred(name)) {
+            out.push_back(child);
+        }
+        collect_widgets(child, pred, out, include_hidden);
+    }
+}
+
+std::vector<lv_obj_t*> search_widgets(lv_obj_t* scope,
+                                      const std::function<bool(const char* name)>& pred,
+                                      bool include_hidden) {
+    std::vector<lv_obj_t*> out;
+    if (scope) {
+        collect_widgets(scope, pred, out, include_hidden);
+        return out;
+    }
+    collect_widgets(lv_screen_active(), pred, out, include_hidden);
+    collect_widgets(lv_layer_top(), pred, out, include_hidden);
+    return out;
+}
+
 int64_t widget_pick_key(lv_obj_t* o, size_t discovery_order) {
     if (!o) {
         return -1;

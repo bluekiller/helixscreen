@@ -9,6 +9,7 @@
 #include "json_utils.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
+#include "text_io.h"
 #include "unit_conversions.h"
 
 #include <algorithm>
@@ -440,7 +441,7 @@ void TemperatureSensorManager::apply_chamber_sensor_override(const std::string& 
     for (auto& config : sensors_) {
         if (config.role == TemperatureSensorRole::CHAMBER) {
             std::string name_lower = config.sensor_name;
-            std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
+            name_lower = helix::text_io::to_lower(name_lower);
             if (name_lower.find("mcu") != std::string::npos) {
                 config.role = TemperatureSensorRole::MCU;
                 config.priority = 10;

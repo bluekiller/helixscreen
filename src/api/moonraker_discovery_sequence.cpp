@@ -6,6 +6,7 @@
 #include "ui_update_queue.h"
 
 #include "accel_sensor_manager.h"
+#include "ams_backend_afc.h"
 #include "ams_backend_openams.h"
 #include "ams_state.h"
 #include "batch_feed_reconcile.h"
@@ -37,6 +38,7 @@
 #include "printer_state.h"
 #include "probe_sensor_manager.h"
 #include "sensor_state.h"
+#include "text_io.h"
 #include "tool_offsets.h"
 #include "toolchanger_addon.h"
 #include "unit_conversions.h"
@@ -934,8 +936,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                     std::string fan = hardware_.chamber_cooling_fan_name();
                                     if (!fan.empty()) {
                                         std::string key = fan;
-                                        std::transform(key.begin(), key.end(), key.begin(),
-                                                       ::tolower);
+                                        key = helix::text_io::to_lower(key);
                                         if (settings.contains(key) &&
                                             settings[key].contains("target_temp") &&
                                             settings[key]["target_temp"].is_number()) {
@@ -1369,80 +1370,13 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
                                                    "leds"});
     }
 
-    // All discovered AFC objects — narrow per object-type to the fields the
-    // AmsBackendAfc parsers actually read. nullptr here would cost dearly:
-    // an AFC BoxTurtle setup typically has ~9 AFC_* objects, all updated by
-    // the firmware on every lane state change. AFC_led is currently subscribed
-    // but never parsed by HelixScreen; skip it entirely.
-    //
-    // Field lists mirror parse_afc_state / parse_afc_stepper / parse_afc_hub /
-    // parse_afc_buffer / parse_afc_extruder / parse_afc_unit_object in
-    // src/printer/ams_backend_afc.cpp. Keep these in sync when adding parser
-    // fields.
-    static const json afc_state_fields = json::array({"connected",
-                                                      "bypass_state",
-                                                      "quiet_mode",
-                                                      "current_load",
-                                                      "current_lane",
-                                                      "current_state",
-                                                      "current_tool",
-                                                      "current_toolchange",
-                                                      "error_state",
-                                                      "filament_loaded",
-                                                      "lane_loaded",
-                                                      "led_state",
-                                                      "message",
-                                                      "name",
-                                                      "number_of_toolchanges",
-                                                      "num_extruders",
-                                                      "status",
-                                                      "system",
-                                                      "tool_sensor_after_extruder",
-                                                      "tool_stn",
-                                                      "tool_stn_unload",
-                                                      "type",
-                                                      "units",
-                                                      "lanes",
-                                                      "hubs",
-                                                      "extruders",
-                                                      "buffers"});
-    // "current_map" (AFC virtual tools, #605) names which of a multi-tool lane's
-    // T-commands is active. The subscription is a strict allowlist, so a field
-    // missing here never reaches parse_afc_stepper at all. Older AFC simply does not
-    // publish it and Moonraker omits what an object does not have, so asking for it
-    // is safe against every version.
-    static const json afc_stepper_fields =
-        json::array({"buffer_status", "color", "current_map", "dist_hub", "extruder",
-                     "filament_status", "hub", "load", "loaded_to_hub", "map", "material", "prep",
-                     "runout_lane", "spool_id", "status", "tool_loaded", "weight"});
-    static const json afc_hub_fields = json::array({"state", "afc_bowden_length"});
-    static const json afc_buffer_fields = json::array(
-        {"state", "distance_to_fault", "error_sensitivity", "fault_detection_enabled", "lanes"});
-    static const json afc_extruder_fields =
-        json::array({"lane_loaded", "tool_end_status", "tool_start_status"});
-    static const json afc_unit_fields = json::array({"lanes", "extruders", "hubs", "buffers"});
-
-    for (const auto& afc_obj : afc_objects) {
-        // Top-level "AFC" (no space, no underscore-suffix) — system state
-        if (afc_obj == "AFC" || afc_obj == "afc") {
-            subscription_objects[afc_obj] = afc_state_fields;
-        } else if (afc_obj.rfind("AFC_stepper ", 0) == 0 || afc_obj.rfind("AFC_lane ", 0) == 0) {
-            subscription_objects[afc_obj] = afc_stepper_fields;
-        } else if (afc_obj.rfind("AFC_hub ", 0) == 0) {
-            subscription_objects[afc_obj] = afc_hub_fields;
-        } else if (afc_obj.rfind("AFC_buffer ", 0) == 0) {
-            subscription_objects[afc_obj] = afc_buffer_fields;
-        } else if (afc_obj.rfind("AFC_extruder ", 0) == 0) {
-            subscription_objects[afc_obj] = afc_extruder_fields;
-        } else if (afc_obj.rfind("AFC_led ", 0) == 0) {
-            // Not parsed anywhere in HelixScreen — skip subscription entirely
-            continue;
-        } else {
-            // Unit-level object: AFC_BoxTurtle, AFC_OpenAMS, AFC_vivid,
-            // AFC_NightOwl, etc. — parse_afc_unit_object reads only topology
-            // arrays.
-            subscription_objects[afc_obj] = afc_unit_fields;
-        }
+    // All discovered AFC objects: the backend owns which fields each object
+    // type needs. nullptr here would cost dearly: an AFC BoxTurtle setup
+    // typically has ~9 AFC_* objects, all updated by the firmware on every lane
+    // state change.
+    const json afc_subscriptions = AmsBackendAfc::required_status_objects(afc_objects);
+    for (auto it = afc_subscriptions.begin(); it != afc_subscriptions.end(); ++it) {
+        subscription_objects[it.key()] = it.value();
     }
 
     // AD5X IFS: save_variables for filament state (colors, types, tool mapping),
@@ -1685,14 +1619,11 @@ void MoonrakerDiscoverySequence::complete_discovery_subscription(uint64_t seq) {
     if (hw.has_mmu()) {
         spdlog::info("[Moonraker Client] Subscribing to MMU object (Happy Hare)");
     }
-    int afc_led_skipped = 0;
-    for (const auto& afc_obj : afc_objects_) {
-        if (afc_obj.rfind("AFC_led ", 0) == 0)
-            ++afc_led_skipped;
-    }
-    if (afc_led_skipped > 0) {
-        spdlog::debug("[Moonraker Client] Skipped {} unparsed AFC_led object(s) from subscription",
-                      afc_led_skipped);
+    const size_t afc_skipped =
+        afc_objects_.size() - AmsBackendAfc::required_status_objects(afc_objects_).size();
+    if (afc_skipped > 0) {
+        spdlog::debug("[Moonraker Client] Skipped {} unparsed AFC object(s) from subscription",
+                      afc_skipped);
     }
     if (hw.mmu_type() == AmsType::OPENAMS) {
         spdlog::info("[Moonraker Client] Subscribing to oams_manager (OpenAMS UI API)");
@@ -2105,7 +2036,7 @@ void MoonrakerDiscoverySequence::parse_objects(const json& objects) {
         // Output pins - classify as fan or LED based on name keywords
         else if (name.rfind("output_pin ", 0) == 0) {
             std::string lower_name = name;
-            std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+            lower_name = helix::text_io::to_lower(lower_name);
             if (lower_name.find("fan") != std::string::npos) {
                 fans_.push_back(name);
             } else if (lower_name.find("light") != std::string::npos ||

@@ -277,27 +277,6 @@ void PIDCalibrationPanel::setup_widgets() {
 }
 
 // ============================================================================
-// SHOW
-// ============================================================================
-
-void PIDCalibrationPanel::show() {
-    if (!overlay_root_) {
-        spdlog::error("[PIDCal] Cannot show: overlay not created");
-        return;
-    }
-
-    spdlog::debug("[PIDCal] Showing overlay");
-
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
-
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[PIDCal] Overlay shown");
-}
-
-// ============================================================================
 // LIFECYCLE HOOKS
 // ============================================================================
 
@@ -423,6 +402,14 @@ void PIDCalibrationPanel::cleanup() {
     // Clear references
 }
 
+void PIDCalibrationPanel::on_ui_destroyed() {
+    // The tree is gone: the graph, the slider and anything ticking against them go
+    // with it. on_deactivating() already stopped these on a normal pop.
+    stop_progress_tracking();
+    teardown_pid_graph();
+    fan_slider_ = nullptr;
+}
+
 // ============================================================================
 // FAN CONTROL
 // ============================================================================
@@ -546,8 +533,8 @@ void PIDCalibrationPanel::set_temp_control_panel(TemperatureService* tcp) {
 }
 
 void PIDCalibrationPanel::setup_pid_graph() {
-    if (pid_graph_)
-        return; // Already set up
+    if (pid_graph_ || !overlay_root_)
+        return; // Already set up, or no tree to draw into
 
     lv_obj_t* container =
         helix::ui::find_required(overlay_root_, "pid_temp_graph_container", get_name());

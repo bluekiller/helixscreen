@@ -4,6 +4,7 @@
 #pragma once
 
 #include "json_fwd.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -119,8 +120,7 @@ struct SafetyLimits {
     /// sanity net - which is #1355 again, on the one heater (a chamber) most
     /// likely to sit far below it.
     static std::string normalize_heater_key(std::string heater) {
-        std::transform(heater.begin(), heater.end(), heater.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        heater = helix::text_io::to_lower(heater);
         return heater;
     }
 

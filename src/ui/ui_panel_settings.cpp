@@ -432,13 +432,7 @@ void SettingsPanel::handle_touch_calibration_clicked() {
 
     auto& overlay = helix::ui::get_touch_calibration_overlay();
 
-    if (!overlay.is_created()) {
-        overlay.init_subjects();
-        overlay.register_callbacks();
-        overlay.create(parent_screen_);
-    }
-
-    overlay.show([this](bool success) {
+    overlay.show(parent_screen_, [this](bool success) {
         if (success) {
             // Update status when calibration completes successfully
             lv_subject_copy_string(&touch_cal_status_subject_, lv_tr("Calibrated"));

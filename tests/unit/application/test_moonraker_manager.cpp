@@ -595,7 +595,7 @@ std::set<std::string> extract_observer_guard_members(const std::string& header) 
 std::string extract_method_body(const std::string& impl, const std::string& class_name,
                                 const std::string& method_name) {
     std::regex sig_re("(?:void|bool|int)\\s+" + class_name + "::" + method_name +
-                      R"(\s*\(\s*\)\s*(?:noexcept)?\s*\{)");
+                      R"(\s*\([^)]*\)\s*(?:noexcept)?\s*\{)");
     std::smatch m;
     if (!std::regex_search(impl, m, sig_re)) {
         return {};
@@ -670,16 +670,16 @@ std::set<MethodHandler> extract_method_callback_pairs(const std::string& body, b
 }
 
 // Method callbacks whose body reaches a panel, a subject, or a manager-owned pointer
-// that teardown destroys before it releases the MoonrakerClient. Both teardown paths
-// must drop these. Registration is not confined to setup_discovery_callbacks -
-// layer_tracker installs from init_action_prompt - so the registration scan below
-// covers the whole file.
+// that teardown destroys before it releases the MoonrakerClient. The shared
+// teardown_printer_scope() must drop these. Registration is not confined to
+// setup_discovery_callbacks - layer_tracker installs from init_action_prompt - so the registration
+// scan below covers the whole file.
 //
 // This is the enforced subset, not the full registration set: a passing run is not a
 // claim that every handler in the file is covered. A handler earns a row here by
 // outliving something; one that reaches only process-global state does not. That is
 // why external_update_restart is absent - it captures nothing and reaches only
-// UpdateChecker statics and the filesystem.
+// UpdateChecker statics and the filesystem - though teardown drops it as well.
 const std::vector<MethodHandler>& handlers_requiring_teardown() {
     static const std::vector<MethodHandler> handlers = {
         {"notify_timelapse_event", "timelapse_state"},
@@ -724,7 +724,7 @@ TEST_CASE("Shutdown observer release contract — every ObserverGuard member is 
     }
 }
 
-TEST_CASE("Method callbacks are unregistered on both teardown paths",
+TEST_CASE("Method callbacks are unregistered by the shared teardown",
           "[application][shutdown][regression]") {
     // The unit is the (method, handler) pair, not the method. notify_history_changed
     // carries AboutOverlay_print_hours alongside PrintHistoryManager's own handler,
@@ -746,19 +746,24 @@ TEST_CASE("Method callbacks are unregistered on both teardown paths",
     const std::string tear_down =
         extract_method_body(impl, "Application", "tear_down_printer_state");
     const std::string shutdown = extract_method_body(impl, "Application", "shutdown");
+    const std::string scope = extract_method_body(impl, "Application", "teardown_printer_scope");
     REQUIRE_FALSE(tear_down.empty());
     REQUIRE_FALSE(shutdown.empty());
+    REQUIRE_FALSE(scope.empty());
+
+    // Both paths run the one ordered teardown, so one body holds every unregister.
+    CHECK(tear_down.find("teardown_printer_scope(TeardownScope::PrinterSwitch)") !=
+          std::string::npos);
+    CHECK(shutdown.find("teardown_printer_scope(TeardownScope::ProcessExit)") != std::string::npos);
 
     // Registration sites are spread across setup_discovery_callbacks and
     // init_action_prompt, so scan the whole translation unit rather than one body.
     const auto registered = extract_method_callback_pairs(impl, /*unregister=*/false);
-    const auto dropped_on_switch = extract_method_callback_pairs(tear_down, /*unregister=*/true);
-    const auto dropped_on_exit = extract_method_callback_pairs(shutdown, /*unregister=*/true);
+    const auto dropped = extract_method_callback_pairs(scope, /*unregister=*/true);
 
     // Guard the parser: a regex matching nothing would satisfy every check below.
     REQUIRE(registered.size() >= handlers_requiring_teardown().size());
-    REQUIRE_FALSE(dropped_on_switch.empty());
-    REQUIRE_FALSE(dropped_on_exit.empty());
+    REQUIRE_FALSE(dropped.empty());
 
     for (const auto& handler : handlers_requiring_teardown()) {
         DYNAMIC_SECTION(handler.first << " / " << handler.second) {
@@ -768,19 +773,32 @@ TEST_CASE("Method callbacks are unregistered on both teardown paths",
                 CHECK(registered.count(handler) == 1);
             }
             {
-                INFO("Application::tear_down_printer_state must unregister this handler. A "
-                     "printer switch destroys the panels and subjects its callback reaches "
-                     "while the client stays alive until step 18.");
-                CHECK(dropped_on_switch.count(handler) == 1);
-            }
-            {
-                INFO("Application::shutdown must unregister this handler. "
+                INFO("teardown_printer_scope must unregister this handler. "
                      "StaticPanelRegistry::destroy_all() and StaticSubjectRegistry::"
                      "deinit_all() both run before the client is released.");
-                CHECK(dropped_on_exit.count(handler) == 1);
+                CHECK(dropped.count(handler) == 1);
             }
         }
     }
+}
+
+TEST_CASE("A printer switch freezes the UpdateQueue before it disconnects the client",
+          "[application][shutdown][regression]") {
+    // Work the WebSocket thread enqueues after the disconnect must be buffered and then
+    // discarded by update_queue_shutdown(), not run after the objects it touches are gone.
+    // Teardown cannot be driven at runtime (see application_test_access.h), so this is a
+    // source-level contract.
+    const std::string impl = read_file("src/application/application.cpp");
+    const std::string scope = extract_method_body(impl, "Application", "teardown_printer_scope");
+    REQUIRE_FALSE(scope.empty());
+    const auto freeze = scope.find("queue_freeze.emplace(");
+    const auto disconnect = scope.find("client()->disconnect()");
+    const auto drain = scope.find("helix::ui::update_queue_shutdown();");
+    REQUIRE(freeze != std::string::npos);
+    REQUIRE(disconnect != std::string::npos);
+    REQUIRE(drain != std::string::npos);
+    CHECK(freeze < disconnect);
+    CHECK(disconnect < drain);
 }
 
 TEST_CASE("should_complete_preprint - completes when the layer-zero sample is never delivered",

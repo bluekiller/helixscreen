@@ -27,6 +27,7 @@
 #include "panel_widget_config.h"
 #include "panel_widget_manager.h"
 #include "platform_capabilities.h"
+#include "platform_table.h"
 #include "printer_state.h"
 #include "screen_locality.h"
 #include "system/crash_handler.h"
@@ -1087,7 +1088,7 @@ nlohmann::json TelemetryManager::build_crash_event(const nlohmann::json& crash_d
     }
 
     // Add platform (not in crash file — determined at runtime)
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
 
     return event;
 }
@@ -1173,7 +1174,7 @@ nlohmann::json TelemetryManager::build_session_event() const {
     // ---- app section ----
     json app;
     app["version"] = HELIX_VERSION;
-    app["platform"] = UpdateChecker::get_platform_key();
+    app["platform"] = helix::platform::current_key();
 
     if (auto* dm = DisplayManager::instance()) {
         int w = dm->width();
@@ -1478,7 +1479,7 @@ nlohmann::json TelemetryManager::build_memory_snapshot_event(const std::string& 
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
     event["trigger"] = trigger;
 
     // Calculate uptime from init_time_
@@ -1544,7 +1545,7 @@ TelemetryManager::build_memory_warning_event(const helix::MemoryWarningEvent& wa
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
     event["level"] = helix::pressure_level_to_string(warning.level);
     event["reason"] = warning.reason;
 
@@ -1894,7 +1895,7 @@ nlohmann::json TelemetryManager::build_settings_snapshot_event() const {
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
 
     const auto& active_theme = theme_manager_get_active_theme();
     bool dark_mode = DisplaySettingsManager::instance().get_dark_mode();
@@ -1943,7 +1944,7 @@ nlohmann::json TelemetryManager::build_panel_usage_event() const {
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
 
     // Session duration from init_time_
     auto now = std::chrono::steady_clock::now();
@@ -2258,7 +2259,7 @@ nlohmann::json TelemetryManager::build_performance_snapshot_event() const {
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
     event["snapshot_seq"] = snapshot_seq_;
     event["is_shutdown"] = is_shutdown_snapshot_;
 
@@ -2383,7 +2384,7 @@ nlohmann::json TelemetryManager::build_feature_adoption_event() const {
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
 
     auto has_panel = [&](const std::string& name) -> bool {
         auto it = panel_visits_.find(name);
@@ -2484,7 +2485,7 @@ nlohmann::json TelemetryManager::build_settings_changes_event() const {
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
 
     json changes = json::array();
     for (const auto& c : pending_settings_changes_) {
@@ -2564,7 +2565,7 @@ nlohmann::json TelemetryManager::build_async_lifetime_snapshot_event(
     event["device_id"] = get_hashed_device_id();
     event["timestamp"] = get_timestamp();
     event["app_version"] = HELIX_VERSION;
-    event["app_platform"] = UpdateChecker::get_platform_key();
+    event["app_platform"] = helix::platform::current_key();
 
     auto now = std::chrono::steady_clock::now();
     auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - init_time_);

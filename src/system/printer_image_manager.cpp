@@ -125,7 +125,7 @@ std::string PrinterImageManager::get_active_image_path(int screen_width) {
                     if (hfs::stem(e.name) != name)
                         continue;
                     std::string ext{hfs::extension(e.name)};
-                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    ext = helix::text_io::to_lower(ext);
                     if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp" &&
                         ext != ".gif")
                         continue;
@@ -307,7 +307,7 @@ std::vector<PrinterImageManager::ImageInfo> PrinterImageManager::get_invalid_cus
                 continue;
 
             std::string ext{hfs::extension(e.name)};
-            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            ext = helix::text_io::to_lower(ext);
 
             // Only consider image-like extensions (skip .bin, .DS_Store, .tmp, etc.)
             static const std::set<std::string> image_exts = {".png", ".jpg", ".jpeg",
@@ -377,7 +377,7 @@ std::vector<std::string> PrinterImageManager::scan_for_images(const std::string&
 
             std::string ext{hfs::extension(e.name)};
             // Case-insensitive extension check
-            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            ext = helix::text_io::to_lower(ext);
             if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" ||
                 ext == ".gif") {
                 results.push_back(e.path);

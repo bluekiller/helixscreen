@@ -95,7 +95,7 @@ Like `PrinterState`, `ToolState` is fed `update_from_status()` on the main threa
 2. **`get_printer_state()`** ([`include/app_globals.h#get_printer_state`](../../../include/app_globals.h#L149)) — same Meyers technique, free-function spelling; there is no `PrinterState::instance()`.
 3. **Published pointers** — get/set pairs in [`app_globals.h`](../../../include/app_globals.h) for objects owned elsewhere and published as globals (nullable!): `MoonrakerManager` (Application-owned, `set_moonraker_manager()` in [`src/application/application.cpp#init_moonraker`](../../../src/application/application.cpp#L2145)), `IMoonrakerClient` / `IMoonrakerAPI` (owned by MoonrakerManager behind interfaces), `JobQueueState`, `PrintHistoryManager`, `TemperatureHistoryManager`.
 4. **`Config::get_instance()`** ([`include/config.h#get_instance`](../../../include/config.h#L562)) — static-member-pointer spelling of the same idea.
-5. **Not singletons at all** — `PrinterDetector` is a static utility class (`PrinterDetector::auto_detect()` etc.; no `instance()` exists), and panels/overlays are global **instances** behind `get_global_*_panel()` accessors built on `helix::lazy_global<T>()` (`include/static_panel_registry.h#helix::lazy_global`) — each registering its destruction with `StaticPanelRegistry`.
+5. **Not singletons at all** — `PrinterDetector` is a static utility class (`PrinterDetector::auto_detect()` etc.; no `instance()` exists), and panels/overlays are global **instances** behind `get_global_*_panel()` accessors built on `helix::lazy_global<T>()` (`include/static_panel_registry.h#"T& lazy_global(const char* name"`) — each registering its destruction with `StaticPanelRegistry`.
 
 | Singleton | Header | Role |
 |-----------|--------|------|
@@ -237,4 +237,4 @@ Read in this order; about 25 minutes total.
 8. [`src/application/subject_initializer.cpp#init_panel_subjects`](../../../src/application/subject_initializer.cpp#L480) — where the controller is constructed and registered as a `PanelWidgetManager` shared resource; scroll up to `src/application/subject_initializer.cpp#init_printer_state_subjects` for the PrinterState init phase and its ordering comments.
 9. [`include/static_subject_registry.h#StaticSubjectRegistry`](../../../include/static_subject_registry.h#L50) — the registry, and the header comment that makes self-registration mandatory.
 10. [`include/static_panel_registry.h#StaticPanelRegistry`](../../../include/static_panel_registry.h#L34) — the panel registry: reverse-order destroy, `is_destroying_all()`, `clear()` for soft restart.
-11. `include/static_panel_registry.h#helix::lazy_global` — `lazy_global` and `lazy_global_if_exists`: the entire panel-singleton idiom in two templates.
+11. `include/static_panel_registry.h#"T& lazy_global(const char* name"` — `lazy_global` and `lazy_global_if_exists`: the entire panel-singleton idiom in two templates.

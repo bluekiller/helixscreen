@@ -1967,10 +1967,6 @@ static bool printer_type_contains(const std::string& needle) {
            std::string::npos;
 }
 
-bool PrinterDetector::is_pfa_printer() {
-    return printer_type_contains("pfa");
-}
-
 bool PrinterDetector::is_creality_k1() {
     return printer_type_contains("creality") && printer_type_contains("k1");
 }

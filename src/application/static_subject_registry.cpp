@@ -66,6 +66,16 @@ bool StaticSubjectRegistry::deinit_one(const char* name) {
     return true;
 }
 
+bool StaticSubjectRegistry::unregister(const char* name) {
+    auto it = std::find_if(deinitializers_.begin(), deinitializers_.end(),
+                           [name](const DeinitEntry& e) { return e.name == name; });
+    if (it == deinitializers_.end()) {
+        return false;
+    }
+    deinitializers_.erase(it);
+    return true;
+}
+
 void StaticSubjectRegistry::clear() {
     deinitializers_.clear();
     spdlog::trace("[StaticSubjectRegistry] Cleared all entries (no callbacks run)");

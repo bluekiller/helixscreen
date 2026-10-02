@@ -512,8 +512,7 @@ std::string AmsBackend::normalize_material(const std::string& material) const {
 
     // Case-insensitive lowercase helper.
     auto lower = [](std::string s) {
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        s = helix::text_io::to_lower(s);
         return s;
     };
 

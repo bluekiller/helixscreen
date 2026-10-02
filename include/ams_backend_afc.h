@@ -194,6 +194,14 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     static bool owns_filament_sensor(const std::string& bare_name,
                                      const helix::PrinterDiscovery& discovery);
 
+    /// The `printer.objects.subscribe` objects map for the discovered AFC
+    /// objects: each object type narrowed to the fields the parse_afc_*
+    /// functions read. The subscription is a strict allowlist, so a field a
+    /// parser reads must be listed here. Objects no parser reads (AFC_led) are
+    /// omitted.
+    [[nodiscard]] static nlohmann::json
+    required_status_objects(const std::vector<std::string>& afc_objects);
+
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
 

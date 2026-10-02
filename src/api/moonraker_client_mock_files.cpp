@@ -6,6 +6,7 @@
 #include "mock_planted_gcodes.h"
 #include "moonraker_client_mock_internal.h"
 #include "runtime_config.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -40,7 +41,7 @@ static bool scan_gcode_dir(const std::string& dir_path, std::vector<std::string>
 
         // Check for .gcode extension (case insensitive)
         std::string ext = name.substr(name.length() - 6);
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        ext = helix::text_io::to_lower(ext);
         if (ext != ".gcode") {
             continue;
         }

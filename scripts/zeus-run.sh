@@ -237,6 +237,11 @@ D 'git config --global --add safe.directory "*"' >/dev/null
 # here fetches the pin of every new superproject commit, and one pin to a
 # submodule commit that was rebased away before pushing fails the whole fetch.
 D 'git fetch --quiet --all --recurse-submodules=no'
+# mutate_diff.py's default base is the nearest fork point among origin/main and the
+# local main. A local main left behind by an earlier job puts that fork point
+# before everything since, so the run is handed foreign hunks and refuses. Bring
+# it level with the remote before the reset below.
+D 'git fetch --quiet origin main && git update-ref refs/heads/main FETCH_HEAD'
 D 'git reset --hard --quiet $SHA && git submodule update --init --recursive --quiet'
 D 'git log --oneline -1'
 D '$CMD 2>&1'

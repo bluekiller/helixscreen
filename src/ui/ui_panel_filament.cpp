@@ -47,6 +47,7 @@
 #include "static_panel_registry.h"
 #include "temperature_controller.h"
 #include "temperature_service.h"
+#include "text_io.h"
 #include "theme_manager.h"
 #include "tool_state.h"
 #include "toolhead_homing.h"
@@ -2349,8 +2350,8 @@ void FilamentPanel::update_spool_preset() {
     for (int i = 0; i < PRESET_COUNT; i++) {
         std::string preset_lower(helix::presets::name(i));
         std::string mat_lower(active.material_name);
-        std::transform(preset_lower.begin(), preset_lower.end(), preset_lower.begin(), ::tolower);
-        std::transform(mat_lower.begin(), mat_lower.end(), mat_lower.begin(), ::tolower);
+        preset_lower = helix::text_io::to_lower(preset_lower);
+        mat_lower = helix::text_io::to_lower(mat_lower);
         if (preset_lower == mat_lower) {
             lv_obj_add_flag(spool_preset_button_, LV_OBJ_FLAG_HIDDEN);
             return;

@@ -137,6 +137,11 @@ class Application {
     void add_printer_via_wizard();
     void cancel_add_printer_wizard();
     void tear_down_printer_state();
+
+    /// What survives the teardown: a printer switch keeps the process and LVGL alive,
+    /// ProcessExit ends both.
+    enum class TeardownScope { PrinterSwitch, ProcessExit };
+    void teardown_printer_scope(TeardownScope scope);
     void init_printer_state();
 
     // Helper functions

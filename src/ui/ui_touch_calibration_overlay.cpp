@@ -274,18 +274,13 @@ lv_obj_t* TouchCalibrationOverlay::create(lv_obj_t* parent) {
 // Show/Hide
 // ============================================================================
 
-void TouchCalibrationOverlay::show(CompletionCallback callback) {
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show: overlay not created", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Showing overlay", get_name());
-
-    // Store completion callback
+bool TouchCalibrationOverlay::show(lv_obj_t* parent_screen, CompletionCallback callback) {
     completion_callback_ = std::move(callback);
     callback_invoked_ = false;
+    return OverlayBase::show(parent_screen);
+}
 
+void TouchCalibrationOverlay::before_show() {
     // Open the session: re-sample the screen, reset every per-session counter,
     // snapshot the live calibration and disable the affine so capture sees raw
     // coordinates. Re-sampling matters because this overlay is a singleton built
@@ -300,17 +295,19 @@ void TouchCalibrationOverlay::show(CompletionCallback callback) {
     update_instruction_text();
     update_crosshair_position();
 
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    // on_activate() lifts the crosshair and capture surface onto the screen root
+    // after push_overlay() moves the root to the foreground; lifting any earlier
+    // would land them below it in z-order.
+}
 
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    // (which is where we reparent crosshair + capture layer to screen root, see
-    // on_activate() below). Reparenting MUST happen after push_overlay's queued
-    // lambda runs and calls lv_obj_move_foreground(overlay_root_) — otherwise
-    // the reparented widgets land below the overlay in z-order.
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[{}] Overlay shown", get_name());
+void TouchCalibrationOverlay::on_ui_destroyed() {
+    // on_deactivating() put the lifted widgets back under the root, which is gone
+    // with them: nothing may reach any of it.
+    crosshair_ = nullptr;
+    crosshair_orig_parent_ = nullptr;
+    capture_overlay_ = nullptr;
+    capture_orig_parent_ = nullptr;
+    raised_cancel_ = {};
 }
 
 void TouchCalibrationOverlay::hide() {
@@ -588,9 +585,10 @@ void TouchCalibrationOverlay::handle_hold_abort() {
 //   - handle_back_clicked() is the LAST statement here, and abort_session() is
 //     the last statement in each of its callers, so no path touches `this`, the
 //     overlay root, or the pressed object after the enqueue.
-//   - The overlay is a StaticPanelRegistry singleton and go_back() never deletes
-//     overlay_root_ (it animates it out and pops the stack), so there is no
-//     object for a late callback to land on either way.
+//   - The widget tree is deleted on a later tick, after the slide-out and the close
+//     callback, so no event or timer dispatch is still running on it. The panel's
+//     timers and callbacks reach only members, subjects and null-guarded widget
+//     pointers, which on_ui_destroyed() clears.
 //
 // Ordering guarantee for the timer paths: controller_.panel()->reset() below runs BEFORE
 // handle_back_clicked(), and reset() stops the countdown, fast-revert and stall

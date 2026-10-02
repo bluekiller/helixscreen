@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "json_utils.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -22,8 +23,7 @@ std::string store_leaf() {
 /// Lowercase key for a macro name, matching MacroParamCache's normalisation.
 std::string store_key(const std::string& macro_name) {
     std::string key = macro_name;
-    std::transform(key.begin(), key.end(), key.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    key = helix::text_io::to_lower(key);
     return key;
 }
 

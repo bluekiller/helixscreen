@@ -645,10 +645,8 @@ void PrintStartEnhancer::modify_and_upload_config(
                 // Case-insensitive search
                 std::string content_lower = content;
                 std::string section_lower = section_start;
-                std::transform(content_lower.begin(), content_lower.end(), content_lower.begin(),
-                               ::tolower);
-                std::transform(section_lower.begin(), section_lower.end(), section_lower.begin(),
-                               ::tolower);
+                content_lower = helix::text_io::to_lower(content_lower);
+                section_lower = helix::text_io::to_lower(section_lower);
 
                 size_t section_pos = content_lower.find(section_lower);
                 if (section_pos == std::string::npos) {

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "text_io.h"
+
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -151,11 +153,11 @@ inline constexpr size_t ALIAS_COUNT = sizeof(MATERIAL_ALIASES) / sizeof(MATERIAL
  */
 inline std::string_view resolve_alias(std::string_view name) {
     std::string name_lower(name);
-    std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
+    name_lower = helix::text_io::to_lower(name_lower);
 
     for (const auto& alias : MATERIAL_ALIASES) {
         std::string alias_lower(alias.alias);
-        std::transform(alias_lower.begin(), alias_lower.end(), alias_lower.begin(), ::tolower);
+        alias_lower = helix::text_io::to_lower(alias_lower);
 
         if (alias_lower == name_lower) {
             return alias.canonical;
@@ -173,11 +175,11 @@ inline std::string_view resolve_alias(std::string_view name) {
 inline std::optional<MaterialInfo> find_material_in(const std::vector<MaterialInfo>& table,
                                                     std::string_view name) {
     std::string wanted(resolve_alias(name));
-    std::transform(wanted.begin(), wanted.end(), wanted.begin(), ::tolower);
+    wanted = helix::text_io::to_lower(wanted);
 
     for (const auto& mat : table) {
         std::string mat_lower(mat.name);
-        std::transform(mat_lower.begin(), mat_lower.end(), mat_lower.begin(), ::tolower);
+        mat_lower = helix::text_io::to_lower(mat_lower);
         if (mat_lower == wanted) {
             return mat;
         }

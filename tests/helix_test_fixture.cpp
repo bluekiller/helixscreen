@@ -26,7 +26,10 @@
 #include "rpc_error_correlation.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
+#include "screensaver_canvas.h"
+#include "screensaver_registry.h"
 #include "standard_macros.h"
+#include "system/crash_error_log_sink.h"
 #include "system_settings_manager.h"
 #include "temperature_sensor_manager.h"
 #include "test_helpers/ams_state_test_access.h"
@@ -466,6 +469,20 @@ void HelixTestFixture::reset_all() {
     lv_xml_register_subject(nullptr, helix::ui::ANIMATIONS_SUBJECT_NAME, anim);
     lv_subject_set_int(anim, 0);
 
+    // Page-scroll gutters are opt-in off-device. A test that enabled them leaves the
+    // subject on, and NavigationManager then injects gutter children into every
+    // later scrollable it shows, so row counts in unrelated pages read one too high.
+    lv_subject_set_int(display_settings.subject_page_scroll_buttons(), 0);
+
+#ifdef HELIX_ENABLE_SCREENSAVER
+    // The manager stays initialised across tests, so a screensaver choice one test
+    // made would otherwise be read back as the "fresh install" default by the next.
+    // Set on the subject, not through set_screensaver_type(), which writes Config.
+    lv_subject_set_int(
+        display_settings.subject_screensaver_type(),
+        static_cast<int>(helix::ui::default_screensaver_type(helix::ui::SAVER_BUILD_DEPTH)));
+#endif
+
     // Same restore for the other two settings sub-managers a test can tear down.
     //
     // SettingsManager::init_subjects() is the only production entry point
@@ -504,6 +521,10 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // The crash handler's recent-error ring is process-wide, so errors logged by
+    // earlier tests would show up in a forked child's crash file.
+    helix::CrashErrorLogSink::instance().clear_for_test();
 
     // PanelWidgetManager's panel_configs_ cache is a process-wide map keyed by
     // panel_id. Once a test calls get_widget_config("home") — directly or

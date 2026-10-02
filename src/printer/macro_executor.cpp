@@ -114,8 +114,7 @@ std::string build_macro_gcode(const std::string& macro_name, const MacroParamRes
     std::string gcode;
     for (const auto& [key, value] : result.variables) {
         std::string var_lower = key;
-        std::transform(var_lower.begin(), var_lower.end(), var_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        var_lower = helix::text_io::to_lower(var_lower);
         gcode += "SET_GCODE_VARIABLE MACRO=" + macro_name + " VARIABLE=" + var_lower +
                  " VALUE=" + value + "\n";
     }

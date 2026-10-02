@@ -31,6 +31,11 @@ class CrashErrorLogSink : public spdlog::sinks::base_sink<std::mutex> {
     /// Construction registers the ring.
     static CrashErrorLogSink& instance();
 
+    /// Forget every captured line. A process that stays alive across many
+    /// independent runs (the unit-test binary) would otherwise report lines from
+    /// a run that crashed nothing.
+    void clear_for_test();
+
   protected:
     void sink_it_(const spdlog::details::log_msg& msg) override;
     void flush_() override {}

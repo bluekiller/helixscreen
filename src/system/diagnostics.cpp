@@ -18,6 +18,7 @@
 #include "logging_init.h"
 #include "platform_capabilities.h"
 #include "platform_info.h"
+#include "platform_table.h"
 #include "system/update_checker.h"
 #include "text_io.h"
 #include "wizard_config_paths.h"
@@ -139,7 +140,7 @@ Diagnostics collect() {
     d.paths.updater_staging_dir = staging_dir_for(d.paths.install_root);
 
     // --- Identity ----------------------------------------------------------
-    d.identity.platform_key = UpdateChecker::get_platform_key();
+    d.identity.platform_key = helix::platform::current_key();
     const char* flavor = nullptr;
     d.identity.mod_flavor = ad5x_mod_layout_present("/", &flavor) ? flavor : "none";
     d.identity.printer_model = get_saved_printer_type();
