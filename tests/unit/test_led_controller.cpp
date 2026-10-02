@@ -2074,7 +2074,8 @@ TEST_CASE_METHOD(
     ctrl.deinit();
     ctrl.init(nullptr, nullptr);
 
-    StaticSubjectRegistry::instance().clear();
+    // Drops only this entry; clear() would strip every other singleton's too.
+    REQUIRE(StaticSubjectRegistry::instance().unregister("LedController"));
     ctrl.init(nullptr, nullptr);
 
     REQUIRE(StaticSubjectRegistry::instance().deinit_one("LedController"));
