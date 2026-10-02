@@ -139,6 +139,15 @@ class ObserverGuard {
     static void invalidate_all() {
         s_invalidation_epoch.fetch_add(1, std::memory_order_release);
     }
+    /// Epoch accessors for the test fixture, which rolls back a simulated teardown so it
+    /// cannot make a later test's long-lived guards skip removal from live subjects.
+    static uint64_t invalidation_epoch() {
+        return s_invalidation_epoch.load(std::memory_order_acquire);
+    }
+    static void restore_invalidation_epoch(uint64_t epoch) {
+        s_invalidation_epoch.store(epoch, std::memory_order_release);
+    }
+
     /**
      * @brief Declare that a subject is never freed by a registry teardown.
      *

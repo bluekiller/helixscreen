@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace helix::test {
@@ -63,4 +64,10 @@ class HelixTestFixture {
     // lifecycle. Both need its subjects up, so a fixture that tears them down
     // calls this first.
     static void reset_printer_state();
+
+  private:
+    /// A test that calls ObserverGuard::invalidate_all() to simulate teardown would
+    /// otherwise leave every guard created before it, and destroyed after it, skipping
+    /// removal from subjects that were never freed.
+    uint64_t observer_epoch_at_entry_;
 };

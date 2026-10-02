@@ -6,6 +6,7 @@
 #include "ui_animations_pref.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
+#include "ui_observer_guard.h"
 #include "ui_test_utils.h"
 #include "ui_update_queue.h"
 
@@ -219,7 +220,8 @@ void reset_config_singleton() {
 
 } // namespace helix::test
 
-HelixTestFixture::HelixTestFixture() {
+HelixTestFixture::HelixTestFixture()
+    : observer_epoch_at_entry_(ObserverGuard::invalidation_epoch()) {
     // Tests opt into strict L081 detection: any bg-thread tok.expired() check
     // while alive aborts the run instead of just warning. Production stays
     // at warn. See include/async_lifetime_guard.h.
@@ -236,6 +238,9 @@ HelixTestFixture::HelixTestFixture() {
 }
 
 HelixTestFixture::~HelixTestFixture() {
+    // Before reset_all(): its teardown resets long-lived guards, which must see the epoch
+    // they were created under.
+    ObserverGuard::restore_invalidation_epoch(observer_epoch_at_entry_);
     reset_all();
 }
 
