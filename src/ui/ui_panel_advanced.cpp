@@ -181,14 +181,8 @@ void AdvancedPanel::handle_pid_tuning_clicked() {
 #endif
 
     auto& overlay = get_global_pid_cal_panel();
-
-    if (!overlay.get_root()) {
-        overlay.init_subjects();
-        overlay.set_api(get_moonraker_api());
-        overlay.create(parent_screen_);
-    }
-
-    overlay.show();
+    overlay.set_api(get_moonraker_api());
+    overlay.show(parent_screen_);
 }
 
 // ============================================================================

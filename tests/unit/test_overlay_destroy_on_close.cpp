@@ -16,11 +16,15 @@
 #include "ui_nav_manager.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_calibration_pa.h"
+#include "ui_panel_calibration_pid.h"
 #include "ui_panel_calibration_tool_offset.h"
+#include "ui_panel_calibration_zoffset.h"
 #include "ui_panel_motion.h"
+#include "ui_printer_manager_overlay.h"
 #include "ui_settings_macro_buttons.h"
 #include "ui_settings_motion.h"
 #include "ui_theme_editor_overlay.h"
+#include "ui_touch_calibration_overlay.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -153,3 +157,103 @@ TEST_CASE_METHOD(DestroyOnCloseFixture, "CFS Chute Calibration rebuilds its tree
                              [&] { return p.get_root(); });
 }
 #endif
+
+TEST_CASE_METHOD(DestroyOnCloseFixture, "PID Calibration rebuilds its tree on reopen",
+                 "[overlay_destroy_on_close][pid_cal]") {
+    auto& p = get_global_pid_cal_panel();
+    expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
+                             [&] { return p.get_root(); });
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture,
+                 "PID Calibration results and ticks after close touch no tree",
+                 "[overlay_destroy_on_close][pid_cal]") {
+    auto& p = get_global_pid_cal_panel();
+    REQUIRE(p.show(lv_screen_active()));
+    settle();
+    p.arm_eta_timer_for_test();
+    REQUIRE(p.eta_timer_for_test() != nullptr);
+
+    NavigationManager::instance().go_back();
+    settle();
+    CHECK(p.get_root() == nullptr);
+    CHECK(p.eta_timer_for_test() == nullptr);
+
+    p.on_calibration_result(false, 0, 0, 0, "late failure");
+    p.on_calibration_result(true, 1.0f, 2.0f, 3.0f);
+    settle();
+    CHECK(p.get_root() == nullptr);
+
+    REQUIRE(p.show(lv_screen_active()));
+    settle();
+    CHECK(p.get_state() == PIDCalibrationPanel::State::IDLE);
+    NavigationManager::instance().go_back();
+    settle();
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture, "Z Offset Calibration rebuilds its tree on reopen",
+                 "[overlay_destroy_on_close][zoffset_cal]") {
+    auto& p = get_global_zoffset_cal_panel();
+    expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
+                             [&] { return p.get_root(); });
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture,
+                 "Z Offset Calibration results and probe updates after close touch no tree",
+                 "[overlay_destroy_on_close][zoffset_cal]") {
+    auto& p = get_global_zoffset_cal_panel();
+    REQUIRE(p.show(lv_screen_active()));
+    settle();
+    NavigationManager::instance().go_back();
+    settle();
+    REQUIRE(p.get_root() == nullptr);
+
+    // The probe observers die with the tree: a Klipper-side probe starting
+    // while the overlay is closed must not move a closed panel to ADJUSTING.
+    auto& ps = get_printer_state();
+    lv_subject_set_int(ps.get_manual_probe_active_subject(), 1);
+    settle();
+    CHECK(p.get_state() == ZOffsetCalibrationPanel::State::IDLE);
+    lv_subject_set_int(ps.get_manual_probe_active_subject(), 0);
+    settle();
+
+    p.update_z_position(0.2f);
+    p.on_calibration_result(true, "");
+    p.on_calibration_result(false, "late failure");
+    settle();
+    CHECK(p.get_root() == nullptr);
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture, "Touch Calibration rebuilds its tree on reopen",
+                 "[overlay_destroy_on_close][touch_cal]") {
+    auto& p = helix::ui::get_touch_calibration_overlay();
+    expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active(), nullptr)); },
+                             [&] { return p.get_root(); });
+    // The lifted capture surface goes back under the root, so nothing is left on the screen.
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "touch_capture_overlay") == nullptr);
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture, "Touch Calibration feedback after close touches no tree",
+                 "[overlay_destroy_on_close][touch_cal]") {
+    auto& p = helix::ui::get_touch_calibration_overlay();
+    REQUIRE(p.show(lv_screen_active(), nullptr));
+    settle();
+    NavigationManager::instance().go_back();
+    settle();
+    REQUIRE(p.get_root() == nullptr);
+
+    p.on_progress();
+    p.on_capture_feedback({10, 10});
+    p.on_verify_feedback({10, 10});
+    p.handle_screen_touched(nullptr);
+    p.handle_screen_released();
+    settle();
+    CHECK(p.get_root() == nullptr);
+}
+
+TEST_CASE_METHOD(DestroyOnCloseFixture, "Printer Manager rebuilds its tree on reopen",
+                 "[overlay_destroy_on_close][printer_manager]") {
+    auto& p = get_printer_manager_overlay();
+    expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
+                             [&] { return p.get_root(); });
+}

@@ -41,12 +41,8 @@ class PrinterState;
  * ## Usage:
  * ```cpp
  * auto& overlay = get_global_zoffset_cal_panel();
- * if (!overlay.get_root()) {
- *     overlay.init_subjects();
- *     overlay.set_api(get_moonraker_api());
- *     overlay.create(parent_screen);
- * }
- * overlay.show();
+ * overlay.set_api(get_moonraker_api());
+ * overlay.show(parent_screen);
  * ```
  */
 class ZOffsetCalibrationPanel : public OverlayBase {
@@ -116,18 +112,15 @@ class ZOffsetCalibrationPanel : public OverlayBase {
      */
     void cleanup() override;
 
+    /// Freed on close; the next open rebuilds it. The calibration state lives in
+    /// state_ and the zoffset_cal_state subject, never in the widgets.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     //
     // === Public API ===
     //
-
-    /**
-     * @brief Show overlay panel
-     *
-     * Pushes overlay onto navigation stack and registers with NavigationManager.
-     * on_activate() will be called automatically after animation completes.
-     */
-    using OverlayBase::show;
-    void show();
 
     /**
      * @brief Set the IMoonrakerAPI for G-code commands
@@ -160,6 +153,8 @@ class ZOffsetCalibrationPanel : public OverlayBase {
     void on_calibration_result(bool success, const std::string& message);
 
   private:
+    void on_ui_destroyed() override;
+
     // API reference
     // Note: overlay_root_ inherited from OverlayBase
     IMoonrakerAPI* api_ = nullptr;

@@ -103,7 +103,14 @@ class PrinterManagerOverlay : public OverlayBase {
      */
     void on_deactivating(DeactivateReason reason) override;
 
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
   private:
+    void on_ui_destroyed() override;
+
     //
     // === Internal Methods ===
     //

@@ -274,18 +274,13 @@ lv_obj_t* TouchCalibrationOverlay::create(lv_obj_t* parent) {
 // Show/Hide
 // ============================================================================
 
-void TouchCalibrationOverlay::show(CompletionCallback callback) {
-    if (!overlay_root_) {
-        spdlog::error("[{}] Cannot show: overlay not created", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Showing overlay", get_name());
-
-    // Store completion callback
+bool TouchCalibrationOverlay::show(lv_obj_t* parent_screen, CompletionCallback callback) {
     completion_callback_ = std::move(callback);
     callback_invoked_ = false;
+    return OverlayBase::show(parent_screen);
+}
 
+void TouchCalibrationOverlay::before_show() {
     // Open the session: re-sample the screen, reset every per-session counter,
     // snapshot the live calibration and disable the affine so capture sees raw
     // coordinates. Re-sampling matters because this overlay is a singleton built
@@ -300,17 +295,19 @@ void TouchCalibrationOverlay::show(CompletionCallback callback) {
     update_instruction_text();
     update_crosshair_position();
 
-    // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    // on_activate() lifts the crosshair and capture surface onto the screen root
+    // after push_overlay() moves the root to the foreground; lifting any earlier
+    // would land them below it in z-order.
+}
 
-    // Push onto navigation stack - on_activate() will be called by NavigationManager
-    // (which is where we reparent crosshair + capture layer to screen root, see
-    // on_activate() below). Reparenting MUST happen after push_overlay's queued
-    // lambda runs and calls lv_obj_move_foreground(overlay_root_) — otherwise
-    // the reparented widgets land below the overlay in z-order.
-    NavigationManager::instance().push_overlay(overlay_root_);
-
-    spdlog::info("[{}] Overlay shown", get_name());
+void TouchCalibrationOverlay::on_ui_destroyed() {
+    // on_deactivating() put the lifted widgets back under the root, which is gone
+    // with them: nothing may reach any of it.
+    crosshair_ = nullptr;
+    crosshair_orig_parent_ = nullptr;
+    capture_overlay_ = nullptr;
+    capture_orig_parent_ = nullptr;
+    raised_cancel_ = {};
 }
 
 void TouchCalibrationOverlay::hide() {

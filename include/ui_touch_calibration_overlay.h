@@ -137,14 +137,20 @@ class TouchCalibrationOverlay : public OverlayBase, public helix::ui::ITouchCali
     // === Public API ===
     //
 
+    /// Freed on close; the next open rebuilds it. The capture surface, crosshair and
+    /// Cancel chip are put back under the root before it goes.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     /**
      * @brief Show overlay and begin calibration workflow
      *
-     * @param callback Optional callback invoked on completion/cancel/skip
-     *
-     * Pushes overlay onto navigation stack and shows initial UI state.
+     * @param parent_screen Screen to build on
+     * @param callback Invoked once on completion/cancel/skip
      */
-    void show(CompletionCallback callback = nullptr);
+    using OverlayBase::show;
+    bool show(lv_obj_t* parent_screen, CompletionCallback callback);
 
     /**
      * @brief Hide overlay and return to previous screen
@@ -241,6 +247,9 @@ class TouchCalibrationOverlay : public OverlayBase, public helix::ui::ITouchCali
     }
 
   private:
+    void before_show() override;
+    void on_ui_destroyed() override;
+
     /** @brief Update state subject from panel state */
     void update_state_subject();
 
