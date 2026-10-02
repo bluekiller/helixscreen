@@ -353,40 +353,45 @@ bool SettingsManager::clear_bed_drying_record() {
 // TOOLHEAD STYLE
 // =============================================================================
 
+/// Maps a printer-database toolhead_style string to the enum; AUTO means "no
+/// opinion".
+static ToolheadStyle toolhead_style_from_name(const std::string& name) {
+    if (name == "creality_k1")
+        return ToolheadStyle::CREALITY_K1;
+    if (name == "creality_k2")
+        return ToolheadStyle::CREALITY_K2;
+    if (name == "anthead")
+        return ToolheadStyle::ANTHEAD;
+    if (name == "default")
+        return ToolheadStyle::DEFAULT;
+    return ToolheadStyle::AUTO;
+}
+
 ToolheadStyle SettingsManager::get_effective_toolhead_style() const {
     auto style = get_toolhead_style();
     if (style != ToolheadStyle::AUTO) {
         return style;
     }
 
-    // The printer database's native toolhead_style is authoritative. Map the DB
-    // string straight to the enum so every printer that declares a style is
-    // covered by one lookup (creality_k1/k2 live in the DB).
+    // The printer database's native toolhead_style is authoritative, so one
+    // lookup covers every printer that declares a style. An explicit "default"
+    // pins the printer to the Bambu-like glyph regardless of what a migrated
+    // config's type string says.
     Config* config = Config::get_instance();
     std::string printer_type =
         config->get<std::string>(config->df() + helix::wizard::PRINTER_TYPE, "");
     if (!printer_type.empty()) {
-        std::string db_style = PrinterDetector::get_toolhead_style(printer_type);
-        if (db_style == "creality_k1")
-            return ToolheadStyle::CREALITY_K1;
-        if (db_style == "creality_k2")
-            return ToolheadStyle::CREALITY_K2;
-        // An explicit "default" pins the printer to the Bambu-like glyph
-        // regardless of what a migrated config's type string says.
-        if (db_style == "default")
-            return ToolheadStyle::DEFAULT;
+        auto db_style = toolhead_style_from_name(PrinterDetector::get_toolhead_style(printer_type));
+        if (db_style != ToolheadStyle::AUTO)
+            return db_style;
     }
 
-    // Fall back to heuristic detection only for printers the DB doesn't cover.
-    // PFA/Anthead printers carry no toolhead_style field in the database.
-    if (PrinterDetector::is_pfa_printer()) {
-        return ToolheadStyle::ANTHEAD;
-    }
-    // CFS (Creality Filament System) is only on K2 series printers — a live
-    // backend signal, not derivable from the database.
+    // Printers the database does not cover: the live filament backend may know.
     auto* backend = AmsState::instance().get_backend();
-    if (backend && backend->get_type() == AmsType::CFS) {
-        return ToolheadStyle::CREALITY_K2;
+    if (backend) {
+        auto hinted = toolhead_style_from_name(backend->toolhead_style_hint());
+        if (hinted != ToolheadStyle::AUTO)
+            return hinted;
     }
     return ToolheadStyle::DEFAULT;
 }

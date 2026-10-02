@@ -149,6 +149,11 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
         return AmsType::CFS;
     }
 
+    // CFS ships only on K2-series printers.
+    [[nodiscard]] std::string toolhead_style_hint() const override {
+        return "creality_k2";
+    }
+
     // State queries
     [[nodiscard]] AmsSystemInfo get_system_info() const override;
 
