@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>44a8dd46b</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>5a4541b17</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 85 done, 24 in progress, 27 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 87 done, 22 in progress, 27 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -667,10 +667,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FP-8" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-8</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram1-tranche3</code><span class="ftitle">69 Moonraker callbacks take json by value</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
+<details class="f" id="FP-8" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">FP-8</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">5a4541b17</code><span class="ftitle">69 Moonraker callbacks take json by value</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/api-cleanup</code> (<code>e3dbe0625</code>) took the Moonraker response callbacks by <code>const json&amp;</code>. One by-value site remains in <code>src/api/moonraker_history_api.cpp</code>.</p>
+<p class="branch">Shipped with <a href="#RAM-5">RAM-5</a> at <code>5a4541b17</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_file_api.cpp</code>, <code>src/api/moonraker_discovery_sequence.cpp</code>, <code>src/spoolman/</code>, <code>src/api/moonraker_advanced_api.cpp</code>, Happy Hare backend</dd>
 <dt>Evidence</dt><dd><code>grep -E "\]\((nlohmann::)?json [a-z_]+\)"</code> = 69 lambdas (discovery 14, spoolman 11, advanced 6, file_api 5, HH 4, ...). <code>send_jsonrpc</code>'s callback type is <code>std::function&lt;void(const json&amp;)&gt;</code>, so each by-value parameter deep-copies the tree; none <code>std::move</code> out. Worst: <code>server.files.list</code> / <code>get_directory</code> (thousands of entries), the <code>configfile</code> query (100s of KB), the initial <code>printer.objects.subscribe</code>, Spoolman <code>limit=1000</code>. nlohmann nodes are ~50-100 bytes each.</dd>
@@ -1816,9 +1816,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <section id="sec-f"><h2>F. RAM</h2>
 <p class="lede"><strong>Field data (telemetry to 2026-09-26)</strong>: RAM stepped up at 0.99.108 on ad5x, k2 and k1 (+1-2.5 MB), most likely <code>10e336c15</code> sizing the debug ring from total RAM. That is deliberate; ad5m and cc1 stay on the 2000-line floor. ad5m startup RSS is about +13% against early 0.99, with private-dirty back to baseline by 1.0.1. cc1 is flat across 14 devices. 1.0.x is flat or down everywhere.</p>
 <details class="f" id="RAM-1" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">a7f96c8ba</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
+<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">5a4541b17</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) removed the caller-held root caches and made Bed Mesh, Console, Macros, Input Shaper, QrScanner and Plugins destroy on close. <code>perf/ram1-overlay-destroy-on-close</code>, merged at <code>a7f96c8ba</code>, adds Motion, Macro Buttons, Motion Settings, Theme Editor, Temp Graph and the CFS Chute, Tool Offset and PA calibrations. Left: PID, Z Offset and Touch calibration (custom <code>show()</code>, timers and deferrals that write widgets); Color Picker is a modal, not an overlay.</p>
+<p class="branch">Three tranches shipped. <code>refactor/fw-infra</code> (<code>4d4057937</code>): Bed Mesh, Console, Macros, Input Shaper, QrScanner, Plugins. <code>perf/ram1-overlay-destroy-on-close</code> (<code>a7f96c8ba</code>): Motion, Macro Buttons, Motion Settings, Theme Editor, Temp Graph, CFS Chute, Tool Offset, PA. <code>perf/ram1-tranche3</code> (<code>5a4541b17</code>): PID, Z Offset, Touch Calibration, Printer Manager. Left: LED control (timer, dynamic tab rows) and AMS environment (dryer state, six widget pointers).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/overlay_base.h#OverlayBase</code>, the ~70 <code>OverlayBase</code> subclasses under <code>src/ui/</code>, lazy-create sites using <code>destroy_on_close</code></dd>
 <dt>Evidence</dt><dd>Only 5 destroy their tree on close (QrScanner, SpoolmanOverlay, PrintSelectDetailView, PrintStatus in low-memory mode, AmsEdit); <code>destroy_on_close</code> used at 1 of 23 lazy sites. 90 overlay-ish components hold ~6,100 static objects (color_picker 280, input_shaper_panel 277, ams_edit_overlay 217, motion_panel 196, temp_graph_overlay 189). At a measured ~0.4-0.9 kB/object: typical session (15-25 overlays) 0.4-1.5 MB, every overlay opened 2.5-5.5 MB, against the AD5M 14-20 MB budget.</dd>
@@ -1874,10 +1874,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="RAM-5" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-5</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram1-tranche3</code><span class="ftitle">69 Moonraker callbacks take json by value, deep-copying every response</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
+<details class="f" id="RAM-5" data-tag="footprint" data-size="1.1" data-status="done">
+<summary><span class="fid">RAM-5</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">5a4541b17</code><span class="ftitle">69 Moonraker callbacks take json by value, deep-copying every response</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/api-cleanup</code> (<code>e3dbe0625</code>) took the Moonraker response callbacks by <code>const json&amp;</code>. One by-value site remains in <code>src/api/moonraker_history_api.cpp</code>.</p>
+<p class="branch">Shipped: <code>refactor/api-cleanup</code> (<code>e3dbe0625</code>) and <code>perf/ram1-tranche3</code> (<code>5a4541b17</code>). Every Moonraker response callback takes <code>const json&amp;</code>; the history list parses jobs straight from the caller's DOM.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_file_api.cpp#MoonrakerFileAPI::list_files</code>, <code>#MoonrakerFileAPI::get_directory</code>, <code>src/api/moonraker_discovery_sequence.cpp#MoonrakerDiscoverySequence::continue_discovery_objects</code>, <code>#MoonrakerDiscoverySequence::complete_discovery_subscription</code></dd>
 <dt>Evidence</dt><dd>69 lambdas in src take <code>json</code> by value (discovery 14, spoolman 11, advanced 6, file_api 5, HH backend 4); <code>send_jsonrpc</code>'s callback is <code>std::function&lt;void(const json&amp;)&gt;</code>, so each copies the tree and none <code>std::move</code> out. Worst: <code>server.files.list</code>/<code>get_directory</code> (thousands of entries), the <code>configfile</code> settings query (100s of KB), the initial <code>printer.objects.subscribe</code>, Spoolman <code>limit=1000</code>. Cross-ref FP-8.</dd>
