@@ -130,6 +130,15 @@ PrinterState::~PrinterState() {
     // it just tells holders registered since then that the state is gone too.
     // Plain flip, no renewal: a dying object has no successor generation.
     subjects_.mark_subjects_dead();
+    unregister_static_deinit();
+}
+
+void PrinterState::unregister_static_deinit() {
+    // The registered callback captures `this`; a per-test instance would leave it
+    // dangling in the process-wide registry.
+    if (!StaticSubjectRegistry::is_destroyed()) {
+        StaticSubjectRegistry::instance().unregister("PrinterState");
+    }
 }
 
 void PrinterState::deinit_subjects() {
@@ -140,6 +149,7 @@ void PrinterState::deinit_subjects() {
     }
 
     spdlog::trace("[PrinterState] deinit_subjects: Deinitializing all subjects");
+    unregister_static_deinit();
 
     // Expire any setter callbacks still queued on the UpdateQueue. They capture
     // `this` and touch the subjects torn down below (directly or through

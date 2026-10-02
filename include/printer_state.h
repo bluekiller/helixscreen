@@ -2504,6 +2504,8 @@ class PrinterState {
     void set_active_printer_name(const std::string& name);
 
   private:
+    void unregister_static_deinit();
+
     /// RAII manager for automatic subject cleanup - deinits all subjects on destruction
     SubjectManager subjects_;
 
