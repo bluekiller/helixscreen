@@ -742,7 +742,9 @@ reassignment, no widget destruction. A handler that wants the value now and UI w
   `StaticSubjectRegistry::deinit_all()`) and the `lv_is_initialized()` guard. The epoch
   replaced an older global `s_subjects_valid` boolean, which could not distinguish an observer
   created *during* a reinit window — on a live subject, so it must be removed — from one
-  created before teardown.
+  created before teardown. The epoch only applies to guards without an owner's lifetime
+  token; a guard holding the owner's `get_subjects_lifetime()` trusts that token alone, and
+  `subject_never_freed()` (no owner) still falls back to the epoch.
 - **`release()`** — *only* for the last pre-deinit cleanup inside
   `StaticSubjectRegistry::register_deinit()` callbacks, where the subject is already
   destroyed.

@@ -76,3 +76,59 @@ TEST_CASE_METHOD(
 
     lv_subject_deinit(&subject);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "ObserverGuard with an owner's token removes its observer from a surviving "
+                 "subject after invalidate_all",
+                 "[observer][raii][crash_hardening]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    SubjectLifetime owner_token = std::make_shared<bool>(true);
+
+    CountingPanel panel;
+    {
+        ObserverGuard guard = helix::ui::observe<int>(
+            &subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; }, owner_token);
+        REQUIRE(lv_ll_get_len(&subject.subs_ll) == 1);
+
+        ObserverGuard::invalidate_all();
+        guard.reset();
+        REQUIRE(lv_ll_get_len(&subject.subs_ll) == 0);
+    }
+
+    lv_subject_set_int(&subject, 99);
+    drain();
+    CHECK(panel.notifications == 0);
+    lv_subject_deinit(&subject);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "ObserverGuard with an owner's token still skips removal once the owner flips it",
+                 "[observer][raii][crash_hardening]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+    SubjectLifetime owner_token = std::make_shared<bool>(true);
+
+    CountingPanel panel;
+    ObserverGuard guard = helix::ui::observe<int>(
+        &subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; }, owner_token);
+    ObserverGuard::invalidate_all();
+    *owner_token = false;
+    lv_subject_deinit(&subject);
+    REQUIRE_NOTHROW(guard.reset());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "ObserverGuard without a token keeps skipping removal after invalidate_all",
+                 "[observer][raii][crash_hardening]") {
+    lv_subject_t subject;
+    lv_subject_init_int(&subject, 0);
+
+    CountingPanel panel;
+    ObserverGuard guard = helix::ui::observe<int>(
+        &subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; },
+        SubjectLifetime{});
+    ObserverGuard::invalidate_all();
+    lv_subject_deinit(&subject);
+    REQUIRE_NOTHROW(guard.reset());
+}

@@ -117,7 +117,9 @@ class ObserverGuard {
     /**
      * @brief Signal that the registry's subjects have been torn down (soft restart).
      *
-     * Bumps a monotonic invalidation epoch. Any ObserverGuard created BEFORE
+     * Bumps a monotonic invalidation epoch. A guard carrying its subject owner's
+     * lifetime token ignores it: the owner flips the token before freeing the subject.
+     * Any other ObserverGuard (no token, or subject_never_freed()) created BEFORE
      * this call whose subject was freed by StaticSubjectRegistry::deinit_all()
      * (LVGL already removed+freed the observer) will skip
      * lv_observer_remove() to avoid touching freed memory — reset() consults
@@ -191,9 +193,14 @@ class ObserverGuard {
             // source before destruction, allowing us to detect the dead subject.
             // (#816, #673)
             bool subject_dead = false;
+            // A token from the subject's owner is authoritative: the owner flips it before
+            // freeing the subject, so the epoch below has nothing to add. The shared
+            // never-freed claim names no owner and falls through to the epoch.
+            bool owner_token = false;
             if (has_alive_token_) {
                 auto locked = alive_token_.lock();
                 subject_dead = !locked || !*locked;
+                owner_token = locked && locked != subject_never_freed();
             }
             // An observer created before the most recent invalidate_all() MAY
             // have had its subject freed by StaticSubjectRegistry::deinit_all()
@@ -210,6 +217,7 @@ class ObserverGuard {
             // created_epoch_ distinguishes the two cases; the old global
             // boolean could not.
             bool freed_by_deinit =
+                !owner_token &&
                 created_epoch_ < s_invalidation_epoch.load(std::memory_order_acquire) &&
                 !subject_is_teardown_exempt(subject_);
             if (!subject_dead && !freed_by_deinit && lv_is_initialized()) {
