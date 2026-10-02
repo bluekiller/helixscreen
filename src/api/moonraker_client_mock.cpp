@@ -3939,7 +3939,9 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
             if (stop_pos != std::string::npos) {
                 size_t vstart = stop_pos + 5;
                 size_t vend = gcode.find_first_of(" \t\r\n", vstart);
-                stop_requested = gcode.substr(vstart, vend - vstart) == "1";
+                // klipper-led_effect reads STOP with get_int: any nonzero
+                // value stops the effect
+                stop_requested = std::atoi(gcode.substr(vstart, vend - vstart).c_str()) != 0;
             }
 
             if (stop_requested) {
@@ -3964,6 +3966,10 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
                     bool should_enable = (name == full_name);
                     effect_status[name] = {{"enabled", should_enable}};
                 }
+
+                // A plugin's effect name is a free string; the frame must name
+                // the enabled effect even when it is not a built-in.
+                effect_status[full_name] = {{"enabled", true}};
 
                 // The handler is exclusive: enabling one effect makes it the
                 // only one running.

@@ -3622,6 +3622,27 @@ TEST_CASE("SET_LED_EFFECT STOP=1 stops only that effect", "[mock][led_effect]") 
     REQUIRE_FALSE(last.contains("led_effect breathing"));
 }
 
+TEST_CASE("the enable frame names a custom effect", "[mock][led_effect]") {
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+    MockBehaviorTestFixture fixture;
+    mock.register_notify_update(fixture.create_capture_callback());
+
+    // A plugin's effect setting is a free string, not one of the built-ins
+    mock.gcode_script("SET_LED_EFFECT EFFECT=sparkle");
+
+    json last;
+    for (const auto& n : fixture.get_notifications()) {
+        if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+            continue;
+        }
+        if (n["params"][0].contains("led_effect sparkle")) {
+            last = n["params"][0];
+        }
+    }
+    REQUIRE_FALSE(last.is_null());
+    REQUIRE(last["led_effect sparkle"]["enabled"].get<bool>());
+}
+
 TEST_CASE("a query reports which effects are running", "[mock][led_effect]") {
     MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
 
@@ -3651,6 +3672,26 @@ TEST_CASE("a query reports which effects are running", "[mock][led_effect]") {
     REQUIRE_FALSE(breathing_enabled);
 
     mock.gcode_script("STOP_LED_EFFECTS");
+
+    answered = false;
+    rainbow_enabled = true;
+    mock.send_jsonrpc(
+        "printer.objects.query", {{"objects", {{"led_effect rainbow", nullptr}}}},
+        [&](json response) {
+            answered = true;
+            const json& status = response["result"]["status"];
+            if (status.contains("led_effect rainbow")) {
+                rainbow_enabled = status["led_effect rainbow"]["enabled"].get<bool>();
+            }
+        },
+        nullptr);
+    REQUIRE(answered);
+    REQUIRE_FALSE(rainbow_enabled);
+
+    // STOP=1 must clear the queried state for that one effect, so the set
+    // erase is observable through a re-query
+    mock.gcode_script("SET_LED_EFFECT EFFECT=rainbow");
+    mock.gcode_script("SET_LED_EFFECT EFFECT=rainbow STOP=1");
 
     answered = false;
     rainbow_enabled = true;
