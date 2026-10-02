@@ -3709,4 +3709,25 @@ TEST_CASE("a query reports which effects are running", "[mock][led_effect]") {
     REQUIRE_FALSE(rainbow_enabled);
 }
 
+TEST_CASE("a subscribe reports which effects are running", "[mock][led_effect]") {
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+    mock.gcode_script("SET_LED_EFFECT EFFECT=rainbow");
+
+    bool answered = false;
+    bool rainbow_enabled = false;
+    mock.send_jsonrpc(
+        "printer.objects.subscribe", {{"objects", {{"led_effect rainbow", nullptr}}}},
+        [&](json response) {
+            answered = true;
+            const json& status = response["result"]["status"];
+            if (status.contains("led_effect rainbow")) {
+                rainbow_enabled = status["led_effect rainbow"]["enabled"].get<bool>();
+            }
+        },
+        nullptr);
+    REQUIRE(answered);
+    REQUIRE(rainbow_enabled);
+}
+
 #pragma GCC diagnostic pop
