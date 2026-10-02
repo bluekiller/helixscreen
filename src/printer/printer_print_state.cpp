@@ -129,7 +129,7 @@ void PrinterPrintState::init_subjects(bool register_xml) {
 
     // print_stats.power_loss — Creality-fork Power-Loss-Recovery capability
     // marker. Default 0; set to 1 by presence of the key (see update_from_status).
-    INIT_SUBJECT_INT(creality_plr_capable, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(plr_power_loss_signal, 0, subjects_, register_xml);
 
     // Power-loss recovery, passive-backend half: the discovered resume macro
     // (capability, set from discovery by PrinterState::set_hardware) and the
@@ -393,25 +393,15 @@ void PrinterPrintState::update_from_status(const nlohmann::json& status) {
     if (status.contains("print_stats")) {
         const auto& stats = status["print_stats"];
 
-        // print_stats.power_loss — Creality-Klipper-fork Power-Loss-Recovery
-        // capability marker. The key exists ONLY in that fork, so PRESENCE (not
-        // value) is the signal: it normally reads 0 and only becomes 1 after the
-        // side-effectful detect probe. Two subtleties:
-        //   - "Present" must mean present AND numeric. We subscribe to a
-        //     narrowed field list, and Moonraker answers a subscribed-but-
-        //     unpopulated field with an explicit null, so on mainline Klipper the
-        //     key IS in the payload as null. is_number() is what discriminates.
-        //   - Latch UP only. Status arrives as deltas, so a later print_stats
-        //     notification carrying just print_duration has no power_loss key at
-        //     all; clearing on absence would manufacture a spurious 1->0->1 edge
-        //     and re-fire the probe. PlrOfferController resets this on the
-        //     disconnect edge instead.
-        if (auto plw_it = stats.find("power_loss"); plw_it != stats.end() && plw_it->is_number()) {
-            if (lv_subject_get_int(&creality_plr_capable_) != 1) {
-                spdlog::info("[PrinterPrintState] print_stats.power_loss present — Creality "
-                             "power-loss-recovery backend available");
-                lv_subject_set_int(&creality_plr_capable_, 1);
-            }
+        // plr_backend owns which print_stats key signals PLR support and the
+        // numeric-only rule. Latch UP only: status arrives as deltas, so a later
+        // frame without the key says nothing, and clearing on absence would
+        // manufacture a spurious 1->0->1 edge and re-fire the probe.
+        // PlrOfferController resets this on the disconnect edge instead.
+        if (helix::plr_parse_power_loss_signal(status) &&
+            lv_subject_get_int(&plr_power_loss_signal_) != 1) {
+            spdlog::info("[PrinterPrintState] PLR power-loss signal present");
+            lv_subject_set_int(&plr_power_loss_signal_, 1);
         }
 
         // Seed print_duration_ BEFORE updating print_state_enum_. The state-change
