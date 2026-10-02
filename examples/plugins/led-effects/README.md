@@ -11,7 +11,9 @@ temp-spark for plugin authors who need to send G-code.
 - `helix.moonraker.subscribe`: the tile's state is Klipper's own `enabled`
   value, delivered live, so a change made anywhere else reaches the tile too.
 - Validating a setting before it reaches G-code: the effect name must match
-  `[%w_]+`, or the tile says "Invalid name" and nothing is sent.
+  `^[%w_]+$` and stay short enough that `"led_effect " .. name` fits
+  subscribe's 64-byte object-name cap, or the tile says "Invalid name" and
+  nothing is sent.
 - `helix.widget` `on_size`: at two cells wide the tile also names the effect.
 - `bind_flag_if_eq` instead of `cond`: a plugin id containing a hyphen cannot
   use `cond`, so show/hide is a flag bound to a subject.

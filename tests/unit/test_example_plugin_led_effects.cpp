@@ -165,6 +165,25 @@ TEST_CASE_METHOD(LedFx, "an unsafe effect name sends nothing", "[plugin][example
     CHECK(text_subject("led-effects__state") == "Off");
 }
 
+TEST_CASE_METHOD(LedFx, "an over-long effect name is invalid, not fatal", "[plugin][example]") {
+    // subscribe's object-name cap is 64 bytes (kMaxObjectNameBytes,
+    // src/plugin/lua_bind_moonraker.cpp); the "led_effect " prefix takes 11.
+    constexpr size_t name_cap = 64 - (sizeof("led_effect ") - 1);
+    HostRig rig(led_block(std::string(name_cap, 'a')));
+    rig.host->load_from("examples/plugins");
+    REQUIRE(rig.info("led-effects"));
+    CHECK(rig.info("led-effects")->status == PluginStatus::Loaded);
+    CHECK(rig.fake.object_sets.back().second ==
+          json{{"led_effect " + std::string(name_cap, 'a'), json::array({"enabled"})}});
+
+    // One byte more and the object name would overflow the cap: refused like any
+    // invalid name, never raised into a faulted load.
+    REQUIRE(rig.host->set_setting("led-effects", "effect", std::string(name_cap + 1, 'a')));
+    CHECK(text_subject("led-effects__effect") == "Invalid name");
+    CHECK(rig.fake.object_sets.back().second == json::object());
+    CHECK(rig.info("led-effects")->status == PluginStatus::Loaded);
+}
+
 TEST_CASE_METHOD(LedFx, "switching effects follows only the new one", "[plugin][example]") {
     HostRig rig(led_block());
     rig.host->load_from("examples/plugins");

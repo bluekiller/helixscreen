@@ -13,10 +13,13 @@ local wide = helix.subject.int("wide", 0)
 local sub = nil -- the live subscription for the selected effect
 
 -- The name goes into a G-code line, so only the characters Klipper section
--- names use are accepted: anything else could append a second command.
+-- names use are accepted: anything else could append a second command. It also
+-- becomes the subscription object "led_effect " .. name, and subscribe refuses
+-- objects over 64 bytes (kMaxObjectNameBytes), so a name that long is rejected
+-- here rather than faulting the plugin at load.
 local function effect_name()
     local name = helix.settings.get("effect")
-    if type(name) == "string" and name:match("^[%w_]+$") then
+    if type(name) == "string" and #name <= 64 - #"led_effect " and name:match("^[%w_]+$") then
         return name
     end
     return nil
