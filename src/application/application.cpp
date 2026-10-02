@@ -4892,6 +4892,16 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     // A callback armed for the old printer's wizard must not fire against the next one.
     set_wizard_cancel_callback(nullptr);
 
+    // A switch freezes the UpdateQueue before the disconnect: work the WebSocket thread
+    // enqueues from here on is buffered, and update_queue_shutdown() below discards the
+    // buffer, so it never runs against the plugins, history managers and AMS backends
+    // destroyed in between. Exit needs no freeze; update_queue_shutdown() gates the queue
+    // off for good.
+    std::optional<helix::ui::UpdateQueue::ScopedFreeze> queue_freeze;
+    if (!exiting) {
+        queue_freeze.emplace(helix::ui::UpdateQueue::instance(), "teardown_printer_scope");
+    }
+
     // Disconnect the WebSocket client FIRST to stop background threads (mock simulation,
     // WebSocket I/O). Otherwise a notification delivered mid-teardown can trigger new API
     // requests (history fetch, metascan, webcam detection). The client object stays valid
@@ -5006,14 +5016,6 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     // SubscriptionGuards with raw client pointers and must unsubscribe while the client's
     // mutex is still alive.
     AmsState::instance().clear_backends();
-
-    // Hold late enqueues until init_printer_state() has rebuilt the queue (a switch
-    // survives teardown, so dropping them would lose work; exit gates the queue off for
-    // good in update_queue_shutdown()).
-    std::optional<helix::ui::UpdateQueue::ScopedFreeze> queue_freeze;
-    if (!exiting) {
-        queue_freeze.emplace(helix::ui::UpdateQueue::instance(), "teardown_printer_scope");
-    }
 
     // Drain deferred UI callbacks BEFORE destroying panels. observe<int> and
     // observe<const char*> defer via ui_queue_update(), so queued callbacks may hold

@@ -782,6 +782,25 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
     }
 }
 
+TEST_CASE("A printer switch freezes the UpdateQueue before it disconnects the client",
+          "[application][shutdown][regression]") {
+    // Work the WebSocket thread enqueues after the disconnect must be buffered and then
+    // discarded by update_queue_shutdown(), not run after the objects it touches are gone.
+    // Teardown cannot be driven at runtime (see application_test_access.h), so this is a
+    // source-level contract.
+    const std::string impl = read_file("src/application/application.cpp");
+    const std::string scope = extract_method_body(impl, "Application", "teardown_printer_scope");
+    REQUIRE_FALSE(scope.empty());
+    const auto freeze = scope.find("queue_freeze.emplace(");
+    const auto disconnect = scope.find("client()->disconnect()");
+    const auto drain = scope.find("helix::ui::update_queue_shutdown();");
+    REQUIRE(freeze != std::string::npos);
+    REQUIRE(disconnect != std::string::npos);
+    REQUIRE(drain != std::string::npos);
+    CHECK(freeze < disconnect);
+    CHECK(disconnect < drain);
+}
+
 TEST_CASE("should_complete_preprint - completes when the layer-zero sample is never delivered",
           "[application][print_start][regression]") {
     // notify_status_update is coalesced, so the 0 sample is not guaranteed to be
