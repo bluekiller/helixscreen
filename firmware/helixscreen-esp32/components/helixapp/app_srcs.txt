@@ -249,6 +249,7 @@ src/system/pending_startup_warnings.cpp
 src/system/performance_state.cpp
 src/system/persisted_setting.cpp
 src/system/platform_capabilities.cpp
+src/system/platform_table.cpp
 src/system/post_op_cooldown_manager.cpp
 src/system/log_redact.cpp
 src/system/preset_materials.cpp

@@ -449,7 +449,7 @@ get_download_platform() {
 # no asset matches it falls back to the alphabetically-first release asset — a
 # .sym debug file — then dies with "File is not a zip file"
 # (prestonbrown/helixscreen#993). This must also agree with
-# UpdateChecker::get_platform_key() (src/system/update_checker.cpp);
+# helix::platform::current_key() (src/system/platform_table.cpp);
 # tests/shell/test_update_platform_coverage.bats enforces the agreement.
 #
 # Convention: a platform's asset is helixscreen-<platform>.zip. The borrows:
