@@ -29,6 +29,7 @@
 #include "screensaver_canvas.h"
 #include "screensaver_registry.h"
 #include "standard_macros.h"
+#include "system/crash_error_log_sink.h"
 #include "system_settings_manager.h"
 #include "temperature_sensor_manager.h"
 #include "test_helpers/ams_state_test_access.h"
@@ -520,6 +521,10 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // The crash handler's recent-error ring is process-wide, so errors logged by
+    // earlier tests would show up in a forked child's crash file.
+    helix::CrashErrorLogSink::instance().clear_for_test();
 
     // PanelWidgetManager's panel_configs_ cache is a process-wide map keyed by
     // panel_id. Once a test calls get_widget_config("home") — directly or
