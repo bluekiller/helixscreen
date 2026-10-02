@@ -1053,6 +1053,13 @@ class ManagerCollectorArmingFixture : public ApplicationTestFixture {
 
 } // namespace
 
+TEST_CASE_METHOD(ManagerCollectorArmingFixture, "shutdown clears the global client it installed",
+                 "[application][moonraker_manager]") {
+    REQUIRE(get_moonraker_client() != nullptr);
+    mgr.shutdown();
+    CHECK(get_moonraker_client() == nullptr);
+}
+
 TEST_CASE_METHOD(ManagerCollectorArmingFixture,
                  "print-state observer arms the collector off IDLE on a printer-edge start",
                  "[application][print_start]") {

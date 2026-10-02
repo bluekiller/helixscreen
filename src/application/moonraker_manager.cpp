@@ -169,6 +169,11 @@ void MoonrakerManager::shutdown() {
     // Destroy client FIRST: its destructor waits for in-flight libhv callbacks
     // to finish. connect() lambdas hold raw pointers to m_api and m_macro_analysis,
     // so those must outlive the client to avoid use-after-free (#628).
+    // The global names the client this manager installed; clearing it also drops the
+    // mock alias. A replacement installed by someone else stays.
+    if (get_moonraker_client() == m_client.get()) {
+        set_moonraker_client(nullptr);
+    }
     m_client.reset();
 
     // Safe now — no callbacks can fire after client destruction.
