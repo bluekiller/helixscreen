@@ -381,7 +381,7 @@ void PrintStartCollector::reset_run_locked() {
     mesh_first_probe_time_ = {};
     mesh_last_probe_time_ = {};
     mesh_seconds_per_probe_ = 0.0f;
-    mesh_extrapolation_armed_ = false;
+    mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
     mesh_entry_ext_target_ = 0;
     pre_mesh_points_.reset();
     pre_mesh_last_probe_time_ = {};
@@ -1157,6 +1157,7 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
                                          .count());
                         mesh_probe_current_ = 0;
                         mesh_seconds_per_probe_ = 0.0f;
+                        mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
                     }
 
                     if (mesh_probe_current_ == 0) {
@@ -1211,6 +1212,7 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
                         mesh_points_.reset();
                         mesh_probe_current_ = 0;
                         mesh_seconds_per_probe_ = 0.0f;
+                        mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
                     }
 
                     // Position dedupe (and the sample-divisor fallback for lines
@@ -1572,6 +1574,7 @@ void PrintStartCollector::maybe_reset_for_mesh_subphase_locked(PrintStartPhase n
     mesh_first_probe_time_ = {};
     mesh_last_probe_time_ = {};
     mesh_seconds_per_probe_ = 0.0f;
+    mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
     pre_mesh_points_.reset();
     if (message_changed) {
         spdlog::debug("[PrintStartCollector] BED_MESH sub-phase change → '{}' (counters reset)",
@@ -1649,11 +1652,6 @@ void PrintStartCollector::update_phase(PrintStartPhase phase, const char* messag
                           static_cast<int>(current_phase_), static_cast<int>(phase),
                           last_remaining_);
             last_remaining_ = 0;
-        }
-        // The mesh-extrapolation anchor release is one-shot per phase: a later
-        // BED_MESH entry in the same run must get its own release.
-        if (current_phase_ != phase) {
-            mesh_extrapolation_armed_ = false;
         }
         // Entering a leveling phase clears the pre-mesh probe buffer — any
         // stray probe lines that arrived before the QGL/Z_TILT regex hit
@@ -2105,9 +2103,11 @@ void PrintStartCollector::update_eta_display() {
     // every publish before probe #2 armed the timing was a provisional guess,
     // and the anchor those seeded would clamp the first honest value back down
     // forever. Release it once; after this the extrapolated estimate only
-    // decreases, so the monotonic guards re-engage normally.
-    if (mesh_live_snap && !mesh_extrapolation_armed_) {
-        mesh_extrapolation_armed_ = true;
+    // decreases, so the monotonic guards re-engage normally. Relaxed atomic:
+    // this runs on the ETA timer (main thread) while the clears above run on
+    // the WebSocket thread; only set/clear/test, no invariant spans the check.
+    if (mesh_live_snap && !mesh_extrapolation_armed_.load(std::memory_order_relaxed)) {
+        mesh_extrapolation_armed_.store(true, std::memory_order_relaxed);
         last_remaining_ = 0;
     }
 
