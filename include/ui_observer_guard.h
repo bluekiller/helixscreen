@@ -53,8 +53,9 @@ using SubjectLifetime = std::shared_ptr<bool>;
  */
 // NAMESPACE_OK: sits with SubjectLifetime and ObserverGuard at file scope
 inline SubjectLifetime subject_never_freed() {
-    static const auto token = std::make_shared<bool>(true);
-    return token;
+    // Leaked: ObserverGuard::reset() compares against it from static destructors.
+    static const auto* token = new SubjectLifetime(std::make_shared<bool>(true));
+    return *token;
 }
 
 /**
@@ -138,7 +139,12 @@ class ObserverGuard {
      * live observers on live subjects → use-after-free when later notified
      * (debug bundles 449TVQ82 / X3RA4252, LedWidget on the static LED subject).
      */
-    static void invalidate_all() {
+    /// @p process_exit: every subject is about to be freed whatever its owner says, so
+    /// owner tokens stop being trusted and every older guard skips removal.
+    static void invalidate_all(bool process_exit = false) {
+        if (process_exit) {
+            s_process_exit.store(true, std::memory_order_release);
+        }
         s_invalidation_epoch.fetch_add(1, std::memory_order_release);
     }
     /// Epoch accessors for the test fixture, which rolls back a simulated teardown so it
@@ -217,7 +223,7 @@ class ObserverGuard {
             // created_epoch_ distinguishes the two cases; the old global
             // boolean could not.
             bool freed_by_deinit =
-                !owner_token &&
+                (!owner_token || s_process_exit.load(std::memory_order_acquire)) &&
                 created_epoch_ < s_invalidation_epoch.load(std::memory_order_acquire) &&
                 !subject_is_teardown_exempt(subject_);
             if (!subject_dead && !freed_by_deinit && lv_is_initialized()) {
@@ -300,6 +306,7 @@ class ObserverGuard {
     /// global s_subjects_valid boolean, which could not tell window-created
     /// observers from pre-teardown ones.
     static inline std::atomic<uint64_t> s_invalidation_epoch{0};
+    static inline std::atomic<bool> s_process_exit{false};
 
     lv_observer_t* observer_ = nullptr;
     std::weak_ptr<bool> alive_token_; ///< Tracks dynamic subject lifetime

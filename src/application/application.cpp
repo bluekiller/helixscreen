@@ -5091,7 +5091,7 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     // lv_subject_deinit() (via deinit_all() above) frees each observer it iterates, so
     // without this MoonrakerManager's ObserverGuard members would call
     // lv_observer_remove() on freed memory (lv_observer.c, lv_ll_remove).
-    ObserverGuard::invalidate_all();
+    ObserverGuard::invalidate_all(exiting);
 
     // Tear down GcodeErrorRouter before MoonrakerClient: its dtor unregisters the live and
     // replay callbacks, both of which touch the client. Reset the router BEFORE the

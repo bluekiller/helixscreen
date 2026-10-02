@@ -232,7 +232,7 @@ class IsolationListener : public Catch::EventListenerBase {
         // lv_ll_remove (SIGSEGV at exit, after every test passed). Bumping the
         // epoch here makes those at-exit ObserverGuard::reset() calls release
         // safely. No tests run after this point, so skipping the removes is free.
-        ObserverGuard::invalidate_all();
+        ObserverGuard::invalidate_all(/*process_exit=*/true);
     }
 
     void testCaseStarting(Catch::TestCaseInfo const& info) override {
