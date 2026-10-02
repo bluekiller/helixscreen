@@ -47,6 +47,19 @@ static json toolchanger_configfile_sections(const MoonrakerClientMock* self) {
     return sections;
 }
 
+// LED effect status from the mock's enabled-effect set. Shared by the query
+// and subscribe handlers so both answer the same question the same way.
+static void append_led_effect_status(json& status_obj, const json& objects,
+                                     const MoonrakerClientMock* self) {
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+        if (it.key().rfind("led_effect ", 0) == 0) {
+            status_obj[it.key()] = {{"enabled", self->led_effect_enabled(it.key())},
+                                    {"run_complete", false},
+                                    {"frame_rate", 24.0}};
+        }
+    }
+}
+
 json get_mock_gcode_macro_config() {
     json cfg;
     cfg["gcode_macro clean_nozzle"] = {
@@ -484,6 +497,9 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                     {"gcode_z_offset", self->tool_offset(tool_number, helix::Axis::Z)}};
             }
 
+            // LED effect objects (enabled state of the SET_LED_EFFECT model)
+            append_led_effect_status(status_obj, objects, self);
+
             // Test-set status objects (set_object_status()): served only when
             // the query asks for the object, like every branch above.
             for (const auto& [name, status] : self->object_status_overrides().items()) {
@@ -805,12 +821,7 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
             }
 
             // LED effect objects (for tracking enabled state)
-            for (auto it = objects.begin(); it != objects.end(); ++it) {
-                if (it.key().rfind("led_effect ", 0) == 0) {
-                    status_obj[it.key()] = {
-                        {"enabled", false}, {"run_complete", false}, {"frame_rate", 24.0}};
-                }
-            }
+            append_led_effect_status(status_obj, objects, self);
 
             // configfile (printer configuration)
             if (objects.contains("configfile")) {

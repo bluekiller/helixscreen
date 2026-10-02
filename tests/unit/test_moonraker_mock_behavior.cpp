@@ -3562,4 +3562,110 @@ TEST_CASE("MoonrakerClientMock: M117 message survives periodic status broadcasts
     mock.disconnect();
 }
 
+// ============================================================================
+// LED effect model: dispatch fan-out, STOP=1, and query truthfulness
+// ============================================================================
+//
+// A Lua plugin subscribes to printer objects as a notify_status_update METHOD
+// callback, so the mock's synthetic status updates must reach that registrant
+// too - not only the notify callbacks - and the led_effect state the mock
+// models must survive a re-query (which is where a plugin takes its first
+// values).
+
+TEST_CASE("a synthetic status update reaches each registrant once", "[mock][led_effect]") {
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+    int notify_count = 0;
+    mock.register_notify_update([&notify_count](const json&) { ++notify_count; });
+
+    int method_count = 0;
+    json method_msg;
+    mock.register_method_callback("notify_status_update", "led_effect_test",
+                                  [&method_count, &method_msg](const json& msg) {
+                                      ++method_count;
+                                      method_msg = msg;
+                                  });
+
+    const json status = {{"led_effect rainbow", {{"enabled", true}}}};
+    mock.dispatch_status_update(status);
+
+    REQUIRE(notify_count == 1);
+    REQUIRE(method_count == 1);
+    const json expected = {{"method", "notify_status_update"},
+                           {"params", json::array({status, 0.0})}};
+    REQUIRE(method_msg == expected);
+}
+
+TEST_CASE("SET_LED_EFFECT STOP=1 stops only that effect", "[mock][led_effect]") {
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+    MockBehaviorTestFixture fixture;
+    mock.register_notify_update(fixture.create_capture_callback());
+
+    mock.gcode_script("SET_LED_EFFECT EFFECT=rainbow");
+    mock.gcode_script("SET_LED_EFFECT EFFECT=breathing");
+    mock.gcode_script("SET_LED_EFFECT EFFECT=rainbow STOP=1");
+
+    // gcode_script dispatches synchronously, so the LAST captured frame that
+    // mentions rainbow is the STOP=1 one.
+    json last;
+    for (const auto& n : fixture.get_notifications()) {
+        if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+            continue;
+        }
+        if (n["params"][0].contains("led_effect rainbow")) {
+            last = n["params"][0];
+        }
+    }
+    REQUIRE_FALSE(last.is_null());
+    REQUIRE_FALSE(last["led_effect rainbow"]["enabled"].get<bool>());
+    // breathing is still running: the stop of one effect must not disable another
+    REQUIRE_FALSE(last.contains("led_effect breathing"));
+}
+
+TEST_CASE("a query reports which effects are running", "[mock][led_effect]") {
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+    mock.gcode_script("SET_LED_EFFECT EFFECT=rainbow");
+
+    bool answered = false;
+    bool rainbow_enabled = false;
+    bool breathing_enabled = true;
+    mock.send_jsonrpc(
+        "printer.objects.query",
+        {{"objects", {{"led_effect rainbow", nullptr}, {"led_effect breathing", nullptr}}}},
+        [&](json response) {
+            answered = true;
+            const json& status = response["result"]["status"];
+            // contains()-guarded: an unreported object must fail the REQUIREs,
+            // not abort on a const operator[] of a missing key
+            if (status.contains("led_effect rainbow")) {
+                rainbow_enabled = status["led_effect rainbow"]["enabled"].get<bool>();
+            }
+            if (status.contains("led_effect breathing")) {
+                breathing_enabled = status["led_effect breathing"]["enabled"].get<bool>();
+            }
+        },
+        nullptr);
+    REQUIRE(answered);
+    REQUIRE(rainbow_enabled);
+    REQUIRE_FALSE(breathing_enabled);
+
+    mock.gcode_script("STOP_LED_EFFECTS");
+
+    answered = false;
+    rainbow_enabled = true;
+    mock.send_jsonrpc(
+        "printer.objects.query", {{"objects", {{"led_effect rainbow", nullptr}}}},
+        [&](json response) {
+            answered = true;
+            const json& status = response["result"]["status"];
+            if (status.contains("led_effect rainbow")) {
+                rainbow_enabled = status["led_effect rainbow"]["enabled"].get<bool>();
+            }
+        },
+        nullptr);
+    REQUIRE(answered);
+    REQUIRE_FALSE(rainbow_enabled);
+}
+
 #pragma GCC diagnostic pop

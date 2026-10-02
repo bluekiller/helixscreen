@@ -3923,65 +3923,91 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
         }
     }
 
-    // SET_LED_EFFECT EFFECT=<name> - Enable an LED effect
+    // SET_LED_EFFECT EFFECT=<name> [STOP=1] - Enable one LED effect, or stop one
     if (gcode.find("SET_LED_EFFECT") != std::string::npos) {
         size_t effect_pos = gcode.find("EFFECT=");
         if (effect_pos != std::string::npos) {
             size_t start = effect_pos + 7;
             size_t end = gcode.find_first_of(" \t\r\n", start);
             std::string effect_name = gcode.substr(start, end - start);
-
-            spdlog::info("[MoonrakerClientMock] SET_LED_EFFECT: enabling '{}'", effect_name);
-
-            // Build status update: enable the target effect, disable all others
-            json effect_status = json::object();
             std::string full_name = "led_effect " + effect_name;
 
-            // Known mock effects
-            const std::vector<std::string> known_effects = {
-                "led_effect breathing", "led_effect fire_comet", "led_effect rainbow",
-                "led_effect static_white"};
-
-            for (const auto& name : known_effects) {
-                bool should_enable = (name == full_name);
-                effect_status[name] = {{"enabled", should_enable}};
+            // klipper-led_effect's STOP=1: stop just the named effect. The
+            // others keep running and no color change is implied.
+            bool stop_requested = false;
+            size_t stop_pos = gcode.find("STOP=");
+            if (stop_pos != std::string::npos) {
+                size_t vstart = stop_pos + 5;
+                size_t vend = gcode.find_first_of(" \t\r\n", vstart);
+                stop_requested = gcode.substr(vstart, vend - vstart) == "1";
             }
 
-            // Simulate LED color output: each effect has a characteristic color
-            // In real Klipper, led_effect continuously updates the neopixel color_data
-            struct EffectColor {
-                double r, g, b, w;
-            };
-            static const std::unordered_map<std::string, EffectColor> effect_colors = {
-                {"breathing", {0.6, 0.6, 1.0, 0.0}},    // Soft blue-white pulse
-                {"fire_comet", {1.0, 0.3, 0.0, 0.0}},   // Orange/fire
-                {"rainbow", {0.5, 0.0, 1.0, 0.0}},      // Purple (mid-rainbow)
-                {"static_white", {1.0, 1.0, 1.0, 0.0}}, // Pure white
-            };
+            if (stop_requested) {
+                spdlog::info("[MoonrakerClientMock] SET_LED_EFFECT: stopping '{}'", effect_name);
+                {
+                    std::lock_guard<std::mutex> lock(led_mutex_);
+                    enabled_led_effects_.erase(full_name);
+                }
+                dispatch_status_update(json{{full_name, {{"enabled", false}}}});
+            } else {
+                spdlog::info("[MoonrakerClientMock] SET_LED_EFFECT: enabling '{}'", effect_name);
 
-            auto color_it = effect_colors.find(effect_name);
-            if (color_it != effect_colors.end()) {
-                const auto& c = color_it->second;
-                // Update internal LED state and dispatch color_data for all LED strips
+                // Build status update: enable the target effect, disable all others
+                json effect_status = json::object();
+
+                // Known mock effects
+                const std::vector<std::string> known_effects = {
+                    "led_effect breathing", "led_effect fire_comet", "led_effect rainbow",
+                    "led_effect static_white"};
+
+                for (const auto& name : known_effects) {
+                    bool should_enable = (name == full_name);
+                    effect_status[name] = {{"enabled", should_enable}};
+                }
+
+                // The handler is exclusive: enabling one effect makes it the
+                // only one running.
                 {
                     std::lock_guard<std::mutex> lock(led_mutex_);
-                    for (auto& [name, color] : led_states_) {
-                        color = LedColor{c.r, c.g, c.b, c.w};
-                    }
+                    enabled_led_effects_ = {full_name};
                 }
-                json led_status;
-                {
-                    std::lock_guard<std::mutex> lock(led_mutex_);
-                    for (const auto& [name, color] : led_states_) {
-                        led_status[name] = {
-                            {"color_data", json::array({{color.r, color.g, color.b, color.w}})}};
+
+                // Simulate LED color output: each effect has a characteristic color
+                // In real Klipper, led_effect continuously updates the neopixel color_data
+                struct EffectColor {
+                    double r, g, b, w;
+                };
+                static const std::unordered_map<std::string, EffectColor> effect_colors = {
+                    {"breathing", {0.6, 0.6, 1.0, 0.0}},    // Soft blue-white pulse
+                    {"fire_comet", {1.0, 0.3, 0.0, 0.0}},   // Orange/fire
+                    {"rainbow", {0.5, 0.0, 1.0, 0.0}},      // Purple (mid-rainbow)
+                    {"static_white", {1.0, 1.0, 1.0, 0.0}}, // Pure white
+                };
+
+                auto color_it = effect_colors.find(effect_name);
+                if (color_it != effect_colors.end()) {
+                    const auto& c = color_it->second;
+                    // Update internal LED state and dispatch color_data for all LED strips
+                    {
+                        std::lock_guard<std::mutex> lock(led_mutex_);
+                        for (auto& [name, color] : led_states_) {
+                            color = LedColor{c.r, c.g, c.b, c.w};
+                        }
                     }
+                    json led_status;
+                    {
+                        std::lock_guard<std::mutex> lock(led_mutex_);
+                        for (const auto& [name, color] : led_states_) {
+                            led_status[name] = {{"color_data", json::array({{color.r, color.g,
+                                                                             color.b, color.w}})}};
+                        }
+                    }
+                    // Merge LED color updates into the effect status dispatch
+                    effect_status.update(led_status);
                 }
-                // Merge LED color updates into the effect status dispatch
-                effect_status.update(led_status);
+
+                dispatch_status_update(effect_status);
             }
-
-            dispatch_status_update(effect_status);
         }
     }
 
@@ -4001,6 +4027,7 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
         // Turn LEDs off when effects stop
         {
             std::lock_guard<std::mutex> lock(led_mutex_);
+            enabled_led_effects_.clear();
             for (auto& [name, color] : led_states_) {
                 color = LedColor{0.0, 0.0, 0.0, 0.0};
             }
@@ -5219,6 +5246,23 @@ void MoonrakerClientMock::dispatch_method_callback(const std::string& method, co
     for (auto& cb : callbacks_to_invoke) {
         cb(msg);
     }
+}
+
+void MoonrakerClientMock::dispatch_status_update(const json& status, bool from_cached_snapshot) {
+    MoonrakerClient::dispatch_status_update(status, from_cached_snapshot);
+
+    // The wrapping matches MoonrakerClient::dispatch_status_update exactly, so
+    // a method-callback registrant sees the same frame a live one would.
+    json msg = {{"method", "notify_status_update"}, {"params", json::array({status, 0.0})}};
+    if (from_cached_snapshot) {
+        msg[helix::CACHED_SNAPSHOT_MARKER] = true;
+    }
+    dispatch_method_callback("notify_status_update", msg);
+}
+
+bool MoonrakerClientMock::led_effect_enabled(const std::string& object_name) const {
+    std::lock_guard<std::mutex> lock(led_mutex_);
+    return enabled_led_effects_.count(object_name) > 0;
 }
 
 void MoonrakerClientMock::start_temperature_simulation() {
