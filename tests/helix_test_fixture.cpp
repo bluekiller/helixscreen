@@ -26,6 +26,8 @@
 #include "rpc_error_correlation.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
+#include "screensaver_canvas.h"
+#include "screensaver_registry.h"
 #include "standard_macros.h"
 #include "system_settings_manager.h"
 #include "temperature_sensor_manager.h"
@@ -465,6 +467,15 @@ void HelixTestFixture::reset_all() {
     lv_subject_t* anim = display_settings.subject_animations_enabled();
     lv_xml_register_subject(nullptr, helix::ui::ANIMATIONS_SUBJECT_NAME, anim);
     lv_subject_set_int(anim, 0);
+
+#ifdef HELIX_ENABLE_SCREENSAVER
+    // The manager stays initialised across tests, so a screensaver choice one test
+    // made would otherwise be read back as the "fresh install" default by the next.
+    // Set on the subject, not through set_screensaver_type(), which writes Config.
+    lv_subject_set_int(
+        display_settings.subject_screensaver_type(),
+        static_cast<int>(helix::ui::default_screensaver_type(helix::ui::SAVER_BUILD_DEPTH)));
+#endif
 
     // Same restore for the other two settings sub-managers a test can tear down.
     //
