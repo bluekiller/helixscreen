@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>5a4541b17</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>749de04d0</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 87 done, 22 in progress, 27 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 98 done, 11 in progress, 27 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -1355,9 +1355,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-3" data-tag="god-class" data-size="1.1" data-status="progress">
-<summary><span class="fid">API-3</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/mock-gcode-split</code><span class="ftitle">MoonrakerClientMock::gcode_script is one 1,510-line function</span><span class="fimpact">Command table; vendor sims deletable one by one</span></summary>
+<details class="f" id="API-3" data-tag="god-class" data-size="1.1" data-status="done">
+<summary><span class="fid">API-3</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">749de04d0</code><span class="ftitle">MoonrakerClientMock::gcode_script is one 1,510-line function</span><span class="fimpact">Command table; vendor sims deletable one by one</span></summary>
 <div class="fbody">
+<p class="branch">Shipped with <a href="#GOD-11">GOD-11</a> at <code>749de04d0</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_client_mock.cpp#MoonrakerClientMock::gcode_script</code>, <code>src/printer/ams_backend.cpp#create_mock_with_features</code>, <code>src/api/moonraker_client_mock.cpp#mock_medusa_variant</code></dd>
 <dt>Evidence</dt><dd>161 <code>if</code>/<code>else if</code> branches, 77 distinct G-code literals; class is 145 methods / 123 members. Next largest: <code>temperature_simulation_loop</code> 696, <code>populate_capabilities</code> 446, <code>start_print_internal</code> 338. Vendor sims inline: Medusa 89 mentions, IFS/AD5X 55, CFS 21, MMU 14. <code>HELIX_MOCK_AMS</code> parsed here and again in <code>ams_backend.cpp</code>. 143 commits in 7 months.</dd>
@@ -1399,9 +1400,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-6" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">API-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/mock-gcode-split</code><span class="ftitle">remote_control_server widget search duplicates widget_resolution</span><span class="fimpact">~600 lines move, ~80 removed</span></summary>
+<details class="f" id="API-6" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">API-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">749de04d0</code><span class="ftitle">remote_control_server widget search duplicates widget_resolution</span><span class="fimpact">~600 lines move, ~80 removed</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/mock-gcode-split</code>, merged to main at <code>749de04d0</code>. ctl's widget walks are <code>collect_widgets</code>/<code>search_widgets</code> in <code>widget_resolution</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/remote/remote_control_server.cpp#collect_glob_matches</code>, <code>#collect_by_name</code>, <code>#matches_for_name</code>, <code>#resolve_widget</code>, <code>#glob_widgets</code>, <code>src/remote/widget_resolution.cpp</code></dd>
 <dt>Evidence</dt><dd>remote_control_server.cpp is 2,433 lines; ~500 are widget search/walk helpers although <code>widget_resolution.cpp</code> (363 lines) exists for that job. <code>collect_glob_matches</code> and <code>collect_by_name</code> are the same recursive walk (same 128-byte name buffer, same hidden-skip) differing only in the predicate; the "active screen + top layer" root pair is spelled out 4 times. 36 hand-rolled <code>params.contains("x") &amp;&amp; is_string()</code> checks mixed with throwing <code>params.value(...)</code>.</dd>
@@ -1580,9 +1582,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </div>
 </details>
 <details class="f" id="SYS-3" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">SYS-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/sys-helpers-platform</code><span class="ftitle">String/file helper twins: trim, lower, atomic write, meminfo, env, INI</span><span class="fimpact">~-800 lines, one truthiness rule</span></summary>
+<summary><span class="fid">SYS-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">6ac5d8350</code><span class="ftitle">String/file helper twins: trim, lower, atomic write, meminfo, env, INI</span><span class="fimpact">~-800 lines, one truthiness rule</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/system-utils-dedup</code> (<code>e6e8357f1</code>) folded trim, to_lower/to_upper, six tmp+rename writers, the meminfo parser and env-flag truthiness (<code>include/env_knobs.h#env_flag</code>). Still open: the INI step (editor read accessors, delete <code>KlipperConfigParser</code>).</p>
+<p class="branch">Mostly shipped: trim, atomic write, meminfo and env earlier (<code>e6e8357f1</code>); case folds through <code>text_io::to_lower/to_upper</code> at <code>6ac5d8350</code>. Left: the INI merge (<code>KlipperConfigParser</code>).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/text_io.h#write_file_atomic</code>, <code>include/operation_patterns.h#to_lower</code>, <code>src/system/memory_utils.cpp#get_system_memory_info</code>, <code>src/app_globals.cpp#helix_parse_truthy_env</code>, <code>src/config/environment_config.cpp</code>, <code>src/system/klipper_config_editor.cpp#KlipperConfigEditor::parse_structure</code></dd>
 <dt>Evidence</dt><dd>trim: 17 local copies, none in text_io (~-120); ASCII lower/upper: ~27 copies while a pair sits in operation_patterns.h (~-130); atomic tmp+rename: 7 hand-rolled (config_storage_file, update_checker, config_backup, telemetry x2, lua_bind_io, wifi_saved_config) with drifting fsync vs 5 users of the helper (~-150); /proc/meminfo: 5-7 parsers with 3 "absent" conventions (-1, 0, false), one compiling a Regex per call (~-90); env: 4 helper APIs, 3 truthiness rules (exactly "1", first char '1', 1/true/yes/on), 197 raw <code>getenv(</code> in 69 files (~-200); INI: 4 parsers (KlipperConfigParser 357 lines, editor ~400, MoonrakerConfigManager, QIDI) (~-350, later).</dd>
@@ -1594,9 +1596,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="SYS-4" data-tag="extensibility" data-size="1.1" data-status="progress">
-<summary><span class="fid">SYS-4</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/sys-helpers-platform</code><span class="ftitle">Stringly-typed platform keys in 3 drifted tables; one helix::platform table</span><span class="fimpact">fixes BUG-1/BUG-2 class</span></summary>
+<details class="f" id="SYS-4" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">SYS-4</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">6ac5d8350</code><span class="ftitle">Stringly-typed platform keys in 3 drifted tables; one helix::platform table</span><span class="fimpact">fixes BUG-1/BUG-2 class</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/sys-helpers-platform</code>, merged to main at <code>6ac5d8350</code>. <code>helix::platform</code> (<code>platform_table.h</code>) owns the key and table; a bats gate checks every key has a row.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/system/update_checker.cpp#UpdateChecker::get_platform_key</code>, <code>#UpdateChecker::validate_elf_architecture</code>, <code>#UpdateChecker::get_platform_display_name</code>, <code>src/system/debug_bundle_collector.cpp#platform_diagnostic_files</code>, <code>#platform_has_printer_hardware</code></dd>
 <dt>Evidence</dt><dd>Since the unified K1/AD5X MIPS package, <code>get_platform_key()</code> returns <code>"mips"</code> and never <code>"ad5x"</code>. <code>validate_elf_architecture</code> switches on <code>"k1"|"ad5x"</code>, so every shipping MIPS device skips ELF validation (also k2, cc1, snapmaker-u1, esp32); <code>platform_diagnostic_files("mips")</code> returns {}, so AD5X bundles lose <code>Adventurer5M.json</code>/<code>mod_data/user.cfg</code>. 15 platform-literal compares in update_checker, 2 in debug_bundle_collector, 14 external callers of <code>get_platform_key()</code>.</dd>
@@ -1623,9 +1626,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="SYS-6" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">SYS-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/teardown-and-gates</code><span class="ftitle">Application teardown order hand-kept twice (37 shared steps)</span><span class="fimpact">next teardown fix lands once</span></summary>
+<details class="f" id="SYS-6" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">SYS-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">e889e59a6</code><span class="ftitle">Application teardown order hand-kept twice (37 shared steps)</span><span class="fimpact">next teardown fix lands once</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>chore/teardown-and-gates</code>, merged to main at <code>e889e59a6</code>. Shutdown and printer switch both call <code>teardown_printer_scope(TeardownScope)</code>; exit-only and switch-only steps are explicit. Drift unified on the shutdown order; the switch freezes the UpdateQueue before the client disconnects.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/application.cpp#Application::tear_down_printer_state</code>, <code>src/application/application.cpp#Application::shutdown</code></dd>
 <dt>Evidence</dt><dd>180 and 269 lines. The first says "Teardown mirrors shutdown() ordering". Extracting calls (<code>X::instance().f(</code>, <code>m_x.reset(</code>, <code>set_x(nullptr)</code>) gives 37 steps in both, 9 only in teardown, 20 only in shutdown. The shared 37 are the dangerous ones: <code>set_moonraker_api(nullptr)</code>, <code>m_moonraker.reset()</code>, <code>StaticSubjectRegistry::instance().deinit_all()</code>, <code>m_subjects.reset()</code>, <code>m_plugin_host-&gt;unload_all()</code>.</dd>
@@ -1741,9 +1745,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </div>
 </details>
 <h3>Vendor-abstraction leaks</h3>
-<details class="f" id="VEN-1" data-tag="extensibility" data-size="1.1" data-status="progress">
-<summary><span class="fid">VEN-1</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/vendor-leaks</code><span class="ftitle">creality_plr_capable subject lives in generic PrinterPrintState</span><span class="fimpact">PLR signal detection belongs in plr_backend</span></summary>
+<details class="f" id="VEN-1" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">VEN-1</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">3d3197b22</code><span class="ftitle">creality_plr_capable subject lives in generic PrinterPrintState</span><span class="fimpact">PLR signal detection belongs in plr_backend</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/vendor-leaks</code>, merged to main at <code>3d3197b22</code>. The subject is <code>plr_power_loss_signal</code>; <code>plr_backend</code> owns the numeric-presence rule.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/printer_print_state.h</code>, <code>src/printer/printer_print_state.cpp#PrinterPrintState::update_from_status</code>, <code>src/ui/ui_plr_offer_controller.cpp</code>, <code>src/printer/plr_backend.cpp</code></dd>
 <dt>Evidence</dt><dd><code>PrinterPrintState</code> owns a vendor-named <code>creality_plr_capable</code> subject (forwarded in <code>printer_state.h</code>), set from <code>print_stats.power_loss</code> in <code>update_from_status</code> and consumed as <code>caps.creality_power_loss_field</code> by the PLR offer controller. <code>plr_backend.cpp</code> is the PLR provider module that should own "which firmware signals power-loss and how". Breaks <code>.claude/rules/vendor-abstraction.md</code>.</dd>
@@ -1755,9 +1760,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="VEN-2" data-tag="extensibility" data-size="1.1" data-status="progress">
-<summary><span class="fid">VEN-2</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/vendor-leaks</code><span class="ftitle">SettingsManager guesses toolhead style via is_pfa_printer + CFS check</span><span class="fimpact">DB toolhead_style becomes the single owner</span></summary>
+<details class="f" id="VEN-2" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">VEN-2</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">3d3197b22</code><span class="ftitle">SettingsManager guesses toolhead style via is_pfa_printer + CFS check</span><span class="fimpact">DB toolhead_style becomes the single owner</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/vendor-leaks</code>, merged to main at <code>3d3197b22</code>. AUTO toolhead style reads <code>toolhead_style</code> from the printer database, then <code>AmsBackend::toolhead_style_hint()</code>; <code>is_pfa_printer</code> is gone. A custom printer name merely containing "pfa" no longer implies AntHead.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/system/settings_manager.cpp#SettingsManager::get_effective_toolhead_style</code></dd>
 <dt>Evidence</dt><dd>Generic settings code calls <code>PrinterDetector::is_pfa_printer()</code> plus an <code>AmsType::CFS</code> check to infer the toolhead style. That is vendor knowledge in a generic module, while the printer DB already carries a <code>toolhead_style</code> field that is the natural single owner of the answer.</dd>
@@ -1769,9 +1775,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="VEN-3" data-tag="extensibility" data-size="1.1" data-status="progress">
-<summary><span class="fid">VEN-3</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/vendor-leaks</code><span class="ftitle">AbortManager branches on is_kalico() instead of a capability</span><span class="fimpact">Ask "supports HEATER_INTERRUPT", not the firmware</span></summary>
+<details class="f" id="VEN-3" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">VEN-3</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">3d3197b22</code><span class="ftitle">AbortManager branches on is_kalico() instead of a capability</span><span class="fimpact">Ask "supports HEATER_INTERRUPT", not the firmware</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/vendor-leaks</code>, merged to main at <code>3d3197b22</code>. <code>AbortManager</code> asks <code>supports_heater_interrupt()</code>. PID calibration UI still asks <code>is_kalico()</code> directly.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/abort/abort_manager.cpp#AbortManager::start_abort</code></dd>
 <dt>Evidence</dt><dd><code>start_abort</code> reads <code>printer_state_-&gt;get_capability_overrides().is_kalico()</code> to decide the abort path. The behaviour it gates is "firmware supports HEATER_INTERRUPT"; naming the firmware fork in generic abort code means any other firmware gaining that command needs an edit here.</dd>
@@ -1783,9 +1790,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="VEN-4" data-tag="extensibility" data-size="1.1" data-status="progress">
-<summary><span class="fid">VEN-4</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/vendor-leaks</code><span class="ftitle">AFC field lists in subscription builder; afc_lane_names in AmsState</span><span class="fimpact">Kills a "keep in sync" pair; new AMS touches 1 file</span></summary>
+<details class="f" id="VEN-4" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">VEN-4</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">3d3197b22</code><span class="ftitle">AFC field lists in subscription builder; afc_lane_names in AmsState</span><span class="fimpact">Kills a "keep in sync" pair; new AMS touches 1 file</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/vendor-leaks</code>, merged to main at <code>3d3197b22</code>. <code>AmsBackendAfc::required_status_objects</code> owns the AFC field lists (pinned field for field); <code>AmsState</code> no longer touches lane names.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_discovery_sequence.cpp#MoonrakerDiscoverySequence::build_subscription_objects</code>, <code>src/printer/ams_backend_afc.cpp</code>, <code>src/printer/ams_state.cpp#AmsState::init_backends_from_hardware</code></dd>
 <dt>Evidence</dt><dd><code>build_subscription_objects</code> is 477 lines with 60 AFC mentions and per-object field lists commented "mirror parse_afc_state / parse_afc_stepper ... Keep these in sync", plus branches for HH <code>mmu</code>, ACE, CFS <code>box</code>, Snapmaker, QIDI, toolchanger; 0 <code>VENDOR_OK</code> annotations. <code>AmsState</code> calls <code>set_discovered_lanes(hardware.afc_lane_names(), hardware.afc_hub_names())</code>. The fix pattern exists: <code>required_status_objects(hw)</code> on OpenAMS, AD5X, <code>plr_backend</code>, <code>tool_offsets</code>, ...</dd>
@@ -2032,9 +2040,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-11" data-tag="god-class" data-size="1.1" data-status="progress">
-<summary><span class="fid">GOD-11</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/mock-gcode-split</code><span class="ftitle">MoonrakerClientMock::gcode_script is a 1,510-line if-chain</span><span class="fimpact">143 commits in 7 months collide in one function</span></summary>
+<details class="f" id="GOD-11" data-tag="god-class" data-size="1.1" data-status="done">
+<summary><span class="fid">GOD-11</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">749de04d0</code><span class="ftitle">MoonrakerClientMock::gcode_script is a 1,510-line if-chain</span><span class="fimpact">143 commits in 7 months collide in one function</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/mock-gcode-split</code>, merged to main at <code>749de04d0</code>. <code>gcode_script</code> is plain ordered code over ~50 named handlers in three files, pinned by a 227-row dispatch test (including shadowing cases).</p>
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_client_mock.cpp#MoonrakerClientMock::gcode_script</code>, <code>#MoonrakerClientMock::temperature_simulation_loop</code>, <code>src/printer/ams_backend.cpp</code></dd>
 <dt>Evidence</dt><dd>Class has 145 methods / 123 members. <code>gcode_script</code>: 161 <code>if</code>/<code>else if</code> branches over 77 G-code literals. Next: <code>temperature_simulation_loop</code> 696, <code>populate_capabilities</code> 446, <code>start_print_internal</code> 338. Vendor sims inline (Medusa 89 mentions, IFS/AD5X 55, CFS 21, MMU 14). <code>HELIX_MOCK_AMS</code> parsed here and again in <code>ams_backend.cpp</code>.</dd>
@@ -2245,9 +2254,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-15" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">TB-15</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/teardown-and-gates</code><span class="ftitle">zeus's local main ref is stale, so mutate_diff's default base refuses</span><span class="fimpact">mutation gate needs a manual base</span></summary>
+<details class="f" id="TB-15" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-15</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">e889e59a6</code><span class="ftitle">zeus's local main ref is stale, so mutate_diff's default base refuses</span><span class="fimpact">mutation gate needs a manual base</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>chore/teardown-and-gates</code>, merged to main at <code>e889e59a6</code>. <code>zeus-run.sh</code> fetches origin main into the container's local main before the reset.</p>
 <dl>
 <dt>Locations</dt><dd><code>scripts/mutate_diff.py#main</code>, <code>scripts/zeus-run.sh</code></dd>
 <dt>Evidence</dt><dd>On zeus the clone's local <code>main</code> lags <code>origin/main</code>, so the default base resolution refuses. Workaround: always pass <code>--base</code>.</dd>
@@ -2258,9 +2268,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-16" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">TB-16</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/teardown-and-gates</code><span class="ftitle">54 advisory citation-anchor findings on main</span><span class="fimpact">doc citations that resolve to nothing</span></summary>
+<details class="f" id="TB-16" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-16</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">e889e59a6</code><span class="ftitle">54 advisory citation-anchor findings on main</span><span class="fimpact">doc citations that resolve to nothing</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>chore/teardown-and-gates</code>, merged to main at <code>e889e59a6</code>. <code>make check-doc-anchors</code> resolves every citation.</p>
 <dl>
 <dt>Locations</dt><dd><code>scripts/doc_anchors.py</code> (<code>make check-doc-anchors</code>)</dd>
 <dt>Evidence</dt><dd>The advisory anchor check reports 54 <code>path#symbol</code> citations on main that no longer resolve.</dd>
