@@ -28,7 +28,7 @@ class Config;
  * ## What a test may and may not drive
  *
  * The three soft-restart entry points all end in tear_down_printer_state() +
- * init_printer_state(): a 16-step teardown that runs
+ * init_printer_state(): a teardown (teardown_printer_scope) that runs
  * StaticSubjectRegistry::deinit_all(), StaticPanelRegistry::destroy_all() and
  * update_queue_shutdown(), followed by a full subject/Moonraker/XML rebuild.
  * That is the whole application, and running it inside a shared Catch2 process

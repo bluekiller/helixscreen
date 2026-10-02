@@ -11,7 +11,7 @@
  * StaticPanelRegistry, and nothing else on that path frees their overlay
  * widgets: NavigationManager::shutdown() clears tracking without freeing
  * widgets, the panel destructors skip deletion inside the destroy_all() window
- * (LV_EVENT_DELETE would fire into the half-destroyed panel set), and step 20
+ * (LV_EVENT_DELETE would fire into the half-destroyed panel set), and the tree delete
  * only deletes m_app_layout - overlays are parented to the SCREEN. The switch
  * therefore frees the recorded roots itself once the window closes; without
  * that, every overlay opened before a switch stays allocated as a hidden screen
@@ -22,9 +22,9 @@
  *
  * These tests run the switch's overlay-relevant sequence end to end:
  * invalidate_all() (switch_printer's order), NavigationManager::shutdown()
- * (teardown step 2), then helix::ui::destroy_static_panels() (teardown step 14:
- * destroy the panels, free the roots the destructors hand back), then reopen
- * through the real caller path.
+ * (the first step of teardown_printer_scope()), then helix::ui::destroy_static_panels()
+ * (its panel-destroy step: destroy the panels, free the roots the destructors hand
+ * back), then reopen through the real caller path.
  */
 
 #include "ui_component_keypad.h"
@@ -173,8 +173,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     // The overlay-relevant slice of tear_down_printer_state(), in order. Step 14
     // (destroy_static_panels) is the only place that could free the keypad tree:
-    // hide merely pops the nav stack, and step 20 deletes m_app_layout, not the
-    // screen the keypad hangs from.
+    // hide merely pops the nav stack, and the tree delete in teardown_printer_scope() deletes
+    // m_app_layout, not the screen the keypad hangs from.
     NavigationManager::instance().shutdown();
     helix::ui::destroy_static_panels();
     helix::ui::UpdateQueue::instance().drain();
