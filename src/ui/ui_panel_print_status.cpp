@@ -727,7 +727,7 @@ void PrintStatusPanel::init_subjects() {
 
     // Density + fit recompute when AMS slot count changes
     {
-        lv_subject_t* s = lv_xml_get_subject(nullptr, "ams_slot_count");
+        lv_subject_t* s = AmsState::instance().get_slot_count_subject();
         if (s) {
             auto token = lifetime_.token();
             ams_slot_count_observer_ = observe<int>(

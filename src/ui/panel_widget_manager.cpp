@@ -1557,7 +1557,6 @@ std::vector<std::string> PanelWidgetManager::compute_visible_widget_ids(const st
     return ids;
 }
 
-namespace {
 // Hardware-gate subjects live in several owners, so the death signal is
 // resolved per gate name. A def whose subject has no entry here is left
 // unobserved with a warning: handing observe_*() a token from the wrong
@@ -1592,7 +1591,6 @@ SubjectLifetime gate_subject_lifetime(const char* name) {
     }
     return nullptr;
 }
-} // namespace
 
 void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
                                               RebuildCallback rebuild_cb) {
