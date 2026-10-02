@@ -1,6 +1,6 @@
 # Lua Plugin System Design
 
-**Status:** Phases 1 to 3 implemented; Phases 4 and 5 not started.
+**Status:** Phases 1 to 4 implemented; Phase 5 not started.
 **Replaces:** the `dlopen` C++ plugin system in `src/plugin/` and `docs/devel/PLUGIN_DEVELOPMENT.md`
 
 ## Why
@@ -274,7 +274,7 @@ after a colon:
 <event_cb trigger="clicked" callback="plugin_event" user_data="orca-cal__pick:3"/>
 ```
 
-`plugin_event` splits the owner id at the first `_`, finds that loaded plugin, and calls the
+`plugin_event` splits the owner id at the first `__`, finds that loaded plugin, and calls the
 handler registered with `helix.ui.on("start", fn)` or `helix.ui.on("pick", fn)`, passing the
 argument string (or `nil`). An event for a plugin that is not loaded, or a name with no handler,
 is logged at debug and ignored.
