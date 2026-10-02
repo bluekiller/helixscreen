@@ -585,9 +585,10 @@ void TouchCalibrationOverlay::handle_hold_abort() {
 //   - handle_back_clicked() is the LAST statement here, and abort_session() is
 //     the last statement in each of its callers, so no path touches `this`, the
 //     overlay root, or the pressed object after the enqueue.
-//   - The overlay is a StaticPanelRegistry singleton and go_back() never deletes
-//     overlay_root_ (it animates it out and pops the stack), so there is no
-//     object for a late callback to land on either way.
+//   - The widget tree is deleted on a later tick, after the slide-out and the close
+//     callback, so no event or timer dispatch is still running on it. The panel's
+//     timers and callbacks reach only members, subjects and null-guarded widget
+//     pointers, which on_ui_destroyed() clears.
 //
 // Ordering guarantee for the timer paths: controller_.panel()->reset() below runs BEFORE
 // handle_back_clicked(), and reset() stops the countdown, fast-revert and stall
