@@ -5,6 +5,7 @@
 
 #include "data_root_resolver.h"
 #include "helix_regex.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -385,8 +386,7 @@ void MacroManager::add_include_to_config(SuccessCallback on_success, ErrorCallba
                 current_pos += line.length() + 1; // +1 for newline
                 // Check for [include ...] pattern (case-insensitive for robustness)
                 std::string lower_line = line;
-                std::transform(lower_line.begin(), lower_line.end(), lower_line.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
+                lower_line = helix::text_io::to_lower(lower_line);
                 if (lower_line.find("[include ") == 0 || lower_line.find("[include\t") == 0) {
                     last_include_end = current_pos;
                 }

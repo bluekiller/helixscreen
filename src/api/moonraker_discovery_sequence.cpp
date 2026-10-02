@@ -37,6 +37,7 @@
 #include "printer_state.h"
 #include "probe_sensor_manager.h"
 #include "sensor_state.h"
+#include "text_io.h"
 #include "tool_offsets.h"
 #include "toolchanger_addon.h"
 #include "unit_conversions.h"
@@ -934,8 +935,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                     std::string fan = hardware_.chamber_cooling_fan_name();
                                     if (!fan.empty()) {
                                         std::string key = fan;
-                                        std::transform(key.begin(), key.end(), key.begin(),
-                                                       ::tolower);
+                                        key = helix::text_io::to_lower(key);
                                         if (settings.contains(key) &&
                                             settings[key].contains("target_temp") &&
                                             settings[key]["target_temp"].is_number()) {
@@ -2105,7 +2105,7 @@ void MoonrakerDiscoverySequence::parse_objects(const json& objects) {
         // Output pins - classify as fan or LED based on name keywords
         else if (name.rfind("output_pin ", 0) == 0) {
             std::string lower_name = name;
-            std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+            lower_name = helix::text_io::to_lower(lower_name);
             if (lower_name.find("fan") != std::string::npos) {
                 fans_.push_back(name);
             } else if (lower_name.find("light") != std::string::npos ||

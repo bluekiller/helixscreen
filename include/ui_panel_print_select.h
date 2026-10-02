@@ -26,6 +26,7 @@
 #include "print_select_button_view.h"
 #include "queued_job_options.h"
 #include "subject_managed_panel.h"
+#include "text_io.h"
 #include "usb_backend.h"
 
 #include <algorithm>
@@ -181,8 +182,7 @@ inline bool dir_error_should_reset_to_root(const std::string& error_message, boo
         return false; // nowhere to fall back to; avoid an infinite reset loop
     }
     std::string lower = error_message;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    lower = helix::text_io::to_lower(lower);
     return lower.find("does not exist") != std::string::npos;
 }
 

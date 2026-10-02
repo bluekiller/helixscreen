@@ -5,6 +5,7 @@
 
 #include "ams_backend.h"
 #include "printer_discovery.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -525,7 +526,7 @@ std::string PrinterHardware::guess_runout_sensor(const std::vector<std::string>&
 bool PrinterHardware::is_ams_sensor_substring(const std::string& sensor_name) {
     // Convert to lowercase for case-insensitive matching
     std::string lower_name = sensor_name;
-    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+    lower_name = helix::text_io::to_lower(lower_name);
 
     // AFC (Armored Turtle Filament Changer) patterns
     if (lower_name.find("lane") != std::string::npos)

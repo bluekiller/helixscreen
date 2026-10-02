@@ -30,6 +30,7 @@
 #include "system/moonraker_local_probe.h"
 #include "system/telemetry_manager.h"
 #include "system/update_checker.h"
+#include "text_io.h"
 #include "touch_calibration_wrapper.h"
 
 #include <spdlog/spdlog.h>
@@ -739,8 +740,7 @@ std::string DebugBundleCollector::collect_crash_txt() {
 bool DebugBundleCollector::is_sensitive_key(const std::string& key) {
     // Case-insensitive substring match for sensitive patterns
     std::string lower_key = key;
-    std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    lower_key = helix::text_io::to_lower(lower_key);
 
     // "serial_number" covers cpu_info.serial_number (the Pi board serial) and
     // sd_info.serial_number, both of which arrive under /machine/system_info.

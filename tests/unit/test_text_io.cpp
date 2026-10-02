@@ -369,3 +369,13 @@ TEST_CASE("parse_leading matches std::sto* value for value", "[text_io]") {
         }
     }
 }
+
+TEST_CASE("to_lower and to_upper map ASCII only", "[text_io]") {
+    using namespace helix::text_io;
+    CHECK(to_lower("AbC-123_xYz") == "abc-123_xyz");
+    CHECK(to_upper("AbC-123_xYz") == "ABC-123_XYZ");
+    CHECK(to_lower("").empty());
+    // High-bit bytes (UTF-8 continuation, Latin-1) pass through whatever the locale.
+    CHECK(to_lower("\xC3\x89\xE9") == "\xC3\x89\xE9");
+    CHECK(to_upper("\xC3\xA9\xE9") == "\xC3\xA9\xE9");
+}

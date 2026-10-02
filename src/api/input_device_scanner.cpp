@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "log_redact.h"
+#include "text_io.h"
 #include "touch_calibration.h"
 
 #include <spdlog/spdlog.h>
@@ -93,8 +94,7 @@ std::string normalize_hex_id(const std::string& s) {
     std::string out = s.substr(start, end - start);
     if (out.size() >= 2 && out[0] == '0' && (out[1] == 'x' || out[1] == 'X'))
         out = out.substr(2);
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    out = helix::text_io::to_lower(out);
     return out;
 }
 
@@ -442,8 +442,7 @@ std::optional<ScannedDevice> find_keyboard_device(const std::string& dev_base,
         // Skip devices with "barcode" or "scanner" in the name — these are
         // barcode scanners that happen to present as USB HID keyboards.
         std::string lower_name = name;
-        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        lower_name = helix::text_io::to_lower(lower_name);
         if (lower_name.find("barcode") != std::string::npos ||
             lower_name.find("scanner") != std::string::npos) {
             spdlog::info("[InputScanner] Skipping scanner device for keyboard: {} ({})",
@@ -551,8 +550,7 @@ std::vector<ScannedDevice> find_hid_keyboard_devices(const std::string& dev_base
 
         // Prioritize devices with "barcode" or "scanner" in the name
         std::string lower_name = name;
-        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        lower_name = helix::text_io::to_lower(lower_name);
         if (lower_name.find("barcode") != std::string::npos ||
             lower_name.find("scanner") != std::string::npos) {
             spdlog::info("[InputScanner] Found named scanner device: {} ({})", device_path, name);

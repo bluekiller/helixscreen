@@ -184,7 +184,7 @@ bool KlipperConfigParser::get_bool(const std::string& section, const std::string
         return default_val;
     // Lowercase for comparison
     std::string lower = val;
-    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    lower = helix::text_io::to_lower(lower);
     if (lower == "true" || lower == "yes" || lower == "1")
         return true;
     if (lower == "false" || lower == "no" || lower == "0")

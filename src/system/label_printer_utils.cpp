@@ -28,6 +28,7 @@
 #include "phomemo_printer.h"
 #include "safe_resolve.h"
 #include "sheet_label_layout.h"
+#include "text_io.h"
 #include "usb_printer_detector.h"
 
 #include <spdlog/spdlog.h>
@@ -272,8 +273,7 @@ std::string friendly_label_printer_error(const std::string& raw) {
     // the intended branch to be skipped (makeid emits "Write failed at chunk"
     // with a capital W; niimbot/phomemo BT emit "BLE write failed" lowercase).
     std::string lower = raw;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    lower = helix::text_io::to_lower(lower);
 
     // BR/EDR transport wedged — stale pairing or dual-mode confusion. The
     // ConnectProfile fallback in bt_ble.cpp already retries LE once, so if we

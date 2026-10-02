@@ -568,7 +568,7 @@ void LedController::update_output_pin_config(const nlohmann::json& configfile_co
                 is_pwm = pwm_val.get<bool>();
             } else if (pwm_val.is_string()) {
                 std::string s = pwm_val.get<std::string>();
-                std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+                s = helix::text_io::to_lower(s);
                 is_pwm = (s == "true" || s == "1" || s == "yes" || s == "on");
             }
         }
@@ -983,8 +983,7 @@ void LedEffectBackend::stop_effect(const std::string& effect_name,
 std::string LedEffectBackend::icon_hint_for_effect(const std::string& effect_name) {
     // Convert to lowercase for matching
     std::string lower = effect_name;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    lower = helix::text_io::to_lower(lower);
 
     if (lower.find("breathing") != std::string::npos || lower.find("pulse") != std::string::npos) {
         return "air";

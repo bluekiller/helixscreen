@@ -7,6 +7,7 @@
 
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "static_subject_registry.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -191,7 +192,7 @@ void MacroParamModal::populate_param_fields() {
     for (const auto& param : params_) {
         // Prettify: lowercase with first letter capitalized
         std::string display_name = param.name;
-        std::transform(display_name.begin(), display_name.end(), display_name.begin(), ::tolower);
+        display_name = helix::text_io::to_lower(display_name);
         if (!display_name.empty()) {
             display_name[0] = static_cast<char>(::toupper(display_name[0]));
         }

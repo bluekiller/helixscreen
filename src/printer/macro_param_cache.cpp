@@ -2,6 +2,8 @@
 
 #include "macro_param_cache.h"
 
+#include "text_io.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -12,7 +14,7 @@ namespace helix {
 namespace {
 /// Convert a string to lowercase in-place and return a reference.
 std::string& to_lower_inplace(std::string& s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+    s = helix::text_io::to_lower(s);
     return s;
 }
 
@@ -162,8 +164,7 @@ std::map<std::string, std::string> MacroParamCache::printer_stop_commands() cons
             continue;
         }
         std::string upper = name;
-        std::transform(upper.begin(), upper.end(), upper.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
+        upper = helix::text_io::to_upper(upper);
         commands.emplace(std::move(upper), info.stop_message);
     }
     return commands;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "standard_macros.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -106,16 +107,14 @@ inline std::string single_command_word(const std::string& script) {
     }
     const size_t end = script.find_first_of(" \t", start);
     std::string word = script.substr(start, end == std::string::npos ? end : end - start);
-    std::transform(word.begin(), word.end(), word.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    word = helix::text_io::to_upper(word);
     return word;
 }
 
 /// The value of a PROFILE= parameter already on @p command, unquoted, or empty.
 inline std::string named_profile(const std::string& command) {
     std::string upper = command;
-    std::transform(upper.begin(), upper.end(), upper.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    upper = helix::text_io::to_upper(upper);
     const size_t at = upper.find(" PROFILE=");
     if (at == std::string::npos) {
         return {};
