@@ -358,6 +358,73 @@ void AmsBackendAfc::on_started() {
     load_afc_configs();
 }
 
+nlohmann::json AmsBackendAfc::required_status_objects(const std::vector<std::string>& afc_objects) {
+    using nlohmann::json;
+    static const json state_fields = json::array({"connected",
+                                                  "bypass_state",
+                                                  "quiet_mode",
+                                                  "current_load",
+                                                  "current_lane",
+                                                  "current_state",
+                                                  "current_tool",
+                                                  "current_toolchange",
+                                                  "error_state",
+                                                  "filament_loaded",
+                                                  "lane_loaded",
+                                                  "led_state",
+                                                  "message",
+                                                  "name",
+                                                  "number_of_toolchanges",
+                                                  "num_extruders",
+                                                  "status",
+                                                  "system",
+                                                  "tool_sensor_after_extruder",
+                                                  "tool_stn",
+                                                  "tool_stn_unload",
+                                                  "type",
+                                                  "units",
+                                                  "lanes",
+                                                  "hubs",
+                                                  "extruders",
+                                                  "buffers"});
+    // "current_map" (AFC virtual tools) names which of a multi-tool lane's
+    // T-commands is active. Older AFC does not publish it and Moonraker omits
+    // what an object does not have, so asking for it is safe against every
+    // version.
+    static const json stepper_fields =
+        json::array({"buffer_status", "color", "current_map", "dist_hub", "extruder",
+                     "filament_status", "hub", "load", "loaded_to_hub", "map", "material", "prep",
+                     "runout_lane", "spool_id", "status", "tool_loaded", "weight"});
+    static const json hub_fields = json::array({"state", "afc_bowden_length"});
+    static const json buffer_fields = json::array(
+        {"state", "distance_to_fault", "error_sensitivity", "fault_detection_enabled", "lanes"});
+    static const json extruder_fields =
+        json::array({"lane_loaded", "tool_end_status", "tool_start_status"});
+    // Unit-level objects (AFC_BoxTurtle, AFC_OpenAMS, AFC_vivid, ...) are read
+    // for their topology arrays only.
+    static const json unit_fields = json::array({"lanes", "extruders", "hubs", "buffers"});
+
+    json objects = json::object();
+    for (const auto& name : afc_objects) {
+        if (name == "AFC" || name == "afc") {
+            objects[name] = state_fields;
+        } else if (name.rfind("AFC_stepper ", 0) == 0 || name.rfind("AFC_lane ", 0) == 0) {
+            objects[name] = stepper_fields;
+        } else if (name.rfind("AFC_hub ", 0) == 0) {
+            objects[name] = hub_fields;
+        } else if (name.rfind("AFC_buffer ", 0) == 0) {
+            objects[name] = buffer_fields;
+        } else if (name.rfind("AFC_extruder ", 0) == 0) {
+            objects[name] = extruder_fields;
+        } else if (name.rfind("AFC_led ", 0) == 0) {
+            continue;
+        } else {
+            objects[name] = unit_fields;
+        }
+    }
+    return objects;
+}
+
 void AmsBackendAfc::set_discovered_lanes(const std::vector<std::string>& lane_names,
                                          const std::vector<std::string>& hub_names) {
     std::lock_guard<std::mutex> lock(mutex_);
