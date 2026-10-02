@@ -115,7 +115,10 @@ TEST_CASE_METHOD(LVGLTestFixture,
     ObserverGuard::invalidate_all();
     *owner_token = false;
     lv_subject_deinit(&subject);
-    REQUIRE_NOTHROW(guard.reset());
+    guard.reset();
+    // The subject was freed, so its list is empty and reset() left it alone.
+    CHECK(lv_ll_get_len(&subject.subs_ll) == 0);
+    CHECK_FALSE(static_cast<bool>(guard));
 }
 
 TEST_CASE_METHOD(LVGLTestFixture,
@@ -130,5 +133,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
         SubjectLifetime{});
     ObserverGuard::invalidate_all();
     lv_subject_deinit(&subject);
-    REQUIRE_NOTHROW(guard.reset());
+    guard.reset();
+    CHECK(lv_ll_get_len(&subject.subs_ll) == 0);
+    CHECK_FALSE(static_cast<bool>(guard));
 }
