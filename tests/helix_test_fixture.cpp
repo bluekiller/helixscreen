@@ -47,6 +47,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 
 #include "hv/json.hpp"
 
@@ -528,10 +529,16 @@ void HelixTestFixture::reset_all() {
     // A backend torn down at the end of a test can leave a fetch queued on the
     // process-wide executors. Waiting here, bounded, keeps that worker from
     // counting against the next test's inflight() reads.
-    for (auto* exec : {&helix::http::HttpExecutor::fast(), &helix::http::HttpExecutor::slow()}) {
+    for (auto [name, exec] : {std::pair{"fast", &helix::http::HttpExecutor::fast()},
+                              std::pair{"slow", &helix::http::HttpExecutor::slow()}}) {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
         while (exec->inflight() != 0 && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        if (exec->inflight() != 0) {
+            spdlog::warn("[reset_all] HttpExecutor::{} still has {} item(s) in flight after 1s; "
+                         "a test left work queued",
+                         name, exec->inflight());
         }
     }
 
