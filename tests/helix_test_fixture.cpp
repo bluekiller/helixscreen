@@ -468,6 +468,11 @@ void HelixTestFixture::reset_all() {
     lv_xml_register_subject(nullptr, helix::ui::ANIMATIONS_SUBJECT_NAME, anim);
     lv_subject_set_int(anim, 0);
 
+    // Page-scroll gutters are opt-in off-device. A test that enabled them leaves the
+    // subject on, and NavigationManager then injects gutter children into every
+    // later scrollable it shows, so row counts in unrelated pages read one too high.
+    lv_subject_set_int(display_settings.subject_page_scroll_buttons(), 0);
+
 #ifdef HELIX_ENABLE_SCREENSAVER
     // The manager stays initialised across tests, so a screensaver choice one test
     // made would otherwise be read back as the "fresh install" default by the next.
