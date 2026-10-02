@@ -578,8 +578,7 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
     // Quick uppercase check for LAYER markers without allocating a string
     // LAYER_CHANGE starts with 'L'/'l', LAYER: also starts with 'L'/'l'
     if (!trimmed_content.empty() && (trimmed_content[0] == 'L' || trimmed_content[0] == 'l')) {
-        std::string content_upper(trimmed_content);
-        content_upper = helix::text_io::to_upper(content_upper);
+        const std::string content_upper = helix::text_io::to_upper(trimmed_content);
 
         // Detect layer change markers (but not LAYER_COUNT which is metadata)
         if (content_upper.find("LAYER_CHANGE") == 0 || content_upper.find("LAYER:") == 0) {
@@ -598,8 +597,7 @@ void GCodeParser::parse_metadata_comment(const std::string& line) {
     const std::string value(kv->second);
 
     // Convert key to lowercase for case-insensitive matching
-    std::string key_lower(kv->first);
-    key_lower = helix::text_io::to_lower(key_lower);
+    const std::string key_lower = helix::text_io::to_lower(kv->first);
 
     // Helper to check if key contains all substrings (fuzzy match)
     auto contains_all = [&key_lower](std::initializer_list<const char*> terms) {
