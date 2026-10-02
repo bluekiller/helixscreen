@@ -438,6 +438,9 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: the nozzle chip budgets the tool 
     // The badge binds ToolState's subjects, which must exist before the XML parses.
     struct ToolSubjects {
         ToolSubjects() {
+            // init_subjects() is a no-op on an initialized ToolState, which would leave its
+            // names out of this test's XML scope; start from uninitialized.
+            ToolState::instance().deinit_subjects();
             ToolState::instance().init_subjects(true);
         }
         ~ToolSubjects() {

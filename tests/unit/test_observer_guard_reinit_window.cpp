@@ -34,6 +34,7 @@
 #include "ui_observer_guard.h"
 #include "ui_update_queue.h"
 
+#include "../helix_test_fixture.h"
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "observer_factory.h"
@@ -155,4 +156,17 @@ TEST_CASE_METHOD(LVGLTestFixture, "ObserverGuard skips removal for observers fre
     // reset() must detect the observer predates the invalidation and skip
     // lv_observer_remove() on the now-freed pointer. No crash, no assertion.
     REQUIRE_NOTHROW(guard.reset());
+}
+
+// The epoch is process-global: a test that simulates teardown must not leave it bumped, or
+// every long-lived guard created earlier skips removal from its live subject when it dies.
+TEST_CASE("HelixTestFixture rolls back an invalidate_all() made inside a test",
+          "[observer][raii][crash_hardening]") {
+    const uint64_t before = ObserverGuard::invalidation_epoch();
+    {
+        HelixTestFixture fixture;
+        ObserverGuard::invalidate_all();
+        REQUIRE(ObserverGuard::invalidation_epoch() == before + 1);
+    }
+    CHECK(ObserverGuard::invalidation_epoch() == before);
 }

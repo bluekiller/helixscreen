@@ -100,11 +100,14 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
         subjects_.register_subject(&led_command_in_flight_, "led_command_in_flight");
         subjects_.register_subject(&led_state_version_, "led_state_version");
         version_subject_initialized_ = true;
-        StaticSubjectRegistry::instance().register_deinit("LedController", [this]() {
-            subjects_.deinit_all();
-            version_subject_initialized_ = false;
-        });
     }
+    // Every init(), not only the one that creates the subjects: a registry cleared in
+    // between would otherwise leave initialized subjects with no deinit entry. A
+    // re-registration keeps its slot in teardown order.
+    StaticSubjectRegistry::instance().register_deinit("LedController", [this]() {
+        subjects_.deinit_all();
+        version_subject_initialized_ = false;
+    });
 
     // Observe printer connection state to clear in-flight count on disconnect.
     // Prevents toggle buttons staying greyed forever when a WebSocket drop

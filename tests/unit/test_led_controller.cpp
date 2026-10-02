@@ -2066,6 +2066,22 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.deinit();
 }
 
+TEST_CASE_METHOD(
+    LedControllerFixture,
+    "LedController init restores its registry deinit entry after the registry is cleared",
+    "[led][controller]") {
+    auto& ctrl = helix::led::LedController::instance();
+    ctrl.deinit();
+    ctrl.init(nullptr, nullptr);
+
+    // Drops only this entry; clear() would strip every other singleton's too.
+    REQUIRE(StaticSubjectRegistry::instance().unregister("LedController"));
+    ctrl.init(nullptr, nullptr);
+
+    REQUIRE(StaticSubjectRegistry::instance().deinit_one("LedController"));
+    ctrl.deinit();
+}
+
 TEST_CASE_METHOD(LedMockApiFixture, "LedController: set_power sends nothing to an undiscovered id",
                  "[led][controller]") {
     setup_controller_with_strip();
