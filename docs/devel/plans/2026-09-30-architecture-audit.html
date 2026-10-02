@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>f9e38e01e</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>44a8dd46b</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 85 done, 18 in progress, 33 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 85 done, 24 in progress, 27 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -668,7 +668,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </div>
 </details>
 <details class="f" id="FP-8" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">FP-8</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/api-cleanup</code><span class="ftitle">69 Moonraker callbacks take json by value</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
+<summary><span class="fid">FP-8</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram1-tranche3</code><span class="ftitle">69 Moonraker callbacks take json by value</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
 <div class="fbody">
 <p class="branch">Partly shipped: <code>refactor/api-cleanup</code> (<code>e3dbe0625</code>) took the Moonraker response callbacks by <code>const json&amp;</code>. One by-value site remains in <code>src/api/moonraker_history_api.cpp</code>.</p>
 <dl>
@@ -1355,8 +1355,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-3" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">API-3</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">MoonrakerClientMock::gcode_script is one 1,510-line function</span><span class="fimpact">Command table; vendor sims deletable one by one</span></summary>
+<details class="f" id="API-3" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">API-3</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/mock-gcode-split</code><span class="ftitle">MoonrakerClientMock::gcode_script is one 1,510-line function</span><span class="fimpact">Command table; vendor sims deletable one by one</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_client_mock.cpp#MoonrakerClientMock::gcode_script</code>, <code>src/printer/ams_backend.cpp#create_mock_with_features</code>, <code>src/api/moonraker_client_mock.cpp#mock_medusa_variant</code></dd>
@@ -1399,8 +1399,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-6" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">API-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">remote_control_server widget search duplicates widget_resolution</span><span class="fimpact">~600 lines move, ~80 removed</span></summary>
+<details class="f" id="API-6" data-tag="dup" data-size="1.1" data-status="progress">
+<summary><span class="fid">API-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/mock-gcode-split</code><span class="ftitle">remote_control_server widget search duplicates widget_resolution</span><span class="fimpact">~600 lines move, ~80 removed</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/remote/remote_control_server.cpp#collect_glob_matches</code>, <code>#collect_by_name</code>, <code>#matches_for_name</code>, <code>#resolve_widget</code>, <code>#glob_widgets</code>, <code>src/remote/widget_resolution.cpp</code></dd>
@@ -1623,8 +1623,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="SYS-6" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">SYS-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Application teardown order hand-kept twice (37 shared steps)</span><span class="fimpact">next teardown fix lands once</span></summary>
+<details class="f" id="SYS-6" data-tag="dup" data-size="1.1" data-status="progress">
+<summary><span class="fid">SYS-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/teardown-and-gates</code><span class="ftitle">Application teardown order hand-kept twice (37 shared steps)</span><span class="fimpact">next teardown fix lands once</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/application/application.cpp#Application::tear_down_printer_state</code>, <code>src/application/application.cpp#Application::shutdown</code></dd>
@@ -1875,7 +1875,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </div>
 </details>
 <details class="f" id="RAM-5" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-5</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/api-cleanup</code><span class="ftitle">69 Moonraker callbacks take json by value, deep-copying every response</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
+<summary><span class="fid">RAM-5</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">perf/ram1-tranche3</code><span class="ftitle">69 Moonraker callbacks take json by value, deep-copying every response</span><span class="fimpact">~1MB transient copy per large file listing</span></summary>
 <div class="fbody">
 <p class="branch">Partly shipped: <code>refactor/api-cleanup</code> (<code>e3dbe0625</code>) took the Moonraker response callbacks by <code>const json&amp;</code>. One by-value site remains in <code>src/api/moonraker_history_api.cpp</code>.</p>
 <dl>
@@ -2032,8 +2032,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-11" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-11</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">MoonrakerClientMock::gcode_script is a 1,510-line if-chain</span><span class="fimpact">143 commits in 7 months collide in one function</span></summary>
+<details class="f" id="GOD-11" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-11</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/mock-gcode-split</code><span class="ftitle">MoonrakerClientMock::gcode_script is a 1,510-line if-chain</span><span class="fimpact">143 commits in 7 months collide in one function</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/api/moonraker_client_mock.cpp#MoonrakerClientMock::gcode_script</code>, <code>#MoonrakerClientMock::temperature_simulation_loop</code>, <code>src/printer/ams_backend.cpp</code></dd>
@@ -2245,8 +2245,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-15" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-15</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">zeus's local main ref is stale, so mutate_diff's default base refuses</span><span class="fimpact">mutation gate needs a manual base</span></summary>
+<details class="f" id="TB-15" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">TB-15</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/teardown-and-gates</code><span class="ftitle">zeus's local main ref is stale, so mutate_diff's default base refuses</span><span class="fimpact">mutation gate needs a manual base</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>scripts/mutate_diff.py#main</code>, <code>scripts/zeus-run.sh</code></dd>
@@ -2258,8 +2258,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-16" data-tag="dead" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-16</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">54 advisory citation-anchor findings on main</span><span class="fimpact">doc citations that resolve to nothing</span></summary>
+<details class="f" id="TB-16" data-tag="dead" data-size="1.1" data-status="progress">
+<summary><span class="fid">TB-16</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/teardown-and-gates</code><span class="ftitle">54 advisory citation-anchor findings on main</span><span class="fimpact">doc citations that resolve to nothing</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>scripts/doc_anchors.py</code> (<code>make check-doc-anchors</code>)</dd>
