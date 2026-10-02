@@ -190,4 +190,10 @@ std::vector<std::string> plr_required_status_objects(const PrinterDiscovery& hw)
 /// re-parses, and another type under this name is not our signal.
 int plr_parse_interrupted_flag(const nlohmann::json& status);
 
+/// True when this status frame carries print_stats.power_loss as a JSON number.
+/// Presence, not value, is the marker (the key exists only in the firmware
+/// fork that supports the active probe, and normally reads 0); a Moonraker
+/// null for a subscribed-but-unpopulated field does not count.
+bool plr_parse_power_loss_signal(const nlohmann::json& status);
+
 } // namespace helix

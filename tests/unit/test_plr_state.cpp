@@ -62,8 +62,8 @@ class PlrStateTestFixture {
         return state_.pl_recovery_file();
     }
 
-    bool creality_plr_capable() {
-        return state_.is_creality_plr_capable();
+    bool plr_power_loss_signal() {
+        return state_.is_plr_power_loss_signal();
     }
 
     bool qidi_plr_capable() {
@@ -196,9 +196,8 @@ TEST_CASE_METHOD(PlrStateTestFixture, "PLR state: pl_env_valid flips true then b
 // normally reads 0 and only becomes 1 after the side-effectful detect probe.
 // ===========================================================================
 
-TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: default is not Creality-capable",
-                 "[plr][state][creality]") {
-    REQUIRE(creality_plr_capable() == false);
+TEST_CASE_METHOD(PlrStateTestFixture, "PLR signal: default is unset", "[plr][state][creality]") {
+    REQUIRE(plr_power_loss_signal() == false);
 }
 
 TEST_CASE_METHOD(PlrStateTestFixture,
@@ -208,7 +207,7 @@ TEST_CASE_METHOD(PlrStateTestFixture,
     // the backend undetectable until after a probe we would never fire.
     json status = {{"print_stats", {{"state", "standby"}, {"power_loss", 0}}}};
     state().update_from_status(status);
-    REQUIRE(creality_plr_capable() == true);
+    REQUIRE(plr_power_loss_signal() == true);
 }
 
 TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: explicit null power_loss is NOT capability",
@@ -218,14 +217,14 @@ TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: explicit null power_loss 
     // probe at every mainline-Klipper printer.
     json status = {{"print_stats", {{"state", "standby"}, {"power_loss", nullptr}}}};
     state().update_from_status(status);
-    REQUIRE(creality_plr_capable() == false);
+    REQUIRE(plr_power_loss_signal() == false);
 }
 
 TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: absent power_loss key is NOT capability",
                  "[plr][state][creality]") {
     json status = {{"print_stats", {{"state", "standby"}}}};
     state().update_from_status(status);
-    REQUIRE(creality_plr_capable() == false);
+    REQUIRE(plr_power_loss_signal() == false);
 }
 
 TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: latches up, survives a status delta",
@@ -235,18 +234,18 @@ TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: latches up, survives a st
     // the offer controller would see a spurious 1->0->1 edge and re-probe.
     json first = {{"print_stats", {{"state", "standby"}, {"power_loss", 0}}}};
     state().update_from_status(first);
-    REQUIRE(creality_plr_capable() == true);
+    REQUIRE(plr_power_loss_signal() == true);
 
     json delta = {{"print_stats", {{"print_duration", 12.0}}}};
     state().update_from_status(delta);
-    REQUIRE(creality_plr_capable() == true);
+    REQUIRE(plr_power_loss_signal() == true);
 }
 
 TEST_CASE_METHOD(PlrStateTestFixture, "PLR capability: power_loss==1 is also capability",
                  "[plr][state][creality]") {
     json status = {{"print_stats", {{"state", "standby"}, {"power_loss", 1}}}};
     state().update_from_status(status);
-    REQUIRE(creality_plr_capable() == true);
+    REQUIRE(plr_power_loss_signal() == true);
 }
 
 // ===========================================================================

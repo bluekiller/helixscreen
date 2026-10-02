@@ -489,3 +489,16 @@ TEST_CASE("plr_parse_creality_sidecar: malformed JSON => empty, no throw",
     REQUIRE(helix::plr_parse_creality_sidecar("{not json").empty());
     REQUIRE(helix::plr_parse_creality_sidecar("").empty());
 }
+
+TEST_CASE("plr_parse_power_loss_signal: numeric presence only", "[plr][backend]") {
+    using json = nlohmann::json;
+    REQUIRE(helix::plr_parse_power_loss_signal(json{{"print_stats", {{"power_loss", 0}}}}));
+    REQUIRE(helix::plr_parse_power_loss_signal(json{{"print_stats", {{"power_loss", 1.0}}}}));
+    REQUIRE_FALSE(
+        helix::plr_parse_power_loss_signal(json{{"print_stats", {{"power_loss", nullptr}}}}));
+    REQUIRE_FALSE(helix::plr_parse_power_loss_signal(json{{"print_stats", {{"power_loss", "1"}}}}));
+    REQUIRE_FALSE(
+        helix::plr_parse_power_loss_signal(json{{"print_stats", {{"state", "standby"}}}}));
+    REQUIRE_FALSE(helix::plr_parse_power_loss_signal(json{{"print_stats", 5}}));
+    REQUIRE_FALSE(helix::plr_parse_power_loss_signal(json::object()));
+}

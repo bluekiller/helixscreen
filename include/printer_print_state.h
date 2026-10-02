@@ -596,14 +596,14 @@ class PrinterPrintState {
     /// explicit null for a subscribed-but-unpopulated field does not count.
     /// Latches UP only (status arrives as deltas) and is reset by the offer
     /// controller on the disconnect edge. See docs/devel/POWER_LOSS_RECOVERY.md.
-    lv_subject_t* get_creality_plr_capable_subject() {
-        return &creality_plr_capable_;
+    lv_subject_t* get_plr_power_loss_signal_subject() {
+        return &plr_power_loss_signal_;
     }
 
     /// True when print_stats.power_loss has been seen. See
-    /// get_creality_plr_capable_subject().
-    [[nodiscard]] bool is_creality_plr_capable() const {
-        return lv_subject_get_int(const_cast<lv_subject_t*>(&creality_plr_capable_)) != 0;
+    /// get_plr_power_loss_signal_subject().
+    [[nodiscard]] bool is_plr_power_loss_signal() const {
+        return lv_subject_get_int(const_cast<lv_subject_t*>(&plr_power_loss_signal_)) != 0;
     }
 
     /// PLR passive-backend capability: discovery found a resume macro the PLR
@@ -1163,7 +1163,7 @@ class PrinterPrintState {
 
     // print_stats.power_loss — Creality-fork PLR capability marker. Integer:
     // 1 once the key has been seen as a JSON number (presence, not value).
-    lv_subject_t creality_plr_capable_{};
+    lv_subject_t plr_power_loss_signal_{};
 
     // PLR passive backend. plr_resume_macro_: 1 once discovery found the
     // backend's resume macro. plr_interrupted_flag_: the live interrupted-flag

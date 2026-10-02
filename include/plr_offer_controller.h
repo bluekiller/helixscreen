@@ -40,7 +40,7 @@ namespace helix::ui {
 ///   - pl_env_valid (PRIMARY Snapmaker trigger): a genuine 0->1 edge offers.
 ///   - plr_interrupted_flag (PRIMARY Qidi trigger): an edge re-evaluates the
 ///     offer; the capability half comes from discovery, not status.
-///   - creality_plr_capable (PRIMARY Creality trigger): a 0->1 edge fires the
+///   - plr_power_loss_signal (PRIMARY Creality trigger): a 0->1 edge fires the
 ///     one-shot probe, whose response then offers.
 ///   - connection state: on a CONNECTED->not-CONNECTED edge, re-arms BOTH
 ///     one-shot latches (offer and probe), drops the cached Creality detect

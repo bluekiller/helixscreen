@@ -46,11 +46,11 @@ PlrOfferController::PlrOfferController() {
         [](PlrOfferController* self, int value) { self->on_plr_interrupted_flag_changed(value); },
         ps.get_subjects_lifetime());
 
-    // creality_plr_capable is the PRIMARY Creality trigger. Unlike Snapmaker's
+    // plr_power_loss_signal is the PRIMARY Creality trigger. Unlike Snapmaker's
     // flag this only says the FIRMWARE supports recovery — whether a snapshot
     // exists takes a separate, side-effectful probe.
     creality_capable_observer_ = observe<int>(
-        ps.get_creality_plr_capable_subject(), this,
+        ps.get_plr_power_loss_signal_subject(), this,
         [](PlrOfferController* self, int value) { self->on_creality_capable_changed(value); },
         ps.get_subjects_lifetime());
 
@@ -77,7 +77,8 @@ void PlrOfferController::evaluate_offer() {
     caps.snapmaker_pl_env_valid = lv_subject_get_int(ps.get_pl_env_valid_subject()) != 0;
     caps.qidi_resume_macro = lv_subject_get_int(ps.get_plr_resume_macro_subject()) != 0;
     caps.qidi_was_interrupted = lv_subject_get_int(ps.get_plr_interrupted_flag_subject()) != 0;
-    caps.creality_power_loss_field = lv_subject_get_int(ps.get_creality_plr_capable_subject()) != 0;
+    caps.creality_power_loss_field =
+        lv_subject_get_int(ps.get_plr_power_loss_signal_subject()) != 0;
     PlrBackendType backend = plr_select_backend(caps);
 
     bool recovery_available = false;
@@ -263,7 +264,7 @@ void PlrOfferController::on_connection_state_changed(int new_conn_state) {
         lv_subject_set_int(ps.get_pl_env_valid_subject(), 0);
         lv_subject_set_int(ps.get_plr_resume_macro_subject(), 0);
         lv_subject_set_int(ps.get_plr_interrupted_flag_subject(), 0);
-        lv_subject_set_int(ps.get_creality_plr_capable_subject(), 0);
+        lv_subject_set_int(ps.get_plr_power_loss_signal_subject(), 0);
         ps.clear_pl_recovery_file();
     }
     last_conn_state_ = new_conn_state;
