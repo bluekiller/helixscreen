@@ -107,3 +107,19 @@ TEST_CASE_METHOD(
     UpdateQueue::instance().drain();
     CHECK(lv_ll_get_len(&subject_->subs_ll) == 0);
 }
+
+TEST_CASE_METHOD(HomeImageChangedLifetimeFixture,
+                 "HomePanel image_changed observer is removed when the panel dies after an "
+                 "invalidation epoch bump",
+                 "[observer][raii][crash_hardening][home_panel]") {
+    REQUIRE(lv_ll_get_len(&subject_->subs_ll) > baseline_observers_);
+
+    // A teardown elsewhere bumps the process-global epoch; this subject is not freed by it.
+    ObserverGuard::invalidate_all();
+    panel_release();
+
+    // Skipped removal would leave the dead panel's observer on the live subject.
+    CHECK(lv_ll_get_len(&subject_->subs_ll) == baseline_observers_);
+    lv_subject_set_int(subject_, lv_subject_get_int(subject_) + 1);
+    UpdateQueue::instance().drain();
+}

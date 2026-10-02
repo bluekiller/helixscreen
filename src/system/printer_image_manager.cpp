@@ -3,6 +3,8 @@
 
 #include "printer_image_manager.h"
 
+#include "ui_observer_guard.h"
+
 #include "config.h"
 #include "data_root_resolver.h"
 #include "helix_fs.h"
@@ -52,6 +54,10 @@ void PrinterImageManager::init(const std::string& config_dir) {
     if (!subjects_initialized_) {
         lv_subject_init_int(&image_changed_subject_, 0);
         subjects_.register_subject(&image_changed_subject_);
+        // Only deinit_subjects() frees this subject, and it flips the lifetime token every
+        // observer carries. A registry-wide invalidation epoch must not make a guard skip
+        // removal from it, or the observer is orphaned with a freed context.
+        ObserverGuard::mark_subject_teardown_exempt(&image_changed_subject_);
         subjects_initialized_ = true;
         StaticSubjectRegistry::instance().register_deinit(
             "PrinterImageManager", []() { PrinterImageManager::instance().deinit_subjects(); });
