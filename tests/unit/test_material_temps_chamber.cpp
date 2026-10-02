@@ -222,6 +222,8 @@ void check_two_by_two_reflow(const char* variant_path, XMLTestFixture& f) {
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
+    REQUIRE(f.register_component("header_bar"));
+    REQUIRE(f.register_component("overlay_panel"));
     REQUIRE(lv_xml_register_component_from_file(variant_path) == LV_RESULT_OK);
 
     auto& overlay = helix::settings::get_material_temps_overlay();

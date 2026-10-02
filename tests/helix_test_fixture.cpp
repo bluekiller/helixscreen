@@ -21,6 +21,7 @@
 #include "filament_database.h"
 #include "filament_slot_override_store.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "http_executor.h"
 #include "lane_source_store.h"
 #include "panel_widget_manager.h"
 #include "rpc_error_correlation.h"
@@ -40,10 +41,13 @@
 #include "tool_state.h"
 #include "ui/ui_widget_helpers.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <unistd.h>
+#include <utility>
 
 #include "hv/json.hpp"
 
@@ -521,6 +525,22 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // A backend torn down at the end of a test can leave a fetch queued on the
+    // process-wide executors. Waiting here, bounded, keeps that worker from
+    // counting against the next test's inflight() reads.
+    for (auto [name, exec] : {std::pair{"fast", &helix::http::HttpExecutor::fast()},
+                              std::pair{"slow", &helix::http::HttpExecutor::slow()}}) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        while (exec->inflight() != 0 && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        if (exec->inflight() != 0) {
+            spdlog::warn("[reset_all] HttpExecutor::{} still has {} item(s) in flight after 1s; "
+                         "a test left work queued",
+                         name, exec->inflight());
+        }
+    }
 
     // The crash handler's recent-error ring is process-wide, so errors logged by
     // earlier tests would show up in a forked child's crash file.
