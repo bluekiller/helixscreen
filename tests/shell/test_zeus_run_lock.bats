@@ -161,3 +161,15 @@ wait_for_line() { # <substring> <file>
     [ "$status" -eq 0 ]
     grep -qF "pgrep -x -r R,S,D,T,t make" "$MOCK_PGREP_LOG"
 }
+
+@test "the checkout's local main is brought level with origin/main before the reset" {
+    # mutate_diff.py's default base reads the local main; a stale one yields a
+    # base that refuses the run.
+    run "$SCRIPT" mutate
+    [ "$status" -eq 0 ]
+    grep -qF "git update-ref refs/heads/main FETCH_HEAD" "$MOCK_DOCKER_LOG"
+    local sync_line reset_line
+    sync_line=$(grep -nF "git update-ref refs/heads/main" "$MOCK_DOCKER_LOG" | head -1 | cut -d: -f1)
+    reset_line=$(grep -nF "git reset" "$MOCK_DOCKER_LOG" | head -1 | cut -d: -f1)
+    [ "$sync_line" -lt "$reset_line" ]
+}
