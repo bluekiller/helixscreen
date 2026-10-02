@@ -21,29 +21,13 @@ using namespace helix;
 
 namespace {
 
-using Match = std::function<bool(const MoonrakerClientMock&, const std::string&)>;
-
 bool has_token(const std::string& gcode, const char* token) {
     return gcode.find(token) != std::string::npos;
 }
 
-Match has(const char* token) {
-    return
-        [token](const MoonrakerClientMock&, const std::string& g) { return has_token(g, token); };
-}
-
-Match has_any(const char* a, const char* b) {
-    return [a, b](const MoonrakerClientMock&, const std::string& g) {
-        return has_token(g, a) || has_token(g, b);
-    };
-}
-
 // The bare command, optionally followed by arguments after a space.
-Match is_command(const char* command) {
-    return [command](const MoonrakerClientMock&, const std::string& g) {
-        const std::string c(command);
-        return g == c || g.find(c + " ") == 0;
-    };
+bool is_command(const std::string& gcode, const std::string& command) {
+    return gcode == command || gcode.find(command + " ") == 0;
 }
 
 // Real Klipper uppercases only the leading command word before dispatch
@@ -985,152 +969,12 @@ MoonrakerClientMock::GcodeResult MoonrakerClientMock::gcode_stop_led_effects(con
     return std::nullopt;
 }
 
-// Rules run in table order and every match runs, so one line can hit several
-// rules: matching is by substring, not by command name, and a rule that returns
-// a code ends the script. Order is therefore behaviour: SET_LED_EFFECT also
-// matches SET_LED, and M117 returns before the later G28/M84 rules can see its
-// message text. The vendor rules come first because they match the command
-// token exactly and must claim bare words such as OPEN and T<n> before the
-// substring rules below can.
-const std::vector<MoonrakerClientMock::GcodeRule>& MoonrakerClientMock::gcode_rules() {
-    static const Match always = [](const MoonrakerClientMock&, const std::string&) { return true; };
-    static const std::vector<GcodeRule> rules = {
-        {[](const MoonrakerClientMock& m, const std::string&) { return m.is_mock_ifs_module(); },
-         &MoonrakerClientMock::gcode_ifs_module, 0},
-        {[](const MoonrakerClientMock& m, const std::string&) { return m.is_mock_medusahc(); },
-         &MoonrakerClientMock::gcode_medusa, 0},
-        {[](const MoonrakerClientMock& m, const std::string&) {
-             return m.printer_type_ == PrinterType::FLASHFORGE_CREATOR5_ZMOD;
-         },
-         &MoonrakerClientMock::gcode_zmod, 0},
-        {[](const MoonrakerClientMock& m, const std::string&) { return m.is_mock_cfs(); },
-         &MoonrakerClientMock::gcode_cfs, 0},
-        {always, &MoonrakerClientMock::gcode_u1_feeding, 0},
-        {has("SET_HEATER_TEMPERATURE"), &MoonrakerClientMock::gcode_heater_temperature, 1},
-        {has("SET_TEMPERATURE_FAN_TARGET"), &MoonrakerClientMock::gcode_temperature_fan_target, 1},
-        {has("PANDA_BREATH_DRY_START"), &MoonrakerClientMock::gcode_panda_dry_start, 1},
-        {has("PANDA_BREATH_DRY_STOP"), &MoonrakerClientMock::gcode_panda_dry_stop, 1},
-        {has("SET_PIN"), &MoonrakerClientMock::gcode_set_pin, 1},
-        {has_any("M104", "M109"), &MoonrakerClientMock::gcode_extruder_target_mcode, 1},
-        {has_any("M140", "M190"), &MoonrakerClientMock::gcode_bed_target_mcode, 1},
-        {is_command("M117"), &MoonrakerClientMock::gcode_display_message, 0},
-        {has("SAVE_GCODE_STATE"), &MoonrakerClientMock::gcode_save_gcode_state, 0},
-        {has("G90"), &MoonrakerClientMock::gcode_absolute_mode, 2},
-        {has("G91"), &MoonrakerClientMock::gcode_relative_mode, 2},
-        {has_any("M84", "M18"), &MoonrakerClientMock::gcode_disable_motors, 0},
-        {has("G28"), &MoonrakerClientMock::gcode_home, 0},
-        {has_any("G0", "G1"), &MoonrakerClientMock::gcode_move, 0},
-        {has("RESTORE_GCODE_STATE"), &MoonrakerClientMock::gcode_restore_gcode_state, 0},
-        {[](const MoonrakerClientMock&, const std::string& g) {
-             return g.length() >= 2 && g[0] == 'T' && std::isdigit(g[1]);
-         },
-         &MoonrakerClientMock::gcode_tool_change, 0},
-        {has("SDCARD_PRINT_FILE"), &MoonrakerClientMock::gcode_sdcard_print_file, 3},
-        {is_command("PAUSE"), &MoonrakerClientMock::gcode_pause, 3},
-        {is_command("RESUME"), &MoonrakerClientMock::gcode_resume, 3},
-        {is_command("CANCEL_PRINT"), &MoonrakerClientMock::gcode_cancel_print, 3},
-        {has("M112"), &MoonrakerClientMock::gcode_emergency_stop, 3},
-        {has("M106"), &MoonrakerClientMock::gcode_fan_m106, 4},
-        {has("M107"), &MoonrakerClientMock::gcode_fan_m107, 4},
-        {has("SET_FAN_SPEED"), &MoonrakerClientMock::gcode_set_fan_speed, 4},
-        {[](const MoonrakerClientMock&, const std::string& g) {
-             return has_token(g, "G92") && has_token(g, "E");
-         },
-         [](MoonrakerClientMock&, const std::string&) -> GcodeResult {
-             spdlog::warn(
-                 "[MoonrakerClientMock] STUB: G92 E (set extruder position) NOT IMPLEMENTED");
-             return std::nullopt;
-         },
-         0},
-        {[](const MoonrakerClientMock&, const std::string& g) {
-             return (has_token(g, "G0") || has_token(g, "G1")) && has_token(g, "E");
-         },
-         [](MoonrakerClientMock&, const std::string&) -> GcodeResult {
-             spdlog::debug("[MoonrakerClientMock] Note: Extrusion (E parameter) ignored in G0/G1");
-             return std::nullopt;
-         },
-         0},
-        {has("PID_CALIBRATE"), &MoonrakerClientMock::gcode_pid_calibrate, 0},
-        {has("MPC_CALIBRATE"), &MoonrakerClientMock::gcode_mpc_calibrate, 0},
-        {has("SAVE_CONFIG"), &MoonrakerClientMock::gcode_save_config, 0},
-        {always, &MoonrakerClientMock::gcode_bed_mesh, 0},
-        {has("SET_GCODE_OFFSET"), &MoonrakerClientMock::gcode_set_gcode_offset, 0},
-        {has("SET_TOOL_PARAMETER"), &MoonrakerClientMock::gcode_set_tool_parameter, 0},
-        {has("SAVE_TOOL_PARAMETER"), &MoonrakerClientMock::gcode_save_tool_parameter, 0},
-        {has("SHAPER_CALIBRATE"), &MoonrakerClientMock::gcode_shaper_calibrate, 0},
-        {has("TEST_RESONANCES"), &MoonrakerClientMock::gcode_test_resonances, 0},
-        {has("SET_INPUT_SHAPER"),
-         [](MoonrakerClientMock&, const std::string& g) -> GcodeResult {
-             spdlog::info("[MoonrakerClientMock] SET_INPUT_SHAPER: {}", g);
-             return std::nullopt;
-         },
-         0},
-        {has("MEASURE_AXES_NOISE"),
-         [](MoonrakerClientMock& m, const std::string&) -> GcodeResult {
-             spdlog::info("[MoonrakerClientMock] MEASURE_AXES_NOISE");
-             m.dispatch_measure_axes_noise_response();
-             return std::nullopt;
-         },
-         0},
-        {has("SET_PRESSURE_ADVANCE"),
-         [](MoonrakerClientMock&, const std::string&) -> GcodeResult {
-             spdlog::warn("[MoonrakerClientMock] STUB: SET_PRESSURE_ADVANCE NOT IMPLEMENTED");
-             return std::nullopt;
-         },
-         0},
-        {has("SET_LED"), &MoonrakerClientMock::gcode_set_led, 0},
-        {has("FIRMWARE_RESTART"),
-         [](MoonrakerClientMock& m, const std::string&) -> GcodeResult {
-             m.trigger_restart(/*is_firmware=*/true);
-             return std::nullopt;
-         },
-         5},
-        {[](const MoonrakerClientMock&, const std::string& g) {
-             return has_token(g, "RESTART") && !has_token(g, "FIRMWARE");
-         },
-         [](MoonrakerClientMock& m, const std::string&) -> GcodeResult {
-             m.trigger_restart(/*is_firmware=*/false);
-             return std::nullopt;
-         },
-         5},
-        {has_any("PROBE_CALIBRATE", "Z_ENDSTOP_CALIBRATE"),
-         &MoonrakerClientMock::gcode_probe_calibrate, 0},
-        {has("TESTZ"), &MoonrakerClientMock::gcode_testz, 0},
-        {is_command("ACCEPT"), &MoonrakerClientMock::gcode_accept, 0},
-        {is_command("ABORT"), &MoonrakerClientMock::gcode_abort, 0},
-        {[](const MoonrakerClientMock&, const std::string& g) {
-             return has_token(g, "EXCLUDE_OBJECT") && !has_token(g, "EXCLUDE_OBJECT_DEFINE") &&
-                    !has_token(g, "EXCLUDE_OBJECT_START") && !has_token(g, "EXCLUDE_OBJECT_END");
-         },
-         &MoonrakerClientMock::gcode_exclude_object, 0},
-        {has("EXCLUDE_OBJECT_DEFINE"), &MoonrakerClientMock::gcode_exclude_object_define, 0},
-        {has("SET_LED_EFFECT"), &MoonrakerClientMock::gcode_set_led_effect, 0},
-        {has("STOP_LED_EFFECTS"), &MoonrakerClientMock::gcode_stop_led_effects, 0},
-        {has("QUAD_GANTRY_LEVEL"),
-         [](MoonrakerClientMock&, const std::string&) -> GcodeResult {
-             spdlog::warn("[MoonrakerClientMock] STUB: QUAD_GANTRY_LEVEL NOT IMPLEMENTED");
-             return std::nullopt;
-         },
-         6},
-        {has("Z_TILT_ADJUST"),
-         [](MoonrakerClientMock&, const std::string&) -> GcodeResult {
-             spdlog::warn("[MoonrakerClientMock] STUB: Z_TILT_ADJUST NOT IMPLEMENTED");
-             return std::nullopt;
-         },
-         6},
-        {[](const MoonrakerClientMock&, const std::string& g) {
-             return has_token(g, "PROBE") && !has_token(g, "BED_MESH") &&
-                    !has_token(g, "PROBE_CALIBRATE");
-         },
-         [](MoonrakerClientMock&, const std::string&) -> GcodeResult {
-             spdlog::warn("[MoonrakerClientMock] STUB: PROBE command not fully implemented");
-             return std::nullopt;
-         },
-         0},
-    };
-    return rules;
-}
-
+// Order is behaviour. Matching is by substring, not by command name, so one
+// line can reach several handlers (SET_LED_EFFECT also matches SET_LED) and an
+// earlier handler can end the script first (M117 returns before G28/M84 can see
+// its message text). The vendor handlers come first because they match the
+// command token exactly and must claim bare words such as OPEN and T<n> before
+// the substring checks can.
 int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
     spdlog::trace("[MoonrakerClientMock] Mock gcode_script: {}", raw_gcode);
 
@@ -1139,8 +983,8 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
     record_gcode_script(raw_gcode);
 
     // Normalize the command token only (see normalize_gcode_command_case above).
-    // Every rule below sees this copy.
-    const std::string gcode = normalize_gcode_command_case(raw_gcode);
+    // Every check below sees this copy.
+    const std::string g = normalize_gcode_command_case(raw_gcode);
 
     // Clear previous error at start
     {
@@ -1148,20 +992,179 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
         last_gcode_error_.clear();
     }
 
-    int finished_chain = 0;
-    for (const GcodeRule& rule : gcode_rules()) {
-        if (rule.chain != 0 && rule.chain == finished_chain) {
-            continue;
-        }
-        if (!rule.match(*this, gcode)) {
-            continue;
-        }
-        if (rule.chain != 0) {
-            finished_chain = rule.chain;
-        }
-        if (const GcodeResult done = rule.run(*this, gcode)) {
-            return *done;
-        }
+    // A handler that returns a code ends the script; nullopt lets the checks
+    // after it see the same line.
+    GcodeResult r;
+
+    if (is_mock_ifs_module() && (r = gcode_ifs_module(g))) {
+        return *r;
+    }
+    if (is_mock_medusahc() && (r = gcode_medusa(g))) {
+        return *r;
+    }
+    if (printer_type_ == PrinterType::FLASHFORGE_CREATOR5_ZMOD && (r = gcode_zmod(g))) {
+        return *r;
+    }
+    if (is_mock_cfs() && (r = gcode_cfs(g))) {
+        return *r;
+    }
+    if ((r = gcode_u1_feeding(g))) {
+        return *r;
+    }
+
+    // Heater and pin targets: the first match wins.
+    if (has_token(g, "SET_HEATER_TEMPERATURE")) {
+        r = gcode_heater_temperature(g);
+    } else if (has_token(g, "SET_TEMPERATURE_FAN_TARGET")) {
+        r = gcode_temperature_fan_target(g);
+    } else if (has_token(g, "PANDA_BREATH_DRY_START")) {
+        r = gcode_panda_dry_start(g);
+    } else if (has_token(g, "PANDA_BREATH_DRY_STOP")) {
+        r = gcode_panda_dry_stop(g);
+    } else if (has_token(g, "SET_PIN")) {
+        r = gcode_set_pin(g);
+    } else if (has_token(g, "M104") || has_token(g, "M109")) {
+        r = gcode_extruder_target_mcode(g);
+    } else if (has_token(g, "M140") || has_token(g, "M190")) {
+        r = gcode_bed_target_mcode(g);
+    }
+    if (r) {
+        return *r;
+    }
+
+    if (is_command(g, "M117") && (r = gcode_display_message(g))) {
+        return *r;
+    }
+    if (has_token(g, "SAVE_GCODE_STATE")) {
+        gcode_save_gcode_state(g);
+    }
+    if (has_token(g, "G90")) {
+        gcode_absolute_mode(g);
+    } else if (has_token(g, "G91")) {
+        gcode_relative_mode(g);
+    }
+    if (has_token(g, "M84") || has_token(g, "M18")) {
+        gcode_disable_motors(g);
+    }
+    if (has_token(g, "G28")) {
+        gcode_home(g);
+    }
+    if (has_token(g, "G0") || has_token(g, "G1")) {
+        gcode_move(g);
+    }
+    if (has_token(g, "RESTORE_GCODE_STATE")) {
+        gcode_restore_gcode_state(g);
+    }
+    if (g.length() >= 2 && g[0] == 'T' && std::isdigit(g[1])) {
+        gcode_tool_change(g);
+    }
+
+    if (has_token(g, "SDCARD_PRINT_FILE")) {
+        gcode_sdcard_print_file(g);
+    } else if (is_command(g, "PAUSE")) {
+        gcode_pause(g);
+    } else if (is_command(g, "RESUME")) {
+        gcode_resume(g);
+    } else if (is_command(g, "CANCEL_PRINT")) {
+        gcode_cancel_print(g);
+    } else if (has_token(g, "M112")) {
+        gcode_emergency_stop(g);
+    }
+
+    if (has_token(g, "M106")) {
+        gcode_fan_m106(g);
+    } else if (has_token(g, "M107")) {
+        gcode_fan_m107(g);
+    } else if (has_token(g, "SET_FAN_SPEED")) {
+        gcode_set_fan_speed(g);
+    }
+
+    if (has_token(g, "G92") && has_token(g, "E")) {
+        spdlog::warn("[MoonrakerClientMock] STUB: G92 E (set extruder position) NOT IMPLEMENTED");
+    }
+    if ((has_token(g, "G0") || has_token(g, "G1")) && has_token(g, "E")) {
+        spdlog::debug("[MoonrakerClientMock] Note: Extrusion (E parameter) ignored in G0/G1");
+    }
+
+    if (has_token(g, "PID_CALIBRATE") && (r = gcode_pid_calibrate(g))) {
+        return *r;
+    }
+    if (has_token(g, "MPC_CALIBRATE") && (r = gcode_mpc_calibrate(g))) {
+        return *r;
+    }
+    if (has_token(g, "SAVE_CONFIG") && (r = gcode_save_config(g))) {
+        return *r;
+    }
+    // Takes any line: a forced mesh calibration matches on its own text.
+    gcode_bed_mesh(g);
+    if (has_token(g, "SET_GCODE_OFFSET")) {
+        gcode_set_gcode_offset(g);
+    }
+    if (has_token(g, "SET_TOOL_PARAMETER")) {
+        gcode_set_tool_parameter(g);
+    }
+    if (has_token(g, "SAVE_TOOL_PARAMETER")) {
+        gcode_save_tool_parameter(g);
+    }
+    if (has_token(g, "SHAPER_CALIBRATE")) {
+        gcode_shaper_calibrate(g);
+    }
+    if (has_token(g, "TEST_RESONANCES")) {
+        gcode_test_resonances(g);
+    }
+    if (has_token(g, "SET_INPUT_SHAPER")) {
+        spdlog::info("[MoonrakerClientMock] SET_INPUT_SHAPER: {}", g);
+    }
+    if (has_token(g, "MEASURE_AXES_NOISE")) {
+        spdlog::info("[MoonrakerClientMock] MEASURE_AXES_NOISE");
+        dispatch_measure_axes_noise_response();
+    }
+    if (has_token(g, "SET_PRESSURE_ADVANCE")) {
+        spdlog::warn("[MoonrakerClientMock] STUB: SET_PRESSURE_ADVANCE NOT IMPLEMENTED");
+    }
+    if (has_token(g, "SET_LED")) {
+        gcode_set_led(g);
+    }
+
+    if (has_token(g, "FIRMWARE_RESTART")) {
+        trigger_restart(/*is_firmware=*/true);
+    } else if (has_token(g, "RESTART") && !has_token(g, "FIRMWARE")) {
+        trigger_restart(/*is_firmware=*/false);
+    }
+
+    if (has_token(g, "PROBE_CALIBRATE") || has_token(g, "Z_ENDSTOP_CALIBRATE")) {
+        gcode_probe_calibrate(g);
+    }
+    if (has_token(g, "TESTZ") && (r = gcode_testz(g))) {
+        return *r;
+    }
+    if (is_command(g, "ACCEPT")) {
+        gcode_accept(g);
+    }
+    if (is_command(g, "ABORT")) {
+        gcode_abort(g);
+    }
+    if (has_token(g, "EXCLUDE_OBJECT") && !has_token(g, "EXCLUDE_OBJECT_DEFINE") &&
+        !has_token(g, "EXCLUDE_OBJECT_START") && !has_token(g, "EXCLUDE_OBJECT_END")) {
+        gcode_exclude_object(g);
+    }
+    if (has_token(g, "EXCLUDE_OBJECT_DEFINE")) {
+        gcode_exclude_object_define(g);
+    }
+    if (has_token(g, "SET_LED_EFFECT")) {
+        gcode_set_led_effect(g);
+    }
+    if (has_token(g, "STOP_LED_EFFECTS")) {
+        gcode_stop_led_effects(g);
+    }
+
+    if (has_token(g, "QUAD_GANTRY_LEVEL")) {
+        spdlog::warn("[MoonrakerClientMock] STUB: QUAD_GANTRY_LEVEL NOT IMPLEMENTED");
+    } else if (has_token(g, "Z_TILT_ADJUST")) {
+        spdlog::warn("[MoonrakerClientMock] STUB: Z_TILT_ADJUST NOT IMPLEMENTED");
+    }
+    if (has_token(g, "PROBE") && !has_token(g, "BED_MESH") && !has_token(g, "PROBE_CALIBRATE")) {
+        spdlog::warn("[MoonrakerClientMock] STUB: PROBE command not fully implemented");
     }
 
     // Return error code if any error occurred (like real Moonraker)

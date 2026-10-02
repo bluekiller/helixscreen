@@ -2126,18 +2126,10 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     /// Apply one BOX_CUSTOM_COMMAND. @return true when CMD= was one of ours.
     bool apply_cfs_box_custom_command(const std::string& gcode);
 
-    // --- gcode_script() rule table (moonraker_client_mock_gcode*.cpp) ---------
+    // --- gcode_script() handlers (moonraker_client_mock_gcode*.cpp) -----------
     // One handler per command family. A handler returns a code to end the
-    // script, or std::nullopt to let the remaining rules see the same line.
+    // script, or std::nullopt to let the checks after it see the same line.
     using GcodeResult = std::optional<int>;
-    /// First match wins within a nonzero @c chain id (an else-if ladder); every
-    /// other rule is independent and runs whenever it matches.
-    struct GcodeRule {
-        std::function<bool(const MoonrakerClientMock&, const std::string&)> match;
-        std::function<GcodeResult(MoonrakerClientMock&, const std::string&)> run;
-        int chain;
-    };
-    static const std::vector<GcodeRule>& gcode_rules();
     GcodeResult gcode_ifs_module(const std::string& gcode);
     GcodeResult gcode_medusa(const std::string& gcode);
     GcodeResult gcode_zmod(const std::string& gcode);
