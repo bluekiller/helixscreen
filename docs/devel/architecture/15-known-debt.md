@@ -42,7 +42,7 @@ flowchart TD
 | [`src/ui/panel_widgets/led_widget.cpp`](../../../src/ui/panel_widgets/led_widget.cpp) | The other twin: `bind_led()` (`src/ui/panel_widgets/led_widget.cpp#bind_led`) with the same workaround solved independently |
 | [`ui_xml/components/panel_widget_network.xml`](../../../ui_xml/components/panel_widget_network.xml) | Duplication example: six state-mapped icons, five hidden at any moment, starting at `ui_xml/components/panel_widget_network.xml#net_disconnected` |
 | [`ui_xml/settings_hardware_overlay.xml`](../../../ui_xml/settings_hardware_overlay.xml) | Duplication example: four capability-gated wrapper rows, starting at `ui_xml/settings_hardware_overlay.xml#container_fan_settings` |
-| [`src/ui/ui_wizard_connection.cpp`](../../../src/ui/ui_wizard_connection.cpp) | First-project target: three find-then-wire event registrations in `src/ui/ui_wizard_connection.cpp#WizardConnectionStep::create` |
+| [`src/ui/ui_wizard_connection.cpp`](../../../src/ui/ui_wizard_connection.cpp) | First-project target: three find-then-wire event registrations in `src/ui/ui_wizard_connection.cpp#create` |
 | [`src/ui/ui_temperature_utils.cpp`](../../../src/ui/ui_temperature_utils.cpp) | The consolidation exemplar: `format_temperature_pair()` (`src/ui/ui_temperature_utils.cpp#format_temperature_pair`) |
 | [`01-declarative-ui.md`](01-declarative-ui.md) | The rules this ledger is measured against; the ratchet gotcha lives there too |
 
@@ -78,7 +78,7 @@ The worst files: [`src/ui/ui_overlay_network_settings.cpp`](../../../src/ui/ui_o
 
 Why the sites exist: most predate the gate, written when the XML engine could not yet express what was needed — `<if>`, `<repeat>`, `<subject_expr>` and the word-form `cond` operators all shipped after chunks of this UI were built. Those were deliberate pragmatism at the time. Others are plain mistakes that got through review before the gate existed. Both are debt. **None of it is precedent**: do not imitate a nearby imperative site just because it is there, and do not port one opportunistically inside an unrelated change — the ratchet falls through dedicated, reviewable port commits.
 
-A port looks like this. Today, [`src/ui/ui_wizard_connection.cpp#WizardConnectionStep::create`](../../../src/ui/ui_wizard_connection.cpp) wires the test button by hand:
+A port looks like this. Today, [`src/ui/ui_wizard_connection.cpp#create`](../../../src/ui/ui_wizard_connection.cpp) wires the test button by hand:
 
 ```cpp
 lv_obj_t* test_btn = lv_obj_find_by_name(screen_root_, "btn_test_connection");
@@ -251,7 +251,7 @@ The gate does not merely tolerate these cases — it excludes them structurally,
 | `LV_EVENT_DELETE` cleanup, draw hooks (`DRAW_MAIN`/`DRAW_POST`), `SIZE_CHANGED`, gestures/scroll | No declarative equivalent exists |
 | **Measured layout and computed fonts** — `decide_nozzle_layout()` ([`src/ui/panel_widgets/nozzle_layout.h#decide_nozzle_layout`](../../../src/ui/panel_widgets/nozzle_layout.h#L31)), breakpoint fonts | Depends on runtime pixel measurement |
 | Widgets created in C++ (`lv_*_create`) — canvas, procedural rendering, gcode viewer | Never had an XML layer |
-| **Per-item payload on generated collections** | `lv_obj_set_user_data()` on a `ui_button` overwrites the `UiButtonData*` it owns ([`src/ui/panel_widgets/heater_temp_widget.cpp#HeaterTempWidget::attach`](../../../src/ui/panel_widgets/heater_temp_widget.cpp) warns at the site) |
+| **Per-item payload on generated collections** | `lv_obj_set_user_data()` on a `ui_button` overwrites the `UiButtonData*` it owns ([`src/ui/ui_button.cpp#UiButtonData`](../../../src/ui/ui_button.cpp#L39) documents the hazard) |
 | `helix-screen ctl` remote control ([`src/remote/remote_control_server.cpp`](../../../src/remote/remote_control_server.cpp)) | Its job is reaching into an arbitrary live widget tree on command |
 | CLI stdout ([`src/system/cli_args.cpp`](../../../src/system/cli_args.cpp), [`src/application/detect_printer_cmd.cpp`](../../../src/application/detect_printer_cmd.cpp), [`src/helix_splash.cpp`](../../../src/helix_splash.cpp)) | stdout *is* the product there; spdlog is for logging |
 | Widget pool recycling, chart data, animations | Churn or per-frame data a subject would not model |
@@ -262,7 +262,7 @@ When you genuinely hit a site that cannot be declarative and fits none of these 
 
 Each entry verified against the tree at this audit; counts regenerate with `python3 scripts/check_imperative_ui.py --list`.
 
-1. **Port the connection wizard step's event block** — [`src/ui/ui_wizard_connection.cpp#WizardConnectionStep::create`](../../../src/ui/ui_wizard_connection.cpp) holds three `lv_obj_find_by_name()` + `lv_obj_add_event_cb()` pairs. Each becomes `<event_cb trigger="..." callback="..."/>` in [`ui_xml/wizard_connection.xml`](../../../ui_xml/wizard_connection.xml) plus one registration (see the worked sketch above). Good first project because it is one self-contained wizard step (no print-state risk), purely mechanical, and exercises rule 1 end to end.
+1. **Port the connection wizard step's event block** — [`src/ui/ui_wizard_connection.cpp#create`](../../../src/ui/ui_wizard_connection.cpp) holds three `lv_obj_find_by_name()` + `lv_obj_add_event_cb()` pairs. Each becomes `<event_cb trigger="..." callback="..."/>` in [`ui_xml/wizard_connection.xml`](../../../ui_xml/wizard_connection.xml) plus one registration (see the worked sketch above). Good first project because it is one self-contained wizard step (no print-state risk), purely mechanical, and exercises rule 1 end to end.
 2. **Port the network settings overlay** — [`src/ui/ui_overlay_network_settings.cpp`](../../../src/ui/ui_overlay_network_settings.cpp) is the single worst file (19 sites: 9 text, 10 visibility, clustered around `src/ui/ui_overlay_network_settings.cpp#populate_network_list` and the block below it, and around `src/ui/ui_overlay_network_settings.cpp#handle_hidden_connect_clicked` and the block below it). Every binding is `bind_text` or `<bind_flag_if_eq>` — the cheapest vocabulary. Good because one overlay owns the whole change and the ratchet drops by 19 when it lands.
 3. **Port the filament picker family** — the five `ui_filament_*` files (44 sites) share one mold; porting them in sequence is the same learning applied five times, and each file is small (the largest, the modal, is 366 lines). Good because it converts a *family* of duplicates into one declarative pattern, addressing both ledgers at once — the imperative count and the sibling-file duplication.
 4. **Build `state_icon`** — the prop-based variant from [`SLOT_COMPONENT_DESIGNS.md`](../SLOT_COMPONENT_DESIGNS.md) (comma-separated `icons`/`variants` lists, built as a C++ custom widget) collapses the six network icons and every future state-mapped icon row. Good because the design work is already done and measured; it only needs building.
@@ -298,12 +298,12 @@ Read in this order; about 25 minutes total.
 
 1. [`scripts/check_imperative_ui.py`](../../../scripts/check_imperative_ui.py) — the header comment: what is flagged, what is structurally exempt, and the ratchet philosophy. The whole chapter in 40 lines.
 2. [`scripts/quality-checks.sh#qc_decl_ui`](../../../scripts/quality-checks.sh#L1668) — where the baseline 367 is enforced and how a port ratchets it down.
-3. [`src/ui/ui_wizard_connection.cpp#WizardConnectionStep::create`](../../../src/ui/ui_wizard_connection.cpp) — the archetype of the event sites: find by name, add callback, null-check each. First project #1 is this block.
+3. [`src/ui/ui_wizard_connection.cpp#create`](../../../src/ui/ui_wizard_connection.cpp) — the archetype of the event sites: find by name, add callback, null-check each. First project #1 is this block.
 4. [`ui_xml/wizard_connection.xml#btn_test_connection`](../../../ui_xml/wizard_connection.xml) — the same button from the XML side, callback-less today; picture the `<event_cb>` the port adds.
 5. [`src/ui/ui_overlay_network_settings.cpp#populate_network_list`](../../../src/ui/ui_overlay_network_settings.cpp#L701) — the text/visibility archetype (three sites within ten lines); first project #2 starts here.
 6. [`src/ui/panel_widgets/fan_stack_widget.cpp#bind_fan_observer`](../../../src/ui/panel_widgets/fan_stack_widget.cpp#L823) — `bind_fan_observer()`: the manual subject read that works around the deferred initial fire under populate's freeze.
 7. [`src/ui/panel_widgets/led_widget.cpp#attach`](../../../src/ui/panel_widgets/led_widget.cpp#L75) — the twin: same problem, same workaround, separately evolved. Then `src/ui/panel_widgets/led_widget.cpp#bind_led` for `bind_led()` itself.
 8. [`ui_xml/components/panel_widget_network.xml#net_disconnected`](../../../ui_xml/components/panel_widget_network.xml#L11) — the six state-mapped icons; count the attributes that differ (three).
 9. [`ui_xml/settings_hardware_overlay.xml#container_fan_settings`](../../../ui_xml/settings_hardware_overlay.xml#L62) — the four wrapper rows; note each is reactive gating, which is why this is duplication but not a bug.
-10. [`src/ui/panel_widgets/heater_temp_widget.cpp#HeaterTempWidget::attach`](../../../src/ui/panel_widgets/heater_temp_widget.cpp) — the in-code warning that documents the `user_data` toleration row better than any doc could.
+10. [`src/ui/ui_button.cpp#UiButtonData`](../../../src/ui/ui_button.cpp#L39) — the in-code note that documents the `user_data` toleration row better than any doc could.
 11. [`src/ui/ui_temperature_utils.cpp#format_temperature_pair`](../../../src/ui/ui_temperature_utils.cpp#L61) — `format_temperature_pair()`: what consolidation done right looks like, and the endpoint of first project #3's pattern.
