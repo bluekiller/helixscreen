@@ -241,7 +241,7 @@ void MoonrakerHistoryAPI::delete_history_job(const std::string& job_id, SuccessC
 
     client_.send_jsonrpc(
         "server.history.delete_job", params,
-        [on_success, job_id](json /*response*/) {
+        [on_success, job_id](const json& /*response*/) {
             spdlog::info("[HistoryAPI] Deleted history job: {}", job_id);
             if (on_success) {
                 on_success();

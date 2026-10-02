@@ -240,7 +240,7 @@ void MoonrakerSpoolmanAPI::set_active_spool(int spool_id, SuccessCallback on_suc
 
     client_.send_jsonrpc(
         "server.spoolman.post_spool_id", params,
-        [on_success, spool_id](json /*response*/) {
+        [on_success, spool_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Active spool set to {}", spool_id);
             if (on_success) {
                 on_success();
@@ -275,7 +275,7 @@ void MoonrakerSpoolmanAPI::update_spoolman_spool_weight(int spool_id, double rem
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, spool_id](json /*response*/) {
+        [on_success, spool_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Spool {} weight updated successfully", spool_id);
             if (on_success) {
                 on_success();
@@ -296,7 +296,7 @@ void MoonrakerSpoolmanAPI::update_spoolman_spool(int spool_id, const nlohmann::j
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, spool_id](json /*response*/) {
+        [on_success, spool_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Spool {} updated successfully", spool_id);
             if (on_success) {
                 on_success();
@@ -319,7 +319,7 @@ void MoonrakerSpoolmanAPI::update_spoolman_filament(int filament_id,
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, filament_id](json /*response*/) {
+        [on_success, filament_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Filament {} updated successfully", filament_id);
             if (on_success) {
                 on_success();
@@ -344,7 +344,7 @@ void MoonrakerSpoolmanAPI::update_spoolman_filament_color(int filament_id,
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, filament_id, color_hex](json /*response*/) {
+        [on_success, filament_id, color_hex](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Filament {} color updated to {}", filament_id, color_hex);
             if (on_success) {
                 on_success();
@@ -516,7 +516,7 @@ void MoonrakerSpoolmanAPI::delete_spoolman_spool(int spool_id, SuccessCallback o
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, spool_id](json /*response*/) {
+        [on_success, spool_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Spool {} deleted successfully", spool_id);
             if (on_success) {
                 on_success();
@@ -628,7 +628,7 @@ void MoonrakerSpoolmanAPI::delete_spoolman_vendor(int vendor_id, SuccessCallback
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, vendor_id](json /*response*/) {
+        [on_success, vendor_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Vendor {} deleted successfully", vendor_id);
             if (on_success) {
                 on_success();
@@ -647,7 +647,7 @@ void MoonrakerSpoolmanAPI::delete_spoolman_filament(int filament_id, SuccessCall
 
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
-        [on_success, filament_id](json /*response*/) {
+        [on_success, filament_id](const json& /*response*/) {
             spdlog::debug("[SpoolmanAPI] Filament {} deleted successfully", filament_id);
             if (on_success) {
                 on_success();

@@ -703,7 +703,7 @@ void ScrewsTiltPanel::query_screw_thread() {
     json params = {{"objects", json::object({{"configfile", {"settings"}}})}};
 
     auto token = lifetime_.token();
-    client_->send_jsonrpc("printer.objects.query", params, [this, token](json response) {
+    client_->send_jsonrpc("printer.objects.query", params, [this, token](const json& response) {
         // L081 Mechanism C: hop to the main thread before touching members.
         token.defer("ScrewsTilt::screw_thread", [this, response = std::move(response)]() {
             if (cleanup_called()) {
