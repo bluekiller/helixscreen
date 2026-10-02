@@ -119,26 +119,26 @@ void AbortManager::start_abort() {
         last_result_message_.clear();
     }
 
-    // Detect Kalico from printer.info "app" field (set during discovery)
-    // This avoids sending HEATER_INTERRUPT as a probe, which errors on vanilla Klipper
-    // and clutters the user's console (prestonbrown/helixscreen#685)
-    if (kalico_status_ == KalicoStatus::UNKNOWN && printer_state_) {
-        bool kalico = printer_state_->get_capability_overrides().is_kalico();
-        kalico_status_ = kalico ? KalicoStatus::DETECTED : KalicoStatus::NOT_PRESENT;
-        spdlog::info("[AbortManager] Kalico detection from printer.info: {}",
-                     kalico ? "DETECTED" : "NOT_PRESENT");
+    // Ask the capability instead of probing: sending HEATER_INTERRUPT to firmware without it
+    // errors and clutters the user's console (prestonbrown/helixscreen#685)
+    if (heater_interrupt_support_ == HeaterInterruptSupport::UNKNOWN && printer_state_) {
+        bool supported = printer_state_->get_capability_overrides().supports_heater_interrupt();
+        heater_interrupt_support_ =
+            supported ? HeaterInterruptSupport::SUPPORTED : HeaterInterruptSupport::UNSUPPORTED;
+        spdlog::info("[AbortManager] HEATER_INTERRUPT support from discovery: {}",
+                     supported ? "SUPPORTED" : "UNSUPPORTED");
     }
 
-    // Decide starting state based on Kalico status
-    if (kalico_status_ == KalicoStatus::DETECTED) {
-        // Kalico present - send HEATER_INTERRUPT as a soft interrupt (helps with M109 waits)
-        spdlog::debug("[AbortManager] Kalico detected, sending HEATER_INTERRUPT");
+    // Decide starting state based on HEATER_INTERRUPT support
+    if (heater_interrupt_support_ == HeaterInterruptSupport::SUPPORTED) {
+        // Supported - send HEATER_INTERRUPT as a soft interrupt (helps with M109 waits)
+        spdlog::debug("[AbortManager] HEATER_INTERRUPT supported, sending it");
         set_state(State::TRY_HEATER_INTERRUPT);
         set_progress_message("Stopping print...");
         try_heater_interrupt();
     } else {
-        // Not Kalico or unknown - skip HEATER_INTERRUPT, go directly to PROBE_QUEUE
-        spdlog::debug("[AbortManager] Kalico not present, skipping to PROBE_QUEUE");
+        // Unsupported or unknown - skip HEATER_INTERRUPT, go directly to PROBE_QUEUE
+        spdlog::debug("[AbortManager] HEATER_INTERRUPT unsupported, skipping to PROBE_QUEUE");
         set_state(State::PROBE_QUEUE);
         set_progress_message("Stopping print...");
         start_probe();
@@ -169,8 +169,8 @@ AbortManager::State AbortManager::get_state() const {
     return abort_state_.load();
 }
 
-AbortManager::KalicoStatus AbortManager::get_kalico_status() const {
-    return kalico_status_.load();
+AbortManager::HeaterInterruptSupport AbortManager::get_heater_interrupt_support() const {
+    return heater_interrupt_support_.load();
 }
 
 std::string AbortManager::get_state_name() const {
@@ -242,10 +242,10 @@ void AbortManager::try_heater_interrupt() {
 
     // Send HEATER_INTERRUPT G-code.
     // ERROR_OWNERSHIP_OK: the error advances the abort state machine; "Unknown
-    // command" from a non-Kalico printer is expected and must stay quiet.
+    // command" from a printer without it is expected and must stay quiet.
     api_->execute_gcode(
         "HEATER_INTERRUPT",
-        // Success - Kalico detected
+        // Success - HEATER_INTERRUPT supported
         lifetime_.bg_cb("AbortManager::heater_interrupt_ok",
                         [this]() { on_heater_interrupt_success(); }),
         // Error - likely "Unknown command"
@@ -493,8 +493,8 @@ void AbortManager::on_heater_interrupt_success() {
     // Cancel timeout timer
     heater_interrupt_timer_.reset();
 
-    spdlog::info("[AbortManager] Kalico detected (HEATER_INTERRUPT succeeded)");
-    kalico_status_ = KalicoStatus::DETECTED;
+    spdlog::info("[AbortManager] HEATER_INTERRUPT supported (command succeeded)");
+    heater_interrupt_support_ = HeaterInterruptSupport::SUPPORTED;
 
     // Proceed to PROBE_QUEUE
     set_state(State::PROBE_QUEUE);
@@ -510,8 +510,8 @@ void AbortManager::on_heater_interrupt_error() {
     // Cancel timeout timer
     heater_interrupt_timer_.reset();
 
-    spdlog::info("[AbortManager] Kalico NOT present (HEATER_INTERRUPT failed)");
-    kalico_status_ = KalicoStatus::NOT_PRESENT;
+    spdlog::info("[AbortManager] HEATER_INTERRUPT unsupported (command failed)");
+    heater_interrupt_support_ = HeaterInterruptSupport::UNSUPPORTED;
 
     // Proceed to PROBE_QUEUE
     set_state(State::PROBE_QUEUE);
@@ -526,8 +526,8 @@ void AbortManager::on_heater_interrupt_timeout() {
 
     heater_interrupt_timer_.release(); // One-shot already auto-deleted by LVGL
 
-    spdlog::warn("[AbortManager] HEATER_INTERRUPT timed out, treating as not-Kalico");
-    kalico_status_ = KalicoStatus::NOT_PRESENT;
+    spdlog::warn("[AbortManager] HEATER_INTERRUPT timed out, treating as unsupported");
+    heater_interrupt_support_ = HeaterInterruptSupport::UNSUPPORTED;
 
     // Proceed to PROBE_QUEUE
     set_state(State::PROBE_QUEUE);

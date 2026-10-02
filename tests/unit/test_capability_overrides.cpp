@@ -299,3 +299,17 @@ TEST_CASE("CapabilityOverrides - copy semantics", "[printer][overrides]") {
         REQUIRE(copy.get_override(capability::QGL) == OverrideState::DISABLE);
     }
 }
+
+TEST_CASE("CapabilityOverrides - heater interrupt support", "[printer][overrides]") {
+    CapabilityOverrides overrides;
+    // No hardware yet: nothing is supported.
+    REQUIRE_FALSE(overrides.supports_heater_interrupt());
+
+    helix::PrinterDiscovery hardware;
+    overrides.set_hardware(hardware);
+    REQUIRE_FALSE(overrides.supports_heater_interrupt());
+
+    hardware.set_is_kalico(true);
+    overrides.set_hardware(hardware);
+    REQUIRE(overrides.supports_heater_interrupt());
+}

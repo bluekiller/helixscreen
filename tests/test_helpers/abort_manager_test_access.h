@@ -19,7 +19,7 @@ class AbortManagerTestAccess {
     static void reset(AbortManager& m) {
         reset_state(m);
         m.lifetime_.invalidate();
-        m.kalico_status_ = AbortManager::KalicoStatus::UNKNOWN;
+        m.heater_interrupt_support_ = AbortManager::HeaterInterruptSupport::UNKNOWN;
         m.commands_sent_ = 0;
         m.api_ = nullptr;
         m.printer_state_ = nullptr;
@@ -94,8 +94,9 @@ class AbortManagerTestAccess {
         m.on_klippy_state_changed(state);
     }
 
-    static void set_kalico_status(AbortManager& m, AbortManager::KalicoStatus status) {
-        m.kalico_status_ = status;
+    static void set_heater_interrupt_support(AbortManager& m,
+                                             AbortManager::HeaterInterruptSupport status) {
+        m.heater_interrupt_support_ = status;
     }
 
     // The backdrop modal is created lazily by update_visibility() on the first

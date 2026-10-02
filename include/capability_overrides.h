@@ -190,6 +190,15 @@ class CapabilityOverrides {
     }
 
     /**
+     * @brief Whether the firmware accepts the HEATER_INTERRUPT gcode command
+     *
+     * Today only Kalico registers it; this is the one place that mapping lives.
+     */
+    [[nodiscard]] bool supports_heater_interrupt() const {
+        return is_kalico();
+    }
+
+    /**
      * @brief Save current overrides to settings.json
      *
      * Persists in-memory override changes to disk.
