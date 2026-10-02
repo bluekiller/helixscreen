@@ -30,6 +30,7 @@
 #include "printer_detector.h"
 #include "printer_state.h" // get_print_lifecycle_subject: the insert-probe gate
 #include "settings_manager.h"
+#include "text_io.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -1176,17 +1177,6 @@ static std::string build_cfs_slot_uid(const nlohmann::json& unit_json, int local
     if (mat.empty() && color.empty())
         return "";
     return mat + "|" + color;
-}
-
-// ASCII uppercase, the transform slot_set_gcode applies to MATERIAL before the
-// fork's cmd_slot_set sees it. The fork writeback guard composes its expected
-// echo with the same function, so the spelling the box reports and the
-// spelling we expect cannot drift apart.
-static std::string ascii_uppercase(std::string s) {
-    for (char& c : s) {
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    }
-    return s;
 }
 
 // Join the flat schema's evidence fields into that fingerprint's spelling.
@@ -2348,7 +2338,7 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
             // observation for a slot is always a baseline and never clears.
             if (!slot_material.empty() && rfid_tracker_.baseline(global_index)) {
                 staged_echoes = rfid_tracker_.expect_any_of(
-                    global_index, {compose_cfs_flat_uid(ascii_uppercase(slot_material),
+                    global_index, {compose_cfs_flat_uid(helix::text_io::to_upper(slot_material),
                                                         /*has_color=*/true, color_rgb)});
             }
 
@@ -2361,7 +2351,7 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
                 echo_sequence = own_write_echoes_.stage(global_index, *declared);
                 if (auto* staged = own_write_echoes_.staged(global_index)) {
                     if (staged->material.has_value()) {
-                        staged->material = ascii_uppercase(slot_material);
+                        staged->material = helix::text_io::to_upper(slot_material);
                     }
                     if (staged->spool_name.has_value()) {
                         staged->product_name = std::move(staged->spool_name);
@@ -2987,7 +2977,7 @@ std::string AmsBackendCfs::slot_set_gcode(int global_slot_index, const std::stri
                       global_slot_index);
         return "";
     }
-    std::string upper = ascii_uppercase(material);
+    std::string upper = helix::text_io::to_upper(material);
     char color[10];
     std::snprintf(color, sizeof(color), "#%06X", color_rgb & 0xFFFFFFu);
     return "_BOX_SLOT_SET SLOT=" + std::to_string(global_slot_index) +

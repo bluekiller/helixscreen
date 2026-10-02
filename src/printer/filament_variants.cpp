@@ -216,8 +216,7 @@ std::set<std::string> filled_affixes_of(std::string_view name) {
         }
         if (removed && removed->filled) {
             std::string key(removed->name);
-            std::transform(key.begin(), key.end(), key.begin(),
-                           [](unsigned char c) { return std::toupper(c); });
+            key = helix::text_io::to_upper(key);
             filled.insert(std::move(key));
         }
     }

@@ -12,6 +12,7 @@
 #include "printer_versions_state.h"
 
 #include "state/subject_macros.h"
+#include "text_io.h"
 #include "version.h"
 
 #include <spdlog/spdlog.h>
@@ -48,8 +49,7 @@ std::string display_version(const std::string& version) {
                   trimmed.end());
 
     std::string lowered = trimmed;
-    std::transform(lowered.begin(), lowered.end(), lowered.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    lowered = helix::text_io::to_lower(lowered);
 
     if (trimmed.empty() || trimmed == "?" || lowered == "unknown") {
         return lv_tr("Unknown");

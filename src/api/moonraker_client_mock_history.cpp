@@ -5,6 +5,7 @@
 
 #include "moonraker_client_mock_internal.h"
 #include "runtime_config.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -40,7 +41,7 @@ std::vector<std::string> scan_test_gcode_files() {
 
         // Check for .gcode extension (case insensitive)
         std::string ext = name.substr(name.length() - 6);
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        ext = helix::text_io::to_lower(ext);
         if (ext != ".gcode") {
             continue;
         }

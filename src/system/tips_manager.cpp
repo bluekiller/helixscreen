@@ -265,19 +265,16 @@ std::vector<PrintingTip> TipsManager::search_by_keyword(const std::string& keywo
 
     // Convert keyword to lowercase for case-insensitive search
     std::string keyword_lower = keyword;
-    std::transform(keyword_lower.begin(), keyword_lower.end(), keyword_lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    keyword_lower = helix::text_io::to_lower(keyword_lower);
 
     for (const auto& tip : tips_cache) {
         // Search in title
         std::string title_lower = tip.title;
-        std::transform(title_lower.begin(), title_lower.end(), title_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        title_lower = helix::text_io::to_lower(title_lower);
 
         // Search in content
         std::string content_lower = tip.content;
-        std::transform(content_lower.begin(), content_lower.end(), content_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        content_lower = helix::text_io::to_lower(content_lower);
 
         // Check title, content, and tags
         bool found = false;
@@ -289,8 +286,7 @@ std::vector<PrintingTip> TipsManager::search_by_keyword(const std::string& keywo
             // Search in tags
             for (const auto& tag : tip.tags) {
                 std::string tag_lower = tag;
-                std::transform(tag_lower.begin(), tag_lower.end(), tag_lower.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
+                tag_lower = helix::text_io::to_lower(tag_lower);
                 if (tag_lower.find(keyword_lower) != std::string::npos) {
                     found = true;
                     break;
@@ -326,14 +322,12 @@ std::vector<PrintingTip> TipsManager::get_tips_by_tag(const std::string& tag) {
 
     // Convert tag to lowercase for case-insensitive comparison
     std::string tag_lower = tag;
-    std::transform(tag_lower.begin(), tag_lower.end(), tag_lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    tag_lower = helix::text_io::to_lower(tag_lower);
 
     for (const auto& tip : tips_cache) {
         for (const auto& tip_tag : tip.tags) {
             std::string tip_tag_lower = tip_tag;
-            std::transform(tip_tag_lower.begin(), tip_tag_lower.end(), tip_tag_lower.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
+            tip_tag_lower = helix::text_io::to_lower(tip_tag_lower);
 
             if (tip_tag_lower == tag_lower) {
                 results.push_back(tip);
@@ -351,14 +345,11 @@ std::vector<PrintingTip> TipsManager::get_tips_by_difficulty(const std::string& 
 
     // Convert to lowercase for case-insensitive comparison
     std::string difficulty_lower = difficulty;
-    std::transform(difficulty_lower.begin(), difficulty_lower.end(), difficulty_lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    difficulty_lower = helix::text_io::to_lower(difficulty_lower);
 
     for (const auto& tip : tips_cache) {
         std::string tip_difficulty_lower = tip.difficulty;
-        std::transform(tip_difficulty_lower.begin(), tip_difficulty_lower.end(),
-                       tip_difficulty_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        tip_difficulty_lower = helix::text_io::to_lower(tip_difficulty_lower);
 
         if (tip_difficulty_lower == difficulty_lower) {
             results.push_back(tip);
@@ -374,13 +365,11 @@ std::vector<PrintingTip> TipsManager::get_tips_by_priority(const std::string& pr
 
     // Convert to lowercase for case-insensitive comparison
     std::string priority_lower = priority;
-    std::transform(priority_lower.begin(), priority_lower.end(), priority_lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    priority_lower = helix::text_io::to_lower(priority_lower);
 
     for (const auto& tip : tips_cache) {
         std::string tip_priority_lower = tip.priority;
-        std::transform(tip_priority_lower.begin(), tip_priority_lower.end(),
-                       tip_priority_lower.begin(), [](unsigned char c) { return std::tolower(c); });
+        tip_priority_lower = helix::text_io::to_lower(tip_priority_lower);
 
         if (tip_priority_lower == priority_lower) {
             results.push_back(tip);

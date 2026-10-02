@@ -153,7 +153,7 @@ Data collected at startup:
 | `timestamp` | crash.txt | `"2026-02-12T22:31:58"` |
 | `uptime_sec` | crash.txt | `3600` |
 | `backtrace` | crash.txt | `["0x400abc", "0x400def"]` |
-| `platform` | `UpdateChecker::get_platform_key()` | `"pi4"` |
+| `platform` | `helix::platform::current_key()` | `"pi4"` |
 | `ram_total_mb` | `PlatformCapabilities::detect()` | `4096` |
 | `cpu_cores` | `PlatformCapabilities::detect()` | `4` |
 | `log_tail` | Pre-crash log lines (up to ~500; post-crash lines filtered out) | `"[2026-02-12 ...] ..."` |

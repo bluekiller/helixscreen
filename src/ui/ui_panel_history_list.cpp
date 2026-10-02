@@ -26,6 +26,7 @@
 #include "print_history_manager.h"
 #include "printer_state.h"
 #include "static_panel_registry.h"
+#include "text_io.h"
 #include "thumbnail_cache.h"
 #include "ui/ui_cleanup_helpers.h"
 #include "ui/ui_widget_helpers.h"
@@ -481,8 +482,7 @@ void HistoryListPanel::associate_timelapse_files(const std::vector<FileInfo>& ti
 
         // Skip non-video files
         std::string name_lower = tf.filename;
-        std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        name_lower = helix::text_io::to_lower(name_lower);
         if (name_lower.find(".mp4") == std::string::npos &&
             name_lower.find(".webm") == std::string::npos &&
             name_lower.find(".avi") == std::string::npos) {
@@ -506,14 +506,12 @@ void HistoryListPanel::associate_timelapse_files(const std::vector<FileInfo>& ti
 
         // Convert to lowercase for comparison
         std::string job_base_lower = job_base;
-        std::transform(job_base_lower.begin(), job_base_lower.end(), job_base_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        job_base_lower = helix::text_io::to_lower(job_base_lower);
 
         // Search for a timelapse file that contains this job's base name
         for (const auto& [tf_name, tf_path] : timelapse_map) {
             std::string tf_lower = tf_name;
-            std::transform(tf_lower.begin(), tf_lower.end(), tf_lower.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
+            tf_lower = helix::text_io::to_lower(tf_lower);
 
             if (tf_lower.find(job_base_lower) != std::string::npos) {
                 job.timelapse_filename = tf_path;
@@ -687,16 +685,14 @@ HistoryListPanel::apply_search_filter(const std::vector<PrintHistoryJob>& source
 
     // Case-insensitive search
     std::string query_lower = search_query_;
-    std::transform(query_lower.begin(), query_lower.end(), query_lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    query_lower = helix::text_io::to_lower(query_lower);
 
     std::vector<PrintHistoryJob> result;
     result.reserve(source.size());
 
     for (const auto& job : source) {
         std::string filename_lower = job.filename;
-        std::transform(filename_lower.begin(), filename_lower.end(), filename_lower.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        filename_lower = helix::text_io::to_lower(filename_lower);
 
         if (filename_lower.find(query_lower) != std::string::npos) {
             result.push_back(job);

@@ -15,6 +15,7 @@
 #include "printer_hardware.h"
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
+#include "text_io.h"
 #include "translation_loader.h"
 #include "wizard_config_paths.h"
 
@@ -666,7 +667,7 @@ void HardwareValidator::validate_new_hardware(Config* config,
         std::string suggested;
         for (const auto& led : leds) {
             std::string lower = led;
-            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+            lower = helix::text_io::to_lower(lower);
             if (lower.find("chamber") != std::string::npos ||
                 lower.find("case") != std::string::npos ||
                 lower.find("light") != std::string::npos) {
@@ -789,11 +790,11 @@ bool HardwareValidator::contains_name(const std::vector<std::string>& vec,
                                       const std::string& name) {
     // Case-insensitive comparison
     std::string lower_name = name;
-    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+    lower_name = helix::text_io::to_lower(lower_name);
 
     for (const auto& item : vec) {
         std::string lower_item = item;
-        std::transform(lower_item.begin(), lower_item.end(), lower_item.begin(), ::tolower);
+        lower_item = helix::text_io::to_lower(lower_item);
         if (lower_item == lower_name) {
             return true;
         }
@@ -803,7 +804,7 @@ bool HardwareValidator::contains_name(const std::vector<std::string>& vec,
 
 HardwareType HardwareValidator::guess_hardware_type(const std::string& name) {
     std::string lower = name;
-    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    lower = helix::text_io::to_lower(lower);
 
     if (lower.find("extruder") != std::string::npos ||
         lower.find("heater_bed") != std::string::npos ||

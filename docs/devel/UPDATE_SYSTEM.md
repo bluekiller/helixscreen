@@ -608,7 +608,7 @@ overrides live in the root-owned `/var/lib/helixscreen/update_urls.json` (see
 
 ### Adding a New Platform
 
-1. Add a `HELIX_PLATFORM_*` define and update `get_platform_key()` in `update_checker.cpp`
+1. Add a `HELIX_PLATFORM_*` define and update `current_key()` and add a row in `src/system/platform_table.cpp`
 2. Add the platform to the `PLATFORMS` array in `scripts/generate-manifest.sh`
 3. Add a build job in `.github/workflows/release.yml`
 4. Add a `release-{platform}` target in the Makefile
@@ -782,7 +782,7 @@ Run with:
 
 - The release may not have been built for this platform
 - Check the manifest at `https://releases.helixscreen.org/stable/manifest.json`
-- Verify `get_platform_key()` returns the expected value for the device
+- Verify `helix::platform::current_key()` returns the expected value for the device
 
 ### Wrong Architecture
 

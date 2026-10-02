@@ -42,7 +42,7 @@ struct Paths {
 
 /// What this build is, and what it is driving.
 struct Identity {
-    /// Release-asset key from UpdateChecker::get_platform_key(). One key can
+    /// Release-asset key from helix::platform::current_key(). One key can
     /// serve several filesystem layouts — "mips" is the K1 series and both
     /// AD5X firmware populations — which is what mod_flavor separates.
     std::string platform_key;

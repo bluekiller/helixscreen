@@ -497,9 +497,6 @@ void UpdateChecker::on_language_changed() {}
 void UpdateChecker::clear_cache() {}
 void UpdateChecker::start_download() {}
 void UpdateChecker::cancel_download() {}
-std::string UpdateChecker::get_platform_key() {
-    return std::string("esp32");
-}
 // Firmware updates are flashed whole; there is no tarball to stage.
 std::string UpdateChecker::compute_update_staging_dir(const std::string&, const std::string&) {
     return {};

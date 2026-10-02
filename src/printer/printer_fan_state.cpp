@@ -16,6 +16,7 @@
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "state/subject_macros.h"
+#include "text_io.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -364,7 +365,7 @@ bool PrinterFanState::is_aux_fan(FanType type) {
 
 double PrinterFanState::normalize_speed(const std::string& object_name, double raw_speed) const {
     std::string key = object_name;
-    std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+    key = helix::text_io::to_lower(key);
     auto it = fan_max_power_.find(key);
     double max_power = (it != fan_max_power_.end() && it->second > 0.0) ? it->second : 1.0;
     double normalized = raw_speed / max_power;

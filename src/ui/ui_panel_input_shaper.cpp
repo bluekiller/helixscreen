@@ -26,6 +26,7 @@
 #include "shaper_selection.h"
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
+#include "text_io.h"
 #include "theme_manager.h"
 #include "ui/ui_widget_helpers.h"
 
@@ -1171,9 +1172,7 @@ void InputShaperPanel::populate_current_config(const InputShaperConfig& config) 
 
     if (config.is_configured) {
         // Uppercase X type
-        std::string x_upper = config.shaper_type_x;
-        for (auto& c : x_upper)
-            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        std::string x_upper = helix::text_io::to_upper(config.shaper_type_x);
         snprintf(is_current_x_type_buf_, sizeof(is_current_x_type_buf_), "%s", x_upper.c_str());
         lv_subject_copy_string(&is_current_x_type_, is_current_x_type_buf_);
 
@@ -1183,9 +1182,7 @@ void InputShaperPanel::populate_current_config(const InputShaperConfig& config) 
         lv_subject_copy_string(&is_current_x_freq_, is_current_x_freq_buf_);
 
         // Uppercase Y type
-        std::string y_upper = config.shaper_type_y;
-        for (auto& c : y_upper)
-            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        std::string y_upper = helix::text_io::to_upper(config.shaper_type_y);
         snprintf(is_current_y_type_buf_, sizeof(is_current_y_type_buf_), "%s", y_upper.c_str());
         lv_subject_copy_string(&is_current_y_type_, is_current_y_type_buf_);
 
@@ -1313,10 +1310,7 @@ const char* InputShaperPanel::get_quality_description(float vibrations) {
 void InputShaperPanel::update_axis_display(char axis, const std::string& shaper_type, float freq,
                                            float vibrations, float max_accel) {
     // Uppercase the shaper type for display
-    std::string type_upper = shaper_type;
-    for (auto& c : type_upper)
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-
+    std::string type_upper = helix::text_io::to_upper(shaper_type);
     // Format frequency
     char freq_buf[16];
     helix::format::format_frequency_hz(freq, freq_buf, sizeof(freq_buf));
@@ -1431,9 +1425,7 @@ void InputShaperPanel::populate_axis_result(char axis, const InputShaperResult& 
             const auto& opt = result.all_shapers[i];
 
             // Type with * marker for recommended
-            std::string type_upper = opt.type;
-            for (auto& c : type_upper)
-                c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            std::string type_upper = helix::text_io::to_upper(opt.type);
             if (opt.type == result.shaper_type) {
                 type_upper += " *";
                 lv_subject_set_int(&recommended_row, static_cast<int>(i));
@@ -1674,9 +1666,7 @@ void InputShaperPanel::populate_chart(char axis, const InputShaperResult& result
         const auto& curve = chart_data.shaper_curves[i];
 
         // Set chip label (uppercase name)
-        std::string upper_name = curve.name;
-        for (auto& c : upper_name)
-            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        std::string upper_name = helix::text_io::to_upper(curve.name);
         snprintf(chips[i].label_buf, CHIP_LABEL_BUF, "%s", upper_name.c_str());
         lv_subject_copy_string(&chips[i].label, chips[i].label_buf);
 

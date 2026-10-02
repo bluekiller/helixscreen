@@ -135,8 +135,7 @@ void TemperatureController::ensure_limits(HeaterType type) {
     }
     // configfile.config section headers are lower-cased by Moonraker; lower-case
     // defensively to match regardless of how the discovery name was capitalised.
-    std::transform(section.begin(), section.end(), section.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    section = helix::text_io::to_lower(section);
 
     auto tok = lifetime_.token();
     // Snapshot the backend ceiling before the query: the callback below runs

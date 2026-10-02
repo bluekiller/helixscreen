@@ -1618,10 +1618,7 @@ void AmsBackendHappyHare::apply_tip_method_config(const nlohmann::json& settings
         std::string macro = mmu_cfg["form_tip_macro"].get<std::string>();
 
         // Convert to lowercase for comparison (same as Happy Hare)
-        std::string lower_macro = macro;
-        for (auto& c : lower_macro) {
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        }
+        std::string lower_macro = helix::text_io::to_lower(macro);
 
         if (lower_macro.find("cut") != std::string::npos) {
             method = TipMethod::CUT;

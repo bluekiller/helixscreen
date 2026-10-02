@@ -19,6 +19,7 @@
 #include "logging_init.h"
 #include "platform_capabilities.h"
 #include "platform_info.h"
+#include "platform_table.h"
 #include "power_loss_sensor.h"
 #include "printer_state.h"
 #include "system/crash_history.h"
@@ -30,6 +31,7 @@
 #include "system/moonraker_local_probe.h"
 #include "system/telemetry_manager.h"
 #include "system/update_checker.h"
+#include "text_io.h"
 #include "touch_calibration_wrapper.h"
 
 #include <spdlog/spdlog.h>
@@ -589,16 +591,16 @@ json DebugBundleCollector::collect_printer_info(const PrinterSnapshot& snap) {
         // case — same Klipper config, different hardware). Dashboard title
         // generation should prefer platform_model when it differs from model
         // so AD5X devices stop showing as "5M Pro" in the bundle list.
-        const std::string platform = UpdateChecker::get_platform_key();
-        std::string display = UpdateChecker::get_platform_display_name(platform);
+        const std::string platform = helix::platform::current_key();
+        std::string display = helix::platform::display_name(platform);
         if (platform == "mips") {
             // The unified MIPS key names a board family, not hardware; the
             // mismatch check below needs the actual board, which the
             // mod-layout probe answers (AD5X vs K1 series).
-            display = UpdateChecker::get_platform_display_name(
-                helix::ad5x_mod_layout_present() ? "ad5x" : "k1");
+            display =
+                helix::platform::display_name(helix::ad5x_mod_layout_present() ? "ad5x" : "k1");
         }
-        const auto* row = UpdateChecker::find_platform(platform);
+        const auto* row = helix::platform::find(platform);
         const std::string platform_model =
             row && row->has_printer_hardware ? display : std::string{};
         if (!platform_model.empty()) {
@@ -739,8 +741,7 @@ std::string DebugBundleCollector::collect_crash_txt() {
 bool DebugBundleCollector::is_sensitive_key(const std::string& key) {
     // Case-insensitive substring match for sensitive patterns
     std::string lower_key = key;
-    std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    lower_key = helix::text_io::to_lower(lower_key);
 
     // "serial_number" covers cpu_info.serial_number (the Pi board serial) and
     // sd_info.serial_number, both of which arrive under /machine/system_info.
@@ -1311,7 +1312,7 @@ struct PlatformFile {
 // larger files, route through a dedicated capture with a size cap.
 static std::vector<PlatformFile> platform_diagnostic_files(const std::string& platform) {
     std::vector<PlatformFile> files;
-    const auto* info = UpdateChecker::find_platform(platform);
+    const auto* info = helix::platform::find(platform);
     if (!info) {
         return files;
     }
@@ -1342,7 +1343,7 @@ static RawHttpResult http_get_text(const std::string& base_url, const std::strin
 
 json DebugBundleCollector::collect_platform_files() {
     json result = json::object();
-    const std::string platform = UpdateChecker::get_platform_key();
+    const std::string platform = helix::platform::current_key();
     auto files = platform_diagnostic_files(platform);
     if (files.empty()) {
         return result;

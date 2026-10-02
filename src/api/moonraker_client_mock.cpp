@@ -1403,8 +1403,7 @@ bool MoonrakerClientMock::mock_toolchanger_selected() {
     const char* ams_env = std::getenv("HELIX_MOCK_AMS");
     if (ams_env && ams_env[0]) {
         std::string ams_type(ams_env);
-        std::transform(ams_type.begin(), ams_type.end(), ams_type.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        ams_type = helix::text_io::to_lower(ams_type);
         return ams_type == "toolchanger" || ams_type == "tool_changer" || ams_type == "tc";
     }
     // No explicit topology: fall back to the persona. A Creator 5 Pro is a
@@ -1428,8 +1427,7 @@ MoonrakerClientMock::MedusaVariant MoonrakerClientMock::mock_medusa_variant() {
         return MedusaVariant::NONE;
     }
     std::string ams_type(ams_env);
-    std::transform(ams_type.begin(), ams_type.end(), ams_type.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    ams_type = helix::text_io::to_lower(ams_type);
     if (ams_type == "medusahc-fork" || ams_type == "medusa-fork") {
         return MedusaVariant::FORK;
     }
@@ -1452,8 +1450,7 @@ bool MoonrakerClientMock::is_mock_cfs() const {
         return false;
     }
     std::string ams_type(ams_env);
-    std::transform(ams_type.begin(), ams_type.end(), ams_type.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    ams_type = helix::text_io::to_lower(ams_type);
     return ams_type == "cfs" || ams_type == "cfs-k1";
 }
 
@@ -1576,8 +1573,7 @@ bool MoonrakerClientMock::is_mock_ifs_module() const {
         return false;
     }
     std::string ams_type(ams_env);
-    std::transform(ams_type.begin(), ams_type.end(), ams_type.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    ams_type = helix::text_io::to_lower(ams_type);
     return ams_type == "ifs-module" || ams_type == "ifs_module" || ams_type == "ad5x-module";
 }
 
@@ -2659,8 +2655,7 @@ int MoonrakerClientMock::gcode_script(const std::string& raw_gcode) {
                 return refuse("SLOT out of range: " + param("SLOT"));
             }
             std::string hex = param("HEX");
-            std::transform(hex.begin(), hex.end(), hex.begin(),
-                           [](unsigned char c) { return std::toupper(c); });
+            hex = helix::text_io::to_upper(hex);
             // The firmware stores only palette colours; anything else snaps to
             // index 0, white.
             const bool in_palette =

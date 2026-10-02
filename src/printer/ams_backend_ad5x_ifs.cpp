@@ -2738,8 +2738,7 @@ std::optional<std::vector<std::string>> AmsBackendAd5xIfs::get_supported_materia
     // unchanged on save (#904).
     auto lower = [](const std::string& s) {
         std::string out = s;
-        std::transform(out.begin(), out.end(), out.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        out = helix::text_io::to_lower(out);
         return out;
     };
     auto already_present = [&](const std::string& name) {
@@ -3643,8 +3642,7 @@ void AmsBackendAd5xIfs::fetch_user_cfg_materials() {
                             // case-insensitively.
                             auto lower = [](const std::string& s) {
                                 std::string out = s;
-                                std::transform(out.begin(), out.end(), out.begin(),
-                                               [](unsigned char c) { return std::tolower(c); });
+                                out = helix::text_io::to_lower(out);
                                 return out;
                             };
                             size_t total;
@@ -4902,8 +4900,7 @@ std::string AmsBackendAd5xIfs::normalize_module_color_hex(const std::string& val
             return {};
         }
     }
-    std::transform(digits.begin(), digits.end(), digits.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    digits = helix::text_io::to_upper(digits);
     return digits;
 }
 
@@ -6444,8 +6441,7 @@ bool AmsBackendAd5xIfs::backup_eligible_locked(int slot, int candidate) const {
         return false; // Nothing to match against; claim nothing.
     }
     const auto lower = [](std::string s) {
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        s = helix::text_io::to_lower(s);
         return s;
     };
     const auto idx = static_cast<size_t>(candidate);

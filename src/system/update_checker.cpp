@@ -46,6 +46,7 @@
 #ifdef __ANDROID__
 #include "system/http_android.h"
 #endif
+#include "platform_table.h"
 #include "version.h"
 
 #include <chrono>
@@ -172,7 +173,7 @@ bool parse_github_release(const json& j, UpdateChecker::ReleaseInfo& info, std::
     // (mirrors the R2 manifest --include-zip gate). Once telemetry shows
     // v0.99.30 adoption is gone, this preference can flip back to zip.
     if (j.contains("assets") && j["assets"].is_array()) {
-        const std::string platform_key = UpdateChecker::get_platform_key();
+        const std::string platform_key = helix::platform::current_key();
         const std::string zip_name = "helixscreen-" + platform_key + ".zip";
         const std::string platform_prefix = "helixscreen-" + platform_key + "-";
         spdlog::info("[UpdateChecker] Platform key: '{}', prefer prefix '{}...tar.gz' else '{}'",
@@ -1116,7 +1117,7 @@ std::string UpdateChecker::platform_asset_name() {
     // encoded in three places that drifted; repair_release_info() must compare
     // against the same expression the rest of the code means by "our asset",
     // not a copy of it.
-    return "helixscreen-" + get_platform_key() + ".zip";
+    return "helixscreen-" + helix::platform::current_key() + ".zip";
 }
 
 std::string UpdateChecker::get_platform_asset_name() const {
@@ -1268,7 +1269,7 @@ void UpdateChecker::start_download() {
                                lv_tr("Error: Cannot update while printing"),
                                "Stop the print before installing updates");
         TelemetryManager::instance().record_update_failure("print_in_progress", "",
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -1281,7 +1282,7 @@ void UpdateChecker::start_download() {
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: No update available"),
                                "No update information cached");
         TelemetryManager::instance().record_update_failure("no_cached_update", "",
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -1419,7 +1420,7 @@ void UpdateChecker::do_download() {
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: `unzip` not installed"),
                                "Install unzip (or a python3 with zlib), then retry the update");
         TelemetryManager::instance().record_update_failure("missing_unzip", version,
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -1441,7 +1442,7 @@ void UpdateChecker::do_download() {
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Not enough disk space"),
                                detail);
         TelemetryManager::instance().record_update_failure("no_disk_space", version,
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -1501,7 +1502,7 @@ void UpdateChecker::do_download() {
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Download failed"),
                                "Failed to download update file");
         TelemetryManager::instance().record_update_failure("download_failed", version,
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -1511,8 +1512,9 @@ void UpdateChecker::do_download() {
         std::remove(download_path.c_str());
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Invalid download"),
                                "Downloaded file is too small");
-        TelemetryManager::instance().record_update_failure(
-            "file_too_small", version, get_platform_key(), -1, static_cast<int64_t>(result));
+        TelemetryManager::instance().record_update_failure("file_too_small", version,
+                                                           helix::platform::current_key(), -1,
+                                                           static_cast<int64_t>(result));
         return;
     }
     if (result > 150 * 1024 * 1024) {
@@ -1520,8 +1522,9 @@ void UpdateChecker::do_download() {
         std::remove(download_path.c_str());
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Invalid download"),
                                "Downloaded file is too large");
-        TelemetryManager::instance().record_update_failure(
-            "file_too_large", version, get_platform_key(), -1, static_cast<int64_t>(result));
+        TelemetryManager::instance().record_update_failure("file_too_large", version,
+                                                           helix::platform::current_key(), -1,
+                                                           static_cast<int64_t>(result));
         return;
     }
 
@@ -1553,8 +1556,9 @@ void UpdateChecker::do_download() {
         std::remove(download_path.c_str());
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Corrupt download"),
                                "Downloaded file failed integrity check");
-        TelemetryManager::instance().record_update_failure(
-            "corrupt_download", version, get_platform_key(), -1, static_cast<int64_t>(result));
+        TelemetryManager::instance().record_update_failure("corrupt_download", version,
+                                                           helix::platform::current_key(), -1,
+                                                           static_cast<int64_t>(result));
         return;
     }
 
@@ -1567,7 +1571,7 @@ void UpdateChecker::do_download() {
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Wrong architecture"),
                                "Downloaded binary doesn't match this device's architecture");
         TelemetryManager::instance().record_update_failure("wrong_architecture", version,
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -1593,7 +1597,7 @@ void UpdateChecker::do_download() {
                                        lv_tr("Error: Verification failed"),
                                        "Could not compute checksum of downloaded file");
                 TelemetryManager::instance().record_update_failure("sha256_compute_failed", version,
-                                                                   get_platform_key());
+                                                                   helix::platform::current_key());
                 return;
             }
 
@@ -1604,7 +1608,7 @@ void UpdateChecker::do_download() {
                 report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Checksum mismatch"),
                                        "Downloaded file does not match expected checksum");
                 TelemetryManager::instance().record_update_failure("sha256_mismatch", version,
-                                                                   get_platform_key());
+                                                                   helix::platform::current_key());
                 return;
             }
 
@@ -1719,10 +1723,10 @@ bool UpdateChecker::validate_elf_architecture(const std::string& tarball_path) {
     // Use the compile-time platform key to determine expected architecture.
     // uname().machine is unreliable: Pi4 with 64-bit kernel + 32-bit userspace
     // reports "aarch64" even though only 32-bit ARM binaries can execute.
-    const std::string platform = get_platform_key();
+    const std::string platform = helix::platform::current_key();
     spdlog::info("[UpdateChecker] Platform key: {}", platform);
 
-    const PlatformInfo* expected = find_platform(platform);
+    const helix::platform::Info* expected = helix::platform::find(platform);
     if (!expected || expected->elf_class == 0) {
         spdlog::info("[UpdateChecker] Platform '{}' — skipping ELF validation", platform);
         return true;
@@ -1775,7 +1779,7 @@ bool UpdateChecker::validate_elf_architecture(const std::string& tarball_path) {
         return false;
     }
 
-    if (!elf_header_matches(*expected, header)) {
+    if (!helix::platform::elf_header_matches(*expected, header)) {
         spdlog::error(
             "[UpdateChecker] Architecture mismatch! Runtime is {} (class={}, data={}, "
             "machine=0x{:x}) but binary has class={}, data={}, machine bytes {:02x}{:02x}",
@@ -1894,7 +1898,7 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
         report_download_status(DownloadStatus::Error, 0, lv_tr("Error: Installer not found"),
                                "Cannot locate install.sh script");
         TelemetryManager::instance().record_update_failure("installer_not_found", version,
-                                                           get_platform_key());
+                                                           helix::platform::current_key());
         return;
     }
 
@@ -2142,8 +2146,8 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
         report_download_status(DownloadStatus::Error, 0, ui_text,
                                "install.sh returned error code " + std::to_string(ret));
         std::string reason = timed_out ? "install_timeout" : "install_failed";
-        TelemetryManager::instance().record_update_failure(reason, version, get_platform_key(), -1,
-                                                           -1, ret);
+        TelemetryManager::instance().record_update_failure(
+            reason, version, helix::platform::current_key(), -1, -1, ret);
         return;
     }
 
@@ -2169,7 +2173,7 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
 
     // Write update success flag for telemetry (picked up on next boot)
     TelemetryManager::write_update_success_flag("config", version, HELIX_VERSION,
-                                                get_platform_key());
+                                                helix::platform::current_key());
 
     // Write restart marker so watchdog knows this exit is expected.
     // Safety net: even if _exit(0) below doesn't execute (e.g., SIGABRT from
@@ -2827,93 +2831,6 @@ std::string UpdateChecker::effective_r2_base_url() {
     return url;
 }
 
-std::string UpdateChecker::get_platform_key() {
-#ifdef HELIX_PLATFORM_AD5M
-    return "ad5m";
-#elif defined(HELIX_PLATFORM_CC1)
-    return "cc1";
-#elif defined(HELIX_PLATFORM_MIPS)
-    // One binary serves the K1 series and the AD5X, so one platform key and
-    // one self-update asset. Which board the binary is ON is a separate
-    // runtime question (helix::ad5x_mod_layout_present) answered wherever
-    // behavior actually differs, never for update selection.
-    return "mips";
-#elif defined(HELIX_PLATFORM_K1)
-    // k1-dynamic build variant: dev/debug dynamic-linked K1 binary. Not in the
-    // release matrix today — map to "k1" so if it ever ships, self-update
-    // fetches the static K1 tarball instead of silently falling through to pi.
-    return "k1";
-#elif defined(HELIX_PLATFORM_K2)
-    return "k2";
-#elif defined(HELIX_PLATFORM_X86)
-    return "x86";
-#elif defined(HELIX_PLATFORM_SNAPMAKER_U1)
-    return "snapmaker-u1";
-#elif defined(HELIX_PLATFORM_PI32)
-    return "pi32";
-#elif defined(HELIX_PLATFORM_ESP32)
-    return "esp32";
-#else
-    return "pi";
-#endif
-}
-
-namespace {
-
-// FlashForge zmod config: IFS slot truth and user-defined filament types.
-// A 404 (non-zmod install, K1 series on the unified MIPS build) is skipped.
-const std::vector<std::string> kZmodDiagnosticFiles = {
-    "/server/files/config/Adventurer5M.json",
-    "/server/files/config/mod_data/user.cfg",
-};
-
-constexpr uint8_t ELF32 = 1, ELF64 = 2, LE = 1;
-constexpr uint16_t EM_ARM_ = 0x28, EM_AARCH64_ = 0xB7, EM_X86_64_ = 0x3E, EM_MIPS_ = 0x08;
-
-// Rows mirror the toolchains in mk/cross.mk. "ad5x" and "k1" name the board
-// behind the unified "mips" key.
-const std::vector<UpdateChecker::PlatformInfo> kPlatforms = {
-    {"pi", "Raspberry Pi", false, ELF64, LE, EM_AARCH64_, {}},
-    {"pi32", "Raspberry Pi (32-bit)", false, ELF32, LE, EM_ARM_, {}},
-    {"x86", "x86 Desktop", false, ELF64, LE, EM_X86_64_, {}},
-    {"ad5m", "FlashForge Adventurer 5M", true, ELF32, LE, EM_ARM_, kZmodDiagnosticFiles},
-    {"ad5x", "FlashForge Adventurer 5X", true, ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
-    {"mips", "MIPS (K1 series / AD5X)", true, ELF32, LE, EM_MIPS_, kZmodDiagnosticFiles},
-    {"k1", "Creality K1", true, ELF32, LE, EM_MIPS_, {}},
-    {"k2", "Creality K2 Plus", true, ELF32, LE, EM_ARM_, {}},
-    {"cc1", "Elegoo Centauri Carbon", true, ELF32, LE, EM_ARM_, {}},
-    {"snapmaker-u1", "Snapmaker U1", true, ELF64, LE, EM_AARCH64_, {}},
-    // The K-Touch ships a firmware image, never an ELF release zip.
-    {"esp32", "BTT K-Touch", false, 0, 0, 0, {}},
-};
-
-} // namespace
-
-const UpdateChecker::PlatformInfo* UpdateChecker::find_platform(const std::string& key) {
-    for (const auto& p : kPlatforms) {
-        if (key == p.key) {
-            return &p;
-        }
-    }
-    return nullptr;
-}
-
-std::string UpdateChecker::get_platform_display_name(const std::string& key) {
-    const auto* p = find_platform(key);
-    return p ? p->display_name : key;
-}
-
-bool UpdateChecker::elf_header_matches(const PlatformInfo& platform, const uint8_t (&header)[20]) {
-    if (header[0] != 0x7f || header[1] != 'E' || header[2] != 'L' || header[3] != 'F') {
-        return false;
-    }
-    const uint16_t machine = header[5] == LE
-                                 ? static_cast<uint16_t>(header[18] | (header[19] << 8))
-                                 : static_cast<uint16_t>((header[18] << 8) | header[19]);
-    return header[4] == platform.elf_class && header[5] == platform.elf_data &&
-           machine == platform.elf_machine;
-}
-
 // ============================================================================
 // Dismissed Version
 // ============================================================================
@@ -3204,7 +3121,7 @@ bool UpdateChecker::fetch_r2_manifest(const std::string& channel, ReleaseInfo& i
             return false;
         }
 
-        std::string platform = get_platform_key();
+        std::string platform = helix::platform::current_key();
         const auto& assets = j["assets"];
         if (!assets.contains(platform)) {
             error = "No asset for platform '" + platform + "' in R2 manifest";
@@ -3378,7 +3295,7 @@ bool UpdateChecker::fetch_dev_release(ReleaseInfo& info, std::string& error) {
                 return false;
             }
 
-            std::string platform = get_platform_key();
+            std::string platform = helix::platform::current_key();
             const auto& assets = j["assets"];
             if (!assets.contains(platform)) {
                 error = "No asset for platform '" + platform + "'";

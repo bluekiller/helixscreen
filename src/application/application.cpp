@@ -225,6 +225,7 @@
 #include "plugin_host.h"
 #include "plugin_source_app.h"
 #endif
+#include "platform_table.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "splash_screen.h"
@@ -1577,7 +1578,7 @@ bool Application::init_display() {
     // printer measured, so this is an identity everywhere except phone-class
     // panels.
     const helix::ResolvedDpi resolved = helix::DisplayMetrics::resolve_dpi(
-        m_args.dpi, measured_dpi, UpdateChecker::get_platform_key());
+        m_args.dpi, measured_dpi, helix::platform::current_key());
     const double auto_scale = helix::DisplayMetrics::ui_scale_for_dpi(resolved.dpi);
     helix::DisplayMetrics::set_auto_scale(auto_scale);
 

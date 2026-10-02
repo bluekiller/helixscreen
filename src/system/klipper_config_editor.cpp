@@ -205,8 +205,7 @@ ConfigStructure KlipperConfigEditor::parse_structure(const std::string& content)
         while (!key_name.empty() && (key_name.back() == ' ' || key_name.back() == '\t')) {
             key_name.pop_back();
         }
-        std::transform(key_name.begin(), key_name.end(), key_name.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        key_name = helix::text_io::to_lower(key_name);
 
         // Extract value (after delimiter, trimming leading whitespace)
         std::string value;
