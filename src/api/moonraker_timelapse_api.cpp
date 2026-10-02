@@ -243,7 +243,7 @@ void MoonrakerTimelapseAPI::render_timelapse(SuccessCallback on_success, ErrorCa
     spdlog::debug("[Timelapse API] Triggering timelapse render");
     client_.send_jsonrpc(
         "machine.timelapse.render", json::object(),
-        [on_success](json /*response*/) {
+        [on_success](const json& /*response*/) {
             if (on_success)
                 on_success();
         },
@@ -255,7 +255,7 @@ void MoonrakerTimelapseAPI::save_timelapse_frames(SuccessCallback on_success,
     spdlog::debug("[Timelapse API] Saving timelapse frames");
     client_.send_jsonrpc(
         "machine.timelapse.saveframes", json::object(),
-        [on_success](json /*response*/) {
+        [on_success](const json& /*response*/) {
             if (on_success)
                 on_success();
         },

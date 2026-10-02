@@ -2450,13 +2450,9 @@ void Application::apply_startup_cli_actions() {
 
     if (force_touch_cal) {
         auto& overlay = helix::ui::get_touch_calibration_overlay();
-        overlay.init_subjects();
-        overlay.register_callbacks();
-        overlay.create(m_screen);
-
         // Completion callback: clear config flag on success if it was set
         bool clear_config = m_config && m_config->get<bool>("/input/force_calibration", false);
-        overlay.show([this, clear_config](bool success) {
+        overlay.show(m_screen, [this, clear_config](bool success) {
             if (success && clear_config && m_config) {
                 m_config->set<bool>("/input/force_calibration", false);
                 m_config->save();
@@ -3785,9 +3781,7 @@ void Application::setup_discovery_callbacks() {
                                  "Z-Offset Calibration");
                     auto& overlay = get_global_zoffset_cal_panel();
                     overlay.set_api(api_ptr_zoffset);
-                    if (overlay.create(screen)) {
-                        overlay.show();
-                    }
+                    overlay.show(screen);
                 }
             });
         });

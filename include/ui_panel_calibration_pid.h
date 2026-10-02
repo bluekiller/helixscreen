@@ -165,17 +165,15 @@ class PIDCalibrationPanel : public OverlayBase {
      */
     void cleanup() override;
 
+    /// Freed on close; the next open rebuilds it. A run is aborted on the way out
+    /// and its state lives in the subjects and members, never the widgets.
+    bool destroy_on_close() const override {
+        return true;
+    }
+
     //
     // === Public API ===
     //
-
-    /**
-     * @brief Show overlay panel
-     *
-     * Pushes overlay onto navigation stack and registers with NavigationManager.
-     * on_activate() will be called automatically after animation completes.
-     */
-    void show();
 
     /**
      * @brief Set the Moonraker API for high-level operations
@@ -410,6 +408,8 @@ class PIDCalibrationPanel : public OverlayBase {
 
     // Persist measured calibration rates for future ETA estimates
     void save_calibration_history();
+
+    void on_ui_destroyed() override;
 
     // Widget references
     lv_obj_t* fan_slider_ = nullptr;
