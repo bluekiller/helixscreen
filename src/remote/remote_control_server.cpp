@@ -1078,51 +1078,13 @@ static bool is_glob(const std::string& s) {
     return s.find('*') != std::string::npos || s.find('?') != std::string::npos;
 }
 
-// Every visible widget in a subtree whose name matches the pattern.
-//
-// A widget the author never named is not nameless: lv_obj_get_name_resolved()
-// crafts "<class>_<index>" for it ("lv_label_0"), and lv_obj_find_by_name()
-// already matches that form, so it was addressable all along and only this
-// walker hid it. Reporting it costs nothing — the crafted name is built on
-// demand, never stored, which matters on the ESP32 target where naming every
-// widget for real would be paid in heap.
-//
-// Explicit names are still the better answer for anything a test drives: a
-// crafted index counts siblings, so inserting a widget renumbers the ones
-// after it.
-static void collect_glob_matches(lv_obj_t* parent, const std::string& pattern,
-                                 std::vector<lv_obj_t*>& out) {
-    if (!parent) {
-        return;
-    }
-    uint32_t count = lv_obj_get_child_count(parent);
-    for (uint32_t i = 0; i < count; ++i) {
-        lv_obj_t* child = lv_obj_get_child(parent, i);
-        if (!child || lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
-            continue; // hidden subtree — not on screen, same rule as describe_walk
-        }
-        char resolved[128];
-        lv_obj_get_name_resolved(child, resolved, sizeof(resolved));
-        const char* raw = lv_obj_get_name(child);
-        const char* name = resolved[0] != '\0' ? resolved : raw;
-        if (name && name[0] != '\0' && helix::system::config_glob_match(pattern, name)) {
-            out.push_back(child);
-        }
-        collect_glob_matches(child, pattern, out);
-    }
-}
-
 // Match a name pattern within @p scope, or across the active screen and the top
-// layer (modals) when no scope is given.
+// layer (modals) when no scope is given. Hidden subtrees are skipped, same rule
+// as describe_walk.
 static std::vector<lv_obj_t*> glob_widgets(const std::string& pattern, lv_obj_t* scope = nullptr) {
-    std::vector<lv_obj_t*> out;
-    if (scope) {
-        collect_glob_matches(scope, pattern, out);
-        return out;
-    }
-    collect_glob_matches(lv_screen_active(), pattern, out);
-    collect_glob_matches(lv_layer_top(), pattern, out);
-    return out;
+    return search_widgets(scope, [&pattern](const char* name) {
+        return name[0] != '\0' && helix::system::config_glob_match(pattern, name);
+    });
 }
 
 // Drop matches that sit inside another match. `ls row_*` on a settings page hits
@@ -1207,35 +1169,6 @@ static std::string active_screen_label() {
     return label;
 }
 
-// Collect every visible widget with this exact resolved name. Mirrors
-// collect_glob_matches: hidden subtrees are skipped, because a widget the user
-// cannot see is never what `click <name>` meant. `state` asks
-// include_hidden=true for its retry: asking "is it hidden?" requires finding
-// the hidden widget first.
-static void collect_by_name(lv_obj_t* parent, const std::string& name, std::vector<lv_obj_t*>& out,
-                            bool include_hidden = false) {
-    if (!parent) {
-        return;
-    }
-    uint32_t count = lv_obj_get_child_count(parent);
-    for (uint32_t i = 0; i < count; ++i) {
-        lv_obj_t* child = lv_obj_get_child(parent, i);
-        if (!child || (!include_hidden && lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN))) {
-            continue;
-        }
-        // Unnamed widgets match on LVGL's crafted "<class>_<index>" — see the
-        // note on collect_glob_matches.
-        char resolved[128];
-        lv_obj_get_name_resolved(child, resolved, sizeof(resolved));
-        const char* raw = lv_obj_get_name(child);
-        const char* candidate = resolved[0] != '\0' ? resolved : raw;
-        if (candidate && name == candidate) {
-            out.push_back(child);
-        }
-        collect_by_name(child, name, out, include_hidden);
-    }
-}
-
 // The subtree a search is confined to — the caller's working directory, sent as
 // an absolute locator in "scope". Absent or unresolvable means the whole active
 // screen plus the top layer, which is what every caller got before `cd` existed.
@@ -1251,22 +1184,18 @@ static lv_obj_t* scope_root(const nlohmann::json& params) {
     return scope.empty() ? nullptr : resolve_path(scope);
 }
 
-// Every visible widget matching @p name, confined to @p scope when given.
-static std::vector<lv_obj_t*> matches_for_name(const std::string& name, lv_obj_t* scope) {
-    std::vector<lv_obj_t*> matches;
-    if (scope) {
-        collect_by_name(scope, name, matches);
-        return matches;
-    }
-    // lv_obj_find_by_name() returns the first depth-first hit, which on a
-    // screen with stacked overlays is the one in the *bottom* overlay — a
-    // widget the user cannot see. Clicking it looks like a successful no-op.
-    // Collect every match instead so the caller can prefer the visible one.
-    if (lv_obj_t* screen = lv_screen_active()) {
-        collect_by_name(screen, name, matches);
-    }
-    collect_by_name(lv_layer_top(), name, matches);
-    return matches;
+// Every widget with this exact resolved name, confined to @p scope when given.
+// Hidden widgets are skipped unless @p include_hidden: `state` asks for them
+// because "is it hidden?" requires finding the hidden widget first.
+//
+// lv_obj_find_by_name() returns the first depth-first hit, which on a screen
+// with stacked overlays is the one in the *bottom* overlay — a widget the user
+// cannot see. Clicking it looks like a successful no-op, so every match is
+// collected and the caller prefers the visible one.
+static std::vector<lv_obj_t*> matches_for_name(const std::string& name, lv_obj_t* scope,
+                                               bool include_hidden = false) {
+    return search_widgets(
+        scope, [&name](const char* candidate) { return name == candidate; }, include_hidden);
 }
 
 static lv_obj_t* resolve_widget(const nlohmann::json& params) {
@@ -2061,15 +1990,8 @@ nlohmann::json RemoteControlServer::handle_state(const nlohmann::json& params) {
             // is a discovery aid like `ls`, which also filters).
             const std::string name = params["name"].get<std::string>();
             if (!is_glob(name)) {
-                std::vector<lv_obj_t*> matches;
-                if (lv_obj_t* scope = scope_root(params)) {
-                    collect_by_name(scope, name, matches, /*include_hidden=*/true);
-                } else {
-                    if (lv_obj_t* screen = lv_screen_active()) {
-                        collect_by_name(screen, name, matches, /*include_hidden=*/true);
-                    }
-                    collect_by_name(lv_layer_top(), name, matches, /*include_hidden=*/true);
-                }
+                std::vector<lv_obj_t*> matches =
+                    matches_for_name(name, scope_root(params), /*include_hidden=*/true);
                 if (!matches.empty()) {
                     target = topmost_visible(matches);
                 }
