@@ -48,6 +48,8 @@ src/api/moonraker_api_mock.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_api_power.cpp  # hv/requests.h — Moonraker device_power is REST-only
 src/api/moonraker_client.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_client_mock.cpp  # not in the v1 Core+AMS cut
+src/api/moonraker_client_mock_gcode.cpp  # not in the v1 Core+AMS cut
+src/api/moonraker_client_mock_gcode_calibration.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_client_mock_files.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_client_mock_history.cpp  # not in the v1 Core+AMS cut
 src/api/moonraker_client_mock_objects.cpp  # not in the v1 Core+AMS cut
