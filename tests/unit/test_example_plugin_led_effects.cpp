@@ -194,7 +194,7 @@ TEST_CASE_METHOD(LedFx, "switching effects follows only the new one", "[plugin][
     CHECK(rig.fake.object_sets.back().second ==
           json{{"led_effect breathing", json::array({"enabled"})}});
 
-    deliver_delta(rig, "rainbow", true); // the cancelled subscription no longer delivers
+    deliver_delta(rig, "rainbow", true); // a cancelled subscription delivers nothing
     CHECK(text_subject("led-effects__state") == "Off");
 
     deliver_delta(rig, "breathing", true);

@@ -136,7 +136,7 @@ becomes one row of the plugin's settings screen
 | `int` | `min` < `max`, `default` in range | slider, whole numbers |
 | `float` | `min` < `max`, `default` in range | slider, value scaled by 100 |
 | `enum` | `options`: non-empty array of strings without newlines; `default` one of them | dropdown |
-| `string` | `default`, a string | text input |
+| `string` | `default`, a string | text input; a stored value over 1024 bytes reads as the default |
 | `action` | `callback`: `<id>__<name>` of a `helix.ui.on` handler | button that fires the handler |
 | `info` | `subject`: `<id>__<name>` of a plugin subject | read-only row bound to the subject |
 
@@ -277,8 +277,8 @@ No permission is needed for either call.
 |---|---|---|---|
 | `helix.moonraker.query(objects)` | none | table or `nil, err` | `objects` maps a status object name to `true` (every field) or a list of field names |
 | `helix.moonraker.call(method[, params])` | none for the seven read-only methods below, else `moonraker_write` | value or `nil, err` | |
-| `helix.moonraker.upload(root, path, content)` | `moonraker_write` | `true` or `nil, err` | writes a file through Moonraker |
-| `helix.moonraker.download(root, path)` | `moonraker_write` | string or `nil, err` | a body over the memory cap comes back as an error, not a fault |
+| `helix.moonraker.upload(root, path, content)` | `moonraker_write` | `true` or `nil, err` | writes a file through Moonraker; `root` is `"gcodes"` or `"config"` |
+| `helix.moonraker.download(root, path)` | `moonraker_write` | string or `nil, err` | `root` is `"gcodes"` or `"config"`; a body over the memory cap comes back as an error, not a fault |
 | `helix.moonraker.on_agent_event(event, fn)` | none | | `fn(agent, data)` when Moonraker posts that agent event; at most 16 handlers per plugin |
 | `helix.moonraker.subscribe(objects, fn)` | none | handle | live status, see below |
 | `helix.gcode(script)` | `gcode` | `true` or `nil, err` | runs one G-code script |
@@ -347,7 +347,8 @@ and `string.dump` are nil; `collectgarbage` accepts only `count`, `collect` and 
 caches the result (`src/plugin/lua_runtime.cpp#lua_require`).
 
 Define a global `on_unload` function to run once before the plugin closes, on reload,
-disable, removal, fault and shutdown. It may not open overlays or confirm dialogs.
+disable, removal and shutdown. A faulted plugin's `on_unload` does not run, so never keep
+state there that a fault would lose. It may not open overlays or confirm dialogs.
 
 ## 9. Permissions and consent
 
