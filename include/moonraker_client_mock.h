@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -2124,6 +2125,58 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     void simulate_cfs_find_cut_pos();
     /// Apply one BOX_CUSTOM_COMMAND. @return true when CMD= was one of ours.
     bool apply_cfs_box_custom_command(const std::string& gcode);
+
+    // --- gcode_script() handlers (moonraker_client_mock_gcode*.cpp) -----------
+    // One handler per command family. A handler returns a code to end the
+    // script, or std::nullopt to let the checks after it see the same line.
+    using GcodeResult = std::optional<int>;
+    GcodeResult gcode_ifs_module(const std::string& gcode);
+    GcodeResult gcode_medusa(const std::string& gcode);
+    GcodeResult gcode_zmod(const std::string& gcode);
+    GcodeResult gcode_cfs(const std::string& gcode);
+    GcodeResult gcode_u1_feeding(const std::string& gcode);
+    GcodeResult gcode_heater_temperature(const std::string& gcode);
+    GcodeResult gcode_temperature_fan_target(const std::string& gcode);
+    GcodeResult gcode_panda_dry_start(const std::string& gcode);
+    GcodeResult gcode_panda_dry_stop(const std::string& gcode);
+    GcodeResult gcode_set_pin(const std::string& gcode);
+    GcodeResult gcode_extruder_target_mcode(const std::string& gcode);
+    GcodeResult gcode_bed_target_mcode(const std::string& gcode);
+    GcodeResult gcode_display_message(const std::string& gcode);
+    GcodeResult gcode_save_gcode_state(const std::string& gcode);
+    GcodeResult gcode_absolute_mode(const std::string& gcode);
+    GcodeResult gcode_relative_mode(const std::string& gcode);
+    GcodeResult gcode_disable_motors(const std::string& gcode);
+    GcodeResult gcode_home(const std::string& gcode);
+    GcodeResult gcode_move(const std::string& gcode);
+    GcodeResult gcode_restore_gcode_state(const std::string& gcode);
+    GcodeResult gcode_tool_change(const std::string& gcode);
+    GcodeResult gcode_sdcard_print_file(const std::string& gcode);
+    GcodeResult gcode_pause(const std::string& gcode);
+    GcodeResult gcode_resume(const std::string& gcode);
+    GcodeResult gcode_cancel_print(const std::string& gcode);
+    GcodeResult gcode_emergency_stop(const std::string& gcode);
+    GcodeResult gcode_fan_m106(const std::string& gcode);
+    GcodeResult gcode_fan_m107(const std::string& gcode);
+    GcodeResult gcode_set_fan_speed(const std::string& gcode);
+    GcodeResult gcode_pid_calibrate(const std::string& gcode);
+    GcodeResult gcode_mpc_calibrate(const std::string& gcode);
+    GcodeResult gcode_save_config(const std::string& gcode);
+    GcodeResult gcode_bed_mesh(const std::string& gcode);
+    GcodeResult gcode_set_gcode_offset(const std::string& gcode);
+    GcodeResult gcode_set_tool_parameter(const std::string& gcode);
+    GcodeResult gcode_save_tool_parameter(const std::string& gcode);
+    GcodeResult gcode_shaper_calibrate(const std::string& gcode);
+    GcodeResult gcode_test_resonances(const std::string& gcode);
+    GcodeResult gcode_set_led(const std::string& gcode);
+    GcodeResult gcode_probe_calibrate(const std::string& gcode);
+    GcodeResult gcode_testz(const std::string& gcode);
+    GcodeResult gcode_accept(const std::string& gcode);
+    GcodeResult gcode_abort(const std::string& gcode);
+    GcodeResult gcode_exclude_object(const std::string& gcode);
+    GcodeResult gcode_exclude_object_define(const std::string& gcode);
+    GcodeResult gcode_set_led_effect(const std::string& gcode);
+    GcodeResult gcode_stop_led_effects(const std::string& gcode);
     /// Lane in the nozzle (1-4, 0 = none) — the module's `ifs_loaded` record.
     std::atomic<int> ifs_module_loaded_{0};
     /// Per-lane silk presence bitmask, bit i = lane i+1.

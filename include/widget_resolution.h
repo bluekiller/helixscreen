@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -148,6 +149,35 @@ lv_obj_t* resolve_actionable(lv_obj_t* target, lv_obj_t** descended_to,
  *         when a tap would land.
  */
 const char* click_blocker(lv_obj_t* obj);
+
+/**
+ * @brief Append every widget below @p root whose name satisfies @p pred, depth first.
+ *
+ * A widget the author never named is not nameless: lv_obj_get_name_resolved()
+ * crafts "<class>_<index>" for it ("lv_label_0") and lv_obj_find_by_name()
+ * already matches that form, so the predicate sees the crafted name. The name
+ * is built on demand and never stored, which matters on the ESP32 target where
+ * naming every widget for real would be paid in heap. Explicit names are still
+ * the better thing for a test to drive: a crafted index counts siblings, so
+ * inserting a widget renumbers the ones after it.
+ *
+ * Hidden subtrees are skipped unless @p include_hidden: a widget the user
+ * cannot see is never what `click <name>` meant. @p root itself is not tested.
+ *
+ * @param pred Called with the resolved name (never null); true keeps the widget.
+ */
+void collect_widgets(lv_obj_t* root, const std::function<bool(const char* name)>& pred,
+                     std::vector<lv_obj_t*>& out, bool include_hidden = false);
+
+/**
+ * @brief collect_widgets() over the search roots a `ctl` command addresses.
+ *
+ * @p scope when given (the caller's working directory), otherwise the active
+ * screen followed by the top layer, where modals live.
+ */
+[[nodiscard]] std::vector<lv_obj_t*>
+search_widgets(lv_obj_t* scope, const std::function<bool(const char* name)>& pred,
+               bool include_hidden = false);
 
 /**
  * @brief Rank one candidate of a by-name search; the highest key wins.
