@@ -154,10 +154,14 @@ class MoonrakerAPI : public IMoonrakerAPI {
      *        include/rpc_error_policy.h. Pass false when the callback only logs.
      *        Default must stay in sync with IMoonrakerAPI's declaration: default
      *        arguments on virtuals resolve from the static type.
+     * @param silent Non-interactive caller (e.g. LedAutoState applying the state
+     *        theme): suppresses warning logs and the busy-queue toast, which
+     *        exists to explain a command the user made.
      */
     void set_led(const std::string& led, double red, double green, double blue, double white,
                  SuccessCallback on_success, ErrorCallback on_error,
-                 SuccessCallback on_queued = nullptr, bool caller_surfaces_errors = true) override;
+                 SuccessCallback on_queued = nullptr, bool caller_surfaces_errors = true,
+                 bool silent = false) override;
 
     // ========================================================================
     // Power Device Control Operations
@@ -237,11 +241,17 @@ class MoonrakerAPI : public IMoonrakerAPI {
      *        user-visible report, and letting it claim ownership of the report
      *        suppresses Klipper's `!!` broadcast for the same failure — the
      *        surface that would have explained it. See rpc_error_policy.h.
+     * @param bypass_busy_gate Skip the discretionary-gcode busy gate. For the
+     *        print-launch send ONLY: its on_success chains the job launch, so
+     *        queueing it fire-and-forget behind the START macro would orphan
+     *        the print start. Default must stay in sync with IMoonrakerAPI's
+     *        declaration: default arguments on virtuals resolve from the
+     *        static type.
      */
     void execute_gcode(const std::string& gcode, SuccessCallback on_success, ErrorCallback on_error,
                        uint32_t timeout_ms = 0, bool silent = false,
-                       SuccessCallback on_queued = nullptr,
-                       bool caller_surfaces_errors = true) override;
+                       SuccessCallback on_queued = nullptr, bool caller_surfaces_errors = true,
+                       bool bypass_busy_gate = false) override;
 
     // is_safe_gcode_param() is a static utility declared on IMoonrakerAPI
     // (inherited here) so consumers can validate without the concrete type.

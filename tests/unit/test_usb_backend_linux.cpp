@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "../test_helpers/fake_mount_ops.h"
+#include "../test_helpers/log_capture.h"
 #include "../test_helpers/usb_backend_linux_test_access.h"
 #include "usb_backend_linux.h"
 
@@ -189,6 +190,28 @@ TEST_CASE("UsbBackendLinux::scan_directory lists every printable extension",
                                          "plate.3mf"};
     std::sort(expected.begin(), expected.end());
     REQUIRE(names == expected);
+}
+
+TEST_CASE("UsbBackendLinux monitor logs only actual drive-set changes",
+          "[usb_backend][linux][slow]") {
+    // The 10s safety re-parse converges the drive cache by clock, not by
+    // event; logging "Mount change detected" before diffing prints a change
+    // every 10s forever on a host with no drives (bundle SQJ8SAL7: 66 lines).
+    // A re-parse that changed no drive logs the no-op at trace, and the
+    // debug line waits for a real addition or removal.
+    helix::LogCapture log(512);
+    UsbBackendLinux backend;
+    REQUIRE(backend.start().success());
+
+    // One full safety-reparse interval plus slop for either poll mode.
+    std::this_thread::sleep_for(std::chrono::milliseconds(11500));
+    backend.stop();
+
+    // The no-op re-parse ran — without this, the silence below would also
+    // pass for a monitor that never ticked.
+    REQUIRE(log.count_containing("no change") >= 1);
+    // Nothing was "detected": the drive set stayed as it was.
+    REQUIRE(log.count_containing("Mount change detected") == 0);
 }
 
 #endif // __linux__ && !__ANDROID__

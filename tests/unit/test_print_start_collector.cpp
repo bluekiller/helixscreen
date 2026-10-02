@@ -2150,6 +2150,370 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
 }
 
 // ============================================================================
+// MESH ETA EXTRAPOLATION TESTS
+//
+// AD5X capture in bundle SQJ8SAL7: predictor history never recorded a
+// BED_MESH phase, so the weights map carried no mesh key — the mesh under
+// way contributed nothing to the estimate and the countdown stayed pinned at
+// the pre-telemetry seed (~6s) for a 160s mesh. A phase the printer runs but
+// history never mapped still owes its live per-probe extrapolation.
+// ============================================================================
+
+namespace {
+
+/// Start monitoring with deterministic predictor history. Temps sit at
+/// target when the heater targets arrive, so the thermal model adds no
+/// duration and `durations` become the weights verbatim; the 0→set target
+/// rise triggers the recompute that picks the loaded history up.
+void start_with_mesh_eta_history(PrintStartCollectorHeaterFixture& f, std::map<int, int> durations,
+                                 int total_seconds) {
+    f.set_all_temps(250, 0, 500, 0); // no heater targets yet
+    f.collector().start();
+    f.collector().enable_fallbacks();
+    PrintStartCollectorTestAccess::clear_prediction_history(f.collector());
+
+    helix::PreprintEntry e;
+    e.total_seconds = total_seconds;
+    e.timestamp = 1000;
+    e.temp_bucket = 1;
+    e.phase_durations = std::move(durations);
+    PrintStartCollectorTestAccess::load_prediction_entries(f.collector(), {e});
+
+    auto& rates = ThermalRateManager::instance();
+    rates.get_model("extruder").set_default_rate(1.0f);
+    rates.get_model("heater_bed").set_default_rate(1.0f);
+    f.drain_async_updates();
+
+    // Targets arrive at the current temperatures: zero degrees of climb.
+    f.set_all_temps(250, 250, 500, 500);
+    f.tick_fallbacks();
+}
+
+/// Home, then enter the mesh phase — the markers a stock macro echoes.
+void enter_mesh_via_markers(PrintStartCollectorHeaterFixture& f) {
+    f.send_gcode_response("G28");
+    f.send_gcode_response("BED_MESH_CALIBRATE");
+}
+
+/// Two "Probing point N/25" lines `interval` seconds apart: probe #2 arms the
+/// per-probe timing telemetry at interval s/probe with 23 probes left.
+void arm_probe_telemetry(PrintStartCollectorHeaterFixture& f,
+                         helix::sim::SimulatedClock::ManualScope& clock, int interval_s = 6) {
+    f.send_gcode_response("Probing point 1/25");
+    clock.advance(std::chrono::seconds(interval_s));
+    f.send_gcode_response("Probing point 2/25");
+}
+
+int published_remaining(PrintStartCollectorHeaterFixture& f) {
+    return lv_subject_get_int(f.state().get_preprint_remaining_subject());
+}
+
+} // namespace
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "Mesh phase absent from predictor history still counts down via probe "
+                 "extrapolation",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    // History maps homing and purging but never BED_MESH. Durations 32+32
+    // make each weight exactly 0.5 of the 256s recorded total.
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+    arm_probe_telemetry(*this, clock);
+
+    // Assert the setup armed the telemetry before asserting on its output.
+    REQUIRE(PrintStartCollectorTestAccess::get_mesh_probe_total(collector()) == 25);
+    REQUIRE(PrintStartCollectorTestAccess::get_mesh_probe_current(collector()) == 2);
+
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    // 23 probes left at 6s each (138s) plus the future purge phase (128s).
+    // A mesh key missing from the weights must still owe its extrapolation;
+    // only the purge term publishes otherwise.
+    REQUIRE(published_remaining(*this) == 266);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "Mesh extrapolation overrides the pre-telemetry seed once telemetry arms",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+
+    // Two ticks before probe #2 arms the telemetry: the mesh contributes
+    // nothing yet, so both publish the future-purge term alone and the second
+    // seeds the monotonic anchor with it.
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 128);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 128);
+    REQUIRE(PrintStartCollectorTestAccess::get_last_remaining(collector()) == 128);
+
+    arm_probe_telemetry(*this, clock);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    // The seed a pre-telemetry publish left must not pin the first honest
+    // extrapolation: 138s of mesh + 128s purge publishes raw, not clamped
+    // back to 128.
+    REQUIRE(published_remaining(*this) == 266);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "Mesh extrapolation with the phase in weights counts once and eases the seed",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    // History DOES map BED_MESH: durations 32/64/32 sum to 128 and the
+    // recorded total equals that sum, so each weight*total reproduces its
+    // recorded duration exactly.
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::BED_MESH), 64},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                128);
+    enter_mesh_via_markers(*this);
+
+    SECTION("no telemetry: the historical mesh duration still applies") {
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        // 64s of predicted mesh (no probes seen yet) + 32s purge.
+        REQUIRE(published_remaining(*this) == 96);
+    }
+
+    SECTION("telemetry armed: extrapolation replaces the historical duration once") {
+        arm_probe_telemetry(*this, clock);
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        // 23 probes at 6s replace the 64s prediction; counting the
+        // extrapolation on top of the weight would publish 308.
+        REQUIRE(published_remaining(*this) == 170);
+    }
+
+    SECTION("telemetry armed after a seed: the anchor releases here too") {
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        REQUIRE(published_remaining(*this) == 96);
+        arm_probe_telemetry(*this, clock);
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        drain_async_updates();
+        // The anchor release must fire for the in-weights extrapolation
+        // branch as well, not only the unrecorded-phase one.
+        REQUIRE(published_remaining(*this) == 170);
+    }
+}
+
+// ============================================================================
+// ANCHOR-RELEASE RE-ARMING — every mesh segment gets its own release
+//
+// The extrapolation anchor release is one-shot per mesh SEGMENT: the flag is
+// cleared wherever the probe telemetry is zeroed (phase change, sub-phase
+// message change, >30s probe gap, per run), so the second segment's first
+// honest extrapolation publishes raw instead of being clamped to whatever
+// anchor the first segment (or a provisional seed) left behind. Every case
+// below arms a fast first segment (6s/probe -> 266s), then re-arms a slower
+// second segment (12s/probe -> 404s honest) and requires the raw 404: with
+// the flag left armed the monotonic clamp would freeze the countdown at the
+// first segment's value.
+// ============================================================================
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "mesh extrapolation anchor releases again on BED_MESH re-entry",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+    arm_probe_telemetry(*this, clock, 6);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 266);
+
+    // Leave the mesh for a heating hop (a new phase always updates, even
+    // backwards), then re-enter BED_MESH: the re-entry must clear the
+    // extrapolation flag along with the probe telemetry. The seed publish
+    // below (telemetry empty, purge term only) re-arms the monotonic anchor
+    // at 128 — a flag left armed would clamp the second segment's honest 404
+    // back to that seed.
+    send_gcode_response("M190 S60");
+    send_gcode_response("BED_MESH_CALIBRATE");
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 128);
+
+    arm_probe_telemetry(*this, clock, 12);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    // 23 probes at 12s (276s) + the 128s purge, published raw.
+    REQUIRE(published_remaining(*this) == 404);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "mesh extrapolation anchor releases again on sub-phase message change",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    // A profile with two BED_MESH markers carrying different messages, the way
+    // multi-segment mesh firmware (Snapmaker U1's inspect -> level hops) does.
+    // G28 is included so homing registers as completed and stops owing its
+    // weight from the first publish on.
+    collector().set_profile(PrintStartProfileTestAccess::parse(nlohmann::json{
+        {"name", "mesh-subphase-test"},
+        {"response_patterns",
+         nlohmann::json::array({
+             nlohmann::json{{"pattern", "G28"}, {"phase", "HOMING"}, {"message", "Homing..."}},
+             nlohmann::json{{"pattern", "MESH_SEGMENT_A"},
+                            {"phase", "BED_MESH"},
+                            {"message", "First mesh segment..."}},
+             nlohmann::json{{"pattern", "MESH_SEGMENT_B"},
+                            {"phase", "BED_MESH"},
+                            {"message", "Second mesh segment..."}},
+         })},
+    }));
+
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    send_gcode_response("G28");
+    send_gcode_response("MESH_SEGMENT_A");
+    arm_probe_telemetry(*this, clock, 6);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 266);
+
+    // Same phase, new message: the sub-phase reset zeroes the telemetry and
+    // must re-arm the release along with it.
+    send_gcode_response("MESH_SEGMENT_B");
+    arm_probe_telemetry(*this, clock, 12);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    REQUIRE(published_remaining(*this) == 404);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "mesh extrapolation anchor releases again after a probe gap reset",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+    arm_probe_telemetry(*this, clock, 6);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 266);
+
+    // >30s of silence, then a fresh probe burst: the gap reset treats the
+    // earlier probes as a different operation and must re-arm the release.
+    clock.advance(std::chrono::seconds(31));
+    arm_probe_telemetry(*this, clock, 12);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    REQUIRE(published_remaining(*this) == 404);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "mesh extrapolation anchor releases again after a probe-at gap reset",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+    // The "probe at X,Y" fallback arm: no per-probe progress lines, so the
+    // total comes from the adaptive-mesh echo and the timing from two unique
+    // points 6s apart (2 points -> 23 of 25 left at 6s = 138s mesh + 128s).
+    send_gcode_response("// Adapted probe count: 5,5");
+    send_gcode_response("probe at 10.0,10.0 is z=0.100");
+    clock.advance(std::chrono::seconds(6));
+    send_gcode_response("probe at 20.0,10.0 is z=0.110");
+    REQUIRE(PrintStartCollectorTestAccess::get_mesh_probe_total(collector()) == 25);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 266);
+
+    // >30s of silence, then a new pair of unique points: the dedupe-path gap
+    // reset clears the counted points and must re-arm the release.
+    clock.advance(std::chrono::seconds(31));
+    send_gcode_response("probe at 30.0,30.0 is z=0.090");
+    clock.advance(std::chrono::seconds(12));
+    send_gcode_response("probe at 40.0,30.0 is z=0.095");
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+
+    REQUIRE(published_remaining(*this) == 404);
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "mesh extrapolation anchor releases on a second collector run",
+                 "[print][collector][eta]") {
+    helix::sim::SimulatedClock::ManualScope clock(helix::sim::SimSpeed::of(1.0));
+
+    // Run 1 arms the one-shot release; run 2 must start with it cleared, or a
+    // seeded anchor from the new run clamps its first extrapolation forever.
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    enter_mesh_via_markers(*this);
+    arm_probe_telemetry(*this, clock, 6);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 266);
+
+    collector().stop();
+    // The helper re-zeros the heater targets before its own start(), so the
+    // restarted collector's weight compute sees no targets and the target
+    // rise inside the helper re-triggers the recompute onto this history.
+    start_with_mesh_eta_history(*this,
+                                {{static_cast<int>(PrintStartPhase::HOMING), 32},
+                                 {static_cast<int>(PrintStartPhase::PURGING), 32}},
+                                256);
+    // The per-run reset must leave the release disarmed: entering the next
+    // mesh clears it too, so only reading the latch here pins the reset
+    // itself rather than the entry clear.
+    REQUIRE_FALSE(PrintStartCollectorTestAccess::is_mesh_extrapolation_armed(collector()));
+
+    // Seed the anchor the way a quiet pre-mesh stretch does (purge term only),
+    // then arm a slower mesh segment: the fresh run's release must let the
+    // honest 404 through instead of clamping to the 128s seed.
+    enter_mesh_via_markers(*this);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 128);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(PrintStartCollectorTestAccess::get_last_remaining(collector()) == 128);
+
+    arm_probe_telemetry(*this, clock, 12);
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    drain_async_updates();
+    REQUIRE(published_remaining(*this) == 404);
+}
+
+// ============================================================================
 // ADAPTIVE TIMEOUT TESTS
 //
 // Tests for the adaptive timeout behavior introduced to prevent premature

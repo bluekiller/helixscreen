@@ -83,11 +83,16 @@ class NativeBackend {
     // release a caller-side in-flight counter on that path. It means "accepted for
     // later execution", never "the strip changed", and it runs synchronously on
     // the calling thread. See moonraker_api.h for the full contract.
+    // `silent` (here and on the other send entry points) marks a non-interactive
+    // caller — LedAutoState applying the state theme. The busy-queue toast
+    // exists to explain a command the user made, so an automatic send neither
+    // shows nor claims it.
     void set_color(const std::string& strip_id, double r, double g, double b, double w,
                    SuccessCallback on_success = nullptr, ErrorCallback on_error = nullptr,
-                   SuccessCallback on_queued = nullptr);
+                   SuccessCallback on_queued = nullptr, bool silent = false);
     void turn_off(const std::string& strip_id, SuccessCallback on_success = nullptr,
-                  ErrorCallback on_error = nullptr, SuccessCallback on_queued = nullptr);
+                  ErrorCallback on_error = nullptr, SuccessCallback on_queued = nullptr,
+                  bool silent = false);
 
     /// Update per-strip color cache from Moonraker status update JSON.
     /// True when @p status carried one of this backend's strips.
@@ -145,15 +150,15 @@ class LedEffectBackend {
                          NativeBackend::SuccessCallback on_success = nullptr,
                          NativeBackend::ErrorCallback on_error = nullptr,
                          NativeBackend::SuccessCallback on_queued = nullptr,
-                         bool caller_surfaces_errors = true);
+                         bool caller_surfaces_errors = true, bool silent = false);
     void stop_all_effects(NativeBackend::SuccessCallback on_success = nullptr,
                           NativeBackend::ErrorCallback on_error = nullptr,
                           NativeBackend::SuccessCallback on_queued = nullptr,
-                          bool caller_surfaces_errors = true);
+                          bool caller_surfaces_errors = true, bool silent = false);
     void stop_effect(const std::string& effect_name,
                      NativeBackend::SuccessCallback on_success = nullptr,
                      NativeBackend::ErrorCallback on_error = nullptr,
-                     NativeBackend::SuccessCallback on_queued = nullptr);
+                     NativeBackend::SuccessCallback on_queued = nullptr, bool silent = false);
 
     // Set target LEDs for a specific effect by name
     void set_effect_targets(const std::string& effect_name,
@@ -322,17 +327,17 @@ class OutputPinBackend {
     void set_value(const std::string& pin_id, double value,
                    NativeBackend::SuccessCallback on_success = nullptr,
                    NativeBackend::ErrorCallback on_error = nullptr,
-                   NativeBackend::SuccessCallback on_queued = nullptr);
+                   NativeBackend::SuccessCallback on_queued = nullptr, bool silent = false);
     void turn_on(const std::string& pin_id, NativeBackend::SuccessCallback on_success = nullptr,
                  NativeBackend::ErrorCallback on_error = nullptr,
-                 NativeBackend::SuccessCallback on_queued = nullptr);
+                 NativeBackend::SuccessCallback on_queued = nullptr, bool silent = false);
     void turn_off(const std::string& pin_id, NativeBackend::SuccessCallback on_success = nullptr,
                   NativeBackend::ErrorCallback on_error = nullptr,
-                  NativeBackend::SuccessCallback on_queued = nullptr);
+                  NativeBackend::SuccessCallback on_queued = nullptr, bool silent = false);
     void set_brightness(const std::string& pin_id, int brightness_pct,
                         NativeBackend::SuccessCallback on_success = nullptr,
                         NativeBackend::ErrorCallback on_error = nullptr,
-                        NativeBackend::SuccessCallback on_queued = nullptr);
+                        NativeBackend::SuccessCallback on_queued = nullptr, bool silent = false);
 
     /// Update pin values from Moonraker status JSON.
     /// True when @p status carried one of this backend's pins.
@@ -446,7 +451,7 @@ class LedController {
     [[nodiscard]] DeviceState device_state(const std::string& id) const;
 
     /// Switch exactly @p ids on or off.
-    void set_power(const std::vector<std::string>& ids, bool on);
+    void set_power(const std::vector<std::string>& ids, bool on, bool silent = false);
 
     /// Switch @p ids per next_power_on(); returns the state sent.
     bool toggle_power(const std::vector<std::string>& ids);
@@ -454,11 +459,13 @@ class LedController {
     /// Show a look (an RGB tint plus a W level 0.0-1.0) at @p brightness_pct on
     /// the native and output_pin devices among @p ids, fitted to each device as
     /// fit_look() fits it. 0 switches them off, as set_power(ids, false).
-    void set_look(const std::vector<std::string>& ids, uint32_t rgb, double w, int brightness_pct);
+    void set_look(const std::vector<std::string>& ids, uint32_t rgb, double w, int brightness_pct,
+                  bool silent = false);
 
     /// Set brightness on the native and output_pin devices among @p ids, keeping the
     /// last color. 0 switches every device in @p ids off, as set_power(ids, false).
-    void set_brightness(const std::vector<std::string>& ids, int brightness_pct);
+    void set_brightness(const std::vector<std::string>& ids, int brightness_pct,
+                        bool silent = false);
 
     /// Route a Moonraker status frame to the backends; bumps led_state_version
     /// when it carried an LED object. Main thread only, and called under
@@ -621,7 +628,7 @@ class LedController {
     void send_look(const std::string& strip_id, uint32_t rgb, double w, int brightness_pct,
                    NativeBackend::SuccessCallback on_success = nullptr,
                    NativeBackend::ErrorCallback on_error = nullptr,
-                   NativeBackend::SuccessCallback on_queued = nullptr);
+                   NativeBackend::SuccessCallback on_queued = nullptr, bool silent = false);
 
     /// Tells light buttons the set of devices changed: discovery, WLED
     /// strips arriving, a macro device added, edited or deleted.

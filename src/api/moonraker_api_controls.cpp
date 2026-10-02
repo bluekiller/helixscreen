@@ -185,7 +185,8 @@ void MoonrakerAPI::get_sensors(SensorsCallback on_success, ErrorCallback on_erro
 
 void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_success,
                                  ErrorCallback on_error, uint32_t timeout_ms, bool silent,
-                                 SuccessCallback on_queued, bool caller_surfaces_errors) {
+                                 SuccessCallback on_queued, bool caller_surfaces_errors,
+                                 bool bypass_busy_gate) {
     // G-code leaves here VERBATIM. Nothing is appended, rewritten, or stripped —
     // see moonraker_gcode_guards.h and tests/unit/test_gcode_verbatim.cpp.
     //
@@ -243,15 +244,22 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
 
     // Gate discretionary gcode (fan, temp, non-homing moves, LED) while a blocking
     // non-print operation holds Klipper's single-threaded gcode lock (homing,
-    // BED_MESH_CALIBRATE, QGL, PROBE_ACCURACY, manual probe). Split by danger below:
+    // BED_MESH_CALIBRATE, QGL, PROBE_ACCURACY, manual probe) or while a print
+    // start is under way — the START macro (heat soak, mesh, probing) holds the
+    // same gcode mutex for minutes while print_stats already reports PRINTING,
+    // which the blocking predicate excludes, so the print-start phase is gated on
+    // its own arm here (bundle SQJ8SAL7, FlashForge AD5X). Split by danger below:
     // a physical MOVE is refused (a late jog is dangerous); benign fan/temp/LED are
     // queued fire-and-forget with a single per-episode toast rather than lost or
     // timed out (bundle 7CT79XXK, Sovol SV08 calibration; #1108). Recovery, homing,
     // probe-control (TESTZ/ACCEPT/ABORT) and macros are never discretionary, so they
-    // pass. Real file prints are excluded by is_blocking_operation_active(). Self-busy
-    // from the app's own recent jog passes too (idle_timeout reports "Printing"
-    // during any move); only external blocking ops are gated.
-    if (helix::is_discretionary_gcode(gcode) && state_.is_external_blocking_operation_active()) {
+    // pass. Mid-print tweaks once the start sequence is done stay synchronous.
+    // Self-busy from the app's own recent jog passes too (idle_timeout reports
+    // "Printing" during any move); only external blocking ops are gated.
+    // bypass_busy_gate is for the print-launch send: its on_success chains the
+    // job launch, so queueing it fire-and-forget would orphan the print start.
+    if (!bypass_busy_gate && helix::is_discretionary_gcode(gcode) &&
+        (state_.is_external_blocking_operation_active() || state_.is_in_print_start())) {
         // A physical MOVE must never queue behind the blocking op: a jog that fires
         // minutes late, after the user has walked away, can crash the toolhead.
         // Refuse it up front (recovery/homing are non-discretionary and never reach
@@ -311,6 +319,10 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
         // frontend's console) is worth announcing precisely because, from this
         // panel's point of view, it came out of nowhere.
         //
+        // A silent send is a non-interactive caller (LedAutoState applying the
+        // state theme), not a user command; the toast exists to explain a
+        // command the USER made, so it neither shows nor claims the latch.
+        //
         // The short-circuit ordering is load-bearing: when suppressed,
         // claim_busy_queue_toast() must NOT be called, so the once-per-episode
         // latch stays armed and a genuinely external op later in the same
@@ -319,7 +331,8 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
         // This is the ONLY consumer of app_macro_activity(). The blocking-op
         // predicates deliberately do not read it — narrowing them would let a
         // late jog through during a filament op (#1108).
-        if (!state_.app_macro_activity().recently_active() && state_.claim_busy_queue_toast()) {
+        if (!silent && !state_.app_macro_activity().recently_active() &&
+            state_.claim_busy_queue_toast()) {
             NOTIFY_INFO("Printer is busy — your {} will run when it's ready.",
                         helix::discretionary_gcode_noun(gcode));
         }

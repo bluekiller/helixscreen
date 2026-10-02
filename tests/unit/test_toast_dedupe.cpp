@@ -3,6 +3,9 @@
 #include "ui_toast_manager.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../lvgl_ui_test_fixture.h"
+
+#include <string>
 
 #include "../catch_amalgamated.hpp"
 
@@ -132,4 +135,59 @@ TEST_CASE_METHOD(LVGLTestFixture, "Toast lifecycle: button of an erased toast re
           ToastManagerTestAccess::list_end(tm));
 
     lv_obj_delete(stack);
+}
+
+namespace {
+
+int g_unknown_attr_lines = 0;
+
+void unknown_attr_log_cb(lv_log_level_t level, const char* buf) {
+    if (level == LV_LOG_LEVEL_WARN &&
+        std::string(buf).find("Unknown attribute") != std::string::npos) {
+        ++g_unknown_attr_lines;
+    }
+}
+
+// Counts WARN lines about attributes no XML parser claims while alive — the
+// only trace a typo'd attribute name leaves. Same contract as the fan-mark
+// counter in test_fan_settings_xml.cpp: registered for the body only, and
+// nullptr (LVGL's default path) restored after.
+class ScopedUnknownAttrCounter {
+  public:
+    ScopedUnknownAttrCounter() {
+        g_unknown_attr_lines = 0;
+        lv_log_register_print_cb(unknown_attr_log_cb);
+    }
+    ~ScopedUnknownAttrCounter() {
+        lv_log_register_print_cb(nullptr);
+    }
+    ScopedUnknownAttrCounter(const ScopedUnknownAttrCounter&) = delete;
+    ScopedUnknownAttrCounter& operator=(const ScopedUnknownAttrCounter&) = delete;
+
+    static int count() {
+        return g_unknown_attr_lines;
+    }
+};
+
+} // namespace
+
+// A typo'd attribute name in a component's XML is silently ignored by the
+// engine: the style value never applies and the only trace is an "Unknown
+// attribute ... (typo?)" warning per render. ToastManager is stubbed out of
+// the test link, so build the registered component the way it does —
+// lv_xml_create with the toast's props — and pin the engine log clean: every
+// style attribute on the card, shadow offset included, must be a name a
+// parser claims.
+TEST_CASE_METHOD(LVGLUITestFixture, "toast_notification renders without engine attribute warnings",
+                 "[toast][xml]") {
+    ScopedUnknownAttrCounter counter;
+
+    const char* attrs[] = {"message", "attribute warning pin", "hide_action", "false", nullptr};
+    lv_obj_t* toast =
+        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "toast_notification", attrs));
+
+    REQUIRE(toast != nullptr); // the component really built
+    CHECK(ScopedUnknownAttrCounter::count() == 0);
+
+    lv_obj_delete(toast);
 }

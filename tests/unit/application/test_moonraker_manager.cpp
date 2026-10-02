@@ -998,3 +998,78 @@ TEST_CASE("should_stop_collector_on_klippy_state stops on shutdown and error",
             MoonrakerManager::should_stop_collector_on_klippy_state(KlippyState::STARTUP));
     }
 }
+
+// ============================================================================
+// Printer-edge collector arming — the observer path, not the pure predicate
+// ============================================================================
+// Every case above pins should_start_print_collector() as a function; none
+// drives the print-state observer that wires it to a live collector. That
+// observer is the path a print started by ANOTHER client (Mainsail) takes,
+// where print_stats moving to PRINTING is the only signal, and it is the
+// load-bearing assumption behind the print-start arm of the discretionary-gcode
+// busy gate: a jog during a START macro is refused because is_in_print_start()
+// is true, and it is true because this observer drove the phase subject off
+// IDLE. Drives the real manager with its mock client.
+
+#include "../../test_helpers/update_queue_test_access.h"
+#include "ams_state.h"
+#include "app_globals.h"
+#include "application_test_fixture.h"
+#include "filament_sensor_manager.h"
+#include "print_start_collector.h"
+#include "print_start_phase.h"
+#include "spoolman_manager.h"
+
+namespace {
+
+class ManagerCollectorArmingFixture : public ApplicationTestFixture {
+  public:
+    ManagerCollectorArmingFixture() {
+        // The global PrinterState the observer registers on; park it in
+        // STANDBY so the write below is a real no-job -> PRINTING edge.
+        auto& ps = get_printer_state();
+        ps.init_subjects(false);
+        lv_subject_set_int(ps.get_print_state_enum_subject(),
+                           static_cast<int>(PrintJobState::STANDBY));
+
+        REQUIRE(mgr.init(config(), nullptr));
+        mgr.init_print_start_collector();
+    }
+
+    ~ManagerCollectorArmingFixture() override {
+        mgr.shutdown();
+        // create_api() handed this manager's API to app_globals and three
+        // singletons; null them so nothing later in the binary dereferences
+        // the freed instance.
+        set_moonraker_api(nullptr);
+        AmsState::instance().set_moonraker_api(nullptr);
+        FilamentSensorManager::instance().set_moonraker_api(nullptr);
+        SpoolmanManager::instance().set_api(nullptr);
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    MoonrakerManager mgr;
+};
+
+} // namespace
+
+TEST_CASE_METHOD(ManagerCollectorArmingFixture,
+                 "print-state observer arms the collector off IDLE on a printer-edge start",
+                 "[application][print_start]") {
+    auto& ps = get_printer_state();
+    auto* phase_subject = ps.get_print_start_phase_subject();
+    REQUIRE(lv_subject_get_int(phase_subject) == static_cast<int>(PrintStartPhase::IDLE));
+    REQUIRE_FALSE(ps.is_in_print_start());
+
+    // A print started from another frontend: only print_stats moves.
+    lv_subject_set_int(ps.get_print_state_enum_subject(),
+                       static_cast<int>(PrintJobState::PRINTING));
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    // The collector started and published its first phase (deferred through
+    // the UpdateQueue, hence the drain above): the phase left IDLE, which is
+    // what is_in_print_start() reads.
+    CHECK(mgr.print_start_collector()->is_active());
+    CHECK(lv_subject_get_int(phase_subject) != static_cast<int>(PrintStartPhase::IDLE));
+    CHECK(ps.is_in_print_start());
+}

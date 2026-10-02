@@ -616,10 +616,14 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // condition has cleared — never on an individual signal's falling edge. A
     // manual-probe session whose idle_timeout bounces to "Ready" between TESTZ moves
     // is still one blocking episode; keying off idle_timeout alone would re-toast
-    // mid-episode (#1108 review). is_blocking_operation_active() sees the just-updated
-    // manual_probe / idle_timeout / print-job subjects. The store is idempotent, so
-    // gating on the predicate needs no separate edge tracking.
-    if (!is_blocking_operation_active()) {
+    // mid-episode (#1108 review). A print-start episode counts as part of that
+    // composite here: the START macro runs while print_stats is already PRINTING,
+    // which is_blocking_operation_active() excludes, so a latch claimed during a
+    // print start stays held through the whole start sequence and re-arms only
+    // once neither arm is active. is_blocking_operation_active() sees the
+    // just-updated manual_probe / idle_timeout / print-job subjects. The store is
+    // idempotent, so gating on the predicate needs no separate edge tracking.
+    if (!is_blocking_operation_active() && !is_in_print_start()) {
         calibration_state_.arm_busy_queue_toast();
     }
 

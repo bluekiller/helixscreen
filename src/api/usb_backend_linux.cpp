@@ -421,8 +421,6 @@ void UsbBackendLinux::monitor_thread_func() {
         }
 
         if (mounts_changed) {
-            spdlog::debug("[UsbBackendLinux] Mount change detected");
-
             // Re-parse mounts
             auto new_drives = parse_mounts();
 
@@ -457,6 +455,17 @@ void UsbBackendLinux::monitor_thread_func() {
                 }
 
                 cached_drives_ = new_drives;
+            }
+
+            // Only an actual drive-set change is "detected": the 10s safety
+            // re-parse above re-parses unconditionally, so a debug line here
+            // would print a change every 10s on a host with no drives at all.
+            if (!added.empty() || !removed.empty()) {
+                spdlog::debug("[UsbBackendLinux] Mount change detected ({} added, {} removed)",
+                              added.size(), removed.size());
+            } else {
+                spdlog::trace("[UsbBackendLinux] Mount re-parse: {} drives, no change",
+                              new_drives.size());
             }
 
             // Fire callbacks outside lock
