@@ -169,10 +169,6 @@ XMLTestFixture::~XMLTestFixture() {
     // member destructor runs after this function body completes.
     m_api.reset();
     m_client.reset();
-    // TODO: PrinterState::init_subjects(true) appends a `[this]{ deinit_subjects(); }`
-    // lambda to StaticSubjectRegistry that dangles after this dtor. Not called today,
-    // but would segfault if someone adds a process-exit deinit_all() path. Needs an
-    // unregister() API on StaticSubjectRegistry.
     m_state.deinit_subjects();
 
     spdlog::debug("[XMLTestFixture] Cleaned up");

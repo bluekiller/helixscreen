@@ -16,6 +16,7 @@
 #include "ui_nav_manager.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_fixtures.h"
 #include "accel_sensor_manager.h"
 #include "ams_state.h"
 #include "app_globals.h"
@@ -29,6 +30,8 @@
 #include "timelapse_state.h"
 #include "tool_state.h"
 #include "width_sensor_manager.h"
+
+#include <algorithm>
 
 #include "../catch_amalgamated.hpp"
 
@@ -231,4 +234,14 @@ TEST_CASE("Double init_subjects does not double-register", "[shutdown][self-regi
     REQUIRE(count_after_first == count_after_second);
 
     registry.deinit_all();
+}
+
+TEST_CASE("XMLTestFixture leaves no PrinterState entry behind in the registry",
+          "[shutdown][self-register]") {
+    {
+        XMLTestFixture fixture;
+        REQUIRE(fixture.state().are_subjects_initialized());
+    }
+    auto names = StaticSubjectRegistry::instance().names();
+    REQUIRE(std::find(names.begin(), names.end(), "PrinterState") == names.end());
 }

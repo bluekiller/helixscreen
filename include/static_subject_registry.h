@@ -88,6 +88,17 @@ class StaticSubjectRegistry {
     bool deinit_one(const char* name);
 
     /**
+     * @brief Drop a registered entry without running it
+     *
+     * For a registrant that is not a process-lifetime singleton (a test
+     * fixture's own PrinterState): its callback captures the object, so the
+     * entry has to leave the registry before the object does.
+     *
+     * @return true if an entry was found and dropped
+     */
+    bool unregister(const char* name);
+
+    /**
      * @brief Clear all registered entries without running callbacks
      *
      * Used during soft restart (printer switching) after deinit_all() has run,
