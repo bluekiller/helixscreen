@@ -113,7 +113,7 @@ class PrintStartCollectorTestAccess {
     /// segment under way. A pure latch with no externally visible state until
     /// the next publish, so the per-run reset is pinned by reading it.
     static bool is_mesh_extrapolation_armed(PrintStartCollector& c) {
-        return c.mesh_extrapolation_armed_.load(std::memory_order_relaxed);
+        return c.mesh_extrapolation_armed_;
     }
 
     /// Inject predictor history (deterministic per-phase durations) instead of

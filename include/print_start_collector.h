@@ -607,10 +607,10 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     /// contribution (releases the monotonic anchor once). Cleared wherever the
     /// probe telemetry is zeroed — BED_MESH entry, sub-phase message change,
     /// probe-gap reset, and per run — so every mesh segment gets its own
-    /// release. Relaxed atomic: written under state_mutex_ on the WebSocket
-    /// thread and read/written without it on the main thread from the ETA
-    /// timer; both sides only set/clear/test it, no invariant spans the check.
-    std::atomic<bool> mesh_extrapolation_armed_{false};
+    /// release. Every access holds state_mutex_: the WebSocket thread clears
+    /// it for a new segment, the ETA timer tests-and-sets it, and the two must
+    /// not straddle a segment change.
+    bool mesh_extrapolation_armed_ = false;
 
     /// Unique probe POINTS (not sample lines) counted from the "probe at X,Y"
     /// fallback, for firmware that emits no "Probing point N/M". Reset on

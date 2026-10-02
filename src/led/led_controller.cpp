@@ -2058,7 +2058,10 @@ void LedController::apply_startup_preference(const std::vector<std::string>& tar
     spdlog::info("[LedController] Applying startup preference: brightness={}%, turning LEDs on",
                  startup_brightness_);
     last_brightness_ = startup_brightness_;
-    set_power(targets, true);
+    // Discovery-triggered, not user-asked: a connect or reconnect during a
+    // print start must not claim the busy-queue toast as though the user
+    // changed the lights.
+    set_power(targets, true, /*silent=*/true);
 }
 
 void LedController::publish_controllable_state() {

@@ -381,7 +381,7 @@ void PrintStartCollector::reset_run_locked() {
     mesh_first_probe_time_ = {};
     mesh_last_probe_time_ = {};
     mesh_seconds_per_probe_ = 0.0f;
-    mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
+    mesh_extrapolation_armed_ = false;
     mesh_entry_ext_target_ = 0;
     pre_mesh_points_.reset();
     pre_mesh_last_probe_time_ = {};
@@ -1157,7 +1157,7 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
                                          .count());
                         mesh_probe_current_ = 0;
                         mesh_seconds_per_probe_ = 0.0f;
-                        mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
+                        mesh_extrapolation_armed_ = false;
                     }
 
                     if (mesh_probe_current_ == 0) {
@@ -1212,7 +1212,7 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
                         mesh_points_.reset();
                         mesh_probe_current_ = 0;
                         mesh_seconds_per_probe_ = 0.0f;
-                        mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
+                        mesh_extrapolation_armed_ = false;
                     }
 
                     // Position dedupe (and the sample-divisor fallback for lines
@@ -1574,7 +1574,7 @@ void PrintStartCollector::maybe_reset_for_mesh_subphase_locked(PrintStartPhase n
     mesh_first_probe_time_ = {};
     mesh_last_probe_time_ = {};
     mesh_seconds_per_probe_ = 0.0f;
-    mesh_extrapolation_armed_.store(false, std::memory_order_relaxed);
+    mesh_extrapolation_armed_ = false;
     pre_mesh_points_.reset();
     if (message_changed) {
         spdlog::debug("[PrintStartCollector] BED_MESH sub-phase change → '{}' (counters reset)",
@@ -2092,23 +2092,23 @@ void PrintStartCollector::update_eta_display() {
             remaining_f += mesh_seconds_per_probe_ *
                            static_cast<float>(mesh_probe_total_ - mesh_probe_current_);
         }
+        // First tick where live extrapolation becomes the mesh's contribution:
+        // every publish before probe #2 armed the timing was a provisional
+        // guess, and the anchor those seeded would clamp the first honest
+        // value back down forever. Release it once, under the same lock the
+        // segment-change clears hold — arming off a stale snapshot after the
+        // WebSocket thread zeroed the telemetry for a new segment would clamp
+        // that segment's first honest value. After the release the estimate
+        // only decreases, so the monotonic guards re-engage normally.
+        if (mesh_live_snap && !mesh_extrapolation_armed_) {
+            mesh_extrapolation_armed_ = true;
+            last_remaining_ = 0;
+        }
         remaining = static_cast<int>(remaining_f);
 
         predicted_total = static_cast<int>(predicted_total_seconds_);
         current_snap = current;
         phase_elapsed_snap = phase_elapsed;
-    }
-
-    // First tick where live extrapolation becomes the mesh's contribution:
-    // every publish before probe #2 armed the timing was a provisional guess,
-    // and the anchor those seeded would clamp the first honest value back down
-    // forever. Release it once; after this the extrapolated estimate only
-    // decreases, so the monotonic guards re-engage normally. Relaxed atomic:
-    // this runs on the ETA timer (main thread) while the clears above run on
-    // the WebSocket thread; only set/clear/test, no invariant spans the check.
-    if (mesh_live_snap && !mesh_extrapolation_armed_.load(std::memory_order_relaxed)) {
-        mesh_extrapolation_armed_.store(true, std::memory_order_relaxed);
-        last_remaining_ = 0;
     }
 
     // --- Diagnostic: monotonic bias data collection ---
