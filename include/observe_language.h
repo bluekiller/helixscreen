@@ -34,7 +34,7 @@ ObserverGuard observe_language_change(Panel* panel, OnChange&& on_change) {
     lv_subject_t* language = settings.subject_language();
     // Held by pointer so the non-mutable handler can update it.
     auto shown = std::make_shared<int>(lv_subject_get_int(language));
-    return observe_int_sync<Panel>(
+    return observe<int>(
         language, panel,
         [shown, on_change = std::forward<OnChange>(on_change)](Panel* p, int index) {
             if (index == *shown) {

@@ -93,7 +93,7 @@ void JobQueueWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     auto* count_subj = lv_xml_get_subject(nullptr, "job_queue_count");
     auto* jqs = get_job_queue_state();
     if (count_subj) {
-        count_observer_ = helix::ui::observe_int_sync<JobQueueWidget>(
+        count_observer_ = helix::ui::observe<int>(
             count_subj, this,
             [](JobQueueWidget* self, int /*count*/) {
                 // Defer rebuild (#80) AND use safe_clean_children inside

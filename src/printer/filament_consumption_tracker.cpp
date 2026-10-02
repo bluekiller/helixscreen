@@ -38,7 +38,7 @@ void FilamentConsumptionTracker::start() {
         },
         printer.get_subjects_lifetime());
 
-    filament_used_obs_ = helix::ui::observe_int_sync<FilamentConsumptionTracker>(
+    filament_used_obs_ = helix::ui::observe<int>(
         printer.get_print_filament_used_subject(), this,
         [](FilamentConsumptionTracker* self, int mm) { self->on_filament_used_changed(mm); },
         printer.get_subjects_lifetime());
@@ -51,7 +51,7 @@ void FilamentConsumptionTracker::start() {
         if (!subj) {
             continue;
         }
-        extruder_obs_[idx] = helix::ui::observe_int_sync<FilamentConsumptionTracker>(
+        extruder_obs_[idx] = helix::ui::observe<int>(
             subj, this,
             [idx](FilamentConsumptionTracker* self, int mm) {
                 self->on_extruder_filament_used_changed(idx, mm);

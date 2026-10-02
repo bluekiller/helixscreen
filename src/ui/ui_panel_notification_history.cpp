@@ -96,7 +96,7 @@ void NotificationHistoryPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     if (!history_version_observer_) {
         lv_subject_t* version_subject = helix::ui::notification_history_version_subject();
         if (version_subject) {
-            history_version_observer_ = helix::ui::observe_int_sync<NotificationHistoryPanel>(
+            history_version_observer_ = helix::ui::observe<int>(
                 version_subject, this,
                 [](NotificationHistoryPanel* p, int value) {
                     p->handle_history_version_change(value);

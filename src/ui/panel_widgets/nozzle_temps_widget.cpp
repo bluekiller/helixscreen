@@ -134,11 +134,11 @@ void NozzleTempsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // are silently ignored (#782). This left the widget with stale rows pointing to
     // freed subjects, crashing in lv_observer_remove during the next clear_rows().
     //
-    // Safety is provided by: (1) weak_alive in observe_int_sync context (expires when
+    // Safety is provided by: (1) weak_alive in observe<int> context (expires when
     // version_observer_ is reset in detach()), (2) rebuilding_ re-entrancy guard,
     // (3) initial_version skip for the attach-time callback.
     int initial_version = lv_subject_get_int(printer_state_.get_extruder_version_subject());
-    version_observer_ = helix::ui::observe_int_sync<NozzleTempsWidget>(
+    version_observer_ = helix::ui::observe<int>(
         printer_state_.get_extruder_version_subject(), this,
         [initial_version](NozzleTempsWidget* self, int version) {
             if (version == initial_version)
@@ -281,7 +281,7 @@ void NozzleTempsWidget::rebuild_rows() {
             row.cached_temp = lv_subject_get_int(temp_subj);
             auto* temp_lbl = row.temp_label;
             auto* target_lbl = row.target_label;
-            row.temp_observer = helix::ui::observe_int_sync<NozzleTempsWidget>(
+            row.temp_observer = helix::ui::observe<int>(
                 temp_subj, this,
                 [token, idx = extruder_rows_.size(), temp_lbl, target_lbl](NozzleTempsWidget* self,
                                                                            int temp) {
@@ -300,7 +300,7 @@ void NozzleTempsWidget::rebuild_rows() {
             row.cached_target = lv_subject_get_int(target_subj);
             auto* temp_lbl = row.temp_label;
             auto* target_lbl = row.target_label;
-            row.target_observer = helix::ui::observe_int_sync<NozzleTempsWidget>(
+            row.target_observer = helix::ui::observe<int>(
                 target_subj, this,
                 [token, idx = extruder_rows_.size(), temp_lbl, target_lbl](NozzleTempsWidget* self,
                                                                            int target) {
@@ -341,7 +341,7 @@ void NozzleTempsWidget::rebuild_rows() {
 
     if (bed_temp_subj) {
         cached_bed_temp_ = lv_subject_get_int(bed_temp_subj);
-        bed_temp_observer_ = helix::ui::observe_int_sync<NozzleTempsWidget>(
+        bed_temp_observer_ = helix::ui::observe<int>(
             bed_temp_subj, this,
             [token](NozzleTempsWidget* self, int temp) {
                 if (token.expired())
@@ -355,7 +355,7 @@ void NozzleTempsWidget::rebuild_rows() {
 
     if (bed_target_subj) {
         cached_bed_target_ = lv_subject_get_int(bed_target_subj);
-        bed_target_observer_ = helix::ui::observe_int_sync<NozzleTempsWidget>(
+        bed_target_observer_ = helix::ui::observe<int>(
             bed_target_subj, this,
             [token](NozzleTempsWidget* self, int target) {
                 if (token.expired())

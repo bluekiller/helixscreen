@@ -64,6 +64,10 @@ struct PrintSelectGlobalStateReset {
 /// does not want.
 enum class PrintSelectFilelistHandler { Unregistered, Registered };
 
+/// Whether the fixture navigates to the panel (first on_activate) at the end of
+/// construction. Deferred leaves the panel set up but never visited.
+enum class PrintSelectVisit { Immediate, Deferred };
+
 /// The real panel over the real NavigationManager: mock client connected,
 /// MoonrakerAPI on top of it, print_select_panel XML built, and the navigation
 /// stack seeded the way the app has it (panel_stack_[0] = the active main
@@ -72,7 +76,8 @@ enum class PrintSelectFilelistHandler { Unregistered, Registered };
 class PrintSelectPanelFixture : public LVGLUITestFixture {
   public:
     explicit PrintSelectPanelFixture(
-        PrintSelectFilelistHandler handler = PrintSelectFilelistHandler::Unregistered)
+        PrintSelectFilelistHandler handler = PrintSelectFilelistHandler::Unregistered,
+        PrintSelectVisit visit = PrintSelectVisit::Immediate)
         : mock_client_(MoonrakerClientMock::PrinterType::VORON_24, /*speedup_factor=*/100.0) {
         animations_were_enabled_ = DisplaySettingsManager::instance().get_animations_enabled();
         DisplaySettingsManager::instance().set_animations_enabled(false);
@@ -102,8 +107,10 @@ class PrintSelectPanelFixture : public LVGLUITestFixture {
         auto& nav = NavigationManager::instance();
         nav.set_panels(panels);
         nav.register_panel_instance(PanelId::PrintSelect, panel_.get());
-        nav.set_active(PanelId::PrintSelect);
-        drain();
+        if (visit == PrintSelectVisit::Immediate) {
+            nav.set_active(PanelId::PrintSelect);
+            drain();
+        }
     }
 
     ~PrintSelectPanelFixture() override {

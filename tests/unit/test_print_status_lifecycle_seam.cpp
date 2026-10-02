@@ -64,7 +64,7 @@ struct PanelLifecycleFixture : public LVGLTestFixture {
     /// Drain until quiescent, not once.
     ///
     /// A single drain() is NOT enough here: the panel's observers are
-    /// observe_int_sync, so a handler that runs during a drain can queue further
+    /// observe<int>, so a handler that runs during a drain can queue further
     /// work, and that work is still pending when drain() returns. A one-shot
     /// drain left the panel one transition behind the published subject and made
     /// every agreement case below look like a production defect.

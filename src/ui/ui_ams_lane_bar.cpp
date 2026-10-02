@@ -261,7 +261,7 @@ static void ams_lane_bar_event_cb(lv_event_t* e) {
  *
  * Resolves AmsState's per-slot subjects (lane_state, color, fill,
  * active_loaded, has_error, error_severity) and observes each with
- * observe_int_sync<lv_obj_t>. Every observer carries AmsState's subjects
+ * observe<int>. Every observer carries AmsState's subjects
  * lifetime, since deinit_subjects() frees their observer nodes.
  */
 static void setup_lane_bar_observers(LaneBarData* data) {
@@ -270,7 +270,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
         return;
     }
 
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     AmsState& state = AmsState::instance();
 
     lv_subject_t* lane_state_subject = state.get_slot_lane_state_subject(data->slot_index);
@@ -286,7 +286,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
     lv_obj_t* obj = data->root;
 
     if (lane_state_subject) {
-        data->lane_state_observer = observe_int_sync<lv_obj_t>(
+        data->lane_state_observer = observe<int>(
             lane_state_subject, obj,
             [](lv_obj_t* o, int state_int) {
                 auto* d = get_lane_bar_data(o);
@@ -296,7 +296,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
             state.get_subjects_lifetime());
     }
     if (color_subject) {
-        data->color_observer = observe_int_sync<lv_obj_t>(
+        data->color_observer = observe<int>(
             color_subject, obj,
             [](lv_obj_t* o, int color_int) {
                 auto* d = get_lane_bar_data(o);
@@ -307,7 +307,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
     }
     if (fill_subject) {
         // pct < 0 means "no data" -> leave the current render untouched.
-        data->fill_observer = observe_int_sync<lv_obj_t>(
+        data->fill_observer = observe<int>(
             fill_subject, obj,
             [](lv_obj_t* o, int pct) {
                 auto* d = get_lane_bar_data(o);
@@ -321,7 +321,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
             state.get_subjects_lifetime());
     }
     if (active_loaded_subject) {
-        data->active_loaded_observer = observe_int_sync<lv_obj_t>(
+        data->active_loaded_observer = observe<int>(
             active_loaded_subject, obj,
             [](lv_obj_t* o, int active) {
                 auto* d = get_lane_bar_data(o);
@@ -335,7 +335,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
     if (severity_subject) {
         // Color before visibility, so a has_error flip never paints one frame
         // with the default color.
-        data->severity_observer = observe_int_sync<lv_obj_t>(
+        data->severity_observer = observe<int>(
             severity_subject, obj,
             [](lv_obj_t* o, int sev) {
                 auto* d = get_lane_bar_data(o);
@@ -347,7 +347,7 @@ static void setup_lane_bar_observers(LaneBarData* data) {
             state.get_subjects_lifetime());
     }
     if (has_error_subject) {
-        data->has_error_observer = observe_int_sync<lv_obj_t>(
+        data->has_error_observer = observe<int>(
             has_error_subject, obj,
             [](lv_obj_t* o, int has_error) {
                 auto* d = get_lane_bar_data(o);

@@ -95,6 +95,9 @@ class HappyHareTestAccess {
     template <class B, class... A> static decltype(auto) is_type_b(B& b, A&&... a) {
         return b.is_type_b(std::forward<A>(a)...);
     }
+    template <class B> static void on_started(B& b) {
+        b.on_started();
+    }
     template <class B, class... A> static decltype(auto) apply_heater_config(B& b, A&&... a) {
         return b.apply_heater_config(std::forward<A>(a)...);
     }

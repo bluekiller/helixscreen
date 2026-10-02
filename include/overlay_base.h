@@ -466,7 +466,7 @@ struct TeardownHooks {
  *
  * Performs, in order:
  * 1. Drains the UpdateQueue under a scoped freeze while all pointers are
- *    still valid (observe_int_sync callbacks capture raw panel pointers)
+ *    still valid (observe<int> callbacks capture raw panel pointers)
  * 2. Unregisters the close callback and overlay instance from
  *    NavigationManager (before deletion, so a manual destroy while the panel
  *    is still stacked cannot double-invoke)

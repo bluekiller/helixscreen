@@ -179,9 +179,8 @@ static void log_tree_created(PrintState state, size_t available_mb) {
 
 // Observer factory pattern
 using helix::ui::find_required;
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 using helix::ui::observe_print_state;
-using helix::ui::observe_string;
 
 // Helper to get or create the global instance
 PrintStatusPanel& get_global_print_status_panel() {
@@ -247,18 +246,18 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         [](PrintStatusPanel* self, int) { self->on_temperature_changed(); });
 
     // Subscribe to active tool changes (refreshes nozzle temp with tool name prefix)
-    active_tool_observer_ = observe_int_sync<PrintStatusPanel>(
+    active_tool_observer_ = observe<int>(
         helix::ToolState::instance().get_active_tool_subject(), this,
         [](PrintStatusPanel* self, int) { self->on_temperature_changed(); },
         helix::ToolState::instance().get_subjects_lifetime());
 
     // Chamber status text: observe chamber temp to compute Heating/Cooling/Holding status
-    chamber_temp_observer_ = observe_int_sync<PrintStatusPanel>(
+    chamber_temp_observer_ = observe<int>(
         printer_state_.get_chamber_temp_subject(), this,
         [](PrintStatusPanel* self, int) { self->update_chamber_status(); }, ps_subjects);
 
     // Subscribe to print progress and state
-    print_progress_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_progress_observer_ = observe<int>(
         printer_state_.get_print_progress_subject(), this,
         [](PrintStatusPanel* self, int progress) { self->on_print_progress_changed(progress); },
         ps_subjects);
@@ -275,7 +274,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // reconcile the old set_thumbnail_source() forced by calling set_filename()
     // on itself, minus the coupling that let the panel and the media manager
     // drift apart (prestonbrown/helixscreen#1339).
-    print_identity_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_identity_observer_ = observe<int>(
         printer_state_.get_print_identity_epoch_subject(), this,
         [](PrintStatusPanel* self, int /*epoch*/) {
             // No marker clearing here on purpose. decide_preview_action() already
@@ -287,7 +286,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         },
         ps_subjects);
 
-    print_filename_observer_ = observe_string<PrintStatusPanel>(
+    print_filename_observer_ = observe<const char*>(
         printer_state_.get_print_filename_subject(), this,
         [](PrintStatusPanel* self, const char* filename) {
             self->on_print_filename_changed(filename);
@@ -295,38 +294,38 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         ps_subjects);
 
     // Subscribe to speed/flow factors
-    speed_factor_observer_ = observe_int_sync<PrintStatusPanel>(
+    speed_factor_observer_ = observe<int>(
         printer_state_.get_speed_factor_subject(), this,
         [](PrintStatusPanel* self, int speed) { self->on_speed_factor_changed(speed); },
         ps_subjects);
-    flow_factor_observer_ = observe_int_sync<PrintStatusPanel>(
+    flow_factor_observer_ = observe<int>(
         printer_state_.get_flow_factor_subject(), this,
         [](PrintStatusPanel* self, int flow) { self->on_flow_factor_changed(flow); }, ps_subjects);
     // The physical-units readout also moves with the live toolhead and
     // extruder velocities, and with the speed/flow units preference.
-    live_velocity_observer_ = observe_int_sync<PrintStatusPanel>(
+    live_velocity_observer_ = observe<int>(
         printer_state_.get_live_velocity_subject(), this,
         [](PrintStatusPanel* self, int) { self->update_speed_flow_text(); }, ps_subjects);
-    extruder_velocity_observer_ = observe_int_sync<PrintStatusPanel>(
+    extruder_velocity_observer_ = observe<int>(
         printer_state_.get_live_extruder_velocity_subject(), this,
         [](PrintStatusPanel* self, int) { self->update_speed_flow_text(); }, ps_subjects);
-    physical_units_observer_ = observe_int_sync<PrintStatusPanel>(
+    physical_units_observer_ = observe<int>(
         DisplaySettingsManager::instance().subject_speed_flow_physical_units(), this,
         [](PrintStatusPanel* self, int) { self->update_speed_flow_text(); },
         DisplaySettingsManager::instance().get_subjects_lifetime());
-    gcode_z_offset_observer_ = observe_int_sync<PrintStatusPanel>(
+    gcode_z_offset_observer_ = observe<int>(
         printer_state_.get_gcode_z_offset_subject(), this,
         [](PrintStatusPanel* self, int microns) { self->on_gcode_z_offset_changed(microns); },
         ps_subjects);
 
     // Subscribe to layer tracking for G-code viewer ghost layer updates
-    print_layer_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_layer_observer_ = observe<int>(
         printer_state_.get_print_layer_current_subject(), this,
         [](PrintStatusPanel* self, int layer) { self->on_print_layer_changed(layer); },
         ps_subjects);
 
     // Re-render layer text when Z position changes (Z updates more frequently than layer count)
-    z_position_observer_ = observe_int_sync<PrintStatusPanel>(
+    z_position_observer_ = observe<int>(
         printer_state_.get_gcode_position_z_subject(), this,
         [](PrintStatusPanel* self, int) {
             int layer = lv_subject_get_int(self->printer_state_.get_print_layer_current_subject());
@@ -335,37 +334,37 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         ps_subjects);
 
     // Subscribe to wall-clock elapsed time (total_duration includes prep time)
-    print_duration_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_duration_observer_ = observe<int>(
         printer_state_.get_print_elapsed_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_print_duration_changed(seconds); },
         ps_subjects);
-    print_time_left_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_time_left_observer_ = observe<int>(
         printer_state_.get_print_time_left_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_print_time_left_changed(seconds); },
         ps_subjects);
 
     // Subscribe to print start preparation phase subjects
-    print_start_phase_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_start_phase_observer_ = observe<int>(
         printer_state_.get_print_start_phase_subject(), this,
         [](PrintStatusPanel* self, int phase) { self->on_print_start_phase_changed(phase); },
         ps_subjects);
-    print_start_progress_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_start_progress_observer_ = observe<int>(
         printer_state_.get_print_start_progress_subject(), this,
         [](PrintStatusPanel* self, int progress) {
             self->on_print_start_progress_changed(progress);
         },
         ps_subjects);
-    preprint_remaining_observer_ = observe_int_sync<PrintStatusPanel>(
+    preprint_remaining_observer_ = observe<int>(
         printer_state_.get_preprint_remaining_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_preprint_remaining_changed(seconds); },
         ps_subjects);
-    preprint_elapsed_observer_ = observe_int_sync<PrintStatusPanel>(
+    preprint_elapsed_observer_ = observe<int>(
         printer_state_.get_preprint_elapsed_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_preprint_elapsed_changed(seconds); },
         ps_subjects);
 
     // Subscribe to defined objects changes (for objects list button visibility + count)
-    exclude_objects_observer_ = observe_int_sync<PrintStatusPanel>(
+    exclude_objects_observer_ = observe<int>(
         printer_state_.get_defined_objects_version_subject(), this,
         [](PrintStatusPanel* self, int) {
             int available = self->printer_state_.get_defined_objects().size() >= 2 ? 1 : 0;
@@ -376,20 +375,20 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         ps_subjects);
 
     // Subscribe to excluded objects changes (for "X of Y obj" count updates)
-    excluded_objects_version_observer_ = observe_int_sync<PrintStatusPanel>(
+    excluded_objects_version_observer_ = observe<int>(
         printer_state_.get_excluded_objects_version_subject(), this,
         [](PrintStatusPanel* self, int) { self->update_objects_text(); }, ps_subjects);
 
     // Subscribe to AMS current filament color for gcode viewer color override
     // When a known filament color is available (from Spoolman spool or AMS lane),
     // use it instead of the gcode metadata color for the 2D/3D render
-    ams_color_observer_ = observe_int_sync<PrintStatusPanel>(
+    ams_color_observer_ = observe<int>(
         AmsState::instance().get_current_color_subject(), this,
         [](PrintStatusPanel* self, int /*color_rgb*/) { self->build_and_apply_tool_colors(); },
         AmsState::instance().get_subjects_lifetime());
 
     // Also refresh gcode viewer colors when tool_to_slot_map changes (user remap)
-    tool_map_version_observer_ = observe_int_sync<PrintStatusPanel>(
+    tool_map_version_observer_ = observe<int>(
         AmsState::instance().get_tool_map_version_subject(), this,
         [](PrintStatusPanel* self, int /*version*/) { self->build_and_apply_tool_colors(); },
         AmsState::instance().get_subjects_lifetime());
@@ -402,17 +401,17 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // clear_gcode never fires - leaving the previous print's model on screen
     // exactly when it was meant to be dropped.
     //
-    // observe_int_immediate for the manager's reason: _sync routes through
-    // queue_update, so the identity would land AFTER a synchronously dispatched
+    // Dispatch::Immediate for the manager's reason: the deferred default routes
+    // through queue_update, so the identity would land AFTER a synchronously dispatched
     // filename update had already reconciled against the stale name. The
     // handler only assigns identity fields and reconciles the preview - no
     // observer lifecycle changes, no widget destruction.
     // Subscribe to the shared print thumbnail path. ActivePrintMediaManager is
     // its sole writer; this panel only reads it.
-    // Use observe_string_immediate: the handler only calls lv_image_set_src
+    // Use Dispatch::Immediate: the handler only calls lv_image_set_src
     // (no observer lifecycle changes), and set_print_thumbnail is always called
     // from the UI thread via queue_update.
-    print_thumbnail_path_observer_ = ui::observe_string_immediate<PrintStatusPanel>(
+    print_thumbnail_path_observer_ = ui::observe<const char*>(
         printer_state_.get_print_thumbnail_path_subject(), this,
         [](PrintStatusPanel* self, const char* path) {
             // No empty-path branch: ActivePrintMediaManager publishes
@@ -450,27 +449,27 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
                 }
             }
         },
-        ps_subjects);
+        ps_subjects, ui::Dispatch::Immediate);
 
 #if defined(HELIX_PLATFORM_ESP32)
     // ESP32 has no disk thumbnail cache, so print_thumbnail_path stays empty and
     // the image arrives as a PSRAM buffer instead. Observe the generation counter
-    // ActivePrintMediaManager bumps when it installs one. observe_int_immediate
+    // ActivePrintMediaManager bumps when it installs one. observe<int>
     // for the same reason as the path observer above: the handler only does
     // lv_image_set_src plus a shared_ptr swap (no observer lifecycle changes, no
     // widget destruction), and the setter always runs on the UI thread — so the
     // extra deferral would only add a frame and a stale-read window.
-    print_psram_thumb_observer_ = ui::observe_int_immediate<PrintStatusPanel>(
+    print_psram_thumb_observer_ = ui::observe<int>(
         printer_state_.get_print_psram_thumb_gen_subject(), this,
-        [](PrintStatusPanel* self, int /*gen*/) { self->apply_esp_psram_thumbnail(); },
-        ps_subjects);
+        [](PrintStatusPanel* self, int /*gen*/) { self->apply_esp_psram_thumbnail(); }, ps_subjects,
+        ui::Dispatch::Immediate);
 #endif
 
     spdlog::debug("[{}] Subscribed to PrinterState subjects", get_name());
 
     // Subscribe to G-code render mode changes from settings panel
     // This allows real-time updates to the viewer when the user changes the setting
-    gcode_render_mode_observer_ = observe_int_sync<PrintStatusPanel>(
+    gcode_render_mode_observer_ = observe<int>(
         DisplaySettingsManager::instance().subject_gcode_render_mode(), this,
         [](PrintStatusPanel* self, int mode) {
             // A command-line override outranks the saved setting (cmdline > env > settings,
@@ -508,7 +507,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // and end_overlay_dismissed_. XML binds each overlay's hidden flag to a single
     // subject, avoiding the L042 two-observer race that made the error overlay
     // pop at startup when end_overlay_dismissed==0 unhide-raced the outcome check.
-    print_outcome_observer_ = observe_int_sync<PrintStatusPanel>(
+    print_outcome_observer_ = observe<int>(
         printer_state_.get_print_outcome_subject(), this,
         [](PrintStatusPanel* self, int) { self->recompute_end_overlay_visibility(); }, ps_subjects);
     recompute_end_overlay_visibility();
@@ -620,7 +619,7 @@ void PrintStatusPanel::init_subjects() {
     if (lv_subject_t* bp = lv_xml_get_subject(nullptr, "ui_breakpoint")) {
         update_camera_button_label(lv_subject_get_int(bp));
         auto token = lifetime_.token();
-        camera_label_observer_ = observe_int_sync<PrintStatusPanel>(
+        camera_label_observer_ = observe<int>(
             bp, this,
             [token](PrintStatusPanel* self, int value) {
                 if (token.expired())
@@ -671,7 +670,7 @@ void PrintStatusPanel::init_subjects() {
     // runtime part-fan reassignment as fans start/stop (primary_fans_version, #1124).
     {
         auto token = lifetime_.token();
-        fans_version_observer_ = observe_int_sync<PrintStatusPanel>(
+        fans_version_observer_ = observe<int>(
             printer_state_.get_fans_version_subject(), this,
             [token](PrintStatusPanel* self, int /*v*/) {
                 if (token.expired())
@@ -682,7 +681,7 @@ void PrintStatusPanel::init_subjects() {
     }
     {
         auto token = lifetime_.token();
-        primary_fans_version_observer_ = observe_int_sync<PrintStatusPanel>(
+        primary_fans_version_observer_ = observe<int>(
             printer_state_.get_primary_fans_version_subject(), this,
             [token](PrintStatusPanel* self, int /*v*/) {
                 if (token.expired())
@@ -697,7 +696,7 @@ void PrintStatusPanel::init_subjects() {
         lv_subject_t* bp = lv_xml_get_subject(nullptr, "ui_breakpoint");
         if (bp) {
             auto token = lifetime_.token();
-            breakpoint_observer_ = observe_int_sync<PrintStatusPanel>(
+            breakpoint_observer_ = observe<int>(
                 bp, this,
                 [token](PrintStatusPanel* self, int) {
                     if (token.expired())
@@ -714,7 +713,7 @@ void PrintStatusPanel::init_subjects() {
         lv_subject_t* s = lv_xml_get_subject(nullptr, "filament_sensor_count");
         if (s) {
             auto token = lifetime_.token();
-            filament_sensor_count_observer_ = observe_int_sync<PrintStatusPanel>(
+            filament_sensor_count_observer_ = observe<int>(
                 s, this,
                 [token](PrintStatusPanel* self, int) {
                     if (token.expired())
@@ -731,7 +730,7 @@ void PrintStatusPanel::init_subjects() {
         lv_subject_t* s = lv_xml_get_subject(nullptr, "ams_slot_count");
         if (s) {
             auto token = lifetime_.token();
-            ams_slot_count_observer_ = observe_int_sync<PrintStatusPanel>(
+            ams_slot_count_observer_ = observe<int>(
                 s, this,
                 [token](PrintStatusPanel* self, int) {
                     if (token.expired())
@@ -748,7 +747,7 @@ void PrintStatusPanel::init_subjects() {
         lv_subject_t* s = lv_xml_get_subject(nullptr, "toolchange_visible");
         if (s) {
             auto token = lifetime_.token();
-            toolchange_visible_observer_ = observe_int_sync<PrintStatusPanel>(
+            toolchange_visible_observer_ = observe<int>(
                 s, this,
                 [token](PrintStatusPanel* self, int) {
                     if (token.expired())
@@ -772,7 +771,7 @@ void PrintStatusPanel::init_subjects() {
         lv_subject_t* s = FilamentSensorManager::instance().get_runout_detected_subject();
         if (s) {
             auto token = lifetime_.token();
-            scoped_runout_observer_ = observe_int_sync<PrintStatusPanel>(
+            scoped_runout_observer_ = observe<int>(
                 s, this,
                 [token](PrintStatusPanel* self, int) {
                     if (token.expired())
@@ -786,7 +785,7 @@ void PrintStatusPanel::init_subjects() {
         lv_subject_t* s = AmsState::instance().get_slots_version_subject();
         if (s) {
             auto token = lifetime_.token();
-            scoped_runout_slots_observer_ = observe_int_sync<PrintStatusPanel>(
+            scoped_runout_slots_observer_ = observe<int>(
                 s, this,
                 [token](PrintStatusPanel* self, int) {
                     if (token.expired())
@@ -809,7 +808,7 @@ void PrintStatusPanel::init_subjects() {
     animations_enabled_ = DisplaySettingsManager::instance().get_animations_enabled();
     {
         auto token = lifetime_.token();
-        animations_enabled_observer_ = observe_int_sync<PrintStatusPanel>(
+        animations_enabled_observer_ = observe<int>(
             DisplaySettingsManager::instance().subject_animations_enabled(), this,
             [token](PrintStatusPanel* self, int enabled) {
                 if (token.expired())
@@ -820,7 +819,7 @@ void PrintStatusPanel::init_subjects() {
             DisplaySettingsManager::instance().get_subjects_lifetime());
     }
 
-    end_overlay_dismissed_observer_ = observe_int_sync<PrintStatusPanel>(
+    end_overlay_dismissed_observer_ = observe<int>(
         &end_overlay_dismissed_subject_, this,
         [](PrintStatusPanel* self, int) { self->recompute_end_overlay_visibility(); },
         get_subjects_lifetime());
@@ -842,7 +841,7 @@ void PrintStatusPanel::init_subjects() {
                               "print_pause_reason", subjects_);
     UI_MANAGED_SUBJECT_INT(print_pause_reason_visible_subject_, 0, "print_pause_reason_visible",
                            subjects_);
-    print_message_observer_ = observe_string<PrintStatusPanel>(
+    print_message_observer_ = observe<const char*>(
         printer_state_.get_print_message_subject(), this,
         [](PrintStatusPanel* self, const char*) { self->recompute_paused_overlay_visibility(); },
         printer_state_.get_subjects_lifetime());
@@ -850,7 +849,7 @@ void PrintStatusPanel::init_subjects() {
     // Re-evaluate the paused overlay whenever the shared controller's pending
     // action flips (optimistic Pausing/Resuming) — decoupled from our own
     // print_state_enum observer to avoid an ordering race between the two.
-    pending_action_observer_ = observe_int_sync<PrintStatusPanel>(
+    pending_action_observer_ = observe<int>(
         helix::ui::PrintControlButtons::instance().pending_action_subject(), this,
         [](PrintStatusPanel* self, int) { self->recompute_paused_overlay_visibility(); },
         helix::ui::PrintControlButtons::instance().get_subjects_lifetime());
@@ -1019,7 +1018,7 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     uninstall_root_delete_hook(delete_hook_root_, on_root_deleted, this);
 
     // The panel/navigation layer owns this tree; a raw lv_obj_delete() gives
-    // the panel no other notice, and the queued observe_int_sync handlers
+    // the panel no other notice, and the queued observe<int> handlers
     // would run against the freed child pointers on the next drain.
     // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
     lv_obj_add_event_cb(overlay_root_, on_root_deleted, LV_EVENT_DELETE, this);
@@ -1555,7 +1554,7 @@ void PrintStatusPanel::on_overlay_closed() {
 
     // Nothing else gives a low-memory host this tree's memory back once the job
     // ends while it is hidden.
-    panel.kept_tree_job_observer_ = observe_int_sync<PrintStatusPanel>(
+    panel.kept_tree_job_observer_ = observe<int>(
         panel.printer_state_.get_job_holds_machine_subject(), &panel,
         [](PrintStatusPanel* /*self*/, int holds) {
             if (holds == 0) {
@@ -2415,7 +2414,7 @@ void PrintStatusPanel::rebind_single_fan(ObserverGuard& guard, SubjectLifetime& 
     auto token = lifetime_.token();
     std::string label_copy = speed_label_widget_name;
     std::string icon_copy = icon_widget_name;
-    guard = helix::ui::observe_int_sync<PrintStatusPanel>(
+    guard = helix::ui::observe<int>(
         subj, this,
         [token, label_copy, icon_copy](PrintStatusPanel* self, int speed) {
             if (token.expired())
@@ -3783,22 +3782,6 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     std::string temp_path =
         cache_dir + "/print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
 
-    // Check if file already exists and is non-empty (cached from previous session)
-    size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
-    if (cached_size > 0) {
-        // Check if cached file is safe to render
-        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
-            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
-                         temp_path);
-            temp_gcode_path_ = temp_path;
-            load_gcode_file(temp_path.c_str(), filename);
-            return;
-        } else {
-            spdlog::debug("[{}] Cached file too large for 2D streaming, removing", get_name());
-            std::remove(temp_path.c_str());
-        }
-    }
-
     // Get file metadata to check size before downloading
     // This prevents OOM on memory-constrained devices like AD5M
     std::string metadata_filename = resolve_gcode_filename(filename);
@@ -3835,9 +3818,9 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     // Shared size gate: skip 2D streaming if the file would OOM the device,
     // otherwise stream it into the viewer. Used by both the standard "gcodes"
     // metadata path and the QIDI ".temp" shadow path.
-    auto stream_if_safe = [this, download_to_viewer](const std::string& root,
-                                                     const std::string& download_target,
-                                                     uint64_t size) {
+    auto stream_if_safe = [this, download_to_viewer, temp_path,
+                           filename](const std::string& root, const std::string& download_target,
+                                     uint64_t size) {
         if (!helix::is_gcode_2d_streaming_safe(size)) {
             auto mem = helix::get_system_memory_info();
             spdlog::warn("[{}] G-code too large for 2D streaming: file={} bytes, available "
@@ -3847,12 +3830,23 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
             return;
         }
 
+        // The cache is keyed by file name alone; the server's size says whether
+        // it still holds this file.
+        const size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
+        if (helix::ui::preview_cache_is_current(cached_size, size)) {
+            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
+                         temp_path);
+            temp_gcode_path_ = temp_path;
+            load_gcode_file(temp_path.c_str(), filename);
+            return;
+        }
+
         spdlog::debug("[{}] G-code size {} bytes - safe to render, streaming to disk...",
                       get_name(), size);
         download_to_viewer(root, download_target);
     };
 
-    auto load_existing_gcode_path = [this, token, filename, stream_if_safe](
+    auto load_existing_gcode_path = [this, token, filename, temp_path, stream_if_safe](
                                         const std::string& metadata_target, const std::string& root,
                                         const std::string& download_target) {
         api_->files().get_file_metadata(
@@ -3863,21 +3857,34 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
                                 stream_if_safe(root, download_target, metadata.size);
                             });
             },
-            [this, token, filename](const MoonrakerError& err) {
-                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, err]() {
+            [this, token, filename, temp_path](const MoonrakerError& err) {
+                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, temp_path,
+                                                                     err]() {
                     // Metadata only decides whether we need to DOWNLOAD the file.
-                    // If the viewer already has geometry — loaded from the cached
-                    // copy, or from a local path that Moonraker cannot resolve —
-                    // a metadata miss must not tear down a working render. Also
-                    // reachable on a transient failure while the file is still
-                    // being scanned. This error is silent (no toast), so hiding
-                    // the viewer here just left a blank preview for the rest of
-                    // the print.
+                    // If the viewer already has geometry, or a cached copy exists
+                    // (size unknown, so any non-empty copy is trusted), a metadata
+                    // miss must not blank the preview. Reachable on a flaky link or
+                    // while Moonraker is rescanning. This error is silent (no
+                    // toast), so hiding the viewer here would leave a blank preview
+                    // for the rest of the print.
                     if (gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_)) {
                         spdlog::debug("[{}] G-code metadata unavailable for '{}': {} - keeping "
                                       "already-loaded render",
                                       get_name(), filename, err.message);
                         return;
+                    }
+                    const size_t cached_size =
+                        static_cast<size_t>(tio::file_size(temp_path).value_or(0));
+                    if (helix::ui::preview_cache_is_current(cached_size, 0)) {
+                        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
+                            spdlog::info("[{}] G-code metadata unavailable for '{}': {} - using "
+                                         "cached copy ({} bytes)",
+                                         get_name(), filename, err.message, cached_size);
+                            temp_gcode_path_ = temp_path;
+                            load_gcode_file(temp_path.c_str(), filename);
+                            return;
+                        }
+                        std::remove(temp_path.c_str());
                     }
                     spdlog::debug(
                         "[{}] Failed to get G-code metadata for '{}': {} - skipping 3D render",

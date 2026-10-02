@@ -24,9 +24,10 @@ later, usually on a customer's printer.
    Use `safe_delete_deferred()`, `lv_obj_delete_async()`, `safe_clean_children()`.
    `lifetime_.defer` does NOT escape the batch: it fires in the next `process_pending`
    tick, which is still a batch.
-4. **A fetched `SubjectLifetime` must be handed to `observe_*`.** The factories take it
-   as a defaulted 4th parameter, so omitting it is silent: the guard never sees the
-   subject die and `reset()` calls `lv_observer_remove()` on freed memory (#705). Local
+4. **A fetched `SubjectLifetime` must be handed to `observe<V>`.** It is the required 4th
+   parameter, so omitting it does not compile; handing it a default-constructed token is
+   silent: the guard never sees the subject die and `reset()` calls
+   `lv_observer_remove()` on freed memory (#705). Local
    vs member is not what decides correctness: the `get_*_subject(name, lifetime)`
    accessors assign the owner's own `shared_ptr`, so a caller's copy dying never
    expires the guard.

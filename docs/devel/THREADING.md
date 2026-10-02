@@ -322,7 +322,7 @@ api->test([this, tok]() { ... });
 
 ### A token guards the owner, never the widget: `WidgetRef`
 
-`AsyncLifetimeGuard` tokens, and `observe_int_sync`'s `weak_alive`, expire with their
+`AsyncLifetimeGuard` tokens, and `observe<int>`'s `weak_alive`, expire with their
 **owner**. A widget runs on a different clock: a raw `lv_obj_delete()` of the tree, a
 hot-reload rebuild, or a backdrop tap dismissing a modal frees it while the owner, and every
 token keyed on the owner, stays valid. A deferred callback that null-checks a cached raw
@@ -376,7 +376,7 @@ event linked list → SIGSEGV in `lv_event_mark_deleted` (#776, #190, #80).
 - `register_overlay_close_callback(...)` lambdas
 - `AsyncLifetimeGuard::defer(...)` / `lifetime_.defer(...)` lambdas
 - `LifetimeToken::defer(...)` / `tok.defer(...)` lambdas
-- `observe_int_sync` / `observe_string` callbacks (deferred through `queue_update` since #82)
+- `observe<int>` / `observe<const char*>` callbacks (deferred through `queue_update` since #82)
 
 **Banned APIs and their replacements:**
 
@@ -558,16 +558,17 @@ factory.**
 // ❌ Token fetched, never handed to the observer
 SubjectLifetime lt;
 auto* s = tsm.get_temp_subject(name, lt);
-obs_ = observe_int_sync<Panel>(s, this, handler);          // lifetime arg defaults to {}
+obs_ = observe<int>(s, this, handler);          // does not compile: no lifetime argument
 
 // ✅
-obs_ = observe_int_sync<Panel>(s, this, handler, lt);
+obs_ = observe<int>(s, this, handler, lt);
 ```
 
-The lifetime parameter of `observe_int_sync` / `observe_string` / `AnimatedValue::bind` defaults
-to `{}` (`include/observer_factory.h`), so omitting it compiles silently. The guard's
-`has_alive_token_` stays `false`, `subject_dead` can therefore never become `true`, and
-`reset()` calls `lv_observer_remove()` on a subject `lv_subject_deinit()` already freed.
+The `lifetime` parameter of `observe<V>` has no default, so omitting it does not compile; pass the
+token, or `subject_never_freed()` for a subject that outlives the process. (`AnimatedValue::bind`
+still defaults it to `{}`, so a missing token there compiles silently.) Without a token the guard's
+`has_alive_token_` stays `false`, `subject_dead` can never become `true`, and `reset()` calls
+`lv_observer_remove()` on a subject `lv_subject_deinit()` already freed.
 
 ### Local or member? Not what decides correctness
 
@@ -637,7 +638,7 @@ carousel_observers_.clear();
 // Add, in lockstep
 auto& lt = carousel_lifetimes_.emplace_back();
 auto* s = state.get_subject(name, lt);
-carousel_observers_.push_back(observe_int_sync<Panel>(s, this, handler, lt));
+carousel_observers_.push_back(observe<int>(s, this, handler, lt));
 ```
 
 Real usage: `ThermistorWidget::bind_carousel_sensors()` in
@@ -711,11 +712,10 @@ Create observers with the factories in `include/observer_factory.h` rather than 
 
 | Factory | Use |
 |---------|-----|
-| `observe_int_sync<T>()` | int subject, callback deferred via `queue_update` |
-| `observe_int_async<T>()` | int subject, explicitly async |
-| `observe_string()` | string subject, callback deferred |
-| `observe_print_state<T>()` | typed `PrintJobState` over the raw `print_state_enum` subject, deferred |
-| `observe_print_state_immediate<T>()` | the same typing, firing synchronously like `observe_int_immediate` |
+| `observe<int>()` | int subject, callback deferred via `queue_update` |
+| `observe<const char*>()` | string subject, callback deferred |
+| `observe<V>(..., Dispatch::Immediate)` | either subject type, callback inside the notification |
+| `observe_print_state<T>()` | typed `PrintJobState` over the raw `print_state_enum` subject, deferred; `Dispatch::Immediate` as the last argument fires synchronously |
 | `observe_print_lifecycle<T>()` | typed `PrintState` over the derived `print_lifecycle` subject |
 
 All return an `ObserverGuard` (`include/ui_observer_guard.h`) for RAII removal.
@@ -728,10 +728,11 @@ not hand-cast ints".
 
 ### Deferred by default
 
-`observe_int_sync` and `observe_string` **defer their callbacks** through `queue_update()` to
-prevent re-entrant observer destruction crashes (#82). Use the `observe_int_immediate` /
-`observe_string_immediate` variants **only** when you are certain the callback won't modify
-observer lifecycle — no reassignment, no widget destruction.
+`observe<int>` and `observe<const char*>` **defer their callbacks** through `queue_update()` to
+prevent re-entrant observer destruction crashes (#82). Pass `Dispatch::Immediate` as the last
+argument **only** when you are certain the callback won't modify observer lifecycle — no
+reassignment, no widget destruction. A handler that wants the value now and UI work later is
+`Immediate` plus an explicit `lifetime_.defer()` for the later half.
 
 ### `reset()` is the default; `release()` almost never is
 
@@ -1052,7 +1053,7 @@ Relevant tags: `[state]` (subjects/observers), `[connection]` (WebSocket lifecyc
 | `include/ui_update_queue.h` | `UpdateQueue`, `queue_update()`, `scoped_freeze()` |
 | `include/async_lifetime_guard.h` | `AsyncLifetimeGuard`, `LifetimeToken`, `bg_cb()` |
 | `include/ui_observer_guard.h` | `ObserverGuard`, `SubjectLifetime` |
-| `include/observer_factory.h` | `observe_int_sync/async`, `observe_string/async`, `observe_print_state[_immediate]`, `observe_print_lifecycle` |
+| `include/observer_factory.h` | `observe<V>` (`Dispatch::Deferred` / `Immediate`), `observe_print_state`, `observe_print_lifecycle` |
 | `include/ui_utils.h` | `safe_delete_deferred`, `safe_clean_children`, `safe_delete_subtree` |
 | `include/static_subject_registry.h` | Shutdown cleanup registry |
 | `include/http_executor.h` | `HttpExecutor::fast()` / `slow()` pools |

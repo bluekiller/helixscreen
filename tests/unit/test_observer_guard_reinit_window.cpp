@@ -9,7 +9,7 @@
  * Background (debug bundles 449TVQ82 / X3RA4252, v0.99.70 pi):
  *   A LedWidget observer on a STATIC subject (PrinterState-owned led_state /
  *   led_brightness) fired after its LambdaObserverContext had been freed,
- *   crashing in observe_int_sync<LedWidget>::_FUN (SIGSEGV in
+ *   crashing in observe<int><LedWidget>::_FUN (SIGSEGV in
  *   __aarch64_ldadd4_acq_rel — a shared_ptr refcount bump on freed memory).
  *
  *   Root cause: ObserverGuard::reset() used a single global boolean
@@ -75,7 +75,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     // Simulate init_printer_state() building new widgets in the window: this
     // observer is registered on a freshly-(re)created, LIVE subject.
-    ObserverGuard guard = helix::ui::observe_int_sync<CountingPanel>(
+    ObserverGuard guard = helix::ui::observe<int>(
         &subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; },
         subject_never_freed());
     REQUIRE(lv_ll_get_len(&subject.subs_ll) == 1);
@@ -142,7 +142,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "ObserverGuard skips removal for observers fre
     CountingPanel panel;
 
     // Created during normal operation (before any teardown).
-    ObserverGuard guard = helix::ui::observe_int_sync<CountingPanel>(
+    ObserverGuard guard = helix::ui::observe<int>(
         &subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; },
         subject_never_freed());
     REQUIRE(lv_ll_get_len(&subject.subs_ll) == 1);

@@ -1308,6 +1308,16 @@ pi32-all-docker: ensure-docker
 		make PLATFORM_TARGET=pi32-both SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
+# Copy the toolchain image's CA bundle to build/<plat>/certs, where release-*
+# and deploy-* pick it up as the HTTPS fallback for devices without system certs.
+# $(1) = platform key (also the toolchain image suffix)
+define extract-ca-certs
+	@mkdir -p build/$(1)/certs
+	@docker run --rm helixscreen/toolchain-$(1) cat /etc/ssl/certs/ca-certificates.crt > build/$(1)/certs/ca-certificates.crt 2>/dev/null \
+		&& echo "$(GREEN)✓ CA certificates extracted$(RESET)" \
+		|| echo "$(YELLOW)⚠ Could not extract CA certificates (HTTPS may rely on device certs)$(RESET)"
+endef
+
 ad5m-docker: ensure-docker
 	@echo "$(CYAN)$(BOLD)Cross-compiling for Adventurer 5M via Docker...$(RESET)"
 	@if ! docker image inspect helixscreen/toolchain-ad5m >/dev/null 2>&1; then \
@@ -1317,11 +1327,7 @@ ad5m-docker: ensure-docker
 	$(call ensure-ccache-dir,ad5m)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,ad5m) helixscreen/toolchain-ad5m \
 		make PLATFORM_TARGET=ad5m SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) $(DOCKER_SCREENSAVER) -j$(NPROC_DOCKER_RUN)
-	@# Extract CA certificates from Docker image for HTTPS verification on device
-	@mkdir -p build/ad5m/certs
-	@docker run --rm helixscreen/toolchain-ad5m cat /etc/ssl/certs/ca-certificates.crt > build/ad5m/certs/ca-certificates.crt 2>/dev/null \
-		&& echo "$(GREEN)✓ CA certificates extracted$(RESET)" \
-		|| echo "$(YELLOW)⚠ Could not extract CA certificates (HTTPS may rely on device certs)$(RESET)"
+	$(call extract-ca-certs,ad5m)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 # ad5x is a spelling of the unified mips target: same toolchain image, same
@@ -1341,11 +1347,7 @@ cc1-docker: ensure-docker
 	$(call ensure-ccache-dir,cc1)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,cc1) helixscreen/toolchain-cc1 \
 		make PLATFORM_TARGET=cc1 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) $(DOCKER_SCREENSAVER) -j$(NPROC_DOCKER_RUN)
-	@# Extract CA certificates from Docker image for HTTPS verification on device
-	@mkdir -p build/cc1/certs
-	@docker run --rm helixscreen/toolchain-cc1 cat /etc/ssl/certs/ca-certificates.crt > build/cc1/certs/ca-certificates.crt 2>/dev/null \
-		&& echo "$(GREEN)✓ CA certificates extracted$(RESET)" \
-		|| echo "$(YELLOW)⚠ Could not extract CA certificates (HTTPS may rely on device certs)$(RESET)"
+	$(call extract-ca-certs,cc1)
 	@# Restore the full-language translation packs so the committed XML in
 	@# ui_xml/translations/ doesn't drift from git HEAD after a CC1 build. The
 	@# stamp file detects that HELIX_LANG is now empty and regenerates all locales.
@@ -1366,11 +1368,7 @@ mips-docker: ensure-docker
 	# dir is the one with hits in it.
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -e MAKEFLAGS= -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,mips) helixscreen/toolchain-mips \
 		make PLATFORM_TARGET=mips SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
-	@# Extract CA certificates from Docker image for HTTPS verification on device
-	@mkdir -p build/mips/certs
-	@docker run --rm helixscreen/toolchain-mips cat /etc/ssl/certs/ca-certificates.crt > build/mips/certs/ca-certificates.crt 2>/dev/null \
-		&& echo "$(GREEN)✓ CA certificates extracted$(RESET)" \
-		|| echo "$(YELLOW)⚠ Could not extract CA certificates (HTTPS may rely on device certs)$(RESET)"
+	$(call extract-ca-certs,mips)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 k1-docker: mips-docker
@@ -1386,6 +1384,7 @@ k1-dynamic-docker: ensure-docker
 	$(call ensure-ccache-dir,k1-dynamic)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,k1-dynamic) helixscreen/toolchain-k1-dynamic \
 		make PLATFORM_TARGET=k1-dynamic SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
+	$(call extract-ca-certs,k1-dynamic)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 k2-docker: ensure-docker
@@ -1397,6 +1396,7 @@ k2-docker: ensure-docker
 	$(call ensure-ccache-dir,k2)
 	$(Q)scripts/cross-compile-lock.sh docker run --platform linux/amd64 --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,k2) helixscreen/toolchain-k2 \
 		make PLATFORM_TARGET=k2 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
+	$(call extract-ca-certs,k2)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 # Cross-build the static armv7 ustreamer (MJPEG camera server) for K2.
@@ -1424,11 +1424,7 @@ snapmaker-u1-docker: ensure-docker
 	$(call ensure-ccache-dir,snapmaker-u1)
 	$(Q)scripts/cross-compile-lock.sh docker run --rm --user $$(id -u):$$(id -g) -v "$(CURDIR)":/src $(DOCKER_HOST_CONTEXT) -w /src $(call docker-ccache-args,snapmaker-u1) helixscreen/toolchain-snapmaker-u1 \
 		make PLATFORM_TARGET=snapmaker-u1 SKIP_OPTIONAL_DEPS=1 $(DOCKER_REMOTE_CONTROL) $(DOCKER_DIAG_UPLOADS) $(DOCKER_MOCKS) -j$(NPROC_DOCKER_RUN)
-	@# Extract CA certificates from Docker image for HTTPS verification on device
-	@mkdir -p build/snapmaker-u1/certs
-	@docker run --rm helixscreen/toolchain-snapmaker-u1 cat /etc/ssl/certs/ca-certificates.crt > build/snapmaker-u1/certs/ca-certificates.crt 2>/dev/null \
-		&& echo "$(GREEN)✓ CA certificates extracted$(RESET)" \
-		|| echo "$(YELLOW)⚠ Could not extract CA certificates (HTTPS may rely on device certs)$(RESET)"
+	$(call extract-ca-certs,snapmaker-u1)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
 x86-docker: ensure-docker
@@ -1753,6 +1749,12 @@ define deploy-platform-hooks
 	fi
 endef
 
+# Fail with a hint unless the binaries a deploy ships have been built.
+# $(1) = host bin dir, $(2) = make target that builds it, $(3) = binary names
+define require-built
+	@for f in $(3); do test -f $(1)/$$f || { echo "$(RED)Error: $(1)/$$f not found. Run 'make $(2)' first.$(RESET)"; exit 1; }; done
+endef
+
 define deploy-common
 	@echo "$(CYAN)Deploying HelixScreen to $(1):$(2)...$(RESET)"
 	@# Generate pre-rendered splash images if missing (all small-display platforms use the same files)
@@ -1843,14 +1845,9 @@ endif
 # Pi Deployment Targets
 # =============================================================================
 
-.PHONY: deploy-pi deploy-pi-fg pi-ssh pi-test
-
-# Deploy full application to Pi and restart in background
-deploy-pi:
-	@test -f build/pi/bin/helix-screen || { echo "$(RED)Error: build/pi/bin/helix-screen not found. Run 'make pi-docker' first.$(RESET)"; exit 1; }
-	@test -f build/pi/bin/helix-splash || { echo "$(RED)Error: build/pi/bin/helix-splash not found. Run 'make pi-docker' first.$(RESET)"; exit 1; }
-	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi/bin)
-	@echo "$(GREEN)✓ Deployed to $(PI_HOST):$(PI_DEPLOY_DIR)$(RESET)"
+# Restart helix-screen on the Pi (64- and 32-bit share the device) and re-arm
+# the update watcher that deploy-common stopped.
+define pi-restart
 	@echo "$(CYAN)Restarting helix-screen on $(PI_HOST)...$(RESET)"
 	@# Prefer systemd restart (picks up Environment= vars and keeps logs in journal).
 	@# Use -n (non-interactive sudo) to fail fast rather than hang on a password prompt.
@@ -1860,15 +1857,23 @@ deploy-pi:
 	@ssh $(PI_SSH_TARGET) "sudo -n systemctl start helixscreen" 2>/dev/null \
 		|| ssh -f $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && setsid ./bin/helix-launcher.sh </dev/null >/dev/null 2>&1" \
 		|| echo "$(YELLOW)⚠ Failed to restart helix-screen (set up passwordless sudo for systemctl or install the systemd unit)$(RESET)"
-	@# Re-arm update watcher (stopped by deploy-common to prevent double restart)
 	@ssh $(PI_SSH_TARGET) "sudo -n systemctl start helixscreen-update.path" 2>/dev/null || true
 	@echo "$(GREEN)✓ helix-screen restarted$(RESET)"
+endef
+
+.PHONY: deploy-pi deploy-pi-fg pi-ssh pi-test
+
+# Deploy full application to Pi and restart in background
+deploy-pi:
+	$(call require-built,build/pi/bin,pi-docker,helix-screen helix-splash)
+	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi/bin)
+	@echo "$(GREEN)✓ Deployed to $(PI_HOST):$(PI_DEPLOY_DIR)$(RESET)"
+	$(call pi-restart)
 	@echo "$(DIM)Logs: ssh $(PI_SSH_TARGET) 'sudo journalctl -u helixscreen -f'$(RESET)"
 
 # Deploy and run in foreground with debug logging (for interactive debugging)
 deploy-pi-fg:
-	@test -f build/pi/bin/helix-screen || { echo "$(RED)Error: build/pi/bin/helix-screen not found. Run 'make pi-docker' first.$(RESET)"; exit 1; }
-	@test -f build/pi/bin/helix-splash || { echo "$(RED)Error: build/pi/bin/helix-splash not found. Run 'make pi-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/pi/bin,pi-docker,helix-screen helix-splash)
 	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi/bin)
 	@echo "$(CYAN)Starting helix-screen on $(PI_HOST) (foreground, debug mode)...$(RESET)"
 	ssh -t $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug --log-dest=console"
@@ -1904,7 +1909,7 @@ PI_ASAN_OPTIONS ?= detect_leaks=0:abort_on_error=1:fast_unwind_on_malloc=0:print
 PI_LSAN_OPTIONS ?= suppressions=$(PI_DEPLOY_DIR)/asan.supp
 
 deploy-pi-asan:
-	@test -f build/pi-asan/bin/helix-screen || { echo "$(RED)Error: build/pi-asan/bin/helix-screen not found. Run 'make pi-asan-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/pi-asan/bin,pi-asan-docker,helix-screen)
 	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi-asan/bin)
 	@echo "$(CYAN)Shipping ASAN suppressions...$(RESET)"
 	$(Q)rsync -avzz tests/asan.supp $(PI_SSH_TARGET):$(PI_DEPLOY_DIR)/
@@ -1931,27 +1936,22 @@ pi-asan-test: pi-asan-docker deploy-pi-asan-fg
 
 # Deploy full application to Pi (32-bit) and restart in background
 deploy-pi32:
-	@test -f build/pi32/bin/helix-screen || { echo "$(RED)Error: build/pi32/bin/helix-screen not found. Run 'make pi32-docker' first.$(RESET)"; exit 1; }
-	@test -f build/pi32/bin/helix-splash || { echo "$(RED)Error: build/pi32/bin/helix-splash not found. Run 'make pi32-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/pi32/bin,pi32-docker,helix-screen helix-splash)
 	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi32/bin)
 	@echo "$(GREEN)✓ Deployed to $(PI_HOST):$(PI_DEPLOY_DIR)$(RESET)"
-	@echo "$(CYAN)Restarting helix-screen on $(PI_HOST)...$(RESET)"
-	@ssh $(PI_SSH_TARGET) "sudo systemctl restart helixscreen 2>/dev/null" \
-		|| ssh $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && setsid ./bin/helix-launcher.sh </dev/null >/dev/null 2>&1 &"
-	@echo "$(GREEN)✓ helix-screen restarted$(RESET)"
-	@echo "$(DIM)Logs: ssh $(PI_SSH_TARGET) 'journalctl -u helixscreen -f'$(RESET)"
+	$(call pi-restart)
+	@echo "$(DIM)Logs: ssh $(PI_SSH_TARGET) 'sudo journalctl -u helixscreen -f'$(RESET)"
 
 # Deploy and run in foreground with debug logging (for interactive debugging)
 deploy-pi32-fg:
-	@test -f build/pi32/bin/helix-screen || { echo "$(RED)Error: build/pi32/bin/helix-screen not found. Run 'make pi32-docker' first.$(RESET)"; exit 1; }
-	@test -f build/pi32/bin/helix-splash || { echo "$(RED)Error: build/pi32/bin/helix-splash not found. Run 'make pi32-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/pi32/bin,pi32-docker,helix-screen helix-splash)
 	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi32/bin)
 	@echo "$(CYAN)Starting helix-screen on $(PI_HOST) (foreground, debug mode)...$(RESET)"
 	ssh -t $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug --log-dest=console"
 
 # Deploy binaries only (fast, for quick iteration)
 deploy-pi32-bin:
-	@test -f build/pi32/bin/helix-screen || { echo "$(RED)Error: build/pi32/bin/helix-screen not found. Run 'make pi32-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/pi32/bin,pi32-docker,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(PI_SSH_TARGET):$(PI_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(PI_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null; sleep 0.5; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null; while pidof helix-screen helix-splash helix-watchdog >/dev/null 2>&1; do sleep 0.2; done; true"
 	ssh $(PI_SSH_TARGET) "mkdir -p $(PI_DEPLOY_DIR)/bin"
@@ -1959,10 +1959,7 @@ deploy-pi32-bin:
 	@if [ -f build/pi32/bin/helix-watchdog ]; then rsync -avzz build/pi32/bin/helix-watchdog $(PI_SSH_TARGET):$(PI_DEPLOY_DIR)/bin/; fi
 	@echo "$(GREEN)✓ Binaries deployed$(RESET)"
 	$(call sync-device-features,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi32/bin)
-	@echo "$(CYAN)Restarting helix-screen on $(PI_HOST)...$(RESET)"
-	@ssh $(PI_SSH_TARGET) "sudo systemctl restart helixscreen 2>/dev/null" \
-		|| ssh $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && setsid ./bin/helix-launcher.sh </dev/null >/dev/null 2>&1 &"
-	@echo "$(GREEN)✓ helix-screen restarted$(RESET)"
+	$(call pi-restart)
 
 # Full cycle: build + deploy + run in foreground
 pi32-test: pi32-docker deploy-pi32-fg
@@ -1971,7 +1968,7 @@ pi32-test: pi32-docker deploy-pi32-fg
 
 # Deploy the pi32 ASAN binary. Shares PI_ASAN_OPTIONS with the 64-bit Pi target.
 deploy-pi32-asan:
-	@test -f build/pi32-asan/bin/helix-screen || { echo "$(RED)Error: build/pi32-asan/bin/helix-screen not found. Run 'make pi32-asan-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/pi32-asan/bin,pi32-asan-docker,helix-screen)
 	$(call deploy-common,$(PI_SSH_TARGET),$(PI_DEPLOY_DIR),build/pi32-asan/bin)
 	@echo "$(CYAN)Shipping ASAN suppressions...$(RESET)"
 	$(Q)rsync -avzz tests/asan.supp $(PI_SSH_TARGET):$(PI_DEPLOY_DIR)/
@@ -2037,8 +2034,7 @@ AD5M_SERVICE_MECHANISM = $(call device-profile-value,SERVICE_MECHANISM,$(AD5M_PR
 
 # Deploy full application to AD5M using tar/scp (AD5M BusyBox has no rsync)
 deploy-ad5m:
-	@test -f build/ad5m/bin/helix-screen || { echo "$(RED)Error: build/ad5m/bin/helix-screen not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
-	@test -f build/ad5m/bin/helix-splash || { echo "$(RED)Error: build/ad5m/bin/helix-splash not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
+	$(call require-built,build/ad5m/bin,remote-ad5m,helix-screen helix-splash)
 	@echo "$(CYAN)Deploying HelixScreen to $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)...$(RESET)"
 	@echo "$(DIM)  firmware=$(AD5M_MOD_FLAVOR) hooks=$(AD5M_HOOK_KEY) services=$(AD5M_SERVICE_MECHANISM)$(RESET)"
 	@# Generate pre-rendered images if missing
@@ -2131,15 +2127,14 @@ deploy-ad5m:
 
 # Deploy and run in foreground with verbose logging (for interactive debugging)
 deploy-ad5m-fg:
-	@test -f build/ad5m/bin/helix-screen || { echo "$(RED)Error: build/ad5m/bin/helix-screen not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
-	@test -f build/ad5m/bin/helix-splash || { echo "$(RED)Error: build/ad5m/bin/helix-splash not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
+	$(call require-built,build/ad5m/bin,remote-ad5m,helix-screen helix-splash)
 	$(call deploy-common,$(AD5M_SSH_TARGET),$(AD5M_DEPLOY_DIR),build/ad5m/bin)
 	@echo "$(CYAN)Starting helix-screen on $(AD5M_HOST) (foreground, verbose)...$(RESET)"
 	ssh -t $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug"
 
 # Deploy binaries only (fast, for quick iteration)
 deploy-ad5m-bin:
-	@test -f build/ad5m/bin/helix-screen || { echo "$(RED)Error: build/ad5m/bin/helix-screen not found. Run 'make remote-ad5m' first.$(RESET)"; exit 1; }
+	$(call require-built,build/ad5m/bin,remote-ad5m,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(AD5M_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null; sleep 0.5; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null; while pidof helix-screen helix-splash helix-watchdog >/dev/null 2>&1; do sleep 0.2; done; true"
 	ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/bin"
@@ -2175,7 +2170,7 @@ AD5X_DEPLOY_DIR ?= /opt/config/mod_data/helixscreen
 # a Makefile's: the board may be mid-print.
 .PHONY: deploy-ad5x-bin
 deploy-ad5x-bin:
-	@test -f build/mips/bin/helix-screen || { echo "$(RED)Error: build/mips/bin/helix-screen not found. Run 'make mips-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/mips/bin,mips-docker,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(AD5X_SSH_TARGET):$(AD5X_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(AD5X_SSH_TARGET) "mkdir -p $(AD5X_DEPLOY_DIR)/bin"
 	@echo "$(DIM)Backing up the current binary (cp -a: BusyBox cp has no -n)...$(RESET)"
@@ -2235,8 +2230,7 @@ CC1_SSH_TARGET := $(CC1_USER)@$(CC1_HOST)
 
 # Deploy full application to CC1 using tar/ssh
 deploy-cc1:
-	@test -f build/cc1/bin/helix-screen || { echo "$(RED)Error: build/cc1/bin/helix-screen not found. Run 'make cc1-docker' first.$(RESET)"; exit 1; }
-	@test -f build/cc1/bin/helix-splash || { echo "$(RED)Error: build/cc1/bin/helix-splash not found. Run 'make cc1-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/cc1/bin,cc1-docker,helix-screen helix-splash)
 	@echo "$(CYAN)Deploying HelixScreen to $(CC1_SSH_TARGET):$(CC1_DEPLOY_DIR)...$(RESET)"
 	@# Generate pre-rendered images if missing
 	@if [ ! -f build/assets/images/prerendered/splash-logo-medium.bin ]; then \
@@ -2287,15 +2281,14 @@ deploy-cc1:
 
 # Deploy and run in foreground with verbose logging (for interactive debugging)
 deploy-cc1-fg:
-	@test -f build/cc1/bin/helix-screen || { echo "$(RED)Error: build/cc1/bin/helix-screen not found. Run 'make cc1-docker' first.$(RESET)"; exit 1; }
-	@test -f build/cc1/bin/helix-splash || { echo "$(RED)Error: build/cc1/bin/helix-splash not found. Run 'make cc1-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/cc1/bin,cc1-docker,helix-screen helix-splash)
 	$(call deploy-common,$(CC1_SSH_TARGET),$(CC1_DEPLOY_DIR),build/cc1/bin,cc1)
 	@echo "$(CYAN)Starting helix-screen on $(CC1_HOST) (foreground, verbose)...$(RESET)"
 	ssh -t $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug"
 
 # Deploy binaries only (fast, for quick iteration)
 deploy-cc1-bin:
-	@test -f build/cc1/bin/helix-screen || { echo "$(RED)Error: build/cc1/bin/helix-screen not found. Run 'make cc1-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/cc1/bin,cc1-docker,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(CC1_SSH_TARGET):$(CC1_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(CC1_SSH_TARGET) "if [ -x $(CC1_INIT_SCRIPT) ]; then $(CC1_INIT_SCRIPT) stop || true; else killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; sleep 1; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null || true; fi; rm -f /tmp/helix-screen.lock; mkdir -p $(CC1_DEPLOY_DIR)/bin"
 	cat build/cc1/bin/helix-screen | ssh $(CC1_SSH_TARGET) "cat > $(CC1_DEPLOY_DIR)/bin/helix-screen && chmod +x $(CC1_DEPLOY_DIR)/bin/helix-screen"
@@ -2386,7 +2379,7 @@ define snapmaker-u1-deploy-common
 endef
 
 deploy-snapmaker-u1:
-	@test -f build/snapmaker-u1/bin/helix-screen || { echo "$(RED)Error: build/snapmaker-u1/bin/helix-screen not found. Run 'make snapmaker-u1-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/snapmaker-u1/bin,snapmaker-u1-docker,helix-screen)
 	@echo "$(CYAN)Deploying HelixScreen to $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)...$(RESET)"
 	$(call snapmaker-u1-deploy-common)
 	@echo "$(GREEN)✓ Deployed to $(SNAPMAKER_U1_HOST):$(SNAPMAKER_U1_DEPLOY_DIR)$(RESET)"
@@ -2394,7 +2387,7 @@ deploy-snapmaker-u1:
 	ssh $(SNAPMAKER_U1_SSH_TARGET) "$(SNAPMAKER_U1_DEPLOY_DIR)/config/helixscreen.init start"
 
 deploy-snapmaker-u1-fg:
-	@test -f build/snapmaker-u1/bin/helix-screen || { echo "$(RED)Error: build/snapmaker-u1/bin/helix-screen not found. Run 'make snapmaker-u1-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/snapmaker-u1/bin,snapmaker-u1-docker,helix-screen)
 	@echo "$(CYAN)Deploying HelixScreen to $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)...$(RESET)"
 	$(call snapmaker-u1-deploy-common)
 	@echo "$(GREEN)✓ Deployed to $(SNAPMAKER_U1_HOST):$(SNAPMAKER_U1_DEPLOY_DIR)$(RESET)"
@@ -2402,7 +2395,7 @@ deploy-snapmaker-u1-fg:
 	ssh -t $(SNAPMAKER_U1_SSH_TARGET) "cd $(SNAPMAKER_U1_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug"
 
 deploy-snapmaker-u1-bin:
-	@test -f build/snapmaker-u1/bin/helix-screen || { echo "$(RED)Error: build/snapmaker-u1/bin/helix-screen not found. Run 'make snapmaker-u1-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/snapmaker-u1/bin,snapmaker-u1-docker,helix-screen)
 	@echo "$(CYAN)Deploying binary only to $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(SNAPMAKER_U1_SSH_TARGET) "killall helix-screen helix-watchdog 2>/dev/null || true"
 	scp build/snapmaker-u1/bin/helix-screen $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)/bin/
@@ -2441,8 +2434,7 @@ K1_SSH_TARGET := $(K1_USER)@$(K1_HOST)
 
 # Deploy full application to K1 using tar/ssh (K1 BusyBox has no rsync)
 deploy-k1:
-	@test -f build/mips/bin/helix-screen || { echo "$(RED)Error: build/mips/bin/helix-screen not found. Run 'make mips-docker' first.$(RESET)"; exit 1; }
-	@test -f build/mips/bin/helix-splash || { echo "$(RED)Error: build/mips/bin/helix-splash not found. Run 'make mips-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/mips/bin,mips-docker,helix-screen helix-splash)
 	@echo "$(CYAN)Deploying HelixScreen to $(K1_SSH_TARGET):$(K1_DEPLOY_DIR)...$(RESET)"
 	@# Generate pre-rendered images if missing
 	@if [ ! -f build/assets/images/prerendered/splash-logo-medium.bin ]; then \
@@ -2496,15 +2488,14 @@ deploy-k1:
 
 # Deploy and run in foreground with verbose logging (for interactive debugging)
 deploy-k1-fg:
-	@test -f build/mips/bin/helix-screen || { echo "$(RED)Error: build/mips/bin/helix-screen not found. Run 'make mips-docker' first.$(RESET)"; exit 1; }
-	@test -f build/mips/bin/helix-splash || { echo "$(RED)Error: build/mips/bin/helix-splash not found. Run 'make mips-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/mips/bin,mips-docker,helix-screen helix-splash)
 	$(call deploy-common,$(K1_SSH_TARGET),$(K1_DEPLOY_DIR),build/mips/bin,k1)
 	@echo "$(CYAN)Starting helix-screen on $(K1_HOST) (foreground, verbose)...$(RESET)"
 	ssh -t $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug"
 
 # Deploy binaries only (fast, for quick iteration)
 deploy-k1-bin:
-	@test -f build/mips/bin/helix-screen || { echo "$(RED)Error: build/mips/bin/helix-screen not found. Run 'make mips-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/mips/bin,mips-docker,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(K1_SSH_TARGET):$(K1_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(K1_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; sleep 1; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null || true; rm -f /tmp/helix-screen.lock; mkdir -p $(K1_DEPLOY_DIR)/bin"
 	cat build/mips/bin/helix-screen | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/bin/helix-screen && chmod +x $(K1_DEPLOY_DIR)/bin/helix-screen"
@@ -2534,8 +2525,7 @@ k1-test: k1-docker deploy-k1-fg
 
 # Deploy full application to K1 (dynamic build) using tar/ssh
 deploy-k1-dynamic:
-	@test -f build/k1-dynamic/bin/helix-screen || { echo "$(RED)Error: build/k1-dynamic/bin/helix-screen not found. Run 'make k1-dynamic-docker' first.$(RESET)"; exit 1; }
-	@test -f build/k1-dynamic/bin/helix-splash || { echo "$(RED)Error: build/k1-dynamic/bin/helix-splash not found. Run 'make k1-dynamic-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/k1-dynamic/bin,k1-dynamic-docker,helix-screen helix-splash)
 	@echo "$(CYAN)Deploying HelixScreen (dynamic) to $(K1_SSH_TARGET):$(K1_DEPLOY_DIR)...$(RESET)"
 	@# Generate pre-rendered images if missing
 	@if [ ! -f build/assets/images/prerendered/splash-logo-medium.bin ]; then \
@@ -2582,15 +2572,14 @@ deploy-k1-dynamic:
 
 # Deploy and run in foreground with verbose logging (for interactive debugging)
 deploy-k1-dynamic-fg:
-	@test -f build/k1-dynamic/bin/helix-screen || { echo "$(RED)Error: build/k1-dynamic/bin/helix-screen not found. Run 'make k1-dynamic-docker' first.$(RESET)"; exit 1; }
-	@test -f build/k1-dynamic/bin/helix-splash || { echo "$(RED)Error: build/k1-dynamic/bin/helix-splash not found. Run 'make k1-dynamic-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/k1-dynamic/bin,k1-dynamic-docker,helix-screen helix-splash)
 	$(call deploy-common,$(K1_SSH_TARGET),$(K1_DEPLOY_DIR),build/k1-dynamic/bin,k1)
 	@echo "$(CYAN)Starting helix-screen on $(K1_HOST) (foreground, verbose)...$(RESET)"
 	ssh -t $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && ./bin/helix-launcher.sh --debug"
 
 # Deploy binaries only (fast, for quick iteration)
 deploy-k1-dynamic-bin:
-	@test -f build/k1-dynamic/bin/helix-screen || { echo "$(RED)Error: build/k1-dynamic/bin/helix-screen not found. Run 'make k1-dynamic-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/k1-dynamic/bin,k1-dynamic-docker,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(K1_SSH_TARGET):$(K1_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(K1_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; sleep 1; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null || true; rm -f /tmp/helix-screen.lock; mkdir -p $(K1_DEPLOY_DIR)/bin"
 	cat build/k1-dynamic/bin/helix-screen | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/bin/helix-screen && chmod +x $(K1_DEPLOY_DIR)/bin/helix-screen"
@@ -2645,8 +2634,7 @@ K2_SSH_TARGET = $(if $(K2_HOST),$(K2_USER)@$(K2_HOST),$(error K2_HOST is require
 
 # Deploy full application to K2 using tar/ssh (K2 BusyBox has no rsync)
 deploy-k2:
-	@test -f build/k2/bin/helix-screen || { echo "$(RED)Error: build/k2/bin/helix-screen not found. Run 'make k2-docker' first.$(RESET)"; exit 1; }
-	@test -f build/k2/bin/helix-splash || { echo "$(RED)Error: build/k2/bin/helix-splash not found. Run 'make k2-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/k2/bin,k2-docker,helix-screen helix-splash)
 	@echo "$(CYAN)Deploying HelixScreen to $(K2_SSH_TARGET):$(K2_DEPLOY_DIR)...$(RESET)"
 	@# Generate pre-rendered images if missing
 	@if [ ! -f build/assets/images/prerendered/splash-logo-medium.bin ]; then \
@@ -2753,7 +2741,7 @@ deploy-k2-fg: deploy-k2
 
 # Deploy binaries only (fast, for quick iteration)
 deploy-k2-bin:
-	@test -f build/k2/bin/helix-screen || { echo "$(RED)Error: build/k2/bin/helix-screen not found. Run 'make k2-docker' first.$(RESET)"; exit 1; }
+	$(call require-built,build/k2/bin,k2-docker,helix-screen)
 	@echo "$(CYAN)Deploying binaries only to $(K2_SSH_TARGET):$(K2_DEPLOY_DIR)/bin...$(RESET)"
 	ssh $(K2_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; sleep 1; killall -9 helix-watchdog helix-screen helix-splash 2>/dev/null || true; rm -f /tmp/helix-screen.lock; mkdir -p $(K2_DEPLOY_DIR)/bin"
 	cat build/k2/bin/helix-screen | ssh $(K2_SSH_TARGET) "cat > $(K2_DEPLOY_DIR)/bin/helix-screen && chmod +x $(K2_DEPLOY_DIR)/bin/helix-screen"
@@ -2974,29 +2962,96 @@ deploy-ad5m deploy-ad5m-fg deploy-cc1 deploy-cc1-fg deploy-k1-fg deploy-k1-dynam
 
 .PHONY: release-pi release-pi32 release-ad5m release-cc1 release-mips release-k1 release-ad5x release-k1-dynamic release-k2 release-snapmaker-u1 release-x86 release-all release-clean pi-fbdev-docker pi32-fbdev-docker pi-all-docker pi32-all-docker x86-fbdev-docker x86-all-docker
 
-# Package Pi release
-release-pi: $(INSTALLER_BUNDLES) | build/pi/bin/helix-screen build/pi/bin/helix-splash build/pi-fbdev/bin/helix-screen
-	@echo "$(CYAN)$(BOLD)Packaging Pi release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/pi/bin)
-	$(call assert-diag-uploads,build/pi/bin)
-	$(call assert-no-remote-control,build/pi-fbdev/bin)
-	$(call assert-diag-uploads,build/pi-fbdev/bin)
+# Host CA bundle packaged when a platform has no toolchain-extracted one.
+CA_BUNDLE ?= /etc/ssl/certs/ca-certificates.crt
+
+# Per-platform packaging facts consumed by release-package. A platform absent
+# from a list takes the default.
+REL_LABEL.pi := Pi
+REL_LABEL.pi32 := Pi 32-bit
+REL_LABEL.ad5m := AD5M
+REL_LABEL.cc1 := CC1
+REL_LABEL.mips := unified MIPS (K1 + AD5X)
+REL_LABEL.k1-dynamic := K1 Dynamic
+REL_LABEL.k2 := K2
+REL_LABEL.snapmaker-u1 := Snapmaker U1
+REL_LABEL.x86 := x86
+
+# Platforms that also ship a framebuffer-only build/<plat>-fbdev binary, which
+# becomes bin/helix-screen-fbdev.
+REL_FBDEV := pi pi32 x86
+
+# config/settings.json seeded from assets/config/presets/<name>.json. Platforms
+# without an entry ship the template only and the installer writes the first-run
+# settings. The AD5M preset has wizard_completed false, so first boot runs
+# detection and refines it to the matching AD5M Pro variant preset.
+REL_PRESET.ad5m := ad5m
+REL_PRESET.cc1 := cc1
+REL_PRESET.k2 := k2
+REL_PRESET.snapmaker-u1 := snapmaker_u1
+
+# Scripts shipped in scripts/ beside the uninstaller.
+REL_SCRIPTS.snapmaker-u1 := scripts/snapmaker-u1-setup-autostart.sh
+
+# Closing-line suffix for packages that publish extra names.
+REL_NOTE.mips := (+ k1/ad5x transition aliases)
+
+define release-assert-features
+	$(call assert-no-remote-control,$(1))
+	$(call assert-diag-uploads,$(1))
+endef
+
+# Static MJPEG camera server. Built by `make ustreamer-k2` (cached, idempotent);
+# trigger it here so a clean release always bundles it. Ships at bin/ustreamer.
+define release-bin-extra-k2
+	@$(MAKE) --no-print-directory ustreamer-k2
+	@if [ -f build/k2/bin/ustreamer ]; then \
+		cp build/k2/bin/ustreamer $(RELEASE_DIR)/helixscreen/bin/; \
+		echo "  $(DIM)Bundled static ustreamer (MJPEG camera server) at bin/ustreamer$(RESET)"; \
+	else \
+		echo "$(YELLOW)  WARNING: build/k2/bin/ustreamer missing — release will not include the camera server$(RESET)"; \
+	fi
+endef
+
+# Every released K1/AD5X binary computes its self-update asset from its own
+# platform key ("k1"/"ad5x") and downloads by that name, so the names must keep
+# existing with unified content until no deployed binary reports those keys
+# anymore. The in-app updater prefers the versioned tar.gz, Moonraker the
+# unversioned zip - ship both.
+define release-post-mips
+	@cp $(RELEASE_DIR)/helixscreen-mips.zip $(RELEASE_DIR)/helixscreen-k1.zip
+	@cp $(RELEASE_DIR)/helixscreen-mips.zip $(RELEASE_DIR)/helixscreen-ad5x.zip
+	@cp $(RELEASE_DIR)/helixscreen-mips-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-k1-$(RELEASE_VERSION).tar.gz
+	@cp $(RELEASE_DIR)/helixscreen-mips-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-ad5x-$(RELEASE_VERSION).tar.gz
+endef
+
+# Assemble helixscreen-<plat>.zip and helixscreen-<plat>-<version>.tar.gz from
+# build/<plat>/ and the source tree. $(1) = platform key. The release-<plat>
+# targets below carry only their prerequisites.
+define release-package
+	@echo "$(CYAN)$(BOLD)Packaging $(REL_LABEL.$(1)) release v$(VERSION)...$(RESET)"
+	$(call release-assert-features,build/$(1)/bin)
+	$(if $(filter $(1),$(REL_FBDEV)),$(call release-assert-features,build/$(1)-fbdev/bin))
 	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/pi/bin/helix-screen build/pi/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/pi/bin/helix-watchdog ]; then cp build/pi/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/pi/lib/libhelix-bluetooth.so ]; then cp build/pi/lib/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/pi-fbdev/bin/helix-screen ]; then cp build/pi-fbdev/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/helix-screen-fbdev; fi
-	@if [ -f build/pi/bin/helix-screen-egl ]; then cp build/pi/bin/helix-screen-egl $(RELEASE_DIR)/helixscreen/bin/; fi
+	@cp build/$(1)/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/
+	@if [ -f build/$(1)/bin/helix-splash ]; then cp build/$(1)/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/; fi
+	@if [ -f build/$(1)/bin/helix-watchdog ]; then cp build/$(1)/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
+	@if [ -f build/$(1)/lib/libhelix-bluetooth.so ]; then cp build/$(1)/lib/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
+	@if [ -f build/$(1)/bin/helix-screen-egl ]; then cp build/$(1)/bin/helix-screen-egl $(RELEASE_DIR)/helixscreen/bin/; fi
+	$(if $(filter $(1),$(REL_FBDEV)),@if [ -f build/$(1)-fbdev/bin/helix-screen ]; then cp build/$(1)-fbdev/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/helix-screen-fbdev; fi)
+	$(release-bin-extra-$(1))
 	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
 	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Remove any personal config — release ships template only (installer copies it on first run)
+	@# Release ships the template only; a preset, when the platform has one, is the first-run default.
 	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
 	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
+	$(if $(REL_PRESET.$(1)),@cp assets/config/presets/$(REL_PRESET.$(1)).json $(RELEASE_DIR)/helixscreen/config/settings.json && echo "  $(DIM)Included pre-configured config/settings.json for $(REL_LABEL.$(1))$(RESET)")
 	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
 	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
 	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
 	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
+	$(if $(REL_SCRIPTS.$(1)),@cp $(REL_SCRIPTS.$(1)) $(RELEASE_DIR)/helixscreen/scripts/)
 	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
 	@for asset in $(RELEASE_ASSETS); do \
 		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
@@ -3013,233 +3068,53 @@ release-pi: $(INSTALLER_BUNDLES) | build/pi/bin/helix-screen build/pi/bin/helix-
 		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
 		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
 	fi
+	@# CA bundle for HTTPS verification, the fallback for devices without system
+	@# certs. The toolchain image's copy (extract-ca-certs) wins; CI never runs
+	@# the *-docker targets, so the build host's bundle stands in. An absent or
+	@# empty bundle fails the release rather than shipping none.
+	@ca=build/$(1)/certs/ca-certificates.crt; [ -s "$$ca" ] || ca="$(CA_BUNDLE)"; \
+	if [ ! -s "$$ca" ]; then \
+		echo "$(RED)$(BOLD)✗ No CA bundle for $(1): build/$(1)/certs/ca-certificates.crt and CA_BUNDLE=$(CA_BUNDLE) are missing or empty.$(RESET)"; \
+		exit 1; \
+	fi; \
+	mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
+	cp "$$ca" $(RELEASE_DIR)/helixscreen/certs/ca-certificates.crt; \
+	echo "  $(DIM)Included CA certificates for HTTPS ($$ca)$(RESET)"
 	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,pi)
+	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,$(1))
 	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,pi)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-pi.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-pi-$(RELEASE_VERSION).tar.gz helixscreen
+	$(call write-release-info,$(1))
+	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-$(1).zip .
+	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-$(1)-$(RELEASE_VERSION).tar.gz helixscreen
 	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-pi-$(RELEASE_VERSION).tar.gz + helixscreen-pi.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-pi-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-pi.zip
+	$(release-post-$(1))
+	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-$(1)-$(RELEASE_VERSION).tar.gz + helixscreen-$(1).zip$(if $(REL_NOTE.$(1)), $(REL_NOTE.$(1)))$(RESET)"
+	@ls -lh $(RELEASE_DIR)/helixscreen-$(1)-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-$(1).zip
+endef
+
+# Package Pi release
+release-pi: $(INSTALLER_BUNDLES) | build/pi/bin/helix-screen build/pi/bin/helix-splash build/pi-fbdev/bin/helix-screen
+	$(call release-package,pi)
 
 # Package Pi 32-bit release (same structure as 64-bit Pi)
 release-pi32: $(INSTALLER_BUNDLES) | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi32-fbdev/bin/helix-screen
-	@echo "$(CYAN)$(BOLD)Packaging Pi 32-bit release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/pi32/bin)
-	$(call assert-diag-uploads,build/pi32/bin)
-	$(call assert-no-remote-control,build/pi32-fbdev/bin)
-	$(call assert-diag-uploads,build/pi32-fbdev/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/pi32/bin/helix-screen build/pi32/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/pi32/bin/helix-watchdog ]; then cp build/pi32/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/pi32/lib/libhelix-bluetooth.so ]; then cp build/pi32/lib/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/pi32-fbdev/bin/helix-screen ]; then cp build/pi32-fbdev/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/helix-screen-fbdev; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Remove any personal config — release ships template only (installer copies it on first run)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@# Copy pre-rendered images from build directory (splash + printer images)
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,pi32)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,pi32)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-pi32.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-pi32-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-pi32-$(RELEASE_VERSION).tar.gz + helixscreen-pi32.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-pi32-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-pi32.zip
+	$(call release-package,pi32)
 
 # Package AD5M release
-# Note: AD5M uses BusyBox which doesn't support tar -z, so we create uncompressed tar + gzip separately
-# Includes pre-configured settings.json for Adventurer 5M Pro (skips setup wizard)
 release-ad5m: $(INSTALLER_BUNDLES) | build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash
-	@echo "$(CYAN)$(BOLD)Packaging AD5M release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/ad5m/bin)
-	$(call assert-diag-uploads,build/ad5m/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/ad5m/bin/helix-watchdog ]; then cp build/ad5m/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@# Seed settings.json from the base AD5M preset. Presets ship wizard_completed:
-	@# false, so first boot runs detection, which refines to the matching AD5M Pro
-	@# variant preset (ad5m_pro_forgex / ad5m_pro_zmod) via apply_preset_with_variants.
-	@cp assets/config/presets/ad5m.json $(RELEASE_DIR)/helixscreen/config/settings.json
-	@echo "  $(DIM)Seeded config/settings.json from the AD5M base preset$(RESET)"
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@# Copy pre-rendered images from build directory (splash + printer images)
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@# Bundle CA certificates for HTTPS verification (fallback if device lacks system certs)
-	@if [ -f "build/ad5m/certs/ca-certificates.crt" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
-		cp build/ad5m/certs/ca-certificates.crt $(RELEASE_DIR)/helixscreen/certs/; \
-		echo "  $(DIM)Included CA certificates for HTTPS$(RESET)"; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,ad5m)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,ad5m)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-ad5m.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-ad5m-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-ad5m-$(RELEASE_VERSION).tar.gz + helixscreen-ad5m.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-ad5m-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-ad5m.zip
+	$(call release-package,ad5m)
 
-# Package AD5X release
 # Package CC1 release
 release-cc1: $(INSTALLER_BUNDLES) | build/cc1/bin/helix-screen build/cc1/bin/helix-splash
-	@echo "$(CYAN)$(BOLD)Packaging CC1 release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/cc1/bin)
-	$(call assert-diag-uploads,build/cc1/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/cc1/bin/helix-screen build/cc1/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/cc1/bin/helix-watchdog ]; then cp build/cc1/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Install CC1 preset as default config (skips hardware wizard on first run)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp assets/config/presets/cc1.json $(RELEASE_DIR)/helixscreen/config/settings.json
-	@echo "  $(DIM)Included pre-configured config/settings.json for CC1$(RESET)"
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@# Copy pre-rendered images from build directory (splash + printer images)
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@# Bundle CA certificates for HTTPS verification (fallback if device lacks system certs)
-	@if [ -f "build/cc1/certs/ca-certificates.crt" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
-		cp build/cc1/certs/ca-certificates.crt $(RELEASE_DIR)/helixscreen/certs/; \
-		echo "  $(DIM)Included CA certificates for HTTPS$(RESET)"; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,cc1)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,cc1)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-cc1.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-cc1-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-cc1-$(RELEASE_VERSION).tar.gz + helixscreen-cc1.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-cc1-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-cc1.zip
+	$(call release-package,cc1)
 
 # Package the unified MIPS release: one binary serving the Creality K1 series
 # and the FlashForge AD5X. No config/settings.json is baked in - the payload
 # ships both presets (assets/config/presets/k1.json and ad5x.json, already in
 # RELEASE_ASSETS) and the installer writes the detected board's preset as the
-# first-run default, which is what the per-package bake used to do.
+# first-run default.
 release-mips: $(INSTALLER_BUNDLES) | build/mips/bin/helix-screen build/mips/bin/helix-splash
-	@echo "$(CYAN)$(BOLD)Packaging unified MIPS (K1 + AD5X) release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/mips/bin)
-	$(call assert-diag-uploads,build/mips/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/mips/bin/helix-screen build/mips/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/mips/bin/helix-watchdog ]; then cp build/mips/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@# Copy pre-rendered images from build directory (splash + printer images)
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@# Bundle CA certificates for HTTPS verification (fallback if device lacks system certs)
-	@if [ -f "build/mips/certs/ca-certificates.crt" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
-		cp build/mips/certs/ca-certificates.crt $(RELEASE_DIR)/helixscreen/certs/; \
-		echo "  $(DIM)Included CA certificates for HTTPS$(RESET)"; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,mips)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,mips)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-mips.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-mips-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@# Transition aliases: every released K1/AD5X binary computes its
-	@# self-update asset from its own platform key ("k1"/"ad5x") and downloads
-	@# by that name, so the names must keep existing with unified content until
-	@# no deployed binary reports those keys anymore. The in-app updater
-	@# prefers the versioned tar.gz, Moonraker the unversioned zip - ship both.
-	@cp $(RELEASE_DIR)/helixscreen-mips.zip $(RELEASE_DIR)/helixscreen-k1.zip
-	@cp $(RELEASE_DIR)/helixscreen-mips.zip $(RELEASE_DIR)/helixscreen-ad5x.zip
-	@cp $(RELEASE_DIR)/helixscreen-mips-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-k1-$(RELEASE_VERSION).tar.gz
-	@cp $(RELEASE_DIR)/helixscreen-mips-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-ad5x-$(RELEASE_VERSION).tar.gz
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-mips-$(RELEASE_VERSION).tar.gz + helixscreen-mips.zip (+ k1/ad5x transition aliases)$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-mips-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-mips.zip
+	$(call release-package,mips)
 
 # Spellings kept so `make release-k1` / `release-ad5x` muscle memory keeps
 # working; both produce the identical unified package.
@@ -3248,200 +3123,19 @@ release-ad5x: release-mips
 
 # Package K1 Dynamic release
 release-k1-dynamic: $(INSTALLER_BUNDLES) | build/k1-dynamic/bin/helix-screen build/k1-dynamic/bin/helix-splash
-	@echo "$(CYAN)$(BOLD)Packaging K1 Dynamic release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/k1-dynamic/bin)
-	$(call assert-diag-uploads,build/k1-dynamic/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/k1-dynamic/bin/helix-screen build/k1-dynamic/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/k1-dynamic/bin/helix-watchdog ]; then cp build/k1-dynamic/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Remove any personal config — release ships template only (installer copies it on first run)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,k1-dynamic)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,k1-dynamic)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-k1-dynamic.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-k1-dynamic-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-k1-dynamic-$(RELEASE_VERSION).tar.gz + helixscreen-k1-dynamic.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-k1-dynamic-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-k1-dynamic.zip
+	$(call release-package,k1-dynamic)
 
 # Package K2 release
 release-k2: $(INSTALLER_BUNDLES) | build/k2/bin/helix-screen build/k2/bin/helix-splash
-	@echo "$(CYAN)$(BOLD)Packaging K2 release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/k2/bin)
-	$(call assert-diag-uploads,build/k2/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/k2/bin/helix-screen build/k2/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/k2/bin/helix-watchdog ]; then cp build/k2/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@# Static MJPEG camera server. Built by `make ustreamer-k2` (cached, idempotent);
-	@# trigger it here so a clean release always bundles it. Ships at bin/ustreamer.
-	@$(MAKE) --no-print-directory ustreamer-k2
-	@if [ -f build/k2/bin/ustreamer ]; then \
-		cp build/k2/bin/ustreamer $(RELEASE_DIR)/helixscreen/bin/; \
-		echo "  $(DIM)Bundled static ustreamer (MJPEG camera server) at bin/ustreamer$(RESET)"; \
-	else \
-		echo "$(YELLOW)  WARNING: build/k2/bin/ustreamer missing — release will not include the camera server$(RESET)"; \
-	fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Install K2 preset as default config (skips hardware wizard on first run)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp assets/config/presets/k2.json $(RELEASE_DIR)/helixscreen/config/settings.json
-	@echo "  $(DIM)Included pre-configured config/settings.json for K2$(RESET)"
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,k2)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,k2)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-k2.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-k2-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-k2-$(RELEASE_VERSION).tar.gz + helixscreen-k2.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-k2-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-k2.zip
+	$(call release-package,k2)
 
 # Package Snapmaker U1 release
 release-snapmaker-u1: $(INSTALLER_BUNDLES) | build/snapmaker-u1/bin/helix-screen
-	@echo "$(CYAN)$(BOLD)Packaging Snapmaker U1 release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/snapmaker-u1/bin)
-	$(call assert-diag-uploads,build/snapmaker-u1/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/snapmaker-u1/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/snapmaker-u1/bin/helix-splash ]; then cp build/snapmaker-u1/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/snapmaker-u1/bin/helix-watchdog ]; then cp build/snapmaker-u1/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/ 2>/dev/null || true
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Install Snapmaker U1 preset as default config (skips hardware wizard on first run)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp assets/config/presets/snapmaker_u1.json $(RELEASE_DIR)/helixscreen/config/settings.json
-	@echo "  $(DIM)Included pre-configured config/settings.json for Snapmaker U1$(RESET)"
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
-	@cp scripts/snapmaker-u1-setup-autostart.sh $(RELEASE_DIR)/helixscreen/scripts/ 2>/dev/null || true
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@if [ -f "build/snapmaker-u1/certs/ca-certificates.crt" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/certs; \
-		cp build/snapmaker-u1/certs/ca-certificates.crt $(RELEASE_DIR)/helixscreen/certs/; \
-		echo "  $(DIM)Included CA certificates for HTTPS$(RESET)"; \
-	fi
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,snapmaker-u1)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,snapmaker-u1)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-snapmaker-u1.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-snapmaker-u1-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-snapmaker-u1-$(RELEASE_VERSION).tar.gz + helixscreen-snapmaker-u1.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-snapmaker-u1-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-snapmaker-u1.zip
+	$(call release-package,snapmaker-u1)
 
 # Package x86_64 Debian release (same structure as Pi)
 release-x86: $(INSTALLER_BUNDLES) | build/x86/bin/helix-screen build/x86/bin/helix-splash build/x86-fbdev/bin/helix-screen
-	@echo "$(CYAN)$(BOLD)Packaging x86 release v$(VERSION)...$(RESET)"
-	$(call assert-no-remote-control,build/x86/bin)
-	$(call assert-diag-uploads,build/x86/bin)
-	$(call assert-no-remote-control,build/x86-fbdev/bin)
-	$(call assert-diag-uploads,build/x86-fbdev/bin)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/bin
-	@cp build/x86/bin/helix-screen build/x86/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/
-	@if [ -f build/x86/bin/helix-watchdog ]; then cp build/x86/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/x86/lib/libhelix-bluetooth.so ]; then cp build/x86/lib/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/x86-fbdev/bin/helix-screen ]; then cp build/x86-fbdev/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/helix-screen-fbdev; fi
-	@cp scripts/helix-launcher.sh $(RELEASE_DIR)/helixscreen/bin/
-	$(call release-copy-xml-config,$(RELEASE_DIR)/helixscreen)
-	@# Remove any personal config — release ships template only (installer copies it on first run)
-	@rm -f $(RELEASE_DIR)/helixscreen/config/settings.json $(RELEASE_DIR)/helixscreen/config/settings-test.json $(RELEASE_DIR)/helixscreen/config/helixconfig.json $(RELEASE_DIR)/helixscreen/config/helixconfig-test.json
-	$(call release-strip-pii,$(RELEASE_DIR)/helixscreen)
-	@cp $(INSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/
-	@chmod +x $(RELEASE_DIR)/helixscreen/$(INSTALLER_FILENAME)
-	@mkdir -p $(RELEASE_DIR)/helixscreen/scripts
-	@cp $(UNINSTALLER_BUNDLE) $(RELEASE_DIR)/helixscreen/scripts/
-	@cp -r scripts/kiauh $(RELEASE_DIR)/helixscreen/scripts/
-	@mkdir -p $(RELEASE_DIR)/helixscreen/assets
-	@for asset in $(RELEASE_ASSETS); do \
-		if [ -d "$$asset" ]; then cp -r "$$asset" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@for f in $(RELEASE_ASSET_FILES); do \
-		if [ -f "$$f" ]; then cp "$$f" $(RELEASE_DIR)/helixscreen/assets/; fi; \
-	done
-	@# Copy pre-rendered images from build directory (splash + printer images)
-	@if [ -d "build/assets/images/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/prerendered; \
-		cp -r build/assets/images/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/prerendered/; \
-	fi
-	@if [ -d "build/assets/images/printers/prerendered" ]; then \
-		mkdir -p $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered; \
-		cp -r build/assets/images/printers/prerendered/* $(RELEASE_DIR)/helixscreen/assets/images/printers/prerendered/; \
-	fi
-	@find $(RELEASE_DIR)/helixscreen -name '.DS_Store' -delete 2>/dev/null || true
-	$(call release-clean-assets,$(RELEASE_DIR)/helixscreen,x86)
-	@xattr -cr $(RELEASE_DIR)/helixscreen 2>/dev/null || true
-	$(call write-release-info,x86)
-	@cd $(RELEASE_DIR)/helixscreen && zip -qr ../helixscreen-x86.zip .
-	@cd $(RELEASE_DIR) && COPYFILE_DISABLE=1 tar $(TAR_OWNER_FLAGS) -czvf helixscreen-x86-$(RELEASE_VERSION).tar.gz helixscreen
-	@rm -rf $(RELEASE_DIR)/helixscreen
-	@echo "$(GREEN)✓ Created $(RELEASE_DIR)/helixscreen-x86-$(RELEASE_VERSION).tar.gz + helixscreen-x86.zip$(RESET)"
-	@ls -lh $(RELEASE_DIR)/helixscreen-x86-$(RELEASE_VERSION).tar.gz $(RELEASE_DIR)/helixscreen-x86.zip
+	$(call release-package,x86)
 
 # Package all releases
 release-all: release-pi release-pi32 release-ad5m release-cc1 release-mips release-k1-dynamic release-k2 release-snapmaker-u1 release-x86

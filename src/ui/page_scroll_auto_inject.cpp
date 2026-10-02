@@ -99,7 +99,7 @@ void PageScrollAutoInject::walk_and_attach(lv_obj_t* obj, bool ancestor_managed)
 }
 
 void PageScrollAutoInject::on_root_shown(lv_obj_t* root) {
-    // Read the setting live rather than trusting a cached flag: observe_int_sync
+    // Read the setting live rather than trusting a cached flag: observe<int>
     // defers its callback via queue_update, so a member cache could lag the
     // subject's synchronous value by one process_lvgl tick (e.g. a caller that
     // flips the setting and immediately shows a panel in the same frame). This

@@ -174,7 +174,7 @@ Icon constants: `CONTROL_ICON_PAUSE`, `CONTROL_ICON_PLAY`, `CONTROL_ICON_HOURGLA
 ### Observer on print_state_enum
 
 ```cpp
-print_state_observer_ = observe_int_sync<PrintControlButtons>(
+print_state_observer_ = observe<int>(
     get_printer_state().get_print_state_enum_subject(), this,
     [](PrintControlButtons* self, int) {
         if (self->pending_action_ != PendingAction::None)
@@ -297,7 +297,7 @@ state — those are owned by the controller. The panel observes the controller's
 optimistically:
 
 ```cpp
-pending_action_observer_ = observe_int_sync<PrintStatusPanel>(
+pending_action_observer_ = observe<int>(
     helix::ui::PrintControlButtons::instance().pending_action_subject(), this,
     [](PrintStatusPanel* self, int) { self->recompute_paused_overlay_visibility(); });
 ```

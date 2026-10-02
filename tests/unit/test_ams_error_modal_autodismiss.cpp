@@ -63,7 +63,7 @@ class FaultCountingBackend : public AmsBackendMock {
 /// XMLTestFixture plus the AmsPanel scaffold every case below needs.
 class AmsErrorModalFixture : public XMLTestFixture {
   public:
-    /// Drain queued observer callbacks, then let LVGL settle. observe_int_sync
+    /// Drain queued observer callbacks, then let LVGL settle. observe<int>
     /// defers handlers onto the UpdateQueue, so both halves are required.
     void pump(int ms = 20) {
         helix::ui::UpdateQueue::instance().drain();
@@ -327,7 +327,7 @@ TEST_CASE_METHOD(AmsErrorModalFixture,
 TEST_CASE_METHOD(AmsErrorModalFixture,
                  "AmsPanel observers' first tick is not a transition (#1185 sentinel)",
                  "[ui_integration][ams][regression][1185]") {
-    // Both observers sync once at registration; observe_int_sync defers that
+    // Both observers sync once at registration; observe<int> defers that
     // tick onto the UpdateQueue, so it lands AFTER setup() when the panel can
     // actually show a modal. With the AMS already faulted and the print already
     // running, the action tick shows the dialog and the print tick follows

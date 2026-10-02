@@ -157,12 +157,12 @@ void LedControlOverlay::on_activate() {
     focus_device(pick_overlay_focus(requested_focus_, last_focused_, ctrl.chamber_light(), ids));
     requested_focus_.clear();
 
-    state_observer_ = helix::ui::observe_int_sync<LedControlOverlay>(
+    state_observer_ = helix::ui::observe<int>(
         ctrl.get_led_state_version_subject(), this,
         [](LedControlOverlay* self, int) { self->on_led_state_changed(); },
         ctrl.get_subjects_lifetime());
     // theme_changed is a file-static theme global, deinited only after LVGL is gone.
-    theme_observer_ = helix::ui::observe_int_sync<LedControlOverlay>(
+    theme_observer_ = helix::ui::observe<int>(
         theme_manager_get_changed_subject(), this,
         [](LedControlOverlay* self, int) { self->publish_swatch_edges(); }, subject_never_freed());
 

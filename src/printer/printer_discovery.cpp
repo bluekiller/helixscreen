@@ -179,7 +179,7 @@ void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerA
     // config and (re)subscribes to PrinterState subjects. Because switch_printer()
     // re-runs this discovery path, this also reloads per-printer auto-state config
     // on printer switch automatically. Runs on the main thread (this function is
-    // invoked inside a queue_update() drain), so the observe_int_sync subscriptions
+    // invoked inside a queue_update() drain), so the observe<int> subscriptions
     // are main-thread-safe.
     helix::led::LedAutoState::instance().init(printer_state);
     led_ctrl.discover_wled_strips();

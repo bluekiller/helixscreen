@@ -9,6 +9,7 @@
 
 #include "color_utils.h"
 #include "helix/xml/indexed_subject_pool.h"
+#include "lane_translation.h"
 #include "static_subject_registry.h"
 #include "theme_manager.h"
 
@@ -114,7 +115,7 @@ void set_selected_swatch(int index) {
 const std::vector<uint32_t>& swatch_palette(ColorPicker::Palette palette) {
     // Grays, warm, cool, purple/pink/special, more colors.
     static const std::vector<uint32_t> general = {
-        0x1A1A1A, 0x4A4A4A, 0x808080, 0xB0B0B0, 0xE8E8E8, 0xFFFFFF, 0xE53935, 0xFF9800,
+        0x1A1A1A, 0x4A4A4A, 0x7F7F7F, 0xB0B0B0, 0xE8E8E8, 0xFFFFFF, 0xE53935, 0xFF9800,
         0xFFEB3B, 0xD4AF37, 0xCD7F32, 0x8B4513, 0x43A047, 0xAEEA00, 0x009688, 0x00BCD4,
         0x1E88E5, 0x1A237E, 0x7B1FA2, 0xE91E63, 0xF48FB1, 0xFF7043, 0xC0C0C0, 0xE0D5C7,
         0x00E676, 0x18FFFF, 0x536DFE, 0xEA80FC, 0xFF80AB, 0xBCAAA4,
@@ -463,6 +464,7 @@ void ColorPicker::highlight_preset(uint32_t color_rgb) {
 }
 
 void ColorPicker::handle_select() {
+    selected_color_ = helix::ams::picked_color(selected_color_);
     std::string color_name = helix::get_color_name_from_hex(selected_color_);
     spdlog::info("[ColorPicker] Color selected: #{:06X} ({})", selected_color_, color_name);
 

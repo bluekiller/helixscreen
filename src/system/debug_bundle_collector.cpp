@@ -14,6 +14,7 @@
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
 #include "json_utils.h"
+#include "klipper_config_includes.h"
 #include "log_redact.h"
 #include "logging_init.h"
 #include "platform_capabilities.h"
@@ -112,10 +113,10 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
     }
 
     try {
-        // upload_async() captures this on the main thread; a direct caller is
-        // main-thread itself, so taking it inline there is equally safe.
-        bundle["printer"] = collect_printer_info(
-            options.printer.captured ? options.printer : snapshot_printer_state());
+        // Only upload_async() may fill options.printer: it captures on the main
+        // thread, and this runs on the slow lane where PrinterState is not safe
+        // to read. An uncaptured snapshot renders as an empty section.
+        bundle["printer"] = collect_printer_info(options.printer);
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect printer info: {}", e.what());
         bundle["printer"] = json{{"error", e.what()}};
@@ -201,8 +202,7 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
     }
 
     try {
-        bundle["moonraker"] = collect_moonraker_info(
-            options.printer.captured ? options.printer : snapshot_printer_state());
+        bundle["moonraker"] = collect_moonraker_info(options.printer);
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect moonraker info: {}", e.what());
         bundle["moonraker"] = json{{"error", e.what()}};
@@ -817,15 +817,15 @@ std::string DebugBundleCollector::sanitize_value(const std::string& value) {
 
         return result;
     } catch (const std::exception& e) {
-        spdlog::debug("[DebugBundle] sanitize_value regex failed: {}", e.what());
-        return value; // Return unsanitized rather than crash
+        spdlog::debug("[DebugBundle] sanitize_value failed: {}", e.what());
+        return "[REDACTED]"; // A value that cannot be checked is not uploaded
     }
 }
 
 json DebugBundleCollector::sanitize_json(const json& input, int depth) {
     if (depth > 32) {
-        spdlog::debug("[DebugBundle] sanitize_json hit depth limit, passing through");
-        return input;
+        spdlog::debug("[DebugBundle] sanitize_json hit depth limit, dropping subtree");
+        return "[REDACTED]";
     }
 
     if (input.is_object()) {
@@ -1429,37 +1429,6 @@ std::vector<std::string> DebugBundleCollector::parse_include_patterns(const std:
     return patterns;
 }
 
-bool DebugBundleCollector::glob_match(const std::string& pattern, const std::string& path) {
-    // Iterative wildcard match with backtracking. '*' and '?' do not cross '/',
-    // matching Python's glob (which is what Klipper's configfile.py uses), so
-    // "mod/*.cfg" does not reach into "mod/sub/".
-    size_t p = 0, s = 0;
-    size_t star = std::string::npos; // last '*' in the pattern
-    size_t star_s = 0;               // where that '*' started consuming
-    while (s < path.size()) {
-        const bool lit_match =
-            p < pattern.size() && (pattern[p] == '?' ? path[s] != '/' : pattern[p] == path[s]);
-        if (lit_match) {
-            ++p;
-            ++s;
-        } else if (p < pattern.size() && pattern[p] == '*') {
-            star = p++;
-            star_s = s;
-        } else if (star != std::string::npos && path[star_s] != '/') {
-            // Give the '*' one more character, unless that character is a
-            // separator it is not allowed to swallow.
-            p = star + 1;
-            s = ++star_s;
-        } else {
-            return false;
-        }
-    }
-    while (p < pattern.size() && pattern[p] == '*') {
-        ++p;
-    }
-    return p == pattern.size();
-}
-
 std::vector<std::string>
 DebugBundleCollector::resolve_include_pattern(const std::string& pattern,
                                               const std::string& including_file,
@@ -1481,7 +1450,7 @@ DebugBundleCollector::resolve_include_pattern(const std::string& pattern,
 
     std::vector<std::string> matches;
     for (const auto& path : available) {
-        if (glob_match(full, path)) {
+        if (helix::system::config_glob_match(full, path)) {
             matches.push_back(path);
         }
     }

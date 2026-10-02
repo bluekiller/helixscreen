@@ -919,16 +919,16 @@ void BeltTensionPanel::ensure_gate_observers() {
         return;
     }
 
-    accel_observer_ = helix::ui::observe_int_sync<BeltTensionPanel>(
+    accel_observer_ = helix::ui::observe<int>(
         accel_subj, this, [](BeltTensionPanel* self, int) { self->refresh_gate(); },
         ps.get_subjects_lifetime());
-    print_active_observer_ = helix::ui::observe_int_sync<BeltTensionPanel>(
+    print_active_observer_ = helix::ui::observe<int>(
         ps.get_print_active_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
-    connected_observer_ = helix::ui::observe_int_sync<BeltTensionPanel>(
+    connected_observer_ = helix::ui::observe<int>(
         ps.get_nav_buttons_enabled_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
-    klippy_observer_ = helix::ui::observe_int_sync<BeltTensionPanel>(
+    klippy_observer_ = helix::ui::observe<int>(
         ps.get_klippy_state_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
 

@@ -500,7 +500,7 @@ static void setup_slot_observers(AmsSlotData* data) {
         return;
     }
 
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     AmsState& state = AmsState::instance();
 
     // Get per-slot subjects. Status, lane_state and material go through the
@@ -523,7 +523,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     // The registry lookup acts as a validity check. (fixes #83)
     lv_obj_t* obj = data->container;
     if (status_subject) {
-        data->status_observer = observe_int_sync<lv_obj_t>(
+        data->status_observer = observe<int>(
             status_subject, obj,
             [](lv_obj_t* o, int status_int) {
                 auto* d = get_slot_data(o);
@@ -533,7 +533,7 @@ static void setup_slot_observers(AmsSlotData* data) {
             data->status_lifetime);
     }
     if (lane_state_subject) {
-        data->lane_state_observer = observe_int_sync<lv_obj_t>(
+        data->lane_state_observer = observe<int>(
             lane_state_subject, obj,
             [](lv_obj_t* o, int state_int) {
                 auto* d = get_slot_data(o);
@@ -550,7 +550,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     lv_subject_t* material_subject =
         state.get_slot_material_subject(backend_idx, data->slot_index, data->material_lifetime);
     if (material_subject) {
-        data->material_observer = helix::ui::observe_string<lv_obj_t>(
+        data->material_observer = helix::ui::observe<const char*>(
             material_subject, obj,
             [](lv_obj_t* o, const char* mat) {
                 auto* d = get_slot_data(o);
@@ -566,7 +566,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     }
 
     if (current_slot_subject) {
-        data->current_slot_observer = observe_int_sync<lv_obj_t>(
+        data->current_slot_observer = observe<int>(
             current_slot_subject, obj,
             [](lv_obj_t* o, int current_slot) {
                 auto* d = get_slot_data(o);
@@ -579,7 +579,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     }
     if (filament_loaded_subject) {
         // When filament_loaded changes, re-evaluate highlight using current_slot value
-        data->filament_loaded_observer = observe_int_sync<lv_obj_t>(
+        data->filament_loaded_observer = observe<int>(
             filament_loaded_subject, obj,
             [](lv_obj_t* o, int /*loaded*/) {
                 auto* d = get_slot_data(o);
@@ -598,7 +598,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     // sync (e.g. an idle unload clears it), so the badge tracks live load state.
     lv_subject_t* active_loaded_subject = state.get_slot_active_loaded_subject(data->slot_index);
     if (active_loaded_subject) {
-        data->active_loaded_observer = observe_int_sync<lv_obj_t>(
+        data->active_loaded_observer = observe<int>(
             active_loaded_subject, obj,
             [](lv_obj_t* o, int /*active*/) {
                 auto* d = get_slot_data(o);
@@ -613,7 +613,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     // Action observer: auto-pulse this slot during active filament operations
     lv_subject_t* action_subject = state.get_ams_action_subject();
     if (action_subject) {
-        data->action_observer = observe_int_sync<lv_obj_t>(
+        data->action_observer = observe<int>(
             action_subject, obj,
             [](lv_obj_t* o, int /*action*/) {
                 auto* d = get_slot_data(o);
@@ -626,7 +626,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     // Target slot observer: re-evaluate pulse when swap target changes
     lv_subject_t* target_subject = state.get_pending_target_slot_subject();
     if (target_subject) {
-        data->target_slot_observer = observe_int_sync<lv_obj_t>(
+        data->target_slot_observer = observe<int>(
             target_subject, obj,
             [](lv_obj_t* o, int /*target*/) {
                 auto* d = get_slot_data(o);

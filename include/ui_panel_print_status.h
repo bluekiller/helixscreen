@@ -179,7 +179,7 @@ class PrintStatusPanel : public OverlayBase {
      *        destroy_overlay_ui()
      *
      * A raw lv_obj_delete() (screen teardown, tests) fires no panel call, but
-     * the queued observe_int_sync handlers still run on the next drain and
+     * the queued observe<int> handlers still run on the next drain and
      * dereference the cached child pointers. Drops them via
      * forget_cached_widgets(). Same contract as PowerPanel's hook (#776
      * family).

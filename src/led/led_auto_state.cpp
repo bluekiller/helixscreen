@@ -217,27 +217,27 @@ void LedAutoState::subscribe_observers() {
         return;
     }
 
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
 
     // RAW_PRINT_STATE_OK: the LED state names are theme keys keyed off what the
     // printer reports; see state_name_for_theme() below.
     auto* print_subj = printer_state_->get_print_state_enum_subject();
     if (print_subj) {
-        print_state_observer_ = observe_int_sync<LedAutoState>(
+        print_state_observer_ = observe<int>(
             print_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },
             printer_state_->get_subjects_lifetime());
     }
 
     auto* klippy_subj = printer_state_->get_klippy_state_subject();
     if (klippy_subj) {
-        klippy_state_observer_ = observe_int_sync<LedAutoState>(
+        klippy_state_observer_ = observe<int>(
             klippy_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },
             printer_state_->get_subjects_lifetime());
     }
 
     auto* ext_target_subj = printer_state_->get_active_extruder_target_subject();
     if (ext_target_subj) {
-        extruder_target_observer_ = observe_int_sync<LedAutoState>(
+        extruder_target_observer_ = observe<int>(
             ext_target_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },
             printer_state_->get_subjects_lifetime());
     }

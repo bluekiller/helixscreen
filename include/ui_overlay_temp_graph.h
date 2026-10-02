@@ -51,6 +51,10 @@ class TempGraphOverlay : public OverlayBase {
     const char* xml_component() const override {
         return "temp_graph_overlay";
     }
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
     lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "Temperature Graph";
@@ -58,6 +62,7 @@ class TempGraphOverlay : public OverlayBase {
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;
     void cleanup() override;
+    void on_ui_destroyed() override;
 
     /**
      * @brief Open the overlay in a specific mode
@@ -242,7 +247,7 @@ class TempGraphOverlay : public OverlayBase {
     // once per activation by watch_extruder_version(); repoint_nozzle_card()
     // must not re-arm it, or every queued repoint re-fires itself and the
     // queue never drains (lv_subject_add_observer notifies on attach, and
-    // observe_int_sync defers the handler through queue_update).
+    // observe<int> defers the handler through queue_update).
     ObserverGuard extruder_version_observer_;
 
     // Subject management

@@ -1,11 +1,16 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_color_picker.h"
+
+#include "lane_translation.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
 #include "spoolman_slot_saver.h"
 #include "spoolman_types.h"
+
+#include <algorithm>
 
 #include "../catch_amalgamated.hpp"
 
@@ -247,6 +252,22 @@ TEST_CASE("SpoolmanSlotSaver save on an unlinked slot with no colour is incomple
     // vendor, material and colour, so the save names what it wanted.
     REQUIRE_FALSE(got.success);
     REQUIRE(got.missing.color);
+}
+
+TEST_CASE("a picked grey is a colour the save accepts, never the no-colour marker",
+          "[spoolman][slot-saver]") {
+    for (auto palette :
+         {helix::ui::ColorPicker::Palette::General, helix::ui::ColorPicker::Palette::Theme}) {
+        for (uint32_t swatch : helix::ui::swatch_palette(palette)) {
+            CHECK(helix::ams::is_declarable_color(swatch));
+        }
+    }
+
+    SlotInfo slot = make_test_slot();
+    slot.color_rgb = helix::ams::picked_color(AMS_DEFAULT_SLOT_COLOR); // custom 0x808080 pick
+    CHECK(helix::ams::is_declarable_color(slot.color_rgb));
+    CHECK_FALSE(SpoolmanSlotSaver::missing_filament_fields(slot).color);
+    CHECK(helix::ams::picked_color(0x123456) == 0x123456);
 }
 
 TEST_CASE("SpoolmanSlotSaver save does nothing when no changes detected",

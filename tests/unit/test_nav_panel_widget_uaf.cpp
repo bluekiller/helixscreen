@@ -10,7 +10,7 @@
  * by the null check, so a deleted panel must leave a null slot behind.
  *
  * It is reachable asynchronously: init() wires handle_active_panel_change to the
- * active_panel subject through observe_int_sync, which defers the apply onto the
+ * active_panel subject through observe<int>, which defers the apply onto the
  * UpdateQueue. A panel change queued before a teardown lands after it, against
  * panels that no longer exist. That is the shape of the real crash — a queued
  * apply left over from one test firing during the next test's fixture drain.
@@ -116,7 +116,7 @@ TEST_CASE_METHOD(NavPanelWidgetUafFixture,
 TEST_CASE_METHOD(NavPanelWidgetUafFixture,
                  "NavigationManager panel change queued before a teardown survives the drain",
                  "[nav][navigation][teardown][uaf]") {
-    // set_active() publishes to active_panel_subject_; observe_int_sync defers
+    // set_active() publishes to active_panel_subject_; observe<int> defers
     // handle_active_panel_change onto the UpdateQueue rather than running it now.
     NavigationManager::instance().set_active(PanelId::Settings);
 

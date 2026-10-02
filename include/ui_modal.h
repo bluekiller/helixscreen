@@ -497,28 +497,36 @@ namespace helix::ui {
 inline constexpr const char* kModalTitleWidgetName = "dialog_title";
 
 /**
- * @brief Initialize subjects for modal_dialog.xml bindings
- *
- * Call once during app startup before any modal_dialog is shown.
+ * @brief Register the modal XML callbacks; call once during app startup
  */
 void modal_init_subjects();
 
 /**
- * @brief Deinitialize modal dialog subjects for clean shutdown
+ * @brief Owns the attribute strings for one modal_dialog instance
+ *
+ * Severity icon and button captions are per-dialog XML attrs, so stacked
+ * dialogs never share caption state. Holds the strings the attr array points
+ * into: keep it alive for the duration of the show() call and do not move it.
  */
-void modal_deinit_subjects();
+class ModalDialogAttrs {
+  public:
+    /// @param secondary Cancel-button caption; shown only when show_cancel
+    ModalDialogAttrs(std::string title, std::string message, ModalSeverity severity,
+                     std::string primary, std::string secondary, bool show_cancel);
+    ModalDialogAttrs(const ModalDialogAttrs&) = delete;
+    ModalDialogAttrs& operator=(const ModalDialogAttrs&) = delete;
 
-/**
- * @brief Configure modal_dialog before showing
- */
-void modal_configure(ModalSeverity severity, bool show_cancel, const char* primary_text,
-                     const char* cancel_text);
+    /// Null-terminated attr list for Modal::show()
+    const char** get();
 
-// Subject accessors
-lv_subject_t* modal_get_severity_subject();
-lv_subject_t* modal_get_show_cancel_subject();
-lv_subject_t* modal_get_primary_text_subject();
-lv_subject_t* modal_get_cancel_text_subject();
+  private:
+    std::string title_, message_, primary_, secondary_;
+    const char* hide_info_;
+    const char* hide_warning_;
+    const char* hide_error_;
+    const char* hide_secondary_;
+    std::vector<const char*> attrs_;
+};
 
 inline lv_obj_t* modal_show(const char* name, const char** attrs = nullptr) {
     return Modal::show(name, attrs);

@@ -134,7 +134,7 @@ void PowerDeviceWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         // __all__ mode: aggregate toggle for all selected power panel devices.
         // Observe power_device_count to refresh when devices are discovered.
         auto token = lifetime_.token();
-        power_count_observer_ = helix::ui::observe_int_sync<PowerDeviceWidget>(
+        power_count_observer_ = helix::ui::observe<int>(
             get_printer_state().get_power_device_count_subject(), this,
             [token](PowerDeviceWidget* self, int /*count*/) {
                 if (token.expired())
@@ -155,7 +155,7 @@ void PowerDeviceWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             PowerDeviceState::instance().get_status_subject(device_name_, lifetime);
         if (subj) {
             auto token = lifetime_.token();
-            status_observer_ = helix::ui::observe_int_sync<PowerDeviceWidget>(
+            status_observer_ = helix::ui::observe<int>(
                 subj, this,
                 [token](PowerDeviceWidget* self, int status) {
                     if (token.expired())
@@ -767,7 +767,7 @@ void PowerDeviceWidget::select_device(const std::string& name) {
         if (is_all_devices()) {
             // __all__ mode: observe device count for aggregate refresh
             auto token = lifetime_.token();
-            power_count_observer_ = helix::ui::observe_int_sync<PowerDeviceWidget>(
+            power_count_observer_ = helix::ui::observe<int>(
                 get_printer_state().get_power_device_count_subject(), this,
                 [token](PowerDeviceWidget* self, int /*count*/) {
                     if (token.expired())
@@ -786,7 +786,7 @@ void PowerDeviceWidget::select_device(const std::string& name) {
                 PowerDeviceState::instance().get_status_subject(device_name_, lifetime);
             if (subj) {
                 auto token = lifetime_.token();
-                status_observer_ = helix::ui::observe_int_sync<PowerDeviceWidget>(
+                status_observer_ = helix::ui::observe<int>(
                     subj, this,
                     [token](PowerDeviceWidget* self, int status) {
                         if (token.expired())
@@ -1126,7 +1126,7 @@ void PowerDeviceWidget::attach_sensor_observers() {
         if (!subj || !label)
             return;
         std::string key_copy = key;
-        guard = helix::ui::observe_int_sync<PowerDeviceWidget>(
+        guard = helix::ui::observe<int>(
             subj, this,
             [token, key_copy, label](PowerDeviceWidget* self, int centi_value) {
                 if (token.expired())

@@ -1089,7 +1089,7 @@ void PIDCalibrationPanel::start_progress_tracking() {
     }
 
     // Observe temperature for phase tracking (both extruder and bed need lifetime tokens)
-    progress_temp_observer_ = helix::ui::observe_int_sync<PIDCalibrationPanel>(
+    progress_temp_observer_ = helix::ui::observe<int>(
         temp_subj, this,
         [](PIDCalibrationPanel* self, int value) { self->on_progress_temperature(value); },
         progress_temp_lifetime_);

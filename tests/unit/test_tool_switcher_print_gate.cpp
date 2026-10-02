@@ -262,7 +262,7 @@ TEST_CASE_METHOD(ToolSwitcherGateFixture, "pills grey and un-grey as the print s
     pills.push_back(lv_obj_create(host));
     pills.push_back(lv_obj_create(host));
 
-    // observe_int_sync() defers through the UpdateQueue, so the gate lands on
+    // observe<int>() defers through the UpdateQueue, so the gate lands on
     // the next tick — drain before asserting.
     auto tick = [] {
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());

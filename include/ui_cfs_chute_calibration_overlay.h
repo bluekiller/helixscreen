@@ -44,6 +44,10 @@ class CfsChuteCalibrationOverlay : public OverlayBase {
     const char* xml_component() const override {
         return "cfs_chute_calibration_overlay";
     }
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
 
     lv_obj_t* create(lv_obj_t* parent) override;
 

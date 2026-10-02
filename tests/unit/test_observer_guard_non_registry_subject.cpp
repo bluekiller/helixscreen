@@ -53,7 +53,7 @@ TEST_CASE_METHOD(
 
     CountingPanel panel;
     {
-        ObserverGuard guard = helix::ui::observe_int_sync<CountingPanel>(
+        ObserverGuard guard = helix::ui::observe<int>(
             &subject, &panel, [](CountingPanel* p, int /*v*/) { p->notifications++; },
             subject_never_freed());
         REQUIRE(lv_ll_get_len(&subject.subs_ll) == 1);

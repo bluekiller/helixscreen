@@ -6062,21 +6062,9 @@ std::vector<helix::printer::DeviceAction> AmsBackendAfc::get_device_actions() co
             std::string id = "bowden_T" + std::to_string(i);
             std::string label = "Bowden Length (T" + std::to_string(i) + ")";
             std::string desc = "Bowden tube length for tool " + std::to_string(i);
-            actions.push_back(
-                DeviceAction{id,
-                             label,
-                             "ruler",
-                             "setup",
-                             desc,
-                             ActionType::SLIDER,
-                             bowden_length_, // shared default until per-extruder tracking
-                             {},
-                             100.0f,
-                             std::max(2000.0f, bowden_length_ * 1.5f),
-                             "mm",
-                             -1,
-                             true,
-                             ""});
+            actions.push_back(DeviceAction::slider(
+                id, label, "setup", bowden_length_, // shared default until per-extruder tracking
+                100.0f, std::max(2000.0f, bowden_length_ * 1.5f), "mm", "ruler", desc));
         }
     }
 
@@ -6094,49 +6082,18 @@ std::vector<helix::printer::DeviceAction> AmsBackendAfc::get_device_actions() co
             std::string suffix = "_T" + std::to_string(i);
             std::string tool_label = " (T" + std::to_string(i) + ")";
 
+            actions.push_back(DeviceAction::slider(
+                "tool_stn" + suffix, "Sensor to Nozzle" + tool_label, "toolhead",
+                std::any(ext.tool_stn), 0.0f, 200.0f, "mm", "ruler",
+                "Distance from toolhead sensor to nozzle for T" + std::to_string(i)));
             actions.push_back(
-                DeviceAction{"tool_stn" + suffix,
-                             "Sensor to Nozzle" + tool_label,
-                             "ruler",
-                             "toolhead",
-                             "Distance from toolhead sensor to nozzle for T" + std::to_string(i),
-                             ActionType::SLIDER,
-                             std::any(ext.tool_stn),
-                             {},
-                             0.0f,
-                             200.0f,
-                             "mm",
-                             -1,
-                             true,
-                             ""});
-            actions.push_back(DeviceAction{"tool_stn_unload" + suffix,
-                                           "Unload Distance" + tool_label,
-                                           "ruler",
-                                           "toolhead",
-                                           "Retraction distance for T" + std::to_string(i),
-                                           ActionType::SLIDER,
-                                           std::any(ext.tool_stn_unload),
-                                           {},
-                                           0.0f,
-                                           200.0f,
-                                           "mm",
-                                           -1,
-                                           true,
-                                           ""});
-            actions.push_back(DeviceAction{"tool_sensor_after_extruder" + suffix,
-                                           "Post-Sensor Clear" + tool_label,
-                                           "ruler",
-                                           "toolhead",
-                                           "Extra clear distance for T" + std::to_string(i),
-                                           ActionType::SLIDER,
-                                           std::any(ext.tool_sensor_after_extruder),
-                                           {},
-                                           0.0f,
-                                           100.0f,
-                                           "mm",
-                                           -1,
-                                           true,
-                                           ""});
+                DeviceAction::slider("tool_stn_unload" + suffix, "Unload Distance" + tool_label,
+                                     "toolhead", std::any(ext.tool_stn_unload), 0.0f, 200.0f, "mm",
+                                     "ruler", "Retraction distance for T" + std::to_string(i)));
+            actions.push_back(DeviceAction::slider(
+                "tool_sensor_after_extruder" + suffix, "Post-Sensor Clear" + tool_label, "toolhead",
+                std::any(ext.tool_sensor_after_extruder), 0.0f, 100.0f, "mm", "ruler",
+                "Extra clear distance for T" + std::to_string(i)));
         }
     }
 
@@ -6148,21 +6105,11 @@ std::vector<helix::printer::DeviceAction> AmsBackendAfc::get_device_actions() co
         for (int i = 0; i < static_cast<int>(extruders_.size()); ++i) {
             auto it = toolhead_led_state_.find(i);
             bool led_on = (it != toolhead_led_state_.end()) && it->second;
-            actions.push_back(DeviceAction{
+            actions.push_back(DeviceAction::button(
                 fmt::format("led_extruder_T{}", i),
-                fmt::format("{} Toolhead LED (T{})", led_on ? "Turn Off" : "Turn On", i),
+                fmt::format("{} Toolhead LED (T{})", led_on ? "Turn Off" : "Turn On", i), "setup",
                 led_on ? "lightbulb-off" : "lightbulb-on",
-                "setup",
-                fmt::format("Toggle toolhead LED for T{}", i),
-                ActionType::BUTTON,
-                {},
-                {},
-                0,
-                0,
-                "",
-                -1,
-                true,
-                ""});
+                fmt::format("Toggle toolhead LED for T{}", i)));
         }
     }
 
@@ -6176,20 +6123,11 @@ std::vector<helix::printer::DeviceAction> AmsBackendAfc::get_device_actions() co
         std::string label = "Hub Distance (" + lane_name + ")";
         float current = lane_sensors_for(lane_name).dist_hub;
 
-        actions.push_back(DeviceAction{id,
-                                       label,
-                                       "ruler",
-                                       "hub",
-                                       "Distance from lane extruder to hub",
-                                       ActionType::SLIDER,
-                                       std::any(current),
-                                       {},
-                                       0.0f,
-                                       std::max(500.0f, current * 1.5f),
-                                       "mm",
-                                       i,
-                                       true,
-                                       ""});
+        DeviceAction a = DeviceAction::slider(id, label, "hub", std::any(current), 0.0f,
+                                              std::max(500.0f, current * 1.5f), "mm", "ruler",
+                                              "Distance from lane extruder to hub");
+        a.slot_index = i;
+        actions.push_back(std::move(a));
     }
 
     // ---- Overlay dynamic values from config onto default actions ----

@@ -295,9 +295,9 @@ void WizardSummaryStep::init_subjects() {
 
 void WizardSummaryStep::register_callbacks() {
     spdlog::debug("[{}] Registering callbacks", get_name());
-    lv_xml_register_event_cb(nullptr, "on_wizard_telemetry_changed",
+    lv_xml_register_event_cb(nullptr, "on_wizard_summary_telemetry_changed",
                              WizardSummaryStep::on_wizard_telemetry_changed);
-    lv_xml_register_event_cb(nullptr, "on_wizard_telemetry_info",
+    lv_xml_register_event_cb(nullptr, "on_wizard_summary_telemetry_info",
                              WizardSummaryStep::on_wizard_telemetry_info);
 }
 

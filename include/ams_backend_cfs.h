@@ -217,6 +217,8 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // override_store_->clear_async. CFS firmware populates brand / color_name /
     // total_weight_g from its RFID material database, so those fields are
     // preserved. Only spool_name / spoolman_* / remaining_weight_g are zeroed.
+    // Fork firmware also owns a persisted per-slot profile, cleared here with
+    // _BOX_SLOT_CLEAR; stock K1/K2 dialects have no equivalent command.
     void clear_slot_override(int slot_index) override;
 
     /// Publish the external spool as the lane one past the last physical slot
@@ -224,10 +226,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// it. Stock and fork dialects alike: the lane is OUR mirror record, no
     /// firmware involvement.
     void publish_external_spool_lane(const SlotInfo* spool) override;
-
-    // Explicit Clear Spool action. Fork firmware owns the persisted profile;
-    // stock CFS dialects have no equivalent command.
-    void clear_box_slot_profile(int slot_index);
 
     // Bypass / external spool. Fork firmware owns the flow (`T<external>` to
     // feed, BOX_UNLOAD to eject — box.py registers T for the external slot
@@ -314,8 +312,8 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// response stream; on_result fires once, on the main thread, with the
     /// sweep's outcome: ok with the final "Found cut position" line (empty
     /// when none was captured), or the failure that ended it early.
-    AmsError
-    calibrate_cutter(std::function<void(bool ok, const std::string& line)> on_result = nullptr);
+    AmsError calibrate_cutter(
+        std::function<void(bool ok, const std::string& line)> on_result = nullptr) override;
 
     /// Chute steps 1+2: XYZ_ZERO (~55s full home) then
     /// COORDINATES_ADJUST_PREPARE (parks Y at the box's safe position).
@@ -328,13 +326,13 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     AmsError
     start_chute_calibration(std::function<void()> on_ready = nullptr,
                             std::function<void(const std::string& klipper_msg)> on_failed = nullptr,
-                            std::shared_ptr<std::atomic<bool>> cancel_requested = nullptr);
+                            std::shared_ptr<std::atomic<bool>> cancel_requested = nullptr) override;
 
     /// Jog Y by @p delta_mm using the stock screen's exact script form
     /// (SAVE_GCODE_STATE/G91/G0/M400/RESTORE_GCODE_STATE). The caller clamps
     /// the delta against live axis bounds; the stepper's own position_min/max
     /// is the hard limit either way.
-    AmsError jog_chute_y(float delta_mm);
+    AmsError jog_chute_y(float delta_mm) override;
 
     /// Chute save: COORDINATES_ADJUST_SAVE_POS (the firmware reads the LIVE
     /// toolhead position and rewrites extrude_pos_x/y in box.cfg; HelixScreen
@@ -342,19 +340,19 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// the main thread after both completed; @p on_failed when either gcode
     /// fails (the backend has already sent Y_SAFE, which is an idempotent
     /// park).
-    AmsError
-    save_chute_position(std::function<void()> on_saved = nullptr,
-                        std::function<void(const std::string& klipper_msg)> on_failed = nullptr);
+    AmsError save_chute_position(
+        std::function<void()> on_saved = nullptr,
+        std::function<void(const std::string& klipper_msg)> on_failed = nullptr) override;
 
     /// Abort path: re-park Y with CMD=Y_SAFE. Required once PREPARE has run,
     /// which is the point from which the toolhead is left off-park.
-    AmsError exit_chute_calibration();
+    AmsError exit_chute_calibration() override;
 
     /// The position pair the last successful save reported on the response
     /// stream ("cmd_save_extrude_pos x=.. y=..", or the SAVE_BOX_CFG echo).
     /// False when no line was captured, so the caller can fall back to a
     /// plain confirmation.
-    [[nodiscard]] bool last_chute_saved_position(double& x_mm, double& y_mm) const;
+    [[nodiscard]] bool last_chute_saved_position(double& x_mm, double& y_mm) const override;
 
     /// Parse one save-response line into @p x_mm / @p y_mm. Accepts both the
     /// cmd_save_extrude_pos form and the SAVE_BOX_CFG ok echo. False when the

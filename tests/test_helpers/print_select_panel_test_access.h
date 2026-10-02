@@ -62,6 +62,10 @@ struct PrintSelectPanelTestAccess {
         }
     }
 
+    static bool detail_view_built(const PrintSelectPanel& panel) {
+        return panel.detail_view_ != nullptr;
+    }
+
     /// Whether the detail-view overlay is currently pushed (OverlayBase's
     /// is_visible, driven by NavigationManager activate/deactivate).
     static bool detail_view_visible(const PrintSelectPanel& panel) {

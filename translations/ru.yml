@@ -1933,6 +1933,7 @@ translations:
   Motor controller error: Ошибка контроллера двигателя
   Motor parameter setup failed: Не удалась настройка параметров двигателя
   Motor speeds and acceleration: 'Скорости моторов и ускорение'
+  Motors: Двигатели
   Motors Off: Отключить моторы
   'Motors disable failed: {}': 'Ошибка отключения моторов: {}'
   Motors disabled: Моторы отключены
@@ -3151,6 +3152,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Переход на MPC меняет способ управления этим нагревателем, а затем калибрует его. Это занимает несколько минут при рабочей температуре.
   Switching to MPC requires a config change and Klipper restart.: Переход на MPC требует
     изменения конфига и перезапуска Klipper.
+  Sync during printing: Синхронизация во время печати
   Sync with Spoolman: Синхронизация со Spoolman
   Sysfs: Sysfs
   System: Система

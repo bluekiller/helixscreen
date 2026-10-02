@@ -124,6 +124,7 @@ EXEMPT_SUBSTRINGS = (
     # Build outputs.
     'compile_commands.json',
     'build/generated/',    # helix_git_hash.h and friends
+    'build/installer/',    # install.sh / uninstall.sh, written by `make installer`
     'MANIFEST.txt',        # written by genPackagingManifest at assets-build time
     # libhv installs its public headers into include/hv/ during its own build.
     'libhv/include/',

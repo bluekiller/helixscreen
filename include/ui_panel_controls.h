@@ -333,7 +333,7 @@ class ControlsPanel : public PanelBase {
     std::vector<ObserverGuard> secondary_fan_observers_; ///< Per-fan speed observers
     /// Lifetime tokens for the dynamic per-fan speed subjects observed above. Per-fan
     /// subjects are destroyed/recreated on fan rediscovery; what makes the guards safe is
-    /// that each token is handed to observe_int_sync(), not where the token is stored.
+    /// that each token is handed to observe<int>(), not where the token is stored.
     /// These are copies of shared_ptrs PrinterFanState owns — it signals subject death by
     /// writing *token = false — so declaring them after the observers (destroyed first) is
     /// equivalent to declaring them before. Kept index-aligned with

@@ -7,7 +7,7 @@
  *
  * TempGraphController::reattach_observers() rebinds every observer to whatever
  * subjects are live after a reconnect, without tearing the chart down. The
- * hazard it has to avoid is the attach-time fire: observe_int_sync() attaches
+ * hazard it has to avoid is the attach-time fire: observe<int>() attaches
  * with lv_subject_add_observer_obj(), which fires the observer once
  * immediately, and the subjects still hold their PRE-disconnect values. The
  * live handler stamps whatever it receives with a fresh `now`, so an
@@ -15,7 +15,7 @@
  * disconnect gap.
  *
  * What makes this easy to get wrong — and what these tests pin — is that the
- * attach fire is not synchronous. observe_int_sync's LVGL callback only QUEUES
+ * attach fire is not synchronous. observe<int>'s LVGL callback only QUEUES
  * the handler (observer_factory.h), so it runs on a later UpdateQueue tick,
  * long after setup_observers() has returned. Any suppression scoped to the
  * body of reattach_observers() is a no-op.

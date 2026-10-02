@@ -56,7 +56,7 @@ void PrintExcludeObjectManager::init() {
     }
 
     // Subscribe to excluded objects changes from PrinterState
-    excluded_objects_observer_ = helix::ui::observe_int_sync<PrintExcludeObjectManager>(
+    excluded_objects_observer_ = helix::ui::observe<int>(
         printer_state_.get_excluded_objects_version_subject(), this,
         [](PrintExcludeObjectManager* self, int) { self->on_excluded_objects_changed(); },
         printer_state_.get_subjects_lifetime());

@@ -225,10 +225,10 @@ void BypassToggleController::arm_backend_observer() {
     // identical to the last one. The value itself is ignored — the handler
     // re-reads the backend.
     //
-    // observe_int_sync defers the handler through ui_queue_update(), so the
+    // observe<int> defers the handler through ui_queue_update(), so the
     // guard mutation on settle never runs inside lv_subject_notify (issue #82
     // discipline). AmsState subjects fire on the main thread.
-    backend_observer_ = observe_int_sync<BypassToggleController>(
+    backend_observer_ = observe<int>(
         subject, this, [](BypassToggleController* self, int) { self->poll_pending_engage(); },
         ams.get_subjects_lifetime());
 }

@@ -364,12 +364,7 @@ Usage in XML:
 
 ### `modal_dialog`
 
-The generic title + message dialog used by `helix::ui::modal_confirm()` and `helix::ui::modal_alert()`. Uses subject bindings for dynamic content:
-
-- `dialog_severity` -- controls which icon is shown (0=info, 1=warning, 2=error)
-- `dialog_show_cancel` -- toggles cancel button visibility
-- `dialog_primary_text` -- primary button label
-- `dialog_cancel_text` -- cancel button label
+The generic title + message dialog used by `helix::ui::modal_confirm()` and `helix::ui::modal_alert()`. Severity and captions are per-dialog attrs (`hide_info`/`hide_warning`/`hide_error`, `primary_text`, `secondary_text`, `hide_secondary`), built by `helix::ui::ModalDialogAttrs`, so stacked dialogs never share caption state.
 
 You rarely interact with `modal_dialog` directly. Use `helix::ui::modal_confirm()` or `helix::ui::modal_alert()` instead.
 
@@ -734,7 +729,6 @@ helix::ui::modal_hide(dialog);
 **Before** (18+ lines):
 ```cpp
 const char* attrs[] = {"title", "Delete?", "message", "Cannot be undone.", nullptr};
-helix::ui::modal_configure(ModalSeverity::Warning, true, "Delete", "Cancel");
 dialog_ = helix::ui::modal_show("modal_dialog", attrs);
 if (!dialog_) return;
 lv_obj_t* cancel = lv_obj_find_by_name(dialog_, "btn_secondary");
@@ -827,7 +821,6 @@ removed.) All live in `include/ui_modal.h`, `namespace helix::ui`:
 | `helix::ui::modal_hide(dialog)` | `Modal::hide(dialog)` |
 | `helix::ui::modal_get_top()` | `Modal::get_top()` |
 | `Modal::any_visible()` | (static method; no free-function wrapper) |
-| `helix::ui::modal_init_subjects()` | subject registration |
-| `helix::ui::modal_configure(...)` | configures the shared `modal_dialog` |
+| `helix::ui::modal_init_subjects()` | modal XML callback registration |
 
 Use the `Modal::` class methods or the `helix::ui::modal_confirm()` / `helix::ui::modal_alert()` helpers; the `lv_event_cb_t` spellings (`modal_show_confirmation()` / `modal_show_alert()`) are gone. Subject to the rule in "Three Ways to Create Modals": if the dialog needs custom content rather than title + message + buttons, own a `Modal` subclass instead.

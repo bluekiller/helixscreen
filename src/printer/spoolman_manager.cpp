@@ -119,7 +119,7 @@ void SpoolmanManager::init_subjects() {
 
     // Observe print state changes to auto-refresh Spoolman weights.
     // Refreshes when print starts, ends, or pauses to keep weight data current.
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
     using helix::ui::observe_print_state;
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - weights change when
     // filament moves, which is the printer's own transition.
@@ -144,12 +144,12 @@ void SpoolmanManager::init_subjects() {
     // rather than lv_xml_get_subject("printer_has_spoolman"): that lookup misses
     // whenever subjects were initialised without XML registration, and the miss
     // is silent, which left the manager with no availability observer at all.
-    spoolman_availability_observer_ = observe_int_sync<SpoolmanManager>(
+    spoolman_availability_observer_ = observe<int>(
         get_printer_state().get_printer_has_spoolman_subject(), this,
         [](SpoolmanManager* self, int value) {
             if (value == 0) {
                 std::lock_guard<std::recursive_mutex> lock(self->mutex_);
-                // LVGL fires an observer immediately on attach, and observe_int_sync
+                // LVGL fires an observer immediately on attach, and observe<int>
                 // defers the handler, so the first callback routinely arrives
                 // reading 0 for a Spoolman that was never available. The teardown
                 // below is idempotent and stays unconditional - it is the LOG that

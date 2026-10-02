@@ -331,6 +331,13 @@ inline lv_obj_t* button_label(lv_obj_t* btn) {
     return found;
 }
 
+/// Caption of the named button inside `root`, empty if absent.
+inline std::string button_text(lv_obj_t* root, const char* btn_name) {
+    lv_obj_t* btn = lv_obj_find_by_name(root, btn_name);
+    lv_obj_t* label = btn ? button_label(btn) : nullptr;
+    return label ? lv_label_get_text(label) : std::string();
+}
+
 /**
  * @brief Check if widget is in checked/selected state
  * @param widget Checkbox, switch, or button widget

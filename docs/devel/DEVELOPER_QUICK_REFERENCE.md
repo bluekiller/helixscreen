@@ -142,29 +142,31 @@ Use `observer_factory.h` for type-safe, auto-cleaned observers. **Never use raw 
 #include "observer_factory.h"
 
 // In setup_observers():
-// Integer observer with async UI update
-add_observer(observe_int_async<MyPanel>(
+// Integer observer; the handler runs deferred on the UI thread
+add_observer(observe<int>(
     get_printer_state().temperature_state().get_active_extruder_temp_subject(),
     this,
     [](MyPanel* self, int32_t temp) {
         self->update_temp_display(temp);
-    }
+    },
+    get_printer_state().get_subjects_lifetime()
 ));
 
 // String observer
-add_observer(observe_string<MyPanel>(
+add_observer(observe<const char*>(
     get_printer_state().get_print_filename_subject(),
     this,
     [](MyPanel* self, const char* name) {
         lv_label_set_text(self->filename_label_, name);
-    }
+    },
+    get_printer_state().get_subjects_lifetime()
 ));
 ```
 
 **Key patterns:**
-- `observe_int_sync<Panel>()` - Direct callback (same thread)
-- `observe_int_async<Panel>()` - Queued to LVGL thread (safe from WebSocket)
-- `observe_string<Panel>()` - String subjects
+- `observe<int>()` / `observe<const char*>()` - int and string subjects; the handler is deferred through the UpdateQueue by default
+- `Dispatch::Immediate` (last argument) - handler runs inside the subject notification; only when it cannot touch observer lifecycle
+- The 4th argument is the subject owner's lifetime token (`subject_never_freed()` only for subjects that outlive the process)
 
 ---
 
@@ -446,7 +448,7 @@ style_flex_cross_place="center"
 | `lv_label_set_text()` for reactive data | `bind_text` subject binding | [ch. 01 — Declarative UI](architecture/01-declarative-ui.md) |
 | Hardcoded colors in C++ | `theme_manager_get_color("card_bg")` | [Responsive Design Tokens](#responsive-design-tokens) |
 | `lv_subject_set_*()` from WebSocket | `helix::ui::queue_update()` | [Threading Model](#threading-model) |
-| Raw `lv_subject_add_observer_*()` | `observe_int_async<Panel>()` from factory | [Observer Factory](#observer-factory-critical) |
+| Raw `lv_subject_add_observer_*()` | `observe<int>()` from factory | [Observer Factory](#observer-factory-critical) |
 
 ---
 
@@ -622,9 +624,10 @@ for (const auto& [name, info] : pts.extruders()) {
 }
 
 // React to extruder list changes
-add_observer(observe_int_async<MyPanel>(
+add_observer(observe<int>(
     pts.get_extruder_version_subject(), this,
-    [](MyPanel* self, int32_t) { self->rebuild_temp_display(); }
+    [](MyPanel* self, int32_t) { self->rebuild_temp_display(); },
+    get_printer_state().get_subjects_lifetime()
 ));
 ```
 
@@ -660,9 +663,10 @@ for (const auto& tool : ts.tools()) {
 }
 
 // Observe tool changes
-add_observer(observe_int_async<MyPanel>(
+add_observer(observe<int>(
     ts.get_tools_version_subject(), this,
-    [](MyPanel* self, int32_t) { self->rebuild_tool_list(); }
+    [](MyPanel* self, int32_t) { self->rebuild_tool_list(); },
+    get_printer_state().get_subjects_lifetime()
 ));
 
 // Hide UI element on single-tool printers (XML)

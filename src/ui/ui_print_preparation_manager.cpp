@@ -126,7 +126,7 @@ void PrintPreparationManager::set_dependencies(IMoonrakerAPI* api, PrinterState*
     // analyze_print_start_macro() checks MacroModificationManager's cache first
     // to avoid a duplicate HTTP download of printer config files.
     if (printer_state_) {
-        connection_observer_ = helix::ui::observe_int_sync<PrintPreparationManager>(
+        connection_observer_ = helix::ui::observe<int>(
             printer_state_->get_printer_connection_state_subject(), this,
             [](PrintPreparationManager* self, int state) {
                 if (state == static_cast<int>(ConnectionState::CONNECTED)) {
@@ -1411,10 +1411,10 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
             }
         });
 
-    // The busy->idle edge is the normal completion signal. observe_int_sync
+    // The busy->idle edge is the normal completion signal. observe<int>
     // defers the handler through UpdateQueue, so the observer can be torn down
     // from inside the handler without re-entrancy.
-    pre_start_wait_observer_ = helix::ui::observe_int_sync<PrintPreparationManager>(
+    pre_start_wait_observer_ = helix::ui::observe<int>(
         printer_state_->get_idle_timeout_printing_subject(), this,
         [this, filename, ops_to_disable, on_navigate_to_status,
          on_completion](PrintPreparationManager* self, int busy) {

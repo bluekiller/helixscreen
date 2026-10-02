@@ -66,7 +66,7 @@ using helix::ui::disable_widget_clicks_recursive;
 HomePanel::HomePanel(PrinterState& printer_state, IMoonrakerAPI* api)
     : PanelBase(printer_state, api) {
     // Subscribe to printer image changes for immediate refresh
-    image_changed_observer_ = helix::ui::observe_int_sync<HomePanel>(
+    image_changed_observer_ = helix::ui::observe<int>(
         helix::PrinterImageManager::instance().get_image_changed_subject(), this,
         [](HomePanel* self, int /*ver*/) {
             // Clear cache so refresh_printer_image() actually applies the new image
@@ -446,11 +446,11 @@ void HomePanel::build_carousel(int initial_page) {
     // so the build re-scopes no edit session into a container the population
     // above has cleared. Immediate (non-deferred) because the subject is set
     // from carousel_scroll_end_cb on the UI thread, and the deferred path via
-    // observe_int_sync drops the callback (weak_alive expires before the
+    // observe<int> drops the callback (weak_alive expires before the
     // queued lambda executes, causing active_page_index_ desync).
-    page_observer_ = helix::ui::observe_int_immediate<HomePanel>(
+    page_observer_ = helix::ui::observe<int>(
         &page_subject_, this, [](HomePanel* self, int page) { self->on_page_changed(page); },
-        get_subjects_lifetime());
+        get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
 
     spdlog::debug("[{}] Carousel built with {} pages", get_name(), num_pages);
 }

@@ -159,12 +159,12 @@ class DeviceOpsBypassFixture : public LVGLUITestFixture {
         get_ams_device_operations_overlay().init_subjects();
         settle();
 
-        action_recorder_ = helix::ui::observe_int_immediate<DeviceOpsBypassFixture>(
+        action_recorder_ = helix::ui::observe<int>(
             ams.get_ams_action_subject(), this,
             [](DeviceOpsBypassFixture* self, int action) {
                 self->published_actions.push_back(action);
             },
-            ams.get_subjects_lifetime());
+            ams.get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
         // Subscribing publishes the current value once; only edges matter.
         published_actions.clear();
     }

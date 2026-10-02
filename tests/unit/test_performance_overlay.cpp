@@ -121,18 +121,18 @@ TEST_CASE_METHOD(PerfOverlayFixture, "PerformanceOverlay renders MCU rows dynami
         s.mcus = {a};
         PerformanceStateTestAccess::apply_sample(PerformanceState::instance(), s);
     }
-    // apply_sample runs synchronously; the observe_string callback for
+    // apply_sample runs synchronously; the observe<const char*> callback for
     // perf_mcu_names defers rebuild_mcu_rows via queue_update.
     UpdateQueueTestAccess::drain(UpdateQueue::instance());
 
     // create() registers the observer on perf_mcu_names and will immediately
     // find mcu_card (initially empty, before the next drain). Because
-    // observe_string is non-immediate, the first rebuild fires on the next drain.
+    // observe<const char*> is non-immediate, the first rebuild fires on the next drain.
     auto* root = UiOverlayPerformance::instance().create(lv_screen_active());
     REQUIRE(root != nullptr);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_HIDDEN);
 
-    // Drain: fires the initial observe_string callback triggered by attaching
+    // Drain: fires the initial observe<const char*> callback triggered by attaching
     // the observer (LVGL calls the cb once on subscription).
     UpdateQueueTestAccess::drain(UpdateQueue::instance());
 
@@ -315,7 +315,7 @@ TEST_CASE_METHOD(PerfOverlayFixture,
 
     // Tear the observer down. This is the UAF site: ObserverGuard::reset() runs on
     // an observer whose subject was just freed. With subjects_lifetime() passed to
-    // observe_string, reset() sees the dead token and skips lv_observer_remove();
+    // observe<const char*>, reset() sees the dead token and skips lv_observer_remove();
     // without it, this line SEGVs.
     UiOverlayPerformanceTestAccess::reset(UiOverlayPerformance::instance());
 

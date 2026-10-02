@@ -252,8 +252,8 @@ class BeltTensionPanel : public OverlayBase {
     char error_message_buf_[256] = {};
 
     // Gate observers. Every one carries PrinterState's own SubjectLifetime -
-    // the observe_* factories take it as a defaulted fourth parameter, so
-    // omitting it silently leaves the guard tokenless (#705).
+    // the observe<V> factory requires it as its fourth parameter; a
+    // default-constructed token leaves the guard tokenless (#705).
     ObserverGuard accel_observer_;
     ObserverGuard print_active_observer_;
     ObserverGuard connected_observer_;

@@ -1596,7 +1596,7 @@ SubjectLifetime gate_subject_lifetime(const char* name) {
 
 void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
                                               RebuildCallback rebuild_cb) {
-    using helix::ui::observe_int_sync;
+    using helix::ui::observe;
 
     gate_observers_.erase(panel_id);
     auto& observers = gate_observers_[panel_id];
@@ -1677,7 +1677,7 @@ void PanelWidgetManager::setup_gate_observers(const std::string& panel_id,
         // Capture panel_id by value into the lambda so the async rebuild
         // can find the right rebuild_pending_ entry even if `this` outlives
         // a particular panel registration.
-        observers.push_back(observe_int_sync<PanelWidgetManager>(
+        observers.push_back(observe<int>(
             subject, this,
             [name, panel_id](PanelWidgetManager* self, int value) {
                 spdlog::debug("[PanelWidgetManager] gate '{}' -> {} (rebuild)", name, value);

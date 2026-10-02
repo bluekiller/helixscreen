@@ -13,7 +13,7 @@
 #include <spdlog/spdlog.h>
 
 using namespace helix;
-using helix::ui::observe_int_sync;
+using helix::ui::observe;
 
 // ============================================================================
 // SINGLETON INSTANCE
@@ -71,7 +71,7 @@ void PrinterStatusIcon::init() {
     spdlog::trace("[PrinterStatusIcon] Registering observer on printer_connection_state_subject at "
                   "{}",
                   (void*)conn_subject);
-    connection_observer_ = observe_int_sync<PrinterStatusIcon>(
+    connection_observer_ = observe<int>(
         conn_subject, this,
         [](PrinterStatusIcon* self, int val) {
             self->cached_connection_state_ = val;
@@ -85,7 +85,7 @@ void PrinterStatusIcon::init() {
     lv_subject_t* klippy_subject = printer_state.get_klippy_state_subject();
     spdlog::trace("[PrinterStatusIcon] Registering observer on klippy_state_subject at {}",
                   (void*)klippy_subject);
-    klippy_observer_ = observe_int_sync<PrinterStatusIcon>(
+    klippy_observer_ = observe<int>(
         klippy_subject, this,
         [](PrinterStatusIcon* self, int val) {
             self->cached_klippy_state_ = val;

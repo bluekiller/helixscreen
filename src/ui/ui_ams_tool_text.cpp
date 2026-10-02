@@ -100,23 +100,23 @@ void init_ams_tool_text_observers() {
     auto& ams = AmsState::instance();
 
     // Every observer below takes the owning state's SubjectLifetime. It is a
-    // defaulted 4th parameter, so omitting it is silent: the guard gets no token,
+    // required 4th parameter; an empty token is silent: the guard gets no defence,
     // never learns the subject died, and reset() then calls lv_observer_remove()
     // on freed memory (#705).
     //
     // Observer on raw ams_current_tool_ (int) → the tool's physical label
     // ("Tool 1", or "Toolhead 1" where the backend names the printing end) or "---"
-    s_tool_text_observer = observe_int_sync<AmsState>(
+    s_tool_text_observer = observe<int>(
         ams.get_current_tool_subject(), &ams,
         [](AmsState* a, int tool) { update_current_tool_text(a, tool); },
         ams.get_subjects_lifetime());
 
     // Two observers for toolchange text: one on total, one on current index
-    s_toolchange_total_observer = observe_int_sync<AmsState>(
+    s_toolchange_total_observer = observe<int>(
         ams.get_ams_number_of_toolchanges_subject(), &ams,
         [](AmsState* a, int /*total*/) { update_toolchange_text(a); }, ams.get_subjects_lifetime());
 
-    s_toolchange_current_observer = observe_int_sync<AmsState>(
+    s_toolchange_current_observer = observe<int>(
         ams.get_ams_current_toolchange_subject(), &ams,
         [](AmsState* a, int /*current*/) { update_toolchange_text(a); },
         ams.get_subjects_lifetime());
@@ -130,11 +130,11 @@ void init_ams_tool_text_observers() {
     // Mirrors the pair in print_status_widget.cpp DetailedFormatter, which drives
     // its T<n> label off the same two subjects for the same reason.
     auto& tools = ToolState::instance();
-    s_tool_badge_observer = observe_int_sync<ToolState>(
+    s_tool_badge_observer = observe<int>(
         tools.get_tools_version_subject(), &tools,
         [](ToolState* ts, int /*version*/) { update_tool_badge(ts); },
         tools.get_subjects_lifetime());
-    s_tool_badge_active_observer = observe_int_sync<ToolState>(
+    s_tool_badge_active_observer = observe<int>(
         tools.get_active_tool_subject(), &tools,
         [](ToolState* ts, int /*active*/) { update_tool_badge(ts); },
         tools.get_subjects_lifetime());

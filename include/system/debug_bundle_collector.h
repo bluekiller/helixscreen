@@ -41,9 +41,9 @@ struct BundleOptions {
     bool include_klipper_logs = false;
     bool include_moonraker_logs = false;
     std::string user_note;
-    /// Filled by upload_async() on the main thread. Left uncaptured by direct
-    /// collect() callers, which are main-thread themselves and get a snapshot
-    /// taken inline instead.
+    /// Filled by upload_async() on the main thread. collect() never reads
+    /// PrinterState itself, so a caller that leaves this uncaptured gets empty
+    /// printer and moonraker sections.
     PrinterSnapshot printer;
 };
 
@@ -365,12 +365,6 @@ class DebugBundleCollector {
     /// Returns the raw patterns; resolution against the config root is
     /// resolve_include_pattern()'s job.
     static std::vector<std::string> parse_include_patterns(const std::string& body);
-
-    /// Shell-glob match used to resolve an `[include]` pattern against the
-    /// config-root file listing (public for testing). `*` and `?` do NOT cross
-    /// a '/', matching Python glob, so `[include mod/*.cfg]` picks up
-    /// `mod/a.cfg` but not `mod/sub/a.cfg`.
-    static bool glob_match(const std::string& pattern, const std::string& path);
 
     /// Resolve one `[include]` pattern, relative to the including file's
     /// directory, against a config-root-relative file listing (public for

@@ -186,7 +186,6 @@ class AmsOverviewPanel : public PanelBase {
     // === Bypass Spool Interaction ===
     void handle_bypass_click();
     void refresh_bypass_display();
-    void show_edit_modal(int slot_index, bool open_on_picker = false);
     static void on_bypass_spool_clicked(lv_event_t* e);
 
     // === Sidebar ===

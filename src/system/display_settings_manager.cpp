@@ -311,12 +311,12 @@ void DisplaySettingsManager::init_subjects() {
     // inline on whichever thread writes the subject; every writer (Settings
     // panel toggles, the ctl freeze/unfreeze pair) is main-thread already,
     // matching this class's single-threaded contract above.
-    transition_scale_observer_ = helix::ui::observe_int_immediate<DisplaySettingsManager>(
+    transition_scale_observer_ = helix::ui::observe<int>(
         &animations_enabled_subject_, this,
         [](DisplaySettingsManager*, int enabled) {
             lv_xml_set_transition_scale(enabled ? 256 : 0);
         },
-        get_subjects_lifetime());
+        get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
 
     // Presence is ephemeral: it is whatever the display backend opened this run.
     UI_MANAGED_SUBJECT_INT(hardware_keyboard_present_subject_, hardware_keyboard_present_ ? 1 : 0,

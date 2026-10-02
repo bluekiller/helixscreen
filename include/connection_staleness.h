@@ -42,7 +42,7 @@ namespace helix {
 template <typename Cache>
 [[nodiscard]] ObserverGuard observe_connection_staleness(PrinterState& state, Cache* cache,
                                                          const char* tag) {
-    return helix::ui::observe_int_sync<Cache>(
+    return helix::ui::observe<int>(
         state.get_printer_connection_state_subject(), cache,
         [tag](Cache* self, int conn_state) {
             // No previous-state tracking: marking stale is idempotent, so

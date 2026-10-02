@@ -314,8 +314,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "rebuild_top hides a statically shown modal 
 TEST_CASE_METHOD(LVGLUITestFixture,
                  "rebuild_top does not resurrect a confirmation dialog with default label text",
                  "[modal][1230]") {
-    // modal_configure() no-ops without these, leaving the captions at defaults;
-    // the app does this at startup. Idempotent — warns and returns if already up.
+    // The app registers the modal callbacks at startup. Idempotent.
     helix::ui::modal_init_subjects();
 
     helix::ui::ConfirmOptions opts;
@@ -1104,4 +1103,41 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Hiding a static modal logs which dialog clo
 
     CHECK(helix::logging::tail_ring_buffer(20).find(
               "Hiding modal 'print_cancel_confirm_modal' (backdrop tap)") != std::string::npos);
+}
+
+// Each confirmation carries its own captions and severity, so a dialog opened
+// on top never re-captions the one beneath it.
+TEST_CASE_METHOD(LVGLUITestFixture, "stacked confirmations keep their own captions",
+                 "[modal][stacked-captions]") {
+    helix::ui::modal_init_subjects();
+
+    helix::ui::ConfirmOptions lower_opts;
+    lower_opts.cancel_text = "Stay";
+    lv_obj_t* lower = helix::ui::modal_confirm("Lower", "Lower body", ModalSeverity::Warning,
+                                               "Proceed", nullptr, lower_opts);
+    REQUIRE(lower != nullptr);
+
+    helix::ui::ConfirmOptions upper_opts;
+    upper_opts.cancel_text = "Nope";
+    lv_obj_t* upper = helix::ui::modal_confirm("Upper", "Upper body", ModalSeverity::Error,
+                                               "Delete", nullptr, upper_opts);
+    REQUIRE(upper != nullptr);
+    process_lvgl(50);
+
+    auto text_of = [](lv_obj_t* dlg, const char* btn) {
+        lv_obj_t* b = lv_obj_find_by_name(dlg, btn);
+        REQUIRE(b != nullptr);
+        lv_obj_t* l = UITest::button_label(b);
+        REQUIRE(l != nullptr);
+        return std::string(lv_label_get_text(l));
+    };
+    CHECK(text_of(lower, "btn_primary") == "Proceed");
+    CHECK(text_of(lower, "btn_secondary") == "Stay");
+    CHECK(text_of(upper, "btn_primary") == "Delete");
+    CHECK(text_of(upper, "btn_secondary") == "Nope");
+
+    // The warning icon belongs to the lower dialog, the error icon to the upper.
+    CHECK_FALSE(lv_obj_has_flag(lv_obj_find_by_name(lower, "icon_warning"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(lv_obj_find_by_name(lower, "icon_error"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(lv_obj_find_by_name(upper, "icon_error"), LV_OBJ_FLAG_HIDDEN));
 }

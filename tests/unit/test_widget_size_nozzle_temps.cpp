@@ -88,7 +88,7 @@ void configure_one_extruder(PrinterState& state) {
 /// toolchanger. ToolState::tools() is updated FIRST so that when
 /// PrinterState::init_extruders() bumps extruder_version_subject, the
 /// deferred rebuild it triggers reads the already-current tool list rather
-/// than racing it. observe_int_sync's handler is queued via
+/// than racing it. observe<int>'s handler is queued via
 /// helix::ui::queue_update() (NOT called inline from lv_subject_set_int —
 /// "sync" describes when the *handler body* runs relative to the widget's
 /// own state, not when it runs relative to this call), so the caller must

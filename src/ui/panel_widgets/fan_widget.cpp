@@ -104,7 +104,7 @@ void FanWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // Observe fan version to detect fan discovery/reconnection
     auto token = lifetime_.token();
-    version_observer_ = helix::ui::observe_int_sync<FanWidget>(
+    version_observer_ = helix::ui::observe<int>(
         get_printer_state().get_fans_version_subject(), this,
         [token](FanWidget* self, int /*version*/) {
             if (token.expired())
@@ -181,7 +181,7 @@ void FanWidget::bind_speed_observer() {
     lv_subject_t* subj = ps.get_fan_speed_subject(selected_fan_, speed_lifetime_);
     if (subj) {
         auto token = lifetime_.token();
-        speed_observer_ = helix::ui::observe_int_sync<FanWidget>(
+        speed_observer_ = helix::ui::observe<int>(
             subj, this,
             [token](FanWidget* self, int speed) {
                 if (token.expired())

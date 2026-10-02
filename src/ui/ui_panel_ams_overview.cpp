@@ -121,8 +121,8 @@ void AmsOverviewPanel::init_subjects() {
         // In detail mode, per-slot observers handle visual updates (color, pulse,
         // highlight) automatically — we only need to react to structural changes
         // (slot count changed) or refresh the overview cards.
-        using helix::ui::observe_int_sync;
-        slots_version_observer_ = observe_int_sync<AmsOverviewPanel>(
+        using helix::ui::observe;
+        slots_version_observer_ = observe<int>(
             AmsState::instance().get_slots_version_subject(), this,
             [](AmsOverviewPanel* self, int) {
                 if (!self->panel_)
@@ -153,7 +153,7 @@ void AmsOverviewPanel::init_subjects() {
 
         // Observe current_slot to reactively update lane highlights when the active
         // slot changes (e.g., slot selected without load/unload).
-        current_slot_observer_ = observe_int_sync<AmsOverviewPanel>(
+        current_slot_observer_ = observe<int>(
             AmsState::instance().get_current_slot_subject(), this,
             [](AmsOverviewPanel* self, int) {
                 if (!self->panel_)
@@ -177,7 +177,7 @@ void AmsOverviewPanel::init_subjects() {
         // NOTE: set_external_spool_info() calls lv_subject_set_int() directly (not via
         // ui_queue_update) which is safe because all current callers are on the LVGL thread.
         // If callers from background threads are added, those must use ui_queue_update().
-        external_spool_observer_ = observe_int_sync<AmsOverviewPanel>(
+        external_spool_observer_ = observe<int>(
             AmsState::instance().get_external_spool_color_subject(), this,
             [](AmsOverviewPanel* self, int /*color_int*/) {
                 // Delegate to existing refresh helper which reads full spool info
@@ -187,7 +187,7 @@ void AmsOverviewPanel::init_subjects() {
 
         // Engaging bypass changes no slot, so neither the path refresh nor the
         // external-spool observer above fires for it. The ring needs its own.
-        bypass_active_observer_ = observe_int_sync<AmsOverviewPanel>(
+        bypass_active_observer_ = observe<int>(
             AmsState::instance().get_bypass_active_subject(), this,
             [](AmsOverviewPanel* self, int /*active*/) { self->refresh_bypass_display(); },
             AmsState::instance().get_subjects_lifetime());
@@ -1314,95 +1314,17 @@ void AmsOverviewPanel::show_detail_context_menu(int slot_index, lv_obj_t* near_w
     if (!parent_screen_ || !near_widget)
         return;
 
-    // Create context menu on first use
     if (!context_menu_) {
         context_menu_ = std::make_unique<helix::ui::AmsContextMenu>();
     }
 
-    context_menu_->set_action_callback([this](helix::ui::AmsContextMenu::MenuAction action,
-                                              int slot) {
-        AmsBackend* backend = AmsState::instance().get_backend();
-
-        // EJECT / RECOVER_POSITION / SELECT_GATE / CHECK_GATE / CLEAR_SPOOL are
-        // identical in both AMS panels — see ams_dispatch_backend_action().
-        if (helix::ui::ams_dispatch_backend_action(action, slot, detail_path_canvas_)) {
-            return;
-        }
-
-        switch (action) {
-        case helix::ui::AmsContextMenu::MenuAction::LOAD:
-            if (sidebar_) {
-                sidebar_->handle_load_with_preheat(slot);
-            }
-            break;
-
-        case helix::ui::AmsContextMenu::MenuAction::UNLOAD:
-            // Route through the sidebar so start_operation(UNLOAD) builds the
-            // correct stepper (mirrors how LOAD routes via handle_load_with_preheat).
-            if (sidebar_) {
-                sidebar_->handle_unload(slot);
-            } else if (backend) {
-                AmsError error = backend->unload_filament(slot);
-                if (error.result != AmsResult::SUCCESS) {
-                    helix::ui::notify_ams_error(error);
-                }
-            } else {
-                NOTIFY_WARNING(lv_tr("Multi-Filament System not available"));
-                return;
-            }
-            break;
-
-        case helix::ui::AmsContextMenu::MenuAction::EDIT:
-            show_edit_modal(slot);
-            break;
-
-        case helix::ui::AmsContextMenu::MenuAction::SPOOLMAN:
-            show_edit_modal(slot, /*open_on_picker=*/true);
-            break;
-
-        case helix::ui::AmsContextMenu::MenuAction::SCAN_QR: {
-            spdlog::info("[AmsOverview] SCAN_QR action for slot {}", slot);
-#if !defined(                                                                                      \
-    HELIX_PLATFORM_ESP32) // the ESP32 build has no QR scanner overlay; its button stays hidden
-            auto& scanner = helix::ui::get_qr_scanner_overlay();
-            scanner.show(parent_screen_, slot, [slot](const SpoolInfo& spool) {
-                AmsBackend* be = AmsState::instance().get_backend();
-                if (!be)
-                    return;
-
-                // Capture the pre-edit slot BEFORE the commit — its unlink arm
-                // (clear the server active spool) needs the old link.
-                SlotInfo original = be->get_slot_info(slot);
-                SlotInfo applied = original;
-                apply_spool_to_slot(applied, spool);
-                AmsError err = AmsState::instance().commit_slot_edit(slot, original, applied);
-                if (!err.success()) {
-                    helix::ui::notify_ams_error(err);
-                    return;
-                }
-                spdlog::info("[AmsOverview] QR scan assigned spool #{} to slot {}", spool.id, slot);
-            });
-#endif
-            break;
-        }
-
-        case helix::ui::AmsContextMenu::MenuAction::CANCELLED:
-        default:
-            break;
-        }
-    });
-
-    // Determine whether to offer Unload for this slot. Decoupled from the
-    // display LOADED status so a runout that clears the head sensor doesn't
-    // disable Unload on the firmware's active slot (#995).
-    bool is_loaded = false;
-    AmsBackend* backend = AmsState::instance().get_backend();
-    if (backend) {
-        is_loaded = backend->can_unload_from_toolhead(slot_index);
-    }
-
-    context_menu_->set_click_point(click_pt);
-    context_menu_->show_near_widget(parent_screen_, slot_index, near_widget, is_loaded, backend);
+    helix::ui::SlotMenuHost host;
+    host.parent_screen = parent_screen_;
+    host.api = api_;
+    host.log_tag = "[AmsOverview]";
+    host.path_canvas = [this] { return detail_path_canvas_; };
+    host.sidebar = [this] { return sidebar_.get(); };
+    helix::ui::open_slot_context_menu(*context_menu_, host, slot_index, near_widget, click_pt);
 }
 
 // ============================================================================
@@ -1480,46 +1402,6 @@ void AmsOverviewPanel::update_bypass_widgets_position() {
     lv_obj_get_content_coords(system_path_area_, &parent_abs);
     helix::ui::bypass_spool_set_position(bypass_widgets_, abs_cx - parent_abs.x1,
                                          abs_cy - parent_abs.y1);
-}
-
-void AmsOverviewPanel::show_edit_modal(int slot_index, bool open_on_picker) {
-    if (!parent_screen_) {
-        spdlog::warn("[{}] Cannot show slot editor - no parent screen", get_name());
-        return;
-    }
-
-    auto& editor = helix::ui::get_ams_edit_overlay();
-
-    // Regular AMS slot
-    AmsBackend* backend = AmsState::instance().get_backend();
-    if (!backend) {
-        NOTIFY_WARNING(lv_tr("Multi-Filament System not available"));
-        return;
-    }
-
-    SlotInfo initial_info = backend->get_slot_info(slot_index);
-
-    editor.show_for_slot(
-        parent_screen_, slot_index, initial_info, api_,
-        [](const helix::ui::AmsEditOverlay::EditResult& result) {
-            if (result.saved && result.slot_index >= 0) {
-                AmsBackend* backend = AmsState::instance().get_backend();
-                if (backend) {
-                    // Capture the pre-edit slot BEFORE the commit — its unlink
-                    // arm (clear the server active spool) needs the old link.
-                    SlotInfo original = backend->get_slot_info(result.slot_index);
-                    AmsError err = AmsState::instance().commit_slot_edit(
-                        result.slot_index, original, result.slot_info);
-                    if (!err.success()) {
-                        helix::ui::notify_ams_error(err);
-                        return;
-                    }
-                    NOTIFY_INFO(lv_tr("{} updated"),
-                                helix::ui::lane_label(backend->lane_noun(), result.slot_index));
-                }
-            }
-        },
-        open_on_picker);
 }
 
 // ============================================================================

@@ -60,15 +60,13 @@ people regenerate blindly, which is the same as having no gate:
     and between declaration orders; the function name that remains is what
     both compilers agree on.
   * TEMPLATE ARGUMENTS are truncated to the first one:
-    `observe_int_sync<helix::PrintStatusWidget, helix::PrintStatusWidget::attach(
-    lv_obj_t*, lv_obj_t*)::<lambda(helix::PrintStatusWidget*, int)> >` becomes
-    `observe_int_sync<helix::PrintStatusWidget>`. The tail of that list is a
-    lambda's synthesized name — it carries the enclosing function's full
-    signature, so it changes when an unrelated parameter changes type, and gcc
-    and clang do not spell it the same way. The first argument is the observing
-    class, which is the part that identifies the site. The cost is real and
-    accepted: several observe_* leaks in one class collapse into one key, and
-    the ceilings are what notice if that bucket grows.
+    `std::vector<helix::Foo, std::allocator<helix::Foo> >::push_back` becomes
+    `std::vector<helix::Foo>::push_back`. A trailing argument is often a lambda's
+    synthesized name, which carries the enclosing function's full signature, so it
+    changes when an unrelated parameter changes type, and gcc and clang do not
+    spell it the same way. The cost is real and accepted: several leaks in one
+    template collapse into one key, and the ceilings are what notice if that
+    bucket grows.
   * The PARAMETER LIST is dropped: `MoonrakerClientMock::gcode_script(std::__cxx11
     ::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)`
     is just `MoonrakerClientMock::gcode_script`. Demangled parameter spellings

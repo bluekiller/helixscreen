@@ -2694,13 +2694,7 @@ std::vector<helix::printer::DeviceAction> AmsBackendSnapmaker::get_device_action
     std::vector<DeviceAction> out;
 
     auto add_toggle = [&](const char* id, const char* label, bool value) {
-        DeviceAction a;
-        a.id = id;
-        a.section = "snapmaker_print_prefs";
-        a.label = lv_tr(label);
-        a.type = ActionType::TOGGLE;
-        a.current_value = value;
-        out.push_back(std::move(a));
+        out.push_back(DeviceAction::toggle(id, lv_tr(label), "snapmaker_print_prefs", value));
     };
 
     // Only settings the firmware has reported become actions: a toggle whose
@@ -2717,26 +2711,19 @@ std::vector<helix::printer::DeviceAction> AmsBackendSnapmaker::get_device_action
                    *p.filament_entangle_detect);
     }
     if (p.filament_entangle_sen) {
-        DeviceAction a;
-        a.id = "snapmaker_entangle_sen";
-        a.section = "snapmaker_print_prefs";
-        a.label = lv_tr("Tangle sensitivity");
-        a.type = ActionType::DROPDOWN;
-        a.options = {"low", "medium", "high"};
-        a.current_value = *p.filament_entangle_sen;
-        out.push_back(std::move(a));
+        out.push_back(DeviceAction::dropdown("snapmaker_entangle_sen", lv_tr("Tangle sensitivity"),
+                                             "snapmaker_print_prefs", {"low", "medium", "high"},
+                                             std::string(*p.filament_entangle_sen)));
     }
     if (p.end_led_turn_off) {
         add_toggle("snapmaker_end_led_off", "Turn LED off when the print ends",
                    *p.end_led_turn_off);
     }
     for (size_t t = 0; t < p.end_unload_filament.size(); ++t) {
-        DeviceAction a;
-        a.id = "snapmaker_end_unload_t" + std::to_string(t);
-        a.section = "snapmaker_print_prefs";
-        a.label = std::string(lv_tr("Unload at end")) + " - T" + std::to_string(t);
-        a.type = ActionType::TOGGLE;
-        a.current_value = p.end_unload_filament[t];
+        DeviceAction a =
+            DeviceAction::toggle("snapmaker_end_unload_t" + std::to_string(t),
+                                 std::string(lv_tr("Unload at end")) + " - T" + std::to_string(t),
+                                 "snapmaker_print_prefs", p.end_unload_filament[t]);
         a.slot_index = static_cast<int>(t);
         out.push_back(std::move(a));
     }

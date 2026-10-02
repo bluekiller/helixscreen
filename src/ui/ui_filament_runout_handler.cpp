@@ -145,7 +145,7 @@ void FilamentRunoutHandler::show_runout_guidance_modal() {
                 lv_subject_get_int(AmsState::instance().get_active_tool_port_present_subject());
             runout_modal_.set_resume_blocked(present == 0);
             // AmsState frees the subject in deinit_subjects(); hold its lifetime.
-            port_present_observer_ = helix::ui::observe_int_sync<FilamentRunoutHandler>(
+            port_present_observer_ = helix::ui::observe<int>(
                 AmsState::instance().get_active_tool_port_present_subject(), this,
                 [](FilamentRunoutHandler* self, int port_present) {
                     // Only gate while still on an auto-feed runout modal.
@@ -254,7 +254,7 @@ void FilamentRunoutHandler::show_runout_guidance_modal() {
     }
 
     // Auto-close when the runout resolves EXTERNALLY. get_any_runout_subject() is
-    // int: 1=runout, 0=clear. observe_int_sync fires its INITIAL read the moment
+    // int: 1=runout, 0=clear. observe<int> fires its INITIAL read the moment
     // it's installed and again on every change — and the sensor can momentarily
     // read 0 during its startup-grace window (e.g. right after a UI restart),
     // which previously closed the modal immediately (#991). Guards, in order:
@@ -263,9 +263,9 @@ void FilamentRunoutHandler::show_runout_guidance_modal() {
     //   - require runout_confirmed_active_: only a genuine confirmed runout→clear
     //     transition observed while this modal is up may auto-close
     //   - !user_took_manual_action_: user managing it in-dialog suppresses close
-    // observe_int_sync defers to the main thread; hiding here mirrors the
+    // observe<int> defers to the main thread; hiding here mirrors the
     // existing on_print_state_changed close path (precedent-safe).
-    runout_cleared_observer_ = helix::ui::observe_int_sync<FilamentRunoutHandler>(
+    runout_cleared_observer_ = helix::ui::observe<int>(
         helix::FilamentSensorManager::instance().get_any_runout_subject(), this,
         [](FilamentRunoutHandler* self, int any_runout) {
             if (any_runout != 0) {

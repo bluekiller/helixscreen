@@ -205,11 +205,11 @@ void TempGraphOverlay::on_activate() {
     // tool-list rebuild (the same pair ui_ams_tool_text observes for the
     // global badge). Unbound in on_deactivating().
     auto& tools = helix::ToolState::instance();
-    nozzle_badge_tool_observer_ = helix::ui::observe_int_sync<TempGraphOverlay>(
+    nozzle_badge_tool_observer_ = helix::ui::observe<int>(
         tools.get_active_tool_subject(), this,
         [](TempGraphOverlay* self, int /*tool*/) { self->publish_nozzle_badge(); },
         tools.get_subjects_lifetime());
-    nozzle_badge_version_observer_ = helix::ui::observe_int_sync<TempGraphOverlay>(
+    nozzle_badge_version_observer_ = helix::ui::observe<int>(
         tools.get_tools_version_subject(), this,
         [](TempGraphOverlay* self, int /*version*/) { self->publish_nozzle_badge(); },
         tools.get_subjects_lifetime());
@@ -344,6 +344,15 @@ void TempGraphOverlay::cleanup() {
     controller_.reset();
     series_.clear();
     OverlayBase::cleanup();
+}
+
+void TempGraphOverlay::on_ui_destroyed() {
+    chip_row_ = nullptr;
+    graph_container_ = nullptr;
+    nozzle_strip_ = nullptr;
+    bed_strip_ = nullptr;
+    chamber_strip_ = nullptr;
+    extruder_selector_row_ = nullptr;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1045,7 +1054,7 @@ const std::string& TempGraphOverlay::displayed_extruder_name() const {
 void TempGraphOverlay::watch_extruder_version() {
     if (!printer_state_)
         return;
-    extruder_version_observer_ = helix::ui::observe_int_sync<TempGraphOverlay>(
+    extruder_version_observer_ = helix::ui::observe<int>(
         printer_state_->get_extruder_version_subject(), this,
         [](TempGraphOverlay* self, int /*version*/) { self->repoint_nozzle_card(); },
         printer_state_->temperature_state().get_subjects_lifetime());
@@ -1090,21 +1099,21 @@ void TempGraphOverlay::repoint_nozzle_card() {
     if (!temp_src || !target_src)
         return;
 
-    nozzle_card_temp_observer_ = helix::ui::observe_int_sync<TempGraphOverlay>(
+    nozzle_card_temp_observer_ = helix::ui::observe<int>(
         temp_src, this,
         [](TempGraphOverlay* self, int value) {
             lv_subject_set_int(&self->nozzle_card_temp_subject_, value);
             self->update_nozzle_card_status();
         },
         temp_lifetime);
-    nozzle_card_target_observer_ = helix::ui::observe_int_sync<TempGraphOverlay>(
+    nozzle_card_target_observer_ = helix::ui::observe<int>(
         target_src, this,
         [](TempGraphOverlay* self, int value) {
             lv_subject_set_int(&self->nozzle_card_target_subject_, value);
             self->update_nozzle_card_status();
         },
         target_lifetime);
-    nozzle_card_power_observer_ = helix::ui::observe_int_sync<TempGraphOverlay>(
+    nozzle_card_power_observer_ = helix::ui::observe<int>(
         power_src, this,
         [](TempGraphOverlay* self, int value) {
             self->nozzle_card_power_ = value;

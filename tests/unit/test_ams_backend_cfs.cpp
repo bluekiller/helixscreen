@@ -229,19 +229,6 @@ void drain_calib_queue() {
 }
 } // namespace
 
-TEST_CASE("CFS Box profile clear is Fork-only", "[ams][cfs][fork]") {
-    CfsRemapHelper backend;
-
-    backend.clear_box_slot_profile(2);
-    REQUIRE(backend.captured.empty());
-
-    CfsTestAccess::set_macro_variant_fork(backend);
-
-    backend.clear_box_slot_profile(2);
-
-    REQUIRE(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=2"});
-}
-
 // =============================================================================
 // CFS bypass / external spool
 // =============================================================================
@@ -6344,4 +6331,21 @@ TEST_CASE("CFS flat fingerprint upgrade folds stored composites (#1710)", "[ams]
     swapped["slots"][0]["color"] = "#0A2989";
     CfsTestAccess::handle_status(backend, make_cfs_notification(swapped));
     CHECK_FALSE(CfsTestAccess::get_override(backend, 0).has_value());
+}
+
+TEST_CASE("CFS clear_slot_override clears the Box profile on Fork only", "[ams][cfs][fork]") {
+    CfsRemapHelper backend;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_single_unit_box(
+                                              {"101001", "101001", "101001", "101001"},
+                                              {"0FF5500", "0FFFFFF", "00A2989", "0C12E1F"})));
+    helix::AmsBackend& base = backend;
+
+    base.clear_slot_override(2);
+    REQUIRE(backend.captured.empty());
+
+    CfsTestAccess::set_macro_variant_fork(backend);
+
+    base.clear_slot_override(2);
+
+    REQUIRE(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=2"});
 }

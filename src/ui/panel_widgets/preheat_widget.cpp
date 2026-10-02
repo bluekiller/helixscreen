@@ -134,15 +134,15 @@ void PreheatWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     bed_icon_binder_.bind(widget_obj_, printer_state_, helix::HeaterType::Bed);
 
     // Observe heater targets to toggle preheat/cooldown mode
-    using helix::ui::observe_int_sync;
-    extruder_target_obs_ = observe_int_sync<PreheatWidget>(
+    using helix::ui::observe;
+    extruder_target_obs_ = observe<int>(
         printer_state_.get_active_extruder_target_subject(), this,
         [](PreheatWidget* self, int target) {
             self->cached_extruder_target_ = target;
             self->update_heater_state();
         },
         printer_state_.get_subjects_lifetime());
-    bed_target_obs_ = observe_int_sync<PreheatWidget>(
+    bed_target_obs_ = observe<int>(
         printer_state_.get_bed_target_subject(bed_target_lifetime_), this,
         [](PreheatWidget* self, int target) {
             self->cached_bed_target_ = target;

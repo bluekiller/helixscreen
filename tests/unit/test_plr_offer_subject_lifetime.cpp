@@ -48,7 +48,7 @@ class PlrOfferLifetimeFixture : public LVGLUITestFixture {
         baseline_observers_ = lv_ll_get_len(&subject_->subs_ll);
 
         controller_ = std::make_unique<helix::ui::PlrOfferController>();
-        // observe_int_sync defers its registration fire through UpdateQueue;
+        // observe<int> defers its registration fire through UpdateQueue;
         // drain so the queued handler runs inside the test, not after it.
         UpdateQueue::instance().drain();
     }

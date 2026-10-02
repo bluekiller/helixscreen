@@ -597,11 +597,10 @@ void MotionPanel::register_position_observers() {
     // Subscribe to PrinterState position updates so UI reflects real printer position
     // Using observer factory for type-safe lambda-based observers with RAII cleanup
 
-    using helix::ui::observe_int_sync;
-    using helix::ui::observe_string;
+    using helix::ui::observe;
 
     // Use gcode position (commanded) for X/Y display and jog calculations
-    position_x_observer_ = observe_int_sync<MotionPanel>(
+    position_x_observer_ = observe<int>(
         get_printer_state().get_gcode_position_x_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
@@ -611,7 +610,7 @@ void MotionPanel::register_position_observers() {
         },
         get_printer_state().get_subjects_lifetime());
 
-    position_y_observer_ = observe_int_sync<MotionPanel>(
+    position_y_observer_ = observe<int>(
         get_printer_state().get_gcode_position_y_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
@@ -623,7 +622,7 @@ void MotionPanel::register_position_observers() {
 
     // The readout shows the commanded (gcode) Z; mesh-compensated toolhead Z
     // has no display here.
-    gcode_z_observer_ = observe_int_sync<MotionPanel>(
+    gcode_z_observer_ = observe<int>(
         get_printer_state().get_gcode_position_z_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
@@ -639,7 +638,7 @@ void MotionPanel::register_position_observers() {
     // tool offsets) shifts the G-code envelope the Z buttons clamp against,
     // while the commanded position can round to the same centimillimeter and
     // fire nothing: this subject is homing_origin[2] and moves with it.
-    gcode_z_offset_observer_ = observe_int_sync<MotionPanel>(
+    gcode_z_offset_observer_ = observe<int>(
         get_printer_state().get_gcode_z_offset_subject(), this,
         [](MotionPanel* self, int) {
             if (!self->subjects_initialized_)
@@ -650,7 +649,7 @@ void MotionPanel::register_position_observers() {
 
     // Actual (live) positions from motion_report.live_position; the readouts
     // show these while the coordinate preference is "actual".
-    live_position_observer_x_ = observe_int_sync<MotionPanel>(
+    live_position_observer_x_ = observe<int>(
         get_printer_state().get_live_position_x_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
@@ -659,7 +658,7 @@ void MotionPanel::register_position_observers() {
             self->refresh_position_display();
         },
         get_printer_state().get_subjects_lifetime());
-    live_position_observer_y_ = observe_int_sync<MotionPanel>(
+    live_position_observer_y_ = observe<int>(
         get_printer_state().get_live_position_y_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
@@ -668,7 +667,7 @@ void MotionPanel::register_position_observers() {
             self->refresh_position_display();
         },
         get_printer_state().get_subjects_lifetime());
-    live_position_observer_z_ = observe_int_sync<MotionPanel>(
+    live_position_observer_z_ = observe<int>(
         get_printer_state().get_live_position_z_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
@@ -687,7 +686,7 @@ void MotionPanel::register_position_observers() {
         self->update_z_axis_label(self->bed_moves_);
     });
 
-    coordinate_mode_observer_ = observe_int_sync<MotionPanel>(
+    coordinate_mode_observer_ = observe<int>(
         SettingsManager::instance().subject_motion_show_actual_position(), this,
         [](MotionPanel* self, int show_actual) {
             self->show_actual_ = show_actual != 0;
@@ -696,21 +695,21 @@ void MotionPanel::register_position_observers() {
         SettingsManager::instance().get_subjects_lifetime());
 
     // Watch for kinematics changes to update Z-axis label ("Bed" vs "Print Head")
-    // Use observe_int_immediate — label/icon updates are safe to do immediately,
-    // and observe_int_sync's deferred callback can be lost during panel recreation (#610)
-    bed_moves_observer_ = helix::ui::observe_int_immediate<MotionPanel>(
+    // Use Dispatch::Immediate — label/icon updates are safe to do immediately,
+    // and the deferred callback can be lost during panel recreation (#610)
+    bed_moves_observer_ = helix::ui::observe<int>(
         get_printer_state().get_printer_bed_moves_subject(), this,
         [](MotionPanel* self, int bed_moves) {
             if (!self->subjects_initialized_)
                 return;
             self->update_z_axis_label(bed_moves != 0);
         },
-        get_printer_state().get_subjects_lifetime());
+        get_printer_state().get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
 
     // Observe homed_axes from PrinterState to publish the per-axis homed
     // subjects (the readouts mute an unhomed axis) and recolor the
     // custom-drawn center home button: warning tint until all axes are homed.
-    homed_axes_observer_ = observe_string<MotionPanel>(
+    homed_axes_observer_ = observe<const char*>(
         get_printer_state().get_homed_axes_subject(), this,
         [](MotionPanel* self, const char* axes) {
             if (!self->subjects_initialized_)
@@ -730,7 +729,7 @@ void MotionPanel::register_position_observers() {
     // Dim/enable the jog pad to track connection + klippy readiness. The same
     // subject greys the surrounding panel content via motion_panel.xml, but the
     // custom-drawn jog pad has no XML binding, so drive it here.
-    jog_ready_observer_ = observe_int_sync<MotionPanel>(
+    jog_ready_observer_ = observe<int>(
         get_printer_state().get_nav_buttons_enabled_subject(), this,
         [](MotionPanel* self, int) {
             if (!self->subjects_initialized_)

@@ -72,6 +72,10 @@ class MotionSettingsOverlay : public OverlayBase {
     const char* xml_component() const override {
         return "motion_settings_overlay";
     }
+    /// Freed on close; the next open rebuilds it.
+    bool destroy_on_close() const override {
+        return true;
+    }
 
     void on_activate() override;
     void on_deactivating(DeactivateReason reason) override;

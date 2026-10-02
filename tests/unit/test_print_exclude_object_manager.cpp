@@ -86,7 +86,7 @@ class ExcludeManagerFixture {
         api = std::make_unique<MoonrakerAPI>(mock_client, state);
         manager = std::make_unique<PrintExcludeObjectManager>(api.get(), state, nullptr);
         manager->init();
-        // observe_int_sync defers an initial-value callback through UpdateQueue
+        // observe<int> defers an initial-value callback through UpdateQueue
         // (per L048 / observer_factory.h). Drain it now so the print-state
         // watchdog's STANDBY=0 fire-on-subscribe doesn't clear test-injected
         // awaiting_confirmation_ entries on the first real drain.

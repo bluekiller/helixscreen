@@ -219,7 +219,7 @@ void PrintSelectDetailView::init_subjects() {
     // Re-color the preview live when a slot's loaded color/presence changes
     // (filament reloaded). Static singleton subject -> plain ObserverGuard, no
     // lifetime token. Handler no-ops while the view is closed.
-    slots_version_observer_ = observe_int_sync<PrintSelectDetailView>(
+    slots_version_observer_ = observe<int>(
         AmsState::instance().get_slots_version_subject(), this,
         [](PrintSelectDetailView* self, int /*version*/) { self->on_ams_state_changed(); },
         AmsState::instance().get_subjects_lifetime());
@@ -227,11 +227,11 @@ void PrintSelectDetailView::init_subjects() {
     // Both land after the card has already published: the plugin probe completes
     // after first paint, and the Moonraker version arrives with discovery.
     // Without these the card keeps whatever it decided before either was known.
-    plugin_installed_observer_ = observe_int_sync<PrintSelectDetailView>(
+    plugin_installed_observer_ = observe<int>(
         get_printer_state().get_helix_plugin_installed_subject(), this,
         [](PrintSelectDetailView* self, int /*state*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
-    moonraker_degraded_observer_ = observe_int_sync<PrintSelectDetailView>(
+    moonraker_degraded_observer_ = observe<int>(
         get_printer_state().get_moonraker_history_degraded_subject(), this,
         [](PrintSelectDetailView* self, int /*degraded*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
@@ -726,7 +726,7 @@ void PrintSelectDetailView::ensure_gcode_downloaded(
     const size_t on_disk_bytes =
         tio::open_file(path, "rb") ? static_cast<size_t>(tio::file_size(path).value_or(0)) : 0;
     if (on_disk_bytes > 0) {
-        if (current_file_size_bytes_ == 0 || on_disk_bytes == current_file_size_bytes_) {
+        if (helix::ui::preview_cache_is_current(on_disk_bytes, current_file_size_bytes_)) {
             cb(true, path);
             return;
         }
