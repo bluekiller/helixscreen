@@ -63,6 +63,26 @@ class ApplicationTestAccess {
         return app.m_wizard_previous_printer_id;
     }
 
+    static bool note_hardware_fingerprint(Application& app, size_t fingerprint) {
+        return app.note_hardware_fingerprint(fingerprint);
+    }
+
+    static void reset_discovery_session(Application& app) {
+        app.reset_discovery_session();
+    }
+
+    static bool& type_mismatch_shown(Application& app) {
+        return app.m_type_mismatch_shown;
+    }
+
+    static bool& hardware_setup_prompt_shown(Application& app) {
+        return app.m_hardware_setup_prompt_shown;
+    }
+
+    static bool& targeted_reconfig_shown(Application& app) {
+        return app.m_targeted_reconfig_shown;
+    }
+
     static void switch_printer(Application& app, const std::string& printer_id) {
         app.switch_printer(printer_id);
     }
