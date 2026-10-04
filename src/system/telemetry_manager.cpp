@@ -2851,26 +2851,29 @@ void on_print_state_changed_for_telemetry(lv_observer_t* observer, lv_subject_t*
                         int64_t fsize = metadata.size;
                         int est_dur = static_cast<int>(metadata.estimated_time);
                         std::string slicer_name = metadata.slicer;
-                        helix::ui::queue_update([ftype = std::move(ftype), ftotal, has_thumb, fsize,
-                                                 est_dur, slicer_name = std::move(slicer_name)]() {
-                            s_telemetry_filament_type = ftype;
-                            s_telemetry_filament_used_mm = ftotal;
-                            spdlog::debug("[Telemetry] Cached filament: type='{}', total={:.1f}mm",
-                                          s_telemetry_filament_type, s_telemetry_filament_used_mm);
+                        helix::ui::queue_update(
+                            "telemetry_manager::on_print_state_changed_for_telemetry",
+                            [ftype = std::move(ftype), ftotal, has_thumb, fsize, est_dur,
+                             slicer_name = std::move(slicer_name)]() {
+                                s_telemetry_filament_type = ftype;
+                                s_telemetry_filament_used_mm = ftotal;
+                                spdlog::debug(
+                                    "[Telemetry] Cached filament: type='{}', total={:.1f}mm",
+                                    s_telemetry_filament_type, s_telemetry_filament_used_mm);
 
-                            // Determine print source: "in_app" if we started it,
-                            // "external" otherwise (Mainsail, Fluidd, Obico, etc.)
-                            bool in_app =
-                                TelemetryManager::instance().consume_print_started_in_app();
-                            std::string source = in_app ? "in_app" : "external";
-                            int tools = ToolState::instance().tool_count();
-                            bool ams =
-                                lv_subject_get_int(AmsState::instance().get_ams_type_subject()) !=
-                                static_cast<int>(AmsType::NONE);
+                                // Determine print source: "in_app" if we started it,
+                                // "external" otherwise (Mainsail, Fluidd, Obico, etc.)
+                                bool in_app =
+                                    TelemetryManager::instance().consume_print_started_in_app();
+                                std::string source = in_app ? "in_app" : "external";
+                                int tools = ToolState::instance().tool_count();
+                                bool ams = lv_subject_get_int(
+                                               AmsState::instance().get_ams_type_subject()) !=
+                                           static_cast<int>(AmsType::NONE);
 
-                            TelemetryManager::instance().record_print_start_context(
-                                source, has_thumb, fsize, est_dur, slicer_name, tools, ams);
-                        });
+                                TelemetryManager::instance().record_print_start_context(
+                                    source, has_thumb, fsize, est_dur, slicer_name, tools, ams);
+                            });
                     },
                     [](const MoonrakerError& error) {
                         spdlog::warn(
