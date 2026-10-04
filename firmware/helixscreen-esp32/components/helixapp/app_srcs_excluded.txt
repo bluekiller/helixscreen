@@ -86,6 +86,7 @@ src/application/demo_overlays.cpp  # not in the v1 Core+AMS cut
 src/application/detect_printer_cmd.cpp  # not in the v1 Core+AMS cut
 src/application/discovery_steps.cpp  # not in the v1 Core+AMS cut
 src/application/display_manager.cpp  # not in the v1 Core+AMS cut
+src/application/display_sleep_controller.cpp  # not in the v1 Core+AMS cut
 src/application/refresh_period_hold.cpp  # not in the v1 Core+AMS cut
 src/application/screen_hide_hold.cpp  # not in the v1 Core+AMS cut
 src/application/process_guards.cpp  # not in the v1 Core+AMS cut

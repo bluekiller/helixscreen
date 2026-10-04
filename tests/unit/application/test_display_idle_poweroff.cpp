@@ -396,17 +396,17 @@ TEST_CASE("power-off gate: only with NO hardware blank AND NO usable backlight",
     // has_usable_backlight, backend_supports_power_off).
 
     // No hw blank, no backlight, backend can power off -> power off (HDMI / CB1).
-    REQUIRE(DisplayManager::should_use_power_off(false, false, true));
+    REQUIRE(helix::should_use_power_off(false, false, true));
 
     // Usable backlight present -> never power off, even with a DPMS-capable
     // backend (U1, AD5X, K1/K2, Pi DSI all have one).
-    REQUIRE_FALSE(DisplayManager::should_use_power_off(false, true, true));
+    REQUIRE_FALSE(helix::should_use_power_off(false, true, true));
 
     // Hardware blank present -> never power off (AD5M/Allwinner).
-    REQUIRE_FALSE(DisplayManager::should_use_power_off(true, false, true));
+    REQUIRE_FALSE(helix::should_use_power_off(true, false, true));
 
     // Backend can't power off -> never (falls back to software overlay).
-    REQUIRE_FALSE(DisplayManager::should_use_power_off(false, false, false));
+    REQUIRE_FALSE(helix::should_use_power_off(false, false, false));
 }
 
 TEST_CASE_METHOD(LVGLTestFixture,
@@ -585,7 +585,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "software sleep overlay hides the screen until
 
     DisplayManagerTestAccess::enter_sleep(mgr, 60);
     REQUIRE(DisplayManagerTestAccess::last_sleep_mechanism(mgr) ==
-            DisplayManager::SleepMechanism::SoftwareOverlay);
+            helix::SleepMechanism::SoftwareOverlay);
     REQUIRE(DisplayManagerTestAccess::sleep_overlay(mgr) != nullptr);
     CHECK(lv_obj_has_flag(screen, LV_OBJ_FLAG_HIDDEN));
 
@@ -913,7 +913,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "panel power-off hides the screen until the fl
 
     DisplayManagerTestAccess::enter_sleep(mgr, 60);
     REQUIRE(DisplayManagerTestAccess::last_sleep_mechanism(mgr) ==
-            DisplayManager::SleepMechanism::PanelPowerOff);
+            helix::SleepMechanism::PanelPowerOff);
     REQUIRE(DisplayManagerTestAccess::is_flush_suppressed(mgr));
     CHECK(lv_obj_has_flag(screen, LV_OBJ_FLAG_HIDDEN));
 

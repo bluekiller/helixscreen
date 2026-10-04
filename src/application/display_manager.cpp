@@ -13,7 +13,6 @@
 
 #include "display_manager.h"
 
-#include "display_idle_decision.h"
 #include "print_lifecycle_state.h"
 
 // Private LVGL header for direct flush_cb capture (matches application.cpp pattern)
@@ -47,9 +46,6 @@
 #include "screensaver.h"
 #endif
 
-#include "ui_lock_screen.h"
-
-#include "lock_manager.h"
 #include "pending_startup_warnings.h"
 #include "system/telemetry_manager.h"
 
@@ -70,77 +66,6 @@
 #ifndef HELIX_DISPLAY_SDL
 #include <time.h>
 #endif
-
-#ifdef __ANDROID__
-#include "system/android_jni.h"
-
-#include <SDL_system.h>
-#include <jni.h>
-
-// ---------------------------------------------------------------------------
-// JNI bridge to HelixActivity's window flags (#1245)
-//
-// Mirrors android_set_navbar_always_visible() in display_settings_manager.cpp —
-// same guard shape, same ExceptionClear() on every failure path, and the same
-// shared helix_activity_class() for class resolution. It lives HERE rather than
-// being exported from display_settings_manager.h because DisplayManager is the
-// only caller: which mechanism cuts the panel is display-output policy, not a
-// persisted setting.
-// Putting an Android-only declaration in the settings header to reach it would
-// file the API under the wrong owner. There is exactly one copy of each helper.
-//
-// Note we do NOT use SDL_EnableScreenSaver()/SDL_DisableScreenSaver(), which
-// reach the same window flag via COMMAND_SET_KEEP_SCREEN_ON: they early-return
-// when SDL's cached suspend_screensaver already matches, so a re-assert after
-// Android recreates the window is silently dropped. HelixActivity keeps the
-// desired state in a static and re-applies it from onResume(), which is the
-// behaviour we actually need.
-// ---------------------------------------------------------------------------
-
-/// Ask HelixActivity to add/clear FLAG_KEEP_SCREEN_ON (applied on the UI thread).
-static void android_set_keep_screen_on(bool keep_on) {
-    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
-    if (!env)
-        return;
-
-    // Cached global ref owned by helix_activity_class() — never released here.
-    jclass cls = helix::android::helix_activity_class(env);
-    if (!cls)
-        return;
-
-    jmethodID method = env->GetStaticMethodID(cls, "setKeepScreenOn", "(Z)V");
-    if (!method) {
-        env->ExceptionClear();
-        return;
-    }
-
-    env->CallStaticVoidMethod(cls, method, static_cast<jboolean>(keep_on));
-}
-
-/// Read HelixActivity's onResume counter. Returns 0 when the bridge is
-/// unavailable; both the sleep-entry capture and the idle poll go through this
-/// same function, so a bridge that is uniformly broken reads 0 == 0 and simply
-/// never self-wakes. A bridge that breaks *between* the two reads costs one
-/// spurious wake, which is the harmless direction (the panel is already lit).
-static int android_get_resume_seq() {
-    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
-    if (!env)
-        return 0;
-
-    jclass cls = helix::android::helix_activity_class(env);
-    if (!cls)
-        return 0;
-
-    jmethodID method = env->GetStaticMethodID(cls, "getResumeSeq", "()I");
-    if (!method) {
-        env->ExceptionClear();
-        return 0;
-    }
-
-    jint seq = env->CallStaticIntMethod(cls, method);
-    return static_cast<int>(seq);
-}
-#endif // __ANDROID__
 
 using namespace helix;
 
@@ -175,7 +100,10 @@ static int sdl_event_filter(void* /*userdata*/, SDL_Event* event) {
 }
 #endif
 
-DisplayManager::DisplayManager() = default;
+DisplayManager::DisplayManager()
+    : m_sleep(DisplaySleepHost{m_backend, m_backlight, m_display, m_shutting_down,
+                               [this] { disable_input_briefly(); },
+                               [this](lv_display_flush_cb_t cb) { restore_flush_cb(cb); }}) {}
 
 DisplayManager::~DisplayManager() {
     shutdown();
@@ -528,17 +456,18 @@ bool DisplayManager::init(const Config& config) {
 
     // Resolve hardware vs software blank strategy.
     // Config override: /display/hardware_blank (0 or 1). Missing (-1) = auto-detect.
+    bool use_hardware_blank = false;
     {
         int hw_blank_override =
             helix::Config::get_instance()->get<int>("/display/hardware_blank", -1);
         if (hw_blank_override >= 0) {
-            m_use_hardware_blank = (hw_blank_override != 0);
+            use_hardware_blank = (hw_blank_override != 0);
             spdlog::info("[DisplayManager] Hardware blank: {} (config override)",
-                         m_use_hardware_blank);
+                         use_hardware_blank);
         } else {
-            m_use_hardware_blank = m_backlight && m_backlight->supports_hardware_blank();
+            use_hardware_blank = m_backlight && m_backlight->supports_hardware_blank();
             spdlog::info("[DisplayManager] Hardware blank: {} (auto-detected from {})",
-                         m_use_hardware_blank, m_backlight ? m_backlight->name() : "none");
+                         use_hardware_blank, m_backlight ? m_backlight->name() : "none");
         }
     }
 
@@ -553,18 +482,18 @@ bool DisplayManager::init(const Config& config) {
     // (#1594); 0 keeps it powered on a panel that does not recover from it.
     bool has_usable_backlight = m_backlight && m_backlight->is_available();
     bool backend_can_power_off = m_backend && m_backend->supports_power_off();
+    bool use_power_off = false;
     {
         int power_off_override =
             helix::Config::get_instance()->get<int>("/display/panel_power_off", -1);
         if (power_off_override >= 0) {
-            m_use_power_off = (power_off_override != 0) && backend_can_power_off;
-            spdlog::info("[DisplayManager] Display power-off: {} (config override)",
-                         m_use_power_off);
+            use_power_off = (power_off_override != 0) && backend_can_power_off;
+            spdlog::info("[DisplayManager] Display power-off: {} (config override)", use_power_off);
         } else {
-            m_use_power_off = should_use_power_off(m_use_hardware_blank, has_usable_backlight,
-                                                   backend_can_power_off);
-            spdlog::info("[DisplayManager] Display power-off: {} ({})", m_use_power_off,
-                         m_use_power_off
+            use_power_off = helix::should_use_power_off(use_hardware_blank, has_usable_backlight,
+                                                        backend_can_power_off);
+            spdlog::info("[DisplayManager] Display power-off: {} ({})", use_power_off,
+                         use_power_off
                              ? m_backend->name()
                              : (has_usable_backlight ? "backlight off (no panel power-off)"
                                                      : "software overlay fallback"));
@@ -598,21 +527,26 @@ bool DisplayManager::init(const Config& config) {
         }
     }
 
-    // Load dim settings from config
+    // Dim and sleep behavior
     helix::Config* cfg = helix::Config::get_instance();
-    m_dim_timeout_sec = cfg->get<int>("/display/dim_sec", 600);
-    m_dim_brightness_percent = std::clamp(cfg->get<int>("/display/dim_brightness", 30), 1, 100);
-    spdlog::debug("[DisplayManager] Display dim: {}s timeout, {}% brightness", m_dim_timeout_sec,
-                  m_dim_brightness_percent);
+    DisplaySleepConfig sleep_config;
+    sleep_config.use_hardware_blank = use_hardware_blank;
+    sleep_config.use_power_off = use_power_off;
+    sleep_config.dim_timeout_sec = cfg->get<int>("/display/dim_sec", 600);
+    sleep_config.dim_brightness_percent =
+        std::clamp(cfg->get<int>("/display/dim_brightness", 30), 1, 100);
+    spdlog::debug("[DisplayManager] Display dim: {}s timeout, {}% brightness",
+                  sleep_config.dim_timeout_sec, sleep_config.dim_brightness_percent);
 
     // Whether to power off the backlight during display sleep.
     // Default true (most platforms). Set to false on platforms where backlight
     // power-off prevents wake-on-touch (e.g. AD5X). When false, the software
     // overlay makes the screen appear off while the backlight stays powered.
-    m_sleep_backlight_off = cfg->get<bool>("/display/sleep_backlight_off", true);
-    if (!m_sleep_backlight_off) {
+    sleep_config.sleep_backlight_off = cfg->get<bool>("/display/sleep_backlight_off", true);
+    if (!sleep_config.sleep_backlight_off) {
         spdlog::info("[DisplayManager] Backlight will stay on during sleep (config override)");
     }
+    m_sleep.configure(sleep_config);
 
     // Debug touch visualization: draw ripple at each touch point.
     install_debug_touch_timer();
@@ -689,28 +623,7 @@ void DisplayManager::shutdown() {
     // Manually deleting first causes double-free crash.
     m_display = nullptr;
 
-    // Sleep overlay is an LVGL object freed by lv_deinit() — just clear the pointer.
-    // Don't call destroy_sleep_overlay() here because lv_obj_delete() ordering
-    // relative to other LVGL teardown is fragile. The screen holds the overlay and the
-    // power-off flush suppression took are released here; this does not release a
-    // hold a running screensaver has taken.
-    if (m_sleep_overlay) {
-        helix::active_screen_hide_hold().release();
-    }
-    if (m_flush_suppressed_for_sleep) {
-        helix::active_screen_hide_hold().release();
-        m_flush_suppressed_for_sleep = false;
-        m_saved_flush_cb_for_sleep = nullptr;
-    }
-    m_sleep_overlay = nullptr;
-    m_use_hardware_blank = false;
-    m_use_power_off = false;
-    // Back to the startup truth (#1245): SDL re-asserts FLAG_KEEP_SCREEN_ON the
-    // next time it initializes video, so a re-init must not think we still owe
-    // Android a release.
-    m_last_sleep_mechanism = SleepMechanism::SoftwareOverlay;
-    m_keep_screen_on = true;
-    m_resume_seq_at_sleep = 0;
+    m_sleep.abandon_lvgl_state();
 
     // Release backends
     m_backlight.reset();
@@ -944,186 +857,6 @@ void DisplayManager::delay(uint32_t ms) {
 #endif
 }
 
-// ============================================================================
-// Sleep Entry
-// ============================================================================
-
-void DisplayManager::enter_sleep(int timeout_sec) {
-#ifdef HELIX_ENABLE_SCREENSAVER
-    // Stop screensaver before entering full sleep
-    if (m_screensaver_active) {
-        ScreensaverManager::instance().stop();
-        m_screensaver_active = false;
-    }
-#endif
-    m_display_sleeping = true;
-
-    SleepMechanism mechanism =
-        select_sleep_mechanism(platform_is_android(), m_use_hardware_blank,
-                               m_use_power_off && m_backend != nullptr, timeout_sec);
-
-    switch (mechanism) {
-    case SleepMechanism::HardwareBlank:
-        if (m_backend) {
-            m_backend->blank_display();
-        }
-        break;
-
-    case SleepMechanism::PanelPowerOff:
-        // Real panel power-off (fbdev FB_BLANK_POWERDOWN / DRM DPMS off) for
-        // HDMI/fbdev devices with no hardware backlight blank (#1049). The panel
-        // is actually powered down, so no software overlay is needed. wake_display()
-        // restores power BEFORE lv_refr_now() to honor the #303 wake-race.
-        if (m_backend->power_off()) {
-            // Neutralize the flush so the next page-flip can't re-assert DPMS-on
-            // and relight the panel on the home screen. Without this, stopping the
-            // screensaver above (or any later Klipper-driven invalidation) renders
-            // a frame whose DRM commit turns the connector back ON — the
-            // user-reported regression where an idle HDMI panel "comes back on at
-            // the home screen".
-            suppress_flush_for_sleep();
-        } else {
-            // The capability probe disagreed with reality; degrade to the overlay
-            // rather than leaving a lit panel with no visual sleep at all.
-            mechanism = SleepMechanism::SoftwareOverlay;
-            create_sleep_overlay();
-        }
-        break;
-
-    case SleepMechanism::HostSleep:
-        // Android (#1245): no backlight sysfs and no backend blank/power-off, so
-        // the only way to genuinely darken the panel is to stop asserting
-        // FLAG_KEEP_SCREEN_ON and let Android's own display timeout run. Painting
-        // a black overlay instead (what we used to do) left the panel fully lit
-        // and blocked the device from ever sleeping. Deliberately no overlay: the
-        // OS is about to power the panel, and the app gets paused with it.
-        //
-        // Remember the resume counter so the pause/resume round trip that follows
-        // can be told apart from "still waiting for Android's timeout".
-#ifdef __ANDROID__
-        m_resume_seq_at_sleep = android_get_resume_seq();
-#endif
-        set_keep_screen_on(false);
-        break;
-
-    case SleepMechanism::SoftwareOverlay:
-        // Software overlay path: do NOT call FBIOBLANK — the overlay alone is
-        // sufficient and FBIOBLANK can cause a race condition on wake where the
-        // framebuffer isn't ready before LVGL renders, leaving a black screen
-        // even after the overlay is removed (#303).
-        create_sleep_overlay();
-        break;
-    }
-    m_last_sleep_mechanism = mechanism;
-
-    if (m_backlight && m_backlight->is_available() && m_sleep_backlight_off) {
-        m_backlight->set_brightness(0);
-    }
-    spdlog::info("[DisplayManager] Display sleeping ({}{}) after {}s",
-                 sleep_mechanism_name(mechanism),
-                 m_sleep_backlight_off ? "" : ", backlight kept on", timeout_sec);
-
-    // Notify subscribers (camera stream, etc.) to suspend background work
-    for (auto& cb : m_sleep_callbacks) {
-        cb(true);
-    }
-}
-
-// ============================================================================
-// Host keep-screen-on (Android, #1245)
-// ============================================================================
-
-void DisplayManager::set_keep_screen_on(bool keep_on) {
-#ifdef __ANDROID__
-    if (m_keep_screen_on == keep_on) {
-        return; // transition-guarded: don't cross JNI to re-say the same thing
-    }
-    m_keep_screen_on = keep_on;
-    android_set_keep_screen_on(keep_on);
-    spdlog::info("[DisplayManager] Android keep-screen-on: {}", keep_on);
-#else
-    // Nothing else runs a display timeout behind our back — we own the panel on
-    // every non-Android target, so the flag has no meaning and stays asserted.
-    (void)keep_on;
-#endif
-}
-
-// ============================================================================
-// Software Sleep Overlay
-// ============================================================================
-
-void DisplayManager::create_sleep_overlay() {
-    if (m_sleep_overlay) {
-        return;
-    }
-    m_sleep_overlay = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(m_sleep_overlay, lv_pct(100), lv_pct(100));
-    lv_obj_set_style_bg_color(m_sleep_overlay, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(m_sleep_overlay, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(m_sleep_overlay, 0, 0);
-    lv_obj_set_style_pad_all(m_sleep_overlay, 0, 0);
-    lv_obj_remove_flag(m_sleep_overlay, LV_OBJ_FLAG_CLICKABLE);
-    helix::active_screen_hide_hold().acquire(lv_screen_active());
-    spdlog::debug("[DisplayManager] Software sleep overlay created");
-}
-
-void DisplayManager::destroy_sleep_overlay() {
-    if (!m_sleep_overlay) {
-        return;
-    }
-    lv_obj_delete(m_sleep_overlay);
-    m_sleep_overlay = nullptr;
-    helix::active_screen_hide_hold().release();
-    spdlog::debug("[DisplayManager] Software sleep overlay destroyed");
-}
-
-// ============================================================================
-// Power-off flush suppression (#1049)
-// ============================================================================
-
-namespace {
-// No-op flush used while the panel is powered off: it must still signal "ready"
-// or LVGL stalls waiting for the flush to complete, but it commits nothing to the
-// framebuffer — so no DRM page-flip happens to re-assert DPMS-on.
-void sleep_noop_flush_cb(lv_display_t* disp, const lv_area_t* /*area*/, uint8_t* /*px*/) {
-    lv_display_flush_ready(disp);
-}
-} // namespace
-
-void DisplayManager::suppress_flush_for_sleep() {
-    if (m_flush_suppressed_for_sleep || !m_display) {
-        return;
-    }
-    // Stop invalidations from scheduling renders AND swap the flush callback for a
-    // no-op. Pausing the refresh timer alone is insufficient: any invalidation
-    // fires LV_EVENT_REFR_REQUEST, which resumes the timer (see the identical note
-    // in Application's splash suppression). With the flush neutralized, even a
-    // render that slips through commits nothing, so the powered-off panel can't be
-    // relit by a stray page-flip (#1049).
-    lv_display_enable_invalidation(m_display, false);
-    m_saved_flush_cb_for_sleep = m_display->flush_cb;
-    lv_display_set_flush_cb(m_display, sleep_noop_flush_cb);
-    m_flush_suppressed_for_sleep = true;
-    // Nothing on the screen is drawn now, so it is hidden: widgets that wait on
-    // their own draw (the G-code viewer's stall watchdog) read it as not visible.
-    helix::active_screen_hide_hold().acquire(lv_screen_active());
-    spdlog::debug("[DisplayManager] Flush suppressed while panel powered off");
-}
-
-void DisplayManager::restore_flush_after_sleep() {
-    if (!m_flush_suppressed_for_sleep) {
-        return;
-    }
-    m_flush_suppressed_for_sleep = false;
-    if (m_display) {
-        restore_flush_cb(m_saved_flush_cb_for_sleep);
-        lv_display_enable_invalidation(m_display, true);
-    }
-    m_saved_flush_cb_for_sleep = nullptr;
-    helix::active_screen_hide_hold().release();
-    spdlog::debug("[DisplayManager] Flush restored on wake");
-}
-
 void DisplayManager::restore_flush_cb(lv_display_flush_cb_t flush_cb) {
     if (!m_display || !flush_cb) {
         return;
@@ -1135,275 +868,27 @@ void DisplayManager::restore_flush_cb(lv_display_flush_cb_t flush_cb) {
 }
 
 // ============================================================================
-// Display Sleep Management
+// Display sleep forwarders
 // ============================================================================
 
 void DisplayManager::check_display_sleep() {
-#ifdef HELIX_ENABLE_SCREENSAVER
-    ScreensaverManager::instance().on_idle_check_tick();
-    // HELIX_SCREENSAVER_NOW: start a screensaver on the first tick. A registered saver name
-    // picks that saver; any other value the configured one, or flying toasters.
-    static bool screensaver_force_checked = false;
-    if (!screensaver_force_checked) {
-        screensaver_force_checked = true;
-        const char* env = std::getenv("HELIX_SCREENSAVER_NOW");
-        if (env) {
-            const ScreensaverType force_type =
-                helix::ui::resolve_screensaver_now(env, ScreensaverManager::configured_type());
-            spdlog::info("[DisplayManager] HELIX_SCREENSAVER_NOW={}, forcing screensaver type {}",
-                         env, static_cast<int>(force_type));
-            m_display_dimmed = true;
-            ScreensaverManager::instance().start(force_type);
-            m_screensaver_active = true;
-            return;
-        }
-    }
-#endif
-
-    // If sleep-while-printing is disabled, inhibit *entering* sleep/dim during
-    // active prints. We still need to honor wake-from-sleep touches: the
-    // display may have entered sleep BEFORE the print started, and bailing out
-    // here would strand the user on a blank screen for the duration of the
-    // print (debug bundle RYAQGL6C: 8 touch events, 18-minute wake delay).
-    bool inhibit_sleep_entry = false;
-    if (!DisplaySettingsManager::instance().get_sleep_while_printing()) {
-        // Lifecycle: a user who turned off sleep-while-printing wants the
-        // screen up through the pre-print homing too, which is when they are
-        // most likely to be watching.
-        const auto lifecycle = get_printer_state().get_print_lifecycle();
-        if (job_holds_machine(lifecycle)) {
-            // Reset LVGL activity timer so we don't immediately sleep when print ends
-            lv_display_trigger_activity(nullptr);
-            inhibit_sleep_entry = true;
-        }
-    }
-
-    // Get configured sleep timeout from settings (0 = disabled)
-    int sleep_timeout_sec = DisplaySettingsManager::instance().get_display_sleep_sec();
-
-    // Get LVGL inactivity time (milliseconds since last touch/input)
-    uint32_t inactive_ms = lv_display_get_inactive_time(nullptr);
-
-    // Periodic debug logging (every 30 seconds when inactive > 10s)
-    static uint32_t last_log_time = 0;
-    uint32_t now = get_ticks();
-    if (inactive_ms > 10000 && (now - last_log_time) >= 30000) {
-        spdlog::trace(
-            "[DisplayManager] Sleep check: inactive={}s, dim_timeout={}s, sleep_timeout={}s, "
-            "dimmed={}, sleeping={}, backlight={}",
-            inactive_ms / 1000, m_dim_timeout_sec, sleep_timeout_sec, m_display_dimmed,
-            m_display_sleeping, m_backlight ? "yes" : "no");
-        last_log_time = now;
-    }
-
-    // Android host sleep (#1245): Android pauses the app when it powers the panel
-    // down and resumes it when the panel comes back, and neither transition is a
-    // touch — so the activity check below never fires and the display would stay
-    // logically asleep with keep-screen-on still cleared, re-sleeping forever and
-    // never resuming the sleep callbacks. This function only runs while
-    // foregrounded (the run loop short-circuits on m_backgrounded), so a bumped
-    // resume counter means the panel is on again.
-    //
-    // The awake case is the matching invariant: the host must never be left free
-    // to sleep while we consider the display awake, whatever path cleared
-    // m_display_sleeping. set_keep_screen_on() is transition-guarded, so an awake
-    // tick costs one member compare.
-    bool resumed_from_host_sleep = false;
-    if (!m_display_sleeping) {
-        set_keep_screen_on(true);
-    }
-#ifdef __ANDROID__
-    else if (m_last_sleep_mechanism == SleepMechanism::HostSleep) {
-        resumed_from_host_sleep =
-            host_sleep_needs_wake(true, m_resume_seq_at_sleep, android_get_resume_seq());
-    }
-#endif
-
-    helix::IdleInputs in;
-    in.state = m_display_sleeping ? helix::IdleState::Sleeping
-               : m_display_dimmed ? helix::IdleState::Dimmed
-                                  : helix::IdleState::Awake;
-    in.inactive_ms = inactive_ms;
-    in.dim_timeout_sec = m_dim_timeout_sec;
-    in.sleep_timeout_sec = sleep_timeout_sec;
-    in.inhibit_entry = inhibit_sleep_entry;
-    in.can_dim = m_backlight && m_backlight->supports_dimming();
-    in.wake_requested = m_wake_requested;
-    in.host_resumed = resumed_from_host_sleep;
-#ifdef HELIX_ENABLE_SCREENSAVER
-    in.has_screensaver = ScreensaverManager::configured_type() != ScreensaverType::OFF;
-    in.saver_running = m_screensaver_active;
-    in.is_preview = m_screensaver_is_preview;
-    in.preview_elapsed_ms = get_ticks() - m_preview_start_tick_ms;
-#endif
-
-    // Wake on a request from sleep_aware_read_cb (embedded) or on LVGL activity (SDL, where
-    // the wrapper is not installed because it breaks mouse device identification).
-    // Two-stage idle (#1049): Dim lowers the backlight and/or starts the screensaver,
-    // Sleep blanks or powers off. Both timeouts run from the same idle clock.
-    switch (helix::decide_idle(in).action) {
-    case helix::IdleAction::None:
-        break;
-    case helix::IdleAction::Wake:
-        m_wake_requested = false;
-        wake_display();
-        break;
-    case helix::IdleAction::Sleep:
-        enter_sleep(sleep_timeout_sec);
-        break;
-    case helix::IdleAction::StartSaver:
-#ifdef HELIX_ENABLE_SCREENSAVER
-        m_display_dimmed = true;
-        // Suspend the active panel lifecycle so widget timers (clock, etc.) do not
-        // invalidate the UI underneath the screensaver.
-        NavigationManager::instance().suspend_active();
-        m_lifecycle_suspended = true;
-        ScreensaverManager::instance().start(ScreensaverManager::configured_type());
-        m_screensaver_active = true;
-        if (m_backlight) {
-            // The screensaver needs enough brightness to be seen, but a higher dim
-            // setting wins.
-            m_backlight->set_brightness(std::max(m_dim_brightness_percent, 50));
-        }
-        spdlog::info("[DisplayManager] Screensaver started after {}s inactivity",
-                     m_dim_timeout_sec);
-#endif
-        break;
-    case helix::IdleAction::Dim:
-        m_display_dimmed = true;
-        if (m_backlight) {
-            m_backlight->set_brightness(m_dim_brightness_percent);
-        }
-        spdlog::info("[DisplayManager] Display dimmed to {}% after {}s inactivity",
-                     m_dim_brightness_percent, m_dim_timeout_sec);
-        break;
-    }
-}
-
-void DisplayManager::restore_display_output() {
-    // Re-assert the host's keep-screen-on request first (#1245). Unconditional and
-    // transition-guarded: if enter_sleep() handed the panel to Android we take it
-    // back here, and on every other path (including all non-Android targets) this
-    // is a no-op because the flag was never released.
-    set_keep_screen_on(true);
-
-    // Rendering comes back first, and unconditionally. enter_sleep() engages the
-    // suppression on its own, so undoing it must not depend on which panel mechanism is
-    // still available now: a backend that has gone away since would fall to the branch
-    // below that only removes the overlay, leaving the no-op flush installed. LVGL then
-    // keeps painting into it and the panel holds its last frame for good, while every
-    // later wake reports success. No-op when suppression was never engaged.
-    restore_flush_after_sleep();
-
-    // Undo whatever enter_sleep() did to the panel output, mirroring its branches.
-    // This must run BEFORE the post-wake lv_refr_now() (#303 wake-race).
-    if (m_use_hardware_blank) {
-        // Hardware path: unblank framebuffer (FBIOBLANK was used during sleep).
-        if (m_backend) {
-            m_backend->unblank_display();
-        }
-    } else if (m_use_power_off && m_backend) {
-        // Power-off path: re-enable rendering, then power the panel back on. The
-        // flush must be restored BEFORE the post-wake lv_refr_now() (in
-        // wake_display) so that synchronous render actually reaches the panel.
-        // A software overlay may also exist if a prior power_off() failed and fell
-        // back — remove it defensively. restore_flush_after_sleep() is a no-op if
-        // suppression was never engaged (overlay fallback).
-        restore_flush_after_sleep();
-        m_backend->power_on();
-        destroy_sleep_overlay();
-    } else {
-        // Software path: remove the black overlay (no FBIOBLANK to undo).
-        destroy_sleep_overlay();
-    }
+    m_sleep.tick();
 }
 
 void DisplayManager::wake_display() {
-    if (m_shutting_down) {
-        return; // Shutdown in progress — avoid touching LVGL objects
-    }
+    m_sleep.wake();
+}
 
-    if (!m_display_sleeping && !m_display_dimmed) {
-        // Reaching here means the display is meant to be awake, so a flush still
-        // suppressed is a frozen panel that no later wake would clear.
-        restore_flush_after_sleep();
-        return; // Already fully awake
-    }
+void DisplayManager::ensure_display_on() {
+    m_sleep.ensure_on();
+}
 
-    bool was_sleeping = m_display_sleeping;
-    bool was_dimmed = m_display_dimmed;
-    m_display_sleeping = false;
-    m_display_dimmed = false;
+void DisplayManager::set_dim_timeout(int seconds) {
+    m_sleep.set_dim_timeout(seconds);
+}
 
-#ifdef HELIX_ENABLE_SCREENSAVER
-    bool was_preview = m_screensaver_is_preview;
-    m_screensaver_is_preview = false;
-    m_preview_start_tick_ms = 0;
-    // Stop screensaver on wake
-    if (m_screensaver_active) {
-        ScreensaverManager::instance().stop();
-        m_screensaver_active = false;
-    }
-    // Resume only a suspend this manager requested. enter_sleep() stops the
-    // screensaver without resuming, so gating on m_screensaver_active alone
-    // would leave the view deactivated after a sleep that followed a dim — but
-    // Application's background/foreground pair owns a second suspend of the
-    // same latch, and a wake while backgrounded must not steal it.
-    if (m_lifecycle_suspended) {
-        m_lifecycle_suspended = false;
-        NavigationManager::instance().resume_active();
-    }
-#else
-    constexpr bool was_preview = false;
-#endif
-
-    // Gate input if waking from full sleep (not dim)
-    // This prevents the wake touch from triggering UI actions
-    if (was_sleeping) {
-        disable_input_briefly();
-
-        // Restore the panel output (unblank / power-on / remove overlay) BEFORE
-        // the synchronous render below so the framebuffer is ready when LVGL
-        // paints — honoring the #303 black-screen-on-wake race.
-        restore_display_output();
-
-        // Force immediate full render after wake. lv_obj_invalidate() alone only
-        // marks dirty regions — the actual render happens on the next timer tick,
-        // which can race with framebuffer state changes and leave a black screen
-        // on some hardware (#303). lv_refr_now() renders synchronously.
-        lv_obj_invalidate(lv_screen_active());
-        lv_refr_now(nullptr);
-
-        // Reset LVGL's inactivity timer so we don't immediately go back to sleep.
-        // When touch is absorbed by sleep_aware_read_cb, LVGL doesn't register activity,
-        // so without this the display would wake and immediately sleep again.
-        lv_display_trigger_activity(nullptr);
-    }
-
-    // Restore configured brightness from settings
-    const int brightness = DisplaySettingsManager::instance().user_brightness();
-
-    if (m_backlight) {
-        m_backlight->set_brightness(brightness);
-    }
-    spdlog::info("[DisplayManager] Display woken from {}, brightness restored to {}%",
-                 was_sleeping ? "sleep" : "dim", brightness);
-
-    // Auto-lock: show lock screen when waking from sleep or screensaver/dim.
-    // Screensaver previews are user-initiated from settings — they didn't go
-    // idle, so engaging auto-lock on preview dismiss would be surprising.
-    if (helix::wake_should_auto_lock(was_sleeping, was_dimmed, was_preview,
-                                     helix::LockManager::instance().auto_lock_enabled(),
-                                     helix::LockManager::instance().has_pin())) {
-        spdlog::info("[DisplayManager] Auto-lock engaged on wake");
-        helix::LockManager::instance().lock();
-        helix::ui::LockScreenOverlay::instance().show();
-    }
-
-    // Notify subscribers (camera stream, etc.) to resume background work
-    for (auto& cb : m_sleep_callbacks) {
-        cb(false);
-    }
+void DisplayManager::restore_display_on_shutdown() {
+    m_sleep.restore_on_shutdown();
 }
 
 #ifdef HELIX_ENABLE_SCREENSAVER
@@ -1417,80 +902,9 @@ helix::ui::SaverHost DisplayManager::screensaver_host(const DisplayBackend* back
 }
 
 void DisplayManager::preview_screensaver(int type) {
-    if (m_shutting_down || m_screensaver_active) {
-        return;
-    }
-    auto ss_type = static_cast<ScreensaverType>(type);
-    if (ss_type == ScreensaverType::OFF) {
-        return;
-    }
-
-    spdlog::info("[DisplayManager] Previewing screensaver type {}", type);
-    // Suspend active panel so widget timers stop updating the background
-    NavigationManager::instance().suspend_active();
-    m_lifecycle_suspended = true;
-    ScreensaverManager::instance().start(ss_type);
-    // Mark display as dimmed so wake_display() runs on touch; is_preview
-    // flag suppresses auto-lock on dismiss.
-    m_display_dimmed = true;
-    m_screensaver_active = true;
-    m_screensaver_is_preview = true;
-    m_preview_start_tick_ms = get_ticks();
+    m_sleep.preview_screensaver(type);
 }
 #endif
-
-void DisplayManager::ensure_display_on() {
-    // Force display awake at startup regardless of previous state
-    restore_flush_after_sleep(); // defensive: never start up with flush suppressed
-    set_keep_screen_on(true);    // #1245: never inherit a released host sleep lock
-    m_display_sleeping = false;
-    m_display_dimmed = false;
-
-    // Get configured brightness (or default to 50%)
-    const int brightness = DisplaySettingsManager::instance().user_brightness();
-
-    // Apply to hardware - this ensures display is visible
-    if (m_backlight) {
-        m_backlight->set_brightness(brightness);
-    }
-    spdlog::info("[DisplayManager] Startup: forcing display ON at {}% brightness", brightness);
-}
-
-void DisplayManager::set_dim_timeout(int seconds) {
-    m_dim_timeout_sec = seconds;
-    spdlog::debug("[DisplayManager] Dim timeout set to {}s", seconds);
-}
-
-void DisplayManager::restore_display_on_shutdown() {
-    // Clean up software sleep overlay if active
-    destroy_sleep_overlay();
-
-    // Re-enable rendering before the framebuffer clear / final brightness below,
-    // otherwise the clear is committed through the no-op flush and never reaches
-    // the panel (#1049). No-op if flush was never suppressed.
-    restore_flush_after_sleep();
-
-    // If we powered the panel down (#1049), bring it back on so the next app
-    // doesn't inherit a powered-off panel.
-    if (m_use_power_off && m_backend) {
-        m_backend->power_on();
-    }
-
-    // Clear framebuffer to black so the last rendered frame doesn't persist
-    // after the process exits (SIGTERM/SIGINT graceful shutdown)
-    if (m_backend) {
-        m_backend->clear_framebuffer(0x00000000);
-    }
-
-    // Ensure display is awake before exiting so next app doesn't start with black screen
-    const int brightness = DisplaySettingsManager::instance().user_brightness();
-
-    if (m_backlight) {
-        m_backlight->set_brightness(brightness);
-    }
-    m_display_sleeping = false;
-    spdlog::debug("[DisplayManager] Shutdown: restoring display to {}% brightness", brightness);
-}
 
 void DisplayManager::set_backlight_brightness(int percent) {
     percent = std::clamp(percent, 0, 100);
@@ -1626,24 +1040,12 @@ void DisplayManager::sleep_aware_read_cb(lv_indev_t* indev, lv_indev_data_t* dat
         dm->m_original_pointer_read_cb(indev, data);
     }
 
-    // If sleeping or dimmed and touch detected, request wake.
-    // During sleep: absorb the touch so it doesn't trigger UI actions.
-    // During dim: let the touch pass through but still flag for wake.
-    // This is necessary because LVGL only updates last_activity_time on PRESSED,
-    // but evdev drains all buffered events in one read — if press+release both
-    // arrive in one poll (quick tap or slow main loop), the final state is
-    // RELEASED and LVGL never registers activity.
-    if (data->state == LV_INDEV_STATE_PRESSED) {
-        if (dm->m_display_sleeping) {
-            dm->m_wake_requested = true;
-            data->state = LV_INDEV_STATE_RELEASED; // Absorb - LVGL sees no press
-            spdlog::info("[DisplayManager] Wake touch absorbed at ({},{}) while sleeping",
-                         data->point.x, data->point.y);
-        } else if (dm->m_display_dimmed) {
-            dm->m_wake_requested = true;
-            spdlog::info("[DisplayManager] Wake touch at ({},{}) while dim — passing through",
-                         data->point.x, data->point.y);
-        }
+    // A press while asleep is absorbed so LVGL sees no press; while dimmed it passes
+    // through but still requests the wake. Decided on the raw press, because LVGL only
+    // updates its activity time on PRESSED and evdev can drain press+release in one read.
+    if (data->state == LV_INDEV_STATE_PRESSED &&
+        dm->m_sleep.note_press(data->point.x, data->point.y)) {
+        data->state = LV_INDEV_STATE_RELEASED;
     }
 
     // After the wake handling, so a suppressed press can never cost a wake request.
@@ -1688,6 +1090,8 @@ bool DisplayManager::try_drm_to_fbdev_fallback(lv_display_rotation_t rot, bool s
     spdlog::warn("[DisplayManager] DRM lacks hardware rotation for {}°, "
                  "falling back to fbdev (flicker-free software rotation)",
                  static_cast<int>(rot) * 90);
+    // m_sleep reads m_backend and m_display through references, so the swap below needs no
+    // retarget.
     lv_display_delete(m_display); // intentional: switching backend before lv_deinit
     m_display = nullptr;
     m_backend.reset();
