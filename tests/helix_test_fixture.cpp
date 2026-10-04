@@ -440,6 +440,7 @@ void HelixTestFixture::reset_all() {
     if (helix::AmsState::instance().get_backend() != nullptr) {
         helix::AmsState::instance().set_backend(nullptr);
     }
+    helix::AmsStateTestAccess::reset_action(helix::AmsState::instance());
     helix::AmsStateTestAccess::clear_narration(helix::AmsState::instance());
 
     // DisplaySettingsManager's animations_enabled is a process-global subject

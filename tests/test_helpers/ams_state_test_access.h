@@ -54,6 +54,16 @@ class AmsStateTestAccess {
         ams.sync_clog_meter_from_info(info);
     }
 
+    /// Return the action subject to IDLE. A test that ends mid-operation leaves
+    /// LOADING/UNLOADING/SELECTING standing, which reads as "filament is moving"
+    /// to every later test that asks is_filament_operation_active().
+    static void reset_action(AmsState& ams) {
+        std::lock_guard<std::recursive_mutex> lock(ams.mutex_);
+        if (ams.initialized_) {
+            ams.set_action(AmsAction::IDLE);
+        }
+    }
+
     /// Drop a toolchange narration left latched by an earlier test. It clears
     /// only on an action edge to IDLE, and a test that ends already IDLE never
     /// produces one, so the stale label would outrank every later detail.
