@@ -7,6 +7,7 @@
 // theme_manager.h. Nothing here is public API: callers outside those files go
 // through include/theme_manager.h.
 
+#include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/lvgl.h"
 #include "theme_loader.h"
 
@@ -85,6 +86,17 @@ lv_theme_t* theme_init_lvgl(lv_display_t* display, const theme_palette_t* palett
 /// Re-point the ThemeManager palettes and the handle styles at the active
 /// theme without rebuilding the LVGL theme.
 void theme_update_colors(bool is_dark);
+
+/// XML constant registration into `scope` (null is the global scope). Constants
+/// are first-wins, so callers register theme-dependent values before the static
+/// ones discovered in ui_xml/.
+void register_semantic_colors(lv_xml_component_scope_t* scope, const helix::ThemeData& theme,
+                              bool dark_mode);
+void register_theme_properties(lv_xml_component_scope_t* scope, const helix::ThemeData& theme,
+                               bool dark_mode);
+void register_static_constants(lv_xml_component_scope_t* scope);
+void register_object_colors(lv_xml_component_scope_t* scope);
+void register_color_pairs(lv_xml_component_scope_t* scope, bool dark_mode);
 
 /// Replace the colour-swap maps used to recolour inline-styled containers:
 /// every surface and border colour of `old_palette` maps to its `new_palette`
