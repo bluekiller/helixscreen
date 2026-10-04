@@ -52,6 +52,8 @@ class BarcodeScannerSettingsOverlay : public OverlayBase {
     void start_bt_discovery();
     void stop_bt_discovery();
     void populate_bt_dropdown();
+    /// Merges BlueZ's known scanners into bt_devices_ from a worker thread.
+    void seed_known_bt_devices();
     void update_bt_action_buttons();
     void pair_bt_device(const std::string& mac, const std::string& name);
     void handle_bt_forget(const std::string& mac);

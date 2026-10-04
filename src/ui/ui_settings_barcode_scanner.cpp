@@ -183,58 +183,72 @@ void BarcodeScannerSettingsOverlay::on_activate() {
     btn_bt_pair_ = find_required(overlay_root_, "btn_bt_pair", get_name());
     btn_bt_forget_ = find_required(overlay_root_, "btn_bt_forget", get_name());
 
-    // Seed bt_devices_ from BlueZ's known-devices list (paired + previously
-    // seen scanners) so the dropdown is populated before any active scan.
     bt_devices_.clear();
-    auto& loader = helix::bluetooth::BluetoothLoader::instance();
-    if (loader.is_available() && loader.enumerate_known) {
-        if (auto* ctx = bt_ctx_->get()) {
-            loader.enumerate_known(
-                ctx,
-                [](const helix_bt_device* dev, void* ud) {
-                    if (!dev)
-                        return;
-                    auto* self = static_cast<BarcodeScannerSettingsOverlay*>(ud);
-                    if (!dev->is_scanner)
-                        return;
-                    BtDeviceInfo info;
-                    info.mac = dev->mac ? dev->mac : "";
-                    info.name = dev->name ? dev->name : "Unknown";
-                    info.paired = dev->paired;
-                    info.is_ble = dev->is_ble;
-                    for (const auto& existing : self->bt_devices_)
-                        if (existing.mac == info.mac)
-                            return;
-                    self->bt_devices_.push_back(info);
-                },
-                this);
-        }
-    }
-
-    // If the saved scanner isn't in BlueZ's known list (e.g., plugin unavailable),
-    // seed from settings so the user still sees it.
+    // The saved scanner shows at once, even with the plugin unavailable;
+    // seed_known_bt_devices() later merges in what BlueZ knows.
     const auto saved_mac = helix::SettingsManager::instance().get_scanner_bt_address();
     const auto saved_name = helix::SettingsManager::instance().get_scanner_device_name();
     if (!saved_mac.empty()) {
-        bool present = false;
-        for (const auto& d : bt_devices_) {
-            if (d.mac == saved_mac) {
-                present = true;
-                break;
-            }
-        }
-        if (!present) {
-            BtDeviceInfo saved;
-            saved.mac = saved_mac;
-            saved.name = saved_name.empty() ? saved_mac : saved_name;
-            saved.paired = true;
-            bt_devices_.push_back(saved);
-        }
+        BtDeviceInfo saved;
+        saved.mac = saved_mac;
+        saved.name = saved_name.empty() ? saved_mac : saved_name;
+        saved.paired = true;
+        bt_devices_.push_back(saved);
     }
 
     refresh_current_selection_label();
     populate_device_list();
     populate_bt_dropdown();
+    seed_known_bt_devices();
+}
+
+void BarcodeScannerSettingsOverlay::seed_known_bt_devices() {
+    auto& loader = helix::bluetooth::BluetoothLoader::instance();
+    if (!loader.is_available() || !loader.enumerate_known)
+        return;
+
+    // init() and enumerate_known() are D-Bus round trips that can each take the full
+    // method timeout, so they run on a worker (THREADING.md section 8).
+    auto shared_ctx = bt_ctx_;
+    auto tok = lifetime_.token();
+    try {
+        std::thread([this, shared_ctx, tok]() {
+            std::vector<BtDeviceInfo> known;
+            auto& ldr = helix::bluetooth::BluetoothLoader::instance();
+            if (auto* ctx = shared_ctx->get()) {
+                ldr.enumerate_known(
+                    ctx,
+                    [](const helix_bt_device* dev, void* ud) {
+                        if (!dev || !dev->is_scanner)
+                            return;
+                        BtDeviceInfo info;
+                        info.mac = dev->mac ? dev->mac : "";
+                        info.name = dev->name ? dev->name : "Unknown";
+                        info.paired = dev->paired;
+                        info.is_ble = dev->is_ble;
+                        static_cast<std::vector<BtDeviceInfo>*>(ud)->push_back(info);
+                    },
+                    &known);
+            }
+            tok.defer("BarcodeScannerSettingsOverlay::seed_known_bt_devices",
+                      [this, known = std::move(known)]() {
+                          // BlueZ's entry replaces one seeded from settings or a scan.
+                          for (const auto& info : known) {
+                              auto it = std::find_if(
+                                  bt_devices_.begin(), bt_devices_.end(),
+                                  [&](const BtDeviceInfo& d) { return d.mac == info.mac; });
+                              if (it != bt_devices_.end())
+                                  *it = info;
+                              else
+                                  bt_devices_.push_back(info);
+                          }
+                          populate_device_list();
+                          populate_bt_dropdown();
+                      });
+        }).detach();
+    } catch (const std::system_error& e) {
+        spdlog::warn("[{}] Failed to spawn known-device thread: {}", get_name(), e.what());
+    }
 }
 
 void BarcodeScannerSettingsOverlay::on_deactivating(DeactivateReason) {
