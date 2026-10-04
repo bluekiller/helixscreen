@@ -95,6 +95,10 @@ void ActionPromptModal::set_gcode_callback(GcodeCallback callback) {
     gcode_callback_ = std::move(callback);
 }
 
+void ActionPromptModal::set_dismiss_callback(DismissCallback callback) {
+    dismiss_callback_ = std::move(callback);
+}
+
 bool ActionPromptModal::show_prompt(lv_obj_t* parent, const PromptData& data) {
     // Store prompt data
     prompt_data_ = data;
@@ -113,12 +117,16 @@ bool ActionPromptModal::show_prompt(lv_obj_t* parent, const PromptData& data) {
 // ============================================================================
 
 void ActionPromptModal::on_show() {
+    button_sent_gcode_ = false;
     populate_content();
 }
 
 void ActionPromptModal::on_hide() {
     clear_dynamic_content();
     spdlog::debug("[ActionPromptModal] on_hide()");
+    if (close_reason_ != ModalCloseReason::Programmatic && dismiss_callback_) {
+        dismiss_callback_(button_sent_gcode_);
+    }
 }
 
 // ============================================================================
@@ -396,19 +404,18 @@ void ActionPromptModal::handle_button_click(const std::string& gcode) {
     // get a button that does nothing (#1172).
     if (gcode.empty()) {
         spdlog::info("[ActionPromptModal] Dismiss button clicked (no gcode)");
-        hide();
+        hide(ModalCloseReason::ButtonPress);
         return;
     }
 
     spdlog::info("[ActionPromptModal] Button clicked, gcode: {}", gcode);
 
-    // Call the gcode callback if set
     if (gcode_callback_) {
         gcode_callback_(gcode);
+        button_sent_gcode_ = true;
     }
 
-    // Close the modal
-    hide();
+    hide(ModalCloseReason::ButtonPress);
 }
 
 // ============================================================================

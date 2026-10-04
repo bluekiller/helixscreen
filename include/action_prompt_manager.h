@@ -119,6 +119,11 @@ class ActionPromptManager {
     ActionPromptManager() = default;
     ~ActionPromptManager() = default;
 
+    /// Echoed back by Klipper as `// action:prompt_end`, which closes the prompt
+    /// on every connected client. Sent when the user closes it here.
+    static constexpr const char* PROMPT_END_GCODE =
+        "RESPOND TYPE=command MSG=\"action:prompt_end\"";
+
     // ========================================================================
     // Static Instance Access
     // ========================================================================
@@ -262,6 +267,17 @@ class ActionPromptManager {
      * thread, where they are skipped once this manager is destroyed.
      */
     [[nodiscard]] std::function<void(const std::string&)> make_line_sink();
+
+    /**
+     * @brief End the showing prompt because the user closed it on this screen
+     *
+     * Returns to IDLE without firing on_close: the dialog is already going
+     * away. Telling the firmware is the caller's job (PROMPT_END_GCODE).
+     * Main thread only.
+     *
+     * @return true if a prompt was showing and is now ended
+     */
+    bool end_locally();
 
     // ========================================================================
     // Callbacks

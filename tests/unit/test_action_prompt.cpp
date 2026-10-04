@@ -1480,6 +1480,47 @@ TEST_CASE("ActionPromptManager: Static current_prompt_name() accessor", "[action
 }
 
 // ============================================================================
+// Closing on screen (end_locally)
+// ============================================================================
+
+TEST_CASE("ActionPromptManager: end_locally ends a showing prompt without on_close",
+          "[action_prompt][state]") {
+    ActionPromptManager manager;
+    ActionPromptManager::set_instance(&manager);
+    int close_count = 0;
+    manager.set_on_close([&close_count]() { close_count++; });
+
+    manager.process_line("// action:prompt_begin AFC Lane Error");
+    manager.process_line("// action:prompt_show");
+    REQUIRE(ActionPromptManager::is_showing());
+
+    REQUIRE(manager.end_locally());
+    CHECK(manager.get_state() == ActionPromptManager::State::IDLE);
+    CHECK_FALSE(ActionPromptManager::is_showing());
+    CHECK(ActionPromptManager::current_prompt_name().empty());
+    // The dialog is already closing; firing on_close would hide it a second time.
+    CHECK(close_count == 0);
+
+    // The prompt_end Klipper echoes back is then a no-op.
+    manager.process_line("// action:prompt_end");
+    CHECK(close_count == 0);
+    ActionPromptManager::set_instance(nullptr);
+}
+
+TEST_CASE("ActionPromptManager: end_locally leaves a prompt that is not showing alone",
+          "[action_prompt][state]") {
+    ActionPromptManager manager;
+    REQUIRE_FALSE(manager.end_locally());
+
+    // A follow-up prompt still being built must survive a stale close.
+    manager.process_line("// action:prompt_begin Next Step");
+    REQUIRE_FALSE(manager.end_locally());
+    REQUIRE(manager.get_state() == ActionPromptManager::State::BUILDING);
+    manager.process_line("// action:prompt_show");
+    CHECK(manager.has_active_prompt());
+}
+
+// ============================================================================
 // Line sink: lines from other threads are applied on the main thread
 // ============================================================================
 

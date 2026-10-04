@@ -84,6 +84,16 @@ class ActionPromptModal : public Modal {
      */
     void set_gcode_callback(GcodeCallback callback);
 
+    /**
+     * @brief Callback for a close the owner did not ask for
+     *
+     * Fires from on_hide() for a button tap, backdrop tap, ESC or any other
+     * close that is not the owner's own hide(). @p button_sent_gcode is true
+     * when a button tap already passed its gcode to the gcode callback.
+     */
+    using DismissCallback = std::function<void(bool button_sent_gcode)>;
+    void set_dismiss_callback(DismissCallback callback);
+
     // Modal interface
     [[nodiscard]] const char* get_name() const override {
         return "Action Prompt Modal";
@@ -116,6 +126,8 @@ class ActionPromptModal : public Modal {
     // === State ===
     PromptData prompt_data_;
     GcodeCallback gcode_callback_;
+    DismissCallback dismiss_callback_;
+    bool button_sent_gcode_ = false;
 
     // === Dynamic button tracking ===
     std::vector<lv_obj_t*> created_buttons_;

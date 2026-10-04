@@ -201,6 +201,16 @@ std::function<void(const std::string&)> ActionPromptManager::make_line_sink() {
     };
 }
 
+bool ActionPromptManager::end_locally() {
+    if (m_state != State::SHOWING) {
+        return false;
+    }
+    m_current_prompt.reset();
+    m_in_group = false;
+    set_state(State::IDLE);
+    return true;
+}
+
 void ActionPromptManager::process_line(const std::string& line) {
     auto result = parse_action_line(line);
     if (!result.has_value()) {

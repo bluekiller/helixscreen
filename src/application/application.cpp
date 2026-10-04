@@ -2600,6 +2600,25 @@ void Application::init_action_prompt() {
         });
     }
 
+    // The user closed the prompt here (button, backdrop tap, ESC). End it in the
+    // manager so is_showing() stops reporting it, and unless a button already
+    // sent its own gcode, tell Klipper the way Mainsail does. A button's macro is
+    // expected to end or replace the prompt itself; a prompt_end sent after it
+    // would close the dialog that macro raises next.
+    m_action_prompt_modal->set_dismiss_callback([this, api](bool button_sent_gcode) {
+        if (!m_action_prompt_manager || !m_action_prompt_manager->end_locally() ||
+            button_sent_gcode || !api) {
+            return;
+        }
+        spdlog::info("[ActionPrompt] Closed on screen, sending prompt_end");
+        api->execute_gcode(
+            helix::ActionPromptManager::PROMPT_END_GCODE, nullptr,
+            [](const MoonrakerError& err) {
+                spdlog::warn("[ActionPrompt] prompt_end failed: {}", err.message);
+            },
+            0, false, nullptr, /*caller_surfaces_errors=*/false);
+    });
+
     // The manager runs on the main thread, so the modal follows it in lock-step.
     m_action_prompt_manager->set_on_show([this](const helix::PromptData& data) {
         spdlog::info("[ActionPrompt] Showing prompt: {}", data.title);
