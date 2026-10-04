@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" ru="Нагреватель стола"/>
   <translation tag="Bed Level" ru="Уровень стола"/>
   <translation tag="Bed Leveling" ru="Выравнивание стола"/>
+  <translation tag="Bed Map Clearance" ru="Безопасная высота карты стола"/>
   <translation tag="Bed Mesh" ru="Сетка стола"/>
   <translation tag="Bed Mesh Complete" ru="Сетка стола готова"/>
   <translation tag="Bed Mesh Render" ru="Рендер сетки стола"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" ru="Стол выровнен!"/>
   <translation tag="Bed mesh operation timed out" ru="Сетка стола — время ожидания истекло"/>
   <translation tag="Bed mesh..." ru="Сетка стола..."/>
+  <translation tag="Bed tab moves lift to this height first" ru="Перемещения на вкладке «Стол» сначала поднимают до этой высоты"/>
   <translation tag="Bed target set to {}°C" ru="Целевая температура стола {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" ru="Температура стола должна быть 0-%d°C"/>
   <translation tag="Bed warming timed out" ru="Нагрев стола — время ожидания истекло"/>
@@ -2864,6 +2866,7 @@
   <translation tag="Tap anywhere if this text is right-side up" ru="Нажмите в любом месте, если текст расположен правильно"/>
   <translation tag="Tap anywhere to begin" ru="Нажмите в любом месте для начала"/>
   <translation tag="Tap anywhere to begin calibration" ru="Нажмите в любом месте для начала калибровки"/>
+  <translation tag="Tap or drag to move" ru="Нажмите или перетащите для перемещения"/>
   <translation tag="Tap the bed&apos;s front-left corner" ru="Нажмите на передний левый угол стола"/>
   <translation tag="Tap the bed&apos;s front-right corner" ru="Нажмите на передний правый угол стола"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" ru="Нажмите на перекрестие (точка %1$d из 3) — касание %2$d из %3$d"/>
@@ -3339,6 +3342,7 @@
   <translation tag="Z jog feedrate" ru="Скорость перемещения по оси Z"/>
   <translation tag="Z motor calibration failed" ru="Не удалась калибровка двигателя Z"/>
   <translation tag="Z probes for bed leveling and mesh generation" ru="Z-зонды для выравнивания стола и создания сетки"/>
+  <translation tag="Z {}, will lift to {}mm" ru="Z {}, подъём до {}мм"/>
   <translation tag="Z-Off:" ru="Z-Off:"/>
   <translation tag="Z-Offset" ru="Z-Offset"/>
   <translation tag="Z-Offset Calibration" ru="Калибровка Z-смещения"/>

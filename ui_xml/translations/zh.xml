@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" zh="热床加热器"/>
   <translation tag="Bed Level" zh="热床调平"/>
   <translation tag="Bed Leveling" zh="热床调平"/>
+  <translation tag="Bed Map Clearance" zh="热床地图安全高度"/>
   <translation tag="Bed Mesh" zh="热床网格"/>
   <translation tag="Bed Mesh Complete" zh="热床网格完成"/>
   <translation tag="Bed Mesh Render" zh="热床网格渲染"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" zh="热床已水平！"/>
   <translation tag="Bed mesh operation timed out" zh="热床网格操作超时"/>
   <translation tag="Bed mesh..." zh="热床网格..."/>
+  <translation tag="Bed tab moves lift to this height first" zh="热床标签页的移动会先抬升到此高度"/>
   <translation tag="Bed target set to {}°C" zh="热床目标已设为 {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" zh="热床温度必须为 0-%d°C"/>
   <translation tag="Bed warming timed out" zh="热床加热超时"/>
@@ -2864,6 +2866,7 @@
   <translation tag="Tap anywhere if this text is right-side up" zh="如果文字方向正确请点击任意位置"/>
   <translation tag="Tap anywhere to begin" zh="点击任意位置开始"/>
   <translation tag="Tap anywhere to begin calibration" zh="点击任意位置开始校准"/>
+  <translation tag="Tap or drag to move" zh="点击或拖动以移动"/>
   <translation tag="Tap the bed&apos;s front-left corner" zh="点击热床的左前角"/>
   <translation tag="Tap the bed&apos;s front-right corner" zh="点击热床的右前角"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" zh="点击十字准星（第 %1$d 个点，共 3 个）— 触摸 %2$d / %3$d"/>
@@ -3339,6 +3342,7 @@
   <translation tag="Z jog feedrate" zh="Z 轴移动速度"/>
   <translation tag="Z motor calibration failed" zh="Z 电机校准失败"/>
   <translation tag="Z probes for bed leveling and mesh generation" zh="用于热床调平和网格生成的 Z 探针"/>
+  <translation tag="Z {}, will lift to {}mm" zh="Z {}，将抬升至 {}mm"/>
   <translation tag="Z-Off:" zh="Z 偏移："/>
   <translation tag="Z-Offset" zh="Z 偏移"/>
   <translation tag="Z-Offset Calibration" zh="Z 偏移校准"/>

@@ -326,6 +326,7 @@ translations:
   Bed Heater: Riscaldatore piano
   Bed Level: Livellamento piano
   Bed Leveling: Livellamento piano
+  Bed Map Clearance: Altezza di sicurezza mappa
   Bed Mesh: Mesh piano
   Bed Mesh Complete: Mesh piano completata
   Bed Mesh Render: Rendering mesh piano
@@ -342,6 +343,7 @@ translations:
   Bed is Level!: Piano livellato!
   Bed mesh operation timed out: Mesh piano — tempo scaduto
   Bed mesh...: Mesh piano...
+  Bed tab moves lift to this height first: I movimenti della scheda Piano salgono prima a questa altezza
   Bed target set to {}°C: Obiettivo piano impostato a {}°C
   Bed temp must be 0-%d°C: La temperatura del piano deve essere 0-%d°C
   Bed warming timed out: Riscaldamento piano — tempo scaduto
@@ -3189,6 +3191,7 @@ translations:
   Tap anywhere if this text is right-side up: Tocca ovunque se questo testo è dritto
   Tap anywhere to begin: Tocca ovunque per iniziare
   Tap anywhere to begin calibration: Tocca ovunque per avviare la calibrazione
+  Tap or drag to move: Tocca o trascina per spostare
   Tap the bed's front-left corner: 'Tocca l''angolo anteriore sinistro del piano'
   Tap the bed's front-right corner: 'Tocca l''angolo anteriore destro del piano'
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Tocca il mirino
@@ -3759,6 +3762,7 @@ translations:
   Z motor calibration failed: Calibrazione del motore Z non riuscita
   Z probes for bed leveling and mesh generation: Sonde Z per livellamento piano e
     generazione mesh
+  Z {}, will lift to {}mm: 'Z {}, salirà a {}mm'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Calibrazione Z-Offset

@@ -127,6 +127,9 @@ static constexpr settings::PersistedSetting SETTINGS[] = {
     // Motion panel readout: 0=commanded, 1=actual (live) position
     {"settings_motion_show_actual_position", "motion/show_actual_position", Scope::PerPrinter, true,
      0, 0, 1, "show_actual_position"},
+    // Bed tab: mm below which a move lifts Z before travelling
+    {"settings_bed_map_clearance", "motion/bed_map_clearance", Scope::PerPrinter, false, 5,
+     BED_MAP_CLEARANCE_MIN_MM, BED_MAP_CLEARANCE_MAX_MM, "bed_map_clearance"},
     // QIDI Box eject distance magnitude in mm, negated when assembled into FORCE_MOVE
     {"settings_qidi_eject_distance", "ams/qidi_eject_distance", Scope::PerPrinter, false, 878, 100,
      2000, "qidi_eject_distance"},

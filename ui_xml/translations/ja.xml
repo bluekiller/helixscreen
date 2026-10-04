@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" ja="ベッドヒーター"/>
   <translation tag="Bed Level" ja="ベッドレベル"/>
   <translation tag="Bed Leveling" ja="ベッドレベリング"/>
+  <translation tag="Bed Map Clearance" ja="ベッドマップの退避高さ"/>
   <translation tag="Bed Mesh" ja="ベッドメッシュ"/>
   <translation tag="Bed Mesh Complete" ja="ベッドメッシュ完了"/>
   <translation tag="Bed Mesh Render" ja="ベッドメッシュ描画"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" ja="ベッドが水平です！"/>
   <translation tag="Bed mesh operation timed out" ja="ベッドメッシュ操作がタイムアウトしました"/>
   <translation tag="Bed mesh..." ja="ベッドメッシュ..."/>
+  <translation tag="Bed tab moves lift to this height first" ja="ベッドタブの移動はまずこの高さまで上昇します"/>
   <translation tag="Bed target set to {}°C" ja="ベッド目標温度を {}°C に設定しました"/>
   <translation tag="Bed temp must be 0-%d°C" ja="ベッド温度は 0〜%d°C にしてください"/>
   <translation tag="Bed warming timed out" ja="ベッド加熱がタイムアウトしました"/>
@@ -2864,6 +2866,7 @@
   <translation tag="Tap anywhere if this text is right-side up" ja="この文字が正しい向きならどこかをタップ"/>
   <translation tag="Tap anywhere to begin" ja="どこかをタップして開始"/>
   <translation tag="Tap anywhere to begin calibration" ja="どこかをタップしてキャリブレーション開始"/>
+  <translation tag="Tap or drag to move" ja="タップまたはドラッグで移動"/>
   <translation tag="Tap the bed&apos;s front-left corner" ja="ベッドの手前左の角をタップ"/>
   <translation tag="Tap the bed&apos;s front-right corner" ja="ベッドの手前右の角をタップ"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" ja="十字をタップ（ポイント %1$d / 3）— タッチ %2$d / %3$d"/>
@@ -3339,6 +3342,7 @@
   <translation tag="Z jog feedrate" ja="Z軸のジョグ移動速度"/>
   <translation tag="Z motor calibration failed" ja="Z モーターの校正に失敗しました"/>
   <translation tag="Z probes for bed leveling and mesh generation" ja="ベッドレベリングとメッシュ生成用 Z プローブ"/>
+  <translation tag="Z {}, will lift to {}mm" ja="Z {}、{}mmまで上昇します"/>
   <translation tag="Z-Off:" ja="Z-Off:"/>
   <translation tag="Z-Offset" ja="Z-Offset"/>
   <translation tag="Z-Offset Calibration" ja="Z-Offset キャリブレーション"/>

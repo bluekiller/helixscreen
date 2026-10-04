@@ -49,23 +49,30 @@ int mm_s_to_mm_min(int mm_per_sec) {
 /// One row per control. `title` is both the keypad header and the row's
 /// translation_tag in motion_settings_overlay.xml, so it resolves with no
 /// extra keys. Indexed by Field.
+enum class Kind {
+    Speed,     ///< mm/s slider row
+    Distance,  ///< jog step distance, mm
+    Clearance, ///< Bed-tab Z clearance, whole mm
+};
+
 struct FieldSpec {
     const char* title; ///< Keypad header and row label
-    bool is_speed;     ///< mm/s slider row (true) or mm distance row (false)
-    bool is_z;         ///< speeds only: Z axis instead of XY
-    JogMode mode;      ///< distances only
-    bool outer;        ///< distances only
+    Kind kind;
+    bool is_z;    ///< speeds only: Z axis instead of XY
+    JogMode mode; ///< distances only
+    bool outer;   ///< distances only
 };
 
 constexpr FieldSpec FIELD_SPECS[] = {
-    {"Jog Speed XY", true, false, {}, false},
-    {"Jog Speed Z", true, true, {}, false},
-    {"Fine Inner", false, false, JogMode::Fine, false},
-    {"Fine Outer", false, false, JogMode::Fine, true},
-    {"Coarse Inner", false, false, JogMode::Coarse, false},
-    {"Coarse Outer", false, false, JogMode::Coarse, true},
-    {"Turbo Inner", false, false, JogMode::Turbo, false},
-    {"Turbo Outer", false, false, JogMode::Turbo, true},
+    {"Jog Speed XY", Kind::Speed, false, {}, false},
+    {"Jog Speed Z", Kind::Speed, true, {}, false},
+    {"Fine Inner", Kind::Distance, false, JogMode::Fine, false},
+    {"Fine Outer", Kind::Distance, false, JogMode::Fine, true},
+    {"Coarse Inner", Kind::Distance, false, JogMode::Coarse, false},
+    {"Coarse Outer", Kind::Distance, false, JogMode::Coarse, true},
+    {"Turbo Inner", Kind::Distance, false, JogMode::Turbo, false},
+    {"Turbo Outer", Kind::Distance, false, JogMode::Turbo, true},
+    {"Bed Map Clearance", Kind::Clearance, false, {}, false},
 };
 
 constexpr size_t FIELD_COUNT = sizeof(FIELD_SPECS) / sizeof(FIELD_SPECS[0]);
@@ -77,7 +84,8 @@ static_assert(FIELD_COUNT == static_cast<size_t>(Field::Count),
 /// motion_settings_overlay.xml all share that order, so a row inserted in the
 /// wrong place must fail here rather than mislabel a live control.
 constexpr bool distance_pairs_alternate() {
-    for (size_t i = static_cast<size_t>(Field::FineInner); i < FIELD_COUNT; ++i) {
+    for (size_t i = static_cast<size_t>(Field::FineInner);
+         i <= static_cast<size_t>(Field::TurboOuter); ++i) {
         if (FIELD_SPECS[i].mode != FIELD_SPECS[i ^ 1].mode) {
             return false;
         }
@@ -94,8 +102,9 @@ static_assert(distance_pairs_alternate(),
 
 /// XML value_subject names, in Field order.
 constexpr const char* const SUBJECT_NAMES[FIELD_COUNT] = {
-    "jog_speed_xy_display", "jog_speed_z_display",  "fine_inner_display",  "fine_outer_display",
-    "coarse_inner_display", "coarse_outer_display", "turbo_inner_display", "turbo_outer_display",
+    "jog_speed_xy_display", "jog_speed_z_display",  "fine_inner_display",
+    "fine_outer_display",   "coarse_inner_display", "coarse_outer_display",
+    "turbo_inner_display",  "turbo_outer_display",  "bed_map_clearance_display",
 };
 
 bool field_in_range(int raw) {
@@ -221,10 +230,13 @@ void MotionSettingsOverlay::format_display(size_t i) {
     const FieldSpec& spec = FIELD_SPECS[i];
     auto& settings = SettingsManager::instance();
 
-    if (spec.is_speed) {
+    if (spec.kind == Kind::Speed) {
         const int mm_min = spec.is_z ? settings.get_jog_speed_z() : settings.get_jog_speed_xy();
         std::snprintf(display_buffers_[i], sizeof(display_buffers_[i]), "%d mm/s",
                       mm_min_to_mm_s(effective_mm_min(mm_min)));
+    } else if (spec.kind == Kind::Clearance) {
+        std::snprintf(display_buffers_[i], sizeof(display_buffers_[i]), "%d mm",
+                      settings.get_bed_map_clearance_mm());
     } else {
         // %g trims trailing zeros, so the defaults read 0.1, 1, 10 and 50.
         std::snprintf(display_buffers_[i], sizeof(display_buffers_[i]), "%g mm",
@@ -335,7 +347,7 @@ void MotionSettingsOverlay::handle_field_clicked(Field field) {
     pending_keypad_field_ = field;
 
     ui_keypad_config_t config = {};
-    if (spec.is_speed) {
+    if (spec.kind == Kind::Speed) {
         lv_obj_t* slider = speed_slider(spec.is_z);
         if (!slider) {
             spdlog::warn("[{}] No slider for field {}", get_name(), static_cast<int>(field));
@@ -352,6 +364,12 @@ void MotionSettingsOverlay::handle_field_clicked(Field field) {
             spec.is_z ? settings.get_jog_speed_z() : settings.get_jog_speed_xy())));
         config.allow_decimal = false;
         config.unit_label = "mm/s";
+    } else if (spec.kind == Kind::Clearance) {
+        config.initial_value = static_cast<float>(settings.get_bed_map_clearance_mm());
+        config.min_value = static_cast<float>(BED_MAP_CLEARANCE_MIN_MM);
+        config.max_value = static_cast<float>(BED_MAP_CLEARANCE_MAX_MM);
+        config.allow_decimal = false;
+        config.unit_label = "mm";
     } else {
         const KeypadBounds bounds =
             keypad_bounds(field, settings.get_jog_distance(spec.mode, false),
@@ -379,7 +397,14 @@ void MotionSettingsOverlay::handle_keypad_value(Field field, double value) {
     returning_from_keypad_ = true;
 
     const FieldSpec& spec = FIELD_SPECS[static_cast<size_t>(field)];
-    if (spec.is_speed) {
+    if (spec.kind == Kind::Clearance) {
+        SettingsManager::instance().set_bed_map_clearance_mm(static_cast<int>(value));
+        const size_t i = static_cast<size_t>(field);
+        format_display(i);
+        lv_subject_copy_string(&display_subjects_[i], display_buffers_[i]);
+        return;
+    }
+    if (spec.kind == Kind::Speed) {
         lv_obj_t* slider = speed_slider(spec.is_z);
         if (!slider) {
             spdlog::warn("[{}] No slider for field {}; dropping typed value {}", get_name(),

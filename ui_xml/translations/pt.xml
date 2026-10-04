@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" pt="Aquecedor da Mesa"/>
   <translation tag="Bed Level" pt="Nível da Mesa"/>
   <translation tag="Bed Leveling" pt="Nivelamento da Mesa"/>
+  <translation tag="Bed Map Clearance" pt="Altura de segurança do mapa"/>
   <translation tag="Bed Mesh" pt="Malha da Mesa"/>
   <translation tag="Bed Mesh Complete" pt="Malha da Mesa Concluída"/>
   <translation tag="Bed Mesh Render" pt="Renderização da Malha da Mesa"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" pt="Mesa Nivelada!"/>
   <translation tag="Bed mesh operation timed out" pt="Malha da mesa — tempo esgotado"/>
   <translation tag="Bed mesh..." pt="Malha da mesa..."/>
+  <translation tag="Bed tab moves lift to this height first" pt="Os movimentos da aba Mesa sobem primeiro até esta altura"/>
   <translation tag="Bed target set to {}°C" pt="Mesa configurada para {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" pt="A temperatura da mesa deve ser 0-%d°C"/>
   <translation tag="Bed warming timed out" pt="Aquecimento da mesa — tempo esgotado"/>
@@ -2864,6 +2866,7 @@
   <translation tag="Tap anywhere if this text is right-side up" pt="Toque em qualquer lugar se este texto estiver correto"/>
   <translation tag="Tap anywhere to begin" pt="Toque em qualquer lugar para começar"/>
   <translation tag="Tap anywhere to begin calibration" pt="Toque em qualquer lugar para iniciar a calibração"/>
+  <translation tag="Tap or drag to move" pt="Toque ou arraste para mover"/>
   <translation tag="Tap the bed&apos;s front-left corner" pt="Toque no canto frontal esquerdo da mesa"/>
   <translation tag="Tap the bed&apos;s front-right corner" pt="Toque no canto frontal direito da mesa"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" pt="Toque na mira (ponto %1$d de 3) — toque %2$d de %3$d"/>
@@ -3339,6 +3342,7 @@
   <translation tag="Z jog feedrate" pt="Velocidade de movimento do eixo Z"/>
   <translation tag="Z motor calibration failed" pt="Falha na calibração do motor Z"/>
   <translation tag="Z probes for bed leveling and mesh generation" pt="Sondas Z para nivelamento da mesa e geração de malha"/>
+  <translation tag="Z {}, will lift to {}mm" pt="Z {}, subirá para {}mm"/>
   <translation tag="Z-Off:" pt="Z-Offset:"/>
   <translation tag="Z-Offset" pt="Z-Offset"/>
   <translation tag="Z-Offset Calibration" pt="Calibração de Z-Offset"/>

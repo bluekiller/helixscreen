@@ -11,6 +11,19 @@
     <px name="motion_z_col_w_small" value="64"/>
     <px name="motion_z_col_w_medium" value="64"/>
     <px name="motion_z_col_w_large" value="64"/>
+    <!-- Bed tab toolhead marker diameter (components/motion_bed_map.xml). -->
+    <px name="bed_map_marker_size_micro" value="10"/>
+    <px name="bed_map_marker_size_tiny" value="12"/>
+    <px name="bed_map_marker_size_small" value="14"/>
+    <px name="bed_map_marker_size_medium" value="16"/>
+    <px name="bed_map_marker_size_large" value="20"/>
+    <!-- The marker's radius: the plate sits this far inside its surface so a
+         toolhead at the plate's edge draws its whole marker. -->
+    <px name="bed_map_inset_micro" value="5"/>
+    <px name="bed_map_inset_tiny" value="6"/>
+    <px name="bed_map_inset_small" value="7"/>
+    <px name="bed_map_inset_medium" value="8"/>
+    <px name="bed_map_inset_large" value="10"/>
   </consts>
   <!-- Motion Sub-Screen: XYZ Movement & Homing -->
   <!-- Coordinates live in the header slot on landscape screens and in a slim
@@ -69,11 +82,11 @@
                     active_subject="motion_tab_active_1" tab_index="1" icon="crosshairs_gps" hide_label="true"
                     ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
                     idle_style="zone_tab_pill_idle"/>
-          <!-- The Bed tab arrives with its content in a later step. -->
-          <zone_tab label_subject="motion_tab_label_2"
-                    active_subject="motion_tab_active_2" tab_index="2" icon="grid_large" hide_label="true"
-                    ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle" hidden="true"/>
+          <!-- The Bed tab is disabled while anything holds the machine (a print). -->
+          <zone_tab name="header_tab_bed"
+                    label_subject="motion_tab_label_2" active_subject="motion_tab_active_2" tab_index="2"
+                    icon="grid_large" hide_label="true" ext_click_area="6" callback="on_motion_tab_clicked"
+                    selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle" moves_machine="true"/>
         </lv_obj>
         <lv_obj name="header_coords"
                 width="content" height="100%" style_pad_all="0" style_pad_left="#space_sm" style_bg_opa="0"
@@ -232,7 +245,8 @@
              gets the rest; the pad is the largest square its wrapper allows
              (clamped in MotionPanel::setup_jog_pad), so a width-bound wrapper
              leaves no dead band beside the circle. On the Move tab the preset
-             grid takes the wrapper's slot; the Z column stays on every tab. -->
+             grid, on the Bed tab the plate map, takes the wrapper's slot; the Z
+             column stays on every tab. -->
         <lv_obj name="pad_row"
                 width="100%" height="0" flex_grow="1" style_pad_all="0" style_border_opa="0" scrollable="false"
                 flex_flow="row" style_pad_gap="#space_sm">
@@ -247,6 +261,11 @@
                   width="0" height="100%" flex_grow="3" style_pad_all="0" style_border_opa="0" scrollable="false">
             <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="1"/>
             <move_preset_grid actions="false"/>
+          </lv_obj>
+          <lv_obj name="bed_tab"
+                  width="0" height="100%" flex_grow="3" style_pad_all="0" style_border_opa="0" scrollable="false">
+            <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="2"/>
+            <motion_bed_map/>
           </lv_obj>
           <!-- The landscape Z column stood on its side: same bindings (arrow
                icons, mm step labels, the kinematics-aware axis label),
@@ -387,12 +406,11 @@
                       active_subject="motion_tab_active_1" tab_index="1" icon="crosshairs_gps" layout="column"
                       cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
                       idle_style="zone_tab_pill_idle"/>
-            <!-- The Bed tab arrives with its content in a later step; its pill
-                 stays out of the rail until then. -->
-            <zone_tab label_subject="motion_tab_label_2"
-                      active_subject="motion_tab_active_2" tab_index="2" icon="grid_large" layout="column"
-                      cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle" hidden="true"/>
+            <!-- The Bed tab is disabled while anything holds the machine (a print). -->
+            <zone_tab name="motion_tab_bed"
+                      label_subject="motion_tab_label_2" active_subject="motion_tab_active_2" tab_index="2"
+                      icon="grid_large" layout="column" cross_place="center" callback="on_motion_tab_clicked"
+                      selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle" moves_machine="true"/>
           </lv_obj>
           <lv_obj name="tab_content"
                   width="0" height="100%" flex_grow="1" style_pad_all="0" scrollable="false" style_border_opa="0"
@@ -420,10 +438,10 @@
               <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="1"/>
               <move_preset_grid/>
             </lv_obj>
-            <!-- Bed tab content arrives in a later step; the container and its
-                 visibility binding are the seam it plugs into. -->
+            <!-- Bed tab: the plate map takes the same slot. -->
             <lv_obj name="bed_tab" width="100%" flex_grow="1" style_pad_all="0" style_border_opa="0" scrollable="false">
               <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="2"/>
+              <motion_bed_map/>
             </lv_obj>
             <!-- Fine/Coarse/Turbo jog mode toggle -->
             <lv_obj width="100%"

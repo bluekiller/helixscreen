@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" en="Bed Heater"/>
   <translation tag="Bed Level" en="Bed Level"/>
   <translation tag="Bed Leveling" en="Bed Leveling"/>
+  <translation tag="Bed Map Clearance" en="Bed Map Clearance"/>
   <translation tag="Bed Mesh" en="Bed Mesh"/>
   <translation tag="Bed Mesh Complete" en="Bed Mesh Complete"/>
   <translation tag="Bed Mesh Render" en="Bed Mesh Render"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" en="Bed is Level!"/>
   <translation tag="Bed mesh operation timed out" en="Bed mesh operation timed out"/>
   <translation tag="Bed mesh..." en="Bed mesh..."/>
+  <translation tag="Bed tab moves lift to this height first" en="Bed tab moves lift to this height first"/>
   <translation tag="Bed target set to {}°C" en="Bed target set to {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" en="Bed temp must be 0-%d°C"/>
   <translation tag="Bed warming timed out" en="Bed warming timed out"/>
@@ -2864,6 +2866,7 @@
   <translation tag="Tap anywhere if this text is right-side up" en="Tap anywhere if this text is right-side up"/>
   <translation tag="Tap anywhere to begin" en="Tap anywhere to begin"/>
   <translation tag="Tap anywhere to begin calibration" en="Tap anywhere to begin calibration"/>
+  <translation tag="Tap or drag to move" en="Tap or drag to move"/>
   <translation tag="Tap the bed&apos;s front-left corner" en="Tap the bed&apos;s front-left corner"/>
   <translation tag="Tap the bed&apos;s front-right corner" en="Tap the bed&apos;s front-right corner"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" en="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d"/>
@@ -3339,6 +3342,7 @@
   <translation tag="Z jog feedrate" en="Z jog feedrate"/>
   <translation tag="Z motor calibration failed" en="Z motor calibration failed"/>
   <translation tag="Z probes for bed leveling and mesh generation" en="Z probes for bed leveling and mesh generation"/>
+  <translation tag="Z {}, will lift to {}mm" en="Z {}, will lift to {}mm"/>
   <translation tag="Z-Off:" en="Z-Off:"/>
   <translation tag="Z-Offset" en="Z-Offset"/>
   <translation tag="Z-Offset Calibration" en="Z-Offset Calibration"/>

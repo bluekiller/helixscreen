@@ -314,6 +314,7 @@ translations:
   Bed Heater: Bed Heater
   Bed Level: Bed Level
   Bed Leveling: Bed Leveling
+  Bed Map Clearance: Bed Map Clearance
   Bed Mesh: Bed Mesh
   'Bed Mesh Complete': 'Bed Mesh Complete'
   Bed Mesh Render: Bed Mesh Render
@@ -329,6 +330,7 @@ translations:
   Bed is Level!: Bed is Level!
   Bed mesh operation timed out: Bed mesh operation timed out
   'Bed mesh...': 'Bed mesh...'
+  Bed tab moves lift to this height first: Bed tab moves lift to this height first
   Bed target set to {}°C: Bed target set to {}°C
   Bed temp must be 0-%d°C: Bed temp must be 0-%d°C
   Bed warming timed out: Bed warming timed out
@@ -3094,6 +3096,7 @@ translations:
     up
   Tap anywhere to begin: Tap anywhere to begin
   Tap anywhere to begin calibration: Tap anywhere to begin calibration
+  Tap or drag to move: Tap or drag to move
   Tap the bed's front-left corner: Tap the bed's front-left corner
   Tap the bed's front-right corner: Tap the bed's front-right corner
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Tap the crosshair
@@ -3645,6 +3648,7 @@ translations:
   Z motor calibration failed: Z motor calibration failed
   Z probes for bed leveling and mesh generation: Z probes for bed leveling and mesh
     generation
+  Z {}, will lift to {}mm: Z {}, will lift to {}mm
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Z-Offset Calibration

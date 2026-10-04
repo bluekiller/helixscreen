@@ -301,6 +301,7 @@ translations:
   Bed Heater: ベッドヒーター
   Bed Level: ベッドレベル
   Bed Leveling: ベッドレベリング
+  Bed Map Clearance: ベッドマップの退避高さ
   Bed Mesh: ベッドメッシュ
   Bed Mesh Complete: ベッドメッシュ完了
   Bed Mesh Render: ベッドメッシュ描画
@@ -317,6 +318,7 @@ translations:
   Bed is Level!: ベッドが水平です！
   Bed mesh operation timed out: ベッドメッシュ操作がタイムアウトしました
   Bed mesh...: ベッドメッシュ...
+  Bed tab moves lift to this height first: ベッドタブの移動はまずこの高さまで上昇します
   Bed target set to {}°C: ベッド目標温度を {}°C に設定しました
   Bed temp must be 0-%d°C: ベッド温度は 0〜%d°C にしてください
   Bed warming timed out: ベッド加熱がタイムアウトしました
@@ -2983,6 +2985,7 @@ translations:
   Tap anywhere if this text is right-side up: この文字が正しい向きならどこかをタップ
   Tap anywhere to begin: どこかをタップして開始
   Tap anywhere to begin calibration: どこかをタップしてキャリブレーション開始
+  Tap or drag to move: タップまたはドラッグで移動
   Tap the bed's front-left corner: ベッドの手前左の角をタップ
   Tap the bed's front-right corner: ベッドの手前右の角をタップ
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: 十字をタップ（ポイント
@@ -3503,6 +3506,7 @@ translations:
   Z jog feedrate: Z軸のジョグ移動速度
   Z motor calibration failed: Z モーターの校正に失敗しました
   Z probes for bed leveling and mesh generation: ベッドレベリングとメッシュ生成用 Z プローブ
+  Z {}, will lift to {}mm: 'Z {}、{}mmまで上昇します'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Z-Offset キャリブレーション

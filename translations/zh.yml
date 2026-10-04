@@ -300,6 +300,7 @@ translations:
   Bed Heater: 热床加热器
   Bed Level: 热床调平
   Bed Leveling: 热床调平
+  Bed Map Clearance: 热床地图安全高度
   Bed Mesh: 热床网格
   Bed Mesh Complete: 热床网格完成
   Bed Mesh Render: 热床网格渲染
@@ -316,6 +317,7 @@ translations:
   Bed is Level!: 热床已水平！
   Bed mesh operation timed out: 热床网格操作超时
   Bed mesh...: 热床网格...
+  Bed tab moves lift to this height first: 热床标签页的移动会先抬升到此高度
   Bed target set to {}°C: 热床目标已设为 {}°C
   Bed temp must be 0-%d°C: 热床温度必须为 0-%d°C
   Bed warming timed out: 热床加热超时
@@ -2975,6 +2977,7 @@ translations:
   Tap anywhere if this text is right-side up: 如果文字方向正确请点击任意位置
   Tap anywhere to begin: 点击任意位置开始
   Tap anywhere to begin calibration: 点击任意位置开始校准
+  Tap or drag to move: 点击或拖动以移动
   Tap the bed's front-left corner: 点击热床的左前角
   Tap the bed's front-right corner: 点击热床的右前角
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: 点击十字准星（第 %1$d
@@ -3494,6 +3497,7 @@ translations:
   Z jog feedrate: Z 轴移动速度
   Z motor calibration failed: Z 电机校准失败
   Z probes for bed leveling and mesh generation: 用于热床调平和网格生成的 Z 探针
+  Z {}, will lift to {}mm: 'Z {}，将抬升至 {}mm'
   'Z-Off:': Z 偏移：
   Z-Offset: Z 偏移
   Z-Offset Calibration: Z 偏移校准

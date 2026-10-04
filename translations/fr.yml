@@ -330,6 +330,7 @@ translations:
   Bed Heater: Chauffage du plateau
   Bed Level: Niveau du plateau
   Bed Leveling: Mise à niveau du plateau
+  Bed Map Clearance: Hauteur de sécurité de la carte
   Bed Mesh: Maillage du plateau
   Bed Mesh Complete: Maillage du plateau terminé
   Bed Mesh Render: Rendu du maillage du plateau
@@ -346,6 +347,7 @@ translations:
   Bed is Level!: Le plateau est niveau !
   Bed mesh operation timed out: Maillage du plateau — délai dépassé
   Bed mesh...: Maillage du plateau...
+  Bed tab moves lift to this height first: 'Les déplacements de l''onglet Plateau montent d''abord à cette hauteur'
   Bed target set to {}°C: Cible plateau réglée à {}°C
   Bed temp must be 0-%d°C: La température du plateau doit être entre 0 et %d°C
   Bed warming timed out: Préchauffage du plateau — délai dépassé
@@ -3214,6 +3216,7 @@ translations:
     à l'endroit
   Tap anywhere to begin: Appuyez n'importe où pour commencer
   Tap anywhere to begin calibration: Appuyez n'importe où pour démarrer la calibration
+  Tap or drag to move: Appuyez ou glissez pour déplacer
   Tap the bed's front-left corner: Touchez le coin avant gauche du plateau
   Tap the bed's front-right corner: Touchez le coin avant droit du plateau
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Appuyez sur
@@ -3792,6 +3795,7 @@ translations:
   Z motor calibration failed: Échec de l'étalonnage du moteur Z
   Z probes for bed leveling and mesh generation: Sondes Z pour la mise à niveau du
     plateau et la génération de maillage
+  Z {}, will lift to {}mm: 'Z {}, montera à {}mm'
   'Z-Off:': 'Z-Off :'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Calibration du Z-Offset

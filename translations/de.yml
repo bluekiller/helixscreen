@@ -331,6 +331,7 @@ translations:
   Bed Heater: Bettheizung
   Bed Level: Bettnivellierung
   Bed Leveling: Bettnivellierung
+  Bed Map Clearance: 'Bettkarte: Sicherheitshöhe'
   Bed Mesh: Bettnetz
   Bed Mesh Complete: Bettnetz abgeschlossen
   Bed Mesh Render: Bettnetz-Darstellung
@@ -347,6 +348,7 @@ translations:
   Bed is Level!: Bett ist nivelliert!
   Bed mesh operation timed out: Bettnetz-Vorgang Zeitüberschreitung
   Bed mesh...: Bettnetz...
+  Bed tab moves lift to this height first: Bewegungen im Heizbett-Tab heben zuerst auf diese Höhe an
   Bed target set to {}°C: Bett-Zieltemperatur auf {}°C gesetzt
   Bed temp must be 0-%d°C: Betttemperatur muss 0-%d°C betragen
   Bed warming timed out: Bettaufheizung Zeitüberschreitung
@@ -3197,6 +3199,7 @@ translations:
     richtig herum ist
   Tap anywhere to begin: Tippen Sie irgendwo, um zu beginnen
   Tap anywhere to begin calibration: Tippen Sie irgendwo, um die Kalibrierung zu starten
+  Tap or drag to move: Tippen oder ziehen zum Bewegen
   Tap the bed's front-left corner: Auf die vordere linke Ecke des Heizbetts tippen
   Tap the bed's front-right corner: Auf die vordere rechte Ecke des Heizbetts tippen
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Fadenkreuz
@@ -3767,6 +3770,7 @@ translations:
   Z motor calibration failed: Kalibrierung des Z-Motors fehlgeschlagen
   Z probes for bed leveling and mesh generation: Z-Sonden für Bettnivellierung und
     Netzerzeugung
+  Z {}, will lift to {}mm: 'Z {}, hebt auf {}mm an'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Z-Offset-Kalibrierung

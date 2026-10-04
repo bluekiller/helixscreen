@@ -320,6 +320,7 @@ translations:
   Bed Heater: Нагреватель стола
   Bed Level: Уровень стола
   Bed Leveling: Выравнивание стола
+  Bed Map Clearance: Безопасная высота карты стола
   Bed Mesh: Сетка стола
   Bed Mesh Complete: Сетка стола готова
   Bed Mesh Render: Рендер сетки стола
@@ -336,6 +337,7 @@ translations:
   Bed is Level!: Стол выровнен!
   Bed mesh operation timed out: Сетка стола — время ожидания истекло
   Bed mesh...: Сетка стола...
+  Bed tab moves lift to this height first: Перемещения на вкладке «Стол» сначала поднимают до этой высоты
   Bed target set to {}°C: Целевая температура стола {}°C
   Bed temp must be 0-%d°C: Температура стола должна быть 0-%d°C
   Bed warming timed out: Нагрев стола — время ожидания истекло
@@ -3160,6 +3162,7 @@ translations:
     правильно
   Tap anywhere to begin: Нажмите в любом месте для начала
   Tap anywhere to begin calibration: Нажмите в любом месте для начала калибровки
+  Tap or drag to move: Нажмите или перетащите для перемещения
   Tap the bed's front-left corner: Нажмите на передний левый угол стола
   Tap the bed's front-right corner: Нажмите на передний правый угол стола
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Нажмите на
@@ -3717,6 +3720,7 @@ translations:
   Z motor calibration failed: Не удалась калибровка двигателя Z
   Z probes for bed leveling and mesh generation: Z-зонды для выравнивания стола и
     создания сетки
+  Z {}, will lift to {}mm: 'Z {}, подъём до {}мм'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Калибровка Z-смещения

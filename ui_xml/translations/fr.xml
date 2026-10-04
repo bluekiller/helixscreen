@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" fr="Chauffage du plateau"/>
   <translation tag="Bed Level" fr="Niveau du plateau"/>
   <translation tag="Bed Leveling" fr="Mise à niveau du plateau"/>
+  <translation tag="Bed Map Clearance" fr="Hauteur de sécurité de la carte"/>
   <translation tag="Bed Mesh" fr="Maillage du plateau"/>
   <translation tag="Bed Mesh Complete" fr="Maillage du plateau terminé"/>
   <translation tag="Bed Mesh Render" fr="Rendu du maillage du plateau"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" fr="Le plateau est niveau !"/>
   <translation tag="Bed mesh operation timed out" fr="Maillage du plateau — délai dépassé"/>
   <translation tag="Bed mesh..." fr="Maillage du plateau..."/>
+  <translation tag="Bed tab moves lift to this height first" fr="Les déplacements de l&apos;onglet Plateau montent d&apos;abord à cette hauteur"/>
   <translation tag="Bed target set to {}°C" fr="Cible plateau réglée à {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" fr="La température du plateau doit être entre 0 et %d°C"/>
   <translation tag="Bed warming timed out" fr="Préchauffage du plateau — délai dépassé"/>
@@ -2864,6 +2866,7 @@
   <translation tag="Tap anywhere if this text is right-side up" fr="Appuyez n&apos;importe où si ce texte est à l&apos;endroit"/>
   <translation tag="Tap anywhere to begin" fr="Appuyez n&apos;importe où pour commencer"/>
   <translation tag="Tap anywhere to begin calibration" fr="Appuyez n&apos;importe où pour démarrer la calibration"/>
+  <translation tag="Tap or drag to move" fr="Appuyez ou glissez pour déplacer"/>
   <translation tag="Tap the bed&apos;s front-left corner" fr="Touchez le coin avant gauche du plateau"/>
   <translation tag="Tap the bed&apos;s front-right corner" fr="Touchez le coin avant droit du plateau"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" fr="Appuyez sur la cible (point %1$d sur 3) — appui %2$d sur %3$d"/>
@@ -3339,6 +3342,7 @@
   <translation tag="Z jog feedrate" fr="Vitesse d&apos;avance du déplacement Z"/>
   <translation tag="Z motor calibration failed" fr="Échec de l&apos;étalonnage du moteur Z"/>
   <translation tag="Z probes for bed leveling and mesh generation" fr="Sondes Z pour la mise à niveau du plateau et la génération de maillage"/>
+  <translation tag="Z {}, will lift to {}mm" fr="Z {}, montera à {}mm"/>
   <translation tag="Z-Off:" fr="Z-Off :"/>
   <translation tag="Z-Offset" fr="Z-Offset"/>
   <translation tag="Z-Offset Calibration" fr="Calibration du Z-Offset"/>

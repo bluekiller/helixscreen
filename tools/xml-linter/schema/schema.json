@@ -1370,6 +1370,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1387,6 +1390,9 @@
         },
         "stroke_opa": {
           "type": "opa"
+        },
+        "style_text_color": {
+          "type": "color"
         },
         "text_transform": {
           "type": "enum",
@@ -1406,6 +1412,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1423,6 +1432,9 @@
         },
         "stroke_opa": {
           "type": "opa"
+        },
+        "style_text_color": {
+          "type": "color"
         },
         "text_transform": {
           "type": "enum",
@@ -1442,6 +1454,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1460,6 +1475,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1477,6 +1495,9 @@
         },
         "stroke_opa": {
           "type": "string"
+        },
+        "style_text_color": {
+          "type": "color"
         },
         "text_transform": {
           "type": "enum",
@@ -3006,6 +3027,18 @@
     "bed_diagram_height_large",
     "bed_diagram_height_medium",
     "bed_diagram_height_small",
+    "bed_map_inset",
+    "bed_map_inset_large",
+    "bed_map_inset_medium",
+    "bed_map_inset_micro",
+    "bed_map_inset_small",
+    "bed_map_inset_tiny",
+    "bed_map_marker_size",
+    "bed_map_marker_size_large",
+    "bed_map_marker_size_medium",
+    "bed_map_marker_size_micro",
+    "bed_map_marker_size_small",
+    "bed_map_marker_size_tiny",
     "bed_mesh_info_column_width",
     "bed_mesh_info_column_width_large",
     "bed_mesh_info_column_width_medium",
