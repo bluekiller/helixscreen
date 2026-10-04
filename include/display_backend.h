@@ -809,11 +809,13 @@ class DisplayBackend {
  * A gate reading the key gets one of those wrong; two gates reading
  * different sources disagree with each other.
  *
- * Ordering: DisplayManager::init() applies rotation before it creates the
+ * Ordering: DisplayManager::init() applies every startup rotation (CLI, env,
+ * config, and a first-boot kernel panel_orientation) before it creates the
  * input devices, so a backend asking this from create_input_pointer() already
- * sees the final state. apply_rotation() and the first-boot rotation probe
- * both go through the backend as well, so a rotation changed after startup is
- * picked up with no cached value to keep in sync.
+ * sees the final state. The interactive first-boot probe is the one path that
+ * rotates after input exists; it goes through the backend too, so this answer
+ * stays current, but a gate already evaluated in create_input_pointer() does
+ * not re-run.
  *
  * @param disp Display to query, or nullptr for the default display
  * @return 0, 90, 180 or 270; 0 when there is no display

@@ -1976,43 +1976,6 @@ void DisplayManager::warn_fbdev_high_dpi() {
 // Rotation Probe (first-boot auto-detect)
 // ============================================================================
 
-void DisplayManager::apply_rotation(int degrees) {
-    if (!m_display || !m_backend) {
-        spdlog::warn("[DisplayManager] Cannot apply rotation — display not initialized");
-        return;
-    }
-    if (degrees == 0)
-        return;
-
-#ifdef HELIX_DISPLAY_SDL
-    spdlog::warn("[DisplayManager] Rotation {}° not supported on SDL backend", degrees);
-#else
-    int phys_w = m_width;
-    int phys_h = m_height;
-
-    lv_display_rotation_t lv_rot = degrees_to_lv_rotation(degrees);
-
-    // DRM backend may not support hardware rotation for this angle —
-    // fall back to fbdev. Note: splash_active=false since apply_rotation()
-    // is only called after init() completes (splash is already managed).
-    if (!try_drm_to_fbdev_fallback(lv_rot, false)) {
-        spdlog::error("[DisplayManager] Cannot apply {}° rotation — DRM fallback failed", degrees);
-        return;
-    }
-
-    // The backend may clear LVGL's rotation when the scanout plane rotates
-    // instead, so read the resolution it settles on — the same order init()
-    // applies (#1275, #1587).
-    m_backend->set_display_rotation(m_display, lv_rot, phys_w, phys_h);
-
-    m_width = lv_display_get_horizontal_resolution(m_display);
-    m_height = lv_display_get_vertical_resolution(m_display);
-
-    spdlog::info("[DisplayManager] Display rotated {}° — effective resolution: {}x{}", degrees,
-                 m_width, m_height);
-#endif
-}
-
 void DisplayManager::run_rotation_probe() {
     if (!m_display || !m_pointer) {
         spdlog::info("[DisplayManager] Rotation probe skipped: display={}, pointer={}",

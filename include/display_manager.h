@@ -599,16 +599,6 @@ class DisplayManager : public helix::ICalibrationSink {
      */
     void run_rotation_probe();
 
-    /**
-     * @brief Apply display rotation at runtime
-     *
-     * Used when auto-detection discovers panel orientation after init() has
-     * already run. Sets LVGL rotation + backend rotation (matrix or hardware).
-     *
-     * @param degrees Rotation in degrees (0, 90, 180, 270)
-     */
-    void apply_rotation(int degrees);
-
     // ========================================================================
     // Static Timing Functions (portable across platforms)
     // ========================================================================
