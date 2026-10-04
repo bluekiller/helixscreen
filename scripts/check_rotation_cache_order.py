@@ -67,7 +67,7 @@ DEFAULT_FILE = "src/application/display_manager.cpp"
 GUARDED_FUNCTIONS = {
     "DisplayManager::init": 1,
     "DisplayManager::apply_rotation": 1,
-    "DisplayManager::run_rotation_probe": 2,
+    "DisplayManager::settle_display_rotation": 1,
 }
 
 # The cache write under protection - either half of the pair. Matching runs

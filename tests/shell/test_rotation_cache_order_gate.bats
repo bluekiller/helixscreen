@@ -26,11 +26,11 @@ teardown() {
 }
 
 # Write a source holding everything the gate's census requires: init and
-# apply_rotation with one settle/cache pair each, run_rotation_probe with two.
+# apply_rotation and settle_display_rotation with one settle/cache pair each.
 # Any argument after the output path replaces apply_rotation's body.
 #
 # init carries the `#ifndef HELIX_DISPLAY_SDL` guard the real file has and
-# run_rotation_probe a format string with braces in it, so every case here
+# settle_display_rotation a format string with braces in it, so every case here
 # also exercises the parser against the two things that can end a function
 # body in the wrong place.
 write_source() {
@@ -59,16 +59,11 @@ write_source() {
         printf '%s\n' \
             '}' \
             '' \
-            'void DisplayManager::run_rotation_probe() {' \
-            '    for (int i = 0; i < num_rotations; i++) {' \
-            '        m_backend->set_display_rotation(rotations[i], phys_w, phys_h);' \
-            '        m_width = lv_display_get_horizontal_resolution(m_display);' \
-            '        m_height = lv_display_get_vertical_resolution(m_display);' \
-            '        spdlog::info("[DisplayManager] probe {}x{}", m_width, m_height);' \
-            '    }' \
-            '    m_backend->set_display_rotation(confirmed_lv_rot, phys_w, phys_h);' \
+            'void DisplayManager::settle_display_rotation(lv_display_rotation_t rot, int phys_w, int phys_h) {' \
+            '    m_backend->set_display_rotation(m_display, rot, phys_w, phys_h);' \
             '    m_width = lv_display_get_horizontal_resolution(m_display);' \
             '    m_height = lv_display_get_vertical_resolution(m_display);' \
+            '    spdlog::info("[DisplayManager] settled {}x{}", m_width, m_height);' \
             '}'
     } > "$out"
 }
@@ -77,7 +72,7 @@ write_source() {
     run python3 "$SCRIPT"
     [ "$status" -eq 0 ]
     # The count is the difference between a pass and a gate looking at nothing.
-    contains "4 guarded set_display_rotation()/cache pair(s)" "$output"
+    contains "3 guarded set_display_rotation()/cache pair(s)" "$output"
 }
 
 @test "the synthetic source every other case mutates passes unmutated" {

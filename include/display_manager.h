@@ -563,6 +563,9 @@ class DisplayManager : public helix::ICalibrationSink {
     // full init(). See tests/test_helpers/display_manager_test_access.h.
     friend class DisplayManagerTestAccess;
 
+    /// Rotates the display through the backend, then caches the resolution it settled on.
+    void settle_display_rotation(lv_display_rotation_t rot, int phys_w, int phys_h);
+
     bool m_initialized = false;
     bool m_shutting_down = false;
     int m_width = 0;
