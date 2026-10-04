@@ -250,65 +250,65 @@ class PACalibrationPanel : public OverlayBase {
     // Subjects
     SubjectManager subjects_;
 
-    lv_subject_t state_subject_;
-    lv_subject_t multi_tool_;
-    lv_subject_t tool_count_;
-    lv_subject_t inputs_live_;
-    lv_subject_t progress_;
-    lv_subject_t result_plausible_;
-    lv_subject_t action_is_stop_;
-    lv_subject_t has_last_;
+    lv_subject_t state_subject_{};
+    lv_subject_t multi_tool_{};
+    lv_subject_t tool_count_{};
+    lv_subject_t inputs_live_{};
+    lv_subject_t progress_{};
+    lv_subject_t result_plausible_{};
+    lv_subject_t action_is_stop_{};
+    lv_subject_t has_last_{};
 
-    lv_subject_t tool_selected_[MAX_TOOLS];
-    lv_subject_t tool_sub_[MAX_TOOLS];
+    lv_subject_t tool_selected_[MAX_TOOLS]{};
+    lv_subject_t tool_sub_[MAX_TOOLS]{};
     char tool_sub_buf_[MAX_TOOLS][32] = {};
 
-    lv_subject_t preset_selected_[PRESET_SLOTS];
-    lv_subject_t preset_temp_[PRESET_SLOTS];
+    lv_subject_t preset_selected_[PRESET_SLOTS]{};
+    lv_subject_t preset_temp_[PRESET_SLOTS]{};
     char preset_temp_buf_[PRESET_SLOTS][16] = {};
 
-    lv_subject_t phase_state_[PHASE_COUNT];
-    lv_subject_t phase_name_[PHASE_COUNT];
-    lv_subject_t phase_meta_[PHASE_COUNT];
+    lv_subject_t phase_state_[PHASE_COUNT]{};
+    lv_subject_t phase_name_[PHASE_COUNT]{};
+    lv_subject_t phase_meta_[PHASE_COUNT]{};
     char phase_name_buf_[PHASE_COUNT][32] = {};
     char phase_meta_buf_[PHASE_COUNT][32] = {};
 
-    lv_subject_t temp_display_;
+    lv_subject_t temp_display_{};
     char temp_display_buf_[16] = {};
-    lv_subject_t temp_note_;
+    lv_subject_t temp_note_{};
     char temp_note_buf_[48] = {};
 
-    lv_subject_t phase_label_;
+    lv_subject_t phase_label_{};
     char phase_label_buf_[32] = {};
-    lv_subject_t big_;
+    lv_subject_t big_{};
     char big_buf_[16] = {};
-    lv_subject_t big_sub_;
+    lv_subject_t big_sub_{};
     char big_sub_buf_[24] = {};
-    lv_subject_t remaining_;
+    lv_subject_t remaining_{};
     char remaining_buf_[16] = {};
-    lv_subject_t prog_foot_;
+    lv_subject_t prog_foot_{};
     char prog_foot_buf_[192] = {};
 
-    lv_subject_t result_;
+    lv_subject_t result_{};
     char result_buf_[16] = {};
-    lv_subject_t result_sanity_;
+    lv_subject_t result_sanity_{};
     char result_sanity_buf_[128] = {};
-    lv_subject_t keep_note_;
+    lv_subject_t keep_note_{};
     char keep_note_buf_[128] = {};
 
-    lv_subject_t error_title_;
+    lv_subject_t error_title_{};
     char error_title_buf_[64] = {};
-    lv_subject_t error_detail_;
+    lv_subject_t error_detail_{};
     char error_detail_buf_[320] = {};
-    lv_subject_t error_hint_;
+    lv_subject_t error_hint_{};
     char error_hint_buf_[160] = {};
 
-    lv_subject_t action_text_;
+    lv_subject_t action_text_{};
     char action_text_buf_[24] = {};
 
-    lv_subject_t last_value_;
+    lv_subject_t last_value_{};
     char last_value_buf_[16] = {};
-    lv_subject_t last_context_;
+    lv_subject_t last_context_{};
     char last_context_buf_[64] = {};
 
     /// Follows the printer's own active tool, so the chips show what is

@@ -197,33 +197,33 @@ class MotionPanel : public OverlayBase {
     // RAII subject manager - auto-deinits all registered subjects on destruction
     SubjectManager subjects_;
 
-    lv_subject_t pos_x_subject_;
-    lv_subject_t pos_y_subject_;
-    lv_subject_t pos_z_subject_;          // Commanded Z position
-    lv_subject_t z_axis_label_subject_;   // "Bed" or "Print Head"
-    lv_subject_t z_up_icon_subject_;      // "arrow_expand_up" or "arrow_up"
-    lv_subject_t z_down_icon_subject_;    // "arrow_expand_down" or "arrow_down"
-    lv_subject_t z_large_label_subject_;  // "10mm" or "1mm" (large Z button label)
-    lv_subject_t z_small_label_subject_;  // "1mm" or "0.1mm" (small Z button label)
-    lv_subject_t jog_mode_fine_active_;   // 1 when Fine mode active
-    lv_subject_t jog_mode_coarse_active_; // 1 when Coarse mode active
-    lv_subject_t jog_mode_turbo_active_;  // 1 when Turbo mode active
+    lv_subject_t pos_x_subject_{};
+    lv_subject_t pos_y_subject_{};
+    lv_subject_t pos_z_subject_{};          // Commanded Z position
+    lv_subject_t z_axis_label_subject_{};   // "Bed" or "Print Head"
+    lv_subject_t z_up_icon_subject_{};      // "arrow_expand_up" or "arrow_up"
+    lv_subject_t z_down_icon_subject_{};    // "arrow_expand_down" or "arrow_down"
+    lv_subject_t z_large_label_subject_{};  // "10mm" or "1mm" (large Z button label)
+    lv_subject_t z_small_label_subject_{};  // "1mm" or "0.1mm" (small Z button label)
+    lv_subject_t jog_mode_fine_active_{};   // 1 when Fine mode active
+    lv_subject_t jog_mode_coarse_active_{}; // 1 when Coarse mode active
+    lv_subject_t jog_mode_turbo_active_{};  // 1 when Turbo mode active
     // Per-axis homing state (0=unhomed, 1=homed) for declarative bind_style:
     // the coordinate readouts mute an axis whose position is not trustworthy.
-    lv_subject_t motion_x_homed_;
-    lv_subject_t motion_y_homed_;
-    lv_subject_t motion_z_homed_;
+    lv_subject_t motion_x_homed_{};
+    lv_subject_t motion_y_homed_{};
+    lv_subject_t motion_z_homed_{};
     // Z button limit state (1=render disabled): a further move in that
     // button's G-code direction is impossible. up/down are screen directions,
     // the bed_moves inversion inside update_z_button_blocked() maps them.
-    lv_subject_t motion_z_up_blocked_;
-    lv_subject_t motion_z_down_blocked_;
+    lv_subject_t motion_z_up_blocked_{};
+    lv_subject_t motion_z_down_blocked_{};
     // Content tab selection (0=Jog, 1=Move, 2=Bed). zone_tab instances bind
     // one active subject each and their labels are subject-bound, matching the
     // AMS environment strip that shares the component.
-    lv_subject_t motion_tab_subject_;
-    lv_subject_t motion_tab_active_[3];
-    lv_subject_t motion_tab_label_[3];
+    lv_subject_t motion_tab_subject_{};
+    lv_subject_t motion_tab_active_[3]{};
+    lv_subject_t motion_tab_label_[3]{};
     char motion_tab_label_buf_[3][32];
     /// Fill the tab label buffers (and subjects, once they exist) in the
     /// current language.

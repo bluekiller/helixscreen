@@ -67,6 +67,12 @@ setup() {
     [ "$count" -eq 1 ]
 }
 
+@test "record: an entry that is a prefix of a recorded one is still recorded" {
+    record_disabled_service "systemd-dropin" "gdm3"
+    record_disabled_service "systemd-dropin" "gdm"
+    grep -qxF "systemd-dropin:gdm" "$DISABLED_SERVICES_FILE"
+}
+
 @test "record: handles multiple different entries" {
     record_disabled_service "systemd" "KlipperScreen"
     record_disabled_service "sysv-chmod" "/etc/init.d/S40xorg"

@@ -173,3 +173,15 @@ wait_for_line() { # <substring> <file>
     reset_line=$(grep -nF "git reset" "$MOCK_DOCKER_LOG" | head -1 | cut -d: -f1)
     [ "$sync_line" -lt "$reset_line" ]
 }
+
+@test "patches are reapplied after the checkout, before the job runs" {
+    # A submodule already at its pin keeps an earlier job's patches; a commit
+    # that edits a patch would otherwise fail the build's drift check.
+    run "$SCRIPT" test
+    [ "$status" -eq 0 ]
+    local reset_line reapply_line
+    reset_line=$(grep -nF "git reset" "$MOCK_DOCKER_LOG" | head -1 | cut -d: -f1)
+    reapply_line=$(grep -nF "make reapply-patches" "$MOCK_DOCKER_LOG" | head -1 | cut -d: -f1)
+    [ -n "$reapply_line" ]
+    [ "$reset_line" -lt "$reapply_line" ]
+}

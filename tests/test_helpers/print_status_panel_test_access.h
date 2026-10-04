@@ -104,6 +104,15 @@ class PrintStatusPanelTestAccess {
         return lv_subject_get_int(&panel.preparing_progress_subject_);
     }
 
+    /// The two subjects on_print_state_changed() writes without a
+    /// subjects_initialized_ guard.
+    static lv_subject_t* print_controls_enabled_subject(PrintStatusPanel& panel) {
+        return &panel.print_controls_enabled_subject_;
+    }
+    static lv_subject_t* gcode_viewer_mode_subject(PrintStatusPanel& panel) {
+        return &panel.gcode_viewer_mode_subject_;
+    }
+
     /// Stands in for the XML build, which is what normally assigns
     /// gcode_viewer_. get_tools_used() reads nothing else, so this is the whole
     /// wiring a tools-used test needs.

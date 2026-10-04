@@ -32,7 +32,7 @@ All of these must pass. If ANY fails, STOP and tell the user why.
 | Check | How | Fail action |
 |-------|-----|-------------|
 | Branch is releasable | `git rev-parse --abbrev-ref HEAD` is `main` or `release/X.Y`. Store it as `BRANCH`. | STOP: "{branch} is neither main nor a release/X.Y line" |
-| Clean working tree | `git status --porcelain` is empty after ignoring `LESSONS.md`, `LESSONS.md.lock`, `CLAUDE.md`, `injection-stats.json`, and `stats.json` in `.claude-recall/`. All five are recall's own state, rewritten by any session; since worktrees route their writes here (`PROJECT_DIR`, see `setup-worktree.sh`), they are dirty most of the time and are not a reason to hold a release. Commit them with it. | STOP: "Uncommitted changes — commit or stash first" |
+| Clean working tree | `git status --porcelain` is empty after ignoring `LESSONS.md`, `LESSONS.md.lock`, `CLAUDE.md`, `injection-stats.json`, and `stats.json` in `.claude-recall/`. All five are recall's own state, rewritten by any session; since worktrees route their writes here (`PROJECT_DIR`, see `setup-worktree.sh`), they are dirty most of the time and are not a reason to hold a release. Commit them with it. | STOP: "Uncommitted changes - commit them first" |
 | Up to date with origin | `git fetch origin` then check `git status -sb` for "behind" | STOP: "Branch is behind origin/$BRANCH — pull first" |
 | Tags fetched | `git fetch --tags origin` | Just do it silently |
 
@@ -130,18 +130,16 @@ Do not release on a red branch. Before starting, also confirm CI is green for th
 being released:
 
 ```bash
-# EVERY workflow, not just Code Quality. Build compiles with clang on Ubuntu while
-# local builds here use g++, so a clang-only diagnostic under -Werror is red on CI
-# and green on the release machine - checking one workflow reads as all-clear.
+# EVERY workflow, not just Code Quality. CI's toolchains and -Werror set differ from
+# the release machine's, so a diagnostic can be red on CI and green locally -
+# checking one workflow reads as all-clear.
 gh run list --branch "$BRANCH" --limit 20 --json conclusion,status,workflowName,headSha \
   --jq '.[] | select(.conclusion == "failure") | "\(.workflowName)\t\(.headSha[0:9])"'
 ```
 
 If ANY workflow's latest run is a `failure`, treat it as a STOP — fix it first.
-(v0.99.92 shipped with Code Quality red for ~10 hours because this gate did not exist.
-v0.99.118 nearly shipped with the Ubuntu `Build` job red for an hour, because the gate
-only looked at Code Quality: `Build Status` even prints "tolerated because this is an
-integration branch", so main stays red without anything stopping a release.)
+`Build Status` prints "tolerated because this is an integration branch" on a red main,
+so nothing else stops a release on a red build.
 
 Without `--branch` this reads whichever branch ran most recently, so on a release line it
 happily reports `main`'s runs as if they were yours. A workflow that does not apply to the
@@ -157,13 +155,9 @@ make full-test-run
 - If tests fail → STOP: "Tests failed — fix before releasing." Show the failure output.
 
 ### Shell tests
-```bash
-make test-shell
-```
-
-- If tests pass → continue
-- If bats is not installed → STOP: "bats not found — install it before releasing." Show the installation instructions from the make output.
-- If tests fail → STOP: "Shell tests failed — fix before releasing." Show the failure output.
+`make full-test-run` already runs the bats suite. Only on a release line that fell back
+to `make test-all` (see above), also run `make test-shell`. A missing bats or a failure
+is a STOP with the make output shown.
 
 ### Regenerate the XML linter schema
 
@@ -270,19 +264,14 @@ Run `git diff` and show a brief summary of what changed.
 
 ## STEP 6: COMMIT + TAG
 
-### Stage files explicitly
-Per project conventions — NEVER `git add -A` or `git add .`. Stage only the files actually modified:
-
-```bash
-git add VERSION.txt CHANGELOG.md
-# Plus, if Step 2's regeneration changed them:
-#   tools/xml-linter/schema/schema.json
-# Plus any other files modified in Step 5
-```
-
 ### Commit
+Commit the pathspecs directly; never `git add` in the shared tree (CLAUDE.md § Sharing
+This Tree), where a peer's commit can sweep up whatever sits in the index:
+
 ```bash
-git commit -m "chore(release): v{NEW_VERSION}"
+git commit -m "chore(release): v{NEW_VERSION}" -- VERSION.txt CHANGELOG.md
+# Append tools/xml-linter/schema/schema.json if Step 2's regeneration changed it,
+# and any other file modified in Step 5.
 ```
 
 ### Create annotated tag

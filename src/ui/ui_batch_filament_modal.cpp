@@ -28,8 +28,8 @@ namespace {
 // subjects): the XML tree bound to these outlives each one-shot instance's
 // exit animation, and an instance-owned subject would be deinit'd out from
 // under a live binding.
-lv_subject_t s_title_text;
-lv_subject_t s_action_text;
+lv_subject_t s_title_text{};
+lv_subject_t s_action_text{};
 std::string s_title_owned;
 std::string s_action_owned;
 bool s_direction_subjects_initialized = false;

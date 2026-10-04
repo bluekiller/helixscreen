@@ -301,12 +301,12 @@ class TouchCalibrationOverlay : public OverlayBase, public helix::ui::ITouchCali
     //
 
     SubjectManager subjects_;
-    lv_subject_t state_subject_;       ///< int: 0-5 for states
-    lv_subject_t instruction_subject_; ///< string: instruction text
+    lv_subject_t state_subject_{};       ///< int: 0-5 for states
+    lv_subject_t instruction_subject_{}; ///< string: instruction text
     char instruction_buffer_[128];
 
     // Accept button countdown text
-    lv_subject_t accept_button_text_;
+    lv_subject_t accept_button_text_{};
     char accept_text_buffer_[32] = "Accept";
 
     //

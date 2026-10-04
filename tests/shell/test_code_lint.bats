@@ -414,13 +414,16 @@ rtti_lint_files() {
 # gate has no opt-out). The pattern travels through the environment, not
 # `awk -v`: -v runs escape processing over the value, which turns `\.` into a
 # match-anything `.` and emits a warning for every escape.
+# Optional CODE_LINT_JOIN (an ERE): a code line matching it is held and joined
+# to the next line before matching, reported at the first line. That catches a
+# declaration clang-format split after its type.
 code_offenders() {
     local pat="$1" optout="$2"
     shift 2
     CODE_LINT_PAT="$pat" CODE_LINT_OPTOUT="$optout" awk '
-        BEGIN { pat = ENVIRON["CODE_LINT_PAT"]; optout = ENVIRON["CODE_LINT_OPTOUT"] }
-        FNR == 1 { in_block = 0 }
-        optout != "" && index($0, optout) > 0 { next }
+        BEGIN { pat = ENVIRON["CODE_LINT_PAT"]; optout = ENVIRON["CODE_LINT_OPTOUT"]; join = ENVIRON["CODE_LINT_JOIN"] }
+        FNR == 1 { in_block = 0; held = "" }
+        optout != "" && index($0, optout) > 0 { held = ""; next }
         {
             # Walk the line left to right, honouring whichever delimiter opens
             # first. A `//` and a `/*` on one line is not hypothetical:
@@ -450,7 +453,20 @@ code_offenders() {
                 if (e == 0) { in_block = 1; break }
                 line = substr(rest, e + 2)
             }
-            if (code ~ pat) print FILENAME ":" FNR ": " $0
+            if (held != "") {
+                code = held " " code
+                text = held_text " " $0
+                where = held_fnr
+                held = ""
+            } else {
+                text = $0
+                where = FNR
+            }
+            if (join != "" && code ~ join) {
+                held = code; held_text = text; held_fnr = where
+                next
+            }
+            if (code ~ pat) print FILENAME ":" where ": " text
         }
     ' "$@"
 }
@@ -612,6 +628,89 @@ SHAPES
     lacks "Plain string" "$output"
     lacks "STD_REGEX_OK" "$output"
     lacks "helix::Regex" "$output"
+}
+
+# --- lv_subject_t declarations are value-initialized ---
+#
+# A subject that has not been through lv_subject_init_*() must read as
+# LV_SUBJECT_TYPE_INVALID with an empty subscriber list, so a publish that
+# arrives first is LVGL's warned no-op. Without `{}` a member or local holds
+# whatever the allocation held, and garbage that reads as an INT subject sends
+# lv_subject_set_int() down a wild subscriber list (#1423). `static` and
+# `extern` declarations are not matched: static storage is zeroed already. A
+# bare namespace-scope global is zeroed too but is still flagged, since the
+# line alone cannot tell it from a member; brace it. Unavoidable?
+# // SUBJECT_INIT_OK: <reason>
+subject_no_init_pattern() {
+    local lead='^[[:space:]]*(mutable[[:space:]]+)?'
+    local name='[_[:alnum:]]+[[:space:]]*(\[[^]]*\][[:space:]]*)*'
+    printf '%s' "${lead}(::)?lv_subject_t[[:space:]]+([^;]*,[[:space:]]*)?${name}[,;]|${lead}std::array<[[:space:]]*(::)?lv_subject_t[[:space:]]*,.*>[[:space:]]+${name};"
+}
+
+# A type alone on its line: clang-format splits long declarations there.
+subject_split_pattern() {
+    printf '%s' '^[[:space:]]*(mutable[[:space:]]+)?(::)?lv_subject_t[[:space:]]*$'
+}
+
+subject_offenders() {
+    CODE_LINT_JOIN="$(subject_split_pattern)" code_offenders "$(subject_no_init_pattern)" SUBJECT_INIT_OK "$@"
+}
+
+check_subjects_value_initialized() {
+    local offenders
+    # shellcheck disable=SC2046  # paths have no spaces; word splitting is intended
+    offenders=$(subject_offenders $(rtti_lint_files))
+    [ -z "$offenders" ] && return 0
+    echo "lv_subject_t declared without an initializer (reads as garbage until init):"
+    printf '%s\n' "$offenders"
+    echo "Write \`lv_subject_t name_{};\`. Unavoidable? // SUBJECT_INIT_OK: <reason>"
+    return 1
+}
+
+@test "lv_subject_t declarations are value-initialized (#1423)" {
+    run check_subjects_value_initialized
+    [ "$status" -eq 0 ]
+}
+
+@test "the subject-init gate catches bare declarations, and stays quiet on initialized, static and pointer forms" {
+    local f="${BATS_TEST_TMPDIR}/subject_shapes.h"
+    cat > "$f" <<'SHAPES'
+    lv_subject_t bare_;
+    lv_subject_t slots_[MAX_SLOTS];
+    std::array<lv_subject_t, 4> rows_;
+    lv_subject_t
+        split_bare_; ///< clang-format moved the name
+    mutable lv_subject_t mutable_bare_;
+    ::lv_subject_t qualified_bare_;
+    lv_subject_t first_bare_, second_bare_;
+    lv_subject_t init_first_{}, trailing_bare_;
+    lv_subject_t grid_[2][3];
+    std::array<lv_subject_t, static_cast<size_t>(Kind::Count)> cast_rows_;
+    lv_subject_t braced_{};
+    lv_subject_t braced_slots_[MAX_SLOTS]{};
+    std::array<lv_subject_t, 4> braced_rows_{};
+    std::array<lv_subject_t, static_cast<size_t>(Kind::Count)> braced_cast_rows_{};
+    lv_subject_t
+        braced_split_{}; ///< clang-format moved the name
+    mutable lv_subject_t braced_mutable_{};
+    lv_subject_t braced_pair_a_{}, braced_pair_b_{};
+    lv_subject_t braced_grid_[2][3]{};
+    static lv_subject_t zeroed_by_storage;
+    lv_subject_t* pointer_ = nullptr;
+    extern lv_subject_t elsewhere;
+    lv_subject_t hatch_; // SUBJECT_INIT_OK: test fixture
+    // lv_subject_t in_a_comment_;
+SHAPES
+    run subject_offenders "$f"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 10 ]
+    contains "subject_shapes.h:4: " "$output"
+    contains "split_bare_" "$output"
+    lacks "braced" "$output"
+    lacks "zeroed_by_storage" "$output"
+    lacks "pointer_" "$output"
+    lacks "elsewhere" "$output"
+    lacks "SUBJECT_INIT_OK" "$output"
 }
 
 # --- One way to defer to the main thread per job ---

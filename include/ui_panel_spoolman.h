@@ -97,9 +97,9 @@ class SpoolmanPanel : public OverlayBase {
     bool preserve_scroll_ = false; ///< Preserve scroll position on next populate
 
     // ========== Subjects ==========
-    SubjectManager subjects_;          ///< RAII subject manager
-    lv_subject_t panel_state_subject_; ///< Panel display state (loading/empty/spools)
-    lv_subject_t header_title_subject_;
+    SubjectManager subjects_;            ///< RAII subject manager
+    lv_subject_t panel_state_subject_{}; ///< Panel display state (loading/empty/spools)
+    lv_subject_t header_title_subject_{};
     char header_title_buf_[64];
 
     // ========== Private Methods ==========

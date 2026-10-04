@@ -160,7 +160,7 @@ class WizardLanguageChooserStep : public helix::wizard::Step {
     SubjectManager subjects_;
 
     // Subjects
-    lv_subject_t welcome_text_;
+    lv_subject_t welcome_text_{};
 
     // String buffer for welcome text subject
     char welcome_buffer_[64] = "Welcome!";

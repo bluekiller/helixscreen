@@ -1810,23 +1810,23 @@ class AmsState {
     helix::AsyncLifetimeGuard async_lifetime_;
 
     // Backend selector subjects
-    lv_subject_t backend_count_;
-    lv_subject_t active_backend_;
-    lv_subject_t ams_data_revision_;
+    lv_subject_t backend_count_{};
+    lv_subject_t active_backend_{};
+    lv_subject_t ams_data_revision_{};
 
     // System-level subjects
-    lv_subject_t ams_type_;
-    lv_subject_t ams_is_tool_changer_;
-    lv_subject_t ams_is_filament_system_;
-    lv_subject_t ams_action_;
+    lv_subject_t ams_type_{};
+    lv_subject_t ams_is_tool_changer_{};
+    lv_subject_t ams_is_filament_system_{};
+    lv_subject_t ams_action_{};
     /// Granular load/unload sub-phase (-1=none, 0=Home, 1=Select, 2=Heat,
     /// 3=Move). Snapmaker U1 only; registered with subjects_.
-    lv_subject_t ams_operation_phase_;
+    lv_subject_t ams_operation_phase_{};
     /// 1 while an active op's phase-progress feed has stalled (~8s) so the frozen
     /// live-temp number should read as "Working…"; 0 otherwise. AD5X IFS only.
     /// Registered with subjects_.
-    lv_subject_t ams_operation_indeterminate_;
-    lv_subject_t toolchange_step_; ///< current narration phase index (-1 = none/idle)
+    lv_subject_t ams_operation_indeterminate_{};
+    lv_subject_t toolchange_step_{}; ///< current narration phase index (-1 = none/idle)
     /// Active toolchange operation for the narration router to resolve a phase
     /// index without a sidebar pointer. Defaults to a swap (most common case).
     std::atomic<StepOperationType> active_step_operation_{StepOperationType::LOAD_SWAP};
@@ -1834,11 +1834,11 @@ class AmsState {
     /// toolchange_step_ against firmware that narrates one phase more than once
     /// per operation (AFC wipes before AND after the kick). -1 = no phase yet.
     int narration_phase_high_water_{-1};
-    lv_subject_t current_slot_;
-    lv_subject_t pending_target_slot_;
-    lv_subject_t ams_current_tool_;
-    lv_subject_t filament_loaded_;
-    lv_subject_t filament_runout_;
+    lv_subject_t current_slot_{};
+    lv_subject_t pending_target_slot_{};
+    lv_subject_t ams_current_tool_{};
+    lv_subject_t filament_loaded_{};
+    lv_subject_t filament_runout_{};
     /// Edge tracking behind `ams_filament_runout`. `AmsSystemInfo::filament_runout`
     /// is a LEVEL on some backends and a sticky latch on at least one (the CFS
     /// mirrors `box.filament_useup`, which is only ever cleared by a successful
@@ -1881,18 +1881,18 @@ class AmsState {
     /// connected (or when a backend was swapped in) describes no transition we
     /// witnessed. Same reasoning as AmsBackendAd5xIfs's head-switch edge gate.
     bool runout_level_seeded_{false};
-    lv_subject_t bypass_active_;
-    lv_subject_t external_spool_color_;
+    lv_subject_t bypass_active_{};
+    lv_subject_t external_spool_color_{};
     /// External spool material name — string flavor of external_spool_color_.
     /// Pure reflector of get_external_spool_info(); mirrors the color subject's
     /// update sites so XML text bindings stay in lockstep with the color dot.
-    lv_subject_t external_spool_material_;
+    lv_subject_t external_spool_material_{};
     char external_spool_material_buf_[32]; // "PLA", "PETG-CF", ... fits comfortably
-    lv_subject_t supports_bypass_;
-    lv_subject_t ams_slot_count_;
-    lv_subject_t ams_cards_compact_;
-    lv_subject_t slots_version_;
-    lv_subject_t tool_map_version_;
+    lv_subject_t supports_bypass_{};
+    lv_subject_t ams_slot_count_{};
+    lv_subject_t ams_cards_compact_{};
+    lv_subject_t slots_version_{};
+    lv_subject_t tool_map_version_{};
     /// First-gate (port) filament-present flag for the ACTIVE tool (#991).
     /// 1 = filament present at the active tool's port/buffer sensor, 0 = absent.
     /// Auto-feed backends (Snapmaker U1) update this from the port sensor — NOT
@@ -1900,7 +1900,7 @@ class AmsState {
     /// signal that flips true the moment a fresh spool is re-fed. Registered with
     /// subjects_. Defaults to 1 so non-auto-feed / unknown backends never gate
     /// Resume.
-    lv_subject_t active_tool_port_present_;
+    lv_subject_t active_tool_port_present_{};
     std::vector<int> last_tool_map_;
     /// Companion to last_tool_map_ for the APPLIED routing (get_tool_mapping()),
     /// which moves independently of the physical map on a backend that publishes
@@ -1945,7 +1945,7 @@ class AmsState {
     std::optional<SlotInfo> in_memory_external_spool_;
 
     // String subjects (need buffers)
-    lv_subject_t ams_action_detail_;
+    lv_subject_t ams_action_detail_{};
     // Sized for the longest known translated composition any producer hands
     // this subject: the CFS load-failure verdict message
     // (AmsBackendCfs::phase_verdict_message), worst case ru at 364 bytes, with
@@ -1954,11 +1954,11 @@ class AmsState {
     // with no length bound at all, so recompute_action_detail() truncates on
     // a UTF-8 boundary before the copy rather than relying on this size alone.
     char action_detail_buf_[512];
-    lv_subject_t ams_system_name_;
+    lv_subject_t ams_system_name_{};
     char system_name_buf_[32];
-    lv_subject_t ams_system_logo_;
+    lv_subject_t ams_system_logo_{};
     char system_logo_buf_[64];
-    lv_subject_t ams_current_tool_text_;
+    lv_subject_t ams_current_tool_text_{};
     // Holds a translated position label ("Tool 1", "Инструмент 16", "Печатающая
     // головка 16") or "---". Sized like current_slot_text_buf_/system_logo_buf_:
     // a translated noun plus a two-digit number can run well past ASCII length.
@@ -1968,135 +1968,135 @@ class AmsState {
     /// The buffer holds two translated lines; German and Russian restriction
     /// texts are the long ones, and Cyrillic costs ~2 bytes a character, hence
     /// 384 rather than the 64 used elsewhere.
-    lv_subject_t ams_endless_state_;
-    lv_subject_t ams_endless_text_;
+    lv_subject_t ams_endless_state_{};
+    lv_subject_t ams_endless_text_{};
     char ams_endless_text_buf_[384];
 
     // Tool change progress (AFC multi-color prints)
-    lv_subject_t toolchange_visible_;        // 1 when swaps expected, 0 otherwise
-    lv_subject_t ams_current_toolchange_;    // 0-based current toolchange index (-1=none)
-    lv_subject_t ams_number_of_toolchanges_; // Total expected toolchanges
-    lv_subject_t toolchange_text_;           // "2 / 5" formatted display
-    char toolchange_text_buf_[32]{};         // Buffer for formatted text
+    lv_subject_t toolchange_visible_{};        // 1 when swaps expected, 0 otherwise
+    lv_subject_t ams_current_toolchange_{};    // 0-based current toolchange index (-1=none)
+    lv_subject_t ams_number_of_toolchanges_{}; // Total expected toolchanges
+    lv_subject_t toolchange_text_{};           // "2 / 5" formatted display
+    char toolchange_text_buf_[32]{};           // Buffer for formatted text
 
     // Filament path visualization subjects
-    lv_subject_t path_topology_;
-    lv_subject_t path_filament_segment_;
+    lv_subject_t path_topology_{};
+    lv_subject_t path_filament_segment_{};
 
     // Dryer subjects (for AMS systems with integrated drying)
-    lv_subject_t dryer_supported_;
-    lv_subject_t dryer_active_;
-    lv_subject_t dryer_current_temp_;
-    lv_subject_t dryer_target_temp_;
-    lv_subject_t dryer_remaining_min_;
-    lv_subject_t dryer_progress_pct_;
+    lv_subject_t dryer_supported_{};
+    lv_subject_t dryer_active_{};
+    lv_subject_t dryer_current_temp_{};
+    lv_subject_t dryer_target_temp_{};
+    lv_subject_t dryer_remaining_min_{};
+    lv_subject_t dryer_progress_pct_{};
     int dryer_mirror_unit_ = 0; ///< Unit whose dryer state the scalar subjects mirror
 
     // Dryer text subjects (need buffers)
-    lv_subject_t dryer_current_temp_text_;
+    lv_subject_t dryer_current_temp_text_{};
     char dryer_current_temp_text_buf_[16];
-    lv_subject_t dryer_target_temp_text_;
+    lv_subject_t dryer_target_temp_text_{};
     char dryer_target_temp_text_buf_[16];
-    lv_subject_t dryer_time_text_;
+    lv_subject_t dryer_time_text_{};
     char dryer_time_text_buf_[32];
 
     // Dryer modal editing subjects (user-adjustable values)
-    lv_subject_t modal_target_temp_;  ///< Modal's target temp in °C (raw int subject)
-    lv_subject_t modal_duration_min_; ///< Modal's duration in minutes (raw int subject)
+    lv_subject_t modal_target_temp_{};  ///< Modal's target temp in °C (raw int subject)
+    lv_subject_t modal_duration_min_{}; ///< Modal's duration in minutes (raw int subject)
 
     // Clog detection config overrides (set by ClogDetectionConfigModal)
     int source_override_ = 0;           // 0=auto, 1=encoder, 2=flowguard, 3=afc
     int danger_threshold_override_ = 0; // 0=use computed default
 
     // Clog detection meter subjects
-    lv_subject_t clog_meter_mode_;    // 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
-    lv_subject_t clog_meter_value_;   // 0-100 (encoder/afc) or -100..+100 (flowguard)
-    lv_subject_t clog_meter_warning_; // 0=ok, 1=warning
-    lv_subject_t clog_meter_status_;  // ClogMeterStatus: 0=ok, 1=warning, 2=fault
-    lv_subject_t clog_meter_mode_text_;
+    lv_subject_t clog_meter_mode_{};    // 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
+    lv_subject_t clog_meter_value_{};   // 0-100 (encoder/afc) or -100..+100 (flowguard)
+    lv_subject_t clog_meter_warning_{}; // 0=ok, 1=warning
+    lv_subject_t clog_meter_status_{};  // ClogMeterStatus: 0=ok, 1=warning, 2=fault
+    lv_subject_t clog_meter_mode_text_{};
     // Mode names render translated: ru "Засор: вручную" is 24 bytes before the
     // NUL, es "Obstrucción automática" the same. Undersized buffers truncate
     // mid-codepoint, silently.
     char clog_meter_mode_text_buf_[32]{};
-    lv_subject_t clog_meter_danger_pct_;  // 0-100, where danger zone starts
-    lv_subject_t clog_meter_peak_pct_;    // 0-100, peak-hold marker position
-    lv_subject_t clog_meter_center_text_; // Enhanced center display
+    lv_subject_t clog_meter_danger_pct_{};  // 0-100, where danger zone starts
+    lv_subject_t clog_meter_peak_pct_{};    // 0-100, peak-hold marker position
+    lv_subject_t clog_meter_center_text_{}; // Enhanced center display
     char clog_meter_center_text_buf_[16]{};
-    lv_subject_t clog_meter_label_left_; // Left endpoint label
+    lv_subject_t clog_meter_label_left_{}; // Left endpoint label
     // Endpoint labels render translated: ru "СПУТЫВАНИЕ" is 20 bytes.
     char clog_meter_label_left_buf_[24]{};
-    lv_subject_t clog_meter_label_right_; // Right endpoint label
+    lv_subject_t clog_meter_label_right_{}; // Right endpoint label
     char clog_meter_label_right_buf_[24]{};
 
     // Currently Loaded display subjects (reactive binding for "Currently Loaded" card)
-    lv_subject_t current_material_text_;
+    lv_subject_t current_material_text_{};
     // Holds a full filament identity — brand, Spoolman filament name and
     // material concatenated. lv_subject_copy_string() truncates with
     // lv_strlcpy and reports nothing, so an undersized buffer clips the label
     // silently; real Spoolman names run past 50 characters on their own.
     char current_material_text_buf_[128];
-    lv_subject_t current_slot_text_;
+    lv_subject_t current_slot_text_{};
     char current_slot_text_buf_[64];
-    lv_subject_t current_weight_text_;
+    lv_subject_t current_weight_text_{};
     char current_weight_text_buf_[16];
-    lv_subject_t current_has_weight_;
-    lv_subject_t current_color_;
+    lv_subject_t current_has_weight_{};
+    lv_subject_t current_color_{};
 
     // Per-slot subjects (color, status, remaining filament)
-    lv_subject_t slot_colors_[MAX_SLOTS];
-    lv_subject_t slot_statuses_[MAX_SLOTS];
-    lv_subject_t slot_remaining_[MAX_SLOTS]; // string: "52m" or "432g" or ""
-    char slot_remaining_buf_[MAX_SLOTS][16]; // buffers for remaining strings
-    lv_subject_t slot_materials_[MAX_SLOTS]; // string: "PLA", "PETG", … or "" (last synced type)
+    lv_subject_t slot_colors_[MAX_SLOTS]{};
+    lv_subject_t slot_statuses_[MAX_SLOTS]{};
+    lv_subject_t slot_remaining_[MAX_SLOTS]{}; // string: "52m" or "432g" or ""
+    char slot_remaining_buf_[MAX_SLOTS][16];   // buffers for remaining strings
+    lv_subject_t slot_materials_[MAX_SLOTS]{}; // string: "PLA", "PETG", … or "" (last synced type)
     char slot_materials_buf_[MAX_SLOTS][24]; // buffers for material strings (holds "PETG-CF" etc.)
-    lv_subject_t slot_fills_[MAX_SLOTS];     // int: fill percent 0-100, -1 = unknown/no-data
+    lv_subject_t slot_fills_[MAX_SLOTS]{};   // int: fill percent 0-100, -1 = unknown/no-data
                                              // (SlotInfo::display_fill_pct encoding)
 
     // Per-slot LIVE state subjects — the panel observes these to redraw the path
     // and active-lane highlight in real time as Moonraker sensor data arrives.
     // Updated alongside slot_colors_/slot_statuses_ in the status-sync path.
-    lv_subject_t slot_segments_[MAX_SLOTS];         // int: PathSegment enum value
-    lv_subject_t slot_toolhead_present_[MAX_SLOTS]; // int: 0/1 per-slot toolhead sensor
-    lv_subject_t slot_active_loaded_[MAX_SLOTS];    // int: 0/1 firmware seated & loaded
-    lv_subject_t slot_lane_states_[MAX_SLOTS];      // int: helix::ui::LaneState (classify_lane)
-    lv_subject_t slot_has_error_[MAX_SLOTS];        // int: 0/1 BLOCKED or carries a SlotError
-    lv_subject_t slot_error_severity_[MAX_SLOTS];   // int: SlotError::Severity (INFO when none)
+    lv_subject_t slot_segments_[MAX_SLOTS]{};         // int: PathSegment enum value
+    lv_subject_t slot_toolhead_present_[MAX_SLOTS]{}; // int: 0/1 per-slot toolhead sensor
+    lv_subject_t slot_active_loaded_[MAX_SLOTS]{};    // int: 0/1 firmware seated & loaded
+    lv_subject_t slot_lane_states_[MAX_SLOTS]{};      // int: helix::ui::LaneState (classify_lane)
+    lv_subject_t slot_has_error_[MAX_SLOTS]{};        // int: 0/1 BLOCKED or carries a SlotError
+    lv_subject_t slot_error_severity_[MAX_SLOTS]{};   // int: SlotError::Severity (INFO when none)
 
     // Per-unit environment subjects (CFS temp/humidity)
-    lv_subject_t unit_temp_[MAX_UNITS];     // int: tenths of C (270 = 27.0C), 0 = no data
-    lv_subject_t unit_humidity_[MAX_UNITS]; // int: percentage, 0 = no data
+    lv_subject_t unit_temp_[MAX_UNITS]{};     // int: tenths of C (270 = 27.0C), 0 = no data
+    lv_subject_t unit_humidity_[MAX_UNITS]{}; // int: percentage, 0 = no data
 
     // Per-unit environment indicator display subjects (formatted text for XML binding)
     static constexpr int ENV_IND_TEXT_BUF_SIZE = 16;
     static constexpr int ENV_IND_DRYING_BUF_SIZE = 32;
 
-    lv_subject_t env_ind_temp_text_[MAX_UNITS];
+    lv_subject_t env_ind_temp_text_[MAX_UNITS]{};
     char env_ind_temp_text_buf_[MAX_UNITS][ENV_IND_TEXT_BUF_SIZE]{};
-    lv_subject_t env_ind_humidity_text_[MAX_UNITS];
+    lv_subject_t env_ind_humidity_text_[MAX_UNITS]{};
     char env_ind_humidity_text_buf_[MAX_UNITS][ENV_IND_TEXT_BUF_SIZE]{};
-    lv_subject_t env_ind_visible_[MAX_UNITS];
-    lv_subject_t env_ind_humidity_status_[MAX_UNITS]; // 0=ok, 1=warn, 2=danger
-    lv_subject_t env_ind_humidity_visible_[MAX_UNITS];
-    lv_subject_t env_ind_drying_active_[MAX_UNITS];
-    lv_subject_t env_ind_drying_text_[MAX_UNITS];
+    lv_subject_t env_ind_visible_[MAX_UNITS]{};
+    lv_subject_t env_ind_humidity_status_[MAX_UNITS]{}; // 0=ok, 1=warn, 2=danger
+    lv_subject_t env_ind_humidity_visible_[MAX_UNITS]{};
+    lv_subject_t env_ind_drying_active_[MAX_UNITS]{};
+    lv_subject_t env_ind_drying_text_[MAX_UNITS]{};
     char env_ind_drying_text_buf_[MAX_UNITS][ENV_IND_DRYING_BUF_SIZE]{};
 
     // Always-off placeholders for units past MAX_UNITS (see
     // env_indicator_subject_names). Written once at init and never again.
-    lv_subject_t env_ind_off_flag_;
-    lv_subject_t env_ind_off_text_;
+    lv_subject_t env_ind_off_flag_{};
+    lv_subject_t env_ind_off_text_{};
     char env_ind_off_text_buf_[ENV_IND_TEXT_BUF_SIZE]{};
 
     // Detail-view env indicator mirror subjects (reflect detail_env_unit_)
-    lv_subject_t env_ind_detail_temp_text_;
+    lv_subject_t env_ind_detail_temp_text_{};
     char env_ind_detail_temp_text_buf_[ENV_IND_TEXT_BUF_SIZE]{};
-    lv_subject_t env_ind_detail_humidity_text_;
+    lv_subject_t env_ind_detail_humidity_text_{};
     char env_ind_detail_humidity_text_buf_[ENV_IND_TEXT_BUF_SIZE]{};
-    lv_subject_t env_ind_detail_humidity_status_;
-    lv_subject_t env_ind_detail_humidity_visible_;
-    lv_subject_t env_ind_detail_visible_;
-    lv_subject_t env_ind_detail_drying_active_;
-    lv_subject_t env_ind_detail_drying_text_;
+    lv_subject_t env_ind_detail_humidity_status_{};
+    lv_subject_t env_ind_detail_humidity_visible_{};
+    lv_subject_t env_ind_detail_visible_{};
+    lv_subject_t env_ind_detail_drying_active_{};
+    lv_subject_t env_ind_detail_drying_text_{};
     char env_ind_detail_drying_text_buf_[ENV_IND_DRYING_BUF_SIZE]{};
     int detail_env_unit_ = 0;
 

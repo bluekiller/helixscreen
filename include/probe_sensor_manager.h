@@ -286,10 +286,10 @@ class ProbeSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
-    lv_subject_t probe_triggered_;
-    lv_subject_t probe_last_z_;
-    lv_subject_t probe_z_offset_;
-    lv_subject_t sensor_count_;
+    lv_subject_t probe_triggered_{};
+    lv_subject_t probe_last_z_{};
+    lv_subject_t probe_z_offset_{};
+    lv_subject_t sensor_count_{};
 };
 
 } // namespace helix::sensors

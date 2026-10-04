@@ -243,6 +243,10 @@ D 'git fetch --quiet --all --recurse-submodules=no'
 # it level with the remote before the reset below.
 D 'git fetch --quiet origin main && git update-ref refs/heads/main FETCH_HEAD'
 D 'git reset --hard --quiet $SHA && git submodule update --init --recursive --quiet'
+# A submodule already at its pin keeps the patches an earlier job applied, so a
+# commit that edits a patch in patches/ meets the old revision and the build's
+# drift check refuses. Reapply against this commit's patches/ every run.
+D 'make reapply-patches >/dev/null'
 D 'git log --oneline -1'
 D '$CMD 2>&1'
 REMOTE

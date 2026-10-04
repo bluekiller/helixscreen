@@ -98,10 +98,10 @@ class ChangeHostModal : public Modal {
   private:
     // === Subjects for XML binding ===
     SubjectManager subjects_;
-    lv_subject_t host_ip_subject_;
-    lv_subject_t host_port_subject_;
-    lv_subject_t testing_subject_;
-    lv_subject_t validated_subject_;
+    lv_subject_t host_ip_subject_{};
+    lv_subject_t host_port_subject_{};
+    lv_subject_t testing_subject_{};
+    lv_subject_t validated_subject_{};
 
     char host_ip_buf_[256] = {0};
     char host_port_buf_[8] = {0};

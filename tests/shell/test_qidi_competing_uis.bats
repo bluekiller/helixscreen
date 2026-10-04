@@ -147,7 +147,7 @@ EOF
 
     grep -q "stop qd-screen.service" "$systemctl_log"
     grep -q "disable qd-screen.service" "$systemctl_log"
-    grep -qF "systemd:qd-screen.service" "$DISABLED_SERVICES_FILE"
+    grep -qF "systemd-dropin:qd-screen.service" "$DISABLED_SERVICES_FILE"
 }
 
 @test "qidi handler: discovers a unit in /lib/systemd/system too" {
@@ -161,7 +161,7 @@ EOF
     [ "$status" -eq 0 ]
 
     grep -q "stop qidiclient.service" "$systemctl_log"
-    grep -qF "systemd:qidiclient.service" "$DISABLED_SERVICES_FILE"
+    grep -qF "systemd-dropin:qidiclient.service" "$DISABLED_SERVICES_FILE"
 }
 
 @test "qidi handler: matches an ExecStart whose capitalisation differs" {
@@ -174,7 +174,7 @@ EOF
     [ "$status" -eq 0 ]
 
     grep -q "disable Qidi-client.service" "$systemctl_log"
-    grep -qF "systemd:Qidi-client.service" "$DISABLED_SERVICES_FILE"
+    grep -qF "systemd-dropin:Qidi-client.service" "$DISABLED_SERVICES_FILE"
 }
 
 @test "qidi handler: never touches the helixscreen unit" {

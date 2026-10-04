@@ -82,8 +82,8 @@ struct TempDisplayData {
     lv_obj_t* unit_label = nullptr;
 
     // String subjects for reactive text binding
-    lv_subject_t current_text_subject;
-    lv_subject_t target_text_subject;
+    lv_subject_t current_text_subject{};
+    lv_subject_t target_text_subject{};
 
     // Observers from lv_label_bind_text (must be removed before freeing subjects)
     lv_observer_t* current_text_observer = nullptr;
