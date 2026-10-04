@@ -331,6 +331,46 @@ exit 0
     refute_grep "^stop lightdm" "$SYSTEMCTL_LOG"
 }
 
+@test "display manager: under sudo, a desktop ancestor still marks a graphical session" {
+    # `curl ... | sudo sh` resets the environment: the installer itself has no
+    # DISPLAY, but the terminal's shell two levels up does.
+    platform="k2"
+    mock_unit_state "lightdm" 0 "enabled"
+    mock_proc $$ 4000 "PATH=/usr/bin" "HOME=/root"
+    mock_proc 4000 3000 "SUDO_USER=pi"
+    mock_proc 3000 1 "DISPLAY=:0" "HOME=/home/pi"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    refute_grep "^stop lightdm" "$SYSTEMCTL_LOG"
+    grep -q "disable lightdm" "$SYSTEMCTL_LOG"
+}
+
+@test "display manager: an ssh chain with no display ancestor stops the DM" {
+    platform="k2"
+    mock_unit_state "lightdm" 0 "enabled"
+    mock_proc $$ 4000 "PATH=/usr/bin"
+    mock_proc 4000 3000 "SSH_CONNECTION=1.2.3.4 5 6.7.8.9 22"
+    mock_proc 3000 1 "DISPLAY="
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    grep -q "^stop lightdm" "$SYSTEMCTL_LOG"
+}
+
+@test "display manager: an unreadable /proc reads as not graphical" {
+    platform="k2"
+    mock_unit_state "lightdm" 0 "enabled"
+    HELIX_PROC_ROOT="$BATS_TEST_TMPDIR/no-such-proc"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    grep -q "^stop lightdm" "$SYSTEMCTL_LOG"
+}
+
 @test "display manager: a disabled sddm is left alone" {
     platform="k2"
     mock_unit_state "sddm" 3 "disabled"

@@ -135,10 +135,39 @@ _take_down_unit() {
 }
 
 # True when this installer runs inside a desktop session, where stopping the
-# display manager takes down the terminal running it.
+# display manager or compositor takes down the terminal running it. `sudo sh`
+# resets the environment, so the installer's own variables are not enough:
+# walk the ancestors and look for a display in theirs. An unreadable /proc
+# reads as not graphical.
 _in_graphical_session() {
+    local proc="${HELIX_PROC_ROOT:-/proc}" pid="$$" hops=0 stat
     case "${XDG_SESSION_TYPE:-}" in x11|wayland) return 0 ;; esac
-    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]
+    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && return 0
+    while [ "$pid" -gt 1 ] 2>/dev/null && [ "$hops" -lt 32 ]; do
+        tr '\0' '\n' 2>/dev/null < "$proc/$pid/environ" \
+            | grep -qE '^(DISPLAY|WAYLAND_DISPLAY)=.' && return 0
+        read -r stat 2>/dev/null < "$proc/$pid/stat" || return 1
+        # comm may hold spaces and ')': the fields resume after the last ')'.
+        # shellcheck disable=SC2086
+        set -- ${stat##*)}
+        pid="${2:-0}"
+        hops=$((hops + 1))
+    done
+    return 1
+}
+
+# Take down a unit that may be drawing the session this installer runs in:
+# inside one, leave it up and let the reboot finish the switch.
+# Args: $1 = unit name, $2 = what it is, for the log
+_take_down_session_unit() {
+    if _in_graphical_session; then
+        log_info "Disabling $2 $1 (this session runs on it)..."
+        _take_down_unit "$1" nostop
+        log_warn "Reboot to finish switching from $1 to HelixScreen."
+    else
+        log_info "Stopping and disabling $2 $1..."
+        _take_down_unit "$1"
+    fi
 }
 
 # Stop enabled or running display managers (#1693). Only on hosts whose
@@ -150,14 +179,7 @@ stop_display_managers() {
     _host_ships_a_stock_ui || return 0
     for dm in $DISPLAY_MANAGERS; do
         _unit_is_competing "$dm" || continue
-        if _in_graphical_session; then
-            log_info "Disabling display manager $dm (running this session; a reboot finishes the switch)..."
-            _take_down_unit "$dm" nostop
-            log_warn "Reboot to finish switching from $dm to HelixScreen."
-        else
-            log_info "Stopping and disabling display manager $dm..."
-            _take_down_unit "$dm"
-        fi
+        _take_down_session_unit "$dm" "display manager"
         found_any=true
     done
 }
@@ -175,12 +197,14 @@ stop_wayland_compositors() {
         if [ "$INIT_SYSTEM" = "systemd" ]; then
             for svc in "$comp" "${comp}@tty1"; do
                 if _unit_is_competing "$svc"; then
-                    log_info "Stopping and disabling Wayland compositor service $svc (DRM master)..."
-                    _take_down_unit "$svc"
+                    _take_down_session_unit "$svc" "Wayland compositor (DRM master)"
                     found_any=true
                 fi
             done
         fi
+        # Killing the compositor this session draws on kills the installer's
+        # terminal; the disabled unit is gone after the reboot.
+        _in_graphical_session && continue
         # Kill any lingering compositor process (exact basename via pidof)
         if kill_process_by_name "$comp"; then
             log_info "Killed lingering Wayland compositor: $comp (was holding /dev/dri/card0)"
