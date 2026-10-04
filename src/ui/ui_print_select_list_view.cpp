@@ -5,6 +5,7 @@
 
 #include "ui_filename_utils.h"
 #include "ui_panel_print_select.h" // For PrintFileData
+#include "ui_virtual_list.h"
 
 #include "display_settings_manager.h"
 
@@ -83,6 +84,7 @@ void PrintSelectListView::clear_cached_state() {
     trailing_spacer_ = nullptr;
     visible_start_ = -1;
     visible_end_ = -1;
+    total_items_ = 0;
     last_leading_height_ = -1;
     last_trailing_height_ = -1;
 }
@@ -332,6 +334,9 @@ void PrintSelectListView::populate(const std::vector<PrintFileData>& file_list,
     visible_start_ = -1;
     visible_end_ = -1;
 
+    // Invalidate pool indices so rows reconfigure for the new file list
+    std::fill(list_pool_indices_.begin(), list_pool_indices_.end(), static_cast<ssize_t>(-1));
+
     // Update visible rows (this also updates spacer heights)
     update_visible(file_list);
 
@@ -350,6 +355,17 @@ void PrintSelectListView::populate(const std::vector<PrintFileData>& file_list,
 
 void PrintSelectListView::update_visible(const std::vector<PrintFileData>& file_list) {
     if (!container_ || list_pool_.empty() || file_list.empty()) {
+        for (auto* row : list_pool_) {
+            lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+        }
+        std::fill(list_pool_indices_.begin(), list_pool_indices_.end(), static_cast<ssize_t>(-1));
+        if (container_) {
+            sync_list_spacers(container_, leading_spacer_, trailing_spacer_, VirtualWindow{},
+                              last_leading_height_, last_trailing_height_);
+        }
+        visible_start_ = -1;
+        visible_end_ = -1;
+        total_items_ = 0;
         return;
     }
 
@@ -362,41 +378,28 @@ void PrintSelectListView::update_visible(const std::vector<PrintFileData>& file_
     // Use cached row dimensions (set in populate())
     // Fall back to defaults if not yet cached
     int row_height = cached_row_height_ > 0 ? cached_row_height_ : 44;
-    int row_gap = cached_row_gap_;
-    int row_stride = row_height + row_gap;
+    int row_stride = row_height + cached_row_gap_;
 
-    // Calculate visible row range (with buffer)
-    int first_visible = std::max(0, static_cast<int>(scroll_y / row_stride) - BUFFER_ROWS);
-    int last_visible = std::min(
-        total_rows, static_cast<int>((scroll_y + viewport_height) / row_stride) + 1 + BUFFER_ROWS);
+    const VirtualWindow win =
+        compute_window(scroll_y, viewport_height, row_stride, total_rows, BUFFER_ROWS);
+    const int first_visible = win.first;
+    const int last_visible = win.last;
+
+    // Force re-render if total item count changed (e.g. directory change)
+    bool data_changed = (total_rows != total_items_);
 
     // Skip update if visible range hasn't changed
-    if (first_visible == visible_start_ && last_visible == visible_end_) {
+    if (!data_changed && first_visible == visible_start_ && last_visible == visible_end_) {
         return;
     }
+
+    total_items_ = total_rows;
 
     spdlog::trace("[PrintSelectListView] Scroll: y={} viewport={} visible={}-{}/{} stride={}",
                   scroll_y, viewport_height, first_visible, last_visible, total_rows, row_stride);
 
-    // Update spacer heights (only when changed to avoid redundant relayout)
-    int leading_height = first_visible * row_stride;
-    if (leading_spacer_) {
-        if (leading_height != last_leading_height_) {
-            lv_obj_set_height(leading_spacer_, leading_height);
-            last_leading_height_ = leading_height;
-        }
-        if (lv_obj_get_index(leading_spacer_) != 0) {
-            lv_obj_move_to_index(leading_spacer_, 0);
-        }
-    }
-
-    int trailing_height = std::max(0, (total_rows - last_visible) * row_stride);
-    if (trailing_spacer_) {
-        if (trailing_height != last_trailing_height_) {
-            lv_obj_set_height(trailing_spacer_, trailing_height);
-            last_trailing_height_ = trailing_height;
-        }
-    }
+    sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
+                      last_trailing_height_);
 
     // Assign pool rows to visible indices, skipping rows that already show correct file
     size_t pool_idx = 0;
@@ -404,7 +407,7 @@ void PrintSelectListView::update_visible(const std::vector<PrintFileData>& file_
          file_idx++, pool_idx++) {
         lv_obj_t* row = list_pool_[pool_idx];
 
-        if (list_pool_indices_[pool_idx] != file_idx) {
+        if (data_changed || list_pool_indices_[pool_idx] != file_idx) {
             configure_row(row, pool_idx, static_cast<size_t>(file_idx), file_list[file_idx]);
             list_pool_indices_[pool_idx] = file_idx;
         }
