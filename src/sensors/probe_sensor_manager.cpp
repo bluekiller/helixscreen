@@ -267,8 +267,8 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[ProbeSensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                spdlog::debug("[ProbeSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("ProbeSensorManager::update_from_status", [] {
+                spdlog::debug("[ProbeSensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("ProbeSensorManager::update_from_status", [] {
                     ProbeSensorManager::instance().update_subjects_on_main_thread();
                 });
             }
@@ -452,6 +452,8 @@ void ProbeSensorManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
+
+    lifetime_.invalidate();
 
     spdlog::trace("[ProbeSensorManager] Deinitializing subjects");
     subjects_.deinit_all();

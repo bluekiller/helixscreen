@@ -14,6 +14,7 @@
  * - Config persistence
  */
 
+#include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 #include "probe_sensor_manager.h"
 #include "probe_sensor_types.h"
@@ -806,4 +807,24 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - discover_from_con
         auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
         REQUIRE(state->z_offset == Catch::Approx(-0.25f));
     }
+}
+
+// A deferral queued before deinit_subjects() must not land on the subjects a
+// later init_subjects() creates.
+TEST_CASE_METHOD(ProbeSensorTestFixture,
+                 "ProbeSensorManager - deferred update dropped after deinit", "[probe][lifetime]") {
+    discover_test_sensors();
+    mgr().set_sensor_role("bltouch", ProbeSensorRole::Z_PROBE);
+    mgr().set_sync_mode(false);
+
+    update_sensor_state("bltouch", 0.25f, -1.5f);
+    mgr().deinit_subjects();
+    mgr().init_subjects();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == -1);
+
+    update_sensor_state("bltouch", 0.5f, -1.5f);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 500);
+    mgr().set_sync_mode(true);
 }

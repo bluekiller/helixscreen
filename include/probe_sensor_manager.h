@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
 #include "lvgl.h"
 #include "probe_sensor_types.h"
 #include "subject_managed_panel.h"
@@ -297,6 +298,8 @@ class ProbeSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t probe_triggered_{};
     lv_subject_t probe_last_z_{};
     lv_subject_t probe_z_offset_{};

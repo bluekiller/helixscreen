@@ -5,6 +5,7 @@
 
 #include "ui_observer_guard.h"
 
+#include "async_lifetime_guard.h"
 #include "filament_sensor_types.h"
 #include "json_fwd.h"
 #include "lvgl.h"
@@ -677,6 +678,8 @@ class FilamentSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t runout_detected_{};
     lv_subject_t scoped_runout_{}; ///< Print-scoped runout (FIX B); driven by PrintStatusPanel
     lv_subject_t toolhead_detected_{};

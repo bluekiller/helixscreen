@@ -164,8 +164,8 @@ void WidthSensorManager::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[WidthSensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                spdlog::debug("[WidthSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("WidthSensorManager::update_from_status", [] {
+                spdlog::debug("[WidthSensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("WidthSensorManager::update_from_status", [] {
                     WidthSensorManager::instance().update_subjects_on_main_thread();
                 });
             }
@@ -297,6 +297,8 @@ void WidthSensorManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
+
+    lifetime_.invalidate();
 
     spdlog::trace("[WidthSensorManager] Deinitializing subjects");
     subjects_.deinit_all();

@@ -157,6 +157,8 @@ void FilamentSensorManager::deinit_subjects() {
         return;
     }
 
+    lifetime_.invalidate();
+
     spdlog::trace("[FilamentSensorManager] Deinitializing subjects");
 
     // Deinitialize all subjects to disconnect observers before lv_deinit()
@@ -1306,8 +1308,8 @@ void FilamentSensorManager::update_from_status(const json& status) {
                 // Defer subject updates to main LVGL thread via helix::ui::queue_update()
                 // This avoids the "Invalidate area not allowed during rendering" assertion
                 // and provides exception safety (try-catch wrapping)
-                spdlog::debug("[FilamentSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("FilamentSensorManager::update_subjects", [] {
+                spdlog::debug("[FilamentSensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("FilamentSensorManager::update_subjects", [] {
                     FilamentSensorManager::instance().update_subjects_on_main_thread();
                 });
             }

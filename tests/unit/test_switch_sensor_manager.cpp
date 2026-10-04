@@ -16,6 +16,7 @@
  */
 
 #include "../test_helpers/filament_sensor_manager_test_access.h"
+#include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 #include "filament_sensor_manager.h"
 #include "filament_sensor_types.h"
@@ -1172,4 +1173,25 @@ TEST_CASE_METHOD(FilamentSensorTestFixture,
         REQUIRE(old_detected == true);
         REQUIRE(new_detected == false);
     }
+}
+
+// A deferral queued before deinit_subjects() must not land on the subjects a
+// later init_subjects() creates.
+TEST_CASE_METHOD(FilamentSensorTestFixture,
+                 "FilamentSensorManager - deferred update dropped after deinit",
+                 "[filament][lifetime]") {
+    discover_test_sensors();
+    mgr().set_sensor_role("filament_switch_sensor runout", FilamentSensorRole::RUNOUT);
+    mgr().set_sync_mode(false);
+
+    update_sensor_state("filament_switch_sensor runout", false);
+    mgr().deinit_subjects();
+    mgr().init_subjects();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(mgr().get_runout_detected_subject()) == -1);
+
+    update_sensor_state("filament_switch_sensor runout", true);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(mgr().get_runout_detected_subject()) == 1);
+    mgr().set_sync_mode(true);
 }

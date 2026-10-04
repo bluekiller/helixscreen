@@ -187,8 +187,8 @@ void HumiditySensorManager::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[HumiditySensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                spdlog::trace("[HumiditySensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("HumiditySensorManager::update_from_status", [] {
+                spdlog::trace("[HumiditySensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("HumiditySensorManager::update_from_status", [] {
                     HumiditySensorManager::instance().update_subjects_on_main_thread();
                 });
             }
@@ -288,6 +288,8 @@ void HumiditySensorManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
+
+    lifetime_.invalidate();
 
     spdlog::trace("[HumiditySensorManager] Deinitializing subjects");
     subjects_.deinit_all();

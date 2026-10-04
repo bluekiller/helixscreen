@@ -66,7 +66,7 @@ PrinterDiscovery ──► init_subsystems_from_hardware()
 notify_status_update ──► PrinterState::update_from_status()
                               └─ for_each_sensor_manager(m.update_from_status(status))
                                      │  parse under the manager's mutex
-                                     └─ queue_update / tok.defer ──► update_subjects() on the main thread
+                                     └─ lifetime_.token().defer ──► update_subjects() on the main thread
                                                                           │
                                        XML bind_* / observe<int>() ◄──────┘
 ```
@@ -139,16 +139,9 @@ if (auto it = sensor_data.find("temperature");
 
 ### Threading
 
-`discover*()`, `load_config*()` and the `set_*()` mutators touch subjects directly and run on the main thread. `update_from_status()` takes the manager's `std::recursive_mutex`, updates `states_`, and if anything changed defers `update_subjects()` to the main thread. Two deferral styles exist today:
+`discover*()`, `load_config*()` and the `set_*()` mutators touch subjects directly and run on the main thread. `update_from_status()` takes the manager's `std::recursive_mutex`, updates `states_`, and if anything changed defers `update_subjects()` to the main thread with `lifetime_.token().defer(...)`. `deinit_subjects()` invalidates that `AsyncLifetimeGuard` first, so an update queued before teardown is dropped instead of landing on torn-down (or freshly re-created) subjects. `AccelSensorManager` has nothing to defer: accelerometers publish no status.
 
-| Style | Managers |
-|-------|----------|
-| `lifetime_.token()` then `tok.defer(...)` (dropped after `deinit_subjects()` invalidates the guard) | `TemperatureSensorManager`, `LoadCellManager` |
-| plain `helix::ui::queue_update(...)` calling `instance().update_subjects_on_main_thread()` | `FilamentSensorManager`, `HumiditySensorManager`, `ProbeSensorManager`, `AccelSensorManager`, `WidthSensorManager` |
-
-Prefer the token form in new code: it is the pattern [THREADING.md](THREADING.md) describes, and it keeps a callback queued during shutdown from touching torn-down state.
-
-Every manager also has `set_sync_mode(bool)`. With it on, `update_from_status()` calls `update_subjects()` inline, which is how unit tests avoid pumping the `UpdateQueue`.
+Every manager that parses status also has `set_sync_mode(bool)`. With it on, `update_from_status()` calls `update_subjects()` inline, which is how unit tests avoid pumping the `UpdateQueue`.
 
 ### Subjects
 
