@@ -637,59 +637,59 @@ class PrintSelectPanel : public PanelBase {
 
     SubjectManager subjects_; ///< RAII manager for automatic subject cleanup
 
-    lv_subject_t selected_filename_subject_; ///< Raw filename (for API/lookups)
+    lv_subject_t selected_filename_subject_{}; ///< Raw filename (for API/lookups)
     char selected_filename_buffer_[128];
 
-    lv_subject_t selected_display_filename_subject_; ///< Display name (no .gcode extension)
+    lv_subject_t selected_display_filename_subject_{}; ///< Display name (no .gcode extension)
     char selected_display_filename_buffer_[128];
 
-    lv_subject_t selected_thumbnail_subject_;
+    lv_subject_t selected_thumbnail_subject_{};
     char selected_thumbnail_buffer_[256];
 
-    lv_subject_t selected_detail_thumbnail_subject_; ///< Full-res PNG for detail view
+    lv_subject_t selected_detail_thumbnail_subject_{}; ///< Full-res PNG for detail view
     char selected_detail_thumbnail_buffer_[256];
 
-    lv_subject_t selected_print_time_subject_;
+    lv_subject_t selected_print_time_subject_{};
     char selected_print_time_buffer_[32];
 
-    lv_subject_t selected_filament_weight_subject_;
+    lv_subject_t selected_filament_weight_subject_{};
     char selected_filament_weight_buffer_[32];
 
-    lv_subject_t selected_layer_count_subject_;
+    lv_subject_t selected_layer_count_subject_{};
     char selected_layer_count_buffer_[32];
 
-    lv_subject_t selected_print_height_subject_;
+    lv_subject_t selected_print_height_subject_{};
     char selected_print_height_buffer_[32];
 
-    lv_subject_t selected_layer_height_subject_;
+    lv_subject_t selected_layer_height_subject_{};
     char selected_layer_height_buffer_[32];
 
-    lv_subject_t selected_filament_type_subject_;
+    lv_subject_t selected_filament_type_subject_{};
     char selected_filament_type_buffer_[64]; // Longer for full names like "PolyMaker PolyLite ABS"
 
-    lv_subject_t detail_view_visible_subject_;
+    lv_subject_t detail_view_visible_subject_{};
 
     /// View mode subject: 0 = CARD, 1 = LIST (XML bindings control visibility)
-    lv_subject_t view_mode_subject_;
+    lv_subject_t view_mode_subject_{};
 
     /// Can start print subject: 1 = can print, 0 = print in progress (disables button via XML
     /// binding)
-    lv_subject_t can_print_subject_;
+    lv_subject_t can_print_subject_{};
 
     /// Button mode subject: 0 = Print, 1 = Queue (label + card visibility)
-    lv_subject_t button_mode_subject_;
+    lv_subject_t button_mode_subject_{};
 
     /// Button label text ("Print" / "Add to Queue")
-    lv_subject_t button_label_subject_;
+    lv_subject_t button_label_subject_{};
     char button_label_buffer_[32];
 
     /// Button icon name ("print" / "progress_clock"), bound to the button's
     /// icon slot the same way the label subject binds to its text
-    lv_subject_t button_icon_subject_;
+    lv_subject_t button_icon_subject_{};
     char button_icon_buffer_[32];
 
     /// Why the print button is disabled, shown beside it. Empty when it is not.
-    lv_subject_t blocked_reason_subject_;
+    lv_subject_t blocked_reason_subject_{};
     char blocked_reason_buffer_[96];
 
     //
@@ -753,6 +753,7 @@ class PrintSelectPanel : public PanelBase {
     bool panel_initialized_ = false;               ///< Guard flag for resize callback
     bool first_activation_ = true;                 ///< Skip redundant refresh on first activation
     bool file_list_loaded_ = false;                ///< A listing has been rendered at least once
+    bool detail_view_built_ = false;               ///< create_detail_view() built the widget tree
     bool detail_view_open_ = false;                ///< True while detail view overlay is showing
     bool files_changed_while_detail_open_ = false; ///< True if filelist changed while detail open
     bool was_deactivated_ = false; ///< True if panel was fully deactivated (navigated away)
@@ -937,7 +938,12 @@ class PrintSelectPanel : public PanelBase {
     void update_sort_indicators();
 
     /**
-     * @brief Create detail view overlay (called once during setup)
+     * @brief Create the detail view and its PRINT_START analysis, without widgets
+     */
+    void ensure_detail_view_model();
+
+    /**
+     * @brief Build the detail view overlay's widget tree (first open only)
      */
     void create_detail_view();
     void create_print_controller();

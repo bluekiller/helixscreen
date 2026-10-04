@@ -41,9 +41,13 @@ bool ends_with(std::string_view s, std::string_view tail) {
     return s.size() >= tail.size() && s.substr(s.size() - tail.size(), tail.size()) == tail;
 }
 
-// App chrome a plugin's own components may build on. Grows through Phase 4's author guide.
+// App widgets a plugin's own components may build on: chrome and presentational
+// widgets whose only name-taking attributes are the generic bind_* and name= ones
+// checked below.
 bool is_allowlisted_app_component(std::string_view name) {
-    return name == "overlay_panel";
+    return name == "overlay_panel" || name == "icon" || name == "text_heading" ||
+           name == "text_body" || name == "text_muted" || name == "text_small" ||
+           name == "text_xs" || name == "text_tiny";
 }
 
 bool is_allowed_element(const Walk& w, std::string_view el) {

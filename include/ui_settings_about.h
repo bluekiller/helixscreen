@@ -28,6 +28,10 @@
 #include <chrono>
 #include <string>
 
+namespace helix {
+class IMoonrakerClient;
+}
+
 namespace helix::settings {
 
 /**
@@ -72,6 +76,13 @@ class AboutSettingsOverlay : public OverlayBase {
      * notify_history_changed events. Updates print_hours_value_subject_.
      */
     void fetch_print_hours();
+
+    /// Fetch print hours now and again whenever a job finishes. Idempotent: a repeat
+    /// call (every discovery) replaces the earlier subscription.
+    void attach_print_hours(IMoonrakerClient& client);
+
+    /// Drop the subscription attach_print_hours() made. Safe when never attached.
+    void detach_print_hours(IMoonrakerClient& client);
 
     /**
      * @brief Refresh version and printer info subjects

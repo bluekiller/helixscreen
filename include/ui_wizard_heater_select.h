@@ -120,8 +120,8 @@ class WizardHeaterSelectStep : public helix::wizard::Step {
     lv_obj_t* screen_root_ = nullptr;
 
     // Subjects
-    lv_subject_t bed_heater_selected_;
-    lv_subject_t hotend_heater_selected_;
+    lv_subject_t bed_heater_selected_{};
+    lv_subject_t hotend_heater_selected_{};
 
     // Dynamic options storage (for event callback mapping)
     std::vector<std::string> bed_heater_items_;

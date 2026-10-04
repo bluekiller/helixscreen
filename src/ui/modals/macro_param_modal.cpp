@@ -31,10 +31,10 @@ namespace {
 
 /// Save mode (1) re-titles the dialog, swaps Run for Save and reveals the
 /// "Ask for parameters" toggle; run mode (0) hides all of that.
-lv_subject_t s_save_mode_subject;
+lv_subject_t s_save_mode_subject{};
 /// The "Ask for parameters" toggle: 1 = prompt with these values prefilled,
 /// 0 = run with them without asking.
-lv_subject_t s_ask_subject;
+lv_subject_t s_ask_subject{};
 bool s_modal_subjects_registered = false;
 
 /// XML subjects for the modal's save mode. Idempotent; deinit is self-registered

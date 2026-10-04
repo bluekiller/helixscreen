@@ -313,3 +313,16 @@ TEST_CASE("CapabilityOverrides - heater interrupt support", "[printer][overrides
     overrides.set_hardware(hardware);
     REQUIRE(overrides.supports_heater_interrupt());
 }
+
+TEST_CASE("CapabilityOverrides - MPC calibration support", "[printer][overrides]") {
+    CapabilityOverrides overrides;
+    REQUIRE_FALSE(overrides.supports_mpc_calibration());
+
+    helix::PrinterDiscovery hardware;
+    overrides.set_hardware(hardware);
+    REQUIRE_FALSE(overrides.supports_mpc_calibration());
+
+    hardware.set_is_kalico(true);
+    overrides.set_hardware(hardware);
+    REQUIRE(overrides.supports_mpc_calibration());
+}

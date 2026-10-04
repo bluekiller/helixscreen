@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>749de04d0</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>7af4d565f</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 98 done, 11 in progress, 27 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 100 done, 12 in progress, 24 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -470,10 +470,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-17" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-17</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">96eb5a726</code><span class="ftitle">26 XML callback names registered from two files, last write wins</span><span class="fimpact">Latent wrong user_data cast in wifi rows</span></summary>
+<details class="f" id="BUG-17" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-17</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">7dc81df44</code><span class="ftitle">26 XML callback names registered from two files, last write wins</span><span class="fimpact">Latent wrong user_data cast in wifi rows</span></summary>
 <div class="fbody">
-<p class="branch">Mostly shipped: <code>fix/audit-bugs-sys</code>, merged at <code>96eb5a726</code>. The SettingsPanel duplicates were already gone; the wizard telemetry and touch-cal duplicates have per-owner names, and <code>check_orphan_callbacks.py</code> fails any new duplicate. Left: three wifi names registered by both owners of a shared component.</p>
+<p class="branch">Shipped: <code>fix/audit-bugs-sys</code> (<code>96eb5a726</code>) gave the wizard duplicates per-owner names; <code>refactor/ini-merge-wifi-callbacks</code> (<code>7dc81df44</code>) gives the wifi item and password modal per-owner callback props. <code>check_orphan_callbacks.py</code> fails any new duplicate.</p>
 <p><span class="badge unv">unverified</span></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_panel_settings.cpp#register_settings_panel_callbacks</code> vs <code>ui_settings_safety.cpp</code>, <code>ui_settings_hardware.cpp</code>, <code>ui_settings_help.cpp</code>, <code>ui_settings_printing.cpp</code>; <code>src/ui/ui_overlay_network_settings.cpp#register_callbacks</code> vs <code>src/ui/ui_wizard_wifi.cpp#register_callbacks</code>; <code>lib/helix-xml/src/xml/lv_xml.c#lv_xml_register_event_cb</code></dd>
@@ -1581,10 +1581,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="SYS-3" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">SYS-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">6ac5d8350</code><span class="ftitle">String/file helper twins: trim, lower, atomic write, meminfo, env, INI</span><span class="fimpact">~-800 lines, one truthiness rule</span></summary>
+<details class="f" id="SYS-3" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">SYS-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">7dc81df44</code><span class="ftitle">String/file helper twins: trim, lower, atomic write, meminfo, env, INI</span><span class="fimpact">~-800 lines, one truthiness rule</span></summary>
 <div class="fbody">
-<p class="branch">Mostly shipped: trim, atomic write, meminfo and env earlier (<code>e6e8357f1</code>); case folds through <code>text_io::to_lower/to_upper</code> at <code>6ac5d8350</code>. Left: the INI merge (<code>KlipperConfigParser</code>).</p>
+<p class="branch">Shipped: trim, atomic write, meminfo and env (<code>e6e8357f1</code>); case folds through <code>text_io</code> (<code>6ac5d8350</code>); <code>KlipperConfigParser</code> is a view over <code>KlipperConfigEditor</code> at <code>7dc81df44</code>, which follows Klipper's configfile rules and edits the last duplicate key.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/text_io.h#write_file_atomic</code>, <code>include/operation_patterns.h#to_lower</code>, <code>src/system/memory_utils.cpp#get_system_memory_info</code>, <code>src/app_globals.cpp#helix_parse_truthy_env</code>, <code>src/config/environment_config.cpp</code>, <code>src/system/klipper_config_editor.cpp#KlipperConfigEditor::parse_structure</code></dd>
 <dt>Evidence</dt><dd>trim: 17 local copies, none in text_io (~-120); ASCII lower/upper: ~27 copies while a pair sits in operation_patterns.h (~-130); atomic tmp+rename: 7 hand-rolled (config_storage_file, update_checker, config_backup, telemetry x2, lua_bind_io, wifi_saved_config) with drifting fsync vs 5 users of the helper (~-150); /proc/meminfo: 5-7 parsers with 3 "absent" conventions (-1, 0, false), one compiling a Regex per call (~-90); env: 4 helper APIs, 3 truthiness rules (exactly "1", first char '1', 1/true/yes/on), 197 raw <code>getenv(</code> in 69 files (~-200); INI: 4 parsers (KlipperConfigParser 357 lines, editor ~400, MoonrakerConfigManager, QIDI) (~-350, later).</dd>
@@ -1778,7 +1778,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="VEN-3" data-tag="extensibility" data-size="1.1" data-status="done">
 <summary><span class="fid">VEN-3</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">3d3197b22</code><span class="ftitle">AbortManager branches on is_kalico() instead of a capability</span><span class="fimpact">Ask "supports HEATER_INTERRUPT", not the firmware</span></summary>
 <div class="fbody">
-<p class="branch">Shipped: <code>refactor/vendor-leaks</code>, merged to main at <code>3d3197b22</code>. <code>AbortManager</code> asks <code>supports_heater_interrupt()</code>. PID calibration UI still asks <code>is_kalico()</code> directly.</p>
+<p class="branch">Shipped: <code>refactor/vendor-leaks</code> (<code>3d3197b22</code>): <code>AbortManager</code> asks <code>supports_heater_interrupt()</code>. PID calibration asks <code>supports_mpc_calibration()</code> since <code>fix/subject-ownership-followups</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/abort/abort_manager.cpp#AbortManager::start_abort</code></dd>
 <dt>Evidence</dt><dd><code>start_abort</code> reads <code>printer_state_-&gt;get_capability_overrides().is_kalico()</code> to decide the abort path. The behaviour it gates is "firmware supports HEATER_INTERRUPT"; naming the firmware fork in generic abort code means any other firmware gaining that command needs an edit here.</dd>
@@ -1899,9 +1899,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </details>
 </section>
 <section id="sec-g"><h2>G. God classes</h2><p class="lede">Later; stage behind test decoupling (TB-1).</p>
-<details class="f" id="GOD-1" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
+<details class="f" id="GOD-1" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god1-printer-session</code><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
 <div class="fbody">
+<p class="branch">First tranche shipped: <code>refactor/god1-application-split</code>, merged at <code>709ec4e11</code>. Discovery reactions are an ordered 24-step table (<code>discovery_steps.cpp</code>); attach/detach pairs for timelapse, update response, print hours and Spoolman active-spool sync; <code>HardwareSetupPrompter</code> with a pure <code>choose_prompt</code>; process guards, demo overlays and SDL shortcuts moved out. application.cpp 5,289 -&gt; 3,855 lines. Left: <code>PrinterSession</code> (switch, teardown, <code>init_printer_state</code>) and <code>init_action_prompt</code>. Plan: <code>docs/devel/plans/2026-10-04-god1-application-split.md</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/application.cpp#Application::setup_discovery_callbacks</code>, <code>#Application::run</code>, <code>#Application::init_action_prompt</code>, <code>include/application.h#Application</code></dd>
 <dt>Evidence</dt><dd>5,371 lines (4.3x the 1,249 #1325 was filed against), 219 includes, 41 members, 554 commits (214 since June; next file 66). Growth is event reactions: discovery 873, hardware prompts 357, action prompt 277, printer session 402. <code>on_discovery_complete</code> runs ~22 jobs in sequence (fingerprint, LED, fans, Spoolman sync ~190 lines, autodetect, HardwareValidator, telemetry...), 19 gated on <code>hw_changed</code>.</dd>
@@ -1969,8 +1970,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-6" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">theme_manager.cpp is 14 jobs over file statics with no class boundary</span><span class="fimpact">enabler for ~700 lines of theme dedup</span></summary>
+<details class="f" id="GOD-6" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god6-theme-split</code><span class="ftitle">theme_manager.cpp is 14 jobs over file statics with no class boundary</span><span class="fimpact">enabler for ~700 lines of theme dedup</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/ui/theme_manager.cpp</code> (free functions + ~35 file-static globals), <code>include/theme_manager.h</code>, <code>src/ui/theme_manager_new.cpp</code></dd>
@@ -2026,8 +2027,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
+<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god10-display-sleep</code><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/application/display_manager.cpp#DisplayManager::run_rotation_probe</code>, <code>#DisplayManager::enter_sleep</code>, <code>#DisplayManager::init</code>, <code>include/display_manager.h#DisplayManager</code></dd>

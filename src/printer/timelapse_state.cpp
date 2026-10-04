@@ -10,6 +10,7 @@
 
 #include "app_globals.h"
 #include "printer_state.h"
+#include "replace_method_callback.h"
 #include "state/subject_macros.h"
 #include "static_subject_registry.h"
 
@@ -22,6 +23,22 @@ namespace helix {
 TimelapseState& TimelapseState::instance() {
     static TimelapseState instance;
     return instance;
+}
+
+namespace {
+constexpr const char* TIMELAPSE_EVENT_METHOD = "notify_timelapse_event";
+constexpr const char* TIMELAPSE_HANDLER = "timelapse_state";
+} // namespace
+
+void TimelapseState::attach(IMoonrakerClient& client) {
+    replace_method_callback(client, TIMELAPSE_EVENT_METHOD, TIMELAPSE_HANDLER,
+                            [](const nlohmann::json& data) {
+                                TimelapseState::instance().handle_timelapse_event(data);
+                            });
+}
+
+void TimelapseState::detach(IMoonrakerClient& client) {
+    client.unregister_method_callback(TIMELAPSE_EVENT_METHOD, TIMELAPSE_HANDLER);
 }
 
 void TimelapseState::init_subjects(bool register_xml) {

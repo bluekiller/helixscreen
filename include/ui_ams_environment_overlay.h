@@ -200,32 +200,32 @@ class AmsEnvironmentOverlay : public OverlayBase {
 
     SubjectManager subjects_;
 
-    lv_subject_t temp_text_subject_;
+    lv_subject_t temp_text_subject_{};
     char temp_text_buf_[64] = {};
 
-    lv_subject_t target_temp_text_subject_;
+    lv_subject_t target_temp_text_subject_{};
     char target_temp_text_buf_[32] = {};
 
-    lv_subject_t humidity_text_subject_;
+    lv_subject_t humidity_text_subject_{};
     char humidity_text_buf_[32] = {};
 
     /// 1 when the shown unit has a humidity sensor. Gates the humidity readout
     /// and the Material Comfort strip, both of which need a real reading to say
     /// anything true. Per-overlay rather than the shown unit's
     /// ams_env_ind_<i>_humidity_visible so it cannot answer for the wrong unit.
-    lv_subject_t humidity_visible_subject_;
+    lv_subject_t humidity_visible_subject_{};
 
-    lv_subject_t title_text_subject_;
+    lv_subject_t title_text_subject_{};
     char title_text_buf_[96] = {};
 
-    lv_subject_t dryer_visible_subject_;
-    lv_subject_t no_dryer_visible_subject_;
-    lv_subject_t drying_active_subject_;
+    lv_subject_t dryer_visible_subject_{};
+    lv_subject_t no_dryer_visible_subject_{};
+    lv_subject_t drying_active_subject_{};
 
-    lv_subject_t drying_text_subject_;
+    lv_subject_t drying_text_subject_{};
     char drying_text_buf_[64] = {};
 
-    lv_subject_t drying_progress_subject_;
+    lv_subject_t drying_progress_subject_{};
 
     static constexpr int MAX_COMFORT_ROWS = 4;
     lv_subject_t comfort_visible_[MAX_COMFORT_ROWS] = {};
@@ -233,10 +233,10 @@ class AmsEnvironmentOverlay : public OverlayBase {
     lv_subject_t comfort_text_[MAX_COMFORT_ROWS] = {};
     char comfort_text_buf_[MAX_COMFORT_ROWS][96] = {};
 
-    lv_subject_t start_stop_text_subject_;
+    lv_subject_t start_stop_text_subject_{};
     char start_stop_text_buf_[32] = {};
 
-    lv_subject_t preset_text_subject_;
+    lv_subject_t preset_text_subject_{};
     char preset_text_buf_[64] = {};
 
     /// Zone selector + per-zone ceiling. "env_zone_" prefix; the pools are

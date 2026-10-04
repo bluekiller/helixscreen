@@ -96,7 +96,6 @@ struct PrintStartAnalysis {
     bool found = false;      ///< A print start macro was found
     std::string macro_name;  ///< Actual name found (e.g., "PRINT_START", "START_PRINT")
     std::string source_file; ///< Config file containing the macro (e.g., "macros.cfg")
-    std::string raw_gcode;   ///< Full macro gcode content
 
     // === Detected Operations ===
     std::vector<PrintStartOperation> operations;
@@ -120,11 +119,6 @@ struct PrintStartAnalysis {
      * @brief Get operation by category (or nullptr if not found)
      */
     [[nodiscard]] const PrintStartOperation* get_operation(PrintStartOpCategory category) const;
-
-    /**
-     * @brief Get all operations that are NOT yet controllable
-     */
-    [[nodiscard]] std::vector<const PrintStartOperation*> get_uncontrollable_operations() const;
 
     /**
      * @brief Generate a summary string for logging/debugging
@@ -207,14 +201,6 @@ class PrintStartAnalyzer {
      */
     [[nodiscard]] static PrintStartAnalysis parse_macro(const std::string& macro_name,
                                                         const std::string& gcode);
-
-    /**
-     * @brief Get the standard skip parameter name for an operation
-     *
-     * @param op_name Operation name (e.g., "BED_MESH_CALIBRATE")
-     * @return Suggested skip parameter name (e.g., "SKIP_BED_MESH")
-     */
-    [[nodiscard]] static std::string get_suggested_skip_param(const std::string& op_name);
 
     /**
      * @brief Get the operation category for a G-code command

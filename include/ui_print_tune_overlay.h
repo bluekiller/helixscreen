@@ -183,30 +183,30 @@ class PrintTuneOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     // Subjects for reactive UI
-    lv_subject_t tune_speed_subject_;
-    lv_subject_t tune_flow_subject_;
-    lv_subject_t tune_z_offset_subject_;
+    lv_subject_t tune_speed_subject_{};
+    lv_subject_t tune_flow_subject_{};
+    lv_subject_t tune_z_offset_subject_{};
     /// Which z-step amount is selected, as an index. ONE int, not four
     /// booleans: the buttons are mutually exclusive by construction, so four
     /// parallel flags were four chances for the UI to disagree with itself,
     /// and every selection wrote all four. The XML compares against it with
     /// bind_style_if (CLAUDE.md rule 7).
-    lv_subject_t z_step_selected_subject_;
+    lv_subject_t z_step_selected_subject_{};
 
     /// Which z-offset the direction buttons drive: 0 machine-wide, 1 the active
     /// tool's own. Only meaningful on a tool changer — see helix::tool_offsets.
-    lv_subject_t z_tune_target_subject_;
+    lv_subject_t z_tune_target_subject_{};
     /// The target the user is NOT on, formatted for the muted context label.
-    lv_subject_t tune_z_other_subject_;
+    lv_subject_t tune_z_other_subject_{};
     /// Label for the tool button ("T1"). Not tool_badge_text: that one is
     /// deliberately index-only, sized for a disc overlaid on the nozzle glyph.
-    lv_subject_t tune_z_tool_label_subject_;
-    lv_subject_t z_closer_icon_subject_;  ///< Icon name for closer button (kinematic-aware)
-    lv_subject_t z_farther_icon_subject_; ///< Icon name for farther button (kinematic-aware)
+    lv_subject_t tune_z_tool_label_subject_{};
+    lv_subject_t z_closer_icon_subject_{};  ///< Icon name for closer button (kinematic-aware)
+    lv_subject_t z_farther_icon_subject_{}; ///< Icon name for farther button (kinematic-aware)
 
     // Actual speed/flow display subjects
-    lv_subject_t tune_actual_speed_subject_;
-    lv_subject_t tune_actual_flow_subject_;
+    lv_subject_t tune_actual_speed_subject_{};
+    lv_subject_t tune_actual_flow_subject_{};
 
     // Subject storage buffers
     char tune_speed_buf_[32] = "100%";

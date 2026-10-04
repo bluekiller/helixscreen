@@ -121,10 +121,10 @@ class RetractionSettingsOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     // Display label subjects
-    lv_subject_t retract_length_display_;
-    lv_subject_t retract_speed_display_;
-    lv_subject_t unretract_extra_display_;
-    lv_subject_t unretract_speed_display_;
+    lv_subject_t retract_length_display_{};
+    lv_subject_t retract_speed_display_{};
+    lv_subject_t unretract_extra_display_{};
+    lv_subject_t unretract_speed_display_{};
 
     // Static buffers for subject strings
     char retract_length_buf_[16];

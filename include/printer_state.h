@@ -2609,10 +2609,10 @@ class PrinterState {
     // - klipper_version_buf_, moonraker_version_buf_ are now in versions_state_ component
 
     // Multi-printer subjects (owned directly by PrinterState)
-    lv_subject_t active_printer_name_;
+    lv_subject_t active_printer_name_{};
     char active_printer_name_buf_[128];
 
-    lv_subject_t printer_type_subject_;
+    lv_subject_t printer_type_subject_{};
     char printer_type_subject_buf_[128];
 
     // Initialization guard to prevent multiple subject initializations

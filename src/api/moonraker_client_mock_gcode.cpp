@@ -871,7 +871,7 @@ MoonrakerClientMock::gcode_exclude_object_define(const std::string& gcode) {
     return std::nullopt;
 }
 
-// SET_LED_EFFECT EFFECT=<name> - Enable an LED effect
+// SET_LED_EFFECT EFFECT=<name> [STOP=1] - Enable one LED effect, or stop one
 MoonrakerClientMock::GcodeResult
 MoonrakerClientMock::gcode_set_led_effect(const std::string& gcode) {
     size_t effect_pos = gcode.find("EFFECT=");
@@ -879,12 +879,31 @@ MoonrakerClientMock::gcode_set_led_effect(const std::string& gcode) {
         size_t start = effect_pos + 7;
         size_t end = gcode.find_first_of(" \t\r\n", start);
         std::string effect_name = gcode.substr(start, end - start);
+        std::string full_name = "led_effect " + effect_name;
+
+        // klipper-led_effect's STOP=1: stop just the named effect. The
+        // others keep running and no color change is implied.
+        size_t stop_pos = gcode.find("STOP=");
+        if (stop_pos != std::string::npos) {
+            size_t vstart = stop_pos + 5;
+            size_t vend = gcode.find_first_of(" \t\r\n", vstart);
+            // klipper-led_effect reads STOP with get_int: any nonzero
+            // value stops the effect
+            if (std::atoi(gcode.substr(vstart, vend - vstart).c_str()) != 0) {
+                spdlog::info("[MoonrakerClientMock] SET_LED_EFFECT: stopping '{}'", effect_name);
+                {
+                    std::lock_guard<std::mutex> lock(led_mutex_);
+                    enabled_led_effects_.erase(full_name);
+                }
+                dispatch_status_update(json{{full_name, {{"enabled", false}}}});
+                return std::nullopt;
+            }
+        }
 
         spdlog::info("[MoonrakerClientMock] SET_LED_EFFECT: enabling '{}'", effect_name);
 
         // Build status update: enable the target effect, disable all others
         json effect_status = json::object();
-        std::string full_name = "led_effect " + effect_name;
 
         // Known mock effects
         const std::vector<std::string> known_effects = {
@@ -894,6 +913,17 @@ MoonrakerClientMock::gcode_set_led_effect(const std::string& gcode) {
         for (const auto& name : known_effects) {
             bool should_enable = (name == full_name);
             effect_status[name] = {{"enabled", should_enable}};
+        }
+
+        // A plugin's effect name is a free string; the frame must name
+        // the enabled effect even when it is not a built-in.
+        effect_status[full_name] = {{"enabled", true}};
+
+        // The handler is exclusive: enabling one effect makes it the
+        // only one running.
+        {
+            std::lock_guard<std::mutex> lock(led_mutex_);
+            enabled_led_effects_ = {full_name};
         }
 
         // Simulate LED color output: each effect has a characteristic color
@@ -951,6 +981,7 @@ MoonrakerClientMock::GcodeResult MoonrakerClientMock::gcode_stop_led_effects(con
     // Turn LEDs off when effects stop
     {
         std::lock_guard<std::mutex> lock(led_mutex_);
+        enabled_led_effects_.clear();
         for (auto& [name, color] : led_states_) {
             color = LedColor{0.0, 0.0, 0.0, 0.0};
         }

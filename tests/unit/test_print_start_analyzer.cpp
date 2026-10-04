@@ -200,23 +200,6 @@ TEST_CASE("PrintStartAnalyzer: Partial controllability", "[print_start][parsing]
         REQUIRE(qgl != nullptr);
         REQUIRE(qgl->has_skip_param == false);
     }
-
-    SECTION("get_uncontrollable_operations returns QGL and NOZZLE_CLEAN") {
-        auto uncontrollable = result.get_uncontrollable_operations();
-        // Should include QGL and NOZZLE_CLEAN, but NOT HOMING (excluded by design)
-        REQUIRE(uncontrollable.size() >= 2);
-
-        bool has_qgl = false;
-        bool has_clean = false;
-        for (auto* op : uncontrollable) {
-            if (op->category == PrintStartOpCategory::QGL)
-                has_qgl = true;
-            if (op->category == PrintStartOpCategory::NOZZLE_CLEAN)
-                has_clean = true;
-        }
-        REQUIRE(has_qgl);
-        REQUIRE(has_clean);
-    }
 }
 
 TEST_CASE("PrintStartAnalyzer: Minimal macro", "[print_start][parsing]") {
@@ -278,16 +261,6 @@ TEST_CASE("PrintStartAnalyzer: categorize_operation", "[print_start][helpers]") 
     REQUIRE(PrintStartAnalyzer::categorize_operation("G28") == PrintStartOpCategory::HOMING);
     REQUIRE(PrintStartAnalyzer::categorize_operation("UNKNOWN_CMD") ==
             PrintStartOpCategory::UNKNOWN);
-}
-
-TEST_CASE("PrintStartAnalyzer: get_suggested_skip_param", "[print_start][helpers]") {
-    REQUIRE(PrintStartAnalyzer::get_suggested_skip_param("BED_MESH_CALIBRATE") == "SKIP_BED_MESH");
-    REQUIRE(PrintStartAnalyzer::get_suggested_skip_param("QUAD_GANTRY_LEVEL") == "SKIP_QGL");
-    REQUIRE(PrintStartAnalyzer::get_suggested_skip_param("Z_TILT_ADJUST") == "SKIP_Z_TILT");
-    REQUIRE(PrintStartAnalyzer::get_suggested_skip_param("CLEAN_NOZZLE") == "SKIP_NOZZLE_CLEAN");
-
-    // Unknown operation should return SKIP_ + name
-    REQUIRE(PrintStartAnalyzer::get_suggested_skip_param("CUSTOM_OP") == "SKIP_CUSTOM_OP");
 }
 
 TEST_CASE("PrintStartAnalyzer: category_to_string", "[print_start][helpers]") {

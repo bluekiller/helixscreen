@@ -47,7 +47,7 @@ class DisplaySettingsOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     /// Subject for brightness value label binding
-    lv_subject_t brightness_value_subject_;
+    lv_subject_t brightness_value_subject_{};
     char brightness_value_buf_[8]; // e.g., "100%"
 };
 

@@ -65,14 +65,32 @@ TEST_CASE("permanent blockers outrank an active print", "[belt][gating]") {
     CHECK(evaluate_belt_gate(in) == BeltGate::NO_ACCELEROMETER);
 }
 
+TEST_CASE("unknown kinematics while detection runs is not a verdict", "[belt][gating]") {
+    // Detection takes tens of seconds after a fresh start; until it answers the
+    // printer is not known to be a bed slinger, so the panel must not say so.
+    auto in = all_clear();
+    in.is_corexy = false;
+    in.detecting = true;
+    CHECK(evaluate_belt_gate(in) == BeltGate::DETECTING);
+
+    in.detecting = false;
+    CHECK(evaluate_belt_gate(in) == BeltGate::NOT_COREXY);
+
+    // A CoreXY answer wins even if the pending flag has not been cleared yet.
+    in = all_clear();
+    in.detecting = true;
+    CHECK(evaluate_belt_gate(in) == BeltGate::OK);
+}
+
 TEST_CASE("disconnection outranks everything", "[belt][gating]") {
     BeltGateInputs in{}; // all false, including connected
     CHECK(evaluate_belt_gate(in) == BeltGate::NOT_CONNECTED);
 }
 
 TEST_CASE("every gate has a non-empty message", "[belt][gating]") {
-    for (auto g : {BeltGate::OK, BeltGate::NOT_CONNECTED, BeltGate::NO_ACCELEROMETER,
-                   BeltGate::NOT_COREXY, BeltGate::NOT_COLOCATED, BeltGate::PRINTING}) {
+    for (auto g :
+         {BeltGate::OK, BeltGate::NOT_CONNECTED, BeltGate::NO_ACCELEROMETER, BeltGate::DETECTING,
+          BeltGate::NOT_COREXY, BeltGate::NOT_COLOCATED, BeltGate::PRINTING}) {
         const char* m = belt_gate_message(g);
         REQUIRE(m != nullptr);
         CHECK(m[0] != '\0');

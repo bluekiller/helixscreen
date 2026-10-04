@@ -867,12 +867,46 @@ void AmsBackendAce::apply_dryer_state_locked(const json& data) {
     }
 }
 
+int AmsBackendAce::displayed_slot_for_global_index_locked(int global_index) const {
+    // Caller holds mutex_.
+    const int slot_count =
+        system_info_.units.empty() ? 0 : static_cast<int>(system_info_.units[0].slots.size());
+    return (global_index >= 0 && global_index < slot_count) ? global_index : -1;
+}
+
+bool AmsBackendAce::apply_target_index_locked(const json& data) {
+    // Caller holds mutex_. Absent means unchanged: notify frames carry only
+    // changed fields.
+    if (data.contains("target_index") && data["target_index"].is_number_integer()) {
+        target_index_ = data["target_index"].get<int>();
+    }
+
+    const int prev_pending = system_info_.pending_target_slot;
+    const AmsAction prev_action = system_info_.action;
+
+    if (target_index_ >= 0 && target_index_ != system_info_.current_tool) {
+        system_info_.pending_target_slot = displayed_slot_for_global_index_locked(target_index_);
+        // Only an idle hub is promoted: an error, or a LOADING this backend
+        // set for its own command, already says more than the target does.
+        if (system_info_.action == AmsAction::IDLE) {
+            system_info_.action = AmsAction::LOADING;
+            driver_loading_ = true;
+        }
+    } else {
+        system_info_.pending_target_slot = -1;
+        if (driver_loading_ && system_info_.action == AmsAction::LOADING) {
+            system_info_.action = AmsAction::IDLE;
+        }
+        driver_loading_ = false;
+    }
+
+    return system_info_.pending_target_slot != prev_pending || system_info_.action != prev_action;
+}
+
 bool AmsBackendAce::seat_from_global_index_locked(int current_index) {
     // Caller holds mutex_.
     if (current_index >= 0) {
-        const int slot_count =
-            system_info_.units.empty() ? 0 : static_cast<int>(system_info_.units[0].slots.size());
-        if (current_index >= slot_count) {
+        if (displayed_slot_for_global_index_locked(current_index) < 0) {
             // Loaded in a unit this backend does not display: state the tool,
             // mark no slot. Idempotent — the REST poll restates the index
             // every cycle.
@@ -1191,6 +1225,11 @@ void AmsBackendAce::parse_ace_object(const json& data) {
         manager_states_seat_ = true;
         seat_from_global_index_locked(data["current_index"].get<int>());
     }
+
+    // After the seat and the status-derived action, so a toolchange the
+    // driver started itself still reads as LOADING over a unit status that
+    // stays "ready" through it.
+    apply_target_index_locked(data);
 
     apply_path_sensors_locked(data);
 
@@ -1660,6 +1699,11 @@ bool AmsBackendAce::parse_status_response(const json& data) {
             system_info_.action = action;
             changed = true;
         }
+    }
+
+    // After the action parse, for the same reason as the object path.
+    if (data.contains("ace_manager") && data["ace_manager"].is_object()) {
+        changed |= apply_target_index_locked(data["ace_manager"]);
     }
 
     apply_dryer_state_locked(data);

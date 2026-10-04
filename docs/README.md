@@ -30,6 +30,7 @@ Welcome to the HelixScreen documentation. Choose your path:
 | [**UI Contributor Guide**](devel/UI_CONTRIBUTOR_GUIDE.md) | **Start here for UI/layout work** — breakpoints, tokens, widgets, overrides |
 | [**Your First Contribution**](devel/YOUR_FIRST_CONTRIBUTION.md) | Annotated walkthrough of a real settings overlay, plus pattern tour of a full subsystem |
 | [**Contributor Gotchas**](devel/CONTRIBUTOR_GOTCHAS.md) | "If you see X, you forgot Y" — symptom-indexed troubleshooting for common traps |
+| [**Plugin Development**](devel/PLUGIN_DEVELOPMENT.md) | Writing a Lua plugin: manifest, XML rules, the helix.* API, permissions, limits, debugging |
 | [**Architecture**](devel/ARCHITECTURE.md) | Whole-app model + routing to the 15-chapter guide (`devel/architecture/`) |
 | [**Build System**](devel/BUILD_SYSTEM.md) | Makefile, cross-compilation, patches |
 | [**Testing**](devel/TESTING.md) | Test infrastructure and Catch2 usage |

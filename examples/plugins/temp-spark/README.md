@@ -4,6 +4,8 @@ The reference HelixScreen Lua plugin: one heater's temperature as a home tile
 with a 30-sample sparkline. Copy this directory to start your own plugin; every
 HelixScreen plugin API it uses appears once, in the shortest honest form.
 
+The author guide is [docs/devel/PLUGIN_DEVELOPMENT.md](../../docs/devel/PLUGIN_DEVELOPMENT.md).
+
 ## What it demonstrates
 
 - `helix.subject.int` / `helix.subject.string`: the plugin's whole output is

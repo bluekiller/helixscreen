@@ -31,7 +31,10 @@ inline constexpr int CONTRIBUTOR_COUNT = sizeof(CONTRIBUTORS) / sizeof(CONTRIBUT
 #include "format_utils.h"
 #include "helix_version.h"
 #include "i_moonraker_api.h"
+#include "i_moonraker_client.h"
+#include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "replace_method_callback.h"
 #include "system/diagnostics.h"
 #include "system/update_checker.h"
 #include "theme_manager.h"
@@ -327,6 +330,29 @@ void AboutSettingsOverlay::fetch_print_hours() {
             "AboutSettingsOverlay::get_history_totals_error", [this](const MoonrakerError& err) {
                 spdlog::warn("[{}] Failed to fetch print hours: {}", get_name(), err.message);
             }));
+}
+
+namespace {
+constexpr const char* HISTORY_METHOD = "notify_history_changed";
+constexpr const char* PRINT_HOURS_HANDLER = "AboutOverlay_print_hours";
+} // namespace
+
+void AboutSettingsOverlay::attach_print_hours(IMoonrakerClient& client) {
+    fetch_print_hours();
+    replace_method_callback(
+        client, HISTORY_METHOD, PRINT_HOURS_HANDLER, [](const nlohmann::json& data) {
+            // Moonraker accumulates its job totals only when a job
+            // finishes, so the "added" half of this notification cannot
+            // move print hours and must not cost a round-trip.
+            if (helix::json_util::notification_action(data) != "finished") {
+                return;
+            }
+            helix::ui::queue_update([]() { get_about_settings_overlay().fetch_print_hours(); });
+        });
+}
+
+void AboutSettingsOverlay::detach_print_hours(IMoonrakerClient& client) {
+    client.unregister_method_callback(HISTORY_METHOD, PRINT_HOURS_HANDLER);
 }
 
 } // namespace helix::settings

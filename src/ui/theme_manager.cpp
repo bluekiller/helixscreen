@@ -11,6 +11,7 @@
 #include "ui_observer_guard.h"
 #include "ui_split_button.h"
 #include "ui_switch.h"
+#include "ui_text.h"
 
 #include "asset_manager.h"
 #include "border_radius_sizes.h"
@@ -2571,6 +2572,12 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
         // colors here would override variant styles (muted, secondary, etc.)
         // and HeatingIconAnimator's temperature-based colors.
         if (helix::ui::is_icon_font(font)) {
+            return;
+        }
+
+        // ponytail: an inline token color is resolved once at creation and is not
+        // re-resolved on a live dark/light switch; store the token if that shows.
+        if (lv_obj_has_flag(obj, helix::ui::AUTHORED_TEXT_COLOR_FLAG)) {
             return;
         }
 

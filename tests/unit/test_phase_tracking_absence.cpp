@@ -40,7 +40,7 @@ TEST_CASE_METHOD(PhaseTrackingAbsenceFixture, "advanced panel builds without a p
     REQUIRE(root != nullptr);
 
     // Positive controls: the panel's plugin and macro rows all built.
-    REQUIRE(lv_obj_find_by_name(root, "row_configure_print_start") != nullptr);
+    REQUIRE(lv_obj_find_by_name(root, "row_helix_plugin_install") != nullptr);
     REQUIRE(lv_obj_find_by_name(root, "row_helix_macros_install") != nullptr);
     REQUIRE(lv_obj_find_by_name(root, "row_helix_macros_update") != nullptr);
 

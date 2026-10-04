@@ -32,7 +32,6 @@ translations:
   '%s uses %s, which has filament but no material set — the printer will not start until you set it.': '%s usa %s, que tiene filamento pero ningún material asignado — la impresora no empezará hasta que lo asignes.'
   '%s: %.0fg of %.0fg needed': '%s: %.0fg de %.0fg necesarios'
   '%u layers': '%u capas'
-  '%zu changes': '%zu cambios'
   '%zu events queued': '%zu eventos en cola'
   '%zu plugins failed to load': '%zu plugins no se cargaron'
   "'{}' already exists. Replace the stored mesh?": "'{}' ya existe. ¿Reemplazar la malla guardada?"
@@ -120,7 +119,6 @@ translations:
   = Loosen: = Aflojar
   = Tighten: = Apretar
   A: A
-  A backup of %s is created before applying: 'Se crea una copia de seguridad de %s antes de aplicar'
   A few minutes, nearly all of it heating. You judge nothing by eye.: 'Unos minutos, casi todo calentando. No juzgas nada a ojo.'
   A motor IO pin couldn't be restored. Power-cycle the printer to recover: No se pudo restaurar un pin de E/S del motor. Apague y encienda la impresora para recuperarla
   A motor's parameters couldn't be written. Power-cycle the printer to retry: No se pudieron escribir los parámetros de un motor. Apague y encienda la impresora para reintentar
@@ -257,9 +255,6 @@ translations:
   Appearance: Apariencia
   Applies to: Se aplica a
   Apply: Aplicar
-  Apply Changes: Aplicar Cambios
-  Applying Changes: Aplicando Cambios
-  Applying...: Aplicando...
   Archive: Archivar
   Archive Spool?: ¿Archivar bobina?
   Are you sure you want to cancel this print? All progress will be lost.: ¿Está seguro
@@ -558,8 +553,6 @@ translations:
     inmediatamente. Ajuste durante la impresión para afinar.
   Changes are temporary and reset on printer reboot: Los cambios son temporales y
     se reinician al reiniciar la impresora
-  Changes can be reversed anytime using the Macro Viewer.: Los cambios se pueden revertir
-    en cualquier momento usando el Macro Viewer.
   Check AFC configuration: 'Compruebe la configuración de AFC'
   Check Again: Verificar de nuevo
   Check Klipper console for details: Consulte la consola de Klipper para más detalles
@@ -595,6 +588,7 @@ translations:
   Checking for webcam...: Comprobando webcam...
   Checking plugin: Comprobando plugin
   Checking slots...: Verificando ranuras...
+  Checking the printer...: "Comprobando la impresora..."
   Checking timelapse plugin...: Verificando plugin de timelapse...
   Checking webcam: Comprobando webcam
   Checking...: Comprobando...
@@ -688,7 +682,6 @@ translations:
   Configure G10/G11 firmware retraction: Configurar retracción de firmware G10/G11
   Configure Graph: Configurar Gráfico
   Configure Moonraker: Configurar Moonraker
-  Configure PRINT_START: Configurar PRINT_START
   Configure Spoolman integration and weight sync settings.: Configurar integración
     de Spoolman y ajustes de sincronización de peso.
   Configure WiFi for this device, or skip if you're using Ethernet: Configura WiFi
@@ -947,7 +940,6 @@ translations:
   Documentation: Documentación
   Don't Save: No Guardar
   Don't ask again: No volver a preguntar
-  Don't show again: No volver a mostrar
   Done: Listo
   Download update?: ¿Descargar actualización?
   Download v{}?: ¿Descargar v{}?
@@ -1040,10 +1032,6 @@ translations:
   Ended: Terminado
   Endless spool failover cleared for every slot: 'Bobina de reserva borrada para todas las ranuras'
   Endless spool is turned off on this MMU: 'La bobina infinita está desactivada en este MMU'
-  Enhanced {} operation in PRINT_START: '{} operación mejorada en PRINT_START'
-  Enhanced {} operations in PRINT_START: '{} operaciones mejoradas en PRINT_START'
-  Enhancement Complete!: ¡Mejora Completa!
-  Enhancement Failed: Mejora Fallida
   Ensure Happy Hare or AFC is installed and configured: Asegúrese de que Happy Hare o AFC esté instalado y configurado
   Enter Current PIN: Introduce el PIN actual
   Enter G-code command...: Ingrese comando G-code...
@@ -1143,7 +1131,6 @@ translations:
   FILTERS: FILTROS
   Factory Reset: Restaurar de Fábrica
   Failed: Fallido
-  Failed to analyze PRINT_START macro: Error al analizar macro PRINT_START
   Failed to apply limits: Error al aplicar límites
   Failed to apply settings: Error al aplicar ajustes
   Failed to archive spool: Error al archivar bobina
@@ -1194,7 +1181,6 @@ translations:
   Failed to open history: Error al abrir historial
   Failed to open history list: Error al abrir lista de historial
   Failed to open temperature graph: Error al abrir gráfico de temperatura
-  Failed to open wizard: Error al abrir asistente
   'Failed to pause print: {}': 'Error al pausar impresión: {}'
   'Failed to purge: {}': 'Error al purgar: {}'
   Failed to read G-code for remap: Error al leer G-code para reasignar
@@ -1674,7 +1660,6 @@ translations:
   KLICKY CONTROLS: CONTROLES KLICKY
   Keep Navigation Bar: Mantener barra de navegación
   Keep Printing: Continuar Imprimiendo
-  Keep Required: Mantener Requerido
   Keep Spool Info on Eject: Conservar información de la bobina al expulsar
   Keep clear of the printer while the toolhead is moving: Manténgase alejado de la impresora mientras se mueve el cabezal
   Keep current: Mantener actual
@@ -1699,8 +1684,9 @@ translations:
     descontrol térmico o error de configuración.
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper reserva 'default' para nuevas calibraciones. Elija otro nombre."
   Klipper restarting - macros activating: 'Reiniciando Klipper - activando macros'
+  ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
+  : "Klipper dejó de informar el progreso. Su análisis puede quedarse sin memoria en impresoras pequeñas y dejar Klipper bloqueado, donde un reinicio de firmware no puede alcanzarlo. Apague y encienda la impresora (o reinicie Klipper por SSH) e inténtelo de nuevo."
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper dejó de informar el progreso. Su análisis puede quedarse sin memoria en impresoras pequeñas; reinicie Klipper e inténtelo de nuevo."
-  Klipper will restart to apply changes: Klipper se reiniciará para aplicar los cambios
   Klipper will restart to apply changes.: Klipper se reiniciará para aplicar los cambios.
   Klipper will restart to apply new settings.: Klipper se reiniciará para aplicar
     la nueva configuración.
@@ -1844,7 +1830,6 @@ translations:
   Macro Browser: Explorador de Macros
   Macro Button: 'Botón de macro'
   Macro Buttons: Botones de Macro
-  Macro analysis not initialized: Análisis de macro no inicializado
   'Macro failed: {}': 'Error en macro: {}'
   Macro for bed mesh calibration: Macro para calibración de malla de cama
   Macro for chamber/bed heat soak: Macro para estabilización térmica de cámara/cama
@@ -1870,9 +1855,6 @@ translations:
   Main LED Strip: Tira LED Principal
   Maintaining: Manteniendo
   Maintenance: 'Mantenimiento'
-  Make %s Optional?: ¿Hacer %s Opcional?
-  Make Optional: Hacer Opcional
-  Make bed mesh and QGL skippable: Hacer que la malla de cama y QGL sean omitibles
   Make sure every nozzle is clean.: Asegúrate de que todas las boquillas estén limpias.
   'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.': 'Asegúrate de que no haya filamento cargado en el cabezal: puede ablandarse en el extrusor mientras la cama se calienta.'
 
@@ -2039,7 +2021,6 @@ translations:
   No Macros Found: No se Encontraron Macros
   No Multi-Filament System connected: Ningún sistema multi-filamento conectado
   No Multi-Filament System connected.: No hay sistema multi-filamento conectado.
-  No PRINT_START macro found: No se encontró macro PRINT_START
   No Power Devices: Sin Dispositivos de Energía
   No Spool: Sin bobina
   No Spools: Sin Bobinas
@@ -2050,8 +2031,6 @@ translations:
   No camera — use USB barcode scanner: Sin cámara — use un escáner de código de barras
     USB
   No chamber temperature sensor detected: 'No se detectó sensor de temperatura de cámara'
-  ? "No changes selected.\n\nClick Cancel to close."
-  : "No se seleccionaron cambios.\n\nHaga clic en Cancelar para cerrar."
   No changes to revert: No hay cambios para revertir
   No color: Sin color
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: Sin
@@ -2126,6 +2105,7 @@ translations:
   Normal: Normal
   Not Connected: 'No conectado'
   Not Enough Filament: Filamento Insuficiente
+  Not Enough Memory: "Memoria insuficiente"
   Not Initialized: 'No inicializado'
   Not Now: Ahora No
   Not Supported: 'No compatible'
@@ -2200,6 +2180,8 @@ translations:
   One tap runs this macro. Dangerous macros still ask.: 'Un toque ejecuta esta macro. Las macros peligrosas siguen preguntando.'
   'Only on A: {} Hz': "Solo en A: {} Hz"
   'Only on B: {} Hz': "Solo en B: {} Hz"
+  ? Only {} MB of memory is free, and Klipper's analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled.
+  : "Solo hay {} MB de memoria libre y el análisis de Klipper necesita unos {} MB. La prueba dejaría la impresora bloqueada hasta apagarla y encenderla."
   Ooze Reduction: 'Reducción de goteo'
   Open: Abrir
   Open Source Licenses: Licencias de código abierto
@@ -2250,8 +2232,6 @@ translations:
   PRINTER: IMPRESORA
   PRINTER VISUALS: VISUALES DE IMPRESORA
   PRINTERS: IMPRESORAS
-  PRINT_START has {} skippable operation: PRINT_START tiene {} operación omitible
-  PRINT_START has {} skippable operations: PRINT_START tiene {} operaciones omitibles
   PROBE SENSORS: SENSORES DE SONDA
   PTFE tube connection loose: La conexión del tubo PTFE está floja
   Pair: Emparejar
@@ -2579,7 +2559,6 @@ translations:
   Readings from extra temperature sensors: Lecturas de sensores adicionales
   Ready: Listo
   Ready for filament operations: Listo para operaciones de filamento
-  Ready to Apply: Listo para Aplicar
   Ready to calibrate: Listo para calibrar
   Rear: 'Atrás'
   Rear Left: 'Atrás izquierda'
@@ -2754,7 +2733,6 @@ translations:
   Reverse Multiplier: 'Multiplicador de retroceso'
   Review detected hardware validation issues: Revisar problemas de validación de hardware
     detectados
-  Review your changes: Revisar sus cambios
   Review your configuration below, then click Finish to save: Revisa tu configuración
     abajo, luego toca Finalizar para guardar
   Rewinding: Rebobinando
@@ -2974,7 +2952,6 @@ translations:
   Settings reset to defaults. Restarting...: Ajustes restablecidos a valores predeterminados.
     Reiniciando...
   Setup: 'Configuración inicial'
-  Setup Complete!: ¡Configuración Completa!
   Setup Timelapse: Configurar Timelapse
   Several printers match - choose yours: Varias impresoras coinciden - elija la suya
   Shadow Intensity: Intensidad de Sombra
@@ -3355,6 +3332,8 @@ translations:
   Theme changes apply after restart.: Los cambios de tema se aplican después de reiniciar.
   Theme reset to defaults: Tema restablecido a valores predeterminados
   'Theme: ': 'Tema: '
+  ? There is not enough free memory to run this test. Klipper's analysis would run out of memory and leave the printer stuck until it is power-cycled.
+  : "No hay suficiente memoria libre para esta prueba. El análisis de Klipper se quedaría sin memoria y dejaría la impresora bloqueada hasta apagarla y encenderla."
   'These tools have a different filament grade loaded:': 'Estas herramientas tienen cargado un filamento de grado diferente:'
   'These tools have incompatible materials loaded:': 'Estas herramientas tienen materiales
     incompatibles cargados:'
@@ -3395,11 +3374,7 @@ translations:
     si se activa
   This may take up to 30 seconds: Esto puede tardar hasta 30 segundos
   This plugin asks for no special permissions.: 'Este plugin no pide permisos especiales.'
-  ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
-  : Este plugin permite que HelixScreen controle opciones de inicio de impresión como
-    malla de cama y QGL. Una vez instalado, use Configurar PRINT_START abajo para
-    habilitar pasos opcionales.
+  This plugin lets HelixScreen control print start options like bed mesh and QGL.: 'Este plugin permite que HelixScreen controle opciones de inicio de impresión como malla de cama y QGL.'
   This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?: Esta
     impresión necesita aproximadamente %.0fg pero la bobina tiene aproximadamente
     %.0fg restantes. ¿Iniciar de todos modos?
@@ -3709,11 +3684,6 @@ translations:
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: Cuando
     está activado, solo se ejecuta el macro. Cuando está desactivado, primero se establecen
     las temperaturas y luego se ejecuta el macro.
-  ? When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
-  : Al iniciar una impresión, podrá elegir si ejecutar %s. Esto ahorra tiempo cuando
-    ya lo ha hecho recientemente o desea más control sobre la preparación de su impresión.
   Where UI sounds play: Dónde se reproducen los sonidos de la interfaz
   Whether filament is loaded: Si hay filamento cargado
   Which macro the Close feeder button sends: Qué macro envía el botón Cerrar alimentador
@@ -3767,16 +3737,10 @@ translations:
   : "¡GANASTE!\nPuntuación: {}\nToca para jugar de nuevo"
   Year: Año
   'Yes': Sí
-  ? "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
-  : "Ahora puede omitir estas operaciones al iniciar impresiones.\n\nBusque las nuevas opciones en los detalles de impresión antes de iniciar cada impresión.\n\nSe guardó automáticamente una copia de seguridad de su configuración."
   You can skip this and calibrate later in Settings.: Puede omitir esto y calibrar
     más tarde en Ajustes.
   You have unsaved changes. Discard them?: Tiene cambios sin guardar. ¿Descartarlos?
-  ? "Your PRINT_START macro will be updated to give you control over:\n\n"
-  : "Su macro PRINT_START se actualizará para darle control sobre:\n\n"
   Your completed prints will appear here: Sus impresiones completadas aparecerán aquí
-  Your print start is already fully configured!: ¡Su inicio de impresión ya está completamente
-    configurado!
   Your printer at a glance: Tu impresora de un vistazo
   Your printer has an automatic filament changer: Tu impresora tiene un cambiador
     de filamento automático

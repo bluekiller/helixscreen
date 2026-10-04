@@ -150,7 +150,7 @@ class AudioSettingsManager {
 
     SubjectManager subjects_;
     settings::PersistedSettings<Key, static_cast<size_t>(Key::COUNT)> settings_;
-    lv_subject_t audio_device_available_subject_;
+    lv_subject_t audio_device_available_subject_{};
 
     bool subjects_initialized_ = false;
 };

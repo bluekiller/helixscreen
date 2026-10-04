@@ -70,9 +70,9 @@ static lv_subject_t wizard_is_final_step; // Int: 0=not final, 1=final (for butt
 static lv_subject_t wizard_back_visible;
 
 // Non-static: accessible from other wizard step files
-lv_subject_t connection_test_passed; // Global: 0=connection not validated, 1=validated or N/A
-lv_subject_t wizard_subtitle;        // Global: accessible for dynamic subtitle updates
-lv_subject_t wizard_show_skip;       // Global: 0=show Next, 1=show Skip (for touch calibration)
+lv_subject_t connection_test_passed{}; // Global: 0=connection not validated, 1=validated or N/A
+lv_subject_t wizard_subtitle{};        // Global: accessible for dynamic subtitle updates
+lv_subject_t wizard_show_skip{};       // Global: 0=show Next, 1=show Skip (for touch calibration)
 
 // SubjectManager for RAII cleanup of wizard subjects
 static SubjectManager wizard_subjects_;

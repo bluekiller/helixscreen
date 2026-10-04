@@ -14,6 +14,7 @@
 #include "application.h"
 
 #include "detect_printer_cmd.h"
+#include "discovery_steps.h"
 #include "env_knobs.h"
 
 // Private LVGL header needed to read display->flush_cb for splash no-op swap
@@ -54,6 +55,7 @@
 #include "print_history_manager.h"
 #include "printer_cache_registry.h"
 #include "printer_recovery_service.h"
+#include "process_guards.h"
 #include "recovery_modal_presenter.h"
 #include "refresh_period_hold.h"
 #ifdef HELIX_ENABLE_REMOTE_CONTROL
@@ -64,7 +66,7 @@
 #include "screenshot.h"
 #include "sensor_state.h"
 #include "sound_manager.h"
-#include "spoolman_manager.h"
+#include "spoolman_active_spool_sync.h"
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
 #include "subject_initializer.h"
@@ -267,15 +269,6 @@
 
 using namespace helix;
 
-#if HELIX_HAS_CAMERA
-// Defined in src/ui/panel_widgets/camera_widget.cpp; that directory is not on
-// application.cpp's include path, so forward-declare rather than including the
-// header (same pattern as ui_settings_hardware.cpp).
-namespace helix {
-void open_standalone_camera_fullscreen(lv_obj_t* parent_screen);
-}
-#endif
-
 // External globals for logging (defined in cli_args.cpp, populated by parse_cli_args)
 extern std::string g_log_dest_cli;
 extern std::string g_log_file_cli;
@@ -289,88 +282,7 @@ std::atomic<bool> s_app_backgrounded{false};
 // SIGUSR1: remote screenshot trigger. Handler is signal-safe; main loop polls.
 std::atomic<bool> s_screenshot_requested{false};
 
-// Crash loop detection marker file. Routed through the writable config
-// dir so it survives RO-rootfs platforms (Yocto squashfs etc.).
-const std::string& crash_marker_path() {
-    static const std::string p = helix::writable_path(".crash_restart_count");
-    return p;
-}
-
-// Async-signal-safe copy of crash_marker_path(). The SIGTERM handler clears the
-// marker with unlink(2) and may not build the path itself: std::string, the
-// function-local static's guard, and std::filesystem::remove are all unsafe in
-// a handler. The path is snapshotted here once on the main thread at startup;
-// s_crash_marker_path_ready gates the handler until it is.
-char s_crash_marker_path[PATH_MAX] = {0};
-volatile sig_atomic_t s_crash_marker_path_ready = 0;
-
-// GPU 3D crash-loop guard file (issues #966 / #1084 / #1085). The 3D GLES
-// renderer writes this immediately before its first GPU draw and removes it
-// after the first successful frame. If the driver hard-faults inside the draw
-// the process dies with the file still present; finding it here at startup
-// means the last session crashed in the GPU path, so we promote it to a
-// persistent block. Routed through the writable config dir like the other
-// markers so it survives RO-rootfs platforms.
-const std::string& gpu_3d_guard_path() {
-    static const std::string p = helix::writable_path("gpu_3d_guard");
-    return p;
-}
-
-// GPU 2D blur crash-loop guard file. The DRM+EGL backdrop-blur path writes this
-// immediately before its first Mali/EGL init and removes it once the pipeline is
-// up. If the driver hard-faults inside that init (an in-driver SIGSEGV the
-// reactive check_gl() guard cannot catch), the process dies with the file still
-// present; finding it here at startup means the last session crashed initializing
-// GPU blur, so we promote it to a persistent block. Routed through the writable
-// config dir like the other markers so it survives RO-rootfs platforms.
-const std::string& gpu_blur_guard_path() {
-    static const std::string p = helix::writable_path("gpu_blur_guard");
-    return p;
-}
-
-// Safe-mode marker written by the watchdog when it detects a deterministic
-// crash loop (CRASH_LOOP_MAX_CRASHES same-signature crashes within the
-// CRASH_LOOP_WINDOW_SEC window). When present at startup, the application
-// defers Moonraker connection so the user can reach Settings and clear the
-// underlying state (a stuck subscription field, bad printer URL, etc.)
-// without re-crashing on the same code path.
-//
-// One-shot: deleted once the main loop is running and the user can dismiss
-// the banner. A clean reboot exits Safe Mode automatically.
-const std::string& safe_mode_marker_path() {
-    static const std::string p = helix::writable_path("safe_mode.flag");
-    return p;
-}
-
 bool s_safe_mode_active = false;
-
-bool consume_safe_mode_marker() {
-    // Watchdog writes one of these two paths — primary (writable_path) first,
-    // then /tmp fallback if the primary path is unwritable (read-only fs,
-    // stuck systemd namespace, etc.). Check both so any successful write
-    // by the watchdog reaches us.
-    std::vector<std::string> paths{
-        safe_mode_marker_path(),
-        "/tmp/helix-screen-safe-mode.flag",
-    };
-    bool found = false;
-    for (const auto& path : paths) {
-        std::error_code ec;
-        if (!std::filesystem::exists(path, ec)) {
-            continue;
-        }
-        spdlog::warn("[Application] Safe Mode marker present at {} — booting without "
-                     "Moonraker connection",
-                     path);
-        std::filesystem::remove(path, ec);
-        if (ec) {
-            spdlog::warn("[Application] Failed to remove Safe Mode marker {}: {}", path,
-                         ec.message());
-        }
-        found = true;
-    }
-    return found;
-}
 
 /**
  * @brief Recursively invalidate all widgets in the tree
@@ -428,30 +340,6 @@ void graceful_quit_signal_handler(int sig) {
 
 } // namespace
 
-namespace helix {
-
-bool cache_crash_marker_path_for_signal(const std::string& path) {
-    if (path.empty() || path.size() >= sizeof(s_crash_marker_path)) {
-        spdlog::warn("[Application] Crash marker path not signal-cacheable ({} bytes): '{}'",
-                     path.size(), path);
-        s_crash_marker_path_ready = 0;
-        return false;
-    }
-    std::memcpy(s_crash_marker_path, path.c_str(), path.size() + 1);
-    s_crash_marker_path_ready = 1;
-    return true;
-}
-
-void clear_crash_marker_signal_safe() {
-    if (s_crash_marker_path_ready == 0) {
-        return;
-    }
-    // ENOENT is the common case (no marker written, e.g. --test mode).
-    (void)::unlink(s_crash_marker_path);
-}
-
-} // namespace helix
-
 // C bridge functions called from SDL event handler (lv_sdl_window.c)
 extern "C" void helix_notify_app_backgrounded() {
     s_app_backgrounded.store(true);
@@ -504,7 +392,10 @@ void Application::release_instance_lock() {
     }
 }
 
-Application::Application() = default;
+Application::Application()
+    : m_prompter(
+          m_async_lifetime, [this] { return m_screen; },
+          [this] { return m_moonraker ? m_moonraker->api() : nullptr; }) {}
 
 Application::~Application() {
     shutdown();
@@ -593,72 +484,11 @@ int Application::run(int argc, char** argv) {
     // test mode — automation (screenshot pipeline, helixctl-driven runs) relaunches
     // the binary rapidly by design, and this guard exists to protect users on a
     // real device from an infinite restart loop, never a dev running --test.
-    if (!get_runtime_config()->is_test_mode()) {
-        constexpr size_t MAX_CRASH_RESTARTS = 3;
-        constexpr long long CRASH_WINDOW_SEC = 120;
-        auto now_epoch = std::chrono::duration_cast<std::chrono::seconds>(
-                             std::chrono::system_clock::now().time_since_epoch())
-                             .count();
-
-        // Read existing timestamps and filter to recent window
-        std::vector<long long> recent_timestamps;
-        {
-            std::ifstream in(crash_marker_path());
-            long long ts;
-            while (in >> ts) {
-                if (now_epoch - ts < CRASH_WINDOW_SEC) {
-                    recent_timestamps.push_back(ts);
-                }
-            }
-        }
-
-        if (recent_timestamps.size() >= MAX_CRASH_RESTARTS) {
-            spdlog::error("[Application] Crash loop detected: {} restarts within {}s — "
-                          "halting to prevent infinite restart loop",
-                          recent_timestamps.size(), CRASH_WINDOW_SEC);
-            std::filesystem::remove(crash_marker_path());
-            return 1;
-        } else {
-            // Write filtered timestamps plus current restart
-            std::ofstream out(crash_marker_path(), std::ios::trunc);
-            for (auto ts : recent_timestamps) {
-                out << ts << "\n";
-            }
-            out << now_epoch << "\n";
-        }
+    if (helix::crash_loop_detected_and_record()) {
+        return 1;
     }
 
-    // Promote a surviving GPU 3D crash-loop guard to a persistent block. The
-    // guard file only survives if the last session died inside the GPU driver
-    // mid-draw (the renderer clears it after the first successful frame). Set
-    // /display/gpu_3d_blocked so the gcode viewer uses the pure-CPU 2D path,
-    // then remove the guard so a subsequent clean run can re-arm it.
-    {
-        std::error_code ec;
-        if (std::filesystem::exists(gpu_3d_guard_path(), ec)) {
-            spdlog::warn("[Application] GPU 3D crash-loop guard survived — last session likely "
-                         "faulted inside the GPU driver; blocking 3D gcode preview");
-            Config::get_instance()->set<bool>("/display/gpu_3d_blocked", true);
-            Config::get_instance()->save();
-            std::filesystem::remove(gpu_3d_guard_path(), ec);
-        }
-    }
-
-    // Promote a surviving GPU blur crash-loop guard to a persistent block. The
-    // guard file only survives if the last session died inside the Mali/EGL blur
-    // init mid-setup (backdrop_blur.cpp clears it once the pipeline is up). Set
-    // /display/gpu_blur_blocked so the backdrop uses the pure-CPU blur path, then
-    // remove the guard so a subsequent clean run can re-arm it.
-    {
-        std::error_code ec;
-        if (std::filesystem::exists(gpu_blur_guard_path(), ec)) {
-            spdlog::warn("[Application] GPU blur crash-loop guard survived — last session likely "
-                         "faulted inside the GPU driver; blocking GPU backdrop blur");
-            Config::get_instance()->set<bool>("/display/gpu_blur_blocked", true);
-            Config::get_instance()->save();
-            std::filesystem::remove(gpu_blur_guard_path(), ec);
-        }
-    }
+    helix::promote_surviving_gpu_guards();
 
     // Before Phase 3: a platform state-root rename has to precede logging,
     // which opens HELIX_LOG_FILE — a path a pre-rename platform hook still
@@ -2178,7 +2008,7 @@ bool Application::init_moonraker() {
     // API is now injected at panel construction in init_panel_subjects()
     // No need for deferred inject_api() call
 
-    // Register MoonrakerManager globally (for Advanced panel access to MacroModificationManager)
+    // Register MoonrakerManager globally
     set_moonraker_manager(m_moonraker.get());
 
     // Discovery callbacks on the client update the API's hardware_ and run
@@ -2196,9 +2026,6 @@ bool Application::init_moonraker() {
     m_job_queue_state->init_subjects();
     set_job_queue_state(m_job_queue_state.get());
     spdlog::debug("[Application] JobQueueState created");
-
-    // Initialize macro modification manager (for PRINT_START wizard)
-    m_moonraker->init_macro_analysis(m_config);
 
     // Validate screen before keyboard init (debugging potential race condition)
     if (!m_screen) {
@@ -2504,513 +2331,6 @@ void Application::apply_startup_cli_actions() {
     }
 }
 
-#ifdef HELIX_ENABLE_REMOTE_CONTROL
-namespace helix {
-
-// Bring up a demo overlay/modal with representative sample data. These screens
-// only appear in response to a real printer event (pre-print check, runout,
-// active print) or configured state (lock PIN), so mock-mode navigation can't
-// reach them — the remote-control `demo` command uses this to capture them for
-// screenshots with the real widget lifecycle. Must run on the UI thread.
-bool show_demo_overlay(const std::string& name) {
-    lv_obj_t* screen = lv_screen_active();
-
-    if (name == "preflight-check") {
-        // Representative pre-print filament check: one matching tool, one color
-        // mismatch (advisory), one empty required slot (the blocking case).
-        helix::PreflightResult pf;
-        helix::ToolCheck ok;
-        ok.tool_index = 0;
-        ok.intended_material = "PLA";
-        ok.intended_color = 0x2E8B57;
-        ok.mapped_slot = 0;
-        ok.slot_present = true;
-        ok.severity = helix::ToolCheck::Severity::Ok;
-        helix::ToolCheck color;
-        color.tool_index = 1;
-        color.intended_material = "PLA";
-        color.intended_color = 0xE23B3B;
-        color.mapped_slot = 1;
-        color.slot_present = true;
-        color.color_ok = false;
-        color.severity = helix::ToolCheck::Severity::ColorMismatch;
-        helix::ToolCheck empty;
-        empty.tool_index = 2;
-        empty.intended_material = "PETG";
-        empty.intended_color = 0xF5A623;
-        empty.mapped_slot = -1;
-        empty.slot_present = false;
-        empty.severity = helix::ToolCheck::Severity::EmptySlot;
-        pf.checks = {ok, color, empty};
-        auto modal = std::make_unique<helix::ui::PreflightCheckModal>();
-        modal->set_checks(pf);
-        Modal::show_owned(std::move(modal), screen);
-        return true;
-    }
-
-    if (name == "color-mismatch") {
-        // The SECOND gate on a Print tap, after the pre-flight empty-slot block:
-        // the print-start pipeline warns when a tool resolves to no slot at all.
-        // Only reachable from a real multi-tool file whose tools do not map, so
-        // mock navigation cannot get here. Text mirrors the unresolved_tools
-        // gate's dialog exactly — two unresolved tools, color name plus
-        // material per row.
-        std::string message = lv_tr("These tools have no matching filament loaded:");
-        message += "\n\n";
-        message += std::string("  ") + LV_SYMBOL_BULLET +
-                   " T2: " + helix::describe_color(0xF5A623) + " (PETG)\n";
-        message += std::string("  ") + LV_SYMBOL_BULLET +
-                   " T3: " + helix::describe_color(0x2E8B57) + " (PLA)\n";
-        message += "\n";
-        message += lv_tr("Load the required filaments or start anyway?");
-        static char demo_message[1024];
-        snprintf(demo_message, sizeof(demo_message), "%s", message.c_str());
-        helix::ui::modal_confirm(lv_tr("Color Mismatch"), demo_message, ModalSeverity::Warning,
-                                 lv_tr("Start Anyway"), nullptr);
-        return true;
-    }
-
-    if (name == "leds") {
-        return helix::open_led_control_overlay(screen) != nullptr;
-    }
-
-    if (name == "runout-modal") {
-        auto* modal = new RunoutGuidanceModal();
-        modal->set_autofeed_capable(false);
-        modal->set_resume_blocked(false);
-        // A runout is a warning, and this token screenshots the runout dialog —
-        // state it rather than inheriting whatever ran last, same rule every
-        // other show site follows (RunoutGuidanceModal::set_advisory()).
-        modal->set_advisory(false);
-        modal->show(screen);
-        return true;
-    }
-
-    if (name == "ams-loading-error") {
-        // Worst case for the modal chrome budget (prestonbrown/helixscreen#1277):
-        // a fault string long enough to drive content_container to its
-        // #dialog_content_max cap, with the AFC diagram pinned BELOW it and
-        // outside the scroll area. That combination overruns the 85% card cap on
-        // a 480x272 panel and the button row falls off the bottom. Unreachable in
-        // mock mode — AmsBackendMock never produces a recognised AFC fault — so
-        // this is the only way to check the real layout instead of arithmetic on
-        // a token table.
-        // ams_loading_error_modal.xml is registered lazily by AmsPanel, which has
-        // not necessarily run — register it here so the demo works from a cold start.
-        // Idempotent: re-registering a component replaces the identical entry.
-        lv_xml_register_component_from_file(
-            helix::asset_component_uri("ui_xml/ams_loading_error_modal.xml").c_str());
-
-        lv_subject_t* seg = lv_xml_get_subject(nullptr, "afc_fault_segment");
-        if (seg != nullptr) {
-            lv_subject_set_int(seg, static_cast<int>(PathSegment::HUB));
-        }
-        auto* modal = new helix::ui::AmsLoadingErrorModal();
-        modal->show(screen,
-                    "Filament did not reach the toolhead sensor after the "
-                    "configured load length. The lane may be jammed at the hub, "
-                    "the spool may have run out mid-load, or the bowden length "
-                    "configured for this lane may not match the physical tube "
-                    "run between the hub and the toolhead.",
-                    "Check the filament path and try again. If the lane is clear, "
-                    "verify the configured bowden length for this lane and confirm "
-                    "the hub sensor triggers when filament passes it.",
-                    []() {});
-        return true;
-    }
-
-    if (name == "action-prompt-worst") {
-        // Worst case for action_prompt_modal's chrome budget (#1277). This modal
-        // carries MORE pinned chrome than ams_loading_error_modal: the AFC
-        // diagram, a row_wrap button container that can spill to a second row,
-        // and a footer divider + footer row that are hidden by default. All of
-        // it sits below the scroll area, so it is the shape most likely to
-        // overrun the 85% card cap. Unreachable in mock mode — it needs a live
-        // Klipper `action:prompt_begin` — so this is the only way to measure it.
-        lv_subject_t* seg = lv_xml_get_subject(nullptr, "afc_fault_segment");
-        if (seg != nullptr) {
-            lv_subject_set_int(seg, static_cast<int>(PathSegment::HUB));
-        }
-        helix::PromptData data;
-        data.title = "Filament Runout Detected";
-        data.severity = "error";
-        data.text_lines = {
-            "Lane 1 ran out of filament during the print.",
-            "The toolhead has been parked and the print is paused.",
-            "Load a new spool into lane 1, then choose how to continue.",
-        };
-        data.buttons = {
-            {"Resume", "RESUME", "primary", "", false, -1},
-            {"Retry Load", "AFC_LOAD LANE=1", "secondary", "", false, -1},
-            {"Change Lane", "AFC_CHANGE_LANE", "secondary", "", false, -1},
-            {"Cancel Print", "CANCEL_PRINT", "error", "", true, -1},
-        };
-        auto* modal = new helix::ui::ActionPromptModal();
-        modal->show_prompt(screen, data);
-        return true;
-    }
-
-    if (name == "action-prompt-many") {
-        // A prompt whose buttons cannot share one row: a preheat macro offering
-        // seven material presets. Each label is far wider than a seventh of the
-        // card, so this is the case that must fall back to row_wrap instead of
-        // being squeezed into equal-width cells. Unreachable in mock mode - it
-        // needs a live Klipper `action:prompt_begin` - so this is the only way
-        // to check the wrapped layout against a real 480x272 panel.
-        helix::PromptData data;
-        data.title = "Preheat for Load";
-        data.text_lines = {"Preheat filament and choose a material."};
-        data.buttons = {
-            {"PLA 220/60", "SET_MATERIAL M=PLA", "primary", "", false, -1},
-            {"PETG 240/80", "SET_MATERIAL M=PETG", "primary", "", false, -1},
-            {"ABS 250/100", "SET_MATERIAL M=ABS", "primary", "", false, -1},
-            {"ASA 260/100", "SET_MATERIAL M=ASA", "primary", "", false, -1},
-            {"TPU 230/50", "SET_MATERIAL M=TPU", "primary", "", false, -1},
-            {"PC 280/110", "SET_MATERIAL M=PC", "primary", "", false, -1},
-            {"Nylon 260/80", "SET_MATERIAL M=NYLON", "primary", "", false, -1},
-            {"Cancel", "", "error", "", true, -1},
-        };
-        auto* modal = new helix::ui::ActionPromptModal();
-        modal->show_prompt(screen, data);
-        return true;
-    }
-
-    if (name == "lock-screen") {
-        helix::ui::LockScreenOverlay::instance().show();
-        return true;
-    }
-
-    if (name == "print-status") {
-        PrintStatusPanel::push_overlay(screen);
-        return true;
-    }
-
-    if (name == "ams-error-toast") {
-        // The widest thing the AMS error renderer ever has to lay out: the
-        // longest suggestion any backend produces (96 chars) under a 44-char
-        // message. Unreachable in mock mode — AmsBackendMock carries no print
-        // gate — so this is the only way to check the two-line toast against a
-        // real 480x272 panel instead of arithmetic on a font table.
-        helix::ui::notify_ams_error(AmsErrorHelper::print_active(/*is_paused=*/true));
-        return true;
-    }
-
-    if (name == "print-tune") {
-        // show() is the real entry point (create() alone builds a hidden panel
-        // that never gets pushed) — it wires api + printer state and pushes.
-        get_print_tune_overlay().show(screen, get_moonraker_api(), get_printer_state());
-        return true;
-    }
-
-    if (name == "belt-tension") {
-        // Opens the panel directly, skipping the Advanced row's beta and
-        // accelerometer gates, for screenshots and ctl runs. Same
-        // lazy-create-plus-show the row click performs.
-        auto& panel = get_global_belt_tension_panel();
-        if (!panel.get_root()) {
-            panel.set_api(get_moonraker_client(), get_moonraker_api());
-            if (!panel.create(screen)) {
-                spdlog::warn("[demo] failed to create panel_belt_tension");
-                return false;
-            }
-        }
-        panel.show();
-        return true;
-    }
-
-    if (name == "ams") {
-        // The filament panel's AMS row no-ops without a configured backend, so
-        // reach the dedicated AMS management panel directly (mock provides the
-        // backend in --test mode).
-        navigate_to_ams_panel();
-        return true;
-    }
-
-    if (name == "camera") {
-#if HELIX_HAS_CAMERA
-        // No-ops if no webcam is discovered yet; point at a live Moonraker with a
-        // webcam (--moonraker ws://host:7125) for a real feed.
-        open_standalone_camera_fullscreen(screen);
-        return true;
-#else
-        spdlog::warn("[demo] camera viewer requested but HELIX_HAS_CAMERA is off");
-        return false;
-#endif
-    }
-
-    // Fallback: show any registered XML component that is a self-contained
-    // modal. The cases above exist because they need state wired up first;
-    // a plain dialog needs none, so screenshotting one should not require
-    // adding an entry here. Unknown names return nullptr and fall through.
-    if (Modal::show(name.c_str()) != nullptr) {
-        spdlog::debug("[demo] shown as a plain modal component: {}", name);
-        return true;
-    }
-
-    return false;
-}
-
-} // namespace helix
-#endif // HELIX_ENABLE_REMOTE_CONTROL
-
-void Application::reapply_hardware_roles() {
-    m_async_lifetime.defer("Application::reapply_hardware_roles", [this]() {
-        IMoonrakerAPI* api = m_moonraker ? m_moonraker->api() : nullptr;
-        if (!api) {
-            return;
-        }
-        const auto& fans = api->hardware().fans();
-        const auto& heaters = api->hardware().heaters();
-        // Re-resolve + persist fan roles, then rebind fan UI to the new mapping.
-        // apply_roles, not init_fans: the wizard changed which fan plays which
-        // role, not which fans exist, so the discovered list comes from what
-        // discovery actually stored rather than being re-passed from here.
-        auto roles = helix::FanRoleConfig::from_config(Config::get_instance(), fans);
-        get_printer_state().apply_fan_roles(roles);
-        // Heater roles persist back to config (no dedicated runtime fan-style consumer).
-        helix::resolve_role_from_config(helix::HardwareRoleId::HotendHeater, Config::get_instance(),
-                                        heaters, /*persist_autoheal=*/true);
-        helix::resolve_role_from_config(helix::HardwareRoleId::BedHeater, Config::get_instance(),
-                                        heaters, /*persist_autoheal=*/true);
-    });
-}
-
-void Application::settle_deferred_hardware_setup() {
-    Config* config = Config::get_instance();
-    if (!helix::wizard_clear_hardware_setup_deferred(config)) {
-        return;
-    }
-    if (!config->save()) {
-        spdlog::warn("[Application] Failed to persist deferred hardware setup decision");
-    }
-}
-
-void Application::launch_deferred_hardware_setup() {
-    auto steps = std::move(m_pending_hardware_setup_steps);
-    m_pending_hardware_setup_steps.clear();
-    if (steps.empty()) {
-        return;
-    }
-    spdlog::info("[Application] Launching deferred hardware setup ({} step(s))", steps.size());
-
-    ui_wizard_register_event_callbacks();
-    ui_wizard_container_register_responsive_constants();
-    ui_wizard_init_subjects();
-    // Back on the first targeted step has nothing to retreat to, so give it the
-    // same dismiss semantics as the reconfig wizard.
-    set_wizard_cancel_callback([]() {
-        ui_wizard_complete_targeted();
-        set_wizard_cancel_callback(nullptr);
-    });
-    Application* app = this;
-    ui_wizard_create_targeted(m_screen, std::move(steps), [app]() {
-        set_wizard_cancel_callback(nullptr);
-        // ui_wizard_complete_targeted() deliberately skips the expected-hardware
-        // population, so record the user's fresh picks here.
-        ui_wizard_record_expected_hardware(Config::get_instance());
-        app->reapply_hardware_roles();
-    });
-}
-
-void Application::prompt_deferred_hardware_setup(std::vector<helix::wizard::StepId> steps) {
-    // The steps to run are parked on the Application instance for the confirm
-    // callback's timer to consume (launch_deferred_hardware_setup() reads them
-    // from there). on_dismiss clears them too, so a backdrop tap or ESC cannot
-    // strand the offer.
-    m_pending_hardware_setup_steps = std::move(steps);
-    spdlog::info("[Application] Offering deferred hardware setup ({} step(s))",
-                 m_pending_hardware_setup_steps.size());
-
-    helix::ui::ConfirmOptions opts;
-    opts.on_cancel = [this] {
-        m_pending_hardware_setup_steps.clear();
-        // Declining is final for this printer. The offer is for optional
-        // role assignments the app already has working defaults for, the
-        // snapshot was written regardless so nothing is flagged either way,
-        // and re-asking on every boot is the exact nag the surrounding
-        // reconfig-wizard code records declines to avoid. `--wizard` still
-        // re-runs setup, and a saved role that later breaks still routes to
-        // the targeted reconfig wizard on its own.
-        settle_deferred_hardware_setup();
-        spdlog::info("[Application] Deferred hardware setup declined");
-    };
-    opts.cancel_text = lv_tr("Not now");
-    opts.on_dismiss = [this] { m_pending_hardware_setup_steps.clear(); };
-    opts.owner_token = m_async_lifetime.token();
-
-    helix::ui::modal_confirm(
-        lv_tr("Printer hardware detected"),
-        lv_tr("Your printer was offline during setup, so hardware options were skipped. "
-              "Set them up now?"),
-        ModalSeverity::Info, lv_tr("Set up"),
-        [this] {
-            // Settle first: the wizard tears itself down asynchronously, and a
-            // crash mid-run must not leave the offer pending forever.
-            settle_deferred_hardware_setup();
-            // Build the wizard AFTER the modal's exit animation, not inside the
-            // click that started it: the dialog's own close only marks the
-            // backdrop exiting, so creating the full-screen wizard here would
-            // put it underneath a still-fading backdrop. The pending step list
-            // lives on the Application instance until the timer consumes it.
-            lv_timer_t* launch = lv_timer_create(
-                [](lv_timer_t* t) {
-                    auto* self = static_cast<Application*>(lv_timer_get_user_data(t));
-                    lv_timer_delete(t);
-                    self->launch_deferred_hardware_setup();
-                },
-                300, this);
-            lv_timer_set_repeat_count(launch, 1);
-        },
-        opts);
-}
-
-void Application::settle_type_mismatch_warning() {
-    auto* cfg = Config::get_instance();
-    cfg->set<std::string>(cfg->df() + helix::wizard::TYPE_MISMATCH_SHOWN_FOR,
-                          cfg->get<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, ""));
-    if (!cfg->save()) {
-        spdlog::warn("[Application] Failed to persist type mismatch decision");
-    }
-}
-
-void Application::maybe_warn_type_mismatch(const helix::PrinterDiscovery& hardware) {
-    // The gates below all decline silently in normal operation. A debug bundle
-    // is the only view we get of a reporter's run, so each one says why it
-    // declined: without that there is no way to tell a 68%-confidence near-miss
-    // apart from detection returning nothing at all (bundle TZT85MQ3).
-    if (m_type_mismatch_shown) {
-        spdlog::debug("[Application] Type mismatch check skipped: already prompted this session");
-        return;
-    }
-    if (get_runtime_config()->should_mock_moonraker()) {
-        // A mock printer's identity is whatever the persona declares, so a
-        // mismatch against the saved type says nothing about real hardware.
-        // Gate on the runtime-config predicate, not on HELIX_MOCK_PRINTER:
-        // plain --test runs the mock client without that env var ever being
-        // set, so the old getenv check let every --test launch open the
-        // prompt against whatever type settings-test.json happened to carry.
-        spdlog::debug("[Application] Type mismatch check skipped: mock printer");
-        return;
-    }
-    if (Config::get_instance()->is_wizard_required() || is_wizard_active()) {
-        spdlog::debug("[Application] Type mismatch check skipped: wizard required or active");
-        return;
-    }
-
-    auto* cfg = Config::get_instance();
-    const std::string stored = cfg->get<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, "");
-
-    // The saved type is a display name, so an entry renamed in the printer
-    // database orphans every config written under the old one and detection
-    // then contradicts a type that was never wrong. Resolve through the
-    // database's alias list and heal the stored value, otherwise the stale
-    // name keeps missing every other name-keyed lookup too (image, preset,
-    // pre-print profile) long after this prompt is dismissed.
-    const std::string saved = PrinterDetector::canonical_type_name(stored);
-    if (saved != stored) {
-        cfg->set<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, saved);
-        if (!cfg->save()) {
-            spdlog::warn("[Application] Failed to persist renamed printer type '{}' -> '{}'",
-                         stored, saved);
-        }
-    }
-
-    // Canonicalised too: a dismissal recorded under the pre-rename name still
-    // answers for the same printer.
-    const std::string flag = PrinterDetector::canonical_type_name(
-        cfg->get<std::string>(cfg->df() + helix::wizard::TYPE_MISMATCH_SHOWN_FOR, ""));
-
-    auto detected = PrinterDetector::auto_detect(hardware);
-    const auto decision = PrinterDetector::classify_type_mismatch(saved, detected, flag);
-    if (decision != PrinterDetector::MismatchDecision::Warn) {
-        // info, not debug: this runs once per discovery pass, and it is the line
-        // that answers "why was there no prompt?" in a bundle.
-        spdlog::info("[Application] No type mismatch prompt: detected '{}' at {}% (runner-up '{}' "
-                     "at {}%, margin {}, {} tied), saved '{}', dismissed-for '{}', need >={}% and "
-                     "margin >={} - {}",
-                     detected.type_name, detected.confidence, detected.runner_up_type_name,
-                     detected.runner_up_confidence, detected.margin(), detected.tied_count, saved,
-                     flag, PrinterDetector::MISMATCH_MIN_CONFIDENCE,
-                     PrinterDetector::DETECT_MIN_MARGIN,
-                     PrinterDetector::mismatch_decision_name(decision));
-        return;
-    }
-
-    // Session guard: one prompt per boot regardless of which button dismisses it.
-    m_type_mismatch_shown = true;
-    spdlog::info("[Application] Printer type mismatch: saved '{}' but detected '{}' ({}%)", saved,
-                 detected.type_name, detected.confidence);
-
-    // modal_confirm takes a plain const char* - compose the parameterized body
-    // first (fmt::runtime: the format string is the translated handle, not a
-    // compile-time literal).
-    const std::string body =
-        fmt::format(fmt::runtime(lv_tr("This printer looks like a {} ({}% confidence), but it is "
-                                       "set up as a {}. A wrong type applies incorrect pre-print "
-                                       "options and presets.")),
-                    detected.type_name, detected.confidence, saved);
-
-    helix::ui::ConfirmOptions opts;
-    opts.on_cancel = [this] {
-        // Declining is final for this saved type. Keeping the type is a
-        // deliberate choice (a heavily modified printer can legitimately
-        // outvote a heuristic), and the persisted flag stops the
-        // prompt from re-appearing every boot. The model picker remains
-        // available from Printer Manager and the full `--wizard` run.
-        settle_type_mismatch_warning();
-        spdlog::info("[Application] Type mismatch warning declined");
-    };
-    opts.cancel_text = lv_tr("Keep current");
-    opts.owner_token = m_async_lifetime.token();
-    // No on_dismiss, deliberately: a backdrop tap or ESC is not an answer, so
-    // the prompt stays armed for the next boot. Only a button settles it, and
-    // an accidental tap must not permanently silence a wrong-printer warning.
-
-    helix::ui::modal_confirm(
-        lv_tr("Printer type mismatch"), body.c_str(), ModalSeverity::Warning, lv_tr("Choose Model"),
-        [this] {
-            // Settle first: the wizard tears itself down asynchronously, and a
-            // crash mid-run must not leave the prompt pending forever.
-            settle_type_mismatch_warning();
-            // Build the wizard AFTER the modal's exit animation, not inside the
-            // click that started it: the dialog's own close only marks the
-            // backdrop exiting, so creating the full-screen wizard here would
-            // put it underneath a still-fading backdrop (same 300 ms one-shot
-            // as launch_deferred_hardware_setup).
-            lv_timer_t* launch = lv_timer_create(
-                [](lv_timer_t* t) {
-                    auto* self = static_cast<Application*>(lv_timer_get_user_data(t));
-                    lv_timer_delete(t);
-                    self->launch_type_reidentify_wizard();
-                },
-                300, this);
-            lv_timer_set_repeat_count(launch, 1);
-        },
-        opts);
-}
-
-void Application::launch_type_reidentify_wizard() {
-    spdlog::info("[Application] Launching printer re-identify wizard");
-    ui_wizard_register_event_callbacks();
-    ui_wizard_container_register_responsive_constants();
-    ui_wizard_init_subjects();
-    // Back on the first targeted step has nothing to retreat to, so give it the
-    // same dismiss semantics as the deferred hardware-setup session.
-    set_wizard_cancel_callback([]() {
-        ui_wizard_complete_targeted();
-        set_wizard_cancel_callback(nullptr);
-    });
-    Application* app = this;
-    ui_wizard_create_targeted(m_screen, {helix::wizard::StepId::PrinterIdentify}, [app]() {
-        set_wizard_cancel_callback(nullptr);
-        // The identify step's cleanup already persisted PRINTER_TYPE and applied
-        // the new preset (ui_wizard_printer_identify.cpp cleanup). The preset
-        // rewrote fan/heater role keys, so rebind the runtime mappings the same
-        // way the deferred hardware-setup session does.
-        app->reapply_hardware_roles();
-    });
-}
-
 void Application::setup_discovery_callbacks() {
     IMoonrakerClient* client = m_moonraker->client();
     IMoonrakerAPI* api = m_moonraker->api();
@@ -3059,7 +2379,7 @@ void Application::setup_discovery_callbacks() {
                 return;
             // A new discovery cycle is starting — re-arm the once-per-connection
             // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
-            app->m_targeted_reconfig_shown = false;
+            app->m_prompter.begin_discovery_cycle();
             api->hardware() = std::move(*snapshot);
             helix::init_subsystems_from_hardware(api->hardware(), api, client);
         });
@@ -3111,10 +2431,7 @@ void Application::setup_discovery_callbacks() {
             // Computed from api->hardware() (post-copy) — *snapshot is moved
             // into set_hardware below and is empty after that point.
             const size_t new_fingerprint = helix::compute_hardware_fingerprint(api->hardware());
-            const bool hw_changed = app->m_first_discovery_complete ||
-                                    (new_fingerprint != app->m_last_hardware_fingerprint);
-            app->m_last_hardware_fingerprint = new_fingerprint;
-            app->m_first_discovery_complete = false;
+            const bool hw_changed = app->note_hardware_fingerprint(new_fingerprint);
             crash_handler::breadcrumb::note("disc", "hw_changed", hw_changed ? 1L : 0L);
             if (hw_changed) {
                 spdlog::info("[Application] on_discovery_complete #{} — hardware shape changed "
@@ -3130,662 +2447,27 @@ void Application::setup_discovery_callbacks() {
             app->m_splash_manager.on_discovery_complete();
             spdlog::info("[Application] Moonraker discovery complete, splash can exit");
 
-            // Clean up self-update sentinel — the app started successfully,
-            // so helixscreen-update.service no longer needs to be suppressed.
-            {
-                namespace fs = std::filesystem;
-                std::error_code ec;
-                std::string sentinel =
-                    AppConstants::Update::backup_fallback_dir() + "/self_restart_sentinel";
-                if (fs::remove(sentinel, ec)) {
-                    spdlog::info("[Application] Cleaned up self-restart sentinel");
-                    // Moonraker re-reads release_info.json only on a refresh, and its
-                    // own schedule can be a week apart, so Mainsail keeps showing the
-                    // version we just replaced. "helixscreen" is the update_manager
-                    // section the installer writes; a missing or renamed section, or a
-                    // print in progress, just gets an error back.
-                    client->send_jsonrpc(
-                        "machine.update.refresh", json{{"name", "helixscreen"}},
-                        [](const json&) {
-                            spdlog::info("[Application] Moonraker refreshed its HelixScreen "
-                                         "version after the update");
-                        },
-                        [](const MoonrakerError& err) {
-                            spdlog::debug("[Application] Moonraker update refresh declined: {}",
-                                          err.message);
-                        },
-                        0, /*silent=*/true);
-                }
-                // Legacy: best-effort under PrivateTmp (sees private /tmp,
-                // not real /tmp — stale real sentinels cleaned on reboot)
-                fs::remove("/tmp/helixscreen_self_restart", ec);
-            }
-
-            // Move snapshot into set_hardware (by-value param) so no hash-table
-            // copy iterates against a live, potentially-mutated api->hardware_ (#799).
-            // After this point *snapshot is empty — use api->hardware() for reads.
-            const auto& hw = api->hardware();
-            crash_handler::breadcrumb::note("disc", "pre_set_hw",
-                                            static_cast<long>(snapshot->macros().size()));
-            get_printer_state().set_hardware(std::move(*snapshot));
-            crash_handler::breadcrumb::note("disc", "post_set_hw", n);
-            const auto& fans = hw.fans();
-            get_printer_state().init_fans(
-                fans, helix::FanRoleConfig::from_config(Config::get_instance(), fans),
-                hw.fan_max_power());
-            crash_handler::breadcrumb::note("disc", "post_init_fans",
-                                            static_cast<long>(hw.fans().size()));
-
-            // Turn on the firmware's own z-offset persistence, at most once per
-            // printer and only when idle. Some firmwares store the offset
-            // themselves and re-apply it at print start only when their own
-            // setting says to, so with that setting off an adjustment made here
-            // does not survive. Whether to send, what to send, and recording that
-            // it went out all live behind claim_persistence_enable() in
-            // include/z_offset_persistence.h.
-            //
-            // The print_active subject is not yet applied from this discovery's
-            // status (see the reconfig-wizard gate below), so consult
-            // status_snapshot directly to avoid injecting gcode over a live print.
-            {
-                bool print_active =
-                    lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0;
-                if (status_snapshot &&
-                    helix::PrinterPrintState::status_indicates_active_print(*status_snapshot)) {
-                    print_active = true;
-                }
-                const std::string enable_gcode =
-                    helix::zoffset::persistence_enable_gcode(api->hardware());
-                if (!enable_gcode.empty() && helix::zoffset::claim_persistence_enable(
-                                                 Config::get_instance(), api->hardware(),
-                                                 status_snapshot.get(), print_active)) {
-                    spdlog::info("[ZOffset] Enabling firmware z-offset persistence ({})",
-                                 helix::zoffset::persistence_provider_name(api->hardware()));
-                    // Fire-and-forget: callbacks are LOG-ONLY and capture nothing that
-                    // can dangle, so the background response thread is lifetime-safe.
-                    api->execute_gcode(
-                        enable_gcode,
-                        []() { spdlog::info("[ZOffset] Firmware z-offset persistence enabled"); },
-                        [](const MoonrakerError& err) {
-                            spdlog::warn("[ZOffset] Failed to enable z-offset persistence: {}",
-                                         err.message);
-                            // The claim was recorded before the send so a second
-                            // discovery could not inject the same gcode. It did not
-                            // land, so hand the one shot back or this printer is
-                            // never told for the life of the install. Marshalled:
-                            // this runs on the response thread and Config is not
-                            // synchronised.
-                            helix::ui::queue_update("zoffset_release_claim", []() {
-                                helix::zoffset::release_persistence_enable(Config::get_instance());
-                            });
-                        },
-                        0, /*silent=*/true, /*on_queued=*/nullptr,
-                        /*caller_surfaces_errors=*/false);
-                }
-            }
-
-            // Seed temperature graphs from Moonraker's cached history. Fired after
-            // init_fans so heater/sensor subjects exist.
-            helix::TempGraphController::seed_from_moonraker(*client);
-
-            // Dispatch initial subscription status AFTER init_fans so fan/sensor subjects
-            // exist when the status data is processed. The initial status is passed from the
-            // discovery sequence rather than dispatched separately to guarantee ordering.
-            // Flagged as a cached snapshot: it was captured on the background
-            // thread when the subscribe response landed and has been carried
-            // through the rest of discovery, so it can be seconds stale by the
-            // time it lands here. Live WebSocket frames have been updating the
-            // same state the whole time — this replay must not walk a liveness
-            // signal (klippy state) backwards.
-            if (!(*status_snapshot).empty()) {
-                client->dispatch_status_update((*status_snapshot), /*from_cached_snapshot=*/true);
-            }
-            crash_handler::breadcrumb::note("disc", "post_status_dispatch", n);
-
-            get_printer_state().set_klipper_version(hw.software_version());
-            get_printer_state().set_moonraker_version(hw.moonraker_version());
-            if (!hw.os_version().empty()) {
-                get_printer_state().set_os_version(hw.os_version());
-            }
-
-            // Populate LED chips now that hardware is discovered.
-            // Gated on hw_changed — LED chip topology doesn't change reconnect-to-
-            // reconnect unless the hardware shape changed, and populate_led_chips
-            // fires LED capability subjects that cascade into panel rebuilds.
-            if (hw_changed) {
-                get_global_settings_panel().populate_led_chips();
-            }
-            crash_handler::breadcrumb::note("disc", "post_led_chips", n);
-
-            // Fetch print hours now that connection is live, and refresh on job changes
-            helix::settings::get_about_settings_overlay().fetch_print_hours();
-            client->register_method_callback(
-                "notify_history_changed", "AboutOverlay_print_hours",
-                [](const nlohmann::json& data) {
-                    // Moonraker accumulates its job totals only when a job
-                    // finishes, so the "added" half of this notification cannot
-                    // move print hours and must not cost a round-trip.
-                    if (helix::json_util::notification_action(data) != "finished") {
-                        return;
-                    }
-                    helix::ui::queue_update([]() {
-                        helix::settings::get_about_settings_overlay().fetch_print_hours();
-                    });
-                });
-
-            // Register for timelapse events when timelapse is detected
-            client->register_method_callback(
-                "notify_timelapse_event", "timelapse_state", [](const nlohmann::json& data) {
-                    helix::TimelapseState::instance().handle_timelapse_event(data);
-                });
-
-            // Detect when Moonraker finishes updating HelixScreen (e.g. via Mainsail).
-            // On SysV platforms (AD5X, AD5M, K1) there is no systemd path watcher,
-            // so this WebSocket-based detection is the only restart trigger.
-            client->register_method_callback(
-                "notify_update_response", "external_update_restart", [](const nlohmann::json& msg) {
-                    // notify_update_response params: [{"application":"helixscreen",
-                    //   "proc_id":N, "message":"...", "complete":true/false}]
-                    // Method callbacks always receive the full JSON-RPC message
-                    if (!msg.contains("params") || !msg["params"].is_array() ||
-                        msg["params"].empty())
-                        return;
-                    const auto& p = msg["params"][0];
-                    if (!p.contains("application") || !p.contains("complete"))
-                        return;
-                    std::string app = p["application"].get<std::string>();
-                    bool complete = p["complete"].get<bool>();
-                    if (app != "helixscreen")
-                        return;
-                    if (!complete) {
-                        spdlog::debug("[Application] Moonraker updating helixscreen: {}",
-                                      p.value("message", ""));
-                        return;
-                    }
-                    // Defer to main thread — _exit(0) from a WebSocket callback
-                    // would skip flush and leave the display frozen.
-                    helix::ui::queue_update(
-                        []() { UpdateChecker::handle_external_update_complete(); });
-                });
-
-            // Subscribe to power device and sensor state change notifications
-            if (api) {
-                helix::PowerDeviceState::instance().subscribe(*api);
-                helix::SensorState::instance().subscribe(*api);
-            }
-            crash_handler::breadcrumb::note("disc", "post_subscribe", n);
-
-            // Auto-detect printer type if not already set (e.g., fresh install with preset).
-            // MUST run BEFORE HardwareValidator::validate — otherwise the validator checks
-            // the scaffolded defaults (fans/part="fan", fans/hotend="heater_fan hotend_fan")
-            // against the discovered hardware and flags them as missing, even though the
-            // preset that's about to be applied would map those slots to the correct
-            // device-specific names. Runs even while the wizard is active so the preset
-            // lands BEFORE the wizard hits its connection / printer-identify steps —
-            // that's the only path for preset_mode to become true on a fresh install of
-            // a known printer like the ForgeX AD5M Pro. auto_detect_and_save self-guards
-            // on PRINTER_TYPE already being set, so a user's manual pick in the identify
-            // step (which writes PRINTER_TYPE on cleanup) won't be overwritten by a later
-            // discovery callback.
-            //
-            // Gated on hw_changed — printer type detection is purely a function of the
-            // hardware shape, so re-running on a reconnect with unchanged hardware would
-            // produce the same result (and trigger config writes + subjects).
-            // NOTE: use api->hardware() — snapshot was std::move'd into it above (#789).
-            // Reading *snapshot here would pass an empty/moved-from PrinterDiscovery and
-            // detection would fail with "0 sensors, 0 fans, hostname ''" (#802).
-            if (hw_changed) {
-                PrinterDetector::auto_detect_and_save(api->hardware(), Config::get_instance());
-            }
-
-            // Auto-heal + persist heater roles (batched single save, symmetry with fan roles
-            // above). Ensures the validator sees resolved heater names so it does not emit a
-            // toast every boot for a stale saved role that has a confident replacement.
-            // Gated on hw_changed — healing is purely a function of heater hardware shape.
-            if (hw_changed) {
-                const auto& heaters = hw.heaters();
-                auto* cfg = Config::get_instance();
-                bool heater_changed = false;
-                for (auto id :
-                     {helix::HardwareRoleId::HotendHeater, helix::HardwareRoleId::BedHeater}) {
-                    const auto* desc = helix::role_descriptor(id);
-                    if (!desc)
-                        continue;
-                    const std::string key = cfg->df() + desc->config_key;
-                    const std::string dflt = desc->canonical_default
-                                                 ? std::string(desc->canonical_default)
-                                                 : std::string();
-                    const std::string saved = cfg->get<std::string>(key, dflt);
-                    std::string healed = helix::resolve_role_from_config(id, cfg, heaters, false);
-                    if (!healed.empty() && healed != saved) {
-                        cfg->set<std::string>(key, healed);
-                        heater_changed = true;
-                    }
-                }
-                if (heater_changed && !cfg->save()) {
-                    spdlog::warn("[Application] Failed to persist heater role heals");
-                }
-            }
-
-            // Pay off a hardware snapshot the wizard deferred because Klipper was
-            // down during setup (#1160). Everything discovered now was present all
-            // along, so accepting it BEFORE validate() keeps this first successful
-            // discovery clean instead of reporting every fan, filament sensor and
-            // LED as newly appeared. The marker itself is cleared only once the
-            // user answers the offer below, so a session killed before answering
-            // still gets asked next boot.
-            const bool hardware_setup_deferred =
-                helix::wizard_hardware_setup_deferred(Config::get_instance());
-            if (hardware_setup_deferred && !Config::get_instance()->is_wizard_required() &&
-                !is_wizard_active()) {
-                size_t accepted = HardwareValidator::acknowledge_discovered_hardware(
-                    Config::get_instance(), api->hardware());
-                spdlog::info("[Application] Deferred wizard hardware snapshot written "
-                             "({} object(s) accepted)",
-                             accepted);
-            }
-
-            // Hardware validation: check config expectations vs discovered hardware.
-            // Now uses the post-preset config so preset-mapped fan/heater names are
-            // checked against discovery, not the pre-preset scaffolded defaults.
-            HardwareValidator validator;
-            auto validation_result = validator.validate(Config::get_instance(), api->hardware());
-            get_printer_state().set_hardware_validation_result(validation_result);
-
-            // Gated on hw_changed — without this guard, any hardware issue toast
-            // (e.g. "expected fan not found") would re-fire on every reconnect even
-            // when nothing has changed. validate() still runs (cheap, caches result,
-            // updates the validation_result subject for the UI); only the user-facing
-            // notify is suppressed on unchanged hardware. The validator's session
-            // snapshot below tracks state across runs regardless.
-            if (validation_result.has_issues() && hw_changed &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active()) {
-                validator.notify_user(validation_result);
-            }
-
-            // Route unresolved GUIDED hardware roles (a saved fan/heater role with no
-            // confident live substitute) into the targeted reconfig wizard — only the
-            // affected step(s), not the full first-run wizard. Skipped while the first-run
-            // wizard is required/active, and gated to once-per-connection so it does not
-            // relaunch on reconnect churn within a single session.
-            //
-            // Also gated on hw_changed: unresolved guided steps are purely a function of
-            // (saved config, current hardware). If hardware is unchanged since the last
-            // discovery, the result is identical and re-launching the wizard would just
-            // harass the user. Ending the wizard session (Finish or Cancel) persists
-            // the decline, so the next discovery with the SAME hardware would also see
-            // no unresolved steps —
-            // the hw_changed gate is defense-in-depth for the rare case where a prior
-            // session was killed before the decline could be persisted.
-            auto reconfig_steps = helix::unresolved_guided_steps(Config::get_instance(), hw);
-            // Idle gate: NEVER launch the reconfig wizard over a live print.
-            // The print_active subject is NOT yet updated from this discovery's
-            // initial status — dispatch_status_update() above only QUEUES the status
-            // (m_notification_queue); print_active_ is applied a tick later in
-            // process_notifications, AFTER this queue_update returns. On a fresh
-            // connection mid-print (app/panel restart during a print) the subject
-            // still reads its initialized 0. Consult the just-arrived status directly
-            // so a reconfig wizard never launches over a live print.
-            bool print_active =
-                lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0;
-            if (status_snapshot &&
-                helix::PrinterPrintState::status_indicates_active_print(*status_snapshot)) {
-                print_active = true;
-            }
-            if (hw_changed && !reconfig_steps.empty() && !print_active &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active() &&
-                !app->m_targeted_reconfig_shown) {
-                app->m_targeted_reconfig_shown = true;
-                ui_wizard_register_event_callbacks();
-                ui_wizard_container_register_responsive_constants();
-                ui_wizard_init_subjects();
-                // Ending the session — Cancel here, Finish in the on_complete callback
-                // below — settles every guided role the session's steps could not
-                // resolve: a step only offers controls for the roles it shows (the fan
-                // step has no aux dropdown), so a preset-saved role with no live match
-                // can never be satisfied inside the session and would relaunch the
-                // wizard on every boot. settle_targeted_reconfig() writes "" (declined)
-                // for each such role, read against the CURRENT discovered hardware.
-                set_wizard_cancel_callback([api]() {
-                    // reapply_hardware_roles() is intentionally NOT called here:
-                    // ui_wizard_complete_targeted() fires the on_complete callback
-                    // (registered in ui_wizard_create_targeted below), which already
-                    // reapplies the roles. Calling it here too would be a redundant
-                    // double reapply.
-                    helix::settle_targeted_reconfig(Config::get_instance(), api->hardware());
-                    ui_wizard_complete_targeted();
-                    set_wizard_cancel_callback(nullptr);
-                });
-                ui_wizard_create_targeted(app->m_screen, reconfig_steps, [app, api]() {
-                    set_wizard_cancel_callback(nullptr);
-                    helix::settle_targeted_reconfig(Config::get_instance(), api->hardware());
-                    app->reapply_hardware_roles();
-                });
-            }
-
-            // Offer the hardware steps the Klipper-down wizard could not show
-            // (#1160). The user skipped them because their printer was broken,
-            // not because they had nothing to choose. Gated exactly like the
-            // reconfig wizard above (idle, no wizard running, once per session),
-            // plus reconfig_steps.empty() so the two never stack — if a reconfig
-            // session just launched, the offer waits for the next boot.
-            if (hardware_setup_deferred && hw_changed && !print_active &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active() &&
-                reconfig_steps.empty() && !app->m_hardware_setup_prompt_shown) {
-                auto steps = ui_wizard_deferred_hardware_steps();
-                app->m_hardware_setup_prompt_shown = true;
-                if (steps.empty()) {
-                    // Nothing left to ask about (a preset already answers these,
-                    // or the printer has none of the optional hardware). Settle
-                    // the debt silently rather than showing a dead-end dialog.
-                    spdlog::info("[Application] Deferred hardware setup has no steps to offer; "
-                                 "settling silently");
-                    app->settle_deferred_hardware_setup();
-                } else {
-                    app->prompt_deferred_hardware_setup(std::move(steps));
-                }
-            }
-
-            // Saved printer type vs detected hardware (bundle F2LNLQCC: a Voron
-            // Trident saved as "FlashForge Adventurer 5M Pro" silently received
-            // AD5M pre-print options, presets, and screws-tilt direction on every
-            // boot — auto_detect_and_save self-guards on a saved type and never
-            // re-checks). One actionable prompt per saved type. Gated exactly
-            // like the reconfig wizard and deferred offer above — plus
-            // reconfig_steps.empty() and !hardware_setup_deferred so the three
-            // never stack in one discovery pass — and on the same hw_changed
-            // gate: detection is purely a function of the hardware shape.
-            if (hw_changed && !print_active && reconfig_steps.empty() && !hardware_setup_deferred &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active() &&
-                !app->m_type_mismatch_shown) {
-                app->maybe_warn_type_mismatch(api->hardware());
-            }
-
-            // Save session snapshot for next comparison (even if no issues)
-            validator.save_session_snapshot(Config::get_instance(), api->hardware());
-            crash_handler::breadcrumb::note("disc", "post_validate", n);
-
-            // Record telemetry session event now that hardware data is available
-            // (hardware_profile is deferred until after build volume is fetched below).
-            // record_session always runs (counts sessions, including reconnects).
-            // settings_snapshot + memory_snapshot are gated on hw_changed — they
-            // capture a fingerprint of the current config + heap state for telemetry,
-            // and would just re-record identical data on a reconnect with unchanged
-            // hardware.
-            TelemetryManager::instance().record_session();
-            if (hw_changed) {
-                TelemetryManager::instance().record_settings_snapshot();
-                TelemetryManager::instance().record_memory_snapshot("session_start");
-            }
-            crash_handler::breadcrumb::note("disc", "post_telemetry", n);
-
-            // Fetch safety limits and build volume from Klipper config (stepper ranges,
-            // min_extrude_temp, max_temp, etc.) — runs for ALL discovery completions
-            // (normal startup AND post-wizard) so we don't duplicate this in callers
-            if (api) {
-                IMoonrakerAPI* api_ptr = api;
-                api_ptr->update_safety_limits_from_printer(
-                    [api_ptr]() {
-                        // A copy: the panel reads it later, on the main thread.
-                        const SafetyLimits limits = api_ptr->get_safety_limits();
-
-                        helix::ui::queue_update([limits]() {
-                            get_global_filament_panel().set_limits(limits);
-                            spdlog::debug("[Application] Safety limits propagated to panels");
-                        });
-
-                        // Apply archetype-based thermal rate defaults using build volume
-                        // Must marshal to main thread — runs in JSONRPC response callback
-                        float bed_x_max = api_ptr->hardware().build_volume().x_max;
-                        helix::ui::queue_update([bed_x_max]() {
-                            ThermalRateManager::instance().apply_archetype_defaults(
-                                bed_x_max, get_printer_state().get_printer_type());
-                        });
-
-                        // Record hardware profile after build volume is populated
-                        TelemetryManager::instance().record_hardware_profile();
-                    },
-                    [](const MoonrakerError& err) {
-                        spdlog::warn("[Application] Failed to fetch safety limits: {}",
-                                     err.message);
-                        // Record hardware profile anyway, just without build volume
-                        TelemetryManager::instance().record_hardware_profile();
-                    });
-            }
-
-            // Detect helix_print plugin during discovery (not UI-initiated)
-            // This ensures plugin status is known early for UI gating
-            api->job().check_helix_plugin(
-                [](bool available) { get_printer_state().set_helix_plugin_installed(available); },
-                [](const MoonrakerError&) {
-                    // Silently treat errors as "plugin not installed"
-                    get_printer_state().set_helix_plugin_installed(false);
-                });
-
-            // Auto-assign a Spoolman spool to the active toolchanger tool when
-            // no per-tool assignment has been persisted (Moonraker DB or local
-            // JSON). Must run on the UI thread (called from queue_update lambdas).
-            auto try_assign_active_spool_to_tool = [](const SpoolInfo& spool) {
-                auto* backend = AmsState::instance().get_backend();
-                if (!backend || !backend->supports_per_tool_spool_assignment())
-                    return;
-
-                auto& tool_state = helix::ToolState::instance();
-                if (!tool_state.spool_assignments_loaded())
-                    return; // assignments haven't loaded yet — can't safely auto-assign
-
-                int tool_idx = tool_state.active_tool_index();
-                if (tool_idx < 0)
-                    return;
-
-                const auto& tools = tool_state.tools();
-                if (tool_idx >= static_cast<int>(tools.size()))
-                    return;
-
-                if (tools[tool_idx].spoolman_id > 0)
-                    return; // already has an assignment
-
-                tool_state.assign_spool(tool_idx, spool.id, spool.display_name(),
-                                        static_cast<float>(spool.remaining_weight_g),
-                                        static_cast<float>(spool.initial_weight_g));
-                AmsState::instance().sync_from_backend();
-                spdlog::info("[Application] Auto-assigned Spoolman spool {} to "
-                             "toolchanger tool {}",
-                             spool.id, tool_idx);
-            };
-
-            // Populate the external spool slot from a SpoolInfo and queue the
-            // result to the UI thread. Used by both startup sync and live
-            // notification paths.
-            auto sync_external_spool = [try_assign_active_spool_to_tool](const SpoolInfo& spool,
-                                                                         std::string log_context) {
-                helix::ui::queue_update([spool, try_assign_active_spool_to_tool,
-                                         log_context = std::move(log_context)]() {
-                    // Tool-changer auto-assign runs BEFORE the bypass gate, not
-                    // after it. The gate passes only when
-                    // active_spool_describes_bypass() is true, which is
-                    // `no backend || any_bypass_active()` — and every backend that
-                    // answers supports_per_tool_spool_assignment() (TOOL_CHANGER,
-                    // SNAPMAKER) hardcodes is_bypass_active() to false. Downstream
-                    // of the gate the assign therefore required "a backend exists"
-                    // and "no backend exists" at once, so it never ran on a real
-                    // changer. The two concerns are independent: the gate is about
-                    // which slot owns the EXTERNAL spool record, this is about
-                    // which spool is mounted on the active TOOL. Its own guards
-                    // (per-tool support, assignments loaded, valid index, not
-                    // already assigned) are what decide whether it acts.
-                    try_assign_active_spool_to_tool(spool);
-
-                    // An AMS slot assignment sets Moonraker's global active spool
-                    // too, so mirroring it onto the bypass unconditionally used to
-                    // overwrite the bypass with whichever lane was assigned last.
-                    if (!AmsState::instance().active_spool_describes_bypass()) {
-                        spdlog::debug("[Application] Active spool {} belongs to a lane, not the "
-                                      "bypass — not syncing external spool",
-                                      spool.id);
-                        return;
-                    }
-                    // This record is the freshest view of the spool we will get
-                    // — it arrives from the startup sync and from every
-                    // notify_active_spool_set. Refresh the identity side
-                    // channel from it (invalidate first: cache_identity() is
-                    // insert-if-absent, so a stale entry would win otherwise).
-                    SpoolmanManager::invalidate_identity(spool.id);
-                    if (SpoolmanManager::cache_identity(spool)) {
-                        // Tell the label consumers a name they could not resolve
-                        // before is available now (#1264).
-                        AmsState::instance().bump_slots_version();
-                    }
-
-                    SlotInfo slot;
-                    slot.slot_index = -2;
-                    slot.global_index = -2;
-                    // apply_spool_to_slot() owns the whole identity copy,
-                    // multi-colour included. Overwriting spool_name with
-                    // display_name() here used to put "Polymaker PLA - Jet
-                    // Black" on a field the lane_data schema, AFC and Happy
-                    // Hare all read as the bare filament name.
-                    apply_spool_to_slot(slot, spool);
-                    AmsState::instance().set_external_spool_info(slot);
-                    spdlog::info("[Application] External spool {}: {} (id={})", log_context,
-                                 slot.spool_name, slot.spoolman_id);
-                });
-            };
-
-            // Sync external spool from Moonraker's active Spoolman spool
-            // This ensures the filament panel shows the correct spool on startup,
-            // even if the active spool was changed via Spoolman's web UI or another client
-            {
-                IMoonrakerAPI* api_for_spool = api;
-                api_for_spool->spoolman().get_spoolman_status(
-                    [api_for_spool, sync_external_spool](bool connected, int active_spool_id) {
-                        if (!connected || active_spool_id <= 0) {
-                            spdlog::debug("[Application] No active Spoolman spool to sync "
-                                          "(connected={}, spool_id={})",
-                                          connected, active_spool_id);
-                            return;
-                        }
-
-                        // Check if existing external spool already matches
-                        auto existing = AmsState::instance().get_external_spool_info();
-                        if (existing && existing->spoolman_id == active_spool_id) {
-                            spdlog::debug("[Application] External spool already matches active "
-                                          "Spoolman spool {}",
-                                          active_spool_id);
-                            return;
-                        }
-
-                        // Fetch spool details and populate external spool
-                        spdlog::info("[Application] Syncing external spool from Moonraker active "
-                                     "spool {}",
-                                     active_spool_id);
-                        api_for_spool->spoolman().get_spoolman_spool(
-                            active_spool_id,
-                            [active_spool_id,
-                             sync_external_spool](const std::optional<SpoolInfo>& spool_opt) {
-                                if (!spool_opt) {
-                                    spdlog::warn("[Application] Active spool {} not found in "
-                                                 "Spoolman",
-                                                 active_spool_id);
-                                    return;
-                                }
-                                sync_external_spool(*spool_opt, "synced");
-                            },
-                            [active_spool_id](const MoonrakerError& err) {
-                                spdlog::warn("[Application] Failed to fetch active spool {}: {}",
-                                             active_spool_id, err.message);
-                            });
-                    },
-                    [](const MoonrakerError& err) {
-                        spdlog::debug("[Application] Spoolman status unavailable: {}", err.message);
-                    },
-                    true); // silent: Spoolman not configured is normal
-            }
-
-            // Listen for Moonraker active spool changes (user changes spool in
-            // Spoolman web UI or another client while HelixScreen is running)
-            {
-                IMoonrakerAPI* api_for_notify = api;
-                client->register_method_callback(
-                    "notify_active_spool_set", "external_spool_sync",
-                    [api_for_notify, sync_external_spool](const nlohmann::json& data) {
-                        // Callback receives full JSON-RPC message — extract params
-                        const auto& params_arr = data.contains("params") ? data["params"] : data;
-                        int spool_id = 0;
-                        if (params_arr.is_array() && !params_arr.empty()) {
-                            const auto& params = params_arr[0];
-                            if (params.contains("spool_id") && !params["spool_id"].is_null()) {
-                                spool_id = params["spool_id"].get<int>();
-                            }
-                        }
-
-                        if (spool_id <= 0) {
-                            // Same global-vs-bypass confusion as the sync arm, with
-                            // a worse blast radius: clearing an AMS lane makes
-                            // commit_slot_edit post set_active_spool(0), which comes
-                            // straight back as this notification. Taken at face
-                            // value it erased the whole bypass record — one tap on a
-                            // lane's "Clear Spool" and the user's bypass assignment
-                            // was gone.
-                            helix::ui::queue_update([]() {
-                                auto& ams = AmsState::instance();
-                                if (!ams.active_spool_describes_bypass()) {
-                                    spdlog::debug("[Application] Active spool cleared for a lane, "
-                                                  "not the bypass — keeping external spool");
-                                    return;
-                                }
-                                spdlog::info("[Application] Active spool cleared via notification");
-                                ams.clear_external_spool_info();
-                            });
-                            return;
-                        }
-
-                        spdlog::info("[Application] Active spool changed to {} via notification",
-                                     spool_id);
-                        api_for_notify->spoolman().get_spoolman_spool(
-                            spool_id,
-                            [spool_id,
-                             sync_external_spool](const std::optional<SpoolInfo>& spool_opt) {
-                                if (!spool_opt)
-                                    return;
-                                sync_external_spool(*spool_opt, "updated via notification");
-                            },
-                            [spool_id](const MoonrakerError& err) {
-                                spdlog::warn("[Application] Failed to fetch notified spool {}: {}",
-                                             spool_id, err.message);
-                            });
-                    });
-            }
-
-            // Fetch job queue now that WebSocket is actually connected
-            if (app->m_job_queue_state) {
-                app->m_job_queue_state->fetch();
-            }
-
-            helix::settle_light_buttons();
-
-            // Start automatic update checks (15s initial delay, then every 24h)
-            UpdateChecker::instance().start_auto_check();
-
-            // Auto-navigate to Z-Offset Calibration if manual probe is already active
-            // (e.g., PROBE_CALIBRATE started from Mainsail or console before HelixScreen launched)
-            // Deferred one tick: status updates from the subscription response are queued
-            // via ui_queue_update and may not have landed yet at this point.
-            IMoonrakerAPI* api_ptr_zoffset = api;
-            lv_obj_t* screen = app->m_screen;
-            helix::ui::queue_update([api_ptr_zoffset, screen]() {
-                auto& ps = get_printer_state();
-                int probe_active = lv_subject_get_int(ps.get_manual_probe_active_subject());
-                spdlog::info("[Application] Checking manual_probe at startup: is_active={}",
-                             probe_active);
-                if (probe_active == 1) {
-                    spdlog::info("[Application] Manual probe active at startup, auto-opening "
-                                 "Z-Offset Calibration");
-                    auto& overlay = get_global_zoffset_cal_panel();
-                    overlay.set_api(api_ptr_zoffset);
-                    overlay.show(screen);
-                }
-            });
+            // Everything below reads the hardware from api->hardware(): the snapshot is
+            // moved into PrinterState by the set_hardware step and is empty afterwards.
+            // The print_active subject is not yet updated from this discovery's initial
+            // status (dispatch_status_update only queues it), so the status itself decides
+            // whether a print is running: a wizard or a gcode send must never land over a
+            // live print on a mid-print reconnect.
+            helix::DiscoveryContext ctx{
+                *api,
+                *client,
+                api->hardware(),
+                *snapshot,
+                *status_snapshot,
+                app->m_prompter,
+                app->m_job_queue_state.get(),
+                app->m_screen,
+                n,
+                hw_changed,
+                helix::discovery_print_active(
+                    lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0,
+                    *status_snapshot)};
+            helix::run_discovery_steps(ctx);
         });
     });
 }
@@ -4556,137 +3238,6 @@ void Application::show_screensaver_migration_notice_if_pending() {
 }
 #endif // HELIX_ENABLE_SCREENSAVER
 
-void Application::handle_keyboard_shortcuts() {
-#ifdef HELIX_DISPLAY_SDL
-    // Static shortcut registry - initialized once
-    static helix::input::KeyboardShortcuts shortcuts;
-    static bool shortcuts_initialized = false;
-
-    if (!shortcuts_initialized) {
-        // Cmd+Q / Win+Q to quit
-        shortcuts.register_combo(KMOD_GUI, SDL_SCANCODE_Q, []() {
-            spdlog::info("[Application] Cmd+Q/Win+Q pressed - exiting");
-            app_request_quit();
-        });
-
-        // S key - take screenshot
-        shortcuts.register_key(SDL_SCANCODE_S, []() {
-            spdlog::info("[Application] S key - taking screenshot");
-            auto path = helix::save_screenshot();
-            if (!path.empty()) {
-                auto basename = path.substr(path.rfind('/') + 1);
-                auto msg = "Screenshot " + basename + " taken!";
-                ToastManager::instance().show(ToastSeverity::SUCCESS, msg.c_str(), 3000);
-            }
-        });
-
-        // M key - toggle memory stats
-        shortcuts.register_key(SDL_SCANCODE_M, []() { MemoryStatsOverlay::instance().toggle(); });
-
-        // D key - toggle dark/light mode
-        shortcuts.register_key(SDL_SCANCODE_D, []() {
-            spdlog::info("[Application] D key - toggling dark/light mode");
-            theme_manager_toggle_dark_mode();
-        });
-
-        // F key - toggle filament runout simulation (needs m_moonraker)
-        shortcuts.register_key_if(
-            SDL_SCANCODE_F,
-            [this]() {
-                spdlog::info("[Application] F key - toggling filament runout simulation");
-                m_moonraker->client()->toggle_filament_runout_simulation();
-            },
-            [this]() { return m_moonraker && m_moonraker->client(); });
-
-        // P key - cycle through configured printers (test mode only)
-        shortcuts.register_key_if(
-            SDL_SCANCODE_P,
-            [this]() {
-                auto ids = m_config->get_printer_ids();
-                if (ids.size() > 1) {
-                    auto current = m_config->get_active_printer_id();
-                    auto it = std::find(ids.begin(), ids.end(), current);
-                    auto next = (it != ids.end() && std::next(it) != ids.end()) ? *std::next(it)
-                                                                                : ids.front();
-                    spdlog::info("[Application] P key - switching to printer '{}'", next);
-                    switch_printer(next);
-                } else {
-                    // Create a second test printer so we can test switching
-                    spdlog::info(
-                        "[Application] P key - creating test printer for multi-printer testing");
-                    nlohmann::json test_data;
-                    test_data["printer_name"] = "Voron 2.4";
-                    test_data["type"] = "Voron 2.4 350mm";
-                    test_data["moonraker_host"] = "127.0.0.1";
-                    test_data["moonraker_port"] = 7125;
-                    m_config->add_printer("voron-24", test_data);
-                    m_config->save();
-                }
-            },
-            [this]() { return get_runtime_config()->is_test_mode() && m_config; });
-
-        // A key - test action prompt (test mode only)
-        shortcuts.register_key_if(
-            SDL_SCANCODE_A,
-            [this]() {
-                spdlog::info("[Application] A key - triggering test action prompt");
-                m_action_prompt_manager->trigger_test_prompt();
-            },
-            [this]() { return get_runtime_config()->is_test_mode() && m_action_prompt_manager; });
-
-        // N key - test action notification (test mode only)
-        shortcuts.register_key_if(
-            SDL_SCANCODE_N,
-            [this]() {
-                spdlog::info("[Application] N key - triggering test action notification");
-                m_action_prompt_manager->trigger_test_notify();
-            },
-            [this]() { return get_runtime_config()->is_test_mode() && m_action_prompt_manager; });
-
-        // Android back button — pop navigation stack (overlay/modal/panel)
-        // At root panel, do nothing (Android convention: don't exit on back)
-        shortcuts.register_key(SDL_SCANCODE_AC_BACK, []() {
-            auto& nav = NavigationManager::instance();
-            if (nav.go_back()) {
-                spdlog::debug("[Application] Android back button - popped navigation");
-            } else {
-                spdlog::trace("[Application] Android back button - at root, ignoring");
-            }
-        });
-
-#ifdef HELIX_ENABLE_SCREENSAVER
-        // Z key - cycle through screensavers (Off → Toasters → Starfield → Pipes → Off)
-        shortcuts.register_key(SDL_SCANCODE_Z, []() {
-            auto& mgr = ScreensaverManager::instance();
-            if (mgr.is_active()) {
-                mgr.stop();
-                spdlog::info("[Application] Z key - screensaver stopped");
-            } else {
-                auto type = ScreensaverManager::configured_type();
-                if (type == ScreensaverType::OFF) {
-                    type = ScreensaverType::FLYING_TOASTERS;
-                }
-                mgr.start(type);
-                spdlog::info("[Application] Z key - screensaver started (type {})",
-                             static_cast<int>(type));
-            }
-        });
-#endif
-
-        shortcuts_initialized = true;
-    }
-
-    // Suppress plain-key shortcuts when a textarea has focus (e.g., typing a password)
-    lv_obj_t* focused = lv_group_get_focused(lv_group_get_default());
-    bool text_input_active = focused != nullptr && lv_obj_check_type(focused, &lv_textarea_class);
-
-    // Process shortcuts with SDL key state
-    const Uint8* keyboard_state = SDL_GetKeyboardState(nullptr);
-    shortcuts.process([keyboard_state](int scancode) { return keyboard_state[scancode] != 0; },
-                      SDL_GetModState(), text_input_active);
-#endif
-}
-
 void Application::process_notifications() {
     if (m_moonraker) {
         m_moonraker->process_notifications();
@@ -4862,6 +3413,19 @@ void Application::cancel_add_printer_wizard() {
     });
 }
 
+bool Application::note_hardware_fingerprint(size_t fingerprint) {
+    const bool changed = m_first_discovery_complete || fingerprint != m_last_hardware_fingerprint;
+    m_last_hardware_fingerprint = fingerprint;
+    m_first_discovery_complete = false;
+    return changed;
+}
+
+void Application::reset_discovery_session() {
+    m_first_discovery_complete = true;
+    m_last_hardware_fingerprint = 0;
+    m_prompter.reset_for_new_connection();
+}
+
 void Application::tear_down_printer_state() {
     spdlog::info("[Application] Tearing down printer state...");
     teardown_printer_scope(TeardownScope::PrinterSwitch);
@@ -4886,6 +3450,9 @@ void Application::teardown_printer_scope(TeardownScope scope) {
 
     // A callback armed for the old printer's wizard must not fire against the next one.
     set_wizard_cancel_callback(nullptr);
+
+    // The next printer's discovery is a first discovery with its own prompts to show.
+    reset_discovery_session();
 
     // A switch freezes the UpdateQueue before the disconnect: work the WebSocket thread
     // enqueues from here on is buffered, and update_queue_shutdown() below discards the
@@ -4979,14 +3546,10 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     // dereferences a raw IMoonrakerAPI* that the manager owns, straight from the WebSocket
     // thread.
     if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->unregister_method_callback("notify_timelapse_event",
-                                                          "timelapse_state");
-        m_moonraker->client()->unregister_method_callback("notify_update_response",
-                                                          "external_update_restart");
-        m_moonraker->client()->unregister_method_callback("notify_history_changed",
-                                                          "AboutOverlay_print_hours");
-        m_moonraker->client()->unregister_method_callback("notify_active_spool_set",
-                                                          "external_spool_sync");
+        helix::TimelapseState::instance().detach(*m_moonraker->client());
+        UpdateChecker::instance().detach(*m_moonraker->client());
+        helix::settings::get_about_settings_overlay().detach_print_hours(*m_moonraker->client());
+        helix::spoolman_sync::detach(*m_moonraker->client());
         m_moonraker->client()->unregister_method_callback("notify_gcode_response", "layer_tracker");
     }
 

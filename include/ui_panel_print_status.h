@@ -339,37 +339,38 @@ class PrintStatusPanel : public OverlayBase {
 
     SubjectManager subjects_; ///< RAII manager for automatic subject cleanup
 
-    lv_subject_t layer_text_subject_;
-    lv_subject_t filament_used_text_subject_;
-    lv_subject_t elapsed_subject_;
-    lv_subject_t remaining_subject_;
-    lv_subject_t eta_subject_;
-    lv_subject_t nozzle_status_subject_;        ///< duty text ("" = none)
-    lv_subject_t bed_status_subject_;           ///< duty text ("" = none)
-    lv_subject_t chamber_status_subject_;       ///< duty text ("" = none)
-    lv_subject_t nozzle_status_state_subject_;  ///< HeaterStatusState int
-    lv_subject_t bed_status_state_subject_;     ///< HeaterStatusState int
-    lv_subject_t chamber_status_state_subject_; ///< HeaterStatusState int
-    lv_subject_t speed_subject_;
-    lv_subject_t flow_subject_;
+    lv_subject_t layer_text_subject_{};
+    lv_subject_t filament_used_text_subject_{};
+    lv_subject_t elapsed_subject_{};
+    lv_subject_t remaining_subject_{};
+    lv_subject_t eta_subject_{};
+    lv_subject_t nozzle_status_subject_{};        ///< duty text ("" = none)
+    lv_subject_t bed_status_subject_{};           ///< duty text ("" = none)
+    lv_subject_t chamber_status_subject_{};       ///< duty text ("" = none)
+    lv_subject_t nozzle_status_state_subject_{};  ///< HeaterStatusState int
+    lv_subject_t bed_status_state_subject_{};     ///< HeaterStatusState int
+    lv_subject_t chamber_status_state_subject_{}; ///< HeaterStatusState int
+    lv_subject_t speed_subject_{};
+    lv_subject_t flow_subject_{};
     lv_subject_t
-        view_toggle_icon_subject_; ///< MDI codepoint for btn_view_toggle_icon (cube/layers)
-    lv_subject_t camera_button_label_subject_; ///< "Cam"/"Camera" — short form at Medium and below
+        view_toggle_icon_subject_{}; ///< MDI codepoint for btn_view_toggle_icon (cube/layers)
+    lv_subject_t
+        camera_button_label_subject_{}; ///< "Cam"/"Camera" — short form at Medium and below
 
     // Preparing state subjects
-    lv_subject_t preparing_visible_subject_;  // int: 1 if preparing, 0 otherwise
-    lv_subject_t preparing_progress_subject_; // int: 0-100 progress percentage
+    lv_subject_t preparing_visible_subject_{};  // int: 1 if preparing, 0 otherwise
+    lv_subject_t preparing_progress_subject_{}; // int: 0-100 progress percentage
 
     // Viewer mode subject (0=thumbnail mode, 1=gcode viewer mode)
-    lv_subject_t gcode_viewer_mode_subject_;
+    lv_subject_t gcode_viewer_mode_subject_{};
 
     // 1 while the exclude-object overhead map overlay covers the thumbnail
     // section; drives XML bindings that hide print_thumbnail/gradient underneath.
-    lv_subject_t exclude_map_active_subject_;
+    lv_subject_t exclude_map_active_subject_{};
 
     // 1 once the user taps the print end overlay to dismiss it. Reset to 0
     // on new-print transitions so the next outcome's overlay appears normally.
-    lv_subject_t end_overlay_dismissed_subject_;
+    lv_subject_t end_overlay_dismissed_subject_{};
 
     // Fan row adaptive-fit subject (1=row fits in the column, 0=hidden).
     // Set by recompute_fans_fit() after every breakpoint/layout change.
@@ -421,26 +422,26 @@ class PrintStatusPanel : public OverlayBase {
     // independent XML bind_flag observers on the same hidden flag raced at
     // startup (issue L042) — the second observer unhid the overlay even when
     // outcome was NONE. Computed in recompute_end_overlay_visibility().
-    lv_subject_t show_complete_overlay_subject_;
-    lv_subject_t show_cancelled_overlay_subject_;
-    lv_subject_t show_error_overlay_subject_;
+    lv_subject_t show_complete_overlay_subject_{};
+    lv_subject_t show_cancelled_overlay_subject_{};
+    lv_subject_t show_error_overlay_subject_{};
 
     // Pause overlay: 1 iff print_state_enum == PAUSED. Not gated on a
     // dismiss flag — paused is a transient runtime state, not a terminal
     // outcome, so the overlay auto-clears when the print resumes/ends.
-    lv_subject_t show_paused_overlay_subject_;
+    lv_subject_t show_paused_overlay_subject_{};
     // Optional reason text shown as a second label *inside* the bubble below the
     // title (print_stats.message from Klipper, or "Filament Runout" derived from
     // a tripped sensor). The visible flag drives the reason label's hidden flag.
-    lv_subject_t print_pause_reason_subject_;
-    lv_subject_t print_pause_reason_visible_subject_;
+    lv_subject_t print_pause_reason_subject_{};
+    lv_subject_t print_pause_reason_visible_subject_{};
 
-    lv_subject_t exclude_objects_available_subject_; ///< Int: 1 if multi-object print
-    lv_subject_t objects_text_subject_;              ///< String: "X of Y obj" display text
+    lv_subject_t exclude_objects_available_subject_{}; ///< Int: 1 if multi-object print
+    lv_subject_t objects_text_subject_{};              ///< String: "X of Y obj" display text
 
     // Button enable subjects — XML bind_state_if_eq drives LV_STATE_DISABLED
     // declaratively based on lifecycle state and macro-slot availability.
-    lv_subject_t print_controls_enabled_subject_; ///< 1 when lifecycle.is_active()
+    lv_subject_t print_controls_enabled_subject_{}; ///< 1 when lifecycle.is_active()
 
     // Subject storage buffers
     char layer_text_buf_[80] = "Layer 0 / 0";

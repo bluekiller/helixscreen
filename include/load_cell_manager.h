@@ -186,7 +186,7 @@ class LoadCellManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
-    lv_subject_t sensor_count_;
+    lv_subject_t sensor_count_{};
 };
 
 } // namespace helix::sensors

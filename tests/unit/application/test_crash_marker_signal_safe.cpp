@@ -23,7 +23,7 @@
  * in _exit(0).
  */
 
-#include "../../../include/application.h"
+#include "../../../include/process_guards.h"
 
 #include <filesystem>
 #include <fstream>
@@ -112,4 +112,32 @@ TEST_CASE("an unusable path is rejected and disarms the clear", "[application][c
     CHECK(fs::exists(real));
 
     fs::remove(real);
+}
+
+TEST_CASE("a start after three recent ones is a crash loop and clears the marker",
+          "[application][crash_loop]") {
+    const std::string path = temp_marker_path("loop");
+    fs::remove(path);
+    constexpr long long NOW = 1770000000;
+
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW));
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW + 10));
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW + 20));
+    REQUIRE(fs::exists(path));
+    CHECK(helix::record_start_and_check_crash_loop(path, NOW + 30));
+    CHECK_FALSE(fs::exists(path));
+}
+
+TEST_CASE("starts older than the window do not count toward a crash loop",
+          "[application][crash_loop]") {
+    const std::string path = temp_marker_path("window");
+    fs::remove(path);
+    constexpr long long NOW = 1770000000;
+
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW));
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW + 10));
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW + 20));
+    // 200s later all three have aged out of the 120s window.
+    CHECK_FALSE(helix::record_start_and_check_crash_loop(path, NOW + 200));
+    fs::remove(path);
 }

@@ -26,7 +26,12 @@ trap 'error_handler $LINENO' ERR 2>/dev/null || true
 # cleanup_on_success is idempotent (it tests for the directory first) so the
 # explicit call on the success path is unaffected, and it routes through
 # _safe_remove_tmp_dir, which is what refuses to rm -rf a mountpoint.
-trap 'cleanup_on_success' EXIT INT TERM
+# A signal handler that returns resumes the script with its download gone, so
+# each signal exits with the shell's own 128+N status.
+trap 'cleanup_on_success' EXIT
+trap 'cleanup_on_success; exit 129' HUP
+trap 'cleanup_on_success; exit 130' INT
+trap 'cleanup_on_success; exit 143' TERM
 
 # Print usage
 usage() {

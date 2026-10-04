@@ -532,6 +532,15 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     void dispatch_method_callback(const std::string& method, const json& msg);
 
     /**
+     * @brief Dispatch printer status to notify AND method-callback registrants
+     *
+     * The live WebSocket path delivers notify_status_update to method-callback
+     * registrants too (plugin subscriptions among them), so the mock's
+     * synthetic status updates must reach those listeners as well.
+     */
+    void dispatch_status_update(const json& status, bool from_cached_snapshot = false) override;
+
+    /**
      * @brief Set heaters list for testing
      * @param heaters List of heater names (e.g., "extruder", "heater_bed")
      */
@@ -1107,6 +1116,11 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
      * @return e.g. "output_pin dragonbreath_filter", empty when absent
      */
     std::string chamber_filter_pin_object() const;
+
+    /// Whether a led_effect object (e.g. "led_effect rainbow") is running.
+    /// Public because the object handlers are free-function lambdas taking a
+    /// MoonrakerClientMock*, not members.
+    bool led_effect_enabled(const std::string& object_name) const;
 
     /// Current mock offset for a tool on one axis, in mm. Seeded distinct per
     /// tool AND per axis and updated by SET_TOOL_PARAMETER, so a value set
@@ -1886,6 +1900,10 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     };
     std::map<std::string, LedColor> led_states_; // LED name -> color
     mutable std::mutex led_mutex_;               // Protects led_states_
+    /// Klipper object names of the enabled LED effects. SET_LED_EFFECT is
+    /// exclusive (enabling one makes the set exactly {that one}); STOP=1
+    /// removes one; STOP_LED_EFFECTS clears it. Guarded by led_mutex_.
+    std::set<std::string> enabled_led_effects_;
 
     // Klippy service state (for RESTART/FIRMWARE_RESTART simulation)
     std::atomic<KlippyState> klippy_state_{KlippyState::READY};

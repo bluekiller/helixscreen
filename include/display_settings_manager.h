@@ -547,21 +547,21 @@ class DisplaySettingsManager {
     };
     settings::PersistedSettings<Key, static_cast<size_t>(Key::COUNT)> settings_;
 
-    lv_subject_t dark_mode_subject_;
-    lv_subject_t dark_mode_available_subject_;
-    lv_subject_t theme_preset_subject_;
-    lv_subject_t display_dim_subject_;
-    lv_subject_t display_sleep_subject_;
-    lv_subject_t has_backlight_subject_;
-    lv_subject_t has_dimming_subject_;
-    lv_subject_t animations_enabled_subject_;
-    lv_subject_t hardware_keyboard_present_subject_;
-    lv_subject_t is_android_subject_;
-    lv_subject_t rotation_available_subject_;
-    lv_subject_t timezone_subject_;
+    lv_subject_t dark_mode_subject_{};
+    lv_subject_t dark_mode_available_subject_{};
+    lv_subject_t theme_preset_subject_{};
+    lv_subject_t display_dim_subject_{};
+    lv_subject_t display_sleep_subject_{};
+    lv_subject_t has_backlight_subject_{};
+    lv_subject_t has_dimming_subject_{};
+    lv_subject_t animations_enabled_subject_{};
+    lv_subject_t hardware_keyboard_present_subject_{};
+    lv_subject_t is_android_subject_{};
+    lv_subject_t rotation_available_subject_{};
+    lv_subject_t timezone_subject_{};
 
 #ifdef HELIX_ENABLE_SCREENSAVER
-    lv_subject_t screensaver_type_subject_;
+    lv_subject_t screensaver_type_subject_{};
 #endif
 
     bool subjects_initialized_ = false;

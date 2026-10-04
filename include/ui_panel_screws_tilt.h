@@ -208,9 +208,9 @@ class ScrewsTiltPanel : public OverlayBase {
     static constexpr size_t SCREW_NAME_BUF_SIZE = 32;
     static constexpr size_t SCREW_ADJ_BUF_SIZE = 24; // "Tighten ¼ turn" etc.
 
-    std::array<lv_subject_t, MAX_SCREWS> screw_visible_subjects_;
-    std::array<lv_subject_t, MAX_SCREWS> screw_name_subjects_;
-    std::array<lv_subject_t, MAX_SCREWS> screw_adjustment_subjects_;
+    std::array<lv_subject_t, MAX_SCREWS> screw_visible_subjects_{};
+    std::array<lv_subject_t, MAX_SCREWS> screw_name_subjects_{};
+    std::array<lv_subject_t, MAX_SCREWS> screw_adjustment_subjects_{};
 
     // Fixed char arrays for string subjects (LVGL requires stable buffers)
     char screw_name_bufs_[MAX_SCREWS][SCREW_NAME_BUF_SIZE] = {};
@@ -219,11 +219,11 @@ class ScrewsTiltPanel : public OverlayBase {
     // Subjects for status labels
     static constexpr size_t PROBE_COUNT_BUF_SIZE = 64;
     static constexpr size_t ERROR_MSG_BUF_SIZE = 256;
-    lv_subject_t probe_count_subject_;
-    lv_subject_t error_message_subject_;
-    lv_subject_t recenter_hint_subject_;   ///< Alternative that turns fewer screws
-    lv_subject_t recenter_hint_available_; ///< 1 when the hint is worth showing
-    lv_subject_t results_is_leveled_subject_;
+    lv_subject_t probe_count_subject_{};
+    lv_subject_t error_message_subject_{};
+    lv_subject_t recenter_hint_subject_{};   ///< Alternative that turns fewer screws
+    lv_subject_t recenter_hint_available_{}; ///< 1 when the hint is worth showing
+    lv_subject_t results_is_leveled_subject_{};
     char probe_count_buf_[PROBE_COUNT_BUF_SIZE] = {};
     char error_message_buf_[ERROR_MSG_BUF_SIZE] = {};
     static constexpr size_t RECENTER_HINT_BUF_SIZE = 160;

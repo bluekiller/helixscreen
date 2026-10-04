@@ -384,3 +384,57 @@ TEST_CASE("settle_targeted_reconfig: finishing declines guided roles the session
     // ...and the next boot must not relaunch the wizard.
     REQUIRE(helix::unresolved_guided_steps(cfg, client.hardware()).empty());
 }
+
+// ---------------------------------------------------------------------------
+// heal_heater_roles: the discovery-time batch over the hotend and bed roles.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/// Saves the two heater role keys, restores them on scope exit.
+struct HeaterRoleKeys {
+    Config* cfg = Config::get_instance();
+    std::string hotend_key = cfg->df() + helix::wizard::HOTEND_HEATER;
+    std::string bed_key = cfg->df() + helix::wizard::BED_HEATER;
+    std::string hotend_orig = cfg->get<std::string>(hotend_key, "");
+    std::string bed_orig = cfg->get<std::string>(bed_key, "");
+    ~HeaterRoleKeys() {
+        cfg->set<std::string>(hotend_key, hotend_orig);
+        cfg->set<std::string>(bed_key, bed_orig);
+    }
+    void set(const std::string& hotend, const std::string& bed) {
+        cfg->set<std::string>(hotend_key, hotend);
+        cfg->set<std::string>(bed_key, bed);
+    }
+};
+
+} // namespace
+
+TEST_CASE("heal_heater_roles: a stale saved role is replaced and persisted", "[hwrole][config]") {
+    HeaterRoleKeys keys;
+    keys.set("extruder9", "heater_bed");
+
+    REQUIRE(helix::heal_heater_roles(keys.cfg, {"extruder", "heater_bed"}));
+    CHECK(keys.cfg->get<std::string>(keys.hotend_key, "") == "extruder");
+    CHECK(keys.cfg->get<std::string>(keys.bed_key, "") == "heater_bed");
+}
+
+TEST_CASE("heal_heater_roles: roles that already resolve change nothing", "[hwrole][config]") {
+    HeaterRoleKeys keys;
+    keys.set("extruder", "heater_bed");
+
+    CHECK_FALSE(helix::heal_heater_roles(keys.cfg, {"extruder", "heater_bed"}));
+    CHECK(keys.cfg->get<std::string>(keys.hotend_key, "") == "extruder");
+}
+
+TEST_CASE("heal_heater_roles: a bed-less printer keeps its saved bed role", "[hwrole][config]") {
+    HeaterRoleKeys keys;
+    keys.set("extruder", "heater_bed");
+
+    CHECK_FALSE(helix::heal_heater_roles(keys.cfg, {"extruder"}));
+    CHECK(keys.cfg->get<std::string>(keys.bed_key, "") == "heater_bed");
+}
+
+TEST_CASE("heal_heater_roles: no config is not a heal", "[hwrole][config]") {
+    CHECK_FALSE(helix::heal_heater_roles(nullptr, {"extruder"}));
+}

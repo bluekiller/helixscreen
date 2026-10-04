@@ -231,10 +231,10 @@ class SpoolmanOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     /// Subject for sync enabled state (0=disabled, 1=enabled)
-    lv_subject_t sync_enabled_subject_;
+    lv_subject_t sync_enabled_subject_{};
 
     /// Subject for refresh interval in seconds
-    lv_subject_t refresh_interval_subject_;
+    lv_subject_t refresh_interval_subject_{};
 
     /// IMoonrakerAPI for database access (not owned)
     IMoonrakerAPI* api_ = nullptr;
@@ -276,7 +276,7 @@ class SpoolmanOverlay : public OverlayBase {
     static constexpr int DEFAULT_REFRESH_INTERVAL_SECONDS = 30;
 
     // === Barcode Scanner Picker ===
-    lv_subject_t scanner_device_status_subject_;
+    lv_subject_t scanner_device_status_subject_{};
     char scanner_status_buf_[64] = {0};
 
     void handle_barcode_scanner_clicked();
