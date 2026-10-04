@@ -75,6 +75,17 @@ class ProbeSensorManager {
     /// @brief Update state from Moonraker status JSON
     void update_from_status(const nlohmann::json& status);
 
+    /**
+     * @brief Status subscription for every probe object in an objects list
+     *
+     * Maps each name parse_klipper_name() accepts to the fields
+     * update_from_status() reads. Mainline Klipper publishes last_z_result but
+     * not z_offset; Moonraker answers the missing field with null, which the
+     * parser skips, so the config-seeded offset survives.
+     */
+    [[nodiscard]] static nlohmann::json
+    required_status_objects(const std::vector<std::string>& klipper_objects);
+
     /// @brief Seed initial state from Klipper configfile (e.g., z_offset from [probe])
     void discover_from_config(const nlohmann::json& config_keys);
 
@@ -249,8 +260,8 @@ class ProbeSensorManager {
      * @param[out] type Detected sensor type
      * @return true if successfully parsed as probe sensor
      */
-    bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
-                            ProbeSensorType& type) const;
+    static bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
+                                   ProbeSensorType& type);
 
     /**
      * @brief Find config by Klipper name

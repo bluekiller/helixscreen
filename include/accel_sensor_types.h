@@ -39,9 +39,7 @@ struct AccelSensorConfig {
 
 /// @brief Runtime state for an accelerometer sensor
 struct AccelSensorState {
-    bool connected = false;       ///< Accelerometer connected/responding
-    std::string last_measurement; ///< Timestamp of last measurement
-    bool available = false;       ///< Sensor available in current config
+    bool available = false; ///< Sensor available in current config
 };
 
 /// @brief Convert role enum to config string

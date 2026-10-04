@@ -123,8 +123,9 @@ A manager only sees fields that `MoonrakerDiscoverySequence::build_subscription_
 | `load_cell *` | `force_g` |
 | filament switch/motion sensors | `filament_detected`, `enabled`, `detection_count` |
 | width sensors | `Diameter`, `Raw` |
+| probe objects (`probe`, `bltouch`, `beacon`, ...) | `last_z_result`, `z_offset`, from `ProbeSensorManager::required_status_objects()` |
 
-Probe objects are not in the subscription. `ProbeSensorManager::update_from_status()` reads `last_z_result` and `z_offset` when a frame carries them (the mock's initial status does), but against a real printer the probe values come from `discover_from_config()`. Accelerometers likewise never appear in status, so `accel_connected` stays at its discovery value.
+`ProbeSensorManager` owns which object names are probes, so the builder asks it rather than listing them. Mainline Klipper's probe status carries `last_z_result` but no `z_offset`; Moonraker answers that field with `null`, the parser skips it, and the offset seeded by `discover_from_config()` stands. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
 
 A field-restricted subscription makes Moonraker send `null` for a field the object lacks. Every parser therefore uses `find()` plus a type check before `get<>()`, never `value()` or a bare `get<>()`:
 
@@ -165,7 +166,7 @@ All values are integers so XML can bind them. Fixed-name subjects register globa
 | `chamber_pressure` | Humidity | Pa (hPa x 100), -1 when unavailable |
 | `humidity_sensor_count` | Humidity | count |
 | `probe_last_z`, `probe_z_offset`, `probe_count` | Probe | microns, microns, count |
-| `accel_connected`, `accel_count` | Accel | -1/0/1, count |
+| `accel_count` | Accel | count |
 | `filament_width_diameter`, `filament_diameter_text`, `width_sensor_count` | Width | microns, string (`"--"` default), count |
 | `load_cell_count` | Load cell | count |
 
@@ -300,7 +301,7 @@ Roles are CHAMBER and DRYER, auto-assigned at discovery to the first sensor whos
 
 **Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. `load_config_from_file()` auto-assigns Z_PROBE when exactly one probe exists and no saved config gave one the role; with several probes the subjects read -1 until the user picks one in Settings > Sensors (persisted under `probe_sensors`). `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
 
-**Accelerometer.** Found only in `configfile.config` sections (`adxl345`, `adxl345 bed`, `lis2dw hotend`, ...). A `beacon` section with `accel_scale` or `accel_axes_map` adds Beacon's onboard LIS2DW. The role INPUT_SHAPER backs `is_input_shaper_connected()`.
+**Accelerometer.** Found only in `configfile.config` sections (`adxl345`, `adxl345 bed`, `lis2dw hotend`, ...). A `beacon` section with `accel_scale` or `accel_axes_map` adds Beacon's onboard LIS2DW. The role INPUT_SHAPER backs `is_sensor_available(AccelSensorRole::INPUT_SHAPER)`.
 
 **Width.** Klipper allows one of each width-sensor module, so the names are fixed (`tsl1401cl`, `hall`). The first sensor is auto-assigned FLOW_COMPENSATION; `get_flow_compensation_diameter()` reads it. `filament_diameter_text` is pre-formatted for the width widget.
 

@@ -1508,6 +1508,14 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
         subscription_objects[sensor] = filament_sensor_fields;
     }
 
+    // Probe objects. ProbeSensorManager owns which names are probes and which
+    // fields it reads.
+    const json probe_objects =
+        helix::sensors::ProbeSensorManager::required_status_objects(hw.printer_objects());
+    for (auto it = probe_objects.begin(); it != probe_objects.end(); ++it) {
+        subscription_objects[it.key()] = it.value();
+    }
+
     // All discovered width sensors. WidthSensorManager reads Diameter + Raw.
     if (hw.has_width_sensors()) {
         static const json width_sensor_fields = json::array({"Diameter", "Raw"});

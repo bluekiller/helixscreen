@@ -276,6 +276,20 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
     }
 }
 
+nlohmann::json
+ProbeSensorManager::required_status_objects(const std::vector<std::string>& klipper_objects) {
+    static const nlohmann::json fields = nlohmann::json::array({"last_z_result", "z_offset"});
+    nlohmann::json objects = nlohmann::json::object();
+    for (const auto& klipper_name : klipper_objects) {
+        std::string sensor_name;
+        ProbeSensorType type = ProbeSensorType::STANDARD;
+        if (parse_klipper_name(klipper_name, sensor_name, type)) {
+            objects[klipper_name] = fields;
+        }
+    }
+    return objects;
+}
+
 void ProbeSensorManager::load_config(const nlohmann::json& config) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
@@ -612,7 +626,7 @@ void ProbeSensorManager::update_subjects_on_main_thread() {
 // ============================================================================
 
 bool ProbeSensorManager::parse_klipper_name(const std::string& klipper_name,
-                                            std::string& sensor_name, ProbeSensorType& type) const {
+                                            std::string& sensor_name, ProbeSensorType& type) {
     // Cartographer 3D scanning/contact probe
     if (klipper_name == "cartographer") {
         sensor_name = "cartographer";

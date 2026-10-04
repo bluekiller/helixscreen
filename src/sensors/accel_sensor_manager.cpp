@@ -3,19 +3,11 @@
 
 #include "accel_sensor_manager.h"
 
-#include "ui_update_queue.h"
-
 #include "json_utils.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
 
 #include <algorithm>
-
-// CRITICAL: Subject updates trigger lv_obj_invalidate() which asserts if called
-// during LVGL rendering. WebSocket callbacks run on libhv's event loop thread,
-// not the main LVGL thread. We must defer subject updates to the main thread
-// via ui_queue_update() to avoid the "Invalidate area not allowed during rendering"
-// assertion.
 
 namespace helix::sensors {
 
@@ -149,54 +141,11 @@ void AccelSensorManager::discover_from_config(const nlohmann::json& config_keys)
 
     spdlog::info("[AccelSensorManager] Discovered {} accelerometer sensors from config",
                  sensors_.size());
-
-    // Update subjects to reflect new state
-    update_subjects();
 }
 
-void AccelSensorManager::update_from_status(const nlohmann::json& status) {
-    bool any_changed = false;
-
-    {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-        for (const auto& sensor : sensors_) {
-            const std::string& key = sensor.klipper_name;
-
-            if (!status.contains(key)) {
-                continue;
-            }
-
-            const auto& sensor_data = status[key];
-            auto& state = states_[sensor.klipper_name];
-            AccelSensorState old_state = state;
-
-            // Guard against subscription-restricted nulls (type_error.302).
-            if (auto it = sensor_data.find("connected");
-                it != sensor_data.end() && it->is_boolean()) {
-                state.connected = it->get<bool>();
-            }
-
-            // Check for state change
-            if (state.connected != old_state.connected) {
-                any_changed = true;
-                spdlog::debug("[AccelSensorManager] Sensor {} updated: connected={}",
-                              sensor.sensor_name, state.connected);
-            }
-        }
-
-        if (any_changed) {
-            if (sync_mode_) {
-                spdlog::debug("[AccelSensorManager] sync_mode: updating subjects synchronously");
-                update_subjects();
-            } else {
-                spdlog::debug("[AccelSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("AccelSensorManager::update_from_status", [] {
-                    AccelSensorManager::instance().update_subjects_on_main_thread();
-                });
-            }
-        }
-    }
+void AccelSensorManager::update_from_status(const nlohmann::json& /*status*/) {
+    // Klipper accelerometers have no get_status(), so no status frame ever
+    // carries them. Discovery and config are the whole picture.
 }
 
 void AccelSensorManager::load_config(const nlohmann::json& config) {
@@ -230,7 +179,6 @@ void AccelSensorManager::load_config(const nlohmann::json& config) {
         }
     }
 
-    update_subjects();
     spdlog::info("[AccelSensorManager] Config loaded");
 }
 
@@ -269,8 +217,6 @@ void AccelSensorManager::init_subjects() {
     spdlog::trace("[AccelSensorManager] Initializing subjects");
 
     // Initialize subjects with SubjectManager for automatic cleanup
-    // -1 = no sensor discovered, 0 = disconnected, 1 = connected
-    UI_MANAGED_SUBJECT_INT(connected_, -1, "accel_connected", subjects_);
     UI_MANAGED_SUBJECT_INT(sensor_count_, 0, "accel_count", subjects_);
 
     subjects_initialized_ = true;
@@ -335,7 +281,6 @@ void AccelSensorManager::set_sensor_role(const std::string& klipper_name, AccelS
         sensor->role = role;
         spdlog::info("[AccelSensorManager] Set role for {} to {}", sensor->sensor_name,
                      accel_role_to_string(role));
-        update_subjects();
     }
 }
 
@@ -346,7 +291,6 @@ void AccelSensorManager::set_sensor_enabled(const std::string& klipper_name, boo
     if (sensor) {
         sensor->enabled = enabled;
         spdlog::info("[AccelSensorManager] Set enabled for {} to {}", sensor->sensor_name, enabled);
-        update_subjects();
     }
 }
 
@@ -390,45 +334,12 @@ bool AccelSensorManager::is_sensor_available(AccelSensorRole role) const {
     return it != states_.end() && it->second.available;
 }
 
-bool AccelSensorManager::is_input_shaper_connected() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    const auto* config = find_config_by_role(AccelSensorRole::INPUT_SHAPER);
-    if (!config || !config->enabled) {
-        return false;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    if (it == states_.end() || !it->second.available) {
-        return false;
-    }
-
-    return it->second.connected;
-}
-
 // ============================================================================
 // LVGL Subjects
 // ============================================================================
 
-lv_subject_t* AccelSensorManager::get_connected_subject() {
-    return &connected_;
-}
-
 lv_subject_t* AccelSensorManager::get_sensor_count_subject() {
     return &sensor_count_;
-}
-
-// ============================================================================
-// Testing Support
-// ============================================================================
-
-void AccelSensorManager::set_sync_mode(bool enabled) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    sync_mode_ = enabled;
-}
-
-void AccelSensorManager::update_subjects_on_main_thread() {
-    update_subjects();
 }
 
 // ============================================================================
@@ -490,37 +401,6 @@ const AccelSensorConfig* AccelSensorManager::find_config_by_role(AccelSensorRole
         }
     }
     return nullptr;
-}
-
-void AccelSensorManager::update_subjects() {
-    if (!subjects_initialized_) {
-        return;
-    }
-
-    // Get connected value for input shaper role
-    auto get_connected_value = [this]() -> int {
-        // No sensors discovered at all
-        if (sensors_.empty()) {
-            return -1;
-        }
-
-        const auto* config = find_config_by_role(AccelSensorRole::INPUT_SHAPER);
-        if (!config || !config->enabled) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        return it->second.connected ? 1 : 0;
-    };
-
-    lv_subject_set_int(&connected_, get_connected_value());
-
-    spdlog::trace("[AccelSensorManager] Subjects updated: connected={}",
-                  lv_subject_get_int(&connected_));
 }
 
 } // namespace helix::sensors

@@ -511,6 +511,30 @@ TEST_CASE("Subscription: filament + width sensors narrow correctly", "[moonraker
     }
 }
 
+TEST_CASE("Subscription: probe objects narrow to ProbeSensorManager reads",
+          "[moonraker][subscription][probe]") {
+    DiscoveryFixture fx;
+    for (const auto& name : {"probe", "bltouch", "smart_effector", "beacon", "cartographer",
+                             "probe_eddy_current btt"}) {
+        fx.add(name, {});
+    }
+    fx.add("adxl345", {});
+    fx.add("gcode_macro probe_wrapper", {});
+
+    json subs = fx.build();
+
+    for (const auto& s : {"probe", "bltouch", "smart_effector", "beacon", "cartographer",
+                          "probe_eddy_current btt"}) {
+        CAPTURE(s);
+        REQUIRE(has_field(subs, s, "last_z_result"));
+        REQUIRE(has_field(subs, s, "z_offset"));
+        REQUIRE(subs[s].size() == 2);
+    }
+    // Accelerometers publish no status; a macro merely named like a probe is not one.
+    REQUIRE_FALSE(subs.contains("adxl345"));
+    REQUIRE_FALSE(subs.contains("gcode_macro probe_wrapper"));
+}
+
 TEST_CASE("Subscription: toolchanger + per-tool fields cover ToolState reads",
           "[moonraker][subscription]") {
     DiscoveryFixture fx;
