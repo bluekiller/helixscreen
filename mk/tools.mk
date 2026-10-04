@@ -264,7 +264,7 @@ regen-xml-schema:
 # Theme token table (Python)
 # ==============================================================================
 # Build-time snapshot of every <color>/<px>/<string> design token in ui_xml/,
-# mirroring theme_manager.cpp's runtime scan (top-level files, sorted,
+# mirroring theme_token_scan.cpp's runtime scan (top-level files, sorted,
 # last-wins). Committed artifact consumed by src/generated/theme_token_table.cpp
 # callers; staleness is caught by the Task 4 parity test, not this target.
 #

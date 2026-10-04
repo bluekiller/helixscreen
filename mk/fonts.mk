@@ -94,7 +94,7 @@ FONTS_XXLARGE := assets/fonts/noto_sans_32.c assets/fonts/noto_sans_40.c \
 #   - cjk_font_manager.cpp REGULAR/BOLD/LIGHT_FONTS tables: adds noto_sans_{26,28},
 #     noto_sans_light_{14,16,18} (xlarge/xxlarge entries are #if-guarded)
 #   - helix_watchdog.cpp: noto_sans_14, noto_sans_bold_{16,24}, mdi_icons_64
-#   - theme_manager.cpp theme_manager_is_icon_font(): mdi_icons_{14,16,24,32,48,64}
+#   - theme_fonts.cpp helix::ui::is_icon_font(): mdi_icons_{14,16,24,32,48,64}
 #     (it also names 80/96/128, each behind its own HELIX_MAX_FONT_TIER guard)
 #   - ui_button.cpp / ui_split_button.cpp / ui_icon.cpp icon-font fallbacks:
 #     mdi_icons_{16,24,32,48,64}
