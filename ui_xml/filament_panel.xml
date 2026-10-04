@@ -194,6 +194,7 @@
             <lv_obj width="100%"
                     height="content" style_pad_all="0" scrollable="false" flex_flow="row"
                     style_flex_main_place="space_between" style_flex_cross_place="center" clickable="true">
+              <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_filament_nozzle_target_tap"/>
               <text_small bind_text="filament_nozzle_label" clickable="false" event_bubble="true"/>
               <lv_obj height="content"
@@ -215,6 +216,7 @@
             <lv_obj width="100%"
                     height="content" style_pad_all="0" scrollable="false" flex_flow="row"
                     style_flex_main_place="space_between" style_flex_cross_place="center" clickable="true">
+              <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_filament_bed_target_tap"/>
               <text_small text="Bed" translation_tag="Bed" clickable="false" event_bubble="true"/>
               <lv_obj height="content"
@@ -236,6 +238,7 @@
             <lv_obj name="chamber_section"
                     width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="row"
                     style_flex_main_place="space_between" style_flex_cross_place="center" clickable="true" hidden="true">
+              <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_filament_chamber_target_tap"/>
               <bind_flag_if_eq subject="printer_has_chamber" flag="hidden" ref_value="0"/>
               <text_small text="Chamber" translation_tag="Chamber" clickable="false" event_bubble="true"/>
