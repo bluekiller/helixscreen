@@ -410,21 +410,22 @@ void PrinterImageOverlay::handle_usb_import(const std::string& source_path) {
     // in helix::ui::queue_update() for safety in case the implementation becomes truly async
     helix::PrinterImageManager::instance().import_image_async(
         source_path, [filename](helix::PrinterImageManager::ImportResult result) {
-            helix::ui::queue_update([result = std::move(result), filename]() {
-                auto& overlay = get_printer_image_overlay();
+            helix::ui::queue_update(
+                "PrinterImageOverlay::handle_usb_import", [result = std::move(result), filename]() {
+                    auto& overlay = get_printer_image_overlay();
 
-                if (result.success) {
-                    spdlog::info("[Printer Image] USB import success: {}", result.id);
-                    lv_subject_copy_string(&overlay.usb_status_subject_, "");
-                    overlay.refresh_custom_images();
-                    overlay.handle_image_selected(result.id);
-                    NOTIFY_SUCCESS(lv_tr("Imported {}"), filename);
-                } else {
-                    spdlog::warn("[Printer Image] USB import failed: {}", result.error);
-                    lv_subject_copy_string(&overlay.usb_status_subject_, result.error.c_str());
-                    NOTIFY_WARNING(lv_tr("Import failed: {}"), result.error);
-                }
-            });
+                    if (result.success) {
+                        spdlog::info("[Printer Image] USB import success: {}", result.id);
+                        lv_subject_copy_string(&overlay.usb_status_subject_, "");
+                        overlay.refresh_custom_images();
+                        overlay.handle_image_selected(result.id);
+                        NOTIFY_SUCCESS(lv_tr("Imported {}"), filename);
+                    } else {
+                        spdlog::warn("[Printer Image] USB import failed: {}", result.error);
+                        lv_subject_copy_string(&overlay.usb_status_subject_, result.error.c_str());
+                        NOTIFY_WARNING(lv_tr("Import failed: {}"), result.error);
+                    }
+                });
         });
 }
 

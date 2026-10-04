@@ -146,7 +146,7 @@
                 style_pad_gap="#space_sm" scrollable="false">
           <lv_obj width="content"
                   height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
-                  style_pad_gap="#space_xs" scrollable="false" clickable="true">
+                  style_pad_gap="#space_xs" scrollable="false" clickable="true" style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_print_status_units_toggle"/>
             <text_small text="Speed" translation_tag="Speed" clickable="false" event_bubble="true"/>
@@ -260,7 +260,8 @@
           <!-- Up next: the first queued job (see the landscape panel's copy) -->
           <lv_obj name="up_next_row"
                   width="100%" height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
-                  style_pad_gap="#space_xs" scrollable="false" clickable="true">
+                  style_pad_gap="#space_xs" scrollable="false" clickable="true" style_radius="#border_radius">
+            <style name="styles.press_wash" selector="pressed"/>
             <bind_flag_if_eq subject="job_queue_count" flag="hidden" ref_value="0"/>
             <event_cb trigger="clicked" callback="on_up_next_tap"/>
             <icon src="progress_clock" size="sm" variant="muted" clickable="false" event_bubble="true"/>

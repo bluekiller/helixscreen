@@ -9,7 +9,7 @@
   <view name="print_status_fan_row_root"
         extends="lv_obj" width="100%" height="content" style_pad_all="0" style_pad_left="#space_xs"
         style_pad_right="#space_xs" flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center"
-        style_pad_gap="#space_xs" scrollable="false" clickable="true">
+        style_pad_gap="#space_xs" scrollable="false" clickable="true" style_radius="#border_radius">
     <style name="styles.press_wash" selector="pressed"/>
 
     <!-- Hide whole row when adaptive-fit calc says no -->

@@ -11,6 +11,7 @@
 #include <cstring>
 #include <lvgl.h>
 #include <string>
+#include <vector>
 
 using namespace helix;
 
@@ -35,62 +36,38 @@ MoonrakerClientMock::gcode_pid_calibrate(const std::string& gcode) {
 
     spdlog::info("[MoonrakerClientMock] PID_CALIBRATE: heater={} target={}°C", heater, target);
 
-    // Simulate PID calibration with a background timer
-    struct PIDSimState {
-        MoonrakerClientMock* mock;
-        std::string heater;
-        int target;
-        int cycle;
-    };
+    // Five Kalico PID sample lines (pid_calibrate.py format), then the result
+    // in real Klipper's wording, 500ms apart.
+    std::vector<std::string> lines;
+    char buf[128];
+    for (int cycle = 1; cycle <= 5; ++cycle) {
+        float pwm = 0.5f - (cycle * 0.02f);
+        float asymmetry = 0.3f - (cycle * 0.05f);
+        // First two samples have n/a tolerance, then converging values
+        if (cycle <= 2) {
+            snprintf(buf, sizeof(buf), "sample:%d pwm:%.3f asymmetry:%.3f tolerance:n/a", cycle,
+                     pwm, asymmetry);
+        } else {
+            float tolerance = 0.1f / cycle;
+            snprintf(buf, sizeof(buf), "sample:%d pwm:%.3f asymmetry:%.3f tolerance:%.4f", cycle,
+                     pwm, asymmetry, tolerance);
+        }
+        lines.emplace_back(buf);
+    }
 
-    auto* sim = new PIDSimState{this, heater, target, 0};
-
-    lv_timer_t* timer = lv_timer_create(
-        [](lv_timer_t* t) {
-            auto* s = static_cast<PIDSimState*>(lv_timer_get_user_data(t));
-            s->cycle++;
-
-            if (s->cycle <= 5) {
-                // Simulate Kalico PID sample output (matches pid_calibrate.py format)
-                char buf[128];
-                float pwm = 0.5f - (s->cycle * 0.02f);
-                float asymmetry = 0.3f - (s->cycle * 0.05f);
-                // First two samples have n/a tolerance, then converging values
-                if (s->cycle <= 2) {
-                    snprintf(buf, sizeof(buf), "sample:%d pwm:%.3f asymmetry:%.3f tolerance:n/a",
-                             s->cycle, pwm, asymmetry);
-                } else {
-                    float tolerance = 0.1f / s->cycle;
-                    snprintf(buf, sizeof(buf), "sample:%d pwm:%.3f asymmetry:%.3f tolerance:%.4f",
-                             s->cycle, pwm, asymmetry, tolerance);
-                }
-                s->mock->dispatch_gcode_response(buf);
-            } else {
-                // Emit final PID result matching real Klipper format
-                float kp, ki, kd;
-                if (s->heater == "heater_bed") {
-                    kp = 73.517f;
-                    ki = 1.132f;
-                    kd = 1194.093f;
-                } else {
-                    kp = 22.865f;
-                    ki = 1.292f;
-                    kd = 101.178f;
-                }
-
-                char buf[128];
-                snprintf(buf, sizeof(buf), "PID parameters: pid_Kp=%.3f pid_Ki=%.3f pid_Kd=%.3f",
-                         kp, ki, kd);
-                s->mock->dispatch_gcode_response(buf);
-
-                delete s;
-                lv_timer_delete(t);
-                return;
-            }
-        },
-        500, sim);                       // 500ms between cycles for quick mock
-    lv_timer_set_repeat_count(timer, 6); // 5 progress + 1 result
-    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+    float kp, ki, kd;
+    if (heater == "heater_bed") {
+        kp = 73.517f;
+        ki = 1.132f;
+        kd = 1194.093f;
+    } else {
+        kp = 22.865f;
+        ki = 1.292f;
+        kd = 101.178f;
+    }
+    snprintf(buf, sizeof(buf), "PID parameters: pid_Kp=%.3f pid_Ki=%.3f pid_Kd=%.3f", kp, ki, kd);
+    play_console_lines(std::move(lines), 500,
+                       [this, result = std::string(buf)] { dispatch_gcode_response(result); });
 
     return 0; // Success - results come asynchronously via gcode_response
     return std::nullopt;
@@ -116,49 +93,25 @@ MoonrakerClientMock::gcode_mpc_calibrate(const std::string& gcode) {
     spdlog::info("[MoonrakerClientMock] MPC_CALIBRATE: heater={} fan_breakpoints={}", heater,
                  fan_breakpoints);
 
-    struct MPCSimState {
-        MoonrakerClientMock* mock;
-        std::string heater;
-        int fan_breakpoints;
-        int phase;
-        int total_phases;
-    };
-
-    int total_phases = 3 + fan_breakpoints; // settle + heatup + fan phases
-    auto* sim = new MPCSimState{this, heater, fan_breakpoints, 0, total_phases};
-
-    lv_timer_t* timer = lv_timer_create(
-        [](lv_timer_t* t) {
-            auto* s = static_cast<MPCSimState*>(lv_timer_get_user_data(t));
-            s->phase++;
-
-            if (s->phase == 1) {
-                s->mock->dispatch_gcode_response("Waiting for heater to settle near ambient");
-            } else if (s->phase == 2) {
-                s->mock->dispatch_gcode_response("Performing heatup test");
-            } else if (s->phase <= 2 + s->fan_breakpoints) {
-                int fan_pct = ((s->phase - 2) * 100) / s->fan_breakpoints;
-                char buf[128];
-                snprintf(buf, sizeof(buf), "measuring power usage with %d%% fan", fan_pct);
-                s->mock->dispatch_gcode_response(buf);
-            } else {
-                // Final result
-                s->mock->dispatch_gcode_response("Finished MPC calibration");
-                s->mock->dispatch_gcode_response("block_heat_capacity=18.4321 [J/K]");
-                s->mock->dispatch_gcode_response("sensor_responsiveness=0.123456 [K/s/K]");
-                s->mock->dispatch_gcode_response("ambient_transfer=0.045678 [W/K]");
-                if (s->fan_breakpoints > 0) {
-                    s->mock->dispatch_gcode_response("fan_ambient_transfer=0.12, 0.18, 0.25 [W/K]");
-                }
-
-                delete s;
-                lv_timer_delete(t);
-                return;
-            }
-        },
-        500, sim);
-    lv_timer_set_repeat_count(timer, total_phases + 1);
-    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+    // Settle, heatup, one line per fan breakpoint, then the result block,
+    // 500ms apart.
+    std::vector<std::string> lines = {"Waiting for heater to settle near ambient",
+                                      "Performing heatup test"};
+    for (int i = 1; i <= fan_breakpoints; ++i) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "measuring power usage with %d%% fan",
+                 (i * 100) / fan_breakpoints);
+        lines.emplace_back(buf);
+    }
+    play_console_lines(std::move(lines), 500, [this, fan_breakpoints] {
+        dispatch_gcode_response("Finished MPC calibration");
+        dispatch_gcode_response("block_heat_capacity=18.4321 [J/K]");
+        dispatch_gcode_response("sensor_responsiveness=0.123456 [K/s/K]");
+        dispatch_gcode_response("ambient_transfer=0.045678 [W/K]");
+        if (fan_breakpoints > 0) {
+            dispatch_gcode_response("fan_ambient_transfer=0.12, 0.18, 0.25 [W/K]");
+        }
+    });
 
     return 0; // Success - results come asynchronously via gcode_response
     return std::nullopt;

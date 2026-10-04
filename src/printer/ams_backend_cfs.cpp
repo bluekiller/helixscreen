@@ -471,6 +471,58 @@ static int find_external_slot_index(const nlohmann::json& box_json) {
     return -1;
 }
 
+// Flat payload slot index -> bay position. The fork numbers slots globally,
+// (box address - 1) * 4 + local, so with a box missing from the chain the
+// indices skip; our bays are the kept slots[] entries by vector position, the
+// numbering parse_flat_box_status gives them. loaded_slot and runout.chain use
+// the payload's numbering and go through this map; an index it lacks names no
+// bay.
+static std::unordered_map<int, int> flat_bay_positions(const nlohmann::json& box_json) {
+    std::unordered_map<int, int> positions;
+    auto it = box_json.find("slots");
+    if (it == box_json.end() || !it->is_array()) {
+        return positions;
+    }
+    int position = 0;
+    for (const auto& slot_json : *it) {
+        if (!slot_json.is_object() || helix::json_util::safe_bool(slot_json, "external", false)) {
+            continue;
+        }
+        positions.emplace(helix::json_util::safe_int(slot_json, "index", position), position);
+        ++position;
+    }
+    return positions;
+}
+
+static int flat_bay_position(const std::unordered_map<int, int>& positions, int payload_index) {
+    auto it = positions.find(payload_index);
+    return it == positions.end() ? -1 : it->second;
+}
+
+// The inverse: the payload index a bay was published under, -1 when unknown.
+static int flat_payload_index(const std::unordered_map<int, int>& positions, int bay) {
+    for (const auto& [payload_index, position] : positions) {
+        if (position == bay) {
+            return payload_index;
+        }
+    }
+    return -1;
+}
+
+// A Fork bay the last flat frame published no slot number for. Sending a guess
+// would move filament in whatever bay the firmware numbers that way.
+static AmsError firmware_slot_unknown(int bay) {
+    return AmsError(AmsResult::INVALID_SLOT,
+                    "Slot " + std::to_string(bay) + " not known to the box firmware",
+                    lv_tr("Invalid tool/slot"),
+                    lv_tr("It has not reported its slots yet. Try again in a moment."), bay);
+}
+
+int AmsBackendCfs::firmware_slot_locked(int bay) const {
+    return macro_variant_ == CfsMacroVariant::Fork ? flat_payload_index(flat_bay_positions_, bay)
+                                                   : bay;
+}
+
 AmsSystemInfo
 AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
                                       const std::unordered_map<int, std::string>* own_labels) {
@@ -957,13 +1009,14 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     // merge gate in handle_status tests the same optional so such a
     // frame leaves the latch as it was.
     //
-    // `runout` is deliberately NOT read here. It is the runout-SWAP plan — an
-    // ordered `chain` of fallback slots and the `loaded_slot` they back — which
-    // the module publishes whenever runout_swap_enabled is on and a lane is
-    // loaded, including on the load-completion frame of a wholly successful
-    // load. Treating its presence as an event arms a runout episode against the
-    // lane that just loaded, and that episode drops the lane's remembered
-    // Spoolman link the moment the bay next reads empty.
+    // `runout` is NOT a runout signal. It is the runout-SWAP plan — the
+    // `chain` of fallback slots and the `loaded_slot` they back — which the
+    // module publishes whenever a lane is loaded, including on the
+    // load-completion frame of a wholly successful load. Treating its presence
+    // as an event arms a runout episode against the lane that just loaded, and
+    // that episode drops the lane's remembered Spoolman link the moment the bay
+    // next reads empty. parse_flat_runout_edges() reads it as the backup
+    // relation instead.
     //
     // filament_loaded is left false for the same reason as the stock parse —
     // the toolhead sensor branch in handle_status is its sole writer.
@@ -1059,9 +1112,9 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
             SlotInfo slot;
             // Index by VECTOR POSITION, not the payload's `index`. Downstream
             // slot-widget creation walks this vector and treats position as the
-            // bay, so a sparse or out-of-order payload must not leave holes. On
-            // every payload seen so far the two agree; warn if they ever stop,
-            // because a silent relabel would put a spool on the wrong bay.
+            // bay, so a sparse or out-of-order payload must not leave holes. The
+            // two differ when a box is missing from the chain; payload indices
+            // are translated through flat_bay_positions().
             slot.slot_index = static_cast<int>(unit.slots.size());
             slot.global_index = slot.slot_index;
             if (int reported = helix::json_util::safe_int(slot_json, "index", slot.slot_index);
@@ -1106,15 +1159,15 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     unit.slot_count = static_cast<int>(unit.slots.size());
     info.total_slots = unit.slot_count;
 
-    // loaded_slot is -1 when nothing is loaded. It indexes the same slots[]
-    // array — including the external entry, which is not in our vector. A bay
-    // index lands in the bounds branch; the external index maps to the -2
-    // bypass sentinel (the same convention AFC and Happy Hare use, and what
-    // AmsState's bypass subjects key off).
+    // loaded_slot is -1 when nothing is loaded. It is a payload index, and can
+    // name the external entry, which is not in our vector. A bay index maps to
+    // its position; the external index maps to the -2 bypass sentinel (the same
+    // convention AFC and Happy Hare use, and what AmsState's bypass subjects key
+    // off).
     int loaded_slot = helix::json_util::safe_int(box_json, "loaded_slot", -1);
-    if (loaded_slot >= 0 && loaded_slot < unit.slot_count) {
-        info.current_slot = loaded_slot;
-        info.current_tool = loaded_slot;
+    if (int bay = flat_bay_position(flat_bay_positions(box_json), loaded_slot); bay >= 0) {
+        info.current_slot = bay;
+        info.current_tool = bay;
     } else if (loaded_slot >= 0 && loaded_slot == find_external_slot_index(box_json)) {
         info.current_slot = -2;
         info.current_tool = -2;
@@ -1128,6 +1181,37 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     sync_tool_map_from_forward(info, /*identity_fallback=*/true);
 
     return info;
+}
+
+std::optional<std::vector<int>>
+AmsBackendCfs::parse_flat_runout_edges(const nlohmann::json& box_json) {
+    // box.py's _runout_status builds `chain` from every other present slot with
+    // identical material and colour, in slot order, and runout_recovery swaps to
+    // chain[0]; the tail is not a succession, so the head is the one edge
+    // stated. null means nothing is loaded: no plan.
+    auto runout_it = box_json.find("runout");
+    if (runout_it == box_json.end() || !runout_it->is_object()) {
+        return std::nullopt;
+    }
+    auto chain_it = runout_it->find("chain");
+    if (chain_it == runout_it->end() || !chain_it->is_array()) {
+        return std::nullopt;
+    }
+    const auto positions = flat_bay_positions(box_json);
+    std::vector<int> edges(positions.size(), -1);
+    if (chain_it->empty()) {
+        return edges;
+    }
+    const int source =
+        flat_bay_position(positions, helix::json_util::safe_int(*runout_it, "loaded_slot", -1));
+    const int target = chain_it->front().is_number_integer()
+                           ? flat_bay_position(positions, chain_it->front().get<int>())
+                           : -1;
+    if (source < 0 || target < 0 || target == source) {
+        return std::nullopt;
+    }
+    edges[static_cast<size_t>(source)] = target;
+    return edges;
 }
 
 // Canonicalize per-slot RFID data into a fingerprint string used by
@@ -1492,13 +1576,24 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                 // a delta omission, and the flat dialect never sends
                 // same_material - retaining stock-era grouping would answer
                 // from a dead schema forever, so it is cleared.
+                //
+                // The flat swap plan follows the same presence rule: a delta
+                // omitting `runout` keeps the last plan, an explicit null
+                // (nothing loaded) clears it. Stock never publishes one.
                 if (is_flat) {
                     system_info_.endless_spool_group_ids.clear();
                     system_info_.endless_spool_groups_reported = false;
-                } else if (new_info.endless_spool_groups_reported) {
-                    system_info_.endless_spool_group_ids =
-                        std::move(new_info.endless_spool_group_ids);
-                    system_info_.endless_spool_groups_reported = true;
+                    if (box.contains("runout")) {
+                        flat_backup_edges_ = parse_flat_runout_edges(box);
+                    }
+                    flat_bay_positions_ = flat_bay_positions(box);
+                } else {
+                    flat_backup_edges_.reset();
+                    if (new_info.endless_spool_groups_reported) {
+                        system_info_.endless_spool_group_ids =
+                            std::move(new_info.endless_spool_group_ids);
+                        system_info_.endless_spool_groups_reported = true;
+                    }
                 }
             }
 
@@ -1982,6 +2077,7 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
     // size is unknown), so a 4-slot CFS refuses index 7 here instead of
     // dispatching a load script for a bay that is not there.
     int max_slot;
+    int firmware_slot;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         max_slot = slot_index_bound_locked() - 1;
@@ -1990,6 +2086,7 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
                 return err;
             }
         }
+        firmware_slot = firmware_slot_locked(slot_index);
     }
 
     std::string gcode;
@@ -2000,10 +2097,13 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
         spdlog::info("[AMS CFS] Bypass load — external spool, via {}",
                      has_load_material ? "LOAD_MATERIAL" : "fallback feed");
     } else {
-        gcode = load_gcode(slot_index, macro_variant_);
+        gcode = load_gcode(firmware_slot, macro_variant_);
     }
 
     if (gcode.empty()) {
+        if (!bypass && firmware_slot < 0) {
+            return firmware_slot_unknown(slot_index);
+        }
         return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, max_slot);
     }
 
@@ -2093,8 +2193,10 @@ AmsError AmsBackendCfs::do_change_tool(int tool) {
         return err;
 
     bool needs_unload = false;
+    int firmware_slot;
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        firmware_slot = firmware_slot_locked(tool);
         // Cut-first decision centralized in needs_unload_before_load(): on K1 CFS
         // current_slot reports a *preloaded* (cassette-staged) slot with the
         // nozzle still empty, so the K1 override keys on filament_loaded only
@@ -2111,9 +2213,12 @@ AmsError AmsBackendCfs::do_change_tool(int tool) {
     // sit high while fewer units are attached. The 1:1 slot identity (CFS bays
     // map 1:1 to tools) is what lets the builders below encode it as a bay
     // TNN; encodability is the only bound a key needs.
-    std::string gcode =
-        needs_unload ? swap_gcode(tool, macro_variant_) : load_gcode(tool, macro_variant_);
+    std::string gcode = needs_unload ? swap_gcode(firmware_slot, macro_variant_)
+                                     : load_gcode(firmware_slot, macro_variant_);
     if (gcode.empty()) {
+        if (firmware_slot < 0) {
+            return firmware_slot_unknown(tool);
+        }
         // 15 = the last encodable TNN index; slot_to_tnn refuses anything past it.
         return AmsErrorHelper::invalid_slot(lane_noun(), tool, 15);
     }
@@ -2315,8 +2420,10 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
         // The echo staging's stamp, for the matched abandons on the failure
         // paths below.
         std::uint64_t echo_sequence = 0;
+        int firmware_slot;
         {
             std::lock_guard<std::mutex> lock(mutex_);
+            firmware_slot = firmware_slot_locked(global_index);
             for (const auto& unit : system_info_.units) {
                 for (const auto& slot : unit.slots) {
                     if (slot.global_index == global_index) {
@@ -2365,11 +2472,12 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
             }
         }
         std::string gcode =
-            slot_set_gcode(global_index, slot_material, color_rgb, slot_brand, name, spoolman_id);
+            slot_set_gcode(firmware_slot, slot_material, color_rgb, slot_brand, name, spoolman_id);
         if (gcode.empty()) {
             spdlog::debug("{} slot-set skipped for slot {}", backend_log_tag(), global_index);
+            std::lock_guard<std::mutex> lock(mutex_);
+            rfid_tracker_.forget_expected(global_index, staged_echoes);
             if (declared) {
-                std::lock_guard<std::mutex> lock(mutex_);
                 own_write_echoes_.abandon(global_index, echo_sequence);
             }
             return;
@@ -2591,6 +2699,9 @@ AmsError AmsBackendCfs::can_set_tool_mapping(int tool_number, int slot_index) co
     // exists wherever firmware's map says it does — a slicer-driven remap or
     // Creality's own UI can hold a high key while fewer units are attached —
     // so its bound is the TNN alphabet.
+    if (get_remap_strategy() == RemapStrategy::None) {
+        return AmsErrorHelper::not_supported("Tool remapping on this firmware's CFS module");
+    }
     constexpr int CFS_MAX_SLOTS = 16; // 4 units × 4 slots
     if (tool_number < 0 || tool_number >= CFS_MAX_SLOTS) {
         return AmsErrorHelper::tool_out_of_range(tool_number);
@@ -3788,8 +3899,13 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
     // instead of restating it.
     EndlessSpoolEnabled enabled =
         system_info_.endless_spool_enabled ? EndlessSpoolEnabled::On : EndlessSpoolEnabled::Off;
-    if (enabled == EndlessSpoolEnabled::On && system_info_.endless_spool_groups_reported &&
-        endless_spool_config_from_groups(system_info_.endless_spool_group_ids).empty()) {
+    // The fork's swap plan answers the same question for the loaded spool: an
+    // empty chain means a runout now has nothing to swap to.
+    const auto& edges = flat_backup_edges_;
+    if (enabled == EndlessSpoolEnabled::On &&
+        ((system_info_.endless_spool_groups_reported &&
+          endless_spool_config_from_groups(system_info_.endless_spool_group_ids).empty()) ||
+         (edges && endless_spool_config_from_edges(*edges).empty()))) {
         enabled = EndlessSpoolEnabled::OnWithoutBackup;
     }
 
@@ -3797,6 +3913,15 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
             .enabled = enabled,
             .editability = EndlessSpoolEditability::ReadOnly,
             .restriction = EndlessSpoolRestriction::FirmwareManaged};
+}
+
+helix::printer::EndlessSpoolConfig AmsBackendCfs::get_endless_spool_config() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // A plan published while swapping is off backs nothing up.
+    if (!system_info_.endless_spool_enabled || !flat_backup_edges_) {
+        return {};
+    }
+    return endless_spool_config_from_edges(*flat_backup_edges_);
 }
 
 std::vector<int> AmsBackendCfs::get_tool_mapping() const {
@@ -4430,8 +4555,9 @@ bool AmsBackendCfs::judge_insert_locked(SlotInfo& slot, int slot_index,
     case helix::ams::InsertVerdict::NoEvidence:
         // Keep everything and ask. The notice is self-gating, so a lane with
         // nothing the new spool could contradict stays silent.
-        helix::ui::queue_update(
-            [slot_index] { helix::ui::offer_clear_after_unverified_insert(slot_index); });
+        helix::ui::queue_update("AmsBackendCfs::judge_insert_locked", [slot_index] {
+            helix::ui::offer_clear_after_unverified_insert(slot_index);
+        });
         return false;
     case helix::ams::InsertVerdict::SameSpool:
         break;
@@ -4678,6 +4804,7 @@ void AmsBackendCfs::strip_spoolman_link_on_runout_locked(SlotInfo& slot, int slo
 }
 
 void AmsBackendCfs::clear_slot_override(int slot_index) {
+    int firmware_slot;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto* slot = system_info_.get_slot_global(slot_index);
@@ -4688,11 +4815,18 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
         clear_override_locked(slot_index, slot);
+        firmware_slot = firmware_slot_locked(slot_index);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
     if (macro_variant_ == CfsMacroVariant::Fork) {
-        execute_gcode("_BOX_SLOT_CLEAR SLOT=" + std::to_string(slot_index));
+        if (firmware_slot < 0) {
+            spdlog::warn("{} clear_slot_override: bay {} has no firmware slot - not clearing the "
+                         "Box profile",
+                         backend_log_tag(), slot_index);
+            return;
+        }
+        execute_gcode("_BOX_SLOT_CLEAR SLOT=" + std::to_string(firmware_slot));
     }
 }
 

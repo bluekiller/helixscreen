@@ -244,13 +244,13 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // Capabilities
 
     /**
-     * @brief CFS auto-refill: available, firmware-managed, no per-slot relation.
+     * @brief CFS auto-refill: available, firmware-managed, read-only.
      *
-     * The box picks the refill spool itself from its own `same_material` groups
-     * and exposes no per-slot mapping, so this backend deliberately does NOT
-     * override get_endless_spool_config() - the base's empty relation is the
-     * truthful answer, and it is what keeps the UI from drawing a backup
-     * dropdown that could only ever read "None".
+     * Stock firmware picks the refill spool itself from its own `same_material`
+     * groups and exposes no per-slot mapping, so get_endless_spool_config()
+     * answers empty there - that is what keeps the UI from drawing a backup
+     * dropdown that could only ever read "None". The flat fork publishes its
+     * swap plan (`runout.chain`), and that one edge is the relation (#1464).
      *
      * `enabled` comes from `box.auto_refill` (stock) / `box.runout_swap_enabled`
      * (flat fork) via AmsSystemInfo::endless_spool_enabled, so on and off are now
@@ -262,12 +262,18 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
      * cannot keep. Frames without the field (the flat dialect never sends it)
      * keep the plain On answer - no data is not a negative - and a stock delta
      * that omits the field retains the last known grouping (presence-gated
-     * like filament_runout); only a schema switch to flat clears it.
+     * like filament_runout); only a schema switch to flat clears it. On the
+     * fork, a published plan with an empty chain is the same OnWithoutBackup.
      *
      * @note Takes `mutex_`; callers must NOT hold it.
      */
     [[nodiscard]] helix::printer::EndlessSpoolCapabilities
     get_endless_spool_capabilities() const override;
+
+    /// The fork's swap plan as one directed edge (loaded slot -> chain head);
+    /// empty on stock, with no plan published, or with swapping off.
+    /// @note Takes `mutex_`; callers must NOT hold it.
+    [[nodiscard]] helix::printer::EndlessSpoolConfig get_endless_spool_config() const override;
     [[nodiscard]] std::vector<int> get_tool_mapping() const override;
 
     /// True except on K1, where BOX_MODIFY_TN no-ops (#968) so no confirming
@@ -284,8 +290,11 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     [[nodiscard]] bool manages_active_spool() const override {
         return false;
     }
+    /// Native via BOX_MODIFY_TN, except on the Fork dialect: box.py registers
+    /// no such command and exposes no tool->slot table to write.
     [[nodiscard]] RemapStrategy get_remap_strategy() const override {
-        return RemapStrategy::Native;
+        return macro_variant_ == CfsMacroVariant::Fork ? RemapStrategy::None
+                                                       : RemapStrategy::Native;
     }
 
     /// The CFS owns its own tool->slot table and get_tool_mapping() returns it.
@@ -399,6 +408,13 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
 
     /// Flat (`slots[]`) parse — community Kalico box.py reimplementations.
     static AmsSystemInfo parse_flat_box_status(const nlohmann::json& box_json);
+
+    /// The fork's runout-swap plan (`box.runout`) as per-bay directed edges:
+    /// edges[bay] = the bay a runout on it swaps to, or -1 (#1464). nullopt when
+    /// the frame states nothing usable: no plan (null/absent, nothing loaded) or
+    /// a chain head that names no other bay. An empty chain is engaged all -1,
+    /// the one real negative.
+    static std::optional<std::vector<int>> parse_flat_runout_edges(const nlohmann::json& box_json);
 
     /// Fold a persisted flat-schema fingerprint with exactly three pipes
     /// (material|brand|product|colour, the legacy four-field composite) onto
@@ -859,6 +875,22 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // episode. -2 (bypass sentinel) is never stored: the external spool is
     // not a bay and has no lane override.
     int runout_lane_ = -1;
+
+    /// parse_flat_runout_edges() as last published. Presence-gated: a delta
+    /// omitting `runout` keeps it, an explicit null clears it, a stock frame
+    /// clears it. Guarded by mutex_.
+    std::optional<std::vector<int>> flat_backup_edges_;
+
+    /// flat_bay_positions() of the last flat frame that carried slots[]: the
+    /// fork's payload slot index for each bay. Guarded by mutex_.
+    std::unordered_map<int, int> flat_bay_positions_;
+
+    /// The slot number a command names for @p bay: the bay itself on stock
+    /// dialects, the fork's payload index on Fork (box.py registers T<n> and
+    /// takes SLOT= in its global numbering). -1 when Fork has no payload index
+    /// for that bay, which callers refuse rather than guess.
+    /// **Caller must hold mutex_.**
+    [[nodiscard]] int firmware_slot_locked(int bay) const;
 
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.

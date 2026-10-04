@@ -57,7 +57,7 @@ HelixScreen supports printing spool labels to thermal label printers via three t
 | File | Transport |
 |------|-----------|
 | `src/system/brother_ql_printer.cpp` | Brother QL over TCP (network) |
-| `src/system/phomemo_printer.cpp` | Phomemo over USB (libusb) |
+| `src/system/phomemo_printer.cpp` | Phomemo over USB (libusb detects, writes go to the `/dev/usb/lpN` node) |
 | `src/system/brother_ql_bt_printer.cpp` | Brother QL over BT Classic (RFCOMM) |
 | `src/system/phomemo_bt_printer.cpp` | Phomemo over BT Classic (RFCOMM) or BLE GATT |
 | `src/system/niimbot_bt_printer.cpp` | Niimbot over BLE GATT |
@@ -93,7 +93,7 @@ HelixScreen supports printing spool labels to thermal label printers via three t
 
 ### Phomemo (ESC/POS Raster)
 
-- **Transport:** USB (libusb), BT Classic RFCOMM, or BLE GATT
+- **Transport:** USB (`usblp` device node, found by VID:PID through libusb), BT Classic RFCOMM, or BLE GATT
 - **Protocol:** ESC/POS command stream with GS v 0 raster block
 - **Sequence:** Speed + density + media type commands → GS v 0 raster → finalize + feed-to-gap
 - **DPI:** 203 (native)

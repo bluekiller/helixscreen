@@ -31,6 +31,7 @@ struct PersistedSetting {
 
 namespace detail {
 void init_setting(const PersistedSetting& s, lv_subject_t& subject, SubjectManager& subjects);
+void reload_setting(const PersistedSetting& s, lv_subject_t& subject);
 int get_setting(const PersistedSetting& s, const lv_subject_t& subject);
 void set_setting(const PersistedSetting& s, lv_subject_t& subject, int value);
 } // namespace detail
@@ -45,6 +46,13 @@ template <typename Key, size_t N> class PersistedSettings {
     void init(SubjectManager& subjects) {
         for (size_t i = 0; i < N; ++i) {
             detail::init_setting(table_[i], subjects_[i], subjects);
+        }
+    }
+
+    /// Re-read every initialized subject from Config, leaving its observers bound.
+    void reload() {
+        for (size_t i = 0; i < N; ++i) {
+            detail::reload_setting(table_[i], subjects_[i]);
         }
     }
 

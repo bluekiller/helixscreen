@@ -1161,11 +1161,12 @@ void helix::fetch_thumbnail_from_gcode(const std::string& gcode_path, size_t max
     // the queue so @p on_error always runs on the main thread (the same
     // reason ThumbnailCache wraps its own callbacks — #960, #1202).
     auto report_error = [on_error](const std::string& message) {
-        helix::ui::queue_update([on_error, message]() {
-            if (on_error) {
-                on_error(message);
-            }
-        });
+        helix::ui::queue_update("thumbnail_cache::fetch_thumbnail_from_gcode",
+                                [on_error, message]() {
+                                    if (on_error) {
+                                        on_error(message);
+                                    }
+                                });
     };
 
     if (!api) {

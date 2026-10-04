@@ -50,7 +50,7 @@ bool print_start_nav_should_navigate(PrintJobState prev, PrintJobState current) 
 // is_panel_in_stack() check has to run on the UI thread, so it lives
 // inside the queue_update lambda.
 static void queue_push_print_status_overlay() {
-    helix::ui::queue_update([]() {
+    helix::ui::queue_update("print_start_navigation::queue_push_print_status_overlay", []() {
         auto* cached = PrintStatusPanel::get_cached_overlay();
         if (cached && NavigationManager::instance().is_panel_in_stack(cached)) {
             spdlog::debug("[PrintStartNav] Print status already on stack — skip auto-nav");

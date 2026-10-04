@@ -415,8 +415,9 @@ void AmsBackendOpenAms::parse_snapshot_locked() {
             const bool present = slot.status != SlotStatus::EMPTY;
             if (present && before != present_by_slot_id_.end() && !before->second) {
                 const int slot_index = slot.global_index;
-                helix::ui::queue_update(
-                    [slot_index] { helix::ui::offer_clear_after_unverified_insert(slot_index); });
+                helix::ui::queue_update("AmsBackendOpenAms::parse_snapshot_locked", [slot_index] {
+                    helix::ui::offer_clear_after_unverified_insert(slot_index);
+                });
             }
             present_now[slot_id] = present;
         }

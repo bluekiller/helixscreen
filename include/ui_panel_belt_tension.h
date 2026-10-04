@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ui_observer_guard.h"
+#include "ui_timer_guard.h"
 
 #include "belt_gating.h"
 #include "belt_tension_calibrator.h"
@@ -176,7 +177,6 @@ class BeltTensionPanel : public OverlayBase {
     void refresh_notes();
     void refresh_run_detail();
     void start_elapsed_timer();
-    void cancel_elapsed_timer();
 
     //
     // === Gate ===
@@ -205,6 +205,8 @@ class BeltTensionPanel : public OverlayBase {
     /// the tier forbids a chart or the view carries no host.
     ui_frequency_response_chart_t* ensure_chart();
     void destroy_chart();
+    /// Re-read belt_path_a/b into the chart's series after a theme change.
+    void apply_path_colors();
     /// Park the chart obj in the RUNNING host; called when a new run starts.
     void chart_to_running_host();
     /// Fit the chart's axes to the curves it holds (or the sweep range before any).
@@ -259,6 +261,7 @@ class BeltTensionPanel : public OverlayBase {
     ObserverGuard print_active_observer_;
     ObserverGuard connected_observer_;
     ObserverGuard klippy_observer_;
+    ObserverGuard theme_observer_;
     bool gate_observers_wired_ = false;
 
     // Klippy's UDS path, from Moonraker's /server/config. Reachability is
@@ -305,7 +308,7 @@ class BeltTensionPanel : public OverlayBase {
     /// a cancel belong to a run this panel has already abandoned.
     bool run_active_ = false;
     uint32_t run_started_ms_ = 0;
-    lv_timer_t* elapsed_timer_ = nullptr;
+    helix::ui::LvglTimerGuard elapsed_timer_;
     OperationTimeoutGuard stall_guard_;
 
     friend class BeltPanelFixture;

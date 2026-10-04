@@ -254,13 +254,14 @@ nlohmann::json RemoteControlServer::execute_on_ui_thread(std::function<nlohmann:
     auto promise = std::make_shared<std::promise<nlohmann::json>>();
     auto future = promise->get_future();
 
-    helix::ui::queue_update([promise, fn = std::move(fn)]() {
-        try {
-            promise->set_value(fn());
-        } catch (const std::exception& e) {
-            promise->set_exception(std::current_exception());
-        }
-    });
+    helix::ui::queue_update("RemoteControlServer::execute_on_ui_thread",
+                            [promise, fn = std::move(fn)]() {
+                                try {
+                                    promise->set_value(fn());
+                                } catch (const std::exception& e) {
+                                    promise->set_exception(std::current_exception());
+                                }
+                            });
 
     // Wait with timeout, polling running_ so a concurrent stop() unblocks this
     // promptly. This runs on the transport accept thread; at app teardown the
@@ -957,7 +958,7 @@ nlohmann::json RemoteControlServer::handle_wait_for(const nlohmann::json& params
 
     // Prevent WaitState from being destroyed while observer is alive by capturing
     // shared_ptr in the observer's setup closure (ensures ref count stays > 0)
-    helix::ui::queue_update([name, state, setup_promise]() {
+    helix::ui::queue_update("RemoteControlServer::handle_wait_for", [name, state, setup_promise]() {
         lv_subject_t* subject = find_subject_by_name(name);
         if (!subject) {
             setup_promise->set_value(false);
@@ -1046,7 +1047,7 @@ nlohmann::json RemoteControlServer::handle_wait_for(const nlohmann::json& params
         auto cleanup_promise = std::make_shared<std::promise<void>>();
         auto cleanup_future = cleanup_promise->get_future();
 
-        helix::ui::queue_update([state, cleanup_promise]() {
+        helix::ui::queue_update("RemoteControlServer::handle_wait_for", [state, cleanup_promise]() {
             if (state->observer) {
                 lv_observer_remove(state->observer);
                 state->observer = nullptr;
