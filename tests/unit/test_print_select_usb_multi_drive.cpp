@@ -20,6 +20,7 @@
 #include "usb_backend_mock.h"
 #include "usb_manager.h"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -86,4 +87,48 @@ TEST_CASE("PrintSelectUsbSource scans every mounted drive and survives losing on
     CHECK(usb_present() == 0);
 
     manager.stop();
+}
+
+TEST_CASE("USB thumbnails are cached per file path, not per filename", "[usb][thumbnail]") {
+    helix::ui::PrintSelectUsbSource::init_subjects();
+
+    // Two sticks (or two folders on one) routinely hold a same-named file
+    // with different models in it; each card must keep its own thumbnail.
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "helix_usb_thumb_key";
+    fs::remove_all(root);
+    fs::create_directories(root / "a");
+    fs::create_directories(root / "b");
+    const fs::path src = "assets/test_gcodes/xyz-10mm-calibration-cube.gcode";
+    REQUIRE(fs::exists(src));
+    fs::copy_file(src, root / "a" / "part.gcode");
+    fs::copy_file(src, root / "b" / "part.gcode");
+
+    UsbManager manager(true);
+    REQUIRE(manager.start());
+    auto* backend = static_cast<UsbBackendMock*>(manager.get_backend());
+    REQUIRE(backend != nullptr);
+    backend->simulate_drive_insert(drive(root.string(), "STICK"));
+    backend->set_mock_files(root.string(),
+                            {{(root / "a" / "part.gcode").string(), "part.gcode", 100, 1000},
+                             {(root / "b" / "part.gcode").string(), "part.gcode", 100, 1000}});
+
+    helix::ui::PrintSelectUsbSource usb_source;
+    std::vector<std::string> thumbs;
+    usb_source.set_on_files_ready([&](std::vector<PrintFileData>&& files) {
+        thumbs.clear();
+        for (const auto& f : files) {
+            thumbs.push_back(f.thumbnail_path);
+        }
+    });
+    usb_source.set_usb_manager(&manager);
+    usb_source.select_usb_source();
+
+    REQUIRE(thumbs.size() == 2);
+    CHECK_FALSE(thumbs[0].empty());
+    CHECK_FALSE(thumbs[1].empty());
+    CHECK(thumbs[0] != thumbs[1]);
+
+    manager.stop();
+    fs::remove_all(root);
 }

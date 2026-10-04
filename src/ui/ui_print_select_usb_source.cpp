@@ -303,7 +303,7 @@ std::vector<PrintFileData> PrintSelectUsbSource::convert_to_print_file_data() co
         auto best = helix::gcode::get_best_thumbnail(usb_file.path);
         if (!best.png_data.empty()) {
             auto& cache = get_thumbnail_cache();
-            std::string cache_path = cache.save_raw_png("usb:" + usb_file.filename, best.png_data);
+            std::string cache_path = cache.save_raw_png("usb:" + usb_file.path, best.png_data);
             if (!cache_path.empty()) {
                 file_data.thumbnail_path = cache_path;
             }
