@@ -845,7 +845,7 @@ class MoonrakerAPI : public IMoonrakerAPI {
     helix::PrinterDiscovery hardware_;
 
     /// Subject for notifying when build_volume changes (version counter)
-    lv_subject_t build_volume_version_;
+    lv_subject_t build_volume_version_{};
     std::atomic<int> build_volume_version_counter_{0};
 
     /// Generation guard for the subject writes this class defers to the main

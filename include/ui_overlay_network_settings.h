@@ -180,32 +180,32 @@ class NetworkSettingsOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     // WiFi subjects
-    lv_subject_t wifi_hardware_available_; // 0=unavailable, 1=available
-    lv_subject_t wifi_enabled_;
-    lv_subject_t wifi_connected_;
-    lv_subject_t wifi_only_24ghz_;       // 1 if hardware only supports 2.4GHz
-    lv_subject_t wifi_can_forget_;       // 1 if the backend can forget a saved network
-    lv_subject_t wifi_can_toggle_radio_; // 1 if the backend can move the radio
-    lv_subject_t connected_ssid_;
-    lv_subject_t ip_address_;
-    lv_subject_t mac_address_;
-    lv_subject_t network_count_;
-    lv_subject_t wifi_scanning_;
+    lv_subject_t wifi_hardware_available_{}; // 0=unavailable, 1=available
+    lv_subject_t wifi_enabled_{};
+    lv_subject_t wifi_connected_{};
+    lv_subject_t wifi_only_24ghz_{};       // 1 if hardware only supports 2.4GHz
+    lv_subject_t wifi_can_forget_{};       // 1 if the backend can forget a saved network
+    lv_subject_t wifi_can_toggle_radio_{}; // 1 if the backend can move the radio
+    lv_subject_t connected_ssid_{};
+    lv_subject_t ip_address_{};
+    lv_subject_t mac_address_{};
+    lv_subject_t network_count_{};
+    lv_subject_t wifi_scanning_{};
 
     // Ethernet subjects
-    lv_subject_t eth_connected_;
-    lv_subject_t eth_ip_address_;
-    lv_subject_t eth_mac_address_;
+    lv_subject_t eth_connected_{};
+    lv_subject_t eth_ip_address_{};
+    lv_subject_t eth_mac_address_{};
 
     // Network test subjects
-    lv_subject_t any_network_connected_; // 1 if wifi OR ethernet connected
-    lv_subject_t test_running_;
-    lv_subject_t test_gateway_status_;
-    lv_subject_t test_internet_status_;
+    lv_subject_t any_network_connected_{}; // 1 if wifi OR ethernet connected
+    lv_subject_t test_running_{};
+    lv_subject_t test_gateway_status_{};
+    lv_subject_t test_internet_status_{};
 
     // Password modal subjects
-    lv_subject_t wifi_connecting_;          // 0=idle, 1=connecting (toggles modal form)
-    lv_subject_t wifi_password_modal_ssid_; // SSID displayed in password modal
+    lv_subject_t wifi_connecting_{};          // 0=idle, 1=connecting (toggles modal form)
+    lv_subject_t wifi_password_modal_ssid_{}; // SSID displayed in password modal
 
     // String buffers (subjects need stable char* pointers)
     char ssid_buffer_[64];
@@ -227,7 +227,7 @@ class NetworkSettingsOverlay : public OverlayBase {
     // Network test modal
     helix::ui::WidgetRef test_modal_;
     helix::ui::WidgetRef step_widget_;
-    lv_subject_t test_complete_; // Controls close button enabled state
+    lv_subject_t test_complete_{}; // Controls close button enabled state
 
     // Hidden network modal (visibility controlled by Modal system)
     helix::ui::WidgetRef hidden_network_modal_;

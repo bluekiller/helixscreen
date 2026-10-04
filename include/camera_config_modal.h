@@ -101,13 +101,13 @@ class CameraConfigModal : public Modal {
 
     // C++-owned subjects for XML bindings
     bool subjects_initialized_ = false;
-    lv_subject_t rot_0_active_;
-    lv_subject_t rot_90_active_;
-    lv_subject_t rot_180_active_;
-    lv_subject_t rot_270_active_;
-    lv_subject_t flip_h_active_;
-    lv_subject_t flip_v_active_;
-    lv_subject_t source_count_; // rows in the picker (Automatic + cameras); drives the <repeat>
+    lv_subject_t rot_0_active_{};
+    lv_subject_t rot_90_active_{};
+    lv_subject_t rot_180_active_{};
+    lv_subject_t rot_270_active_{};
+    lv_subject_t flip_h_active_{};
+    lv_subject_t flip_v_active_{};
+    lv_subject_t source_count_{}; // rows in the picker (Automatic + cameras); drives the <repeat>
     std::array<lv_subject_t, MAX_ROWS> source_active_{}; // 1 on the selected row
     std::array<lv_subject_t, MAX_ROWS> source_name_{};
     std::array<lv_subject_t, MAX_ROWS> source_note_{};

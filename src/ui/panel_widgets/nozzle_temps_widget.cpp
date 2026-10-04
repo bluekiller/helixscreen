@@ -39,9 +39,9 @@ namespace {
 // XML that binds them is parsed. Values mirror decide_nozzle_layout()'s
 // output: label_mode is NozzleLabelMode's int (0=none 1=number 2=short
 // 3=long), columns is 1 or 2, compact is 0 or 1.
-lv_subject_t s_label_mode_subject;
-lv_subject_t s_columns_subject;
-lv_subject_t s_compact_font_subject;
+lv_subject_t s_label_mode_subject{};
+lv_subject_t s_columns_subject{};
+lv_subject_t s_compact_font_subject{};
 bool s_subjects_initialized = false;
 
 void nozzle_temps_widget_init_subjects() {

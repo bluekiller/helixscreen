@@ -269,9 +269,9 @@ class WidthSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
-    lv_subject_t diameter_;
-    lv_subject_t sensor_count_;
-    lv_subject_t diameter_text_;
+    lv_subject_t diameter_{};
+    lv_subject_t sensor_count_{};
+    lv_subject_t diameter_text_{};
     char diameter_text_buf_[16]; ///< "1.75mm" or "--"
 };
 

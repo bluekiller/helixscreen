@@ -90,9 +90,9 @@ class TelemetryDataOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     /// Status text subjects
-    lv_subject_t status_subject_;
-    lv_subject_t detail_subject_;
-    lv_subject_t count_subject_;
+    lv_subject_t status_subject_{};
+    lv_subject_t detail_subject_{};
+    lv_subject_t count_subject_{};
 
     char status_buf_[64];
     char detail_buf_[128];

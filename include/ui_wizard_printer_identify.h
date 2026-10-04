@@ -171,16 +171,16 @@ class WizardPrinterIdentifyStep : public helix::wizard::Step {
     lv_obj_t* tile_cache_container_ = nullptr;
 
     // Subjects
-    lv_subject_t printer_name_;
-    lv_subject_t printer_type_selected_;
-    lv_subject_t printer_detection_status_;
+    lv_subject_t printer_name_{};
+    lv_subject_t printer_type_selected_{};
+    lv_subject_t printer_detection_status_{};
     // Selector view state: 0 = vendor tiles, 1 = one vendor's models, 2 = search,
     // 3 = the printers a tied detection could not separate
-    lv_subject_t printer_view_;
+    lv_subject_t printer_view_{};
     // Active vendor's name while drilled in (bound to the header label)
-    lv_subject_t vendor_title_;
+    lv_subject_t vendor_title_{};
     // Rows currently visible under the active view (0 shows "No printers found")
-    lv_subject_t match_count_;
+    lv_subject_t match_count_{};
 
     // String buffers (must be persistent)
     char printer_name_buffer_[128];

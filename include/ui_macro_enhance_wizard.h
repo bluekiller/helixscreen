@@ -168,20 +168,20 @@ class MacroEnhanceWizard : public Modal {
     size_t current_op_index_ = 0;
 
     // === Subjects ===
-    lv_subject_t step_title_subject_;
-    lv_subject_t step_progress_subject_;
-    lv_subject_t description_subject_;
-    lv_subject_t diff_preview_subject_;
-    lv_subject_t summary_subject_;
-    lv_subject_t state_subject_;
-    lv_subject_t backup_text_subject_; ///< "A backup of <file> is created" note text
+    lv_subject_t step_title_subject_{};
+    lv_subject_t step_progress_subject_{};
+    lv_subject_t description_subject_{};
+    lv_subject_t diff_preview_subject_{};
+    lv_subject_t summary_subject_{};
+    lv_subject_t state_subject_{};
+    lv_subject_t backup_text_subject_{}; ///< "A backup of <file> is created" note text
 
     // Boolean visibility subjects for each state (bind_flag_if_eq pattern)
-    lv_subject_t show_operation_subject_;
-    lv_subject_t show_summary_subject_;
-    lv_subject_t show_applying_subject_;
-    lv_subject_t show_success_subject_;
-    lv_subject_t show_error_subject_;
+    lv_subject_t show_operation_subject_{};
+    lv_subject_t show_summary_subject_{};
+    lv_subject_t show_applying_subject_{};
+    lv_subject_t show_success_subject_{};
+    lv_subject_t show_error_subject_{};
 
     bool subjects_initialized_ = false;
 

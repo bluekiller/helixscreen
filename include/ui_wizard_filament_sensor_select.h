@@ -192,7 +192,7 @@ class WizardFilamentSensorSelectStep : public helix::wizard::Step {
     lv_timer_t* refresh_timer_ = nullptr;
 
     // Subject (dropdown selection index)
-    lv_subject_t runout_sensor_selected_;
+    lv_subject_t runout_sensor_selected_{};
 
     // Dynamic options storage
     std::vector<std::string> sensor_items_;                       // Klipper names for dropdown

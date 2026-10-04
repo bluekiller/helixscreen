@@ -181,8 +181,8 @@ class SystemSettingsManager {
     SubjectManager subjects_;
     settings::PersistedSettings<Key, static_cast<size_t>(Key::COUNT)> settings_;
 
-    lv_subject_t language_subject_;
-    lv_subject_t log_level_subject_;
+    lv_subject_t language_subject_{};
+    lv_subject_t log_level_subject_{};
 
     bool subjects_initialized_ = false;
 };

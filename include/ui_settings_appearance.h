@@ -83,7 +83,7 @@ class AppearanceSettingsOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     /// Subject for theme Apply button disabled state (1=disabled, 0=enabled)
-    lv_subject_t theme_apply_disabled_subject_;
+    lv_subject_t theme_apply_disabled_subject_{};
 };
 
 inline AppearanceSettingsOverlay& get_appearance_settings_overlay() {

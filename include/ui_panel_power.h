@@ -74,7 +74,7 @@ class PowerPanel : public PanelBase {
     SubjectManager subjects_;
 
     // Subjects for reactive binding
-    lv_subject_t status_subject_;
+    lv_subject_t status_subject_{};
     char status_buf_[128] = "Loading devices...";
 
     // Widget references into a tree this panel does not own. forget_widget_tree()

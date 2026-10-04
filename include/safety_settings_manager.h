@@ -132,8 +132,8 @@ class SafetySettingsManager {
     SubjectManager subjects_;
     settings::PersistedSettings<Key, static_cast<size_t>(Key::COUNT)> settings_;
 
-    lv_subject_t cancel_escalation_timeout_subject_;
-    lv_subject_t min_toast_severity_subject_;
+    lv_subject_t cancel_escalation_timeout_subject_{};
+    lv_subject_t min_toast_severity_subject_{};
 
     bool subjects_initialized_ = false;
 };

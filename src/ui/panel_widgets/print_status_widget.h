@@ -471,21 +471,21 @@ class PrintStatusWidget : public PanelWidget {
         char idle_meta_buf_[64]; // "12.4m filament • 4h 12m"
 
         // String + int subjects (XML-registered)
-        lv_subject_t layer_text_subject_;
-        lv_subject_t time_text_subject_;
-        lv_subject_t filament_text_subject_;
-        lv_subject_t nozzle_text_subject_;
-        lv_subject_t nozzle_tool_label_subject_;
+        lv_subject_t layer_text_subject_{};
+        lv_subject_t time_text_subject_{};
+        lv_subject_t filament_text_subject_{};
+        lv_subject_t nozzle_text_subject_{};
+        lv_subject_t nozzle_tool_label_subject_{};
         // Proxy temp subjects (decidegrees, int) so the temp_display widget in the
         // detailed XML follows the pinned tool when nozzle_tool_override is set.
         // The formatter's nozzle_temp/target observers re-bind on pin change and
         // copy the source value into these proxies; XML binds temp_display to them.
-        lv_subject_t nozzle_current_subject_;
-        lv_subject_t nozzle_target_subject_;
-        lv_subject_t idle_filename_subject_;
-        lv_subject_t idle_when_subject_;
-        lv_subject_t idle_meta_subject_;
-        lv_subject_t idle_has_last_subject_;
+        lv_subject_t nozzle_current_subject_{};
+        lv_subject_t nozzle_target_subject_{};
+        lv_subject_t idle_filename_subject_{};
+        lv_subject_t idle_when_subject_{};
+        lv_subject_t idle_meta_subject_{};
+        lv_subject_t idle_has_last_subject_{};
 
         // Print-state observers (wired in constructor, RAII cleanup via ObserverGuard)
         ObserverGuard layer_current_observer_;

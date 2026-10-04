@@ -55,7 +55,7 @@ namespace {
 // rather than per-instance: only one picker is visible at a time, and the XML
 // name must outlive any individual ColorPicker (the LED overlay holds a static
 // one, the theme editor a unique_ptr).
-lv_subject_t s_palette_subject;
+lv_subject_t s_palette_subject{};
 bool s_palette_subject_ready = false;
 
 void ensure_palette_subject() {
@@ -75,7 +75,7 @@ void ensure_palette_subject() {
     });
 }
 
-lv_subject_t s_selected_swatch_subject;
+lv_subject_t s_selected_swatch_subject{};
 bool s_swatch_subjects_ready = false;
 helix::xml::IndexedSubjectPool s_general_colors{"general_swatch_color",
                                                 helix::xml::IndexedSubjectPool::Type::Color};
