@@ -561,6 +561,12 @@ void HelixTestFixture::reset_all() {
     helix::SoundManager::instance().shutdown();
     helix::SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/false);
 
+    // The executors start with the binary (the isolation listener warms both
+    // lanes), and submit() on a stopped lane drops the work, so a case that
+    // stops one would leave every later transfer or REST test waiting on a
+    // callback that never comes. start() is idempotent.
+    helix::http::HttpExecutor::start_all();
+
     // A backend torn down at the end of a test can leave a fetch queued on the
     // process-wide executors. Waiting here, bounded, keeps that worker from
     // counting against the next test's inflight() reads.
