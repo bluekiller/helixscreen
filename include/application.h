@@ -98,23 +98,8 @@ class Application {
     bool register_widgets();
     bool register_xml_components();
     bool init_translations();
-    bool init_core_subjects();
-    bool init_panel_subjects();
-    bool init_ui();
-    bool init_moonraker();
-    bool connect_moonraker();
     void apply_startup_cli_actions();
     bool run_wizard();
-#if HELIX_HAS_PLUGINS
-    void init_plugins();
-    /// Toasts plugin ids a sync found that no earlier load or sync had shown,
-    /// then refreshes the Settings > Plugins row. Runs on the main thread from
-    /// the sync driver's completion.
-    void on_plugin_sync(const helix::plugin::SyncResult& result);
-    /// settings_plugins_available follows "the host exists and holds at least
-    /// one plugin", so the row appears only once there is something to show.
-    void update_plugins_row_visibility();
-#endif
 
     // Main loop
     int main_loop();
@@ -125,17 +110,11 @@ class Application {
     // Shutdown
     void shutdown();
 
-    // Soft restart (printer switching): the session sequences these two
-    void tear_down_printer_state();
-
-    void init_printer_state();
-
     // Helper functions
     void ensure_project_root_cwd();
 #ifdef HELIX_ENABLE_SCREENSAVER
     void show_screensaver_migration_notice_if_pending();
 #endif
-    void setup_discovery_callbacks();
     lv_obj_t* create_overlay_panel(lv_obj_t* screen, const char* component_name,
                                    const char* display_name);
     void check_wifi_availability();
@@ -199,8 +178,8 @@ class Application {
     bool m_wizard_active = false;
     bool m_shutdown_complete = false;
 
-    /// Switching to, adding and abandoning printers; sequences tear_down_printer_state() and
-    /// init_printer_state().
+    /// Everything a printer switch destroys and rebuilds: the printer connection, its panels
+    /// and subjects, and the state machine that switches between printers.
     helix::PrinterSession m_session;
 
     // Splash screen lifecycle manager

@@ -755,7 +755,7 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
     const std::string session_impl = read_file("src/application/printer_session.cpp");
     REQUIRE_FALSE(session_impl.empty());
     const std::string tear_down =
-        extract_method_body(impl, "Application", "tear_down_printer_state");
+        extract_method_body(session_impl, "PrinterSession", "tear_down_printer_state");
     const std::string shutdown = extract_method_body(impl, "Application", "shutdown");
     const std::string scope =
         extract_method_body(session_impl, "PrinterSession", "teardown_printer_scope");
@@ -764,8 +764,8 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
     REQUIRE_FALSE(scope.empty());
 
     // Both paths run the one ordered teardown, so one body holds every unregister.
-    CHECK(tear_down.find("teardown_printer_scope(helix::PrinterSession::TeardownScope::"
-                         "PrinterSwitch)") != std::string::npos);
+    CHECK(tear_down.find("teardown_printer_scope(TeardownScope::PrinterSwitch)") !=
+          std::string::npos);
     CHECK(shutdown.find("TeardownScope::ProcessExit") != std::string::npos);
 
     // The G-code response handlers register and unregister inside GcodeResponseRouting;
@@ -780,7 +780,7 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
 
     // Registration sites are spread across setup_discovery_callbacks and
     // GcodeResponseRouting::attach, so scan whole translation units rather than one body.
-    auto registered = extract_method_callback_pairs(impl, /*unregister=*/false);
+    auto registered = extract_method_callback_pairs(session_impl, /*unregister=*/false);
     registered.merge(extract_method_callback_pairs(routing, /*unregister=*/false));
     auto dropped = extract_method_callback_pairs(scope, /*unregister=*/true);
     dropped.merge(extract_method_callback_pairs(detach_handlers, /*unregister=*/true));

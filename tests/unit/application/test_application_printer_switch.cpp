@@ -167,7 +167,7 @@ class PrinterSwitchFixture : public ApplicationTestFixture {
 // ============================================================================
 
 TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::switch_printer is ignored while a soft restart is running",
+                 "PrinterSession::switch_printer is ignored while a soft restart is running",
                  "[application][switch_printer]") {
     ApplicationTestAccess::soft_restart_in_progress(app_) = true;
     forget_persisted_settings();
@@ -192,7 +192,7 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 // ============================================================================
 
 TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::switch_printer rejects an unknown printer without mutating state",
+                 "PrinterSession::switch_printer rejects an unknown printer without mutating state",
                  "[application][switch_printer]") {
     forget_persisted_settings();
 
@@ -222,10 +222,11 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 // cancel_add_printer_wizard() — recovery surgery
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::cancel_add_printer_wizard removes the failed printer and restores "
-                 "the previous one",
-                 "[application][switch_printer]") {
+TEST_CASE_METHOD(
+    PrinterSwitchFixture,
+    "PrinterSession::cancel_add_printer_wizard removes the failed printer and restores "
+    "the previous one",
+    "[application][switch_printer]") {
     // TEST_MIRROR_OK: describes the PRECONDITION add_printer_via_wizard() leaves
     // behind, not logic reimplemented here — the assertions below all run against
     // the real ApplicationTestAccess::cancel_add_printer_wizard(). The wizard entry
@@ -263,7 +264,7 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 }
 
 TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::cancel_add_printer_wizard is inert without recovery state",
+                 "PrinterSession::cancel_add_printer_wizard is inert without recovery state",
                  "[application][switch_printer]") {
     cfg_->add_printer("printer-3", nlohmann::json{{"wizard_completed", false}});
     REQUIRE(cfg_->set_active_printer("printer-3"));
@@ -282,7 +283,7 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 
 TEST_CASE_METHOD(
     PrinterSwitchFixture,
-    "Application::cancel_add_printer_wizard is ignored while a soft restart is running",
+    "PrinterSession::cancel_add_printer_wizard is ignored while a soft restart is running",
     "[application][switch_printer]") {
     cfg_->add_printer("printer-3", nlohmann::json{{"wizard_completed", false}});
     REQUIRE(cfg_->set_active_printer("printer-3"));
@@ -331,9 +332,10 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 // Success paths: the order the soft restart runs its steps in
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::switch_printer drops caches, tears down, rebuilds, then lands home",
-                 "[application][switch_printer]") {
+TEST_CASE_METHOD(
+    PrinterSwitchFixture,
+    "PrinterSession::switch_printer drops caches, tears down, rebuilds, then lands home",
+    "[application][switch_printer]") {
     ApplicationTestAccess::switch_printer(app_, "beta");
 
     CHECK(events_ == std::vector<std::string>{"teardown", "rebuild", "home"});
@@ -349,7 +351,7 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 }
 
 TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::switch_printer releases the latch when the rebuild throws",
+                 "PrinterSession::switch_printer releases the latch when the rebuild throws",
                  "[application][switch_printer]") {
     rebuild_throws_ = true;
 
@@ -363,7 +365,7 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 }
 
 TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::add_printer_via_wizard arms the cancel callback between teardown "
+                 "PrinterSession::add_printer_via_wizard arms the cancel callback between teardown "
                  "and rebuild",
                  "[application][switch_printer]") {
     ApplicationTestAccess::add_printer_via_wizard(app_);
@@ -381,7 +383,7 @@ TEST_CASE_METHOD(PrinterSwitchFixture,
 }
 
 TEST_CASE_METHOD(PrinterSwitchFixture,
-                 "Application::cancel_add_printer_wizard restarts onto the restored printer "
+                 "PrinterSession::cancel_add_printer_wizard restarts onto the restored printer "
                  "after the click handler returns",
                  "[application][switch_printer]") {
     cfg_->add_printer("printer-3", nlohmann::json{{"wizard_completed", false}});

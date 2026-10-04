@@ -18,7 +18,7 @@ class Config;
  * Application is entirely private below run(), so the soft-restart paths
  * (switch_printer / add_printer_via_wizard / cancel_add_printer_wizard) have no
  * public entry point — production reaches them through the lambdas
- * Application::init_ui() hands to NavigationManager::set_printer_callbacks(),
+ * PrinterSession::init_ui() hands to NavigationManager::set_printer_callbacks(),
  * which is itself two thirds of the way through a full app boot.
  *
  * Same friend-TestAccess pattern as tests/test_helpers/config_test_access.h and
@@ -140,7 +140,7 @@ class ApplicationTestAccess {
     /// HELIX_PLUGIN_DIR when set, else the per-printer cache under
     /// HELIX_CACHE_DIR. No sync driver is built without a Moonraker API.
     static void init_plugins(Application& app) {
-        app.init_plugins();
+        app.m_session.init_plugins();
     }
 #endif
 };

@@ -26,10 +26,12 @@ namespace helix::plugin {
 class PluginHost;
 class PluginDirWatcher;
 class PluginSyncDriver;
+struct SyncResult;
 } // namespace helix::plugin
 #endif
 
 namespace helix {
+struct CliArgs;
 class Config;
 class PanelFactory;
 
@@ -46,11 +48,23 @@ class PrinterSession {
         std::function<void()> land_home;
     };
 
-    /// `config` is read through the reference because it is assigned after construction.
-    /// `screen` and `api` are read at use by the hardware-setup prompter, since both change
-    /// across a printer switch.
-    PrinterSession(Config*& config, AsyncLifetimeGuard& async, Restart restart, lv_obj_t*& screen,
-                   std::function<lv_obj_t*()> screen_fn, std::function<IMoonrakerAPI*()> api);
+    /// What the owner of the process provides: its state, read at use, and the steps of the
+    /// rebuild that belong to the process rather than the printer.
+    struct Host {
+        const CliArgs& args;
+        const bool& shutdown_complete;
+        bool& wizard_active;
+        /// Runs the setup wizard when the active printer needs one; true when it started.
+        std::function<bool()> run_wizard;
+        /// Applies one-shot startup actions requested on the command line.
+        std::function<void()> startup_actions;
+        /// A discovery finished: the splash screen may exit.
+        std::function<void()> discovery_complete;
+    };
+
+    /// `config` is read through the reference because it is assigned after construction, and
+    /// `screen` because init_moonraker() can replace it.
+    PrinterSession(Config*& config, AsyncLifetimeGuard& async, lv_obj_t*& screen, Host host);
     ~PrinterSession();
 
     PrinterSession(const PrinterSession&) = delete;
@@ -78,6 +92,24 @@ class PrinterSession {
         m_wizard_previous_printer_id.clear();
     }
 
+    // The phases of bringing a printer scope up. Boot runs them in its own order, around the
+    // display and wizard; rebuild() runs them in the order a switch needs.
+    bool init_core_subjects();
+    bool init_moonraker();
+    bool init_panel_subjects();
+    bool init_ui();
+    bool connect_moonraker();
+#if HELIX_HAS_PLUGINS
+    /// Rebuilds the plugin host, watcher and sync driver against the active printer.
+    void init_plugins();
+#endif
+
+    /// Tears down the current printer scope for a switch.
+    void tear_down_printer_state();
+
+    /// Builds the next printer scope after tear_down_printer_state().
+    void rebuild();
+
     /// What survives the teardown: a printer switch keeps the process and LVGL alive,
     /// ProcessExit ends both.
     enum class TeardownScope { PrinterSwitch, ProcessExit };
@@ -88,49 +120,12 @@ class PrinterSession {
     /// by stopping the HTTP executors and destroying the display.
     void teardown_printer_scope(TeardownScope scope, DisplayManager* exit_display = nullptr);
 
-    // The per-printer objects, owned here so one teardown destroys them in order.
+    // The per-printer objects are owned here so one teardown destroys them in order.
     std::unique_ptr<MoonrakerManager>& moonraker() {
         return m_moonraker;
     }
-    std::unique_ptr<JobQueueState>& job_queue_state() {
-        return m_job_queue_state;
-    }
-    std::unique_ptr<PrintHistoryManager>& history_manager() {
-        return m_history_manager;
-    }
-    std::unique_ptr<TemperatureHistoryManager>& temp_history_manager() {
-        return m_temp_history_manager;
-    }
-    std::unique_ptr<PanelFactory>& panels() {
-        return m_panels;
-    }
-    std::unique_ptr<SubjectInitializer>& subjects() {
-        return m_subjects;
-    }
     GcodeResponseRouting& routing() {
         return m_routing;
-    }
-    lv_obj_t*& app_layout() {
-        return m_app_layout;
-    }
-#if HELIX_HAS_PLUGINS
-    std::unique_ptr<plugin::PluginHost>& plugin_host() {
-        return m_plugin_host;
-    }
-    std::unique_ptr<plugin::PluginDirWatcher>& plugin_watcher() {
-        return m_plugin_watcher;
-    }
-    std::unique_ptr<plugin::PluginSyncDriver>& plugin_sync() {
-        return m_plugin_sync;
-    }
-    std::set<std::string>& known_plugin_ids() {
-        return m_known_plugin_ids;
-    }
-#endif
-
-    /// The hardware prompts a discovery pass can raise, and their once-per-session guards.
-    HardwareSetupPrompter& prompter() {
-        return m_prompter;
     }
 
     /// Records a discovery's hardware fingerprint; true when the hardware shape differs from
@@ -148,8 +143,19 @@ class PrinterSession {
   private:
     friend class ::ApplicationTestAccess;
 
+    void setup_discovery_callbacks();
+#if HELIX_HAS_PLUGINS
+    /// Toasts plugin ids a sync found that no earlier load or sync had shown, then refreshes
+    /// the Settings > Plugins row. Runs on the main thread from the sync driver's completion.
+    void on_plugin_sync(const plugin::SyncResult& result);
+    /// settings_plugins_available follows "the host exists and holds at least one plugin", so
+    /// the row appears only once there is something to show.
+    void update_plugins_row_visibility();
+#endif
+
     Config*& m_config;
     AsyncLifetimeGuard& m_async;
+    Host m_host;
     Restart m_restart;
 
     /// Every restart path is a teardown plus a rebuild that includes a Moonraker connect and

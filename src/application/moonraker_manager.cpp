@@ -243,7 +243,7 @@ int MoonrakerManager::connect(const std::string& websocket_url, const std::strin
                 helix::cleanup_stale_helix_temp_files(api);
 
                 // Safety limits + build volume now fetched in
-                // Application::setup_discovery_callbacks() on_discovery_complete,
+                // PrinterSession::setup_discovery_callbacks() on_discovery_complete,
                 // so all discovery paths (startup + post-wizard) share one call.
             });
         },
