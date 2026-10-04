@@ -239,6 +239,13 @@ class GCodeViewerState {
         return building_.load();
     }
 
+    /// Join the build thread without cancelling it (test seam).
+    void wait_for_build() {
+        if (build_thread_.joinable()) {
+            build_thread_.join();
+        }
+    }
+
     // ========================================================================
     // Public State (accessed by static callbacks)
     // ========================================================================
@@ -482,6 +489,10 @@ static void gcode_viewer_occluder_delete_cb(lv_event_t* e);
 static bool has_gcode_data(const gcode_viewer_state_t* st) {
     return st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
 }
+
+#ifdef ENABLE_3D_RENDERER
+static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj);
+#endif
 
 /// The 2D renderer's default extrusion color as 0xRRGGBB. Reads the theme, so
 /// call it on the main thread and hand the value to the build thread.
@@ -1710,8 +1721,17 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
     st->streaming_controller_.reset();
     crash_handler::breadcrumb::note("layer_renderer", "stream_reset_post");
     crash_handler::breadcrumb::note("layer_renderer", "file_reset_pre");
+    // An on-demand 3D build reads the file in place; join it before freeing.
+    st->cancel_build();
     st->gcode_file.reset();
     crash_handler::breadcrumb::note("layer_renderer", "file_reset_post");
+#ifdef ENABLE_3D_RENDERER
+    // The previous file's mesh would otherwise satisfy has_geometry() and
+    // stand in for this file on a later switch to 3D.
+    if (st->renderer_) {
+        st->renderer_->release_geometry();
+    }
+#endif
     st->scheduled_pauses.clear();
     st->scheduled_pauses_axis = helix::gcode::ProgressAxis::BytePosition;
     st->has_pause_scan = false;
@@ -2132,6 +2152,10 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     if (r->geometry) {
                         st->renderer_->set_prebuilt_geometry(std::move(r->geometry),
                                                              st->gcode_file->filename);
+                    } else if (!st->is_using_2d_mode()) {
+                        // The mode went to 3D after this parse passed its own
+                        // build step.
+                        start_on_demand_3d_build(st, obj);
                     }
 #endif
 
@@ -2267,6 +2291,8 @@ void ui_gcode_viewer_clear(lv_obj_t* obj) {
     crash_handler::breadcrumb::note("layer_renderer", "clear_reset_pre");
     st->layer_renderer_2d_.reset();
     crash_handler::breadcrumb::note("layer_renderer", "clear_reset_post");
+    // An on-demand 3D build reads the file in place; join it before freeing.
+    st->cancel_build();
     st->gcode_file.reset();
     st->streaming_controller_.reset();
     st->has_external_color_override = false; // Clear external color override
@@ -2387,6 +2413,51 @@ void ui_gcode_viewer_force_redraw(lv_obj_t* obj) {
 // Render Mode Control
 // ==============================================
 
+#ifdef ENABLE_3D_RENDERER
+/// Build 3D geometry for the file already loaded, on the viewer's build thread.
+/// The result lands through the UpdateQueue: the geometry, or, when the budget
+/// refuses, the same per-file 2D fallback a refused initial load takes.
+static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj) {
+    const uint64_t gen = st->load_generation();
+    const helix::gcode::ParsedGCodeFile* file = st->gcode_file.get();
+    const uint32_t default_rgb = default_3d_extrusion_rgb();
+
+    struct OnDemandBuild {
+        std::unique_ptr<helix::gcode::RibbonGeometry> geometry;
+    };
+
+    // Every path that frees st->gcode_file joins this thread first
+    // (cancel_build), so `file` outlives the build.
+    st->start_build([st, obj, file, gen, default_rgb]() {
+        auto result = std::make_unique<OnDemandBuild>();
+        result->geometry = build_3d_geometry_in_budget(*file, "On-demand 3D switch", default_rgb,
+                                                       [st]() { return st->is_cancelled(); });
+        if (st->is_cancelled()) {
+            return;
+        }
+        helix::ui::queue_update<OnDemandBuild>(
+            obj, std::move(result), [gen, file](lv_obj_t* viewer, OnDemandBuild* r) {
+                gcode_viewer_state_t* state = get_state(viewer);
+                if (!state || state->load_generation() != gen || state->gcode_file.get() != file) {
+                    return;
+                }
+                if (r->geometry) {
+                    state->renderer_->set_prebuilt_geometry(std::move(r->geometry), file->filename);
+                    if (state->camera_) {
+                        state->camera_->fit_to_bounds(file->global_bounding_box);
+                    }
+                    state->needs_3d_refresh_ = true;
+                    lv_obj_invalidate(viewer);
+                } else {
+                    spdlog::warn("[GCode Viewer] 3D switch refused by memory budget; this file "
+                                 "renders in 2D");
+                    apply_budget_forced_2d(state, viewer);
+                }
+            });
+    });
+}
+#endif
+
 void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode) {
     gcode_viewer_state_t* st = get_state(obj);
     if (!st)
@@ -2405,25 +2476,11 @@ void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode) 
     }
 
 #ifdef ENABLE_3D_RENDERER
-    // If switching to 3D and the GLES renderer has no geometry (file was loaded
-    // in 2D mode so the build was skipped), build it on demand now. Without this
-    // the 3D viewer paints an empty background after a live 2D→3D switch.
+    // A file loaded in 2D skipped the 3D build. A full load still running builds
+    // it itself when it reaches that point, so only start one when idle.
     if (!st->is_using_2d_mode() && st->gcode_file && st->renderer_ &&
-        !st->renderer_->has_geometry()) {
-        auto geometry = build_3d_geometry_in_budget(*st->gcode_file, "On-demand 3D switch",
-                                                    default_3d_extrusion_rgb());
-        if (geometry) {
-            st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
-            if (st->camera_) {
-                st->camera_->fit_to_bounds(st->gcode_file->global_bounding_box);
-            }
-            st->needs_3d_refresh_ = true;
-        } else {
-            // Budget refused — stay in 2D and revert the mode flag so future state
-            // queries (is_using_2d_mode, draw_cb dispatch) keep using the 2D path.
-            spdlog::warn("[GCode Viewer] 3D switch refused by memory budget; staying in 2D");
-            st->render_mode_ = GcodeViewerRenderMode::Layer2D;
-        }
+        !st->renderer_->has_geometry() && !st->is_building()) {
+        start_on_demand_3d_build(st, obj);
     }
 #endif
 
@@ -3235,6 +3292,28 @@ gcode_viewer_budget_force_2d(lv_obj_t* viewer,
     st->gcode_file = std::move(file);
     apply_budget_forced_2d(st, viewer);
     return st->layer_renderer_2d_.get();
+}
+
+void gcode_viewer_install_loaded_file(lv_obj_t* viewer,
+                                      std::unique_ptr<helix::gcode::ParsedGCodeFile> file) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (!st) {
+        return;
+    }
+    st->gcode_file = std::move(file);
+    st->viewer_state = GcodeViewerState::Loaded;
+}
+
+void gcode_viewer_wait_for_build(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (st) {
+        st->wait_for_build();
+    }
+}
+
+helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->render_mode_ : helix::GcodeViewerRenderMode::Auto;
 }
 
 GcodeViewerWatchdogTrack gcode_viewer_watchdog_track(lv_obj_t* viewer) {

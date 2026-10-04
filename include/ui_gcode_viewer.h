@@ -777,6 +777,18 @@ namespace helix::test_access {
 const helix::gcode::GCodeLayerRenderer*
 gcode_viewer_budget_force_2d(lv_obj_t* viewer, std::unique_ptr<helix::gcode::ParsedGCodeFile> file);
 
+/// Hand @p file to the viewer as a completed full load that built no 3D
+/// geometry, the state a file loaded in 2D is in.
+void gcode_viewer_install_loaded_file(lv_obj_t* viewer,
+                                      std::unique_ptr<helix::gcode::ParsedGCodeFile> file);
+
+/// Wait for the viewer's build thread to finish without cancelling it, so the
+/// result it queued is still delivered.
+void gcode_viewer_wait_for_build(lv_obj_t* viewer);
+
+/// The render mode last set on the viewer, before per-file fallbacks.
+helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer);
+
 /// What the stall watchdog carries between ticks (-2 = never sampled).
 struct GcodeViewerWatchdogTrack {
     int prev_cached = -2;
