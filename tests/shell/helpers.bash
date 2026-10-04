@@ -15,6 +15,31 @@ if [ -z "$BATS_TEST_TMPDIR" ]; then
     BATS_TEST_TMPDIR=$(mktemp -d "${BATS_TMPDIR:-/tmp}/bats-test-XXXXXX")
 fi
 
+# Where the installer writes systemd drop-ins. A test run as root (the CI and
+# zeus containers) would otherwise write into the real /etc/systemd/system.
+export HELIX_SYSTEMD_UNIT_DIR="$BATS_TEST_TMPDIR/etc/systemd/system"
+
+# Where the installer reads process ancestry. Absent until mock_proc fills it,
+# so the desktop session a developer runs bats from never reads as the
+# installer's own. Source time runs builtins only: some tests source this
+# file under a PATH with no coreutils.
+export HELIX_PROC_ROOT="$BATS_TEST_TMPDIR/proc"
+
+# Fake one process under HELIX_PROC_ROOT. The comm carries a space and a ')'
+# because the real field can, and the parser must split after the LAST ')'.
+# Args: $1 = pid, $2 = ppid, $3.. = environment entries (KEY=value)
+mock_proc() {
+    local pid="$1" ppid="$2"
+    shift 2
+    mkdir -p "$HELIX_PROC_ROOT/$pid"
+    printf '%s (sh (x) y) S %s 1 1 0 -1\n' "$pid" "$ppid" > "$HELIX_PROC_ROOT/$pid/stat"
+    if [ $# -gt 0 ]; then
+        printf '%s\0' "$@" > "$HELIX_PROC_ROOT/$pid/environ"
+    else
+        : > "$HELIX_PROC_ROOT/$pid/environ"
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # Release-target derivation from mk/cross.mk

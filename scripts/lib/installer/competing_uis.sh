@@ -51,8 +51,13 @@ QIDI_STOCK_UI_EXEC_PATTERN='QD_Q2/bin/|qidiclient|qidi-client|makerbase-client'
 # master holder) — stopping those carries risk without freeing card0.
 WAYLAND_COMPOSITORS="cage weston labwc sway wayfire"
 
+# Display managers start an X or Wayland session that takes the display, one
+# layer above the compositors (#1693). The default target is left alone: with
+# the DM held down, graphical.target has nothing left to start.
+DISPLAY_MANAGERS="lightdm gdm3 gdm sddm xdm nodm slim"
+
 # Record a disabled service for later re-enablement
-# Args: $1 = type ("systemd" or "sysv-chmod"), $2 = target (service name or script path)
+# Args: $1 = type ("systemd", "systemd-dropin" or "sysv-chmod"), $2 = target (service name or script path)
 record_disabled_service() {
     local type="$1"
     local target="$2"
@@ -65,7 +70,7 @@ record_disabled_service() {
     fi
 
     # Don't duplicate entries
-    if [ -f "$state_file" ] && grep -qF "$entry" "$state_file" 2>/dev/null; then
+    if [ -f "$state_file" ] && grep -qxF "$entry" "$state_file" 2>/dev/null; then
         return 0
     fi
 
@@ -90,6 +95,101 @@ _unit_is_competing() {
     return 1
 }
 
+# Drop-in that keeps a competing unit from starting while HelixScreen is
+# installed (#1534). Shared by install and uninstall.
+# Args: $1 = unit name
+competing_ui_dropin() {
+    echo "${HELIX_SYSTEMD_UNIT_DIR:-/etc/systemd/system}/$1.d/helixscreen-competing.conf"
+}
+
+# Units taken down in this run, by resolved Id: gdm3 is an alias of
+# gdm.service on Debian, and both names must land on the one real unit.
+_TAKEN_DOWN_UNITS=""
+
+# Stop and disable a competing systemd unit, and add a drop-in that refuses
+# to start it while HelixScreen is installed. disable only removes the wants
+# symlink, so a vendor firmware update that re-enables the unit would hand it
+# the display back; mask is refused for a unit whose file lives in
+# /etc/systemd/system, where KIAUH and most vendors put theirs. The drop-in
+# survives both a re-enable and a rewrite of the unit file, and fails safe:
+# if the binary goes away, the unit starts again. reset-failed clears a unit
+# that was failing on its own out of `systemctl --failed`, where it would
+# read as our doing.
+# Args: $1 = unit name, $2 = "nostop" to leave a running unit up until reboot
+_take_down_unit() {
+    local unit dropin record=systemd-dropin
+    unit=$(systemctl show -p Id --value "$1" 2>/dev/null)
+    [ -n "$unit" ] || unit="$1"
+    # systemd ignores a drop-in dir named after a bare unit name.
+    case "$unit" in *.*) ;; *) unit="$unit.service" ;; esac
+    case " $_TAKEN_DOWN_UNITS " in *" $unit "*) return 0 ;; esac
+    _TAKEN_DOWN_UNITS="$_TAKEN_DOWN_UNITS $unit"
+
+    dropin=$(competing_ui_dropin "$unit")
+    if $SUDO mkdir -p "$(dirname "$dropin")" 2>/dev/null \
+        && printf '[Unit]\nConditionPathExists=!%s/bin/helix-screen\n' "$INSTALL_DIR" \
+            | $SUDO tee "$dropin" >/dev/null 2>&1; then
+        $SUDO systemctl daemon-reload 2>/dev/null || true
+    else
+        log_warn "Could not write $dropin: $unit is only disabled, so a firmware update may re-enable it."
+        record=systemd
+    fi
+    [ "${2:-}" = "nostop" ] || $SUDO systemctl stop "$unit" 2>/dev/null || true
+    $SUDO systemctl disable "$unit" 2>/dev/null || true
+    record_disabled_service "$record" "$unit"
+    $SUDO systemctl reset-failed "$unit" 2>/dev/null || true
+}
+
+# True when this installer runs inside a desktop session, where stopping the
+# display manager or compositor takes down the terminal running it. `sudo sh`
+# resets the environment, so the installer's own variables are not enough:
+# walk the ancestors and look for a display in theirs. An unreadable /proc
+# reads as not graphical.
+_in_graphical_session() {
+    local proc="${HELIX_PROC_ROOT:-/proc}" pid="$$" hops=0 stat
+    case "${XDG_SESSION_TYPE:-}" in x11|wayland) return 0 ;; esac
+    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && return 0
+    while [ "$pid" -gt 1 ] 2>/dev/null && [ "$hops" -lt 32 ]; do
+        tr '\0' '\n' 2>/dev/null < "$proc/$pid/environ" \
+            | grep -qE '^(DISPLAY|WAYLAND_DISPLAY)=.' && return 0
+        read -r stat 2>/dev/null < "$proc/$pid/stat" || return 1
+        # comm may hold spaces and ')': the fields resume after the last ')'.
+        # shellcheck disable=SC2086
+        set -- ${stat##*)}
+        pid="${2:-0}"
+        hops=$((hops + 1))
+    done
+    return 1
+}
+
+# Take down a unit that may be drawing the session this installer runs in:
+# inside one, leave it up and let the reboot finish the switch.
+# Args: $1 = unit name, $2 = what it is, for the log
+_take_down_session_unit() {
+    if _in_graphical_session; then
+        log_info "Disabling $2 $1 (this session runs on it)..."
+        _take_down_unit "$1" nostop
+        log_warn "Reboot to finish switching from $1 to HelixScreen."
+    else
+        log_info "Stopping and disabling $2 $1..."
+        _take_down_unit "$1"
+    fi
+}
+
+# Stop enabled or running display managers (#1693). Only on hosts whose
+# firmware ships a screen of its own: on a generic Pi or x86 box the DM is the
+# user's desktop. Sets found_any in the caller's scope.
+stop_display_managers() {
+    local dm
+    [ "$INIT_SYSTEM" = "systemd" ] || return 0
+    _host_ships_a_stock_ui || return 0
+    for dm in $DISPLAY_MANAGERS; do
+        _unit_is_competing "$dm" || continue
+        _take_down_session_unit "$dm" "display manager"
+        found_any=true
+    done
+}
+
 # Stop Wayland compositors holding the DRM master (cage/weston/labwc/sway/...).
 # Run AFTER the named-UI loop so a compositor launched by a UI service (e.g.
 # KlipperScreen.service ExecStart=cage -- screen.py) is already gone; this catches
@@ -103,14 +203,14 @@ stop_wayland_compositors() {
         if [ "$INIT_SYSTEM" = "systemd" ]; then
             for svc in "$comp" "${comp}@tty1"; do
                 if _unit_is_competing "$svc"; then
-                    log_info "Stopping and disabling Wayland compositor service $svc (DRM master)..."
-                    $SUDO systemctl stop "$svc" 2>/dev/null || true
-                    $SUDO systemctl disable "$svc" 2>/dev/null || true
-                    record_disabled_service "systemd" "$svc"
+                    _take_down_session_unit "$svc" "Wayland compositor (DRM master)"
                     found_any=true
                 fi
             done
         fi
+        # Killing the compositor this session draws on kills the installer's
+        # terminal; the disabled unit is gone after the reboot.
+        _in_graphical_session && continue
         # Kill any lingering compositor process (exact basename via pidof)
         if kill_process_by_name "$comp"; then
             log_info "Killed lingering Wayland compositor: $comp (was holding /dev/dri/card0)"
@@ -325,9 +425,7 @@ stop_qidi_competing_uis() {
         grep -E '^ExecStart=' "$unit_path" 2>/dev/null \
             | grep -qiE "$QIDI_STOCK_UI_EXEC_PATTERN" || continue
         log_info "Stopping stock QIDI UI unit ($unit)..."
-        $SUDO systemctl stop "$unit" 2>/dev/null || true
-        $SUDO systemctl disable "$unit" 2>/dev/null || true
-        record_disabled_service "systemd" "$unit"
+        _take_down_unit "$unit"
         found_any=true
         stopped=true
     done
@@ -659,9 +757,7 @@ stop_competing_uis() {
         if [ "$INIT_SYSTEM" = "systemd" ]; then
             if _unit_is_competing "$ui"; then
                 log_info "Stopping and disabling $ui (systemd service)..."
-                $SUDO systemctl stop "$ui" 2>/dev/null || true
-                $SUDO systemctl disable "$ui" 2>/dev/null || true
-                record_disabled_service "systemd" "$ui"
+                _take_down_unit "$ui"
                 found_any=true
             fi
         fi
@@ -693,6 +789,8 @@ stop_competing_uis() {
 
     # Free the DRM master from any Wayland compositor (KlipperScreen-under-cage etc.)
     stop_wayland_compositors
+
+    stop_display_managers
 
     if [ "$found_any" = true ]; then
         log_info "Waiting for competing UIs to stop..."
