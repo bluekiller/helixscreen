@@ -2718,8 +2718,9 @@ void AmsBackendAfc::parse_afc_stepper(int slot_index, const std::string& lane_na
         auto fw_it = lane_firmware_spool_id_.find(lane_name);
         const int firmware_id = fw_it != lane_firmware_spool_id_.end() ? fw_it->second : 0;
         if (firmware_id <= 0 && status_at_frame_start == SlotStatus::EMPTY) {
-            helix::ui::queue_update(
-                [slot_index] { helix::ui::offer_clear_after_unverified_insert(slot_index); });
+            helix::ui::queue_update("AmsBackendAfc::parse_afc_stepper", [slot_index] {
+                helix::ui::offer_clear_after_unverified_insert(slot_index);
+            });
         }
     }
 

@@ -150,7 +150,7 @@ void execute_macro_gcode(IMoonrakerAPI* api, const std::string& macro_name,
         [tag_copy, macro_copy, display_name]() {
             spdlog::info("{} {} executed successfully", tag_copy, macro_copy);
             std::string msg = display_name + " sent";
-            helix::ui::queue_update([msg]() {
+            helix::ui::queue_update("macro_executor::execute_macro_gcode", [msg]() {
                 ToastManager::instance().show(ToastSeverity::SUCCESS, msg.c_str(), 2000);
             });
         },
@@ -187,7 +187,7 @@ void execute_macro_gcode(IMoonrakerAPI* api, const std::string& macro_name,
             }
             spdlog::error("{} {} failed: {}", tag_copy, macro_copy, err.message);
             std::string msg = display_name + " failed";
-            helix::ui::queue_update([msg]() {
+            helix::ui::queue_update("macro_executor::execute_macro_gcode", [msg]() {
                 ToastManager::instance().show(ToastSeverity::ERROR, msg.c_str(), 4000);
             });
         },

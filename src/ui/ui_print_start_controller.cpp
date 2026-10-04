@@ -245,37 +245,43 @@ void PrintStartController::execute_print_start() {
                 // Construct full path for metadata lookup (e.g., usb/flowrate_0.gcode)
                 std::string full_path =
                     path.empty() ? filename_to_print : path + "/" + filename_to_print;
-                helix::ui::queue_update([full_path, thumbnail_path, on_started]() {
-                    // begin_preparing() already recorded this job's identity, but a
-                    // start that never opened a preparing window still needs it, and
-                    // re-stating it is idempotent.
-                    get_printer_state().set_print_identity_override(full_path);
+                helix::ui::queue_update(
+                    "PrintStartController::execute_print_start",
+                    [full_path, thumbnail_path, on_started]() {
+                        // begin_preparing() already recorded this job's identity, but a
+                        // start that never opened a preparing window still needs it, and
+                        // re-stating it is idempotent.
+                        get_printer_state().set_print_identity_override(full_path);
 
-                    // If we have a pre-extracted thumbnail (USB/embedded), set it directly
-                    // This bypasses Moonraker metadata lookup which doesn't have USB file info
-                    if (!thumbnail_path.empty()) {
-                        // Tag it with the same identity handed to
-                        // set_thumbnail_source() above: the manager cannot infer
-                        // it here, since Moonraker may not have reported the
-                        // print filename yet.
-                        helix::get_active_print_media_manager().set_thumbnail_path(full_path,
-                                                                                   thumbnail_path);
-                        spdlog::debug("[PrintStartController] Set extracted thumbnail path: {}",
-                                      thumbnail_path);
-                    }
+                        // If we have a pre-extracted thumbnail (USB/embedded), set it directly
+                        // This bypasses Moonraker metadata lookup which doesn't have USB file info
+                        if (!thumbnail_path.empty()) {
+                            // Tag it with the same identity handed to
+                            // set_thumbnail_source() above: the manager cannot infer
+                            // it here, since Moonraker may not have reported the
+                            // print filename yet.
+                            helix::get_active_print_media_manager().set_thumbnail_path(
+                                full_path, thumbnail_path);
+                            spdlog::debug("[PrintStartController] Set extracted thumbnail path: {}",
+                                          thumbnail_path);
+                        }
 
-                    spdlog::debug(
-                        "[PrintStartController] Print start confirmed, thumbnail source set: {}",
-                        full_path);
-                    if (on_started) {
-                        on_started();
-                    }
-                });
+                        spdlog::debug("[PrintStartController] Print start confirmed, thumbnail "
+                                      "source set: {}",
+                                      full_path);
+                        if (on_started) {
+                            on_started();
+                        }
+                    });
             },
             // Completion callback
             // NOTE: Called from background HTTP thread - must defer LVGL calls to main thread
             [update_button, show_detail, ps](bool success, const std::string& error) {
-                helix::ui::queue_update([success, error, update_button, show_detail, ps]() {
+                helix::ui::queue_update("PrintStartController::execute_print_start", [success,
+                                                                                      error,
+                                                                                      update_button,
+                                                                                      show_detail,
+                                                                                      ps]() {
                     if (success) {
                         // Deliberately does NOT end preparation: the RPC
                         // succeeding is when PRINT_START BEGINS. The printer's

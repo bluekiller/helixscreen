@@ -1546,7 +1546,7 @@ void AmsBackendAce::poll_status() {
                     emit_event(EVENT_ERROR,
                                "ACE detected but Moonraker bridge not found. "
                                "Install the ace_status.py component for full ACE support.");
-                    helix::ui::queue_update([]() {
+                    helix::ui::queue_update("AmsBackendAce::poll_status", []() {
                         ToastManager::instance().show(
                             ToastSeverity::WARNING,
                             lv_tr("ACE Moonraker bridge not found. Install ace_status.py "
@@ -1971,8 +1971,9 @@ void AmsBackendAce::judge_insert_locked(SlotInfo& slot, int slot_index,
         spdlog::debug("[ACE] Slot {} inserted with no comparable tag reading; "
                       "offering the same-spool notice",
                       slot_index);
-        helix::ui::queue_update(
-            [slot_index]() { helix::ui::offer_clear_after_unverified_insert(slot_index); });
+        helix::ui::queue_update("AmsBackendAce::judge_insert_locked", [slot_index]() {
+            helix::ui::offer_clear_after_unverified_insert(slot_index);
+        });
         return;
     }
     if (verdict != helix::ams::InsertVerdict::DifferentSpool) {

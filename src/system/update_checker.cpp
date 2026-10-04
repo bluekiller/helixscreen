@@ -2538,7 +2538,8 @@ void UpdateChecker::check_for_updates(Callback callback) {
             // Release lock before dispatching (callback may call back into UpdateChecker)
             lock.unlock();
             // Dispatch to LVGL thread
-            helix::ui::queue_update([callback, status, cached]() { callback(status, cached); });
+            helix::ui::queue_update("UpdateChecker::check_for_updates",
+                                    [callback, status, cached]() { callback(status, cached); });
         }
         return;
     }
@@ -2611,7 +2612,8 @@ void UpdateChecker::check_for_updates(Callback callback) {
             });
         }
         if (cb_to_fire) {
-            helix::ui::queue_update([cb_to_fire]() { cb_to_fire(Status::Error, std::nullopt); });
+            helix::ui::queue_update("UpdateChecker::check_for_updates",
+                                    [cb_to_fire]() { cb_to_fire(Status::Error, std::nullopt); });
         }
     }
 }
@@ -2909,7 +2911,8 @@ void handle_update_response(const json& msg) {
     }
     // Defer to main thread — _exit(0) from a WebSocket callback
     // would skip flush and leave the display frozen.
-    helix::ui::queue_update([]() { UpdateChecker::handle_external_update_complete(); });
+    helix::ui::queue_update("update_checker::handle_update_response",
+                            []() { UpdateChecker::handle_external_update_complete(); });
 }
 } // namespace
 

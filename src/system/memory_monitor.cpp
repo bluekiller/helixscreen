@@ -534,8 +534,8 @@ void MemoryMonitor::fire_warning(MemoryPressureLevel level, const std::string& r
 #ifdef __linux__
         const size_t before_rss_kb = before_stats.vm_rss_kb;
         const size_t fired = responders_fired;
-        helix::ui::queue_update([before_rss_kb, fired]() {
-            helix::ui::queue_update([before_rss_kb, fired]() {
+        helix::ui::queue_update("MemoryMonitor::fire_warning", [before_rss_kb, fired]() {
+            helix::ui::queue_update("MemoryMonitor::fire_warning", [before_rss_kb, fired]() {
                 MemoryStats after = MemoryMonitor::get_current_stats();
                 int64_t delta_kb =
                     static_cast<int64_t>(after.vm_rss_kb) - static_cast<int64_t>(before_rss_kb);

@@ -115,7 +115,7 @@ void WizardInputShaperStep::init_subjects() {
 // keys fall back to the key itself, so plain untranslated strings pass through
 // unchanged.
 static void safe_update_status(helix::LifetimeToken token, const std::string& msg_key) {
-    helix::ui::queue_update([token, msg_key]() {
+    helix::ui::queue_update("ui_wizard_input_shaper::safe_update_status", [token, msg_key]() {
         if (token.expired()) {
             return; // Step was cleaned up
         }
@@ -130,24 +130,25 @@ static void safe_update_status(helix::LifetimeToken token, const std::string& ms
 // treatment (spinner + "Analyzing data... Ns" elapsed label). Queued for the
 // same threading reason as safe_update_status.
 static void safe_set_analysis_phase(helix::LifetimeToken token, bool analyzing) {
-    helix::ui::queue_update([token, analyzing]() {
-        if (token.expired()) {
-            return;
-        }
-        WizardInputShaperStep* step = get_wizard_input_shaper_step();
-        if (step) {
-            lv_subject_set_int(step->get_indeterminate_subject(), analyzing ? 1 : 0);
-            if (analyzing) {
-                step->begin_analysis_display();
-            } else {
-                step->cancel_analysis_display();
+    helix::ui::queue_update(
+        "ui_wizard_input_shaper::safe_set_analysis_phase", [token, analyzing]() {
+            if (token.expired()) {
+                return;
             }
-        }
-    });
+            WizardInputShaperStep* step = get_wizard_input_shaper_step();
+            if (step) {
+                lv_subject_set_int(step->get_indeterminate_subject(), analyzing ? 1 : 0);
+                if (analyzing) {
+                    step->begin_analysis_display();
+                } else {
+                    step->cancel_analysis_display();
+                }
+            }
+        });
 }
 
 static void safe_update_progress(helix::LifetimeToken token, int progress) {
-    helix::ui::queue_update([token, progress]() {
+    helix::ui::queue_update("ui_wizard_input_shaper::safe_update_progress", [token, progress]() {
         if (token.expired()) {
             return; // Step was cleaned up
         }
@@ -159,7 +160,7 @@ static void safe_update_progress(helix::LifetimeToken token, int progress) {
 }
 
 static void safe_set_complete(helix::LifetimeToken token) {
-    helix::ui::queue_update([token]() {
+    helix::ui::queue_update("ui_wizard_input_shaper::safe_set_complete", [token]() {
         if (token.expired()) {
             return; // Step was cleaned up
         }
@@ -182,7 +183,7 @@ static void safe_set_complete(helix::LifetimeToken token) {
 }
 
 static void safe_handle_error(helix::LifetimeToken token) {
-    helix::ui::queue_update([token]() {
+    helix::ui::queue_update("ui_wizard_input_shaper::safe_handle_error", [token]() {
         if (token.expired()) {
             return;
         }

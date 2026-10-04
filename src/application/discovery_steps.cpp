@@ -236,7 +236,7 @@ void safety_limits_step(DiscoveryContext& ctx) {
             // A copy: the panel reads it later, on the main thread.
             const SafetyLimits limits = api_ptr->get_safety_limits();
 
-            ui::queue_update([limits]() {
+            ui::queue_update("discovery_steps::safety_limits_step", [limits]() {
                 get_global_filament_panel().set_limits(limits);
                 spdlog::debug("[Application] Safety limits propagated to panels");
             });
@@ -244,7 +244,7 @@ void safety_limits_step(DiscoveryContext& ctx) {
             // Apply archetype-based thermal rate defaults using build volume
             // Must marshal to main thread — runs in JSONRPC response callback
             float bed_x_max = api_ptr->hardware().build_volume().x_max;
-            ui::queue_update([bed_x_max]() {
+            ui::queue_update("discovery_steps::safety_limits_step", [bed_x_max]() {
                 ThermalRateManager::instance().apply_archetype_defaults(
                     bed_x_max, get_printer_state().get_printer_type());
             });
@@ -299,7 +299,7 @@ void auto_update_check_step(DiscoveryContext&) {
 void manual_probe_autoopen_step(DiscoveryContext& ctx) {
     IMoonrakerAPI* api = &ctx.api;
     lv_obj_t* screen = ctx.screen;
-    ui::queue_update([api, screen]() {
+    ui::queue_update("discovery_steps::manual_probe_autoopen_step", [api, screen]() {
         auto& ps = get_printer_state();
         int probe_active = lv_subject_get_int(ps.get_manual_probe_active_subject());
         spdlog::info("[Application] Checking manual_probe at startup: is_active={}", probe_active);

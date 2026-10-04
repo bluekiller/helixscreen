@@ -1354,7 +1354,7 @@ class ConfirmationModal : public Modal {
             } else {
                 // Untokened callers keep the older contract: the capture
                 // simply has to outlive the dialog.
-                helix::ui::queue_update(std::move(on_dismiss_));
+                helix::ui::queue_update("ConfirmationModal::on_dismiss", std::move(on_dismiss_));
             }
         }
         // No self-delete: the stack entry owns this instance and frees it when

@@ -462,7 +462,7 @@ class MdnsDiscovery::Impl {
         auto printers_copy = std::make_shared<std::vector<DiscoveredPrinter>>(printers_);
         auto callback_copy = callback_;
 
-        helix::ui::queue_update([printers_copy, callback_copy]() {
+        helix::ui::queue_update("MdnsDiscovery::dispatch_update", [printers_copy, callback_copy]() {
             if (callback_copy) {
                 callback_copy(*printers_copy);
             }

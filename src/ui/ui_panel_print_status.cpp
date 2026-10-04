@@ -205,7 +205,7 @@ PrintStatusPanel& get_global_print_status_panel() {
 // bails out if the overlay is currently visible. No-op when there's no
 // cached tree (e.g. print status was never opened this session).
 static void try_reclaim_cached_print_status() {
-    helix::ui::queue_update([]() {
+    helix::ui::queue_update("ui_panel_print_status::try_reclaim_cached_print_status", []() {
         if (!s_cached_panel) {
             return;
         }
@@ -1569,7 +1569,7 @@ void PrintStatusPanel::release_kept_tree_after_job() {
     // when it lands: the tree can be opened or a new print started in between.
     // Unlike that reclaim it honours the close-time decision, so a host with
     // memory to spare keeps the tree.
-    helix::ui::queue_update([]() {
+    helix::ui::queue_update("PrintStatusPanel::release_kept_tree_after_job", []() {
         if (!s_cached_panel || !g_print_status_panel) {
             return;
         }

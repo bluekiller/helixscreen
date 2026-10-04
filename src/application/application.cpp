@@ -959,7 +959,7 @@ int Application::run(int argc, char** argv) {
         helix::MemoryMonitor::instance().add_pressure_responder(
             [](helix::MemoryPressureLevel level) {
                 if (level >= helix::MemoryPressureLevel::critical) {
-                    helix::ui::queue_update([]() {
+                    helix::ui::queue_update("Application::run", []() {
                         spdlog::warn("[Application] Pressure response: dropping LVGL image cache");
                         crash_handler::breadcrumb::note("lvgl_imgcache", "drop");
                         lv_image_cache_drop(nullptr);
@@ -977,7 +977,7 @@ int Application::run(int argc, char** argv) {
         helix::MemoryMonitor::instance().add_pressure_responder(
             [](helix::MemoryPressureLevel level) {
                 if (level >= helix::MemoryPressureLevel::critical) {
-                    helix::ui::queue_update([]() {
+                    helix::ui::queue_update("Application::run", []() {
                         crash_handler::breadcrumb::note("gcode_viewer", "pressure_clear");
                         ui_gcode_viewer_clear_all_active();
                     });
@@ -2374,15 +2374,16 @@ void Application::setup_discovery_callbacks() {
         // Use std::move on the main thread to avoid iterating hash table nodes
         // during copy-assign, which is vulnerable to heap corruption (#789).
         auto snapshot = std::make_shared<helix::PrinterDiscovery>(hardware);
-        helix::ui::queue_update([api, client, app, snapshot]() {
-            if (app->m_shutdown_complete)
-                return;
-            // A new discovery cycle is starting — re-arm the once-per-connection
-            // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
-            app->m_prompter.begin_discovery_cycle();
-            api->hardware() = std::move(*snapshot);
-            helix::init_subsystems_from_hardware(api->hardware(), api, client);
-        });
+        helix::ui::queue_update(
+            "Application::setup_discovery_callbacks", [api, client, app, snapshot]() {
+                if (app->m_shutdown_complete)
+                    return;
+                // A new discovery cycle is starting — re-arm the once-per-connection
+                // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
+                app->m_prompter.begin_discovery_cycle();
+                api->hardware() = std::move(*snapshot);
+                helix::init_subsystems_from_hardware(api->hardware(), api, client);
+            });
     });
 
     client->set_on_discovery_complete([api, client, app](const helix::PrinterDiscovery& hardware,
@@ -2618,7 +2619,7 @@ void Application::init_action_prompt() {
     // Wire on_notify callback for standalone notifications (action:notify)
     m_action_prompt_manager->set_on_notify([](const std::string& message) {
         spdlog::info("[ActionPrompt] Notification: {}", message);
-        helix::ui::queue_update([message]() {
+        helix::ui::queue_update("Application::init_action_prompt", [message]() {
             ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
         });
     });
