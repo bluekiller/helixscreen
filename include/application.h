@@ -7,6 +7,7 @@
 
 #include "async_lifetime_guard.h"
 #include "cli_args.h"
+#include "gcode_response_routing.h"
 #include "hardware_setup_prompter.h"
 #include "invalidation_suppression.h"
 #include "lvgl/lvgl.h"
@@ -34,17 +35,8 @@ struct SyncResult;
 } // namespace helix::plugin
 #endif
 namespace helix {
-class ActionPromptManager;
-class AmsErrorBridge;
-class GcodeErrorRouter;
-class GcodeNarrationRouter;
-class LanClientAuthRouter;
 class PrinterDiscovery;
 } // namespace helix
-namespace helix::ui {
-class ActionPromptModal;
-class RecoveryModalPresenter;
-} // namespace helix::ui
 class DisplayManager;
 class SubjectInitializer;
 class MoonrakerManager;
@@ -162,7 +154,6 @@ class Application {
     void setup_discovery_callbacks();
     lv_obj_t* create_overlay_panel(lv_obj_t* screen, const char* component_name,
                                    const char* display_name);
-    void init_action_prompt();
     void check_wifi_availability();
     void restore_flush_callback();
 
@@ -202,37 +193,8 @@ class Application {
     std::set<std::string> m_known_plugin_ids;
 #endif
 
-    // Action prompt system (Klipper action:prompt protocol)
-    std::unique_ptr<helix::ActionPromptManager> m_action_prompt_manager;
-    std::unique_ptr<helix::ui::ActionPromptModal> m_action_prompt_modal;
-
-    // Source-agnostic modal presenter for CRITICAL recovery errors. Owned here
-    // so Application controls its lifetime independently of GcodeErrorRouter.
-    // Declared BEFORE m_gcode_error_router so it destructs AFTER the router
-    // (Application teardown resets the router first, then the presenter).
-    std::unique_ptr<helix::ui::RecoveryModalPresenter> m_recovery_presenter;
-
-    // Surfaces Klipper `!!` / `Error:` lines as modals/toasts and replays
-    // the most recent error from gcode_store on (re)connect. Owns the
-    // notify_gcode_response and connected-observer registrations.
-    std::unique_ptr<helix::GcodeErrorRouter> m_gcode_error_router;
-
-    // Routes `//` toolchange narration lines to the active AMS backend's step
-    // model, updating the toolchange_step subject. Sibling of the error router;
-    // owns a SEPARATE notify_gcode_response handler key. Does NOT surface errors.
-    std::unique_ptr<helix::GcodeNarrationRouter> m_gcode_narration_router;
-
-    // Answers the firmware's LAN pairing prompt with the touchscreen, on
-    // printers whose firmware brokers pairing that way (Snapmaker U1 and
-    // siblings). Owns the authorization-notification registrations, so like
-    // its sibling routers it must be reset before the MoonrakerClient.
-    std::unique_ptr<helix::LanClientAuthRouter> m_lan_client_auth_router;
-
-    // Observes AmsState's action subject and routes AmsAction::ERROR edges to
-    // m_recovery_presenter. Holds a reference INTO the presenter, so the
-    // presenter must outlive it — declared after m_recovery_presenter (destructs
-    // first) and reset before it at both teardown sites.
-    std::unique_ptr<helix::AmsErrorBridge> m_ams_error_bridge;
+    /// Action prompts, the error / narration / LAN-pairing routers and layer tracking.
+    helix::GcodeResponseRouting m_routing;
 
     // Configuration
     helix::Config* m_config = nullptr; // Singleton, not owned

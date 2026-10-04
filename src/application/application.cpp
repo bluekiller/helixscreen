@@ -31,9 +31,7 @@
 #include "display_manager.h"
 #include "env_refusal_notice.h"
 #include "environment_config.h"
-#include "gcode_error_router.h"
-#include "gcode_narration_router.h"
-#include "gcode_response_lines.h"
+#include "gcode_response_routing.h"
 #include "hardware_fingerprint.h"
 #include "hardware_role_registry.h"
 #include "hardware_validator.h"
@@ -2534,8 +2532,12 @@ bool Application::connect_moonraker() {
     // Initialize print start collector (monitors PRINT_START macro progress)
     m_moonraker->init_print_start_collector();
 
-    // Initialize action prompt system (Klipper action:prompt protocol)
-    init_action_prompt();
+    // G-code response routing: action prompts, error and narration routers, layer tracking
+    if (m_moonraker->client()) {
+        m_routing.attach(m_moonraker->client(), m_moonraker->api(), m_async_lifetime);
+    } else {
+        spdlog::warn("[Application] Cannot init G-code response routing - no client");
+    }
 
     // Start telemetry auto-send timer (periodic try_send)
     TelemetryManager::instance().start_auto_send();
@@ -2552,155 +2554,6 @@ lv_obj_t* Application::create_overlay_panel(lv_obj_t* screen, const char* compon
                       component_name);
     }
     return panel;
-}
-
-void Application::init_action_prompt() {
-    IMoonrakerClient* client = m_moonraker->client();
-    IMoonrakerAPI* api = m_moonraker->api();
-
-    if (!client) {
-        spdlog::warn("[Application] Cannot init action prompt - no client");
-        return;
-    }
-
-    // Create ActionPromptManager and register global instance for cross-TU access
-    m_action_prompt_manager = std::make_unique<helix::ActionPromptManager>();
-    helix::ActionPromptManager::set_instance(m_action_prompt_manager.get());
-
-    // Create ActionPromptModal
-    m_action_prompt_modal = std::make_unique<helix::ui::ActionPromptModal>();
-
-    // Set up gcode callback to send button commands via API
-    if (api) {
-        m_action_prompt_modal->set_gcode_callback([api](const std::string& gcode) {
-            spdlog::info("[ActionPrompt] Sending gcode: {}", gcode);
-            // Action-prompt buttons run firmware macros (IFS load/unload, color
-            // changes, tool changes) that routinely exceed the 60s default
-            // request timeout — heat + cut + multi-stage feed/retract/purge can
-            // take minutes. Use the macro timeout so a slow-but-progressing
-            // operation isn't falsely reported as failed/stalled (raza616's IFS
-            // unload via the ZMOD COLOR macro timed out at exactly 60s).
-            api->execute_gcode(
-                gcode, []() { spdlog::debug("[ActionPrompt] Gcode executed successfully"); },
-                [gcode](const MoonrakerError& err) {
-                    spdlog::error("[ActionPrompt] Gcode execution failed: {}", err.message);
-                    // The modal already closed on the button press, and this
-                    // error_cb marks the call caller-handled so the `!!`
-                    // GcodeError toast is suppressed for the same failure.
-                    // Without this the user sees nothing at all.
-                    helix::ui::report_action_prompt_gcode_failure(err.user_message());
-                },
-                IMoonrakerAPI::MACRO_TIMEOUT_MS);
-        });
-    }
-
-    // Wire on_show callback to display modal (uses ui_queue_update() for thread safety)
-    m_action_prompt_manager->set_on_show([this](const helix::PromptData& data) {
-        spdlog::info("[ActionPrompt] Showing prompt: {}", data.title);
-        // WebSocket callbacks run on background thread - must use ui_queue_update
-        m_async_lifetime.defer("Application::action_prompt_show", [this, data]() {
-            lv_obj_t* screen = lv_screen_active();
-            if (m_action_prompt_modal && screen) {
-                m_action_prompt_modal->show_prompt(screen, data);
-            }
-        });
-    });
-
-    // Wire on_close callback to hide modal
-    m_action_prompt_manager->set_on_close([this]() {
-        spdlog::info("[ActionPrompt] Closing prompt");
-        m_async_lifetime.defer("Application::action_prompt_close", [this]() {
-            if (m_action_prompt_modal) {
-                m_action_prompt_modal->hide();
-            }
-        });
-    });
-
-    // Wire on_notify callback for standalone notifications (action:notify)
-    m_action_prompt_manager->set_on_notify([](const std::string& message) {
-        spdlog::info("[ActionPrompt] Notification: {}", message);
-        helix::ui::queue_update([message]() {
-            ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
-        });
-    });
-
-    // Allow mock AMS backends to inject action_prompt lines (e.g., calibration wizard)
-    auto* prompt_mgr = m_action_prompt_manager.get();
-    AmsState::instance().set_gcode_response_callback(
-        [prompt_mgr](const std::string& line) { prompt_mgr->process_line(line); });
-
-    // Register for notify_gcode_response messages from Moonraker
-    // All lines from G-code console output come through this notification
-    client->register_method_callback(
-        "notify_gcode_response", "action_prompt_manager", [this](const nlohmann::json& msg) {
-            helix::for_each_gcode_response_line(msg, [this](const std::string& line) {
-                m_action_prompt_manager->process_line(line);
-            });
-        });
-
-    // Recovery modal presenter: source-agnostic owner of the CRITICAL recovery
-    // modal (AFC jam, CFS key840, etc.). Created before GcodeErrorRouter so the
-    // presenter outlives the router if both are reset in the wrong order.
-    // Not re-created on printer switch — the modal persists across reconnects.
-    if (!m_recovery_presenter) {
-        m_recovery_presenter = std::make_unique<helix::ui::RecoveryModalPresenter>(api);
-    }
-
-    // Klipper `!!` / `Error:` lines flow through GcodeErrorRouter, which
-    // also replays the most recent gcode_store error when the WS (re)connects
-    // (catches errors that fired while HelixScreen was offline). Lives as
-    // a member so its dtor unregisters callbacks before MoonrakerClient dies.
-    m_gcode_error_router =
-        std::make_unique<helix::GcodeErrorRouter>(api, client, *m_recovery_presenter);
-
-    // Narration router: maps `//` toolchange narration to the active AMS
-    // backend's step model and drives the toolchange_step subject. Separate
-    // handler key from the error router; ignores `!!` / `Error:` lines.
-    m_gcode_narration_router = std::make_unique<helix::GcodeNarrationRouter>(api, client);
-
-    // Firmware-brokered LAN pairing: on machines whose firmware asks the
-    // printer's own screen to approve a slicer or phone app before letting it
-    // in, HelixScreen is now that screen. Without this the request is
-    // broadcast to nobody and pairing hangs. Inert on firmwares that never
-    // send one — the notification is its own capability probe.
-    m_lan_client_auth_router = std::make_unique<helix::LanClientAuthRouter>(client);
-
-    // AMS error bridge: observes AmsState's action subject and surfaces
-    // AmsAction::ERROR from STATUS-driven backends (IFS, QIDI, etc.) via the
-    // recovery modal. Complements GcodeErrorRouter which handles `!!` lines.
-    m_ams_error_bridge = std::make_unique<helix::AmsErrorBridge>(*m_recovery_presenter);
-    m_ams_error_bridge->start();
-
-    // Register layer tracking fallback via gcode responses.
-    // Some slicers don't emit SET_PRINT_STATS_INFO, so Moonraker's print_stats.info
-    // never updates current_layer. This parses gcode responses as a fallback.
-    client->register_method_callback(
-        "notify_gcode_response", "layer_tracker", [](const nlohmann::json& msg) {
-            // Only track layers while printing or paused
-            // RAW_PRINT_STATE_OK: layer tracking. There are no layers during a
-            // preparing window, and admitting one would derive a layer number
-            // from the pre-print block's own Z moves.
-            auto job_state = get_printer_state().get_print_job_state();
-            if (job_state != PrintJobState::PRINTING && job_state != PrintJobState::PAUSED) {
-                return;
-            }
-
-            helix::for_each_gcode_response_line(msg, [](const std::string& line) {
-                const auto parsed = helix::parse_layer_line(line);
-                if (parsed.current >= 0) {
-                    spdlog::debug("[LayerTracker] Layer {} from gcode response: {}", parsed.current,
-                                  line);
-                    get_printer_state().set_print_layer_current(parsed.current);
-                }
-                if (parsed.total >= 0) {
-                    spdlog::debug("[LayerTracker] Total layers {} from gcode response",
-                                  parsed.total);
-                    get_printer_state().set_print_layer_total(parsed.total);
-                }
-            });
-        });
-
-    spdlog::debug("[Application] Action prompt system initialized");
 }
 
 void Application::restore_flush_callback() {
@@ -3490,7 +3343,6 @@ void Application::teardown_printer_scope(TeardownScope scope) {
         UpdateChecker::instance().detach(*m_moonraker->client());
         helix::settings::get_about_settings_overlay().detach_print_hours(*m_moonraker->client());
         helix::spoolman_sync::detach(*m_moonraker->client());
-        m_moonraker->client()->unregister_method_callback("notify_gcode_response", "layer_tracker");
     }
 
     // Unsubscribe power device and sensor state
@@ -3499,16 +3351,9 @@ void Application::teardown_printer_scope(TeardownScope scope) {
         helix::SensorState::instance().unsubscribe(*m_moonraker->api());
     }
 
-    // Unregister the action prompt callback before moonraker is destroyed
-    if (m_moonraker && m_moonraker->client() && m_action_prompt_manager) {
-        m_moonraker->client()->unregister_method_callback("notify_gcode_response",
-                                                          "action_prompt_manager");
-    }
-    // AmsState outlives Application: its mock gcode injection callback would dangle.
-    AmsState::instance().set_gcode_response_callback(nullptr);
-    m_action_prompt_modal.reset();
-    helix::ActionPromptManager::set_instance(nullptr);
-    m_action_prompt_manager.reset();
+    // Unregister the response handlers and drop the prompt system before moonraker is
+    // destroyed.
+    m_routing.detach_handlers(m_moonraker ? m_moonraker->client() : nullptr);
 
     // Stop AMS backend subscriptions BEFORE destroying MoonrakerClient: backends hold
     // SubscriptionGuards with raw client pointers and must unsubscribe while the client's
@@ -3600,11 +3445,7 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     // replay callbacks, both of which touch the client. Reset the router BEFORE the
     // presenter (the presenter must outlive it), and AmsErrorBridge, which also holds a
     // presenter reference, before that.
-    m_gcode_narration_router.reset();
-    m_lan_client_auth_router.reset();
-    m_gcode_error_router.reset();
-    m_ams_error_bridge.reset();
-    m_recovery_presenter.reset();
+    m_routing.release_routers();
 
     // Destroy MoonrakerManager (its ObserverGuards now release without touching freed
     // observer memory thanks to invalidate_all() above).

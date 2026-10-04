@@ -92,6 +92,7 @@ src/application/error_classify.cpp  # not in the v1 Core+AMS cut
 src/application/fault_surface_correlation.cpp  # not in the v1 Core+AMS cut
 src/application/gcode_error_router.cpp  # not in the v1 Core+AMS cut
 src/application/gcode_narration_router.cpp  # not in the v1 Core+AMS cut
+src/application/gcode_response_routing.cpp  # not in the v1 Core+AMS cut
 src/application/hardware_fingerprint.cpp  # not in the v1 Core+AMS cut
 src/application/hardware_setup_prompter.cpp  # not in the v1 Core+AMS cut
 src/application/lan_client_auth_router.cpp  # not in the v1 Core+AMS cut

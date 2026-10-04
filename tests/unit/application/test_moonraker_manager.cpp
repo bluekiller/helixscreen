@@ -672,8 +672,8 @@ std::set<MethodHandler> extract_method_callback_pairs(const std::string& body, b
 // Method callbacks registered by name inside application.cpp whose body reaches a panel, a
 // subject, or a manager-owned pointer that teardown destroys before it releases the
 // MoonrakerClient. The shared teardown_printer_scope() must drop these. Registration is not
-// confined to setup_discovery_callbacks - layer_tracker installs from init_action_prompt - so
-// the registration scan below covers the whole file.
+// confined to setup_discovery_callbacks - layer_tracker and action_prompt_manager install from
+// GcodeResponseRouting::attach - so the registration scan below covers both files.
 //
 // Subscriptions owned by a feature's attach()/detach() pair are not listed: their
 // registration lives in the feature, and tests/unit/test_discovery_attach_detach.cpp proves
@@ -682,6 +682,7 @@ std::set<MethodHandler> extract_method_callback_pairs(const std::string& body, b
 const std::vector<MethodHandler>& handlers_requiring_teardown() {
     static const std::vector<MethodHandler> handlers = {
         {"notify_gcode_response", "layer_tracker"},
+        {"notify_gcode_response", "action_prompt_manager"},
     };
     return handlers;
 }
@@ -763,10 +764,22 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
           std::string::npos);
     CHECK(shutdown.find("teardown_printer_scope(TeardownScope::ProcessExit)") != std::string::npos);
 
+    // The G-code response handlers register and unregister inside GcodeResponseRouting;
+    // the teardown must call both of its detach halves.
+    const std::string routing = read_file("src/application/gcode_response_routing.cpp");
+    REQUIRE_FALSE(routing.empty());
+    const std::string detach_handlers =
+        extract_method_body(routing, "GcodeResponseRouting", "detach_handlers");
+    REQUIRE_FALSE(detach_handlers.empty());
+    CHECK(scope.find("m_routing.detach_handlers(") != std::string::npos);
+    CHECK(scope.find("m_routing.release_routers()") != std::string::npos);
+
     // Registration sites are spread across setup_discovery_callbacks and
-    // init_action_prompt, so scan the whole translation unit rather than one body.
-    const auto registered = extract_method_callback_pairs(impl, /*unregister=*/false);
-    const auto dropped = extract_method_callback_pairs(scope, /*unregister=*/true);
+    // GcodeResponseRouting::attach, so scan whole translation units rather than one body.
+    auto registered = extract_method_callback_pairs(impl, /*unregister=*/false);
+    registered.merge(extract_method_callback_pairs(routing, /*unregister=*/false));
+    auto dropped = extract_method_callback_pairs(scope, /*unregister=*/true);
+    dropped.merge(extract_method_callback_pairs(detach_handlers, /*unregister=*/true));
 
     // Guard the parser: a regex matching nothing would satisfy every check below.
     REQUIRE(registered.size() >= handlers_requiring_teardown().size());
@@ -781,8 +794,9 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
     for (const auto& handler : handlers_requiring_teardown()) {
         DYNAMIC_SECTION(handler.first << " / " << handler.second) {
             {
-                INFO("Not registered anywhere in application.cpp. The table in "
-                     "handlers_requiring_teardown() is stale.");
+                INFO(
+                    "Not registered in application.cpp or gcode_response_routing.cpp. The table in "
+                    "handlers_requiring_teardown() is stale.");
                 CHECK(registered.count(handler) == 1);
             }
             {

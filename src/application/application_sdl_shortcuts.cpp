@@ -111,18 +111,22 @@ void Application::handle_keyboard_shortcuts() {
             SDL_SCANCODE_A,
             [this]() {
                 spdlog::info("[Application] A key - triggering test action prompt");
-                m_action_prompt_manager->trigger_test_prompt();
+                m_routing.action_prompt_manager()->trigger_test_prompt();
             },
-            [this]() { return get_runtime_config()->is_test_mode() && m_action_prompt_manager; });
+            [this]() {
+                return get_runtime_config()->is_test_mode() && m_routing.action_prompt_manager();
+            });
 
         // N key - test action notification (test mode only)
         shortcuts.register_key_if(
             SDL_SCANCODE_N,
             [this]() {
                 spdlog::info("[Application] N key - triggering test action notification");
-                m_action_prompt_manager->trigger_test_notify();
+                m_routing.action_prompt_manager()->trigger_test_notify();
             },
-            [this]() { return get_runtime_config()->is_test_mode() && m_action_prompt_manager; });
+            [this]() {
+                return get_runtime_config()->is_test_mode() && m_routing.action_prompt_manager();
+            });
 
         // Android back button — pop navigation stack (overlay/modal/panel)
         // At root panel, do nothing (Android convention: don't exit on back)
