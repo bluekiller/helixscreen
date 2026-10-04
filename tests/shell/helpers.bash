@@ -19,10 +19,11 @@ fi
 # zeus containers) would otherwise write into the real /etc/systemd/system.
 export HELIX_SYSTEMD_UNIT_DIR="$BATS_TEST_TMPDIR/etc/systemd/system"
 
-# Where the installer reads process ancestry. Empty by default, so the desktop
-# session a developer runs bats from never reads as the installer's own.
+# Where the installer reads process ancestry. Absent until mock_proc fills it,
+# so the desktop session a developer runs bats from never reads as the
+# installer's own. Source time runs builtins only: some tests source this
+# file under a PATH with no coreutils.
 export HELIX_PROC_ROOT="$BATS_TEST_TMPDIR/proc"
-mkdir -p "$HELIX_PROC_ROOT"
 
 # Fake one process under HELIX_PROC_ROOT. The comm carries a space and a ')'
 # because the real field can, and the parser must split after the LAST ')'.
