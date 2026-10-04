@@ -13,10 +13,12 @@
 <component>
   <styles>
     <!-- Pressed feedback for clickable cards/rows: a primary-color wash while
-         the widget is pressed. Radius included so a use site needs exactly one
-         child element. A pressed-state style outranks a default-state one, so
-         while pressed this radius wins over an inline style_radius too. -->
-    <style name="press_wash" bg_color="#primary" bg_opa="30%" radius="#border_radius"/>
+         the widget is pressed. It sets no radius, so the wash takes the
+         element's own shape: a pill chip washes as a pill, a card with
+         style_radius="#border_radius" as a rounded card. A site with no radius
+         of its own gets the LVGL default, which ignores the theme's corner
+         setting, so give it one. -->
+    <style name="press_wash" bg_color="#primary" bg_opa="30%"/>
     <!-- The translucent metadata strip that rides at the bottom of a g-code
          preview card. Print status stacks it as a flex sibling under the art;
          the file detail view floats it over the art with align="bottom_mid".

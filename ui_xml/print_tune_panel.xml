@@ -27,7 +27,8 @@
           <!-- Tap swaps which units lead, here and on Print Status -->
           <lv_obj name="speed_readout"
                   width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="row"
-                  style_flex_cross_place="center" style_pad_gap="#space_sm" clickable="true">
+                  style_flex_cross_place="center" style_pad_gap="#space_sm" clickable="true"
+                  style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_tune_units_toggle"/>
             <text_small text="Print Speed" translation_tag="Print Speed" clickable="false" event_bubble="true"/>
@@ -60,7 +61,8 @@
                 overflow_visible="true" scrollable="false">
           <lv_obj name="flow_readout"
                   width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="row"
-                  style_flex_cross_place="center" style_pad_gap="#space_sm" clickable="true">
+                  style_flex_cross_place="center" style_pad_gap="#space_sm" clickable="true"
+                  style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_tune_units_toggle"/>
             <text_small text="Flow Rate" translation_tag="Flow Rate" clickable="false" event_bubble="true"/>

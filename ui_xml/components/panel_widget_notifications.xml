@@ -25,7 +25,7 @@
     <lv_obj name="status_notification_container" width="content" height="content" style_pad_all="0">
       <icon name="status_notification_icon"
             src="notifications" size="#icon_size" variant="secondary" align="center" clickable="true"
-            click_focusable="false">
+            click_focusable="false" style_radius="#border_radius">
         <style name="styles.press_wash" selector="pressed"/>
         <bind_tile_rung ladder="icon" subject="$tile_icon_subject"/>
 
